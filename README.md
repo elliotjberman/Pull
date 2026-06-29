@@ -1,14 +1,12 @@
 # DrivenByMoss
-Bitwig Studio extensions to support several controllers
+Bitwig Studio extension for Ableton Push 2.
 
 ### Building and Installing the extension
 
-Users should download and install the version from the
-[main site](http://www.mossgrabers.de/Software/Bitwig/Bitwig.html).
-These directions are for developers to test changes prior to release.
+This fork is being reduced to a Push 2-only controller extension.
 
 1. Install Maven and dependences, either [from here](https://maven.apache.org/install.html)
 or if on Linux, using the distro package manager, e.g. `yum install maven` or
 `apt-get install maven`.
 2. Run `mvn install` in this repo's root.
-3. Follow [installation instructions] in the included manual for further steps.
+3. Copy the built `.bwextension` into Bitwig Studio's extensions folder.
