@@ -191,8 +191,6 @@ public enum ContinuousID
 
     /** Select a mode. */
     MODE_SELECTION,
-    /** Select a view. */
-    VIEW_SELECTION,
 
     /** A touch-strip fader. */
     TOUCHSTRIP,

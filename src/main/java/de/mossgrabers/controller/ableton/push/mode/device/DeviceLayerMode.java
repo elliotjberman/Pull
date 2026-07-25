@@ -9,17 +9,13 @@ import java.util.List;
 import java.util.Optional;
 
 import de.mossgrabers.controller.ableton.push.PushConfiguration;
-import de.mossgrabers.controller.ableton.push.PushConfiguration.LockState;
-import de.mossgrabers.controller.ableton.push.controller.Push1Display;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.mode.BaseMode;
 import de.mossgrabers.controller.ableton.push.parameterprovider.PushSelectedLayerOrDrumPadParameterProvider;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.color.ColorEx;
-import de.mossgrabers.framework.controller.display.Format;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.display.ITextDisplay;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.IChannel;
@@ -109,7 +105,7 @@ public class DeviceLayerMode extends BaseMode<ILayer>
                     channel.resetPan ();
                     break;
                 default:
-                    if (!this.isPushModern || index >= 4)
+                    if (index >= 4)
                         sendBank.getItem (this.getSendIndex (index)).resetValue ();
                     break;
             }
@@ -125,7 +121,7 @@ public class DeviceLayerMode extends BaseMode<ILayer>
                 channel.touchPan (isTouched);
                 break;
             default:
-                if (!this.isPushModern || index >= 4)
+                if (index >= 4)
                     sendBank.getItem (this.getSendIndex (index)).touchValue (isTouched);
                 break;
         }
@@ -143,7 +139,7 @@ public class DeviceLayerMode extends BaseMode<ILayer>
 
     private int getSendIndex (final int index)
     {
-        return this.isPushModern ? index - 4 : index - 2;
+        return index - 4;
     }
 
 
@@ -306,44 +302,6 @@ public class DeviceLayerMode extends BaseMode<ILayer>
         final Modes si = Modes.get (Modes.DEVICE_LAYER_SEND1, sendIndex);
         final ModeManager modeManager = this.surface.getModeManager ();
         this.setMode (modeManager.isActive (si) ? Modes.DEVICE_LAYER : si);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void updateDisplay1 (final ITextDisplay display)
-    {
-        if (!this.cursorDevice.doesExist ())
-        {
-            display.setBlock (1, 0, "           Select").setBlock (1, 1, "a device or press").setBlock (1, 2, "'Add Effect'...  ").allDone ();
-            return;
-        }
-
-        if (!this.cursorDevice.hasLayers ())
-            display.setBlock (1, 1, "    This device  ").setBlock (1, 2, "does not have layers.");
-        else if (!this.bank.hasExistingItems ())
-            display.setBlock (1, 1, "    Please create").setBlock (1, 2, this.cursorDevice.hasDrumPads () ? "a Drum Pad..." : "a Device Layer...");
-        else
-        {
-            final Optional<ILayer> layer = this.bank.getSelectedItem ();
-            if (layer.isPresent ())
-            {
-                final ILayer l = layer.get ();
-
-                display.setCell (0, 0, "Volume").setCell (1, 0, l.getVolumeStr (8)).setCell (2, 0, this.configuration.isEnableVUMeters () ? l.getVu () : l.getVolume (), Format.FORMAT_VALUE);
-                display.setCell (0, 1, "Pan").setCell (1, 1, l.getPanStr (8)).setCell (2, 1, l.getPan (), Format.FORMAT_PAN);
-
-                final ISendBank sendBank = l.getSendBank ();
-                for (int i = 0; i < 6; i++)
-                {
-                    final int pos = 2 + i;
-                    final ISend send = sendBank.getItem (i);
-                    display.setCell (0, pos, send.getName ()).setCell (1, pos, send.getDisplayedValue (8)).setCell (2, pos, send.getValue (), Format.FORMAT_VALUE);
-                }
-            }
-        }
-
-        this.drawRow4 (display);
     }
 
 
@@ -546,8 +504,8 @@ public class DeviceLayerMode extends BaseMode<ILayer>
             if (dl.doesExist () && dl.isActivated ())
             {
                 if (dl.isSelected ())
-                    return this.isPushModern ? PushColorManager.PUSH2_COLOR_ORANGE_HI : PushColorManager.PUSH1_COLOR_ORANGE_HI;
-                return this.isPushModern ? PushColorManager.PUSH2_COLOR_YELLOW_LO : PushColorManager.PUSH1_COLOR_YELLOW_LO;
+                    return PushColorManager.PUSH2_COLOR_ORANGE_HI;
+                return PushColorManager.PUSH2_COLOR_YELLOW_LO;
             }
             return super.getButtonColor (buttonID);
         }
@@ -556,68 +514,37 @@ public class DeviceLayerMode extends BaseMode<ILayer>
         if (index >= 0)
         {
             final IChannel layer = this.bank.getItem (offset + index);
-            if (this.isPushModern)
+            final boolean isMuteState = this.configuration.isMuteState (this.surface.isLongPressed (ButtonID.MUTE));
+            if (isMuteState || this.configuration.isSoloState (this.surface.isLongPressed (ButtonID.SOLO)))
             {
-                final boolean isMuteState = this.configuration.isMuteState (this.surface.isLongPressed (ButtonID.MUTE));
-                if (isMuteState || this.configuration.isSoloState (this.surface.isLongPressed (ButtonID.SOLO)))
+                if (layer.doesExist ())
                 {
-                    if (layer.doesExist ())
+                    if (isMuteState)
                     {
-                        if (isMuteState)
-                        {
-                            if (layer.isMute ())
-                                return PushColorManager.PUSH2_COLOR2_AMBER_LO;
-                        }
-                        else if (layer.isSolo ())
-                            return PushColorManager.PUSH2_COLOR2_YELLOW_HI;
+                        if (layer.isMute ())
+                            return PushColorManager.PUSH2_COLOR2_AMBER_LO;
                     }
-                    return PushColorManager.PUSH2_COLOR_BLACK;
+                    else if (layer.isSolo ())
+                        return PushColorManager.PUSH2_COLOR2_YELLOW_HI;
                 }
-
-                final ModeManager modeManager = this.surface.getModeManager ();
-                switch (index)
-                {
-                    case 0:
-                        return modeManager.isActive (Modes.DEVICE_LAYER_VOLUME) ? PushColorManager.PUSH2_COLOR2_WHITE : PushColorManager.PUSH2_COLOR_BLACK;
-                    case 1:
-                        return modeManager.isActive (Modes.DEVICE_LAYER_PAN) ? PushColorManager.PUSH2_COLOR2_WHITE : PushColorManager.PUSH2_COLOR_BLACK;
-                    case 4, 5, 6, 7:
-                        return modeManager.isActive (Modes.get (Modes.DEVICE_LAYER_SEND1, index - 4)) ? PushColorManager.PUSH2_COLOR2_WHITE : PushColorManager.PUSH2_COLOR_BLACK;
-                    default:
-                        return PushColorManager.PUSH2_COLOR_BLACK;
-                }
+                return PushColorManager.PUSH2_COLOR_BLACK;
             }
 
-            if (!cd.hasLayers ())
-                return index == 7 ? PushColorManager.PUSH1_COLOR2_WHITE : super.getButtonColor (buttonID);
-
-            if (layer.doesExist ())
+            final ModeManager modeManager = this.surface.getModeManager ();
+            switch (index)
             {
-                if (this.configuration.getLockState () == LockState.MUTE)
-                    return layer.isMute () ? PushColorManager.PUSH1_COLOR_BLACK : PushColorManager.PUSH1_COLOR2_YELLOW_HI;
-                return layer.isSolo () ? PushColorManager.PUSH1_COLOR2_BLUE_HI : PushColorManager.PUSH1_COLOR2_GREY_LO;
+                case 0:
+                    return modeManager.isActive (Modes.DEVICE_LAYER_VOLUME) ? PushColorManager.PUSH2_COLOR2_WHITE : PushColorManager.PUSH2_COLOR_BLACK;
+                case 1:
+                    return modeManager.isActive (Modes.DEVICE_LAYER_PAN) ? PushColorManager.PUSH2_COLOR2_WHITE : PushColorManager.PUSH2_COLOR_BLACK;
+                case 4, 5, 6, 7:
+                    return modeManager.isActive (Modes.get (Modes.DEVICE_LAYER_SEND1, index - 4)) ? PushColorManager.PUSH2_COLOR2_WHITE : PushColorManager.PUSH2_COLOR_BLACK;
+                default:
+                    return PushColorManager.PUSH2_COLOR_BLACK;
             }
         }
 
         return super.getButtonColor (buttonID);
-    }
-
-
-    /**
-     * Draw the fourth row.
-     *
-     * @param display The display
-     */
-    protected void drawRow4 (final ITextDisplay display)
-    {
-        // Drum Pad Bank has size of 16, layers only 8
-        final int offset = this.getDrumPadIndex ();
-        for (int i = 0; i < 8; i++)
-        {
-            final IChannel layer = this.bank.getItem (offset + i);
-            final String n = StringUtils.shortenAndFixASCII (layer.getName (), layer.isSelected () ? 7 : 8);
-            display.setCell (3, i, layer.isSelected () ? Push1Display.SELECT_ARROW + n : n);
-        }
     }
 
 

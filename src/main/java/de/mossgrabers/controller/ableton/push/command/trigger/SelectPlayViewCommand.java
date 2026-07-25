@@ -8,20 +8,22 @@ import de.mossgrabers.controller.ableton.push.PushConfiguration;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.command.core.AbstractTriggerCommand;
 import de.mossgrabers.framework.daw.IModel;
-import de.mossgrabers.framework.featuregroup.ModeManager;
 import de.mossgrabers.framework.featuregroup.ViewManager;
-import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.framework.view.Views;
 
 
 /**
- * Command to display a selection for the play modes.
+ * Command to switch the pad grid to Note mode.
  *
  * @author Jürgen Moßgraber
  */
 public class SelectPlayViewCommand extends AbstractTriggerCommand<PushControlSurface, PushConfiguration>
 {
+    private boolean switchedView;
+    private boolean restoreOnRelease;
+
+
     /**
      * Constructor.
      *
@@ -38,20 +40,39 @@ public class SelectPlayViewCommand extends AbstractTriggerCommand<PushControlSur
     @Override
     public void execute (final ButtonEvent event, final int velocity)
     {
-        if (event != ButtonEvent.DOWN)
-            return;
-
         final ViewManager viewManager = this.surface.getViewManager ();
-        if (Views.isSessionView (viewManager.getActiveID ()))
+        if (event == ButtonEvent.LONG)
         {
-            this.surface.recallPreferredView (this.model.getCursorTrack ());
+            if (this.switchedView)
+                this.restoreOnRelease = true;
             return;
         }
 
-        final ModeManager modeManager = this.surface.getModeManager ();
-        if (modeManager.isActive (Modes.VIEW_SELECT))
-            modeManager.restore ();
-        else
-            modeManager.setTemporary (Modes.VIEW_SELECT);
+        if (event == ButtonEvent.UP)
+        {
+            if (this.switchedView && this.restoreOnRelease)
+                viewManager.restore ();
+            this.switchedView = false;
+            this.restoreOnRelease = false;
+            return;
+        }
+
+        if (event != ButtonEvent.DOWN)
+            return;
+
+        this.switchedView = false;
+        this.restoreOnRelease = false;
+        if (this.surface.isShiftPressed ())
+        {
+            viewManager.setActive (Views.DRUM_PAD);
+            return;
+        }
+
+        if (!Views.isSessionView (viewManager.getActiveID ()))
+            return;
+
+        final Views previousView = viewManager.getActiveID ();
+        this.surface.recallPreferredView (this.model.getCursorTrack ());
+        this.switchedView = viewManager.getActiveID () != previousView;
     }
 }

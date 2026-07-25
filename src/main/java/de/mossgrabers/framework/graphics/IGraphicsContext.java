@@ -178,6 +178,24 @@ public interface IGraphicsContext
 
 
     /**
+     * Draws text into a boundary with additional tracking and optional faux-bold rendering. The text
+     * is clipped on the right border of the bounds.
+     *
+     * @param text The text to draw
+     * @param x The x position of the boundary
+     * @param y The y position of the boundary
+     * @param width The width position of the boundary
+     * @param height The height position of the boundary
+     * @param alignment The alignment of the text: Label.LEFT or Label.CENTER
+     * @param color The color of the text
+     * @param fontSize The size of the font
+     * @param tracking The space between glyphs
+     * @param bold True to draw a heavier text stroke
+     */
+    void drawTextInBounds (String text, double x, double y, double width, double height, Align alignment, ColorEx color, double fontSize, double tracking, boolean bold);
+
+
+    /**
      * Draw an image.
      *
      * @param image The image to draw
@@ -208,6 +226,28 @@ public interface IGraphicsContext
      * @param lineColor The color of the line
      */
     void drawLine (double x1, double y1, double x2, double y2, ColorEx lineColor);
+
+
+    /**
+     * Draws text at a specific baseline.
+     *
+     * @param text The text to draw
+     * @param x The X position
+     * @param baselineY The text baseline Y position
+     * @param color The color of the text
+     * @param fontSize The size of the font
+     */
+    void drawTextAt (String text, double x, double baselineY, ColorEx color, double fontSize);
+
+
+    /**
+     * Gets the rendered text width for a font size.
+     *
+     * @param text The text to measure
+     * @param fontSize The size of the font
+     * @return The rendered text width
+     */
+    double getTextWidth (String text, double fontSize);
 
 
     /**

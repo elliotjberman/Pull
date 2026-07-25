@@ -4,11 +4,9 @@
 
 package de.mossgrabers.controller.ableton.push.mode;
 
-import de.mossgrabers.controller.ableton.push.controller.Push1Display;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.display.ITextDisplay;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.constants.AutomationMode;
 import de.mossgrabers.framework.daw.data.IItem;
@@ -38,17 +36,6 @@ public class AutomationSelectionMode extends BaseMode<IItem>
         super ("Automation", surface, model);
 
         this.automationWriteModes = this.model.getTransport ().getAutomationWriteModes ();
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void updateDisplay1 (final ITextDisplay display)
-    {
-        final AutomationMode writeMode = this.model.getTransport ().getAutomationWriteMode ();
-        display.setBlock (1, 0, "Automation Mode:");
-        for (int i = 0; i < this.automationWriteModes.length; i++)
-            display.setCell (3, i, (this.automationWriteModes[i] == writeMode ? Push1Display.SELECT_ARROW : "") + this.automationWriteModes[i].getLabel ());
     }
 
 

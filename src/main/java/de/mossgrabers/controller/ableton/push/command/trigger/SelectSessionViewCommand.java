@@ -8,9 +8,7 @@ import de.mossgrabers.controller.ableton.push.PushConfiguration;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.command.core.AbstractTriggerCommand;
 import de.mossgrabers.framework.daw.IModel;
-import de.mossgrabers.framework.featuregroup.ModeManager;
 import de.mossgrabers.framework.featuregroup.ViewManager;
-import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.framework.view.Views;
 
@@ -22,7 +20,8 @@ import de.mossgrabers.framework.view.Views;
  */
 public class SelectSessionViewCommand extends AbstractTriggerCommand<PushControlSurface, PushConfiguration>
 {
-    private boolean isTemporary;
+    private boolean switchedView;
+    private boolean restoreOnRelease;
 
 
     /**
@@ -42,7 +41,8 @@ public class SelectSessionViewCommand extends AbstractTriggerCommand<PushControl
      */
     public void setTemporary ()
     {
-        this.isTemporary = true;
+        if (this.switchedView)
+            this.restoreOnRelease = true;
     }
 
 
@@ -52,27 +52,31 @@ public class SelectSessionViewCommand extends AbstractTriggerCommand<PushControl
     {
         final ViewManager viewManager = this.surface.getViewManager ();
 
-        if (event == ButtonEvent.DOWN)
+        if (event == ButtonEvent.LONG)
         {
-            this.isTemporary = false;
-
-            // Switch to the preferred session view
-            final ModeManager modeManager = this.surface.getModeManager ();
-            if (Views.isSessionView (viewManager.getActiveID ()))
-            {
-                if (modeManager.isActive (Modes.SESSION_VIEW_SELECT))
-                    modeManager.restore ();
-                else
-                    modeManager.setTemporary (Modes.SESSION_VIEW_SELECT);
-                return;
-            }
-
-            final PushConfiguration configuration = this.surface.getConfiguration ();
-            viewManager.setActive (configuration.isScenesClipViewSelected () ? Views.SCENE_PLAY : Views.SESSION);
+            if (this.switchedView)
+                this.restoreOnRelease = true;
             return;
         }
 
-        if (event == ButtonEvent.UP && this.isTemporary)
-            viewManager.restore ();
+        if (event == ButtonEvent.UP)
+        {
+            if (this.switchedView && this.restoreOnRelease)
+                viewManager.restore ();
+            this.switchedView = false;
+            this.restoreOnRelease = false;
+            return;
+        }
+
+        if (event == ButtonEvent.DOWN)
+        {
+            this.switchedView = false;
+            this.restoreOnRelease = false;
+            if (Views.isSessionView (viewManager.getActiveID ()))
+                return;
+
+            viewManager.setActive (Views.SESSION);
+            this.switchedView = true;
+        }
     }
 }

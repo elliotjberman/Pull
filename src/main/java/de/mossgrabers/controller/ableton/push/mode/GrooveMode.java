@@ -4,12 +4,9 @@
 
 package de.mossgrabers.controller.ableton.push.mode;
 
-import de.mossgrabers.controller.ableton.push.controller.Push1Display;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.controller.ButtonID;
-import de.mossgrabers.framework.controller.display.Format;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.display.ITextDisplay;
 import de.mossgrabers.framework.daw.GrooveParameterID;
 import de.mossgrabers.framework.daw.IGroove;
 import de.mossgrabers.framework.daw.IModel;
@@ -128,43 +125,6 @@ public class GrooveMode extends BaseMode<IItem>
 
     /** {@inheritDoc} */
     @Override
-    public void updateDisplay1 (final ITextDisplay display)
-    {
-        display.setCell (0, 0, "Quantize");
-        display.setCell (0, 1, Push1Display.SELECT_ARROW + TAG_GROOVE);
-
-        final IGroove groove = this.model.getGroove ();
-        final IParameter enabledParameter = groove.getParameter (GrooveParameterID.ENABLED);
-        if (enabledParameter != null)
-            display.setCell (3, 0, enabledParameter.getValue () == 0 ? "  Off" : "Enabled");
-
-        display.setCell (2, 1, "Shuffle:");
-        this.displayParameter (display, GrooveParameterID.SHUFFLE_AMOUNT, 2);
-        this.displayParameter (display, GrooveParameterID.SHUFFLE_RATE, 3);
-
-        final boolean hasAccent = groove.getParameter (GrooveParameterID.ACCENT_AMOUNT) != EmptyParameter.INSTANCE;
-        display.setCell (2, 4, hasAccent ? " Accent:" : "");
-        this.displayParameter (display, GrooveParameterID.ACCENT_AMOUNT, 5);
-        this.displayParameter (display, GrooveParameterID.ACCENT_PHASE, 6);
-        this.displayParameter (display, GrooveParameterID.ACCENT_RATE, 7);
-    }
-
-
-    private void displayParameter (final ITextDisplay display, final GrooveParameterID paramID, final int index)
-    {
-        IParameter p = this.model.getGroove ().getParameter (paramID);
-        if (p == null)
-            p = EmptyParameter.INSTANCE;
-        if (!p.doesExist ())
-            return;
-        display.setCell (0, index, p.getName (8));
-        display.setCell (1, index, p.getDisplayedValue (8));
-        display.setCell (2, index, p.getValue (), Format.FORMAT_VALUE);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
     public void updateDisplay2 (final IGraphicDisplay display)
     {
         final IGroove groove = this.model.getGroove ();
@@ -196,7 +156,7 @@ public class GrooveMode extends BaseMode<IItem>
         IParameter p = this.model.getGroove ().getParameter (paramID);
         if (p == null)
             p = EmptyParameter.INSTANCE;
-        display.addParameterElement (" ", false, "", (ChannelType) null, null, false, p.getName (10), p.getValue (), p.getDisplayedValue (8), this.isKnobTouched (index), -1);
+        display.addParameterElement (" ", false, "", (ChannelType) null, null, false, p.getName (16), p.getValue (), p.getDisplayedValue (8), this.isKnobTouched (index), -1);
     }
 
 

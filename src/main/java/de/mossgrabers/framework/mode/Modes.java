@@ -130,28 +130,14 @@ public enum Modes
     FIXED,
     /** Edit ribbon parameters. */
     RIBBON,
-    /** Select a view for a track. */
-    VIEW_SELECT,
     /** Edit automation parameters. */
     AUTOMATION,
     /** Transport mode. */
     TRANSPORT,
-    /** Configuration mode. */
-    CONFIGURATION,
     /** Setup mode. */
     SETUP,
     /** Info mode. */
     INFO,
-    /** Project mode. */
-    PROJECT,
-    /** Audio configuration mode. */
-    AUDIO,
-    /** Select of session views. */
-    SESSION_VIEW_SELECT,
-    /** Session mode. */
-    SESSION,
-    /** Markers mode. */
-    MARKERS,
     /** Repeat note length mode. */
     REPEAT_NOTE,
     /** Execute different functions. */
@@ -242,9 +228,6 @@ public enum Modes
     public static final String              NAME_LAYER_SEND8        = "Layer Send 8";
     /** The name of the Automation mode. */
     public static final String              NAME_AUTOMATION         = "Automation";
-    /** The name of the Markers mode. */
-    public static final String              NAME_MARKERS            = "Markers";
-
     private static final Set<Modes>         TRACK_MODES             = EnumSet.range (Modes.TRACK, Modes.STOP_CLIP);
     private static final Set<Modes>         LAYER_MODES             = EnumSet.range (Modes.DEVICE_LAYER, Modes.DEVICE_LAYER_DETAILS);
     private static final Set<Modes>         SEND_MODES              = EnumSet.range (Modes.SEND1, Modes.SEND8);
@@ -285,7 +268,6 @@ public enum Modes
         MODE_NAMES.put (NAME_TRACK_PARAMETERS, TRACK_PARAMETERS);
         MODE_NAMES.put (NAME_EQUALIZER, EQ_DEVICE_PARAMS);
         MODE_NAMES.put (NAME_INSTRUMENT_PARAMS, INSTRUMENT_DEVICE_PARAMS);
-        MODE_NAMES.put (NAME_MARKERS, MARKERS);
     }
 
 

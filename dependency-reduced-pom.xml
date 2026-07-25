@@ -2,8 +2,8 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <groupId>de.mossgrabers</groupId>
-  <artifactId>DrivenByMoss</artifactId>
-  <name>DrivenByMoss</name>
+  <artifactId>Pull</artifactId>
+  <name>Pull</name>
   <version>26.6.2</version>
   <licenses>
     <license>
@@ -50,8 +50,7 @@
         </executions>
         <configuration>
           <fork>true</fork>
-          <source>21</source>
-          <target>21</target>
+          <release>21</release>
           <encoding>UTF-8</encoding>
         </configuration>
       </plugin>
@@ -76,6 +75,7 @@
               <goal>shade</goal>
             </goals>
             <configuration>
+              <outputFile>${bitwig.extension.directory}/Pull.bwextension</outputFile>
               <artifactSet>
                 <excludes>
                   <exclude>com.bitwig:extension-api</exclude>
@@ -113,24 +113,6 @@
                   </excludes>
                 </filter>
               </filters>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
-      <plugin>
-        <groupId>com.coderplus.maven.plugins</groupId>
-        <artifactId>copy-rename-maven-plugin</artifactId>
-        <version>1.0.1</version>
-        <executions>
-          <execution>
-            <id>rename-file</id>
-            <phase>install</phase>
-            <goals>
-              <goal>copy</goal>
-            </goals>
-            <configuration>
-              <sourceFile>${project.build.directory}/${project.build.finalName}.jar</sourceFile>
-              <destinationFile>${bitwig.extension.directory}/DrivenByMoss.bwextension</destinationFile>
             </configuration>
           </execution>
         </executions>
@@ -234,5 +216,6 @@
   </dependencies>
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <bitwig.extension.directory>${project.build.directory}</bitwig.extension.directory>
   </properties>
 </project>

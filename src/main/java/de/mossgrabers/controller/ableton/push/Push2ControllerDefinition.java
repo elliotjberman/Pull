@@ -37,7 +37,7 @@ public class Push2ControllerDefinition extends DefaultControllerDefinition
      */
     public Push2ControllerDefinition ()
     {
-        super (EXTENSION_ID, "Push 2", "Ableton", 1, 1);
+        super (EXTENSION_ID, "Pull", "Ableton", 1, 1);
     }
 
 

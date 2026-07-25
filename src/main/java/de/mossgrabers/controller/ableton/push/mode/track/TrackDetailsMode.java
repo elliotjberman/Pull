@@ -10,7 +10,6 @@ import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.mode.BaseMode;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.display.ITextDisplay;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.constants.Capability;
 import de.mossgrabers.framework.daw.data.ICursorTrack;
@@ -187,11 +186,11 @@ public class TrackDetailsMode extends BaseMode<ITrack>
                     return this.colorManager.getColorIndex (cursorTrack.isAutoMonitor () ? PushColorManager.PUSH_GREEN_HI : PushColorManager.PUSH_GREEN_LO);
                 case 6:
                     if (!this.hasPinning)
-                        return this.isPushModern ? PushColorManager.PUSH2_COLOR_BLACK : PushColorManager.PUSH1_COLOR_BLACK;
+                        return PushColorManager.PUSH2_COLOR_BLACK;
                     return this.colorManager.getColorIndex (cursorTrack.isPinned () ? PushColorManager.PUSH_GREEN_HI : PushColorManager.PUSH_GREEN_LO);
                 default:
                 case 7:
-                    return this.isPushModern ? PushColorManager.PUSH2_COLOR_GREEN_HI : PushColorManager.PUSH1_COLOR_GREEN_HI;
+                    return PushColorManager.PUSH2_COLOR_GREEN_HI;
             }
         }
 
@@ -225,45 +224,6 @@ public class TrackDetailsMode extends BaseMode<ITrack>
                 // Not used
                 break;
         }
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void updateDisplay1 (final ITextDisplay display)
-    {
-        final ITrack cursorTrack = this.model.getCursorTrack ();
-        if (!cursorTrack.doesExist ())
-        {
-            display.setRow (1, "                     Please selecta track...                        ");
-            return;
-        }
-
-        final String trackName = cursorTrack.getName ();
-        final String firstBlock = getTrackTitle (cursorTrack) + trackName;
-        display.setBlock (0, 0, firstBlock);
-        if (firstBlock.length () > 17)
-            display.setBlock (0, 1, firstBlock.substring (17).trim ());
-        display.setCell (2, 0, "Active").setCell (3, 0, cursorTrack.isActivated () ? "On" : "Off");
-        display.setCell (2, 1, "Rec Arm");
-        display.setCell (3, 1, cursorTrack.isRecArm () ? "On" : "Off");
-        display.setCell (2, 2, "Mute").setCell (3, 2, cursorTrack.isMute () ? "On" : "Off");
-        display.setCell (2, 3, "Solo").setCell (3, 3, cursorTrack.isSolo () ? "On" : "Off");
-        display.setCell (2, 4, "Monitor");
-        display.setCell (3, 4, cursorTrack.isMonitor () ? "On" : "Off");
-        display.setCell (2, 5, "Auto Monitor");
-        display.setCell (3, 5, cursorTrack.isAutoMonitor () ? "On" : "Off");
-
-        if (this.hasPinning)
-        {
-            display.setCell (2, 6, "Pin Trck");
-            display.setCell (3, 6, this.model.getCursorTrack ().isPinned () ? "On" : "Off");
-        }
-
-        display.setCell (2, 7, "Select").setCell (3, 7, "Color");
-
-        display.setCell (0, 5, "Midi Ins");
-        display.setBlock (0, 3, "/Edit Channel: " + (this.surface.getConfiguration ().getMidiEditChannel () + 1));
     }
 
 

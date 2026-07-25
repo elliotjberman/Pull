@@ -4,20 +4,23 @@
 
 package de.mossgrabers.controller.ableton.push.mode.track;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
-import de.mossgrabers.framework.controller.display.AbstractGraphicDisplay;
-import de.mossgrabers.framework.controller.display.Format;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.display.ITextDisplay;
 import de.mossgrabers.framework.daw.IModel;
+import de.mossgrabers.framework.daw.data.ICursorTrack;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.MenuData;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.ParameterData;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.TrackData;
 import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.parameter.IParameter;
 import de.mossgrabers.framework.parameterprovider.track.CrossfadeParameterProvider;
-
-import java.util.HashMap;
-import java.util.Map;
+import de.mossgrabers.framework.utils.Pair;
 
 
 /**
@@ -27,16 +30,6 @@ import java.util.Map;
  */
 public class CrossfadeMode extends AbstractTrackMode
 {
-    private static final Map<String, String> CROSSFADE_TEXT = new HashMap<> (3);
-
-    static
-    {
-        CROSSFADE_TEXT.put ("A", "A");
-        CROSSFADE_TEXT.put ("B", "       B");
-        CROSSFADE_TEXT.put ("AB", "   <> ");
-    }
-
-
     /**
      * Constructor.
      *
@@ -53,28 +46,33 @@ public class CrossfadeMode extends AbstractTrackMode
 
     /** {@inheritDoc} */
     @Override
-    public void updateDisplay1 (final ITextDisplay display)
-    {
-        final ITrackBank tb = this.model.getCurrentTrackBank ();
-        for (int i = 0; i < 8; i++)
-        {
-            final ITrack t = tb.getItem (i);
-            if (!t.doesExist ())
-                continue;
-            display.setCell (0, i, "Crossfdr");
-            final IParameter crossfadeParameter = t.getCrossfadeParameter ();
-            display.setCell (1, i, CROSSFADE_TEXT.get (crossfadeParameter.getDisplayedValue ()));
-            display.setCell (2, i, crossfadeParameter.getValue (), Format.FORMAT_PAN);
-        }
-        this.drawRow4 (display);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
     public void updateDisplay2 (final IGraphicDisplay display)
     {
-        this.updateChannelDisplay (display, AbstractGraphicDisplay.GRID_ELEMENT_CHANNEL_CROSSFADER, false, false);
+        this.updateMenuItems (GLOBAL_CROSSFADER_MENU);
+
+        final List<MenuData> menus = new ArrayList<> (8);
+        final List<ParameterData> parameters = new ArrayList<> (8);
+        final List<TrackData> tracks = new ArrayList<> (8);
+        final ITrackBank trackBank = this.model.getCurrentTrackBank ();
+        final ICursorTrack cursorTrack = this.model.getCursorTrack ();
+        for (int i = 0; i < 8; i++)
+        {
+            final Pair<String, Boolean> menuItem = this.menu.get (i);
+            menus.add (new MenuData (menuItem.getKey ().trim (), menuItem.getValue ().booleanValue ()));
+
+            final ITrack track = trackBank.getItem (i);
+            if (track.doesExist ())
+            {
+                final IParameter crossfader = track.getCrossfadeParameter ();
+                parameters.add (new ParameterData ("Crossfader", crossfader.getValue (), crossfader.getModulatedValue (), crossfader.getDisplayedValue (8), track.isActivated ()));
+            }
+            else
+                parameters.add (new ParameterData ("", -1, -1, "", false));
+
+            tracks.add (new TrackData (track.doesExist () ? track.getName (12) : "", this.updateType (track), track.getColor (), track.isSelected (), track.isActivated (), track.isSelected () && cursorTrack.isPinned ()));
+        }
+
+        display.addElement (new TrackMixerComponent (menus, parameters, tracks, 0, 0));
     }
 
 }

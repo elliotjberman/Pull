@@ -9,7 +9,6 @@ import java.util.Optional;
 import de.mossgrabers.controller.ableton.push.PushConfiguration;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.command.core.AbstractTriggerCommand;
-import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
@@ -25,6 +24,11 @@ import de.mossgrabers.framework.utils.ButtonEvent;
  */
 public class TrackCommand extends AbstractTriggerCommand<PushControlSurface, PushConfiguration>
 {
+    private Modes   previousMode;
+    private boolean switchedMode;
+    private boolean restoreOnRelease;
+
+
     /**
      * Constructor.
      *
@@ -41,8 +45,30 @@ public class TrackCommand extends AbstractTriggerCommand<PushControlSurface, Pus
     @Override
     public void execute (final ButtonEvent event, final int velocity)
     {
+        final ModeManager modeManager = this.surface.getModeManager ();
+        if (event == ButtonEvent.LONG)
+        {
+            if (this.switchedMode)
+                this.restoreOnRelease = true;
+            return;
+        }
+
+        if (event == ButtonEvent.UP)
+        {
+            if (this.switchedMode && this.restoreOnRelease && this.previousMode != null)
+                modeManager.setActive (this.previousMode);
+            this.previousMode = null;
+            this.switchedMode = false;
+            this.restoreOnRelease = false;
+            return;
+        }
+
         if (event != ButtonEvent.DOWN)
             return;
+
+        this.previousMode = null;
+        this.switchedMode = false;
+        this.restoreOnRelease = false;
 
         final PushConfiguration config = this.surface.getConfiguration ();
 
@@ -52,49 +78,28 @@ public class TrackCommand extends AbstractTriggerCommand<PushControlSurface, Pus
             return;
         }
 
-        final ModeManager modeManager = this.surface.getModeManager ();
         final Modes currentMode = modeManager.getActiveID ();
 
-        if (currentMode != null)
-        {
-            if (config.isPushModern ())
-            {
-                if (Modes.TRACK.equals (currentMode) || Modes.VOLUME.equals (currentMode) || Modes.CROSSFADER.equals (currentMode) || Modes.PAN.equals (currentMode))
-                {
-                    this.model.toggleCurrentTrackBank ();
-                }
-                else if (currentMode.ordinal () >= Modes.SEND1.ordinal () && currentMode.ordinal () <= Modes.SEND8.ordinal ())
-                {
-                    modeManager.setActive (Modes.TRACK);
-                    this.model.toggleCurrentTrackBank ();
-                }
-                else
-                    modeManager.setActive (config.getCurrentMixMode ());
-            }
-            else
-            {
-                // Layer mode selection for Push 1
-                if (this.surface.isSelectPressed () && Modes.isLayerMode (currentMode))
-                {
-                    this.surface.setTriggerConsumed (ButtonID.SELECT);
-                    modeManager.setActive (Modes.DEVICE_LAYER);
-                    return;
-                }
-
-                if (Modes.TRACK.equals (currentMode))
-                    this.model.toggleCurrentTrackBank ();
-                else
-                    modeManager.setActive (Modes.TRACK);
-            }
-        }
-        else
+        if (Modes.TRACK.equals (currentMode))
+            modeManager.setActive (config.getGlobalMixMode ());
+        else if (isGlobalMixMode (currentMode))
             modeManager.setActive (Modes.TRACK);
-
-        config.setMixerMode (modeManager.getActiveID ());
+        else
+        {
+            this.previousMode = modeManager.getActiveIDIgnoreTemporary ();
+            modeManager.setActive (Modes.TRACK);
+            this.switchedMode = true;
+        }
 
         final ITrackBank tb = this.model.getCurrentTrackBank ();
         final Optional<ITrack> track = tb.getSelectedItem ();
         if (track.isEmpty ())
             tb.getItem (0).select ();
+    }
+
+
+    private static boolean isGlobalMixMode (final Modes mode)
+    {
+        return mode == Modes.VOLUME || mode == Modes.PAN || mode == Modes.CROSSFADER || Modes.isSendMode (mode);
     }
 }

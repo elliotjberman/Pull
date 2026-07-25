@@ -190,22 +190,6 @@ public interface Configuration
 
 
     /**
-     * Is the session flipped?
-     *
-     * @return True if flipped
-     */
-    boolean isFlipSession ();
-
-
-    /**
-     * Set the flip session state.
-     *
-     * @param enabled True if flipped
-     */
-    void setFlipSession (boolean enabled);
-
-
-    /**
      * Select the clip on launch?
      *
      * @return True if the clip should be selected

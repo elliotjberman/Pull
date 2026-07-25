@@ -4,20 +4,14 @@
 
 package de.mossgrabers.framework.controller.display;
 
-import java.util.List;
-
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.hardware.IHwGraphicsDisplay;
 import de.mossgrabers.framework.daw.clip.INoteClip;
 import de.mossgrabers.framework.daw.clip.NotePosition;
-import de.mossgrabers.framework.daw.data.IScene;
-import de.mossgrabers.framework.daw.data.ISlot;
-import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.resource.ChannelType;
 import de.mossgrabers.framework.graphics.IBitmap;
 import de.mossgrabers.framework.graphics.canvas.component.IComponent;
 import de.mossgrabers.framework.graphics.canvas.utils.SendData;
-import de.mossgrabers.framework.utils.Pair;
 
 
 /**
@@ -31,6 +25,12 @@ public interface IGraphicDisplay extends IDisplay
      * Show the debug window for the graphics display.
      */
     void showDebugWindow ();
+
+
+    /**
+     * Save the current graphics display bitmap as a PNG for debugging.
+     */
+    void saveDebugImage ();
 
 
     /**
@@ -296,34 +296,6 @@ public interface IGraphicDisplay extends IDisplay
      * @param selected Must contain X number of states
      */
     void addListElement (String [] items, boolean [] selected);
-
-
-    /**
-     * Add a list of scene elements to the message.
-     *
-     * @param scenes The scenes
-     * @param type The type of the track
-     * @param name The of the grid element (track name, parameter name, etc.)
-     * @param color The color to use for the header, may be null
-     * @param isSelected True if the grid element is selected
-     * @param isActive True if channel is activated
-     * @param isPinned True if the channel is pinned
-     */
-    void addSceneListElement (List<IScene> scenes, final ChannelType type, final String name, final ColorEx color, final boolean isSelected, final boolean isActive, final boolean isPinned);
-
-
-    /**
-     * Add a list of box elements to the message.
-     *
-     * @param slots Must contain X number of slot items
-     * @param type The type of the track
-     * @param name The of the grid element (track name, parameter name, etc.)
-     * @param color The color to use for the header, may be null
-     * @param isSelected True if the grid element is selected
-     * @param isActive True if channel is activated
-     * @param isPinned True if the channel is pinned
-     */
-    void addSlotListElement (List<Pair<ITrack, ISlot>> slots, ChannelType type, String name, ColorEx color, boolean isSelected, boolean isActive, boolean isPinned);
 
 
     /**

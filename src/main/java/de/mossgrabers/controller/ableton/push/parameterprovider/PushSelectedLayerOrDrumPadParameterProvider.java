@@ -41,7 +41,7 @@ public class PushSelectedLayerOrDrumPadParameterProvider extends SelectedLayerOr
     @Override
     protected IParameter getInternal (final int index, final IChannel selectedChannel)
     {
-        if (index < 2 || !this.configuration.isPushModern ())
+        if (index < 2)
             return super.getInternal (index, selectedChannel);
 
         switch (index)

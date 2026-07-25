@@ -4,14 +4,12 @@
 
 package de.mossgrabers.controller.ableton.push.mode;
 
-import de.mossgrabers.controller.ableton.push.controller.Push1Display;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.command.trigger.clip.TemporaryNewCommand;
 import de.mossgrabers.framework.configuration.AbstractConfiguration;
 import de.mossgrabers.framework.configuration.Configuration;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.display.ITextDisplay;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.IItem;
 import de.mossgrabers.framework.featuregroup.AbstractFeatureGroup;
@@ -78,22 +76,6 @@ public class FixedMode extends BaseMode<IItem>
         }
 
         return this.colorManager.getColorIndex (AbstractFeatureGroup.BUTTON_COLOR_ON);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void updateDisplay1 (final ITextDisplay display)
-    {
-        display.setBlock (1, 0, "Create Clip (leng").setBlock (1, 1, "th not stored):");
-        final int newClipLength = this.surface.getConfiguration ().getNewClipLength ();
-        display.setBlock (2, 0, "New Clip Length:");
-        for (int i = 0; i < 8; i++)
-        {
-            final String newClipLengthValue = AbstractConfiguration.getNewClipLengthValue (i);
-            display.setCell (0, i, newClipLengthValue);
-            display.setCell (3, i, (newClipLength == i ? Push1Display.SELECT_ARROW : "") + newClipLengthValue);
-        }
     }
 
 

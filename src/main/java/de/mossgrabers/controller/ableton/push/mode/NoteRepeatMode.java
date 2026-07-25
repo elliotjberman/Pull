@@ -5,14 +5,11 @@
 package de.mossgrabers.controller.ableton.push.mode;
 
 import de.mossgrabers.controller.ableton.push.PushConfiguration;
-import de.mossgrabers.controller.ableton.push.controller.Push1Display;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.configuration.Configuration;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.color.ColorManager;
-import de.mossgrabers.framework.controller.display.Format;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.display.ITextDisplay;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.GrooveParameterID;
 import de.mossgrabers.framework.daw.IGroove;
@@ -28,7 +25,6 @@ import de.mossgrabers.framework.featuregroup.AbstractFeatureGroup;
 import de.mossgrabers.framework.featuregroup.AbstractMode;
 import de.mossgrabers.framework.parameter.IParameter;
 import de.mossgrabers.framework.utils.ButtonEvent;
-import de.mossgrabers.framework.utils.Pair;
 import de.mossgrabers.framework.utils.StringUtils;
 
 import java.util.List;
@@ -147,7 +143,7 @@ public class NoteRepeatMode extends BaseMode<IItem>
 
                 case 6:
                     if (this.host.supports (Capability.NOTE_REPEAT_OCTAVES))
-                        this.noteRepeat.setOctaves (1);
+                        this.surface.getConfiguration ().setNoteRepeatOctave (1);
                     break;
 
                 case 7:
@@ -283,71 +279,6 @@ public class NoteRepeatMode extends BaseMode<IItem>
         }
 
         return super.getButtonColor (buttonID);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void updateDisplay1 (final ITextDisplay display)
-    {
-        display.setCell (0, 0, "Period:");
-        final int selPeriodIndex = this.getSelectedPeriodIndex ();
-        int pos = 0;
-        for (final Pair<String, Boolean> p: Push1Display.createMenuList (4, Resolution.getNames (), selPeriodIndex))
-        {
-            display.setCell (pos, 1, (p.getValue ().booleanValue () ? Push1Display.SELECT_ARROW : " ") + p.getKey ());
-            pos++;
-        }
-
-        if (this.host.supports (Capability.NOTE_REPEAT_LENGTH))
-        {
-            display.setCell (0, 2, "Length:");
-            final int selLengthIndex = this.getSelectedNoteLengthIndex ();
-            pos = 0;
-            for (final Pair<String, Boolean> p: Push1Display.createMenuList (4, Resolution.getNames (), selLengthIndex))
-            {
-                display.setCell (pos, 3, (p.getValue ().booleanValue () ? Push1Display.SELECT_ARROW : " ") + p.getKey ());
-                pos++;
-            }
-        }
-
-        if (this.host.supports (Capability.NOTE_REPEAT_LATCH))
-            display.setCell (3, 4, " Latch");
-
-        final int upperBound = this.model.getValueChanger ().getUpperBound ();
-        if (this.host.supports (Capability.NOTE_REPEAT_MODE))
-        {
-            final String bottomMenu = this.host.supports (Capability.NOTE_REPEAT_USE_PRESSURE_TO_VELOCITY) ? "Use Pressure" : "";
-            final ArpeggiatorMode mode = this.noteRepeat.getMode ();
-            final Configuration configuration = this.surface.getConfiguration ();
-            final List<ArpeggiatorMode> arpeggiatorModes = configuration.getArpeggiatorModes ();
-            final int modeIndex = configuration.lookupArpeggiatorModeIndex (mode);
-            final int value = modeIndex * upperBound / (arpeggiatorModes.size () - 1);
-            display.setCell (0, 5, "Mode");
-            display.setCell (1, 5, StringUtils.optimizeName (mode.getName (), 8));
-            display.setCell (2, 5, value, Format.FORMAT_VALUE);
-            display.setCell (3, 5, bottomMenu);
-        }
-
-        if (this.host.supports (Capability.NOTE_REPEAT_OCTAVES))
-        {
-            final String bottomMenu = this.host.supports (Capability.NOTE_REPEAT_IS_FREE_RUNNING) ? "  Sync" : "";
-            final int octaves = this.noteRepeat.getOctaves ();
-            final int value = octaves * upperBound / 8;
-            display.setCell (0, 6, "Octaves");
-            display.setCell (1, 6, Integer.toString (octaves));
-            display.setCell (2, 6, value, Format.FORMAT_VALUE);
-            display.setCell (3, 6, bottomMenu);
-        }
-
-        if (this.host.supports (Capability.NOTE_REPEAT_SWING))
-        {
-            final IParameter shuffleParam = this.model.getGroove ().getParameter (GrooveParameterID.SHUFFLE_AMOUNT);
-            display.setCell (0, 7, shuffleParam.getName (10));
-            display.setCell (1, 7, shuffleParam.getDisplayedValue (8));
-            display.setCell (2, 7, shuffleParam.getValue (), Format.FORMAT_VALUE);
-            display.setCell (3, 7, "Shuffle");
-        }
     }
 
 

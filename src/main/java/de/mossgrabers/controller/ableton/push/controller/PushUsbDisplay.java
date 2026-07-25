@@ -112,7 +112,8 @@ public class PushUsbDisplay
                         final int red = imageBuffer.get ();
                         imageBuffer.get (); // Drop unused Alpha
 
-                        final int pixel = sPixelFromRGB (red, green, blue);
+                        final int calibrated = PushColorCalibration.toDisplayRGB (red, green, blue);
+                        final int pixel = sPixelFromRGB (calibrated >> 16 & 0xFF, calibrated >> 8 & 0xFF, calibrated & 0xFF);
 
                         this.byteStore[counter] = (byte) (pixel & 0x00FF);
                         this.byteStore[counter + 1] = (byte) ((pixel & 0xFF00) >> 8);
@@ -182,6 +183,7 @@ public class PushUsbDisplay
             this.usbEndpoint.send (this.headerBlock, TIMEOUT);
             this.usbEndpoint.send (this.imageBlock, TIMEOUT);
         }
+
     }
 
 

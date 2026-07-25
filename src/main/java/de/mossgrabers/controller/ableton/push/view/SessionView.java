@@ -38,14 +38,13 @@ public class SessionView extends AbstractSessionView<PushControlSurface, PushCon
     {
         super ("Session", surface, model, 8, 8, true);
 
-        final boolean isPush2 = this.surface.getConfiguration ().isPushModern ();
-        final int redLo = isPush2 ? PushColorManager.PUSH2_COLOR2_RED_LO : PushColorManager.PUSH1_COLOR2_RED_LO;
-        final int redHi = isPush2 ? PushColorManager.PUSH2_COLOR2_RED_HI : PushColorManager.PUSH1_COLOR2_RED_HI;
-        final int black = isPush2 ? PushColorManager.PUSH2_COLOR2_BLACK : PushColorManager.PUSH1_COLOR2_BLACK;
-        final int white = isPush2 ? PushColorManager.PUSH2_COLOR2_WHITE : PushColorManager.PUSH1_COLOR2_WHITE;
-        final int green = isPush2 ? PushColorManager.PUSH2_COLOR2_GREEN : PushColorManager.PUSH1_COLOR2_GREEN;
-        final int amber = isPush2 ? PushColorManager.PUSH2_COLOR2_AMBER : PushColorManager.PUSH1_COLOR2_AMBER;
-        final int grey = isPush2 ? PushColorManager.PUSH2_COLOR2_GREY_LO : PushColorManager.PUSH1_COLOR2_GREY_LO;
+        final int redLo = PushColorManager.PUSH2_COLOR2_RED_LO;
+        final int redHi = PushColorManager.PUSH2_COLOR2_RED_HI;
+        final int black = PushColorManager.PUSH2_COLOR2_BLACK;
+        final int white = PushColorManager.PUSH2_COLOR2_WHITE;
+        final int green = PushColorManager.PUSH2_COLOR2_GREEN;
+        final int amber = PushColorManager.PUSH2_COLOR2_AMBER;
+        final int grey = PushColorManager.PUSH2_COLOR2_GREY_LO;
         final LightInfo isRecording = new LightInfo (redHi, redHi, false);
         final LightInfo isRecordingQueued = new LightInfo (redHi, black, true);
         final LightInfo isPlaying = new LightInfo (green, green, false);

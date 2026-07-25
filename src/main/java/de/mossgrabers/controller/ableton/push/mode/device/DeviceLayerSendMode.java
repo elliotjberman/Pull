@@ -9,9 +9,7 @@ import java.util.Optional;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.parameterprovider.PushSendLayerOrDrumPadParameterProvider;
 import de.mossgrabers.framework.controller.ButtonID;
-import de.mossgrabers.framework.controller.display.Format;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.display.ITextDisplay;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.IChannel;
 import de.mossgrabers.framework.daw.data.ILayer;
@@ -77,35 +75,6 @@ public class DeviceLayerSendMode extends DeviceLayerMode
             this.surface.setTriggerConsumed (ButtonID.SELECT);
             send.toggleEnabled ();
         }
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void updateDisplay1 (final ITextDisplay display)
-    {
-        if (!this.cursorDevice.hasLayers ())
-            display.setBlock (1, 1, "    This device  ").setBlock (1, 2, "does not have layers.");
-        else if (!this.bank.hasExistingItems ())
-            display.setBlock (1, 1, "    Please create").setBlock (1, 2, this.cursorDevice.hasDrumPads () ? "a Drum Pad..." : "a Device Layer...");
-        else
-        {
-            // Drum Pad Bank has size of 16, layers only 8
-            final int offset = this.getDrumPadIndex ();
-
-            for (int i = 0; i < 8; i++)
-            {
-                final IChannel layer = this.bank.getItem (offset + i);
-                final boolean exists = layer.doesExist ();
-                final ISendBank sendBank = layer.getSendBank ();
-                final ISend send = sendBank.getItem (this.sendIndex);
-                display.setCell (0, i, exists ? send.getName () : "").setCell (1, i, send.getDisplayedValue (8));
-                if (exists)
-                    display.setCell (2, i, send.getValue (), Format.FORMAT_VALUE);
-            }
-        }
-
-        this.drawRow4 (display);
     }
 
 

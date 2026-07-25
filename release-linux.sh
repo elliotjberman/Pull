@@ -7,4 +7,4 @@ elif [ -d $JAVA_HOME_DEBIAN ]; then
     export JAVA_HOME=$JAVA_HOME_DEBIAN
 fi
 
-mvn clean install package -Dbitwig.extension.directory=target
+mvn clean package

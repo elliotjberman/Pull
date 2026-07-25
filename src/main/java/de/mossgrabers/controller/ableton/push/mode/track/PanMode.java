@@ -4,15 +4,22 @@
 
 package de.mossgrabers.controller.ableton.push.mode.track;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
-import de.mossgrabers.framework.controller.display.AbstractGraphicDisplay;
-import de.mossgrabers.framework.controller.display.Format;
+import de.mossgrabers.controller.ableton.push.parameterprovider.PushPanParameterProvider;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.display.ITextDisplay;
+import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.IModel;
+import de.mossgrabers.framework.daw.data.ICursorTrack;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
-import de.mossgrabers.framework.parameterprovider.track.PanParameterProvider;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.MenuData;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.ParameterData;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.TrackData;
+import de.mossgrabers.framework.utils.Pair;
 
 
 /**
@@ -32,25 +39,7 @@ public class PanMode extends AbstractTrackMode
     {
         super ("Panning", surface, model);
 
-        this.setParameterProvider (new PanParameterProvider (model));
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void updateDisplay1 (final ITextDisplay display)
-    {
-        final ITrackBank tb = this.model.getCurrentTrackBank ();
-
-        for (int i = 0; i < 8; i++)
-        {
-            final ITrack t = tb.getItem (i);
-            display.setCell (0, i, t.doesExist () ? "Pan" : "").setCell (1, i, t.getPanStr (8));
-            if (t.doesExist ())
-                display.setCell (2, i, t.getPan (), Format.FORMAT_PAN);
-        }
-
-        this.drawRow4 (display);
+        this.setParameterProvider (new PushPanParameterProvider (model));
     }
 
 
@@ -58,6 +47,28 @@ public class PanMode extends AbstractTrackMode
     @Override
     public void updateDisplay2 (final IGraphicDisplay display)
     {
-        this.updateChannelDisplay (display, AbstractGraphicDisplay.GRID_ELEMENT_CHANNEL_PAN, false, true);
+        this.updateMenuItems (1);
+
+        final List<MenuData> menus = new ArrayList<> (8);
+        final List<ParameterData> parameters = new ArrayList<> (8);
+        final List<TrackData> tracks = new ArrayList<> (8);
+        final ITrackBank trackBank = this.model.getCurrentTrackBank ();
+        final ICursorTrack cursorTrack = this.model.getCursorTrack ();
+        final IValueChanger valueChanger = this.model.getValueChanger ();
+        for (int i = 0; i < 8; i++)
+        {
+            final Pair<String, Boolean> menuItem = this.menu.get (i);
+            menus.add (new MenuData (menuItem.getKey ().trim (), menuItem.getValue ().booleanValue ()));
+
+            final ITrack track = trackBank.getItem (i);
+            if (track.doesExist ())
+                parameters.add (new ParameterData ("Pan", valueChanger.toDisplayValue (track.getPan ()), valueChanger.toDisplayValue (track.getModulatedPan ()), this.formatPanValue (track.getPan ()), track.isActivated ()));
+            else
+                parameters.add (new ParameterData ("", -1, -1, "", false));
+
+            tracks.add (new TrackData (track.doesExist () ? track.getName (12) : "", this.updateType (track), track.getColor (), track.isSelected (), track.isActivated (), track.isSelected () && cursorTrack.isPinned ()));
+        }
+
+        display.addElement (new TrackMixerComponent (menus, parameters, tracks, 0, 0));
     }
 }

@@ -1288,7 +1288,20 @@ public abstract class AbstractControllerSetup<S extends IControlSurface<C>, C ex
         if (this.host.supports (Capability.NOTE_REPEAT_MODE))
             conf.addSettingObserver (AbstractConfiguration.NOTEREPEAT_MODE, () -> noteRepeat.setMode (conf.getNoteRepeatMode ()));
         if (this.host.supports (Capability.NOTE_REPEAT_OCTAVES))
-            conf.addSettingObserver (AbstractConfiguration.NOTEREPEAT_OCTAVE, () -> noteRepeat.setOctaves (conf.getNoteRepeatOctave ()));
+            conf.addSettingObserver (AbstractConfiguration.NOTEREPEAT_OCTAVE, () -> noteRepeat.setOctaves (this.getNoteRepeatOctave (conf, surface)));
+    }
+
+
+    /**
+     * Get the octave range to apply to the note-input arpeggiator.
+     *
+     * @param conf The configuration
+     * @param surface The control surface
+     * @return The octave range
+     */
+    protected int getNoteRepeatOctave (final C conf, final S surface)
+    {
+        return conf.getNoteRepeatOctave ();
     }
 
 

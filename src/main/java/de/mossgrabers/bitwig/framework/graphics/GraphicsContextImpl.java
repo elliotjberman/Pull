@@ -198,6 +198,51 @@ public class GraphicsContextImpl implements IGraphicsContext
 
     /** {@inheritDoc} */
     @Override
+    public void drawTextInBounds (final String text, final double x, final double y, final double width, final double height, final Align alignment, final ColorEx color, final double fontSize, final double tracking, final boolean bold)
+    {
+        if (text == null || text.length () == 0)
+            return;
+
+        final String txt = StringUtils.fixFontCharacters (text);
+
+        this.gc.save ();
+        this.gc.setFontSize (fontSize);
+
+        final double h = this.gc.getTextExtents ("T").getHeight ();
+        final double w = this.getTrackedTextWidth (txt, tracking);
+        double posX;
+        if (alignment == Align.RIGHT)
+            posX = x + width - w;
+        else if (alignment == Align.CENTER)
+            posX = x + (width - w) / 2.0;
+        else
+            posX = x;
+        final double posY = y + (height + h) / 2;
+
+        this.gc.rectangle (x, y, width, height);
+        this.gc.clip ();
+
+        this.setColor (color);
+        for (int i = 0; i < txt.length (); i++)
+        {
+            final String character = String.valueOf (txt.charAt (i));
+            this.gc.moveTo (posX, posY);
+            this.gc.showText (character);
+            if (bold)
+            {
+                this.gc.moveTo (posX + 0.45, posY);
+                this.gc.showText (character);
+            }
+            posX += this.gc.getTextExtents (character).getWidth () + tracking;
+        }
+
+        this.gc.resetClip ();
+        this.gc.restore ();
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
     public void drawTextInHeight (final String text, final double x, final double y, final double height, final ColorEx color, final double fontSize)
     {
         this.drawTextInHeight (text, x, y, height, color, null, fontSize);
@@ -264,6 +309,37 @@ public class GraphicsContextImpl implements IGraphicsContext
 
     /** {@inheritDoc} */
     @Override
+    public void drawTextAt (final String text, final double x, final double baselineY, final ColorEx color, final double fontSize)
+    {
+        if (text == null || text.length () == 0)
+            return;
+
+        this.gc.save ();
+        this.gc.setFontSize (fontSize);
+        this.setColor (color);
+        this.gc.moveTo (x, baselineY);
+        this.gc.showText (StringUtils.fixFontCharacters (text));
+        this.gc.restore ();
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public double getTextWidth (final String text, final double fontSize)
+    {
+        if (text == null || text.length () == 0)
+            return 0;
+
+        this.gc.save ();
+        this.gc.setFontSize (fontSize);
+        final double width = this.gc.getTextExtents (StringUtils.fixFontCharacters (text)).getWidth ();
+        this.gc.restore ();
+        return width;
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
     public double calculateFontSize (final String text, final double maxHeight, final double maxWidth, final double minimumFontSize)
     {
         double size = minimumFontSize;
@@ -278,6 +354,15 @@ public class GraphicsContextImpl implements IGraphicsContext
             size += 1.0;
         }
         return fittingSize;
+    }
+
+
+    private double getTrackedTextWidth (final String text, final double tracking)
+    {
+        double width = 0;
+        for (int i = 0; i < text.length (); i++)
+            width += this.gc.getTextExtents (String.valueOf (text.charAt (i))).getWidth ();
+        return width + Math.max (0, text.length () - 1) * tracking;
     }
 
 

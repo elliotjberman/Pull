@@ -6,14 +6,12 @@ package de.mossgrabers.controller.ableton.push.mode.device;
 
 import java.util.Optional;
 
-import de.mossgrabers.controller.ableton.push.controller.Push1Display;
+import de.mossgrabers.controller.ableton.push.PushConfiguration;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.mode.BaseMode;
 import de.mossgrabers.framework.controller.ButtonID;
-import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.display.ITextDisplay;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.DAWColor;
 import de.mossgrabers.framework.daw.IHost;
@@ -21,15 +19,16 @@ import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.constants.Capability;
 import de.mossgrabers.framework.daw.data.ICursorDevice;
 import de.mossgrabers.framework.daw.data.IDevice;
+import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.IDeviceBank;
 import de.mossgrabers.framework.daw.data.bank.IParameterBank;
 import de.mossgrabers.framework.daw.data.bank.IParameterPageBank;
+import de.mossgrabers.framework.daw.data.bank.ITrackBank;
 import de.mossgrabers.framework.featuregroup.ModeManager;
 import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.parameter.IParameter;
 import de.mossgrabers.framework.parameterprovider.device.BankParameterProvider;
 import de.mossgrabers.framework.utils.ButtonEvent;
-import de.mossgrabers.framework.utils.StringUtils;
 
 
 /**
@@ -124,70 +123,131 @@ public class DeviceParamsMode extends BaseMode<IParameter>
     @Override
     public void onFirstRow (final int index, final ButtonEvent event)
     {
-        if (event == ButtonEvent.DOWN)
-            return;
-
-        if (event == ButtonEvent.UP)
+        final ICursorDevice cursorDevice = this.model.getCursorDevice ();
+        if (!this.showDevices)
         {
-            final ICursorDevice cd = this.model.getCursorDevice ();
-            if (!cd.doesExist ())
-                return;
-
-            // Select parameter bank if parameter banks are visible
-            if (!this.showDevices)
-            {
-                cd.getParameterBank ().getPageBank ().selectPage (index);
-                return;
-            }
-
-            // Duplicate device
-            if (this.isButtonCombination (ButtonID.DUPLICATE))
-            {
-                cd.duplicate ();
-                return;
-            }
-
-            // Delete device
-            if (this.isButtonCombination (ButtonID.DELETE))
-            {
-                cd.getDeviceBank ().getItem (index).remove ();
-                return;
-            }
-
-            // Disable/Enable device
-            if (this.isButtonCombination (ButtonID.MUTE))
-            {
-                cd.getDeviceBank ().getItem (index).toggleEnabledState ();
-                return;
-            }
-
-            // Select device
-            if (cd.getIndex () != index)
-            {
-                cd.getDeviceBank ().getItem (index).select ();
-                return;
-            }
-
-            // No layers, show devices
-            final ModeManager modeManager = this.surface.getModeManager ();
-            if (!cd.hasLayers ())
-            {
-                ((DeviceParamsMode) modeManager.get (Modes.DEVICE_PARAMS)).setShowDevices (false);
-                return;
-            }
-
-            // If there are layers, make sure one is selected
-            final Optional<?> layer = cd.getLayerBank ().getSelectedItem ();
-            if (layer.isEmpty ())
-                cd.getLayerBank ().getItem (0).select ();
-            modeManager.setActive (this.surface.getConfiguration ().getCurrentLayerMixMode ());
-
+            if (event == ButtonEvent.UP && cursorDevice.doesExist ())
+                cursorDevice.getParameterBank ().getPageBank ().selectPage (index);
             return;
         }
 
-        // LONG press - move upwards
-        this.surface.setTriggerConsumed (ButtonID.get (ButtonID.ROW1_1, index));
-        this.moveUp ();
+        final ITrack track = this.model.getCurrentTrackBank ().getItem (index);
+        if (!track.doesExist ())
+            return;
+
+        if (event == ButtonEvent.LONG)
+        {
+            track.toggleRecArm ();
+            this.surface.setTriggerConsumed (ButtonID.get (ButtonID.ROW1_1, index));
+            return;
+        }
+
+        if (event != ButtonEvent.UP)
+            return;
+
+        if (this.isButtonCombination (ButtonID.DUPLICATE))
+        {
+            track.duplicate ();
+            return;
+        }
+
+        if (this.isButtonCombination (ButtonID.DELETE))
+        {
+            track.remove ();
+            return;
+        }
+
+        if (this.isButtonCombination (ButtonID.RECORD))
+        {
+            track.toggleRecArm ();
+            return;
+        }
+
+        final PushConfiguration configuration = this.surface.getConfiguration ();
+        if (configuration.isMuteState (this.surface.isLongPressed (ButtonID.MUTE)))
+        {
+            this.surface.setTriggerConsumed (ButtonID.MUTE);
+            track.toggleMute ();
+            return;
+        }
+        if (configuration.isSoloState (this.surface.isLongPressed (ButtonID.SOLO)))
+        {
+            this.surface.setTriggerConsumed (ButtonID.SOLO);
+            track.toggleSolo ();
+            return;
+        }
+        if (configuration.isClipStopState (this.surface.isLongPressed (ButtonID.STOP_CLIP)))
+        {
+            this.surface.setTriggerConsumed (ButtonID.STOP_CLIP);
+            track.stop (true);
+            return;
+        }
+
+        if (this.surface.isSelectPressed ())
+        {
+            this.surface.setTriggerConsumed (ButtonID.SELECT);
+            track.toggleMultiSelect ();
+            return;
+        }
+
+        if (!track.isSelected ())
+            track.select ();
+        else if (track.isGroup ())
+        {
+            if (this.surface.isShiftPressed () || configuration.isTrackNavigationFlat ())
+                track.toggleGroupExpanded ();
+            else
+            {
+                track.setGroupExpanded (true);
+                track.enter ();
+            }
+        }
+    }
+
+
+    private void onDeviceButton (final int index, final ButtonEvent event)
+    {
+        if (event != ButtonEvent.UP)
+            return;
+
+        final ICursorDevice cursorDevice = this.model.getCursorDevice ();
+        final IDevice device = cursorDevice.getDeviceBank ().getItem (index);
+        if (!device.doesExist ())
+            return;
+
+        if (this.isButtonCombination (ButtonID.DUPLICATE))
+        {
+            device.duplicate ();
+            return;
+        }
+        if (this.isButtonCombination (ButtonID.DELETE))
+        {
+            device.remove ();
+            return;
+        }
+        if (this.isButtonCombination (ButtonID.MUTE))
+        {
+            device.toggleEnabledState ();
+            return;
+        }
+
+        if (cursorDevice.getIndex () != index)
+        {
+            device.select ();
+            return;
+        }
+
+        final ModeManager modeManager = this.surface.getModeManager ();
+        if (!cursorDevice.hasLayers ())
+        {
+            this.setShowDevices (false);
+            return;
+        }
+
+        final Optional<?> layer = cursorDevice.getLayerBank ().getSelectedItem ();
+        if (layer.isEmpty ())
+            cursorDevice.getLayerBank ().getItem (0).select ();
+        modeManager.setActive (this.surface.getConfiguration ().getCurrentLayerMixMode ());
     }
 
 
@@ -251,20 +311,22 @@ public class DeviceParamsMode extends BaseMode<IParameter>
         int index = this.isButtonRow (0, buttonID);
         if (index >= 0)
         {
+            final int offColor = this.colorManager.getColorIndex (PushColorManager.PUSH_BLACK);
+            if (this.showDevices)
+            {
+                final ITrack track = this.model.getCurrentTrackBank ().getItem (index);
+                if (!track.doesExist () || !track.isActivated ())
+                    return offColor;
+                if (track.isRecArm ())
+                    return this.colorManager.getColorIndex (PushColorManager.PUSH_RED_HI);
+                return this.colorManager.getColorIndex (DAWColor.getColorID (track.getColor ()));
+            }
+
             if (!cd.doesExist ())
-                return super.getButtonColor (buttonID);
+                return offColor;
 
             final int selectedColor = this.colorManager.getColorIndex (PushColorManager.PUSH_ORANGE_HI);
             final int existsColor = this.colorManager.getColorIndex (PushColorManager.PUSH_YELLOW_LO);
-            final int offColor = this.colorManager.getColorIndex (PushColorManager.PUSH_BLACK);
-
-            if (this.showDevices)
-            {
-                final IDeviceBank bank = cd.getDeviceBank ();
-                if (!bank.getItem (index).doesExist ())
-                    return offColor;
-                return index == cd.getIndex () ? selectedColor : existsColor;
-            }
             final IParameterPageBank bank = cd.getParameterBank ().getPageBank ();
             final int selectedItemIndex = bank.getSelectedItemIndex ();
             if (bank.getItem (index).isEmpty ())
@@ -275,15 +337,25 @@ public class DeviceParamsMode extends BaseMode<IParameter>
         index = this.isButtonRow (1, buttonID);
         if (index >= 0)
         {
-            final int white = this.isPushModern ? PushColorManager.PUSH2_COLOR2_WHITE : PushColorManager.PUSH1_COLOR2_WHITE;
+            if (this.showDevices)
+            {
+                if (!cd.doesExist ())
+                    return PushColorManager.PUSH2_COLOR_BLACK;
+                final IDevice device = cd.getDeviceBank ().getItem (index);
+                if (!device.doesExist ())
+                    return PushColorManager.PUSH2_COLOR_BLACK;
+                return index == cd.getIndex () ? PushColorManager.PUSH2_COLOR2_ORANGE : PushColorManager.PUSH2_COLOR2_YELLOW_LO;
+            }
+
+            final int white = PushColorManager.PUSH2_COLOR2_WHITE;
             if (!cd.doesExist ())
                 return index == 7 ? white : super.getButtonColor (buttonID);
 
-            final int green = this.isPushModern ? PushColorManager.PUSH2_COLOR2_GREEN : PushColorManager.PUSH1_COLOR2_GREEN;
-            final int grey = this.isPushModern ? PushColorManager.PUSH2_COLOR2_GREY_LO : PushColorManager.PUSH1_COLOR2_GREY_LO;
-            final int orange = this.isPushModern ? PushColorManager.PUSH2_COLOR2_ORANGE : PushColorManager.PUSH1_COLOR2_ORANGE;
-            final int off = this.isPushModern ? PushColorManager.PUSH2_COLOR_BLACK : PushColorManager.PUSH1_COLOR_BLACK;
-            final int turquoise = this.isPushModern ? PushColorManager.PUSH2_COLOR2_TURQUOISE_HI : PushColorManager.PUSH1_COLOR2_TURQUOISE_HI;
+            final int green = PushColorManager.PUSH2_COLOR2_GREEN;
+            final int grey = PushColorManager.PUSH2_COLOR2_GREY_LO;
+            final int orange = PushColorManager.PUSH2_COLOR2_ORANGE;
+            final int off = PushColorManager.PUSH2_COLOR_BLACK;
+            final int turquoise = PushColorManager.PUSH2_COLOR2_TURQUOISE_HI;
 
             switch (index)
             {
@@ -317,6 +389,12 @@ public class DeviceParamsMode extends BaseMode<IParameter>
     @Override
     public void onSecondRow (final int index, final ButtonEvent event)
     {
+        if (this.showDevices)
+        {
+            this.onDeviceButton (index, event);
+            return;
+        }
+
         if (event != ButtonEvent.DOWN)
             return;
         final ICursorDevice device = this.model.getCursorDevice ();
@@ -370,105 +448,37 @@ public class DeviceParamsMode extends BaseMode<IParameter>
 
     /** {@inheritDoc} */
     @Override
-    public void updateDisplay1 (final ITextDisplay display)
-    {
-        final ICursorDevice cd = this.model.getCursorDevice ();
-        if (!this.checkExists1 (display, cd))
-            return;
-
-        // Row 1 & 2
-        final IParameterBank parameterBank = cd.getParameterBank ();
-        for (int i = 0; i < 8; i++)
-        {
-            final IParameter param = parameterBank.getItem (i);
-            display.setCell (0, i, param.doesExist () ? StringUtils.fixASCII (param.getName ()) : "").setCell (1, i, StringUtils.fixASCII (param.getDisplayedValue (8)));
-        }
-
-        // Row 3
-        display.setBlock (2, 0, "Selected Device:").setBlock (2, 1, cd.getName ());
-
-        // Row 4
-        if (this.showDevices)
-        {
-            final IDeviceBank deviceBank = cd.getDeviceBank ();
-            for (int i = 0; i < 8; i++)
-            {
-                final IDevice device = deviceBank.getItem (i);
-                final StringBuilder sb = new StringBuilder ();
-                if (device.doesExist ())
-                {
-                    if (i == cd.getIndex ())
-                        sb.append (Push1Display.SELECT_ARROW);
-                    if (!device.isEnabled ())
-                        sb.append (Push1Display.DIVISION);
-                    sb.append (device.getName ());
-                }
-                display.setCell (3, i, sb.toString ());
-            }
-            return;
-        }
-        final IParameterPageBank bank = parameterBank.getPageBank ();
-        final int selectedItemIndex = bank.getSelectedItemIndex ();
-        for (int i = 0; i < bank.getPageSize (); i++)
-        {
-            final String item = bank.getItem (i);
-            final String selectedStr = i == selectedItemIndex ? Push1Display.SELECT_ARROW : "";
-            display.setCell (3, i, item.isEmpty () ? "" : selectedStr + item);
-        }
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
     public void updateDisplay2 (final IGraphicDisplay display)
     {
         final ICursorDevice cd = this.model.getCursorDevice ();
-        if (!this.checkExists2 (display, cd))
-            return;
-
-        final String channelColor = this.model.getCurrentTrackBank ().getSelectedChannelColorEntry ();
-        final ColorEx bottomMenuColor = DAWColor.getColorEntry (channelColor);
-        final ColorEx colorBackground = this.surface.getConfiguration ().getColorBackground ();
-
+        final ITrackBank trackBank = this.model.getCurrentTrackBank ();
         final IDeviceBank deviceBank = cd.getDeviceBank ();
         final IParameterBank parameterBank = cd.getParameterBank ();
         final IParameterPageBank parameterPageBank = parameterBank.getPageBank ();
-        final int selectedPage = parameterPageBank.getSelectedItemIndex ();
         final boolean hasPinning = this.model.getHost ().supports (Capability.HAS_PINNING);
         final IValueChanger valueChanger = this.model.getValueChanger ();
         for (int i = 0; i < parameterBank.getPageSize (); i++)
         {
-            final boolean isTopMenuOn = this.getTopMenuEnablement (cd, hasPinning, i);
-
-            String bottomMenu;
-            final String bottomMenuIcon;
-            boolean isBottomMenuOn;
-            ColorEx color = bottomMenuColor;
-            if (this.showDevices)
-            {
-                final IDevice device = deviceBank.getItem (i);
-                bottomMenuIcon = device.getName ();
-                bottomMenu = device.doesExist () ? device.getName (12) : "";
-                isBottomMenuOn = i == cd.getIndex ();
-                if (!device.isEnabled ())
-                    color = colorBackground;
-            }
-            else
-            {
-                bottomMenuIcon = cd.getName ();
-                bottomMenu = StringUtils.limit (parameterPageBank.getItem (i), 12);
-                isBottomMenuOn = i == selectedPage;
-            }
-
             final IParameter param = parameterBank.getItem (i);
             final boolean exists = param.doesExist ();
-            final String parameterName = exists ? param.getName (12) : "";
+            final String parameterName = exists ? param.getName (16) : "";
             final int parameterValue = valueChanger.toDisplayValue (exists ? param.getValue () : 0);
             final String parameterValueStr = exists ? param.getDisplayedValue (8) : "";
             final boolean parameterIsActive = this.isKnobTouched (i);
             final int parameterModulatedValue = valueChanger.toDisplayValue (exists ? param.getModulatedValue () : -1);
 
-            display.addParameterElement (this.hostMenu[i], isTopMenuOn, bottomMenu, bottomMenuIcon, color, isBottomMenuOn, parameterName, parameterValue, parameterValueStr, parameterIsActive, parameterModulatedValue);
+            if (this.showDevices)
+            {
+                final IDevice device = deviceBank.getItem (i);
+                final ITrack track = trackBank.getItem (i);
+                display.addParameterElement (device.doesExist () ? device.getName (16) : "", device.doesExist () && i == cd.getIndex (), track.doesExist () ? track.getName (16) : "", track.getType (), track.getColor (), track.isSelected (), parameterName, parameterValue, parameterValueStr, parameterIsActive, parameterModulatedValue);
+            }
+            else
+            {
+                final String pageName = parameterPageBank.getItem (i);
+                final ITrack selectedTrack = trackBank.getSelectedItem ().orElse (null);
+                display.addParameterElementWithPlainMenu (this.hostMenu[i], this.getTopMenuEnablement (cd, hasPinning, i), pageName, selectedTrack == null ? null : selectedTrack.getColor (), i == parameterPageBank.getSelectedItemIndex (), parameterName, parameterValue, parameterValueStr, parameterIsActive, parameterModulatedValue);
+            }
         }
     }
 
@@ -582,15 +592,6 @@ public class DeviceParamsMode extends BaseMode<IParameter>
             return cursorDevice.getDeviceBank ().canScrollPageForwards ();
         }
         return super.hasNextItemPage ();
-    }
-
-
-    protected boolean checkExists1 (final ITextDisplay display, final ICursorDevice cd)
-    {
-        if (cd.doesExist ())
-            return true;
-        display.setBlock (1, 0, "           Select").setBlock (1, 1, "a device or press").setBlock (1, 2, "'Add Effect'...  ").allDone ();
-        return false;
     }
 
 

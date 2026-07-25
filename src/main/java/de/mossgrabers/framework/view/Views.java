@@ -29,6 +29,8 @@ public enum Views
     SEQUENCER,
     /** View for playing drums and sequencing. */
     DRUM,
+    /** View for playing a 4x4 drum pad grid. */
+    DRUM_PAD,
     /** View for raindrops sequencer. */
     RAINDROPS,
     /** View for playing in piano keyboard style. */
@@ -47,8 +49,6 @@ public enum Views
     DRUM64,
     /** View for selecting a color. */
     COLOR,
-    /** View for playing scenes. */
-    SCENE_PLAY,
     /** View for the poly sequencer. */
     POLY_SEQUENCER,
 
@@ -113,6 +113,8 @@ public enum Views
     public static final String              NAME_PIANO          = "Piano";
     /** The name of the drum view. */
     public static final String              NAME_DRUM           = "Drum";
+    /** The name of the drum pad view. */
+    public static final String              NAME_DRUM_PAD       = "Drum Pads";
     /** The name of the XoX drum view. */
     public static final String              NAME_DRUM_XOX       = "Drum XoX";
     /** The name of the drum4 view. */
@@ -121,8 +123,6 @@ public enum Views
     public static final String              NAME_DRUM8          = "Drum 8";
     /** The name of the drum 64 view. */
     public static final String              NAME_DRUM64         = "Drum 64";
-    /** The name of the scene play view. */
-    public static final String              NAME_SCENE_PLAY     = "Scene Play";
     /** The name of the sequencer view. */
     public static final String              NAME_SEQUENCER      = "Sequencer";
     /** The name of the raindrops view. */
@@ -141,7 +141,6 @@ public enum Views
     private static final Map<String, Views> VIEW_NAMES          = new HashMap<> ();
     private static final List<Views>        NOTE_VIEWS          = new ArrayList<> ();
     private static final Set<Views>         SEQUENCER_VIEWS     = new HashSet<> ();
-    private static final Set<Views>         SESSION_VIEWS       = new HashSet<> ();
 
     private static boolean                  isInitialised       = false;
 
@@ -178,10 +177,12 @@ public enum Views
         VIEW_NAMES.put (NAME_CLIP_LENGTH, CLIP_LENGTH);
 
         NOTE_VIEWS.add (DRUM);
+        NOTE_VIEWS.add (DRUM_PAD);
         NOTE_VIEWS.add (DRUM4);
         NOTE_VIEWS.add (DRUM8);
         NOTE_VIEWS.add (DRUM_XOX);
         VIEW_NAMES.put (NAME_DRUM, DRUM);
+        VIEW_NAMES.put (NAME_DRUM_PAD, DRUM_PAD);
         VIEW_NAMES.put (NAME_DRUM4, DRUM4);
         VIEW_NAMES.put (NAME_DRUM8, DRUM8);
         VIEW_NAMES.put (NAME_DRUM_XOX, DRUM_XOX);
@@ -201,8 +202,6 @@ public enum Views
         SEQUENCER_VIEWS.add (RAINDROPS);
         SEQUENCER_VIEWS.add (POLY_SEQUENCER);
 
-        SESSION_VIEWS.add (SESSION);
-        SESSION_VIEWS.add (SCENE_PLAY);
     }
 
 
@@ -219,14 +218,14 @@ public enum Views
 
 
     /**
-     * Returns true if the given view ID is one of the session views.
+     * Returns true if the given view ID is the session view.
      *
      * @param viewId The view ID to test
      * @return True if it is a session view
      */
     public static boolean isSessionView (final Views viewId)
     {
-        return SESSION_VIEWS.contains (viewId);
+        return viewId == SESSION;
     }
 
 

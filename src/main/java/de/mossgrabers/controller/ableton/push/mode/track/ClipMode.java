@@ -4,17 +4,14 @@
 
 package de.mossgrabers.controller.ableton.push.mode.track;
 
-import de.mossgrabers.controller.ableton.push.command.continuous.IPush3Encoder;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.display.ITextDisplay;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.ITransport;
 import de.mossgrabers.framework.daw.clip.IClip;
 import de.mossgrabers.framework.daw.clip.INoteClip;
-import de.mossgrabers.framework.daw.clip.NotePosition;
 import de.mossgrabers.framework.daw.constants.Capability;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
@@ -33,13 +30,11 @@ import de.mossgrabers.framework.view.sequencer.AbstractSequencerView;
  *
  * @author Jürgen Moßgraber
  */
-public class ClipMode extends AbstractTrackMode implements IPush3Encoder
+public class ClipMode extends AbstractTrackMode
 {
-    private static final String PLEASE_SELECT_A_CLIP_PUSH1 = "      Pleaseselect a clip.";
     private static final String PLEASE_SELECT_A_CLIP_PUSH2 = "Please select a clip.";
 
     private boolean             displayMidiNotes           = false;
-    private NotePosition        activeNotePosition         = null;
     private final ITransport    transport;
 
 
@@ -118,28 +113,6 @@ public class ClipMode extends AbstractTrackMode implements IPush3Encoder
 
     /** {@inheritDoc} */
     @Override
-    public void updateDisplay1 (final ITextDisplay display)
-    {
-        final IClip clip = this.getMidiClip ();
-        if (!clip.doesExist ())
-        {
-            display.notify (PLEASE_SELECT_A_CLIP_PUSH1);
-            return;
-        }
-
-        display.setCell (0, 0, "PlayStrt").setCell (1, 0, this.formatMeasures (clip.getPlayStart (), 1));
-        display.setCell (0, 1, "Play End").setCell (1, 1, this.formatMeasures (clip.getPlayEnd (), 1));
-        display.setCell (0, 2, "LoopStrt").setCell (1, 2, this.formatMeasures (clip.getLoopStart (), 1));
-        display.setCell (0, 3, "LopLngth").setCell (1, 3, this.formatMeasures (clip.getLoopLength (), 0));
-        display.setCell (0, 4, "Loop").setCell (1, 4, clip.isLoopEnabled () ? "On" : "Off");
-        display.setCell (0, 6, "Shuffle").setCell (1, 6, clip.isShuffleEnabled () ? "On" : "Off");
-        display.setCell (0, 7, "Accent").setCell (1, 7, clip.getFormattedAccent ());
-        this.drawRow4 (display);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
     public void updateDisplay2 (final IGraphicDisplay display)
     {
         final IClip clip = this.getMidiClip ();
@@ -152,7 +125,7 @@ public class ClipMode extends AbstractTrackMode implements IPush3Encoder
 
         if (this.displayMidiNotes)
         {
-            display.setMidiClipElement ((INoteClip) clip, this.transport.getQuartersPerMeasure (), this.activeNotePosition);
+            display.setMidiClipElement ((INoteClip) clip, this.transport.getQuartersPerMeasure (), null);
             return;
         }
 
@@ -246,68 +219,6 @@ public class ClipMode extends AbstractTrackMode implements IPush3Encoder
     private String formatMeasures (final double time, final int startOffset)
     {
         return StringUtils.formatMeasures (this.transport.getQuartersPerMeasure (), time, startOffset, false);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void encoderTurn (final int value)
-    {
-        // Set the next/previous note active
-        final IClip clip = this.getMidiClip ();
-        if (clip instanceof final INoteClip noteClip)
-        {
-            if (this.model.getValueChanger ().isIncrease (value))
-                this.activeNotePosition = noteClip.getNextNote (this.activeNotePosition, true);
-            else
-                this.activeNotePosition = noteClip.getPreviousNote (this.activeNotePosition, true);
-        }
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void encoderLeft (final ButtonEvent event)
-    {
-        final ViewManager viewManager = this.surface.getViewManager ();
-        if (viewManager.getActive () instanceof final AbstractSequencerView<?, ?> sequencerView)
-        {
-            sequencerView.onLeft (event);
-            this.activeNotePosition = null;
-        }
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void encoderRight (final ButtonEvent event)
-    {
-        final ViewManager viewManager = this.surface.getViewManager ();
-        if (viewManager.getActive () instanceof final AbstractSequencerView<?, ?> sequencerView)
-        {
-            sequencerView.onRight (event);
-            this.activeNotePosition = null;
-        }
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void encoderPress (final ButtonEvent event)
-    {
-        if (event != ButtonEvent.UP)
-            return;
-
-        if (this.activeNotePosition != null && this.surface.getViewManager ().getActive () instanceof final AbstractSequencerView<?, ?> sequencerView)
-            sequencerView.editNote (this.activeNotePosition, false);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void arrowCenter (final ButtonEvent event)
-    {
-        // Not used
     }
 
 

@@ -55,10 +55,6 @@ public abstract class AbstractConfiguration implements Configuration
     public static final Integer      ENABLE_VU_METERS                = Integer.valueOf (5);
     /** ID for behavior on stop setting. */
     public static final Integer      BEHAVIOUR_ON_STOP               = Integer.valueOf (6);
-    /** ID for behavior on pause setting. */
-    public static final Integer      BEHAVIOUR_ON_PAUSE              = Integer.valueOf (7);
-    /** ID for flipping the session grid setting. */
-    public static final Integer      FLIP_SESSION                    = Integer.valueOf (8);
     /** ID for selecting the clip on launch setting. */
     public static final Integer      SELECT_CLIP_ON_LAUNCH           = Integer.valueOf (9);
     /** ID for drawing record stripes setting. */
@@ -378,7 +374,6 @@ public abstract class AbstractConfiguration implements Configuration
     private IEnumSetting                              scaleLayoutSetting;
     private IEnumSetting                              scaleSetting;
     private IEnumSetting                              enableVUMetersSetting;
-    private IEnumSetting                              flipSessionSetting;
     private IEnumSetting                              accentActiveSetting;
     private IIntegerSetting                           accentValueSetting;
     private IIntegerSetting                           quantizeAmountSetting;
@@ -416,8 +411,7 @@ public abstract class AbstractConfiguration implements Configuration
     private String                                    scaleLayout                         = "4th ^";
     private boolean                                   enableVUMeters                      = false;
     private TransportBehavior                         behaviorOnStop                      = TransportBehavior.STOP;
-    private TransportBehavior                         behaviorOnPause                     = TransportBehavior.PAUSE;
-    protected boolean                                 flipSession                         = false;
+    private final TransportBehavior                   behaviorOnPause                     = TransportBehavior.PAUSE;
     protected boolean                                 selectClipOnLaunch                  = true;
     protected boolean                                 drawRecordStripe                    = true;
     protected int                                     convertAftertouch                   = 0;
@@ -604,14 +598,6 @@ public abstract class AbstractConfiguration implements Configuration
 
     /** {@inheritDoc} */
     @Override
-    public void setFlipSession (final boolean enabled)
-    {
-        this.setOnOffSetting (this.flipSessionSetting, enabled);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
     public void setAccentEnabled (final boolean enabled)
     {
         this.setOnOffSetting (this.accentActiveSetting, enabled);
@@ -687,14 +673,6 @@ public abstract class AbstractConfiguration implements Configuration
     public TransportBehavior getBehaviourOnPause ()
     {
         return this.behaviorOnPause;
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public boolean isFlipSession ()
-    {
-        return this.flipSession;
     }
 
 
@@ -1100,40 +1078,6 @@ public abstract class AbstractConfiguration implements Configuration
         });
 
         this.isSettingActive.add (BEHAVIOUR_ON_STOP);
-    }
-
-
-    /**
-     * Activate the behavior on pause setting.
-     *
-     * @param settingsUI The settings
-     */
-    protected void activateBehaviourOnPauseSetting (final ISettingsUI settingsUI)
-    {
-        final IEnumSetting behaviourOnPauseSetting = settingsUI.getEnumSetting ("Behaviour on Pause", CATEGORY_TRANSPORT, TRANSPORT_BEHAVIOUR_VALUES, TRANSPORT_BEHAVIOUR_VALUES[2]);
-        behaviourOnPauseSetting.addValueObserver (value -> {
-            this.behaviorOnPause = TransportBehavior.values ()[lookupIndex (TRANSPORT_BEHAVIOUR_VALUES, value)];
-            this.notifyObservers (BEHAVIOUR_ON_PAUSE);
-        });
-
-        this.isSettingActive.add (BEHAVIOUR_ON_PAUSE);
-    }
-
-
-    /**
-     * Activate the flip session setting.
-     *
-     * @param settingsUI The settings
-     */
-    protected void activateFlipSessionSetting (final ISettingsUI settingsUI)
-    {
-        this.flipSessionSetting = settingsUI.getEnumSetting ("Flip Session", CATEGORY_SESSION, ON_OFF_OPTIONS, ON_OFF_OPTIONS[0]);
-        this.flipSessionSetting.addValueObserver (value -> {
-            this.flipSession = "On".equals (value);
-            this.notifyObservers (FLIP_SESSION);
-        });
-
-        this.isSettingActive.add (FLIP_SESSION);
     }
 
 

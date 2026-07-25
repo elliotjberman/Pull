@@ -49,7 +49,6 @@ public class Push2Display extends AbstractGraphicDisplay
         if (message == null)
             return;
         this.host.showNotification (message);
-        this.setNotificationMessage (message);
     }
 
 

@@ -65,4 +65,13 @@ public class TrackBankImpl extends AbstractTrackBankImpl
         for (int i = 0; i < this.getPageSize (); i++)
             ((TrackImpl) this.getItem (i)).addNoteObserver (observer);
     }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void addNotePlaybackObserver (final INoteObserver observer)
+    {
+        for (int i = 0; i < this.getPageSize (); i++)
+            ((TrackImpl) this.getItem (i)).addNotePlaybackObserver (observer);
+    }
 }

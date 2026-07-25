@@ -4,12 +4,9 @@
 
 package de.mossgrabers.controller.ableton.push.mode;
 
-import de.mossgrabers.controller.ableton.push.controller.Push1Display;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.controller.ButtonID;
-import de.mossgrabers.framework.controller.display.Format;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.display.ITextDisplay;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.constants.Capability;
 import de.mossgrabers.framework.daw.constants.RecordQuantization;
@@ -73,32 +70,6 @@ public class QuantizeMode extends BaseMode<IItem>
             if (index == 7)
                 this.surface.getConfiguration ().resetQuantizeAmount ();
         }
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void updateDisplay1 (final ITextDisplay display)
-    {
-        display.setCell (0, 0, Push1Display.SELECT_ARROW + "Quantize");
-        display.setCell (0, 1, "Groove");
-
-        final ITrack cursorTrack = this.model.getCursorTrack ();
-        final RecordQuantization recQuant = cursorTrack.doesExist () ? cursorTrack.getRecordQuantizationGrid () : RecordQuantization.RES_OFF;
-        final RecordQuantization [] values = RecordQuantization.values ();
-        display.setBlock (2, 0, "Record Quantize:");
-        for (int i = 0; i < values.length; i++)
-            display.setCell (3, i, (values[i] == recQuant ? Push1Display.SELECT_ARROW : "") + values[i].getName ());
-
-        if (this.model.getHost ().supports (Capability.QUANTIZE_INPUT_NOTE_LENGTH))
-        {
-            display.setBlock (2, 2, "       Quant Note");
-            display.setCell (2, 6, "Length:");
-            display.setCell (3, 6, cursorTrack.doesExist () && cursorTrack.isRecordQuantizationNoteLength () ? "On" : "Off");
-        }
-
-        final int quantizeAmount = this.surface.getConfiguration ().getQuantizeAmount ();
-        display.setCell (0, 7, "Quant Amnt").setCell (1, 7, quantizeAmount + "%").setCell (2, 7, quantizeAmount * 1023 / 100, Format.FORMAT_VALUE);
     }
 
 

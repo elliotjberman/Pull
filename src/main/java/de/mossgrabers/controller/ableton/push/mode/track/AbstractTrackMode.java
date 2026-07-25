@@ -6,20 +6,19 @@ package de.mossgrabers.controller.ableton.push.mode.track;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 import de.mossgrabers.controller.ableton.push.PushConfiguration;
-import de.mossgrabers.controller.ableton.push.controller.Push1Display;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.mode.BaseMode;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.display.ITextDisplay;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
+import de.mossgrabers.framework.daw.DAWColor;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.constants.Capability;
 import de.mossgrabers.framework.daw.data.ICursorTrack;
+import de.mossgrabers.framework.daw.data.ISend;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.ISendBank;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
@@ -29,7 +28,6 @@ import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.parameter.IParameter;
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.framework.utils.Pair;
-import de.mossgrabers.framework.utils.StringUtils;
 
 
 /**
@@ -39,6 +37,8 @@ import de.mossgrabers.framework.utils.StringUtils;
  */
 public abstract class AbstractTrackMode extends BaseMode<ITrack>
 {
+    protected static final int                       GLOBAL_CROSSFADER_MENU = 10;
+
     protected final List<Pair<String, Boolean>> menu = new ArrayList<> ();
     protected final PushConfiguration           configuration;
 
@@ -190,62 +190,40 @@ public abstract class AbstractTrackMode extends BaseMode<ITrack>
         switch (index)
         {
             case 0:
-                if (modeManager.isActive (Modes.VOLUME))
-                    modeManager.setActive (Modes.TRACK);
-                else
-                    modeManager.setActive (Modes.VOLUME);
+                this.activateGlobalMixMode (modeManager, Modes.VOLUME);
                 break;
 
             case 1:
-                if (modeManager.isActive (Modes.PAN))
-                    modeManager.setActive (Modes.TRACK);
-                else
-                    modeManager.setActive (Modes.PAN);
-                break;
-
-            case 2:
-                if (modeManager.isActive (Modes.CROSSFADER))
-                    modeManager.setActive (Modes.TRACK);
-                else
-                    modeManager.setActive (Modes.CROSSFADER);
-                break;
-
-            case 3:
-                final boolean isShift = this.surface.isShiftPressed ();
-                for (int i = 0; i < tb.getPageSize (); i++)
-                {
-                    final ISendBank sendBank = tb.getItem (i).getSendBank ();
-                    if (isShift)
-                    {
-                        if (sendBank.canScrollPageBackwards ())
-                            sendBank.selectPreviousPage ();
-                        else
-                            sendBank.scrollTo (sendBank.getItemCount () / 4 * 4);
-                    }
-                    else
-                    {
-                        if (sendBank.canScrollPageForwards ())
-                            sendBank.selectNextPage ();
-                        else
-                            sendBank.scrollTo (0);
-                    }
-                }
-                this.bindControls ();
+                this.activateGlobalMixMode (modeManager, Modes.PAN);
                 break;
 
             case 7:
-                if (this.lastSendIsAccessible ())
-                    this.handleSendEffect (3);
-                else
-                    this.model.getTrackBank ().selectParent ();
+                this.activateGlobalMixMode (modeManager, Modes.CROSSFADER);
                 break;
 
             default:
-                this.handleSendEffect (index - 4);
+                final boolean hasAdditionalSends = this.hasAdditionalSends ();
+                final int sendOffset = hasAdditionalSends ? this.configuration.getMixSendOffset () : 0;
+                if (!hasAdditionalSends)
+                    this.configuration.setMixSendOffset (0);
+                if (hasAdditionalSends && (sendOffset == 0 && index == 6 || sendOffset > 0 && index == 2))
+                {
+                    this.configuration.setMixSendOffset (sendOffset == 0 ? 4 : 0);
+                    break;
+                }
+
+                final int sendIndex = sendOffset == 0 ? index - 2 : index - 3 + sendOffset;
+                if (sendIndex >= 0 && sendIndex < 8)
+                    this.activateGlobalMixMode (modeManager, Modes.get (Modes.SEND1, sendIndex));
                 break;
         }
+    }
 
-        this.configuration.setMixerMode (modeManager.getActiveID ());
+
+    private void activateGlobalMixMode (final ModeManager modeManager, final Modes mode)
+    {
+        this.configuration.setGlobalMixMode (mode);
+        modeManager.setActive (mode);
     }
 
 
@@ -381,14 +359,10 @@ public abstract class AbstractTrackMode extends BaseMode<ITrack>
             if (!track.doesExist () || !track.isActivated ())
                 return this.colorManager.getColorIndex (PushColorManager.PUSH_BLACK);
 
-            final ITrack cursorTrack = this.model.getCursorTrack ();
-            final int selIndex = cursorTrack.doesExist () ? cursorTrack.getIndex () : -1;
-            final boolean isSel = track.getIndex () == selIndex;
-
             if (track.isRecArm ())
-                return this.colorManager.getColorIndex (isSel ? PushColorManager.PUSH_RED_HI : PushColorManager.PUSH_RED_LO);
+                return this.colorManager.getColorIndex (PushColorManager.PUSH_RED_HI);
 
-            return this.colorManager.getColorIndex (isSel ? PushColorManager.PUSH_ORANGE_HI : PushColorManager.PUSH_YELLOW_LO);
+            return this.colorManager.getColorIndex (DAWColor.getColorID (track.getColor ()));
         }
 
         index = this.isButtonRow (1, buttonID);
@@ -396,85 +370,22 @@ public abstract class AbstractTrackMode extends BaseMode<ITrack>
         {
             final ITrack track = tb.getItem (index);
 
-            if (this.isPushModern)
-            {
-                if (config.isSoloState (this.surface.isLongPressed (ButtonID.SOLO)))
-                    return track.doesExist () && track.isSolo () ? PushColorManager.PUSH2_COLOR2_YELLOW_HI : PushColorManager.PUSH2_COLOR_BLACK;
-                if (config.isMuteState (this.surface.isLongPressed (ButtonID.MUTE)))
-                    return track.doesExist () && track.isMute () ? PushColorManager.PUSH2_COLOR2_AMBER_LO : PushColorManager.PUSH2_COLOR_BLACK;
-                if (config.isClipStopState (this.surface.isLongPressed (ButtonID.STOP_CLIP)))
-                    return track.doesExist () && track.isPlaying () ? PushColorManager.PUSH2_COLOR_RED_HI : PushColorManager.PUSH2_COLOR_BLACK;
+            if (config.isSoloState (this.surface.isLongPressed (ButtonID.SOLO)))
+                return track.doesExist () && track.isSolo () ? PushColorManager.PUSH2_COLOR2_YELLOW_HI : PushColorManager.PUSH2_COLOR_BLACK;
+            if (config.isMuteState (this.surface.isLongPressed (ButtonID.MUTE)))
+                return track.doesExist () && track.isMute () ? PushColorManager.PUSH2_COLOR2_AMBER_LO : PushColorManager.PUSH2_COLOR_BLACK;
+            if (config.isClipStopState (this.surface.isLongPressed (ButtonID.STOP_CLIP)))
+                return track.doesExist () && track.isPlaying () ? PushColorManager.PUSH2_COLOR_RED_HI : PushColorManager.PUSH2_COLOR_BLACK;
 
-                final ModeManager modeManager = this.surface.getModeManager ();
-                switch (index)
-                {
-                    case 0:
-                        return modeManager.isActive (Modes.VOLUME) ? PushColorManager.PUSH2_COLOR2_WHITE : PushColorManager.PUSH2_COLOR_BLACK;
-                    case 1:
-                        return modeManager.isActive (Modes.PAN) ? PushColorManager.PUSH2_COLOR2_WHITE : PushColorManager.PUSH2_COLOR_BLACK;
-                    case 2:
-                        return modeManager.isActive (Modes.CROSSFADER) ? PushColorManager.PUSH2_COLOR2_WHITE : PushColorManager.PUSH2_COLOR_BLACK;
-                    case 4:
-                        final Modes sendMode1 = Modes.SEND1;
-                        return modeManager.isActive (sendMode1) ? PushColorManager.PUSH2_COLOR2_WHITE : PushColorManager.PUSH2_COLOR_BLACK;
-                    case 5:
-                        final Modes sendMode2 = Modes.SEND2;
-                        return modeManager.isActive (sendMode2) ? PushColorManager.PUSH2_COLOR2_WHITE : PushColorManager.PUSH2_COLOR_BLACK;
-                    case 6:
-                        final Modes sendMode3 = Modes.SEND3;
-                        return modeManager.isActive (sendMode3) ? PushColorManager.PUSH2_COLOR2_WHITE : PushColorManager.PUSH2_COLOR_BLACK;
-                    case 7:
-                        if (this.lastSendIsAccessible ())
-                        {
-                            final Modes sendMode4 = Modes.SEND4;
-                            return modeManager.isActive (sendMode4) ? PushColorManager.PUSH2_COLOR2_WHITE : PushColorManager.PUSH2_COLOR_BLACK;
-                        }
-                        return tb.hasParent () ? PushColorManager.PUSH2_COLOR2_WHITE : PushColorManager.PUSH2_COLOR_BLACK;
-                    default:
-                    case 3:
-                        return PushColorManager.PUSH2_COLOR_BLACK;
-                }
-            }
-
-            if (!track.doesExist ())
-                return PushColorManager.PUSH1_COLOR_BLACK;
-
-            switch (config.getLockState ())
-            {
-                case MUTE:
-                    return track.isMute () ? PushColorManager.PUSH1_COLOR_BLACK : PushColorManager.PUSH1_COLOR2_YELLOW_HI;
-                case SOLO:
-                    return track.isSolo () ? PushColorManager.PUSH1_COLOR2_BLUE_HI : PushColorManager.PUSH1_COLOR2_GREY_LO;
-                case CLIP_STOP:
-                    return PushColorManager.PUSH1_COLOR2_ROSE;
-                default:
-                    // Fall through
-                    break;
-            }
+            final ModeManager modeManager = this.surface.getModeManager ();
+            this.updateTrackMenu (this.getGlobalControlIndex (modeManager.getActiveID ()));
+            final Pair<String, Boolean> menuItem = this.menu.get (index);
+            return menuItem.getValue ().booleanValue () || "<".equals (menuItem.getKey ()) || ">".equals (menuItem.getKey ()) ? PushColorManager.PUSH2_COLOR2_WHITE : PushColorManager.PUSH2_COLOR_BLACK;
         }
 
         return super.getButtonColor (buttonID);
     }
 
-
-    protected void drawRow4 (final ITextDisplay d)
-    {
-        final ITrackBank tb = this.model.getCurrentTrackBank ();
-        final Optional<ITrack> selTrack = tb.getSelectedItem ();
-
-        // Format track names
-        final int selIndex = selTrack.isEmpty () ? -1 : selTrack.get ().getIndex ();
-        for (int i = 0; i < 8; i++)
-        {
-            final boolean isSel = i == selIndex;
-            final ITrack t = tb.getItem (i);
-            String trackName = t.getName ();
-            if (t.doesExist () && t.isGroup ())
-                trackName = (t.isGroupExpanded () ? Push1Display.THREE_ROWS : Push1Display.FOLDER) + trackName;
-            final String n = StringUtils.shortenAndFixASCII (trackName, isSel ? 7 : 8);
-            d.setCell (3, i, isSel ? Push1Display.SELECT_ARROW + n : n);
-        }
-    }
 
     // Push 2
 
@@ -482,7 +393,7 @@ public abstract class AbstractTrackMode extends BaseMode<ITrack>
     // Called from sub-classes
     protected void updateChannelDisplay (final IGraphicDisplay display, final int selectedMenu, final boolean isVolume, final boolean isPan)
     {
-        this.updateMenuItems (selectedMenu);
+        this.updateMenuItems (isVolume ? 0 : isPan ? 1 : -1);
 
         final IValueChanger valueChanger = this.model.getValueChanger ();
         final ITrackBank tb = this.model.getCurrentTrackBank ();
@@ -552,41 +463,65 @@ public abstract class AbstractTrackMode extends BaseMode<ITrack>
 
     protected void updateTrackMenu (final int selectedMenu)
     {
-        this.menu.get (0).set ("Volume", Boolean.valueOf (selectedMenu - 1 == 0));
-        this.menu.get (1).set ("Pan", Boolean.valueOf (selectedMenu - 1 == 1));
-        this.menu.get (2).set (this.model.getHost ().supports (Capability.HAS_CROSSFADER) ? "Crossfader" : " ", Boolean.valueOf (selectedMenu - 1 == 2));
+        for (int i = 0; i < 8; i++)
+            this.menu.get (i).set (" ", Boolean.FALSE);
 
-        final ITrackBank currentTrackBank = this.model.getCurrentTrackBank ();
-        final Optional<ITrack> selectedItem = currentTrackBank.getSelectedItem ();
-        final ISendBank sendBank = (selectedItem.isPresent () ? selectedItem.get () : currentTrackBank.getItem (0)).getSendBank ();
-        final int start = Math.max (0, sendBank.getScrollPosition ()) + 1;
-        this.menu.get (3).set (String.format ("Sends %d-%d", Integer.valueOf (start), Integer.valueOf (start + 3)), Boolean.FALSE);
+        this.menu.get (0).set ("Volume", Boolean.valueOf (selectedMenu == 0));
+        this.menu.get (1).set ("Pan", Boolean.valueOf (selectedMenu == 1));
+        this.menu.get (7).set ("Crossfader", Boolean.valueOf (selectedMenu == GLOBAL_CROSSFADER_MENU));
 
-        final ITrackBank tb = currentTrackBank;
-        for (int i = 0; i < 4; i++)
+        final boolean hasAdditionalSends = this.hasAdditionalSends ();
+        final int sendOffset = hasAdditionalSends ? this.configuration.getMixSendOffset () : 0;
+        if (!hasAdditionalSends)
+            this.configuration.setMixSendOffset (0);
+        if (!hasAdditionalSends)
         {
-            final String sendName = tb.getEditSendName (i);
-            final boolean exists = !sendName.isEmpty ();
-            this.menu.get (4 + i).set (exists ? sendName : " ", Boolean.valueOf (exists && 4 + i == selectedMenu - 1));
+            for (int i = 0; i < 5; i++)
+                this.setSendMenuItem (i + 2, i, selectedMenu);
+            return;
         }
 
-        if (this.lastSendIsAccessible ())
+        if (sendOffset == 0)
+        {
+            for (int i = 0; i < 4; i++)
+                this.setSendMenuItem (i + 2, i, selectedMenu);
+            this.menu.get (6).set (">", Boolean.FALSE);
             return;
+        }
 
-        final boolean isUpAvailable = tb.hasParent ();
-        this.menu.get (7).set (isUpAvailable ? "Up" : " ", Boolean.valueOf (isUpAvailable));
+        this.menu.get (2).set ("<", Boolean.FALSE);
+        for (int i = 0; i < 4; i++)
+            this.setSendMenuItem (i + 3, sendOffset + i, selectedMenu);
     }
 
 
-    /**
-     * Check if the 4th/8th send is accessible. This is the case if the current tracks are not
-     * inside a group (hence no need to go up), Shift is pressed or the 8th knob is touched.
-     *
-     * @return True if one of the above described conditions is met
-     */
-    private boolean lastSendIsAccessible ()
+    private void setSendMenuItem (final int menuIndex, final int sendIndex, final int selectedMenu)
     {
-        return this.surface.isShiftPressed () || !this.model.getCurrentTrackBank ().hasParent () || this.isKnobTouched (7);
+        final ISendBank sendBank = this.model.getCursorTrack ().getSendBank ();
+        final ISend send = sendIndex < sendBank.getPageSize () ? sendBank.getItem (sendIndex) : null;
+        final boolean exists = send != null && send.doesExist ();
+        this.menu.get (menuIndex).set (exists ? send.getName () : " ", Boolean.valueOf (exists && selectedMenu == sendIndex + 2));
+    }
+
+
+    protected boolean hasAdditionalSends ()
+    {
+        final ISendBank sendBank = this.model.getCursorTrack ().getSendBank ();
+        return sendBank.getPageSize () > 5 && sendBank.getItem (5).doesExist ();
+    }
+
+
+    private int getGlobalControlIndex (final Modes mode)
+    {
+        if (mode == Modes.VOLUME)
+            return 0;
+        if (mode == Modes.PAN)
+            return 1;
+        if (mode == Modes.CROSSFADER)
+            return GLOBAL_CROSSFADER_MENU;
+        if (mode != null && mode.ordinal () >= Modes.SEND1.ordinal () && mode.ordinal () <= Modes.SEND8.ordinal ())
+            return 2 + mode.ordinal () - Modes.SEND1.ordinal ();
+        return -1;
     }
 
 
@@ -595,6 +530,16 @@ public abstract class AbstractTrackMode extends BaseMode<ITrack>
         if (this.model.getHost ().supports (Capability.HAS_CROSSFADER))
             return (int) Math.round (this.model.getValueChanger ().toNormalizedValue (track.getCrossfadeParameter ().getValue ()) * 2.0);
         return -1;
+    }
+
+
+    protected String formatPanValue (final int value)
+    {
+        final double bipolarValue = 2.0 * this.model.getValueChanger ().toNormalizedValue (value) - 1.0;
+        final int amount = (int) Math.round (100.0 * Math.abs (bipolarValue));
+        if (amount == 0)
+            return "C";
+        return (bipolarValue < 0 ? "L " : "R ") + amount;
     }
 
 

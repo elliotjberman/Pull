@@ -4,17 +4,23 @@
 
 package de.mossgrabers.controller.ableton.push.mode.track;
 
-import de.mossgrabers.controller.ableton.push.PushConfiguration;
-import de.mossgrabers.controller.ableton.push.controller.Push1Display;
+import java.util.ArrayList;
+import java.util.List;
+
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
-import de.mossgrabers.framework.controller.display.AbstractGraphicDisplay;
+import de.mossgrabers.controller.ableton.push.parameterprovider.PushVolumeParameterProvider;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.display.ITextDisplay;
+import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.IModel;
+import de.mossgrabers.framework.daw.data.ICursorTrack;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.MenuData;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.ParameterData;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.TrackData;
+import de.mossgrabers.framework.graphics.canvas.component.TrackVolumeComponent;
 import de.mossgrabers.framework.mode.Modes;
-import de.mossgrabers.framework.parameterprovider.track.VolumeParameterProvider;
+import de.mossgrabers.framework.utils.Pair;
 
 
 /**
@@ -34,25 +40,7 @@ public class VolumeMode extends AbstractTrackMode
     {
         super (Modes.NAME_VOLUME, surface, model);
 
-        this.setParameterProvider (new VolumeParameterProvider (model));
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void updateDisplay1 (final ITextDisplay display)
-    {
-        final ITrackBank tb = this.model.getCurrentTrackBank ();
-        final PushConfiguration config = this.surface.getConfiguration ();
-        final int upperBound = this.model.getValueChanger ().getUpperBound ();
-        for (int i = 0; i < 8; i++)
-        {
-            final ITrack t = tb.getItem (i);
-            display.setCell (0, i, t.doesExist () ? "Volume" : "").setCell (1, i, t.getVolumeStr (8));
-            if (t.doesExist ())
-                display.setCell (2, i, config.isEnableVUMeters () ? Push1Display.formatValue (t.getVolume (), t.getVu (), upperBound) : Push1Display.formatValue (t.getVolume (), upperBound));
-        }
-        this.drawRow4 (display);
+        this.setParameterProvider (new PushVolumeParameterProvider (model));
     }
 
 
@@ -60,6 +48,40 @@ public class VolumeMode extends AbstractTrackMode
     @Override
     public void updateDisplay2 (final IGraphicDisplay display)
     {
-        this.updateChannelDisplay (display, AbstractGraphicDisplay.GRID_ELEMENT_CHANNEL_VOLUME, true, false);
+        this.updateMenuItems (0);
+
+        final List<MenuData> menus = new ArrayList<> (8);
+        final List<ParameterData> parameters = new ArrayList<> (8);
+        final List<TrackData> tracks = new ArrayList<> (8);
+        final List<Integer> vuLeft = new ArrayList<> (8);
+        final List<Integer> vuRight = new ArrayList<> (8);
+        final ITrackBank trackBank = this.model.getCurrentTrackBank ();
+        final ICursorTrack cursorTrack = this.model.getCursorTrack ();
+        final IValueChanger valueChanger = this.model.getValueChanger ();
+        final boolean enableVUMeters = this.surface.getConfiguration ().isEnableVUMeters ();
+
+        for (int i = 0; i < 8; i++)
+        {
+            final Pair<String, Boolean> menuItem = this.menu.get (i);
+            menus.add (new MenuData (menuItem.getKey ().trim (), menuItem.getValue ().booleanValue ()));
+
+            final ITrack track = trackBank.getItem (i);
+            if (track.doesExist ())
+            {
+                parameters.add (new ParameterData ("Volume", valueChanger.toDisplayValue (track.getVolume ()), valueChanger.toDisplayValue (track.getModulatedVolume ()), track.getVolumeStr (8), track.isActivated ()));
+                vuLeft.add (Integer.valueOf (valueChanger.toDisplayValue (enableVUMeters ? track.getVuLeft () : 0)));
+                vuRight.add (Integer.valueOf (valueChanger.toDisplayValue (enableVUMeters ? track.getVuRight () : 0)));
+            }
+            else
+            {
+                parameters.add (new ParameterData ("", -1, -1, "", false));
+                vuLeft.add (Integer.valueOf (0));
+                vuRight.add (Integer.valueOf (0));
+            }
+
+            tracks.add (new TrackData (track.doesExist () ? track.getName (12) : "", this.updateType (track), track.getColor (), track.isSelected (), track.isActivated (), track.isSelected () && cursorTrack.isPinned ()));
+        }
+
+        display.addElement (new TrackVolumeComponent (menus, parameters, tracks, vuLeft, vuRight));
     }
 }

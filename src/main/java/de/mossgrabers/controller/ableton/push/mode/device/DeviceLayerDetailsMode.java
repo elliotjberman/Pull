@@ -9,7 +9,6 @@ import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.mode.BaseMode;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.display.ITextDisplay;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.IChannel;
 import de.mossgrabers.framework.daw.data.ICursorDevice;
@@ -169,47 +168,10 @@ public class DeviceLayerDetailsMode extends BaseMode<ILayer>
         {
             if (index >= 6)
                 return this.colorManager.getColorIndex (this.bank instanceof IDrumPadBank ? AbstractMode.BUTTON_COLOR2_ON : AbstractFeatureGroup.BUTTON_COLOR_OFF);
-            return this.isPushModern ? PushColorManager.PUSH2_COLOR_BLACK : PushColorManager.PUSH1_COLOR_BLACK;
+            return PushColorManager.PUSH2_COLOR_BLACK;
         }
 
         return super.getButtonColor (buttonID);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void updateDisplay1 (final ITextDisplay display)
-    {
-        final Optional<ILayer> channelOpt = this.bank.getSelectedItem ();
-        if (channelOpt.isEmpty ())
-        {
-            display.setRow (1, "                     Please selecta layer...                        ");
-            return;
-        }
-
-        final IChannel channel = channelOpt.get ();
-
-        final String layerName = channel.getName ();
-        final String firstBlock = "Layer: " + layerName;
-        display.setBlock (0, 0, firstBlock);
-        if (layerName.length () > 17)
-            display.setBlock (0, 1, firstBlock.substring (17).trim ());
-        display.setCell (2, 0, "Active").setCell (3, 0, channel.isActivated () ? "On" : "Off");
-        display.setCell (2, 1, "");
-        display.setCell (3, 1, "");
-        display.setCell (2, 2, "Mute").setCell (3, 2, channel.isMute () ? "On" : "Off");
-        display.setCell (2, 3, "Solo").setCell (3, 3, channel.isSolo () ? "On" : "Off");
-        display.setCell (2, 4, "");
-        display.setCell (3, 4, "");
-        display.setCell (2, 5, "");
-        display.setCell (3, 5, "");
-        if (this.bank instanceof IDrumPadBank)
-        {
-            display.setCell (0, 6, "Clr Mute");
-            display.setCell (0, 7, "Clr Solo");
-        }
-        display.setCell (2, 7, "Select");
-        display.setCell (3, 7, "Color");
     }
 
 

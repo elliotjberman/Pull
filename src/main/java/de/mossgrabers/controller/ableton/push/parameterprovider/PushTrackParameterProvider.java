@@ -5,9 +5,9 @@
 package de.mossgrabers.controller.ableton.push.parameterprovider;
 
 import de.mossgrabers.controller.ableton.push.PushConfiguration;
+import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.IChannel;
-import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.empty.EmptyParameter;
 import de.mossgrabers.framework.observer.ISettingObserver;
 import de.mossgrabers.framework.parameter.IParameter;
@@ -22,6 +22,7 @@ import de.mossgrabers.framework.parameterprovider.track.SelectedTrackParameterPr
 public class PushTrackParameterProvider extends SelectedTrackParameterProvider implements ISettingObserver
 {
     private final PushConfiguration configuration;
+    private final IValueChanger     valueChanger;
 
 
     /**
@@ -35,6 +36,7 @@ public class PushTrackParameterProvider extends SelectedTrackParameterProvider i
         super (model);
 
         this.configuration = configuration;
+        this.valueChanger = model.getValueChanger ();
     }
 
 
@@ -42,18 +44,13 @@ public class PushTrackParameterProvider extends SelectedTrackParameterProvider i
     @Override
     protected IParameter getInternal (final int index, final IChannel selectedChannel)
     {
-        if (index < 2 || !this.configuration.isPushModern ())
-            return super.getInternal (index, selectedChannel);
+        if (index == 0)
+            return new PushVolumeParameter (super.getInternal (index, selectedChannel), this.valueChanger);
+        if (index == 1)
+            return new PushPanParameter (super.getInternal (index, selectedChannel), this.valueChanger);
 
-        switch (index)
-        {
-            case 2:
-                return ((ITrack) selectedChannel).getCrossfadeParameter ();
-            case 3:
-                return EmptyParameter.INSTANCE;
-            default:
-                return this.getSend (index - 4, selectedChannel);
-        }
+        final int sendIndex = this.configuration.getTrackMixSendOffset () + index - 2;
+        return sendIndex < selectedChannel.getSendBank ().getPageSize () ? this.getSend (sendIndex, selectedChannel) : EmptyParameter.INSTANCE;
     }
 
 

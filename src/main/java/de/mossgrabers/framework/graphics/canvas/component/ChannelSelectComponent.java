@@ -6,6 +6,7 @@ package de.mossgrabers.framework.graphics.canvas.component;
 
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.daw.resource.ChannelType;
+import de.mossgrabers.framework.graphics.canvas.component.LabelComponent.LabelLayout;
 
 import java.util.EnumMap;
 
@@ -45,7 +46,7 @@ public class ChannelSelectComponent extends MenuComponent
      */
     public ChannelSelectComponent (final ChannelType type, final String menuName, final boolean isMenuSelected, final String name, final ColorEx color, final boolean isSelected, final boolean isActive)
     {
-        super (menuName, isMenuSelected, name, getIcon (type, false), color, isSelected, isActive);
+        super (menuName, isMenuSelected, name, getIcon (type, false), color, isSelected, isActive, LabelLayout.TRACK);
     }
 
 
@@ -63,7 +64,7 @@ public class ChannelSelectComponent extends MenuComponent
      */
     public ChannelSelectComponent (final ChannelType type, final String menuName, final boolean isMenuSelected, final String name, final ColorEx color, final boolean isSelected, final boolean isActive, final boolean isPinned)
     {
-        super (menuName, isMenuSelected, name, getIcon (type, isPinned), color, isSelected, isActive);
+        super (menuName, isMenuSelected, name, getIcon (type, isPinned), color, isSelected, isActive, LabelLayout.TRACK);
     }
 
 

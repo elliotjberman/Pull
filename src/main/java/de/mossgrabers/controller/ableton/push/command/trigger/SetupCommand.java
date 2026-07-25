@@ -5,7 +5,6 @@
 package de.mossgrabers.controller.ableton.push.command.trigger;
 
 import de.mossgrabers.controller.ableton.push.PushConfiguration;
-import de.mossgrabers.controller.ableton.push.PushVersion;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.command.core.AbstractTriggerCommand;
 import de.mossgrabers.framework.daw.IModel;
@@ -21,21 +20,15 @@ import de.mossgrabers.framework.utils.ButtonEvent;
  */
 public class SetupCommand extends AbstractTriggerCommand<PushControlSurface, PushConfiguration>
 {
-    private final PushVersion pushVersion;
-
-
     /**
      * Constructor.
      *
-     * @param pushVersion The version of Push
      * @param model The model
      * @param surface The surface
      */
-    public SetupCommand (final PushVersion pushVersion, final IModel model, final PushControlSurface surface)
+    public SetupCommand (final IModel model, final PushControlSurface surface)
     {
         super (model, surface);
-
-        this.pushVersion = pushVersion;
     }
 
 
@@ -47,23 +40,9 @@ public class SetupCommand extends AbstractTriggerCommand<PushControlSurface, Pus
             return;
         final ModeManager modeManager = this.surface.getModeManager ();
 
-        final Modes mode = this.getMode ();
-
-        if (modeManager.isActive (mode))
+        if (modeManager.isActive (Modes.SETUP))
             modeManager.restore ();
         else
-            modeManager.setTemporary (mode);
-    }
-
-
-    private Modes getMode ()
-    {
-        if (this.pushVersion != PushVersion.VERSION_1)
-            return Modes.SETUP;
-
-        if (this.surface.isShiftPressed ())
-            return Modes.CONFIGURATION;
-
-        return Modes.USER;
+            modeManager.setTemporary (Modes.SETUP);
     }
 }

@@ -5,17 +5,13 @@
 package de.mossgrabers.controller.ableton.push.mode.track;
 
 import de.mossgrabers.controller.ableton.push.PushConfiguration;
-import de.mossgrabers.controller.ableton.push.PushConfiguration.LockState;
-import de.mossgrabers.controller.ableton.push.controller.Push1Display;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.mode.BaseMode;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.color.ColorManager;
-import de.mossgrabers.framework.controller.display.Format;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.display.ITextDisplay;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.IProject;
@@ -136,34 +132,6 @@ public class MasterMode extends BaseMode<ITrack>
 
     /** {@inheritDoc} */
     @Override
-    public void updateDisplay1 (final ITextDisplay display)
-    {
-        final boolean canEditCueVolume = this.model.getHost ().supports (Capability.CUE_VOLUME);
-        final int upperBound = this.model.getValueChanger ().getUpperBound ();
-
-        display.setCell (0, 0, TAG_VOLUME).setCell (0, 1, "Pan");
-        if (canEditCueVolume)
-            display.setCell (0, 2, TAG_VOLUME).setCell (0, 3, "Mix");
-        display.setCell (0, 6, "Load").setCell (0, 7, "Save").setCell (1, 6, "Project:");
-        display.setCell (1, 0, this.masterTrack.getVolumeStr (8)).setCell (1, 1, this.masterTrack.getPanStr (8));
-        if (canEditCueVolume)
-            display.setCell (1, 2, this.project.getCueVolumeStr (8)).setCell (1, 3, this.project.getCueMixStr (8));
-        display.setBlock (1, 2, "Audio Engine").setBlock (2, 3, this.project.getName ());
-        display.setCell (2, 0, this.configuration.isEnableVUMeters () ? Push1Display.formatValue (this.masterTrack.getVolume (), this.masterTrack.getVu (), upperBound) : Push1Display.formatValue (this.masterTrack.getVolume (), upperBound));
-        display.setCell (2, 1, this.masterTrack.getPan (), Format.FORMAT_PAN);
-        if (canEditCueVolume)
-        {
-            display.setCell (2, 2, this.project.getCueVolume (), Format.FORMAT_VALUE);
-            display.setCell (2, 3, this.project.getCueMix (), Format.FORMAT_VALUE);
-            display.setCell (3, 0, this.masterTrack.getName ()).setCell (3, 2, "Cue");
-        }
-        display.setCell (3, 4, this.model.getApplication ().isEngineActive () ? "Active" : "Off");
-        display.setCell (3, 6, "Previous").setCell (3, 7, "Next");
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
     public void updateDisplay2 (final IGraphicDisplay display)
     {
         final IValueChanger valueChanger = this.model.getValueChanger ();
@@ -237,8 +205,6 @@ public class MasterMode extends BaseMode<ITrack>
     @Override
     public int getButtonColor (final ButtonID buttonID)
     {
-        final boolean isPush2 = this.configuration.isPushModern ();
-
         int index = this.isButtonRow (0, buttonID);
         if (index >= 0)
         {
@@ -251,34 +217,27 @@ public class MasterMode extends BaseMode<ITrack>
             if (index > 5)
                 return colorManager.getColorIndex (AbstractFeatureGroup.BUTTON_COLOR_ON);
 
-            final int red = isPush2 ? PushColorManager.PUSH2_COLOR_RED_HI : PushColorManager.PUSH1_COLOR_RED_HI;
+            final int red = PushColorManager.PUSH2_COLOR_RED_HI;
             return this.model.getApplication ().isEngineActive () ? colorManager.getColorIndex (AbstractFeatureGroup.BUTTON_COLOR_ON) : red;
         }
 
         index = this.isButtonRow (1, buttonID);
         if (index >= 0)
         {
-            final int off = this.isPushModern ? PushColorManager.PUSH2_COLOR_BLACK : PushColorManager.PUSH1_COLOR_BLACK;
+            final int off = PushColorManager.PUSH2_COLOR_BLACK;
 
             switch (index)
             {
                 case 0:
-                    if (!this.isPushModern)
-                    {
-                        final boolean muteState = this.configuration.getLockState () == LockState.MUTE;
-                        if (muteState)
-                            return this.masterTrack.isMute () ? off : PushColorManager.PUSH1_COLOR2_YELLOW_HI;
-                        return this.masterTrack.isSolo () ? PushColorManager.PUSH1_COLOR2_BLUE_HI : PushColorManager.PUSH1_COLOR2_GREY_LO;
-                    }
                     break;
 
                 case 6:
-                    return isPush2 ? PushColorManager.PUSH2_COLOR_GREEN_HI : PushColorManager.PUSH1_COLOR_GREEN_HI;
+                    return PushColorManager.PUSH2_COLOR_GREEN_HI;
 
                 case 7:
                     if (this.project.isDirty ())
-                        return isPush2 ? PushColorManager.PUSH2_COLOR_ORANGE_HI : PushColorManager.PUSH1_COLOR_ORANGE_HI;
-                    return isPush2 ? PushColorManager.PUSH2_COLOR_GREEN_LO : PushColorManager.PUSH1_COLOR_GREEN_LO;
+                        return PushColorManager.PUSH2_COLOR_ORANGE_HI;
+                    return PushColorManager.PUSH2_COLOR_GREEN_LO;
             }
 
             return off;
@@ -298,13 +257,6 @@ public class MasterMode extends BaseMode<ITrack>
         switch (index)
         {
             case 0:
-                if (!this.isPushModern)
-                {
-                    if (this.configuration.getLockState () == LockState.MUTE)
-                        this.masterTrack.toggleMute ();
-                    else
-                        this.masterTrack.toggleSolo ();
-                }
                 break;
 
             case 6:
@@ -325,10 +277,10 @@ public class MasterMode extends BaseMode<ITrack>
     private int getTrackButtonColor ()
     {
         if (!this.masterTrack.isActivated ())
-            return this.isPushModern ? PushColorManager.PUSH2_COLOR_BLACK : PushColorManager.PUSH1_COLOR_BLACK;
+            return PushColorManager.PUSH2_COLOR_BLACK;
         if (this.masterTrack.isRecArm ())
-            return this.isPushModern ? PushColorManager.PUSH2_COLOR_RED_HI : PushColorManager.PUSH1_COLOR_RED_HI;
-        return this.isPushModern ? PushColorManager.PUSH2_COLOR_ORANGE_HI : PushColorManager.PUSH1_COLOR_ORANGE_HI;
+            return PushColorManager.PUSH2_COLOR_RED_HI;
+        return PushColorManager.PUSH2_COLOR_ORANGE_HI;
     }
 
 

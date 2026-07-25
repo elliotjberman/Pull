@@ -8,7 +8,6 @@ import de.mossgrabers.framework.configuration.Configuration;
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.display.IDisplay;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.display.ITextDisplay;
 import de.mossgrabers.framework.controller.grid.ILightGuide;
 import de.mossgrabers.framework.controller.grid.IPadGrid;
 import de.mossgrabers.framework.controller.hardware.BindType;
@@ -88,36 +87,11 @@ public interface IControlSurface<C extends Configuration>
 
 
     /**
-     * Get the default text display of the controller.
+     * Get the default display.
      *
-     * @return The display interface
-     */
-    ITextDisplay getTextDisplay ();
-
-
-    /**
-     * Get the default text display.
-     *
-     * @return The default text display
+     * @return The default display
      */
     IDisplay getDisplay ();
-
-
-    /**
-     * Get the interface to one of the text displays of the controller.
-     *
-     * @param index The index of the interface
-     * @return The display interface
-     */
-    ITextDisplay getTextDisplay (int index);
-
-
-    /**
-     * Add a text display to the controller.
-     *
-     * @param display The display interface
-     */
-    void addTextDisplay (final ITextDisplay display);
 
 
     /**

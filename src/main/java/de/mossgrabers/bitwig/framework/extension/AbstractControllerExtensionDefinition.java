@@ -73,14 +73,6 @@ public abstract class AbstractControllerExtensionDefinition<S extends IControlSu
 
     /** {@inheritDoc} */
     @Override
-    public String getHelpFilePath ()
-    {
-        return "DrivenByMoss-Manual.pdf";
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
     public String getAuthor ()
     {
         return this.definition.getAuthor ();

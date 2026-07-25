@@ -4,18 +4,23 @@
 
 package de.mossgrabers.controller.ableton.push.mode.track;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.controller.ButtonID;
-import de.mossgrabers.framework.controller.display.Format;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.display.ITextDisplay;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.IModel;
+import de.mossgrabers.framework.daw.data.ICursorTrack;
 import de.mossgrabers.framework.daw.data.ISend;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.ISendBank;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
-import de.mossgrabers.framework.graphics.canvas.utils.SendData;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.MenuData;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.ParameterData;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.TrackData;
 import de.mossgrabers.framework.parameterprovider.track.SendParameterProvider;
 import de.mossgrabers.framework.utils.Pair;
 
@@ -63,47 +68,34 @@ public class SendMode extends AbstractTrackMode
 
     /** {@inheritDoc} */
     @Override
-    public void updateDisplay1 (final ITextDisplay display)
-    {
-        final ITrackBank tb = this.model.getCurrentTrackBank ();
-        for (int i = 0; i < 8; i++)
-        {
-            final ITrack t = tb.getItem (i);
-            if (t.doesExist ())
-            {
-                final ISend send = t.getSendBank ().getItem (this.sendIndex);
-                display.setCell (0, i, send.getName ());
-                display.setCell (1, i, send.getDisplayedValue (8));
-                display.setCell (2, i, send.getValue (), Format.FORMAT_VALUE);
-            }
-        }
-        this.drawRow4 (display);
-    }
-
-
-    /** {@inheritDoc} */
-    @SuppressWarnings("null")
-    @Override
     public void updateDisplay2 (final IGraphicDisplay display)
     {
-        this.updateTrackMenu (5 + this.sendIndex % 4);
+        this.updateMenuItems (2 + this.sendIndex);
 
-        final ITrackBank tb = this.model.getCurrentTrackBank ();
+        final List<MenuData> menus = new ArrayList<> (8);
+        final List<ParameterData> parameters = new ArrayList<> (8);
+        final List<TrackData> tracks = new ArrayList<> (8);
+        final ITrackBank trackBank = this.model.getCurrentTrackBank ();
+        final ICursorTrack cursorTrack = this.model.getCursorTrack ();
         final IValueChanger valueChanger = this.model.getValueChanger ();
-
         for (int i = 0; i < 8; i++)
         {
-            final ITrack t = tb.getItem (i);
-            final ISendBank sendBank = t.getSendBank ();
-            final SendData [] sendData = new SendData [4];
-            for (int j = 0; j < 4; j++)
+            final Pair<String, Boolean> menuItem = this.menu.get (i);
+            menus.add (new MenuData (menuItem.getKey ().trim (), menuItem.getValue ().booleanValue ()));
+
+            final ITrack track = trackBank.getItem (i);
+            final ISendBank sendBank = track.getSendBank ();
+            final ISend send = this.sendIndex < sendBank.getPageSize () ? sendBank.getItem (this.sendIndex) : null;
+            if (track.doesExist () && send != null && send.doesExist ())
             {
-                final ISend send = sendBank.getItem (j);
-                final boolean exists = send != null && send.doesExist ();
-                sendData[j] = new SendData (send.isEnabled (), exists ? send.getName () : "", exists && this.sendIndex == j && this.isKnobTouched (i) ? send.getDisplayedValue (8) : "", valueChanger.toDisplayValue (exists ? send.getValue () : -1), valueChanger.toDisplayValue (exists ? send.getModulatedValue () : -1), this.sendIndex == j);
+                parameters.add (new ParameterData (send.getName (), valueChanger.toDisplayValue (send.getValue ()), valueChanger.toDisplayValue (send.getModulatedValue ()), send.getDisplayedValue (8), track.isActivated () && send.isEnabled ()));
             }
-            final Pair<String, Boolean> pair = this.menu.get (i);
-            display.addSendsElement (pair.getKey (), pair.getValue ().booleanValue (), t.doesExist () ? t.getName () : "", this.updateType (t), t.getColor (), t.isSelected (), sendData, false, t.isActivated (), t.isActivated ());
+            else
+                parameters.add (new ParameterData ("", -1, -1, "", false));
+
+            tracks.add (new TrackData (track.doesExist () ? track.getName (12) : "", this.updateType (track), track.getColor (), track.isSelected (), track.isActivated (), track.isSelected () && cursorTrack.isPinned ()));
         }
+
+        display.addElement (new TrackMixerComponent (menus, parameters, tracks, 0, 0));
     }
 }

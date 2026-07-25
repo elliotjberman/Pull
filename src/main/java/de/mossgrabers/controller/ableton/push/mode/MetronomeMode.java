@@ -4,12 +4,9 @@
 
 package de.mossgrabers.controller.ableton.push.mode;
 
-import de.mossgrabers.controller.ableton.push.controller.Push1Display;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.controller.ButtonID;
-import de.mossgrabers.framework.controller.display.Format;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.display.ITextDisplay;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.ITransport;
 import de.mossgrabers.framework.daw.data.IItem;
@@ -93,25 +90,6 @@ public class MetronomeMode extends BaseMode<IItem>
         }
 
         return AbstractFeatureGroup.BUTTON_COLOR_OFF;
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void updateDisplay1 (final ITextDisplay display)
-    {
-        display.setBlock (2, 0, "Pre-roll");
-
-        final int prerollMeasures = this.transport.getPrerollMeasures ();
-        for (int i = 0; i < PREROLL_MEASURE.length; i++)
-            display.setCell (3, i, (PREROLL_MEASURE[i] == prerollMeasures ? Push1Display.SELECT_ARROW : "") + PREROLL_NAMES[i]);
-
-        display.setCell (0, 7, "Volume");
-        display.setCell (1, 7, this.transport.getMetronomeVolumeStr ());
-        display.setCell (2, 7, this.transport.getMetronomeVolume (), Format.FORMAT_VALUE);
-
-        display.setBlock (1, 2, "Play Metronome").setBlock (2, 2, "during Pre-roll?");
-        display.setCell (3, 5, this.transport.isPrerollMetronomeEnabled () ? "  Yes" : "  No");
     }
 
 
