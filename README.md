@@ -1,5 +1,5 @@
-# DrivenByMoss
-Bitwig Studio extensions to support several controllers
+# Pull
+A fork of DrivenByMoss's incredible Push 2 integration, bent to what I need for my live set
 
 ### Building and Installing the extension
 
