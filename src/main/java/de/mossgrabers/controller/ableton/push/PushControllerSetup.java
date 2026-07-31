@@ -77,6 +77,7 @@ import de.mossgrabers.controller.ableton.push.view.ChordsView;
 import de.mossgrabers.controller.ableton.push.view.Drum4View;
 import de.mossgrabers.controller.ableton.push.view.Drum64View;
 import de.mossgrabers.controller.ableton.push.view.Drum8View;
+import de.mossgrabers.controller.ableton.push.view.DrumPadControls;
 import de.mossgrabers.controller.ableton.push.view.DrumPadView;
 import de.mossgrabers.controller.ableton.push.view.DrumView;
 import de.mossgrabers.controller.ableton.push.view.DrumXoXView;
@@ -159,6 +160,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
 
     private TouchstripCommand       touchstripCommand;
     private Push2DevelopmentBridge  developmentBridge;
+    private DrumPadControls         drumPadControls;
 
 
     /**
@@ -373,7 +375,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
     @Override
     protected int getNoteRepeatOctave (final PushConfiguration conf, final PushControlSurface surface)
     {
-        return surface.getViewManager ().isActive (Views.DRUM_PAD) ? 0 : conf.getNoteRepeatOctave ();
+        return this.drumPadControls != null && this.drumPadControls.isActive () ? 0 : conf.getNoteRepeatOctave ();
     }
 
 
@@ -394,6 +396,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
     {
         final PushControlSurface surface = this.getSurface ();
         final ViewManager viewManager = surface.getViewManager ();
+        this.drumPadControls = new DrumPadControls (surface, this.model);
         viewManager.register (Views.PLAY, new PlayView (surface, this.model));
         viewManager.register (Views.CHORDS, new ChordsView (surface, this.model));
         viewManager.register (Views.PIANO, new PianoView (surface, this.model));
@@ -405,7 +408,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         viewManager.register (Views.SEQUENCER, new SequencerView (surface, this.model));
         viewManager.register (Views.POLY_SEQUENCER, new PolySequencerView (surface, this.model, true));
         viewManager.register (Views.DRUM, new DrumView (surface, this.model));
-        viewManager.register (Views.DRUM_PAD, new DrumPadView (surface, this.model));
+        viewManager.register (Views.DRUM_PAD, new DrumPadView (surface, this.model, this.drumPadControls));
         viewManager.register (Views.DRUM_XOX, new DrumXoXView (surface, this.model));
         viewManager.register (Views.DRUM4, new Drum4View (surface, this.model));
         viewManager.register (Views.DRUM8, new Drum8View (surface, this.model));

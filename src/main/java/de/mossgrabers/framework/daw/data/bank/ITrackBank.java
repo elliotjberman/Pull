@@ -75,17 +75,6 @@ public interface ITrackBank extends IChannelBank<ITrack>
 
 
     /**
-     * Add an observer for native note playback events, if supported by the DAW.
-     *
-     * @param observer The note observer
-     */
-    default void addNotePlaybackObserver (final INoteObserver observer)
-    {
-        // Optional DAW capability.
-    }
-
-
-    /**
      * Adds a new channel to this channel bank. Creates a random name. Uses a random color for the
      * channel.
      *

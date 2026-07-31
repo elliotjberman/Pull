@@ -7,7 +7,6 @@ package de.mossgrabers.controller.ableton.push.controller;
 import de.mossgrabers.controller.ableton.push.PushConfiguration;
 import de.mossgrabers.framework.controller.AbstractControlSurface;
 import de.mossgrabers.framework.controller.color.ColorManager;
-import de.mossgrabers.framework.controller.grid.PadGridImpl;
 import de.mossgrabers.framework.daw.IHost;
 import de.mossgrabers.framework.daw.midi.DeviceInquiry;
 import de.mossgrabers.framework.daw.midi.IMidiInput;
@@ -328,6 +327,7 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
     private static final int         NUM_VELOCITY_CURVE_ENTRIES           = 128;
 
     private final ColorPalette       colorPalette;
+    private final PushPadGrid        pushPadGrid;
 
     private int                      ribbonMode                           = -1;
     private int                      ribbonValue                          = -1;
@@ -355,12 +355,36 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
      */
     public PushControlSurface (final IHost host, final ColorManager colorManager, final PushConfiguration configuration, final IMidiOutput output, final IMidiInput input)
     {
-        super (host, configuration, colorManager, output, input, new PadGridImpl (colorManager, output), 200.0, 156.0);
+        super (host, configuration, colorManager, output, input, new PushPadGrid (colorManager, output), 200.0, 156.0);
 
         this.notifyViewChange = false;
+        this.pushPadGrid = (PushPadGrid) this.padGrid;
         this.colorPalette = new ColorPalette (this);
 
         this.input.setSysexCallback (this::handleSysEx);
+    }
+
+
+    /**
+     * Fade a pad to the expected target color using the Push 2 firmware transition.
+     *
+     * @param note The physical Push pad note
+     * @param targetColor The expected target color
+     */
+    public void requestPadFade (final int note, final int targetColor)
+    {
+        this.pushPadGrid.requestFade (note, targetColor);
+    }
+
+
+    /**
+     * Cancel a pending pad fade.
+     *
+     * @param note The physical Push pad note
+     */
+    public void cancelPadFade (final int note)
+    {
+        this.pushPadGrid.cancelFade (note);
     }
 
 

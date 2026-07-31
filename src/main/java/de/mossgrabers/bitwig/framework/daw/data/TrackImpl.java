@@ -55,7 +55,6 @@ public class TrackImpl extends ChannelImpl implements ITrack
     private final ISlotBank          slotBank;
     private final int []             noteCache         = new int [128];
     private final Set<INoteObserver> noteObservers     = new CopyOnWriteArraySet<> ();
-    private final Set<INoteObserver> notePlaybackObservers = new CopyOnWriteArraySet<> ();
     private final IHost              host;
     private final IParameter         crossfadeParameter;
     private final Device             drumMachineDevice;
@@ -406,30 +405,6 @@ public class TrackImpl extends ChannelImpl implements ITrack
     public void addNoteObserver (final INoteObserver observer)
     {
         this.noteObservers.add (observer);
-    }
-
-
-    /**
-     * Add a native note playback observer.
-     *
-     * @param observer The note observer
-     */
-    @SuppressWarnings("deprecation")
-    public synchronized void addNotePlaybackObserver (final INoteObserver observer)
-    {
-        if (this.notePlaybackObservers.contains (observer))
-            return;
-        if (this.notePlaybackObservers.isEmpty ())
-            this.track.addNoteObserver (this::handleNotePlayback);
-        this.notePlaybackObservers.add (observer);
-    }
-
-
-    private void handleNotePlayback (final boolean isNoteOn, final int note, final float velocity)
-    {
-        final int midiVelocity = isNoteOn ? Math.max (1, Math.min (127, (int) (velocity * 127.0f))) : 0;
-        for (final INoteObserver noteObserver: this.notePlaybackObservers)
-            noteObserver.call (this.index, note, midiVelocity);
     }
 
 
