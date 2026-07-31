@@ -30,7 +30,9 @@ public class LabelComponent implements IComponent
         /** A header label with a line below the text. */
         SMALL_HEADER,
         /** A label with a colored background. */
-        COLORED
+        COLORED,
+        /** A track label with colored text or a colored selected state. */
+        TRACK
     }
 
 
@@ -72,6 +74,11 @@ public class LabelComponent implements IComponent
         if (this.layout == LabelLayout.COLORED)
         {
             this.drawColoredLayout (info);
+            return;
+        }
+        if (this.layout == LabelLayout.TRACK)
+        {
+            this.drawTrackLayout (info);
             return;
         }
 
@@ -168,6 +175,38 @@ public class LabelComponent implements IComponent
         if (this.isSelected)
             colorText = ColorEx.calcContrastColor (colorText);
         gc.drawTextInBounds (this.text, left + offsetX, textTop, width - offsetX - 1.4 * inset, textHeight, Align.LEFT, this.modifyIfOff (colorText), unit);
+    }
+
+
+    private void drawTrackLayout (final IGraphicsInfo info)
+    {
+        final IGraphicsContext gc = info.getContext ();
+        final IGraphicsConfiguration configuration = info.getConfiguration ();
+        final IGraphicsDimensions dimensions = info.getDimensions ();
+        final IBounds bounds = info.getBounds ();
+        final double left = bounds.left ();
+        final double width = bounds.width ();
+        final double inset = dimensions.getInset ();
+        final double unit = dimensions.getUnit ();
+        final double textHeight = 1.2 * unit + 1;
+        final double textTop = bounds.top () + bounds.height () - textHeight;
+        final ColorEx trackColor = this.modifyIfOff (this.backgroundColor == null ? configuration.getColorText () : this.backgroundColor);
+        final ColorEx contentColor = this.isSelected ? ColorEx.calcContrastColor (trackColor) : trackColor;
+
+        gc.fillRectangle (left, textTop, width, textHeight, this.isSelected ? trackColor : ColorEx.BLACK);
+        if (this.text == null || this.text.length () == 0)
+            return;
+
+        double textLeft = left + inset;
+        final String iconName = this.getIcon ();
+        if (iconName != null)
+        {
+            final IImage image = ResourceHandler.getSVGImage (iconName);
+            gc.maskImage (image, textLeft, textTop + (textHeight - image.getHeight ()) / 2.0, contentColor);
+            textLeft += image.getWidth () + inset;
+        }
+
+        gc.drawTextInBounds (this.text, textLeft, textTop, left + width - textLeft - inset, textHeight, Align.LEFT, contentColor, unit);
     }
 
 

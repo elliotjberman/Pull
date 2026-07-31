@@ -175,8 +175,6 @@ public interface IGraphicsContext
      * @param fontSize The size of the font
      */
     void drawTextInBounds (String text, double x, double y, double width, double height, Align alignment, ColorEx color, ColorEx backgroundColor, double fontSize);
-
-
     /**
      * Draw an image.
      *
@@ -210,6 +208,16 @@ public interface IGraphicsContext
     void drawLine (double x1, double y1, double x2, double y2, ColorEx lineColor);
 
 
+    /**
+     * Draws text at a specific baseline.
+     *
+     * @param text The text to draw
+     * @param x The X position
+     * @param baselineY The text baseline Y position
+     * @param color The color of the text
+     * @param fontSize The size of the font
+     */
+    void drawTextAt (String text, double x, double baselineY, ColorEx color, double fontSize);
     /**
      * Calculates the maximum height of a text which needs to fit into a width.
      *

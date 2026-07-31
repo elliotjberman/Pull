@@ -4,6 +4,11 @@
 
 package de.mossgrabers.framework.controller.display;
 
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -13,14 +18,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import javax.imageio.ImageIO;
+
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.hardware.IHwGraphicsDisplay;
 import de.mossgrabers.framework.daw.IHost;
 import de.mossgrabers.framework.daw.clip.INoteClip;
 import de.mossgrabers.framework.daw.clip.NotePosition;
-import de.mossgrabers.framework.daw.data.IScene;
-import de.mossgrabers.framework.daw.data.ISlot;
-import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.resource.ChannelType;
 import de.mossgrabers.framework.daw.resource.ResourceHandler;
 import de.mossgrabers.framework.graphics.Align;
@@ -29,9 +33,6 @@ import de.mossgrabers.framework.graphics.IBitmap;
 import de.mossgrabers.framework.graphics.IGraphicsConfiguration;
 import de.mossgrabers.framework.graphics.IGraphicsDimensions;
 import de.mossgrabers.framework.graphics.IGraphicsInfo;
-import de.mossgrabers.framework.graphics.canvas.component.ChannelComponent;
-import de.mossgrabers.framework.graphics.canvas.component.ChannelSelectComponent;
-import de.mossgrabers.framework.graphics.canvas.component.ClipListComponent;
 import de.mossgrabers.framework.graphics.canvas.component.GraphOverlayComponent;
 import de.mossgrabers.framework.graphics.canvas.component.IComponent;
 import de.mossgrabers.framework.graphics.canvas.component.LabelComponent.LabelLayout;
@@ -39,9 +40,6 @@ import de.mossgrabers.framework.graphics.canvas.component.ListComponent;
 import de.mossgrabers.framework.graphics.canvas.component.MidiClipComponent;
 import de.mossgrabers.framework.graphics.canvas.component.OptionsComponent;
 import de.mossgrabers.framework.graphics.canvas.component.ParameterComponent;
-import de.mossgrabers.framework.graphics.canvas.component.SceneListGridElement;
-import de.mossgrabers.framework.graphics.canvas.component.SendsComponent;
-import de.mossgrabers.framework.graphics.canvas.utils.SendData;
 import de.mossgrabers.framework.graphics.display.ModelInfo;
 import de.mossgrabers.framework.utils.Pair;
 
@@ -53,27 +51,11 @@ import de.mossgrabers.framework.utils.Pair;
  */
 public abstract class AbstractGraphicDisplay implements IGraphicDisplay
 {
-    /** Display only a channel name for selection. */
-    public static final int                GRID_ELEMENT_CHANNEL_SELECTION  = 0;
-    /** Display a channel, edit volume. */
-    public static final int                GRID_ELEMENT_CHANNEL_VOLUME     = 1;
-    /** Display a channel, edit panning. */
-    public static final int                GRID_ELEMENT_CHANNEL_PAN        = 2;
-    /** Display a channel, edit cross-fader. */
-    public static final int                GRID_ELEMENT_CHANNEL_CROSSFADER = 3;
-    /** Display a channel sends. */
-    public static final int                GRID_ELEMENT_CHANNEL_SENDS      = 4;
-    /** Display a channel, edit all parameters. */
-    public static final int                GRID_ELEMENT_CHANNEL_ALL        = 5;
-    /** Display a parameter with name and value. */
-    public static final int                GRID_ELEMENT_PARAMETERS         = 6;
-    /** Display options on top and bottom. */
-    public static final int                GRID_ELEMENT_OPTIONS            = 7;
-    /** Display a list. */
-    public static final int                GRID_ELEMENT_LIST               = 8;
-
     /** Timeout for displaying the notification message. */
     private static final int               TIMEOUT                         = 1;
+    private static final Path              DEBUG_DIRECTORY                 = Path.of (System.getProperty ("java.io.tmpdir"), "pull-push2-dev");
+    private static final Path              DEBUG_IMAGE_PATH                = DEBUG_DIRECTORY.resolve ("display.png");
+    private static final Path              DEBUG_MARKER_PATH               = DEBUG_DIRECTORY.resolve ("display-debug.txt");
 
     private final AtomicInteger            counter                         = new AtomicInteger ();
     private final ScheduledExecutorService executor                        = Executors.newSingleThreadScheduledExecutor ();
@@ -143,6 +125,39 @@ public abstract class AbstractGraphicDisplay implements IGraphicDisplay
     public void showDebugWindow ()
     {
         this.image.showDisplayWindow ();
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void saveDebugImage ()
+    {
+        this.host.scheduleTask (this::writeDebugImage, 100);
+    }
+
+
+    private void writeDebugImage ()
+    {
+        try
+        {
+            Files.createDirectories (DEBUG_IMAGE_PATH.getParent ());
+            this.image.encode ( (imageBuffer, width, height) -> {
+                try
+                {
+                    writePng (imageBuffer, width, height, DEBUG_IMAGE_PATH);
+                    Files.writeString (DEBUG_MARKER_PATH, System.nanoTime () + " Saved " + width + "x" + height + " display PNG to " + DEBUG_IMAGE_PATH + ".\n");
+                    this.host.showNotification ("Saved Push display PNG to " + DEBUG_IMAGE_PATH);
+                }
+                catch (final IOException ex)
+                {
+                    this.host.error ("Could not save Push display PNG to " + DEBUG_IMAGE_PATH + ".", ex);
+                }
+            });
+        }
+        catch (final RuntimeException | IOException ex)
+        {
+            this.host.error ("Could not save Push display PNG to " + DEBUG_IMAGE_PATH + ".", ex);
+        }
     }
 
 
@@ -254,54 +269,6 @@ public abstract class AbstractGraphicDisplay implements IGraphicDisplay
 
     /** {@inheritDoc} */
     @Override
-    public void addChannelSelectorElement (final String topMenu, final boolean isTopMenuOn, final String bottomMenu, final ChannelType type, final ColorEx bottomMenuColor, final boolean isBottomMenuOn, final boolean isActive)
-    {
-        this.addElement (new ChannelSelectComponent (type, topMenu, isTopMenuOn, bottomMenu, bottomMenuColor, isBottomMenuOn, isActive));
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void addChannelElement (final String topMenu, final boolean isTopMenuOn, final String bottomMenu, final ChannelType type, final ColorEx bottomMenuColor, final boolean isBottomMenuOn, final int volume, final int modulatedVolume, final String volumeStr, final int pan, final int modulatedPan, final String panStr, final int vuLeft, final int vuRight, final boolean mute, final boolean solo, final boolean recarm, final boolean isActive, final int crossfadeMode, final boolean isPinned)
-    {
-        this.addChannelElement (GRID_ELEMENT_CHANNEL_ALL, topMenu, isTopMenuOn, bottomMenu, type, bottomMenuColor, isBottomMenuOn, volume, modulatedVolume, volumeStr, pan, modulatedPan, panStr, vuLeft, vuRight, mute, solo, recarm, isActive, crossfadeMode, isPinned);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void addChannelElement (final int channelType, final String topMenu, final boolean isTopMenuOn, final String bottomMenu, final ChannelType type, final ColorEx bottomMenuColor, final boolean isBottomMenuOn, final int volume, final int modulatedVolume, final String volumeStr, final int pan, final int modulatedPan, final String panStr, final int vuLeft, final int vuRight, final boolean mute, final boolean solo, final boolean recarm, final boolean isActive, final int crossfadeMode, final boolean isPinned)
-    {
-        int editType;
-        switch (channelType)
-        {
-            case GRID_ELEMENT_CHANNEL_VOLUME:
-                editType = ChannelComponent.EDIT_TYPE_VOLUME;
-                break;
-            case GRID_ELEMENT_CHANNEL_PAN:
-                editType = ChannelComponent.EDIT_TYPE_PAN;
-                break;
-            case GRID_ELEMENT_CHANNEL_CROSSFADER:
-                editType = ChannelComponent.EDIT_TYPE_CROSSFADER;
-                break;
-            default:
-                editType = ChannelComponent.EDIT_TYPE_ALL;
-                break;
-        }
-        this.addElement (new ChannelComponent (editType, topMenu, isTopMenuOn, bottomMenu, bottomMenuColor, isBottomMenuOn, type, volume, modulatedVolume, volumeStr, pan, modulatedPan, panStr, vuLeft, vuRight, mute, solo, recarm, isActive, crossfadeMode, isPinned));
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void addSendsElement (final String topMenu, final boolean isTopMenuOn, final String bottomMenu, final ChannelType type, final ColorEx bottomMenuColor, final boolean isBottomMenuOn, final SendData [] sendData, final boolean isTrackMode, final boolean isSendActive, final boolean isChannelLabelActive)
-    {
-        this.addElement (new SendsComponent (sendData, topMenu, isTopMenuOn, bottomMenu, bottomMenuColor, isBottomMenuOn, type, isTrackMode, isSendActive, isChannelLabelActive));
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
     public void addParameterElement (final String parameterName, final int parameterValue, final String parameterValueStr, final boolean parameterIsActive, final int parameterModulatedValue)
     {
         this.addParameterElement ("", false, "", (ChannelType) null, ColorEx.BLACK, false, parameterName, parameterValue, parameterValueStr, parameterIsActive, parameterModulatedValue);
@@ -380,22 +347,6 @@ public abstract class AbstractGraphicDisplay implements IGraphicDisplay
         for (int i = 0; i < items.length; i++)
             menu.add (new Pair<> (items[i], Boolean.valueOf (selected[i])));
         this.addElement (new ListComponent (menu));
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void addSceneListElement (final List<IScene> scenes, final ChannelType type, final String name, final ColorEx color, final boolean isSelected, final boolean isActive, final boolean isPinned)
-    {
-        this.addElement (new SceneListGridElement (scenes, type, name, color, isSelected, isActive, isPinned));
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void addSlotListElement (final List<Pair<ITrack, ISlot>> slots, final ChannelType type, final String name, final ColorEx color, final boolean isSelected, final boolean isActive, final boolean isPinned)
-    {
-        this.addElement (new ClipListComponent (slots, type, name, color, isSelected, isActive, isPinned));
     }
 
 
@@ -484,6 +435,29 @@ public abstract class AbstractGraphicDisplay implements IGraphicDisplay
     }
 
 
+    private static void writePng (final ByteBuffer imageBuffer, final int width, final int height, final Path outputPath) throws IOException
+    {
+        final ByteBuffer buffer = imageBuffer.duplicate ();
+        buffer.rewind ();
+
+        final BufferedImage image = new BufferedImage (width, height, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                final int blue = buffer.get () & 0xFF;
+                final int green = buffer.get () & 0xFF;
+                final int red = buffer.get () & 0xFF;
+                final int alpha = buffer.get () & 0xFF;
+
+                image.setRGB (x, y, alpha << 24 | red << 16 | green << 8 | blue);
+            }
+        }
+
+        ImageIO.write (image, "png", outputPath.toFile ());
+    }
+
+
     private void checkNotificationCounter ()
     {
         synchronized (this.counterSync)
@@ -497,4 +471,6 @@ public abstract class AbstractGraphicDisplay implements IGraphicDisplay
                 this.notificationMessage.set (null);
         }
     }
+
+
 }

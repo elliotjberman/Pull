@@ -1,14 +1,11 @@
 # Pull
-A fork of DrivenByMoss's incredible Push 2 integration, bent to what I need for my live set
 
-### Building and Installing the extension
+An opinionated Push 2 control surface for Bitwig Studio, bent around a specific live-set workflow.
 
-Users should download and install the version from the
-[main site](http://www.mossgrabers.de/Software/Bitwig/Bitwig.html).
-These directions are for developers to test changes prior to release.
+Pull is based on [DrivenByMoss](https://github.com/git-moss/DrivenByMoss).
 
-1. Install Maven and dependences, either [from here](https://maven.apache.org/install.html)
-or if on Linux, using the distro package manager, e.g. `yum install maven` or
-`apt-get install maven`.
-2. Run `mvn install` in this repo's root.
-3. Follow [installation instructions] in the included manual for further steps.
+## Building and installing the extension
+
+1. Install JDK 21 and [Maven](https://maven.apache.org/install.html).
+2. Run `mvn clean package` in this repo's root.
+3. Copy `target/Pull.bwextension` into Bitwig Studio's extensions folder.

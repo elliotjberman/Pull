@@ -4,12 +4,10 @@
 
 package de.mossgrabers.controller.ableton.push.mode;
 
-import de.mossgrabers.controller.ableton.push.controller.Push1Display;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.display.ITextDisplay;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.IItem;
 import de.mossgrabers.framework.featuregroup.AbstractFeatureGroup;
@@ -17,7 +15,6 @@ import de.mossgrabers.framework.featuregroup.AbstractMode;
 import de.mossgrabers.framework.scale.Scale;
 import de.mossgrabers.framework.scale.Scales;
 import de.mossgrabers.framework.utils.ButtonEvent;
-import de.mossgrabers.framework.utils.Pair;
 
 
 /**
@@ -63,12 +60,7 @@ public class ScalesMode extends BaseMode<IItem>
         if (event != ButtonEvent.UP)
             return;
         if (index == 0)
-        {
-            if (this.isPushModern)
-                this.scales.nextScale ();
-            else
-                this.scales.prevScale ();
-        }
+            this.scales.nextScale ();
         else if (index > 0 && index < 7)
             this.scales.setScaleOffsetByIndex (index - 1);
         this.update ();
@@ -94,7 +86,7 @@ public class ScalesMode extends BaseMode<IItem>
         if (index >= 0)
         {
             if (index == 0 || index == 7)
-                return this.isPushModern ? PushColorManager.PUSH2_COLOR2_AMBER : PushColorManager.PUSH1_COLOR2_AMBER;
+                return PushColorManager.PUSH2_COLOR2_AMBER;
             final int offset = this.scales.getScaleOffsetIndex ();
             return this.colorManager.getColorIndex (offset == index - 1 + 6 ? AbstractMode.BUTTON_COLOR2_HI : AbstractMode.BUTTON_COLOR2_ON);
         }
@@ -110,41 +102,12 @@ public class ScalesMode extends BaseMode<IItem>
         if (event != ButtonEvent.UP)
             return;
         if (index == 0)
-        {
-            if (this.isPushModern)
-                this.scales.prevScale ();
-            else
-                this.scales.nextScale ();
-        }
+            this.scales.prevScale ();
         else if (index == 7)
             this.scales.toggleChromatic ();
         else
             this.scales.setScaleOffsetByIndex (index + 5);
         this.update ();
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void updateDisplay1 (final ITextDisplay display)
-    {
-        final int selIndex = this.scales.getScale ().ordinal ();
-        int pos = 0;
-        for (final Pair<String, Boolean> p: Push1Display.createMenuList (4, Scale.getNames (), selIndex))
-        {
-            display.setBlock (pos, 0, (p.getValue ().booleanValue () ? Push1Display.SELECT_ARROW : " ") + p.getKey ());
-            pos++;
-        }
-
-        display.setBlock (0, 3, this.scales.getRangeText ());
-
-        final int offset = this.scales.getScaleOffsetIndex ();
-        for (int i = 0; i < 6; i++)
-        {
-            display.setCell (2, i + 1, "  " + (offset == i ? Push1Display.SELECT_ARROW : " ") + Scales.BASES.get (i));
-            display.setCell (3, i + 1, "  " + (offset == 6 + i ? Push1Display.SELECT_ARROW : " ") + Scales.BASES.get (6 + i));
-        }
-        display.setCell (3, 7, this.scales.isChromatic () ? "Chromatc" : "In Key");
     }
 
 

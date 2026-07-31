@@ -4,11 +4,9 @@
 
 package de.mossgrabers.controller.ableton.push.mode.configuration;
 
-import de.mossgrabers.controller.ableton.push.PushVersion;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.mode.BaseMode;
 import de.mossgrabers.framework.controller.ButtonID;
-import de.mossgrabers.framework.controller.display.ITextDisplay;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.IItem;
 import de.mossgrabers.framework.featuregroup.AbstractFeatureGroup;
@@ -18,35 +16,25 @@ import de.mossgrabers.framework.utils.ButtonEvent;
 
 
 /**
- * Base class for all configuration modes used by Push 2/3.
+ * Base class for all configuration modes used by Push 2.
  *
  * @author Jürgen Moßgraber
  */
 public abstract class AbstractConfigurationMode extends BaseMode<IItem>
 {
-    protected final String [] menu       = new String []
+    protected final String [] menu  = new String []
     {
         "Info",
         "Setup",
-        "MPE",
-        "Audio"
+        " ",
+        " "
     };
 
-    private final Modes []    modesPush2 = new Modes []
+    private final Modes []    modes = new Modes []
     {
         Modes.INFO,
         Modes.SETUP
     };
-
-    private final Modes []    modesPush3 = new Modes []
-    {
-        Modes.INFO,
-        Modes.SETUP,
-        Modes.CONFIGURATION,
-        Modes.AUDIO
-    };
-
-    private final Modes []    modes;
 
     private final int         page;
 
@@ -64,15 +52,6 @@ public abstract class AbstractConfigurationMode extends BaseMode<IItem>
         super (name, surface, model);
 
         this.page = page;
-
-        if (surface.getConfiguration ().getPushVersion () != PushVersion.VERSION_3)
-        {
-            this.menu[2] = " ";
-            this.menu[3] = " ";
-            this.modes = this.modesPush2;
-        }
-        else
-            this.modes = this.modesPush3;
     }
 
 
@@ -96,10 +75,4 @@ public abstract class AbstractConfigurationMode extends BaseMode<IItem>
     }
 
 
-    /** {@inheritDoc} */
-    @Override
-    public void updateDisplay1 (final ITextDisplay display)
-    {
-        // Intentionally empty - mode is only for Push 2
-    }
 }

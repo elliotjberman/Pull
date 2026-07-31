@@ -4,8 +4,6 @@
 
 package de.mossgrabers.framework.controller;
 
-import de.mossgrabers.framework.usb.UsbMatcher;
-import de.mossgrabers.framework.utils.OperatingSystem;
 import de.mossgrabers.framework.utils.Pair;
 
 import java.util.ArrayList;
@@ -21,7 +19,6 @@ import java.util.UUID;
  */
 public abstract class DefaultControllerDefinition implements IControllerDefinition
 {
-    private final String name;
     private final String author;
     private final UUID   uuid;
     private final String hardwareModel;
@@ -41,29 +38,12 @@ public abstract class DefaultControllerDefinition implements IControllerDefiniti
      */
     protected DefaultControllerDefinition (final UUID uuid, final String hardwareModel, final String hardwareVendor, final int numMidiInPorts, final int numMidiOutPorts)
     {
-        this.name = "";
         this.author = "Jürgen Moßgraber";
         this.uuid = uuid;
         this.hardwareModel = hardwareModel;
         this.hardwareVendor = hardwareVendor;
         this.numMidiInPorts = numMidiInPorts;
         this.numMidiOutPorts = numMidiOutPorts;
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public UUID getUUID ()
-    {
-        return this.uuid;
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public String getName ()
-    {
-        return this.name;
     }
 
 
@@ -120,22 +100,6 @@ public abstract class DefaultControllerDefinition implements IControllerDefiniti
     public int getNumMidiOutPorts ()
     {
         return this.numMidiOutPorts;
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public List<Pair<String [], String []>> getMidiDiscoveryPairs (final OperatingSystem os)
-    {
-        return new ArrayList<> ();
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public UsbMatcher claimUSBDevice ()
-    {
-        return null;
     }
 
 

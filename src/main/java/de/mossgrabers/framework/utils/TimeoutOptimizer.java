@@ -4,6 +4,8 @@
 
 package de.mossgrabers.framework.utils;
 
+import java.util.concurrent.TimeUnit;
+
 import de.mossgrabers.framework.daw.IHost;
 
 
@@ -15,12 +17,13 @@ import de.mossgrabers.framework.daw.IHost;
  */
 public class TimeoutOptimizer
 {
-    private static final int RUNS       = 30;
+    private static final int RUNS = 30;
 
     private final IHost      host;
-    private int              delay;
+    private final int        requestedDelay;
+    private volatile int     delay;
     private long             startValue;
-    private int              iterations = 0;
+    private int              iterations;
     private long             diff;
 
 
@@ -33,9 +36,9 @@ public class TimeoutOptimizer
     public TimeoutOptimizer (final IHost host, final int delay)
     {
         this.host = host;
+        this.requestedDelay = delay;
         this.delay = delay;
 
-        this.startValue = System.currentTimeMillis ();
         this.host.scheduleTask (this::measure, delay);
     }
 
@@ -45,19 +48,34 @@ public class TimeoutOptimizer
      */
     private void measure ()
     {
-        final long endValue = System.currentTimeMillis ();
+        final long endValue = System.nanoTime ();
+
+        // The first callback can be held until extension initialization returns. Use it only as
+        // the start of the calibration window so startup work cannot skew every button timeout.
+        if (this.startValue == 0)
+        {
+            this.startValue = endValue;
+            this.host.scheduleTask (this::measure, this.delay);
+            return;
+        }
+
         this.diff += endValue - this.startValue;
+        this.iterations++;
 
         if (this.iterations < RUNS)
         {
-            this.iterations++;
-            this.startValue = System.currentTimeMillis ();
+            this.startValue = endValue;
             this.host.scheduleTask (this::measure, this.delay);
         }
         else
         {
             final long effective = this.diff / RUNS;
-            this.delay = (int) (this.delay * this.delay / effective);
+            if (effective <= 0)
+                return;
+
+            final long requestedNanos = TimeUnit.MILLISECONDS.toNanos (this.requestedDelay);
+            final long optimizedDelay = Math.round (this.requestedDelay * (double) requestedNanos / effective);
+            this.delay = (int) Math.max (1, Math.min (Integer.MAX_VALUE, optimizedDelay));
         }
     }
 

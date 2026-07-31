@@ -1,59 +1,88 @@
-// Written by Jürgen Moßgraber - mossgrabers.de
 // (c) 2017-2026
 // Licensed under LGPLv3 - http://www.gnu.org/licenses/lgpl-3.0.txt
 
 package de.mossgrabers.controller.ableton.push.controller;
 
-import de.mossgrabers.controller.ableton.push.PushConfiguration;
+import java.util.Arrays;
+
 import de.mossgrabers.framework.controller.color.ColorManager;
 import de.mossgrabers.framework.controller.grid.PadGridImpl;
 import de.mossgrabers.framework.daw.midi.IMidiOutput;
-import de.mossgrabers.framework.featuregroup.IExpressionView;
 
 
 /**
- * Implementation of the Push grid of pads with specific MPE extension for Push 3.
- *
- * @author Jürgen Moßgraber
+ * Push 2 pad grid with support for its firmware-rendered pad fade.
  */
-public class PushPadGrid extends PadGridImpl
+final class PushPadGrid extends PadGridImpl
 {
-    private PushControlSurface surface;
-    private PushConfiguration  configuration;
+    private static final int NO_PENDING_FADE         = -1;
+    /** Push's clocked 1/16 one-shot transition channel. */
+    private static final int SIXTEENTH_FADE_CHANNEL  = 2;
+
+    private final int [] pendingFadeTargets = new int [NUM_NOTES];
 
 
     /**
      * Constructor.
      *
-     * @param colorManager The color manager for accessing specific colors to use
-     * @param output The MIDI output which can address the pad states
+     * @param colorManager The color manager
+     * @param output The MIDI output
      */
-    public PushPadGrid (final ColorManager colorManager, final IMidiOutput output)
+    PushPadGrid (final ColorManager colorManager, final IMidiOutput output)
     {
         super (colorManager, output);
+
+        Arrays.fill (this.pendingFadeTargets, NO_PENDING_FADE);
+    }
+
+
+    /**
+     * Fade the pad to the expected target color the next time that color is sent.
+     *
+     * @param note The physical Push pad note
+     * @param targetColor The expected target color
+     */
+    void requestFade (final int note, final int targetColor)
+    {
+        if (note < this.startNote || note > this.endNote)
+            throw new IllegalArgumentException ("Pad note is outside the Push grid.");
+        if (targetColor < 0 || targetColor > 127)
+            throw new IllegalArgumentException ("Pad color must be in the range 0-127.");
+
+        synchronized (this.pendingFadeTargets)
+        {
+            this.pendingFadeTargets[note] = targetColor;
+        }
+    }
+
+
+    /**
+     * Cancel a pending fade which has not yet reached the hardware.
+     *
+     * @param note The physical Push pad note
+     */
+    void cancelFade (final int note)
+    {
+        if (note < this.startNote || note > this.endNote)
+            return;
+
+        synchronized (this.pendingFadeTargets)
+        {
+            this.pendingFadeTargets[note] = NO_PENDING_FADE;
+        }
     }
 
 
     /** {@inheritDoc} */
     @Override
-    public int [] translateToController (final int note)
+    protected void sendNoteState (final int channel, final int note, final int color)
     {
-        return new int []
+        final int fadeTarget;
+        synchronized (this.pendingFadeTargets)
         {
-            this.surface != null && this.surface.getViewManager ().getActive () instanceof IExpressionView && this.configuration.isMPEEnabled () ? -1 : 0,
-            note
-        };
-    }
-
-
-    /**
-     * Set the surface.
-     *
-     * @param surface The surface
-     */
-    public void setSurface (final PushControlSurface surface)
-    {
-        this.surface = surface;
-        this.configuration = surface.getConfiguration ();
+            fadeTarget = this.pendingFadeTargets[note];
+            this.pendingFadeTargets[note] = NO_PENDING_FADE;
+        }
+        super.sendNoteState (fadeTarget == color ? SIXTEENTH_FADE_CHANNEL : channel, note, color);
     }
 }

@@ -20,22 +20,6 @@ import java.util.UUID;
 public interface IControllerDefinition
 {
     /**
-     * Get the ID of the definition.
-     *
-     * @return The ID
-     */
-    UUID getUUID ();
-
-
-    /**
-     * The name of this controller implementation.
-     *
-     * @return The name
-     */
-    String getName ();
-
-
-    /**
      * The author of this controller implementation.
      *
      * @return The author

@@ -4,7 +4,6 @@
 
 package de.mossgrabers.framework.daw;
 
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -15,14 +14,11 @@ import java.util.Set;
 import de.mossgrabers.framework.controller.color.ColorManager;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.clip.INoteClip;
-import de.mossgrabers.framework.daw.constants.DeviceID;
 import de.mossgrabers.framework.daw.data.ICursorDevice;
-import de.mossgrabers.framework.daw.data.ICursorLayer;
 import de.mossgrabers.framework.daw.data.ICursorTrack;
 import de.mossgrabers.framework.daw.data.IDrumDevice;
 import de.mossgrabers.framework.daw.data.IMasterTrack;
 import de.mossgrabers.framework.daw.data.ISlot;
-import de.mossgrabers.framework.daw.data.ISpecificDevice;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.IMarkerBank;
 import de.mossgrabers.framework.daw.data.bank.ISceneBank;
@@ -61,11 +57,9 @@ public abstract class AbstractModel implements IModel
     protected IMasterTrack                          masterTrack;
     protected ICursorDevice                         cursorDevice;
     protected IDrumDevice                           drumDevice;
-    protected ICursorLayer                          cursorLayer;
     protected IClipLauncherNavigator                clipLauncherNavigator;
     protected Map<Integer, IDrumDevice>             additionalDrumDevices = new HashMap<> ();
     protected Map<String, INoteClip>                cursorClips           = new HashMap<> ();
-    protected final Map<DeviceID, ISpecificDevice>  specificDevices       = new EnumMap<> (DeviceID.class);
 
     private int                                     lastSelection;
 
@@ -188,14 +182,6 @@ public abstract class AbstractModel implements IModel
     public ICursorTrack getCursorTrack ()
     {
         return this.cursorTrack;
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public ISpecificDevice getSpecificDevice (final DeviceID deviceID)
-    {
-        return this.specificDevices.get (deviceID);
     }
 
 
@@ -368,10 +354,4 @@ public abstract class AbstractModel implements IModel
     }
 
 
-    /** {@inheritDoc} */
-    @Override
-    public ICursorLayer getCursorLayer ()
-    {
-        return this.cursorLayer;
-    }
 }

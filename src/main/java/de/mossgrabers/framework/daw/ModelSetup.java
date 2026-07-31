@@ -4,12 +4,6 @@
 
 package de.mossgrabers.framework.daw;
 
-import java.util.ArrayList;
-import java.util.List;
-
-import de.mossgrabers.framework.daw.constants.DeviceID;
-
-
 /**
  * All configuration parameters for the model.
  *
@@ -26,7 +20,6 @@ public class ModelSetup
     private int                  numSends                   = 8;
     private boolean              wantsClipLauncherNavigator = false;
 
-    private boolean              wantsDrumDevice            = true;
     private int []               additionalDrumDevices      = {};
 
     private int                  numDevicesInBank           = 8;
@@ -36,7 +29,6 @@ public class ModelSetup
     private int                  numParams                  = 8;
     private int                  numDrumPadLayers           = 16;
     private int                  numListParams              = 0;
-    private boolean              wantsCursorLayer           = false;
     private boolean              wantsFocusedParameter      = false;
 
     private int                  numFilterColumnEntries     = 16;
@@ -44,26 +36,12 @@ public class ModelSetup
 
     private int                  numMarkers                 = 0;
 
-    private final List<DeviceID> deviceIDs                  = new ArrayList<> ();
-
-
     /**
      * Constructor.
      */
     public ModelSetup ()
     {
         // Intentionally empty
-    }
-
-
-    /**
-     * Disable/enable the drum device (enabled by default).
-     *
-     * @param wantsDrumDevice True to enable
-     */
-    public void enableMainDrumDevice (final boolean wantsDrumDevice)
-    {
-        this.wantsDrumDevice = wantsDrumDevice;
     }
 
 
@@ -88,17 +66,6 @@ public class ModelSetup
     public void setAdditionalDrumDevices (final int [] additionalDrumDevices)
     {
         this.additionalDrumDevices = additionalDrumDevices;
-    }
-
-
-    /**
-     * Enable a specific device monitor.
-     *
-     * @param deviceID The ID of the device to monitor
-     */
-    public void enableDevice (final DeviceID deviceID)
-    {
-        this.deviceIDs.add (deviceID);
     }
 
 
@@ -436,17 +403,6 @@ public class ModelSetup
 
 
     /**
-     * Get if a drum device should be created.
-     *
-     * @return True if a drum device should be created
-     */
-    public boolean wantsMainDrumDevice ()
-    {
-        return this.wantsDrumDevice;
-    }
-
-
-    /**
      * Get if a drum 64 device should be created.
      *
      * @return True if a drum 64 device should be created
@@ -454,17 +410,6 @@ public class ModelSetup
     public int [] wantsAdditionalDrumDevices ()
     {
         return this.additionalDrumDevices;
-    }
-
-
-    /**
-     * Get the device IDs of additional devices to monitor.
-     *
-     * @return The device IDs
-     */
-    public List<DeviceID> getDeviceIDs ()
-    {
-        return new ArrayList<> (this.deviceIDs);
     }
 
 
@@ -512,24 +457,4 @@ public class ModelSetup
     }
 
 
-    /**
-     * Should a cursor layer be created?
-     *
-     * @return True if one should be created
-     */
-    public boolean wantsCursorLayer ()
-    {
-        return this.wantsCursorLayer;
-    }
-
-
-    /**
-     * Set if a cursor layer should be created.
-     *
-     * @param wantsCursorLayer True if one should be created
-     */
-    public void setCursorLayer (final boolean wantsCursorLayer)
-    {
-        this.wantsCursorLayer = wantsCursorLayer;
-    }
 }

@@ -58,22 +58,6 @@ public class LayoutCommand extends AbstractTriggerCommand<PushControlSurface, Pu
             this.activatePreferredView (Views.DRUM8);
         else if (viewManager.isActive (Views.DRUM8))
             this.activatePreferredView (Views.SEQUENCER);
-        else
-        {
-            final PushConfiguration configuration = this.surface.getConfiguration ();
-            if (viewManager.isActive (Views.SESSION))
-            {
-                if (configuration.isFlipSession ())
-                    viewManager.setActive (Views.SCENE_PLAY);
-                else
-                    configuration.setFlipSession (true);
-            }
-            else if (viewManager.isActive (Views.SCENE_PLAY))
-            {
-                configuration.setFlipSession (false);
-                viewManager.setActive (Views.SESSION);
-            }
-        }
     }
 
 

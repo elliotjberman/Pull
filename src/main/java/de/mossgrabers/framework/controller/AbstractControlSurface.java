@@ -20,10 +20,8 @@ import java.util.function.Supplier;
 import de.mossgrabers.framework.configuration.Configuration;
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.color.ColorManager;
-import de.mossgrabers.framework.controller.display.DummyDisplay;
 import de.mossgrabers.framework.controller.display.IDisplay;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.display.ITextDisplay;
 import de.mossgrabers.framework.controller.grid.ILightGuide;
 import de.mossgrabers.framework.controller.grid.IPadGrid;
 import de.mossgrabers.framework.controller.hardware.BindType;
@@ -83,7 +81,6 @@ public abstract class AbstractControlSurface<C extends Configuration> implements
     private final Map<ContinuousID, IHwContinuousControl> continuous                     = new EnumMap<> (ContinuousID.class);
     private final Map<ButtonID, IHwButton>                buttons                        = new EnumMap<> (ButtonID.class);
     private final Map<OutputID, IHwLight>                 lights                         = new EnumMap<> (OutputID.class);
-    protected List<ITextDisplay>                          textDisplays                   = new ArrayList<> (1);
     protected List<IGraphicDisplay>                       graphicsDisplays               = new ArrayList<> (1);
 
     protected final IPadGrid                              padGrid;
@@ -92,7 +89,6 @@ public abstract class AbstractControlSurface<C extends Configuration> implements
 
     private int []                                        keyTranslationTable;
 
-    private final DummyDisplay                            dummyDisplay;
     private IHwPianoKeyboard                              pianoKeyboard;
 
     private final Object                                  updateCounterLock              = new Object ();
@@ -166,8 +162,6 @@ public abstract class AbstractControlSurface<C extends Configuration> implements
         this.lightGuide = lightGuide;
 
         this.surfaceFactory = host.createSurfaceFactory (width, height);
-
-        this.dummyDisplay = new DummyDisplay (host);
 
         this.output = output;
         this.input = input;
@@ -312,27 +306,7 @@ public abstract class AbstractControlSurface<C extends Configuration> implements
     @Override
     public IDisplay getDisplay ()
     {
-        if (this.graphicsDisplays.isEmpty ())
-            return this.getTextDisplay (0);
         return this.getGraphicsDisplay ();
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public ITextDisplay getTextDisplay ()
-    {
-        return this.getTextDisplay (0);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public ITextDisplay getTextDisplay (final int index)
-    {
-        if (index >= this.textDisplays.size ())
-            return this.dummyDisplay;
-        return this.textDisplays.get (index);
     }
 
 
@@ -349,15 +323,6 @@ public abstract class AbstractControlSurface<C extends Configuration> implements
     public IGraphicDisplay getGraphicsDisplay (final int index)
     {
         return this.graphicsDisplays.get (index);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void addTextDisplay (final ITextDisplay display)
-    {
-        display.setHardwareDisplay (this.surfaceFactory.createTextDisplay (this.surfaceID, OutputID.get (OutputID.DISPLAY1, this.textDisplays.size ()), display.getNumberOfLines ()));
-        this.textDisplays.add (display);
     }
 
 
@@ -749,10 +714,6 @@ public abstract class AbstractControlSurface<C extends Configuration> implements
     @Override
     public void forceFlush ()
     {
-        // Flush all text displays. No need for graphics displays since they are refreshed anyway on
-        // an interval
-        this.textDisplays.forEach (ITextDisplay::forceFlush);
-
         this.flushButtonLEDs ();
 
         // Refresh all knob/fader LEDs
@@ -844,7 +805,6 @@ public abstract class AbstractControlSurface<C extends Configuration> implements
         if (this.padGrid != null)
             this.padGrid.turnOff ();
 
-        this.textDisplays.forEach (IDisplay::shutdown);
         this.graphicsDisplays.forEach (IDisplay::shutdown);
     }
 
@@ -1140,7 +1100,6 @@ public abstract class AbstractControlSurface<C extends Configuration> implements
      */
     protected void flushHardware ()
     {
-        this.textDisplays.forEach (ITextDisplay::flush);
         this.surfaceFactory.flush ();
         this.continuous.values ().forEach (IHwContinuousControl::update);
     }

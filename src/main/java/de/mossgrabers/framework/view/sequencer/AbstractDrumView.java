@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.IntUnaryOperator;
 
-import de.mossgrabers.controller.ni.maschine.core.MaschineColorManager;
 import de.mossgrabers.framework.configuration.Configuration;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.IControlSurface;
@@ -61,6 +60,8 @@ public abstract class AbstractDrumView<S extends IControlSurface<C>, C extends C
     public static final String COLOR_PAD_OFF         = "COLOR_PAD_OFF";
 
     protected static final int GRID_COLUMNS          = 8;
+    private static final int   ACCENT_SELECTED_COLOR = 30;
+    private static final int   ACCENT_VALUE_COLOR    = 33;
 
     protected int              loopPadPressed        = -1;
     protected int              sequencerLines;
@@ -859,7 +860,7 @@ public abstract class AbstractDrumView<S extends IControlSurface<C>, C extends C
             {
                 final int x = this.playColumns + pad % this.playColumns;
                 final int y = this.sequencerLines + pad / this.playColumns;
-                padGrid.lightEx (x, y, pad == selectedVelocityPad ? MaschineColorManager.COLOR_GREEN : MaschineColorManager.COLOR_LIME_LO);
+                padGrid.lightEx (x, y, pad == selectedVelocityPad ? ACCENT_SELECTED_COLOR : ACCENT_VALUE_COLOR);
             }
 
             return;

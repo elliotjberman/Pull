@@ -23,7 +23,7 @@ public class HwGraphicsDisplayImpl extends AbstractHwControl implements IHwGraph
     /**
      * Constructor.
      *
-     * @param graphicsDisplay The Bitwig text display proxy
+     * @param graphicsDisplay The Bitwig graphics display proxy
      */
     public HwGraphicsDisplayImpl (final HardwarePixelDisplay graphicsDisplay)
     {

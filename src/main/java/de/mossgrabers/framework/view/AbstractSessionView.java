@@ -20,7 +20,6 @@ import de.mossgrabers.framework.daw.data.bank.ISlotBank;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
 import de.mossgrabers.framework.featuregroup.AbstractView;
 import de.mossgrabers.framework.utils.ButtonEvent;
-import de.mossgrabers.framework.utils.FrameworkException;
 import de.mossgrabers.framework.utils.Pair;
 
 
@@ -242,21 +241,17 @@ public abstract class AbstractSessionView<S extends IControlSurface<C>, C extend
     {
         final ITrackBank tb = this.model.getCurrentTrackBank ();
         final ISceneBank sceneBank = tb.getSceneBank ();
-        final boolean flip = this.surface.getConfiguration ().isFlipSession ();
-
         // Calculate page offsets
         final int numTracks = tb.getPageSize ();
         final int numScenes = sceneBank.getPageSize ();
-        final int trackPosition = tb.getItem (0).getPosition () / numTracks;
-        final int scenePosition = sceneBank.getScrollPosition () / numScenes;
-        final int selX = flip ? scenePosition : trackPosition;
-        final int selY = flip ? trackPosition : scenePosition;
-        final int padsX = flip ? this.rows : this.columns;
-        final int padsY = flip ? this.columns : this.rows + yOffset;
+        final int selX = tb.getItem (0).getPosition () / numTracks;
+        final int selY = sceneBank.getScrollPosition () / numScenes;
+        final int padsX = this.columns;
+        final int padsY = this.rows + yOffset;
         final int offsetX = selX / padsX * padsX;
         final int offsetY = selY / padsY * padsY;
-        tb.scrollTo (offsetX * numTracks + (flip ? y : x) * padsX);
-        sceneBank.scrollTo (offsetY * numScenes + (flip ? x : y) * padsY);
+        tb.scrollTo (offsetX * numTracks + x * padsX);
+        sceneBank.scrollTo (offsetY * numScenes + y * padsY);
     }
 
 
@@ -323,29 +318,13 @@ public abstract class AbstractSessionView<S extends IControlSurface<C>, C extend
      */
     protected void drawSessionGrid ()
     {
-        this.drawSessionGrid (false);
-    }
-
-
-    /**
-     * Draw a session grid, where each pad stands for a clip.
-     *
-     * @param ignoreFlipCheck True to ignore the check for same columns and rows
-     */
-    protected void drawSessionGrid (final boolean ignoreFlipCheck)
-    {
-        final boolean flipSession = this.surface.getConfiguration ().isFlipSession ();
-
-        if (flipSession && this.columns != this.rows && !ignoreFlipCheck)
-            throw new FrameworkException ("Session flip is only supported for same size of rows and columns!");
-
         final ITrackBank tb = this.model.getCurrentTrackBank ();
         for (int x = 0; x < this.columns; x++)
         {
             final ITrack t = tb.getItem (x);
             final ISlotBank slotBank = t.getSlotBank ();
             for (int y = 0; y < this.rows; y++)
-                this.drawPad (slotBank.getItem (y), flipSession ? y : x, flipSession ? x : y, t.isRecArm ());
+                this.drawPad (slotBank.getItem (y), x, y, t.isRecArm ());
         }
     }
 
@@ -367,15 +346,14 @@ public abstract class AbstractSessionView<S extends IControlSurface<C>, C extend
         final int trackPosition = tb.getItem (0).getPosition ();
         final int sceneSelection = scenePosition / numScenes + (scenePosition % numScenes > 0 ? 1 : 0);
         final int trackSelection = trackPosition / numTracks + (trackPosition % numTracks > 0 ? 1 : 0);
-        final boolean flipSession = this.surface.getConfiguration ().isFlipSession ();
-        int selX = flipSession ? sceneSelection : trackSelection;
-        int selY = flipSession ? trackSelection : sceneSelection;
-        final int padsX = flipSession ? this.rows : this.columns;
-        final int padsY = flipSession ? this.columns : this.rows;
+        int selX = trackSelection;
+        int selY = sceneSelection;
+        final int padsX = this.columns;
+        final int padsY = this.rows;
         final int offsetX = selX / padsX * padsX;
         final int offsetY = selY / padsY * padsY;
-        final int maxX = (flipSession ? maxScenePads : maxTrackPads) - offsetX;
-        final int maxY = (flipSession ? maxTrackPads : maxScenePads) - offsetY;
+        final int maxX = maxTrackPads - offsetX;
+        final int maxY = maxScenePads - offsetY;
         selX -= offsetX;
         selY -= offsetY;
 
@@ -490,8 +468,7 @@ public abstract class AbstractSessionView<S extends IControlSurface<C>, C extend
         final int index = note - this.surface.getPadGrid ().getStartNote ();
         final int t = index % this.columns;
         final int s = this.rows - 1 - index / this.columns;
-        final C configuration = this.surface.getConfiguration ();
-        return configuration.isFlipSession () ? new Pair<> (Integer.valueOf (s), Integer.valueOf (t)) : new Pair<> (Integer.valueOf (t), Integer.valueOf (s));
+        return new Pair<> (Integer.valueOf (t), Integer.valueOf (s));
     }
 
 

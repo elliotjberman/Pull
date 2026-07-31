@@ -7,15 +7,9 @@ package de.mossgrabers.framework.daw;
 import java.util.List;
 
 import de.mossgrabers.framework.controller.hardware.IHwSurfaceFactory;
-import de.mossgrabers.framework.daw.constants.Capability;
 import de.mossgrabers.framework.daw.data.IDeviceMetadata;
 import de.mossgrabers.framework.graphics.IBitmap;
 import de.mossgrabers.framework.graphics.IImage;
-import de.mossgrabers.framework.osc.IOpenSoundControlCallback;
-import de.mossgrabers.framework.osc.IOpenSoundControlClient;
-import de.mossgrabers.framework.osc.IOpenSoundControlMessage;
-import de.mossgrabers.framework.osc.IOpenSoundControlServer;
-import de.mossgrabers.framework.parameter.NoteAttribute;
 import de.mossgrabers.framework.usb.IUsbDevice;
 import de.mossgrabers.framework.usb.UsbException;
 
@@ -41,24 +35,6 @@ public interface IHost
      * @return The major and minor version
      */
     int [] getVersion ();
-
-
-    /**
-     * Returns true if the DAW supports editing a specific property.
-     *
-     * @param capability The capability to check
-     * @return True if the DAW supports editing
-     */
-    boolean supports (Capability capability);
-
-
-    /**
-     * Returns true if the DAW supports editing a specific note attribute.
-     *
-     * @param noteAttribute The note attribute to check
-     * @return True if the DAW supports editing
-     */
-    boolean supports (NoteAttribute noteAttribute);
 
 
     /**
@@ -117,41 +93,6 @@ public interface IHost
      * @return Create a new factory.
      */
     IHwSurfaceFactory createSurfaceFactory (final double width, final double height);
-
-
-    /**
-     * Connect to an OSC server.
-     *
-     * @param serverAddress The address of the server
-     * @param serverPort The port of the server
-     * @return Interface for interacting with the server
-     */
-    IOpenSoundControlClient connectToOSCServer (String serverAddress, int serverPort);
-
-
-    /**
-     * Create an OSC server.
-     *
-     * @param callback The callback method to handle received messages
-     * @return The created server
-     */
-    IOpenSoundControlServer createOSCServer (IOpenSoundControlCallback callback);
-
-
-    /**
-     * Create an OSC message.
-     *
-     * @param address The OSC address
-     * @param values The values for the message
-     * @return The created message
-     */
-    IOpenSoundControlMessage createOSCMessage (String address, List<?> values);
-
-
-    /**
-     * Call on shutdown to release all OSC resources.
-     */
-    void releaseOSC ();
 
 
     /**

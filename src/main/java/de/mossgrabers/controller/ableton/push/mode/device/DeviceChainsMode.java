@@ -9,10 +9,8 @@ import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.display.ITextDisplay;
 import de.mossgrabers.framework.daw.DAWColor;
 import de.mossgrabers.framework.daw.IModel;
-import de.mossgrabers.framework.daw.constants.Capability;
 import de.mossgrabers.framework.daw.data.ICursorDevice;
 import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.utils.ButtonEvent;
@@ -87,31 +85,10 @@ public class DeviceChainsMode extends DeviceParamsMode
         if (index >= 0)
             return super.getButtonColor (buttonID);
 
-        final int existsColor = this.isPushModern ? PushColorManager.PUSH2_COLOR_YELLOW_LO : PushColorManager.PUSH1_COLOR_YELLOW_LO;
-        final int offColor = this.isPushModern ? PushColorManager.PUSH2_COLOR_BLACK : PushColorManager.PUSH1_COLOR_BLACK;
+        final int existsColor = PushColorManager.PUSH2_COLOR_YELLOW_LO;
+        final int offColor = PushColorManager.PUSH2_COLOR_BLACK;
         final String [] slotChains = this.model.getCursorDevice ().getSlotChains ();
         return index < slotChains.length ? existsColor : offColor;
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void updateDisplay1 (final ITextDisplay display)
-    {
-        final ICursorDevice cd = this.model.getCursorDevice ();
-        if (!this.checkExists1 (display, cd))
-            return;
-
-        // Row 3
-        display.setBlock (2, 0, "Device Chains:").setBlock (2, 1, cd.getName ());
-
-        // Row 4
-        final String [] slotChains = cd.getSlotChains ();
-        for (int i = 0; i < 8; i++)
-        {
-            final String bottomMenu = i < slotChains.length ? slotChains[i] : "";
-            display.setCell (3, i, bottomMenu);
-        }
     }
 
 
@@ -125,11 +102,10 @@ public class DeviceChainsMode extends DeviceParamsMode
 
         final String color = this.model.getCurrentTrackBank ().getSelectedChannelColorEntry ();
         final ColorEx bottomMenuColor = DAWColor.getColorEntry (color);
-        final boolean hasPinning = this.model.getHost ().supports (Capability.HAS_PINNING);
         final String [] slotChains = cd.getSlotChains ();
         for (int i = 0; i < 8; i++)
         {
-            final boolean isTopMenuOn = this.getTopMenuEnablement (cd, hasPinning, i);
+            final boolean isTopMenuOn = this.getTopMenuEnablement (cd, true, i);
             final String bottomMenu = i < slotChains.length ? slotChains[i] : "";
             final String bottomMenuIcon = "";
             final boolean isBottomMenuOn = i < slotChains.length;

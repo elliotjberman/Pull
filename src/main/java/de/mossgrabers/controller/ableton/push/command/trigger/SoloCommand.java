@@ -54,13 +54,6 @@ public class SoloCommand extends AbstractTriggerCommand<PushControlSurface, Push
         }
 
         final PushConfiguration config = this.surface.getConfiguration ();
-        if (!config.isPushModern ())
-        {
-            if (event == ButtonEvent.DOWN)
-                config.setLockState (LockState.SOLO);
-            return;
-        }
-
         if (event == ButtonEvent.LONG)
         {
             this.surface.setTriggerConsumed (ButtonID.SOLO);
@@ -84,7 +77,6 @@ public class SoloCommand extends AbstractTriggerCommand<PushControlSurface, Push
             return;
         }
 
-        // Behavior like Push 1
         if (config.getLockState () == LockState.SOLO)
             return;
 

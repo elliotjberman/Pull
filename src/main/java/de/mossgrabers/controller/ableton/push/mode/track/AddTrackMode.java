@@ -12,7 +12,6 @@ import de.mossgrabers.framework.command.trigger.BrowserCommand;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.display.ITextDisplay;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.IDeviceMetadata;
 import de.mossgrabers.framework.daw.data.IItem;
@@ -79,29 +78,29 @@ public class AddTrackMode extends BaseMode<IItem>
 
         this.browserCommand = new BrowserCommand<> (model, surface);
 
-        this.buttonColorsHiFirst.put (ColorEx.YELLOW, Integer.valueOf (this.isPushModern ? PushColorManager.PUSH2_COLOR2_YELLOW_HI : PushColorManager.PUSH1_COLOR_YELLOW_MD));
-        this.buttonColorsHiFirst.put (ColorEx.GREEN, Integer.valueOf (this.isPushModern ? PushColorManager.PUSH2_COLOR2_GREEN_HI : PushColorManager.PUSH1_COLOR_GREEN_HI));
-        this.buttonColorsHiFirst.put (ColorEx.BLUE, Integer.valueOf (this.isPushModern ? PushColorManager.PUSH2_COLOR2_BLUE_HI : PushColorManager.PUSH1_COLOR_RED_HI));
-        this.buttonColorsHiFirst.put (ColorEx.ORANGE, Integer.valueOf (this.isPushModern ? PushColorManager.PUSH2_COLOR2_AMBER_HI : PushColorManager.PUSH1_COLOR_ORANGE_HI));
-        this.buttonColorsHiFirst.put (ColorEx.DARK_ORANGE, Integer.valueOf (this.isPushModern ? PushColorManager.PUSH2_COLOR2_AMBER_HI : PushColorManager.PUSH1_COLOR_ORANGE_HI));
+        this.buttonColorsHiFirst.put (ColorEx.YELLOW, Integer.valueOf (PushColorManager.PUSH2_COLOR2_YELLOW_HI));
+        this.buttonColorsHiFirst.put (ColorEx.GREEN, Integer.valueOf (PushColorManager.PUSH2_COLOR2_GREEN_HI));
+        this.buttonColorsHiFirst.put (ColorEx.BLUE, Integer.valueOf (PushColorManager.PUSH2_COLOR2_BLUE_HI));
+        this.buttonColorsHiFirst.put (ColorEx.ORANGE, Integer.valueOf (PushColorManager.PUSH2_COLOR2_AMBER_HI));
+        this.buttonColorsHiFirst.put (ColorEx.DARK_ORANGE, Integer.valueOf (PushColorManager.PUSH2_COLOR2_AMBER_HI));
 
-        this.buttonColorsLoFirst.put (ColorEx.YELLOW, Integer.valueOf (this.isPushModern ? PushColorManager.PUSH2_COLOR2_YELLOW_LO : PushColorManager.PUSH1_COLOR_YELLOW_LO));
-        this.buttonColorsLoFirst.put (ColorEx.GREEN, Integer.valueOf (this.isPushModern ? PushColorManager.PUSH2_COLOR2_GREEN_LO : PushColorManager.PUSH1_COLOR_GREEN_LO));
-        this.buttonColorsLoFirst.put (ColorEx.BLUE, Integer.valueOf (this.isPushModern ? PushColorManager.PUSH2_COLOR2_BLUE_LO : PushColorManager.PUSH1_COLOR_RED_LO));
-        this.buttonColorsLoFirst.put (ColorEx.ORANGE, Integer.valueOf (this.isPushModern ? PushColorManager.PUSH2_COLOR2_AMBER_LO : PushColorManager.PUSH1_COLOR_ORANGE_LO));
-        this.buttonColorsLoFirst.put (ColorEx.DARK_ORANGE, Integer.valueOf (this.isPushModern ? PushColorManager.PUSH2_COLOR2_AMBER_LO : PushColorManager.PUSH1_COLOR_ORANGE_LO));
+        this.buttonColorsLoFirst.put (ColorEx.YELLOW, Integer.valueOf (PushColorManager.PUSH2_COLOR2_YELLOW_LO));
+        this.buttonColorsLoFirst.put (ColorEx.GREEN, Integer.valueOf (PushColorManager.PUSH2_COLOR2_GREEN_LO));
+        this.buttonColorsLoFirst.put (ColorEx.BLUE, Integer.valueOf (PushColorManager.PUSH2_COLOR2_BLUE_LO));
+        this.buttonColorsLoFirst.put (ColorEx.ORANGE, Integer.valueOf (PushColorManager.PUSH2_COLOR2_AMBER_LO));
+        this.buttonColorsLoFirst.put (ColorEx.DARK_ORANGE, Integer.valueOf (PushColorManager.PUSH2_COLOR2_AMBER_LO));
 
-        this.buttonColorsHiSecond.put (ColorEx.YELLOW, Integer.valueOf (this.isPushModern ? PushColorManager.PUSH2_COLOR2_YELLOW_HI : PushColorManager.PUSH1_COLOR2_YELLOW_HI));
-        this.buttonColorsHiSecond.put (ColorEx.GREEN, Integer.valueOf (this.isPushModern ? PushColorManager.PUSH2_COLOR2_GREEN_HI : PushColorManager.PUSH1_COLOR2_GREEN_HI));
-        this.buttonColorsHiSecond.put (ColorEx.BLUE, Integer.valueOf (this.isPushModern ? PushColorManager.PUSH2_COLOR2_BLUE_HI : PushColorManager.PUSH1_COLOR2_RED_HI));
-        this.buttonColorsHiSecond.put (ColorEx.ORANGE, Integer.valueOf (this.isPushModern ? PushColorManager.PUSH2_COLOR2_AMBER_HI : PushColorManager.PUSH1_COLOR2_AMBER_HI));
-        this.buttonColorsHiSecond.put (ColorEx.DARK_ORANGE, Integer.valueOf (this.isPushModern ? PushColorManager.PUSH2_COLOR2_AMBER_HI : PushColorManager.PUSH1_COLOR2_AMBER_HI));
+        this.buttonColorsHiSecond.put (ColorEx.YELLOW, Integer.valueOf (PushColorManager.PUSH2_COLOR2_YELLOW_HI));
+        this.buttonColorsHiSecond.put (ColorEx.GREEN, Integer.valueOf (PushColorManager.PUSH2_COLOR2_GREEN_HI));
+        this.buttonColorsHiSecond.put (ColorEx.BLUE, Integer.valueOf (PushColorManager.PUSH2_COLOR2_BLUE_HI));
+        this.buttonColorsHiSecond.put (ColorEx.ORANGE, Integer.valueOf (PushColorManager.PUSH2_COLOR2_AMBER_HI));
+        this.buttonColorsHiSecond.put (ColorEx.DARK_ORANGE, Integer.valueOf (PushColorManager.PUSH2_COLOR2_AMBER_HI));
 
-        this.buttonColorsLoSecond.put (ColorEx.YELLOW, Integer.valueOf (this.isPushModern ? PushColorManager.PUSH2_COLOR2_YELLOW_LO : PushColorManager.PUSH1_COLOR2_YELLOW_LO));
-        this.buttonColorsLoSecond.put (ColorEx.GREEN, Integer.valueOf (this.isPushModern ? PushColorManager.PUSH2_COLOR2_GREEN_LO : PushColorManager.PUSH1_COLOR2_GREEN_LO));
-        this.buttonColorsLoSecond.put (ColorEx.BLUE, Integer.valueOf (this.isPushModern ? PushColorManager.PUSH2_COLOR2_BLUE_LO : PushColorManager.PUSH1_COLOR2_RED_LO));
-        this.buttonColorsLoSecond.put (ColorEx.ORANGE, Integer.valueOf (this.isPushModern ? PushColorManager.PUSH2_COLOR2_AMBER_LO : PushColorManager.PUSH1_COLOR2_AMBER_LO));
-        this.buttonColorsLoSecond.put (ColorEx.DARK_ORANGE, Integer.valueOf (this.isPushModern ? PushColorManager.PUSH2_COLOR2_AMBER_LO : PushColorManager.PUSH1_COLOR2_AMBER_LO));
+        this.buttonColorsLoSecond.put (ColorEx.YELLOW, Integer.valueOf (PushColorManager.PUSH2_COLOR2_YELLOW_LO));
+        this.buttonColorsLoSecond.put (ColorEx.GREEN, Integer.valueOf (PushColorManager.PUSH2_COLOR2_GREEN_LO));
+        this.buttonColorsLoSecond.put (ColorEx.BLUE, Integer.valueOf (PushColorManager.PUSH2_COLOR2_BLUE_LO));
+        this.buttonColorsLoSecond.put (ColorEx.ORANGE, Integer.valueOf (PushColorManager.PUSH2_COLOR2_AMBER_LO));
+        this.buttonColorsLoSecond.put (ColorEx.DARK_ORANGE, Integer.valueOf (PushColorManager.PUSH2_COLOR2_AMBER_LO));
     }
 
 
@@ -206,30 +205,6 @@ public class AddTrackMode extends BaseMode<IItem>
         }
 
         return this.colorManager.getColorIndex (AbstractFeatureGroup.BUTTON_COLOR_OFF);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void updateDisplay1 (final ITextDisplay display)
-    {
-        display.setBlock (1, 0, SUB_MENU[0]);
-        display.setBlock (1, 2, SUB_MENU[4]);
-
-        for (int i = 0; i < 8; i++)
-        {
-            final String lowerMenu;
-            if (i == 0)
-                lowerMenu = this.addMode == AddMode.DEVICE ? "Browse" : "Empty";
-            else
-            {
-                final Optional<IDeviceMetadata> favorite = this.getFavorite (i - 1);
-                lowerMenu = favorite.isEmpty () ? "" : StringUtils.limit (favorite.get ().name (), 13);
-            }
-            display.setCell (0, i, TOP_MENU[i] == null ? "" : TOP_MENU[i].getLabel ());
-            display.setCell (2, i, i == 0 ? this.addMode.getLabel () : "");
-            display.setCell (3, i, lowerMenu);
-        }
     }
 
 

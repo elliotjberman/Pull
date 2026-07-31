@@ -7,7 +7,6 @@ package de.mossgrabers.controller.ableton.push.mode;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.display.ITextDisplay;
 import de.mossgrabers.framework.daw.IApplication;
 import de.mossgrabers.framework.daw.IArranger;
 import de.mossgrabers.framework.daw.IMixer;
@@ -287,24 +286,6 @@ public class FrameMode extends BaseMode<IItem>
                     break;
             }
         }
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void updateDisplay1 (final ITextDisplay display)
-    {
-        final IApplication app = this.model.getApplication ();
-
-        final String [] rows34;
-        if (app.isArrangeLayout ())
-            rows34 = FrameMode.ARRANGER_ROWS;
-        else if (app.isMixerLayout ())
-            rows34 = FrameMode.MIXER_ROWS;
-        else
-            rows34 = FrameMode.EMPTY_ROWS;
-
-        display.setRow (0, FrameMode.ROW0).setRow (1, FrameMode.ROW1).setRow (2, rows34[0]).setRow (3, rows34[1]);
     }
 
 

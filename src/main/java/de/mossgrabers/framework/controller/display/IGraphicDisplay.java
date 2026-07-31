@@ -4,20 +4,13 @@
 
 package de.mossgrabers.framework.controller.display;
 
-import java.util.List;
-
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.hardware.IHwGraphicsDisplay;
 import de.mossgrabers.framework.daw.clip.INoteClip;
 import de.mossgrabers.framework.daw.clip.NotePosition;
-import de.mossgrabers.framework.daw.data.IScene;
-import de.mossgrabers.framework.daw.data.ISlot;
-import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.resource.ChannelType;
 import de.mossgrabers.framework.graphics.IBitmap;
 import de.mossgrabers.framework.graphics.canvas.component.IComponent;
-import de.mossgrabers.framework.graphics.canvas.utils.SendData;
-import de.mossgrabers.framework.utils.Pair;
 
 
 /**
@@ -31,6 +24,12 @@ public interface IGraphicDisplay extends IDisplay
      * Show the debug window for the graphics display.
      */
     void showDebugWindow ();
+
+
+    /**
+     * Save the current graphics display bitmap as a PNG for debugging.
+     */
+    void saveDebugImage ();
 
 
     /**
@@ -79,92 +78,6 @@ public interface IGraphicDisplay extends IDisplay
      * @param hasSmallEmptyMenu If true draws an empty small menu
      */
     void addEmptyElement (boolean hasSmallEmptyMenu);
-
-
-    /**
-     * Adds a channel selector element.
-     *
-     * @param topMenu The text of the top menu
-     * @param isTopMenuOn True if the top menu is selected
-     * @param bottomMenu The text of the bottom menu
-     * @param type The type of the channel
-     * @param bottomMenuColor A background color for the menu
-     * @param isBottomMenuOn True if the bottom menu is selected
-     * @param isActive True if channel is activated
-     */
-    void addChannelSelectorElement (String topMenu, boolean isTopMenuOn, String bottomMenu, ChannelType type, ColorEx bottomMenuColor, boolean isBottomMenuOn, boolean isActive);
-
-
-    /**
-     * Adds a channel element.
-     *
-     * @param topMenu The text of the top menu
-     * @param isTopMenuOn True if the top menu is selected
-     * @param bottomMenu The text of the bottom menu
-     * @param type The type of the channel
-     * @param bottomMenuColor A background color for the menu
-     * @param isBottomMenuOn True if the bottom menu is selected
-     * @param volume The volume value
-     * @param modulatedVolume The modulated volume value
-     * @param volumeStr The volume as string
-     * @param pan The panning
-     * @param modulatedPan The modulated panning
-     * @param panStr The panning as string
-     * @param vuLeft The VU meter value of the left channel
-     * @param vuRight The VU meter value of the right channel
-     * @param mute The mute state
-     * @param solo The solo state
-     * @param recarm The recording armed state
-     * @param isActive True if channel is activated
-     * @param crossfadeMode Cross-fade mode (0-2)
-     * @param isPinned True if the track is pinned
-     */
-    void addChannelElement (String topMenu, boolean isTopMenuOn, String bottomMenu, ChannelType type, ColorEx bottomMenuColor, boolean isBottomMenuOn, int volume, int modulatedVolume, String volumeStr, int pan, int modulatedPan, String panStr, int vuLeft, int vuRight, boolean mute, boolean solo, boolean recarm, boolean isActive, int crossfadeMode, boolean isPinned);
-
-
-    /**
-     * Adds a channel element.
-     *
-     * @param channelType The type of the channel
-     * @param topMenu The text of the top menu
-     * @param isTopMenuOn True if the top menu is selected
-     * @param bottomMenu The text of the bottom menu
-     * @param type The type of the channel
-     * @param bottomMenuColor A background color for the menu
-     * @param isBottomMenuOn True if the bottom menu is selected
-     * @param volume The volume value
-     * @param modulatedVolume The modulated volume value
-     * @param volumeStr The volume as string
-     * @param pan The panning
-     * @param modulatedPan The modulated panning
-     * @param panStr The panning as string
-     * @param vuLeft The VU meter value of the left channel
-     * @param vuRight The VU meter value of the right channel
-     * @param mute The mute state
-     * @param solo The solo state
-     * @param recarm The recording armed state
-     * @param isActive True if channel is activated
-     * @param crossfadeMode Cross-fade mode (0-2)
-     * @param isPinned True if the track is pinned
-     */
-    void addChannelElement (int channelType, String topMenu, boolean isTopMenuOn, String bottomMenu, ChannelType type, ColorEx bottomMenuColor, boolean isBottomMenuOn, int volume, int modulatedVolume, String volumeStr, int pan, int modulatedPan, String panStr, int vuLeft, int vuRight, boolean mute, boolean solo, boolean recarm, boolean isActive, int crossfadeMode, boolean isPinned);
-
-
-    /**
-     * Adds a channel with 4 sends element.
-     *
-     * @param topMenu The text of the top menu
-     * @param isTopMenuOn True if the top menu is selected
-     * @param bottomMenu The text of the bottom menu
-     * @param type The type of the channel
-     * @param bottomMenuColor A background color for the menu
-     * @param isBottomMenuOn True if the bottom menu is selected
-     * @param sendData The send information
-     * @param isTrackMode True if track mode otherwise send mode
-     * @param isSendActive True if the upper send part is activated
-     * @param isChannelLabelActive True if channel is activated
-     */
-    void addSendsElement (String topMenu, boolean isTopMenuOn, String bottomMenu, ChannelType type, ColorEx bottomMenuColor, boolean isBottomMenuOn, SendData [] sendData, boolean isTrackMode, boolean isSendActive, boolean isChannelLabelActive);
 
 
     /**
@@ -296,34 +209,6 @@ public interface IGraphicDisplay extends IDisplay
      * @param selected Must contain X number of states
      */
     void addListElement (String [] items, boolean [] selected);
-
-
-    /**
-     * Add a list of scene elements to the message.
-     *
-     * @param scenes The scenes
-     * @param type The type of the track
-     * @param name The of the grid element (track name, parameter name, etc.)
-     * @param color The color to use for the header, may be null
-     * @param isSelected True if the grid element is selected
-     * @param isActive True if channel is activated
-     * @param isPinned True if the channel is pinned
-     */
-    void addSceneListElement (List<IScene> scenes, final ChannelType type, final String name, final ColorEx color, final boolean isSelected, final boolean isActive, final boolean isPinned);
-
-
-    /**
-     * Add a list of box elements to the message.
-     *
-     * @param slots Must contain X number of slot items
-     * @param type The type of the track
-     * @param name The of the grid element (track name, parameter name, etc.)
-     * @param color The color to use for the header, may be null
-     * @param isSelected True if the grid element is selected
-     * @param isActive True if channel is activated
-     * @param isPinned True if the channel is pinned
-     */
-    void addSlotListElement (List<Pair<ITrack, ISlot>> slots, ChannelType type, String name, ColorEx color, boolean isSelected, boolean isActive, boolean isPinned);
 
 
     /**

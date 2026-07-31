@@ -4,25 +4,28 @@
 
 package de.mossgrabers.controller.ableton.push.mode.track;
 
-import java.util.Optional;
+import java.util.ArrayList;
+import java.util.List;
 
-import de.mossgrabers.controller.ableton.push.PushConfiguration;
-import de.mossgrabers.controller.ableton.push.controller.Push1Display;
+import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.parameterprovider.PushTrackParameterProvider;
 import de.mossgrabers.framework.controller.ButtonID;
-import de.mossgrabers.framework.controller.color.ColorEx;
-import de.mossgrabers.framework.controller.display.Format;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.display.ITextDisplay;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
+import de.mossgrabers.framework.daw.DAWColor;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.ICursorTrack;
 import de.mossgrabers.framework.daw.data.ISend;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.ISendBank;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
-import de.mossgrabers.framework.graphics.canvas.utils.SendData;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.MenuData;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.ParameterData;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.TrackData;
+import de.mossgrabers.framework.parameterprovider.special.EmptyParameterProvider;
+import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.framework.utils.Pair;
 
 
@@ -33,6 +36,11 @@ import de.mossgrabers.framework.utils.Pair;
  */
 public class TrackMode extends AbstractTrackMode
 {
+    private final PushTrackParameterProvider mixParameterProvider;
+    private final EmptyParameterProvider     inputOutputParameterProvider = new EmptyParameterProvider (8);
+    private boolean                          inputOutputSelected;
+
+
     /**
      * Constructor.
      *
@@ -43,7 +51,83 @@ public class TrackMode extends AbstractTrackMode
     {
         super ("Track", surface, model);
 
-        this.setParameterProvider (new PushTrackParameterProvider (model, surface.getConfiguration ()));
+        this.mixParameterProvider = new PushTrackParameterProvider (model, surface.getConfiguration ());
+        this.setParameterProvider (this.mixParameterProvider);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void onSecondRow (final int index, final ButtonEvent event)
+    {
+        if (this.isTrackModifierActive ())
+        {
+            super.onSecondRow (index, event);
+            return;
+        }
+
+        if (event != ButtonEvent.DOWN)
+            return;
+
+        if (index == 0)
+        {
+            this.selectInputOutputPage (false);
+            return;
+        }
+        if (index == 1)
+        {
+            this.selectInputOutputPage (true);
+            return;
+        }
+        if (this.inputOutputSelected)
+            return;
+
+        final boolean hasAdditionalSends = this.hasAdditionalTrackSends ();
+        final int sendOffset = hasAdditionalSends ? this.configuration.getTrackMixSendOffset () : 0;
+        if (!hasAdditionalSends)
+            this.configuration.setTrackMixSendOffset (0);
+        if (index == 6 && sendOffset > 0)
+        {
+            this.configuration.setTrackMixSendOffset (0);
+            this.bindControls ();
+        }
+        else if (index == 7 && sendOffset == 0 && hasAdditionalSends)
+        {
+            this.configuration.setTrackMixSendOffset (4);
+            this.bindControls ();
+        }
+    }
+
+
+    private void selectInputOutputPage (final boolean isSelected)
+    {
+        if (this.inputOutputSelected == isSelected)
+            return;
+
+        if (this.isActive)
+            this.defaultParameterProvider.removeParametersObserver (this);
+
+        this.inputOutputSelected = isSelected;
+        this.setParameterProvider (isSelected ? this.inputOutputParameterProvider : this.mixParameterProvider);
+
+        if (this.isActive)
+        {
+            this.defaultParameterProvider.addParametersObserver (this);
+            this.bindControls ();
+        }
+    }
+
+
+    private boolean isTrackModifierActive ()
+    {
+        return this.configuration.isMuteState (this.surface.isLongPressed (ButtonID.MUTE)) || this.configuration.isSoloState (this.surface.isLongPressed (ButtonID.SOLO)) || this.configuration.isClipStopState (this.surface.isLongPressed (ButtonID.STOP_CLIP));
+    }
+
+
+    private boolean hasAdditionalTrackSends ()
+    {
+        final ISendBank sendBank = this.model.getCursorTrack ().getSendBank ();
+        return sendBank.getPageSize () > 6 && sendBank.getItem (6).doesExist ();
     }
 
 
@@ -63,35 +147,51 @@ public class TrackMode extends AbstractTrackMode
 
     /** {@inheritDoc} */
     @Override
-    public void updateDisplay1 (final ITextDisplay display)
+    public int getButtonColor (final ButtonID buttonID)
     {
-        final ITrackBank tb = this.model.getCurrentTrackBank ();
-        final Optional<ITrack> track = tb.getSelectedItem ();
-        if (track.isEmpty ())
-            display.setRow (1, "                     Please selecta track...                        ");
-        else
+        if (this.isTrackModifierActive ())
+            return super.getButtonColor (buttonID);
+
+        int index = this.isButtonRow (0, buttonID);
+        if (index >= 0)
         {
-            final ITrack t = track.get ();
-
-            final PushConfiguration config = this.surface.getConfiguration ();
-            final int upperBound = this.model.getValueChanger ().getUpperBound ();
-            final String volValueStr = config.isEnableVUMeters () ? Push1Display.formatValue (t.getVolume (), t.getVu (), upperBound) : Push1Display.formatValue (t.getVolume (), upperBound);
-            display.setCell (0, 0, "Volume").setCell (1, 0, t.getVolumeStr (8)).setCell (2, 0, volValueStr);
-            display.setCell (0, 1, "Pan").setCell (1, 1, t.getPanStr (8)).setCell (2, 1, t.getPan (), Format.FORMAT_PAN);
-
-            final int sendStart = 2;
-            final int sendCount = 6;
-            final ISendBank sendBank = t.getSendBank ();
-            for (int i = 0; i < sendCount; i++)
-            {
-                final int pos = sendStart + i;
-                final ISend send = sendBank.getItem (i);
-                if (send.doesExist ())
-                    display.setCell (0, pos, send.getName ()).setCell (1, pos, send.getDisplayedValue (8)).setCell (2, pos, send.getValue (), Format.FORMAT_VALUE);
-            }
+            final ITrack track = this.model.getCurrentTrackBank ().getItem (index);
+            if (!track.doesExist () || !track.isActivated ())
+                return this.colorManager.getColorIndex (PushColorManager.PUSH_BLACK);
+            if (track.isRecArm ())
+                return this.colorManager.getColorIndex (PushColorManager.PUSH_RED_HI);
+            return this.colorManager.getColorIndex (DAWColor.getColorID (track.getColor ()));
         }
 
-        this.drawRow4 (display);
+        index = this.isButtonRow (1, buttonID);
+        if (index < 0)
+            return super.getButtonColor (buttonID);
+
+        this.updateTrackMenus ();
+        final Pair<String, Boolean> menuItem = this.menu.get (index);
+        return menuItem.getValue ().booleanValue () || "<".equals (menuItem.getKey ()) || ">".equals (menuItem.getKey ()) ? PushColorManager.PUSH2_COLOR2_WHITE : PushColorManager.PUSH2_COLOR_BLACK;
+    }
+
+
+    private void updateTrackMenus ()
+    {
+        for (int i = 0; i < 8; i++)
+            this.menu.get (i).set (" ", Boolean.FALSE);
+
+        this.menu.get (0).set ("Mix", Boolean.valueOf (!this.inputOutputSelected));
+        this.menu.get (1).set ("Input & Output", Boolean.valueOf (this.inputOutputSelected));
+
+        if (this.inputOutputSelected)
+            return;
+
+        final boolean hasAdditionalSends = this.hasAdditionalTrackSends ();
+        final int sendOffset = hasAdditionalSends ? this.configuration.getTrackMixSendOffset () : 0;
+        if (!hasAdditionalSends)
+            this.configuration.setTrackMixSendOffset (0);
+        if (sendOffset > 0)
+            this.menu.get (6).set ("<", Boolean.FALSE);
+        else if (hasAdditionalSends)
+            this.menu.get (7).set (">", Boolean.FALSE);
     }
 
 
@@ -100,64 +200,80 @@ public class TrackMode extends AbstractTrackMode
     public void updateDisplay2 (final IGraphicDisplay display)
     {
         final ITrackBank tb = this.model.getCurrentTrackBank ();
-        final Optional<ITrack> selectedTrack = tb.getSelectedItem ();
+        this.updateTrackMenus ();
 
-        // Get the index at which to draw the Sends element
-        final int selectedIndex = selectedTrack.isEmpty () ? -1 : selectedTrack.get ().getIndex ();
-        int sendsIndex = selectedTrack.isEmpty () ? -1 : selectedTrack.get ().getIndex () + 1;
-        if (sendsIndex == 8)
-            sendsIndex = 6;
-
-        this.updateMenuItems (0);
-
+        final List<MenuData> menus = new ArrayList<> (8);
+        final List<ParameterData> parameters = new ArrayList<> (8);
+        final List<TrackData> tracks = new ArrayList<> (8);
+        final IValueChanger valueChanger = this.model.getValueChanger ();
         final ICursorTrack cursorTrack = this.model.getCursorTrack ();
-
-        final PushConfiguration config = this.surface.getConfiguration ();
         for (int i = 0; i < 8; i++)
         {
+            final Pair<String, Boolean> menuItem = this.menu.get (i);
+            menus.add (new MenuData (menuItem.getKey ().trim (), menuItem.getValue ().booleanValue ()));
+            parameters.add (new ParameterData ("", -1, -1, "", false));
+
             final ITrack t = tb.getItem (i);
+            tracks.add (new TrackData (t.doesExist () ? t.getName (12) : "", this.updateType (t), t.getColor (), t.isSelected (), t.isActivated (), t.isSelected () && cursorTrack.isPinned ()));
+        }
 
-            // The menu item
-            final Pair<String, Boolean> pair = this.menu.get (i);
-            final String topMenu = pair.getKey ();
-            final boolean topMenuSelected = pair.getValue ().booleanValue ();
-
-            // Channel info
-            final String bottomMenu = t.doesExist () ? t.getName () : "";
-            final ColorEx bottomMenuColor = t.getColor ();
-            final boolean isBottomMenuOn = t.isSelected ();
-
-            final IValueChanger valueChanger = this.model.getValueChanger ();
-            if (t.isSelected ())
+        int vuLeft = 0;
+        int vuRight = 0;
+        if (cursorTrack.doesExist ())
+        {
+            final ITrack track = cursorTrack;
+            final boolean isActive = track.isActivated ();
+            if (this.inputOutputSelected)
             {
-                final int crossfadeMode = this.getCrossfadeModeAsNumber (t);
-                final boolean enableVUMeters = config.isEnableVUMeters ();
-                final int vuR = valueChanger.toDisplayValue (enableVUMeters ? t.getVuRight () : 0);
-                final int vuL = valueChanger.toDisplayValue (enableVUMeters ? t.getVuLeft () : 0);
-                display.addChannelElement (topMenu, topMenuSelected, bottomMenu, this.updateType (t), bottomMenuColor, isBottomMenuOn, valueChanger.toDisplayValue (t.getVolume ()), valueChanger.toDisplayValue (t.getModulatedVolume ()), this.isKnobTouched (0) ? t.getVolumeStr (8) : "", valueChanger.toDisplayValue (t.getPan ()), valueChanger.toDisplayValue (t.getModulatedPan ()), this.isKnobTouched (1) ? t.getPanStr (8) : "", vuL, vuR, t.isMute (), t.isSolo (), t.isRecArm (), t.isActivated (), crossfadeMode, cursorTrack.isPinned ());
-            }
-            else if (sendsIndex == i)
-            {
-                final ITrack selTrack = tb.getItem (selectedIndex);
-                final SendData [] sendData = new SendData [4];
-                for (int j = 0; j < 4; j++)
-                {
-                    if (selTrack != null)
-                    {
-                        final ISend send = selTrack.getSendBank ().getItem (j);
-                        if (send != null)
-                        {
-                            final boolean exists = send.doesExist ();
-                            sendData[j] = new SendData (send.isEnabled (), send.getName (), exists && this.isKnobTouched (4 + j) ? send.getDisplayedValue (8) : "", valueChanger.toDisplayValue (exists ? send.getValue () : 0), valueChanger.toDisplayValue (exists ? send.getModulatedValue () : 0), true);
-                            continue;
-                        }
-                    }
-                    sendData[j] = new SendData (false, "", "", 0, 0, true);
-                }
-                display.addSendsElement (topMenu, topMenuSelected, bottomMenu, this.updateType (t), bottomMenuColor, isBottomMenuOn, sendData, true, selTrack == null || selTrack.isActivated (), t.isActivated ());
+                parameters.set (0, new ParameterData ("Track Type", -1, -1, this.getTrackTypeName (track), isActive));
+                parameters.set (1, new ParameterData ("Monitor", -1, -1, this.getMonitorName (track), isActive));
             }
             else
-                display.addChannelSelectorElement (topMenu, topMenuSelected, bottomMenu, this.updateType (t), bottomMenuColor, isBottomMenuOn, t.isActivated ());
+            {
+                parameters.set (0, new ParameterData ("Track Volume", valueChanger.toDisplayValue (track.getVolume ()), valueChanger.toDisplayValue (track.getModulatedVolume ()), track.getVolumeStr (8), isActive));
+                parameters.set (1, new ParameterData ("Track Panning", valueChanger.toDisplayValue (track.getPan ()), valueChanger.toDisplayValue (track.getModulatedPan ()), this.formatPanValue (track.getPan ()), isActive));
+
+                final ISendBank sendBank = track.getSendBank ();
+                final int sendOffset = this.configuration.getTrackMixSendOffset ();
+                for (int i = 0; i < 6; i++)
+                {
+                    final int sendIndex = sendOffset + i;
+                    if (sendIndex >= sendBank.getPageSize ())
+                        break;
+
+                    final ISend send = sendBank.getItem (sendIndex);
+                    if (send.doesExist ())
+                        parameters.set (i + 2, new ParameterData (send.getName (), valueChanger.toDisplayValue (send.getValue ()), valueChanger.toDisplayValue (send.getModulatedValue ()), send.getDisplayedValue (8), isActive && send.isEnabled ()));
+                }
+
+                if (this.configuration.isEnableVUMeters ())
+                {
+                    vuLeft = valueChanger.toDisplayValue (track.getVuLeft ());
+                    vuRight = valueChanger.toDisplayValue (track.getVuRight ());
+                }
+            }
         }
+
+        display.addElement (new TrackMixerComponent (menus, parameters, tracks, vuLeft, vuRight));
+    }
+
+
+    private String getTrackTypeName (final ITrack track)
+    {
+        if (track.canHoldNotes () && track.canHoldAudioData ())
+            return "Hybrid";
+        if (track.canHoldNotes ())
+            return "Instrument";
+        if (track.canHoldAudioData ())
+            return "Audio";
+        return track.isGroup () ? "Group" : "Track";
+    }
+
+
+    private String getMonitorName (final ITrack track)
+    {
+        if (track.isAutoMonitor ())
+            return "Auto";
+        return track.isMonitor () ? "On" : "Off";
     }
 }

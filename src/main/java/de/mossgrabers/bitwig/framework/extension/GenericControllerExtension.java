@@ -18,7 +18,10 @@ import com.bitwig.extension.controller.api.ControllerHost;
  */
 public class GenericControllerExtension extends ControllerExtension
 {
-    private final IControllerSetup<?, ?> setup;
+    // Yield to Bitwig once after setup without imposing a fixed startup wait.
+    private static final long            STARTUP_DELAY = 0;
+
+    private final IControllerSetup setup;
 
 
     /**
@@ -28,7 +31,7 @@ public class GenericControllerExtension extends ControllerExtension
      * @param definition A definition
      * @param host The DAW host
      */
-    public GenericControllerExtension (final IControllerSetup<?, ?> setup, final ControllerExtensionDefinition definition, final ControllerHost host)
+    public GenericControllerExtension (final IControllerSetup setup, final ControllerExtensionDefinition definition, final ControllerHost host)
     {
         super (definition, host);
         this.setup = setup;
@@ -44,7 +47,7 @@ public class GenericControllerExtension extends ControllerExtension
         host.scheduleTask ( () -> {
             this.setup.startup ();
             host.println ("Running.");
-        }, 1000);
+        }, STARTUP_DELAY);
     }
 
 

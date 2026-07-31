@@ -44,33 +44,31 @@ public class ClipStopCommand extends AbstractTriggerCommand<PushControlSurface, 
             if (event == ButtonEvent.UP)
             {
                 this.surface.setTriggerConsumed (ButtonID.SELECT);
-                this.model.getCurrentTrackBank ().stop (this.surface.isShiftPressed ());
+                this.model.getCurrentTrackBank ().stop (true);
             }
             return;
         }
 
         final PushConfiguration config = this.surface.getConfiguration ();
-        if (!config.isPushModern ())
-        {
-            if (event == ButtonEvent.DOWN)
-                config.setLockState (LockState.CLIP_STOP);
-            return;
-        }
-
         if (event != ButtonEvent.UP)
             return;
 
+        if (this.surface.isShiftPressed ())
+        {
+            this.model.getCurrentTrackBank ().stop (true);
+            return;
+        }
+
         // Toggle clip stop lock mode
-        if (this.surface.isShiftPressed () || this.surface.isPressed (ButtonID.LOCK_MODE))
+        if (this.surface.isPressed (ButtonID.LOCK_MODE))
         {
             config.setLockState (config.getLockState () == LockState.CLIP_STOP ? LockState.OFF : LockState.CLIP_STOP);
             return;
         }
 
-        // Behavior like Push 1
         if (config.getLockState () == LockState.CLIP_STOP)
             return;
 
-        this.model.getCursorTrack ().stop (this.surface.isShiftPressed ());
+        this.model.getCursorTrack ().stop (true);
     }
 }

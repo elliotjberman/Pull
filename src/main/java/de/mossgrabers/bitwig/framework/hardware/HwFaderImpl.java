@@ -9,7 +9,6 @@ import de.mossgrabers.framework.command.core.TriggerCommand;
 import de.mossgrabers.framework.controller.hardware.BindType;
 import de.mossgrabers.framework.controller.hardware.IHwFader;
 import de.mossgrabers.framework.daw.midi.IMidiInput;
-import de.mossgrabers.framework.utils.ButtonEvent;
 
 import com.bitwig.extension.controller.api.HardwareSlider;
 
@@ -43,8 +42,8 @@ public class HwFaderImpl extends AbstractHwAbsoluteControl<HardwareSlider> imple
     {
         this.touchCommand = command;
 
-        this.hardwareControl.beginTouchAction ().addBinding (this.controllerHost.createAction ( () -> this.touchCommand.execute (ButtonEvent.DOWN, 127), () -> ""));
-        this.hardwareControl.endTouchAction ().addBinding (this.controllerHost.createAction ( () -> this.touchCommand.execute (ButtonEvent.UP, 0), () -> ""));
+        this.hardwareControl.beginTouchAction ().addBinding (this.controllerHost.createAction ( () -> this.triggerTouch (true), () -> ""));
+        this.hardwareControl.endTouchAction ().addBinding (this.controllerHost.createAction ( () -> this.triggerTouch (false), () -> ""));
 
         input.bindTouch (this, type, channel, control);
     }

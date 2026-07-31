@@ -7,7 +7,6 @@ package de.mossgrabers.controller.ableton.push.mode;
 import de.mossgrabers.controller.ableton.push.PushConfiguration;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.display.ITextDisplay;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.ITransport;
 import de.mossgrabers.framework.daw.data.IItem;
@@ -27,7 +26,6 @@ public abstract class BaseMode<B extends IItem> extends AbstractParameterMode<Pu
 {
     protected static final int SCROLL_RATE     = 8;
 
-    protected final boolean    isPushModern;
     private int                movementCounter = 0;
 
 
@@ -55,8 +53,6 @@ public abstract class BaseMode<B extends IItem> extends AbstractParameterMode<Pu
     protected BaseMode (final String name, final PushControlSurface surface, final IModel model, final IBank<B> bank)
     {
         super (name, surface, model, true, bank, DEFAULT_KNOB_IDS);
-
-        this.isPushModern = this.surface.getConfiguration ().isPushModern ();
     }
 
 
@@ -64,26 +60,10 @@ public abstract class BaseMode<B extends IItem> extends AbstractParameterMode<Pu
     @Override
     public void updateDisplay ()
     {
-        if (this.surface.getConfiguration ().isPushModern ())
-        {
-            final IGraphicDisplay display = this.surface.getGraphicsDisplay ();
-            this.updateDisplay2 (display);
-            display.send ();
-            return;
-        }
-
-        final ITextDisplay display = this.surface.getTextDisplay ().clear ();
-        this.updateDisplay1 (display);
-        display.allDone ();
+        final IGraphicDisplay display = this.surface.getGraphicsDisplay ();
+        this.updateDisplay2 (display);
+        display.send ();
     }
-
-
-    /**
-     * Update the display of Push 1.
-     *
-     * @param display The display to fill
-     */
-    public abstract void updateDisplay1 (final ITextDisplay display);
 
 
     /**

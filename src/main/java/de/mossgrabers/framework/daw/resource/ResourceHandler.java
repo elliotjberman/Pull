@@ -31,15 +31,7 @@ public final class ResourceHandler
     {
         theHost = host;
 
-        addSVGImage ("channel/mute.svg");
-        addSVGImage ("channel/record_arm.svg");
-        addSVGImage ("channel/solo.svg");
-        addSVGImage ("channel/solo.svg");
-
         addSVGImage ("track/audio_track.svg");
-        addSVGImage ("track/crossfade_a.svg");
-        addSVGImage ("track/crossfade_ab.svg");
-        addSVGImage ("track/crossfade_b.svg");
         addSVGImage ("track/group_track.svg");
         addSVGImage ("track/group_track_open.svg");
         addSVGImage ("track/hybrid_track.svg");

@@ -4,14 +4,10 @@
 
 package de.mossgrabers.controller.ableton.push.mode;
 
-import de.mossgrabers.controller.ableton.push.controller.Push1Display;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.controller.ButtonID;
-import de.mossgrabers.framework.controller.display.Format;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.display.ITextDisplay;
 import de.mossgrabers.framework.daw.IModel;
-import de.mossgrabers.framework.daw.constants.Capability;
 import de.mossgrabers.framework.daw.constants.RecordQuantization;
 import de.mossgrabers.framework.daw.data.IItem;
 import de.mossgrabers.framework.daw.data.ITrack;
@@ -78,32 +74,6 @@ public class QuantizeMode extends BaseMode<IItem>
 
     /** {@inheritDoc} */
     @Override
-    public void updateDisplay1 (final ITextDisplay display)
-    {
-        display.setCell (0, 0, Push1Display.SELECT_ARROW + "Quantize");
-        display.setCell (0, 1, "Groove");
-
-        final ITrack cursorTrack = this.model.getCursorTrack ();
-        final RecordQuantization recQuant = cursorTrack.doesExist () ? cursorTrack.getRecordQuantizationGrid () : RecordQuantization.RES_OFF;
-        final RecordQuantization [] values = RecordQuantization.values ();
-        display.setBlock (2, 0, "Record Quantize:");
-        for (int i = 0; i < values.length; i++)
-            display.setCell (3, i, (values[i] == recQuant ? Push1Display.SELECT_ARROW : "") + values[i].getName ());
-
-        if (this.model.getHost ().supports (Capability.QUANTIZE_INPUT_NOTE_LENGTH))
-        {
-            display.setBlock (2, 2, "       Quant Note");
-            display.setCell (2, 6, "Length:");
-            display.setCell (3, 6, cursorTrack.doesExist () && cursorTrack.isRecordQuantizationNoteLength () ? "On" : "Off");
-        }
-
-        final int quantizeAmount = this.surface.getConfiguration ().getQuantizeAmount ();
-        display.setCell (0, 7, "Quant Amnt").setCell (1, 7, quantizeAmount + "%").setCell (2, 7, quantizeAmount * 1023 / 100, Format.FORMAT_VALUE);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
     public void updateDisplay2 (final IGraphicDisplay display)
     {
         final ITrack cursorTrack = this.model.getCursorTrack ();
@@ -112,25 +82,12 @@ public class QuantizeMode extends BaseMode<IItem>
         for (int i = 0; i < values.length; i++)
             display.addOptionElement ("", MENU[i], i == 0, i == 0 ? "Record Quantization" : "", values[i].getName (), values[i] == recQuant, true);
 
-        if (this.model.getHost ().supports (Capability.QUANTIZE_INPUT_NOTE_LENGTH))
-        {
-            display.addOptionElement ("", " ", false, null, "Quantize Note Length", "", false, null, true);
-            final boolean isQuantLength = cursorTrack.doesExist () && cursorTrack.isRecordQuantizationNoteLength ();
-            display.addOptionElement ("", " ", false, "", isQuantLength ? "On" : "Off", isQuantLength, true);
-        }
-        else
-        {
-            display.addEmptyElement (true);
-            display.addEmptyElement (true);
-        }
+        display.addOptionElement ("", " ", false, null, "Quantize Note Length", "", false, null, true);
+        final boolean isQuantLength = cursorTrack.doesExist () && cursorTrack.isRecordQuantizationNoteLength ();
+        display.addOptionElement ("", " ", false, "", isQuantLength ? "On" : "Off", isQuantLength, true);
 
-        if (this.model.getHost ().supports (Capability.QUANTIZE_AMOUNT))
-        {
-            final int quantizeAmount = this.surface.getConfiguration ().getQuantizeAmount ();
-            display.addParameterElement (" ", false, "", (ChannelType) null, null, false, "Qunt Amnt", quantizeAmount * 1023 / 100, quantizeAmount + "%", this.isKnobTouched (0), -1);
-        }
-        else
-            display.addEmptyElement (true);
+        final int quantizeAmount = this.surface.getConfiguration ().getQuantizeAmount ();
+        display.addParameterElement (" ", false, "", (ChannelType) null, null, false, "Qunt Amnt", quantizeAmount * 1023 / 100, quantizeAmount + "%", this.isKnobTouched (0), -1);
     }
 
 

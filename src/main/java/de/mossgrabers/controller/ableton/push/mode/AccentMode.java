@@ -6,9 +6,7 @@ package de.mossgrabers.controller.ableton.push.mode;
 
 import de.mossgrabers.controller.ableton.push.PushConfiguration;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
-import de.mossgrabers.framework.controller.display.Format;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.display.ITextDisplay;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.IItem;
@@ -53,16 +51,6 @@ public class AccentMode extends BaseMode<IItem>
     public void onKnobTouch (final int index, final boolean isTouched)
     {
         this.setTouchedKnob (index, isTouched);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void updateDisplay1 (final ITextDisplay display)
-    {
-        final int fixedAccentValue = this.surface.getConfiguration ().getFixedAccentValue ();
-        final IValueChanger valueChanger = this.model.getValueChanger ();
-        display.setCell (0, 7, TAG_ACCENT).setCell (1, 7, fixedAccentValue, Format.FORMAT_RAW).setCell (2, 7, valueChanger.toDAWValue (fixedAccentValue), Format.FORMAT_VALUE);
     }
 
 

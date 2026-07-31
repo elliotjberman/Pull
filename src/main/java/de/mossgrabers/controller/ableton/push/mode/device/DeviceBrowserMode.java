@@ -4,28 +4,20 @@
 
 package de.mossgrabers.controller.ableton.push.mode.device;
 
-import de.mossgrabers.controller.ableton.push.command.continuous.IPush3Encoder;
-import de.mossgrabers.controller.ableton.push.controller.Push1Display;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.mode.BaseMode;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.display.ITextDisplay;
 import de.mossgrabers.framework.daw.IBrowser;
 import de.mossgrabers.framework.daw.IModel;
-import de.mossgrabers.framework.daw.constants.Capability;
 import de.mossgrabers.framework.daw.data.IBrowserColumn;
 import de.mossgrabers.framework.daw.data.IBrowserColumnItem;
 import de.mossgrabers.framework.daw.data.IItem;
 import de.mossgrabers.framework.featuregroup.AbstractFeatureGroup;
 import de.mossgrabers.framework.featuregroup.AbstractMode;
-import de.mossgrabers.framework.featuregroup.ViewManager;
 import de.mossgrabers.framework.utils.ButtonEvent;
-import de.mossgrabers.framework.utils.StringUtils;
-import de.mossgrabers.framework.view.Views;
-import de.mossgrabers.framework.view.sequencer.AbstractDrumView;
 
 import java.util.Optional;
 
@@ -35,7 +27,7 @@ import java.util.Optional;
  *
  * @author Jürgen Moßgraber
  */
-public class DeviceBrowserMode extends BaseMode<IItem> implements IPush3Encoder
+public class DeviceBrowserMode extends BaseMode<IItem>
 {
     private static final int SELECTION_OFF    = 0;
     private static final int SELECTION_PRESET = 1;
@@ -162,10 +154,7 @@ public class DeviceBrowserMode extends BaseMode<IItem> implements IPush3Encoder
             return;
         }
 
-        if (this.isPushModern)
-            this.selectNext (index, 1);
-        else
-            this.selectPrevious (index, 1);
+        this.selectNext (index, 1);
     }
 
 
@@ -175,104 +164,7 @@ public class DeviceBrowserMode extends BaseMode<IItem> implements IPush3Encoder
     {
         if (event != ButtonEvent.DOWN)
             return;
-        if (this.isPushModern)
-            this.selectPrevious (index, 1);
-        else
-            this.selectNext (index, 1);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void updateDisplay1 (final ITextDisplay display)
-    {
-        final IBrowser browser = this.model.getBrowser ();
-        if (!browser.isActive ())
-            return;
-
-        switch (this.selectionMode)
-        {
-            case DeviceBrowserMode.SELECTION_OFF:
-                String selectedContentType = browser.getSelectedContentType ();
-                if (this.filterColumn == -1)
-                    selectedContentType = Push1Display.SELECT_ARROW + selectedContentType;
-                display.setCell (0, 7, selectedContentType);
-
-                display.setBlock (2, 2, "Selection:");
-                String selectedResult = browser.getSelectedResult ();
-                selectedResult = selectedResult == null || selectedResult.isBlank () ? "None" : StringUtils.shortenAndFixASCII (selectedResult, 18);
-
-                String [] infoText = browser.getInfoText ().split (":");
-                infoText = new String []
-                {
-                    infoText[0] + ":",
-                    infoText.length == 1 ? "" : infoText[1].trim ()
-                };
-
-                String info1 = infoText[0].length () > 17 ? infoText[0].substring (0, 17) : infoText[0];
-                String info2 = infoText[0].length () > 17 ? infoText[0].substring (17, infoText[0].length ()) : "";
-                display.setBlock (2, 0, info1).setBlock (2, 1, info2);
-
-                info1 = infoText[1].length () > 17 ? infoText[1].substring (0, 17) : infoText[1];
-                info2 = infoText[1].length () > 17 ? infoText[1].substring (17, infoText[1].length ()) : "";
-                display.setBlock (3, 0, info1).setBlock (3, 1, info2);
-
-                final String sel1 = selectedResult.length () > 17 ? selectedResult.substring (0, 17) : selectedResult;
-                final String sel2 = selectedResult.length () > 17 ? selectedResult.substring (17, selectedResult.length ()) : "";
-                display.setBlock (3, 2, sel1).setCell (3, 6, sel2);
-
-                if (this.model.getHost ().supports (Capability.HAS_BROWSER_PREVIEW))
-                {
-                    display.setCell (2, 7, "Preview:");
-                    display.setCell (3, 7, browser.isPreviewEnabled () ? "On" : "Off");
-                }
-
-                for (int i = 0; i < 7; i++)
-                {
-                    final Optional<IBrowserColumn> column = this.getFilterColumn (i);
-                    String name = column.isEmpty () ? "" : StringUtils.shortenAndFixASCII (column.get ().getName (), 8);
-                    if (i == this.filterColumn)
-                        name = Push1Display.SELECT_ARROW + name;
-                    display.setCell (0, i, name).setCell (1, i, getColumnName (column));
-                }
-                break;
-
-            case DeviceBrowserMode.SELECTION_PRESET:
-                final IBrowserColumnItem [] results = browser.getResultColumnItems ();
-
-                if (!results[0].doesExist ())
-                {
-                    display.clear ().setBlock (1, 1, "       No results").setBlock (1, 2, "available...").allDone ();
-                    return;
-                }
-
-                for (int i = 0; i < 16; i++)
-                {
-                    if (i < results.length)
-                        display.setBlock (i % 4, i / 4, (results[i].isSelected () ? Push1Display.SELECT_ARROW : " ") + StringUtils.shortenAndFixASCII (results[i].getName (), 16));
-                    else
-                        display.setBlock (i % 4, i / 4, "");
-                }
-                break;
-
-            case DeviceBrowserMode.SELECTION_FILTER:
-                final IBrowserColumnItem [] items = browser.getFilterColumn (this.filterColumn).getItems ();
-                for (int i = 0; i < 16; i++)
-                {
-                    String text = (items[i].isSelected () ? Push1Display.SELECT_ARROW : " ") + StringUtils.shortenAndFixASCII (items[i].getName (), 18) + "                ";
-                    if (!items[i].getName ().isEmpty ())
-                    {
-                        final String hitStr = "(" + items[i].getHitCount () + ")";
-                        text = text.substring (0, 17 - hitStr.length ()) + hitStr;
-                    }
-                    display.setBlock (i % 4, i / 4, text);
-                }
-                break;
-
-            default:
-                // Not used
-                break;
-        }
+        this.selectPrevious (index, 1);
     }
 
 
@@ -298,10 +190,8 @@ public class DeviceBrowserMode extends BaseMode<IItem> implements IPush3Encoder
                     display.addOptionElement (headerTopName, column.isEmpty () ? "" : column.get ().getName (), i == this.filterColumn, headerBottomName, menuBottomName, !menuBottomName.equals (" "), false);
                 }
 
-                final boolean supportsPreview = this.model.getHost ().supports (Capability.HAS_BROWSER_PREVIEW);
-                final String bottomMenu = supportsPreview ? "Preview" : "";
                 final ColorEx menuBottomColor = browser.isPreviewEnabled () ? ColorEx.ORANGE : ColorEx.GRAY;
-                display.addOptionElement ("", browser.getSelectedContentType (), this.filterColumn == -1, null, "", bottomMenu, false, supportsPreview ? menuBottomColor : null, false);
+                display.addOptionElement ("", browser.getSelectedContentType (), this.filterColumn == -1, null, "", "Preview", false, menuBottomColor, false);
                 break;
 
             case DeviceBrowserMode.SELECTION_PRESET:
@@ -364,7 +254,7 @@ public class DeviceBrowserMode extends BaseMode<IItem> implements IPush3Encoder
         {
             if (index == 7)
             {
-                if (this.surface.isShiftPressed () && this.model.getHost ().supports (Capability.HAS_BROWSER_PREVIEW))
+                if (this.surface.isShiftPressed ())
                     return this.model.getBrowser ().isPreviewEnabled () ? PushColorManager.PUSH_ORANGE_HI : PushColorManager.PUSH_ORANGE_LO;
                 return AbstractFeatureGroup.BUTTON_COLOR_ON;
             }
@@ -521,79 +411,4 @@ public class DeviceBrowserMode extends BaseMode<IItem> implements IPush3Encoder
     }
 
 
-    /** {@inheritDoc} */
-    @Override
-    public void encoderTurn (final int value)
-    {
-        this.changeSelectedColumnValue (value);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void encoderPress (final ButtonEvent event)
-    {
-        if (event != ButtonEvent.DOWN)
-            return;
-
-        final boolean commit = !this.surface.isShiftPressed ();
-
-        this.model.getBrowser ().stopBrowsing (commit);
-
-        if (!commit)
-            return;
-
-        // Workaround for drum page scroll bug
-        final ViewManager viewManager = this.surface.getViewManager ();
-        if (viewManager.isActive (Views.DRUM))
-            AbstractDrumView.class.cast (viewManager.get (Views.DRUM)).repositionBankPage ();
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void encoderLeft (final ButtonEvent event)
-    {
-        if (event != ButtonEvent.DOWN || this.filterColumn == 0)
-            return;
-
-        final IBrowser browser = this.model.getBrowser ();
-        if (this.filterColumn == -1)
-            this.filterColumn = browser.getFilterColumnCount () - 1;
-        else
-            this.filterColumn--;
-        while (this.filterColumn > 0 && !browser.getFilterColumn (this.filterColumn).doesExist ())
-            this.filterColumn--;
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void encoderRight (final ButtonEvent event)
-    {
-        if (event != ButtonEvent.DOWN)
-            return;
-
-        final IBrowser browser = this.model.getBrowser ();
-        final int max = browser.getFilterColumnCount () - 1;
-
-        do
-        {
-            if (this.filterColumn >= max)
-            {
-                this.filterColumn = -1;
-                break;
-            }
-            this.filterColumn++;
-        } while (this.filterColumn >= max || !browser.getFilterColumn (this.filterColumn).doesExist ());
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void arrowCenter (final ButtonEvent event)
-    {
-        if (event == ButtonEvent.DOWN)
-            this.model.getBrowser ().toggleInsertionPoint ();
-    }
 }

@@ -9,17 +9,13 @@ import java.util.List;
 import java.util.Optional;
 
 import de.mossgrabers.controller.ableton.push.PushConfiguration;
-import de.mossgrabers.controller.ableton.push.PushConfiguration.LockState;
-import de.mossgrabers.controller.ableton.push.controller.Push1Display;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.mode.BaseMode;
 import de.mossgrabers.controller.ableton.push.parameterprovider.PushSelectedLayerOrDrumPadParameterProvider;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.color.ColorEx;
-import de.mossgrabers.framework.controller.display.Format;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.display.ITextDisplay;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.IChannel;
@@ -30,7 +26,10 @@ import de.mossgrabers.framework.daw.data.bank.ILayerBank;
 import de.mossgrabers.framework.daw.data.bank.ISendBank;
 import de.mossgrabers.framework.daw.resource.ChannelType;
 import de.mossgrabers.framework.featuregroup.ModeManager;
-import de.mossgrabers.framework.graphics.canvas.utils.SendData;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.MenuData;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.ParameterData;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.TrackData;
 import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.framework.utils.Pair;
@@ -109,7 +108,7 @@ public class DeviceLayerMode extends BaseMode<ILayer>
                     channel.resetPan ();
                     break;
                 default:
-                    if (!this.isPushModern || index >= 4)
+                    if (index >= 4)
                         sendBank.getItem (this.getSendIndex (index)).resetValue ();
                     break;
             }
@@ -125,7 +124,7 @@ public class DeviceLayerMode extends BaseMode<ILayer>
                 channel.touchPan (isTouched);
                 break;
             default:
-                if (!this.isPushModern || index >= 4)
+                if (index >= 4)
                     sendBank.getItem (this.getSendIndex (index)).touchValue (isTouched);
                 break;
         }
@@ -143,7 +142,7 @@ public class DeviceLayerMode extends BaseMode<ILayer>
 
     private int getSendIndex (final int index)
     {
-        return this.isPushModern ? index - 4 : index - 2;
+        return index - 4;
     }
 
 
@@ -311,44 +310,6 @@ public class DeviceLayerMode extends BaseMode<ILayer>
 
     /** {@inheritDoc} */
     @Override
-    public void updateDisplay1 (final ITextDisplay display)
-    {
-        if (!this.cursorDevice.doesExist ())
-        {
-            display.setBlock (1, 0, "           Select").setBlock (1, 1, "a device or press").setBlock (1, 2, "'Add Effect'...  ").allDone ();
-            return;
-        }
-
-        if (!this.cursorDevice.hasLayers ())
-            display.setBlock (1, 1, "    This device  ").setBlock (1, 2, "does not have layers.");
-        else if (!this.bank.hasExistingItems ())
-            display.setBlock (1, 1, "    Please create").setBlock (1, 2, this.cursorDevice.hasDrumPads () ? "a Drum Pad..." : "a Device Layer...");
-        else
-        {
-            final Optional<ILayer> layer = this.bank.getSelectedItem ();
-            if (layer.isPresent ())
-            {
-                final ILayer l = layer.get ();
-
-                display.setCell (0, 0, "Volume").setCell (1, 0, l.getVolumeStr (8)).setCell (2, 0, this.configuration.isEnableVUMeters () ? l.getVu () : l.getVolume (), Format.FORMAT_VALUE);
-                display.setCell (0, 1, "Pan").setCell (1, 1, l.getPanStr (8)).setCell (2, 1, l.getPan (), Format.FORMAT_PAN);
-
-                final ISendBank sendBank = l.getSendBank ();
-                for (int i = 0; i < 6; i++)
-                {
-                    final int pos = 2 + i;
-                    final ISend send = sendBank.getItem (i);
-                    display.setCell (0, pos, send.getName ()).setCell (1, pos, send.getDisplayedValue (8)).setCell (2, pos, send.getValue (), Format.FORMAT_VALUE);
-                }
-            }
-        }
-
-        this.drawRow4 (display);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
     public void updateDisplay2 (final IGraphicDisplay display)
     {
         if (!this.cursorDevice.doesExist ())
@@ -404,75 +365,58 @@ public class DeviceLayerMode extends BaseMode<ILayer>
     {
         // Drum Pad Bank has size of 16, layers only 8
         final int offset = this.getDrumPadIndex ();
-
-        // Get the index at which to draw the Sends element
-        int sendsIndex = l.isEmpty () ? -1 : l.get ().getIndex () - offset + 1;
-        if (sendsIndex == 8)
-            sendsIndex = 6;
-
         this.updateMenuItems (-1);
 
-        final PushConfiguration config = this.surface.getConfiguration ();
-
+        final List<MenuData> menus = new ArrayList<> (8);
+        final List<ParameterData> parameters = new ArrayList<> (8);
+        final List<TrackData> layers = new ArrayList<> (8);
         for (int i = 0; i < 8; i++)
         {
             final IChannel layer = this.bank.getItem (offset + i);
-
             final Pair<String, Boolean> pair = this.menu.get (i);
-            final String topMenu = pair.getKey ();
-            final boolean isTopMenuOn = pair.getValue ().booleanValue ();
-
-            // Channel info
-            final String bottomMenu = layer.doesExist () ? layer.getName (12) : "";
-            final ColorEx bottomMenuColor = layer.getColor ();
-            final boolean isBottomMenuOn = layer.isSelected ();
-
-            if (layer.isSelected ())
-            {
-                final IValueChanger valueChanger = this.model.getValueChanger ();
-                final boolean enableVUMeters = config.isEnableVUMeters ();
-                final int vuR = valueChanger.toDisplayValue (enableVUMeters ? layer.getVuRight () : 0);
-                final int vuL = valueChanger.toDisplayValue (enableVUMeters ? layer.getVuLeft () : 0);
-                display.addChannelElement (topMenu, isTopMenuOn, bottomMenu, ChannelType.LAYER, bottomMenuColor, isBottomMenuOn, valueChanger.toDisplayValue (layer.getVolume ()), valueChanger.toDisplayValue (layer.getModulatedVolume ()), this.isKnobTouched (0) ? layer.getVolumeStr (8) : "", valueChanger.toDisplayValue (layer.getPan ()), valueChanger.toDisplayValue (layer.getModulatedPan ()), this.isKnobTouched (1) ? layer.getPanStr (8) : "", vuL, vuR, layer.isMute (), layer.isSolo (), false, layer.isActivated (), 0, false);
-            }
-            else if (sendsIndex == i && l.isPresent ())
-            {
-                final ISendBank sendBank = l.get ().getSendBank ();
-                final SendData [] sendData = new SendData [4];
-                for (int j = 0; j < 4; j++)
-                {
-                    final ISend send = sendBank.getItem (j);
-                    final boolean doesExist = send.doesExist ();
-                    sendData[j] = new SendData (send.isEnabled (), send.getName (), doesExist && this.isKnobTouched (4 + j) ? send.getDisplayedValue () : "", doesExist ? send.getValue () : 0, doesExist ? send.getModulatedValue () : 0, true);
-                }
-                display.addSendsElement (topMenu, isTopMenuOn, layer.doesExist () ? layer.getName () : "", ChannelType.LAYER, this.bank.getItem (offset + i).getColor (), layer.isSelected (), sendData, true, l.get ().isActivated (), layer.isActivated ());
-            }
-            else
-                display.addChannelSelectorElement (topMenu, isTopMenuOn, bottomMenu, ChannelType.LAYER, bottomMenuColor, isBottomMenuOn, layer.isActivated ());
+            menus.add (new MenuData (pair.getKey ().trim (), pair.getValue ().booleanValue ()));
+            parameters.add (new ParameterData ("", -1, -1, "", false));
+            layers.add (new TrackData (layer.doesExist () ? layer.getName (12) : "", ChannelType.LAYER, layer.getColor (), layer.isSelected (), layer.isActivated (), false));
         }
+
+        final IValueChanger valueChanger = this.model.getValueChanger ();
+        int vuLeft = 0;
+        int vuRight = 0;
+        ColorEx controlColor = ColorEx.WHITE;
+        if (l.isPresent ())
+        {
+            final ILayer layer = l.get ();
+            final boolean isActive = layer.isActivated ();
+            controlColor = layer.getColor ();
+            parameters.set (0, new ParameterData ("Layer Volume", valueChanger.toDisplayValue (layer.getVolume ()), valueChanger.toDisplayValue (layer.getModulatedVolume ()), layer.getVolumeStr (8), isActive));
+            parameters.set (1, new ParameterData ("Pan", valueChanger.toDisplayValue (layer.getPan ()), valueChanger.toDisplayValue (layer.getModulatedPan ()), this.formatPanValue (layer.getPan ()), isActive));
+
+            final ISendBank sendBank = layer.getSendBank ();
+            for (int i = 0; i < 4; i++)
+            {
+                final ISend send = sendBank.getItem (i);
+                if (send.doesExist ())
+                    parameters.set (4 + i, new ParameterData (send.getName (), valueChanger.toDisplayValue (send.getValue ()), valueChanger.toDisplayValue (send.getModulatedValue ()), send.getDisplayedValue (8), isActive && send.isEnabled ()));
+            }
+
+            if (this.configuration.isEnableVUMeters ())
+            {
+                vuLeft = valueChanger.toDisplayValue (layer.getVuLeft ());
+                vuRight = valueChanger.toDisplayValue (layer.getVuRight ());
+            }
+        }
+
+        display.addElement (new TrackMixerComponent (menus, parameters, layers, vuLeft, vuRight, controlColor));
     }
 
 
-    // Called from sub-classes
-    protected void updateChannelDisplay (final IGraphicDisplay display, final int selectedMenu, final boolean isVolume, final boolean isPan)
+    protected String formatPanValue (final int value)
     {
-        this.updateMenuItems (selectedMenu);
-
-        // Drum Pad Bank has size of 16, layers only 8
-        final int offset = this.getDrumPadIndex ();
-
-        final IValueChanger valueChanger = this.model.getValueChanger ();
-        for (int i = 0; i < 8; i++)
-        {
-            final IChannel layer = this.bank.getItem (offset + i);
-            final Pair<String, Boolean> pair = this.menu.get (i);
-            final String topMenu = pair.getKey ();
-            final boolean isTopMenuOn = pair.getValue ().booleanValue ();
-            final boolean enableVUMeters = this.configuration.isEnableVUMeters ();
-            final int vuR = valueChanger.toDisplayValue (enableVUMeters ? layer.getVuRight () : 0);
-            final int vuL = valueChanger.toDisplayValue (enableVUMeters ? layer.getVuLeft () : 0);
-            display.addChannelElement (selectedMenu, topMenu, isTopMenuOn, layer.doesExist () ? layer.getName () : "", ChannelType.LAYER, layer.getColor (), layer.isSelected (), valueChanger.toDisplayValue (layer.getVolume ()), valueChanger.toDisplayValue (layer.getModulatedVolume ()), isVolume && this.isKnobTouched (i) ? layer.getVolumeStr (8) : "", valueChanger.toDisplayValue (layer.getPan ()), valueChanger.toDisplayValue (layer.getModulatedPan ()), isPan && this.isKnobTouched (i) ? layer.getPanStr () : "", vuL, vuR, layer.isMute (), layer.isSolo (), false, layer.isActivated (), 0, false);
-        }
+        final double bipolarValue = 2.0 * this.model.getValueChanger ().toNormalizedValue (value) - 1.0;
+        final int amount = (int) Math.round (100.0 * Math.abs (bipolarValue));
+        if (amount == 0)
+            return "C";
+        return (bipolarValue < 0 ? "L " : "R ") + amount;
     }
 
 
@@ -546,8 +490,8 @@ public class DeviceLayerMode extends BaseMode<ILayer>
             if (dl.doesExist () && dl.isActivated ())
             {
                 if (dl.isSelected ())
-                    return this.isPushModern ? PushColorManager.PUSH2_COLOR_ORANGE_HI : PushColorManager.PUSH1_COLOR_ORANGE_HI;
-                return this.isPushModern ? PushColorManager.PUSH2_COLOR_YELLOW_LO : PushColorManager.PUSH1_COLOR_YELLOW_LO;
+                    return PushColorManager.PUSH2_COLOR_ORANGE_HI;
+                return PushColorManager.PUSH2_COLOR_YELLOW_LO;
             }
             return super.getButtonColor (buttonID);
         }
@@ -556,68 +500,37 @@ public class DeviceLayerMode extends BaseMode<ILayer>
         if (index >= 0)
         {
             final IChannel layer = this.bank.getItem (offset + index);
-            if (this.isPushModern)
+            final boolean isMuteState = this.configuration.isMuteState (this.surface.isLongPressed (ButtonID.MUTE));
+            if (isMuteState || this.configuration.isSoloState (this.surface.isLongPressed (ButtonID.SOLO)))
             {
-                final boolean isMuteState = this.configuration.isMuteState (this.surface.isLongPressed (ButtonID.MUTE));
-                if (isMuteState || this.configuration.isSoloState (this.surface.isLongPressed (ButtonID.SOLO)))
+                if (layer.doesExist ())
                 {
-                    if (layer.doesExist ())
+                    if (isMuteState)
                     {
-                        if (isMuteState)
-                        {
-                            if (layer.isMute ())
-                                return PushColorManager.PUSH2_COLOR2_AMBER_LO;
-                        }
-                        else if (layer.isSolo ())
-                            return PushColorManager.PUSH2_COLOR2_YELLOW_HI;
+                        if (layer.isMute ())
+                            return PushColorManager.PUSH2_COLOR2_AMBER_LO;
                     }
-                    return PushColorManager.PUSH2_COLOR_BLACK;
+                    else if (layer.isSolo ())
+                        return PushColorManager.PUSH2_COLOR2_YELLOW_HI;
                 }
-
-                final ModeManager modeManager = this.surface.getModeManager ();
-                switch (index)
-                {
-                    case 0:
-                        return modeManager.isActive (Modes.DEVICE_LAYER_VOLUME) ? PushColorManager.PUSH2_COLOR2_WHITE : PushColorManager.PUSH2_COLOR_BLACK;
-                    case 1:
-                        return modeManager.isActive (Modes.DEVICE_LAYER_PAN) ? PushColorManager.PUSH2_COLOR2_WHITE : PushColorManager.PUSH2_COLOR_BLACK;
-                    case 4, 5, 6, 7:
-                        return modeManager.isActive (Modes.get (Modes.DEVICE_LAYER_SEND1, index - 4)) ? PushColorManager.PUSH2_COLOR2_WHITE : PushColorManager.PUSH2_COLOR_BLACK;
-                    default:
-                        return PushColorManager.PUSH2_COLOR_BLACK;
-                }
+                return PushColorManager.PUSH2_COLOR_BLACK;
             }
 
-            if (!cd.hasLayers ())
-                return index == 7 ? PushColorManager.PUSH1_COLOR2_WHITE : super.getButtonColor (buttonID);
-
-            if (layer.doesExist ())
+            final ModeManager modeManager = this.surface.getModeManager ();
+            switch (index)
             {
-                if (this.configuration.getLockState () == LockState.MUTE)
-                    return layer.isMute () ? PushColorManager.PUSH1_COLOR_BLACK : PushColorManager.PUSH1_COLOR2_YELLOW_HI;
-                return layer.isSolo () ? PushColorManager.PUSH1_COLOR2_BLUE_HI : PushColorManager.PUSH1_COLOR2_GREY_LO;
+                case 0:
+                    return modeManager.isActive (Modes.DEVICE_LAYER_VOLUME) ? PushColorManager.PUSH2_COLOR2_WHITE : PushColorManager.PUSH2_COLOR_BLACK;
+                case 1:
+                    return modeManager.isActive (Modes.DEVICE_LAYER_PAN) ? PushColorManager.PUSH2_COLOR2_WHITE : PushColorManager.PUSH2_COLOR_BLACK;
+                case 4, 5, 6, 7:
+                    return modeManager.isActive (Modes.get (Modes.DEVICE_LAYER_SEND1, index - 4)) ? PushColorManager.PUSH2_COLOR2_WHITE : PushColorManager.PUSH2_COLOR_BLACK;
+                default:
+                    return PushColorManager.PUSH2_COLOR_BLACK;
             }
         }
 
         return super.getButtonColor (buttonID);
-    }
-
-
-    /**
-     * Draw the fourth row.
-     *
-     * @param display The display
-     */
-    protected void drawRow4 (final ITextDisplay display)
-    {
-        // Drum Pad Bank has size of 16, layers only 8
-        final int offset = this.getDrumPadIndex ();
-        for (int i = 0; i < 8; i++)
-        {
-            final IChannel layer = this.bank.getItem (offset + i);
-            final String n = StringUtils.shortenAndFixASCII (layer.getName (), layer.isSelected () ? 7 : 8);
-            display.setCell (3, i, layer.isSelected () ? Push1Display.SELECT_ARROW + n : n);
-        }
     }
 
 

@@ -4,20 +4,25 @@
 
 package de.mossgrabers.controller.ableton.push.mode.device;
 
-import de.mossgrabers.controller.ableton.push.PushConfiguration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.parameterprovider.PushVolumeLayerOrDrumPadParameterProvider;
 import de.mossgrabers.framework.controller.ButtonID;
-import de.mossgrabers.framework.controller.display.AbstractGraphicDisplay;
-import de.mossgrabers.framework.controller.display.Format;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.display.ITextDisplay;
+import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.IChannel;
 import de.mossgrabers.framework.daw.data.ILayer;
+import de.mossgrabers.framework.daw.resource.ChannelType;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.MenuData;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.ParameterData;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.TrackData;
+import de.mossgrabers.framework.graphics.canvas.component.TrackVolumeComponent;
 import de.mossgrabers.framework.mode.Modes;
-
-import java.util.Optional;
+import de.mossgrabers.framework.utils.Pair;
 
 
 /**
@@ -66,35 +71,41 @@ public class DeviceLayerVolumeMode extends DeviceLayerMode
 
     /** {@inheritDoc} */
     @Override
-    public void updateDisplay1 (final ITextDisplay display)
+    public void updateDisplayElements (final IGraphicDisplay display, final Optional<ILayer> selectedLayer)
     {
-        if (!this.cursorDevice.hasLayers ())
-            display.setBlock (1, 1, "    This device  ").setBlock (1, 2, "does not have layers.");
-        else if (!this.bank.hasExistingItems ())
-            display.setBlock (1, 1, "    Please create").setBlock (1, 2, this.cursorDevice.hasDrumPads () ? "a Drum Pad..." : "a Device Layer...");
-        else
-        {
-            // Drum Pad Bank has size of 16, layers only 8
-            final int offset = this.getDrumPadIndex ();
+        this.updateMenuItems (1);
 
-            final PushConfiguration config = this.surface.getConfiguration ();
-            for (int i = 0; i < 8; i++)
+        final List<MenuData> menus = new ArrayList<> (8);
+        final List<ParameterData> parameters = new ArrayList<> (8);
+        final List<TrackData> layers = new ArrayList<> (8);
+        final List<Integer> vuLeft = new ArrayList<> (8);
+        final List<Integer> vuRight = new ArrayList<> (8);
+        final int offset = this.getDrumPadIndex ();
+        final IValueChanger valueChanger = this.model.getValueChanger ();
+        final boolean enableVUMeters = this.configuration.isEnableVUMeters ();
+
+        for (int i = 0; i < 8; i++)
+        {
+            final Pair<String, Boolean> menuItem = this.menu.get (i);
+            menus.add (new MenuData (menuItem.getKey ().trim (), menuItem.getValue ().booleanValue ()));
+
+            final IChannel layer = this.bank.getItem (offset + i);
+            if (layer.doesExist ())
             {
-                final IChannel layer = this.bank.getItem (offset + i);
-                display.setCell (0, i, layer.doesExist () ? "Volume" : "").setCell (1, i, layer.getVolumeStr (8));
-                if (layer.doesExist ())
-                    display.setCell (2, i, config.isEnableVUMeters () ? layer.getVu () : layer.getVolume (), Format.FORMAT_VALUE);
+                parameters.add (new ParameterData ("Volume", valueChanger.toDisplayValue (layer.getVolume ()), valueChanger.toDisplayValue (layer.getModulatedVolume ()), layer.getVolumeStr (8), layer.isActivated ()));
+                vuLeft.add (Integer.valueOf (valueChanger.toDisplayValue (enableVUMeters ? layer.getVuLeft () : 0)));
+                vuRight.add (Integer.valueOf (valueChanger.toDisplayValue (enableVUMeters ? layer.getVuRight () : 0)));
             }
+            else
+            {
+                parameters.add (new ParameterData ("", -1, -1, "", false));
+                vuLeft.add (Integer.valueOf (0));
+                vuRight.add (Integer.valueOf (0));
+            }
+
+            layers.add (new TrackData (layer.doesExist () ? layer.getName (12) : "", ChannelType.LAYER, layer.getColor (), layer.isSelected (), layer.isActivated (), false));
         }
 
-        this.drawRow4 (display);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void updateDisplayElements (final IGraphicDisplay message, final Optional<ILayer> l)
-    {
-        this.updateChannelDisplay (message, AbstractGraphicDisplay.GRID_ELEMENT_CHANNEL_VOLUME, true, false);
+        display.addElement (new TrackVolumeComponent (menus, parameters, layers, vuLeft, vuRight));
     }
 }

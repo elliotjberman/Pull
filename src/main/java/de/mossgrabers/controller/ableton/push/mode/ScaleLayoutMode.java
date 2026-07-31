@@ -4,11 +4,9 @@
 
 package de.mossgrabers.controller.ableton.push.mode;
 
-import de.mossgrabers.controller.ableton.push.controller.Push1Display;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.display.ITextDisplay;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.IItem;
 import de.mossgrabers.framework.featuregroup.AbstractFeatureGroup;
@@ -77,20 +75,6 @@ public class ScaleLayoutMode extends BaseMode<IItem>
         }
 
         return AbstractFeatureGroup.BUTTON_COLOR_OFF;
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void updateDisplay1 (final ITextDisplay display)
-    {
-        final int sl = this.scales.getScaleLayout ().ordinal ();
-        final int pos = sl / 2;
-        final String [] names = ScaleLayout.getNames ();
-        display.setBlock (1, 0, "Scale layout:");
-        for (int i = 0; i < names.length; i += 2)
-            display.setCell (3, i / 2, (pos == i / 2 ? Push1Display.SELECT_ARROW : " ") + names[i].replace (" ^", ""));
-        display.setCell (3, 7, sl % 2 == 0 ? "Horizontal" : "Vertical");
     }
 
 

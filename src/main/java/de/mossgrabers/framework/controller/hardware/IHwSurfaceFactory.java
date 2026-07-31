@@ -110,17 +110,6 @@ public interface IHwSurfaceFactory
 
 
     /**
-     * Create a proxy to a hardware text display.
-     *
-     * @param surfaceID The ID of the surface
-     * @param outputID The ID of the display
-     * @param numLines The number of lines of the display
-     * @return The created display
-     */
-    IHwTextDisplay createTextDisplay (int surfaceID, OutputID outputID, int numLines);
-
-
-    /**
      * Create a proxy to a hardware graphics display.
      *
      * @param surfaceID The ID of the surface

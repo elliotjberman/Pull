@@ -196,9 +196,9 @@ public abstract class AbstractHwAbsoluteControl<T extends AbsoluteHardwareContro
 
         if (this.pitchbendCommand != null)
         {
-            final double v = value * 16383.0;
-            final int data1 = (int) Math.min (127, Math.round (v % 128.0));
-            final int data2 = (int) Math.min (127, Math.round (v / 128.0));
+            final int midiValue = (int) Math.round (value * 16383.0);
+            final int data1 = midiValue & 0x7F;
+            final int data2 = midiValue >>> 7 & 0x7F;
             this.pitchbendCommand.onPitchbend (data1, data2);
         }
     }

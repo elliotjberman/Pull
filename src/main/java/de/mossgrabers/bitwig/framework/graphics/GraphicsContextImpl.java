@@ -194,8 +194,6 @@ public class GraphicsContextImpl implements IGraphicsContext
         this.gc.resetClip ();
         this.gc.restore ();
     }
-
-
     /** {@inheritDoc} */
     @Override
     public void drawTextInHeight (final String text, final double x, final double y, final double height, final ColorEx color, final double fontSize)
@@ -264,6 +262,20 @@ public class GraphicsContextImpl implements IGraphicsContext
 
     /** {@inheritDoc} */
     @Override
+    public void drawTextAt (final String text, final double x, final double baselineY, final ColorEx color, final double fontSize)
+    {
+        if (text == null || text.length () == 0)
+            return;
+
+        this.gc.save ();
+        this.gc.setFontSize (fontSize);
+        this.setColor (color);
+        this.gc.moveTo (x, baselineY);
+        this.gc.showText (StringUtils.fixFontCharacters (text));
+        this.gc.restore ();
+    }
+    /** {@inheritDoc} */
+    @Override
     public double calculateFontSize (final String text, final double maxHeight, final double maxWidth, final double minimumFontSize)
     {
         double size = minimumFontSize;
@@ -279,8 +291,6 @@ public class GraphicsContextImpl implements IGraphicsContext
         }
         return fittingSize;
     }
-
-
     protected void setColor (final ColorEx color)
     {
         this.gc.setColor (color.getRed (), color.getGreen (), color.getBlue ());
