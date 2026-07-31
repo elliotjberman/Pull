@@ -4,8 +4,6 @@
 
 package de.mossgrabers.framework.controller;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
 
@@ -19,7 +17,6 @@ import de.mossgrabers.framework.controller.color.ColorManager;
 import de.mossgrabers.framework.controller.hardware.BindType;
 import de.mossgrabers.framework.controller.hardware.IHwAbsoluteKnob;
 import de.mossgrabers.framework.controller.hardware.IHwButton;
-import de.mossgrabers.framework.controller.hardware.IHwContinuousControl;
 import de.mossgrabers.framework.controller.hardware.IHwFader;
 import de.mossgrabers.framework.controller.hardware.IHwRelativeKnob;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
@@ -27,7 +24,6 @@ import de.mossgrabers.framework.controller.valuechanger.RelativeEncoding;
 import de.mossgrabers.framework.daw.IBrowser;
 import de.mossgrabers.framework.daw.IHost;
 import de.mossgrabers.framework.daw.IModel;
-import de.mossgrabers.framework.daw.constants.Capability;
 import de.mossgrabers.framework.daw.midi.IMidiInput;
 import de.mossgrabers.framework.daw.midi.INoteInput;
 import de.mossgrabers.framework.daw.midi.INoteRepeat;
@@ -37,10 +33,7 @@ import de.mossgrabers.framework.featuregroup.ModeManager;
 import de.mossgrabers.framework.featuregroup.ViewManager;
 import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.scale.Scales;
-import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.framework.utils.ConsoleLogger;
-import de.mossgrabers.framework.utils.TestCallback;
-import de.mossgrabers.framework.utils.TestFramework;
 import de.mossgrabers.framework.view.AbstractDrum64View;
 import de.mossgrabers.framework.view.Views;
 
@@ -53,9 +46,8 @@ import de.mossgrabers.framework.view.Views;
  *
  * @author Jürgen Moßgraber
  */
-public abstract class AbstractControllerSetup<S extends IControlSurface<C>, C extends Configuration> implements IControllerSetup<S, C>
+public abstract class AbstractControllerSetup<S extends IControlSurface<C>, C extends Configuration> implements IControllerSetup
 {
-    protected final List<S>       surfaces    = new ArrayList<> ();
     protected final IHost         host;
     protected final ISettingsUI   globalSettings;
     protected final ISettingsUI   documentSettings;
@@ -66,6 +58,7 @@ public abstract class AbstractControllerSetup<S extends IControlSurface<C>, C ex
     protected C                   configuration;
     protected ColorManager        colorManager;
     protected IValueChanger       valueChanger;
+    protected S                   surface;
     protected Modes               currentMode = null;
 
 
@@ -88,51 +81,9 @@ public abstract class AbstractControllerSetup<S extends IControlSurface<C>, C ex
     }
 
 
-    /** {@inheritDoc} */
-    @Override
-    public boolean hasSurface ()
+    protected S getSurface ()
     {
-        return !this.surfaces.isEmpty ();
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public S getSurface ()
-    {
-        return this.surfaces.get (0);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public List<S> getSurfaces ()
-    {
-        return new ArrayList<> (this.surfaces);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public S getSurface (final int index)
-    {
-        return this.surfaces.get (index);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public IModel getModel ()
-    {
-        return this.model;
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public C getConfiguration ()
-    {
-        return this.configuration;
+        return this.surface;
     }
 
 
@@ -162,8 +113,7 @@ public abstract class AbstractControllerSetup<S extends IControlSurface<C>, C ex
     public void exit ()
     {
         this.configuration.clearSettingObservers ();
-        for (final S surface: this.surfaces)
-            surface.shutdown ();
+        this.surface.shutdown ();
         this.host.releaseUsbDevices ();
         if (this.model != null)
             this.model.cleanup ();
@@ -177,95 +127,12 @@ public abstract class AbstractControllerSetup<S extends IControlSurface<C>, C ex
     {
         try
         {
-            for (final S surface: this.surfaces)
-                surface.flush ();
+            this.surface.flush ();
         }
         catch (final Exception ex)
         {
             this.host.error ("Error during flush.", ex);
         }
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void test (final TestCallback callback)
-    {
-        final TestFramework framework = new TestFramework (this.host);
-
-        this.getSurfaces ().forEach (surface -> {
-
-            framework.scheduleFunction ( () -> this.host.println ("Testing controller: " + this.getClass ().getName ()));
-
-            final ViewManager viewManager = surface.getViewManager ();
-            final ModeManager modeManager = surface.getModeManager ();
-            final int max = this.model.getValueChanger ().getUpperBound () - 1;
-
-            for (final Views viewID: Views.values ())
-            {
-                if (viewManager.get (viewID) == null)
-                    continue;
-
-                for (final Modes modeID: Modes.values ())
-                {
-                    if (modeManager.get (modeID) == null)
-                        continue;
-
-                    framework.scheduleFunction ( () -> {
-
-                        this.host.println ("- View " + viewID + " Mode " + modeID);
-
-                        viewManager.setActive (viewID);
-                        modeManager.setActive (modeID);
-
-                        for (final ButtonID buttonID: ButtonID.values ())
-                        {
-                            final IHwButton button = surface.getButton (buttonID);
-                            if (button == null)
-                                continue;
-
-                            button.trigger (ButtonEvent.DOWN);
-                            button.trigger (ButtonEvent.LONG);
-                            button.trigger (ButtonEvent.UP);
-                        }
-
-                        for (final ContinuousID continuousID: ContinuousID.values ())
-                        {
-                            final IHwContinuousControl continuous = surface.getContinuous (continuousID);
-                            if (continuous == null)
-                                continue;
-
-                            final TriggerCommand touchCommand = continuous.getTouchCommand ();
-                            if (touchCommand != null)
-                            {
-                                touchCommand.execute (ButtonEvent.DOWN, 127);
-                                touchCommand.execute (ButtonEvent.LONG, 127);
-                                touchCommand.execute (ButtonEvent.UP, 0);
-                            }
-                            final ContinuousCommand command = continuous.getCommand ();
-                            if (command != null)
-                            {
-                                command.execute (0);
-                                command.execute (max);
-                                command.execute (max / 2);
-                            }
-                            final PitchbendCommand pitchbendCommand = continuous.getPitchbendCommand ();
-                            if (pitchbendCommand != null)
-                            {
-                                pitchbendCommand.onPitchbend (0, 0);
-                                pitchbendCommand.onPitchbend (0, 127);
-                                pitchbendCommand.onPitchbend (0, 64);
-                            }
-                        }
-
-                    });
-                }
-            }
-
-        });
-
-        callback.startTesting ();
-        framework.executeScheduler (callback);
     }
 
 
@@ -373,7 +240,7 @@ public abstract class AbstractControllerSetup<S extends IControlSurface<C>, C ex
             this.configuration.addSettingObserver (AbstractConfiguration.KNOB_SENSITIVITY_DEFAULT, this::updateRelativeKnobSensitivity);
             this.configuration.addSettingObserver (AbstractConfiguration.KNOB_SENSITIVITY_SLOW, this::updateRelativeKnobSensitivity);
 
-            this.surfaces.forEach (surface -> surface.addKnobSensitivityObserver (this::updateRelativeKnobSensitivity));
+            this.surface.addKnobSensitivityObserver (this::updateRelativeKnobSensitivity);
         }
     }
 
@@ -551,7 +418,7 @@ public abstract class AbstractControllerSetup<S extends IControlSurface<C>, C ex
      */
     protected void addButton (final ButtonID buttonID, final String label, final TriggerCommand command, final int midiControl, final IntSupplier supplier, final String... colorIds)
     {
-        this.addButton (0, buttonID, label, command, midiControl, supplier, colorIds);
+        this.addButton (this.surface, buttonID, label, command, midiControl, supplier, colorIds);
     }
 
 
@@ -569,43 +436,7 @@ public abstract class AbstractControllerSetup<S extends IControlSurface<C>, C ex
      */
     protected void addButton (final ButtonID buttonID, final String label, final TriggerCommand command, final int midiChannel, final int midiControl, final IntSupplier supplier, final String... colorIds)
     {
-        this.addButton (0, buttonID, label, command, midiChannel, midiControl, supplier, colorIds);
-    }
-
-
-    /**
-     * Create a hardware button proxy, bind a trigger command to it and bind it to a MIDI CC.
-     *
-     * @param deviceIndex The index of the device
-     * @param buttonID The ID of the button (for later access)
-     * @param label The label of the button
-     * @param supplier Callback for retrieving the state of the light
-     * @param midiChannel The MIDI channel
-     * @param midiControl The MIDI CC or note
-     * @param command The command to bind
-     * @param colorIds The color IDs to map to the states
-     */
-    protected void addButton (final int deviceIndex, final ButtonID buttonID, final String label, final TriggerCommand command, final int midiChannel, final int midiControl, final IntSupplier supplier, final String... colorIds)
-    {
-        this.addButton (this.surfaces.get (deviceIndex), buttonID, label, command, midiChannel, midiControl, supplier, colorIds);
-    }
-
-
-    /**
-     * Create a hardware button proxy on controller device 1, bind a trigger command to it and bind
-     * it to a MIDI CC on MIDI channel 1.
-     *
-     * @param deviceIndex The index of the device
-     * @param buttonID The ID of the button (for later access)
-     * @param label The label of the button
-     * @param supplier Callback for retrieving the state of the light
-     * @param midiControl The MIDI CC or note
-     * @param command The command to bind
-     * @param colorIds The color IDs to map to the states
-     */
-    protected void addButton (final int deviceIndex, final ButtonID buttonID, final String label, final TriggerCommand command, final int midiControl, final IntSupplier supplier, final String... colorIds)
-    {
-        this.addButton (this.surfaces.get (deviceIndex), buttonID, label, command, midiControl, supplier, colorIds);
+        this.addButton (this.surface, buttonID, label, command, midiChannel, midiControl, supplier, colorIds);
     }
 
 
@@ -621,7 +452,7 @@ public abstract class AbstractControllerSetup<S extends IControlSurface<C>, C ex
      */
     protected void addButton (final ButtonID buttonID, final String label, final TriggerCommand command, final int midiControl, final IntSupplier supplier)
     {
-        this.addButton (0, buttonID, label, command, midiControl, supplier);
+        this.addButton (this.surface, buttonID, label, command, midiControl, supplier);
     }
 
 
@@ -638,42 +469,7 @@ public abstract class AbstractControllerSetup<S extends IControlSurface<C>, C ex
      */
     protected void addButton (final ButtonID buttonID, final String label, final TriggerCommand command, final int midiChannel, final int midiControl, final IntSupplier supplier)
     {
-        this.addButton (0, buttonID, label, command, midiChannel, midiControl, supplier);
-    }
-
-
-    /**
-     * Create a hardware button proxy on controller device 1, bind a trigger command to it and bind
-     * it to a MIDI CC on MIDI channel 1.
-     *
-     * @param deviceIndex The index of the device
-     * @param buttonID The ID of the button (for later access)
-     * @param label The label of the button
-     * @param supplier Callback for retrieving the state of the light
-     * @param midiControl The MIDI CC or note
-     * @param command The command to bind
-     */
-    protected void addButton (final int deviceIndex, final ButtonID buttonID, final String label, final TriggerCommand command, final int midiControl, final IntSupplier supplier)
-    {
-        this.addButton (deviceIndex, buttonID, label, command, 0, midiControl, supplier);
-    }
-
-
-    /**
-     * Create a hardware button proxy on controller device 1, bind a trigger command to it and bind
-     * it to a MIDI CC on MIDI channel 1.
-     *
-     * @param deviceIndex The index of the device
-     * @param buttonID The ID of the button (for later access)
-     * @param label The label of the button
-     * @param supplier Callback for retrieving the state of the light
-     * @param midiChannel The MIDI channel
-     * @param midiControl The MIDI CC or note
-     * @param command The command to bind
-     */
-    protected void addButton (final int deviceIndex, final ButtonID buttonID, final String label, final TriggerCommand command, final int midiChannel, final int midiControl, final IntSupplier supplier)
-    {
-        this.addButton (this.surfaces.get (deviceIndex), buttonID, label, command, midiChannel, midiControl, supplier);
+        this.addButton (this.surface, buttonID, label, command, midiChannel, midiControl, supplier);
     }
 
 
@@ -1283,12 +1079,9 @@ public abstract class AbstractControllerSetup<S extends IControlSurface<C>, C ex
         final INoteRepeat noteRepeat = defaultNoteInput.getNoteRepeat ();
         conf.addSettingObserver (AbstractConfiguration.NOTEREPEAT_ACTIVE, () -> noteRepeat.setActive (conf.isNoteRepeatActive ()));
         conf.addSettingObserver (AbstractConfiguration.NOTEREPEAT_PERIOD, () -> noteRepeat.setPeriod (conf.getNoteRepeatPeriod ().getValue ()));
-        if (this.host.supports (Capability.NOTE_REPEAT_LENGTH))
-            conf.addSettingObserver (AbstractConfiguration.NOTEREPEAT_LENGTH, () -> noteRepeat.setNoteLength (conf.getNoteRepeatLength ().getValue ()));
-        if (this.host.supports (Capability.NOTE_REPEAT_MODE))
-            conf.addSettingObserver (AbstractConfiguration.NOTEREPEAT_MODE, () -> noteRepeat.setMode (conf.getNoteRepeatMode ()));
-        if (this.host.supports (Capability.NOTE_REPEAT_OCTAVES))
-            conf.addSettingObserver (AbstractConfiguration.NOTEREPEAT_OCTAVE, () -> noteRepeat.setOctaves (this.getNoteRepeatOctave (conf, surface)));
+        conf.addSettingObserver (AbstractConfiguration.NOTEREPEAT_LENGTH, () -> noteRepeat.setNoteLength (conf.getNoteRepeatLength ().getValue ()));
+        conf.addSettingObserver (AbstractConfiguration.NOTEREPEAT_MODE, () -> noteRepeat.setMode (conf.getNoteRepeatMode ()));
+        conf.addSettingObserver (AbstractConfiguration.NOTEREPEAT_OCTAVE, () -> noteRepeat.setOctaves (this.getNoteRepeatOctave (conf, surface)));
     }
 
 
@@ -1310,12 +1103,9 @@ public abstract class AbstractControllerSetup<S extends IControlSurface<C>, C ex
      */
     protected void updateViewNoteMapping ()
     {
-        for (final S surface: this.surfaces)
-        {
-            final IView view = surface.getViewManager ().getActive ();
-            if (view != null)
-                view.updateNoteMapping ();
-        }
+        final IView view = this.surface.getViewManager ().getActive ();
+        if (view != null)
+            view.updateNoteMapping ();
     }
 
 
@@ -1378,15 +1168,11 @@ public abstract class AbstractControllerSetup<S extends IControlSurface<C>, C ex
      */
     protected void updateRelativeKnobSensitivity ()
     {
-        this.surfaces.forEach (surface -> {
-
-            final int knobSensitivity = surface.isKnobSensitivitySlow () ? this.configuration.getKnobSensitivitySlow () : this.configuration.getKnobSensitivityDefault ();
-            this.valueChanger.setSensitivity (knobSensitivity);
-            surface.getRelativeKnobs ().forEach (knob -> {
-                if (knob.shouldAdaptSensitivity ())
-                    knob.setSensitivity (knobSensitivity);
-            });
-
+        final int knobSensitivity = this.surface.isKnobSensitivitySlow () ? this.configuration.getKnobSensitivitySlow () : this.configuration.getKnobSensitivityDefault ();
+        this.valueChanger.setSensitivity (knobSensitivity);
+        this.surface.getRelativeKnobs ().forEach (knob -> {
+            if (knob.shouldAdaptSensitivity ())
+                knob.setSensitivity (knobSensitivity);
         });
     }
 

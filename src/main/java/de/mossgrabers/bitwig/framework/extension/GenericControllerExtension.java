@@ -21,7 +21,7 @@ public class GenericControllerExtension extends ControllerExtension
     // Yield to Bitwig once after setup without imposing a fixed startup wait.
     private static final long            STARTUP_DELAY = 0;
 
-    private final IControllerSetup<?, ?> setup;
+    private final IControllerSetup setup;
 
 
     /**
@@ -31,7 +31,7 @@ public class GenericControllerExtension extends ControllerExtension
      * @param definition A definition
      * @param host The DAW host
      */
-    public GenericControllerExtension (final IControllerSetup<?, ?> setup, final ControllerExtensionDefinition definition, final ControllerHost host)
+    public GenericControllerExtension (final IControllerSetup setup, final ControllerExtensionDefinition definition, final ControllerHost host)
     {
         super (definition, host);
         this.setup = setup;

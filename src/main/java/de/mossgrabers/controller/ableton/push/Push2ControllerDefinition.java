@@ -9,6 +9,7 @@ import de.mossgrabers.framework.usb.UsbMatcher;
 import de.mossgrabers.framework.utils.OperatingSystem;
 import de.mossgrabers.framework.utils.Pair;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -45,7 +46,7 @@ public class Push2ControllerDefinition extends DefaultControllerDefinition
     @Override
     public List<Pair<String [], String []>> getMidiDiscoveryPairs (final OperatingSystem os)
     {
-        final List<Pair<String [], String []>> midiDiscoveryPairs = super.getMidiDiscoveryPairs (os);
+        final List<Pair<String [], String []>> midiDiscoveryPairs = new ArrayList<> ();
         switch (os)
         {
             case WINDOWS:

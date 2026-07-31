@@ -8,7 +8,6 @@ import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
 import de.mossgrabers.framework.daw.IModel;
-import de.mossgrabers.framework.daw.constants.Capability;
 import de.mossgrabers.framework.daw.constants.RecordQuantization;
 import de.mossgrabers.framework.daw.data.IItem;
 import de.mossgrabers.framework.daw.data.ITrack;
@@ -83,25 +82,12 @@ public class QuantizeMode extends BaseMode<IItem>
         for (int i = 0; i < values.length; i++)
             display.addOptionElement ("", MENU[i], i == 0, i == 0 ? "Record Quantization" : "", values[i].getName (), values[i] == recQuant, true);
 
-        if (this.model.getHost ().supports (Capability.QUANTIZE_INPUT_NOTE_LENGTH))
-        {
-            display.addOptionElement ("", " ", false, null, "Quantize Note Length", "", false, null, true);
-            final boolean isQuantLength = cursorTrack.doesExist () && cursorTrack.isRecordQuantizationNoteLength ();
-            display.addOptionElement ("", " ", false, "", isQuantLength ? "On" : "Off", isQuantLength, true);
-        }
-        else
-        {
-            display.addEmptyElement (true);
-            display.addEmptyElement (true);
-        }
+        display.addOptionElement ("", " ", false, null, "Quantize Note Length", "", false, null, true);
+        final boolean isQuantLength = cursorTrack.doesExist () && cursorTrack.isRecordQuantizationNoteLength ();
+        display.addOptionElement ("", " ", false, "", isQuantLength ? "On" : "Off", isQuantLength, true);
 
-        if (this.model.getHost ().supports (Capability.QUANTIZE_AMOUNT))
-        {
-            final int quantizeAmount = this.surface.getConfiguration ().getQuantizeAmount ();
-            display.addParameterElement (" ", false, "", (ChannelType) null, null, false, "Qunt Amnt", quantizeAmount * 1023 / 100, quantizeAmount + "%", this.isKnobTouched (0), -1);
-        }
-        else
-            display.addEmptyElement (true);
+        final int quantizeAmount = this.surface.getConfiguration ().getQuantizeAmount ();
+        display.addParameterElement (" ", false, "", (ChannelType) null, null, false, "Qunt Amnt", quantizeAmount * 1023 / 100, quantizeAmount + "%", this.isKnobTouched (0), -1);
     }
 
 

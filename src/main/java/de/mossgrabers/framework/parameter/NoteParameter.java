@@ -115,7 +115,7 @@ public class NoteParameter extends AbstractParameterImpl
         if (notePosition.getNote () == -1)
             return 0;
         final IStepInfo stepInfo = clip.getStep (notePosition);
-        if (stepInfo.getState () == StepState.OFF || !this.host.supports (this.noteAttribute))
+        if (stepInfo.getState () == StepState.OFF)
             return 0;
 
         double normalizedValue = 0;
@@ -216,9 +216,6 @@ public class NoteParameter extends AbstractParameterImpl
     @Override
     public void setNormalizedValue (final double normalizedValue)
     {
-        if (!this.host.supports (this.noteAttribute))
-            return;
-
         final INoteClip clip = this.callback.getClip ();
         for (final NotePosition notePosition: this.callback.getNotePosition (this.parameterIndex))
         {
@@ -330,9 +327,6 @@ public class NoteParameter extends AbstractParameterImpl
     @Override
     public void changeValue (final IValueChanger valueChanger, final int value)
     {
-        if (!this.host.supports (this.noteAttribute))
-            return;
-
         final INoteClip clip = this.callback.getClip ();
         for (final NotePosition notePosition: this.callback.getNotePosition (this.parameterIndex))
         {
@@ -470,9 +464,6 @@ public class NoteParameter extends AbstractParameterImpl
     @Override
     public void resetValue ()
     {
-        if (!this.host.supports (this.noteAttribute))
-            return;
-
         final INoteClip clip = this.callback.getClip ();
         for (final NotePosition notePosition: this.callback.getNotePosition (this.parameterIndex))
         {
@@ -564,9 +555,6 @@ public class NoteParameter extends AbstractParameterImpl
     @Override
     public String getDisplayedValue ()
     {
-        if (!this.host.supports (this.noteAttribute))
-            return "";
-
         final INoteClip clip = this.callback.getClip ();
         final List<NotePosition> notePositions = this.callback.getNotePosition (this.parameterIndex);
         if (notePositions.isEmpty ())

@@ -150,7 +150,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
 {
     private static final int       DEVICE_INQUIRY_ATTEMPTS    = 5;
     private static final int       DEVICE_INQUIRY_RETRY_DELAY = 250;
-    private static final String [] MIDI_FILTERS_CLASSIC       =
+    private static final String [] PAD_MIDI_FILTERS           =
     {
         // Note off - channel 1
         "80????",
@@ -233,9 +233,9 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         final IMidiAccess midiAccess = this.factory.createMidiAccess ();
         final IMidiOutput output = midiAccess.createOutput ();
 
-        final IMidiInput input = midiAccess.createInput ("Pads", MIDI_FILTERS_CLASSIC);
+        final IMidiInput input = midiAccess.createInput ("Pads", PAD_MIDI_FILTERS);
         final PushControlSurface surface = new PushControlSurface (this.host, this.colorManager, this.configuration, output, input);
-        this.surfaces.add (surface);
+        this.surface = surface;
 
         surface.addGraphicsDisplay (new Push2Display (this.host, this.valueChanger.getUpperBound (), this.configuration));
 

@@ -18,7 +18,6 @@ import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.IHost;
 import de.mossgrabers.framework.daw.IModel;
-import de.mossgrabers.framework.daw.constants.Capability;
 import de.mossgrabers.framework.daw.constants.Resolution;
 import de.mossgrabers.framework.daw.data.ICursorDevice;
 import de.mossgrabers.framework.daw.data.IDeviceMetadata;
@@ -1265,55 +1264,43 @@ public abstract class AbstractConfiguration implements Configuration
         this.isSettingActive.add (NOTEREPEAT_ACTIVE);
         this.isSettingActive.add (NOTEREPEAT_PERIOD);
 
-        if (this.host.supports (Capability.NOTE_REPEAT_LENGTH))
+        this.noteRepeatLengthSetting = settingsUI.getEnumSetting ("Length", CATEGORY_NOTEREPEAT, names, names[4]);
+        this.noteRepeatLengthSetting.addValueObserver (value -> {
+            this.noteRepeatLength = Resolution.getByName (value);
+            this.notifyObservers (NOTEREPEAT_LENGTH);
+        });
+        this.isSettingActive.add (NOTEREPEAT_LENGTH);
+
+        final String [] arpModeNames = new String [this.arpeggiatorModes.size ()];
+        for (int i = 0; i < this.arpeggiatorModes.size (); i++)
+            arpModeNames[i] = this.arpeggiatorModes.get (i).getName ();
+
+        this.noteRepeatModeSetting = settingsUI.getEnumSetting ("Mode", CATEGORY_NOTEREPEAT, arpModeNames, arpModeNames[1]);
+        this.noteRepeatModeSetting.addValueObserver (value -> {
+            this.noteRepeatMode = ArpeggiatorMode.lookupByName (value);
+            this.notifyObservers (NOTEREPEAT_MODE);
+        });
+        this.isSettingActive.add (NOTEREPEAT_MODE);
+
+        final String [] octaves =
         {
-            this.noteRepeatLengthSetting = settingsUI.getEnumSetting ("Length", CATEGORY_NOTEREPEAT, names, names[4]);
-            this.noteRepeatLengthSetting.addValueObserver (value -> {
-                this.noteRepeatLength = Resolution.getByName (value);
-                this.notifyObservers (NOTEREPEAT_LENGTH);
-            });
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8"
+        };
 
-            this.isSettingActive.add (NOTEREPEAT_LENGTH);
-        }
-
-        if (this.host.supports (Capability.NOTE_REPEAT_MODE))
-        {
-            final String [] arpModeNames = new String [this.arpeggiatorModes.size ()];
-            for (int i = 0; i < this.arpeggiatorModes.size (); i++)
-                arpModeNames[i] = this.arpeggiatorModes.get (i).getName ();
-
-            this.noteRepeatModeSetting = settingsUI.getEnumSetting ("Mode", CATEGORY_NOTEREPEAT, arpModeNames, arpModeNames[1]);
-            this.noteRepeatModeSetting.addValueObserver (value -> {
-                this.noteRepeatMode = ArpeggiatorMode.lookupByName (value);
-                this.notifyObservers (NOTEREPEAT_MODE);
-            });
-
-            this.isSettingActive.add (NOTEREPEAT_MODE);
-        }
-
-        if (this.host.supports (Capability.NOTE_REPEAT_OCTAVES))
-        {
-            final String [] octaves =
-            {
-                "0",
-                "1",
-                "2",
-                "3",
-                "4",
-                "5",
-                "6",
-                "7",
-                "8"
-            };
-
-            this.noteRepeatOctaveSetting = settingsUI.getEnumSetting ("Octave", CATEGORY_NOTEREPEAT, octaves, octaves[1]);
-            this.noteRepeatOctaveSetting.addValueObserver (value -> {
-                this.noteRepeatOctave = Integer.parseInt (value);
-                this.notifyObservers (NOTEREPEAT_OCTAVE);
-            });
-
-            this.isSettingActive.add (NOTEREPEAT_OCTAVE);
-        }
+        this.noteRepeatOctaveSetting = settingsUI.getEnumSetting ("Octave", CATEGORY_NOTEREPEAT, octaves, octaves[1]);
+        this.noteRepeatOctaveSetting.addValueObserver (value -> {
+            this.noteRepeatOctave = Integer.parseInt (value);
+            this.notifyObservers (NOTEREPEAT_OCTAVE);
+        });
+        this.isSettingActive.add (NOTEREPEAT_OCTAVE);
     }
     /**
      * Activate the add (track) device favorites.

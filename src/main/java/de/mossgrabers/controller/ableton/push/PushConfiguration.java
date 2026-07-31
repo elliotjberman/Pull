@@ -16,7 +16,6 @@ import de.mossgrabers.framework.configuration.ISettingsUI;
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.IHost;
-import de.mossgrabers.framework.daw.constants.Capability;
 import de.mossgrabers.framework.daw.midi.ArpeggiatorMode;
 import de.mossgrabers.framework.graphics.IGraphicsConfiguration;
 import de.mossgrabers.framework.mode.Modes;
@@ -351,11 +350,8 @@ public class PushConfiguration extends AbstractConfiguration implements IGraphic
         ///////////////////////////
         // Drum Sequencer
 
-        if (this.host.supports (Capability.HAS_DRUM_DEVICE))
-        {
-            this.activateAutoSelectDrumSetting (globalSettings);
-            this.activateTurnOffEmptyDrumPadsSetting (globalSettings);
-        }
+        this.activateAutoSelectDrumSetting (globalSettings);
+        this.activateTurnOffEmptyDrumPadsSetting (globalSettings);
 
         ///////////////////////////
         // Workflow

@@ -11,7 +11,6 @@ import de.mossgrabers.controller.ableton.push.mode.BaseMode;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
 import de.mossgrabers.framework.daw.IModel;
-import de.mossgrabers.framework.daw.constants.Capability;
 import de.mossgrabers.framework.daw.data.ICursorTrack;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
@@ -33,9 +32,6 @@ import java.util.Optional;
  */
 public class TrackDetailsMode extends BaseMode<ITrack>
 {
-    private final boolean hasPinning;
-
-
     /**
      * Constructor.
      *
@@ -45,8 +41,6 @@ public class TrackDetailsMode extends BaseMode<ITrack>
     public TrackDetailsMode (final PushControlSurface surface, final IModel model)
     {
         super ("Track details", surface, model, model.getCurrentTrackBank ());
-
-        this.hasPinning = this.model.getHost ().supports (Capability.HAS_PINNING);
 
         model.addTrackBankObserver (this::switchBanks);
     }
@@ -185,8 +179,6 @@ public class TrackDetailsMode extends BaseMode<ITrack>
                 case 5:
                     return this.colorManager.getColorIndex (cursorTrack.isAutoMonitor () ? PushColorManager.PUSH_GREEN_HI : PushColorManager.PUSH_GREEN_LO);
                 case 6:
-                    if (!this.hasPinning)
-                        return PushColorManager.PUSH2_COLOR_BLACK;
                     return this.colorManager.getColorIndex (cursorTrack.isPinned () ? PushColorManager.PUSH_GREEN_HI : PushColorManager.PUSH_GREEN_LO);
                 default:
                 case 7:
@@ -244,10 +236,7 @@ public class TrackDetailsMode extends BaseMode<ITrack>
         display.addOptionElement ("", "", false, "", "Solo", cursorTrack.isSolo (), false);
         display.addOptionElement ("", "", false, "", "Monitor", cursorTrack.isMonitor (), false);
         display.addOptionElement ("Midi Insert/Edit Channel:", "", false, "", "Auto Monitor", cursorTrack.isAutoMonitor (), false);
-        if (this.hasPinning)
-            display.addOptionElement ("", "", false, "", "Pin Track", this.model.getCursorTrack ().isPinned (), false);
-        else
-            display.addEmptyElement ();
+        display.addOptionElement ("", "", false, "", "Pin Track", this.model.getCursorTrack ().isPinned (), false);
         display.addOptionElement ("        " + (this.surface.getConfiguration ().getMidiEditChannel () + 1), "", false, "", "Select Color", false, false);
     }
 

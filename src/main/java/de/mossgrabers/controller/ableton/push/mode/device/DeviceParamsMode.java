@@ -14,9 +14,7 @@ import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.DAWColor;
-import de.mossgrabers.framework.daw.IHost;
 import de.mossgrabers.framework.daw.IModel;
-import de.mossgrabers.framework.daw.constants.Capability;
 import de.mossgrabers.framework.daw.data.ICursorDevice;
 import de.mossgrabers.framework.daw.data.IDevice;
 import de.mossgrabers.framework.daw.data.ITrack;
@@ -69,13 +67,6 @@ public class DeviceParamsMode extends BaseMode<IParameter>
         this.setShowDevices (true);
 
         System.arraycopy (MENU, 0, this.hostMenu, 0, MENU.length);
-        final IHost host = this.model.getHost ();
-        if (!host.supports (Capability.HAS_PARAMETER_PAGE_SECTION))
-            this.hostMenu[1] = "";
-        if (!host.supports (Capability.HAS_PINNING))
-            this.hostMenu[5] = "";
-        if (!host.supports (Capability.HAS_SLOT_CHAINS))
-            this.hostMenu[3] = "";
     }
 
 
@@ -354,7 +345,6 @@ public class DeviceParamsMode extends BaseMode<IParameter>
             final int green = PushColorManager.PUSH2_COLOR2_GREEN;
             final int grey = PushColorManager.PUSH2_COLOR2_GREY_LO;
             final int orange = PushColorManager.PUSH2_COLOR2_ORANGE;
-            final int off = PushColorManager.PUSH2_COLOR_BLACK;
             final int turquoise = PushColorManager.PUSH2_COLOR2_TURQUOISE_HI;
 
             switch (index)
@@ -370,8 +360,6 @@ public class DeviceParamsMode extends BaseMode<IParameter>
                 case 4:
                     return this.showDevices ? white : orange;
                 case 5:
-                    if (!this.model.getHost ().supports (Capability.HAS_PINNING))
-                        return off;
                     return cd.isPinned () ? turquoise : grey;
                 case 6:
                     return cd.isWindowOpen () ? turquoise : grey;
@@ -414,8 +402,6 @@ public class DeviceParamsMode extends BaseMode<IParameter>
                     device.toggleExpanded ();
                 break;
             case 3:
-                if (!this.model.getHost ().supports (Capability.HAS_SLOT_CHAINS))
-                    return;
                 if (modeManager.isActive (Modes.DEVICE_CHAINS))
                     modeManager.setActive (Modes.DEVICE_PARAMS);
                 else
@@ -455,7 +441,6 @@ public class DeviceParamsMode extends BaseMode<IParameter>
         final IDeviceBank deviceBank = cd.getDeviceBank ();
         final IParameterBank parameterBank = cd.getParameterBank ();
         final IParameterPageBank parameterPageBank = parameterBank.getPageBank ();
-        final boolean hasPinning = this.model.getHost ().supports (Capability.HAS_PINNING);
         final IValueChanger valueChanger = this.model.getValueChanger ();
         for (int i = 0; i < parameterBank.getPageSize (); i++)
         {
@@ -477,7 +462,7 @@ public class DeviceParamsMode extends BaseMode<IParameter>
             {
                 final String pageName = parameterPageBank.getItem (i);
                 final ITrack selectedTrack = trackBank.getSelectedItem ().orElse (null);
-                display.addParameterElementWithPlainMenu (this.hostMenu[i], this.getTopMenuEnablement (cd, hasPinning, i), pageName, selectedTrack == null ? null : selectedTrack.getColor (), i == parameterPageBank.getSelectedItemIndex (), parameterName, parameterValue, parameterValueStr, parameterIsActive, parameterModulatedValue);
+                display.addParameterElementWithPlainMenu (this.hostMenu[i], this.getTopMenuEnablement (cd, true, i), pageName, selectedTrack == null ? null : selectedTrack.getColor (), i == parameterPageBank.getSelectedItemIndex (), parameterName, parameterValue, parameterValueStr, parameterIsActive, parameterModulatedValue);
             }
         }
     }

@@ -12,7 +12,6 @@ import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
 import de.mossgrabers.framework.daw.IBrowser;
 import de.mossgrabers.framework.daw.IModel;
-import de.mossgrabers.framework.daw.constants.Capability;
 import de.mossgrabers.framework.daw.data.IBrowserColumn;
 import de.mossgrabers.framework.daw.data.IBrowserColumnItem;
 import de.mossgrabers.framework.daw.data.IItem;
@@ -191,10 +190,8 @@ public class DeviceBrowserMode extends BaseMode<IItem>
                     display.addOptionElement (headerTopName, column.isEmpty () ? "" : column.get ().getName (), i == this.filterColumn, headerBottomName, menuBottomName, !menuBottomName.equals (" "), false);
                 }
 
-                final boolean supportsPreview = this.model.getHost ().supports (Capability.HAS_BROWSER_PREVIEW);
-                final String bottomMenu = supportsPreview ? "Preview" : "";
                 final ColorEx menuBottomColor = browser.isPreviewEnabled () ? ColorEx.ORANGE : ColorEx.GRAY;
-                display.addOptionElement ("", browser.getSelectedContentType (), this.filterColumn == -1, null, "", bottomMenu, false, supportsPreview ? menuBottomColor : null, false);
+                display.addOptionElement ("", browser.getSelectedContentType (), this.filterColumn == -1, null, "", "Preview", false, menuBottomColor, false);
                 break;
 
             case DeviceBrowserMode.SELECTION_PRESET:
@@ -257,7 +254,7 @@ public class DeviceBrowserMode extends BaseMode<IItem>
         {
             if (index == 7)
             {
-                if (this.surface.isShiftPressed () && this.model.getHost ().supports (Capability.HAS_BROWSER_PREVIEW))
+                if (this.surface.isShiftPressed ())
                     return this.model.getBrowser ().isPreviewEnabled () ? PushColorManager.PUSH_ORANGE_HI : PushColorManager.PUSH_ORANGE_LO;
                 return AbstractFeatureGroup.BUTTON_COLOR_ON;
             }

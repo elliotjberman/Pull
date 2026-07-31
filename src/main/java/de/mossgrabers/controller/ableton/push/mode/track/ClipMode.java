@@ -12,7 +12,6 @@ import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.ITransport;
 import de.mossgrabers.framework.daw.clip.IClip;
 import de.mossgrabers.framework.daw.clip.INoteClip;
-import de.mossgrabers.framework.daw.constants.Capability;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
 import de.mossgrabers.framework.featuregroup.IView;
@@ -139,10 +138,9 @@ public class ClipMode extends AbstractTrackMode
         final ITrack t6 = tb.getItem (6);
         final ITrack t7 = tb.getItem (7);
 
-        final boolean canPin = this.model.getHost ().supports (Capability.HAS_PINNING);
-        final boolean isPinned = canPin && clip instanceof final INoteClip noteClip && noteClip.isPinned ();
+        final boolean isPinned = clip instanceof final INoteClip noteClip && noteClip.isPinned ();
 
-        display.addParameterElement (canPin ? "Pin clip" : "", isPinned, t0.getName (), this.updateType (t0), t0.getColor (), t0.isSelected (), "Play Start", -1, this.formatMeasures (clip.getPlayStart (), 1), this.isKnobTouched (0), -1);
+        display.addParameterElement ("Pin clip", isPinned, t0.getName (), this.updateType (t0), t0.getColor (), t0.isSelected (), "Play Start", -1, this.formatMeasures (clip.getPlayStart (), 1), this.isKnobTouched (0), -1);
         display.addParameterElement ("", false, t1.getName (), this.updateType (t1), t1.getColor (), t1.isSelected (), "Play End", -1, this.formatMeasures (clip.getPlayEnd (), 1), this.isKnobTouched (1), -1);
         display.addParameterElement ("", false, t2.getName (), this.updateType (t2), t2.getColor (), t2.isSelected (), "Loop Start", -1, this.formatMeasures (clip.getLoopStart (), 1), this.isKnobTouched (2), -1);
         display.addParameterElement ("", false, t3.getName (), this.updateType (t3), t3.getColor (), t3.isSelected (), "Loop Lngth", -1, this.formatMeasures (clip.getLoopLength (), 0), this.isKnobTouched (3), -1);
@@ -192,8 +190,6 @@ public class ClipMode extends AbstractTrackMode
         {
             if (index == 0)
             {
-                if (!this.model.getHost ().supports (Capability.HAS_PINNING))
-                    return PushColorManager.PUSH2_COLOR2_BLACK;
                 final IClip clip = this.getMidiClip ();
                 final boolean isPinned = clip instanceof final INoteClip noteClip && noteClip.isPinned ();
                 return isPinned ? PushColorManager.PUSH2_COLOR2_GREEN : PushColorManager.PUSH2_COLOR2_WHITE;

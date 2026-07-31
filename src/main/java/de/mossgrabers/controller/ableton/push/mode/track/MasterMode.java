@@ -17,7 +17,6 @@ import de.mossgrabers.framework.controller.display.IGraphicDisplay;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.IProject;
-import de.mossgrabers.framework.daw.constants.Capability;
 import de.mossgrabers.framework.daw.data.ICursorTrack;
 import de.mossgrabers.framework.daw.data.IMasterTrack;
 import de.mossgrabers.framework.daw.data.ITrack;
@@ -145,14 +144,13 @@ public class MasterMode extends BaseMode<ITrack>
         final int vuR = valueChanger.toDisplayValue (enableVUMeters ? this.masterTrack.getVuRight () : 0);
         final int vuL = valueChanger.toDisplayValue (enableVUMeters ? this.masterTrack.getVuLeft () : 0);
         final ICursorTrack cursorTrack = this.model.getCursorTrack ();
-        final boolean hasCueVolume = this.model.getHost ().supports (Capability.CUE_VOLUME);
         final boolean isActive = this.masterTrack.isActivated ();
 
         final List<MenuData> menus = List.of (
             new MenuData (TAG_VOLUME, false),
             new MenuData ("Pan", false),
-            new MenuData (hasCueVolume ? "Cue Volume" : "", false),
-            new MenuData (hasCueVolume ? "Cue Mix" : "", false),
+            new MenuData ("Cue Volume", false),
+            new MenuData ("Cue Mix", false),
             new MenuData ("Audio Engine", this.model.getApplication ().isEngineActive ()),
             new MenuData ("", false),
             new MenuData ("Previous", false),
@@ -161,8 +159,8 @@ public class MasterMode extends BaseMode<ITrack>
         final List<ParameterData> parameters = List.of (
             new ParameterData ("Master Volume", valueChanger.toDisplayValue (this.masterTrack.getVolume ()), valueChanger.toDisplayValue (this.masterTrack.getModulatedVolume ()), this.masterTrack.getVolumeStr (8), isActive),
             new ParameterData ("Pan", valueChanger.toDisplayValue (this.masterTrack.getPan ()), valueChanger.toDisplayValue (this.masterTrack.getModulatedPan ()), this.formatPanValue (this.masterTrack.getPan ()), isActive),
-            hasCueVolume ? new ParameterData ("Cue Level", valueChanger.toDisplayValue (this.project.getCueVolume ()), -1, this.project.getCueVolumeStr (8), true) : new ParameterData ("", -1, -1, "", false),
-            hasCueVolume ? new ParameterData ("Cue Mix", valueChanger.toDisplayValue (this.project.getCueMix ()), -1, this.project.getCueMixStr (8), true) : new ParameterData ("", -1, -1, "", false),
+            new ParameterData ("Cue Level", valueChanger.toDisplayValue (this.project.getCueVolume ()), -1, this.project.getCueVolumeStr (8), true),
+            new ParameterData ("Cue Mix", valueChanger.toDisplayValue (this.project.getCueMix ()), -1, this.project.getCueMixStr (8), true),
             new ParameterData ("", -1, -1, "", false),
             new ParameterData ("", -1, -1, "", false),
             new ParameterData ("", -1, -1, "", false),
@@ -171,8 +169,8 @@ public class MasterMode extends BaseMode<ITrack>
         final List<TrackData> tracks = List.of (
             new TrackData (this.masterTrack.getName (), ChannelType.MASTER, this.masterTrack.getColor (), this.masterTrack.isSelected (), isActive, this.masterTrack.isSelected () && cursorTrack.isPinned ()),
             new TrackData ("", null, this.masterTrack.getColor (), false, isActive, false),
-            new TrackData (hasCueVolume ? "Cue" : "", ChannelType.CUE, ColorEx.GRAY, false, hasCueVolume, false),
-            new TrackData ("", null, ColorEx.GRAY, false, hasCueVolume, false),
+            new TrackData ("Cue", ChannelType.CUE, ColorEx.GRAY, false, true, false),
+            new TrackData ("", null, ColorEx.GRAY, false, true, false),
             new TrackData ("", null, ColorEx.WHITE, false, true, false),
             new TrackData ("", null, ColorEx.WHITE, false, true, false),
             new TrackData ("Load", null, ColorEx.WHITE, false, true, false),

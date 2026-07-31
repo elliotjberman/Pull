@@ -14,7 +14,6 @@ import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
-import de.mossgrabers.framework.daw.IHost;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.clip.INoteClip;
 import de.mossgrabers.framework.daw.clip.IStepInfo;
@@ -78,7 +77,6 @@ public class NoteMode extends BaseMode<IItem> implements INoteEditorMode
     }
 
 
-    private final IHost                         host;
     private Page                                page               = Page.NOTE;
     private final NoteEditor                    noteEditor         = new NoteEditor ();
     private final Map<Page, IParameterProvider> pageParamProviders = new EnumMap<> (Page.class);
@@ -93,8 +91,6 @@ public class NoteMode extends BaseMode<IItem> implements INoteEditorMode
     public NoteMode (final PushControlSurface surface, final IModel model)
     {
         super ("Note", surface, model);
-
-        this.host = this.model.getHost ();
 
         final IValueChanger valueChanger = model.getValueChanger ();
 
@@ -196,18 +192,15 @@ public class NoteMode extends BaseMode<IItem> implements INoteEditorMode
                     switch (index)
                     {
                         case 5:
-                            if (this.host.supports (NoteAttribute.CHANCE))
-                                clip.updateStepIsChanceEnabled (notePosition, !stepInfo.isChanceEnabled ());
+                            clip.updateStepIsChanceEnabled (notePosition, !stepInfo.isChanceEnabled ());
                             break;
 
                         case 6:
-                            if (this.host.supports (NoteAttribute.OCCURRENCE))
-                                clip.updateStepIsOccurrenceEnabled (notePosition, !stepInfo.isOccurrenceEnabled ());
+                            clip.updateStepIsOccurrenceEnabled (notePosition, !stepInfo.isOccurrenceEnabled ());
                             break;
 
                         case 7:
-                            if (this.host.supports (NoteAttribute.RECURRENCE_LENGTH))
-                                clip.updateStepIsRecurrenceEnabled (notePosition, !stepInfo.isRecurrenceEnabled ());
+                            clip.updateStepIsRecurrenceEnabled (notePosition, !stepInfo.isRecurrenceEnabled ());
                             break;
 
                         default:
@@ -219,51 +212,48 @@ public class NoteMode extends BaseMode<IItem> implements INoteEditorMode
                     break;
 
                 case REPEAT:
-                    if (index == 3 && this.host.supports (NoteAttribute.REPEAT))
+                    if (index == 3)
                         clip.updateStepIsRepeatEnabled (notePosition, !stepInfo.isRepeatEnabled ());
                     break;
 
                 case RECCURRENCE_PATTERN:
-                    if (this.host.supports (NoteAttribute.RECURRENCE_LENGTH))
+                    if (this.surface.isShiftPressed ())
                     {
-                        if (this.surface.isShiftPressed ())
+                        switch (index)
                         {
-                            switch (index)
-                            {
-                                // First
-                                case 0:
-                                    clip.updateStepRecurrenceMask (notePosition, 1);
-                                    break;
-                                // Not first
-                                case 1:
-                                    clip.updateStepRecurrenceMask (notePosition, 254);
-                                    break;
-                                // Last
-                                case 3:
-                                    final int lastRecurrence = 1 << stepInfo.getRecurrenceLength () - 1;
-                                    clip.updateStepRecurrenceMask (notePosition, lastRecurrence);
-                                    break;
-                                // Not last
-                                case 4:
-                                    final int notLastRecurrence = (1 << stepInfo.getRecurrenceLength () - 1) - 1;
-                                    clip.updateStepRecurrenceMask (notePosition, notLastRecurrence);
-                                    break;
-                                // Even
-                                case 6:
-                                    clip.updateStepRecurrenceMask (notePosition, 85);
-                                    break;
-                                // Odd
-                                case 7:
-                                    clip.updateStepRecurrenceMask (notePosition, 170);
-                                    break;
-                                // Not used
-                                default:
-                                    break;
-                            }
+                            // First
+                            case 0:
+                                clip.updateStepRecurrenceMask (notePosition, 1);
+                                break;
+                            // Not first
+                            case 1:
+                                clip.updateStepRecurrenceMask (notePosition, 254);
+                                break;
+                            // Last
+                            case 3:
+                                final int lastRecurrence = 1 << stepInfo.getRecurrenceLength () - 1;
+                                clip.updateStepRecurrenceMask (notePosition, lastRecurrence);
+                                break;
+                            // Not last
+                            case 4:
+                                final int notLastRecurrence = (1 << stepInfo.getRecurrenceLength () - 1) - 1;
+                                clip.updateStepRecurrenceMask (notePosition, notLastRecurrence);
+                                break;
+                            // Even
+                            case 6:
+                                clip.updateStepRecurrenceMask (notePosition, 85);
+                                break;
+                            // Odd
+                            case 7:
+                                clip.updateStepRecurrenceMask (notePosition, 170);
+                                break;
+                            // Not used
+                            default:
+                                break;
                         }
-                        else
-                            clip.updateStepRecurrenceMaskToggleBit (notePosition, index);
                     }
+                    else
+                        clip.updateStepRecurrenceMaskToggleBit (notePosition, index);
                     break;
             }
         }
@@ -284,18 +274,15 @@ public class NoteMode extends BaseMode<IItem> implements INoteEditorMode
                 break;
 
             case 1:
-                if (this.host.supports (NoteAttribute.TIMBRE))
-                    this.page = Page.EXPRESSIONS;
+                this.page = Page.EXPRESSIONS;
                 break;
 
             case 2:
-                if (this.host.supports (NoteAttribute.REPEAT))
-                    this.page = Page.REPEAT;
+                this.page = Page.REPEAT;
                 break;
 
             case 7:
-                if (this.host.supports (NoteAttribute.RECURRENCE_LENGTH))
-                    this.page = Page.RECCURRENCE_PATTERN;
+                this.page = Page.RECCURRENCE_PATTERN;
                 break;
 
             default:
@@ -354,18 +341,11 @@ public class NoteMode extends BaseMode<IItem> implements INoteEditorMode
 
             final String stepBottomMenu = isOneNote ? "Step: " + (notePosition.getStep () + 1) : "Notes: " + size;
             display.addParameterElementWithPlainMenu (MENU[0], this.page == Page.NOTE, stepBottomMenu, null, false, "Length", -1, this.formatLength (stepInfo.getDuration ()), this.isKnobTouched (0), -1);
-            final boolean hasExpressions = this.host.supports (NoteAttribute.TIMBRE);
-
-            final String topMenu = hasExpressions ? MENU[1] : " ";
-            final boolean isTopMenuOn = hasExpressions && this.page == Page.EXPRESSIONS;
+            final String topMenu = MENU[1];
+            final boolean isTopMenuOn = this.page == Page.EXPRESSIONS;
             final String bottomMenu = isOneNote ? Scales.formatNoteAndOctave (notePosition.getNote (), -3) : "*";
-            if (this.host.supports (NoteAttribute.MUTE))
-            {
-                final int value = stepInfo.isMuted () ? valueChanger.getUpperBound () : 0;
-                display.addParameterElementWithPlainMenu (topMenu, isTopMenuOn, bottomMenu, null, false, "Is Muted?", value, stepInfo.isMuted () ? "Yes" : "No", this.isKnobTouched (1), value);
-            }
-            else
-                display.addParameterElementWithPlainMenu (topMenu, isTopMenuOn, bottomMenu, null, false, null, -1, null, false, -1);
+            final int value = stepInfo.isMuted () ? valueChanger.getUpperBound () : 0;
+            display.addParameterElementWithPlainMenu (topMenu, isTopMenuOn, bottomMenu, null, false, "Is Muted?", value, stepInfo.isMuted () ? "Yes" : "No", this.isKnobTouched (1), value);
         }
 
         switch (this.page)
@@ -373,52 +353,27 @@ public class NoteMode extends BaseMode<IItem> implements INoteEditorMode
             case NOTE:
                 final double noteVelocity = stepInfo.getVelocity ();
                 final int parameterValue = valueChanger.fromNormalizedValue (noteVelocity);
-                display.addParameterElementWithPlainMenu (this.host.supports (NoteAttribute.REPEAT) ? MENU[2] : " ", false, null, null, false, "Velocity", parameterValue, StringUtils.formatPercentage (noteVelocity), this.isKnobTouched (2), parameterValue);
+                display.addParameterElementWithPlainMenu (MENU[2], false, null, null, false, "Velocity", parameterValue, StringUtils.formatPercentage (noteVelocity), this.isKnobTouched (2), parameterValue);
 
-                if (this.host.supports (NoteAttribute.VELOCITY_SPREAD))
-                {
-                    final double noteVelocitySpread = stepInfo.getVelocitySpread ();
-                    final int parameterSpreadValue = valueChanger.fromNormalizedValue (noteVelocitySpread);
-                    display.addParameterElementWithPlainMenu (MENU[3], false, null, null, false, "Vel-Spread", parameterSpreadValue, StringUtils.formatPercentage (noteVelocitySpread), this.isKnobTouched (3), parameterSpreadValue);
-                }
-                else
-                    display.addEmptyElement (true);
+                final double noteVelocitySpread = stepInfo.getVelocitySpread ();
+                final int parameterSpreadValue = valueChanger.fromNormalizedValue (noteVelocitySpread);
+                display.addParameterElementWithPlainMenu (MENU[3], false, null, null, false, "Vel-Spread", parameterSpreadValue, StringUtils.formatPercentage (noteVelocitySpread), this.isKnobTouched (3), parameterSpreadValue);
 
-                if (this.host.supports (NoteAttribute.RELEASE_VELOCITY))
-                {
-                    final double noteReleaseVelocity = stepInfo.getReleaseVelocity ();
-                    final int parameterReleaseValue = valueChanger.fromNormalizedValue (noteReleaseVelocity);
-                    display.addParameterElementWithPlainMenu (MENU[4], false, null, null, false, "R-Velocity", parameterReleaseValue, StringUtils.formatPercentage (noteReleaseVelocity), this.isKnobTouched (4), parameterReleaseValue);
-                }
-                else
-                    display.addEmptyElement (true);
+                final double noteReleaseVelocity = stepInfo.getReleaseVelocity ();
+                final int parameterReleaseValue = valueChanger.fromNormalizedValue (noteReleaseVelocity);
+                display.addParameterElementWithPlainMenu (MENU[4], false, null, null, false, "R-Velocity", parameterReleaseValue, StringUtils.formatPercentage (noteReleaseVelocity), this.isKnobTouched (4), parameterReleaseValue);
 
-                if (this.host.supports (NoteAttribute.CHANCE))
-                {
-                    final double chance = stepInfo.getChance ();
-                    final int chanceValue = valueChanger.fromNormalizedValue (chance);
-                    display.addParameterElementWithPlainMenu (MENU[5], false, stepInfo.isChanceEnabled () ? "On" : "Off", null, false, "Chance", chanceValue, StringUtils.formatPercentage (chance), this.isKnobTouched (5), chanceValue);
-                }
-                else
-                    display.addEmptyElement (true);
+                final double chance = stepInfo.getChance ();
+                final int chanceValue = valueChanger.fromNormalizedValue (chance);
+                display.addParameterElementWithPlainMenu (MENU[5], false, stepInfo.isChanceEnabled () ? "On" : "Off", null, false, "Chance", chanceValue, StringUtils.formatPercentage (chance), this.isKnobTouched (5), chanceValue);
 
-                if (this.host.supports (NoteAttribute.OCCURRENCE))
-                {
-                    final NoteOccurrenceType occurrence = stepInfo.getOccurrence ();
-                    display.addParameterElementWithPlainMenu (MENU[6], false, stepInfo.isOccurrenceEnabled () ? "On" : "Off", null, false, "Occurrence", -1, StringUtils.optimizeName (occurrence.getName (), 9), this.isKnobTouched (6), -1);
-                }
-                else
-                    display.addEmptyElement (true);
+                final NoteOccurrenceType occurrence = stepInfo.getOccurrence ();
+                display.addParameterElementWithPlainMenu (MENU[6], false, stepInfo.isOccurrenceEnabled () ? "On" : "Off", null, false, "Occurrence", -1, StringUtils.optimizeName (occurrence.getName (), 9), this.isKnobTouched (6), -1);
 
-                if (this.host.supports (NoteAttribute.RECURRENCE_LENGTH))
-                {
-                    final int recurrence = stepInfo.getRecurrenceLength ();
-                    final String recurrenceStr = recurrence < 2 ? "Off" : Integer.toString (recurrence);
-                    final int recurrenceVal = (recurrence - 1) * (this.model.getValueChanger ().getUpperBound () - 1) / 7;
-                    display.addParameterElementWithPlainMenu (MENU[7], false, stepInfo.isRecurrenceEnabled () ? "On" : "Off", null, false, "Recurrence", recurrenceVal, recurrenceStr, this.isKnobTouched (7), recurrenceVal);
-                }
-                else
-                    display.addEmptyElement (true);
+                final int recurrence = stepInfo.getRecurrenceLength ();
+                final String recurrenceStr = recurrence < 2 ? "Off" : Integer.toString (recurrence);
+                final int recurrenceVal = (recurrence - 1) * (this.model.getValueChanger ().getUpperBound () - 1) / 7;
+                display.addParameterElementWithPlainMenu (MENU[7], false, stepInfo.isRecurrenceEnabled () ? "On" : "Off", null, false, "Recurrence", recurrenceVal, recurrenceStr, this.isKnobTouched (7), recurrenceVal);
 
                 break;
 
@@ -495,10 +450,10 @@ public class NoteMode extends BaseMode<IItem> implements INoteEditorMode
 
                     if (i == 7)
                     {
-                        final int recurrence = stepInfo.getRecurrenceLength ();
-                        final String recurrenceStr = recurrence < 2 ? "Off" : Integer.toString (recurrence);
-                        final int recurrenceVal = (recurrence - 1) * (this.model.getValueChanger ().getUpperBound () - 1) / 7;
-                        display.addParameterElementWithPlainMenu (MENU[i], i == 7, label, color, false, "Recurrence", recurrenceVal, recurrenceStr, this.isKnobTouched (7), recurrenceVal);
+                        final int patternRecurrence = stepInfo.getRecurrenceLength ();
+                        final String patternRecurrenceStr = patternRecurrence < 2 ? "Off" : Integer.toString (patternRecurrence);
+                        final int patternRecurrenceValue = (patternRecurrence - 1) * (this.model.getValueChanger ().getUpperBound () - 1) / 7;
+                        display.addParameterElementWithPlainMenu (MENU[i], true, label, color, false, "Recurrence", patternRecurrenceValue, patternRecurrenceStr, this.isKnobTouched (7), patternRecurrenceValue);
                     }
                     else
                         display.addParameterElementWithPlainMenu (MENU[i], i == 7, label, color, false, null, -1, null, false, -1);
@@ -527,11 +482,11 @@ public class NoteMode extends BaseMode<IItem> implements INoteEditorMode
                 switch (this.page)
                 {
                     case NOTE:
-                        if (index == 5 && this.host.supports (NoteAttribute.CHANCE))
+                        if (index == 5)
                             return this.colorManager.getColorIndex (stepInfo.isChanceEnabled () ? PushColorManager.PUSH_ORANGE_HI : PushColorManager.PUSH_ORANGE_LO);
-                        if (index == 6 && this.host.supports (NoteAttribute.OCCURRENCE))
+                        if (index == 6)
                             return this.colorManager.getColorIndex (stepInfo.isOccurrenceEnabled () ? PushColorManager.PUSH_ORANGE_HI : PushColorManager.PUSH_ORANGE_LO);
-                        if (index == 7 && this.host.supports (NoteAttribute.RECURRENCE_LENGTH))
+                        if (index == 7)
                             return this.colorManager.getColorIndex (stepInfo.isRecurrenceEnabled () ? PushColorManager.PUSH_ORANGE_HI : PushColorManager.PUSH_ORANGE_LO);
                         break;
 
@@ -585,9 +540,9 @@ public class NoteMode extends BaseMode<IItem> implements INoteEditorMode
                         break;
                 }
 
-                if (index == 0 || index == 1 && this.host.supports (NoteAttribute.TIMBRE))
+                if (index == 0 || index == 1)
                     return this.colorManager.getColorIndex (PushColorManager.PUSH_GREY_LO_2);
-                if (index == 2 && this.host.supports (NoteAttribute.REPEAT) || index == 7 && this.host.supports (NoteAttribute.RECURRENCE_LENGTH))
+                if (index == 2 || index == 7)
                     return this.colorManager.getColorIndex (PushColorManager.PUSH_GREY_LO_2);
 
                 return this.colorManager.getColorIndex (PushColorManager.PUSH_BLACK_2);

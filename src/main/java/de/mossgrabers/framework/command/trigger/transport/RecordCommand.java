@@ -118,7 +118,6 @@ public class RecordCommand<S extends IControlSurface<C>, C extends Configuration
     @Override
     public void executeNormal (final ButtonEvent event)
     {
-        // Backwards compatibility to old interface, e.g. Launchpad ShiftView
         if (event == ButtonEvent.DOWN)
             this.handleExecute (false);
     }
@@ -128,7 +127,6 @@ public class RecordCommand<S extends IControlSurface<C>, C extends Configuration
     @Override
     public void executeShifted (final ButtonEvent event)
     {
-        // Backwards compatibility to old interface, e.g. Launchpad ShiftView
         if (event == ButtonEvent.DOWN)
             this.handleExecute (true);
     }

@@ -19,8 +19,6 @@ import com.bitwig.extension.controller.UsbInterfaceMatcher;
 import com.bitwig.extension.controller.api.ControllerHost;
 import com.bitwig.extension.controller.api.UsbTransferType;
 
-import de.mossgrabers.framework.configuration.Configuration;
-import de.mossgrabers.framework.controller.IControlSurface;
 import de.mossgrabers.framework.controller.IControllerDefinition;
 import de.mossgrabers.framework.controller.IControllerSetup;
 import de.mossgrabers.framework.usb.UsbMatcher;
@@ -33,12 +31,9 @@ import de.mossgrabers.framework.utils.StringUtils;
 /**
  * Some reoccurring functions for the extension definition.
  *
- * @param <C> The type of the configuration
- * @param <S> The type of the control surface
- *
  * @author Jürgen Moßgraber
  */
-public abstract class AbstractControllerExtensionDefinition<S extends IControlSurface<C>, C extends Configuration> extends ControllerExtensionDefinition
+public abstract class AbstractControllerExtensionDefinition extends ControllerExtensionDefinition
 {
     private final IControllerDefinition definition;
 
@@ -142,11 +137,7 @@ public abstract class AbstractControllerExtensionDefinition<S extends IControlSu
     @Override
     public void listHardwareDevices (final HardwareDeviceMatcherList matchers)
     {
-        // Are there any USB devices configured?
         final UsbMatcher matcher = this.definition.claimUSBDevice ();
-        if (matcher == null)
-            return;
-
         final List<EndpointMatcher> endpoints = matcher.getEndpoints ();
         final int size = endpoints.size ();
         final UsbInterfaceMatcher [] interfaceMatchers = new UsbInterfaceMatcher [size];
@@ -180,7 +171,7 @@ public abstract class AbstractControllerExtensionDefinition<S extends IControlSu
      * @param host The host
      * @return The controller setup
      */
-    protected abstract IControllerSetup<S, C> getControllerSetup (final ControllerHost host);
+    protected abstract IControllerSetup getControllerSetup (final ControllerHost host);
 
 
     private static UsbDeviceMatcher createDeviceMatcher (final String name, final short vendor, final short productID, final UsbInterfaceMatcher... interfaceMatchers)

@@ -9,14 +9,11 @@ import java.util.Optional;
 import de.mossgrabers.framework.controller.color.ColorManager;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.clip.INoteClip;
-import de.mossgrabers.framework.daw.constants.DeviceID;
 import de.mossgrabers.framework.daw.data.ICursorDevice;
-import de.mossgrabers.framework.daw.data.ICursorLayer;
 import de.mossgrabers.framework.daw.data.ICursorTrack;
 import de.mossgrabers.framework.daw.data.IDrumDevice;
 import de.mossgrabers.framework.daw.data.IMasterTrack;
 import de.mossgrabers.framework.daw.data.ISlot;
-import de.mossgrabers.framework.daw.data.ISpecificDevice;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.IMarkerBank;
 import de.mossgrabers.framework.daw.data.bank.ISceneBank;
@@ -155,15 +152,6 @@ public interface IModel
 
 
     /**
-     * Get a specific device.
-     *
-     * @param deviceID The ID of the device
-     * @return The device
-     */
-    ISpecificDevice getSpecificDevice (DeviceID deviceID);
-
-
-    /**
      * Get the first drum device of the track.
      *
      * @return The device, never null but needs to checked for existence
@@ -232,14 +220,6 @@ public interface IModel
      * @return The effect track bank
      */
     ITrackBank getEffectTrackBank ();
-
-
-    /**
-     * Get the cursor layer.
-     *
-     * @return The cursor layer, if one was requested in the model setup otherwise null
-     */
-    ICursorLayer getCursorLayer ();
 
 
     /**

@@ -35,6 +35,7 @@ public class ChannelImpl extends AbstractDeviceChainImpl<Channel> implements ICh
 {
     private static final int                    MAX_RESOLUTION = 16384;
     private static final int                    CLIP_BORDER    = 16241;
+    private static final UUID                   EQ_PLUS_ID     = UUID.fromString ("e4815188-ba6f-4d14-bcfc-2dcb8f778ccb");
 
     protected final IValueChanger               valueChanger;
 
@@ -561,7 +562,7 @@ public class ChannelImpl extends AbstractDeviceChainImpl<Channel> implements ICh
     public void addEqualizerDevice ()
     {
         if (this.doesExist ())
-            this.deviceChain.endOfDeviceChainInsertionPoint ().insertBitwigDevice (EqualizerDeviceImpl.ID_BITWIG_EQ_PLUS);
+            this.deviceChain.endOfDeviceChainInsertionPoint ().insertBitwigDevice (EQ_PLUS_ID);
     }
 
 
