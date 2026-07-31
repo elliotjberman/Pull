@@ -21,5 +21,71 @@
             <version>${project.version}</version>
             <scope>provided</scope>
         </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>enforce-core-boundary</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <bannedDependencies>
+                                    <message>pull-core must not depend on Bitwig or pull-shell.</message>
+                                    <excludes>
+                                        <exclude>com.bitwig:*</exclude>
+                                        <exclude>de.mossgrabers:Pull</exclude>
+                                    </excludes>
+                                    <searchTransitive>true</searchTransitive>
+                                </bannedDependencies>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>verify-core-archive-boundary</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <property name="boundary.dir" value="${project.build.directory}/boundary-check/core" />
+                                <delete dir="${boundary.dir}" />
+                                <mkdir dir="${boundary.dir}" />
+                                <unzip src="${project.build.directory}/${project.build.finalName}.jar" dest="${boundary.dir}" />
+                                <fail message="pull-core JAR contains parent-loaded API, Bitwig, or shell classes.">
+                                    <condition>
+                                        <or>
+                                            <available file="${boundary.dir}/de/mossgrabers/pull/core/api" type="dir" />
+                                            <available file="${boundary.dir}/com/bitwig" type="dir" />
+                                            <available file="${boundary.dir}/de/mossgrabers/bitwig" type="dir" />
+                                            <available file="${boundary.dir}/de/mossgrabers/controller" type="dir" />
+                                            <available file="${boundary.dir}/de/mossgrabers/framework" type="dir" />
+                                        </or>
+                                    </condition>
+                                </fail>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
 </project>

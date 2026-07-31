@@ -1,6 +1,6 @@
 # Reloadable Controller Core
 
-Status: Accepted direction; implementation is split across reviewable PRs.
+Status: Milestones 1 and 2 are implemented; the transactional loader is next.
 
 Primary goal: make ordinary controller development possible without restarting Bitwig.
 
@@ -48,9 +48,10 @@ Testing is enabled by the same boundary; it is not a separate mock of the entire
 
 ## Delivery sequence
 
-Each step is a separate PR. Do not combine later behavior migration with earlier infrastructure.
+These are implementation milestones. The current branch combines milestones 1 and 2; keep the
+loader and later behavior migration as independently reviewable commits.
 
-### PR 1: Mechanical Maven split
+### Milestone 1: Mechanical Maven split
 
 - Convert the repository root into a parent reactor.
 - Move all existing behavior unchanged into `pull-shell`.
@@ -61,14 +62,14 @@ Each step is a separate PR. Do not combine later behavior migration with earlier
 - Do not make `pull-shell` depend normally on `pull-core`.
 - Prove the extension's functional archive contents are unchanged.
 
-### PR 2: Core API and offline harness
+### Milestone 2: Core API and offline harness
 
 - Add the minimal lifecycle API and immutable DTOs.
 - Add fake snapshots, a fake effect executor, and deterministic clock support.
 - Add a no-op/canary core with unit tests.
 - Enforce that the core has no Bitwig or shell dependencies.
 
-### PR 3: Transactional loader and fast development command
+### Milestone 3: Transactional loader and fast development command
 
 - Embed the production core JAR as a nested resource, never exploded classes.
 - Add the child-first runtime classloader and `RuntimeManager`.
@@ -76,7 +77,7 @@ Each step is a separate PR. Do not combine later behavior migration with earlier
 - Add the compile/publish/reload command and classloader fixture tests.
 - Prove that core version B may add a class, field, and method over version A.
 
-### PR 4: Drum-fill vertical slice
+### Milestone 4: Drum-fill vertical slice
 
 - Mirror the already-observed visible clip names into an immutable snapshot.
 - Route one existing drum control through a stable proxy.
@@ -84,7 +85,7 @@ Each step is a separate PR. Do not combine later behavior migration with earlier
 - Return validated launch/release and light effects.
 - Test the behavior without Bitwig, then smoke-test live reload in Bitwig.
 
-### Later PRs
+### Later milestones
 
 - Generalize stable proxies for every existing Push input.
 - Migrate drum behavior, then remaining mode/view families.
@@ -200,7 +201,7 @@ public interface CoreProvider
 
 public interface ControllerCore
 {
-    CoreResult start (ControllerSnapshot snapshot, StateEnvelope previousState);
+    CoreResult start (ControllerSnapshot snapshot, Optional<StateEnvelope> previousState);
 
     CoreResult handle (CoreEvent event, ControllerSnapshot snapshot);
 
@@ -217,7 +218,9 @@ snapshot.
 
 ## Snapshot and effects
 
-The immutable snapshot initially covers:
+The milestone-2 snapshot deliberately contains only revision, monotonic time, shell capabilities,
+and pressed/touched controls. Add each new domain as a typed API value when its first migrated
+vertical slice needs it. The eventual stable snapshot is expected to cover:
 
 - revision and shell capabilities;
 - transport;
@@ -233,9 +236,10 @@ that bank's generation and marks it pending. Location-targeted effects from the 
 are immediately rejected. The new window is published only after Bitwig's observed membership
 stabilizes.
 
-Initial effects include clip/scene launch, selection, bank scrolling, parameter adjustment,
-transport/application actions, note mapping/repeat, approved MIDI/SysEx, logical timers,
-notifications, and full desired hardware state.
+Milestone 2 includes logical timer effects and complete desired RGB light state. Later typed effects
+will cover clip/scene launch, selection, bank scrolling, parameter adjustment,
+transport/application actions, note mapping/repeat, approved MIDI/SysEx, notifications, and richer
+desired hardware state.
 
 Adding behavior composed from existing snapshot data and effects is a core-only change. Adding a
 new state domain or executor is a shell-capability change.
@@ -296,6 +300,9 @@ ordinary runtime classpath.
 The production core is embedded later as a nested JAR resource and extracted before loading. The
 development loop publishes unique core JARs plus an atomic properties manifest under a stable
 user directory that Bitwig does not purge.
+
+The milestone-2 canary uses a fixed packaging-test build ID. Milestone 3 replaces it with the
+unique manifest build ID and requires exact activation acknowledgement.
 
 The runtime loader is:
 

@@ -18,6 +18,14 @@
         <bitwig.extension.directory>${project.basedir}/../target</bitwig.extension.directory>
     </properties>
 
+    <repositories>
+        <repository>
+            <id>bitwig</id>
+            <name>Bitwig Maven Repository</name>
+            <url>https://maven.bitwig.com</url>
+        </repository>
+    </repositories>
+
     <dependencies>
         <dependency>
             <groupId>de.mossgrabers</groupId>
@@ -33,6 +41,29 @@
     <build>
         <finalName>Pull-${project.version}</finalName>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>enforce-shell-core-boundary</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <bannedDependencies>
+                                    <message>pull-shell must load pull-core as a nested child-loaded JAR, never as a normal dependency.</message>
+                                    <excludes>
+                                        <exclude>de.mossgrabers:pull-core</exclude>
+                                    </excludes>
+                                    <searchTransitive>true</searchTransitive>
+                                </bannedDependencies>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
@@ -73,6 +104,35 @@
                         <goals>
                             <goal>single</goal>
                         </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>verify-extension-archive-boundary</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <property name="boundary.dir" value="${project.build.directory}/boundary-check/extension" />
+                                <delete dir="${boundary.dir}" />
+                                <mkdir dir="${boundary.dir}" />
+                                <unzip src="${bitwig.extension.directory}/Pull.bwextension" dest="${boundary.dir}" />
+                                <fail message="Pull.bwextension contains child-loaded core runtime classes or provider services.">
+                                    <condition>
+                                        <or>
+                                            <available file="${boundary.dir}/de/mossgrabers/pull/core/runtime" type="dir" />
+                                            <available file="${boundary.dir}/META-INF/services/de.mossgrabers.pull.core.api.CoreProvider" type="file" />
+                                        </or>
+                                    </condition>
+                                </fail>
+                            </target>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
