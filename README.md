@@ -1,6 +1,6 @@
 # Pull
 
-An opinionated Push 2 control surface for Bitwig Studio.
+An opinionated Push 2 control surface for Bitwig Studio, bent around a specific live-set workflow.
 
 Pull is based on [DrivenByMoss](https://github.com/git-moss/DrivenByMoss).
 
