@@ -45,9 +45,22 @@ public abstract class AbstractHwButton extends AbstractHwInputControl implements
      */
     protected AbstractHwButton (final IHost host, final String label)
     {
+        this (host, label, new TimeoutOptimizer (host, BUTTON_STATE_INTERVAL));
+    }
+
+
+    /**
+     * Constructor with a shared timeout optimizer.
+     *
+     * @param host The host
+     * @param label The label of the button
+     * @param optimizer The optimizer shared by buttons on the same surface
+     */
+    protected AbstractHwButton (final IHost host, final String label, final TimeoutOptimizer optimizer)
+    {
         super (host, label);
 
-        this.optimizer = new TimeoutOptimizer (host, BUTTON_STATE_INTERVAL);
+        this.optimizer = optimizer;
     }
 
 

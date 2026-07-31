@@ -60,29 +60,8 @@ public class PlayCommand<S extends IControlSurface<C>, C extends Configuration> 
     @Override
     protected void executeSingleClick ()
     {
-        // Handle the different options when the playback is stopped
-        switch (this.surface.getConfiguration ().getBehaviourOnPause ())
-        {
-            case RETURN_TO_ZERO:
-                if (this.transport.isPlaying ())
-                    this.transport.stopAndRewind ();
-                else
-                    this.transport.play ();
-                break;
-
-            case STOP:
-                if (this.transport.isPlaying ())
-                    this.transport.stop ();
-                else
-                    this.transport.play ();
-                this.doubleClickTest ();
-                break;
-
-            case PAUSE:
-                this.transport.play ();
-                this.doubleClickTest ();
-                break;
-        }
+        this.transport.play ();
+        this.doubleClickTest ();
     }
 
 

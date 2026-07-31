@@ -33,8 +33,6 @@ import de.mossgrabers.framework.graphics.IBitmap;
 import de.mossgrabers.framework.graphics.IGraphicsConfiguration;
 import de.mossgrabers.framework.graphics.IGraphicsDimensions;
 import de.mossgrabers.framework.graphics.IGraphicsInfo;
-import de.mossgrabers.framework.graphics.canvas.component.ChannelComponent;
-import de.mossgrabers.framework.graphics.canvas.component.ChannelSelectComponent;
 import de.mossgrabers.framework.graphics.canvas.component.GraphOverlayComponent;
 import de.mossgrabers.framework.graphics.canvas.component.IComponent;
 import de.mossgrabers.framework.graphics.canvas.component.LabelComponent.LabelLayout;
@@ -42,8 +40,6 @@ import de.mossgrabers.framework.graphics.canvas.component.ListComponent;
 import de.mossgrabers.framework.graphics.canvas.component.MidiClipComponent;
 import de.mossgrabers.framework.graphics.canvas.component.OptionsComponent;
 import de.mossgrabers.framework.graphics.canvas.component.ParameterComponent;
-import de.mossgrabers.framework.graphics.canvas.component.SendsComponent;
-import de.mossgrabers.framework.graphics.canvas.utils.SendData;
 import de.mossgrabers.framework.graphics.display.ModelInfo;
 import de.mossgrabers.framework.utils.Pair;
 
@@ -55,25 +51,6 @@ import de.mossgrabers.framework.utils.Pair;
  */
 public abstract class AbstractGraphicDisplay implements IGraphicDisplay
 {
-    /** Display only a channel name for selection. */
-    public static final int                GRID_ELEMENT_CHANNEL_SELECTION  = 0;
-    /** Display a channel, edit volume. */
-    public static final int                GRID_ELEMENT_CHANNEL_VOLUME     = 1;
-    /** Display a channel, edit panning. */
-    public static final int                GRID_ELEMENT_CHANNEL_PAN        = 2;
-    /** Display a channel, edit cross-fader. */
-    public static final int                GRID_ELEMENT_CHANNEL_CROSSFADER = 3;
-    /** Display a channel sends. */
-    public static final int                GRID_ELEMENT_CHANNEL_SENDS      = 4;
-    /** Display a channel, edit all parameters. */
-    public static final int                GRID_ELEMENT_CHANNEL_ALL        = 5;
-    /** Display a parameter with name and value. */
-    public static final int                GRID_ELEMENT_PARAMETERS         = 6;
-    /** Display options on top and bottom. */
-    public static final int                GRID_ELEMENT_OPTIONS            = 7;
-    /** Display a list. */
-    public static final int                GRID_ELEMENT_LIST               = 8;
-
     /** Timeout for displaying the notification message. */
     private static final int               TIMEOUT                         = 1;
     private static final Path              DEBUG_DIRECTORY                 = Path.of (System.getProperty ("java.io.tmpdir"), "pull-push2-dev");
@@ -287,54 +264,6 @@ public abstract class AbstractGraphicDisplay implements IGraphicDisplay
     public void addEmptyElement (final boolean hasSmallEmptyMenu)
     {
         this.addOptionElement ("", " ", false, "", "", false, true);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void addChannelSelectorElement (final String topMenu, final boolean isTopMenuOn, final String bottomMenu, final ChannelType type, final ColorEx bottomMenuColor, final boolean isBottomMenuOn, final boolean isActive)
-    {
-        this.addElement (new ChannelSelectComponent (type, topMenu, isTopMenuOn, bottomMenu, bottomMenuColor, isBottomMenuOn, isActive));
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void addChannelElement (final String topMenu, final boolean isTopMenuOn, final String bottomMenu, final ChannelType type, final ColorEx bottomMenuColor, final boolean isBottomMenuOn, final int volume, final int modulatedVolume, final String volumeStr, final int pan, final int modulatedPan, final String panStr, final int vuLeft, final int vuRight, final boolean mute, final boolean solo, final boolean recarm, final boolean isActive, final int crossfadeMode, final boolean isPinned)
-    {
-        this.addChannelElement (GRID_ELEMENT_CHANNEL_ALL, topMenu, isTopMenuOn, bottomMenu, type, bottomMenuColor, isBottomMenuOn, volume, modulatedVolume, volumeStr, pan, modulatedPan, panStr, vuLeft, vuRight, mute, solo, recarm, isActive, crossfadeMode, isPinned);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void addChannelElement (final int channelType, final String topMenu, final boolean isTopMenuOn, final String bottomMenu, final ChannelType type, final ColorEx bottomMenuColor, final boolean isBottomMenuOn, final int volume, final int modulatedVolume, final String volumeStr, final int pan, final int modulatedPan, final String panStr, final int vuLeft, final int vuRight, final boolean mute, final boolean solo, final boolean recarm, final boolean isActive, final int crossfadeMode, final boolean isPinned)
-    {
-        int editType;
-        switch (channelType)
-        {
-            case GRID_ELEMENT_CHANNEL_VOLUME:
-                editType = ChannelComponent.EDIT_TYPE_VOLUME;
-                break;
-            case GRID_ELEMENT_CHANNEL_PAN:
-                editType = ChannelComponent.EDIT_TYPE_PAN;
-                break;
-            case GRID_ELEMENT_CHANNEL_CROSSFADER:
-                editType = ChannelComponent.EDIT_TYPE_CROSSFADER;
-                break;
-            default:
-                editType = ChannelComponent.EDIT_TYPE_ALL;
-                break;
-        }
-        this.addElement (new ChannelComponent (editType, topMenu, isTopMenuOn, bottomMenu, bottomMenuColor, isBottomMenuOn, type, volume, modulatedVolume, volumeStr, pan, modulatedPan, panStr, vuLeft, vuRight, mute, solo, recarm, isActive, crossfadeMode, isPinned));
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void addSendsElement (final String topMenu, final boolean isTopMenuOn, final String bottomMenu, final ChannelType type, final ColorEx bottomMenuColor, final boolean isBottomMenuOn, final SendData [] sendData, final boolean isTrackMode, final boolean isSendActive, final boolean isChannelLabelActive)
-    {
-        this.addElement (new SendsComponent (sendData, topMenu, isTopMenuOn, bottomMenu, bottomMenuColor, isBottomMenuOn, type, isTrackMode, isSendActive, isChannelLabelActive));
     }
 
 

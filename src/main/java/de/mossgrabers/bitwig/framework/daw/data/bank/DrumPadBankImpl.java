@@ -146,6 +146,9 @@ public class DrumPadBankImpl extends AbstractChannelBankImpl<DrumPadBank, ILayer
     @Override
     public boolean canEditSend (final int sendIndex)
     {
+        if (this.items.isEmpty () || sendIndex < 0 || sendIndex >= this.numSends)
+            return false;
+
         return this.getItem (0).getSendBank ().getItem (sendIndex).doesExist ();
     }
 
@@ -154,6 +157,9 @@ public class DrumPadBankImpl extends AbstractChannelBankImpl<DrumPadBank, ILayer
     @Override
     public String getEditSendName (final int sendIndex)
     {
+        if (this.items.isEmpty () || sendIndex < 0 || sendIndex >= this.numSends)
+            return "";
+
         return this.getItem (0).getSendBank ().getItem (sendIndex).getName ();
     }
 }

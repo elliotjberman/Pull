@@ -34,6 +34,7 @@ import de.mossgrabers.framework.controller.hardware.IHwSurfaceFactory;
 import de.mossgrabers.framework.controller.valuechanger.RelativeEncoding;
 import de.mossgrabers.framework.graphics.IBitmap;
 import de.mossgrabers.framework.utils.OperatingSystem;
+import de.mossgrabers.framework.utils.TimeoutOptimizer;
 
 
 /**
@@ -43,8 +44,11 @@ import de.mossgrabers.framework.utils.OperatingSystem;
  */
 public class HwSurfaceFactoryImpl implements IHwSurfaceFactory
 {
-    private final HostImpl        host;
-    private final HardwareSurface hardwareSurface;
+    private static final int       BUTTON_STATE_INTERVAL = 500;
+
+    private final HostImpl         host;
+    private final HardwareSurface  hardwareSurface;
+    private final TimeoutOptimizer buttonTimeoutOptimizer;
 
     private int                   lightCounter = 0;
     private final long            startup      = System.currentTimeMillis ();
@@ -63,6 +67,7 @@ public class HwSurfaceFactoryImpl implements IHwSurfaceFactory
         this.host = host;
         this.hardwareSurface = host.getControllerHost ().createHardwareSurface ();
         this.hardwareSurface.setPhysicalSize (width, height);
+        this.buttonTimeoutOptimizer = new TimeoutOptimizer (host, BUTTON_STATE_INTERVAL);
     }
 
 
@@ -72,7 +77,7 @@ public class HwSurfaceFactoryImpl implements IHwSurfaceFactory
     {
         final String id = createID (surfaceID, buttonID.name ());
         final HardwareButton hwButton = this.hardwareSurface.createHardwareButton (id);
-        return new HwButtonImpl (this.host, hwButton, label);
+        return new HwButtonImpl (this.host, hwButton, label, this.buttonTimeoutOptimizer);
     }
 
 

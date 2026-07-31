@@ -52,57 +52,14 @@ public enum Views
     /** View for the poly sequencer. */
     POLY_SEQUENCER,
 
-    /** View for browsing. */
-    BROWSER,
-    /** View for changing track parameters. */
-    TRACK,
-    /** View for changing track volumes. */
-    TRACK_VOLUME,
-    /** View for changing track panning. */
-    TRACK_PAN,
-    /** View for changing track sends. */
-    TRACK_SENDS,
-    /** View for Track selection. */
-    TRACK_SELECT,
-    /** View for soloing tracks. */
-    TRACK_SOLO,
-    /** View for muting tracks. */
-    TRACK_MUTE,
-    /** View for editing remote parameters. */
-    DEVICE,
-
-    /** View for controlling values. */
-    CONTROL,
     /** View for shift options. */
     SHIFT,
-    /** View for user view. */
-    USER,
     /** View for note repeat options. */
     REPEAT_NOTE,
     /** View for editing note parameters. */
     NOTE_EDIT_VIEW,
     /** View for mixing. */
-    MIX,
-
-    /** View for changing the tempo. */
-    TEMPO,
-    /** View for changing the shuffle. */
-    SHUFFLE,
-    /** View for changing project settings. */
-    PROJECT,
-
-    /** To block functionality. */
-    DUMMY1,
-    /** To block functionality. */
-    DUMMY2,
-    /** To block functionality. */
-    DUMMY3,
-    /** To block functionality. */
-    DUMMY4,
-    /** To block functionality. */
-    DUMMY5,
-    /** To block functionality. */
-    DUMMY6;
+    MIX;
 
 
     /** The name of the play view. */

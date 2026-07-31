@@ -72,6 +72,7 @@ public class TrackMixerComponent implements IComponent
     private final List<TrackData>     tracks;
     private final int                 vuLeft;
     private final int                 vuRight;
+    private final ColorEx             controlColor;
 
 
     /**
@@ -85,11 +86,28 @@ public class TrackMixerComponent implements IComponent
      */
     public TrackMixerComponent (final List<MenuData> menus, final List<ParameterData> parameters, final List<TrackData> tracks, final int vuLeft, final int vuRight)
     {
+        this (menus, parameters, tracks, vuLeft, vuRight, null);
+    }
+
+
+    /**
+     * Constructor with one color for all controls.
+     *
+     * @param menus The top-row menu entries
+     * @param parameters The selected track parameters
+     * @param tracks The tracks shown in the footer
+     * @param vuLeft The left-channel meter value
+     * @param vuRight The right-channel meter value
+     * @param controlColor The control color, or null to derive it from the tracks
+     */
+    public TrackMixerComponent (final List<MenuData> menus, final List<ParameterData> parameters, final List<TrackData> tracks, final int vuLeft, final int vuRight, final ColorEx controlColor)
+    {
         this.menus = List.copyOf (menus);
         this.parameters = List.copyOf (parameters);
         this.tracks = List.copyOf (tracks);
         this.vuLeft = vuLeft;
         this.vuRight = vuRight;
+        this.controlColor = controlColor;
     }
 
 
@@ -182,6 +200,9 @@ public class TrackMixerComponent implements IComponent
 
     private ColorEx getControlColor (final int index)
     {
+        if (this.controlColor != null)
+            return this.controlColor;
+
         if (!this.menus.isEmpty () && "Mix".equals (this.menus.get (0).name ()))
         {
             for (final TrackData track: this.tracks)
@@ -292,7 +313,7 @@ public class TrackMixerComponent implements IComponent
     @Override
     public int hashCode ()
     {
-        return Objects.hash (this.menus, this.parameters, this.tracks, Integer.valueOf (this.vuLeft), Integer.valueOf (this.vuRight));
+        return Objects.hash (this.menus, this.parameters, this.tracks, Integer.valueOf (this.vuLeft), Integer.valueOf (this.vuRight), this.controlColor);
     }
 
 
@@ -304,6 +325,6 @@ public class TrackMixerComponent implements IComponent
             return true;
         if (!(obj instanceof final TrackMixerComponent other))
             return false;
-        return this.vuLeft == other.vuLeft && this.vuRight == other.vuRight && this.menus.equals (other.menus) && this.parameters.equals (other.parameters) && this.tracks.equals (other.tracks);
+        return this.vuLeft == other.vuLeft && this.vuRight == other.vuRight && this.menus.equals (other.menus) && this.parameters.equals (other.parameters) && this.tracks.equals (other.tracks) && Objects.equals (this.controlColor, other.controlColor);
     }
 }

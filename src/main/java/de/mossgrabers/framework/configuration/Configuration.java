@@ -6,11 +6,8 @@ package de.mossgrabers.framework.configuration;
 
 import java.util.List;
 
-import de.mossgrabers.framework.configuration.AbstractConfiguration.RecordFunction;
-import de.mossgrabers.framework.configuration.AbstractConfiguration.TransportBehavior;
 import de.mossgrabers.framework.daw.constants.Resolution;
 import de.mossgrabers.framework.daw.midi.ArpeggiatorMode;
-import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.observer.ISettingObserver;
 import de.mossgrabers.framework.view.Views;
 
@@ -29,15 +26,6 @@ public interface Configuration
      * @param observer The observer to call when the settings has changed
      */
     void addSettingObserver (Integer settingID, ISettingObserver observer);
-
-
-    /**
-     * Remove an observer which was previously registered.
-     *
-     * @param settingID The ID of the observed setting
-     * @param observer The observer to remove
-     */
-    void removeSettingObserver (Integer settingID, ISettingObserver observer);
 
 
     /**
@@ -131,24 +119,6 @@ public interface Configuration
      * @return True if enabled
      */
     boolean isEnableVUMeters ();
-
-
-    /**
-     * Get the behavior when stop is pressed.
-     *
-     * @return The behavior
-     */
-    TransportBehavior getBehaviourOnStop ();
-
-
-    /**
-     * Get the behavior when pause is pressed.
-     *
-     * @return The behavior
-     */
-    TransportBehavior getBehaviourOnPause ();
-
-
     /**
      * Flip the arrange record and clip record buttons?
      *
@@ -221,12 +191,6 @@ public interface Configuration
      *            Bars", 4: "4 Bars", 5: "8 Bars", 6: "16 Bars", 7: "32 Bars"
      */
     void setNewClipLength (int value);
-
-
-    /**
-     * Select the next new clip length. Wraps around to the first.
-     */
-    void nextNewClipLength ();
 
 
     /**
@@ -319,14 +283,6 @@ public interface Configuration
 
 
     /**
-     * Set the quantize amount (1-100).
-     *
-     * @param value The value
-     */
-    void setQuantizeAmount (int value);
-
-
-    /**
      * Reset the quantize amount.
      */
     void resetQuantizeAmount ();
@@ -357,16 +313,6 @@ public interface Configuration
      *         positive faster
      */
     int getKnobSensitivitySlow ();
-
-
-    /**
-     * Get the value of how much the main encoder should be slowed down. 0 is no slow down.
-     *
-     * @return The value in the range of [0, 100], default is 0
-     */
-    int getEncoderKnobSlowDown ();
-
-
     /**
      * Get all supported Arpeggiator modes.
      *
@@ -499,56 +445,18 @@ public interface Configuration
      * @param midiChannel The MIDI channel, 0-15
      */
     void setMidiEditChannel (int midiChannel);
-
-
-    /**
-     * Get the selected function for the record button.
-     *
-     * @return The function index
-     */
-    RecordFunction getRecordButtonFunction ();
-
-
-    /**
-     * Get the selected function for the shifted record button.
-     *
-     * @return The function index
-     */
-    RecordFunction getShiftedRecordButtonFunction ();
-
-
     /**
      * Get the preferred note view.
      *
      * @return The preferred note view
      */
     Views getStartupView ();
-
-
-    /**
-     * Get the preferred startup mode.
-     *
-     * @return The preferred startup mode
-     */
-    Modes getStartupMode ();
-
-
     /**
      * Get the preferred audio view.
      *
      * @return The preferred note view
      */
     Views getPreferredAudioView ();
-
-
-    /**
-     * Should the session view be activated on startup (instead of a play view)?
-     *
-     * @return True if session view should be active
-     */
-    boolean shouldStartWithSessionView ();
-
-
     /**
      * Should played chords be displayed?
      *

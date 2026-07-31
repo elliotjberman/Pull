@@ -4,6 +4,8 @@
 
 package de.mossgrabers.controller.ableton.push.mode.track;
 
+import java.util.List;
+
 import de.mossgrabers.controller.ableton.push.PushConfiguration;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
@@ -22,6 +24,10 @@ import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.empty.EmptyParameter;
 import de.mossgrabers.framework.daw.resource.ChannelType;
 import de.mossgrabers.framework.featuregroup.AbstractFeatureGroup;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.MenuData;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.ParameterData;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.TrackData;
 import de.mossgrabers.framework.parameterprovider.special.FixedParameterProvider;
 import de.mossgrabers.framework.utils.ButtonEvent;
 
@@ -138,27 +144,51 @@ public class MasterMode extends BaseMode<ITrack>
         final boolean enableVUMeters = this.configuration.isEnableVUMeters ();
         final int vuR = valueChanger.toDisplayValue (enableVUMeters ? this.masterTrack.getVuRight () : 0);
         final int vuL = valueChanger.toDisplayValue (enableVUMeters ? this.masterTrack.getVuLeft () : 0);
-
         final ICursorTrack cursorTrack = this.model.getCursorTrack ();
+        final boolean hasCueVolume = this.model.getHost ().supports (Capability.CUE_VOLUME);
+        final boolean isActive = this.masterTrack.isActivated ();
 
-        display.addChannelElement (TAG_VOLUME, false, this.masterTrack.getName (), ChannelType.MASTER, this.masterTrack.getColor (), this.masterTrack.isSelected (), valueChanger.toDisplayValue (this.masterTrack.getVolume ()), valueChanger.toDisplayValue (this.masterTrack.getModulatedVolume ()), this.isKnobTouched (0) ? this.masterTrack.getVolumeStr (8) : "", valueChanger.toDisplayValue (this.masterTrack.getPan ()), valueChanger.toDisplayValue (this.masterTrack.getModulatedPan ()), this.isKnobTouched (1) ? this.masterTrack.getPanStr (8) : "", vuL, vuR, this.masterTrack.isMute (), this.masterTrack.isSolo (), this.masterTrack.isRecArm (), this.masterTrack.isActivated (), 0, this.masterTrack.isSelected () && cursorTrack.isPinned ());
-        display.addChannelSelectorElement ("Pan", false, "", null, ColorEx.BLACK, false, this.masterTrack.isActivated ());
+        final List<MenuData> menus = List.of (
+            new MenuData (TAG_VOLUME, false),
+            new MenuData ("Pan", false),
+            new MenuData (hasCueVolume ? "Cue Volume" : "", false),
+            new MenuData (hasCueVolume ? "Cue Mix" : "", false),
+            new MenuData ("Audio Engine", this.model.getApplication ().isEngineActive ()),
+            new MenuData ("", false),
+            new MenuData ("Previous", false),
+            new MenuData ("Next", false));
 
-        if (this.model.getHost ().supports (Capability.CUE_VOLUME))
-        {
-            display.addChannelElement ("Cue Volume", false, "Cue", ChannelType.CUE, ColorEx.GRAY, false, valueChanger.toDisplayValue (this.project.getCueVolume ()), -1, this.isKnobTouched (2) ? this.project.getCueVolumeStr (8) : "", valueChanger.toDisplayValue (this.project.getCueMix ()), -1, this.isKnobTouched (3) ? this.project.getCueMixStr (8) : "", 0, 0, false, false, false, true, 0, false);
-            display.addChannelSelectorElement ("Cue Mix", false, "", null, ColorEx.BLACK, false, true);
-        }
-        else
-        {
-            display.addOptionElement ("", " ", false, "", "", false, true);
-            display.addOptionElement ("", " ", false, "", "", false, true);
-        }
+        final List<ParameterData> parameters = List.of (
+            new ParameterData ("Master Volume", valueChanger.toDisplayValue (this.masterTrack.getVolume ()), valueChanger.toDisplayValue (this.masterTrack.getModulatedVolume ()), this.masterTrack.getVolumeStr (8), isActive),
+            new ParameterData ("Pan", valueChanger.toDisplayValue (this.masterTrack.getPan ()), valueChanger.toDisplayValue (this.masterTrack.getModulatedPan ()), this.formatPanValue (this.masterTrack.getPan ()), isActive),
+            hasCueVolume ? new ParameterData ("Cue Level", valueChanger.toDisplayValue (this.project.getCueVolume ()), -1, this.project.getCueVolumeStr (8), true) : new ParameterData ("", -1, -1, "", false),
+            hasCueVolume ? new ParameterData ("Cue Mix", valueChanger.toDisplayValue (this.project.getCueMix ()), -1, this.project.getCueMixStr (8), true) : new ParameterData ("", -1, -1, "", false),
+            new ParameterData ("", -1, -1, "", false),
+            new ParameterData ("", -1, -1, "", false),
+            new ParameterData ("", -1, -1, "", false),
+            new ParameterData ("", -1, -1, "", false));
 
-        display.addOptionElement ("", " ", false, "Audio Engine", this.model.getApplication ().isEngineActive () ? "Active" : "Off", false, true);
-        display.addOptionElement ("", " ", false, "", "", false, true);
-        display.addOptionElement ("Project:", "Load", false, this.project.getName (), "Previous", false, true);
-        display.addOptionElement ("", "Save", false, "", "Next", false, true);
+        final List<TrackData> tracks = List.of (
+            new TrackData (this.masterTrack.getName (), ChannelType.MASTER, this.masterTrack.getColor (), this.masterTrack.isSelected (), isActive, this.masterTrack.isSelected () && cursorTrack.isPinned ()),
+            new TrackData ("", null, this.masterTrack.getColor (), false, isActive, false),
+            new TrackData (hasCueVolume ? "Cue" : "", ChannelType.CUE, ColorEx.GRAY, false, hasCueVolume, false),
+            new TrackData ("", null, ColorEx.GRAY, false, hasCueVolume, false),
+            new TrackData ("", null, ColorEx.WHITE, false, true, false),
+            new TrackData ("", null, ColorEx.WHITE, false, true, false),
+            new TrackData ("Load", null, ColorEx.WHITE, false, true, false),
+            new TrackData ("Save", null, ColorEx.WHITE, false, true, false));
+
+        display.addElement (new TrackMixerComponent (menus, parameters, tracks, vuL, vuR, this.masterTrack.getColor ()));
+    }
+
+
+    private String formatPanValue (final int value)
+    {
+        final double bipolarValue = 2.0 * this.model.getValueChanger ().toNormalizedValue (value) - 1.0;
+        final int amount = (int) Math.round (100.0 * Math.abs (bipolarValue));
+        if (amount == 0)
+            return "C";
+        return (bipolarValue < 0 ? "L " : "R ") + amount;
     }
 
 

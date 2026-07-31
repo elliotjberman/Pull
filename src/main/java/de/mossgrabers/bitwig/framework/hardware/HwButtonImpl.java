@@ -10,6 +10,7 @@ import de.mossgrabers.framework.controller.hardware.AbstractHwButton;
 import de.mossgrabers.framework.controller.hardware.BindType;
 import de.mossgrabers.framework.controller.hardware.IHwLight;
 import de.mossgrabers.framework.daw.midi.IMidiInput;
+import de.mossgrabers.framework.utils.TimeoutOptimizer;
 
 import com.bitwig.extension.controller.api.ControllerHost;
 import com.bitwig.extension.controller.api.HardwareButton;
@@ -38,6 +39,23 @@ public class HwButtonImpl extends AbstractHwButton
     public HwButtonImpl (final HostImpl host, final HardwareButton hardwareButton, final String label)
     {
         super (host, label);
+
+        this.hardwareButton = hardwareButton;
+        this.hardwareButton.setLabel (label);
+    }
+
+
+    /**
+     * Constructor with a shared timeout optimizer.
+     *
+     * @param host The controller host
+     * @param hardwareButton The Bitwig hardware button
+     * @param label The label of the button
+     * @param optimizer The optimizer shared by buttons on the same surface
+     */
+    public HwButtonImpl (final HostImpl host, final HardwareButton hardwareButton, final String label, final TimeoutOptimizer optimizer)
+    {
+        super (host, label, optimizer);
 
         this.hardwareButton = hardwareButton;
         this.hardwareButton.setLabel (label);

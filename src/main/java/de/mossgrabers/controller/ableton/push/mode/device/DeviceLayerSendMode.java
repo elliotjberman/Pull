@@ -4,19 +4,25 @@
 
 package de.mossgrabers.controller.ableton.push.mode.device;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.parameterprovider.PushSendLayerOrDrumPadParameterProvider;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
+import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.IChannel;
 import de.mossgrabers.framework.daw.data.ILayer;
 import de.mossgrabers.framework.daw.data.ISend;
 import de.mossgrabers.framework.daw.data.bank.ISendBank;
 import de.mossgrabers.framework.daw.resource.ChannelType;
-import de.mossgrabers.framework.graphics.canvas.utils.SendData;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.MenuData;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.ParameterData;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.TrackData;
 import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.utils.Pair;
 
@@ -80,31 +86,34 @@ public class DeviceLayerSendMode extends DeviceLayerMode
 
     /** {@inheritDoc} */
     @Override
-    public void updateDisplayElements (final IGraphicDisplay display, final Optional<ILayer> l)
+    public void updateDisplayElements (final IGraphicDisplay display, final Optional<ILayer> selectedLayer)
     {
         this.updateMenuItems (5 + this.sendIndex % 4);
 
-        // Drum Pad Bank has size of 16, layers only 8
+        final List<MenuData> menus = new ArrayList<> (8);
+        final List<ParameterData> parameters = new ArrayList<> (8);
+        final List<TrackData> layers = new ArrayList<> (8);
         final int offset = this.getDrumPadIndex ();
+        final IValueChanger valueChanger = this.model.getValueChanger ();
+
         for (int i = 0; i < 8; i++)
         {
+            final Pair<String, Boolean> menuItem = this.menu.get (i);
+            menus.add (new MenuData (menuItem.getKey ().trim (), menuItem.getValue ().booleanValue ()));
+
             final IChannel layer = this.bank.getItem (offset + i);
-
-            final Pair<String, Boolean> pair = this.menu.get (i);
-            final String topMenu = pair.getKey ();
-            final boolean isTopMenuOn = pair.getValue ().booleanValue ();
-
-            // Channel info
-            final SendData [] sendData = new SendData [4];
             final ISendBank sendBank = layer.getSendBank ();
-            for (int j = 0; j < 4; j++)
+            final ISend send = this.sendIndex < sendBank.getPageSize () ? sendBank.getItem (this.sendIndex) : null;
+            if (layer.doesExist () && send != null && send.doesExist ())
             {
-                final ISend send = sendBank.getItem (j);
-                final boolean exists = send.doesExist ();
-                sendData[j] = new SendData (send.isEnabled (), send.getName (), exists && this.sendIndex == j && this.isKnobTouched (i) ? send.getDisplayedValue () : "", exists ? send.getValue () : 0, exists ? send.getModulatedValue () : 0, this.sendIndex == j);
+                parameters.add (new ParameterData (send.getName (), valueChanger.toDisplayValue (send.getValue ()), valueChanger.toDisplayValue (send.getModulatedValue ()), send.getDisplayedValue (8), layer.isActivated () && send.isEnabled ()));
             }
+            else
+                parameters.add (new ParameterData ("", -1, -1, "", false));
 
-            display.addSendsElement (topMenu, isTopMenuOn, layer.doesExist () ? layer.getName () : "", ChannelType.LAYER, this.bank.getItem (offset + i).getColor (), layer.isSelected (), sendData, false, layer.isActivated (), layer.isActivated ());
+            layers.add (new TrackData (layer.doesExist () ? layer.getName (12) : "", ChannelType.LAYER, layer.getColor (), layer.isSelected (), layer.isActivated (), false));
         }
+
+        display.addElement (new TrackMixerComponent (menus, parameters, layers, 0, 0));
     }
 }

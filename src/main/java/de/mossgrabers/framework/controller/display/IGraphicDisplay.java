@@ -11,7 +11,6 @@ import de.mossgrabers.framework.daw.clip.NotePosition;
 import de.mossgrabers.framework.daw.resource.ChannelType;
 import de.mossgrabers.framework.graphics.IBitmap;
 import de.mossgrabers.framework.graphics.canvas.component.IComponent;
-import de.mossgrabers.framework.graphics.canvas.utils.SendData;
 
 
 /**
@@ -79,92 +78,6 @@ public interface IGraphicDisplay extends IDisplay
      * @param hasSmallEmptyMenu If true draws an empty small menu
      */
     void addEmptyElement (boolean hasSmallEmptyMenu);
-
-
-    /**
-     * Adds a channel selector element.
-     *
-     * @param topMenu The text of the top menu
-     * @param isTopMenuOn True if the top menu is selected
-     * @param bottomMenu The text of the bottom menu
-     * @param type The type of the channel
-     * @param bottomMenuColor A background color for the menu
-     * @param isBottomMenuOn True if the bottom menu is selected
-     * @param isActive True if channel is activated
-     */
-    void addChannelSelectorElement (String topMenu, boolean isTopMenuOn, String bottomMenu, ChannelType type, ColorEx bottomMenuColor, boolean isBottomMenuOn, boolean isActive);
-
-
-    /**
-     * Adds a channel element.
-     *
-     * @param topMenu The text of the top menu
-     * @param isTopMenuOn True if the top menu is selected
-     * @param bottomMenu The text of the bottom menu
-     * @param type The type of the channel
-     * @param bottomMenuColor A background color for the menu
-     * @param isBottomMenuOn True if the bottom menu is selected
-     * @param volume The volume value
-     * @param modulatedVolume The modulated volume value
-     * @param volumeStr The volume as string
-     * @param pan The panning
-     * @param modulatedPan The modulated panning
-     * @param panStr The panning as string
-     * @param vuLeft The VU meter value of the left channel
-     * @param vuRight The VU meter value of the right channel
-     * @param mute The mute state
-     * @param solo The solo state
-     * @param recarm The recording armed state
-     * @param isActive True if channel is activated
-     * @param crossfadeMode Cross-fade mode (0-2)
-     * @param isPinned True if the track is pinned
-     */
-    void addChannelElement (String topMenu, boolean isTopMenuOn, String bottomMenu, ChannelType type, ColorEx bottomMenuColor, boolean isBottomMenuOn, int volume, int modulatedVolume, String volumeStr, int pan, int modulatedPan, String panStr, int vuLeft, int vuRight, boolean mute, boolean solo, boolean recarm, boolean isActive, int crossfadeMode, boolean isPinned);
-
-
-    /**
-     * Adds a channel element.
-     *
-     * @param channelType The type of the channel
-     * @param topMenu The text of the top menu
-     * @param isTopMenuOn True if the top menu is selected
-     * @param bottomMenu The text of the bottom menu
-     * @param type The type of the channel
-     * @param bottomMenuColor A background color for the menu
-     * @param isBottomMenuOn True if the bottom menu is selected
-     * @param volume The volume value
-     * @param modulatedVolume The modulated volume value
-     * @param volumeStr The volume as string
-     * @param pan The panning
-     * @param modulatedPan The modulated panning
-     * @param panStr The panning as string
-     * @param vuLeft The VU meter value of the left channel
-     * @param vuRight The VU meter value of the right channel
-     * @param mute The mute state
-     * @param solo The solo state
-     * @param recarm The recording armed state
-     * @param isActive True if channel is activated
-     * @param crossfadeMode Cross-fade mode (0-2)
-     * @param isPinned True if the track is pinned
-     */
-    void addChannelElement (int channelType, String topMenu, boolean isTopMenuOn, String bottomMenu, ChannelType type, ColorEx bottomMenuColor, boolean isBottomMenuOn, int volume, int modulatedVolume, String volumeStr, int pan, int modulatedPan, String panStr, int vuLeft, int vuRight, boolean mute, boolean solo, boolean recarm, boolean isActive, int crossfadeMode, boolean isPinned);
-
-
-    /**
-     * Adds a channel with 4 sends element.
-     *
-     * @param topMenu The text of the top menu
-     * @param isTopMenuOn True if the top menu is selected
-     * @param bottomMenu The text of the bottom menu
-     * @param type The type of the channel
-     * @param bottomMenuColor A background color for the menu
-     * @param isBottomMenuOn True if the bottom menu is selected
-     * @param sendData The send information
-     * @param isTrackMode True if track mode otherwise send mode
-     * @param isSendActive True if the upper send part is activated
-     * @param isChannelLabelActive True if channel is activated
-     */
-    void addSendsElement (String topMenu, boolean isTopMenuOn, String bottomMenu, ChannelType type, ColorEx bottomMenuColor, boolean isBottomMenuOn, SendData [] sendData, boolean isTrackMode, boolean isSendActive, boolean isChannelLabelActive);
 
 
     /**

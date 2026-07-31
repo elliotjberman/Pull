@@ -12,12 +12,8 @@ import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.mode.BaseMode;
 import de.mossgrabers.framework.controller.ButtonID;
-import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.DAWColor;
 import de.mossgrabers.framework.daw.IModel;
-import de.mossgrabers.framework.daw.constants.Capability;
-import de.mossgrabers.framework.daw.data.ICursorTrack;
 import de.mossgrabers.framework.daw.data.ISend;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.ISendBank;
@@ -387,33 +383,6 @@ public abstract class AbstractTrackMode extends BaseMode<ITrack>
     }
 
 
-    // Push 2
-
-
-    // Called from sub-classes
-    protected void updateChannelDisplay (final IGraphicDisplay display, final int selectedMenu, final boolean isVolume, final boolean isPan)
-    {
-        this.updateMenuItems (isVolume ? 0 : isPan ? 1 : -1);
-
-        final IValueChanger valueChanger = this.model.getValueChanger ();
-        final ITrackBank tb = this.model.getCurrentTrackBank ();
-        final PushConfiguration config = this.surface.getConfiguration ();
-        final ICursorTrack cursorTrack = this.model.getCursorTrack ();
-        for (int i = 0; i < 8; i++)
-        {
-            final ITrack t = tb.getItem (i);
-            final Pair<String, Boolean> pair = this.menu.get (i);
-            final String topMenu = pair.getKey ();
-            final boolean isTopMenuOn = pair.getValue ().booleanValue ();
-            final int crossfadeMode = this.getCrossfadeModeAsNumber (t);
-            final boolean enableVUMeters = config.isEnableVUMeters ();
-            final int vuR = valueChanger.toDisplayValue (enableVUMeters ? t.getVuRight () : 0);
-            final int vuL = valueChanger.toDisplayValue (enableVUMeters ? t.getVuLeft () : 0);
-            display.addChannelElement (selectedMenu, topMenu, isTopMenuOn, t.doesExist () ? t.getName (12) : "", this.updateType (t), t.getColor (), t.isSelected (), valueChanger.toDisplayValue (t.getVolume ()), valueChanger.toDisplayValue (t.getModulatedVolume ()), isVolume && this.isKnobTouched (i) ? t.getVolumeStr (8) : "", valueChanger.toDisplayValue (t.getPan ()), valueChanger.toDisplayValue (t.getModulatedPan ()), isPan && this.isKnobTouched (i) ? t.getPanStr (8) : "", vuL, vuR, t.isMute (), t.isSolo (), t.isRecArm (), t.isActivated (), crossfadeMode, t.isSelected () && cursorTrack.isPinned ());
-        }
-    }
-
-
     protected void updateMenuItems (final int selectedMenu)
     {
         final PushConfiguration config = this.surface.getConfiguration ();
@@ -521,14 +490,6 @@ public abstract class AbstractTrackMode extends BaseMode<ITrack>
             return GLOBAL_CROSSFADER_MENU;
         if (mode != null && mode.ordinal () >= Modes.SEND1.ordinal () && mode.ordinal () <= Modes.SEND8.ordinal ())
             return 2 + mode.ordinal () - Modes.SEND1.ordinal ();
-        return -1;
-    }
-
-
-    protected int getCrossfadeModeAsNumber (final ITrack track)
-    {
-        if (this.model.getHost ().supports (Capability.HAS_CROSSFADER))
-            return (int) Math.round (this.model.getValueChanger ().toNormalizedValue (track.getCrossfadeParameter ().getValue ()) * 2.0);
         return -1;
     }
 

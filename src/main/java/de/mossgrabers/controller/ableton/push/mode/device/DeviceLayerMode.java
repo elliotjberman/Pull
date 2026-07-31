@@ -26,7 +26,10 @@ import de.mossgrabers.framework.daw.data.bank.ILayerBank;
 import de.mossgrabers.framework.daw.data.bank.ISendBank;
 import de.mossgrabers.framework.daw.resource.ChannelType;
 import de.mossgrabers.framework.featuregroup.ModeManager;
-import de.mossgrabers.framework.graphics.canvas.utils.SendData;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.MenuData;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.ParameterData;
+import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.TrackData;
 import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.framework.utils.Pair;
@@ -362,75 +365,58 @@ public class DeviceLayerMode extends BaseMode<ILayer>
     {
         // Drum Pad Bank has size of 16, layers only 8
         final int offset = this.getDrumPadIndex ();
-
-        // Get the index at which to draw the Sends element
-        int sendsIndex = l.isEmpty () ? -1 : l.get ().getIndex () - offset + 1;
-        if (sendsIndex == 8)
-            sendsIndex = 6;
-
         this.updateMenuItems (-1);
 
-        final PushConfiguration config = this.surface.getConfiguration ();
-
+        final List<MenuData> menus = new ArrayList<> (8);
+        final List<ParameterData> parameters = new ArrayList<> (8);
+        final List<TrackData> layers = new ArrayList<> (8);
         for (int i = 0; i < 8; i++)
         {
             final IChannel layer = this.bank.getItem (offset + i);
-
             final Pair<String, Boolean> pair = this.menu.get (i);
-            final String topMenu = pair.getKey ();
-            final boolean isTopMenuOn = pair.getValue ().booleanValue ();
-
-            // Channel info
-            final String bottomMenu = layer.doesExist () ? layer.getName (12) : "";
-            final ColorEx bottomMenuColor = layer.getColor ();
-            final boolean isBottomMenuOn = layer.isSelected ();
-
-            if (layer.isSelected ())
-            {
-                final IValueChanger valueChanger = this.model.getValueChanger ();
-                final boolean enableVUMeters = config.isEnableVUMeters ();
-                final int vuR = valueChanger.toDisplayValue (enableVUMeters ? layer.getVuRight () : 0);
-                final int vuL = valueChanger.toDisplayValue (enableVUMeters ? layer.getVuLeft () : 0);
-                display.addChannelElement (topMenu, isTopMenuOn, bottomMenu, ChannelType.LAYER, bottomMenuColor, isBottomMenuOn, valueChanger.toDisplayValue (layer.getVolume ()), valueChanger.toDisplayValue (layer.getModulatedVolume ()), this.isKnobTouched (0) ? layer.getVolumeStr (8) : "", valueChanger.toDisplayValue (layer.getPan ()), valueChanger.toDisplayValue (layer.getModulatedPan ()), this.isKnobTouched (1) ? layer.getPanStr (8) : "", vuL, vuR, layer.isMute (), layer.isSolo (), false, layer.isActivated (), 0, false);
-            }
-            else if (sendsIndex == i && l.isPresent ())
-            {
-                final ISendBank sendBank = l.get ().getSendBank ();
-                final SendData [] sendData = new SendData [4];
-                for (int j = 0; j < 4; j++)
-                {
-                    final ISend send = sendBank.getItem (j);
-                    final boolean doesExist = send.doesExist ();
-                    sendData[j] = new SendData (send.isEnabled (), send.getName (), doesExist && this.isKnobTouched (4 + j) ? send.getDisplayedValue () : "", doesExist ? send.getValue () : 0, doesExist ? send.getModulatedValue () : 0, true);
-                }
-                display.addSendsElement (topMenu, isTopMenuOn, layer.doesExist () ? layer.getName () : "", ChannelType.LAYER, this.bank.getItem (offset + i).getColor (), layer.isSelected (), sendData, true, l.get ().isActivated (), layer.isActivated ());
-            }
-            else
-                display.addChannelSelectorElement (topMenu, isTopMenuOn, bottomMenu, ChannelType.LAYER, bottomMenuColor, isBottomMenuOn, layer.isActivated ());
+            menus.add (new MenuData (pair.getKey ().trim (), pair.getValue ().booleanValue ()));
+            parameters.add (new ParameterData ("", -1, -1, "", false));
+            layers.add (new TrackData (layer.doesExist () ? layer.getName (12) : "", ChannelType.LAYER, layer.getColor (), layer.isSelected (), layer.isActivated (), false));
         }
+
+        final IValueChanger valueChanger = this.model.getValueChanger ();
+        int vuLeft = 0;
+        int vuRight = 0;
+        ColorEx controlColor = ColorEx.WHITE;
+        if (l.isPresent ())
+        {
+            final ILayer layer = l.get ();
+            final boolean isActive = layer.isActivated ();
+            controlColor = layer.getColor ();
+            parameters.set (0, new ParameterData ("Layer Volume", valueChanger.toDisplayValue (layer.getVolume ()), valueChanger.toDisplayValue (layer.getModulatedVolume ()), layer.getVolumeStr (8), isActive));
+            parameters.set (1, new ParameterData ("Pan", valueChanger.toDisplayValue (layer.getPan ()), valueChanger.toDisplayValue (layer.getModulatedPan ()), this.formatPanValue (layer.getPan ()), isActive));
+
+            final ISendBank sendBank = layer.getSendBank ();
+            for (int i = 0; i < 4; i++)
+            {
+                final ISend send = sendBank.getItem (i);
+                if (send.doesExist ())
+                    parameters.set (4 + i, new ParameterData (send.getName (), valueChanger.toDisplayValue (send.getValue ()), valueChanger.toDisplayValue (send.getModulatedValue ()), send.getDisplayedValue (8), isActive && send.isEnabled ()));
+            }
+
+            if (this.configuration.isEnableVUMeters ())
+            {
+                vuLeft = valueChanger.toDisplayValue (layer.getVuLeft ());
+                vuRight = valueChanger.toDisplayValue (layer.getVuRight ());
+            }
+        }
+
+        display.addElement (new TrackMixerComponent (menus, parameters, layers, vuLeft, vuRight, controlColor));
     }
 
 
-    // Called from sub-classes
-    protected void updateChannelDisplay (final IGraphicDisplay display, final int selectedMenu, final boolean isVolume, final boolean isPan)
+    protected String formatPanValue (final int value)
     {
-        this.updateMenuItems (selectedMenu);
-
-        // Drum Pad Bank has size of 16, layers only 8
-        final int offset = this.getDrumPadIndex ();
-
-        final IValueChanger valueChanger = this.model.getValueChanger ();
-        for (int i = 0; i < 8; i++)
-        {
-            final IChannel layer = this.bank.getItem (offset + i);
-            final Pair<String, Boolean> pair = this.menu.get (i);
-            final String topMenu = pair.getKey ();
-            final boolean isTopMenuOn = pair.getValue ().booleanValue ();
-            final boolean enableVUMeters = this.configuration.isEnableVUMeters ();
-            final int vuR = valueChanger.toDisplayValue (enableVUMeters ? layer.getVuRight () : 0);
-            final int vuL = valueChanger.toDisplayValue (enableVUMeters ? layer.getVuLeft () : 0);
-            display.addChannelElement (selectedMenu, topMenu, isTopMenuOn, layer.doesExist () ? layer.getName () : "", ChannelType.LAYER, layer.getColor (), layer.isSelected (), valueChanger.toDisplayValue (layer.getVolume ()), valueChanger.toDisplayValue (layer.getModulatedVolume ()), isVolume && this.isKnobTouched (i) ? layer.getVolumeStr (8) : "", valueChanger.toDisplayValue (layer.getPan ()), valueChanger.toDisplayValue (layer.getModulatedPan ()), isPan && this.isKnobTouched (i) ? layer.getPanStr () : "", vuL, vuR, layer.isMute (), layer.isSolo (), false, layer.isActivated (), 0, false);
-        }
+        final double bipolarValue = 2.0 * this.model.getValueChanger ().toNormalizedValue (value) - 1.0;
+        final int amount = (int) Math.round (100.0 * Math.abs (bipolarValue));
+        if (amount == 0)
+            return "C";
+        return (bipolarValue < 0 ? "L " : "R ") + amount;
     }
 
 

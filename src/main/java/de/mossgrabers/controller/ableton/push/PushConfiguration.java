@@ -293,7 +293,18 @@ public class PushConfiguration extends AbstractConfiguration implements IGraphic
 
         this.preferredAudioView = Views.CLIP_LENGTH;
 
+        // DEBUG_WINDOW is a signal rather than a setting value.
         this.dontNotifyAll.add (DEBUG_WINDOW);
+
+        // Each pad callback uploads the complete pad configuration. Let PAD_PUSH2_SENSITIVITY
+        // perform the one initial upload; later changes still notify normally.
+        this.dontNotifyAll.addAll (Set.of (PAD_PUSH2_GAIN, PAD_PUSH2_DYNAMICS));
+
+        // Each color callback redraws the complete display. The first scheduled surface flush
+        // performs one deterministic redraw after startup; later changes still notify normally.
+        this.dontNotifyAll.addAll (Set.of (COLOR_BACKGROUND, COLOR_BORDER, COLOR_TEXT, COLOR_FADER,
+            COLOR_VU, COLOR_EDIT, COLOR_RECORD, COLOR_SOLO, COLOR_MUTE, COLOR_BACKGROUND_DARKER,
+            COLOR_BACKGROUND_LIGHTER));
     }
 
 
@@ -333,7 +344,6 @@ public class PushConfiguration extends AbstractConfiguration implements IGraphic
         this.activateAccentValueSetting (globalSettings);
         this.activateQuantizeAmountSetting (globalSettings);
         this.activateStartupViewSetting (globalSettings, PREFERRED_NOTE_VIEWS);
-        this.activateStartWithSessionViewSetting (globalSettings);
         this.activateMidiEditChannelSetting (documentSettings);
         this.activateTurnOffScalePadsSetting (globalSettings);
         this.activateShowPlayedChordsSetting (globalSettings);
@@ -986,19 +996,6 @@ public class PushConfiguration extends AbstractConfiguration implements IGraphic
     {
         return this.debugMode;
     }
-
-
-    /**
-     * Set the selected display mode for debugging.
-     *
-     * @param debugMode The ID of a mode
-     */
-    public void setMixerMode (final Modes debugMode)
-    {
-        this.debugModeSetting.set (debugMode.toString ());
-    }
-
-
     /**
      * Activate the cursor keys track option.
      *

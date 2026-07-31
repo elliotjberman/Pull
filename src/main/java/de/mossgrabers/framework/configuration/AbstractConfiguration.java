@@ -26,7 +26,6 @@ import de.mossgrabers.framework.daw.data.bank.IDeviceBank;
 import de.mossgrabers.framework.daw.data.bank.IDrumPadBank;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
 import de.mossgrabers.framework.daw.midi.ArpeggiatorMode;
-import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.observer.ISettingObserver;
 import de.mossgrabers.framework.scale.Scale;
 import de.mossgrabers.framework.scale.ScaleLayout;
@@ -53,8 +52,6 @@ public abstract class AbstractConfiguration implements Configuration
     public static final Integer      VU_METER_TYPE                   = Integer.valueOf (4);
     /** ID for enabling VU meters setting. */
     public static final Integer      ENABLE_VU_METERS                = Integer.valueOf (5);
-    /** ID for behavior on stop setting. */
-    public static final Integer      BEHAVIOUR_ON_STOP               = Integer.valueOf (6);
     /** ID for selecting the clip on launch setting. */
     public static final Integer      SELECT_CLIP_ON_LAUNCH           = Integer.valueOf (9);
     /** ID for drawing record stripes setting. */
@@ -77,8 +74,6 @@ public abstract class AbstractConfiguration implements Configuration
     public static final Integer      TURN_OFF_EMPTY_DRUM_PADS        = Integer.valueOf (18);
     /** Setting for turning off pads which are in-scale (otherwise white). */
     public static final Integer      TURN_OFF_SCALE_PADS             = Integer.valueOf (19);
-    /** Setting for sounding drum pads with or without Select combination. */
-    public static final Integer      SOUND_DRUM_PADS                 = Integer.valueOf (20);
     /** Setting for action for record armed pad. */
     public static final Integer      ACTION_FOR_REC_ARMED_PAD        = Integer.valueOf (21);
     /** Setting for displaying browser column 1. */
@@ -115,10 +110,6 @@ public abstract class AbstractConfiguration implements Configuration
     public static final Integer      MIDI_EDIT_CHANNEL               = Integer.valueOf (37);
     /** Setting for excluding deactivated tracks. */
     public static final Integer      EXCLUDE_DEACTIVATED_ITEMS       = Integer.valueOf (38);
-    /** Setting for different record button functions. */
-    public static final Integer      RECORD_BUTTON_FUNCTION          = Integer.valueOf (39);
-    /** Setting for different record button functions in combination with shift. */
-    public static final Integer      SHIFTED_RECORD_BUTTON_FUNCTION  = Integer.valueOf (40);
     /** Show tracks hierarchical (instead of flat) if enabled. */
     public static final Integer      HIERARCHICAL_TRACKS             = Integer.valueOf (41);
     /** Setting for the foot-switch functionality. */
@@ -131,18 +122,6 @@ public abstract class AbstractConfiguration implements Configuration
     public static final Integer      FOOTSWITCH_4                    = Integer.valueOf (45);
     /** Preferred view. */
     public static final Integer      STARTUP_VIEW                    = Integer.valueOf (46);
-    /** Preferred mode. */
-    public static final Integer      STARTUP_MODE                    = Integer.valueOf (47);
-    /** Start with session view if active. */
-    public static final Integer      START_WITH_SESSION_VIEW         = Integer.valueOf (48);
-    /** The MPE on/off setting has changed. */
-    public static final Integer      ENABLED_MPE_ZONES               = Integer.valueOf (49);
-    /** The MPE pitch bend sensitivity setting has changed. */
-    public static final Integer      MPE_PITCHBEND_RANGE             = Integer.valueOf (50);
-    /** Should all track states be colored in mix view? */
-    public static final Integer      COLOR_TRACK_STATES              = Integer.valueOf (51);
-    /** The speed of the encoder knob can be slowed down. */
-    public static final Integer      ENCODER_KNOB_SLOW_DOWN          = Integer.valueOf (52);
 
     // Implementation IDs start at 100
     protected static final int       NEXT_SETTING_ID                 = 100;
@@ -198,7 +177,6 @@ public abstract class AbstractConfiguration implements Configuration
 
     protected static final String [] OPTIONS_MIDI_CHANNEL            = new String [16];
     protected static final String [] KNOB_SENSITIVITY                = new String [201];
-    protected static final String [] ENCODER_KNOB_SLOW_VALUES        = new String [101];
     static
     {
         for (int i = 0; i < OPTIONS_MIDI_CHANNEL.length; i++)
@@ -211,9 +189,6 @@ public abstract class AbstractConfiguration implements Configuration
         }
         KNOB_SENSITIVITY[100] = "Normal";
 
-        ENCODER_KNOB_SLOW_VALUES[0] = "Normal";
-        for (int i = 1; i <= 100; i++)
-            ENCODER_KNOB_SLOW_VALUES[i] = Integer.toString (i);
     }
 
     protected static final ColorEx DEFAULT_COLOR_BACKGROUND         = ColorEx.fromRGB (83, 83, 83);
@@ -227,20 +202,6 @@ public abstract class AbstractConfiguration implements Configuration
     protected static final ColorEx DEFAULT_COLOR_MUTE               = ColorEx.fromRGB (245, 129, 17);
     protected static final ColorEx DEFAULT_COLOR_BACKGROUND_DARKER  = ColorEx.fromRGB (39, 39, 39);
     protected static final ColorEx DEFAULT_COLOR_BACKGROUND_LIGHTER = ColorEx.fromRGB (200, 200, 200);
-
-
-    /** The behavior when the stop button is pressed. */
-    public enum TransportBehavior
-    {
-        /** Keep the play cursor at the current position on stop. */
-        STOP,
-        /** Move the cursor back to zero on stop. */
-        RETURN_TO_ZERO,
-        /** Only pause on stop. */
-        PAUSE
-    }
-
-
     /** Aftertouch conversion is set to off. */
     public static final int        AFTERTOUCH_CONVERT_OFF       = -3;
     /** Aftertouch conversion is set to poly aftertouch. */
@@ -269,13 +230,6 @@ public abstract class AbstractConfiguration implements Configuration
         "8 Bars",
         "16 Bars",
         "32 Bars"
-    };
-
-    private static final String []   TRANSPORT_BEHAVIOUR_VALUES =
-    {
-        "Stop",
-        "Return to Zero",
-        "Pause"
     };
 
     private static final String []   ACTIONS_REC_ARMED_PADS     =
@@ -326,45 +280,6 @@ public abstract class AbstractConfiguration implements Configuration
         "Flat",
         "Hierarchical"
     };
-
-
-    /** Different options for the record button. */
-    public enum RecordFunction
-    {
-        /** Record in arranger. */
-        RECORD_ARRANGER,
-        /** Record in arranger and enable arranger automation writing. */
-        RECORD_ARRANGER_AND_ENABLE_AUTOMATION,
-        /** Record in clip. */
-        RECORD_CLIP,
-        /** Record in clip and enable clip automation writing. */
-        RECORD_CLIP_AND_ENABLE_AUTOMATION,
-        /** Create a new clip, enable overdub and start playback. */
-        NEW_CLIP,
-        /** ... and enable clip automation writing. */
-        NEW_CLIP_AND_ENABLE_AUTOMATION,
-        /** Toggle arranger overdub. */
-        TOGGLE_ARRANGER_OVERDUB,
-        /** Toggle clip overdub. */
-        TOGGLE_CLIP_OVERDUB,
-        /** Toggle record arm. */
-        TOGGLE_REC_ARM
-    }
-
-
-    private static final String []                    RECORD_OPTIONS                      =
-    {
-        "Record arranger",
-        "Record arranger + enable automation",
-        "Record clip",
-        "Record clip + enable automation",
-        "New clip",
-        "New clip + enable automation",
-        "Toggle arranger overdub",
-        "Toggle clip overdub",
-        "Toggle rec arm",
-    };
-
     private static final int                          NUMBER_OF_FOOTSWITCHES              = 4;
 
     protected final IHost                             host;
@@ -384,8 +299,6 @@ public abstract class AbstractConfiguration implements Configuration
     private IEnumSetting                              noteRepeatModeSetting;
     private IEnumSetting                              noteRepeatOctaveSetting;
     private IEnumSetting                              midiEditChannelSetting;
-    protected IIntegerSetting                         pitchBendRangeSetting;
-    protected IEnumSetting                            enableMPESetting;
     private IEnumSetting                              showPlayedChordsSetting;
 
     private final List<IEnumSetting>                  instrumentSettings                  = new ArrayList<> (7);
@@ -410,8 +323,6 @@ public abstract class AbstractConfiguration implements Configuration
     private boolean                                   scaleInKey                          = true;
     private String                                    scaleLayout                         = "4th ^";
     private boolean                                   enableVUMeters                      = false;
-    private TransportBehavior                         behaviorOnStop                      = TransportBehavior.STOP;
-    private final TransportBehavior                   behaviorOnPause                     = TransportBehavior.PAUSE;
     protected boolean                                 selectClipOnLaunch                  = true;
     protected boolean                                 drawRecordStripe                    = true;
     protected int                                     convertAftertouch                   = 0;
@@ -429,7 +340,6 @@ public abstract class AbstractConfiguration implements Configuration
     private final int []                              footswitch                          = new int [NUMBER_OF_FOOTSWITCHES];
     private int                                       knobSpeedDefault                    = 0;
     private int                                       knobSpeedSlow                       = -40;
-    private int                                       encoderKnobSlowDown                 = 0;
 
     private boolean                                   noteRepeatActive                    = false;
     private Resolution                                noteRepeatPeriod                    = Resolution.RES_1_8;
@@ -443,21 +353,10 @@ public abstract class AbstractConfiguration implements Configuration
     private boolean                                   excludeDeactivatedItems             = false;
     private boolean                                   isTrackNavigationFlat               = true;
 
-    private boolean                                   isDeleteActive                      = false;
-    private boolean                                   isDuplicateActive                   = false;
-
-    private RecordFunction                            recordButtonFunction                = RecordFunction.RECORD_ARRANGER;
-    private RecordFunction                            shiftedRecordButtonFunction         = RecordFunction.NEW_CLIP;
     private Views                                     startupView                         = Views.PLAY;
-    private Modes                                     startupMode                         = Modes.VOLUME;
     protected Views                                   preferredAudioView                  = Views.PLAY;
-    private boolean                                   startWithSessionView                = false;
-    private boolean                                   useCombinationButtonToSoundDrumPads = false;
 
-    private boolean                                   isMPEEnabled                        = false;
-    private int                                       mpePitchBendRange                   = 48;
     private boolean                                   showPlayedChords                    = true;
-    private boolean                                   colorTrackStates                    = true;
 
 
     /**
@@ -486,16 +385,6 @@ public abstract class AbstractConfiguration implements Configuration
     public void addSettingObserver (final Integer settingID, final ISettingObserver observer)
     {
         this.observers.computeIfAbsent (settingID, id -> new HashSet<> ()).add (observer);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void removeSettingObserver (final Integer settingID, final ISettingObserver observer)
-    {
-        final Set<ISettingObserver> settingObservers = this.observers.get (settingID);
-        if (settingObservers != null)
-            settingObservers.remove (observer);
     }
 
 
@@ -623,15 +512,6 @@ public abstract class AbstractConfiguration implements Configuration
 
     /** {@inheritDoc} */
     @Override
-    public void setQuantizeAmount (final int value)
-    {
-        if (this.quantizeAmountSetting != null)
-            this.quantizeAmountSetting.set (value);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
     public void resetQuantizeAmount ()
     {
         if (this.quantizeAmountSetting != null)
@@ -658,24 +538,6 @@ public abstract class AbstractConfiguration implements Configuration
         if (setting != null)
             setting.set (enabled ? ON_OFF_OPTIONS[1] : ON_OFF_OPTIONS[0]);
     }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public TransportBehavior getBehaviourOnStop ()
-    {
-        return this.behaviorOnStop;
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public TransportBehavior getBehaviourOnPause ()
-    {
-        return this.behaviorOnPause;
-    }
-
-
     /** {@inheritDoc} */
     @Override
     public int getConvertAftertouch ()
@@ -742,17 +604,6 @@ public abstract class AbstractConfiguration implements Configuration
 
     /** {@inheritDoc} */
     @Override
-    public void nextNewClipLength ()
-    {
-        int index = this.newClipLength + 1;
-        if (index >= NEW_CLIP_LENGTH_VALUES.length)
-            index = 0;
-        this.newClipLengthSetting.set (NEW_CLIP_LENGTH_VALUES[index]);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
     public boolean isAutoSelectDrum ()
     {
         return this.autoSelectDrum;
@@ -779,7 +630,7 @@ public abstract class AbstractConfiguration implements Configuration
     @Override
     public boolean isCombinationButtonToSoundDrumPads ()
     {
-        return this.useCombinationButtonToSoundDrumPads;
+        return false;
     }
 
 
@@ -821,16 +672,6 @@ public abstract class AbstractConfiguration implements Configuration
     {
         return this.knobSpeedSlow;
     }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public int getEncoderKnobSlowDown ()
-    {
-        return this.encoderKnobSlowDown;
-    }
-
-
     /** {@inheritDoc} */
     @Override
     public boolean isNoteRepeatActive ()
@@ -1062,25 +903,6 @@ public abstract class AbstractConfiguration implements Configuration
 
         this.isSettingActive.add (VU_METER_TYPE);
     }
-
-
-    /**
-     * Activate the behavior on stop setting.
-     *
-     * @param settingsUI The settings
-     */
-    protected void activateBehaviourOnStopSetting (final ISettingsUI settingsUI)
-    {
-        final IEnumSetting behaviourOnStopSetting = settingsUI.getEnumSetting ("Behaviour on Stop", CATEGORY_TRANSPORT, TRANSPORT_BEHAVIOUR_VALUES, TRANSPORT_BEHAVIOUR_VALUES[0]);
-        behaviourOnStopSetting.addValueObserver (value -> {
-            this.behaviorOnStop = TransportBehavior.values ()[lookupIndex (TRANSPORT_BEHAVIOUR_VALUES, value)];
-            this.notifyObservers (BEHAVIOUR_ON_STOP);
-        });
-
-        this.isSettingActive.add (BEHAVIOUR_ON_STOP);
-    }
-
-
     /**
      * Activate the select clip on launch setting.
      *
@@ -1347,25 +1169,6 @@ public abstract class AbstractConfiguration implements Configuration
 
         this.isSettingActive.add (TURN_OFF_SCALE_PADS);
     }
-
-
-    /**
-     * Activate the setting to sound drum pads with or without pressing Select button.
-     *
-     * @param settingsUI The settings
-     */
-    protected void activateUseCombinationButtonToSoundSetting (final ISettingsUI settingsUI)
-    {
-        final IEnumSetting useCombinationButtonToSoundSetting = settingsUI.getEnumSetting ("Use combination button to sound drum pads", CATEGORY_DRUMS, ON_OFF_OPTIONS, ON_OFF_OPTIONS[0]);
-        useCombinationButtonToSoundSetting.addValueObserver (value -> {
-            this.useCombinationButtonToSoundDrumPads = "On".equals (value);
-            this.notifyObservers (SOUND_DRUM_PADS);
-        });
-
-        this.isSettingActive.add (SOUND_DRUM_PADS);
-    }
-
-
     /**
      * Activate a footswitch setting.
      *
@@ -1438,24 +1241,6 @@ public abstract class AbstractConfiguration implements Configuration
             this.isSettingActive.add (KNOB_SENSITIVITY_SLOW);
         }
     }
-
-
-    /**
-     * Activate the encoder knob slow down setting.
-     *
-     * @param settingsUI The settings
-     */
-    protected void activateEncoderKnobSpeedSetting (final ISettingsUI settingsUI)
-    {
-        final IEnumSetting encoderknobSpeedNormalSetting = settingsUI.getEnumSetting ("Encoder Knob Slow Down", CATEGORY_WORKFLOW, ENCODER_KNOB_SLOW_VALUES, ENCODER_KNOB_SLOW_VALUES[0]);
-        encoderknobSpeedNormalSetting.addValueObserver (value -> {
-            this.encoderKnobSlowDown = lookupIndex (ENCODER_KNOB_SLOW_VALUES, value);
-            this.notifyObservers (ENCODER_KNOB_SLOW_DOWN);
-        });
-        this.isSettingActive.add (ENCODER_KNOB_SLOW_DOWN);
-    }
-
-
     /**
      * Activate the note repeat settings.
      *
@@ -1530,50 +1315,6 @@ public abstract class AbstractConfiguration implements Configuration
             this.isSettingActive.add (NOTEREPEAT_OCTAVE);
         }
     }
-
-
-    /**
-     * Activate the settings for the record button.
-     *
-     * @param settingsUI The settings
-     */
-    protected void activateRecordButtonSetting (final ISettingsUI settingsUI)
-    {
-        final IEnumSetting recordButtonSetting = settingsUI.getEnumSetting ("Record button", CATEGORY_TRANSPORT, RECORD_OPTIONS, RECORD_OPTIONS[1]);
-        recordButtonSetting.addValueObserver (value -> {
-            for (int i = 0; i < RECORD_OPTIONS.length; i++)
-            {
-                if (RECORD_OPTIONS[i].equals (value))
-                    this.recordButtonFunction = RecordFunction.values ()[i];
-            }
-            this.notifyObservers (RECORD_BUTTON_FUNCTION);
-        });
-
-        this.isSettingActive.add (RECORD_BUTTON_FUNCTION);
-    }
-
-
-    /**
-     * Activate the settings for the record button in combination with shift.
-     *
-     * @param settingsUI The settings
-     */
-    protected void activateShiftedRecordButtonSetting (final ISettingsUI settingsUI)
-    {
-        final IEnumSetting shiftedRecordButtonSetting = settingsUI.getEnumSetting ("Shift + Record button", CATEGORY_TRANSPORT, RECORD_OPTIONS, RECORD_OPTIONS[5]);
-        shiftedRecordButtonSetting.addValueObserver (value -> {
-            for (int i = 0; i < RECORD_OPTIONS.length; i++)
-            {
-                if (RECORD_OPTIONS[i].equals (value))
-                    this.shiftedRecordButtonFunction = RecordFunction.values ()[i];
-            }
-            this.notifyObservers (SHIFTED_RECORD_BUTTON_FUNCTION);
-        });
-
-        this.isSettingActive.add (SHIFTED_RECORD_BUTTON_FUNCTION);
-    }
-
-
     /**
      * Activate the add (track) device favorites.
      *
@@ -1640,88 +1381,6 @@ public abstract class AbstractConfiguration implements Configuration
 
         this.isSettingActive.add (STARTUP_VIEW);
     }
-
-
-    /**
-     * Activate the preferred startup mode setting.
-     *
-     * @param settingsUI The settings
-     * @param modes The available modes for selection
-     */
-    protected void activateStartupModeSetting (final ISettingsUI settingsUI, final Modes [] modes)
-    {
-        final String [] labels = new String [modes.length];
-        for (int i = 0; i < modes.length; i++)
-            labels[i] = Modes.getModeName (modes[i]);
-
-        final IEnumSetting startupModeSetting = settingsUI.getEnumSetting ("Startup mode", CATEGORY_WORKFLOW, labels, labels[0]);
-        startupModeSetting.addValueObserver (value -> {
-            this.startupMode = Modes.getModeByName (value);
-            this.notifyObservers (STARTUP_MODE);
-        });
-
-        this.isSettingActive.add (STARTUP_MODE);
-    }
-
-
-    /**
-     * Activate the start with session view setting.
-     *
-     * @param settingsUI The settings
-     */
-    protected void activateStartWithSessionViewSetting (final ISettingsUI settingsUI)
-    {
-        final IEnumSetting startWithSessionViewSetting = settingsUI.getEnumSetting ("Start with session view", CATEGORY_PLAY_AND_SEQUENCE, ON_OFF_OPTIONS, ON_OFF_OPTIONS[0]);
-        startWithSessionViewSetting.addValueObserver (value -> {
-            this.startWithSessionView = "On".equals (value);
-            this.notifyObservers (START_WITH_SESSION_VIEW);
-        });
-
-        this.isSettingActive.add (START_WITH_SESSION_VIEW);
-    }
-
-
-    /**
-     * Activate the MPE settings.
-     *
-     * @param settingsUI The settings
-     * @param category The category to use
-     * @param enableMPE True to enable MPE as default
-     */
-    protected void activateMPESetting (final ISettingsUI settingsUI, final String category, final boolean enableMPE)
-    {
-        this.enableMPESetting = settingsUI.getEnumSetting ("MIDI Polyphonic Expression (MPE)", category, ON_OFF_OPTIONS, ON_OFF_OPTIONS[enableMPE ? 1 : 0]);
-        this.isMPEEnabled = ON_OFF_OPTIONS[1].equals (this.enableMPESetting.get ());
-
-        this.activateMPEBendRange (settingsUI, category);
-
-        this.enableMPESetting.addValueObserver (value -> {
-            this.isMPEEnabled = ON_OFF_OPTIONS[1].equals (value);
-            this.notifyObservers (ENABLED_MPE_ZONES);
-            this.pitchBendRangeSetting.setEnabled (this.isMPEEnabled);
-        });
-    }
-
-
-    /**
-     * Activate (only) the MPE Pitch-bend range setting. Consider to call activateMPESetting
-     * instead.
-     *
-     * @param settingsUI The settings
-     * @param category The category to use
-     */
-    protected void activateMPEBendRange (final ISettingsUI settingsUI, final String category)
-    {
-        this.pitchBendRangeSetting = settingsUI.getRangeSetting ("MPE Pitch Bend Sensitivity", category, 1, 96, 1, "", 48);
-        this.mpePitchBendRange = this.pitchBendRangeSetting.get ().intValue ();
-
-        this.pitchBendRangeSetting.addValueObserver (value -> {
-            this.mpePitchBendRange = value.intValue ();
-            this.notifyObservers (MPE_PITCHBEND_RANGE);
-        });
-    }
-
-
     /**
      * Activate the setting to display played chords.
      *
@@ -1732,25 +1391,6 @@ public abstract class AbstractConfiguration implements Configuration
         this.showPlayedChordsSetting = settingsUI.getEnumSetting ("Notify played chords", CATEGORY_PLAY_AND_SEQUENCE, ON_OFF_OPTIONS, ON_OFF_OPTIONS[0]);
         this.showPlayedChordsSetting.addValueObserver (value -> this.showPlayedChords = ON_OFF_OPTIONS[1].equals (value));
     }
-
-
-    /**
-     * Should all track states be colored in mix view?
-     *
-     * @param settingsUI The settings
-     */
-    protected void activateColorTrackStates (final ISettingsUI settingsUI)
-    {
-        // Color all track states in mixer view
-        final IEnumSetting excludeDeactivatedItemsSetting = settingsUI.getEnumSetting ("Color all track states (mute, solo, rec arm)", CATEGORY_WORKFLOW, ON_OFF_OPTIONS, ON_OFF_OPTIONS[1]);
-        excludeDeactivatedItemsSetting.addValueObserver (value -> {
-            this.colorTrackStates = ON_OFF_OPTIONS[1].equals (value);
-            this.notifyObservers (COLOR_TRACK_STATES);
-        });
-        this.isSettingActive.add (COLOR_TRACK_STATES);
-    }
-
-
     /** {@inheritDoc} */
     @Override
     public void notifyAllObservers ()
@@ -1847,87 +1487,23 @@ public abstract class AbstractConfiguration implements Configuration
     {
         return Math.max (0, this.arpeggiatorModes.indexOf (arpMode));
     }
-
-
-    /**
-     * Get the next arpeggiator mode.
-     *
-     * @return The next
-     */
-    public ArpeggiatorMode nextArpeggiatorMode ()
-    {
-        final ArpeggiatorMode arpMode = this.getNoteRepeatMode ();
-        final int index = this.lookupArpeggiatorModeIndex (arpMode) + 1;
-        return this.arpeggiatorModes.get (index < this.arpeggiatorModes.size () ? index : 0);
-    }
-
-
-    /**
-     * Get the previous arpeggiator mode.
-     *
-     * @return The previous
-     */
-    public ArpeggiatorMode prevArpeggiatorMode ()
-    {
-        final ArpeggiatorMode arpMode = this.getNoteRepeatMode ();
-        final int index = this.lookupArpeggiatorModeIndex (arpMode) - 1;
-        return this.arpeggiatorModes.get (index < 0 ? this.arpeggiatorModes.size () - 1 : index);
-    }
-
-
     /** {@inheritDoc} */
     @Override
     public List<ArpeggiatorMode> getArpeggiatorModes ()
     {
         return this.arpeggiatorModes;
     }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public RecordFunction getRecordButtonFunction ()
-    {
-        return this.recordButtonFunction;
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public RecordFunction getShiftedRecordButtonFunction ()
-    {
-        return this.shiftedRecordButtonFunction;
-    }
-
-
     /** {@inheritDoc} */
     @Override
     public Views getStartupView ()
     {
         return this.startupView;
     }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public Modes getStartupMode ()
-    {
-        return this.startupMode;
-    }
-
-
     /** {@inheritDoc} */
     @Override
     public Views getPreferredAudioView ()
     {
         return this.preferredAudioView;
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public boolean shouldStartWithSessionView ()
-    {
-        return this.startWithSessionView;
     }
 
 
@@ -1951,52 +1527,6 @@ public abstract class AbstractConfiguration implements Configuration
     {
         return this.excludeDeactivatedItems;
     }
-
-
-    /**
-     * Returns true if the delete mode is active.
-     *
-     * @return True if active
-     */
-    public boolean isDeleteModeActive ()
-    {
-        return this.isDeleteActive;
-    }
-
-
-    /**
-     * Toggle the delete mode.
-     */
-    public void toggleDeleteModeActive ()
-    {
-        this.isDeleteActive = !this.isDeleteActive;
-        if (this.isDeleteActive)
-            this.isDuplicateActive = false;
-    }
-
-
-    /**
-     * Returns true if the duplicate mode is active.
-     *
-     * @return True if active
-     */
-    public boolean isDuplicateModeActive ()
-    {
-        return this.isDuplicateActive;
-    }
-
-
-    /**
-     * Toggle the duplicate mode.
-     */
-    public void toggleDuplicateModeActive ()
-    {
-        this.isDuplicateActive = !this.isDuplicateActive;
-        if (this.isDuplicateActive)
-            this.isDeleteActive = false;
-    }
-
-
     /**
      * Returns true if the track navigation should be hierarchical.
      *
@@ -2006,84 +1536,12 @@ public abstract class AbstractConfiguration implements Configuration
     {
         return this.isTrackNavigationFlat;
     }
-
-
-    /**
-     * Get the MPE state.
-     *
-     * @return True if MPE is enabled for the keyboard
-     */
-    public boolean isMPEEnabled ()
-    {
-        return this.isMPEEnabled;
-    }
-
-
     /** {@inheritDoc} */
     @Override
     public boolean isShowPlayedChords ()
     {
         return this.showPlayedChords;
     }
-
-
-    /**
-     * Change the MPE enabled setting.
-     *
-     * @param control The control value
-     */
-    public void changeMPEEnabled (final int control)
-    {
-        if (this.enableMPESetting != null)
-            this.enableMPESetting.set (ON_OFF_OPTIONS[this.valueChanger.isIncrease (control) ? 1 : 0]);
-    }
-
-
-    /**
-     * Set the MPE enabled setting.
-     *
-     * @param enable True to enable
-     */
-    public void setMPEEnabled (final boolean enable)
-    {
-        if (this.enableMPESetting != null)
-            this.enableMPESetting.set (ON_OFF_OPTIONS[enable ? 1 : 0]);
-    }
-
-
-    /**
-     * Get the MPE pitch bend range.
-     *
-     * @return The MPE Pitch bend range (1-96)
-     */
-    public int getMPEPitchBendRange ()
-    {
-        return this.mpePitchBendRange;
-    }
-
-
-    /**
-     * Change the MPE pitch bend range setting.
-     *
-     * @param control The control value
-     */
-    public void changeMPEPitchbendRange (final int control)
-    {
-        this.pitchBendRangeSetting.set (this.valueChanger.changeValue (control, this.mpePitchBendRange, -100, 97));
-    }
-
-
-    /**
-     * Set the MPE pitch bend range setting.
-     *
-     * @param value The value in the range of [1..96]
-     */
-    public void setMPEPitchbendRange (final int value)
-    {
-        this.pitchBendRangeSetting.set (Math.min (96, Math.max (1, value)));
-    }
-
-
     /**
      * Get one of the favorite instrument devices.
      *
@@ -2146,19 +1604,6 @@ public abstract class AbstractConfiguration implements Configuration
         final int lookupIndex = lookupIndex (this.deviceNames, sel);
         return Optional.ofNullable (lookupIndex >= this.deviceMetadata.size () ? null : this.deviceMetadata.get (lookupIndex));
     }
-
-
-    /**
-     * Should all track states be colored?
-     *
-     * @return True if all color track states should be colored
-     */
-    public boolean isColorTrackStates ()
-    {
-        return this.colorTrackStates;
-    }
-
-
     private static String [] getDeviceNames (final List<IDeviceMetadata> deviceMetadata)
     {
         final String [] deviceNames = new String [deviceMetadata.size ()];

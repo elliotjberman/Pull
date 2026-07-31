@@ -176,7 +176,8 @@ public class ModelImpl extends AbstractModel
             final int [] additionalDrumDevicePageSizes = modelSetup.wantsAdditionalDrumDevices ();
             for (final int pageSize: additionalDrumDevicePageSizes)
             {
-                final DrumDeviceImpl addDrumDevice = new DrumDeviceImpl (this.host, this.valueChanger, drumMachineDevice, numSends, 0, 0, -1, pageSize, pageSize);
+                // Additional devices exist only to expose an alternate-sized drum-pad bank.
+                final DrumDeviceImpl addDrumDevice = new DrumDeviceImpl (this.host, this.valueChanger, drumMachineDevice, 0, 0, 0, 1, 0, pageSize);
                 this.additionalDrumDevices.put (Integer.valueOf (pageSize), addDrumDevice);
             }
         }
@@ -337,7 +338,8 @@ public class ModelImpl extends AbstractModel
     @Override
     public void ensureClip ()
     {
-        this.getNoteClip (0, 0);
+        if (this.cursorClips.isEmpty ())
+            this.getNoteClip (0, 0);
     }
 
 

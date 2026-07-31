@@ -148,7 +148,9 @@ import de.mossgrabers.framework.view.sequencer.ClipLengthView;
  */
 public class PushControllerSetup extends AbstractControllerSetup<PushControlSurface, PushConfiguration>
 {
-    private static final String []  MIDI_FILTERS_CLASSIC =
+    private static final int       DEVICE_INQUIRY_ATTEMPTS    = 5;
+    private static final int       DEVICE_INQUIRY_RETRY_DELAY = 250;
+    private static final String [] MIDI_FILTERS_CLASSIC       =
     {
         // Note off - channel 1
         "80????",
@@ -158,9 +160,9 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         "B040??"
     };
 
-    private TouchstripCommand       touchstripCommand;
-    private Push2DevelopmentBridge  developmentBridge;
-    private DrumPadControls         drumPadControls;
+    private TouchstripCommand touchstripCommand;
+    private DrumPadControls   drumPadControls;
+    private boolean           initialHardwareStateReplayed;
 
 
     /**
@@ -190,18 +192,6 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
 
         super.flush ();
     }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void exit ()
-    {
-        if (this.developmentBridge != null)
-            this.developmentBridge.stop ();
-        super.exit ();
-    }
-
-
     /** {@inheritDoc} */
     @Override
     protected void createModel ()
@@ -767,13 +757,47 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         if (viewManager.getActive () == null)
             viewManager.setActive (Views.PLAY);
 
+        this.requestDeviceInformation (surface, DEVICE_INQUIRY_ATTEMPTS);
+        surface.updateColorPalette ();
+        surface.flush ();
+    }
+
+
+    private void requestDeviceInformation (final PushControlSurface surface, final int attemptsRemaining)
+    {
+        if (surface.getMajorVersion () >= 0)
+        {
+            // The inquiry response proves that Push is accepting MIDI. Repeat the historically
+            // delayed pressure-mode command and replay cached hardware state now that it is ready.
+            surface.sendPressureMode (true);
+            this.replayInitialHardwareState (surface);
+            return;
+        }
+
+        if (attemptsRemaining <= 0)
+            return;
+
+        // This command shared the original one-second startup delay with the inquiry. Repeating it
+        // alongside the bounded inquiry attempts avoids losing the one-shot SysEx on a slow Push.
         surface.sendPressureMode (true);
         surface.getMidiOutput ().sendSysex (DeviceInquiry.createQuery ());
+        if (attemptsRemaining == 1)
+            this.replayInitialHardwareState (surface);
 
-        surface.updateColorPalette ();
+        surface.scheduleTask (
+            () -> this.requestDeviceInformation (surface, attemptsRemaining - 1),
+            DEVICE_INQUIRY_RETRY_DELAY);
+    }
 
-        this.developmentBridge = new Push2DevelopmentBridge (this.host, this.model, this.configuration, surface);
-        this.developmentBridge.start ();
+
+    private void replayInitialHardwareState (final PushControlSurface surface)
+    {
+        if (this.initialHardwareStateReplayed)
+            return;
+
+        this.initialHardwareStateReplayed = true;
+        surface.forceFlush ();
+        surface.flush ();
     }
 
 

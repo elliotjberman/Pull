@@ -4,8 +4,6 @@
 
 package de.mossgrabers.framework.usb;
 
-import java.util.Optional;
-
 
 /**
  * Interface to an USB device.
@@ -29,13 +27,4 @@ public interface IUsbDevice
      * Release the USB device.
      */
     void release ();
-
-
-    /**
-     * Gets the USB device as a HID Device.
-     *
-     * @return The HID device
-     * @throws UsbException Could not lookup or open the device
-     */
-    Optional<IHidDevice> getHidDevice () throws UsbException;
 }
