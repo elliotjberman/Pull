@@ -40,7 +40,7 @@ The first reloadable behavior occupies the 3x4 Drum Pads region directly above t
 rate pads. Selected-track clips whose names contain `fill` case-insensitively are assigned in scene
 order, one clip per pad, up to 12; later matches are ignored. The physical pad order is MIDI notes
 `48-51`, then `56-59`, then `64-67` (bottom row to top row, left to right). A verified ready pad is
-dim red, becomes bright red while held, and is off while unassigned or still arming.
+dim orange, becomes fully lit orange while held, and is off while unassigned or still arming.
 
 Each pad launches only its assigned clip. The shell keeps a private one-slot Bitwig actuator for
 each pad and freezes it for the duration of a hold, so session scrolling, selection changes, and

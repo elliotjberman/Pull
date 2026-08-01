@@ -38,8 +38,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PullControllerCoreTest
 {
     private static final RgbColor OFF = new RgbColor (0, 0, 0);
-    private static final RgbColor AVAILABLE = new RgbColor (127, 0, 0);
-    private static final RgbColor HELD = new RgbColor (255, 0, 0);
+    private static final RgbColor AVAILABLE = new RgbColor (128, 65, 0);
+    private static final RgbColor HELD = new RgbColor (255, 80, 0);
     private static final ClipLaunchPolicy FILL_POLICY = new ClipLaunchPolicy (
         ClipLaunchQuantization.IMMEDIATE,
         ClipLaunchMode.LEGATO_FROM_CLIP_OR_PROJECT,

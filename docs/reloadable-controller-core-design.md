@@ -93,7 +93,7 @@ independently.
 - Back each control with a private startup-created one-slot actuator that arms asynchronously and
   freezes while held.
 - Return owner-scoped launch/release effects, release older held fills before each new launch, and
-  publish complete per-pad RGB state: dim red ready, bright red held, off otherwise.
+  publish complete per-pad RGB state: dim orange ready, fully lit orange held, off otherwise.
 - Cover catalog scans, off-window edits, readiness, overlapping holds, reload hydration, exact
   releases, failures, and transaction ordering without Bitwig. The live smoke test remains.
 
