@@ -92,9 +92,9 @@ independently.
   order, and assign the first 12 one per pad.
 - Back each control with a private startup-created one-slot actuator that arms asynchronously and
   freezes while held.
-- Return singular owner-scoped launch/release effects plus complete per-pad RGB state: dim red
-  ready, bright red held, off otherwise.
-- Cover catalog scans, off-window edits, readiness, multiple holds, reload hydration, exact
+- Return owner-scoped launch/release effects, release older held fills before each new launch, and
+  publish complete per-pad RGB state: dim red ready, bright red held, off otherwise.
+- Cover catalog scans, off-window edits, readiness, overlapping holds, reload hydration, exact
   releases, failures, and transaction ordering without Bitwig. The live smoke test remains.
 
 ### Later milestones
@@ -185,12 +185,14 @@ map. A pad
 is actionable only when its exact desired target is already armed; a down during convergence is
 ignored rather than queued for a surprise later launch.
 
-Each pad presses exactly one private actuator. Multiple pads can hold independent owner-scoped
-leases simultaneously. While held, an actuator cannot move even if the selected track, catalog,
-core policy, or active core build changes. Up releases through the exact frozen proxy and only then
-allows the queued desired binding to park. Raw MIDI note-off is observed below the command layer,
-so switching views cannot consume the only release. Failed and apply-then-throw releases remain
-owned and are retried instead of being mistaken for success.
+Each pad presses exactly one private actuator. The shell can safely retain independent owner-scoped
+leases, while the core permits only one active fill: a new ready fill releases every older held
+fill before it launches. A superseded pad's later physical release is therefore idempotent. While
+held, an actuator cannot move even if the selected track, catalog, core policy, or active core build
+changes. Up releases through the exact frozen proxy and only then allows the queued desired binding
+to park. Raw MIDI note-off is observed below the command layer, so switching views cannot consume
+the only release. Failed and apply-then-throw releases remain owned and are retried instead of being
+mistaken for success.
 
 The physical held state, desired/armed protocol, actuators, and leases live in the shell. Starting
 a replacement core hydrates current held and armed state but deliberately synthesizes no press: the
@@ -463,9 +465,10 @@ then a structurally different B, then reject a broken C while B remains active.
 Current shell tests cover manifest integrity, status/generation fencing, private-artifact cleanup,
 classloader isolation, structural A/B replacement, candidate failure, and prepared runtime
 transactions. The drum-fill vertical slice adds complete paged scans, off-window edits, two-sample
-actuator validation, opaque target fencing, 12 simultaneous leases, held-actuator freezing,
-reload hydration, partial acquisition rollback, retained release retries, exact raw-MIDI safety
-release, effect validation, and complete output-buffer tests.
+actuator validation, opaque target fencing, 12 independently lease-capable actuators,
+held-actuator freezing, last-pressed single-fill policy, reload hydration, partial acquisition
+rollback, retained release retries, exact raw-MIDI safety release, effect validation, and complete
+output-buffer tests.
 
 The same DTO/effect seam is the basis for later record/replay and a virtual Push. An offline harness
 can feed snapshots and input events into the core, assert requested Bitwig effects, and render the

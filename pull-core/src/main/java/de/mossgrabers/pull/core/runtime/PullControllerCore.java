@@ -19,6 +19,7 @@ import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.output.DesiredHardwareOutput;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -76,7 +77,7 @@ final class PullControllerCore implements ControllerCore
         if (event instanceof final ButtonInputEvent button && CoreControls.DRUM_FILLS.contains (button.controlId ()))
         {
             if (button.pressed ())
-                effects = isReady (snapshot, desiredBindings, button.controlId ()) ? List.of (pressEffect (snapshot, button.controlId (), desiredBindings.get (button.controlId ()))) : List.of ();
+                effects = pressEffects (snapshot, desiredBindings, continuingPresses, button.controlId ());
             else
                 effects = List.of (new ReleaseClipTargetsEffect (button.controlId ()));
         }
@@ -152,6 +153,22 @@ final class PullControllerCore implements ControllerCore
     private static PressClipTargetEffect pressEffect (final ControllerSnapshot snapshot, final ControlId owner, final ClipTargetId target)
     {
         return new PressClipTargetEffect (owner, snapshot.clipCatalog ().generation (), target);
+    }
+
+
+    private static List<CoreEffect> pressEffects (final ControllerSnapshot snapshot, final Map<ControlId, ClipTargetId> desiredBindings, final Set<ControlId> continuingPresses, final ControlId owner)
+    {
+        if (!isReady (snapshot, desiredBindings, owner))
+            return List.of ();
+
+        final List<CoreEffect> effects = new ArrayList<> (continuingPresses.size () + 1);
+        for (final ControlId heldControl: CoreControls.DRUM_FILLS)
+        {
+            if (!owner.equals (heldControl) && continuingPresses.contains (heldControl))
+                effects.add (new ReleaseClipTargetsEffect (heldControl));
+        }
+        effects.add (pressEffect (snapshot, owner, desiredBindings.get (owner)));
+        return List.copyOf (effects);
     }
 
 

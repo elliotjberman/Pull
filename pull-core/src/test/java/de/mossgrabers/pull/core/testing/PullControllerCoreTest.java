@@ -9,6 +9,7 @@ import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
+import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
 import de.mossgrabers.pull.core.api.output.RgbColor;
@@ -85,6 +86,62 @@ class PullControllerCoreTest
         assertTrue (host.effects ().clipLease (CoreControls.DRUM_FILL_2).isEmpty ());
         assertInstanceOf (ReleaseClipTargetsEffect.class, host.effects ().executionOrder ().getLast ());
         assertEquals (AVAILABLE, light (host, CoreControls.DRUM_FILL_2));
+    }
+
+
+    @Test
+    void lastReadyFillPressReleasesThePreviousFillBeforeLaunching ()
+    {
+        final ClipTargetId first = new ClipTargetId (1);
+        final ClipTargetId second = new ClipTargetId (2);
+        final FakeCoreHost host = host (new ClipCatalogSnapshot (42, List.of (
+            new CatalogClip (first, "fill one"),
+            new CatalogClip (second, "fill two"))));
+        host.start (Optional.empty ());
+        host.armedClipTargets (host.effects ().desiredClipBindings ());
+
+        host.button (CoreControls.DRUM_FILL_1, true);
+        host.button (CoreControls.DRUM_FILL_2, true);
+
+        final List<CoreEffect> effects = host.effects ().executionOrder ();
+        assertEquals (3, effects.size ());
+        assertEquals (new ReleaseClipTargetsEffect (CoreControls.DRUM_FILL_1), effects.get (1));
+        assertEquals (new PressClipTargetEffect (CoreControls.DRUM_FILL_2, 42, second), effects.get (2));
+        assertTrue (host.effects ().clipLease (CoreControls.DRUM_FILL_1).isEmpty ());
+        assertEquals (second, host.effects ().clipLease (CoreControls.DRUM_FILL_2).orElseThrow ().target ());
+
+        host.button (CoreControls.DRUM_FILL_1, false);
+        assertEquals (second, host.effects ().clipLease (CoreControls.DRUM_FILL_2).orElseThrow ().target ());
+
+        host.button (CoreControls.DRUM_FILL_2, false);
+        assertTrue (host.effects ().clipLease (CoreControls.DRUM_FILL_2).isEmpty ());
+    }
+
+
+    @Test
+    void aNewPressAfterReloadReleasesEveryOlderHeldOwner ()
+    {
+        final ClipTargetId first = new ClipTargetId (1);
+        final ClipTargetId second = new ClipTargetId (2);
+        final ClipTargetId third = new ClipTargetId (3);
+        final ClipCatalogSnapshot catalog = new ClipCatalogSnapshot (43, List.of (
+            new CatalogClip (first, "fill one"),
+            new CatalogClip (second, "fill two"),
+            new CatalogClip (third, "fill three")));
+        final Map<ControlId, ClipTargetId> armed = Map.of (
+            CoreControls.DRUM_FILL_1, first,
+            CoreControls.DRUM_FILL_2, second,
+            CoreControls.DRUM_FILL_3, third);
+        final PullCoreProvider provider = new PullCoreProvider ();
+        final FakeCoreHost host = new FakeCoreHost (provider.create (), provider.descriptor ().requiredCapabilities (), catalog, armed, Set.of (CoreControls.DRUM_FILL_1, CoreControls.DRUM_FILL_2));
+        host.start (Optional.empty ());
+
+        host.button (CoreControls.DRUM_FILL_3, true);
+
+        assertEquals (List.of (
+            new ReleaseClipTargetsEffect (CoreControls.DRUM_FILL_1),
+            new ReleaseClipTargetsEffect (CoreControls.DRUM_FILL_2),
+            new PressClipTargetEffect (CoreControls.DRUM_FILL_3, 43, third)), host.effects ().executionOrder ());
     }
 
 

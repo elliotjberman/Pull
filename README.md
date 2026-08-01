@@ -44,8 +44,10 @@ dim red, becomes bright red while held, and is off while unassigned or still arm
 
 Each pad launches only its assigned clip. The shell keeps a private one-slot Bitwig actuator for
 each pad and freezes it for the duration of a hold, so session scrolling, selection changes, and
-new core builds cannot retarget the matching release. Multiple fill pads may be held at once.
-This slice passes offline fake-host verification; its first Bitwig/Push smoke test still remains.
+new core builds cannot retarget the matching release. Only one fill is active at a time: pressing
+a second ready fill releases the previous fill before launching the new one, and the superseded
+pad's eventual physical release is harmless. This slice passes offline fake-host verification;
+its first Bitwig/Push smoke test still remains.
 
 ## Reloading a core during development
 
