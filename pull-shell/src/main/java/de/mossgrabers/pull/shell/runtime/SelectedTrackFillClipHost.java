@@ -755,7 +755,6 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
         {
             this.scanner = host.createCursorTrack ("PULL_FILL_SCANNER", "Pull Fill Scanner", 0, SCANNER_PAGE_SIZE, false);
             this.scannerSlots = this.scanner.clipLauncherSlotBank ();
-            this.scannerSlots.setIndication (false);
             this.scannerSlotItems = markInterested (this.scanner, this.scannerSlots, SCANNER_PAGE_SIZE);
 
             final List<CursorTrack> tracks = new ArrayList<> (ACTUATOR_COUNT);
@@ -766,7 +765,6 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
                 final int displayNumber = index + 1;
                 final CursorTrack actuator = host.createCursorTrack ("PULL_FILL_ACTUATOR_" + displayNumber, "Pull Fill Actuator " + displayNumber, 0, 1, false);
                 final ClipLauncherSlotBank bank = actuator.clipLauncherSlotBank ();
-                bank.setIndication (false);
                 tracks.add (actuator);
                 banks.add (bank);
                 slots.add (markInterested (actuator, bank, 1).get (0));
