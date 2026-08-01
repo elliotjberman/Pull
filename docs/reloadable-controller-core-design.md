@@ -104,15 +104,16 @@ independently.
 
 ### Core API 6: generic selected-track parameter bridge
 
-- Eagerly create one selected-track cursor and one eight-slot tagged remote-controls page in the
-  stable shell.
+- Eagerly create one selected-track cursor and one filtered eight-slot remote-controls cursor in
+  the stable shell; it observes tagged project pages rather than creating them.
 - Publish a generation-fenced parameter catalog with authoritative normalized values.
 - Normalize absolute hardware input as `AbsoluteInputEvent` and execute exact
   `SetParameterValueEffect` requests only against the matching catalog generation and slot identity.
 - Let the core publish generic input ownership and normalized absolute hardware output, so the
   stable router never hard-codes the feature-specific remote name.
-- Use the bridge first for the Drum Pitch ribbon while preserving the legacy raw pitch-bend path
-  whenever the required remote is absent.
+- Reserve the Drum Pitch ribbon in drum performance mode and fail closed when the exact global
+  target is unavailable; raw pitch bend would affect only live-input voices and misrepresent the
+  product behavior.
 
 ### Later milestones
 
@@ -265,10 +266,11 @@ is not a safe substitute after exit.
 
 Core API 6 adds a reusable, host-independent parameter seam. During extension initialization the
 shell eagerly creates one selected-track cursor and one `CursorRemoteControlsPage` with eight
-bounded slots. The Bitwig page must be uniquely named exactly `Pull` and tagged `pull`; the shell
-uses `Pull` as the page name, `pull` as the filter expression, follows the selected track, and
-selects that unique page. Missing, duplicate, pinned, partially populated, or structurally changing
-pages are unavailable until two consecutive complete samples agree.
+bounded slots. The first constructor string names the API cursor; it does not create or rename
+project content. The Bitwig project must already contain a page uniquely named exactly `Pull` and
+tagged `pull`; the shell filters existing pages by that tag, follows the selected track, and selects
+that unique page. Missing, duplicate, pinned, partially populated, or structurally changing pages
+are unavailable until two consecutive complete samples agree.
 
 The snapshot publishes an ordered `ParameterCatalogSnapshot` containing opaque slot
 `ParameterTargetId`s, page and parameter names, and normalized values read from Bitwig. Any change
@@ -288,12 +290,12 @@ The first consumer is the drum-view Push ribbon. The selected track must expose 
 and tagged `Pull` remote page above, with one of its eight slots named exactly `Drum Pitch`. In the
 Bitwig session, map that remote to a centered track Macro, then map the Macro to the pitch control of
 the nested sampler(s) that should transpose; the Macro's center is the no-transposition position.
-When this target is coherent, ribbon pitch-bend input becomes an `AbsoluteInputEvent`, the core
-claims the ribbon, returns a generation-fenced `SetParameterValueEffect`, and publishes the ribbon
-display value from the later authoritative remote read-back. The shell gates routing on that
-generic claim; it contains no `Drum Pitch` string. If the page or `Drum Pitch` remote is absent or
-ambiguous, the core withdraws the claim and the existing raw MIDI pitch-bend behavior remains the
-fallback.
+Ribbon pitch-bend input becomes an `AbsoluteInputEvent`, and the core reserves the ribbon throughout
+drum performance mode. When this target is coherent, the core returns a generation-fenced
+`SetParameterValueEffect` and publishes the ribbon display value from the later authoritative
+remote read-back. The shell gates routing on that generic claim; it contains no `Drum Pitch`
+string. If the page or remote is absent or ambiguous, the core emits no parameter write and keeps
+the ribbon centered rather than restoring raw MIDI pitch bend.
 
 Installing the API 6 shell, fill playback subscriptions, and eight-slot selected-track parameter
 page requires one extension copy and Bitwig restart. After that, marker strings, filtering,
@@ -604,7 +606,7 @@ retries, stale pre-launch false protection, catalog fences, raw-MIDI safety rele
 snapshot-driven feedback, reload hydration, failure cleanup, effect validation, and complete
 output-buffer tests. Parameter tests separately cover exact `Pull` page discovery, eight-slot
 coherence, generation and identity fences, command-versus-read-back separation, Drum Pitch routing,
-and legacy fallback when the remote is absent.
+and fail-closed ownership when the remote is absent.
 
 The same DTO/effect seam is the basis for later record/replay and a virtual Push. An offline harness
 can feed snapshots and input events into the core, assert requested Bitwig effects, and render the

@@ -233,18 +233,22 @@ final class PullControllerCore implements ControllerCore
 
         final Optional<CatalogParameter> drumPitch = drumPitchParameter (snapshot);
         final Map<ControlId, Double> absoluteValues;
-        final Set<ControlId> claimedInputs;
         if (drumPitch.isPresent ())
         {
             absoluteValues = Map.of (CoreControls.DRUM_PITCH_RIBBON, Double.valueOf (drumPitch.get ().normalizedValue ()));
-            claimedInputs = Set.of (CoreControls.DRUM_PITCH_RIBBON);
         }
         else
         {
             absoluteValues = Map.of ();
-            claimedInputs = Set.of ();
         }
-        return new CoreResult (new DesiredHardwareOutput (lights, absoluteValues), desiredBindings, claimedInputs, effects);
+        // Drum performance reserves the ribbon even while the session target is unavailable. A
+        // missing mapping must fail closed instead of silently reverting to live-input pitch bend,
+        // which cannot affect notes already playing from clips.
+        return new CoreResult (
+            new DesiredHardwareOutput (lights, absoluteValues),
+            desiredBindings,
+            Set.of (CoreControls.DRUM_PITCH_RIBBON),
+            effects);
     }
 
 

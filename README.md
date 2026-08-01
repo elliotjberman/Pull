@@ -63,12 +63,14 @@ override to `Return`. A fill clip's loop enablement and length remain session co
 The slice passes offline fake-host verification. The exact immediate-legato/ALT-Return path still
 requires a live Bitwig smoke test after installing the API 6 shell.
 
-The same shell exposes a generic eight-slot selected-track remote bridge. For global drum pitch,
-create a track Remote Controls page uniquely named `Pull` and tagged `pull`, add a remote named
-`Drum Pitch`, and map it through a centered track Macro to the pitch controls of the nested
-samplers. The core claims the Push ribbon only while that exact target is coherent, writes it as a
-generation-fenced normalized parameter, and renders ribbon feedback from later Bitwig read-back.
-If it is absent or ambiguous, the legacy raw pitch-bend route remains active.
+The same shell exposes a generic eight-slot selected-track remote bridge. It observes existing
+track Remote Controls pages tagged `pull`; it does not create or map those pages. For global drum
+pitch, create a track Remote Controls page uniquely named `Pull` and tagged `pull`, add a remote
+named `Drum Pitch`, and map it through a centered track Macro to the pitch controls of the nested
+samplers. The core reserves the Push ribbon in drum performance mode, writes a coherent target as
+a generation-fenced normalized parameter, and renders ribbon feedback from later Bitwig read-back.
+If the target is absent or ambiguous, the ribbon fails closed instead of silently reverting to
+live-input pitch bend, which cannot affect clip-triggered voices.
 
 ## Reloading a core during development
 
