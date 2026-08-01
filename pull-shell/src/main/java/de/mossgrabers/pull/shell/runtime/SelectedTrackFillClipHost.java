@@ -17,6 +17,8 @@ import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.CoreControls;
+import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
+import de.mossgrabers.pull.core.api.effect.ClipReleaseTrigger;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -449,20 +451,26 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
         }
 
 
-        private void press (final ActuatorLaunchTarget target)
+        private void press (final ActuatorLaunchTarget target, final ClipLaunchPolicy launchPolicy)
         {
+            Objects.requireNonNull (launchPolicy, "launchPolicy");
             if (target.released)
                 throw new IllegalStateException ("Released clip target cannot be pressed");
             if (target.pressAttempted)
+            {
+                if (!launchPolicy.equals (target.launchPolicy))
+                    throw new IllegalStateException ("Pressed clip target cannot change launch policy");
                 return;
+            }
             if (this.lockOwner != null && this.lockOwner != target)
                 throw new IllegalStateException ("Clip actuator is already leased");
             if (!this.ready || !target.coordinate.equals (this.parked))
                 throw new IllegalStateException ("Prepared clip actuator is no longer armed");
 
             target.pressAttempted = true;
+            target.launchPolicy = launchPolicy;
             this.lockOwner = target;
-            SelectedTrackFillClipHost.this.adapter.pressActuator (this.index);
+            SelectedTrackFillClipHost.this.adapter.pressActuator (this.index, launchPolicy);
         }
 
 
@@ -473,7 +481,7 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
             if (this.lockOwner != target)
                 throw new IllegalStateException ("Clip actuator lease ownership changed before release");
 
-            SelectedTrackFillClipHost.this.adapter.releaseActuator (this.index);
+            SelectedTrackFillClipHost.this.adapter.releaseActuator (this.index, target.launchPolicy.releaseTrigger ());
             target.released = true;
             this.lockOwner = null;
 
@@ -497,6 +505,7 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
 
         private boolean pressAttempted;
         private boolean released;
+        private ClipLaunchPolicy launchPolicy;
 
 
         private ActuatorLaunchTarget (final ActuatorState actuator, final ClipTargetId targetId, final TargetCoordinate coordinate)
@@ -517,9 +526,9 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
 
         /** {@inheritDoc} */
         @Override
-        public void press ()
+        public void press (final ClipLaunchPolicy launchPolicy)
         {
-            this.actuator.press (this);
+            this.actuator.press (this, launchPolicy);
         }
 
 
@@ -574,10 +583,10 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
         ActuatorSample actuatorSample (int actuatorIndex);
 
 
-        void pressActuator (int actuatorIndex);
+        void pressActuator (int actuatorIndex, ClipLaunchPolicy launchPolicy);
 
 
-        void releaseActuator (int actuatorIndex);
+        void releaseActuator (int actuatorIndex, ClipReleaseTrigger releaseTrigger);
     }
 
 
@@ -853,17 +862,23 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
 
         /** {@inheritDoc} */
         @Override
-        public void pressActuator (final int actuatorIndex)
+        public void pressActuator (final int actuatorIndex, final ClipLaunchPolicy launchPolicy)
         {
-            this.actuatorSlots.get (actuatorIndex).launch ();
+            this.actuatorSlots.get (actuatorIndex).launchWithOptions (
+                BitwigClipLaunchMapper.quantization (launchPolicy.quantization ()),
+                BitwigClipLaunchMapper.mode (launchPolicy.mode ()));
         }
 
 
         /** {@inheritDoc} */
         @Override
-        public void releaseActuator (final int actuatorIndex)
+        public void releaseActuator (final int actuatorIndex, final ClipReleaseTrigger releaseTrigger)
         {
-            this.actuatorSlots.get (actuatorIndex).launchRelease ();
+            switch (Objects.requireNonNull (releaseTrigger, "releaseTrigger"))
+            {
+                case MAIN -> this.actuatorSlots.get (actuatorIndex).launchRelease ();
+                case ALTERNATE -> this.actuatorSlots.get (actuatorIndex).launchReleaseAlt ();
+            }
         }
 
 

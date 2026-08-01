@@ -11,6 +11,10 @@ import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.StateEnvelope;
+import de.mossgrabers.pull.core.api.effect.ClipLaunchMode;
+import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
+import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
+import de.mossgrabers.pull.core.api.effect.ClipReleaseTrigger;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
@@ -38,6 +42,10 @@ final class PullControllerCore implements ControllerCore
     private static final RgbColor FILL_OFF = new RgbColor (0, 0, 0);
     private static final RgbColor FILL_AVAILABLE = new RgbColor (127, 0, 0);
     private static final RgbColor FILL_HELD = new RgbColor (255, 0, 0);
+    private static final ClipLaunchPolicy FILL_LAUNCH_POLICY = new ClipLaunchPolicy (
+        ClipLaunchQuantization.IMMEDIATE,
+        ClipLaunchMode.LEGATO_FROM_CLIP_OR_PROJECT,
+        ClipReleaseTrigger.ALTERNATE);
 
     private Lifecycle lifecycle = Lifecycle.NEW;
     private Set<ControlId> previousPressedControls = Set.of ();
@@ -152,7 +160,7 @@ final class PullControllerCore implements ControllerCore
 
     private static PressClipTargetEffect pressEffect (final ControllerSnapshot snapshot, final ControlId owner, final ClipTargetId target)
     {
-        return new PressClipTargetEffect (owner, snapshot.clipCatalog ().generation (), target);
+        return new PressClipTargetEffect (owner, snapshot.clipCatalog ().generation (), target, FILL_LAUNCH_POLICY);
     }
 
 

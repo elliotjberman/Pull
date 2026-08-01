@@ -11,6 +11,10 @@ import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.CoreResult;
+import de.mossgrabers.pull.core.api.effect.ClipLaunchMode;
+import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
+import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
+import de.mossgrabers.pull.core.api.effect.ClipReleaseTrigger;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
@@ -35,6 +39,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class ReloadableControllerRuntimeTest
 {
+    private static final ClipLaunchPolicy LAUNCH_POLICY = new ClipLaunchPolicy (
+        ClipLaunchQuantization.IMMEDIATE,
+        ClipLaunchMode.LEGATO_FROM_CLIP_OR_PROJECT,
+        ClipReleaseTrigger.ALTERNATE);
     private static final int [] EXPECTED_FILL_NOTES =
     {
         48,
@@ -86,7 +94,7 @@ class ReloadableControllerRuntimeTest
                 final CoreResult press = new CoreResult (
                     DesiredHardwareOutput.empty (),
                     clipHost.allBindings (),
-                    List.of (new PressClipTargetEffect (button.controlId (), clipHost.catalogGeneration (), targetId)));
+                    List.of (new PressClipTargetEffect (button.controlId (), clipHost.catalogGeneration (), targetId, LAUNCH_POLICY)));
                 final long generation = ++coreGeneration[0];
                 environment.commit (generation, environment.prepare (press));
                 environment.apply (generation);
@@ -299,8 +307,9 @@ class ReloadableControllerRuntimeTest
 
 
         @Override
-        public void press ()
+        public void press (final ClipLaunchPolicy launchPolicy)
         {
+            assertEquals (LAUNCH_POLICY, launchPolicy);
             this.pressCount++;
         }
 

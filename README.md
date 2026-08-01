@@ -46,8 +46,17 @@ Each pad launches only its assigned clip. The shell keeps a private one-slot Bit
 each pad and freezes it for the duration of a hold, so session scrolling, selection changes, and
 new core builds cannot retarget the matching release. Only one fill is active at a time: pressing
 a second ready fill releases the previous fill before launching the new one, and the superseded
-pad's eventual physical release is harmless. This slice passes offline fake-host verification;
-its first Bitwig/Push smoke test still remains.
+pad's eventual physical release is harmless.
+
+Fill entry is controller-defined: it launches immediately and uses Bitwig's Legato from Clip (or
+Project) mode, so neither the source clip nor the fill clip needs a special launch quantization or
+play mode. Release invokes the fill clip's ALT release action immediately. That effective ALT
+release action must be `Return`: normally leave the fill clip on `Use Project Setting` and retain
+Bitwig's default Project Settings → Clip Launcher → ALT Release setting, or set a local fill-clip
+override to `Return`. A fill clip's loop enablement and length remain session content.
+
+The slice passes offline fake-host verification. The exact immediate-legato/ALT-Return path still
+requires a live Bitwig smoke test after installing the API-4 shell.
 
 ## Reloading a core during development
 
@@ -67,7 +76,7 @@ succeeded. Each candidate carries an exact fingerprint of the local parent-loade
 sources. If that differs from the running extension, Bitwig reports `restartRequired` instead of
 attempting an unsafe core reload—even when the shell change was already committed.
 
-Installing milestone 4 itself requires one extension copy and Bitwig restart because it widens the
-stable API/shell bridge. After that, edits confined to `pull-core`—including fill matching, colors,
-ordering, truncation, and behavior using the existing selected-track catalog and launch
-effects—use `tools/reload-core` without restarting Bitwig.
+Installing the API-4 milestone requires one extension copy and Bitwig restart because it widens
+the stable API/shell bridge. After that, edits confined to `pull-core`—including fill matching,
+colors, ordering, truncation, single-fill behavior, launch quantization, launch mode, and the
+Main-vs-ALT release lane—use `tools/reload-core` without restarting Bitwig.

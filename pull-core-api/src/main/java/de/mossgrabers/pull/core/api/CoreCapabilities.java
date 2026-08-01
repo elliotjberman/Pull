@@ -17,7 +17,7 @@ public final class CoreCapabilities
     /** Persistent logical-control to clip-target binding requests. */
     public static final String BINDING_CLIP_TARGET = "binding.clip-target";
 
-    /** Owner-scoped momentary clip launch and release effects. */
+    /** Owner-scoped momentary clip launch and release effects with a frozen launch policy. */
     public static final String EFFECT_CLIP_LAUNCH_HOLD = "effect.clip-launch-hold";
 
     /** Hardware-independent RGB light output. */

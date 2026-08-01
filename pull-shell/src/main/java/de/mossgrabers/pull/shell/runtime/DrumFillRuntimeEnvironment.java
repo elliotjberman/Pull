@@ -11,6 +11,7 @@ import de.mossgrabers.pull.core.api.CoreCapabilities;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
+import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
@@ -40,7 +41,7 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
         CoreCapabilities.INPUT_DRUM_FILL, Integer.valueOf (1),
         CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS, Integer.valueOf (1),
         CoreCapabilities.BINDING_CLIP_TARGET, Integer.valueOf (1),
-        CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD, Integer.valueOf (1),
+        CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD, Integer.valueOf (2),
         CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (1)));
 
     private final DrumFillClipHost clipHost;
@@ -385,7 +386,9 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
         {
             if (!targetId.equals (existingLease.targetId ()))
                 throw new IllegalStateException ("A held fill control cannot be redirected");
-            return new PreparedPress (owner, effect.catalogGeneration (), targetId, existingLease.target (), existingLease);
+            if (!effect.launchPolicy ().equals (existingLease.launchPolicy ()))
+                throw new IllegalStateException ("A held fill control cannot change launch policy");
+            return new PreparedPress (owner, effect.catalogGeneration (), targetId, effect.launchPolicy (), existingLease.target (), existingLease);
         }
 
         if (!targetId.equals (this.armedClipTargets.get (owner)))
@@ -394,7 +397,7 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
         final DrumFillClipHost.LaunchTarget target = Objects.requireNonNull (this.clipHost.prepare (owner, effect.catalogGeneration (), targetId), "prepared launch target");
         if (!targetId.equals (target.targetId ()))
             throw new IllegalStateException ("Clip host resolved a different target");
-        return new PreparedPress (owner, effect.catalogGeneration (), targetId, target, null);
+        return new PreparedPress (owner, effect.catalogGeneration (), targetId, effect.launchPolicy (), target, null);
     }
 
 
@@ -440,12 +443,17 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
             this.warn ("Fill press was discarded because an earlier release still requires cleanup");
             return false;
         }
+        if (!this.pendingReleases.isEmpty ())
+        {
+            this.warn ("Fill press was discarded because another fill release still requires cleanup; release and press again");
+            return false;
+        }
 
         try
         {
             // A host call may apply externally and then throw. The prepared target is retained
             // first so compensation always includes that indeterminate call.
-            press.target ().press ();
+            press.target ().press (press.launchPolicy ());
         }
         catch (final Throwable failure)
         {
@@ -454,7 +462,7 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
             this.releaseOwnedTarget (press.owner (), press.target (), "Partial fill acquisition rollback");
             return false;
         }
-        this.activeLeases.put (press.owner (), new LaunchLease (press.catalogGeneration (), press.targetId (), press.target ()));
+        this.activeLeases.put (press.owner (), new LaunchLease (press.catalogGeneration (), press.targetId (), press.launchPolicy (), press.target ()));
         return true;
     }
 
@@ -607,7 +615,7 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
-    private record PreparedPress (ControlId owner, long catalogGeneration, ClipTargetId targetId, DrumFillClipHost.LaunchTarget target, LaunchLease existingLease) implements PreparedAction
+    private record PreparedPress (ControlId owner, long catalogGeneration, ClipTargetId targetId, ClipLaunchPolicy launchPolicy, DrumFillClipHost.LaunchTarget target, LaunchLease existingLease) implements PreparedAction
     {
     }
 
@@ -617,7 +625,7 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
-    private record LaunchLease (long catalogGeneration, ClipTargetId targetId, DrumFillClipHost.LaunchTarget target)
+    private record LaunchLease (long catalogGeneration, ClipTargetId targetId, ClipLaunchPolicy launchPolicy, DrumFillClipHost.LaunchTarget target)
     {
     }
 }

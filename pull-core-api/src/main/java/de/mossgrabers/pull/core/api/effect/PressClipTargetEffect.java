@@ -14,8 +14,9 @@ import java.util.Objects;
  * @param owner Logical control which owns the lease
  * @param catalogGeneration Required selected-track catalog generation
  * @param target Target to press
+ * @param launchPolicy Launch and release policy frozen into the lease
  */
-public record PressClipTargetEffect (ControlId owner, long catalogGeneration, ClipTargetId target) implements CoreEffect
+public record PressClipTargetEffect (ControlId owner, long catalogGeneration, ClipTargetId target, ClipLaunchPolicy launchPolicy) implements CoreEffect
 {
     /**
      * Validate the effect.
@@ -26,5 +27,6 @@ public record PressClipTargetEffect (ControlId owner, long catalogGeneration, Cl
         if (catalogGeneration < 0)
             throw new IllegalArgumentException ("catalogGeneration must not be negative");
         target = Objects.requireNonNull (target, "target");
+        launchPolicy = Objects.requireNonNull (launchPolicy, "launchPolicy");
     }
 }

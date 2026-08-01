@@ -15,6 +15,10 @@ import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.StateEnvelope;
 import de.mossgrabers.pull.core.api.TimerId;
+import de.mossgrabers.pull.core.api.effect.ClipLaunchMode;
+import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
+import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
+import de.mossgrabers.pull.core.api.effect.ClipReleaseTrigger;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
@@ -42,6 +46,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class CoreApiValueTest
 {
+    private static final ClipLaunchPolicy LAUNCH_POLICY = new ClipLaunchPolicy (
+        ClipLaunchQuantization.IMMEDIATE,
+        ClipLaunchMode.LEGATO_FROM_CLIP_OR_PROJECT,
+        ClipReleaseTrigger.ALTERNATE);
+
     @Test
     void stateEnvelopeCopiesBytesAndUsesContentEquality ()
     {
@@ -83,7 +92,7 @@ class CoreApiValueTest
         final DesiredHardwareOutput output = new DesiredHardwareOutput (lights);
         lights.clear ();
 
-        final PressClipTargetEffect press = new PressClipTargetEffect (control, catalog.generation (), clip.targetId ());
+        final PressClipTargetEffect press = new PressClipTargetEffect (control, catalog.generation (), clip.targetId (), LAUNCH_POLICY);
         final List<CoreEffect> effects = new ArrayList<> (List.of (press));
         final Map<ControlId, ClipTargetId> desiredBindings = new HashMap<> (Map.of (control, clip.targetId ()));
         final CoreResult result = new CoreResult (output, desiredBindings, effects);
@@ -94,6 +103,7 @@ class CoreApiValueTest
         assertEquals (List.of (clip), snapshot.clipCatalog ().clips ());
         assertEquals (clip.targetId (), snapshot.armedClipTargets ().get (control));
         assertEquals (clip.targetId (), press.target ());
+        assertEquals (LAUNCH_POLICY, press.launchPolicy ());
         assertEquals (new RgbColor (1, 2, 3), result.desiredOutput ().lights ().get (control));
         assertEquals (clip.targetId (), result.desiredClipBindings ().get (control));
         assertEquals (1, result.effects ().size ());
@@ -120,7 +130,7 @@ class CoreApiValueTest
     @Test
     void publishesStableVersionCapabilityAndControlIdentifiers ()
     {
-        assertEquals (3, CoreApi.VERSION);
+        assertEquals (4, CoreApi.VERSION);
         assertEquals ("input.drum-fill", CoreCapabilities.INPUT_DRUM_FILL);
         assertEquals ("snapshot.selected-track-clips", CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS);
         assertEquals ("binding.clip-target", CoreCapabilities.BINDING_CLIP_TARGET);
@@ -143,9 +153,13 @@ class CoreApiValueTest
 
         assertEquals (owner, new ReleaseClipTargetsEffect (owner).owner ());
         assertThrows (NullPointerException.class, () -> new ReleaseClipTargetsEffect (null));
-        assertThrows (NullPointerException.class, () -> new PressClipTargetEffect (null, 0, target));
-        assertThrows (IllegalArgumentException.class, () -> new PressClipTargetEffect (owner, -1, target));
-        assertThrows (NullPointerException.class, () -> new PressClipTargetEffect (owner, 0, null));
+        assertThrows (NullPointerException.class, () -> new PressClipTargetEffect (null, 0, target, LAUNCH_POLICY));
+        assertThrows (IllegalArgumentException.class, () -> new PressClipTargetEffect (owner, -1, target, LAUNCH_POLICY));
+        assertThrows (NullPointerException.class, () -> new PressClipTargetEffect (owner, 0, null, LAUNCH_POLICY));
+        assertThrows (NullPointerException.class, () -> new PressClipTargetEffect (owner, 0, target, null));
+        assertThrows (NullPointerException.class, () -> new ClipLaunchPolicy (null, ClipLaunchMode.DEFAULT, ClipReleaseTrigger.MAIN));
+        assertThrows (NullPointerException.class, () -> new ClipLaunchPolicy (ClipLaunchQuantization.DEFAULT, null, ClipReleaseTrigger.MAIN));
+        assertThrows (NullPointerException.class, () -> new ClipLaunchPolicy (ClipLaunchQuantization.DEFAULT, ClipLaunchMode.DEFAULT, null));
     }
 
 

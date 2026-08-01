@@ -12,6 +12,10 @@ import de.mossgrabers.pull.core.api.CoreCapabilities;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.TimerId;
+import de.mossgrabers.pull.core.api.effect.ClipLaunchMode;
+import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
+import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
+import de.mossgrabers.pull.core.api.effect.ClipReleaseTrigger;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
@@ -48,6 +52,14 @@ class DrumFillRuntimeEnvironmentTest
     private static final ControlId SECOND = CoreControls.DRUM_FILL_2;
     private static final ClipTargetId FIRST_TARGET = new ClipTargetId (1);
     private static final ClipTargetId SECOND_TARGET = new ClipTargetId (2);
+    private static final ClipLaunchPolicy LAUNCH_POLICY = new ClipLaunchPolicy (
+        ClipLaunchQuantization.IMMEDIATE,
+        ClipLaunchMode.LEGATO_FROM_CLIP_OR_PROJECT,
+        ClipReleaseTrigger.ALTERNATE);
+    private static final ClipLaunchPolicy DIFFERENT_LAUNCH_POLICY = new ClipLaunchPolicy (
+        ClipLaunchQuantization.DEFAULT,
+        ClipLaunchMode.DEFAULT,
+        ClipReleaseTrigger.MAIN);
 
 
     @Test
@@ -69,6 +81,7 @@ class DrumFillRuntimeEnvironmentTest
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.INPUT_DRUM_FILL));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.BINDING_CLIP_TARGET));
+        assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD));
 
         final ButtonInputEvent firstDown = environment.setFillPressed (FIRST, true);
         final ButtonInputEvent secondDown = environment.setFillPressed (SECOND, true);
@@ -135,8 +148,8 @@ class DrumFillRuntimeEnvironmentTest
             Map.of (FIRST, BRIGHT_RED, SECOND, BRIGHT_RED),
             Map.of (FIRST, FIRST_TARGET, SECOND, SECOND_TARGET),
             List.of (
-                new PressClipTargetEffect (FIRST, 5, FIRST_TARGET),
-                new PressClipTargetEffect (SECOND, 5, SECOND_TARGET)));
+                new PressClipTargetEffect (FIRST, 5, FIRST_TARGET, LAUNCH_POLICY),
+                new PressClipTargetEffect (SECOND, 5, SECOND_TARGET, LAUNCH_POLICY)));
         final PreparedCoreResult prepared = environment.prepare (pressBoth);
         environment.commit (1, prepared);
         assertEquals (0, host.target (FIRST).pressCount);
@@ -173,6 +186,10 @@ class DrumFillRuntimeEnvironmentTest
         assertEquals (1, host.prepareCount);
         assertEquals (1, host.target (FIRST).pressCount);
         assertThrows (IllegalStateException.class, () -> environment.prepare (pressResult (5, FIRST, SECOND_TARGET)));
+        assertThrows (IllegalStateException.class, () -> environment.prepare (result (
+            Map.of (),
+            Map.of (FIRST, FIRST_TARGET),
+            List.of (new PressClipTargetEffect (FIRST, 5, FIRST_TARGET, DIFFERENT_LAUNCH_POLICY)))));
 
         environment.setFillPressed (FIRST, false);
         commitAndApply (environment, 2, releaseResult (FIRST, Map.of (FIRST, FIRST_TARGET)));
@@ -237,13 +254,13 @@ class DrumFillRuntimeEnvironmentTest
         assertThrows (IllegalArgumentException.class, () -> environment.prepare (result (Map.of (), Map.of (unknown, FIRST_TARGET), List.of ())));
         assertThrows (IllegalArgumentException.class, () -> environment.prepare (result (Map.of (), Map.of (FIRST, new ClipTargetId (99)), List.of ())));
         assertThrows (IllegalArgumentException.class, () -> environment.prepare (result (Map.of (), Map.of (FIRST, FIRST_TARGET, SECOND, FIRST_TARGET), List.of ())));
-        assertThrows (IllegalArgumentException.class, () -> environment.prepare (result (Map.of (), Map.of (), List.of (new PressClipTargetEffect (FIRST, 1, FIRST_TARGET)))));
-        assertThrows (IllegalArgumentException.class, () -> environment.prepare (result (Map.of (), Map.of (FIRST, SECOND_TARGET), List.of (new PressClipTargetEffect (FIRST, 1, FIRST_TARGET)))));
+        assertThrows (IllegalArgumentException.class, () -> environment.prepare (result (Map.of (), Map.of (), List.of (new PressClipTargetEffect (FIRST, 1, FIRST_TARGET, LAUNCH_POLICY)))));
+        assertThrows (IllegalArgumentException.class, () -> environment.prepare (result (Map.of (), Map.of (FIRST, SECOND_TARGET), List.of (new PressClipTargetEffect (FIRST, 1, FIRST_TARGET, LAUNCH_POLICY)))));
         assertThrows (IllegalArgumentException.class, () -> environment.prepare (result (Map.of (), Map.of (), List.of (new ScheduleTimerEffect (new TimerId ("timer"), 1)))));
         assertThrows (IllegalArgumentException.class, () -> environment.prepare (result (
             Map.of (),
             Map.of (FIRST, FIRST_TARGET),
-            List.of (new PressClipTargetEffect (FIRST, 1, FIRST_TARGET), new ReleaseClipTargetsEffect (FIRST)))));
+            List.of (new PressClipTargetEffect (FIRST, 1, FIRST_TARGET, LAUNCH_POLICY), new ReleaseClipTargetsEffect (FIRST)))));
         assertEquals (0, host.prepareCount);
     }
 
@@ -288,7 +305,7 @@ class DrumFillRuntimeEnvironmentTest
         commitAndApply (environment, 1, result (
             Map.of (),
             Map.of (FIRST, FIRST_TARGET, SECOND, SECOND_TARGET),
-            List.of (new PressClipTargetEffect (FIRST, 1, FIRST_TARGET), new PressClipTargetEffect (SECOND, 1, SECOND_TARGET))));
+            List.of (new PressClipTargetEffect (FIRST, 1, FIRST_TARGET, LAUNCH_POLICY), new PressClipTargetEffect (SECOND, 1, SECOND_TARGET, LAUNCH_POLICY))));
 
         assertEquals (1, host.target (FIRST).pressCount);
         assertEquals (1, host.target (FIRST).releaseAttempts);
@@ -315,7 +332,7 @@ class DrumFillRuntimeEnvironmentTest
         commitAndApply (environment, 1, result (
             Map.of (),
             Map.of (FIRST, FIRST_TARGET, SECOND, SECOND_TARGET),
-            List.of (new PressClipTargetEffect (FIRST, 1, FIRST_TARGET), new PressClipTargetEffect (SECOND, 1, SECOND_TARGET))));
+            List.of (new PressClipTargetEffect (FIRST, 1, FIRST_TARGET, LAUNCH_POLICY), new PressClipTargetEffect (SECOND, 1, SECOND_TARGET, LAUNCH_POLICY))));
 
         host.target (FIRST).failRelease = true;
         environment.setFillPressed (FIRST, false);
@@ -336,6 +353,43 @@ class DrumFillRuntimeEnvironmentTest
 
 
     @Test
+    void failedSupersededReleaseRequiresAFreshReplacementPress ()
+    {
+        final FakeClipHost host = host (1, FIRST_TARGET, SECOND_TARGET);
+        host.arm (FIRST, FIRST_TARGET);
+        host.arm (SECOND, SECOND_TARGET);
+        final RecordingLog log = new RecordingLog ();
+        final DrumFillRuntimeEnvironment environment = new DrumFillRuntimeEnvironment (host, log, () -> 0);
+        environment.setFillPressed (FIRST, true);
+        commitAndApply (environment, 1, pressResult (1, FIRST, FIRST_TARGET));
+
+        environment.setFillPressed (SECOND, true);
+        host.target (FIRST).failRelease = true;
+        commitAndApply (environment, 1, result (
+            Map.of (),
+            Map.of (FIRST, FIRST_TARGET, SECOND, SECOND_TARGET),
+            List.of (
+                new ReleaseClipTargetsEffect (FIRST),
+                new PressClipTargetEffect (SECOND, 1, SECOND_TARGET, LAUNCH_POLICY))));
+
+        assertEquals (1, host.target (FIRST).releaseAttempts);
+        assertEquals (0, host.target (SECOND).pressCount);
+        assertTrue (log.warnings.stream ().anyMatch (message -> message.contains ("another fill release")));
+
+        host.target (FIRST).failRelease = false;
+        environment.refresh ();
+        assertEquals (1, host.target (FIRST).releaseCount);
+        assertEquals (0, host.target (SECOND).pressCount);
+
+        environment.setFillPressed (SECOND, false);
+        commitAndApply (environment, 1, releaseResult (SECOND, Map.of (SECOND, SECOND_TARGET)));
+        environment.setFillPressed (SECOND, true);
+        commitAndApply (environment, 1, pressResult (1, SECOND, SECOND_TARGET));
+        assertEquals (1, host.target (SECOND).pressCount);
+    }
+
+
+    @Test
     void invalidationClearsBindingsLightsInputsAndEveryLease ()
     {
         final FakeClipHost host = host (1, FIRST_TARGET, SECOND_TARGET);
@@ -347,7 +401,7 @@ class DrumFillRuntimeEnvironmentTest
         commitAndApply (environment, 4, result (
             Map.of (FIRST, BRIGHT_RED, SECOND, BRIGHT_RED),
             Map.of (FIRST, FIRST_TARGET, SECOND, SECOND_TARGET),
-            List.of (new PressClipTargetEffect (FIRST, 1, FIRST_TARGET), new PressClipTargetEffect (SECOND, 1, SECOND_TARGET))));
+            List.of (new PressClipTargetEffect (FIRST, 1, FIRST_TARGET, LAUNCH_POLICY), new PressClipTargetEffect (SECOND, 1, SECOND_TARGET, LAUNCH_POLICY))));
 
         environment.invalidate (5);
 
@@ -384,7 +438,7 @@ class DrumFillRuntimeEnvironmentTest
 
     private static CoreResult pressResult (final long catalogGeneration, final ControlId owner, final ClipTargetId target)
     {
-        return result (Map.of (), Map.of (owner, target), List.of (new PressClipTargetEffect (owner, catalogGeneration, target)));
+        return result (Map.of (), Map.of (owner, target), List.of (new PressClipTargetEffect (owner, catalogGeneration, target, LAUNCH_POLICY)));
     }
 
 
@@ -529,8 +583,9 @@ class DrumFillRuntimeEnvironmentTest
 
 
         @Override
-        public void press ()
+        public void press (final ClipLaunchPolicy launchPolicy)
         {
+            assertEquals (LAUNCH_POLICY, launchPolicy);
             this.pressCount++;
             if (this.failPressAfterApply)
                 throw new IllegalStateException ("press applied then failed");

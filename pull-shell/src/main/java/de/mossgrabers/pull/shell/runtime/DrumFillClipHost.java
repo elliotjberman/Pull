@@ -6,6 +6,7 @@ package de.mossgrabers.pull.shell.runtime;
 import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
+import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
 
 import java.util.Map;
 
@@ -77,9 +78,11 @@ interface DrumFillClipHost
 
 
         /**
-         * Press the target.
+         * Press the target with a policy that remains frozen until release.
+         *
+         * @param launchPolicy Host-independent launch and release policy
          */
-        void press ();
+        void press (ClipLaunchPolicy launchPolicy);
 
 
         /**

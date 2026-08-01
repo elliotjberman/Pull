@@ -27,7 +27,7 @@ public final class PullCoreProvider implements CoreProvider
         CoreCapabilities.INPUT_DRUM_FILL, Integer.valueOf (1),
         CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS, Integer.valueOf (1),
         CoreCapabilities.BINDING_CLIP_TARGET, Integer.valueOf (1),
-        CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD, Integer.valueOf (1),
+        CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD, Integer.valueOf (2),
         CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (1)));
 
     private static final CoreDescriptor DESCRIPTOR = new CoreDescriptor (CoreApi.VERSION, CoreBuildMetadata.load ().buildId (), STATE_SCHEMA, STATE_SCHEMA_VERSION, REQUIRED_CAPABILITIES);

@@ -9,6 +9,10 @@ import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
+import de.mossgrabers.pull.core.api.effect.ClipLaunchMode;
+import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
+import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
+import de.mossgrabers.pull.core.api.effect.ClipReleaseTrigger;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
@@ -36,6 +40,10 @@ class PullControllerCoreTest
     private static final RgbColor OFF = new RgbColor (0, 0, 0);
     private static final RgbColor AVAILABLE = new RgbColor (127, 0, 0);
     private static final RgbColor HELD = new RgbColor (255, 0, 0);
+    private static final ClipLaunchPolicy FILL_POLICY = new ClipLaunchPolicy (
+        ClipLaunchQuantization.IMMEDIATE,
+        ClipLaunchMode.LEGATO_FROM_CLIP_OR_PROJECT,
+        ClipReleaseTrigger.ALTERNATE);
 
 
     @Test
@@ -106,7 +114,7 @@ class PullControllerCoreTest
         final List<CoreEffect> effects = host.effects ().executionOrder ();
         assertEquals (3, effects.size ());
         assertEquals (new ReleaseClipTargetsEffect (CoreControls.DRUM_FILL_1), effects.get (1));
-        assertEquals (new PressClipTargetEffect (CoreControls.DRUM_FILL_2, 42, second), effects.get (2));
+        assertEquals (new PressClipTargetEffect (CoreControls.DRUM_FILL_2, 42, second, FILL_POLICY), effects.get (2));
         assertTrue (host.effects ().clipLease (CoreControls.DRUM_FILL_1).isEmpty ());
         assertEquals (second, host.effects ().clipLease (CoreControls.DRUM_FILL_2).orElseThrow ().target ());
 
@@ -141,7 +149,7 @@ class PullControllerCoreTest
         assertEquals (List.of (
             new ReleaseClipTargetsEffect (CoreControls.DRUM_FILL_1),
             new ReleaseClipTargetsEffect (CoreControls.DRUM_FILL_2),
-            new PressClipTargetEffect (CoreControls.DRUM_FILL_3, 43, third)), host.effects ().executionOrder ());
+            new PressClipTargetEffect (CoreControls.DRUM_FILL_3, 43, third, FILL_POLICY)), host.effects ().executionOrder ());
     }
 
 

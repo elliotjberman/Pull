@@ -192,7 +192,17 @@ held, an actuator cannot move even if the selected track, catalog, core policy, 
 changes. Up releases through the exact frozen proxy and only then allows the queued desired binding
 to park. Raw MIDI note-off is observed below the command layer, so switching views cannot consume
 the only release. Failed and apply-then-throw releases remain owned and are retried instead of being
-mistaken for success.
+mistaken for success. If retiring an older fill fails, the replacement launch fails closed rather
+than appearing later as a surprise; after cleanup, the replacement pad must be released and pressed
+again.
+
+Core API 4 carries a host-independent launch policy on each press effect. The shell freezes that
+policy into the acquired lease and maps it to Bitwig API 21. The current fill policy launches with
+quantization `Immediate` and mode `Legato from Clip (or Project)`, then invokes the fill clip's ALT
+release lane. Entry therefore ignores the source and fill clips' configured launch quantization
+and mode. Bitwig's API cannot name a release action directly, so the effective ALT release action
+on each fill must resolve to `Return`; with the clip on `Use Project Setting`, this is the project's
+default ALT Release setting. Clip looping and length remain session content.
 
 The physical held state, desired/armed protocol, actuators, and leases live in the shell. Starting
 a replacement core hydrates current held and armed state but deliberately synthesizes no press: the
@@ -202,9 +212,10 @@ Structural scene insertion/reordering during a hold remains an inherent limitati
 paged slot proxies, which expose no durable clip ID, but the pinned track and frozen scene proxy are
 the narrowest supported identity.
 
-This boundary makes marker strings, filtering, ordering, truncation, colors, and behavior composed
-from the selected-track catalog and existing effects core-only reloads. A new Bitwig property or
-operation still requires an API/shell change and one Bitwig restart to install the widened bridge.
+This boundary makes marker strings, filtering, ordering, truncation, colors, single-fill behavior,
+and launch policies composed from the selected-track catalog and existing effects core-only
+reloads. A new Bitwig property or operation still requires an API/shell change and one Bitwig
+restart to install the widened bridge.
 
 ## Stable shell responsibilities
 
@@ -419,7 +430,7 @@ The development command and shell share `${user.home}/.drivenbymoss/pull/reload`
 
 ```properties
 formatVersion=1
-apiVersion=3
+apiVersion=4
 buildId=20260731T230000Z-0123456789abcdef0123456789abcdef
 ```
 
@@ -429,7 +440,7 @@ verifies its embedded API/build identity, computes SHA-256, and atomically repla
 
 ```properties
 formatVersion=1
-apiVersion=3
+apiVersion=4
 shellFingerprint=0123456789abcdef0123456789abcdef01234567
 buildId=20260731T230000Z-0123456789abcdef0123456789abcdef
 jar=pull-core-20260731T230000Z-0123456789abcdef0123456789abcdef.jar
@@ -487,6 +498,7 @@ effects, rejections, and desired output. A real Bitwig failure can then become a
 | Safe pure-Java core dependency | Package and core reload |
 | Core-owned/migrated mapping, mode, gesture, layout policy, or fill matching | Core reload |
 | Behavior using existing snapshot/effects | Core reload |
+| Clip launch quantization, mode, or Main-vs-ALT release lane | Core reload |
 | New Bitwig state the shell never subscribed to | Shell build/install and Bitwig restart |
 | New operation the shell cannot execute | API/shell build/install and Bitwig restart |
 | Bitwig settings schema | Shell build/install and Bitwig restart |

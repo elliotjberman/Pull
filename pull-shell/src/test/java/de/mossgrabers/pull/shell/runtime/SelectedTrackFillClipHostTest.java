@@ -7,6 +7,10 @@ import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.CoreControls;
+import de.mossgrabers.pull.core.api.effect.ClipLaunchMode;
+import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
+import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
+import de.mossgrabers.pull.core.api.effect.ClipReleaseTrigger;
 
 import org.junit.jupiter.api.Test;
 
@@ -27,6 +31,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class SelectedTrackFillClipHostTest
 {
+    private static final ClipLaunchPolicy LAUNCH_POLICY = new ClipLaunchPolicy (
+        ClipLaunchQuantization.IMMEDIATE,
+        ClipLaunchMode.LEGATO_FROM_CLIP_OR_PROJECT,
+        ClipReleaseTrigger.ALTERNATE);
+    private static final ClipLaunchPolicy DIFFERENT_LAUNCH_POLICY = new ClipLaunchPolicy (
+        ClipLaunchQuantization.DEFAULT,
+        ClipLaunchMode.DEFAULT,
+        ClipReleaseTrigger.MAIN);
+
     @Test
     void publishesOnlyCompleteAllSceneSweepsInAbsoluteOrder ()
     {
@@ -93,10 +106,13 @@ class SelectedTrackFillClipHostTest
         assertEquals (Map.of (control, targetId), host.armedClipTargets ());
 
         final DrumFillClipHost.LaunchTarget launchTarget = host.prepare (control, catalog.generation (), targetId);
-        launchTarget.press ();
+        launchTarget.press (LAUNCH_POLICY);
+        assertThrows (IllegalStateException.class, () -> launchTarget.press (DIFFERENT_LAUNCH_POLICY));
         launchTarget.release ();
         assertEquals (List.of ("track-a:3"), adapter.presses);
         assertEquals (List.of ("track-a:3"), adapter.releases);
+        assertEquals (List.of (LAUNCH_POLICY), adapter.launchPolicies);
+        assertEquals (List.of (ClipReleaseTrigger.ALTERNATE), adapter.releaseTriggers);
     }
 
 
@@ -150,7 +166,7 @@ class SelectedTrackFillClipHostTest
         for (int index = 0; index < 12; index++)
         {
             final DrumFillClipHost.LaunchTarget lease = host.prepare (CoreControls.drumFills ().get (index), host.clipCatalog ().generation (), targets.get (index));
-            lease.press ();
+            lease.press (LAUNCH_POLICY);
             leases.add (lease);
         }
         for (int index = leases.size () - 1; index >= 0; index--)
@@ -173,7 +189,7 @@ class SelectedTrackFillClipHostTest
         final long firstGeneration = host.clipCatalog ().generation ();
 
         final DrumFillClipHost.LaunchTarget held = host.prepare (CoreControls.DRUM_FILL_1, firstGeneration, firstTarget);
-        held.press ();
+        held.press (LAUNCH_POLICY);
         final int selectionsWhileParked = adapter.actuatorSelections.get (0).intValue ();
         final int movesWhileParked = adapter.actuatorMoves.get (0).intValue ();
 
@@ -213,7 +229,7 @@ class SelectedTrackFillClipHostTest
         refreshUntil (host, () -> !host.armedClipTargets ().isEmpty ());
 
         final DrumFillClipHost.LaunchTarget held = host.prepare (CoreControls.DRUM_FILL_1, catalog.generation (), firstTarget);
-        held.press ();
+        held.press (LAUNCH_POLICY);
         final int movesWhileHeld = adapter.actuatorMoves.get (0).intValue ();
         host.setDesiredBindings (catalog.generation (), Map.of (CoreControls.DRUM_FILL_1, secondTarget));
         adapter.remainingReleaseFailures = 1;
@@ -263,6 +279,8 @@ class SelectedTrackFillClipHostTest
         private final List<Integer> scannerMoves = new ArrayList<> ();
         private final List<String> presses = new ArrayList<> ();
         private final List<String> releases = new ArrayList<> ();
+        private final List<ClipLaunchPolicy> launchPolicies = new ArrayList<> ();
+        private final List<ClipReleaseTrigger> releaseTriggers = new ArrayList<> ();
 
         private SelectedTrackFillClipHost.SelectedTrackSample selected = new SelectedTrackFillClipHost.SelectedTrackSample ("", false);
         private String scannerTrackId = "";
@@ -388,15 +406,16 @@ class SelectedTrackFillClipHostTest
 
         /** {@inheritDoc} */
         @Override
-        public void pressActuator (final int actuatorIndex)
+        public void pressActuator (final int actuatorIndex, final ClipLaunchPolicy launchPolicy)
         {
             this.presses.add (coordinate (this.actuatorSamples.get (actuatorIndex)));
+            this.launchPolicies.add (launchPolicy);
         }
 
 
         /** {@inheritDoc} */
         @Override
-        public void releaseActuator (final int actuatorIndex)
+        public void releaseActuator (final int actuatorIndex, final ClipReleaseTrigger releaseTrigger)
         {
             if (this.remainingReleaseFailures > 0)
             {
@@ -404,6 +423,7 @@ class SelectedTrackFillClipHostTest
                 throw new IllegalStateException ("release failed");
             }
             this.releases.add (coordinate (this.actuatorSamples.get (actuatorIndex)));
+            this.releaseTriggers.add (releaseTrigger);
         }
 
 
