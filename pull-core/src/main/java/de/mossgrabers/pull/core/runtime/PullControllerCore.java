@@ -40,7 +40,7 @@ final class PullControllerCore implements ControllerCore
 {
     private static final String FILL_MARKER = "fill";
     private static final RgbColor FILL_OFF = new RgbColor (0, 0, 0);
-    private static final RgbColor FILL_AVAILABLE = new RgbColor (128, 65, 0);
+    private static final RgbColor FILL_AVAILABLE = new RgbColor (96, 30, 0);
     private static final RgbColor FILL_HELD = new RgbColor (255, 80, 0);
     private static final ClipLaunchPolicy FILL_LAUNCH_POLICY = new ClipLaunchPolicy (
         ClipLaunchQuantization.IMMEDIATE,
