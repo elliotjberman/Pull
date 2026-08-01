@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>de.mossgrabers</groupId>
+        <artifactId>pull-parent</artifactId>
+        <version>26.6.2</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>pull-core-bundle</artifactId>
+    <name>Pull Core Bundle</name>
+
+    <dependencies>
+        <dependency>
+            <groupId>de.mossgrabers</groupId>
+            <artifactId>pull-core</artifactId>
+            <version>${project.version}</version>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>pull-core-bundle</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>purge-stale-core</id>
+                        <phase>initialize</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <delete file="${project.build.outputDirectory}/META-INF/pull/core/pull-core.jar"
+                                    quiet="true" />
+                            </target>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>verify-core-bundle</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <property name="boundary.dir" value="${project.build.directory}/boundary-check/bundle" />
+                                <delete dir="${boundary.dir}" />
+                                <mkdir dir="${boundary.dir}" />
+                                <unzip src="${project.build.directory}/${project.build.finalName}.jar" dest="${boundary.dir}" />
+                                <fail message="pull-core-bundle is missing the nested core JAR.">
+                                    <condition>
+                                        <not>
+                                            <available file="${boundary.dir}/META-INF/pull/core/pull-core.jar" type="file" />
+                                        </not>
+                                    </condition>
+                                </fail>
+                                <fail message="pull-core-bundle must contain exactly one nested core artifact.">
+                                    <condition>
+                                        <not>
+                                            <resourcecount count="1">
+                                                <fileset dir="${boundary.dir}/META-INF/pull/core" />
+                                            </resourcecount>
+                                        </not>
+                                    </condition>
+                                </fail>
+                                <fail message="pull-core-bundle must not contain exploded implementation classes.">
+                                    <condition>
+                                        <not>
+                                            <resourcecount count="0">
+                                                <fileset dir="${boundary.dir}">
+                                                    <include name="**/*.class" />
+                                                </fileset>
+                                            </resourcecount>
+                                        </not>
+                                    </condition>
+                                </fail>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>embed-reactor-core</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>copy</goal>
+                        </goals>
+                        <configuration>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>de.mossgrabers</groupId>
+                                    <artifactId>pull-core</artifactId>
+                                    <version>${project.version}</version>
+                                    <type>jar</type>
+                                    <outputDirectory>${project.build.outputDirectory}/META-INF/pull/core</outputDirectory>
+                                    <destFileName>pull-core.jar</destFileName>
+                                    <overWrite>true</overWrite>
+                                </artifactItem>
+                            </artifactItems>
+                            <overWriteReleases>true</overWriteReleases>
+                            <overWriteSnapshots>true</overWriteSnapshots>
+                            <overWriteIfNewer>false</overWriteIfNewer>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

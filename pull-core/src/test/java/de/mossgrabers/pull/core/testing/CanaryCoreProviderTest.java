@@ -16,8 +16,11 @@ import de.mossgrabers.pull.core.runtime.CanaryCoreProvider;
 
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 import java.util.Optional;
+import java.util.Properties;
 import java.util.ServiceLoader;
 import java.util.Set;
 
@@ -31,14 +34,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class CanaryCoreProviderTest
 {
     @Test
-    void serviceLoaderFindsExactlyOneCanaryProvider ()
+    void serviceLoaderFindsExactlyOneCanaryProvider () throws IOException
     {
         final List<CoreProvider> providers = ServiceLoader.load (CoreProvider.class).stream ().map (ServiceLoader.Provider::get).toList ();
 
         assertEquals (1, providers.size ());
         assertEquals (CanaryCoreProvider.class, providers.getFirst ().getClass ());
         assertEquals (CoreApi.VERSION, providers.getFirst ().descriptor ().apiVersion ());
-        assertEquals ("canary-v1", providers.getFirst ().descriptor ().buildId ());
+        assertEquals (embeddedBuildId (), providers.getFirst ().descriptor ().buildId ());
     }
 
 
@@ -100,5 +103,16 @@ class CanaryCoreProviderTest
     private static ControllerSnapshot snapshot ()
     {
         return new ControllerSnapshot (0, 0, ShellCapabilities.empty (), Set.of (), Set.of ());
+    }
+
+
+    private static String embeddedBuildId () throws IOException
+    {
+        final Properties properties = new Properties ();
+        try (InputStream input = CanaryCoreProviderTest.class.getResourceAsStream ("/META-INF/pull-core.properties"))
+        {
+            properties.load (input);
+        }
+        return properties.getProperty ("buildId");
     }
 }

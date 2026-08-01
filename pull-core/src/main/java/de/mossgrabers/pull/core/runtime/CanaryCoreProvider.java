@@ -20,7 +20,7 @@ public final class CanaryCoreProvider implements CoreProvider
     /** Checkpoint schema version. */
     public static final int STATE_SCHEMA_VERSION = 1;
 
-    private static final CoreDescriptor DESCRIPTOR = new CoreDescriptor (CoreApi.VERSION, "canary-v1", STATE_SCHEMA, STATE_SCHEMA_VERSION, ShellCapabilities.empty ());
+    private static final CoreDescriptor DESCRIPTOR = new CoreDescriptor (CoreApi.VERSION, CoreBuildMetadata.load ().buildId (), STATE_SCHEMA, STATE_SCHEMA_VERSION, ShellCapabilities.empty ());
 
 
     /** {@inheritDoc} */

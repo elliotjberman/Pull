@@ -29,6 +29,13 @@
     </dependencies>
 
     <build>
+        <finalName>pull-core</finalName>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -56,11 +63,35 @@
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>package-reloadable-core</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <artifactSet>
+                                <excludes>
+                                    <exclude>de.mossgrabers:pull-core-api</exclude>
+                                </excludes>
+                            </artifactSet>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
+                            </transformers>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-antrun-plugin</artifactId>
                 <executions>
                     <execution>
                         <id>verify-core-archive-boundary</id>
-                        <phase>verify</phase>
+                        <phase>package</phase>
                         <goals>
                             <goal>run</goal>
                         </goals>
@@ -78,6 +109,7 @@
                                             <available file="${boundary.dir}/de/mossgrabers/bitwig" type="dir" />
                                             <available file="${boundary.dir}/de/mossgrabers/controller" type="dir" />
                                             <available file="${boundary.dir}/de/mossgrabers/framework" type="dir" />
+                                            <available file="${boundary.dir}/de/mossgrabers/pull/shell" type="dir" />
                                         </or>
                                     </condition>
                                 </fail>

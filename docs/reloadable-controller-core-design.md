@@ -1,16 +1,18 @@
 # Reloadable Controller Core
 
-Status: Milestones 1 and 2 are implemented; the transactional loader is next.
+Status: Milestones 1 through 3 are implemented; the drum-fill vertical slice is next.
 
 Primary goal: make ordinary controller development possible without restarting Bitwig.
 
 ## Outcome
 
-Pull will consist of three Maven modules:
+Pull's runtime split and development tool are separate Maven modules:
 
 ```text
 pull-core-api   Stable parent-loaded interfaces and immutable messages
 pull-core       Child-loaded controller behavior
+pull-core-bundle   Resource-only build edge that nests the current core JAR
+pull-core-publisher   Development-only immutable publication/status tool
 pull-shell      Bitwig extension, subscriptions, MIDI/USB, and effect execution
 ```
 
@@ -48,8 +50,8 @@ Testing is enabled by the same boundary; it is not a separate mock of the entire
 
 ## Delivery sequence
 
-These are implementation milestones. The current branch combines milestones 1 and 2; keep the
-loader and later behavior migration as independently reviewable commits.
+These are implementation milestones. The current branch combines milestones 1 through 3 as
+independently reviewable commits; keep later behavior migration similarly separated.
 
 ### Milestone 1: Mechanical Maven split
 
@@ -73,7 +75,9 @@ loader and later behavior migration as independently reviewable commits.
 
 - Embed the production core JAR as a nested resource, never exploded classes.
 - Add the child-first runtime classloader and `RuntimeManager`.
-- Add atomic candidate publication, build IDs, status, failure fallback, and full redraw.
+- Add a resource-only bundle so Maven orders core before shell without exposing core classes.
+- Add atomic candidate publication, build IDs, status, failure fallback, and generation fencing.
+- Fingerprint the complete parent-loaded shell/API input so installed-version drift requires a restart.
 - Add the compile/publish/reload command and classloader fixture tests.
 - Prove that core version B may add a class, field, and method over version A.
 
@@ -101,6 +105,9 @@ which creates
 [`PushControllerSetup`](../pull-shell/src/main/java/de/mossgrabers/controller/ableton/push/PushControllerSetup.java).
 [`GenericControllerExtension`](../pull-shell/src/main/java/de/mossgrabers/bitwig/framework/extension/GenericControllerExtension.java)
 delegates Bitwig's `init`, `flush`, and `exit` lifecycle to that setup.
+[`ReloadableControllerSetup`](../pull-shell/src/main/java/de/mossgrabers/pull/shell/runtime/ReloadableControllerSetup.java)
+now wraps those calls so the reload supervisor starts after legacy startup, drains candidates before
+each legacy flush, and closes before the existing setup releases model/MIDI/USB resources.
 
 [`AbstractControllerSetup.init()`](../pull-shell/src/main/java/de/mossgrabers/framework/controller/AbstractControllerSetup.java)
 currently creates one connected graph containing settings, model banks, subscriptions, MIDI/USB,
@@ -277,7 +284,8 @@ flowchart TD
 Requirements:
 
 - Candidate JARs have unique names and are never overwritten while loaded.
-- API version and SHA-256 are verified before any core class is loaded.
+- API version is verified for every candidate; external candidates also verify their published
+  SHA-256 before any core class is loaded.
 - Only one candidate is prepared; newer builds supersede older request generations.
 - Provider construction, checkpoint, startup, swap, and effect application are serialized on
   Bitwig's controller thread.
@@ -287,9 +295,10 @@ Requirements:
 - Any candidate failure leaves the old core running.
 - Old `stop()` must be non-blocking and latency-instrumented.
 - Old-generation timers, results, and stale bank effects are ignored.
-- Success forces complete pad/button/ribbon/display replay, bypassing render caches.
-- Extension exit rejects new candidates, joins the loader worker, closes candidate/active loaders,
-  and shuts model/MIDI/USB exactly once.
+- Once an output proxy is migrated, success forces its complete replay while bypassing render caches.
+- Extension exit rejects new candidates, requests worker cancellation, waits for a bounded join,
+  closes candidate/active loaders, and shuts model/MIDI/USB exactly once. If verification does not
+  return before the join deadline, its finalizer performs deferred private-JAR cleanup.
 
 ## Classloading and packaging
 
@@ -297,9 +306,17 @@ Requirements:
 as `provided`. `pull-shell` contains the API but must not have the core implementation on its
 ordinary runtime classpath.
 
-The production core is embedded later as a nested JAR resource and extracted before loading. The
-development loop publishes unique core JARs plus an atomic properties manifest under a stable
-user directory that Bitwig does not purge.
+`pull-core-bundle` has a build-time edge to `pull-core` and contains only the resolved core JAR as
+`META-INF/pull/core/pull-core.jar`. `pull-shell` depends on that resource-only bundle, so Maven's
+reactor orders core packaging before shell packaging without making core implementation classes a
+transitive shell dependency. The bundle deletes its previous nested output before every copy, and
+the shell deletes any legacy direct copy before packaging, so an incremental build cannot silently
+reuse an old core. The shell extracts the nested resource before loading it.
+
+The development loop publishes unique core JARs plus an atomic properties manifest under a stable
+user directory that Bitwig does not purge. The full extension build also embeds
+`META-INF/pull-shell.properties`, whose fingerprint covers the parent-loaded API, shell sources,
+packaging edge, and relevant build descriptors. Core-only changes leave it unchanged.
 
 The milestone-2 canary uses a fixed packaging-test build ID. Milestone 3 replaces it with the
 unique manifest build ID and requires exact activation acknowledgement.
@@ -318,8 +335,8 @@ restored in `finally`. Maven Shade must preserve the provider service entry.
 
 The fast command must:
 
-1. classify changes as core-only versus shell/API;
-2. compile/package only the core and required API;
+1. compute the exact local shell/API source fingerprint;
+2. compile/package only the core, required API, and development publisher;
 3. publish a unique immutable JAR and atomic manifest;
 4. request reload;
 5. wait for status containing the exact requested build ID;
@@ -327,14 +344,61 @@ The fast command must:
 
 Build success alone is not reload success.
 
+### Publication protocol
+
+The development command and shell share `${user.home}/.drivenbymoss/pull/reload` by default.
+`PULL_CORE_RELOAD_DIR` may override it. A core is built with an exact, unique build ID embedded in
+`META-INF/pull-core.properties`:
+
+```properties
+formatVersion=1
+apiVersion=1
+buildId=20260731T230000Z-0123456789abcdef0123456789abcdef
+```
+
+The publisher copies it once to `pull-core-<buildId>.jar`, forces the complete file to storage,
+verifies its embedded API/build identity, computes SHA-256, and atomically replaces
+`candidate.properties` in the same directory:
+
+```properties
+formatVersion=1
+apiVersion=1
+shellFingerprint=0123456789abcdef0123456789abcdef01234567
+buildId=20260731T230000Z-0123456789abcdef0123456789abcdef
+jar=pull-core-20260731T230000Z-0123456789abcdef0123456789abcdef.jar
+sha256=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+```
+
+Successfully published artifact paths are never overwritten. Protocol v1 retains them for
+diagnostics; bounded pruning is a future cleanup once artifacts become material in size. The shell atomically replaces
+`status.properties` after each attempted activation:
+
+```properties
+formatVersion=1
+state=active
+requestedBuildId=20260731T230000Z-0123456789abcdef0123456789abcdef
+activeBuildId=20260731T230000Z-0123456789abcdef0123456789abcdef
+message=activated
+```
+
+`state` is `active`, `failed`, or `restartRequired`. Failure retains the prior `activeBuildId` and
+includes an actionable `message`. The command reports success only when both requested and active
+IDs exactly match its build. A stale status is ignored.
+
+Before loading candidate classes, the running shell compares `shellFingerprint` with its embedded
+fingerprint. Any mismatch is acknowledged as `restartRequired`. This compares exact content, not
+just dirty paths, so it also catches a committed shell/API change that has not been installed yet.
+
 ## Testing
 
 Core tests run without Bitwig by feeding snapshots/events and asserting effects/hardware state.
 The first harness includes fake time and no sleeping. Classloader integration fixtures load A,
 then a structurally different B, then reject a broken C while B remains active.
 
-Shell tests cover normalization, bank fencing, effect validation, held-control hydration, timer
-generations, output coalescing, candidate failure, and shutdown barriers.
+Current shell tests cover manifest integrity, status/generation fencing, private-artifact cleanup,
+classloader isolation, structural A/B replacement, candidate failure, and runtime transactions.
+The drum-fill vertical slice adds bank fencing, held-control hydration, effect validation, timers,
+and output-coalescing tests alongside those features.
 
 Later record/replay logs contain only API DTOs: initial snapshot, ordered events/revisions,
 effects, rejections, and desired output. A real Bitwig failure can then become an offline test.
