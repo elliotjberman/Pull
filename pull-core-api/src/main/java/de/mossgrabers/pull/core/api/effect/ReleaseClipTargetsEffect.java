@@ -8,9 +8,10 @@ import de.mossgrabers.pull.core.api.ControlId;
 import java.util.Objects;
 
 /**
- * Release the clip target currently leased to a logical owner.
+ * Release the momentary clip session when the supplied owner is active. A retired ancestor or
+ * absent owner is an idempotent no-op.
  *
- * @param owner Logical control whose lease is released
+ * @param owner Logical control requesting session release
  */
 public record ReleaseClipTargetsEffect (ControlId owner) implements CoreEffect
 {

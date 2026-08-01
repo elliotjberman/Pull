@@ -139,7 +139,11 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         if (this.supervisor != null)
             this.supervisor.tick ();
         if (snapshotChanged)
-            this.eventHandler.test (this.environment.snapshotChangedEvent ());
+        {
+            final long deliveredRevision = this.environment.snapshotRevision ();
+            if (this.eventHandler.test (this.environment.snapshotChangedEvent ()))
+                this.environment.acknowledgeSnapshotChange (deliveredRevision);
+        }
     }
 
 
@@ -185,19 +189,17 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         if (event == ButtonEvent.UP && held)
         {
             final ButtonInputEvent input = this.environment.setFillPressed (control, false);
-            boolean accepted = false;
             try
             {
                 if (this.started)
-                    accepted = this.eventHandler.test (input);
+                    this.eventHandler.test (input);
             }
             finally
             {
-                // A physical release is authoritative even when no core is active or a candidate
-                // result is rejected. Releasing an absent lease is deliberately idempotent.
+                // Physical state is authoritative even when no core is active or a candidate
+                // result is rejected. Session safety ignores a retired Return ancestor; releasing
+                // the active owner unwinds the complete native Return chain.
                 this.environment.safetyRelease (control);
-                if (!accepted)
-                    this.environment.failSafeFillOutputOff (control);
             }
             return true;
         }

@@ -18,6 +18,7 @@ import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
 import de.mossgrabers.pull.core.api.effect.ClipReleaseTrigger;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
+import de.mossgrabers.pull.core.api.effect.ReactivateClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
 import de.mossgrabers.pull.core.api.effect.ScheduleTimerEffect;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
@@ -31,6 +32,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -81,7 +83,10 @@ class DrumFillRuntimeEnvironmentTest
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.INPUT_DRUM_FILL));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.BINDING_CLIP_TARGET));
-        assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD));
+        assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION));
+        assertEquals (Integer.valueOf (3), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD));
+        assertTrue (initial.clipLaunchSessionTargets ().isEmpty ());
+        assertEquals (Optional.empty (), initial.activeClipLaunchOwner ());
 
         final ButtonInputEvent firstDown = environment.setFillPressed (FIRST, true);
         final ButtonInputEvent secondDown = environment.setFillPressed (SECOND, true);
@@ -111,10 +116,6 @@ class DrumFillRuntimeEnvironmentTest
         environment.apply (11);
         assertEquals (1, host.bindingUpdateCount);
         assertEquals (Map.of (FIRST, FIRST_TARGET, SECOND, SECOND_TARGET), host.desiredBindings);
-
-        environment.failSafeFillOutputOff (FIRST);
-        assertEquals (OFF, environment.fillLightColor (FIRST));
-        assertEquals (BRIGHT_RED, environment.fillLightColor (SECOND));
     }
 
 
@@ -135,44 +136,103 @@ class DrumFillRuntimeEnvironmentTest
 
 
     @Test
-    void twoFillPadsAcquireAndReleaseIndependentExactLeases ()
+    void releasingTheLatestFillUnwindsTheNativeReturnChainToRoot ()
     {
         final FakeClipHost host = host (5, FIRST_TARGET, SECOND_TARGET);
         host.arm (FIRST, FIRST_TARGET);
         host.arm (SECOND, SECOND_TARGET);
         final DrumFillRuntimeEnvironment environment = environment (host);
         environment.setFillPressed (FIRST, true);
+        commitAndApply (environment, 1, pressResult (5, FIRST, FIRST_TARGET));
+        assertEquals (Optional.of (FIRST), environment.snapshot ().activeClipLaunchOwner ());
+        assertEquals (Map.of (FIRST, FIRST_TARGET), environment.snapshot ().clipLaunchSessionTargets ());
+        assertTrue (environment.refresh ());
+        assertTrue (environment.refresh ());
+        environment.acknowledgeSnapshotChange (environment.snapshotRevision ());
+        assertFalse (environment.refresh ());
+
         environment.setFillPressed (SECOND, true);
-
-        final CoreResult pressBoth = result (
-            Map.of (FIRST, BRIGHT_RED, SECOND, BRIGHT_RED),
+        commitAndApply (environment, 1, result (
+            Map.of (),
             Map.of (FIRST, FIRST_TARGET, SECOND, SECOND_TARGET),
-            List.of (
-                new PressClipTargetEffect (FIRST, 5, FIRST_TARGET, LAUNCH_POLICY),
-                new PressClipTargetEffect (SECOND, 5, SECOND_TARGET, LAUNCH_POLICY)));
-        final PreparedCoreResult prepared = environment.prepare (pressBoth);
-        environment.commit (1, prepared);
-        assertEquals (0, host.target (FIRST).pressCount);
-        assertEquals (0, host.target (SECOND).pressCount);
-
-        environment.apply (1);
+            List.of (new PressClipTargetEffect (SECOND, 5, SECOND_TARGET, LAUNCH_POLICY))));
         assertEquals (1, host.target (FIRST).pressCount);
         assertEquals (1, host.target (SECOND).pressCount);
+        assertEquals (Optional.of (SECOND), environment.snapshot ().activeClipLaunchOwner ());
+        assertEquals (Map.of (FIRST, FIRST_TARGET, SECOND, SECOND_TARGET), environment.snapshot ().clipLaunchSessionTargets ());
+        assertEquals ("2", host.playing ());
 
-        environment.setFillPressed (FIRST, false);
-        commitAndApply (environment, 1, releaseResult (FIRST, Map.of (SECOND, SECOND_TARGET)));
+        environment.setFillPressed (SECOND, false);
+        commitAndApply (environment, 1, releaseResult (SECOND, Map.of (FIRST, FIRST_TARGET, SECOND, SECOND_TARGET)));
         assertEquals (1, host.target (FIRST).releaseCount);
-        assertEquals (0, host.target (SECOND).releaseCount);
-        assertTrue (environment.isFillPressed (SECOND));
-
-        environment.safetyRelease (SECOND);
         assertEquals (1, host.target (SECOND).releaseCount);
-        assertFalse (environment.isFillPressed (SECOND));
+        assertEquals (List.of ("press 1", "press 2", "release 2", "release 1"), host.launchEvents);
+        assertEquals ("root", host.playing ());
+        assertEquals (Optional.empty (), environment.snapshot ().activeClipLaunchOwner ());
+        assertTrue (environment.snapshot ().clipLaunchSessionTargets ().isEmpty ());
+
+        environment.safetyRelease (FIRST);
+        assertEquals (1, host.target (FIRST).releaseCount);
+        assertEquals (1, host.target (SECOND).releaseCount);
     }
 
 
     @Test
-    void heldReloadReusesItsLeaseAndCannotRedirectIt ()
+    void releasingARetiredAncestorCannotInterruptTheLatestFill ()
+    {
+        final FakeClipHost host = host (5, FIRST_TARGET, SECOND_TARGET);
+        host.arm (FIRST, FIRST_TARGET);
+        host.arm (SECOND, SECOND_TARGET);
+        final DrumFillRuntimeEnvironment environment = environment (host);
+        environment.setFillPressed (FIRST, true);
+        commitAndApply (environment, 1, pressResult (5, FIRST, FIRST_TARGET));
+        environment.setFillPressed (SECOND, true);
+        commitAndApply (environment, 1, result (
+            Map.of (),
+            Map.of (FIRST, FIRST_TARGET, SECOND, SECOND_TARGET),
+            List.of (new PressClipTargetEffect (SECOND, 5, SECOND_TARGET, LAUNCH_POLICY))));
+
+        environment.setFillPressed (FIRST, false);
+        commitAndApply (environment, 1, releaseResult (FIRST, Map.of (FIRST, FIRST_TARGET, SECOND, SECOND_TARGET)));
+        environment.safetyRelease (FIRST);
+
+        assertEquals (0, host.target (FIRST).releaseCount);
+        assertEquals (0, host.target (SECOND).releaseCount);
+        assertEquals ("2", host.playing ());
+        assertEquals (Optional.of (SECOND), environment.snapshot ().activeClipLaunchOwner ());
+
+        environment.setFillPressed (SECOND, false);
+        commitAndApply (environment, 1, releaseResult (SECOND, Map.of (FIRST, FIRST_TARGET, SECOND, SECOND_TARGET)));
+        assertEquals (List.of ("press 1", "press 2", "release 2", "release 1"), host.launchEvents);
+        assertEquals ("root", host.playing ());
+    }
+
+
+    @Test
+    void rawSafetyReleaseOfTheTopOwnerUnwindsNewestToOldest ()
+    {
+        final FakeClipHost host = host (5, FIRST_TARGET, SECOND_TARGET);
+        host.arm (FIRST, FIRST_TARGET);
+        host.arm (SECOND, SECOND_TARGET);
+        final DrumFillRuntimeEnvironment environment = environment (host);
+        environment.setFillPressed (FIRST, true);
+        commitAndApply (environment, 1, pressResult (5, FIRST, FIRST_TARGET));
+        environment.setFillPressed (SECOND, true);
+        commitAndApply (environment, 1, result (
+            Map.of (),
+            Map.of (FIRST, FIRST_TARGET, SECOND, SECOND_TARGET),
+            List.of (new PressClipTargetEffect (SECOND, 5, SECOND_TARGET, LAUNCH_POLICY))));
+
+        environment.safetyRelease (SECOND);
+
+        assertEquals (List.of ("press 1", "press 2", "release 2", "release 1"), host.launchEvents);
+        assertEquals ("root", host.playing ());
+        assertEquals (Optional.empty (), environment.snapshot ().activeClipLaunchOwner ());
+    }
+
+
+    @Test
+    void retainedLeaseReactivatesWithoutASecondPressAndCannotBePressedAgain ()
     {
         final FakeClipHost host = host (5, FIRST_TARGET, SECOND_TARGET);
         host.arm (FIRST, FIRST_TARGET);
@@ -182,9 +242,10 @@ class DrumFillRuntimeEnvironmentTest
         assertEquals (1, host.prepareCount);
         assertEquals (1, host.target (FIRST).pressCount);
 
-        commitAndApply (environment, 2, pressResult (5, FIRST, FIRST_TARGET));
+        commitAndApply (environment, 2, result (Map.of (), Map.of (FIRST, FIRST_TARGET), List.of (new ReactivateClipTargetEffect (FIRST))));
         assertEquals (1, host.prepareCount);
         assertEquals (1, host.target (FIRST).pressCount);
+        assertThrows (IllegalStateException.class, () -> environment.prepare (pressResult (5, FIRST, FIRST_TARGET)));
         assertThrows (IllegalStateException.class, () -> environment.prepare (pressResult (5, FIRST, SECOND_TARGET)));
         assertThrows (IllegalStateException.class, () -> environment.prepare (result (
             Map.of (),
@@ -194,6 +255,29 @@ class DrumFillRuntimeEnvironmentTest
         environment.setFillPressed (FIRST, false);
         commitAndApply (environment, 2, releaseResult (FIRST, Map.of (FIRST, FIRST_TARGET)));
         assertEquals (1, host.target (FIRST).releaseCount);
+    }
+
+
+    @Test
+    void reloadOutputWithoutEffectsPreservesTheOrderedSessionAndActiveOwner ()
+    {
+        final FakeClipHost host = host (5, FIRST_TARGET, SECOND_TARGET);
+        host.arm (FIRST, FIRST_TARGET);
+        host.arm (SECOND, SECOND_TARGET);
+        final DrumFillRuntimeEnvironment environment = environment (host);
+        environment.setFillPressed (FIRST, true);
+        commitAndApply (environment, 1, pressResult (5, FIRST, FIRST_TARGET));
+        environment.setFillPressed (SECOND, true);
+        commitAndApply (environment, 1, result (Map.of (), Map.of (FIRST, FIRST_TARGET, SECOND, SECOND_TARGET), List.of (new PressClipTargetEffect (SECOND, 5, SECOND_TARGET, LAUNCH_POLICY))));
+
+        commitAndApply (environment, 2, result (Map.of (FIRST, DIM_RED, SECOND, BRIGHT_RED), Map.of (FIRST, FIRST_TARGET, SECOND, SECOND_TARGET), List.of ()));
+
+        assertEquals (Optional.of (SECOND), environment.snapshot ().activeClipLaunchOwner ());
+        assertEquals (List.of ("press 1", "press 2"), host.launchEvents);
+
+        environment.setFillPressed (SECOND, false);
+        commitAndApply (environment, 2, releaseResult (SECOND, Map.of (FIRST, FIRST_TARGET, SECOND, SECOND_TARGET)));
+        assertEquals ("root", host.playing ());
     }
 
 
@@ -212,7 +296,10 @@ class DrumFillRuntimeEnvironmentTest
         assertEquals (2, environment.snapshot ().clipCatalog ().generation ());
         assertTrue (environment.isFillPressed (FIRST));
 
-        commitAndApply (environment, 2, pressResult (2, FIRST, FIRST_TARGET));
+        commitAndApply (environment, 2, result (
+            Map.of (),
+            Map.of (FIRST, SECOND_TARGET),
+            List.of (new ReactivateClipTargetEffect (FIRST))));
         assertEquals (1, host.target (FIRST).pressCount);
         environment.setFillPressed (FIRST, false);
         commitAndApply (environment, 2, releaseResult (FIRST, Map.of (FIRST, SECOND_TARGET)));
@@ -262,6 +349,26 @@ class DrumFillRuntimeEnvironmentTest
             Map.of (FIRST, FIRST_TARGET),
             List.of (new PressClipTargetEffect (FIRST, 1, FIRST_TARGET, LAUNCH_POLICY), new ReleaseClipTargetsEffect (FIRST)))));
         assertEquals (0, host.prepareCount);
+    }
+
+
+    @Test
+    void retainedTargetsCannotBeReboundToAnotherOwner ()
+    {
+        final FakeClipHost host = host (1, FIRST_TARGET, SECOND_TARGET);
+        host.arm (FIRST, FIRST_TARGET);
+        host.arm (SECOND, SECOND_TARGET);
+        final DrumFillRuntimeEnvironment environment = environment (host);
+        environment.setFillPressed (FIRST, true);
+        commitAndApply (environment, 1, pressResult (1, FIRST, FIRST_TARGET));
+        environment.setFillPressed (SECOND, true);
+
+        assertThrows (IllegalArgumentException.class, () -> environment.prepare (result (
+            Map.of (),
+            Map.of (SECOND, FIRST_TARGET),
+            List.of (new PressClipTargetEffect (SECOND, 1, FIRST_TARGET, LAUNCH_POLICY)))));
+        assertEquals (0, host.target (SECOND).pressCount);
+        assertEquals (Map.of (FIRST, FIRST_TARGET), environment.snapshot ().clipLaunchSessionTargets ());
     }
 
 
@@ -320,40 +427,7 @@ class DrumFillRuntimeEnvironmentTest
 
 
     @Test
-    void failedReleaseIsRetriedWithoutAffectingAnotherOwner ()
-    {
-        final FakeClipHost host = host (1, FIRST_TARGET, SECOND_TARGET);
-        host.arm (FIRST, FIRST_TARGET);
-        host.arm (SECOND, SECOND_TARGET);
-        final RecordingLog log = new RecordingLog ();
-        final DrumFillRuntimeEnvironment environment = new DrumFillRuntimeEnvironment (host, log, () -> 0);
-        environment.setFillPressed (FIRST, true);
-        environment.setFillPressed (SECOND, true);
-        commitAndApply (environment, 1, result (
-            Map.of (),
-            Map.of (FIRST, FIRST_TARGET, SECOND, SECOND_TARGET),
-            List.of (new PressClipTargetEffect (FIRST, 1, FIRST_TARGET, LAUNCH_POLICY), new PressClipTargetEffect (SECOND, 1, SECOND_TARGET, LAUNCH_POLICY))));
-
-        host.target (FIRST).failRelease = true;
-        environment.setFillPressed (FIRST, false);
-        commitAndApply (environment, 1, releaseResult (FIRST, Map.of (SECOND, SECOND_TARGET)));
-        assertEquals (1, host.target (FIRST).releaseAttempts);
-        assertEquals (0, host.target (SECOND).releaseAttempts);
-
-        host.target (FIRST).failRelease = false;
-        environment.refresh ();
-        assertEquals (2, host.target (FIRST).releaseAttempts);
-        assertEquals (1, host.target (FIRST).releaseCount);
-        assertEquals (0, host.target (SECOND).releaseCount);
-        assertTrue (log.warnings.stream ().anyMatch (message -> message.contains ("release failed")));
-
-        environment.safetyRelease (SECOND);
-        assertEquals (1, host.target (SECOND).releaseCount);
-    }
-
-
-    @Test
-    void failedSupersededReleaseRequiresAFreshReplacementPress ()
+    void failedTopReleaseStopsTheUnwindAndRetriesNewestFirst ()
     {
         final FakeClipHost host = host (1, FIRST_TARGET, SECOND_TARGET);
         host.arm (FIRST, FIRST_TARGET);
@@ -362,30 +436,124 @@ class DrumFillRuntimeEnvironmentTest
         final DrumFillRuntimeEnvironment environment = new DrumFillRuntimeEnvironment (host, log, () -> 0);
         environment.setFillPressed (FIRST, true);
         commitAndApply (environment, 1, pressResult (1, FIRST, FIRST_TARGET));
-
         environment.setFillPressed (SECOND, true);
-        host.target (FIRST).failRelease = true;
-        commitAndApply (environment, 1, result (
-            Map.of (),
-            Map.of (FIRST, FIRST_TARGET, SECOND, SECOND_TARGET),
-            List.of (
-                new ReleaseClipTargetsEffect (FIRST),
-                new PressClipTargetEffect (SECOND, 1, SECOND_TARGET, LAUNCH_POLICY))));
+        commitAndApply (environment, 1, result (Map.of (), Map.of (FIRST, FIRST_TARGET, SECOND, SECOND_TARGET), List.of (new PressClipTargetEffect (SECOND, 1, SECOND_TARGET, LAUNCH_POLICY))));
 
-        assertEquals (1, host.target (FIRST).releaseAttempts);
-        assertEquals (0, host.target (SECOND).pressCount);
-        assertTrue (log.warnings.stream ().anyMatch (message -> message.contains ("another fill release")));
-
-        host.target (FIRST).failRelease = false;
-        environment.refresh ();
-        assertEquals (1, host.target (FIRST).releaseCount);
-        assertEquals (0, host.target (SECOND).pressCount);
-
+        host.target (SECOND).failRelease = true;
         environment.setFillPressed (SECOND, false);
-        commitAndApply (environment, 1, releaseResult (SECOND, Map.of (SECOND, SECOND_TARGET)));
+        commitAndApply (environment, 1, releaseResult (SECOND, Map.of (FIRST, FIRST_TARGET, SECOND, SECOND_TARGET)));
+        assertEquals (1, host.target (SECOND).releaseAttempts);
+        assertEquals (0, host.target (FIRST).releaseAttempts);
+        assertEquals (Optional.of (SECOND), environment.snapshot ().activeClipLaunchOwner ());
+        assertEquals ("2", host.playing ());
+
+        host.target (SECOND).failRelease = false;
+        environment.refresh ();
+        assertEquals (2, host.target (SECOND).releaseAttempts);
+        assertEquals (1, host.target (FIRST).releaseAttempts);
+        assertEquals (1, host.target (FIRST).releaseCount);
+        assertEquals (1, host.target (SECOND).releaseCount);
+        assertEquals (List.of ("press 1", "press 2", "release 2", "release 1"), host.launchEvents);
+        assertEquals ("root", host.playing ());
+        assertTrue (log.warnings.stream ().anyMatch (message -> message.contains ("Fill-session release failed")));
+    }
+
+
+    @Test
+    void pendingUnwindBlocksANewFillWithoutLaunchingItLater ()
+    {
+        final ClipTargetId thirdTarget = new ClipTargetId (3);
+        final ControlId third = CoreControls.DRUM_FILL_3;
+        final FakeClipHost host = host (1, FIRST_TARGET, SECOND_TARGET, thirdTarget);
+        host.arm (FIRST, FIRST_TARGET);
+        host.arm (SECOND, SECOND_TARGET);
+        host.arm (third, thirdTarget);
+        final DrumFillRuntimeEnvironment environment = environment (host);
+        environment.setFillPressed (FIRST, true);
+        commitAndApply (environment, 1, pressResult (1, FIRST, FIRST_TARGET));
         environment.setFillPressed (SECOND, true);
-        commitAndApply (environment, 1, pressResult (1, SECOND, SECOND_TARGET));
+        commitAndApply (environment, 1, result (Map.of (), Map.of (FIRST, FIRST_TARGET, SECOND, SECOND_TARGET, third, thirdTarget), List.of (new PressClipTargetEffect (SECOND, 1, SECOND_TARGET, LAUNCH_POLICY))));
+
+        host.target (SECOND).failRelease = true;
+        environment.setFillPressed (SECOND, false);
+        commitAndApply (environment, 1, releaseResult (SECOND, Map.of (FIRST, FIRST_TARGET, SECOND, SECOND_TARGET, third, thirdTarget)));
+        environment.setFillPressed (third, true);
+        commitAndApply (environment, 1, result (Map.of (), Map.of (FIRST, FIRST_TARGET, SECOND, SECOND_TARGET, third, thirdTarget), List.of (new PressClipTargetEffect (third, 1, thirdTarget, LAUNCH_POLICY))));
+
+        assertEquals (0, host.target (third).pressCount);
+        host.target (SECOND).failRelease = false;
+        environment.refresh ();
+        assertEquals (0, host.target (third).pressCount);
+        assertEquals ("root", host.playing ());
+
+        environment.setFillPressed (third, false);
+        commitAndApply (environment, 1, releaseResult (third, Map.of (third, thirdTarget)));
+        environment.setFillPressed (third, true);
+        commitAndApply (environment, 1, pressResult (1, third, thirdTarget));
+        assertEquals (1, host.target (third).pressCount);
+    }
+
+
+    @Test
+    void pressingARetiredAncestorReactivatesItAcrossCatalogReplacementWithoutASecondPress ()
+    {
+        final FakeClipHost host = host (1, FIRST_TARGET, SECOND_TARGET);
+        host.arm (FIRST, FIRST_TARGET);
+        host.arm (SECOND, SECOND_TARGET);
+        final DrumFillRuntimeEnvironment environment = environment (host);
+        environment.setFillPressed (FIRST, true);
+        commitAndApply (environment, 1, pressResult (1, FIRST, FIRST_TARGET));
+        environment.setFillPressed (SECOND, true);
+        commitAndApply (environment, 1, result (Map.of (), Map.of (FIRST, FIRST_TARGET, SECOND, SECOND_TARGET), List.of (new PressClipTargetEffect (SECOND, 1, SECOND_TARGET, LAUNCH_POLICY))));
+        environment.setFillPressed (FIRST, false);
+        commitAndApply (environment, 1, releaseResult (FIRST, Map.of (FIRST, FIRST_TARGET, SECOND, SECOND_TARGET)));
+
+        host.queueState (catalog (2, SECOND_TARGET), Map.of (SECOND, SECOND_TARGET));
+        assertTrue (environment.refresh ());
+        environment.setFillPressed (FIRST, true);
+        commitAndApply (environment, 1, result (Map.of (), Map.of (SECOND, SECOND_TARGET), List.of (new ReactivateClipTargetEffect (FIRST))));
+
+        assertEquals (1, host.target (FIRST).pressCount);
         assertEquals (1, host.target (SECOND).pressCount);
+        assertEquals (1, host.target (SECOND).releaseCount);
+        assertEquals (0, host.target (FIRST).releaseCount);
+        assertEquals (Optional.of (FIRST), environment.snapshot ().activeClipLaunchOwner ());
+        assertEquals ("1", host.playing ());
+
+        environment.setFillPressed (FIRST, false);
+        commitAndApply (environment, 1, releaseResult (FIRST, Map.of (SECOND, SECOND_TARGET)));
+        assertEquals ("root", host.playing ());
+    }
+
+
+    @Test
+    void releasingAReactivationOwnerDuringFailedUnwindStillReturnsToRoot ()
+    {
+        final FakeClipHost host = host (1, FIRST_TARGET, SECOND_TARGET);
+        host.arm (FIRST, FIRST_TARGET);
+        host.arm (SECOND, SECOND_TARGET);
+        final DrumFillRuntimeEnvironment environment = environment (host);
+        environment.setFillPressed (FIRST, true);
+        commitAndApply (environment, 1, pressResult (1, FIRST, FIRST_TARGET));
+        environment.setFillPressed (SECOND, true);
+        commitAndApply (environment, 1, result (Map.of (), Map.of (FIRST, FIRST_TARGET, SECOND, SECOND_TARGET), List.of (new PressClipTargetEffect (SECOND, 1, SECOND_TARGET, LAUNCH_POLICY))));
+        environment.setFillPressed (FIRST, false);
+        commitAndApply (environment, 1, releaseResult (FIRST, Map.of (FIRST, FIRST_TARGET, SECOND, SECOND_TARGET)));
+
+        host.target (SECOND).failRelease = true;
+        environment.setFillPressed (FIRST, true);
+        commitAndApply (environment, 1, result (Map.of (), Map.of (FIRST, FIRST_TARGET, SECOND, SECOND_TARGET), List.of (new ReactivateClipTargetEffect (FIRST))));
+        assertEquals (Optional.of (SECOND), environment.snapshot ().activeClipLaunchOwner ());
+
+        environment.setFillPressed (FIRST, false);
+        environment.safetyRelease (FIRST);
+        host.target (SECOND).failRelease = false;
+        environment.refresh ();
+
+        assertEquals (1, host.target (SECOND).releaseCount);
+        assertEquals (1, host.target (FIRST).releaseCount);
+        assertEquals (Optional.empty (), environment.snapshot ().activeClipLaunchOwner ());
+        assertEquals ("root", host.playing ());
     }
 
 
@@ -397,11 +565,12 @@ class DrumFillRuntimeEnvironmentTest
         host.arm (SECOND, SECOND_TARGET);
         final DrumFillRuntimeEnvironment environment = environment (host);
         environment.setFillPressed (FIRST, true);
+        commitAndApply (environment, 4, pressResult (1, FIRST, FIRST_TARGET));
         environment.setFillPressed (SECOND, true);
         commitAndApply (environment, 4, result (
             Map.of (FIRST, BRIGHT_RED, SECOND, BRIGHT_RED),
             Map.of (FIRST, FIRST_TARGET, SECOND, SECOND_TARGET),
-            List.of (new PressClipTargetEffect (FIRST, 1, FIRST_TARGET, LAUNCH_POLICY), new PressClipTargetEffect (SECOND, 1, SECOND_TARGET, LAUNCH_POLICY))));
+            List.of (new PressClipTargetEffect (SECOND, 1, SECOND_TARGET, LAUNCH_POLICY))));
 
         environment.invalidate (5);
 
@@ -411,7 +580,47 @@ class DrumFillRuntimeEnvironmentTest
         assertTrue (environment.snapshot ().pressedControls ().isEmpty ());
         assertEquals (1, host.target (FIRST).releaseCount);
         assertEquals (1, host.target (SECOND).releaseCount);
+        assertEquals (List.of ("press 1", "press 2", "release 2", "release 1"), host.launchEvents);
+        assertEquals ("root", host.playing ());
         assertEquals (5, environment.outputGeneration ());
+    }
+
+
+    @Test
+    void failedInvalidationUnwindRetriesInOrderAndPublishesTheFinalOwnerChange ()
+    {
+        final FakeClipHost host = host (1, FIRST_TARGET, SECOND_TARGET);
+        host.arm (FIRST, FIRST_TARGET);
+        host.arm (SECOND, SECOND_TARGET);
+        final DrumFillRuntimeEnvironment environment = environment (host);
+        environment.setFillPressed (FIRST, true);
+        commitAndApply (environment, 4, pressResult (1, FIRST, FIRST_TARGET));
+        environment.setFillPressed (SECOND, true);
+        commitAndApply (environment, 4, result (
+            Map.of (),
+            Map.of (FIRST, FIRST_TARGET, SECOND, SECOND_TARGET),
+            List.of (new PressClipTargetEffect (SECOND, 1, SECOND_TARGET, LAUNCH_POLICY))));
+        environment.setFillPressed (FIRST, false);
+        environment.setFillPressed (SECOND, false);
+        environment.acknowledgeSnapshotChange (environment.snapshotRevision ());
+
+        host.target (SECOND).failRelease = true;
+        final long retainedRevision = environment.snapshotRevision ();
+        environment.invalidate (5);
+
+        assertEquals (retainedRevision, environment.snapshotRevision ());
+        assertEquals (1, host.target (SECOND).releaseAttempts);
+        assertEquals (0, host.target (FIRST).releaseAttempts);
+        assertEquals (Optional.of (SECOND), environment.snapshot ().activeClipLaunchOwner ());
+
+        host.target (SECOND).failRelease = false;
+        assertTrue (environment.refresh ());
+
+        assertEquals (retainedRevision + 1, environment.snapshotRevision ());
+        assertEquals (List.of ("press 1", "press 2", "release 2", "release 1"), host.launchEvents);
+        assertEquals (Optional.empty (), environment.snapshot ().activeClipLaunchOwner ());
+        assertTrue (environment.snapshot ().clipLaunchSessionTargets ().isEmpty ());
+        assertEquals ("root", host.playing ());
     }
 
 
@@ -464,6 +673,8 @@ class DrumFillRuntimeEnvironmentTest
     private static final class FakeClipHost implements DrumFillClipHost
     {
         private final Map<ControlId, FakeTarget> targets = new LinkedHashMap<> ();
+        private final List<String> launchEvents = new ArrayList<> ();
+        private final List<String> playbackStack = new ArrayList<> (List.of ("root"));
         private ClipCatalogSnapshot catalog;
         private Map<ControlId, ClipTargetId> armed = Map.of ();
         private ClipCatalogSnapshot queuedCatalog;
@@ -480,7 +691,7 @@ class DrumFillRuntimeEnvironmentTest
             for (int index = 0; index < catalog.clips ().size () && index < CoreControls.DRUM_FILLS.size (); index++)
             {
                 final ControlId owner = CoreControls.DRUM_FILLS.get (index);
-                this.targets.put (owner, new FakeTarget (catalog.clips ().get (index).targetId ()));
+                this.targets.put (owner, new FakeTarget (catalog.clips ().get (index).targetId (), this.launchEvents, this.playbackStack));
             }
         }
 
@@ -541,7 +752,7 @@ class DrumFillRuntimeEnvironmentTest
             final Map<ControlId, ClipTargetId> updated = new LinkedHashMap<> (this.armed);
             updated.put (owner, target);
             this.armed = Map.copyOf (updated);
-            this.targets.computeIfAbsent (owner, ignored -> new FakeTarget (target));
+            this.targets.computeIfAbsent (owner, ignored -> new FakeTarget (target, this.launchEvents, this.playbackStack));
         }
 
 
@@ -556,12 +767,20 @@ class DrumFillRuntimeEnvironmentTest
         {
             return this.targets.get (owner);
         }
+
+
+        private String playing ()
+        {
+            return this.playbackStack.getLast ();
+        }
     }
 
 
     private static final class FakeTarget implements DrumFillClipHost.LaunchTarget
     {
         private final ClipTargetId targetId;
+        private final List<String> launchEvents;
+        private final List<String> playbackStack;
         private int pressCount;
         private int releaseAttempts;
         private int releaseCount;
@@ -569,9 +788,11 @@ class DrumFillRuntimeEnvironmentTest
         private boolean failRelease;
 
 
-        private FakeTarget (final ClipTargetId targetId)
+        private FakeTarget (final ClipTargetId targetId, final List<String> launchEvents, final List<String> playbackStack)
         {
             this.targetId = targetId;
+            this.launchEvents = launchEvents;
+            this.playbackStack = playbackStack;
         }
 
 
@@ -587,6 +808,9 @@ class DrumFillRuntimeEnvironmentTest
         {
             assertEquals (LAUNCH_POLICY, launchPolicy);
             this.pressCount++;
+            final String target = Long.toString (this.targetId.value ());
+            this.launchEvents.add ("press " + target);
+            this.playbackStack.add (target);
             if (this.failPressAfterApply)
                 throw new IllegalStateException ("press applied then failed");
         }
@@ -598,6 +822,10 @@ class DrumFillRuntimeEnvironmentTest
             this.releaseAttempts++;
             if (this.failRelease)
                 throw new IllegalStateException ("release failed");
+            final String target = Long.toString (this.targetId.value ());
+            assertEquals (target, this.playbackStack.getLast (), "Return frames must unwind newest first");
+            this.launchEvents.add ("release " + target);
+            this.playbackStack.removeLast ();
             this.releaseCount++;
         }
     }

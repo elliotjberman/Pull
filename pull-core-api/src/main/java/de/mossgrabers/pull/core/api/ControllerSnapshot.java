@@ -5,6 +5,7 @@ package de.mossgrabers.pull.core.api;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -15,10 +16,13 @@ import java.util.Set;
  * @param capabilities Capabilities available from the shell
  * @param clipCatalog Ordered candidate clips on the selected track
  * @param armedClipTargets Clip targets currently armed by logical control
+ * @param clipLaunchSessionTargets Frozen target for every owner retained in the shell-managed
+ * clip-launch session
+ * @param activeClipLaunchOwner Logical owner of the active shell-managed clip-launch session
  * @param pressedControls Currently pressed controls
  * @param touchedControls Currently touched controls
  */
-public record ControllerSnapshot (long revision, long monotonicTimeNanos, ShellCapabilities capabilities, ClipCatalogSnapshot clipCatalog, Map<ControlId, ClipTargetId> armedClipTargets, Set<ControlId> pressedControls, Set<ControlId> touchedControls)
+public record ControllerSnapshot (long revision, long monotonicTimeNanos, ShellCapabilities capabilities, ClipCatalogSnapshot clipCatalog, Map<ControlId, ClipTargetId> armedClipTargets, Map<ControlId, ClipTargetId> clipLaunchSessionTargets, Optional<ControlId> activeClipLaunchOwner, Set<ControlId> pressedControls, Set<ControlId> touchedControls)
 {
     /**
      * Validate and copy snapshot values.
@@ -33,7 +37,28 @@ public record ControllerSnapshot (long revision, long monotonicTimeNanos, ShellC
         capabilities = Objects.requireNonNull (capabilities, "capabilities");
         clipCatalog = Objects.requireNonNull (clipCatalog, "clipCatalog");
         armedClipTargets = Map.copyOf (Objects.requireNonNull (armedClipTargets, "armedClipTargets"));
+        clipLaunchSessionTargets = Map.copyOf (Objects.requireNonNull (clipLaunchSessionTargets, "clipLaunchSessionTargets"));
+        activeClipLaunchOwner = Objects.requireNonNull (activeClipLaunchOwner, "activeClipLaunchOwner");
+        if (activeClipLaunchOwner.isPresent () && !clipLaunchSessionTargets.containsKey (activeClipLaunchOwner.get ()))
+            throw new IllegalArgumentException ("activeClipLaunchOwner must identify a retained clip-launch target");
         pressedControls = Set.copyOf (Objects.requireNonNull (pressedControls, "pressedControls"));
         touchedControls = Set.copyOf (Objects.requireNonNull (touchedControls, "touchedControls"));
+    }
+
+
+    /**
+     * Construct a snapshot without an active clip-launch session.
+     *
+     * @param revision Monotonic snapshot revision
+     * @param monotonicTimeNanos Shell monotonic time when captured
+     * @param capabilities Capabilities available from the shell
+     * @param clipCatalog Ordered candidate clips on the selected track
+     * @param armedClipTargets Clip targets currently armed by logical control
+     * @param pressedControls Currently pressed controls
+     * @param touchedControls Currently touched controls
+     */
+    public ControllerSnapshot (final long revision, final long monotonicTimeNanos, final ShellCapabilities capabilities, final ClipCatalogSnapshot clipCatalog, final Map<ControlId, ClipTargetId> armedClipTargets, final Set<ControlId> pressedControls, final Set<ControlId> touchedControls)
+    {
+        this (revision, monotonicTimeNanos, capabilities, clipCatalog, armedClipTargets, Map.of (), Optional.empty (), pressedControls, touchedControls);
     }
 }

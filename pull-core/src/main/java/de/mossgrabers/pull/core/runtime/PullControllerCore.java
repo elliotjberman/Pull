@@ -17,13 +17,13 @@ import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
 import de.mossgrabers.pull.core.api.effect.ClipReleaseTrigger;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
+import de.mossgrabers.pull.core.api.effect.ReactivateClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.output.DesiredHardwareOutput;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -41,7 +41,7 @@ final class PullControllerCore implements ControllerCore
     private static final String FILL_MARKER = "fill";
     private static final RgbColor FILL_OFF = new RgbColor (0, 0, 0);
     private static final RgbColor FILL_AVAILABLE = new RgbColor (96, 30, 0);
-    private static final RgbColor FILL_HELD = new RgbColor (255, 80, 0);
+    private static final RgbColor FILL_ACTIVE = new RgbColor (255, 80, 0);
     private static final ClipLaunchPolicy FILL_LAUNCH_POLICY = new ClipLaunchPolicy (
         ClipLaunchQuantization.IMMEDIATE,
         ClipLaunchMode.LEGATO_FROM_CLIP_OR_PROJECT,
@@ -85,7 +85,7 @@ final class PullControllerCore implements ControllerCore
         if (event instanceof final ButtonInputEvent button && CoreControls.DRUM_FILLS.contains (button.controlId ()))
         {
             if (button.pressed ())
-                effects = pressEffects (snapshot, desiredBindings, continuingPresses, button.controlId ());
+                effects = pressEffects (snapshot, desiredBindings, button.controlId ());
             else
                 effects = List.of (new ReleaseClipTargetsEffect (button.controlId ()));
         }
@@ -129,6 +129,18 @@ final class PullControllerCore implements ControllerCore
             bindings.entrySet ().removeIf (entry -> !control.equals (entry.getKey ()) && armedTarget.equals (entry.getValue ()));
             bindings.put (control, armedTarget);
         }
+
+        // A frozen Return frame owns its target until the shell releases it. Keep a retained
+        // target on that owner while it remains in the current catalog, and never offer the same
+        // target to another pad while the frame is hidden beneath a later fill.
+        final Set<ClipTargetId> catalogTargets = new LinkedHashSet<> ();
+        snapshot.clipCatalog ().clips ().forEach (clip -> catalogTargets.add (clip.targetId ()));
+        for (final Map.Entry<ControlId, ClipTargetId> retained: snapshot.clipLaunchSessionTargets ().entrySet ())
+        {
+            bindings.entrySet ().removeIf (entry -> !retained.getKey ().equals (entry.getKey ()) && retained.getValue ().equals (entry.getValue ()));
+            if (catalogTargets.contains (retained.getValue ()))
+                bindings.put (retained.getKey (), retained.getValue ());
+        }
         return Map.copyOf (bindings);
     }
 
@@ -164,19 +176,15 @@ final class PullControllerCore implements ControllerCore
     }
 
 
-    private static List<CoreEffect> pressEffects (final ControllerSnapshot snapshot, final Map<ControlId, ClipTargetId> desiredBindings, final Set<ControlId> continuingPresses, final ControlId owner)
+    private static List<CoreEffect> pressEffects (final ControllerSnapshot snapshot, final Map<ControlId, ClipTargetId> desiredBindings, final ControlId owner)
     {
+        final ClipTargetId retainedTarget = snapshot.clipLaunchSessionTargets ().get (owner);
+        if (retainedTarget != null)
+            return List.of (new ReactivateClipTargetEffect (owner));
         if (!isReady (snapshot, desiredBindings, owner))
             return List.of ();
 
-        final List<CoreEffect> effects = new ArrayList<> (continuingPresses.size () + 1);
-        for (final ControlId heldControl: CoreControls.DRUM_FILLS)
-        {
-            if (!owner.equals (heldControl) && continuingPresses.contains (heldControl))
-                effects.add (new ReleaseClipTargetsEffect (heldControl));
-        }
-        effects.add (pressEffect (snapshot, owner, desiredBindings.get (owner)));
-        return List.copyOf (effects);
+        return List.of (pressEffect (snapshot, owner, desiredBindings.get (owner)));
     }
 
 
@@ -186,10 +194,12 @@ final class PullControllerCore implements ControllerCore
         for (final ControlId control: CoreControls.DRUM_FILLS)
         {
             final RgbColor color;
-            if (!isReady (snapshot, desiredBindings, control))
+            if (snapshot.activeClipLaunchOwner ().filter (control::equals).isPresent ())
+                color = FILL_ACTIVE;
+            else if (snapshot.clipLaunchSessionTargets ().containsKey (control))
+                color = FILL_AVAILABLE;
+            else if (!isReady (snapshot, desiredBindings, control))
                 color = FILL_OFF;
-            else if (snapshot.pressedControls ().contains (control))
-                color = FILL_HELD;
             else
                 color = FILL_AVAILABLE;
             lights.put (control, color);

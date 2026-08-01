@@ -15,6 +15,7 @@ import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
 import de.mossgrabers.pull.core.api.effect.ClipReleaseTrigger;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
+import de.mossgrabers.pull.core.api.effect.ReactivateClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.runtime.PullCoreProvider;
@@ -87,18 +88,24 @@ class PullControllerCoreTest
         assertEquals (CoreControls.DRUM_FILL_2, press.owner ());
         assertEquals (41, press.catalogGeneration ());
         assertEquals (second, press.target ());
+        assertEquals (AVAILABLE, light (host, CoreControls.DRUM_FILL_2));
+
+        host.activeClipLaunchOwner (Optional.of (CoreControls.DRUM_FILL_2));
         assertEquals (HELD, light (host, CoreControls.DRUM_FILL_2));
 
         host.button (CoreControls.DRUM_FILL_2, false);
 
         assertTrue (host.effects ().clipLease (CoreControls.DRUM_FILL_2).isEmpty ());
         assertInstanceOf (ReleaseClipTargetsEffect.class, host.effects ().executionOrder ().getLast ());
+        assertEquals (HELD, light (host, CoreControls.DRUM_FILL_2));
+
+        host.activeClipLaunchOwner (Optional.empty ());
         assertEquals (AVAILABLE, light (host, CoreControls.DRUM_FILL_2));
     }
 
 
     @Test
-    void lastReadyFillPressReleasesThePreviousFillBeforeLaunching ()
+    void latestReadyFillPressRetainsThePreviousReturnAncestor ()
     {
         final ClipTargetId first = new ClipTargetId (1);
         final ClipTargetId second = new ClipTargetId (2);
@@ -109,25 +116,36 @@ class PullControllerCoreTest
         host.armedClipTargets (host.effects ().desiredClipBindings ());
 
         host.button (CoreControls.DRUM_FILL_1, true);
+        host.activeClipLaunchOwner (Optional.of (CoreControls.DRUM_FILL_1));
         host.button (CoreControls.DRUM_FILL_2, true);
 
         final List<CoreEffect> effects = host.effects ().executionOrder ();
-        assertEquals (3, effects.size ());
-        assertEquals (new ReleaseClipTargetsEffect (CoreControls.DRUM_FILL_1), effects.get (1));
-        assertEquals (new PressClipTargetEffect (CoreControls.DRUM_FILL_2, 42, second, FILL_POLICY), effects.get (2));
-        assertTrue (host.effects ().clipLease (CoreControls.DRUM_FILL_1).isEmpty ());
+        assertEquals (2, effects.size ());
+        assertEquals (new PressClipTargetEffect (CoreControls.DRUM_FILL_2, 42, second, FILL_POLICY), effects.get (1));
+        assertEquals (first, host.effects ().clipLease (CoreControls.DRUM_FILL_1).orElseThrow ().target ());
         assertEquals (second, host.effects ().clipLease (CoreControls.DRUM_FILL_2).orElseThrow ().target ());
+        assertEquals (HELD, light (host, CoreControls.DRUM_FILL_1));
+        assertEquals (AVAILABLE, light (host, CoreControls.DRUM_FILL_2));
+
+        host.activeClipLaunchOwner (Optional.of (CoreControls.DRUM_FILL_2));
+        assertEquals (AVAILABLE, light (host, CoreControls.DRUM_FILL_1));
+        assertEquals (HELD, light (host, CoreControls.DRUM_FILL_2));
 
         host.button (CoreControls.DRUM_FILL_1, false);
         assertEquals (second, host.effects ().clipLease (CoreControls.DRUM_FILL_2).orElseThrow ().target ());
+        assertEquals (HELD, light (host, CoreControls.DRUM_FILL_2));
 
         host.button (CoreControls.DRUM_FILL_2, false);
         assertTrue (host.effects ().clipLease (CoreControls.DRUM_FILL_2).isEmpty ());
+        assertEquals (HELD, light (host, CoreControls.DRUM_FILL_2));
+
+        host.activeClipLaunchOwner (Optional.empty ());
+        assertEquals (AVAILABLE, light (host, CoreControls.DRUM_FILL_2));
     }
 
 
     @Test
-    void aNewPressAfterReloadReleasesEveryOlderHeldOwner ()
+    void aNewPressAfterReloadLeavesReturnAncestryToTheShell ()
     {
         final ClipTargetId first = new ClipTargetId (1);
         final ClipTargetId second = new ClipTargetId (2);
@@ -146,10 +164,7 @@ class PullControllerCoreTest
 
         host.button (CoreControls.DRUM_FILL_3, true);
 
-        assertEquals (List.of (
-            new ReleaseClipTargetsEffect (CoreControls.DRUM_FILL_1),
-            new ReleaseClipTargetsEffect (CoreControls.DRUM_FILL_2),
-            new PressClipTargetEffect (CoreControls.DRUM_FILL_3, 43, third, FILL_POLICY)), host.effects ().executionOrder ());
+        assertEquals (List.of (new PressClipTargetEffect (CoreControls.DRUM_FILL_3, 43, third, FILL_POLICY)), host.effects ().executionOrder ());
     }
 
 
@@ -165,15 +180,105 @@ class PullControllerCoreTest
             CoreControls.DRUM_FILL_1, first,
             CoreControls.DRUM_FILL_2, second);
         final PullCoreProvider provider = new PullCoreProvider ();
-        final FakeCoreHost host = new FakeCoreHost (provider.create (), provider.descriptor ().requiredCapabilities (), catalog, armed, armed.keySet ());
+        final FakeCoreHost host = new FakeCoreHost (
+            provider.create (),
+            provider.descriptor ().requiredCapabilities (),
+            catalog,
+            armed,
+            Optional.of (CoreControls.DRUM_FILL_2),
+            armed.keySet ());
 
         host.start (Optional.empty ());
 
         assertTrue (host.effects ().executionOrder ().isEmpty ());
         assertTrue (host.effects ().clipLease (CoreControls.DRUM_FILL_1).isEmpty ());
         assertTrue (host.effects ().clipLease (CoreControls.DRUM_FILL_2).isEmpty ());
-        assertEquals (HELD, light (host, CoreControls.DRUM_FILL_1));
+        assertEquals (AVAILABLE, light (host, CoreControls.DRUM_FILL_1));
         assertEquals (HELD, light (host, CoreControls.DRUM_FILL_2));
+    }
+
+
+    @Test
+    void activeOwnerStaysHeldWhenItsArmedBindingDisappears ()
+    {
+        final ClipTargetId target = new ClipTargetId (7);
+        final ClipCatalogSnapshot catalog = new ClipCatalogSnapshot (9, List.of (new CatalogClip (target, "fill")));
+        final PullCoreProvider provider = new PullCoreProvider ();
+        final FakeCoreHost host = new FakeCoreHost (
+            provider.create (),
+            provider.descriptor ().requiredCapabilities (),
+            catalog,
+            Map.of (CoreControls.DRUM_FILL_1, target),
+            Optional.of (CoreControls.DRUM_FILL_1),
+            Set.of (CoreControls.DRUM_FILL_1));
+        host.start (Optional.empty ());
+
+        host.armedClipTargets (Map.of ());
+
+        assertEquals (HELD, light (host, CoreControls.DRUM_FILL_1));
+    }
+
+
+    @Test
+    void activeOwnerStaysHeldWhenTheSelectedTrackCatalogDisappears ()
+    {
+        final PullCoreProvider provider = new PullCoreProvider ();
+        final ClipTargetId retained = new ClipTargetId (7);
+        final FakeCoreHost host = new FakeCoreHost (
+            provider.create (),
+            provider.descriptor ().requiredCapabilities (),
+            ClipCatalogSnapshot.empty (),
+            Map.of (),
+            Map.of (CoreControls.DRUM_FILL_1, retained),
+            Optional.of (CoreControls.DRUM_FILL_1),
+            Set.of ());
+
+        host.start (Optional.empty ());
+
+        assertTrue (host.effects ().desiredClipBindings ().isEmpty ());
+        assertEquals (HELD, light (host, CoreControls.DRUM_FILL_1));
+        assertEquals (OFF, light (host, CoreControls.DRUM_FILL_2));
+    }
+
+
+    @Test
+    void retainedTargetsStayReservedAndCanBeReactivatedAfterCatalogReordering ()
+    {
+        final ClipTargetId first = new ClipTargetId (1);
+        final ClipTargetId second = new ClipTargetId (2);
+        final FakeCoreHost host = host (new ClipCatalogSnapshot (1, List.of (
+            new CatalogClip (first, "fill one"),
+            new CatalogClip (second, "fill two"))));
+        host.start (Optional.empty ());
+        host.armedClipTargets (host.effects ().desiredClipBindings ());
+
+        host.button (CoreControls.DRUM_FILL_1, true);
+        host.activeClipLaunchOwner (Optional.of (CoreControls.DRUM_FILL_1));
+        host.button (CoreControls.DRUM_FILL_2, true);
+        host.activeClipLaunchOwner (Optional.of (CoreControls.DRUM_FILL_2));
+        host.button (CoreControls.DRUM_FILL_1, false);
+
+        final ClipTargetId replacement = new ClipTargetId (3);
+        host.clipCatalog (new ClipCatalogSnapshot (2, List.of (
+            new CatalogClip (replacement, "replacement fill"),
+            new CatalogClip (first, "fill one"),
+            new CatalogClip (second, "fill two"))));
+        assertEquals (Map.of (
+            CoreControls.DRUM_FILL_1, first,
+            CoreControls.DRUM_FILL_2, second), host.effects ().desiredClipBindings ());
+        host.armedClipTargets (Map.of (CoreControls.DRUM_FILL_1, replacement));
+        assertEquals (AVAILABLE, light (host, CoreControls.DRUM_FILL_1));
+        assertEquals (HELD, light (host, CoreControls.DRUM_FILL_2));
+
+        host.button (CoreControls.DRUM_FILL_1, true);
+
+        assertEquals (new ReactivateClipTargetEffect (CoreControls.DRUM_FILL_1), host.effects ().executionOrder ().getLast ());
+        assertEquals (first, host.effects ().clipLease (CoreControls.DRUM_FILL_1).orElseThrow ().target ());
+        assertTrue (host.effects ().clipLease (CoreControls.DRUM_FILL_2).isEmpty ());
+
+        host.clipLaunchSession (Map.of (CoreControls.DRUM_FILL_1, first), Optional.of (CoreControls.DRUM_FILL_1));
+        assertEquals (HELD, light (host, CoreControls.DRUM_FILL_1));
+        assertEquals (OFF, light (host, CoreControls.DRUM_FILL_2));
     }
 
 
@@ -188,6 +293,7 @@ class PullControllerCoreTest
         host.start (Optional.empty ());
         host.armedClipTargets (host.effects ().desiredClipBindings ());
         host.button (CoreControls.DRUM_FILL_1, true);
+        host.activeClipLaunchOwner (Optional.of (CoreControls.DRUM_FILL_1));
 
         final ClipTargetId inserted = new ClipTargetId (3);
         host.clipCatalog (new ClipCatalogSnapshot (2, List.of (
@@ -204,9 +310,12 @@ class PullControllerCoreTest
 
         host.button (CoreControls.DRUM_FILL_1, false);
 
+        assertEquals (original, host.effects ().desiredClipBindings ().get (CoreControls.DRUM_FILL_1));
+        assertInstanceOf (ReleaseClipTargetsEffect.class, host.effects ().executionOrder ().getLast ());
+
+        host.activeClipLaunchOwner (Optional.empty ());
         assertEquals (inserted, host.effects ().desiredClipBindings ().get (CoreControls.DRUM_FILL_1));
         assertEquals (original, host.effects ().desiredClipBindings ().get (CoreControls.DRUM_FILL_2));
-        assertInstanceOf (ReleaseClipTargetsEffect.class, host.effects ().executionOrder ().getLast ());
     }
 
 
@@ -229,7 +338,7 @@ class PullControllerCoreTest
         assertTrue (host.effects ().clipLease (CoreControls.DRUM_FILL_1).isEmpty ());
 
         host.armedClipTargets (Map.of (CoreControls.DRUM_FILL_1, desired));
-        assertEquals (HELD, light (host, CoreControls.DRUM_FILL_1));
+        assertEquals (AVAILABLE, light (host, CoreControls.DRUM_FILL_1));
         assertTrue (host.effects ().executionOrder ().isEmpty ());
         assertTrue (host.effects ().clipLease (CoreControls.DRUM_FILL_1).isEmpty ());
 

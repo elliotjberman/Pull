@@ -38,6 +38,8 @@ final class FakeCoreHost
     private final ShellCapabilities capabilities;
     private ClipCatalogSnapshot clipCatalog;
     private Map<ControlId, ClipTargetId> armedClipTargets;
+    private Map<ControlId, ClipTargetId> clipLaunchSessionTargets;
+    private Optional<ControlId> activeClipLaunchOwner;
     private long revision;
     private long eventSequence;
 
@@ -65,10 +67,46 @@ final class FakeCoreHost
      */
     FakeCoreHost (final ControllerCore core, final ShellCapabilities capabilities, final ClipCatalogSnapshot clipCatalog, final Map<ControlId, ClipTargetId> armedClipTargets, final Set<ControlId> pressedControls)
     {
+        this (core, capabilities, clipCatalog, armedClipTargets, Optional.empty (), pressedControls);
+    }
+
+
+    /**
+     * Constructor with complete authoritative state used to exercise startup hydration.
+     *
+     * @param core The core under test
+     * @param capabilities Fake shell capabilities
+     * @param clipCatalog Initial selected-track clip catalog
+     * @param armedClipTargets Initially armed clip targets
+     * @param activeClipLaunchOwner Initially active shell-managed clip session owner
+     * @param pressedControls Initially held controls
+     */
+    FakeCoreHost (final ControllerCore core, final ShellCapabilities capabilities, final ClipCatalogSnapshot clipCatalog, final Map<ControlId, ClipTargetId> armedClipTargets, final Optional<ControlId> activeClipLaunchOwner, final Set<ControlId> pressedControls)
+    {
+        this (core, capabilities, clipCatalog, armedClipTargets, initialSessionTargets (armedClipTargets, activeClipLaunchOwner), activeClipLaunchOwner, pressedControls);
+    }
+
+
+    /**
+     * Constructor with complete authoritative clip-session state used to exercise startup
+     * hydration and retained-owner behavior.
+     *
+     * @param core The core under test
+     * @param capabilities Fake shell capabilities
+     * @param clipCatalog Initial selected-track clip catalog
+     * @param armedClipTargets Initially armed clip targets
+     * @param clipLaunchSessionTargets Initially retained clip-session targets
+     * @param activeClipLaunchOwner Initially active shell-managed clip session owner
+     * @param pressedControls Initially held controls
+     */
+    FakeCoreHost (final ControllerCore core, final ShellCapabilities capabilities, final ClipCatalogSnapshot clipCatalog, final Map<ControlId, ClipTargetId> armedClipTargets, final Map<ControlId, ClipTargetId> clipLaunchSessionTargets, final Optional<ControlId> activeClipLaunchOwner, final Set<ControlId> pressedControls)
+    {
         this.core = Objects.requireNonNull (core, "core");
         this.capabilities = Objects.requireNonNull (capabilities, "capabilities");
         this.clipCatalog = Objects.requireNonNull (clipCatalog, "clipCatalog");
         this.armedClipTargets = Map.copyOf (Objects.requireNonNull (armedClipTargets, "armedClipTargets"));
+        this.clipLaunchSessionTargets = Map.copyOf (Objects.requireNonNull (clipLaunchSessionTargets, "clipLaunchSessionTargets"));
+        this.activeClipLaunchOwner = Objects.requireNonNull (activeClipLaunchOwner, "activeClipLaunchOwner");
         this.pressedControls.addAll (Objects.requireNonNull (pressedControls, "pressedControls"));
     }
 
@@ -142,6 +180,33 @@ final class FakeCoreHost
     void armedClipTargets (final Map<ControlId, ClipTargetId> armedClipTargets)
     {
         this.armedClipTargets = Map.copyOf (Objects.requireNonNull (armedClipTargets, "armedClipTargets"));
+        this.snapshotChanged ();
+    }
+
+
+    /**
+     * Replace the shell's authoritative active clip-session owner and notify the core.
+     *
+     * @param activeClipLaunchOwner Active owner, if a momentary session exists
+     */
+    void activeClipLaunchOwner (final Optional<ControlId> activeClipLaunchOwner)
+    {
+        this.activeClipLaunchOwner = Objects.requireNonNull (activeClipLaunchOwner, "activeClipLaunchOwner");
+        this.clipLaunchSessionTargets = this.effectExecutor.clipLaunchSessionTargets ();
+        this.snapshotChanged ();
+    }
+
+
+    /**
+     * Replace the complete authoritative clip-launch session and notify the core.
+     *
+     * @param clipLaunchSessionTargets Retained targets by owner
+     * @param activeClipLaunchOwner Active owner, if the session is non-empty
+     */
+    void clipLaunchSession (final Map<ControlId, ClipTargetId> clipLaunchSessionTargets, final Optional<ControlId> activeClipLaunchOwner)
+    {
+        this.clipLaunchSessionTargets = Map.copyOf (Objects.requireNonNull (clipLaunchSessionTargets, "clipLaunchSessionTargets"));
+        this.activeClipLaunchOwner = Objects.requireNonNull (activeClipLaunchOwner, "activeClipLaunchOwner");
         this.snapshotChanged ();
     }
 
@@ -225,6 +290,16 @@ final class FakeCoreHost
 
     private ControllerSnapshot snapshot ()
     {
-        return new ControllerSnapshot (this.revision, this.time.nowNanos (), this.capabilities, this.clipCatalog, this.armedClipTargets, this.pressedControls, this.touchedControls);
+        return new ControllerSnapshot (this.revision, this.time.nowNanos (), this.capabilities, this.clipCatalog, this.armedClipTargets, this.clipLaunchSessionTargets, this.activeClipLaunchOwner, this.pressedControls, this.touchedControls);
+    }
+
+
+    private static Map<ControlId, ClipTargetId> initialSessionTargets (final Map<ControlId, ClipTargetId> armedClipTargets, final Optional<ControlId> activeClipLaunchOwner)
+    {
+        final Optional<ControlId> activeOwner = Objects.requireNonNull (activeClipLaunchOwner, "activeClipLaunchOwner");
+        if (activeOwner.isEmpty ())
+            return Map.of ();
+        final ClipTargetId target = Objects.requireNonNull (Objects.requireNonNull (armedClipTargets, "armedClipTargets").get (activeOwner.get ()), "active owner target");
+        return Map.of (activeOwner.get (), target);
     }
 }

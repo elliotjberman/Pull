@@ -21,6 +21,7 @@ import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
 import de.mossgrabers.pull.core.api.effect.ClipReleaseTrigger;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
+import de.mossgrabers.pull.core.api.effect.ReactivateClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
 import de.mossgrabers.pull.core.api.effect.ScheduleTimerEffect;
 import de.mossgrabers.pull.core.api.event.SnapshotChangedEvent;
@@ -34,6 +35,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -83,9 +85,11 @@ class CoreApiValueTest
         final List<CatalogClip> clips = new ArrayList<> (List.of (clip));
         final ClipCatalogSnapshot catalog = new ClipCatalogSnapshot (7, clips);
         final Map<ControlId, ClipTargetId> armed = new HashMap<> (Map.of (control, clip.targetId ()));
-        final ControllerSnapshot snapshot = new ControllerSnapshot (1, 2, ShellCapabilities.empty (), catalog, armed, pressed, Set.of ());
+        final Map<ControlId, ClipTargetId> session = new HashMap<> (armed);
+        final ControllerSnapshot snapshot = new ControllerSnapshot (1, 2, ShellCapabilities.empty (), catalog, armed, session, Optional.of (control), pressed, Set.of ());
         pressed.clear ();
         armed.clear ();
+        session.clear ();
         clips.clear ();
 
         final Map<ControlId, RgbColor> lights = new HashMap<> (Map.of (control, new RgbColor (1, 2, 3)));
@@ -100,8 +104,10 @@ class CoreApiValueTest
         effects.clear ();
 
         assertTrue (snapshot.pressedControls ().contains (control));
+        assertEquals (Optional.of (control), snapshot.activeClipLaunchOwner ());
         assertEquals (List.of (clip), snapshot.clipCatalog ().clips ());
         assertEquals (clip.targetId (), snapshot.armedClipTargets ().get (control));
+        assertEquals (clip.targetId (), snapshot.clipLaunchSessionTargets ().get (control));
         assertEquals (clip.targetId (), press.target ());
         assertEquals (LAUNCH_POLICY, press.launchPolicy ());
         assertEquals (new RgbColor (1, 2, 3), result.desiredOutput ().lights ().get (control));
@@ -110,6 +116,7 @@ class CoreApiValueTest
         assertThrows (UnsupportedOperationException.class, () -> snapshot.pressedControls ().clear ());
         assertThrows (UnsupportedOperationException.class, () -> snapshot.clipCatalog ().clips ().clear ());
         assertThrows (UnsupportedOperationException.class, () -> snapshot.armedClipTargets ().clear ());
+        assertThrows (UnsupportedOperationException.class, () -> snapshot.clipLaunchSessionTargets ().clear ());
         assertThrows (UnsupportedOperationException.class, () -> result.desiredClipBindings ().clear ());
         assertThrows (UnsupportedOperationException.class, () -> result.effects ().clear ());
     }
@@ -130,10 +137,11 @@ class CoreApiValueTest
     @Test
     void publishesStableVersionCapabilityAndControlIdentifiers ()
     {
-        assertEquals (4, CoreApi.VERSION);
+        assertEquals (5, CoreApi.VERSION);
         assertEquals ("input.drum-fill", CoreCapabilities.INPUT_DRUM_FILL);
         assertEquals ("snapshot.selected-track-clips", CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS);
         assertEquals ("binding.clip-target", CoreCapabilities.BINDING_CLIP_TARGET);
+        assertEquals ("snapshot.clip-launch-session", CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION);
         assertEquals ("effect.clip-launch-hold", CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD);
         assertEquals ("output.rgb-light", CoreCapabilities.OUTPUT_RGB_LIGHT);
         assertEquals (12, CoreControls.DRUM_FILLS.size ());
@@ -180,6 +188,10 @@ class CoreApiValueTest
         assertThrows (IllegalArgumentException.class, () -> new ControllerSnapshot (-1, 0, ShellCapabilities.empty (), ClipCatalogSnapshot.empty (), Map.of (), Set.of (), Set.of ()));
         assertThrows (NullPointerException.class, () -> new ControllerSnapshot (0, 0, ShellCapabilities.empty (), null, Map.of (), Set.of (), Set.of ()));
         assertThrows (NullPointerException.class, () -> new ControllerSnapshot (0, 0, ShellCapabilities.empty (), ClipCatalogSnapshot.empty (), null, Set.of (), Set.of ()));
+        assertThrows (NullPointerException.class, () -> new ControllerSnapshot (0, 0, ShellCapabilities.empty (), ClipCatalogSnapshot.empty (), Map.of (), null, Optional.empty (), Set.of (), Set.of ()));
+        assertThrows (NullPointerException.class, () -> new ControllerSnapshot (0, 0, ShellCapabilities.empty (), ClipCatalogSnapshot.empty (), Map.of (), Map.of (), null, Set.of (), Set.of ()));
+        assertThrows (IllegalArgumentException.class, () -> new ControllerSnapshot (0, 0, ShellCapabilities.empty (), ClipCatalogSnapshot.empty (), Map.of (), Map.of (), Optional.of (new ControlId ("owner")), Set.of (), Set.of ()));
+        assertThrows (NullPointerException.class, () -> new ReactivateClipTargetEffect (null));
         assertThrows (IllegalArgumentException.class, () -> new SnapshotChangedEvent (-1, 0));
         assertThrows (IllegalArgumentException.class, () -> new SnapshotChangedEvent (0, -1));
         assertThrows (IllegalArgumentException.class, () -> new ShellCapabilities (Map.of ("lights", Integer.valueOf (0))));

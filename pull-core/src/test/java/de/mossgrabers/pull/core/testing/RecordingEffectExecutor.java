@@ -10,6 +10,7 @@ import de.mossgrabers.pull.core.api.TimerId;
 import de.mossgrabers.pull.core.api.effect.CancelTimerEffect;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
+import de.mossgrabers.pull.core.api.effect.ReactivateClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
 import de.mossgrabers.pull.core.api.effect.ScheduleTimerEffect;
 import de.mossgrabers.pull.core.api.output.DesiredHardwareOutput;
@@ -30,7 +31,7 @@ final class RecordingEffectExecutor
 {
     private final List<CoreEffect> executionOrder = new ArrayList<> ();
     private final Map<TimerId, Long> timerDeadlines = new LinkedHashMap<> ();
-    private final Map<ControlId, PressClipTargetEffect> clipLeases = new LinkedHashMap<> ();
+    private final List<PressClipTargetEffect> clipLaunchChain = new ArrayList<> ();
     private DesiredHardwareOutput desiredOutput = DesiredHardwareOutput.empty ();
     private Map<ControlId, ClipTargetId> desiredClipBindings = Map.of ();
 
@@ -53,10 +54,49 @@ final class RecordingEffectExecutor
             else if (effect instanceof final CancelTimerEffect cancel)
                 this.timerDeadlines.remove (cancel.timerId ());
             else if (effect instanceof final PressClipTargetEffect press)
-                this.clipLeases.put (press.owner (), press);
+                this.applyPress (press);
+            else if (effect instanceof final ReactivateClipTargetEffect reactivate)
+                this.applyReactivate (reactivate);
             else if (effect instanceof final ReleaseClipTargetsEffect release)
-                this.clipLeases.remove (release.owner ());
+                this.applyRelease (release);
         }
+    }
+
+
+    private void applyPress (final PressClipTargetEffect press)
+    {
+        if (this.indexOfOwner (press.owner ()) >= 0)
+            throw new IllegalStateException ("A retained owner must be reactivated without another press");
+        this.clipLaunchChain.add (press);
+    }
+
+
+    private void applyReactivate (final ReactivateClipTargetEffect reactivate)
+    {
+        final int retainedIndex = this.indexOfOwner (reactivate.owner ());
+        if (retainedIndex < 0)
+            throw new IllegalStateException ("Cannot reactivate an owner outside the clip-launch session");
+        while (this.clipLaunchChain.size () > retainedIndex + 1)
+            this.clipLaunchChain.removeLast ();
+    }
+
+
+    private void applyRelease (final ReleaseClipTargetsEffect release)
+    {
+        final int ownerIndex = this.indexOfOwner (release.owner ());
+        if (ownerIndex == this.clipLaunchChain.size () - 1)
+            this.clipLaunchChain.clear ();
+    }
+
+
+    private int indexOfOwner (final ControlId owner)
+    {
+        for (int index = 0; index < this.clipLaunchChain.size (); index++)
+        {
+            if (owner.equals (this.clipLaunchChain.get (index).owner ()))
+                return index;
+        }
+        return -1;
     }
 
 
@@ -101,7 +141,22 @@ final class RecordingEffectExecutor
      */
     Optional<PressClipTargetEffect> clipLease (final ControlId owner)
     {
-        return Optional.ofNullable (this.clipLeases.get (owner));
+        final int index = this.indexOfOwner (owner);
+        return index < 0 ? Optional.empty () : Optional.of (this.clipLaunchChain.get (index));
+    }
+
+
+    /**
+     * Get every target retained in the ordered clip-launch session.
+     *
+     * @return Retained targets by owner
+     */
+    Map<ControlId, ClipTargetId> clipLaunchSessionTargets ()
+    {
+        final Map<ControlId, ClipTargetId> targets = new LinkedHashMap<> ();
+        for (final PressClipTargetEffect frame: this.clipLaunchChain)
+            targets.put (frame.owner (), frame.target ());
+        return Map.copyOf (targets);
     }
 
 

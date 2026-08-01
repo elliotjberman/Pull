@@ -39,14 +39,21 @@ mvn -o -pl pull-shell -am test
 The first reloadable behavior occupies the 3x4 Drum Pads region directly above the four yellow
 rate pads. Selected-track clips whose names contain `fill` case-insensitively are assigned in scene
 order, one clip per pad, up to 12; later matches are ignored. The physical pad order is MIDI notes
-`48-51`, then `56-59`, then `64-67` (bottom row to top row, left to right). A verified ready pad is
-dim orange, becomes fully lit orange while held, and is off while unassigned or still arming.
+`48-51`, then `56-59`, then `64-67` (bottom row to top row, left to right). An unassigned or
+still-arming pad is off, and a verified ready pad is dim orange. Only the shell-reported active fill
+is fully lit orange; a press request does not optimistically change the light before that
+authoritative snapshot read-back.
 
 Each pad launches only its assigned clip. The shell keeps a private one-slot Bitwig actuator for
-each pad and freezes it for the duration of a hold, so session scrolling, selection changes, and
-new core builds cannot retarget the matching release. Only one fill is active at a time: pressing
-a second ready fill releases the previous fill before launching the new one, and the superseded
-pad's eventual physical release is harmless.
+each pad and freezes it while its launch remains in the session, so session scrolling, selection
+changes, and new core builds cannot retarget the matching release. The shell owns one ordered chain
+of native Bitwig `Return` ancestry. Pressing a later ready fill makes it active while retaining the
+older fills beneath it. Releasing a non-active ancestor is a no-op; releasing the active fill
+unwinds the complete chain from newest to oldest and returns to the original source clip. Pressing
+a retained ancestor again unwinds only the newer fills and reveals that ancestor, even if catalog
+ordering changed while it was retained. Retained targets are reserved from assignment to another
+pad until their Return frame is released. The latest active owner is therefore the one audible fill
+even when several launch frames are retained.
 
 Fill entry is controller-defined: it launches immediately and uses Bitwig's Legato from Clip (or
 Project) mode, so neither the source clip nor the fill clip needs a special launch quantization or
@@ -56,7 +63,7 @@ Bitwig's default Project Settings → Clip Launcher → ALT Release setting, or 
 override to `Return`. A fill clip's loop enablement and length remain session content.
 
 The slice passes offline fake-host verification. The exact immediate-legato/ALT-Return path still
-requires a live Bitwig smoke test after installing the API-4 shell.
+requires a live Bitwig smoke test after installing the API-5 shell.
 
 ## Reloading a core during development
 
@@ -76,7 +83,8 @@ succeeded. Each candidate carries an exact fingerprint of the local parent-loade
 sources. If that differs from the running extension, Bitwig reports `restartRequired` instead of
 attempting an unsafe core reload—even when the shell change was already committed.
 
-Installing the API-4 milestone requires one extension copy and Bitwig restart because it widens
-the stable API/shell bridge. After that, edits confined to `pull-core`—including fill matching,
-colors, ordering, truncation, single-fill behavior, launch quantization, launch mode, and the
-Main-vs-ALT release lane—use `tools/reload-core` without restarting Bitwig.
+Installing the API-5 milestone requires one extension copy and Bitwig restart because it widens
+the stable API/shell bridge with `effect.clip-launch-hold` version 3 and
+`snapshot.clip-launch-session` version 1. After that, edits confined to `pull-core`—including fill
+matching, colors, ordering, truncation, active-fill policy, launch quantization, launch mode, and
+the Main-vs-ALT release lane—use `tools/reload-core` without restarting Bitwig.

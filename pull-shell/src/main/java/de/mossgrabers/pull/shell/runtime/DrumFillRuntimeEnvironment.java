@@ -14,19 +14,20 @@ import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
+import de.mossgrabers.pull.core.api.effect.ReactivateClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
 import de.mossgrabers.pull.core.api.event.SnapshotChangedEvent;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.LongSupplier;
 
@@ -41,7 +42,8 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
         CoreCapabilities.INPUT_DRUM_FILL, Integer.valueOf (1),
         CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS, Integer.valueOf (1),
         CoreCapabilities.BINDING_CLIP_TARGET, Integer.valueOf (1),
-        CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD, Integer.valueOf (2),
+        CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION, Integer.valueOf (1),
+        CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD, Integer.valueOf (3),
         CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (1)));
 
     private final DrumFillClipHost clipHost;
@@ -49,12 +51,13 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     private final LongSupplier clock;
     private final long timeOrigin;
     private final Set<ControlId> pressedControls = new LinkedHashSet<> ();
-    private final Map<ControlId, LaunchLease> activeLeases = new HashMap<> ();
-    private final Map<ControlId, DrumFillClipHost.LaunchTarget> pendingReleases = new HashMap<> ();
+    private final List<LaunchLease> launchChain = new ArrayList<> ();
 
     private ClipCatalogSnapshot clipCatalog;
     private Map<ControlId, ClipTargetId> armedClipTargets;
     private Map<ControlId, RgbColor> fillLightColors = offLights ();
+    private int pendingRetainedDepth = -1;
+    private long pendingSnapshotRevision = -1;
     private long lastTime;
     private long revision;
     private long eventSequence;
@@ -108,19 +111,21 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
      */
     boolean refresh ()
     {
-        for (final ControlId owner: List.copyOf (this.pendingReleases.keySet ()))
-            this.retryPendingRelease (owner, "Pending fill release retry");
+        final Optional<ControlId> activeOwnerBefore = this.activeClipLaunchOwner ();
+        this.retryPendingUnwind ("Pending fill-session unwind retry");
+        this.recordActiveOwnerChange (activeOwnerBefore);
 
         this.clipHost.refresh ();
         final ClipCatalogSnapshot refreshedCatalog = Objects.requireNonNull (this.clipHost.clipCatalog (), "refreshed clip catalog");
         final Map<ControlId, ClipTargetId> refreshedArmedTargets = copyHostBindings (this.clipHost.armedClipTargets ());
-        if (refreshedCatalog.equals (this.clipCatalog) && refreshedArmedTargets.equals (this.armedClipTargets))
-            return false;
+        if (!refreshedCatalog.equals (this.clipCatalog) || !refreshedArmedTargets.equals (this.armedClipTargets))
+        {
+            this.clipCatalog = refreshedCatalog;
+            this.armedClipTargets = refreshedArmedTargets;
+            this.recordSnapshotChange ();
+        }
 
-        this.clipCatalog = refreshedCatalog;
-        this.armedClipTargets = refreshedArmedTargets;
-        this.advanceSnapshotRevision ();
-        return true;
+        return this.hasPendingSnapshotChange ();
     }
 
 
@@ -132,6 +137,32 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     SnapshotChangedEvent snapshotChangedEvent ()
     {
         return new SnapshotChangedEvent (this.nextEventSequence (), this.now ());
+    }
+
+
+    /**
+     * Get the latest immutable snapshot revision available for delivery.
+     *
+     * @return Current snapshot revision
+     */
+    long snapshotRevision ()
+    {
+        return this.revision;
+    }
+
+
+    /**
+     * Acknowledge that a core accepted a snapshot containing the supplied revision. A newer
+     * change raised while that core result was applied remains pending for a later delivery.
+     *
+     * @param deliveredRevision Latest revision contained in the accepted snapshot
+     */
+    void acknowledgeSnapshotChange (final long deliveredRevision)
+    {
+        if (deliveredRevision < 0)
+            throw new IllegalArgumentException ("deliveredRevision must not be negative");
+        if (this.hasPendingSnapshotChange () && deliveredRevision >= this.pendingSnapshotRevision)
+            this.pendingSnapshotRevision = -1;
     }
 
 
@@ -165,35 +196,30 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
 
 
     /**
-     * Release only the resources owned by the supplied control. This operation is idempotent.
+     * Safely release the complete session when the supplied control is active. A retired return
+     * ancestor is deliberately left intact until the active owner ends the session.
      *
      * @param owner Logical owner to release
      */
     void safetyRelease (final ControlId owner)
     {
-        Objects.requireNonNull (owner, "owner");
-        final LaunchLease lease = this.activeLeases.remove (owner);
-        this.releaseOwnedTarget (owner, lease == null ? null : lease.target (), "Safety release");
-
-        if (this.pressedControls.remove (owner))
-            this.advanceSnapshotRevision ();
-    }
-
-
-    /**
-     * Clear stale core output for one pad after an authoritative release was rejected.
-     *
-     * @param owner Logical fill-pad owner
-     */
-    void failSafeFillOutputOff (final ControlId owner)
-    {
         final ControlId fillOwner = requireFillOwner (owner);
-        if (OFF.equals (this.fillLightColors.get (fillOwner)))
-            return;
+        final Optional<ControlId> activeOwnerBefore = this.activeClipLaunchOwner ();
+        final LaunchLease pendingRetainedOwner = this.pendingRetainedDepth > 0 ? this.launchChain.get (this.pendingRetainedDepth - 1) : null;
+        if (pendingRetainedOwner != null && fillOwner.equals (pendingRetainedOwner.owner ()))
+            this.unwindTo (0, "Safety release during fill-session reactivation");
+        else
+            this.retryPendingUnwind ("Pending fill-session unwind retry");
+        if (!this.hasPendingUnwind ())
+        {
+            final LaunchLease lease = this.findLease (fillOwner);
+            if (lease != null && lease == this.tailLease ())
+                this.unwindTo (0, "Safety release");
+        }
+        this.recordActiveOwnerChange (activeOwnerBefore);
 
-        final Map<ControlId, RgbColor> colors = new LinkedHashMap<> (this.fillLightColors);
-        colors.put (fillOwner, OFF);
-        this.fillLightColors = Map.copyOf (colors);
+        if (this.pressedControls.remove (fillOwner))
+            this.advanceSnapshotRevision ();
     }
 
 
@@ -256,6 +282,7 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
             return;
         this.committedResult = null;
 
+        final Optional<ControlId> activeOwnerBefore = this.activeClipLaunchOwner ();
         this.clipHost.setDesiredBindings (prepared.catalogGeneration (), prepared.desiredClipBindings ());
         boolean acquisitionFailed = false;
         for (final PreparedAction action: prepared.actions ())
@@ -265,9 +292,15 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
                 if (!acquisitionFailed)
                     acquisitionFailed = !this.applyPress (press);
             }
+            else if (action instanceof final PreparedReactivate reactivate)
+            {
+                if (!acquisitionFailed)
+                    acquisitionFailed = !this.applyReactivate (reactivate);
+            }
             else if (action instanceof final PreparedRelease release)
                 this.applyRelease (release);
         }
+        this.recordActiveOwnerChange (activeOwnerBefore);
     }
 
 
@@ -289,15 +322,9 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
             this.warn ("Clearing fill bindings during invalidation failed: " + sanitize (failure));
         }
 
-        final Map<ControlId, LaunchLease> leases = Map.copyOf (this.activeLeases);
-        final Set<ControlId> owners = new HashSet<> (this.pendingReleases.keySet ());
-        owners.addAll (leases.keySet ());
-        this.activeLeases.clear ();
-        for (final ControlId owner: owners)
-        {
-            final LaunchLease lease = leases.get (owner);
-            this.releaseOwnedTarget (owner, lease == null ? null : lease.target (), "Runtime invalidation");
-        }
+        final Optional<ControlId> activeOwnerBefore = this.activeClipLaunchOwner ();
+        this.unwindTo (0, "Runtime invalidation");
+        this.recordActiveOwnerChange (activeOwnerBefore);
 
         if (!this.pressedControls.isEmpty ())
         {
@@ -320,7 +347,7 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
-    private static Map<ControlId, ClipTargetId> prepareBindings (final Map<ControlId, ClipTargetId> bindings, final ClipCatalogSnapshot clipCatalog)
+    private Map<ControlId, ClipTargetId> prepareBindings (final Map<ControlId, ClipTargetId> bindings, final ClipCatalogSnapshot clipCatalog)
     {
         final Map<ControlId, ClipTargetId> copy = new LinkedHashMap<> ();
         final Set<ClipTargetId> catalogTargets = new HashSet<> ();
@@ -337,6 +364,15 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
                 throw new IllegalArgumentException ("Desired clip targets must be unique");
             copy.put (owner, target);
         }
+
+        for (final LaunchLease lease: this.launchChain)
+        {
+            for (final Map.Entry<ControlId, ClipTargetId> binding: copy.entrySet ())
+            {
+                if (!lease.owner ().equals (binding.getKey ()) && lease.targetId ().equals (binding.getValue ()))
+                    throw new IllegalArgumentException ("A retained clip target cannot be rebound to another fill control");
+            }
+        }
         return Map.copyOf (copy);
     }
 
@@ -349,6 +385,8 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
             final ControlId owner;
             if (effect instanceof final PressClipTargetEffect press)
                 owner = requireFillOwner (press.owner ());
+            else if (effect instanceof final ReactivateClipTargetEffect reactivate)
+                owner = requireFillOwner (reactivate.owner ());
             else if (effect instanceof final ReleaseClipTargetsEffect release)
                 owner = requireFillOwner (release.owner ());
             else
@@ -363,6 +401,8 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
         {
             if (effect instanceof final PressClipTargetEffect press)
                 actions.add (this.preparePress (press, desiredBindings));
+            else if (effect instanceof final ReactivateClipTargetEffect reactivate)
+                actions.add (this.prepareReactivate (reactivate));
             else if (effect instanceof final ReleaseClipTargetsEffect release)
                 actions.add (this.prepareRelease (release));
         }
@@ -379,32 +419,44 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
             throw new IllegalArgumentException ("Clip-catalog generation is stale");
 
         final ClipTargetId targetId = new ClipTargetId (effect.target ().value ());
-        if (!targetId.equals (desiredBindings.get (owner)))
-            throw new IllegalArgumentException ("Clip press must match this result's desired binding");
-        final LaunchLease existingLease = this.activeLeases.get (owner);
+        final LaunchLease existingLease = this.findLease (owner);
         if (existingLease != null)
+            throw new IllegalStateException ("A retained fill control must be reactivated without another press");
+        for (final LaunchLease lease: this.launchChain)
         {
-            if (!targetId.equals (existingLease.targetId ()))
-                throw new IllegalStateException ("A held fill control cannot be redirected");
-            if (!effect.launchPolicy ().equals (existingLease.launchPolicy ()))
-                throw new IllegalStateException ("A held fill control cannot change launch policy");
-            return new PreparedPress (owner, effect.catalogGeneration (), targetId, effect.launchPolicy (), existingLease.target (), existingLease);
+            if (targetId.equals (lease.targetId ()))
+                throw new IllegalStateException ("A retained clip target cannot be acquired by another fill control");
         }
 
+        if (!targetId.equals (desiredBindings.get (owner)))
+            throw new IllegalArgumentException ("New clip press must match this result's desired binding");
         if (!targetId.equals (this.armedClipTargets.get (owner)))
             throw new IllegalArgumentException ("Clip target is not armed for this fill control");
 
         final DrumFillClipHost.LaunchTarget target = Objects.requireNonNull (this.clipHost.prepare (owner, effect.catalogGeneration (), targetId), "prepared launch target");
         if (!targetId.equals (target.targetId ()))
             throw new IllegalStateException ("Clip host resolved a different target");
-        return new PreparedPress (owner, effect.catalogGeneration (), targetId, effect.launchPolicy (), target, null);
+        return new PreparedPress (owner, effect.catalogGeneration (), targetId, effect.launchPolicy (), target, this.tailLease ());
+    }
+
+
+    private PreparedReactivate prepareReactivate (final ReactivateClipTargetEffect effect)
+    {
+        final ControlId owner = requireFillOwner (effect.owner ());
+        if (!this.pressedControls.contains (owner))
+            throw new IllegalStateException ("The fill control is not physically held");
+
+        final LaunchLease lease = this.findLease (owner);
+        if (lease == null)
+            throw new IllegalStateException ("The fill control is not retained in the clip-launch session");
+        return new PreparedReactivate (owner, lease, this.tailLease ());
     }
 
 
     private PreparedRelease prepareRelease (final ReleaseClipTargetsEffect effect)
     {
         final ControlId owner = requireFillOwner (effect.owner ());
-        return new PreparedRelease (owner, this.activeLeases.get (owner));
+        return new PreparedRelease (owner, this.findLease (owner));
     }
 
 
@@ -419,15 +471,18 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
 
     private boolean applyPress (final PreparedPress press)
     {
-        final LaunchLease currentLease = this.activeLeases.get (press.owner ());
-        if (press.existingLease () != null)
+        if (!this.retryPendingUnwind ("Pending fill-session unwind retry"))
         {
-            if (currentLease == press.existingLease ())
-                return true;
-            this.warn ("Held fill lease changed before its reload acquisition was applied");
+            this.warn ("Fill press was discarded because an earlier unwind still requires cleanup; release and press again");
+            return false;
+        }
+        if (this.tailLease () != press.expectedTail ())
+        {
+            this.warn ("Fill session changed before its prepared press was applied");
             return false;
         }
 
+        final LaunchLease currentLease = this.findLease (press.owner ());
         if (currentLease != null)
         {
             this.warn ("Fill lease was acquired before its prepared press was applied");
@@ -438,82 +493,98 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
             this.warn ("Prepared fill press was discarded after the clip catalog changed");
             return false;
         }
-        if (!this.retryPendingRelease (press.owner (), "Pending fill release retry"))
-        {
-            this.warn ("Fill press was discarded because an earlier release still requires cleanup");
-            return false;
-        }
-        if (!this.pendingReleases.isEmpty ())
-        {
-            this.warn ("Fill press was discarded because another fill release still requires cleanup; release and press again");
-            return false;
-        }
 
+        final int retainedDepth = this.launchChain.size ();
+        final LaunchLease lease = new LaunchLease (press.owner (), press.catalogGeneration (), press.targetId (), press.launchPolicy (), press.target ());
+        // Retain the new top frame before the failure-prone host call. If the call applies and then
+        // throws, ordered compensation can still pop it back to the prior active fill.
+        this.launchChain.add (lease);
         try
         {
-            // A host call may apply externally and then throw. The prepared target is retained
-            // first so compensation always includes that indeterminate call.
             press.target ().press (press.launchPolicy ());
         }
         catch (final Throwable failure)
         {
             rethrowFatal (failure);
             this.warn ("Fill target press failed: " + sanitize (failure));
-            this.releaseOwnedTarget (press.owner (), press.target (), "Partial fill acquisition rollback");
+            this.unwindTo (retainedDepth, "Partial fill acquisition rollback");
             return false;
         }
-        this.activeLeases.put (press.owner (), new LaunchLease (press.catalogGeneration (), press.targetId (), press.launchPolicy (), press.target ()));
         return true;
+    }
+
+
+    private boolean applyReactivate (final PreparedReactivate reactivate)
+    {
+        if (!this.retryPendingUnwind ("Pending fill-session unwind retry"))
+        {
+            this.warn ("Fill reactivation was discarded because an earlier unwind still requires cleanup; release and press again");
+            return false;
+        }
+        if (this.tailLease () != reactivate.expectedTail ())
+        {
+            this.warn ("Fill session changed before its prepared reactivation was applied");
+            return false;
+        }
+
+        final LaunchLease currentLease = this.findLease (reactivate.owner ());
+        if (currentLease != reactivate.lease ())
+        {
+            this.warn ("Retained fill lease changed before its reactivation was applied");
+            return false;
+        }
+
+        final int retainedDepth = this.launchChain.indexOf (currentLease) + 1;
+        return retainedDepth == this.launchChain.size () || this.unwindTo (retainedDepth, "Fill-session ancestor reactivation");
     }
 
 
     private void applyRelease (final PreparedRelease release)
     {
+        this.retryPendingUnwind ("Pending fill-session unwind retry");
+        if (this.hasPendingUnwind ())
+            return;
+
         final LaunchLease expectedLease = release.lease ();
-        if (expectedLease == null)
-        {
-            this.retryPendingRelease (release.owner (), "Fill target release retry");
+        if (expectedLease == null || this.findLease (release.owner ()) != expectedLease)
             return;
-        }
-        if (this.activeLeases.get (release.owner ()) != expectedLease)
+        if (expectedLease != this.tailLease ())
             return;
 
-        this.activeLeases.remove (release.owner ());
-        this.releaseOwnedTarget (release.owner (), expectedLease.target (), "Fill target release");
+        this.unwindTo (0, "Fill-session release");
     }
 
 
-    private boolean retryPendingRelease (final ControlId owner, final String operation)
+    private boolean retryPendingUnwind (final String operation)
     {
-        this.releaseOwnedTarget (owner, null, operation);
-        return !this.pendingReleases.containsKey (owner);
+        return !this.hasPendingUnwind () || this.unwindTo (this.pendingRetainedDepth, operation);
     }
 
 
-    private void releaseOwnedTarget (final ControlId owner, final DrumFillClipHost.LaunchTarget target, final String operation)
+    private boolean unwindTo (final int retainedDepth, final String operation)
     {
-        final DrumFillClipHost.LaunchTarget pending = this.pendingReleases.get (owner);
-        final DrumFillClipHost.LaunchTarget targetToRelease = pending == null ? target : pending;
-        if (targetToRelease == null)
-            return;
-        if (pending != null && target != null && pending != target)
+        if (retainedDepth < 0 || retainedDepth > this.launchChain.size ())
+            throw new IllegalArgumentException ("retainedDepth is outside the fill-session chain");
+
+        this.pendingRetainedDepth = this.hasPendingUnwind () ? Math.min (this.pendingRetainedDepth, retainedDepth) : retainedDepth;
+        while (this.launchChain.size () > this.pendingRetainedDepth)
         {
-            this.warn (operation + " found more than one retained target for a fill owner");
-            return;
+            final LaunchLease lease = this.tailLease ();
+            try
+            {
+                lease.target ().release ();
+                this.launchChain.removeLast ();
+            }
+            catch (final Throwable failure)
+            {
+                rethrowFatal (failure);
+                this.warn (operation + " failed for " + lease.owner ().value () + ": " + sanitize (failure));
+                return false;
+            }
         }
 
-        // Retain ownership before the failure-prone call so apply-then-throw remains retryable.
-        this.pendingReleases.put (owner, targetToRelease);
-        try
-        {
-            targetToRelease.release ();
-            this.pendingReleases.remove (owner, targetToRelease);
-        }
-        catch (final Throwable failure)
-        {
-            rethrowFatal (failure);
-            this.warn (operation + " failed: " + sanitize (failure));
-        }
+        this.pendingRetainedDepth = -1;
+        return true;
     }
 
 
@@ -523,9 +594,73 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
+    private void recordActiveOwnerChange (final Optional<ControlId> previousOwner)
+    {
+        if (previousOwner.equals (this.activeClipLaunchOwner ()))
+            return;
+
+        this.recordSnapshotChange ();
+    }
+
+
+    private void recordSnapshotChange ()
+    {
+        this.advanceSnapshotRevision ();
+        this.pendingSnapshotRevision = this.revision;
+    }
+
+
+    private Optional<ControlId> activeClipLaunchOwner ()
+    {
+        // Keep reporting the newest frame until its release succeeds. A failed release request is
+        // not proof that Bitwig stopped playing that fill; successful pops update the tail in
+        // newest-to-oldest order as the native Return chain advances.
+        final LaunchLease activeLease = this.tailLease ();
+        return activeLease == null ? Optional.empty () : Optional.of (activeLease.owner ());
+    }
+
+
+    private boolean hasPendingSnapshotChange ()
+    {
+        return this.pendingSnapshotRevision >= 0;
+    }
+
+
+    private boolean hasPendingUnwind ()
+    {
+        return this.pendingRetainedDepth >= 0;
+    }
+
+
+    private LaunchLease findLease (final ControlId owner)
+    {
+        for (final LaunchLease lease: this.launchChain)
+        {
+            if (owner.equals (lease.owner ()))
+                return lease;
+        }
+        return null;
+    }
+
+
+    private LaunchLease tailLease ()
+    {
+        return this.launchChain.isEmpty () ? null : this.launchChain.getLast ();
+    }
+
+
+    private Map<ControlId, ClipTargetId> clipLaunchSessionTargets ()
+    {
+        final Map<ControlId, ClipTargetId> targets = new LinkedHashMap<> ();
+        for (final LaunchLease lease: this.launchChain)
+            targets.put (lease.owner (), lease.targetId ());
+        return Map.copyOf (targets);
+    }
+
+
     private ControllerSnapshot createSnapshot (final long monotonicTimeNanos)
     {
-        return new ControllerSnapshot (this.revision, monotonicTimeNanos, CAPABILITIES, this.clipCatalog, this.armedClipTargets, this.pressedControls, Set.of ());
+        return new ControllerSnapshot (this.revision, monotonicTimeNanos, CAPABILITIES, this.clipCatalog, this.armedClipTargets, this.clipLaunchSessionTargets (), this.activeClipLaunchOwner (), this.pressedControls, Set.of ());
     }
 
 
@@ -615,7 +750,12 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
-    private record PreparedPress (ControlId owner, long catalogGeneration, ClipTargetId targetId, ClipLaunchPolicy launchPolicy, DrumFillClipHost.LaunchTarget target, LaunchLease existingLease) implements PreparedAction
+    private record PreparedPress (ControlId owner, long catalogGeneration, ClipTargetId targetId, ClipLaunchPolicy launchPolicy, DrumFillClipHost.LaunchTarget target, LaunchLease expectedTail) implements PreparedAction
+    {
+    }
+
+
+    private record PreparedReactivate (ControlId owner, LaunchLease lease, LaunchLease expectedTail) implements PreparedAction
     {
     }
 
@@ -625,7 +765,7 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
-    private record LaunchLease (long catalogGeneration, ClipTargetId targetId, ClipLaunchPolicy launchPolicy, DrumFillClipHost.LaunchTarget target)
+    private record LaunchLease (ControlId owner, long catalogGeneration, ClipTargetId targetId, ClipLaunchPolicy launchPolicy, DrumFillClipHost.LaunchTarget target)
     {
     }
 }

@@ -18,8 +18,8 @@ import de.mossgrabers.pull.core.api.effect.ClipReleaseTrigger;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
+import de.mossgrabers.pull.core.api.event.SnapshotChangedEvent;
 import de.mossgrabers.pull.core.api.output.DesiredHardwareOutput;
-import de.mossgrabers.pull.core.api.output.RgbColor;
 
 import org.junit.jupiter.api.Test;
 
@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -77,7 +78,7 @@ class ReloadableControllerRuntimeTest
 
 
     @Test
-    void routesIndependentFillPadsAndSafetyReleasesExactOwners ()
+    void routesOneFillSessionAndDefersRetiredSafetyReleases ()
     {
         final FakeClipHost clipHost = new FakeClipHost (9);
         final DrumFillRuntimeEnvironment environment = createArmedEnvironment (clipHost);
@@ -99,8 +100,8 @@ class ReloadableControllerRuntimeTest
                 environment.commit (generation, environment.prepare (press));
                 environment.apply (generation);
             }
-            // Deliberately omit release effects. A physical UP must still release only the shell
-            // lease owned by that pad.
+            // Deliberately omit release effects. The physical-UP safety path must ignore retired
+            // ancestors and unwind the complete chain only for the active owner.
             return true;
         };
         final ReloadableControllerRuntime runtime = new ReloadableControllerRuntime (environment, NoOpLog.INSTANCE, handler);
@@ -133,7 +134,7 @@ class ReloadableControllerRuntimeTest
         runtime.routePhysicalMidiRelease (false, MidiConstants.CMD_NOTE_OFF, EXPECTED_FILL_NOTES[0], 0);
         assertFalse (environment.isFillPressed (firstControl));
         assertTrue (environment.isFillPressed (secondControl));
-        assertEquals (1, clipHost.target (firstControl).releaseCount);
+        assertEquals (0, clipHost.target (firstControl).releaseCount);
         assertEquals (0, clipHost.target (secondControl).releaseCount);
         assertEquals (EXPECTED_FILL_NOTES.length + 1, events.size ());
         assertFalse (((ButtonInputEvent) events.getLast ()).pressed ());
@@ -142,6 +143,14 @@ class ReloadableControllerRuntimeTest
         // hardware state, so it cannot leak into the newly active view.
         assertTrue (runtime.routeGridEvent (false, ButtonEvent.UP, EXPECTED_FILL_NOTES[0]));
         assertFalse (runtime.routeGridEvent (false, ButtonEvent.UP, EXPECTED_FILL_NOTES[0]));
+
+        final int lastIndex = EXPECTED_FILL_NOTES.length - 1;
+        final ControlId lastControl = CoreControls.drumFills ().get (lastIndex);
+        assertTrue (runtime.routeGridEvent (false, ButtonEvent.UP, EXPECTED_FILL_NOTES[lastIndex]));
+        assertFalse (environment.isFillPressed (lastControl));
+        for (final ControlId control: CoreControls.drumFills ())
+            assertEquals (1, clipHost.target (control).releaseCount);
+
         runtime.close ();
 
         for (final ControlId control: CoreControls.drumFills ())
@@ -150,34 +159,39 @@ class ReloadableControllerRuntimeTest
 
 
     @Test
-    void rejectedAuthoritativeReleaseClearsOnlyItsStaleHeldOutput ()
+    void retriesAuthoritativeSnapshotUntilAcceptedAfterAnInterveningNoOpInput ()
     {
         final FakeClipHost clipHost = new FakeClipHost (9);
-        final DrumFillRuntimeEnvironment environment = new DrumFillRuntimeEnvironment (clipHost, NoOpLog.INSTANCE, () -> 0);
+        final DrumFillRuntimeEnvironment environment = createArmedEnvironment (clipHost);
         final ControlId firstControl = CoreControls.drumFills ().getFirst ();
-        final ControlId secondControl = CoreControls.drumFills ().get (1);
-        final RgbColor firstHeld = new RgbColor (255, 0, 0);
-        final RgbColor secondHeld = new RgbColor (127, 0, 0);
-        environment.commit (1, environment.prepare (new CoreResult (
-            new DesiredHardwareOutput (Map.of (firstControl, firstHeld, secondControl, secondHeld)),
-            List.of ())));
-        environment.apply (1);
+        environment.acknowledgeSnapshotChange (environment.snapshotRevision ());
+        environment.setFillPressed (firstControl, true);
+        final CoreResult press = new CoreResult (
+            DesiredHardwareOutput.empty (),
+            clipHost.allBindings (),
+            List.of (new PressClipTargetEffect (firstControl, clipHost.catalogGeneration (), clipHost.targetId (firstControl), LAUNCH_POLICY)));
+        environment.commit (2, environment.prepare (press));
+        environment.apply (2);
+        assertEquals (firstControl, environment.snapshot ().activeClipLaunchOwner ().orElseThrow ());
+
+        final AtomicInteger snapshotAttempts = new AtomicInteger ();
         final ReloadableControllerRuntime runtime = new ReloadableControllerRuntime (
             environment,
             NoOpLog.INSTANCE,
-            event -> event instanceof final ButtonInputEvent button && button.pressed ());
+            event -> !(event instanceof SnapshotChangedEvent) || snapshotAttempts.incrementAndGet () >= 2);
         runtime.start ();
 
-        assertTrue (runtime.routeGridEvent (true, ButtonEvent.DOWN, EXPECTED_FILL_NOTES[0]));
-        assertEquals (firstHeld, runtime.fillLightColor (EXPECTED_FILL_NOTES[0]));
-        assertEquals (secondHeld, runtime.fillLightColor (EXPECTED_FILL_NOTES[1]));
-        assertEquals (new RgbColor (0, 0, 0), runtime.fillLightColor (52));
+        // An unheld UP still refreshes stable state, but must not consume the pending owner change.
+        assertTrue (runtime.routeGridEvent (true, ButtonEvent.UP, EXPECTED_FILL_NOTES[1]));
+        assertEquals (0, snapshotAttempts.get ());
 
-        runtime.routePhysicalMidiRelease (false, MidiConstants.CMD_NOTE_ON, EXPECTED_FILL_NOTES[0], 0);
+        runtime.tick ();
+        assertEquals (1, snapshotAttempts.get ());
+        runtime.tick ();
+        assertEquals (2, snapshotAttempts.get ());
+        runtime.tick ();
+        assertEquals (2, snapshotAttempts.get ());
 
-        assertFalse (environment.isFillPressed (firstControl));
-        assertEquals (new RgbColor (0, 0, 0), runtime.fillLightColor (EXPECTED_FILL_NOTES[0]));
-        assertEquals (secondHeld, runtime.fillLightColor (EXPECTED_FILL_NOTES[1]));
         runtime.close ();
     }
 

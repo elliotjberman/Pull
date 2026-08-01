@@ -1,5 +1,18 @@
 # Repository Agent Instructions
 
+## Authoritative state and controller feedback
+
+- Treat hardware input as a request to alter state, not as proof that the requested state change
+  succeeded.
+- Grid lights, displays, and other controller feedback should render authoritative state read back
+  from the stable shell or Bitwig. Do not derive feedback directly from the latest press or an
+  emitted effect merely to make it feel immediate.
+- Prefer one controller-tick of honest read-back latency over optimistic feedback that can disagree
+  with playback. If measured latency is genuinely disruptive, improve state propagation first;
+  use optimistic rendering only as an explicit exception with reconciliation and failure tests.
+- Tests should distinguish input, requested effects, applied host state, snapshot read-back, and
+  rendered output so a mock cannot accidentally confirm an optimistic shortcut.
+
 ## Bitwig controller API compatibility
 
 - This repository currently targets Bitwig controller API 21. Keep the
