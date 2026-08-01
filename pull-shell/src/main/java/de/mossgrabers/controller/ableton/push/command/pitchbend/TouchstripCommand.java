@@ -49,8 +49,11 @@ public class TouchstripCommand extends AbstractPitchbendCommand<PushControlSurfa
     {
         if (this.surface.getViewManager ().isActive (Views.SESSION, Views.DRUM_PAD))
         {
-            this.surface.sendMidiEvent (MidiConstants.CMD_PITCHBEND, data1, data2);
-            this.surface.getMidiOutput ().sendPitchbend (data1, data2);
+            if (!this.surface.routeDrumPitch (data1, data2))
+            {
+                this.surface.sendMidiEvent (MidiConstants.CMD_PITCHBEND, data1, data2);
+                this.surface.getMidiOutput ().sendPitchbend (data1, data2);
+            }
             return;
         }
 
@@ -167,7 +170,7 @@ public class TouchstripCommand extends AbstractPitchbendCommand<PushControlSurfa
         if (this.surface.getViewManager ().isActive (Views.SESSION, Views.DRUM_PAD))
         {
             this.surface.setRibbonMode (PushControlSurface.PUSH_RIBBON_PITCHBEND);
-            this.surface.setRibbonValue (64);
+            this.surface.setRibbonValue (this.surface.getDrumPitchRibbonValue ());
             return;
         }
 

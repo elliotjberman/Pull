@@ -11,11 +11,15 @@ import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.CoreResult;
+import de.mossgrabers.pull.core.api.ParameterTargetId;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchMode;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
 import de.mossgrabers.pull.core.api.effect.ClipReleaseTrigger;
+import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
+import de.mossgrabers.pull.core.api.effect.SetParameterValueEffect;
+import de.mossgrabers.pull.core.api.event.AbsoluteInputEvent;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.event.SnapshotChangedEvent;
@@ -27,6 +31,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
@@ -78,7 +83,7 @@ class ReloadableControllerRuntimeTest
 
 
     @Test
-    void routesOneFillSessionAndDefersRetiredSafetyReleases ()
+    void routesSingleActiveFillHandoffAndPreservesPhysicalReleaseSafety ()
     {
         final FakeClipHost clipHost = new FakeClipHost (9);
         final DrumFillRuntimeEnvironment environment = createArmedEnvironment (clipHost);
@@ -100,8 +105,8 @@ class ReloadableControllerRuntimeTest
                 environment.commit (generation, environment.prepare (press));
                 environment.apply (generation);
             }
-            // Deliberately omit release effects. The physical-UP safety path must ignore retired
-            // ancestors and unwind the complete chain only for the active owner.
+            // Deliberately omit release effects. The physical-UP safety path must still return
+            // the one active fill.
             return true;
         };
         final ReloadableControllerRuntime runtime = new ReloadableControllerRuntime (environment, NoOpLog.INSTANCE, handler);
@@ -110,56 +115,181 @@ class ReloadableControllerRuntimeTest
         assertFalse (runtime.routeGridEvent (true, ButtonEvent.DOWN, 52));
         assertFalse (runtime.routeGridEvent (false, ButtonEvent.DOWN, EXPECTED_FILL_NOTES[0]));
 
-        for (int index = 0; index < EXPECTED_FILL_NOTES.length; index++)
-        {
-            final int note = EXPECTED_FILL_NOTES[index];
-            final ControlId control = CoreControls.drumFills ().get (index);
-            assertTrue (runtime.routeGridEvent (true, ButtonEvent.DOWN, note));
-            assertTrue (environment.isFillPressed (control));
-            assertEquals (1, clipHost.target (control).pressCount);
-        }
-
         final ControlId firstControl = CoreControls.drumFills ().getFirst ();
         final ControlId secondControl = CoreControls.drumFills ().get (1);
+        assertTrue (runtime.routeGridEvent (true, ButtonEvent.DOWN, EXPECTED_FILL_NOTES[0]));
+        assertTrue (environment.isFillPressed (firstControl));
+        assertEquals (1, clipHost.target (firstControl).pressCount);
+        assertEquals (0, clipHost.target (secondControl).pressCount);
+        assertTrue (environment.snapshot ().activeClipLaunchOwner ().isEmpty ());
+
+        acknowledgeLaunch (clipHost, runtime, firstControl);
+        assertEquals (firstControl, environment.snapshot ().activeClipLaunchOwner ().orElseThrow ());
+
+        assertTrue (runtime.routeGridEvent (true, ButtonEvent.DOWN, EXPECTED_FILL_NOTES[1]));
+        assertTrue (environment.isFillPressed (firstControl));
+        assertTrue (environment.isFillPressed (secondControl));
+        assertEquals (1, clipHost.target (firstControl).releaseCount);
+        assertEquals (0, clipHost.target (secondControl).pressCount);
+
+        acknowledgeReturn (clipHost, runtime, firstControl);
+        assertEquals (1, clipHost.target (firstControl).retireCount);
+        assertEquals (0, clipHost.target (secondControl).pressCount);
+        assertTrue (environment.snapshot ().activeClipLaunchOwner ().isEmpty ());
+
+        // The next host sample is an intentional barrier: the replacement cannot become a
+        // native Return child of the fill which Bitwig only just reported as stopped.
+        runtime.tick ();
+        assertEquals (1, clipHost.target (secondControl).pressCount);
+        assertTrue (environment.snapshot ().activeClipLaunchOwner ().isEmpty ());
+        acknowledgeLaunch (clipHost, runtime, secondControl);
+        assertEquals (secondControl, environment.snapshot ().activeClipLaunchOwner ().orElseThrow ());
+
         assertTrue (runtime.routeGridEvent (false, ButtonEvent.LONG, EXPECTED_FILL_NOTES[0]));
         assertTrue (runtime.routeGridEvent (false, ButtonEvent.DOWN, EXPECTED_FILL_NOTES[0]));
-        assertEquals (EXPECTED_FILL_NOTES.length, events.size ());
+        assertEquals (2, buttonEvents (events).size ());
 
         runtime.routePhysicalMidiRelease (false, MidiConstants.CMD_NOTE_OFF | 1, EXPECTED_FILL_NOTES[0], 0);
         assertTrue (environment.isFillPressed (firstControl));
-        assertEquals (0, clipHost.target (firstControl).releaseCount);
+        assertEquals (1, clipHost.target (firstControl).releaseCount);
 
         // This callback sits below active-view dispatch and therefore still sees the exact UP when
         // a view switch consumes the command-layer release.
         runtime.routePhysicalMidiRelease (false, MidiConstants.CMD_NOTE_OFF, EXPECTED_FILL_NOTES[0], 0);
         assertFalse (environment.isFillPressed (firstControl));
         assertTrue (environment.isFillPressed (secondControl));
-        assertEquals (0, clipHost.target (firstControl).releaseCount);
+        assertEquals (1, clipHost.target (firstControl).releaseCount);
         assertEquals (0, clipHost.target (secondControl).releaseCount);
-        assertEquals (EXPECTED_FILL_NOTES.length + 1, events.size ());
-        assertFalse (((ButtonInputEvent) events.getLast ()).pressed ());
+        assertEquals (3, buttonEvents (events).size ());
+        assertFalse (buttonEvents (events).getLast ().pressed ());
 
         // The command-layer UP produced by the same MIDI message is consumed after it updates its
         // hardware state, so it cannot leak into the newly active view.
         assertTrue (runtime.routeGridEvent (false, ButtonEvent.UP, EXPECTED_FILL_NOTES[0]));
         assertFalse (runtime.routeGridEvent (false, ButtonEvent.UP, EXPECTED_FILL_NOTES[0]));
 
-        final int lastIndex = EXPECTED_FILL_NOTES.length - 1;
-        final ControlId lastControl = CoreControls.drumFills ().get (lastIndex);
-        assertTrue (runtime.routeGridEvent (false, ButtonEvent.UP, EXPECTED_FILL_NOTES[lastIndex]));
-        assertFalse (environment.isFillPressed (lastControl));
-        assertEquals (1, clipHost.target (lastControl).releaseCount);
-        for (int index = 0; index < lastIndex; index++)
-            assertEquals (0, clipHost.target (CoreControls.drumFills ().get (index)).releaseCount);
-
-        drainReturnChain (clipHost, runtime);
-        for (final ControlId control: CoreControls.drumFills ())
-            assertEquals (1, clipHost.target (control).releaseCount);
+        assertTrue (runtime.routeGridEvent (false, ButtonEvent.UP, EXPECTED_FILL_NOTES[1]));
+        assertFalse (environment.isFillPressed (secondControl));
+        assertEquals (1, clipHost.target (secondControl).releaseCount);
+        acknowledgeReturn (clipHost, runtime, secondControl);
+        assertTrue (environment.snapshot ().clipLaunchSessionTargets ().isEmpty ());
+        assertTrue (environment.snapshot ().activeClipLaunchOwner ().isEmpty ());
 
         runtime.close ();
 
-        for (final ControlId control: CoreControls.drumFills ())
-            assertEquals (1, clipHost.target (control).releaseCount);
+        assertEquals (1, clipHost.target (firstControl).releaseCount);
+        assertEquals (1, clipHost.target (secondControl).releaseCount);
+    }
+
+
+    @Test
+    void routesExactDrumPitchRemoteWithFullFourteenBitNormalization ()
+    {
+        final FakeClipHost clipHost = new FakeClipHost (9);
+        final FakeParameterHost parameterHost = FakeParameterHost.mapped (0.25);
+        final DrumFillRuntimeEnvironment environment = createArmedEnvironment (clipHost, parameterHost);
+        commitDrumPitchState (environment, clipHost, 0.25, 2);
+        final List<AbsoluteInputEvent> inputs = new ArrayList<> ();
+        final ReloadableControllerRuntime runtime = new ReloadableControllerRuntime (environment, NoOpLog.INSTANCE, event -> {
+            if (event instanceof final AbsoluteInputEvent input)
+            {
+                inputs.add (input);
+                return true;
+            }
+            return false;
+        });
+        runtime.start ();
+
+        assertTrue (runtime.routeDrumPitch (0, 0));
+        assertTrue (runtime.routeDrumPitch (0, 64));
+        assertTrue (runtime.routeDrumPitch (1, 64));
+        assertTrue (runtime.routeDrumPitch (127, 127));
+
+        assertEquals (4, inputs.size ());
+        assertTrue (inputs.stream ().allMatch (input -> CoreControls.DRUM_PITCH_RIBBON.equals (input.controlId ())));
+        assertEquals (0.0, inputs.get (0).normalizedValue ());
+        assertEquals (0.5, inputs.get (1).normalizedValue ());
+        assertEquals (8193 / 16383.0, inputs.get (2).normalizedValue ());
+        assertEquals (1.0, inputs.get (3).normalizedValue ());
+
+        runtime.close ();
+    }
+
+
+    @Test
+    void drumPitchFallsBackWhenNoExactRemoteIsArmed ()
+    {
+        final FakeClipHost clipHost = new FakeClipHost (9);
+        final DrumFillRuntimeEnvironment environment = createArmedEnvironment (clipHost, FakeParameterHost.empty ());
+        final List<CoreEvent> events = new ArrayList<> ();
+        final ReloadableControllerRuntime runtime = new ReloadableControllerRuntime (environment, NoOpLog.INSTANCE, event -> {
+            events.add (event);
+            return true;
+        });
+        runtime.start ();
+
+        assertFalse (runtime.routeDrumPitch (0, 64));
+        assertTrue (events.isEmpty ());
+
+        runtime.close ();
+    }
+
+
+    @Test
+    void exactDrumPitchRemoteOwnsTheGestureEvenWhenTheCoreRejectsIt ()
+    {
+        final FakeClipHost clipHost = new FakeClipHost (9);
+        final DrumFillRuntimeEnvironment environment = createArmedEnvironment (clipHost, FakeParameterHost.mapped (0.5));
+        commitDrumPitchState (environment, clipHost, 0.5, 2);
+        final ReloadableControllerRuntime runtime = new ReloadableControllerRuntime (environment, NoOpLog.INSTANCE, event -> false);
+        runtime.start ();
+
+        assertTrue (runtime.routeDrumPitch (0, 64));
+
+        runtime.close ();
+    }
+
+
+    @Test
+    void drumPitchRibbonValueWaitsForAuthoritativeReadbackAfterAWrite ()
+    {
+        final FakeClipHost clipHost = new FakeClipHost (9);
+        final FakeParameterHost parameterHost = FakeParameterHost.mapped (0.25);
+        final DrumFillRuntimeEnvironment environment = createArmedEnvironment (clipHost, parameterHost);
+        commitDrumPitchState (environment, clipHost, 0.25, 2);
+        final long [] coreGeneration =
+        {
+            2
+        };
+        final ReloadableControllerRuntime runtime = new ReloadableControllerRuntime (environment, NoOpLog.INSTANCE, event -> {
+            final List<CoreEffect> effects;
+            if (event instanceof final AbsoluteInputEvent input)
+                effects = List.of (new SetParameterValueEffect (parameterHost.state ().generation (), FakeParameterHost.TARGET, input.normalizedValue ()));
+            else if (event instanceof SnapshotChangedEvent)
+                effects = List.of ();
+            else
+                return false;
+
+            final double authoritativeValue = parameterHost.state ().slots ().getFirst ().normalizedValue ();
+            final CoreResult write = drumPitchResult (clipHost, authoritativeValue, effects);
+            final long generation = ++coreGeneration[0];
+            environment.commit (generation, environment.prepare (write));
+            environment.apply (generation);
+            return true;
+        });
+        runtime.start ();
+
+        assertEquals (32, runtime.drumPitchRibbonValue ());
+        assertTrue (runtime.routeDrumPitch (127, 127));
+        assertEquals (List.of (Double.valueOf (1.0)), parameterHost.writes);
+        assertEquals (32, runtime.drumPitchRibbonValue ());
+
+        parameterHost.authoritativeValue (1.0);
+        assertEquals (32, runtime.drumPitchRibbonValue ());
+        runtime.tick ();
+        assertEquals (127, runtime.drumPitchRibbonValue ());
+
+        runtime.close ();
     }
 
 
@@ -177,6 +307,8 @@ class ReloadableControllerRuntimeTest
             List.of (new PressClipTargetEffect (firstControl, clipHost.catalogGeneration (), clipHost.targetId (firstControl), LAUNCH_POLICY)));
         environment.commit (2, environment.prepare (press));
         environment.apply (2);
+        clipHost.advanceLaunch (firstControl);
+        environment.refresh ();
         assertEquals (firstControl, environment.snapshot ().activeClipLaunchOwner ().orElseThrow ());
 
         final AtomicInteger snapshotAttempts = new AtomicInteger ();
@@ -203,7 +335,19 @@ class ReloadableControllerRuntimeTest
 
     private static DrumFillRuntimeEnvironment createArmedEnvironment (final FakeClipHost clipHost)
     {
-        final DrumFillRuntimeEnvironment environment = new DrumFillRuntimeEnvironment (clipHost, NoOpLog.INSTANCE, () -> 0);
+        return createArmedEnvironment (clipHost, FakeParameterHost.empty ());
+    }
+
+
+    private static List<ButtonInputEvent> buttonEvents (final List<CoreEvent> events)
+    {
+        return events.stream ().filter (ButtonInputEvent.class::isInstance).map (ButtonInputEvent.class::cast).toList ();
+    }
+
+
+    private static DrumFillRuntimeEnvironment createArmedEnvironment (final FakeClipHost clipHost, final SelectedTrackParameterHost parameterHost)
+    {
+        final DrumFillRuntimeEnvironment environment = new DrumFillRuntimeEnvironment (clipHost, parameterHost, NoOpLog.INSTANCE, () -> 0);
         final CoreResult bindings = new CoreResult (DesiredHardwareOutput.empty (), clipHost.allBindings (), List.of ());
         environment.commit (1, environment.prepare (bindings));
         environment.apply (1);
@@ -212,13 +356,34 @@ class ReloadableControllerRuntimeTest
     }
 
 
-    private static void drainReturnChain (final FakeClipHost clipHost, final ReloadableControllerRuntime runtime)
+    private static void commitDrumPitchState (final DrumFillRuntimeEnvironment environment, final FakeClipHost clipHost, final double normalizedValue, final long generation)
     {
-        while (clipHost.hasPendingReturn ())
-        {
-            clipHost.advanceReturn ();
-            runtime.tick ();
-        }
+        environment.commit (generation, environment.prepare (drumPitchResult (clipHost, normalizedValue, List.of ())));
+        environment.apply (generation);
+    }
+
+
+    private static CoreResult drumPitchResult (final FakeClipHost clipHost, final double normalizedValue, final List<CoreEffect> effects)
+    {
+        return new CoreResult (
+            new DesiredHardwareOutput (Map.of (), Map.of (CoreControls.DRUM_PITCH_RIBBON, Double.valueOf (normalizedValue))),
+            clipHost.allBindings (),
+            Set.of (CoreControls.DRUM_PITCH_RIBBON),
+            effects);
+    }
+
+
+    private static void acknowledgeLaunch (final FakeClipHost clipHost, final ReloadableControllerRuntime runtime, final ControlId owner)
+    {
+        clipHost.advanceLaunch (owner);
+        runtime.tick ();
+    }
+
+
+    private static void acknowledgeReturn (final FakeClipHost clipHost, final ReloadableControllerRuntime runtime, final ControlId owner)
+    {
+        clipHost.advanceReturn (owner);
+        runtime.tick ();
     }
 
 
@@ -226,8 +391,8 @@ class ReloadableControllerRuntimeTest
     {
         private final ClipCatalogSnapshot catalog;
         private final Map<ControlId, FakeTarget> targets;
-        private final List<String> playbackStack = new ArrayList<> (List.of ("root"));
         private Map<ControlId, ClipTargetId> armedBindings = Map.of ();
+        private String playing = "root";
 
 
         private FakeClipHost (final long generation)
@@ -237,7 +402,7 @@ class ReloadableControllerRuntimeTest
             for (int index = 0; index < CoreControls.drumFills ().size (); index++)
             {
                 final ControlId control = CoreControls.drumFills ().get (index);
-                final FakeTarget target = new FakeTarget (index + 1L, this.playbackStack);
+                final FakeTarget target = new FakeTarget (this, index + 1L);
                 createdTargets.put (control, target);
                 clips.add (new CatalogClip (target.targetId (), "fill " + (index + 1)));
             }
@@ -279,6 +444,7 @@ class ReloadableControllerRuntimeTest
         @Override
         public LaunchTarget prepare (final ControlId owner, final long catalogGeneration, final ClipTargetId targetId)
         {
+            assertEquals ("root", this.playing, "A replacement cannot resolve before Bitwig reports the base playing again");
             if (catalogGeneration != this.catalog.generation () || !targetId.equals (this.armedBindings.get (owner)))
                 throw new IllegalArgumentException ("Unknown target");
             final FakeTarget target = this.targets.get (owner);
@@ -315,19 +481,24 @@ class ReloadableControllerRuntimeTest
         }
 
 
-        private boolean hasPendingReturn ()
+        private void advanceLaunch (final ControlId owner)
         {
-            return this.targets.values ().stream ().anyMatch (FakeTarget::hasPendingReturn);
+            final FakeTarget target = this.target (owner);
+            assertTrue (target.pressRequested, "A host launch can advance only after command submission");
+            assertFalse (target.launchAcknowledged, "A host launch can be acknowledged only once");
+            assertEquals ("root", this.playing, "Only one fill may play above the opaque base");
+            this.playing = target.name ();
+            target.launchAcknowledged = true;
         }
 
 
-        private void advanceReturn ()
+        private void advanceReturn (final ControlId owner)
         {
-            final List<FakeTarget> pending = this.targets.values ().stream ().filter (FakeTarget::hasPendingReturn).toList ();
-            assertEquals (1, pending.size (), "Only one Return layer may await host acknowledgement");
-            final FakeTarget target = pending.getFirst ();
-            assertEquals (target.name (), this.playbackStack.getLast ());
-            this.playbackStack.removeLast ();
+            final FakeTarget target = this.target (owner);
+            assertTrue (target.releaseRequested, "A host Return can advance only after command submission");
+            assertFalse (target.returnAcknowledged, "A host Return can be acknowledged only once");
+            assertEquals (target.name (), this.playing, "Only the playing fill can Return to base");
+            this.playing = "root";
             target.returnAcknowledged = true;
         }
     }
@@ -335,18 +506,21 @@ class ReloadableControllerRuntimeTest
 
     private static final class FakeTarget implements DrumFillClipHost.LaunchTarget
     {
+        private final FakeClipHost host;
         private final ClipTargetId targetId;
-        private final List<String> playbackStack;
         private int pressCount;
         private int releaseCount;
+        private int retireCount;
+        private boolean pressRequested;
+        private boolean launchAcknowledged;
         private boolean releaseRequested;
         private boolean returnAcknowledged;
 
 
-        private FakeTarget (final long value, final List<String> playbackStack)
+        private FakeTarget (final FakeClipHost host, final long value)
         {
+            this.host = host;
             this.targetId = new ClipTargetId (value);
-            this.playbackStack = playbackStack;
         }
 
 
@@ -361,10 +535,12 @@ class ReloadableControllerRuntimeTest
         public void press (final ClipLaunchPolicy launchPolicy)
         {
             assertEquals (LAUNCH_POLICY, launchPolicy);
+            assertEquals ("root", this.host.playing, "A fill must launch from the opaque base");
             this.pressCount++;
+            this.pressRequested = true;
+            this.launchAcknowledged = false;
             this.releaseRequested = false;
             this.returnAcknowledged = false;
-            this.playbackStack.add (this.name ());
         }
 
 
@@ -372,7 +548,8 @@ class ReloadableControllerRuntimeTest
         public void release ()
         {
             assertFalse (this.releaseRequested, "A Return must not be requested twice");
-            assertEquals (this.name (), this.playbackStack.getLast ());
+            assertTrue (this.pressRequested, "Only a submitted launch can be released");
+            assertEquals (this.name (), this.host.playing, "Only the playing fill can Return to base");
             this.releaseCount++;
             this.releaseRequested = true;
         }
@@ -381,7 +558,7 @@ class ReloadableControllerRuntimeTest
         @Override
         public DrumFillClipHost.PlaybackState playbackState ()
         {
-            return new DrumFillClipHost.PlaybackState (this.name ().equals (this.playbackStack.getLast ()), false, false);
+            return new DrumFillClipHost.PlaybackState (this.name ().equals (this.host.playing), false, false);
         }
 
 
@@ -390,6 +567,7 @@ class ReloadableControllerRuntimeTest
         {
             assertTrue (this.returnAcknowledged, "A target must remain frozen until Bitwig acknowledges Return");
             assertFalse (this.playbackState ().playing ());
+            this.retireCount++;
         }
 
 
@@ -397,11 +575,67 @@ class ReloadableControllerRuntimeTest
         {
             return Long.toString (this.targetId.value ());
         }
+    }
 
 
-        private boolean hasPendingReturn ()
+    private static final class FakeParameterHost implements SelectedTrackParameterHost
+    {
+        private static final ParameterTargetId TARGET = new ParameterTargetId (0);
+
+        private final List<Double> writes = new ArrayList<> ();
+        private State state;
+
+
+        private FakeParameterHost (final State state)
         {
-            return this.releaseRequested && !this.returnAcknowledged;
+            this.state = state;
+        }
+
+
+        private static FakeParameterHost mapped (final double normalizedValue)
+        {
+            return new FakeParameterHost (mappedState (normalizedValue));
+        }
+
+
+        private static FakeParameterHost empty ()
+        {
+            return new FakeParameterHost (new State (1, "track-1", "Pull", List.of ()));
+        }
+
+
+        @Override
+        public boolean refresh ()
+        {
+            return false;
+        }
+
+
+        @Override
+        public State state ()
+        {
+            return this.state;
+        }
+
+
+        @Override
+        public void setImmediately (final long generation, final ParameterTargetId targetId, final double normalizedValue)
+        {
+            assertEquals (this.state.generation (), generation);
+            assertEquals (TARGET, targetId);
+            this.writes.add (Double.valueOf (normalizedValue));
+        }
+
+
+        private void authoritativeValue (final double normalizedValue)
+        {
+            this.state = mappedState (normalizedValue);
+        }
+
+
+        private static State mappedState (final double normalizedValue)
+        {
+            return new State (1, "track-1", "Pull", List.of (new Slot (TARGET, "Pull", "Drum Pitch", true, normalizedValue, true)));
         }
     }
 

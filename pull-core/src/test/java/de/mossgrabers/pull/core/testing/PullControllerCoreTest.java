@@ -4,10 +4,13 @@
 package de.mossgrabers.pull.core.testing;
 
 import de.mossgrabers.pull.core.api.CatalogClip;
+import de.mossgrabers.pull.core.api.CatalogParameter;
 import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.CoreControls;
+import de.mossgrabers.pull.core.api.ParameterCatalogSnapshot;
+import de.mossgrabers.pull.core.api.ParameterTargetId;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchMode;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
@@ -15,8 +18,8 @@ import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
 import de.mossgrabers.pull.core.api.effect.ClipReleaseTrigger;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
-import de.mossgrabers.pull.core.api.effect.ReactivateClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
+import de.mossgrabers.pull.core.api.effect.SetParameterValueEffect;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.runtime.PullCoreProvider;
 
@@ -105,7 +108,7 @@ class PullControllerCoreTest
 
 
     @Test
-    void latestReadyFillPressRetainsThePreviousReturnAncestor ()
+    void latestReadyFillPressRequestsOneReplacementWhileReadbackKeepsTheCurrentOwnerLit ()
     {
         final ClipTargetId first = new ClipTargetId (1);
         final ClipTargetId second = new ClipTargetId (2);
@@ -122,7 +125,7 @@ class PullControllerCoreTest
         final List<CoreEffect> effects = host.effects ().executionOrder ();
         assertEquals (2, effects.size ());
         assertEquals (new PressClipTargetEffect (CoreControls.DRUM_FILL_2, 42, second, FILL_POLICY), effects.get (1));
-        assertEquals (first, host.effects ().clipLease (CoreControls.DRUM_FILL_1).orElseThrow ().target ());
+        assertTrue (host.effects ().clipLease (CoreControls.DRUM_FILL_1).isEmpty ());
         assertEquals (second, host.effects ().clipLease (CoreControls.DRUM_FILL_2).orElseThrow ().target ());
         assertEquals (HELD, light (host, CoreControls.DRUM_FILL_1));
         assertEquals (AVAILABLE, light (host, CoreControls.DRUM_FILL_2));
@@ -145,7 +148,7 @@ class PullControllerCoreTest
 
 
     @Test
-    void aNewPressAfterReloadLeavesReturnAncestryToTheShell ()
+    void aNewPressAfterReloadLeavesTheSingleActiveHandoffToTheShell ()
     {
         final ClipTargetId first = new ClipTargetId (1);
         final ClipTargetId second = new ClipTargetId (2);
@@ -242,7 +245,7 @@ class PullControllerCoreTest
 
 
     @Test
-    void retainedTargetsStayReservedAndCanBeReactivatedAfterCatalogReordering ()
+    void onlyTheSingleShellRetainedTargetStaysReservedAfterCatalogReordering ()
     {
         final ClipTargetId first = new ClipTargetId (1);
         final ClipTargetId second = new ClipTargetId (2);
@@ -264,21 +267,34 @@ class PullControllerCoreTest
             new CatalogClip (first, "fill one"),
             new CatalogClip (second, "fill two"))));
         assertEquals (Map.of (
-            CoreControls.DRUM_FILL_1, first,
+            CoreControls.DRUM_FILL_1, replacement,
             CoreControls.DRUM_FILL_2, second), host.effects ().desiredClipBindings ());
         host.armedClipTargets (Map.of (CoreControls.DRUM_FILL_1, replacement));
         assertEquals (AVAILABLE, light (host, CoreControls.DRUM_FILL_1));
         assertEquals (HELD, light (host, CoreControls.DRUM_FILL_2));
+    }
+
+
+    @Test
+    void aNewDownPressesAgainWhenTheOwnerIsAlreadyInTheShellSession ()
+    {
+        final ClipTargetId target = new ClipTargetId (1);
+        final ClipCatalogSnapshot catalog = new ClipCatalogSnapshot (2, List.of (new CatalogClip (target, "fill one")));
+        final Map<ControlId, ClipTargetId> armed = Map.of (CoreControls.DRUM_FILL_1, target);
+        final PullCoreProvider provider = new PullCoreProvider ();
+        final FakeCoreHost host = new FakeCoreHost (
+            provider.create (),
+            provider.descriptor ().requiredCapabilities (),
+            catalog,
+            armed,
+            armed,
+            Optional.of (CoreControls.DRUM_FILL_1),
+            Set.of ());
+        host.start (Optional.empty ());
 
         host.button (CoreControls.DRUM_FILL_1, true);
 
-        assertEquals (new ReactivateClipTargetEffect (CoreControls.DRUM_FILL_1), host.effects ().executionOrder ().getLast ());
-        assertEquals (first, host.effects ().clipLease (CoreControls.DRUM_FILL_1).orElseThrow ().target ());
-        assertTrue (host.effects ().clipLease (CoreControls.DRUM_FILL_2).isEmpty ());
-
-        host.clipLaunchSession (Map.of (CoreControls.DRUM_FILL_1, first), Optional.of (CoreControls.DRUM_FILL_1));
-        assertEquals (HELD, light (host, CoreControls.DRUM_FILL_1));
-        assertEquals (OFF, light (host, CoreControls.DRUM_FILL_2));
+        assertEquals (List.of (new PressClipTargetEffect (CoreControls.DRUM_FILL_1, 2, target, FILL_POLICY)), host.effects ().executionOrder ());
     }
 
 
@@ -359,6 +375,42 @@ class PullControllerCoreTest
 
         assertTrue (host.effects ().executionOrder ().isEmpty ());
         assertEquals (AVAILABLE, light (host, CoreControls.DRUM_FILL_1));
+    }
+
+
+    @Test
+    void drumRibbonTargetsOnlyTheExactPullDrumPitchRemote ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        final ParameterTargetId wrongPage = new ParameterTargetId (1);
+        final ParameterTargetId drumPitch = new ParameterTargetId (2);
+        host.selectedTrackParameters (new ParameterCatalogSnapshot (7, List.of (
+            new CatalogParameter (wrongPage, "Other", "Drum Pitch", 0.1),
+            new CatalogParameter (drumPitch, "Pull", "Drum Pitch", 0.5))));
+
+        host.absolute (CoreControls.DRUM_PITCH_RIBBON, 0.75);
+
+        assertEquals (new SetParameterValueEffect (7, drumPitch, 0.75), host.effects ().executionOrder ().getLast ());
+        assertEquals (Set.of (CoreControls.DRUM_PITCH_RIBBON), host.effects ().claimedInputs ());
+        assertEquals (Double.valueOf (0.5), host.effects ().desiredOutput ().absoluteValues ().get (CoreControls.DRUM_PITCH_RIBBON));
+    }
+
+
+    @Test
+    void duplicateExactDrumPitchRemotesAreAmbiguousAndUnclaimed ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        host.selectedTrackParameters (new ParameterCatalogSnapshot (8, List.of (
+            new CatalogParameter (new ParameterTargetId (1), "Pull", "Drum Pitch", 0.25),
+            new CatalogParameter (new ParameterTargetId (2), "Pull", "Drum Pitch", 0.75))));
+
+        host.absolute (CoreControls.DRUM_PITCH_RIBBON, 0.5);
+
+        assertTrue (host.effects ().executionOrder ().isEmpty ());
+        assertTrue (host.effects ().claimedInputs ().isEmpty ());
+        assertTrue (host.effects ().desiredOutput ().absoluteValues ().isEmpty ());
     }
 
 

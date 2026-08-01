@@ -45,8 +45,11 @@ public class ConfigurePitchbendCommand extends AbstractTriggerCommand<PushContro
     {
         if (event == ButtonEvent.UP && this.surface.getViewManager ().isActive (Views.SESSION, Views.DRUM_PAD))
         {
-            this.surface.sendMidiEvent (MidiConstants.CMD_PITCHBEND, 0, 64);
-            this.surface.getMidiOutput ().sendPitchbend (0, 64);
+            if (!this.surface.routeDrumPitch (0, 64))
+            {
+                this.surface.sendMidiEvent (MidiConstants.CMD_PITCHBEND, 0, 64);
+                this.surface.getMidiOutput ().sendPitchbend (0, 64);
+            }
             return;
         }
 

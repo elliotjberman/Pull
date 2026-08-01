@@ -4,6 +4,7 @@
 package de.mossgrabers.pull.core.testing;
 
 import de.mossgrabers.pull.core.api.CatalogClip;
+import de.mossgrabers.pull.core.api.CatalogParameter;
 import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
@@ -12,6 +13,8 @@ import de.mossgrabers.pull.core.api.CoreApi;
 import de.mossgrabers.pull.core.api.CoreCapabilities;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.CoreResult;
+import de.mossgrabers.pull.core.api.ParameterCatalogSnapshot;
+import de.mossgrabers.pull.core.api.ParameterTargetId;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.StateEnvelope;
 import de.mossgrabers.pull.core.api.TimerId;
@@ -21,9 +24,10 @@ import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
 import de.mossgrabers.pull.core.api.effect.ClipReleaseTrigger;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
-import de.mossgrabers.pull.core.api.effect.ReactivateClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
 import de.mossgrabers.pull.core.api.effect.ScheduleTimerEffect;
+import de.mossgrabers.pull.core.api.effect.SetParameterValueEffect;
+import de.mossgrabers.pull.core.api.event.AbsoluteInputEvent;
 import de.mossgrabers.pull.core.api.event.SnapshotChangedEvent;
 import de.mossgrabers.pull.core.api.output.DesiredHardwareOutput;
 import de.mossgrabers.pull.core.api.output.RgbColor;
@@ -93,14 +97,18 @@ class CoreApiValueTest
         clips.clear ();
 
         final Map<ControlId, RgbColor> lights = new HashMap<> (Map.of (control, new RgbColor (1, 2, 3)));
-        final DesiredHardwareOutput output = new DesiredHardwareOutput (lights);
+        final Map<ControlId, Double> absoluteValues = new HashMap<> (Map.of (control, Double.valueOf (0.25)));
+        final DesiredHardwareOutput output = new DesiredHardwareOutput (lights, absoluteValues);
         lights.clear ();
+        absoluteValues.clear ();
 
         final PressClipTargetEffect press = new PressClipTargetEffect (control, catalog.generation (), clip.targetId (), LAUNCH_POLICY);
         final List<CoreEffect> effects = new ArrayList<> (List.of (press));
         final Map<ControlId, ClipTargetId> desiredBindings = new HashMap<> (Map.of (control, clip.targetId ()));
-        final CoreResult result = new CoreResult (output, desiredBindings, effects);
+        final Set<ControlId> claimedInputs = new HashSet<> (Set.of (control));
+        final CoreResult result = new CoreResult (output, desiredBindings, claimedInputs, effects);
         desiredBindings.clear ();
+        claimedInputs.clear ();
         effects.clear ();
 
         assertTrue (snapshot.pressedControls ().contains (control));
@@ -111,13 +119,17 @@ class CoreApiValueTest
         assertEquals (clip.targetId (), press.target ());
         assertEquals (LAUNCH_POLICY, press.launchPolicy ());
         assertEquals (new RgbColor (1, 2, 3), result.desiredOutput ().lights ().get (control));
+        assertEquals (Double.valueOf (0.25), result.desiredOutput ().absoluteValues ().get (control));
         assertEquals (clip.targetId (), result.desiredClipBindings ().get (control));
+        assertEquals (Set.of (control), result.claimedInputs ());
         assertEquals (1, result.effects ().size ());
         assertThrows (UnsupportedOperationException.class, () -> snapshot.pressedControls ().clear ());
         assertThrows (UnsupportedOperationException.class, () -> snapshot.clipCatalog ().clips ().clear ());
         assertThrows (UnsupportedOperationException.class, () -> snapshot.armedClipTargets ().clear ());
         assertThrows (UnsupportedOperationException.class, () -> snapshot.clipLaunchSessionTargets ().clear ());
+        assertThrows (UnsupportedOperationException.class, () -> result.desiredOutput ().absoluteValues ().clear ());
         assertThrows (UnsupportedOperationException.class, () -> result.desiredClipBindings ().clear ());
+        assertThrows (UnsupportedOperationException.class, () -> result.claimedInputs ().clear ());
         assertThrows (UnsupportedOperationException.class, () -> result.effects ().clear ());
     }
 
@@ -137,13 +149,19 @@ class CoreApiValueTest
     @Test
     void publishesStableVersionCapabilityAndControlIdentifiers ()
     {
-        assertEquals (5, CoreApi.VERSION);
+        assertEquals (6, CoreApi.VERSION);
         assertEquals ("input.drum-fill", CoreCapabilities.INPUT_DRUM_FILL);
+        assertEquals ("input.absolute", CoreCapabilities.INPUT_ABSOLUTE);
+        assertEquals ("input.ownership", CoreCapabilities.INPUT_OWNERSHIP);
         assertEquals ("snapshot.selected-track-clips", CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS);
+        assertEquals ("snapshot.selected-track-parameters", CoreCapabilities.SNAPSHOT_SELECTED_TRACK_PARAMETERS);
         assertEquals ("binding.clip-target", CoreCapabilities.BINDING_CLIP_TARGET);
         assertEquals ("snapshot.clip-launch-session", CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION);
         assertEquals ("effect.clip-launch-hold", CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD);
+        assertEquals ("effect.set-parameter-value", CoreCapabilities.EFFECT_SET_PARAMETER_VALUE);
         assertEquals ("output.rgb-light", CoreCapabilities.OUTPUT_RGB_LIGHT);
+        assertEquals ("output.absolute", CoreCapabilities.OUTPUT_ABSOLUTE);
+        assertEquals (new ControlId ("drum.pitch.ribbon"), CoreControls.DRUM_PITCH_RIBBON);
         assertEquals (12, CoreControls.DRUM_FILLS.size ());
         assertEquals (12, new HashSet<> (CoreControls.DRUM_FILLS).size ());
         for (int index = 0; index < CoreControls.DRUM_FILLS.size (); index++)
@@ -185,13 +203,22 @@ class CoreApiValueTest
         assertThrows (IllegalArgumentException.class, () -> new ClipCatalogSnapshot (0, List.of (
             new CatalogClip (duplicateTarget, "first"),
             new CatalogClip (duplicateTarget, "second"))));
+        final ParameterTargetId parameterTarget = new ParameterTargetId (0);
+        final CatalogParameter parameter = new CatalogParameter (parameterTarget, "Pull", "Drum Pitch", 0.5);
+        assertThrows (IllegalArgumentException.class, () -> new ParameterTargetId (-1));
+        assertThrows (IllegalArgumentException.class, () -> new CatalogParameter (parameterTarget, "Pull", "Drum Pitch", Double.NaN));
+        assertThrows (IllegalArgumentException.class, () -> new ParameterCatalogSnapshot (0, List.of (parameter, parameter)));
         assertThrows (IllegalArgumentException.class, () -> new ControllerSnapshot (-1, 0, ShellCapabilities.empty (), ClipCatalogSnapshot.empty (), Map.of (), Set.of (), Set.of ()));
         assertThrows (NullPointerException.class, () -> new ControllerSnapshot (0, 0, ShellCapabilities.empty (), null, Map.of (), Set.of (), Set.of ()));
         assertThrows (NullPointerException.class, () -> new ControllerSnapshot (0, 0, ShellCapabilities.empty (), ClipCatalogSnapshot.empty (), null, Set.of (), Set.of ()));
         assertThrows (NullPointerException.class, () -> new ControllerSnapshot (0, 0, ShellCapabilities.empty (), ClipCatalogSnapshot.empty (), Map.of (), null, Optional.empty (), Set.of (), Set.of ()));
         assertThrows (NullPointerException.class, () -> new ControllerSnapshot (0, 0, ShellCapabilities.empty (), ClipCatalogSnapshot.empty (), Map.of (), Map.of (), null, Set.of (), Set.of ()));
         assertThrows (IllegalArgumentException.class, () -> new ControllerSnapshot (0, 0, ShellCapabilities.empty (), ClipCatalogSnapshot.empty (), Map.of (), Map.of (), Optional.of (new ControlId ("owner")), Set.of (), Set.of ()));
-        assertThrows (NullPointerException.class, () -> new ReactivateClipTargetEffect (null));
+        assertThrows (IllegalArgumentException.class, () -> new ControllerSnapshot (0, 0, ShellCapabilities.empty (), ClipCatalogSnapshot.empty (), Map.of (), Map.of (new ControlId ("one"), new ClipTargetId (1), new ControlId ("two"), new ClipTargetId (2)), Optional.empty (), Set.of (), Set.of ()));
+        assertThrows (IllegalArgumentException.class, () -> new AbsoluteInputEvent (0, 0, CoreControls.DRUM_PITCH_RIBBON, 1.1));
+        assertThrows (IllegalArgumentException.class, () -> new SetParameterValueEffect (0, parameterTarget, -0.1));
+        assertThrows (IllegalArgumentException.class, () -> new DesiredHardwareOutput (Map.of (), Map.of (CoreControls.DRUM_PITCH_RIBBON, Double.valueOf (Double.NaN))));
+        assertThrows (NullPointerException.class, () -> new CoreResult (DesiredHardwareOutput.empty (), Map.of (), null, List.of ()));
         assertThrows (IllegalArgumentException.class, () -> new SnapshotChangedEvent (-1, 0));
         assertThrows (IllegalArgumentException.class, () -> new SnapshotChangedEvent (0, -1));
         assertThrows (IllegalArgumentException.class, () -> new ShellCapabilities (Map.of ("lights", Integer.valueOf (0))));

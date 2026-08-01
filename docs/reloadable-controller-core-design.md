@@ -1,8 +1,8 @@
 # Reloadable Controller Core
 
-Status: Milestones 1 through 4 are implemented and pass offline verification. Live Bitwig/Push
-testing exposed asynchronous `Return` acknowledgement as the remaining drum-fill issue; the shell
-now serializes that unwind from playback read-back and needs a final live checkpoint test.
+Status: Milestones 1 through 4 and the Core API 6 selected-track parameter bridge are implemented
+and pass offline verification. The drum-fill shell now uses a single-active replacement barrier;
+the API 6 shell and Drum Pitch session contract still require their live Bitwig/Push checkpoint.
 
 Primary goal: make ordinary controller development possible without restarting Bitwig.
 
@@ -92,19 +92,32 @@ independently.
 - Match selected-track clips containing `fill` case-insensitively inside the core, keep scene
   order, and assign the first 12 one per pad.
 - Back each control with a private startup-created one-slot actuator that arms asynchronously and
-  freezes while retained in the launch session.
-- Return owner-scoped launch/release effects to one ordered shell-owned native `Return` path above
-  an opaque Bitwig-owned base: retain older fills under each later launch, ignore non-top releases,
-  unwind one host-confirmed layer at a time, and reveal a retained ancestor when it is pressed again.
+  freezes while it owns the session's single acquired lease.
+- Keep one acquired fill lease above an opaque Bitwig-owned base. A later press becomes the latest
+  value-only pending intent; return and retire the active fill before resolving and launching that
+  replacement from the same base.
 - Publish complete per-pad RGB state from authoritative shell read-back: dim orange ready, fully
   lit orange only for the active session owner, and off otherwise. Never infer success
   optimistically from a press request.
 - Cover catalog scans, off-window edits, readiness, overlapping holds, reload hydration, exact
   delayed Return acknowledgements, releases, failures, and transaction ordering without Bitwig.
 
+### Core API 6: generic selected-track parameter bridge
+
+- Eagerly create one selected-track cursor and one eight-slot tagged remote-controls page in the
+  stable shell.
+- Publish a generation-fenced parameter catalog with authoritative normalized values.
+- Normalize absolute hardware input as `AbsoluteInputEvent` and execute exact
+  `SetParameterValueEffect` requests only against the matching catalog generation and slot identity.
+- Let the core publish generic input ownership and normalized absolute hardware output, so the
+  stable router never hard-codes the feature-specific remote name.
+- Use the bridge first for the Drum Pitch ribbon while preserving the legacy raw pitch-bend path
+  whenever the required remote is absent.
+
 ### Later milestones
 
-- Generalize stable proxies for every existing Push input.
+- Install the bounded capability canopy described below for practical Push input and common DAW
+  state/actions.
 - Migrate drum behavior, then remaining mode/view families.
 - Move display decisions and add golden output tests.
 - Add event recording and offline replay.
@@ -190,71 +203,103 @@ map. A pad
 is actionable only when its exact desired target is already armed; a down during convergence is
 ignored rather than queued for a surprise later launch.
 
-Each pad presses exactly one private actuator. The shell models one fill session as an opaque base
-plus an ordered path of frozen owner-scoped frames: `base <- A <- B`. The base is the launcher clip
-or Arrangement playback Bitwig owned before the first fill. The controller API does not expose a
-durable identity for both forms, so the shell deliberately does not guess one; Bitwig retains it as
-the first frame's native `Return` target. A later ready press launches the new fill without first
-releasing the previous frame, so the latest observed playing owner is active while its ancestors
-remain available underneath it. A release effect or raw-MIDI safety release from a non-top owner is
-an idempotent no-op. Releasing the active top owner requests one Return layer, waits until Bitwig
-reports that target inactive and its predecessor playing, then requests the next layer. Only the
-final observed fill-to-base transition closes the session. Pressing a hidden owner again stops at
-that retained frame instead of launching it a second time.
+Each pad has its own private actuator, but a fill session acquires at most one actuator at a time.
+The session is an opaque Bitwig-owned base plus one optional active fill lease and one optional
+value-only pending intent. The base is the launcher clip or Arrangement playback that Bitwig owned
+before the gesture; the controller API does not expose one durable identity covering both forms, so
+the shell deliberately does not guess it. A pending intent contains only owner, catalog generation,
+target ID, and launch policy. It owns no Bitwig proxy, never appears as the active owner, and is not
+included in session read-back.
 
-While retained, an actuator cannot move even if the selected track, catalog, core policy, physical
-held state, or active core build changes. Raw MIDI note-off is observed below the command layer, so
-switching views cannot consume the only release. A failed release remains owned and is retried
-strictly from the current top instead of unwinding a lower frame out of order. New presses fail
-closed while an earlier unwind still requires cleanup. Bitwig's void launch calls are commands, not
-transaction acknowledgements. The actuator therefore stays frozen after `launchReleaseAlt()` and
-the shell subscribes to `isPlaying`, `isPlaybackQueued`, and `isStopQueued`; it retires a frame only
-from a later playback sample. A transient all-idle sample is not treated as the base until it remains
-coherent across another sample. This prevents two Return commands from racing in one controller turn
-or a short B-stopped/A-not-yet-playing gap from discarding A.
+A ready press from the base prepares and launches that exact target. While a fill is active, a
+later press replaces the pending intent—latest press wins—but does not prepare or launch the
+replacement yet. The handoff observes the active fill busy, submits its native `Return`, waits for
+a later non-busy sample, retires the exact actuator, waits one further host sample, revalidates the
+pending generation and armed binding, and only then prepares and launches the replacement. Bitwig
+does not expose the Return anchor: the non-busy sample proves only that the released target stopped,
+and the extra sample is the strongest available opaque-base barrier rather than direct proof of
+which launcher clip or Arrangement source resumed. This serialization prevents the replacement's
+ALT release destination from becoming the previous fill in the observed native behavior. A newer
+press may replace the pending intent; releasing that pending owner cancels it. Releasing the
+eventual replacement later uses its own native `Return`; no older controller-held fill lease is
+retained beneath it.
 
-Core API 5 carries a host-independent launch policy on each press effect. Capability
-`effect.clip-launch-hold` version 3 defines the ordered session semantics, and
-`snapshot.clip-launch-session` version 1 reports the complete frozen owner-to-target map plus its
-authoritative active owner. A new-target press acquires a frame, an owner-only reactivation effect
-reveals a retained frame without reconstructing its target or policy, and an active-owner release
-unwinds the session. Retained targets remain reserved from other pads across catalog reordering.
-The shell freezes each launch policy into its acquired frame and maps it to Bitwig API 21. The
-current fill policy launches with quantization `Immediate` and mode `Legato from Clip (or Project)`,
-then invokes the fill clip's ALT release lane. Entry therefore ignores the source and fill clips'
-configured launch quantization and mode. Bitwig's API cannot name a release action directly, so the
-effective ALT release action on each fill must resolve to `Return`; with the clip on `Use Project
-Setting`, this is the project's default ALT Release setting. Clip looping and length remain session
-content.
+Raw MIDI note-off is observed below the command layer, so switching views cannot consume the only
+release. Bitwig's void launch calls are command submissions, not acknowledgements. The active
+actuator remains frozen while `isPlaying`, `isPlaybackQueued`, and `isStopQueued` provide
+authoritative progress. A stale false value before the launch has ever been observed busy cannot
+acknowledge an early Return. A failed Return keeps the exact active lease and latest pending intent
+owned for retry; no replacement proxy is reserved across that wait. A down rejected while unarmed,
+or a deferred target whose catalog generation/binding changes before launch, is discarded rather
+than launched later by surprise.
 
-The physical held state, desired/armed protocol, actuators, ordered launch path, opaque base token,
-frozen retained targets, and authoritative active owner live in the shell. Starting a replacement core hydrates
-current held, armed, and complete session state but deliberately synthesizes no press: the shell
-simply retains frames that were actually acquired before reload. The core renders fully lit orange
-only after the active owner appears in a shell snapshot; it never treats its own press effect as
-proof that Bitwig accepted the launch. Snapshot-change delivery remains pending until a core
-accepts it, so an intervening input or rejected render cannot permanently lose the read-back. In
-this slice, the authoritative active owner is the newest retained target Bitwig actually reports as
-playing. Requested, queued, playing, release-requested, and retired are distinct states. A down
-rejected while its pad was unarmed never launches later merely because the actuator arms or the
-core reloads.
+Core API 6 carries the host-independent launch policy and the generic parameter messages.
+Capability `effect.clip-launch-hold` version 4 defines the single-active session and latest-pending
+handoff; `snapshot.clip-launch-session` version 1 reports a map containing at most the one acquired
+owner-to-target lease plus its authoritative active owner. There are no hidden fills or held-pad
+fallback. The shell freezes the launch policy into the acquired lease and maps it to Bitwig
+API 21. The current fill policy launches with quantization `Immediate` and mode `Legato from Clip
+(or Project)`, then invokes the fill clip's ALT release lane. Entry therefore ignores the source and
+fill clips' configured launch quantization and mode. Bitwig's API cannot name a release action
+directly, so the effective ALT release action on each fill must resolve to `Return`; with the clip
+on `Use Project Setting`, this is the project's default ALT Release setting. Clip looping and
+length remain session content.
+
+Physical held state, desired/armed bindings, the acquired lease, latest pending intent, opaque base
+token, and authoritative active owner live in the shell across a hot core reload. Starting a
+replacement core hydrates current held, armed, parameter, and acquired-session read-back but
+deliberately synthesizes no press. The core renders fully lit orange only after Bitwig reports the
+acquired owner playing; neither the input nor pending intent is optimistic feedback.
+Snapshot-change delivery remains pending until a core accepts it, so an intervening input or
+rejected render cannot permanently lose read-back. Requested, queued, playing, release-requested,
+retired, base-barrier, and pending are distinct states.
+
 Structural scene insertion/reordering during a hold remains an inherent limitation of Bitwig's
 paged slot proxies, which expose no durable clip ID, but the pinned track and frozen scene proxy are
-the narrowest supported identity.
+the narrowest supported identity. Whole-extension disable/exit is also different from hot core
+reload: API 21 gives `exit()` no asynchronous grace/completion contract, so shutdown can submit one
+best-effort Return for the single acquired fill but cannot wait for confirmation. `scheduleTask()`
+is not a safe substitute after exit.
 
-Normal serialized unwind continues across a hot core reload because the shell session is not
-invalidated when its child core is replaced. Whole-extension disable/exit is different: API 21 gives
-`exit()` no asynchronous grace/completion contract, so shutdown can submit one best-effort Return for
-the observed top frame but cannot wait for and release further ancestors. Guaranteed base restoration
-when disabling the extension mid-nested-fill would require capturing a directly addressable launcher
-clip-versus-Arrangement base and restoring it in one terminal command; `scheduleTask()` is not a safe
-substitute after exit.
+### Generic selected-track parameter bridge
 
-Installing the API-5 shell plus playback-state subscriptions requires one extension copy and Bitwig restart. After that, this
-boundary makes marker strings, filtering, ordering, truncation, colors, active-fill policy, and
-launch policies composed from the selected-track catalog and existing effects core-only reloads.
-A new Bitwig property or operation still requires another API/shell change and one Bitwig restart
-to install that widened bridge.
+Core API 6 adds a reusable, host-independent parameter seam. During extension initialization the
+shell eagerly creates one selected-track cursor and one `CursorRemoteControlsPage` with eight
+bounded slots. The Bitwig page must be uniquely named exactly `Pull` and tagged `pull`; the shell
+uses `Pull` as the page name, `pull` as the filter expression, follows the selected track, and
+selects that unique page. Missing, duplicate, pinned, partially populated, or structurally changing
+pages are unavailable until two consecutive complete samples agree.
+
+The snapshot publishes an ordered `ParameterCatalogSnapshot` containing opaque slot
+`ParameterTargetId`s, page and parameter names, and normalized values read from Bitwig. Any change
+to selected-track identity, page identity, or the eight slot identities advances the catalog
+generation. `AbsoluteInputEvent` carries normalized hardware values without Bitwig types.
+`SetParameterValueEffect` names one exact target and generation; before calling
+`setImmediately()`, the shell re-samples and verifies the track, page, slot name, existence, and
+generation. A successful write is still only a command. Snapshot values, ribbon LEDs, displays,
+and all other feedback change only after the subscribed remote parameter reports the host value.
+The core separately publishes a complete claimed-input set and normalized absolute hardware-output
+map. The stable shell routes and renders those logical controls without knowing which parameter
+name or behavior caused the claim.
+
+### Drum Pitch session contract
+
+The first consumer is the drum-view Push ribbon. The selected track must expose the uniquely named
+and tagged `Pull` remote page above, with one of its eight slots named exactly `Drum Pitch`. In the
+Bitwig session, map that remote to a centered track Macro, then map the Macro to the pitch control of
+the nested sampler(s) that should transpose; the Macro's center is the no-transposition position.
+When this target is coherent, ribbon pitch-bend input becomes an `AbsoluteInputEvent`, the core
+claims the ribbon, returns a generation-fenced `SetParameterValueEffect`, and publishes the ribbon
+display value from the later authoritative remote read-back. The shell gates routing on that
+generic claim; it contains no `Drum Pitch` string. If the page or `Drum Pitch` remote is absent or
+ambiguous, the core withdraws the claim and the existing raw MIDI pitch-bend behavior remains the
+fallback.
+
+Installing the API 6 shell, fill playback subscriptions, and eight-slot selected-track parameter
+page requires one extension copy and Bitwig restart. After that, marker strings, filtering,
+ordering, truncation, colors, active-fill policy, Drum Pitch mapping policy, and behaviors composed
+from the existing catalog/events/effects are core-only reloads. A Bitwig property or operation
+outside the installed bridge still requires an API/shell change and another Bitwig restart.
 
 ## Stable shell responsibilities
 
@@ -274,6 +319,36 @@ The shell owns anything coupled to Bitwig or physical hardware:
 
 The shell may reuse the existing `ModelImpl` and Bitwig wrapper graph internally. That graph must
 not cross into the core.
+
+## Capability-canopy next milestone
+
+The next shell milestone should install a deliberately broad but finite capability canopy during
+extension initialization. Its purpose is to make most foreseeable behavior changes core-only even
+when no current feature consumes every subscription. The shell should eagerly create the permanent
+routers, proxies, interested properties, and observers for:
+
+- all practical Push inputs: grid/button press and release, encoder turns and touch, ribbon values
+  and touch, pad pressure where supported, and pedal input;
+- common transport state and actions, including play/stop, record, loop, metronome, tempo/position,
+  and other explicitly selected transport commands;
+- common selected-track identity and mixer state;
+- bounded selected-track clip windows plus a bounded pool of launch, stop, and selection actuators;
+- selected-device identity, navigation, page identity, and bounded parameter windows;
+- bounded tagged-remote pages, beginning with the eight-slot `Pull` page; and
+- generic generation-fenced parameter set, touch, and increment effects, along with typed clip and
+  transport effects.
+
+This is a capability canopy, not a mirror of the entire project. Bitwig cursor/bank/proxy topology
+is owned by extension initialization, each bank and actuator pool has finite capacity, and a project
+can contain unbounded tracks, scenes, devices, layers, and parameters. Eagerly creating every
+possible proxy is neither supported nor responsible. Each installed domain must therefore document
+its exact capacity, selection/following scope, identity and generation rules, and any required
+session names, tags, mappings, or devices. Scanners may expose changing windows of a larger project,
+but scanning does not make arbitrary off-window state directly addressable.
+
+Once installed, new mappings, modes, gestures, and UI composed only from this canopy can ship by
+core reload. A future feature that needs state, capacity, identity, or an action outside the finite
+canopy still requires a parent-loaded API/shell change, extension installation, and Bitwig restart.
 
 ## Reloadable core responsibilities
 
@@ -338,10 +413,12 @@ snapshot.
 ## Snapshot and effects
 
 The snapshot currently contains revision, monotonic time, shell capabilities, the complete
-selected-track clip catalog, verified per-control armed bindings, the clip-launch session's frozen
-owner-to-target map and authoritative active owner, and pressed/touched controls. Add each new
-domain as a typed API value when its first migrated vertical slice needs it. The eventual stable
-snapshot is expected to cover:
+selected-track clip catalog, the generation-fenced eight-slot selected-track parameter catalog,
+verified per-control armed clip bindings, the clip-launch session's optional acquired
+owner-to-target lease and authoritative active owner, and pressed/touched controls. A pending fill
+intent is shell-private and never appears active in this read-back. Add each new domain as a typed
+API value when its first migrated vertical slice needs it. The eventual stable snapshot is expected
+to cover:
 
 - revision and shell capabilities;
 - transport;
@@ -358,10 +435,12 @@ that bank's generation and marks it pending. Location-targeted effects from the 
 are immediately rejected. The new window is published only after Bitwig's observed membership
 stabilizes.
 
-The API includes logical timer effects, persistent desired clip bindings, verified armed bindings,
-the version-1 authoritative clip-launch-session snapshot, generation-fenced version-3 ordered
-clip-session acquire/reactivate/release effects, and complete desired RGB light state. Later typed
-effects will cover scene launch, selection, bank scrolling, parameter adjustment,
+Core API 6 includes logical timer effects, persistent desired clip bindings, verified armed
+bindings, the version-1 authoritative single-lease clip-launch-session snapshot,
+generation-fenced version-4 acquire/replace/release effects, `AbsoluteInputEvent`, the selected-track
+parameter catalog, `SetParameterValueEffect`, complete input ownership, and desired RGB plus
+normalized absolute hardware state. Later typed
+effects will cover scene launch, selection, bank scrolling, generic parameter touch and increment,
 transport/application actions, note mapping/repeat, approved MIDI/SysEx, notifications, and richer
 desired hardware state.
 
@@ -472,7 +551,7 @@ The development command and shell share `${user.home}/.drivenbymoss/pull/reload`
 
 ```properties
 formatVersion=1
-apiVersion=5
+apiVersion=6
 buildId=20260731T230000Z-0123456789abcdef0123456789abcdef
 ```
 
@@ -482,7 +561,7 @@ verifies its embedded API/build identity, computes SHA-256, and atomically repla
 
 ```properties
 formatVersion=1
-apiVersion=5
+apiVersion=6
 shellFingerprint=0123456789abcdef0123456789abcdef01234567
 buildId=20260731T230000Z-0123456789abcdef0123456789abcdef
 jar=pull-core-20260731T230000Z-0123456789abcdef0123456789abcdef.jar
@@ -519,10 +598,13 @@ Current shell tests cover manifest integrity, status/generation fencing, private
 classloader isolation, structural A/B replacement, candidate failure, and prepared runtime
 transactions. The drum-fill vertical slice adds complete paged scans, off-window edits, two-sample
 actuator validation, opaque target fencing, 12 independently lease-capable actuators,
-held-actuator freezing, an explicit opaque base, ordered native-Return ancestry, delayed host
-acknowledgements, observed active-owner policy, authoritative snapshot-driven feedback, reload
-hydration, partial acquisition rollback, strict newest-to-oldest release retries, top-aware raw-MIDI
-safety release, hidden-owner reactivation, effect validation, and complete output-buffer tests.
+single-active actuator freezing, an explicit opaque base, latest-pending replacement, the
+busy/Return/non-busy/retire/later-sample barrier, delayed host acknowledgements, exact release
+retries, stale pre-launch false protection, catalog fences, raw-MIDI safety release, authoritative
+snapshot-driven feedback, reload hydration, failure cleanup, effect validation, and complete
+output-buffer tests. Parameter tests separately cover exact `Pull` page discovery, eight-slot
+coherence, generation and identity fences, command-versus-read-back separation, Drum Pitch routing,
+and legacy fallback when the remote is absent.
 
 The same DTO/effect seam is the basis for later record/replay and a virtual Push. An offline harness
 can feed snapshots and input events into the core, assert requested Bitwig effects, and render the
@@ -542,7 +624,10 @@ effects, rejections, and desired output. A real Bitwig failure can then become a
 | Core-owned/migrated mapping, mode, gesture, layout policy, or fill matching | Core reload |
 | Core-owned color or hardware-output policy | Core reload |
 | Behavior using existing snapshot/effects | Core reload |
+| Behavior within the installed capability canopy | Core reload |
 | Clip launch quantization, mode, or Main-vs-ALT release lane | Core reload |
+| Add state/action or exceed capacity outside the installed canopy | API/shell build/install and Bitwig restart |
+| Add or repair the `Pull`/`Drum Pitch` remote and Macro mapping | Bitwig project/session edit; no extension restart |
 | New Bitwig state the shell never subscribed to | Shell build/install and Bitwig restart |
 | New operation the shell cannot execute | API/shell build/install and Bitwig restart |
 | Bitwig settings schema | Shell build/install and Bitwig restart |

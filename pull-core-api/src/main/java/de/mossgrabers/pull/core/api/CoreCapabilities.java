@@ -11,6 +11,12 @@ public final class CoreCapabilities
     /** Normalized input for the drum-fill control. */
     public static final String INPUT_DRUM_FILL = "input.drum-fill";
 
+    /** Normalized absolute hardware controls. */
+    public static final String INPUT_ABSOLUTE = "input.absolute";
+
+    /** Complete core-owned physical-input routing state. */
+    public static final String INPUT_OWNERSHIP = "input.ownership";
+
     /** Immutable ordered clip catalogs for the selected track. */
     public static final String SNAPSHOT_SELECTED_TRACK_CLIPS = "snapshot.selected-track-clips";
 
@@ -20,11 +26,20 @@ public final class CoreCapabilities
     /** Frozen targets and authoritative active owner of the shell-managed clip-launch session. */
     public static final String SNAPSHOT_CLIP_LAUNCH_SESSION = "snapshot.clip-launch-session";
 
-    /** Ordered momentary clip-session effects with a frozen launch policy per target. */
+    /** Catalog and authoritative values for tagged selected-track remote parameters. */
+    public static final String SNAPSHOT_SELECTED_TRACK_PARAMETERS = "snapshot.selected-track-parameters";
+
+    /** Single-active momentary clip-session effects with a frozen launch policy per target. */
     public static final String EFFECT_CLIP_LAUNCH_HOLD = "effect.clip-launch-hold";
+
+    /** Generation-fenced immediate parameter writes. */
+    public static final String EFFECT_SET_PARAMETER_VALUE = "effect.set-parameter-value";
 
     /** Hardware-independent RGB light output. */
     public static final String OUTPUT_RGB_LIGHT = "output.rgb-light";
+
+    /** Hardware-independent normalized absolute output. */
+    public static final String OUTPUT_ABSOLUTE = "output.absolute";
 
 
     private CoreCapabilities ()

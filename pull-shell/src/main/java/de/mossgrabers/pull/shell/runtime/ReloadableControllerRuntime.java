@@ -10,6 +10,7 @@ import de.mossgrabers.framework.daw.midi.MidiConstants;
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.CoreControls;
+import de.mossgrabers.pull.core.api.event.AbsoluteInputEvent;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.output.RgbColor;
@@ -17,6 +18,7 @@ import de.mossgrabers.pull.core.api.output.RgbColor;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -48,6 +50,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
     private final ControllerHost controllerHost;
 
     private SelectedTrackFillClipHost clipHost;
+    private SelectedTrackRemoteParameterHost parameterHost;
     private DrumFillRuntimeEnvironment environment;
     private CoreReloadSupervisor supervisor;
     private Predicate<CoreEvent> eventHandler = event -> false;
@@ -104,7 +107,8 @@ public final class ReloadableControllerRuntime implements AutoCloseable
 
         this.clipHost = new SelectedTrackFillClipHost (this.controllerHost);
         this.clipHost.connect (Objects.requireNonNull (model, "model"));
-        this.environment = new DrumFillRuntimeEnvironment (this.clipHost, this.log, System::nanoTime);
+        this.parameterHost = new SelectedTrackRemoteParameterHost (this.controllerHost);
+        this.environment = new DrumFillRuntimeEnvironment (this.clipHost, this.parameterHost, this.log, System::nanoTime);
         this.supervisor = new CoreReloadSupervisor (this.environment, this.log);
         this.eventHandler = this.supervisor::handle;
     }
@@ -197,8 +201,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             finally
             {
                 // Physical state is authoritative even when no core is active or a candidate
-                // result is rejected. Session safety ignores a retired Return ancestor; releasing
-                // the active owner unwinds the complete native Return chain.
+                // result is rejected. Only the one active lease can request a native Return.
                 this.environment.safetyRelease (control);
             }
             return true;
@@ -227,6 +230,44 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         final boolean held = control != null && this.environment != null && !this.closed && this.environment.isFillPressed (control);
         if (held && this.routeGridEvent (drumViewActive, ButtonEvent.UP, data1))
             this.rawReleasedGestures.add (control);
+    }
+
+
+    /**
+     * Route the drum-view ribbon through the reloadable absolute-control boundary.
+     *
+     * @param data1 Pitch-bend least-significant byte
+     * @param data2 Pitch-bend most-significant byte
+     * @return True when the active core owns the gesture
+     */
+    public boolean routeDrumPitch (final int data1, final int data2)
+    {
+        if (this.environment == null || this.closed || !this.started)
+            return false;
+
+        this.environment.refresh ();
+        if (!this.environment.ownsInput (CoreControls.DRUM_PITCH_RIBBON))
+            return false;
+
+        final int rawValue = ((data2 & 0x7F) << 7) | (data1 & 0x7F);
+        final double normalizedValue = rawValue == 8192 ? 0.5 : rawValue / 16383.0;
+        final AbsoluteInputEvent input = this.environment.absoluteInput (CoreControls.DRUM_PITCH_RIBBON, normalizedValue);
+        this.eventHandler.test (input);
+        return true;
+    }
+
+
+    /**
+     * Get the current Push ribbon display value from authoritative core output.
+     *
+     * @return MIDI value in {@code [0, 127]}, centered when no output is owned
+     */
+    public int drumPitchRibbonValue ()
+    {
+        if (this.environment == null || this.closed)
+            return 64;
+        final OptionalDouble value = this.environment.absoluteOutputValue (CoreControls.DRUM_PITCH_RIBBON);
+        return value.isEmpty () ? 64 : (int) Math.round (value.getAsDouble () * 127.0);
     }
 
 

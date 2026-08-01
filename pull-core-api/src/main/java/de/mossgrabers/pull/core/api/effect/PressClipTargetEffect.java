@@ -9,11 +9,11 @@ import de.mossgrabers.pull.core.api.ControlId;
 import java.util.Objects;
 
 /**
- * Press one newly armed target as the active member of the shell-managed momentary clip session.
- * Previously active targets are retained as native Return ancestry until the session is released;
- * use {@link ReactivateClipTargetEffect} to reveal one of those frozen frames.
+ * Request one armed target as the sole active member of the shell-managed momentary clip session.
+ * If another target is active, the shell keeps this as a value-only pending intent and launches it
+ * only after the active target has returned to the opaque base.
  *
- * @param owner Logical control which becomes the active session owner
+ * @param owner Logical control requesting active session ownership
  * @param catalogGeneration Required selected-track catalog generation
  * @param target Target to press
  * @param launchPolicy Launch and release policy frozen into the lease

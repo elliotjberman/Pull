@@ -8,8 +8,8 @@ import de.mossgrabers.pull.core.api.ControlId;
 import java.util.Objects;
 
 /**
- * Release the momentary clip session when the supplied owner is active. A retired ancestor or
- * absent owner is an idempotent no-op.
+ * Release the active momentary clip or cancel the pending intent owned by this control. An absent
+ * owner is an idempotent no-op.
  *
  * @param owner Logical control requesting session release
  */

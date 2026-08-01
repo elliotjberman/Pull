@@ -46,14 +46,12 @@ authoritative snapshot read-back.
 
 Each pad launches only its assigned clip. The shell keeps a private one-slot Bitwig actuator for
 each pad and freezes it while its launch remains in the session, so session scrolling, selection
-changes, and new core builds cannot retarget the matching release. The shell owns one ordered chain
-of native Bitwig `Return` ancestry. Pressing a later ready fill makes it active while retaining the
-older fills beneath it. Releasing a non-active ancestor is a no-op; releasing the active fill
-unwinds the complete chain from newest to oldest and returns to the original source clip. Pressing
-a retained ancestor again unwinds only the newer fills and reveals that ancestor, even if catalog
-ordering changed while it was retained. Retained targets are reserved from assignment to another
-pad until their Return frame is released. The latest active owner is therefore the one audible fill
-even when several launch frames are retained.
+changes, and new core builds cannot retarget the matching release. The shell retains at most one
+active fill above an opaque Bitwig-owned base. Pressing another ready fill records only the latest
+pending intent, waits for the active fill to report busy, submits its native `Return`, observes it
+stopped, waits one additional host sample, and only then resolves and launches the replacement.
+The replacement therefore returns to the original base rather than the previous fill. Older held
+pads are not a fallback stack; after a replacement ends they require a fresh release and press.
 
 Fill entry is controller-defined: it launches immediately and uses Bitwig's Legato from Clip (or
 Project) mode, so neither the source clip nor the fill clip needs a special launch quantization or
@@ -63,7 +61,14 @@ Bitwig's default Project Settings → Clip Launcher → ALT Release setting, or 
 override to `Return`. A fill clip's loop enablement and length remain session content.
 
 The slice passes offline fake-host verification. The exact immediate-legato/ALT-Return path still
-requires a live Bitwig smoke test after installing the API-5 shell.
+requires a live Bitwig smoke test after installing the API 6 shell.
+
+The same shell exposes a generic eight-slot selected-track remote bridge. For global drum pitch,
+create a track Remote Controls page uniquely named `Pull` and tagged `pull`, add a remote named
+`Drum Pitch`, and map it through a centered track Macro to the pitch controls of the nested
+samplers. The core claims the Push ribbon only while that exact target is coherent, writes it as a
+generation-fenced normalized parameter, and renders ribbon feedback from later Bitwig read-back.
+If it is absent or ambiguous, the legacy raw pitch-bend route remains active.
 
 ## Reloading a core during development
 
@@ -83,8 +88,10 @@ succeeded. Each candidate carries an exact fingerprint of the local parent-loade
 sources. If that differs from the running extension, Bitwig reports `restartRequired` instead of
 attempting an unsafe core reload—even when the shell change was already committed.
 
-Installing the API-5 milestone requires one extension copy and Bitwig restart because it widens
-the stable API/shell bridge with `effect.clip-launch-hold` version 3 and
-`snapshot.clip-launch-session` version 1. After that, edits confined to `pull-core`—including fill
-matching, colors, ordering, truncation, active-fill policy, launch quantization, launch mode, and
-the Main-vs-ALT release lane—use `tools/reload-core` without restarting Bitwig.
+Installing the API 6 milestone requires one extension copy and Bitwig restart because it widens
+the stable API/shell bridge with `effect.clip-launch-hold` version 4, the selected-track parameter
+catalog/effect seam, generic input ownership, and normalized absolute hardware output. After that,
+edits confined to `pull-core`—including fill matching, colors, ordering, truncation, active-fill
+policy, launch policy, and which `Pull` remote owns the ribbon—use `tools/reload-core` without
+restarting Bitwig. The broader bounded capability-canopy roadmap is documented in
+[`docs/reloadable-controller-core-design.md`](docs/reloadable-controller-core-design.md).

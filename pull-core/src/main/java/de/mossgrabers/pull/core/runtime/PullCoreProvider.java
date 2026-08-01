@@ -23,13 +23,18 @@ public final class PullCoreProvider implements CoreProvider
     /** Checkpoint schema version. */
     public static final int STATE_SCHEMA_VERSION = 1;
 
-    private static final ShellCapabilities REQUIRED_CAPABILITIES = new ShellCapabilities (Map.of (
-        CoreCapabilities.INPUT_DRUM_FILL, Integer.valueOf (1),
-        CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS, Integer.valueOf (1),
-        CoreCapabilities.BINDING_CLIP_TARGET, Integer.valueOf (1),
-        CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION, Integer.valueOf (1),
-        CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD, Integer.valueOf (3),
-        CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (1)));
+    private static final ShellCapabilities REQUIRED_CAPABILITIES = new ShellCapabilities (Map.ofEntries (
+        Map.entry (CoreCapabilities.INPUT_DRUM_FILL, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.INPUT_ABSOLUTE, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.INPUT_OWNERSHIP, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.SNAPSHOT_SELECTED_TRACK_PARAMETERS, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.BINDING_CLIP_TARGET, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD, Integer.valueOf (4)),
+        Map.entry (CoreCapabilities.EFFECT_SET_PARAMETER_VALUE, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.OUTPUT_ABSOLUTE, Integer.valueOf (1))));
 
     private static final CoreDescriptor DESCRIPTOR = new CoreDescriptor (CoreApi.VERSION, CoreBuildMetadata.load ().buildId (), STATE_SCHEMA, STATE_SCHEMA_VERSION, REQUIRED_CAPABILITIES);
 

@@ -383,6 +383,30 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
 
 
     /**
+     * Route a drum-view ribbon value through the reloadable controller runtime.
+     *
+     * @param data1 Pitch-bend least-significant byte
+     * @param data2 Pitch-bend most-significant byte
+     * @return True when the reloadable runtime accepted the value
+     */
+    public boolean routeDrumPitch (final int data1, final int data2)
+    {
+        return this.reloadableRuntime.routeDrumPitch (data1, data2);
+    }
+
+
+    /**
+     * Get authoritative Drum Pitch readback for the ribbon LEDs.
+     *
+     * @return MIDI value in {@code [0, 127]}
+     */
+    public int getDrumPitchRibbonValue ()
+    {
+        return this.reloadableRuntime.drumPitchRibbonValue ();
+    }
+
+
+    /**
      * Fade a pad to the expected target color using the Push 2 firmware transition.
      *
      * @param note The physical Push pad note
