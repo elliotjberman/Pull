@@ -20,6 +20,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -90,16 +91,16 @@ class SelectedTrackFillClipHostTest
         assertTrue (host.armedClipTargets ().isEmpty ());
         assertThrows (IllegalArgumentException.class, () -> host.prepare (control, catalog.generation (), targetId));
 
-        adapter.setActuatorSample (0, new SelectedTrackFillClipHost.ActuatorSample ("track-a", true, true, 2, "Wrong scene", true, true));
+        adapter.setActuatorSample (0, new SelectedTrackFillClipHost.ActuatorSample ("track-a", true, true, 2, "Wrong scene", true, true, false, false, false));
         host.refresh ();
         assertTrue (host.armedClipTargets ().isEmpty ());
 
-        adapter.setActuatorSample (0, new SelectedTrackFillClipHost.ActuatorSample ("track-a", true, false, 3, "Fill A", true, true));
+        adapter.setActuatorSample (0, new SelectedTrackFillClipHost.ActuatorSample ("track-a", true, false, 3, "Fill A", true, true, false, false, false));
         host.refresh ();
         host.refresh ();
         assertTrue (host.armedClipTargets ().isEmpty ());
 
-        adapter.setActuatorSample (0, new SelectedTrackFillClipHost.ActuatorSample ("track-a", true, true, 3, "Fill A", true, true));
+        adapter.setActuatorSample (0, new SelectedTrackFillClipHost.ActuatorSample ("track-a", true, true, 3, "Fill A", true, true, false, false, false));
         host.refresh ();
         assertTrue (host.armedClipTargets ().isEmpty ());
         assertTrue (host.refresh ());
@@ -108,11 +109,19 @@ class SelectedTrackFillClipHostTest
         final DrumFillClipHost.LaunchTarget launchTarget = host.prepare (control, catalog.generation (), targetId);
         launchTarget.press (LAUNCH_POLICY);
         assertThrows (IllegalStateException.class, () -> launchTarget.press (DIFFERENT_LAUNCH_POLICY));
+        assertEquals (new DrumFillClipHost.PlaybackState (false, false, false), launchTarget.playbackState ());
+        adapter.setActuatorPlayback (0, true, true, true);
+        assertEquals (new DrumFillClipHost.PlaybackState (true, true, true), launchTarget.playbackState ());
+        launchTarget.release ();
         launchTarget.release ();
         assertEquals (List.of ("track-a:3"), adapter.presses);
         assertEquals (List.of ("track-a:3"), adapter.releases);
         assertEquals (List.of (LAUNCH_POLICY), adapter.launchPolicies);
         assertEquals (List.of (ClipReleaseTrigger.ALTERNATE), adapter.releaseTriggers);
+        assertEquals (new DrumFillClipHost.PlaybackState (true, true, true), launchTarget.playbackState ());
+        launchTarget.retire ();
+        launchTarget.retire ();
+        assertThrows (IllegalStateException.class, launchTarget::playbackState);
     }
 
 
@@ -170,7 +179,10 @@ class SelectedTrackFillClipHostTest
             leases.add (lease);
         }
         for (int index = leases.size () - 1; index >= 0; index--)
+        {
             leases.get (index).release ();
+            leases.get (index).retire ();
+        }
 
         assertEquals (12, adapter.presses.size ());
         assertEquals (12, adapter.releases.size ());
@@ -178,7 +190,7 @@ class SelectedTrackFillClipHostTest
 
 
     @Test
-    void heldActuatorStaysFrozenAcrossSelectionAndNewDesiredBinding ()
+    void releasedActuatorStaysFrozenUntilPlaybackIsAcknowledgedAndRetired ()
     {
         final FakeAdapter adapter = new FakeAdapter ();
         adapter.selectTrack ("track-a", 4);
@@ -207,13 +219,18 @@ class SelectedTrackFillClipHostTest
 
         held.release ();
         assertEquals (List.of ("track-a:1"), adapter.releases);
+        assertEquals (selectionsWhileParked, adapter.actuatorSelections.get (0).intValue ());
+        assertEquals (movesWhileParked, adapter.actuatorMoves.get (0).intValue ());
+        assertEquals (new DrumFillClipHost.PlaybackState (false, false, false), held.playbackState ());
+
+        held.retire ();
         assertTrue (adapter.actuatorSelections.get (0).intValue () > selectionsWhileParked);
         assertTrue (adapter.actuatorMoves.get (0).intValue () > movesWhileParked);
     }
 
 
     @Test
-    void failedConcreteReleaseKeepsTheOldSlotLockedUntilRetrySucceeds ()
+    void failedConcreteReleaseCanRetryButSuccessfulReleaseIsSentOnlyOnce ()
     {
         final FakeAdapter adapter = new FakeAdapter ();
         adapter.selectTrack ("track-a", 2);
@@ -237,10 +254,59 @@ class SelectedTrackFillClipHostTest
         assertThrows (IllegalStateException.class, held::release);
         assertEquals (movesWhileHeld, adapter.actuatorMoves.get (0).intValue ());
         assertTrue (adapter.releases.isEmpty ());
+        assertEquals (1, adapter.releaseAttempts);
 
         held.release ();
         assertEquals (List.of ("track-a:0"), adapter.releases);
+        assertEquals (2, adapter.releaseAttempts);
+        assertEquals (movesWhileHeld, adapter.actuatorMoves.get (0).intValue ());
+
+        held.release ();
+        assertEquals (List.of ("track-a:0"), adapter.releases);
+        assertEquals (2, adapter.releaseAttempts);
+
+        held.retire ();
         assertTrue (adapter.actuatorMoves.get (0).intValue () > movesWhileHeld);
+        refreshUntil (host, () -> secondTarget.equals (host.armedClipTargets ().get (CoreControls.DRUM_FILL_1)));
+    }
+
+
+    @Test
+    void retirementUnlocksAndRefreshRecoversWhenImmediateReparkingThrows ()
+    {
+        this.assertRetirementRecovery (true);
+        this.assertRetirementRecovery (false);
+    }
+
+
+    private void assertRetirementRecovery (final boolean failSelection)
+    {
+        final FakeAdapter adapter = new FakeAdapter ();
+        adapter.selectTrack ("track-a", 2);
+        adapter.putClip (0, "Fill A");
+        adapter.putClip (1, "Fill B");
+        final SelectedTrackFillClipHost host = new SelectedTrackFillClipHost (adapter);
+        refreshUntil (host, () -> host.clipCatalog ().clips ().size () == 2);
+
+        final ClipCatalogSnapshot catalog = host.clipCatalog ();
+        final ClipTargetId firstTarget = catalog.clips ().get (0).targetId ();
+        final ClipTargetId secondTarget = catalog.clips ().get (1).targetId ();
+        host.setDesiredBindings (catalog.generation (), Map.of (CoreControls.DRUM_FILL_1, firstTarget));
+        refreshUntil (host, () -> firstTarget.equals (host.armedClipTargets ().get (CoreControls.DRUM_FILL_1)));
+
+        final DrumFillClipHost.LaunchTarget held = host.prepare (CoreControls.DRUM_FILL_1, catalog.generation (), firstTarget);
+        held.press (LAUNCH_POLICY);
+        host.setDesiredBindings (catalog.generation (), Map.of (CoreControls.DRUM_FILL_1, secondTarget));
+        held.release ();
+        if (failSelection)
+            adapter.remainingActuatorSelectionFailures = 1;
+        else
+            adapter.remainingActuatorMoveFailures = 1;
+
+        assertDoesNotThrow (held::retire);
+        assertThrows (IllegalStateException.class, held::playbackState);
+        assertTrue (host.armedClipTargets ().isEmpty ());
+
         refreshUntil (host, () -> secondTarget.equals (host.armedClipTargets ().get (CoreControls.DRUM_FILL_1)));
     }
 
@@ -287,13 +353,16 @@ class SelectedTrackFillClipHostTest
         private int scannerSceneCount;
         private int scannerStart;
         private int remainingReleaseFailures;
+        private int remainingActuatorSelectionFailures;
+        private int remainingActuatorMoveFailures;
+        private int releaseAttempts;
         private boolean automaticallyParkActuators = true;
 
 
         private FakeAdapter ()
         {
             for (int index = 0; index < SelectedTrackFillClipHost.ACTUATOR_COUNT; index++)
-                this.actuatorSamples.add (new SelectedTrackFillClipHost.ActuatorSample ("", false, false, -1, "", false, false));
+                this.actuatorSamples.add (new SelectedTrackFillClipHost.ActuatorSample ("", false, false, -1, "", false, false, false, false, false));
         }
 
 
@@ -319,6 +388,14 @@ class SelectedTrackFillClipHostTest
         private void setActuatorSample (final int index, final SelectedTrackFillClipHost.ActuatorSample sample)
         {
             this.actuatorSamples.set (index, sample);
+        }
+
+
+        private void setActuatorPlayback (final int index, final boolean playing, final boolean playbackQueued, final boolean stopQueued)
+        {
+            final SelectedTrackFillClipHost.ActuatorSample old = this.actuatorSamples.get (index);
+            this.actuatorSamples.set (index, new SelectedTrackFillClipHost.ActuatorSample (
+                old.trackId (), old.trackExists (), old.pinned (), old.sceneIndex (), old.name (), old.slotExists (), old.hasContent (), playing, playbackQueued, stopQueued));
         }
 
 
@@ -370,11 +447,17 @@ class SelectedTrackFillClipHostTest
         {
             if (!this.selected.exists () || !expectedTrackId.equals (this.selected.trackId ()))
                 return false;
+            if (this.remainingActuatorSelectionFailures > 0)
+            {
+                this.remainingActuatorSelectionFailures--;
+                throw new IllegalStateException ("actuator selection failed");
+            }
             increment (this.actuatorSelections, actuatorIndex);
             if (this.automaticallyParkActuators)
             {
                 final SelectedTrackFillClipHost.ActuatorSample old = this.actuatorSamples.get (actuatorIndex);
-                this.actuatorSamples.set (actuatorIndex, new SelectedTrackFillClipHost.ActuatorSample (expectedTrackId, true, true, old.sceneIndex (), old.name (), old.slotExists (), old.hasContent ()));
+                this.actuatorSamples.set (actuatorIndex, new SelectedTrackFillClipHost.ActuatorSample (
+                    expectedTrackId, true, true, old.sceneIndex (), old.name (), old.slotExists (), old.hasContent (), old.playing (), old.playbackQueued (), old.stopQueued ()));
             }
             return true;
         }
@@ -385,6 +468,11 @@ class SelectedTrackFillClipHostTest
         public void moveActuator (final int actuatorIndex, final int sceneIndex)
         {
             increment (this.actuatorMoves, actuatorIndex);
+            if (this.remainingActuatorMoveFailures > 0)
+            {
+                this.remainingActuatorMoveFailures--;
+                throw new IllegalStateException ("actuator move failed");
+            }
             if (!this.automaticallyParkActuators)
                 return;
 
@@ -392,7 +480,7 @@ class SelectedTrackFillClipHostTest
             final SelectedTrackFillClipHost.ActuatorSample old = this.actuatorSamples.get (actuatorIndex);
             this.actuatorSamples.set (
                 actuatorIndex,
-                slot == null ? new SelectedTrackFillClipHost.ActuatorSample (old.trackId (), true, old.pinned (), sceneIndex, "", true, false) : new SelectedTrackFillClipHost.ActuatorSample (old.trackId (), true, old.pinned (), sceneIndex, slot.name (), true, true));
+                slot == null ? new SelectedTrackFillClipHost.ActuatorSample (old.trackId (), true, old.pinned (), sceneIndex, "", true, false, false, false, false) : new SelectedTrackFillClipHost.ActuatorSample (old.trackId (), true, old.pinned (), sceneIndex, slot.name (), true, true, false, false, false));
         }
 
 
@@ -417,6 +505,7 @@ class SelectedTrackFillClipHostTest
         @Override
         public void releaseActuator (final int actuatorIndex, final ClipReleaseTrigger releaseTrigger)
         {
+            this.releaseAttempts++;
             if (this.remainingReleaseFailures > 0)
             {
                 this.remainingReleaseFailures--;

@@ -454,8 +454,10 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
         private void press (final ActuatorLaunchTarget target, final ClipLaunchPolicy launchPolicy)
         {
             Objects.requireNonNull (launchPolicy, "launchPolicy");
-            if (target.released)
-                throw new IllegalStateException ("Released clip target cannot be pressed");
+            if (target.retired)
+                throw new IllegalStateException ("Retired clip target cannot be pressed");
+            if (target.releaseAttempted)
+                throw new IllegalStateException ("Release-requested clip target cannot be pressed");
             if (target.pressAttempted)
             {
                 if (!launchPolicy.equals (target.launchPolicy))
@@ -476,14 +478,40 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
 
         private void release (final ActuatorLaunchTarget target)
         {
-            if (target.released || !target.pressAttempted)
+            if (target.retired || target.releaseAttempted || !target.pressAttempted)
                 return;
             if (this.lockOwner != target)
                 throw new IllegalStateException ("Clip actuator lease ownership changed before release");
 
+            // The Bitwig call is a command, not an acknowledgement. Keep the actuator locked on
+            // the exact slot until the runtime observes playback state and explicitly retires it.
             SelectedTrackFillClipHost.this.adapter.releaseActuator (this.index, target.launchPolicy.releaseTrigger ());
-            target.released = true;
-            this.lockOwner = null;
+            target.releaseAttempted = true;
+        }
+
+
+        private DrumFillClipHost.PlaybackState playbackState (final ActuatorLaunchTarget target)
+        {
+            if (target.retired)
+                throw new IllegalStateException ("Retired clip target has no authoritative playback state");
+            if (!target.pressAttempted || this.lockOwner != target)
+                throw new IllegalStateException ("Clip actuator is not leased by this target");
+
+            final ActuatorSample sample = Objects.requireNonNull (SelectedTrackFillClipHost.this.adapter.actuatorSample (this.index), "actuator sample");
+            return new DrumFillClipHost.PlaybackState (sample.playing (), sample.playbackQueued (), sample.stopQueued ());
+        }
+
+
+        private void retire (final ActuatorLaunchTarget target)
+        {
+            if (target.retired)
+                return;
+            if (target.pressAttempted && this.lockOwner != target)
+                throw new IllegalStateException ("Clip actuator lease ownership changed before retirement");
+
+            target.retired = true;
+            if (this.lockOwner == target)
+                this.lockOwner = null;
 
             if (this.desired == null)
             {
@@ -492,7 +520,20 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
                 this.ready = false;
             }
             else if (!this.desired.coordinate ().equals (this.parked))
-                this.requestPark (this.desired.coordinate ());
+            {
+                try
+                {
+                    this.requestPark (this.desired.coordinate ());
+                }
+                catch (final RuntimeException ignored)
+                {
+                    // Retirement is a no-throw ownership boundary. Leave an explicit idle state;
+                    // the next refresh will retry parking the current desired binding.
+                    this.parked = null;
+                    this.matchingSamples = 0;
+                    this.ready = false;
+                }
+            }
         }
     }
 
@@ -504,7 +545,8 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
         private final TargetCoordinate coordinate;
 
         private boolean pressAttempted;
-        private boolean released;
+        private boolean releaseAttempted;
+        private boolean retired;
         private ClipLaunchPolicy launchPolicy;
 
 
@@ -537,6 +579,22 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
         public void release ()
         {
             this.actuator.release (this);
+        }
+
+
+        /** {@inheritDoc} */
+        @Override
+        public DrumFillClipHost.PlaybackState playbackState ()
+        {
+            return this.actuator.playbackState (this);
+        }
+
+
+        /** {@inheritDoc} */
+        @Override
+        public void retire ()
+        {
+            this.actuator.retire (this);
         }
     }
 
@@ -624,7 +682,7 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
 
 
     /** One parked actuator sample. */
-    record ActuatorSample (String trackId, boolean trackExists, boolean pinned, int sceneIndex, String name, boolean slotExists, boolean hasContent)
+    record ActuatorSample (String trackId, boolean trackExists, boolean pinned, int sceneIndex, String name, boolean slotExists, boolean hasContent, boolean playing, boolean playbackQueued, boolean stopQueued)
     {
         ActuatorSample
         {
@@ -856,7 +914,17 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
         {
             final CursorTrack track = this.actuatorTracks.get (actuatorIndex);
             final ClipLauncherSlot slot = this.actuatorSlots.get (actuatorIndex);
-            return new ActuatorSample (track.channelId ().get (), track.exists ().get (), track.isPinned ().get (), slot.sceneIndex ().get (), slot.name ().get (), slot.exists ().get (), slot.hasContent ().get ());
+            return new ActuatorSample (
+                track.channelId ().get (),
+                track.exists ().get (),
+                track.isPinned ().get (),
+                slot.sceneIndex ().get (),
+                slot.name ().get (),
+                slot.exists ().get (),
+                slot.hasContent ().get (),
+                slot.isPlaying ().get (),
+                slot.isPlaybackQueued ().get (),
+                slot.isStopQueued ().get ());
         }
 
 
@@ -911,6 +979,9 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
                 slot.sceneIndex ().markInterested ();
                 slot.name ().markInterested ();
                 slot.hasContent ().markInterested ();
+                slot.isPlaying ().markInterested ();
+                slot.isPlaybackQueued ().markInterested ();
+                slot.isStopQueued ().markInterested ();
                 slots.add (slot);
             }
             return List.copyOf (slots);

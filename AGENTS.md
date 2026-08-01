@@ -12,6 +12,16 @@
   use optimistic rendering only as an explicit exception with reconciliation and failure tests.
 - Tests should distinguish input, requested effects, applied host state, snapshot read-back, and
   rendered output so a mock cannot accidentally confirm an optimistic shortcut.
+- Treat a successful void Bitwig API call as command submission, not completion of the requested
+  playback transition. Serialize dependent commands from a later subscribed host observation, and
+  keep any exact remote proxy/lease frozen until that acknowledgement arrives.
+- Fakes for asynchronous Bitwig behavior must separate command submission from host advancement;
+  never make a release call synchronously mutate playback state when production read-back is what
+  permits the next action.
+- Do not use `scheduleTask()` or blocking waits to fake asynchronous cleanup after controller
+  `exit()`; API 21 provides no post-exit grace/completion contract. Keep terminal cleanup explicitly
+  best-effort, and require a directly addressable restore target if shutdown restoration must be
+  guaranteed.
 
 ## Bitwig controller API compatibility
 

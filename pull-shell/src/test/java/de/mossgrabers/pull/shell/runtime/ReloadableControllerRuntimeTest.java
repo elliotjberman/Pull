@@ -148,6 +148,11 @@ class ReloadableControllerRuntimeTest
         final ControlId lastControl = CoreControls.drumFills ().get (lastIndex);
         assertTrue (runtime.routeGridEvent (false, ButtonEvent.UP, EXPECTED_FILL_NOTES[lastIndex]));
         assertFalse (environment.isFillPressed (lastControl));
+        assertEquals (1, clipHost.target (lastControl).releaseCount);
+        for (int index = 0; index < lastIndex; index++)
+            assertEquals (0, clipHost.target (CoreControls.drumFills ().get (index)).releaseCount);
+
+        drainReturnChain (clipHost, runtime);
         for (final ControlId control: CoreControls.drumFills ())
             assertEquals (1, clipHost.target (control).releaseCount);
 
@@ -207,10 +212,21 @@ class ReloadableControllerRuntimeTest
     }
 
 
+    private static void drainReturnChain (final FakeClipHost clipHost, final ReloadableControllerRuntime runtime)
+    {
+        while (clipHost.hasPendingReturn ())
+        {
+            clipHost.advanceReturn ();
+            runtime.tick ();
+        }
+    }
+
+
     private static final class FakeClipHost implements DrumFillClipHost
     {
         private final ClipCatalogSnapshot catalog;
         private final Map<ControlId, FakeTarget> targets;
+        private final List<String> playbackStack = new ArrayList<> (List.of ("root"));
         private Map<ControlId, ClipTargetId> armedBindings = Map.of ();
 
 
@@ -221,7 +237,7 @@ class ReloadableControllerRuntimeTest
             for (int index = 0; index < CoreControls.drumFills ().size (); index++)
             {
                 final ControlId control = CoreControls.drumFills ().get (index);
-                final FakeTarget target = new FakeTarget (index + 1L);
+                final FakeTarget target = new FakeTarget (index + 1L, this.playbackStack);
                 createdTargets.put (control, target);
                 clips.add (new CatalogClip (target.targetId (), "fill " + (index + 1)));
             }
@@ -297,19 +313,40 @@ class ReloadableControllerRuntimeTest
         {
             return this.targets.get (control);
         }
+
+
+        private boolean hasPendingReturn ()
+        {
+            return this.targets.values ().stream ().anyMatch (FakeTarget::hasPendingReturn);
+        }
+
+
+        private void advanceReturn ()
+        {
+            final List<FakeTarget> pending = this.targets.values ().stream ().filter (FakeTarget::hasPendingReturn).toList ();
+            assertEquals (1, pending.size (), "Only one Return layer may await host acknowledgement");
+            final FakeTarget target = pending.getFirst ();
+            assertEquals (target.name (), this.playbackStack.getLast ());
+            this.playbackStack.removeLast ();
+            target.returnAcknowledged = true;
+        }
     }
 
 
     private static final class FakeTarget implements DrumFillClipHost.LaunchTarget
     {
         private final ClipTargetId targetId;
+        private final List<String> playbackStack;
         private int pressCount;
         private int releaseCount;
+        private boolean releaseRequested;
+        private boolean returnAcknowledged;
 
 
-        private FakeTarget (final long value)
+        private FakeTarget (final long value, final List<String> playbackStack)
         {
             this.targetId = new ClipTargetId (value);
+            this.playbackStack = playbackStack;
         }
 
 
@@ -325,13 +362,46 @@ class ReloadableControllerRuntimeTest
         {
             assertEquals (LAUNCH_POLICY, launchPolicy);
             this.pressCount++;
+            this.releaseRequested = false;
+            this.returnAcknowledged = false;
+            this.playbackStack.add (this.name ());
         }
 
 
         @Override
         public void release ()
         {
+            assertFalse (this.releaseRequested, "A Return must not be requested twice");
+            assertEquals (this.name (), this.playbackStack.getLast ());
             this.releaseCount++;
+            this.releaseRequested = true;
+        }
+
+
+        @Override
+        public DrumFillClipHost.PlaybackState playbackState ()
+        {
+            return new DrumFillClipHost.PlaybackState (this.name ().equals (this.playbackStack.getLast ()), false, false);
+        }
+
+
+        @Override
+        public void retire ()
+        {
+            assertTrue (this.returnAcknowledged, "A target must remain frozen until Bitwig acknowledges Return");
+            assertFalse (this.playbackState ().playing ());
+        }
+
+
+        private String name ()
+        {
+            return Long.toString (this.targetId.value ());
+        }
+
+
+        private boolean hasPendingReturn ()
+        {
+            return this.releaseRequested && !this.returnAcknowledged;
         }
     }
 

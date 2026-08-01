@@ -17,6 +17,19 @@ import java.util.Map;
 interface DrumFillClipHost
 {
     /**
+     * Authoritative playback state observed for one parked launch target.
+     *
+     * @param playing True when the target is currently playing
+     * @param playbackQueued True when the target is queued for playback
+     * @param stopQueued True when the target is playing and its track is queued to stop
+     */
+    record PlaybackState (boolean playing, boolean playbackQueued, boolean stopQueued)
+    {
+        // Immutable value.
+    }
+
+
+    /**
      * Advance the selected-track scanner and all idle launch actuators.
      *
      * @return True when the public catalog or armed-target map changed
@@ -86,8 +99,31 @@ interface DrumFillClipHost
 
 
         /**
-         * Release the exact target previously pressed.
+         * Request release of the exact target previously pressed. At most one host release is
+         * sent, and the actuator remains frozen so {@link #playbackState()} can acknowledge the
+         * resulting host transition. A thrown call is not considered submitted and may be retried.
          */
         void release ();
+
+
+        /**
+         * Get the latest authoritative playback state for the still-frozen target.
+         *
+         * @return Current host playback state
+         */
+        default PlaybackState playbackState ()
+        {
+            return new PlaybackState (false, false, false);
+        }
+
+
+        /**
+         * Finalize the target after its host transition has been acknowledged and unlock its
+         * actuator. This operation is idempotent.
+         */
+        default void retire ()
+        {
+            // Hosts without a retained actuator have nothing to unlock.
+        }
     }
 }

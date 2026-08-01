@@ -51,13 +51,14 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     private final LongSupplier clock;
     private final long timeOrigin;
     private final Set<ControlId> pressedControls = new LinkedHashSet<> ();
-    private final List<LaunchLease> launchChain = new ArrayList<> ();
+    private final FillLaunchSession fillSession = new FillLaunchSession ();
 
     private ClipCatalogSnapshot clipCatalog;
     private Map<ControlId, ClipTargetId> armedClipTargets;
+    private FillSessionView lastObservedSession;
     private Map<ControlId, RgbColor> fillLightColors = offLights ();
-    private int pendingRetainedDepth = -1;
     private long pendingSnapshotRevision = -1;
+    private long hostSampleRevision;
     private long lastTime;
     private long revision;
     private long eventSequence;
@@ -93,6 +94,7 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
         this.timeOrigin = clock.getAsLong ();
         this.clipCatalog = Objects.requireNonNull (clipHost.clipCatalog (), "initial clip catalog");
         this.armedClipTargets = copyHostBindings (clipHost.armedClipTargets ());
+        this.lastObservedSession = this.fillSession.view ();
     }
 
 
@@ -111,11 +113,9 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
      */
     boolean refresh ()
     {
-        final Optional<ControlId> activeOwnerBefore = this.activeClipLaunchOwner ();
-        this.retryPendingUnwind ("Pending fill-session unwind retry");
-        this.recordActiveOwnerChange (activeOwnerBefore);
-
         this.clipHost.refresh ();
+        this.hostSampleRevision = Math.incrementExact (this.hostSampleRevision);
+        this.fillSession.advance (this.hostSampleRevision);
         final ClipCatalogSnapshot refreshedCatalog = Objects.requireNonNull (this.clipHost.clipCatalog (), "refreshed clip catalog");
         final Map<ControlId, ClipTargetId> refreshedArmedTargets = copyHostBindings (this.clipHost.armedClipTargets ());
         if (!refreshedCatalog.equals (this.clipCatalog) || !refreshedArmedTargets.equals (this.armedClipTargets))
@@ -124,6 +124,7 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
             this.armedClipTargets = refreshedArmedTargets;
             this.recordSnapshotChange ();
         }
+        this.recordSessionChange ();
 
         return this.hasPendingSnapshotChange ();
     }
@@ -204,19 +205,16 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     void safetyRelease (final ControlId owner)
     {
         final ControlId fillOwner = requireFillOwner (owner);
-        final Optional<ControlId> activeOwnerBefore = this.activeClipLaunchOwner ();
-        final LaunchLease pendingRetainedOwner = this.pendingRetainedDepth > 0 ? this.launchChain.get (this.pendingRetainedDepth - 1) : null;
+        final LaunchLease pendingRetainedOwner = this.fillSession.pendingRetainedTail ();
         if (pendingRetainedOwner != null && fillOwner.equals (pendingRetainedOwner.owner ()))
-            this.unwindTo (0, "Safety release during fill-session reactivation");
-        else
-            this.retryPendingUnwind ("Pending fill-session unwind retry");
-        if (!this.hasPendingUnwind ())
+            this.fillSession.requestUnwindTo (0, "Safety release during fill-session reactivation", this.hostSampleRevision);
+        else if (!this.fillSession.hasPendingUnwind ())
         {
-            final LaunchLease lease = this.findLease (fillOwner);
-            if (lease != null && lease == this.tailLease ())
-                this.unwindTo (0, "Safety release");
+            final LaunchLease lease = this.fillSession.find (fillOwner);
+            if (lease != null && lease == this.fillSession.tail ())
+                this.fillSession.requestUnwindTo (0, "Safety release", this.hostSampleRevision);
         }
-        this.recordActiveOwnerChange (activeOwnerBefore);
+        this.recordSessionChange ();
 
         if (this.pressedControls.remove (fillOwner))
             this.advanceSnapshotRevision ();
@@ -282,7 +280,6 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
             return;
         this.committedResult = null;
 
-        final Optional<ControlId> activeOwnerBefore = this.activeClipLaunchOwner ();
         this.clipHost.setDesiredBindings (prepared.catalogGeneration (), prepared.desiredClipBindings ());
         boolean acquisitionFailed = false;
         for (final PreparedAction action: prepared.actions ())
@@ -300,7 +297,7 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
             else if (action instanceof final PreparedRelease release)
                 this.applyRelease (release);
         }
-        this.recordActiveOwnerChange (activeOwnerBefore);
+        this.recordSessionChange ();
     }
 
 
@@ -322,9 +319,11 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
             this.warn ("Clearing fill bindings during invalidation failed: " + sanitize (failure));
         }
 
-        final Optional<ControlId> activeOwnerBefore = this.activeClipLaunchOwner ();
-        this.unwindTo (0, "Runtime invalidation");
-        this.recordActiveOwnerChange (activeOwnerBefore);
+        // Runtime invalidation is terminal extension shutdown, not an ordinary child-core reload.
+        // API 21 offers no post-exit observation window, so this can submit only the current top
+        // Return as best-effort cleanup; normal running unwinds continue from later refreshes.
+        this.fillSession.requestUnwindTo (0, "Runtime invalidation", this.hostSampleRevision);
+        this.recordSessionChange ();
 
         if (!this.pressedControls.isEmpty ())
         {
@@ -365,7 +364,7 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
             copy.put (owner, target);
         }
 
-        for (final LaunchLease lease: this.launchChain)
+        for (final LaunchLease lease: this.fillSession.frames ())
         {
             for (final Map.Entry<ControlId, ClipTargetId> binding: copy.entrySet ())
             {
@@ -419,10 +418,10 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
             throw new IllegalArgumentException ("Clip-catalog generation is stale");
 
         final ClipTargetId targetId = new ClipTargetId (effect.target ().value ());
-        final LaunchLease existingLease = this.findLease (owner);
+        final LaunchLease existingLease = this.fillSession.find (owner);
         if (existingLease != null)
             throw new IllegalStateException ("A retained fill control must be reactivated without another press");
-        for (final LaunchLease lease: this.launchChain)
+        for (final LaunchLease lease: this.fillSession.frames ())
         {
             if (targetId.equals (lease.targetId ()))
                 throw new IllegalStateException ("A retained clip target cannot be acquired by another fill control");
@@ -436,7 +435,7 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
         final DrumFillClipHost.LaunchTarget target = Objects.requireNonNull (this.clipHost.prepare (owner, effect.catalogGeneration (), targetId), "prepared launch target");
         if (!targetId.equals (target.targetId ()))
             throw new IllegalStateException ("Clip host resolved a different target");
-        return new PreparedPress (owner, effect.catalogGeneration (), targetId, effect.launchPolicy (), target, this.tailLease ());
+        return new PreparedPress (owner, effect.catalogGeneration (), targetId, effect.launchPolicy (), target, this.fillSession.tail ());
     }
 
 
@@ -446,17 +445,17 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
         if (!this.pressedControls.contains (owner))
             throw new IllegalStateException ("The fill control is not physically held");
 
-        final LaunchLease lease = this.findLease (owner);
+        final LaunchLease lease = this.fillSession.find (owner);
         if (lease == null)
             throw new IllegalStateException ("The fill control is not retained in the clip-launch session");
-        return new PreparedReactivate (owner, lease, this.tailLease ());
+        return new PreparedReactivate (owner, lease, this.fillSession.tail ());
     }
 
 
     private PreparedRelease prepareRelease (final ReleaseClipTargetsEffect effect)
     {
         final ControlId owner = requireFillOwner (effect.owner ());
-        return new PreparedRelease (owner, this.findLease (owner));
+        return new PreparedRelease (owner, this.fillSession.find (owner));
     }
 
 
@@ -471,18 +470,18 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
 
     private boolean applyPress (final PreparedPress press)
     {
-        if (!this.retryPendingUnwind ("Pending fill-session unwind retry"))
+        if (this.fillSession.hasPendingUnwind ())
         {
             this.warn ("Fill press was discarded because an earlier unwind still requires cleanup; release and press again");
             return false;
         }
-        if (this.tailLease () != press.expectedTail ())
+        if (this.fillSession.tail () != press.expectedTail ())
         {
             this.warn ("Fill session changed before its prepared press was applied");
             return false;
         }
 
-        final LaunchLease currentLease = this.findLease (press.owner ());
+        final LaunchLease currentLease = this.fillSession.find (press.owner ());
         if (currentLease != null)
         {
             this.warn ("Fill lease was acquired before its prepared press was applied");
@@ -494,11 +493,11 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
             return false;
         }
 
-        final int retainedDepth = this.launchChain.size ();
+        final int retainedDepth = this.fillSession.size ();
         final LaunchLease lease = new LaunchLease (press.owner (), press.catalogGeneration (), press.targetId (), press.launchPolicy (), press.target ());
         // Retain the new top frame before the failure-prone host call. If the call applies and then
         // throws, ordered compensation can still pop it back to the prior active fill.
-        this.launchChain.add (lease);
+        this.fillSession.add (lease);
         try
         {
             press.target ().press (press.launchPolicy ());
@@ -507,7 +506,7 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
         {
             rethrowFatal (failure);
             this.warn ("Fill target press failed: " + sanitize (failure));
-            this.unwindTo (retainedDepth, "Partial fill acquisition rollback");
+            this.fillSession.requestUnwindTo (retainedDepth, "Partial fill acquisition rollback", this.hostSampleRevision);
             return false;
         }
         return true;
@@ -516,75 +515,41 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
 
     private boolean applyReactivate (final PreparedReactivate reactivate)
     {
-        if (!this.retryPendingUnwind ("Pending fill-session unwind retry"))
+        if (this.fillSession.hasPendingUnwind ())
         {
             this.warn ("Fill reactivation was discarded because an earlier unwind still requires cleanup; release and press again");
             return false;
         }
-        if (this.tailLease () != reactivate.expectedTail ())
+        if (this.fillSession.tail () != reactivate.expectedTail ())
         {
             this.warn ("Fill session changed before its prepared reactivation was applied");
             return false;
         }
 
-        final LaunchLease currentLease = this.findLease (reactivate.owner ());
+        final LaunchLease currentLease = this.fillSession.find (reactivate.owner ());
         if (currentLease != reactivate.lease ())
         {
             this.warn ("Retained fill lease changed before its reactivation was applied");
             return false;
         }
 
-        final int retainedDepth = this.launchChain.indexOf (currentLease) + 1;
-        return retainedDepth == this.launchChain.size () || this.unwindTo (retainedDepth, "Fill-session ancestor reactivation");
+        final int retainedDepth = this.fillSession.indexOf (currentLease) + 1;
+        return retainedDepth == this.fillSession.size () || this.fillSession.requestUnwindTo (retainedDepth, "Fill-session ancestor reactivation", this.hostSampleRevision);
     }
 
 
     private void applyRelease (final PreparedRelease release)
     {
-        this.retryPendingUnwind ("Pending fill-session unwind retry");
-        if (this.hasPendingUnwind ())
+        if (this.fillSession.hasPendingUnwind ())
             return;
 
         final LaunchLease expectedLease = release.lease ();
-        if (expectedLease == null || this.findLease (release.owner ()) != expectedLease)
+        if (expectedLease == null || this.fillSession.find (release.owner ()) != expectedLease)
             return;
-        if (expectedLease != this.tailLease ())
+        if (expectedLease != this.fillSession.tail ())
             return;
 
-        this.unwindTo (0, "Fill-session release");
-    }
-
-
-    private boolean retryPendingUnwind (final String operation)
-    {
-        return !this.hasPendingUnwind () || this.unwindTo (this.pendingRetainedDepth, operation);
-    }
-
-
-    private boolean unwindTo (final int retainedDepth, final String operation)
-    {
-        if (retainedDepth < 0 || retainedDepth > this.launchChain.size ())
-            throw new IllegalArgumentException ("retainedDepth is outside the fill-session chain");
-
-        this.pendingRetainedDepth = this.hasPendingUnwind () ? Math.min (this.pendingRetainedDepth, retainedDepth) : retainedDepth;
-        while (this.launchChain.size () > this.pendingRetainedDepth)
-        {
-            final LaunchLease lease = this.tailLease ();
-            try
-            {
-                lease.target ().release ();
-                this.launchChain.removeLast ();
-            }
-            catch (final Throwable failure)
-            {
-                rethrowFatal (failure);
-                this.warn (operation + " failed for " + lease.owner ().value () + ": " + sanitize (failure));
-                return false;
-            }
-        }
-
-        this.pendingRetainedDepth = -1;
-        return true;
+        this.fillSession.requestUnwindTo (0, "Fill-session release", this.hostSampleRevision);
     }
 
 
@@ -594,11 +559,13 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
-    private void recordActiveOwnerChange (final Optional<ControlId> previousOwner)
+    private void recordSessionChange ()
     {
-        if (previousOwner.equals (this.activeClipLaunchOwner ()))
+        final FillSessionView observed = this.fillSession.view ();
+        if (observed.equals (this.lastObservedSession))
             return;
 
+        this.lastObservedSession = observed;
         this.recordSnapshotChange ();
     }
 
@@ -610,57 +577,16 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
-    private Optional<ControlId> activeClipLaunchOwner ()
-    {
-        // Keep reporting the newest frame until its release succeeds. A failed release request is
-        // not proof that Bitwig stopped playing that fill; successful pops update the tail in
-        // newest-to-oldest order as the native Return chain advances.
-        final LaunchLease activeLease = this.tailLease ();
-        return activeLease == null ? Optional.empty () : Optional.of (activeLease.owner ());
-    }
-
-
     private boolean hasPendingSnapshotChange ()
     {
         return this.pendingSnapshotRevision >= 0;
     }
 
 
-    private boolean hasPendingUnwind ()
-    {
-        return this.pendingRetainedDepth >= 0;
-    }
-
-
-    private LaunchLease findLease (final ControlId owner)
-    {
-        for (final LaunchLease lease: this.launchChain)
-        {
-            if (owner.equals (lease.owner ()))
-                return lease;
-        }
-        return null;
-    }
-
-
-    private LaunchLease tailLease ()
-    {
-        return this.launchChain.isEmpty () ? null : this.launchChain.getLast ();
-    }
-
-
-    private Map<ControlId, ClipTargetId> clipLaunchSessionTargets ()
-    {
-        final Map<ControlId, ClipTargetId> targets = new LinkedHashMap<> ();
-        for (final LaunchLease lease: this.launchChain)
-            targets.put (lease.owner (), lease.targetId ());
-        return Map.copyOf (targets);
-    }
-
-
     private ControllerSnapshot createSnapshot (final long monotonicTimeNanos)
     {
-        return new ControllerSnapshot (this.revision, monotonicTimeNanos, CAPABILITIES, this.clipCatalog, this.armedClipTargets, this.clipLaunchSessionTargets (), this.activeClipLaunchOwner (), this.pressedControls, Set.of ());
+        final FillSessionView session = this.fillSession.view ();
+        return new ControllerSnapshot (this.revision, monotonicTimeNanos, CAPABILITIES, this.clipCatalog, this.armedClipTargets, session.targets (), session.activeOwner (), this.pressedControls, Set.of ());
     }
 
 
@@ -725,6 +651,286 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     {
         if (failure instanceof final VirtualMachineError virtualMachineError)
             throw virtualMachineError;
+    }
+
+
+    /**
+     * Ordered fill frames above the opaque playback state that Bitwig owned before the first
+     * fill. Bitwig owns that base target (a launcher clip or Arrangement), so the shell preserves
+     * it by unwinding one observed Return transition at a time instead of trying to identify or
+     * relaunch it.
+     */
+    private final class FillLaunchSession
+    {
+        private static final int BASE_RESTORATION_STABLE_SAMPLES = 2;
+
+        private final List<LaunchLease> frames = new ArrayList<> ();
+
+        private int pendingRetainedDepth = -1;
+        private int consecutiveBaseSamples;
+        private PendingRelease pendingRelease;
+        private String pendingOperation = "Fill-session unwind";
+
+
+        private List<LaunchLease> frames ()
+        {
+            return List.copyOf (this.frames);
+        }
+
+
+        private int size ()
+        {
+            return this.frames.size ();
+        }
+
+
+        private int indexOf (final LaunchLease lease)
+        {
+            return this.frames.indexOf (lease);
+        }
+
+
+        private void add (final LaunchLease lease)
+        {
+            if (this.hasPendingUnwind ())
+                throw new IllegalStateException ("A fill frame cannot be acquired during an unwind");
+            this.frames.add (Objects.requireNonNull (lease, "lease"));
+            this.consecutiveBaseSamples = 0;
+        }
+
+
+        private LaunchLease find (final ControlId owner)
+        {
+            for (final LaunchLease lease: this.frames)
+            {
+                if (owner.equals (lease.owner ()))
+                    return lease;
+            }
+            return null;
+        }
+
+
+        private LaunchLease tail ()
+        {
+            return this.frames.isEmpty () ? null : this.frames.getLast ();
+        }
+
+
+        private LaunchLease pendingRetainedTail ()
+        {
+            return this.pendingRetainedDepth > 0 && this.pendingRetainedDepth <= this.frames.size () ? this.frames.get (this.pendingRetainedDepth - 1) : null;
+        }
+
+
+        private boolean hasPendingUnwind ()
+        {
+            return this.pendingRetainedDepth >= 0;
+        }
+
+
+        private boolean requestUnwindTo (final int retainedDepth, final String operation, final long sampleRevision)
+        {
+            if (retainedDepth < 0 || retainedDepth > this.frames.size ())
+                throw new IllegalArgumentException ("retainedDepth is outside the fill-session path");
+
+            this.pendingRetainedDepth = this.hasPendingUnwind () ? Math.min (this.pendingRetainedDepth, retainedDepth) : retainedDepth;
+            this.pendingOperation = Objects.requireNonNull (operation, "operation");
+            this.consecutiveBaseSamples = 0;
+            if (this.frames.size () <= this.pendingRetainedDepth)
+            {
+                this.finishUnwind ();
+                return true;
+            }
+
+            if (this.pendingRelease == null)
+                this.requestTailRelease (sampleRevision);
+            return !this.hasPendingUnwind ();
+        }
+
+
+        private void advance (final long sampleRevision)
+        {
+            if (!this.hasPendingUnwind ())
+                return;
+
+            final PendingRelease release = this.pendingRelease;
+            if (release != null)
+            {
+                if (sampleRevision <= release.issuedAfterSample () || isBusy (release.lease ().target ().playbackState ()))
+                    return;
+
+                if (release.lease () != this.tail ())
+                    throw new IllegalStateException ("The acknowledged fill release is not the newest session frame");
+                this.retireTail ();
+                this.pendingRelease = null;
+                this.consecutiveBaseSamples = 0;
+            }
+
+            this.advanceTowardRetainedDepth (sampleRevision);
+        }
+
+
+        private void advanceTowardRetainedDepth (final long sampleRevision)
+        {
+            if (this.frames.size () <= this.pendingRetainedDepth)
+            {
+                if (this.pendingRetainedDepth == 0 || isPlaying (this.tail ()))
+                    this.finishUnwind ();
+                return;
+            }
+
+            final int activeIndex = this.newestPlayingIndex ();
+            if (activeIndex >= this.pendingRetainedDepth)
+            {
+                this.consecutiveBaseSamples = 0;
+                for (int index = this.frames.size () - 1; index > activeIndex; index--)
+                {
+                    if (isBusy (this.frames.get (index).target ().playbackState ()))
+                        return;
+                }
+                while (this.frames.size () - 1 > activeIndex)
+                    this.retireTail ();
+                this.requestTailRelease (sampleRevision);
+                return;
+            }
+
+            for (int index = this.pendingRetainedDepth; index < this.frames.size (); index++)
+            {
+                if (isBusy (this.frames.get (index).target ().playbackState ()))
+                {
+                    this.consecutiveBaseSamples = 0;
+                    return;
+                }
+            }
+
+            if (this.pendingRetainedDepth == 0)
+            {
+                // A Return transition may briefly report the released frame stopped before its
+                // predecessor starts. Require a second coherent all-idle sample before concluding
+                // that Bitwig skipped the retained ancestry and restored the opaque base directly.
+                this.consecutiveBaseSamples = Math.min (BASE_RESTORATION_STABLE_SAMPLES, this.consecutiveBaseSamples + 1);
+                if (this.consecutiveBaseSamples < BASE_RESTORATION_STABLE_SAMPLES)
+                    return;
+                while (!this.frames.isEmpty ())
+                    this.retireTail ();
+                this.finishUnwind ();
+            }
+        }
+
+
+        private int newestPlayingIndex ()
+        {
+            for (int index = this.frames.size () - 1; index >= 0; index--)
+            {
+                if (isPlaying (this.frames.get (index)))
+                    return index;
+            }
+            return -1;
+        }
+
+
+        private void requestTailRelease (final long sampleRevision)
+        {
+            final LaunchLease lease = this.tail ();
+            if (lease == null || this.frames.size () <= this.pendingRetainedDepth)
+            {
+                this.finishUnwind ();
+                return;
+            }
+
+            try
+            {
+                lease.target ().release ();
+                this.pendingRelease = new PendingRelease (lease, sampleRevision);
+            }
+            catch (final Throwable failure)
+            {
+                rethrowFatal (failure);
+                DrumFillRuntimeEnvironment.this.warn (this.pendingOperation + " failed for " + lease.owner ().value () + ": " + sanitize (failure));
+            }
+        }
+
+
+        private void retireTail ()
+        {
+            final LaunchLease lease = this.tail ();
+            if (lease == null)
+                return;
+            try
+            {
+                lease.target ().retire ();
+            }
+            catch (final Throwable failure)
+            {
+                rethrowFatal (failure);
+                DrumFillRuntimeEnvironment.this.warn ("Fill target retirement failed for " + lease.owner ().value () + ": " + sanitize (failure));
+            }
+            finally
+            {
+                this.frames.removeLast ();
+            }
+        }
+
+
+        private void finishUnwind ()
+        {
+            this.pendingRetainedDepth = -1;
+            this.pendingRelease = null;
+            this.pendingOperation = "Fill-session unwind";
+            this.consecutiveBaseSamples = 0;
+        }
+
+
+        private FillSessionView view ()
+        {
+            final Map<ControlId, ClipTargetId> targets = new LinkedHashMap<> ();
+            for (final LaunchLease lease: this.frames)
+                targets.put (lease.owner (), lease.targetId ());
+
+            final int activeIndex = this.newestPlayingIndex ();
+            final Optional<ControlId> activeOwner = activeIndex < 0 ? Optional.empty () : Optional.of (this.frames.get (activeIndex).owner ());
+            return new FillSessionView (FillSessionBase.BITWIG_OWNED_CLIP_OR_ARRANGEMENT, targets, activeOwner);
+        }
+
+
+        private static boolean isPlaying (final LaunchLease lease)
+        {
+            return lease != null && lease.target ().playbackState ().playing ();
+        }
+
+
+        private static boolean isBusy (final DrumFillClipHost.PlaybackState state)
+        {
+            return state.playing () || state.playbackQueued () || state.stopQueued ();
+        }
+    }
+
+
+    private enum FillSessionBase
+    {
+        BITWIG_OWNED_CLIP_OR_ARRANGEMENT
+    }
+
+
+    private record FillSessionView (FillSessionBase base, Map<ControlId, ClipTargetId> targets, Optional<ControlId> activeOwner)
+    {
+        private FillSessionView
+        {
+            base = Objects.requireNonNull (base, "base");
+            targets = Map.copyOf (Objects.requireNonNull (targets, "targets"));
+            activeOwner = Objects.requireNonNull (activeOwner, "activeOwner");
+        }
+    }
+
+
+    private record PendingRelease (LaunchLease lease, long issuedAfterSample)
+    {
+        private PendingRelease
+        {
+            lease = Objects.requireNonNull (lease, "lease");
+            if (issuedAfterSample < 0)
+                throw new IllegalArgumentException ("issuedAfterSample must not be negative");
+        }
     }
 
 
