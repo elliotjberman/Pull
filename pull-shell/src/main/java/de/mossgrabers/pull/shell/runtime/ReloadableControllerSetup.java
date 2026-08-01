@@ -5,8 +5,6 @@ package de.mossgrabers.pull.shell.runtime;
 
 import de.mossgrabers.framework.controller.IControllerSetup;
 
-import com.bitwig.extension.controller.api.ControllerHost;
-
 import java.util.Objects;
 
 /**
@@ -15,19 +13,19 @@ import java.util.Objects;
 public final class ReloadableControllerSetup implements IControllerSetup
 {
     private final IControllerSetup delegate;
-    private final CoreReloadSupervisor reloadSupervisor;
+    private final ReloadableControllerRuntime runtime;
 
 
     /**
      * Constructor.
      *
      * @param delegate The unchanged legacy setup
-     * @param host The Bitwig host
+     * @param runtime The stable reloadable-core runtime
      */
-    public ReloadableControllerSetup (final IControllerSetup delegate, final ControllerHost host)
+    public ReloadableControllerSetup (final IControllerSetup delegate, final ReloadableControllerRuntime runtime)
     {
         this.delegate = Objects.requireNonNull (delegate, "delegate");
-        this.reloadSupervisor = new CoreReloadSupervisor (host);
+        this.runtime = Objects.requireNonNull (runtime, "runtime");
     }
 
 
@@ -44,7 +42,7 @@ public final class ReloadableControllerSetup implements IControllerSetup
     public void startup ()
     {
         this.delegate.startup ();
-        this.reloadSupervisor.start ();
+        this.runtime.start ();
     }
 
 
@@ -54,7 +52,7 @@ public final class ReloadableControllerSetup implements IControllerSetup
     {
         try
         {
-            this.reloadSupervisor.close ();
+            this.runtime.close ();
         }
         finally
         {
@@ -69,7 +67,7 @@ public final class ReloadableControllerSetup implements IControllerSetup
     {
         try
         {
-            this.reloadSupervisor.tick ();
+            this.runtime.tick ();
         }
         finally
         {

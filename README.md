@@ -29,6 +29,24 @@ mvn -o -pl pull-core -am test
 
 This loop uses deterministic fake time and does not launch or require Bitwig.
 
+Milestone 4 also has shell-side selected-track scanner, pinned-actuator, routing, and launch-lease
+tests:
+
+```bash
+mvn -o -pl pull-shell -am test
+```
+
+The first reloadable behavior occupies the 3x4 Drum Pads region directly above the four yellow
+rate pads. Selected-track clips whose names contain `fill` case-insensitively are assigned in scene
+order, one clip per pad, up to 12; later matches are ignored. The physical pad order is MIDI notes
+`48-51`, then `56-59`, then `64-67` (bottom row to top row, left to right). A verified ready pad is
+dim red, becomes bright red while held, and is off while unassigned or still arming.
+
+Each pad launches only its assigned clip. The shell keeps a private one-slot Bitwig actuator for
+each pad and freezes it for the duration of a hold, so session scrolling, selection changes, and
+new core builds cannot retarget the matching release. Multiple fill pads may be held at once.
+This slice passes offline fake-host verification; its first Bitwig/Push smoke test still remains.
+
 ## Reloading a core during development
 
 After installing and starting a reloadable shell, build, publish, and activate a core without
@@ -46,3 +64,8 @@ Success means the running shell acknowledged the exact requested build ID—not 
 succeeded. Each candidate carries an exact fingerprint of the local parent-loaded shell/API
 sources. If that differs from the running extension, Bitwig reports `restartRequired` instead of
 attempting an unsafe core reload—even when the shell change was already committed.
+
+Installing milestone 4 itself requires one extension copy and Bitwig restart because it widens the
+stable API/shell bridge. After that, edits confined to `pull-core`—including fill matching, colors,
+ordering, truncation, and behavior using the existing selected-track catalog and launch
+effects—use `tools/reload-core` without restarting Bitwig.

@@ -3,10 +3,12 @@
 
 package de.mossgrabers.pull.shell.runtime;
 
+import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -25,25 +27,34 @@ final class NoOpCoreRuntimeEnvironment implements CoreRuntimeEnvironment
     public ControllerSnapshot snapshot ()
     {
         final long elapsed = Math.max (0, System.nanoTime () - this.timeOrigin);
-        return new ControllerSnapshot (this.revision++, elapsed, ShellCapabilities.empty (), Set.of (), Set.of ());
+        return new ControllerSnapshot (this.revision++, elapsed, ShellCapabilities.empty (), ClipCatalogSnapshot.empty (), Map.of (), Set.of (), Set.of ());
     }
 
 
     /** {@inheritDoc} */
     @Override
-    public void validate (final CoreResult result)
+    public PreparedCoreResult prepare (final CoreResult result)
     {
         Objects.requireNonNull (result, "result");
-        if (!result.effects ().isEmpty () || !result.desiredOutput ().lights ().isEmpty ())
-            throw new IllegalStateException ("The stable shell does not own any core effects or hardware output yet");
+        if (!result.effects ().isEmpty () || !result.desiredOutput ().lights ().isEmpty () || !result.desiredClipBindings ().isEmpty ())
+            throw new IllegalStateException ("The stable shell does not own any core effects, bindings, or hardware output yet");
+        return EmptyPreparedResult.INSTANCE;
     }
 
 
     /** {@inheritDoc} */
     @Override
-    public void commit (final long generation, final CoreResult result)
+    public void commit (final long generation, final PreparedCoreResult result)
     {
         this.generation = generation;
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void apply (final long generation)
+    {
+        // There are no external effects to apply.
     }
 
 
@@ -58,5 +69,11 @@ final class NoOpCoreRuntimeEnvironment implements CoreRuntimeEnvironment
     long generation ()
     {
         return this.generation;
+    }
+
+
+    private enum EmptyPreparedResult implements PreparedCoreResult
+    {
+        INSTANCE
     }
 }

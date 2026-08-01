@@ -1,6 +1,7 @@
 # Reloadable Controller Core
 
-Status: Milestones 1 through 3 are implemented; the drum-fill vertical slice is next.
+Status: Milestones 1 through 4 are implemented and pass offline verification. The selected-track
+drum-fill slice still needs its first live Bitwig/Push smoke test.
 
 Primary goal: make ordinary controller development possible without restarting Bitwig.
 
@@ -50,8 +51,9 @@ Testing is enabled by the same boundary; it is not a separate mock of the entire
 
 ## Delivery sequence
 
-These are implementation milestones. The current branch combines milestones 1 through 3 as
-independently reviewable commits; keep later behavior migration similarly separated.
+These are implementation milestones. Milestones 1 through 3 are preserved as one testable
+checkpoint; milestone 4 is a separate branch/checkpoint so either stage can be installed and tested
+independently.
 
 ### Milestone 1: Mechanical Maven split
 
@@ -83,11 +85,17 @@ independently reviewable commits; keep later behavior migration similarly separa
 
 ### Milestone 4: Drum-fill vertical slice
 
-- Mirror the already-observed visible clip names into an immutable snapshot.
-- Route one existing drum control through a stable proxy.
-- Match clips containing `fill` inside the core.
-- Return validated launch/release and light effects.
-- Test the behavior without Bitwig, then smoke-test live reload in Bitwig.
+- Page across every scene on the selected track, publish an empty generation fence when topology
+  changes, then expose only complete immutable catalogs.
+- Permanently route the 12 otherwise-unused pads directly above Drum Pads' yellow rate controls.
+- Match selected-track clips containing `fill` case-insensitively inside the core, keep scene
+  order, and assign the first 12 one per pad.
+- Back each control with a private startup-created one-slot actuator that arms asynchronously and
+  freezes while held.
+- Return singular owner-scoped launch/release effects plus complete per-pad RGB state: dim red
+  ready, bright red held, off otherwise.
+- Cover catalog scans, off-window edits, readiness, multiple holds, reload hydration, exact
+  releases, failures, and transaction ordering without Bitwig. The live smoke test remains.
 
 ### Later milestones
 
@@ -144,6 +152,58 @@ flowchart TD
 
 All arrows are ordinary in-process Java calls. There is no serialization or network transport.
 
+## Milestone-4 vertical slice
+
+The first migrated surface is the otherwise-unused 3x4 region immediately above the four yellow
+rate controls while Drum Pads is active:
+
+```text
+64 65 66 67   fill candidates 9-12
+56 57 58 59   fill candidates 5-8
+48 49 50 51   fill candidates 1-4
+40 41 42 43   existing yellow rate controls
+```
+
+The permanent surface router owns the 12 fill pads' down/up events. The existing drum translation
+matrix maps all of them to `-1`, so they do not leak musical notes. The legacy 4x4 drum block, rate
+controls, and Select + Repeat Bitwig transport fill mode are unchanged.
+
+During extension initialization, before reloadable behavior runs, the shell creates one private
+eight-scene scanner cursor and 12 private one-scene actuator cursors. The scanner follows the
+framework-selected track, walks every scene in pages, and requires two coherent samples per page.
+A selected-track or scene-count change immediately publishes an empty new-generation fence, so all
+pads stay off while the replacement sweep converges; after that, only complete catalogs are
+published. Eight is a throughput/page-size choice, not a project-size cap. Continuous sweeps make
+edits outside the current Bitwig session view eventually visible. The core receives selected-track
+clips in absolute scene order with names and opaque IDs—never Bitwig objects, banks, or indices.
+
+The core filters names containing `fill` case-insensitively, keeps catalog order, takes at most 12,
+and publishes a complete desired control-to-target binding map. Each actuator parks on its desired
+track/scene and becomes armed only after two samples agree on track identity, pinned state, scene
+index, clip name, existence, and content. The shell returns that separately as the verified armed
+map. A pad
+is actionable only when its exact desired target is already armed; a down during convergence is
+ignored rather than queued for a surprise later launch.
+
+Each pad presses exactly one private actuator. Multiple pads can hold independent owner-scoped
+leases simultaneously. While held, an actuator cannot move even if the selected track, catalog,
+core policy, or active core build changes. Up releases through the exact frozen proxy and only then
+allows the queued desired binding to park. Raw MIDI note-off is observed below the command layer,
+so switching views cannot consume the only release. Failed and apply-then-throw releases remain
+owned and are retried instead of being mistaken for success.
+
+The physical held state, desired/armed protocol, actuators, and leases live in the shell. Starting
+a replacement core hydrates current held and armed state but deliberately synthesizes no press: the
+shell simply retains a lease that was actually acquired before reload. A down rejected while its
+pad was unarmed never launches later merely because the actuator arms or the core reloads.
+Structural scene insertion/reordering during a hold remains an inherent limitation of Bitwig's
+paged slot proxies, which expose no durable clip ID, but the pinned track and frozen scene proxy are
+the narrowest supported identity.
+
+This boundary makes marker strings, filtering, ordering, truncation, colors, and behavior composed
+from the selected-track catalog and existing effects core-only reloads. A new Bitwig property or
+operation still requires an API/shell change and one Bitwig restart to install the widened bridge.
+
 ## Stable shell responsibilities
 
 The shell owns anything coupled to Bitwig or physical hardware:
@@ -155,7 +215,7 @@ The shell owns anything coupled to Bitwig or physical hardware:
 - MIDI input/output, SysEx, note translation, and the low-latency note path;
 - Push inquiry, sensitivity, ribbon, palette, and hardware bootstrap;
 - USB display ownership, buffers, queues, and shutdown;
-- one permanent binding for every known Push control and light;
+- one permanent binding for every migrated Push control and light;
 - canonical Bitwig snapshot and pressed/touched-control state;
 - timer scheduling, generation fencing, and effect execution;
 - classloading, reload status, logging, and safe fallback.
@@ -225,13 +285,14 @@ snapshot.
 
 ## Snapshot and effects
 
-The milestone-2 snapshot deliberately contains only revision, monotonic time, shell capabilities,
-and pressed/touched controls. Add each new domain as a typed API value when its first migrated
-vertical slice needs it. The eventual stable snapshot is expected to cover:
+The snapshot currently contains revision, monotonic time, shell capabilities, the complete
+selected-track clip catalog, verified per-control armed bindings, and pressed/touched controls.
+Add each new domain as a typed API value when its first migrated vertical slice needs it. The
+eventual stable snapshot is expected to cover:
 
 - revision and shell capabilities;
 - transport;
-- visible track/scene/clip window;
+- selected-track clip catalog and other visible track/scene windows;
 - selected track/device and parameter page;
 - drum/note context;
 - configuration values;
@@ -243,10 +304,11 @@ that bank's generation and marks it pending. Location-targeted effects from the 
 are immediately rejected. The new window is published only after Bitwig's observed membership
 stabilizes.
 
-Milestone 2 includes logical timer effects and complete desired RGB light state. Later typed effects
-will cover clip/scene launch, selection, bank scrolling, parameter adjustment,
-transport/application actions, note mapping/repeat, approved MIDI/SysEx, notifications, and richer
-desired hardware state.
+The API includes logical timer effects, persistent desired clip bindings, verified armed bindings,
+generation-fenced singular owner-scoped clip press/release effects, and complete desired RGB light
+state. Later typed effects will cover scene launch, selection, bank scrolling, parameter
+adjustment, transport/application actions, note mapping/repeat, approved MIDI/SysEx,
+notifications, and richer desired hardware state.
 
 Adding behavior composed from existing snapshot data and effects is a core-only change. Adding a
 new state domain or executor is a shell-capability change.
@@ -260,13 +322,13 @@ flowchart TD
     C[Prepare child classloader]
     D[Gate behavioral events]
     E[Take snapshot and old checkpoint]
-    F[Start candidate and buffer output]
-    G{Candidate healthy}
+    F[Start candidate and prepare result]
+    G{Preparation healthy and still latest}
     H[Keep old core and report error]
-    I[Swap active core and generation]
-    J[Stop old core and close loader]
-    K[Invalidate old timers and results]
-    L[Full output resync and resume]
+    I[Commit shell-owned buffers]
+    J[Publish active core and generation]
+    K[Apply external effects]
+    L[Stop old core and close loader]
 
     A --> B
     B --> C
@@ -291,7 +353,10 @@ Requirements:
   Bitwig's controller thread.
 - Physical held-state is updated before gating and hydrated into the candidate.
 - Real-time note forwarding remains active during the behavioral swap.
-- Candidate effects are buffered until commit.
+- Candidate output and effects are fully validated/resolved without mutation, committed as an
+  in-memory buffer swap, and applied only after the active core pointer changes.
+- A prepare/commit failure keeps the old core active. An external apply failure is logged after the
+  new core is active and cannot roll the transaction back halfway through Bitwig calls.
 - Any candidate failure leaves the old core running.
 - Old `stop()` must be non-blocking and latency-instrumented.
 - Old-generation timers, results, and stale bank effects are ignored.
@@ -318,8 +383,8 @@ user directory that Bitwig does not purge. The full extension build also embeds
 `META-INF/pull-shell.properties`, whose fingerprint covers the parent-loaded API, shell sources,
 packaging edge, and relevant build descriptors. Core-only changes leave it unchanged.
 
-The milestone-2 canary uses a fixed packaging-test build ID. Milestone 3 replaces it with the
-unique manifest build ID and requires exact activation acknowledgement.
+The embedded production provider and every development candidate use the unique manifest build ID
+and require exact activation acknowledgement.
 
 The runtime loader is:
 
@@ -352,7 +417,7 @@ The development command and shell share `${user.home}/.drivenbymoss/pull/reload`
 
 ```properties
 formatVersion=1
-apiVersion=1
+apiVersion=3
 buildId=20260731T230000Z-0123456789abcdef0123456789abcdef
 ```
 
@@ -362,7 +427,7 @@ verifies its embedded API/build identity, computes SHA-256, and atomically repla
 
 ```properties
 formatVersion=1
-apiVersion=1
+apiVersion=3
 shellFingerprint=0123456789abcdef0123456789abcdef01234567
 buildId=20260731T230000Z-0123456789abcdef0123456789abcdef
 jar=pull-core-20260731T230000Z-0123456789abcdef0123456789abcdef.jar
@@ -396,9 +461,16 @@ The first harness includes fake time and no sleeping. Classloader integration fi
 then a structurally different B, then reject a broken C while B remains active.
 
 Current shell tests cover manifest integrity, status/generation fencing, private-artifact cleanup,
-classloader isolation, structural A/B replacement, candidate failure, and runtime transactions.
-The drum-fill vertical slice adds bank fencing, held-control hydration, effect validation, timers,
-and output-coalescing tests alongside those features.
+classloader isolation, structural A/B replacement, candidate failure, and prepared runtime
+transactions. The drum-fill vertical slice adds complete paged scans, off-window edits, two-sample
+actuator validation, opaque target fencing, 12 simultaneous leases, held-actuator freezing,
+reload hydration, partial acquisition rollback, retained release retries, exact raw-MIDI safety
+release, effect validation, and complete output-buffer tests.
+
+The same DTO/effect seam is the basis for later record/replay and a virtual Push. An offline harness
+can feed snapshots and input events into the core, assert requested Bitwig effects, and render the
+desired pad/display state without emulating Bitwig's entire Java API. Full hardware visualization
+is intentionally a later milestone, after more inputs and outputs use stable proxies.
 
 Later record/replay logs contain only API DTOs: initial snapshot, ordered events/revisions,
 effects, rejections, and desired output. A real Bitwig failure can then become an offline test.
@@ -410,7 +482,7 @@ effects, rejections, and desired output. A real Bitwig failure can then become a
 | Core method body | Compile and core reload |
 | Add/remove core class, field, method, or package | Compile and core reload |
 | Safe pure-Java core dependency | Package and core reload |
-| Mapping, mode, gesture, layout policy, or fill matching | Core reload |
+| Core-owned/migrated mapping, mode, gesture, layout policy, or fill matching | Core reload |
 | Behavior using existing snapshot/effects | Core reload |
 | New Bitwig state the shell never subscribed to | Shell build/install and Bitwig restart |
 | New operation the shell cannot execute | API/shell build/install and Bitwig restart |

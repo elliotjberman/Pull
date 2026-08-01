@@ -22,10 +22,13 @@ import de.mossgrabers.framework.daw.midi.ArpeggiatorMode;
 import de.mossgrabers.framework.daw.midi.INoteInput;
 import de.mossgrabers.framework.daw.midi.INoteRepeat;
 import de.mossgrabers.framework.scale.Scales;
+import de.mossgrabers.pull.core.api.output.RgbColor;
+import de.mossgrabers.pull.shell.runtime.ReloadableControllerRuntime;
 
 
 /**
- * The performance controls for the 4x4 drum-pad block and its four momentary roll-rate pads.
+ * The performance controls for the 4x4 drum-pad block, four momentary roll-rate pads and twelve
+ * reloadable fill pads.
  * <p>
  * This class owns only its pad regions. A full-grid view or a composite view is responsible for
  * drawing everything outside those regions.
@@ -72,9 +75,13 @@ public final class DrumPadControls
     private final PushConfiguration  configuration;
     private final IModel             model;
     private final Scales             scales;
+    private final ReloadableControllerRuntime reloadableRuntime;
+    private final int []             fillPadNotes       = ReloadableControllerRuntime.fillPadNotes ();
     private final int []             playingVelocities = new int [NUM_PLAY_PADS];
     private final boolean []         ratePadsDown       = new boolean [NUM_RATE_PADS];
     private final long []            ratePadPressOrder  = new long [NUM_RATE_PADS];
+    private final RgbColor []        previousFillColors = new RgbColor [this.fillPadNotes.length];
+    private final int []             fillColorIndices   = new int [this.fillPadNotes.length];
 
     private boolean active;
     private int     primaryRatePad      = -1;
@@ -82,6 +89,7 @@ public final class DrumPadControls
     private int     selectedTrackIndex  = -1;
     private long    ratePadPressCounter;
     private RollState previousRollState;
+    private long    fillOutputGeneration = Long.MIN_VALUE;
 
 
     /**
@@ -89,13 +97,15 @@ public final class DrumPadControls
      *
      * @param surface The Push surface
      * @param model The model
+     * @param reloadableRuntime The stable reloadable-core runtime
      */
-    public DrumPadControls (final PushControlSurface surface, final IModel model)
+    public DrumPadControls (final PushControlSurface surface, final IModel model, final ReloadableControllerRuntime reloadableRuntime)
     {
         this.surface = surface;
         this.configuration = surface.getConfiguration ();
         this.model = model;
         this.scales = model.getScales ();
+        this.reloadableRuntime = reloadableRuntime;
 
         final ITrackBank trackBank = model.getTrackBank ();
         trackBank.addNoteObserver (this::onTrackNote);
@@ -158,7 +168,7 @@ public final class DrumPadControls
      * Test whether this component owns a physical grid note.
      *
      * @param note The physical grid note
-     * @return True if the note belongs to the drum block or the rate controls
+     * @return True if the note belongs to the drum block, rate controls or fill controls
      */
     public boolean ownsGridNote (final int note)
     {
@@ -168,7 +178,7 @@ public final class DrumPadControls
 
         final int x = index % this.surface.getPadGrid ().getCols ();
         final int y = index / this.surface.getPadGrid ().getCols ();
-        return y < PLAY_ROWS && x < PLAY_COLUMNS || y == 0 && x >= RATE_PAD_START && x < RATE_PAD_START + NUM_RATE_PADS;
+        return y < PLAY_ROWS && x < PLAY_COLUMNS || y == 0 && x >= RATE_PAD_START && x < RATE_PAD_START + NUM_RATE_PADS || this.isFillPad (note);
     }
 
 
@@ -183,6 +193,9 @@ public final class DrumPadControls
      */
     public void onGridNote (final int note, final int velocity)
     {
+        if (this.isFillPad (note))
+            return;
+
         final int ratePadIndex = this.getRatePadIndex (note);
         if (ratePadIndex >= 0)
             this.onRatePad (ratePadIndex, velocity > 0);
@@ -198,6 +211,18 @@ public final class DrumPadControls
     public boolean isRatePad (final int note)
     {
         return this.getRatePadIndex (note) >= 0;
+    }
+
+
+    /**
+     * Test whether a physical grid note is one of the reloadable drum-fill controls.
+     *
+     * @param note The physical grid note
+     * @return True if this is a fill pad
+     */
+    public boolean isFillPad (final int note)
+    {
+        return ReloadableControllerRuntime.isFillPad (note);
     }
 
 
@@ -224,6 +249,34 @@ public final class DrumPadControls
                 final boolean padExists = drumPads != null && drumPads.getItem (padIndex).doesExist ();
                 final int color = padExists ? this.getPlayPadColor (padIndex, restingColor) : PAD_OFF_COLOR;
                 padGrid.lightEx (x, padGrid.getRows () - 1 - y, color);
+            }
+        }
+        this.drawFillPads (padGrid);
+    }
+
+
+    private void drawFillPads (final IPadGrid padGrid)
+    {
+        final long outputGeneration = this.reloadableRuntime.outputGeneration ();
+        final boolean replayOutput = outputGeneration != this.fillOutputGeneration;
+        if (replayOutput)
+            this.fillOutputGeneration = outputGeneration;
+
+        for (int index = 0; index < this.fillPadNotes.length; index++)
+        {
+            final int note = this.fillPadNotes[index];
+            final RgbColor color = this.reloadableRuntime.fillLightColor (note);
+            if (!color.equals (this.previousFillColors[index]))
+            {
+                this.previousFillColors[index] = color;
+                this.fillColorIndices[index] = findClosestPaletteColor (color);
+            }
+            padGrid.light (note, this.fillColorIndices[index]);
+            if (replayOutput)
+            {
+                // Replay only the migrated outputs. Going through the ordinary whole-surface
+                // forceFlush path blanks every Push light for 100 ms.
+                padGrid.sendState (note);
             }
         }
     }
@@ -517,6 +570,24 @@ public final class DrumPadControls
         this.clearPlaybackFeedback ();
         if (this.active)
             this.surface.flush ();
+    }
+
+
+    private static int findClosestPaletteColor (final RgbColor color)
+    {
+        final ColorEx target = ColorEx.fromRGB (color.red (), color.green (), color.blue ());
+        int closestIndex = 0;
+        double closestDistance = Double.MAX_VALUE;
+        for (int index = 0; index < 128; index++)
+        {
+            final double distance = ColorEx.calcDistance (target, PushColorManager.getPaletteColor (index), true);
+            if (distance < closestDistance)
+            {
+                closestIndex = index;
+                closestDistance = distance;
+            }
+        }
+        return closestIndex;
     }
 
 

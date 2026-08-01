@@ -3,10 +3,14 @@
 
 package de.mossgrabers.pull.core.testing;
 
+import de.mossgrabers.pull.core.api.ClipTargetId;
+import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.TimerId;
 import de.mossgrabers.pull.core.api.effect.CancelTimerEffect;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
+import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
+import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
 import de.mossgrabers.pull.core.api.effect.ScheduleTimerEffect;
 import de.mossgrabers.pull.core.api.output.DesiredHardwareOutput;
 
@@ -26,7 +30,9 @@ final class RecordingEffectExecutor
 {
     private final List<CoreEffect> executionOrder = new ArrayList<> ();
     private final Map<TimerId, Long> timerDeadlines = new LinkedHashMap<> ();
+    private final Map<ControlId, PressClipTargetEffect> clipLeases = new LinkedHashMap<> ();
     private DesiredHardwareOutput desiredOutput = DesiredHardwareOutput.empty ();
+    private Map<ControlId, ClipTargetId> desiredClipBindings = Map.of ();
 
 
     /**
@@ -38,6 +44,7 @@ final class RecordingEffectExecutor
     {
         Objects.requireNonNull (result, "result");
         this.desiredOutput = result.desiredOutput ();
+        this.desiredClipBindings = result.desiredClipBindings ();
         for (final CoreEffect effect: result.effects ())
         {
             this.executionOrder.add (effect);
@@ -45,6 +52,10 @@ final class RecordingEffectExecutor
                 this.timerDeadlines.put (schedule.timerId (), Long.valueOf (schedule.deadlineNanos ()));
             else if (effect instanceof final CancelTimerEffect cancel)
                 this.timerDeadlines.remove (cancel.timerId ());
+            else if (effect instanceof final PressClipTargetEffect press)
+                this.clipLeases.put (press.owner (), press);
+            else if (effect instanceof final ReleaseClipTargetsEffect release)
+                this.clipLeases.remove (release.owner ());
         }
     }
 
@@ -83,6 +94,18 @@ final class RecordingEffectExecutor
 
 
     /**
+     * Get the active clip lease for an owner.
+     *
+     * @param owner The logical owner
+     * @return Its lease, if pressed
+     */
+    Optional<PressClipTargetEffect> clipLease (final ControlId owner)
+    {
+        return Optional.ofNullable (this.clipLeases.get (owner));
+    }
+
+
+    /**
      * Get effects in execution order.
      *
      * @return A defensive copy
@@ -101,5 +124,16 @@ final class RecordingEffectExecutor
     DesiredHardwareOutput desiredOutput ()
     {
         return this.desiredOutput;
+    }
+
+
+    /**
+     * Get the latest complete desired clip bindings.
+     *
+     * @return The desired bindings
+     */
+    Map<ControlId, ClipTargetId> desiredClipBindings ()
+    {
+        return this.desiredClipBindings;
     }
 }

@@ -20,23 +20,34 @@ interface CoreRuntimeEnvironment
 
 
     /**
-     * Validate a result without changing shell or hardware state.
+     * Validate and resolve a result without changing shell or hardware state.
      *
      * @param result The candidate result
+     * @return The parent-owned prepared result
      */
-    void validate (CoreResult result);
+    PreparedCoreResult prepare (CoreResult result);
 
 
     /**
      * Atomically replace the core-owned shell state for a generation.
-     * After {@link #validate(CoreResult)} succeeds, this must be a non-throwing in-memory
-     * ownership/buffer swap. Implementations publish the generation before scheduling work; all
-     * failure-prone validation or effect preparation belongs in {@code validate}.
+     * After {@link #prepare(CoreResult)} succeeds, this must be a non-throwing in-memory
+     * ownership/buffer swap. All failure-prone validation and effect resolution belongs in
+     * {@code prepare}.
      *
      * @param generation The active runtime generation
-     * @param result The complete result to apply
+     * @param result The prepared result to commit
      */
-    void commit (long generation, CoreResult result);
+    void commit (long generation, PreparedCoreResult result);
+
+
+    /**
+     * Apply external effects from the committed result. The runtime invokes this only after the
+     * active core and generation have been published. Implementations must generation-fence any
+     * asynchronous work they create.
+     *
+     * @param generation The committed runtime generation
+     */
+    void apply (long generation);
 
 
     /**

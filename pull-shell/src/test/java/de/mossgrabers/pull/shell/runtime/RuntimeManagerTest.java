@@ -3,6 +3,7 @@
 
 package de.mossgrabers.pull.shell.runtime;
 
+import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerCore;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
@@ -19,9 +20,11 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -58,6 +61,7 @@ class RuntimeManagerTest
         assertEquals ("build-b", manager.activeBuildId ());
         assertEquals (2, manager.activeGeneration ());
         assertEquals (List.of (1L, 2L), environment.committedGenerations);
+        assertEquals (List.of (1L, 2L), environment.appliedGenerations);
 
         manager.close ();
         assertEquals (1, secondCore.stopCount);
@@ -88,6 +92,7 @@ class RuntimeManagerTest
         assertEquals (1, brokenCore.stopCount);
         assertTrue (brokenSource.closed);
         assertEquals (List.of (1L), environment.committedGenerations);
+        assertEquals (List.of (1L), environment.appliedGenerations);
 
         manager.close ();
     }
@@ -130,6 +135,7 @@ class RuntimeManagerTest
         assertEquals (ActivationResult.State.SUPERSEDED, result.state ());
         assertEquals ("stable", manager.activeBuildId ());
         assertEquals (List.of (1L), environment.committedGenerations);
+        assertEquals (List.of (1L), environment.appliedGenerations);
         assertEquals (1, supersededCore.stopCount);
         assertTrue (supersededSource.closed);
         manager.close ();
@@ -177,6 +183,26 @@ class RuntimeManagerTest
 
 
     @Test
+    void missingCapabilitiesAreRejectedBeforeCoreCreation ()
+    {
+        final ShellCapabilities requiredCapabilities = new ShellCapabilities (Map.of ("missing.capability", Integer.valueOf (1)));
+        final RuntimeManager manager = new RuntimeManager (new TestEnvironment (ShellCapabilities.empty ()), new RecordingLog ());
+        final TestCore core = new TestCore (0);
+        final CoreDescriptor descriptor = new CoreDescriptor (CoreApi.VERSION, "requested", "test.state", 1, requiredCapabilities);
+        final TestProvider provider = new TestProvider (descriptor, core);
+        final TestSource source = new TestSource (provider);
+
+        manager.start ();
+        final ActivationResult result = manager.activate ("requested", source, () -> true);
+
+        assertEquals (ActivationResult.State.FAILED, result.state ());
+        assertEquals (0, provider.createCount);
+        assertTrue (source.closed);
+        manager.close ();
+    }
+
+
+    @Test
     void atomicCommitFailureLeavesThePreviousCoreActive ()
     {
         final TestEnvironment environment = new TestEnvironment (ShellCapabilities.empty ());
@@ -199,7 +225,139 @@ class RuntimeManagerTest
         assertEquals (1, candidateCore.stopCount);
         assertTrue (candidateSource.closed);
         assertEquals (List.of (1L), environment.committedGenerations);
+        assertEquals (List.of (1L), environment.appliedGenerations);
 
+        manager.close ();
+    }
+
+
+    @Test
+    void prepareFailureLeavesThePreviousCoreActive ()
+    {
+        final TestEnvironment environment = new TestEnvironment (ShellCapabilities.empty ());
+        final RuntimeManager manager = new RuntimeManager (environment, new RecordingLog ());
+        final TestCore stableCore = new TestCore (1);
+        final TestCore candidateCore = new TestCore (2);
+        final TestSource stableSource = source ("stable", stableCore);
+        final TestSource candidateSource = source ("candidate", candidateCore);
+
+        manager.start ();
+        manager.activate ("stable", stableSource, () -> true);
+        environment.failNextPrepare = true;
+        final ActivationResult result = manager.activate ("candidate", candidateSource, () -> true);
+
+        assertEquals (ActivationResult.State.FAILED, result.state ());
+        assertEquals ("stable", manager.activeBuildId ());
+        assertEquals (1, manager.activeGeneration ());
+        assertEquals (0, stableCore.stopCount);
+        assertFalse (stableSource.closed);
+        assertEquals (1, candidateCore.stopCount);
+        assertTrue (candidateSource.closed);
+        assertEquals (List.of (1L), environment.committedGenerations);
+        assertEquals (List.of (1L), environment.appliedGenerations);
+
+        manager.close ();
+    }
+
+
+    @Test
+    void publishesCandidateBeforeApplyingAndStopsPreviousCoreAfterward ()
+    {
+        final TestEnvironment environment = new TestEnvironment (ShellCapabilities.empty ());
+        final RuntimeManager manager = new RuntimeManager (environment, new RecordingLog ());
+        final TestCore stableCore = new TestCore (1);
+        final List<String> order = new ArrayList<> ();
+        final List<CommitObservation> commitObservations = new ArrayList<> ();
+        final List<ApplyObservation> applyObservations = new ArrayList<> ();
+
+        manager.start ();
+        manager.activate ("stable", source ("stable", stableCore), () -> true);
+        environment.onCommit = generation -> commitObservations.add (new CommitObservation (generation, manager.activeBuildId (), manager.activeGeneration (), stableCore.stopCount));
+        environment.onApply = generation -> {
+            order.add ("apply");
+            applyObservations.add (new ApplyObservation (generation, manager.activeBuildId (), manager.activeGeneration (), stableCore.stopCount, environment.committedGenerations));
+        };
+        stableCore.onStop = () -> order.add ("stop");
+
+        final ActivationResult result = manager.activate ("candidate", source ("candidate", new TestCore (2)), () -> true);
+
+        assertEquals (ActivationResult.State.ACTIVE, result.state ());
+        assertEquals (List.of ("apply", "stop"), order);
+        assertEquals (List.of (new CommitObservation (2, "stable", 1, 0)), commitObservations);
+        assertEquals (List.of (new ApplyObservation (2, "candidate", 2, 0, List.of (1L, 2L))), applyObservations);
+        manager.close ();
+    }
+
+
+    @Test
+    void applyFailureKeepsCommittedCandidateActive ()
+    {
+        final TestEnvironment environment = new TestEnvironment (ShellCapabilities.empty ());
+        final RecordingLog log = new RecordingLog ();
+        final RuntimeManager manager = new RuntimeManager (environment, log);
+        final TestCore stableCore = new TestCore (1);
+        final TestCore candidateCore = new TestCore (2);
+        final TestSource candidateSource = source ("candidate", candidateCore);
+
+        manager.start ();
+        manager.activate ("stable", source ("stable", stableCore), () -> true);
+        environment.failNextApply = true;
+        final ActivationResult result = manager.activate ("candidate", candidateSource, () -> true);
+
+        assertEquals (ActivationResult.State.ACTIVE, result.state ());
+        assertEquals ("candidate", manager.activeBuildId ());
+        assertEquals (2, manager.activeGeneration ());
+        assertEquals (1, stableCore.stopCount);
+        assertEquals (0, candidateCore.stopCount);
+        assertFalse (candidateSource.closed);
+        assertEquals (List.of (1L, 2L), environment.committedGenerations);
+        assertEquals (List.of (1L, 2L), environment.appliedGenerations);
+        assertTrue (log.warnings.stream ().anyMatch (message -> message.contains ("Committed core effects failed")));
+
+        manager.close ();
+    }
+
+
+    @Test
+    void eventApplyFailureIsLoggedAfterTheResultCommits ()
+    {
+        final TestEnvironment environment = new TestEnvironment (ShellCapabilities.empty ());
+        final RecordingLog log = new RecordingLog ();
+        final RuntimeManager manager = new RuntimeManager (environment, log);
+        final CoreEvent event = new ButtonInputEvent (1, 0, new ControlId ("test"), true);
+
+        manager.start ();
+        manager.activate ("stable", source ("stable", new TestCore (1)), () -> true);
+        environment.failNextApply = true;
+
+        assertTrue (manager.handle (manager.activeGeneration (), event));
+        assertEquals ("stable", manager.activeBuildId ());
+        assertEquals (List.of (1L, 1L), environment.committedGenerations);
+        assertEquals (List.of (1L, 1L), environment.appliedGenerations);
+        assertTrue (log.warnings.stream ().anyMatch (message -> message.contains ("Committed core effects failed")));
+        manager.close ();
+    }
+
+
+    @Test
+    void eventPrepareFailurePreservesTheLastCommittedResult ()
+    {
+        final TestEnvironment environment = new TestEnvironment (ShellCapabilities.empty ());
+        final RecordingLog log = new RecordingLog ();
+        final RuntimeManager manager = new RuntimeManager (environment, log);
+        final TestCore core = new TestCore (1);
+        final CoreEvent event = new ButtonInputEvent (1, 0, new ControlId ("test"), true);
+
+        manager.start ();
+        manager.activate ("stable", source ("stable", core), () -> true);
+        environment.failNextPrepare = true;
+
+        assertFalse (manager.handle (manager.activeGeneration (), event));
+        assertEquals (1, core.handleCount);
+        assertEquals ("stable", manager.activeBuildId ());
+        assertEquals (List.of (1L), environment.committedGenerations);
+        assertEquals (List.of (1L), environment.appliedGenerations);
+        assertTrue (log.warnings.stream ().anyMatch (message -> message.contains ("Active core event failed")));
         manager.close ();
     }
 
@@ -288,6 +446,9 @@ class RuntimeManagerTest
         private boolean failCheckpoint;
         private int handleCount;
         private int stopCount;
+        private Runnable onStop = () -> {
+            // No observer by default.
+        };
 
 
         private TestCore (final int checkpointValue)
@@ -330,6 +491,7 @@ class RuntimeManagerTest
         public void stop ()
         {
             this.stopCount++;
+            this.onStop.run ();
         }
     }
 
@@ -338,8 +500,17 @@ class RuntimeManagerTest
     {
         private final ShellCapabilities capabilities;
         private final List<Long> committedGenerations = new ArrayList<> ();
+        private final List<Long> appliedGenerations = new ArrayList<> ();
         private long revision;
+        private boolean failNextPrepare;
         private boolean failNextCommit;
+        private boolean failNextApply;
+        private LongConsumer onCommit = generation -> {
+            // No observer by default.
+        };
+        private LongConsumer onApply = generation -> {
+            // No observer by default.
+        };
 
 
         private TestEnvironment (final ShellCapabilities capabilities)
@@ -352,19 +523,24 @@ class RuntimeManagerTest
         public ControllerSnapshot snapshot ()
         {
             final long currentRevision = this.revision++;
-            return new ControllerSnapshot (currentRevision, currentRevision, this.capabilities, Set.of (), Set.of ());
+            return new ControllerSnapshot (currentRevision, currentRevision, this.capabilities, ClipCatalogSnapshot.empty (), Map.of (), Set.of (), Set.of ());
         }
 
 
         @Override
-        public void validate (final CoreResult result)
+        public PreparedCoreResult prepare (final CoreResult result)
         {
-            // API constructors have already validated this test result.
+            if (this.failNextPrepare)
+            {
+                this.failNextPrepare = false;
+                throw new IllegalStateException ("prepare failed without mutation");
+            }
+            return new TestPreparedResult (result);
         }
 
 
         @Override
-        public void commit (final long generation, final CoreResult result)
+        public void commit (final long generation, final PreparedCoreResult result)
         {
             if (this.failNextCommit)
             {
@@ -372,6 +548,20 @@ class RuntimeManagerTest
                 throw new IllegalStateException ("commit failed before mutation");
             }
             this.committedGenerations.add (Long.valueOf (generation));
+            this.onCommit.accept (generation);
+        }
+
+
+        @Override
+        public void apply (final long generation)
+        {
+            this.appliedGenerations.add (Long.valueOf (generation));
+            this.onApply.accept (generation);
+            if (this.failNextApply)
+            {
+                this.failNextApply = false;
+                throw new IllegalStateException ("apply failed after commit");
+            }
         }
 
 
@@ -379,6 +569,25 @@ class RuntimeManagerTest
         public void invalidate (final long generation)
         {
             // Nothing scheduled in this fake.
+        }
+    }
+
+
+    private record TestPreparedResult (CoreResult result) implements PreparedCoreResult
+    {
+    }
+
+
+    private record CommitObservation (long committedGeneration, String activeBuildId, long activeGeneration, int previousStopCount)
+    {
+    }
+
+
+    private record ApplyObservation (long appliedGeneration, String activeBuildId, long activeGeneration, int previousStopCount, List<Long> committedGenerations)
+    {
+        private ApplyObservation
+        {
+            committedGenerations = List.copyOf (committedGenerations);
         }
     }
 

@@ -3,22 +3,24 @@
 
 package de.mossgrabers.pull.core.testing;
 
+import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerCore;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.CoreApi;
+import de.mossgrabers.pull.core.api.CoreCapabilities;
 import de.mossgrabers.pull.core.api.CoreProvider;
-import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.StateEnvelope;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
-import de.mossgrabers.pull.core.runtime.CanaryCoreProvider;
+import de.mossgrabers.pull.core.runtime.PullCoreProvider;
 
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.ServiceLoader;
@@ -29,44 +31,63 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Discovery and lifecycle tests for the production canary.
+ * Discovery, compatibility, and lifecycle tests for the production core provider.
  */
-class CanaryCoreProviderTest
+class PullCoreProviderTest
 {
     @Test
-    void serviceLoaderFindsExactlyOneCanaryProvider () throws IOException
+    void serviceLoaderFindsExactlyOneProductionProvider () throws IOException
     {
         final List<CoreProvider> providers = ServiceLoader.load (CoreProvider.class).stream ().map (ServiceLoader.Provider::get).toList ();
 
         assertEquals (1, providers.size ());
-        assertEquals (CanaryCoreProvider.class, providers.getFirst ().getClass ());
+        assertEquals (PullCoreProvider.class, providers.getFirst ().getClass ());
         assertEquals (CoreApi.VERSION, providers.getFirst ().descriptor ().apiVersion ());
         assertEquals (embeddedBuildId (), providers.getFirst ().descriptor ().buildId ());
     }
 
 
     @Test
+    void declaresEveryRequiredMilestoneFourCapability ()
+    {
+        final Map<String, Integer> required = new PullCoreProvider ().descriptor ().requiredCapabilities ().versions ();
+
+        assertEquals (Map.of (
+            CoreCapabilities.INPUT_DRUM_FILL, Integer.valueOf (1),
+            CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS, Integer.valueOf (1),
+            CoreCapabilities.BINDING_CLIP_TARGET, Integer.valueOf (1),
+            CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD, Integer.valueOf (1),
+            CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (1)), required);
+    }
+
+
+    @Test
     void createsIndependentCoreInstances ()
     {
-        final CanaryCoreProvider provider = new CanaryCoreProvider ();
+        final PullCoreProvider provider = new PullCoreProvider ();
 
         assertNotSame (provider.create (), provider.create ());
     }
 
 
     @Test
-    void enforcesLifecycleAndProducesCompatibleCheckpoint ()
+    void enforcesLifecycleAndKeepsCheckpointFreeOfTargetLeases ()
     {
-        final CanaryCoreProvider provider = new CanaryCoreProvider ();
+        final PullCoreProvider provider = new PullCoreProvider ();
         final ControllerCore core = provider.create ();
         final ControllerSnapshot snapshot = snapshot ();
-        final ButtonInputEvent event = new ButtonInputEvent (1, 0, new ControlId ("button"), true);
+        final ButtonInputEvent event = new ButtonInputEvent (1, 0, new ControlId ("other"), true);
 
         assertThrows (IllegalStateException.class, core::checkpoint);
         assertThrows (IllegalStateException.class, () -> core.handle (event, snapshot));
-        assertEquals (CoreResult.empty (), core.start (snapshot, Optional.empty ()));
+        core.start (snapshot, Optional.of (new StateEnvelope (provider.descriptor ().stateSchema (), provider.descriptor ().stateSchemaVersion (), new byte []
+        {
+            1,
+            2,
+            3
+        })));
         assertThrows (IllegalStateException.class, () -> core.start (snapshot, Optional.empty ()));
-        assertEquals (CoreResult.empty (), core.handle (event, snapshot));
+        core.handle (event, snapshot);
 
         final StateEnvelope checkpoint = core.checkpoint ();
         assertEquals (provider.descriptor ().stateSchema (), checkpoint.schema ());
@@ -80,36 +101,16 @@ class CanaryCoreProviderTest
     }
 
 
-    @Test
-    void ignoresIncompatibleStateButRejectsMalformedMatchingState ()
-    {
-        final CanaryCoreProvider provider = new CanaryCoreProvider ();
-        final ControllerSnapshot snapshot = snapshot ();
-        final ControllerCore incompatible = provider.create ();
-        incompatible.start (snapshot, Optional.of (new StateEnvelope ("other", 99, new byte []
-        {
-            1
-        })));
-        assertEquals (0, incompatible.checkpoint ().payload ().length);
-
-        final ControllerCore malformed = provider.create ();
-        assertThrows (IllegalArgumentException.class, () -> malformed.start (snapshot, Optional.of (new StateEnvelope (provider.descriptor ().stateSchema (), provider.descriptor ().stateSchemaVersion (), new byte []
-        {
-            1
-        }))));
-    }
-
-
     private static ControllerSnapshot snapshot ()
     {
-        return new ControllerSnapshot (0, 0, ShellCapabilities.empty (), Set.of (), Set.of ());
+        return new ControllerSnapshot (0, 0, ShellCapabilities.empty (), ClipCatalogSnapshot.empty (), Map.of (), Set.of (), Set.of ());
     }
 
 
     private static String embeddedBuildId () throws IOException
     {
         final Properties properties = new Properties ();
-        try (InputStream input = CanaryCoreProviderTest.class.getResourceAsStream ("/META-INF/pull-core.properties"))
+        try (InputStream input = PullCoreProviderTest.class.getResourceAsStream ("/META-INF/pull-core.properties"))
         {
             properties.load (input);
         }

@@ -3,19 +3,17 @@
 
 package de.mossgrabers.pull.shell.runtime;
 
-import com.bitwig.extension.controller.api.ControllerHost;
+import de.mossgrabers.pull.core.api.event.CoreEvent;
 
 import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Behavior-neutral live-reload owner driven from Bitwig's controller thread.
+ * Live-reload owner driven from Bitwig's controller thread.
  */
 final class CoreReloadSupervisor implements AutoCloseable
 {
-    private static final String LOG_PREFIX = "[Pull reload] ";
-
-    private final ControllerHost host;
+    private final RuntimeLog log;
     private final CoreJarLoader jarLoader;
     private final RuntimeManager runtimeManager;
     private final CoreCandidateWatcher watcher;
@@ -24,11 +22,11 @@ final class CoreReloadSupervisor implements AutoCloseable
     private boolean closed;
 
 
-    CoreReloadSupervisor (final ControllerHost host)
+    CoreReloadSupervisor (final CoreRuntimeEnvironment environment, final RuntimeLog log)
     {
-        this.host = Objects.requireNonNull (host, "host");
+        this.log = Objects.requireNonNull (log, "log");
         this.jarLoader = new CoreJarLoader ();
-        this.runtimeManager = new RuntimeManager (new NoOpCoreRuntimeEnvironment (), new HostRuntimeLog (host));
+        this.runtimeManager = new RuntimeManager (Objects.requireNonNull (environment, "environment"), log);
         this.watcher = new CoreCandidateWatcher (RuntimePaths.fromSystem ());
     }
 
@@ -52,6 +50,21 @@ final class CoreReloadSupervisor implements AutoCloseable
         this.reportWatcherNotice ();
         this.watcher.takeRejection ().ifPresent (this::acknowledgeRejection);
         this.watcher.takeCandidate ().ifPresent (this::activate);
+    }
+
+
+    /**
+     * Deliver a controller-thread event to the currently active generation.
+     *
+     * @param event The event
+     * @return True when the event reached the active core and was committed
+     */
+    boolean handle (final CoreEvent event)
+    {
+        Objects.requireNonNull (event, "event");
+        if (!this.started || this.closed)
+            return false;
+        return this.runtimeManager.handle (this.runtimeManager.activeGeneration (), event);
     }
 
 
@@ -108,7 +121,7 @@ final class CoreReloadSupervisor implements AutoCloseable
         catch (final IOException | CoreLoadException failure)
         {
             final String message = sanitize (failure);
-            this.host.errorln (LOG_PREFIX + "Core " + candidate.buildId () + " was rejected: " + message);
+            this.warn ("Core " + candidate.buildId () + " was rejected: " + message);
             this.watcher.publishStatus (candidate.requestGeneration (), new RuntimeStatus (RuntimeStatus.State.FAILED, candidate.buildId (), this.runtimeManager.activeBuildId (), message));
         }
         finally
@@ -129,10 +142,36 @@ final class CoreReloadSupervisor implements AutoCloseable
     {
         this.watcher.takeNotice ().ifPresent (notice -> {
             if (notice.warning ())
-                this.host.errorln (LOG_PREFIX + notice.message ());
+                this.warn (notice.message ());
             else
-                this.host.println (LOG_PREFIX + notice.message ());
+                this.info (notice.message ());
         });
+    }
+
+
+    private void info (final String message)
+    {
+        try
+        {
+            this.log.info (message);
+        }
+        catch (final RuntimeException ignored)
+        {
+            // Logging must never alter the watcher lifecycle.
+        }
+    }
+
+
+    private void warn (final String message)
+    {
+        try
+        {
+            this.log.warn (message);
+        }
+        catch (final RuntimeException ignored)
+        {
+            // Logging must never alter candidate ownership or status publication.
+        }
     }
 
 
@@ -140,33 +179,5 @@ final class CoreReloadSupervisor implements AutoCloseable
     {
         final String detail = failure.getMessage ();
         return failure.getClass ().getSimpleName () + (detail == null || detail.isBlank () ? "" : ": " + detail);
-    }
-
-
-    private static final class HostRuntimeLog implements RuntimeLog
-    {
-        private final ControllerHost host;
-
-
-        private HostRuntimeLog (final ControllerHost host)
-        {
-            this.host = host;
-        }
-
-
-        /** {@inheritDoc} */
-        @Override
-        public void info (final String message)
-        {
-            this.host.println (LOG_PREFIX + message);
-        }
-
-
-        /** {@inheritDoc} */
-        @Override
-        public void warn (final String message)
-        {
-            this.host.errorln (LOG_PREFIX + message);
-        }
     }
 }

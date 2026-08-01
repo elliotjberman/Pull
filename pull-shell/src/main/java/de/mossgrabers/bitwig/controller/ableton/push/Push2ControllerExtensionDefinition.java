@@ -12,6 +12,7 @@ import de.mossgrabers.controller.ableton.push.Push2ControllerDefinition;
 import de.mossgrabers.controller.ableton.push.PushControllerSetup;
 import de.mossgrabers.framework.controller.IControllerSetup;
 import de.mossgrabers.pull.shell.runtime.ReloadableControllerSetup;
+import de.mossgrabers.pull.shell.runtime.ReloadableControllerRuntime;
 
 import com.bitwig.extension.controller.api.ControllerHost;
 
@@ -36,8 +37,9 @@ public class Push2ControllerExtensionDefinition extends AbstractControllerExtens
     @Override
     protected IControllerSetup getControllerSetup (final ControllerHost host)
     {
-        final IControllerSetup setup = new PushControllerSetup (new HostImpl (host), new BitwigSetupFactory (host), new SettingsUIImpl (host, host.getPreferences ()), new SettingsUIImpl (host, host.getDocumentState ()));
-        return new ReloadableControllerSetup (setup, host);
+        final ReloadableControllerRuntime runtime = new ReloadableControllerRuntime (host);
+        final IControllerSetup setup = new PushControllerSetup (new HostImpl (host), new BitwigSetupFactory (host), new SettingsUIImpl (host, host.getPreferences ()), new SettingsUIImpl (host, host.getDocumentState ()), runtime);
+        return new ReloadableControllerSetup (setup, runtime);
     }
 
 

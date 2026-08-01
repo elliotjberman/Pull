@@ -11,7 +11,10 @@ import de.mossgrabers.framework.daw.IHost;
 import de.mossgrabers.framework.daw.midi.DeviceInquiry;
 import de.mossgrabers.framework.daw.midi.IMidiInput;
 import de.mossgrabers.framework.daw.midi.IMidiOutput;
+import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.framework.utils.StringUtils;
+import de.mossgrabers.framework.view.Views;
+import de.mossgrabers.pull.shell.runtime.ReloadableControllerRuntime;
 
 
 /**
@@ -328,6 +331,7 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
 
     private final ColorPalette       colorPalette;
     private final PushPadGrid        pushPadGrid;
+    private final ReloadableControllerRuntime reloadableRuntime;
 
     private int                      ribbonMode                           = -1;
     private int                      ribbonValue                          = -1;
@@ -352,16 +356,29 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
      * @param configuration The configuration
      * @param output The MIDI output
      * @param input The MIDI input
+     * @param reloadableRuntime The stable reloadable-core runtime
      */
-    public PushControlSurface (final IHost host, final ColorManager colorManager, final PushConfiguration configuration, final IMidiOutput output, final IMidiInput input)
+    public PushControlSurface (final IHost host, final ColorManager colorManager, final PushConfiguration configuration, final IMidiOutput output, final IMidiInput input, final ReloadableControllerRuntime reloadableRuntime)
     {
         super (host, configuration, colorManager, output, input, new PushPadGrid (colorManager, output), 200.0, 156.0);
 
+        this.reloadableRuntime = reloadableRuntime;
         this.notifyViewChange = false;
         this.pushPadGrid = (PushPadGrid) this.padGrid;
         this.colorPalette = new ColorPalette (this);
 
         this.input.setSysexCallback (this::handleSysEx);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    protected void handleGridNote (final ButtonEvent event, final int note, final int velocity)
+    {
+        if (this.reloadableRuntime.routeGridEvent (this.viewManager.isActive (Views.DRUM_PAD), event, note))
+            return;
+
+        super.handleGridNote (event, note, velocity);
     }
 
 
@@ -403,6 +420,10 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
     @Override
     protected void handleMidi (final int status, final int data1, final int data2)
     {
+        // Observe the physical release below the command layer: consumed pad commands suppress
+        // their normal UP callback, but an acquired fill lease must still be released.
+        this.reloadableRuntime.routePhysicalMidiRelease (this.viewManager.isActive (Views.DRUM_PAD), status, data1, data2);
+
         // Ignore active sensing, which seems to be sent from some Push devices
         if (status == 254)
             return;

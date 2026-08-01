@@ -3,6 +3,8 @@
 
 package de.mossgrabers.pull.core.testing;
 
+import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
+import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerCore;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
@@ -10,11 +12,13 @@ import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.StateEnvelope;
 import de.mossgrabers.pull.core.api.TimerId;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
+import de.mossgrabers.pull.core.api.event.SnapshotChangedEvent;
 import de.mossgrabers.pull.core.api.event.TimerElapsedEvent;
 import de.mossgrabers.pull.core.api.event.TouchInputEvent;
 
 import java.time.Duration;
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -32,6 +36,8 @@ final class FakeCoreHost
     private final Set<ControlId> pressedControls = new LinkedHashSet<> ();
     private final Set<ControlId> touchedControls = new LinkedHashSet<> ();
     private final ShellCapabilities capabilities;
+    private ClipCatalogSnapshot clipCatalog;
+    private Map<ControlId, ClipTargetId> armedClipTargets;
     private long revision;
     private long eventSequence;
 
@@ -44,8 +50,26 @@ final class FakeCoreHost
      */
     FakeCoreHost (final ControllerCore core, final ShellCapabilities capabilities)
     {
+        this (core, capabilities, ClipCatalogSnapshot.empty (), Map.of (), Set.of ());
+    }
+
+
+    /**
+     * Constructor with authoritative state used to exercise startup hydration.
+     *
+     * @param core The core under test
+     * @param capabilities Fake shell capabilities
+     * @param clipCatalog Initial selected-track clip catalog
+     * @param armedClipTargets Initially armed clip targets
+     * @param pressedControls Initially held controls
+     */
+    FakeCoreHost (final ControllerCore core, final ShellCapabilities capabilities, final ClipCatalogSnapshot clipCatalog, final Map<ControlId, ClipTargetId> armedClipTargets, final Set<ControlId> pressedControls)
+    {
         this.core = Objects.requireNonNull (core, "core");
         this.capabilities = Objects.requireNonNull (capabilities, "capabilities");
+        this.clipCatalog = Objects.requireNonNull (clipCatalog, "clipCatalog");
+        this.armedClipTargets = Map.copyOf (Objects.requireNonNull (armedClipTargets, "armedClipTargets"));
+        this.pressedControls.addAll (Objects.requireNonNull (pressedControls, "pressedControls"));
     }
 
 
@@ -95,6 +119,38 @@ final class FakeCoreHost
         this.revision++;
         this.eventSequence++;
         this.effectExecutor.apply (this.core.handle (new TouchInputEvent (this.eventSequence, this.time.nowNanos (), controlId, touched), this.snapshot ()));
+    }
+
+
+    /**
+     * Replace the selected-track clip catalog and notify the core.
+     *
+     * @param clipCatalog The new catalog
+     */
+    void clipCatalog (final ClipCatalogSnapshot clipCatalog)
+    {
+        this.clipCatalog = Objects.requireNonNull (clipCatalog, "clipCatalog");
+        this.snapshotChanged ();
+    }
+
+
+    /**
+     * Replace the shell's verified armed bindings and notify the core.
+     *
+     * @param armedClipTargets The armed bindings
+     */
+    void armedClipTargets (final Map<ControlId, ClipTargetId> armedClipTargets)
+    {
+        this.armedClipTargets = Map.copyOf (Objects.requireNonNull (armedClipTargets, "armedClipTargets"));
+        this.snapshotChanged ();
+    }
+
+
+    private void snapshotChanged ()
+    {
+        this.revision++;
+        this.eventSequence++;
+        this.effectExecutor.apply (this.core.handle (new SnapshotChangedEvent (this.eventSequence, this.time.nowNanos ()), this.snapshot ()));
     }
 
 
@@ -169,6 +225,6 @@ final class FakeCoreHost
 
     private ControllerSnapshot snapshot ()
     {
-        return new ControllerSnapshot (this.revision, this.time.nowNanos (), this.capabilities, this.pressedControls, this.touchedControls);
+        return new ControllerSnapshot (this.revision, this.time.nowNanos (), this.capabilities, this.clipCatalog, this.armedClipTargets, this.pressedControls, this.touchedControls);
     }
 }

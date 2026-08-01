@@ -68,7 +68,7 @@ final class RuntimeManager implements AutoCloseable
 
         ControllerCore candidateCore = null;
         CoreDescriptor descriptor;
-        CoreResult startupResult;
+        PreparedCoreResult preparedStartupResult;
         try
         {
             if (!isLatest.getAsBoolean ())
@@ -85,8 +85,9 @@ final class RuntimeManager implements AutoCloseable
                 throw new IllegalStateException ("CoreProvider.create returned null");
 
             final ControllerCore startedCore = candidateCore;
-            startupResult = source.invokeWithContext ( () -> startedCore.start (snapshot, previousState));
-            this.environment.validate (Objects.requireNonNull (startupResult, "ControllerCore.start result"));
+            final CoreResult startupResult = source.invokeWithContext ( () -> startedCore.start (snapshot, previousState));
+            preparedStartupResult = this.environment.prepare (Objects.requireNonNull (startupResult, "ControllerCore.start result"));
+            Objects.requireNonNull (preparedStartupResult, "CoreRuntimeEnvironment.prepare result");
 
             if (!isLatest.getAsBoolean ())
             {
@@ -108,7 +109,7 @@ final class RuntimeManager implements AutoCloseable
         final ActiveCore previous = this.active;
         try
         {
-            this.environment.commit (nextGeneration, startupResult);
+            this.environment.commit (nextGeneration, preparedStartupResult);
         }
         catch (final Throwable failure)
         {
@@ -121,6 +122,7 @@ final class RuntimeManager implements AutoCloseable
 
         this.active = new ActiveCore (descriptor, source, candidateCore, nextGeneration);
         this.generation = nextGeneration;
+        this.applyCommittedResult (nextGeneration);
         this.stopActive (previous);
         this.info ("Activated reloadable core " + descriptor.buildId ());
         return new ActivationResult (ActivationResult.State.ACTIVE, expectedBuildId, descriptor.buildId (), "Activated");
@@ -138,16 +140,17 @@ final class RuntimeManager implements AutoCloseable
     {
         this.requireRunningOnControllerThread ();
         Objects.requireNonNull (event, "event");
-        if (this.active == null || this.active.generation != eventGeneration)
+        final ActiveCore runtime = this.active;
+        if (runtime == null || runtime.generation != eventGeneration)
             return false;
 
         try
         {
             final ControllerSnapshot snapshot = this.environment.snapshot ();
-            final CoreResult result = this.active.source.invokeWithContext ( () -> this.active.core.handle (event, snapshot));
-            this.environment.validate (Objects.requireNonNull (result, "ControllerCore.handle result"));
-            this.environment.commit (this.active.generation, result);
-            return true;
+            final CoreResult result = runtime.source.invokeWithContext ( () -> runtime.core.handle (event, snapshot));
+            final PreparedCoreResult preparedResult = this.environment.prepare (Objects.requireNonNull (result, "ControllerCore.handle result"));
+            Objects.requireNonNull (preparedResult, "CoreRuntimeEnvironment.prepare result");
+            this.environment.commit (runtime.generation, preparedResult);
         }
         catch (final Throwable failure)
         {
@@ -155,6 +158,9 @@ final class RuntimeManager implements AutoCloseable
             this.warn ("Active core event failed: " + sanitize (failure));
             return false;
         }
+
+        this.applyCommittedResult (runtime.generation);
+        return true;
     }
 
 
@@ -292,6 +298,20 @@ final class RuntimeManager implements AutoCloseable
             final long elapsed = System.nanoTime () - startedAt;
             if (elapsed > SLOW_STOP_NANOS)
                 this.warn ("Previous core stop took " + elapsed / 1_000_000 + " ms");
+        }
+    }
+
+
+    private void applyCommittedResult (final long committedGeneration)
+    {
+        try
+        {
+            this.environment.apply (committedGeneration);
+        }
+        catch (final Throwable failure)
+        {
+            rethrowFatal (failure);
+            this.warn ("Committed core effects failed: " + sanitize (failure));
         }
     }
 

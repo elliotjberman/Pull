@@ -5,6 +5,7 @@ package de.mossgrabers.pull.shell.runtime;
 
 import com.bitwig.fixture.ForbiddenBitwigDependency;
 
+import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.CoreDescriptor;
@@ -36,6 +37,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
@@ -232,21 +234,31 @@ class CoreJarLoaderTest
             public ControllerSnapshot snapshot ()
             {
                 final long currentRevision = this.revision++;
-                return new ControllerSnapshot (currentRevision, currentRevision, ShellCapabilities.empty (), Set.of (), Set.of ());
+                return new ControllerSnapshot (currentRevision, currentRevision, ShellCapabilities.empty (), ClipCatalogSnapshot.empty (), Map.of (), Set.of (), Set.of ());
             }
 
 
             @Override
-            public void validate (final CoreResult result)
+            public PreparedCoreResult prepare (final CoreResult result)
             {
-                // API constructors have already validated the fixture result.
+                return new PreparedCoreResult ()
+                {
+                    // The fixture result needs no shell-side resolution.
+                };
             }
 
 
             @Override
-            public void commit (final long generation, final CoreResult result)
+            public void commit (final long generation, final PreparedCoreResult result)
             {
                 committedGenerations.add (Long.valueOf (generation));
+            }
+
+
+            @Override
+            public void apply (final long generation)
+            {
+                // No external effects in this fixture.
             }
 
 

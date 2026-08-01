@@ -139,6 +139,7 @@ import de.mossgrabers.framework.view.TransposeView;
 import de.mossgrabers.framework.view.Views;
 import de.mossgrabers.framework.view.sequencer.AbstractSequencerView;
 import de.mossgrabers.framework.view.sequencer.ClipLengthView;
+import de.mossgrabers.pull.shell.runtime.ReloadableControllerRuntime;
 
 
 /**
@@ -162,6 +163,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
 
     private TouchstripCommand touchstripCommand;
     private DrumPadControls   drumPadControls;
+    private final ReloadableControllerRuntime reloadableRuntime;
     private boolean           initialHardwareStateReplayed;
 
 
@@ -172,11 +174,13 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
      * @param factory The factory
      * @param globalSettings The global settings
      * @param documentSettings The document (project) specific settings
+     * @param reloadableRuntime The stable reloadable-core runtime
      */
-    public PushControllerSetup (final IHost host, final ISetupFactory factory, final ISettingsUI globalSettings, final ISettingsUI documentSettings)
+    public PushControllerSetup (final IHost host, final ISetupFactory factory, final ISettingsUI globalSettings, final ISettingsUI documentSettings, final ReloadableControllerRuntime reloadableRuntime)
     {
         super (factory, host, globalSettings, documentSettings);
 
+        this.reloadableRuntime = reloadableRuntime;
         this.colorManager = new PushColorManager ();
         this.valueChanger = new TwosComplementValueChanger (1024, 10);
         this.configuration = new PushConfiguration (host, this.valueChanger, factory.getArpeggiatorModes ());
@@ -208,6 +212,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         ms.setWantsFocusedParameter (true);
 
         this.model = this.factory.createModel (this.configuration, this.colorManager, this.valueChanger, this.scales, ms);
+        this.reloadableRuntime.connect (this.model);
 
         final ITrackBank trackBank = this.model.getTrackBank ();
         trackBank.setIndication (true);
@@ -234,7 +239,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         final IMidiOutput output = midiAccess.createOutput ();
 
         final IMidiInput input = midiAccess.createInput ("Pads", PAD_MIDI_FILTERS);
-        final PushControlSurface surface = new PushControlSurface (this.host, this.colorManager, this.configuration, output, input);
+        final PushControlSurface surface = new PushControlSurface (this.host, this.colorManager, this.configuration, output, input, this.reloadableRuntime);
         this.surface = surface;
 
         surface.addGraphicsDisplay (new Push2Display (this.host, this.valueChanger.getUpperBound (), this.configuration));
@@ -386,7 +391,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
     {
         final PushControlSurface surface = this.getSurface ();
         final ViewManager viewManager = surface.getViewManager ();
-        this.drumPadControls = new DrumPadControls (surface, this.model);
+        this.drumPadControls = new DrumPadControls (surface, this.model, this.reloadableRuntime);
         viewManager.register (Views.PLAY, new PlayView (surface, this.model));
         viewManager.register (Views.CHORDS, new ChordsView (surface, this.model));
         viewManager.register (Views.PIANO, new PianoView (surface, this.model));

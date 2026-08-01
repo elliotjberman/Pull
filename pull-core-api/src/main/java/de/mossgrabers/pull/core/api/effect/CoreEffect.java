@@ -6,7 +6,7 @@ package de.mossgrabers.pull.core.api.effect;
 /**
  * A validated, one-shot action requested from the stable shell.
  */
-public sealed interface CoreEffect permits CancelTimerEffect, ScheduleTimerEffect
+public sealed interface CoreEffect permits CancelTimerEffect, PressClipTargetEffect, ReleaseClipTargetsEffect, ScheduleTimerEffect
 {
     // Marker interface for API-owned effects
 }
