@@ -45,7 +45,19 @@ final class SelectedTrackRemoteParameterHost implements SelectedTrackParameterHo
      */
     SelectedTrackRemoteParameterHost (final ControllerHost host)
     {
-        this (new LiveAdapter (Objects.requireNonNull (host, "host")));
+        this (createSelectedTrack (Objects.requireNonNull (host, "host")));
+    }
+
+
+    /**
+     * Create the tagged-remote proxies on a selected-track cursor shared with other permanent
+     * parameter hosts.
+     *
+     * @param selectedTrack Shared selected-track cursor
+     */
+    SelectedTrackRemoteParameterHost (final CursorTrack selectedTrack)
+    {
+        this (new LiveAdapter (Objects.requireNonNull (selectedTrack, "selectedTrack")));
     }
 
 
@@ -204,6 +216,12 @@ final class SelectedTrackRemoteParameterHost implements SelectedTrackParameterHo
     }
 
 
+    private static CursorTrack createSelectedTrack (final ControllerHost host)
+    {
+        return host.createCursorTrack ("PULL_SELECTED_TRACK_PARAMETERS", "Pull Selected Track Parameters", 0, 0, true);
+    }
+
+
     /** Model-free adapter for subscribed host state and exact slot writes. */
     interface Adapter
     {
@@ -291,9 +309,9 @@ final class SelectedTrackRemoteParameterHost implements SelectedTrackParameterHo
         private final List<RemoteControl> slots;
 
 
-        private LiveAdapter (final ControllerHost host)
+        private LiveAdapter (final CursorTrack selectedTrack)
         {
-            this.selectedTrack = host.createCursorTrack ("PULL_SELECTED_TRACK_PARAMETERS", "Pull Selected Track Parameters", 0, 0, true);
+            this.selectedTrack = selectedTrack;
             this.remoteControls = this.selectedTrack.createCursorRemoteControlsPage (PAGE_NAME, SLOT_COUNT, FILTER_EXPRESSION);
 
             this.selectedTrack.exists ().markInterested ();

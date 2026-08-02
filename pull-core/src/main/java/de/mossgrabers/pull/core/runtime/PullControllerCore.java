@@ -43,6 +43,10 @@ final class PullControllerCore implements ControllerCore
     private static final String FILL_MARKER = "fill";
     private static final String DRUM_REMOTE_PAGE = "Pull";
     private static final String DRUM_PITCH_PARAMETER = "Drum Pitch";
+    // The shell publishes Bend's complete physical -48..+48 semitone range. Keeping the musical
+    // +/-12 ribbon window here makes range changes hot-reloadable policy rather than shell API.
+    private static final double DRUM_PITCH_MIN_PARAMETER_VALUE = 0.375;
+    private static final double DRUM_PITCH_MAX_PARAMETER_VALUE = 0.625;
     private static final RgbColor FILL_OFF = new RgbColor (0, 0, 0);
     private static final RgbColor FILL_AVAILABLE = new RgbColor (96, 30, 0);
     private static final RgbColor FILL_ACTIVE = new RgbColor (255, 80, 0);
@@ -194,7 +198,10 @@ final class PullControllerCore implements ControllerCore
         final Optional<CatalogParameter> parameter = drumPitchParameter (snapshot);
         if (parameter.isEmpty ())
             return List.of ();
-        return List.of (new SetParameterValueEffect (snapshot.selectedTrackParameters ().generation (), parameter.get ().targetId (), normalizedValue));
+        return List.of (new SetParameterValueEffect (
+            snapshot.selectedTrackParameters ().generation (),
+            parameter.get ().targetId (),
+            toDrumPitchParameterValue (normalizedValue)));
     }
 
 
@@ -235,20 +242,33 @@ final class PullControllerCore implements ControllerCore
         final Map<ControlId, Double> absoluteValues;
         if (drumPitch.isPresent ())
         {
-            absoluteValues = Map.of (CoreControls.DRUM_PITCH_RIBBON, Double.valueOf (drumPitch.get ().normalizedValue ()));
+            absoluteValues = Map.of (CoreControls.DRUM_PITCH_RIBBON, Double.valueOf (fromDrumPitchParameterValue (drumPitch.get ().normalizedValue ())));
         }
         else
         {
             absoluteValues = Map.of ();
         }
-        // Drum performance reserves the ribbon even while the session target is unavailable. A
-        // missing mapping must fail closed instead of silently reverting to live-input pitch bend,
-        // which cannot affect notes already playing from clips.
+        // Drum performance reserves the ribbon even while the managed helper is unavailable or
+        // still provisioning. Falling back to live-input pitch bend would affect Push notes but
+        // not the clip notes this control is intended to transpose.
         return new CoreResult (
             new DesiredHardwareOutput (lights, absoluteValues),
             desiredBindings,
             Set.of (CoreControls.DRUM_PITCH_RIBBON),
             effects);
+    }
+
+
+    private static double toDrumPitchParameterValue (final double ribbonValue)
+    {
+        return DRUM_PITCH_MIN_PARAMETER_VALUE + ribbonValue * (DRUM_PITCH_MAX_PARAMETER_VALUE - DRUM_PITCH_MIN_PARAMETER_VALUE);
+    }
+
+
+    private static double fromDrumPitchParameterValue (final double parameterValue)
+    {
+        final double ribbonValue = (parameterValue - DRUM_PITCH_MIN_PARAMETER_VALUE) / (DRUM_PITCH_MAX_PARAMETER_VALUE - DRUM_PITCH_MIN_PARAMETER_VALUE);
+        return Math.max (0, Math.min (1, ribbonValue));
     }
 
 

@@ -144,7 +144,15 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     boolean refresh ()
     {
         this.clipHost.refresh ();
-        this.parameterHost.refresh ();
+        try
+        {
+            this.parameterHost.refresh ();
+        }
+        catch (final Throwable failure)
+        {
+            rethrowFatal (failure);
+            this.warn ("Selected-track parameter refresh failed: " + sanitize (failure));
+        }
         this.hostSampleRevision = Math.incrementExact (this.hostSampleRevision);
         this.fillSession.advance (this.hostSampleRevision);
         final ClipCatalogSnapshot refreshedCatalog = Objects.requireNonNull (this.clipHost.clipCatalog (), "refreshed clip catalog");

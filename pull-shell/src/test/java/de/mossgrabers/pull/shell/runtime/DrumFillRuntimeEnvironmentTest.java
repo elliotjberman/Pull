@@ -36,6 +36,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -591,6 +592,40 @@ class DrumFillRuntimeEnvironmentTest
         assertEquals (1, host.target (FIRST).releaseCount);
         assertEquals (1, host.target (FIRST).releaseAttempts);
         assertEquals (0, host.target (FIRST).retireCount);
+    }
+
+
+    @Test
+    void containsNonFatalParameterRefreshFailures ()
+    {
+        final FakeClipHost clipHost = host (1, FIRST_TARGET);
+        final RecordingLog log = new RecordingLog ();
+        final SelectedTrackParameterHost throwingParameters = new SelectedTrackParameterHost ()
+        {
+            @Override
+            public boolean refresh ()
+            {
+                throw new IllegalStateException ("retry failed");
+            }
+
+
+            @Override
+            public State state ()
+            {
+                return State.empty ();
+            }
+
+
+            @Override
+            public void setImmediately (final long generation, final de.mossgrabers.pull.core.api.ParameterTargetId targetId, final double normalizedValue)
+            {
+                throw new AssertionError ("No parameter write expected");
+            }
+        };
+        final DrumFillRuntimeEnvironment environment = new DrumFillRuntimeEnvironment (clipHost, throwingParameters, log, () -> 0);
+
+        assertDoesNotThrow (environment::refresh);
+        assertTrue (log.warnings.stream ().anyMatch (message -> message.contains ("Selected-track parameter refresh failed")));
     }
 
 

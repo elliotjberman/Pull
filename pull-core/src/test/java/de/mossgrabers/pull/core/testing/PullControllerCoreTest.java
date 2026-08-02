@@ -391,9 +391,25 @@ class PullControllerCoreTest
 
         host.absolute (CoreControls.DRUM_PITCH_RIBBON, 0.75);
 
-        assertEquals (new SetParameterValueEffect (7, drumPitch, 0.75), host.effects ().executionOrder ().getLast ());
+        assertEquals (new SetParameterValueEffect (7, drumPitch, 0.5625), host.effects ().executionOrder ().getLast ());
         assertEquals (Set.of (CoreControls.DRUM_PITCH_RIBBON), host.effects ().claimedInputs ());
         assertEquals (Double.valueOf (0.5), host.effects ().desiredOutput ().absoluteValues ().get (CoreControls.DRUM_PITCH_RIBBON));
+    }
+
+
+    @Test
+    void drumPitchRangePolicyMapsRibbonToTheMiddleQuarterOfBend ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        final ParameterTargetId drumPitch = new ParameterTargetId (2);
+        host.selectedTrackParameters (new ParameterCatalogSnapshot (7, List.of (
+            new CatalogParameter (drumPitch, "Pull", "Drum Pitch", 0.375))));
+
+        host.absolute (CoreControls.DRUM_PITCH_RIBBON, 1.0);
+
+        assertEquals (new SetParameterValueEffect (7, drumPitch, 0.625), host.effects ().executionOrder ().getLast ());
+        assertEquals (Double.valueOf (0.0), host.effects ().desiredOutput ().absoluteValues ().get (CoreControls.DRUM_PITCH_RIBBON));
     }
 
 
@@ -415,7 +431,7 @@ class PullControllerCoreTest
 
 
     @Test
-    void missingDrumPitchRemoteFailsClosedWithoutRestoringRawPitchBend ()
+    void missingDrumPitchTargetFailsClosedWithoutRestoringRawPitchBend ()
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
         host.start (Optional.empty ());

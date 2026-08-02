@@ -4,6 +4,7 @@
 package de.mossgrabers.pull.shell.runtime;
 
 import com.bitwig.extension.controller.api.ControllerHost;
+import com.bitwig.extension.controller.api.CursorTrack;
 
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.midi.MidiConstants;
@@ -15,9 +16,11 @@ import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 
+import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -50,7 +53,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
     private final ControllerHost controllerHost;
 
     private SelectedTrackFillClipHost clipHost;
-    private SelectedTrackRemoteParameterHost parameterHost;
+    private SelectedTrackParameterHost parameterHost;
     private DrumFillRuntimeEnvironment environment;
     private CoreReloadSupervisor supervisor;
     private Predicate<CoreEvent> eventHandler = event -> false;
@@ -107,7 +110,14 @@ public final class ReloadableControllerRuntime implements AutoCloseable
 
         this.clipHost = new SelectedTrackFillClipHost (this.controllerHost);
         this.clipHost.connect (Objects.requireNonNull (model, "model"));
-        this.parameterHost = new SelectedTrackRemoteParameterHost (this.controllerHost);
+        final CursorTrack selectedTrack = this.controllerHost.createCursorTrack ("PULL_SELECTED_TRACK_PARAMETERS", "Pull Selected Track Parameters", 0, 0, true);
+        final SelectedTrackParameterHost remoteParameters = new SelectedTrackRemoteParameterHost (selectedTrack);
+        final SelectedTrackParameterHost drumPitch = new SelectedTrackDrumPitchHost (
+            this.controllerHost,
+            selectedTrack,
+            this.materializeDrumPitchPreset (),
+            this.log::warn);
+        this.parameterHost = new CompositeSelectedTrackParameterHost (remoteParameters, drumPitch);
         this.environment = new DrumFillRuntimeEnvironment (this.clipHost, this.parameterHost, this.log, System::nanoTime);
         this.supervisor = new CoreReloadSupervisor (this.environment, this.log);
         this.eventHandler = this.supervisor::handle;
@@ -351,5 +361,20 @@ public final class ReloadableControllerRuntime implements AutoCloseable
                 return FILL_CONTROLS.get (index);
         }
         return null;
+    }
+
+
+    private Optional<Path> materializeDrumPitchPreset ()
+    {
+        try
+        {
+            return Optional.of (BundledDrumPitchPreset.materialize (RuntimePaths.fromSystem ()));
+        }
+        catch (final RuntimeException failure)
+        {
+            final String detail = failure.getMessage ();
+            this.log.warn ("Managed Drum Pitch provisioning is unavailable: " + failure.getClass ().getSimpleName () + (detail == null || detail.isBlank () ? "" : ": " + detail));
+            return Optional.empty ();
+        }
     }
 }

@@ -48,7 +48,7 @@ interface SelectedTrackParameterHost
      * @param name Parameter name
      * @param exists Whether the slot currently maps to a parameter
      * @param normalizedValue Authoritative normalized value read from Bitwig
-     * @param coherent Whether two consecutive samples confirmed the complete target identity
+     * @param coherent Whether the host-specific barrier confirmed the complete target identity
      */
     record Slot (ParameterTargetId targetId, String pageName, String name, boolean exists, double normalizedValue, boolean coherent)
     {

@@ -61,16 +61,39 @@ Bitwig's default Project Settings → Clip Launcher → ALT Release setting, or 
 override to `Return`. A fill clip's loop enablement and length remain session content.
 
 The slice passes offline fake-host verification. The exact immediate-legato/ALT-Return path still
-requires a live Bitwig smoke test after installing the API 6 shell.
+requires a live Bitwig smoke test after installing the Core-API-6 shell on Bitwig controller API
+21.
 
-The same shell exposes a generic eight-slot selected-track remote bridge. It observes existing
-track Remote Controls pages tagged `pull`; it does not create or map those pages. For global drum
-pitch, create a track Remote Controls page uniquely named `Pull` and tagged `pull`, add a remote
-named `Drum Pitch`, and map it through a centered track Macro to the pitch controls of the nested
-samplers. The core reserves the Push ribbon in drum performance mode, writes a coherent target as
-a generation-fenced normalized parameter, and renders ribbon feedback from later Bitwig read-back.
-If the target is absent or ambiguous, the ribbon fails closed instead of silently reverting to
-live-input pitch bend, which cannot affect clip-triggered voices.
+The shell also exposes a generic eight-slot selected-track remote bridge for existing track Remote
+Controls pages tagged `pull`. The exact `Pull` / `Drum Pitch` identity is reserved for a managed
+native helper instead of a session Macro. On the first ribbon move for a selected track containing
+a top-level Drum Machine, the shell inserts its bundled, neutral `Pull Drum Pitch Helper v1`
+Bend Note FX immediately before the first such Drum Machine. Bend applies pitch expression without
+changing the note key that selects a drum pad. The reloadable core maps the ribbon's centered
+±12-semitone policy into the native device's full ±48-semitone parameter range. This puts both clip
+and live notes through the same Note FX path without mapping the individual devices inside each
+drum rack.
+
+The managed helper is persistent Bitwig project content, so its first insertion marks the project
+dirty. Ownership is the exact preset name and creator embedded in that helper, not adjacency or
+device type: the shell never adopts or rewrites an arbitrary user Bend device, and inserting
+another Note FX between the helper and Drum Machine does not lose it. The scan is bounded to 16
+top-level Bend devices; duplicates, overflow, unsupported nested Drum Machines, and an owned
+helper moved after the target Drum Machine fail closed. Hardware feedback remains authoritative:
+the ribbon stays at the last subscribed `SEMITONES` value until Bitwig reports a submitted
+insertion or write. Raw live-input pitch bend is never used as a fallback because it does not affect
+clip-triggered Drum Machine voices. Each new note holds the selected offset for two seconds and
+then returns over two seconds; this deliberately optimizes for drum hits rather than indefinitely
+held notes. The controller does not promise to preserve authored bend independently of this global
+offset.
+
+For the live checkpoint, install this shell build and restart Bitwig once. Select a track whose
+first top-level Drum Machine plays an obviously pitched repeating clip, enter Push's drum view, and
+move the ribbon. The first move should add exactly one `Pull Drum Pitch Helper v1` Bend
+device before the Drum Machine; after subscribed read-back catches up, new clip and Push hits should
+follow the ribbon from -12 to +12 semitones, with center producing no shift. Moving another Note
+FX between the helper and Drum Machine must not add a second helper. The track Inspector's incoming
+pitch-bend conversion is not part of this path and should not need a special session setting.
 
 ## Reloading a core during development
 
@@ -90,10 +113,9 @@ succeeded. Each candidate carries an exact fingerprint of the local parent-loade
 sources. If that differs from the running extension, Bitwig reports `restartRequired` instead of
 attempting an unsafe core reload—even when the shell change was already committed.
 
-Installing the API 6 milestone requires one extension copy and Bitwig restart because it widens
-the stable API/shell bridge with `effect.clip-launch-hold` version 4, the selected-track parameter
-catalog/effect seam, generic input ownership, and normalized absolute hardware output. After that,
-edits confined to `pull-core`—including fill matching, colors, ordering, truncation, active-fill
-policy, launch policy, and which `Pull` remote owns the ribbon—use `tools/reload-core` without
+Installing this shell checkpoint requires one extension copy and Bitwig restart because it widens
+the stable API/shell bridge with native device matchers, bounded Bend proxies, preset-file
+insertion, and specific-device parameter subscriptions. After that, selecting new drum tracks,
+provisioning or recreating their helpers, and edits confined to `pull-core` use `tools/reload-core` without
 restarting Bitwig. The broader bounded capability-canopy roadmap is documented in
 [`docs/reloadable-controller-core-design.md`](docs/reloadable-controller-core-design.md).

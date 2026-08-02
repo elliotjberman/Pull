@@ -2,7 +2,8 @@
 
 Status: Milestones 1 through 4 and the Core API 6 selected-track parameter bridge are implemented
 and pass offline verification. The drum-fill shell now uses a single-active replacement barrier;
-the API 6 shell and Drum Pitch session contract still require their live Bitwig/Push checkpoint.
+the Core-API-6 shell on Bitwig controller API 21 and Drum Pitch session contract still require
+their live Bitwig/Push checkpoint.
 
 Primary goal: make ordinary controller development possible without restarting Bitwig.
 
@@ -265,17 +266,26 @@ is not a safe substitute after exit.
 ### Generic selected-track parameter bridge
 
 Core API 6 adds a reusable, host-independent parameter seam. During extension initialization the
-shell eagerly creates one selected-track cursor and one `CursorRemoteControlsPage` with eight
-bounded slots. The first constructor string names the API cursor; it does not create or rename
-project content. The Bitwig project must already contain a page uniquely named exactly `Pull` and
-tagged `pull`; the shell filters existing pages by that tag, follows the selected track, and selects
-that unique page. Missing, duplicate, pinned, partially populated, or structurally changing pages
-are unavailable until two consecutive complete samples agree.
+shell eagerly creates one selected-track cursor shared by two bounded parameter hosts. The generic
+host owns one `CursorRemoteControlsPage` with eight slots. The first constructor string names the
+API cursor; it does not create or rename project content. A Bitwig project may contain a page
+uniquely named exactly `Pull` and tagged `pull`; the shell filters existing pages by that tag,
+follows the selected track, and selects that unique page. Missing, duplicate, pinned, partially
+populated, or structurally changing pages are unavailable until two consecutive complete samples
+agree. The exact `Pull` / `Drum Pitch` remote identity is reserved and suppressed from this generic
+host because the managed helper below owns it.
+
+The second host owns a one-slot logical Drum Pitch target backed by native device proxies. A
+composite preserves generic target IDs `0..7`, assigns the managed target ID `8`, requires both
+children to report the same selected-track identity, and owns the combined catalog generation.
+This keeps the core's parameter DTO/effect contract generic while preventing an old session Macro
+from becoming an ambiguous or accidental pitch target.
 
 The snapshot publishes an ordered `ParameterCatalogSnapshot` containing opaque slot
 `ParameterTargetId`s, page and parameter names, and normalized values read from Bitwig. Any change
-to selected-track identity, page identity, or the eight slot identities advances the catalog
-generation. `AbsoluteInputEvent` carries normalized hardware values without Bitwig types.
+to selected-track identity, remote page identity, remote slot identity, or managed-helper structure
+advances the catalog generation. `AbsoluteInputEvent` carries normalized hardware values without
+Bitwig types.
 `SetParameterValueEffect` names one exact target and generation; before calling
 `setImmediately()`, the shell re-samples and verifies the track, page, slot name, existence, and
 generation. A successful write is still only a command. Snapshot values, ribbon LEDs, displays,
@@ -286,22 +296,45 @@ name or behavior caused the claim.
 
 ### Drum Pitch session contract
 
-The first consumer is the drum-view Push ribbon. The selected track must expose the uniquely named
-and tagged `Pull` remote page above, with one of its eight slots named exactly `Drum Pitch`. In the
-Bitwig session, map that remote to a centered track Macro, then map the Macro to the pitch control of
-the nested sampler(s) that should transpose; the Macro's center is the no-transposition position.
-Ribbon pitch-bend input becomes an `AbsoluteInputEvent`, and the core reserves the ribbon throughout
-drum performance mode. When this target is coherent, the core returns a generation-fenced
-`SetParameterValueEffect` and publishes the ribbon display value from the later authoritative
-remote read-back. The shell gates routing on that generic claim; it contains no `Drum Pitch`
-string. If the page or remote is absent or ambiguous, the core emits no parameter write and keeps
-the ribbon centered rather than restoring raw MIDI pitch bend.
+The first consumer is the drum-view Push ribbon. The managed host scans the selected track for the
+first top-level Drum Machine and up to 16 top-level Bend Note FX devices. The shell bundles a
+neutral preset named exactly `Pull Drum Pitch Helper v1`, created by `DrivenByMoss Pull`, publishes
+it with an integrity check to a stable file, and inserts that file immediately before the Drum
+Machine through `beforeDeviceInsertionPoint().insertFile()`. The preset is neutral at insertion, so asynchronous
+read-back cannot leave Bitwig playing through Bend's non-neutral factory `-2 st` state.
 
-Installing the API 6 shell, fill playback subscriptions, and eight-slot selected-track parameter
-page requires one extension copy and Bitwig restart. After that, marker strings, filtering,
-ordering, truncation, colors, active-fill policy, Drum Pitch mapping policy, and behaviors composed
-from the existing catalog/events/effects are core-only reloads. A Bitwig property or operation
-outside the installed bridge still requires an API/shell change and another Bitwig restart.
+Ownership requires the Bend UUID plus the exact subscribed preset name and creator. The
+shell never adopts or mutates an arbitrary user device. Exactly one branded helper anywhere before
+the first Drum Machine is valid, so adding another Note FX between them does not create a duplicate.
+A branded helper after the Drum Machine, duplicate branded helpers, a full 16-device scan without a
+helper, overflow, missing parameters, unsettled selected-track topology, selected-track
+disagreement, and unsupported nested Drum Machines all fail closed. A short generation-checked
+settling window after each cursor retarget prevents cached empty device-bank values from authorizing
+an insertion. In-flight insertions are tracked by track identity across A→B→A selection changes,
+and only observing the branded helper on that same track acknowledges the command. After two
+unacknowledged attempts, the target withdraws and the shell logs one actionable warning instead of
+continuing to claim a control it can no longer service.
+
+The host also subscribes to the helper's enabled state and complete semantic configuration. A
+branded helper is not ready until `DELAY_ON`, delay/duration modes and times, curve, and offset match
+the canonical preset. Drift repair disables an enabled helper first, restores all semantic settings,
+and re-enables it only after subscribed read-back confirms the configuration. Insertion,
+configuration repair, and pitch writes are commands, not acknowledgements; recoverable failures are
+reported without optimistic state changes.
+
+Bend's `CONTENTS/SEMITONES` parameter exposes its physical normalized ±48-semitone range through the
+generic shell contract. The reloadable core maps the ribbon's `0..1` range to `0.375..0.625`, making
+the musical ±12-semitone window reloadable policy. Bend preserves the drum-pad note key and starts
+each new note at the requested offset. The managed configuration holds that offset for two seconds,
+then returns to the note's defined pitch over two seconds. This finite behavior is intentional for
+the stated drum-hit use case; already-sounding long voices and independent preservation of authored
+clip bend are not promised.
+
+Installing the helper proxy canopy requires one extension copy and Bitwig restart. After that,
+selected-track changes, helper insertion/recreation, marker strings, filtering, ordering,
+truncation, colors, active-fill policy, Drum Pitch core policy, and behaviors composed from the
+existing catalog/events/effects do not require another restart. A Bitwig property, device type,
+parameter ID, or operation outside the installed bridge still requires a shell change and restart.
 
 ## Stable shell responsibilities
 
@@ -605,8 +638,11 @@ busy/Return/non-busy/retire/later-sample barrier, delayed host acknowledgements,
 retries, stale pre-launch false protection, catalog fences, raw-MIDI safety release, authoritative
 snapshot-driven feedback, reload hydration, failure cleanup, effect validation, and complete
 output-buffer tests. Parameter tests separately cover exact `Pull` page discovery, eight-slot
-coherence, generation and identity fences, command-versus-read-back separation, Drum Pitch routing,
-and fail-closed ownership when the remote is absent.
+coherence, generation and identity fences, command-versus-read-back separation, branded preset
+publication, arbitrary-device non-adoption, one in-flight insertion under rapid input and topology
+churn, deletion/reprovisioning, normalized Bend mapping, semantic-config repair,
+capacity/ambiguity failure, and authoritative Drum
+Pitch read-back.
 
 The same DTO/effect seam is the basis for later record/replay and a virtual Push. An offline harness
 can feed snapshots and input events into the core, assert requested Bitwig effects, and render the
@@ -629,7 +665,8 @@ effects, rejections, and desired output. A real Bitwig failure can then become a
 | Behavior within the installed capability canopy | Core reload |
 | Clip launch quantization, mode, or Main-vs-ALT release lane | Core reload |
 | Add state/action or exceed capacity outside the installed canopy | API/shell build/install and Bitwig restart |
-| Add or repair the `Pull`/`Drum Pitch` remote and Macro mapping | Bitwig project/session edit; no extension restart |
+| Insert or recreate the selected track's managed Drum Pitch helper | First ribbon move provisions it; no extension restart |
+| Change managed device UUIDs, preset identity, parameter IDs, or the 16-device scan capacity | Shell build/install and Bitwig restart |
 | New Bitwig state the shell never subscribed to | Shell build/install and Bitwig restart |
 | New operation the shell cannot execute | API/shell build/install and Bitwig restart |
 | Bitwig settings schema | Shell build/install and Bitwig restart |
