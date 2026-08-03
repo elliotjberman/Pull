@@ -29,6 +29,7 @@ import de.mossgrabers.controller.ableton.push.command.trigger.PushCursorCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.PushMetronomeCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.PushPlayCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.PushQuantizeCommand;
+import de.mossgrabers.controller.ableton.push.command.trigger.PushRecordArmCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.RasteredKnobCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.ScalesCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.SelectCommand;
@@ -103,7 +104,6 @@ import de.mossgrabers.framework.command.trigger.clip.NewCommand;
 import de.mossgrabers.framework.command.trigger.mode.ButtonRowModeCommand;
 import de.mossgrabers.framework.command.trigger.mode.KnobRowTouchModeCommand;
 import de.mossgrabers.framework.command.trigger.mode.ModeSelectCommand;
-import de.mossgrabers.framework.command.trigger.transport.RecordCommand;
 import de.mossgrabers.framework.command.trigger.transport.TapTempoCommand;
 import de.mossgrabers.framework.command.trigger.view.ViewButtonCommand;
 import de.mossgrabers.framework.configuration.AbstractConfiguration;
@@ -443,11 +443,12 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
 
         this.addButton (ButtonID.PLAY, "Play", new PushPlayCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_PLAY, t::isPlaying, PushColorManager.PUSH_BUTTON_STATE_PLAY_ON, PushColorManager.PUSH_BUTTON_STATE_PLAY_HI);
 
-        this.addButton (ButtonID.RECORD, "Record", new RecordCommand<> (this.model, surface), PushControlSurface.PUSH_BUTTON_RECORD, () -> {
+        this.addButton (ButtonID.RECORD, "Arm", new PushRecordArmCommand<> (this.model, surface), PushControlSurface.PUSH_BUTTON_RECORD, () -> {
 
-            if (this.isRecordShifted (surface))
+            if (surface.isShiftPressed ())
                 return t.isLauncherOverdub () ? 3 : 2;
-            return t.isRecording () ? 1 : 0;
+            final Optional<ITrack> selectedTrack = this.model.getCurrentTrackBank ().getSelectedItem ();
+            return selectedTrack.isPresent () && selectedTrack.get ().isRecArm () ? 1 : 0;
 
         }, PushColorManager.PUSH_BUTTON_STATE_REC_ON, PushColorManager.PUSH_BUTTON_STATE_REC_HI, PushColorManager.PUSH_BUTTON_STATE_OVR_ON, PushColorManager.PUSH_BUTTON_STATE_OVR_HI);
 
