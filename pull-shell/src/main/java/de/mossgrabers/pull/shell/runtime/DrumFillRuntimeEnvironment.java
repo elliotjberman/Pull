@@ -5,21 +5,16 @@ package de.mossgrabers.pull.shell.runtime;
 
 import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
 import de.mossgrabers.pull.core.api.ClipTargetId;
-import de.mossgrabers.pull.core.api.CatalogParameter;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.CoreCapabilities;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.CoreResult;
-import de.mossgrabers.pull.core.api.ParameterCatalogSnapshot;
-import de.mossgrabers.pull.core.api.ParameterTargetId;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
-import de.mossgrabers.pull.core.api.effect.SetParameterValueEffect;
-import de.mossgrabers.pull.core.api.event.AbsoluteInputEvent;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
 import de.mossgrabers.pull.core.api.event.SnapshotChangedEvent;
 import de.mossgrabers.pull.core.api.output.RgbColor;
@@ -32,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.function.LongSupplier;
 
@@ -45,19 +39,13 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     private static final RgbColor OFF = new RgbColor (0, 0, 0);
     private static final ShellCapabilities CAPABILITIES = new ShellCapabilities (Map.ofEntries (
         Map.entry (CoreCapabilities.INPUT_DRUM_FILL, Integer.valueOf (1)),
-        Map.entry (CoreCapabilities.INPUT_ABSOLUTE, Integer.valueOf (1)),
-        Map.entry (CoreCapabilities.INPUT_OWNERSHIP, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS, Integer.valueOf (1)),
-        Map.entry (CoreCapabilities.SNAPSHOT_SELECTED_TRACK_PARAMETERS, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.BINDING_CLIP_TARGET, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD, Integer.valueOf (4)),
-        Map.entry (CoreCapabilities.EFFECT_SET_PARAMETER_VALUE, Integer.valueOf (1)),
-        Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (1)),
-        Map.entry (CoreCapabilities.OUTPUT_ABSOLUTE, Integer.valueOf (1))));
+        Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (1))));
 
     private final DrumFillClipHost clipHost;
-    private final SelectedTrackParameterHost parameterHost;
     private final RuntimeLog log;
     private final LongSupplier clock;
     private final long timeOrigin;
@@ -65,12 +53,9 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     private final FillLaunchSession fillSession = new FillLaunchSession ();
 
     private ClipCatalogSnapshot clipCatalog;
-    private ParameterCatalogSnapshot selectedTrackParameters;
     private Map<ControlId, ClipTargetId> armedClipTargets;
     private FillSessionView lastObservedSession;
     private Map<ControlId, RgbColor> fillLightColors = offLights ();
-    private Map<ControlId, Double> absoluteOutputValues = Map.of ();
-    private Set<ControlId> claimedInputs = Set.of ();
     private long pendingSnapshotRevision = -1;
     private long hostSampleRevision;
     private long lastTime;
@@ -89,7 +74,7 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
      */
     DrumFillRuntimeEnvironment (final DrumFillClipHost clipHost, final RuntimeLog log)
     {
-        this (clipHost, EmptyParameterHost.INSTANCE, log, System::nanoTime);
+        this (clipHost, log, System::nanoTime);
     }
 
 
@@ -102,27 +87,11 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
      */
     DrumFillRuntimeEnvironment (final DrumFillClipHost clipHost, final RuntimeLog log, final LongSupplier clock)
     {
-        this (clipHost, EmptyParameterHost.INSTANCE, log, clock);
-    }
-
-
-    /**
-     * Constructor with deterministic host seams.
-     *
-     * @param clipHost Stable selected-track clip host
-     * @param parameterHost Stable selected-track parameter host
-     * @param log Stable runtime log
-     * @param clock Monotonic clock
-     */
-    DrumFillRuntimeEnvironment (final DrumFillClipHost clipHost, final SelectedTrackParameterHost parameterHost, final RuntimeLog log, final LongSupplier clock)
-    {
         this.clipHost = Objects.requireNonNull (clipHost, "clipHost");
-        this.parameterHost = Objects.requireNonNull (parameterHost, "parameterHost");
         this.log = Objects.requireNonNull (log, "log");
         this.clock = Objects.requireNonNull (clock, "clock");
         this.timeOrigin = clock.getAsLong ();
         this.clipCatalog = Objects.requireNonNull (clipHost.clipCatalog (), "initial clip catalog");
-        this.selectedTrackParameters = parameterCatalog (parameterHost.state ());
         this.armedClipTargets = copyHostBindings (clipHost.armedClipTargets ());
         this.lastObservedSession = this.fillSession.view ();
     }
@@ -144,24 +113,13 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     boolean refresh ()
     {
         this.clipHost.refresh ();
-        try
-        {
-            this.parameterHost.refresh ();
-        }
-        catch (final Throwable failure)
-        {
-            rethrowFatal (failure);
-            this.warn ("Selected-track parameter refresh failed: " + sanitize (failure));
-        }
         this.hostSampleRevision = Math.incrementExact (this.hostSampleRevision);
         this.fillSession.advance (this.hostSampleRevision);
         final ClipCatalogSnapshot refreshedCatalog = Objects.requireNonNull (this.clipHost.clipCatalog (), "refreshed clip catalog");
-        final ParameterCatalogSnapshot refreshedParameters = parameterCatalog (this.parameterHost.state ());
         final Map<ControlId, ClipTargetId> refreshedArmedTargets = copyHostBindings (this.clipHost.armedClipTargets ());
-        if (!refreshedCatalog.equals (this.clipCatalog) || !refreshedParameters.equals (this.selectedTrackParameters) || !refreshedArmedTargets.equals (this.armedClipTargets))
+        if (!refreshedCatalog.equals (this.clipCatalog) || !refreshedArmedTargets.equals (this.armedClipTargets))
         {
             this.clipCatalog = refreshedCatalog;
-            this.selectedTrackParameters = refreshedParameters;
             this.armedClipTargets = refreshedArmedTargets;
             this.recordSnapshotChange ();
         }
@@ -226,21 +184,6 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
 
 
     /**
-     * Create one normalized absolute-input event for the reloadable core.
-     *
-     * @param control Logical absolute control
-     * @param normalizedValue Value in {@code [0, 1]}
-     * @return The event
-     */
-    AbsoluteInputEvent absoluteInput (final ControlId control, final double normalizedValue)
-    {
-        if (!CoreControls.DRUM_PITCH_RIBBON.equals (Objects.requireNonNull (control, "control")))
-            throw new IllegalArgumentException ("Unsupported absolute control");
-        return new AbsoluteInputEvent (this.nextEventSequence (), this.now (), control, normalizedValue);
-    }
-
-
-    /**
      * Test whether one physical fill pad is held.
      *
      * @param owner Logical fill-pad owner
@@ -282,31 +225,6 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
 
 
     /**
-     * Test whether the active core currently owns a physical input.
-     *
-     * @param control Logical physical control
-     * @return True when the latest committed core output claims it
-     */
-    boolean ownsInput (final ControlId control)
-    {
-        return this.claimedInputs.contains (Objects.requireNonNull (control, "control"));
-    }
-
-
-    /**
-     * Get one normalized hardware output value from the latest committed core result.
-     *
-     * @param control Logical hardware output
-     * @return Desired normalized value, if owned by the core
-     */
-    OptionalDouble absoluteOutputValue (final ControlId control)
-    {
-        final Double value = this.absoluteOutputValues.get (Objects.requireNonNull (control, "control"));
-        return value == null ? OptionalDouble.empty () : OptionalDouble.of (value.doubleValue ());
-    }
-
-
-    /**
      * Get the core generation that last replaced the complete output buffer.
      *
      * @return The output generation
@@ -323,13 +241,9 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     {
         Objects.requireNonNull (result, "result");
         final Map<ControlId, RgbColor> preparedColors = prepareOutput (result);
-        final Map<ControlId, Double> preparedAbsoluteValues = prepareAbsoluteOutput (result);
-        final Set<ControlId> preparedClaimedInputs = prepareClaimedInputs (result.claimedInputs ());
-        if (!preparedClaimedInputs.containsAll (preparedAbsoluteValues.keySet ()))
-            throw new IllegalArgumentException ("Absolute hardware output requires ownership of the same control");
         final Map<ControlId, ClipTargetId> preparedBindings = prepareBindings (result.desiredClipBindings (), this.clipCatalog);
         final List<PreparedAction> preparedActions = this.prepareEffects (result.effects (), preparedBindings);
-        return new PreparedResult (preparedColors, preparedAbsoluteValues, preparedClaimedInputs, this.clipCatalog.generation (), preparedBindings, preparedActions);
+        return new PreparedResult (preparedColors, this.clipCatalog.generation (), preparedBindings, preparedActions);
     }
 
 
@@ -341,8 +255,6 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
         this.committedResult = prepared;
         this.committedGeneration = generation;
         this.fillLightColors = prepared.fillLightColors ();
-        this.absoluteOutputValues = prepared.absoluteOutputValues ();
-        this.claimedInputs = prepared.claimedInputs ();
         this.outputGeneration = generation;
     }
 
@@ -370,8 +282,6 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
             }
             else if (action instanceof final PreparedRelease release)
                 this.applyRelease (release);
-            else if (action instanceof final PreparedParameterSet parameterSet)
-                this.applyParameterSet (parameterSet);
         }
         this.recordSessionChange ();
     }
@@ -384,8 +294,6 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
         this.committedResult = null;
         this.committedGeneration = generation;
         this.fillLightColors = offLights ();
-        this.absoluteOutputValues = Map.of ();
-        this.claimedInputs = Set.of ();
         this.outputGeneration = generation;
 
         try
@@ -424,33 +332,6 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
-    private static Map<ControlId, Double> prepareAbsoluteOutput (final CoreResult result)
-    {
-        final Map<ControlId, Double> values = new LinkedHashMap<> ();
-        for (final Map.Entry<ControlId, Double> output: result.desiredOutput ().absoluteValues ().entrySet ())
-        {
-            final ControlId control = Objects.requireNonNull (output.getKey (), "absolute output control");
-            if (!CoreControls.DRUM_PITCH_RIBBON.equals (control))
-                throw new IllegalArgumentException ("Unsupported absolute hardware output");
-            values.put (control, Double.valueOf (Objects.requireNonNull (output.getValue (), "absolute output value").doubleValue ()));
-        }
-        return Map.copyOf (values);
-    }
-
-
-    private static Set<ControlId> prepareClaimedInputs (final Set<ControlId> claimedInputs)
-    {
-        final Set<ControlId> controls = new LinkedHashSet<> ();
-        for (final ControlId control: Objects.requireNonNull (claimedInputs, "claimedInputs"))
-        {
-            if (!CoreControls.DRUM_PITCH_RIBBON.equals (Objects.requireNonNull (control, "claimed input")))
-                throw new IllegalArgumentException ("Unsupported claimed input");
-            controls.add (control);
-        }
-        return Set.copyOf (controls);
-    }
-
-
     private Map<ControlId, ClipTargetId> prepareBindings (final Map<ControlId, ClipTargetId> bindings, final ClipCatalogSnapshot clipCatalog)
     {
         final Map<ControlId, ClipTargetId> copy = new LinkedHashMap<> ();
@@ -484,16 +365,8 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     private List<PreparedAction> prepareEffects (final List<CoreEffect> effects, final Map<ControlId, ClipTargetId> desiredBindings)
     {
         final Set<ControlId> owners = new HashSet<> ();
-        final Set<ParameterTargetId> parameterTargets = new HashSet<> ();
         for (final CoreEffect effect: effects)
         {
-            if (effect instanceof final SetParameterValueEffect parameterSet)
-            {
-                if (!parameterTargets.add (parameterSet.target ()))
-                    throw new IllegalArgumentException ("Core requested multiple writes for one parameter target");
-                continue;
-            }
-
             final ControlId owner;
             if (effect instanceof final PressClipTargetEffect press)
                 owner = requireFillOwner (press.owner ());
@@ -513,8 +386,6 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
                 actions.add (this.preparePress (press, desiredBindings));
             else if (effect instanceof final ReleaseClipTargetsEffect release)
                 actions.add (this.prepareRelease (release));
-            else if (effect instanceof final SetParameterValueEffect parameterSet)
-                actions.add (this.prepareParameterSet (parameterSet));
         }
         return List.copyOf (actions);
     }
@@ -554,18 +425,6 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
-    private PreparedParameterSet prepareParameterSet (final SetParameterValueEffect effect)
-    {
-        if (effect.catalogGeneration () != this.selectedTrackParameters.generation ())
-            throw new IllegalArgumentException ("Parameter-catalog generation is stale");
-        final CatalogParameter parameter = this.selectedTrackParameters.parameters ().stream ()
-            .filter (candidate -> effect.target ().equals (candidate.targetId ()))
-            .findFirst ()
-            .orElseThrow ( () -> new IllegalArgumentException ("Parameter target is not armed"));
-        return new PreparedParameterSet (effect.catalogGeneration (), parameter.targetId (), effect.normalizedValue ());
-    }
-
-
     private static ControlId requireFillOwner (final ControlId owner)
     {
         Objects.requireNonNull (owner, "fill owner");
@@ -589,25 +448,6 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     private void applyRelease (final PreparedRelease release)
     {
         this.fillSession.requestRelease (release.owner (), "Fill-session release", this.hostSampleRevision);
-    }
-
-
-    private void applyParameterSet (final PreparedParameterSet parameterSet)
-    {
-        if (parameterSet.catalogGeneration () != this.selectedTrackParameters.generation ())
-        {
-            this.warn ("Prepared parameter write was discarded after the target catalog changed");
-            return;
-        }
-        try
-        {
-            this.parameterHost.setImmediately (parameterSet.catalogGeneration (), parameterSet.targetId (), parameterSet.normalizedValue ());
-        }
-        catch (final Throwable failure)
-        {
-            rethrowFatal (failure);
-            this.warn ("Parameter write failed: " + sanitize (failure));
-        }
     }
 
 
@@ -644,7 +484,7 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     private ControllerSnapshot createSnapshot (final long monotonicTimeNanos)
     {
         final FillSessionView session = this.fillSession.view ();
-        return new ControllerSnapshot (this.revision, monotonicTimeNanos, CAPABILITIES, this.clipCatalog, this.selectedTrackParameters, this.armedClipTargets, session.targets (), session.activeOwner (), this.pressedControls, Set.of ());
+        return new ControllerSnapshot (this.revision, monotonicTimeNanos, CAPABILITIES, this.clipCatalog, this.armedClipTargets, session.targets (), session.activeOwner (), this.pressedControls, Set.of ());
     }
 
 
@@ -686,19 +526,6 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
             copy.put (owner, new ClipTargetId (target.value ()));
         }
         return Map.copyOf (copy);
-    }
-
-
-    private static ParameterCatalogSnapshot parameterCatalog (final SelectedTrackParameterHost.State state)
-    {
-        final SelectedTrackParameterHost.State sampled = Objects.requireNonNull (state, "parameter state");
-        final List<CatalogParameter> parameters = new ArrayList<> ();
-        for (final SelectedTrackParameterHost.Slot slot: sampled.slots ())
-        {
-            if (slot.exists () && slot.coherent ())
-                parameters.add (new CatalogParameter (slot.targetId (), slot.pageName (), slot.name (), slot.normalizedValue ()));
-        }
-        return new ParameterCatalogSnapshot (sampled.generation (), parameters);
     }
 
 
@@ -1012,13 +839,11 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
-    private record PreparedResult (Map<ControlId, RgbColor> fillLightColors, Map<ControlId, Double> absoluteOutputValues, Set<ControlId> claimedInputs, long catalogGeneration, Map<ControlId, ClipTargetId> desiredClipBindings, List<PreparedAction> actions) implements PreparedCoreResult
+    private record PreparedResult (Map<ControlId, RgbColor> fillLightColors, long catalogGeneration, Map<ControlId, ClipTargetId> desiredClipBindings, List<PreparedAction> actions) implements PreparedCoreResult
     {
         private PreparedResult
         {
             fillLightColors = Map.copyOf (fillLightColors);
-            absoluteOutputValues = Map.copyOf (absoluteOutputValues);
-            claimedInputs = Set.copyOf (claimedInputs);
             desiredClipBindings = Map.copyOf (desiredClipBindings);
             actions = List.copyOf (actions);
         }
@@ -1041,39 +866,9 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
-    private record PreparedParameterSet (long catalogGeneration, ParameterTargetId targetId, double normalizedValue) implements PreparedAction
-    {
-    }
-
-
     private record LaunchLease (ControlId owner, long catalogGeneration, ClipTargetId targetId, ClipLaunchPolicy launchPolicy, DrumFillClipHost.LaunchTarget target)
     {
     }
 
 
-    private enum EmptyParameterHost implements SelectedTrackParameterHost
-    {
-        INSTANCE;
-
-
-        @Override
-        public boolean refresh ()
-        {
-            return false;
-        }
-
-
-        @Override
-        public State state ()
-        {
-            return State.empty ();
-        }
-
-
-        @Override
-        public void setImmediately (final long generation, final ParameterTargetId targetId, final double normalizedValue)
-        {
-            throw new IllegalStateException ("No selected-track parameter host is connected");
-        }
-    }
 }

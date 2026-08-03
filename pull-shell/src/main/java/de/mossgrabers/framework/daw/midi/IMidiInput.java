@@ -58,6 +58,14 @@ public interface IMidiInput
 
 
     /**
+     * Route the default note input directly to a private selected-track cursor. Direct routing is
+     * independent of monitor state and removes the note input from the host's global input pool so
+     * it cannot also reach armed tracks through a second path.
+     */
+    void routeDefaultNoteInputToSelectedTrack ();
+
+
+    /**
      * Sends a MIDI short message to the DAW.
      *
      * @param status The MIDI status byte

@@ -8,6 +8,7 @@ import com.bitwig.extension.controller.api.AbsoluteHardwareControl;
 import com.bitwig.extension.controller.api.AbsoluteHardwareValueMatcher;
 import com.bitwig.extension.controller.api.ContinuousHardwareControl;
 import com.bitwig.extension.controller.api.ControllerHost;
+import com.bitwig.extension.controller.api.CursorTrack;
 import com.bitwig.extension.controller.api.HardwareAction;
 import com.bitwig.extension.controller.api.HardwareActionMatcher;
 import com.bitwig.extension.controller.api.HardwareButton;
@@ -38,8 +39,12 @@ import de.mossgrabers.framework.daw.midi.MidiSysExCallback;
  */
 public class MidiInputImpl implements IMidiInput
 {
-    private final MidiIn  port;
-    private NoteInputImpl defaultNoteInput;
+    private static final String SELECTED_TRACK_CURSOR_ID = "PULL_PADS_SELECTED_TRACK";
+
+    private final ControllerHost host;
+    private final MidiIn         port;
+    private NoteInputImpl        defaultNoteInput;
+    private CursorTrack          selectedTrackNoteTarget;
 
 
     /**
@@ -56,6 +61,7 @@ public class MidiInputImpl implements IMidiInput
      */
     public MidiInputImpl (final int portNumber, final ControllerHost host, final String name, final String [] filters)
     {
+        this.host = host;
         this.port = host.getMidiInPort (portNumber);
 
         if (name != null)
@@ -101,6 +107,26 @@ public class MidiInputImpl implements IMidiInput
     public INoteInput getDefaultNoteInput ()
     {
         return this.defaultNoteInput;
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void routeDefaultNoteInputToSelectedTrack ()
+    {
+        if (this.defaultNoteInput == null)
+            throw new IllegalStateException ("MIDI input has no default note input");
+        if (this.selectedTrackNoteTarget != null)
+            throw new IllegalStateException ("MIDI input is already routed to the selected track");
+
+        this.selectedTrackNoteTarget = createSelectedTrackNoteTarget (this.host);
+        this.defaultNoteInput.routeDirectlyTo (this.selectedTrackNoteTarget);
+    }
+
+
+    static CursorTrack createSelectedTrackNoteTarget (final ControllerHost host)
+    {
+        return host.createCursorTrack (SELECTED_TRACK_CURSOR_ID, "Pull Pads Selected Track", 0, 0, true);
     }
 
 

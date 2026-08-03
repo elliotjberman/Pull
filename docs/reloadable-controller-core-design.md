@@ -1,9 +1,9 @@
 # Reloadable Controller Core
 
-Status: Milestones 1 through 4 and the Core API 6 selected-track parameter bridge are implemented
-and pass offline verification. The drum-fill shell now uses a single-active replacement barrier;
-the Core-API-6 shell on Bitwig controller API 21 and Drum Pitch session contract still require
-their live Bitwig/Push checkpoint.
+Status: Milestones 1 through 4 are implemented and pass offline verification. The drum-fill shell
+uses a single-active replacement barrier, and the Pads note input follows the selected-track cursor
+independently of monitor state. The Core-API-6 shell on Bitwig controller API 21 still requires its
+live Bitwig/Push checkpoint.
 
 Primary goal: make ordinary controller development possible without restarting Bitwig.
 
@@ -102,19 +102,6 @@ independently.
   optimistically from a press request.
 - Cover catalog scans, off-window edits, readiness, overlapping holds, reload hydration, exact
   delayed Return acknowledgements, releases, failures, and transaction ordering without Bitwig.
-
-### Core API 6: generic selected-track parameter bridge
-
-- Eagerly create one selected-track cursor and one filtered eight-slot remote-controls cursor in
-  the stable shell; it observes tagged project pages rather than creating them.
-- Publish a generation-fenced parameter catalog with authoritative normalized values.
-- Normalize absolute hardware input as `AbsoluteInputEvent` and execute exact
-  `SetParameterValueEffect` requests only against the matching catalog generation and slot identity.
-- Let the core publish generic input ownership and normalized absolute hardware output, so the
-  stable router never hard-codes the feature-specific remote name.
-- Reserve the Drum Pitch ribbon in drum performance mode only while the exact managed target is
-  provisionable or ready. If subscribed state proves provisioning unavailable, withdraw ownership
-  instead of silently consuming the ordinary pitch-bend path.
 
 ### Later milestones
 
@@ -235,7 +222,7 @@ owned for retry; no replacement proxy is reserved across that wait. A down rejec
 or a deferred target whose catalog generation/binding changes before launch, is discarded rather
 than launched later by surprise.
 
-Core API 6 carries the host-independent launch policy and the generic parameter messages.
+Core API 6 carries the host-independent launch policy.
 Capability `effect.clip-launch-hold` version 4 defines the single-active session and latest-pending
 handoff; `snapshot.clip-launch-session` version 1 reports a map containing at most the one acquired
 owner-to-target lease plus its authoritative active owner. There are no hidden fills or held-pad
@@ -249,7 +236,7 @@ length remain session content.
 
 Physical held state, desired/armed bindings, the acquired lease, latest pending intent, opaque base
 token, and authoritative active owner live in the shell across a hot core reload. Starting a
-replacement core hydrates current held, armed, parameter, and acquired-session read-back but
+replacement core hydrates current held, armed, and acquired-session read-back but
 deliberately synthesizes no press. The core renders fully lit orange only after Bitwig reports the
 acquired owner playing; neither the input nor pending intent is optimistic feedback.
 Snapshot-change delivery remains pending until a core accepts it, so an intervening input or
@@ -263,82 +250,23 @@ reload: API 21 gives `exit()` no asynchronous grace/completion contract, so shut
 best-effort Return for the single acquired fill but cannot wait for confirmation. `scheduleTask()`
 is not a safe substitute after exit.
 
-### Generic selected-track parameter bridge
+### Selected-track note and bend route
 
-Core API 6 adds a reusable, host-independent parameter seam. During extension initialization the
-shell eagerly creates one selected-track cursor shared by two bounded parameter hosts. The generic
-host owns one `CursorRemoteControlsPage` with eight slots. The first constructor string names the
-API cursor; it does not create or rename project content. A Bitwig project may contain a page
-uniquely named exactly `Pull` and tagged `pull`; the shell filters existing pages by that tag,
-follows the selected track, and selects that unique page. Missing, duplicate, pinned, partially
-populated, or structurally changing pages are unavailable until two consecutive complete samples
-agree. The exact `Pull` / `Drum Pitch` remote identity is reserved and suppressed from this generic
-host because the managed helper below owns it.
+During extension initialization, the shell creates one controller-private, selection-following
+cursor and attaches the existing Push Pads `NoteInput` with `Track.addNoteSource()`. It first
+excludes that input from Bitwig's `All Inputs` pool, preventing the same notes from also reaching
+arbitrary armed tracks. The private cursor is never exposed to Push's pin command, so pinning the
+normal model cursor cannot freeze the note route. Bitwig retains direct note sources on the cursor
+proxy and retargets them as selection changes; the shell does not rebuild the route or observe
+arm/monitor state. Pads and raw ribbon pitch bend therefore follow the selected track; record arm
+remains solely a recording decision. A track that explicitly selects `Pads` can still create a
+separate conventional route, even though the input is absent from `All Inputs`.
 
-The second host owns a one-slot logical Drum Pitch target backed by native device proxies. A
-composite preserves generic target IDs `0..7`, assigns the managed target ID `8`, requires both
-children to report the same selected-track identity, and owns the combined catalog generation.
-This keeps the core's parameter DTO/effect contract generic while preventing an old session Macro
-from becoming an ambiguous or accidental pitch target.
-
-The snapshot publishes an ordered `ParameterCatalogSnapshot` containing opaque slot
-`ParameterTargetId`s, page and parameter names, and normalized values read from Bitwig. Any change
-to selected-track identity, remote page identity, remote slot identity, or managed-helper structure
-advances the catalog generation. `AbsoluteInputEvent` carries normalized hardware values without
-Bitwig types.
-`SetParameterValueEffect` names one exact target and generation; before calling
-`setImmediately()`, the shell re-samples and verifies the track, page, slot name, existence, and
-generation. A successful write is still only a command. Snapshot values, ribbon LEDs, displays,
-and all other feedback change only after the subscribed remote parameter reports the host value.
-The core separately publishes a complete claimed-input set and normalized absolute hardware-output
-map. The stable shell routes and renders those logical controls without knowing which parameter
-name or behavior caused the claim.
-
-### Drum Pitch session contract
-
-The first consumer is the drum-view Push ribbon. The managed host scans the selected track for the
-first top-level Drum Machine and up to 16 top-level Bend Note FX devices. It inserts native Bend by
-UUID through `beforeDeviceInsertionPoint().insertBitwigDevice()`. The void API call is only a
-request. Ownership is acquired only when a later complete sample has the exact requested shape:
-one Bend was added at the old Drum Machine position, the Drum Machine shifted by one, and every
-previous Bend retained its expected shifted position.
-
-Native insertion exposes no script-owned device ID or writable name. After the acquired helper is
-disabled, configured, and re-enabled through subscribed acknowledgements, the shell writes a
-bounded versioned record containing track UUID and helper/Drum positions to Bitwig document state.
-That setting is also a command until its observer reports the new value, and writes are serialized
-so a second track record cannot overwrite an unacknowledged first record. On restart, the recorded
-relative position is the strongest durable identity API 21 exposes. A normal move or deletion no
-longer matches and causes a fresh causal insertion, leaving the old Bend untouched. Exact deletion
-and replacement with another Bend at the same recorded slot is inherently indistinguishable
-without a native persistent device ID. Concurrent topology changes during acquisition fail closed.
-A legacy helper carrying the old exact preset name and creator remains recognizable for migration.
-A full 16-device scan, overflow, missing parameters, unsettled selected-track topology,
-selected-track disagreement, and unsupported nested Drum Machines also fail closed. In-flight
-insertions remain track-scoped across A→B→A selection changes. After two unacknowledged attempts,
-the managed target withdraws and ordinary ribbon handling is no longer swallowed.
-
-The host also subscribes to the helper's enabled state and complete semantic configuration. A
-managed helper is not ready until `DELAY_ON`, delay/duration modes and times, curve, and offset match
-the canonical configuration. Drift repair disables an enabled helper first, restores all semantic settings,
-and re-enables it only after subscribed read-back confirms the configuration. Insertion,
-configuration repair, and pitch writes are commands, not acknowledgements; recoverable failures are
-reported without optimistic state changes.
-
-Bend's `CONTENTS/SEMITONES` parameter exposes its physical normalized ±48-semitone range through the
-generic shell contract. The reloadable core maps the ribbon's `0..1` range to `0.375..0.625`, making
-the musical ±12-semitone window reloadable policy. Bend preserves the drum-pad note key and emits
-Bitwig Micro-pitch expression for each new note at the requested offset. Native Bitwig instruments
-consume that expression; a VST-backed pad may ignore it. The managed configuration holds that
-offset for two seconds, then returns to the note's defined pitch over two seconds. This finite
-behavior is intentional for the stated drum-hit use case; already-sounding long voices and
-independent preservation of authored clip bend are not promised.
-
-Installing the helper proxy canopy requires one extension copy and Bitwig restart. After that,
-selected-track changes, helper insertion/recreation, ownership policy, filtering, ordering,
-truncation, colors, active-fill policy, Drum Pitch core policy, and behaviors composed from the
-existing catalog/events/effects do not require another restart. A Bitwig property, device type,
-parameter ID, or operation outside the installed bridge still requires a shell change and restart.
+The route deliberately stops at raw MIDI. A drum track that should interpret the ribbon configures
+that interpretation visibly in the Bitwig project: disable `P. Bend → Expr.`, use native Bend plus
+a MIDI `BEND` modulator for expression-aware instruments, and map a separate MIDI `BEND` modulator
+to the pitch parameter of plug-ins that do not consume Bitwig note expression. The controller does
+not insert or own those devices.
 
 ## Stable shell responsibilities
 
@@ -373,9 +301,8 @@ routers, proxies, interested properties, and observers for:
 - common selected-track identity and mixer state;
 - bounded selected-track clip windows plus a bounded pool of launch, stop, and selection actuators;
 - selected-device identity, navigation, page identity, and bounded parameter windows;
-- bounded tagged-remote pages, beginning with the eight-slot `Pull` page; and
-- generic generation-fenced parameter set, touch, and increment effects, along with typed clip and
-  transport effects.
+- the permanent selected-track note-input route; and
+- typed clip and transport effects.
 
 This is a capability canopy, not a mirror of the entire project. Bitwig cursor/bank/proxy topology
 is owned by extension initialization, each bank and actuator pool has finite capacity, and a project
@@ -452,8 +379,7 @@ snapshot.
 ## Snapshot and effects
 
 The snapshot currently contains revision, monotonic time, shell capabilities, the complete
-selected-track clip catalog, the generation-fenced eight-slot selected-track parameter catalog,
-verified per-control armed clip bindings, the clip-launch session's optional acquired
+selected-track clip catalog, verified per-control armed clip bindings, the clip-launch session's optional acquired
 owner-to-target lease and authoritative active owner, and pressed/touched controls. A pending fill
 intent is shell-private and never appears active in this read-back. Add each new domain as a typed
 API value when its first migrated vertical slice needs it. The eventual stable snapshot is expected
@@ -476,10 +402,8 @@ stabilizes.
 
 Core API 6 includes logical timer effects, persistent desired clip bindings, verified armed
 bindings, the version-1 authoritative single-lease clip-launch-session snapshot,
-generation-fenced version-4 acquire/replace/release effects, `AbsoluteInputEvent`, the selected-track
-parameter catalog, `SetParameterValueEffect`, complete input ownership, and desired RGB plus
-normalized absolute hardware state. Later typed
-effects will cover scene launch, selection, bank scrolling, generic parameter touch and increment,
+generation-fenced version-4 acquire/replace/release effects, and desired RGB hardware state. Later
+typed effects will cover scene launch, selection, bank scrolling, parameter changes,
 transport/application actions, note mapping/repeat, approved MIDI/SysEx, notifications, and richer
 desired hardware state.
 
@@ -640,15 +564,8 @@ actuator validation, opaque target fencing, 12 independently lease-capable actua
 single-active actuator freezing, an explicit opaque base, latest-pending replacement, the
 busy/Return/non-busy/retire/later-sample barrier, delayed host acknowledgements, exact release
 retries, stale pre-launch false protection, catalog fences, raw-MIDI safety release, authoritative
-snapshot-driven feedback, reload hydration, failure cleanup, effect validation, and complete
-output-buffer tests. Parameter tests separately cover exact `Pull` page discovery, eight-slot
-coherence, generation and identity fences, command-versus-read-back separation, legacy branded
-helper migration, non-adoption outside the recorded relative slot, one in-flight insertion under
-rapid input and topology churn, deletion/reprovisioning, normalized Bend mapping, semantic-config
-repair, exact-shape native insertion, serialized document ownership read-back, stale-record
-reprovisioning and distinguishable concurrent-topology rejection,
-capacity/ambiguity failure, and authoritative Drum
-Pitch read-back.
+snapshot-driven feedback, reload hydration, failure cleanup, effect validation, complete
+output-buffer tests, and direct selected-track note routing without `All Inputs` duplication.
 
 The same DTO/effect seam is the basis for later record/replay and a virtual Push. An offline harness
 can feed snapshots and input events into the core, assert requested Bitwig effects, and render the
@@ -671,8 +588,8 @@ effects, rejections, and desired output. A real Bitwig failure can then become a
 | Behavior within the installed capability canopy | Core reload |
 | Clip launch quantization, mode, or Main-vs-ALT release lane | Core reload |
 | Add state/action or exceed capacity outside the installed canopy | API/shell build/install and Bitwig restart |
-| Insert or recreate the selected track's managed Drum Pitch helper | First ribbon move provisions it; no extension restart |
-| Change managed device UUIDs, ownership schema, parameter IDs, or the 16-device scan capacity | Shell build/install and Bitwig restart |
+| Change the selected-track direct note-source topology | Shell build/install and Bitwig restart |
+| Add or change Bend/MIDI-modulator mappings in a project | No extension restart |
 | New Bitwig state the shell never subscribed to | Shell build/install and Bitwig restart |
 | New operation the shell cannot execute | API/shell build/install and Bitwig restart |
 | Bitwig settings schema | Shell build/install and Bitwig restart |

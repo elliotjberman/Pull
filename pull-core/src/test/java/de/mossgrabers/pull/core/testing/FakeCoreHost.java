@@ -8,12 +8,10 @@ import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerCore;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
-import de.mossgrabers.pull.core.api.ParameterCatalogSnapshot;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.StateEnvelope;
 import de.mossgrabers.pull.core.api.TimerId;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
-import de.mossgrabers.pull.core.api.event.AbsoluteInputEvent;
 import de.mossgrabers.pull.core.api.event.SnapshotChangedEvent;
 import de.mossgrabers.pull.core.api.event.TimerElapsedEvent;
 import de.mossgrabers.pull.core.api.event.TouchInputEvent;
@@ -39,7 +37,6 @@ final class FakeCoreHost
     private final Set<ControlId> touchedControls = new LinkedHashSet<> ();
     private final ShellCapabilities capabilities;
     private ClipCatalogSnapshot clipCatalog;
-    private ParameterCatalogSnapshot selectedTrackParameters = ParameterCatalogSnapshot.empty ();
     private Map<ControlId, ClipTargetId> armedClipTargets;
     private Map<ControlId, ClipTargetId> clipLaunchSessionTargets;
     private Optional<ControlId> activeClipLaunchOwner;
@@ -160,32 +157,6 @@ final class FakeCoreHost
         this.revision++;
         this.eventSequence++;
         this.effectExecutor.apply (this.core.handle (new TouchInputEvent (this.eventSequence, this.time.nowNanos (), controlId, touched), this.snapshot ()));
-    }
-
-
-    /**
-     * Deliver an absolute control value.
-     *
-     * @param controlId The control
-     * @param normalizedValue Value in {@code [0, 1]}
-     */
-    void absolute (final ControlId controlId, final double normalizedValue)
-    {
-        this.revision++;
-        this.eventSequence++;
-        this.effectExecutor.apply (this.core.handle (new AbsoluteInputEvent (this.eventSequence, this.time.nowNanos (), controlId, normalizedValue), this.snapshot ()));
-    }
-
-
-    /**
-     * Replace the selected-track parameter catalog and notify the core.
-     *
-     * @param parameters The new catalog
-     */
-    void selectedTrackParameters (final ParameterCatalogSnapshot parameters)
-    {
-        this.selectedTrackParameters = Objects.requireNonNull (parameters, "parameters");
-        this.snapshotChanged ();
     }
 
 
@@ -319,7 +290,7 @@ final class FakeCoreHost
 
     private ControllerSnapshot snapshot ()
     {
-        return new ControllerSnapshot (this.revision, this.time.nowNanos (), this.capabilities, this.clipCatalog, this.selectedTrackParameters, this.armedClipTargets, this.clipLaunchSessionTargets, this.activeClipLaunchOwner, this.pressedControls, this.touchedControls);
+        return new ControllerSnapshot (this.revision, this.time.nowNanos (), this.capabilities, this.clipCatalog, this.armedClipTargets, this.clipLaunchSessionTargets, this.activeClipLaunchOwner, this.pressedControls, this.touchedControls);
     }
 
 

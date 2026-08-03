@@ -5,6 +5,7 @@
 package de.mossgrabers.bitwig.framework.midi;
 
 import com.bitwig.extension.controller.api.NoteInput;
+import com.bitwig.extension.controller.api.Track;
 
 import de.mossgrabers.framework.daw.midi.AbstractNoteInput;
 
@@ -54,6 +55,19 @@ class NoteInputImpl extends AbstractNoteInput
     void sendRawMidiEvent (final int status, final int data1, final int data2)
     {
         this.noteInput.sendRawMidiEvent (status, data1, data2);
+    }
+
+
+    void routeDirectlyTo (final Track track)
+    {
+        routeDirectly (this.noteInput, track);
+    }
+
+
+    static void routeDirectly (final NoteInput noteInput, final Track track)
+    {
+        noteInput.includeInAllInputs ().set (false);
+        track.addNoteSource (noteInput);
     }
 
 

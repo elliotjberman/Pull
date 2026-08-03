@@ -22,7 +22,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalLong;
-import java.util.Set;
 
 /**
  * Test-only shell effect executor.
@@ -34,7 +33,6 @@ final class RecordingEffectExecutor
     private PressClipTargetEffect activeClipLease;
     private DesiredHardwareOutput desiredOutput = DesiredHardwareOutput.empty ();
     private Map<ControlId, ClipTargetId> desiredClipBindings = Map.of ();
-    private Set<ControlId> claimedInputs = Set.of ();
 
 
     /**
@@ -47,7 +45,6 @@ final class RecordingEffectExecutor
         Objects.requireNonNull (result, "result");
         this.desiredOutput = result.desiredOutput ();
         this.desiredClipBindings = result.desiredClipBindings ();
-        this.claimedInputs = result.claimedInputs ();
         for (final CoreEffect effect: result.effects ())
         {
             this.executionOrder.add (effect);
@@ -165,13 +162,4 @@ final class RecordingEffectExecutor
     }
 
 
-    /**
-     * Get the latest complete core-owned physical-input set.
-     *
-     * @return Claimed inputs
-     */
-    Set<ControlId> claimedInputs ()
-    {
-        return this.claimedInputs;
-    }
 }

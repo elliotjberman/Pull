@@ -4,7 +4,6 @@
 package de.mossgrabers.pull.core.runtime;
 
 import de.mossgrabers.pull.core.api.CatalogClip;
-import de.mossgrabers.pull.core.api.CatalogParameter;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerCore;
@@ -19,8 +18,6 @@ import de.mossgrabers.pull.core.api.effect.ClipReleaseTrigger;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
-import de.mossgrabers.pull.core.api.effect.SetParameterValueEffect;
-import de.mossgrabers.pull.core.api.event.AbsoluteInputEvent;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.output.DesiredHardwareOutput;
@@ -41,12 +38,6 @@ import java.util.Set;
 final class PullControllerCore implements ControllerCore
 {
     private static final String FILL_MARKER = "fill";
-    private static final String DRUM_REMOTE_PAGE = "Pull";
-    private static final String DRUM_PITCH_PARAMETER = "Drum Pitch";
-    // The shell publishes Bend's complete physical -48..+48 semitone range. Keeping the musical
-    // +/-12 ribbon window here makes range changes hot-reloadable policy rather than shell API.
-    private static final double DRUM_PITCH_MIN_PARAMETER_VALUE = 0.375;
-    private static final double DRUM_PITCH_MAX_PARAMETER_VALUE = 0.625;
     private static final RgbColor FILL_OFF = new RgbColor (0, 0, 0);
     private static final RgbColor FILL_AVAILABLE = new RgbColor (96, 30, 0);
     private static final RgbColor FILL_ACTIVE = new RgbColor (255, 80, 0);
@@ -97,8 +88,6 @@ final class PullControllerCore implements ControllerCore
             else
                 effects = List.of (new ReleaseClipTargetsEffect (button.controlId ()));
         }
-        else if (event instanceof final AbsoluteInputEvent absolute && CoreControls.DRUM_PITCH_RIBBON.equals (absolute.controlId ()))
-            effects = drumPitchEffects (snapshot, absolute.normalizedValue ());
         else
             effects = List.of ();
 
@@ -193,34 +182,6 @@ final class PullControllerCore implements ControllerCore
     }
 
 
-    private static List<CoreEffect> drumPitchEffects (final ControllerSnapshot snapshot, final double normalizedValue)
-    {
-        final Optional<CatalogParameter> parameter = drumPitchParameter (snapshot);
-        if (parameter.isEmpty ())
-            return List.of ();
-        return List.of (new SetParameterValueEffect (
-            snapshot.selectedTrackParameters ().generation (),
-            parameter.get ().targetId (),
-            toDrumPitchParameterValue (normalizedValue)));
-    }
-
-
-    private static Optional<CatalogParameter> drumPitchParameter (final ControllerSnapshot snapshot)
-    {
-        CatalogParameter match = null;
-        for (final CatalogParameter parameter: snapshot.selectedTrackParameters ().parameters ())
-        {
-            if (DRUM_REMOTE_PAGE.equalsIgnoreCase (parameter.pageName ().trim ()) && DRUM_PITCH_PARAMETER.equalsIgnoreCase (parameter.name ().trim ()))
-            {
-                if (match != null)
-                    return Optional.empty ();
-                match = parameter;
-            }
-        }
-        return Optional.ofNullable (match);
-    }
-
-
     private static CoreResult result (final ControllerSnapshot snapshot, final Map<ControlId, ClipTargetId> desiredBindings, final List<CoreEffect> effects)
     {
         final Map<ControlId, RgbColor> lights = new LinkedHashMap<> ();
@@ -238,38 +199,10 @@ final class PullControllerCore implements ControllerCore
             lights.put (control, color);
         }
 
-        final Optional<CatalogParameter> drumPitch = drumPitchParameter (snapshot);
-        final Map<ControlId, Double> absoluteValues;
-        if (drumPitch.isPresent ())
-        {
-            absoluteValues = Map.of (CoreControls.DRUM_PITCH_RIBBON, Double.valueOf (fromDrumPitchParameterValue (drumPitch.get ().normalizedValue ())));
-        }
-        else
-        {
-            absoluteValues = Map.of ();
-        }
-        final Set<ControlId> claimedInputs = drumPitch.isPresent () ? Set.of (CoreControls.DRUM_PITCH_RIBBON) : Set.of ();
-        // The shell may publish a provisionable target before the helper is ready, but it
-        // withdraws that target when provisioning is impossible or exhausted. Do not swallow the
-        // ordinary pitch-bend path once authoritative host state says there is no managed target.
         return new CoreResult (
-            new DesiredHardwareOutput (lights, absoluteValues),
+            new DesiredHardwareOutput (lights),
             desiredBindings,
-            claimedInputs,
             effects);
-    }
-
-
-    private static double toDrumPitchParameterValue (final double ribbonValue)
-    {
-        return DRUM_PITCH_MIN_PARAMETER_VALUE + ribbonValue * (DRUM_PITCH_MAX_PARAMETER_VALUE - DRUM_PITCH_MIN_PARAMETER_VALUE);
-    }
-
-
-    private static double fromDrumPitchParameterValue (final double parameterValue)
-    {
-        final double ribbonValue = (parameterValue - DRUM_PITCH_MIN_PARAMETER_VALUE) / (DRUM_PITCH_MAX_PARAMETER_VALUE - DRUM_PITCH_MIN_PARAMETER_VALUE);
-        return Math.max (0, Math.min (1, ribbonValue));
     }
 
 

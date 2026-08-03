@@ -11,15 +11,11 @@ import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.CoreResult;
-import de.mossgrabers.pull.core.api.ParameterTargetId;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchMode;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
 import de.mossgrabers.pull.core.api.effect.ClipReleaseTrigger;
-import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
-import de.mossgrabers.pull.core.api.effect.SetParameterValueEffect;
-import de.mossgrabers.pull.core.api.event.AbsoluteInputEvent;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.event.SnapshotChangedEvent;
@@ -31,7 +27,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
@@ -183,117 +178,6 @@ class ReloadableControllerRuntimeTest
 
 
     @Test
-    void routesExactDrumPitchRemoteWithFullFourteenBitNormalization ()
-    {
-        final FakeClipHost clipHost = new FakeClipHost (9);
-        final FakeParameterHost parameterHost = FakeParameterHost.mapped (0.25);
-        final DrumFillRuntimeEnvironment environment = createArmedEnvironment (clipHost, parameterHost);
-        commitDrumPitchState (environment, clipHost, 0.25, 2);
-        final List<AbsoluteInputEvent> inputs = new ArrayList<> ();
-        final ReloadableControllerRuntime runtime = new ReloadableControllerRuntime (environment, NoOpLog.INSTANCE, event -> {
-            if (event instanceof final AbsoluteInputEvent input)
-            {
-                inputs.add (input);
-                return true;
-            }
-            return false;
-        });
-        runtime.start ();
-
-        assertTrue (runtime.routeDrumPitch (0, 0));
-        assertTrue (runtime.routeDrumPitch (0, 64));
-        assertTrue (runtime.routeDrumPitch (1, 64));
-        assertTrue (runtime.routeDrumPitch (127, 127));
-
-        assertEquals (4, inputs.size ());
-        assertTrue (inputs.stream ().allMatch (input -> CoreControls.DRUM_PITCH_RIBBON.equals (input.controlId ())));
-        assertEquals (0.0, inputs.get (0).normalizedValue ());
-        assertEquals (0.5, inputs.get (1).normalizedValue ());
-        assertEquals (8193 / 16383.0, inputs.get (2).normalizedValue ());
-        assertEquals (1.0, inputs.get (3).normalizedValue ());
-
-        runtime.close ();
-    }
-
-
-    @Test
-    void drumPitchFallsBackWhenNoExactRemoteIsArmed ()
-    {
-        final FakeClipHost clipHost = new FakeClipHost (9);
-        final DrumFillRuntimeEnvironment environment = createArmedEnvironment (clipHost, FakeParameterHost.empty ());
-        final List<CoreEvent> events = new ArrayList<> ();
-        final ReloadableControllerRuntime runtime = new ReloadableControllerRuntime (environment, NoOpLog.INSTANCE, event -> {
-            events.add (event);
-            return true;
-        });
-        runtime.start ();
-
-        assertFalse (runtime.routeDrumPitch (0, 64));
-        assertTrue (events.isEmpty ());
-
-        runtime.close ();
-    }
-
-
-    @Test
-    void exactDrumPitchRemoteOwnsTheGestureEvenWhenTheCoreRejectsIt ()
-    {
-        final FakeClipHost clipHost = new FakeClipHost (9);
-        final DrumFillRuntimeEnvironment environment = createArmedEnvironment (clipHost, FakeParameterHost.mapped (0.5));
-        commitDrumPitchState (environment, clipHost, 0.5, 2);
-        final ReloadableControllerRuntime runtime = new ReloadableControllerRuntime (environment, NoOpLog.INSTANCE, event -> false);
-        runtime.start ();
-
-        assertTrue (runtime.routeDrumPitch (0, 64));
-
-        runtime.close ();
-    }
-
-
-    @Test
-    void drumPitchRibbonValueWaitsForAuthoritativeReadbackAfterAWrite ()
-    {
-        final FakeClipHost clipHost = new FakeClipHost (9);
-        final FakeParameterHost parameterHost = FakeParameterHost.mapped (0.25);
-        final DrumFillRuntimeEnvironment environment = createArmedEnvironment (clipHost, parameterHost);
-        commitDrumPitchState (environment, clipHost, 0.25, 2);
-        final long [] coreGeneration =
-        {
-            2
-        };
-        final ReloadableControllerRuntime runtime = new ReloadableControllerRuntime (environment, NoOpLog.INSTANCE, event -> {
-            final List<CoreEffect> effects;
-            if (event instanceof final AbsoluteInputEvent input)
-                effects = List.of (new SetParameterValueEffect (parameterHost.state ().generation (), FakeParameterHost.TARGET, input.normalizedValue ()));
-            else if (event instanceof SnapshotChangedEvent)
-                effects = List.of ();
-            else
-                return false;
-
-            final double authoritativeValue = parameterHost.state ().slots ().getFirst ().normalizedValue ();
-            final CoreResult write = drumPitchResult (clipHost, authoritativeValue, effects);
-            final long generation = ++coreGeneration[0];
-            environment.commit (generation, environment.prepare (write));
-            environment.apply (generation);
-            return true;
-        });
-        runtime.start ();
-
-        assertEquals (32, runtime.drumPitchRibbonValue ());
-        assertTrue (runtime.routeDrumPitch (127, 127));
-        assertEquals (List.of (Double.valueOf (1.0)), parameterHost.writes);
-        assertEquals (32, runtime.drumPitchRibbonValue ());
-
-        parameterHost.authoritativeValue (1.0);
-        assertEquals (32, runtime.drumPitchRibbonValue ());
-        runtime.tick ();
-        assertEquals (127, runtime.drumPitchRibbonValue ());
-
-        runtime.close ();
-    }
-
-
-    @Test
     void retriesAuthoritativeSnapshotUntilAcceptedAfterAnInterveningNoOpInput ()
     {
         final FakeClipHost clipHost = new FakeClipHost (9);
@@ -335,19 +219,7 @@ class ReloadableControllerRuntimeTest
 
     private static DrumFillRuntimeEnvironment createArmedEnvironment (final FakeClipHost clipHost)
     {
-        return createArmedEnvironment (clipHost, FakeParameterHost.empty ());
-    }
-
-
-    private static List<ButtonInputEvent> buttonEvents (final List<CoreEvent> events)
-    {
-        return events.stream ().filter (ButtonInputEvent.class::isInstance).map (ButtonInputEvent.class::cast).toList ();
-    }
-
-
-    private static DrumFillRuntimeEnvironment createArmedEnvironment (final FakeClipHost clipHost, final SelectedTrackParameterHost parameterHost)
-    {
-        final DrumFillRuntimeEnvironment environment = new DrumFillRuntimeEnvironment (clipHost, parameterHost, NoOpLog.INSTANCE, () -> 0);
+        final DrumFillRuntimeEnvironment environment = new DrumFillRuntimeEnvironment (clipHost, NoOpLog.INSTANCE, () -> 0);
         final CoreResult bindings = new CoreResult (DesiredHardwareOutput.empty (), clipHost.allBindings (), List.of ());
         environment.commit (1, environment.prepare (bindings));
         environment.apply (1);
@@ -356,20 +228,9 @@ class ReloadableControllerRuntimeTest
     }
 
 
-    private static void commitDrumPitchState (final DrumFillRuntimeEnvironment environment, final FakeClipHost clipHost, final double normalizedValue, final long generation)
+    private static List<ButtonInputEvent> buttonEvents (final List<CoreEvent> events)
     {
-        environment.commit (generation, environment.prepare (drumPitchResult (clipHost, normalizedValue, List.of ())));
-        environment.apply (generation);
-    }
-
-
-    private static CoreResult drumPitchResult (final FakeClipHost clipHost, final double normalizedValue, final List<CoreEffect> effects)
-    {
-        return new CoreResult (
-            new DesiredHardwareOutput (Map.of (), Map.of (CoreControls.DRUM_PITCH_RIBBON, Double.valueOf (normalizedValue))),
-            clipHost.allBindings (),
-            Set.of (CoreControls.DRUM_PITCH_RIBBON),
-            effects);
+        return events.stream ().filter (ButtonInputEvent.class::isInstance).map (ButtonInputEvent.class::cast).toList ();
     }
 
 
@@ -574,68 +435,6 @@ class ReloadableControllerRuntimeTest
         private String name ()
         {
             return Long.toString (this.targetId.value ());
-        }
-    }
-
-
-    private static final class FakeParameterHost implements SelectedTrackParameterHost
-    {
-        private static final ParameterTargetId TARGET = new ParameterTargetId (0);
-
-        private final List<Double> writes = new ArrayList<> ();
-        private State state;
-
-
-        private FakeParameterHost (final State state)
-        {
-            this.state = state;
-        }
-
-
-        private static FakeParameterHost mapped (final double normalizedValue)
-        {
-            return new FakeParameterHost (mappedState (normalizedValue));
-        }
-
-
-        private static FakeParameterHost empty ()
-        {
-            return new FakeParameterHost (new State (1, "track-1", "Pull", List.of ()));
-        }
-
-
-        @Override
-        public boolean refresh ()
-        {
-            return false;
-        }
-
-
-        @Override
-        public State state ()
-        {
-            return this.state;
-        }
-
-
-        @Override
-        public void setImmediately (final long generation, final ParameterTargetId targetId, final double normalizedValue)
-        {
-            assertEquals (this.state.generation (), generation);
-            assertEquals (TARGET, targetId);
-            this.writes.add (Double.valueOf (normalizedValue));
-        }
-
-
-        private void authoritativeValue (final double normalizedValue)
-        {
-            this.state = mappedState (normalizedValue);
-        }
-
-
-        private static State mappedState (final double normalizedValue)
-        {
-            return new State (1, "track-1", "Pull", List.of (new Slot (TARGET, "Pull", "Drum Pitch", true, normalizedValue, true)));
         }
     }
 

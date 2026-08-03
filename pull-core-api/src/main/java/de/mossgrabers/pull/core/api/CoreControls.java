@@ -10,9 +10,6 @@ import java.util.List;
  */
 public final class CoreControls
 {
-    /** Push ribbon while the drum performance view owns it. */
-    public static final ControlId DRUM_PITCH_RIBBON = new ControlId ("drum.pitch.ribbon");
-
     /** First momentary drum-fill slot. */
     public static final ControlId DRUM_FILL_1 = new ControlId ("drum.fill.1");
 

@@ -54,16 +54,11 @@ class PullCoreProviderTest
 
         assertEquals (Map.ofEntries (
             Map.entry (CoreCapabilities.INPUT_DRUM_FILL, Integer.valueOf (1)),
-            Map.entry (CoreCapabilities.INPUT_ABSOLUTE, Integer.valueOf (1)),
-            Map.entry (CoreCapabilities.INPUT_OWNERSHIP, Integer.valueOf (1)),
             Map.entry (CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS, Integer.valueOf (1)),
-            Map.entry (CoreCapabilities.SNAPSHOT_SELECTED_TRACK_PARAMETERS, Integer.valueOf (1)),
             Map.entry (CoreCapabilities.BINDING_CLIP_TARGET, Integer.valueOf (1)),
             Map.entry (CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION, Integer.valueOf (1)),
             Map.entry (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD, Integer.valueOf (4)),
-            Map.entry (CoreCapabilities.EFFECT_SET_PARAMETER_VALUE, Integer.valueOf (1)),
-            Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (1)),
-            Map.entry (CoreCapabilities.OUTPUT_ABSOLUTE, Integer.valueOf (1))), required);
+            Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (1))), required);
     }
 
 

@@ -17,7 +17,7 @@
   rendered output so a mock cannot accidentally confirm an optimistic shortcut.
 - Treat a successful void Bitwig API call as command submission, not completion of the requested
   playback transition. Serialize dependent commands from a later subscribed host observation, and
-  keep any exact remote proxy/lease frozen until that acknowledgement arrives.
+  keep any exact actuator/lease frozen until that acknowledgement arrives.
 - Fakes for asynchronous Bitwig behavior must separate command submission from host advancement;
   never make a release call synchronously mutate playback state when production read-back is what
   permits the next action.
@@ -35,10 +35,10 @@
 ## Bounded stable capability canopy
 
 - Create and subscribe practical Push inputs and reusable Bitwig cursor, bank, transport, clip,
-  device, and tagged-remote proxies eagerly during extension initialization. A reloadable child
+  and device proxies eagerly during extension initialization. A reloadable child
   core may compose only the state and operations already present in this stable bounded canopy.
-- Keep every bank, scanner, actuator pool, and remote page explicitly bounded. Document its
-  capacity, identity/generation rules, selection scope, exact names/tags, and any required Bitwig
+- Keep every bank, scanner, actuator pool, and proxy window explicitly bounded. Document its
+  capacity, identity/generation rules, selection scope, and any required Bitwig
   session setup next to the feature that consumes it.
 - Do not imply that eager subscriptions cover arbitrary project state. Bitwig proxy topology is
   initialization-owned, bank windows are finite, and projects are unbounded; a feature outside the

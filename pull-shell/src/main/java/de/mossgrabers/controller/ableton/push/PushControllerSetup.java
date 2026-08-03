@@ -239,6 +239,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         final IMidiOutput output = midiAccess.createOutput ();
 
         final IMidiInput input = midiAccess.createInput ("Pads", PAD_MIDI_FILTERS);
+        input.routeDefaultNoteInputToSelectedTrack ();
         final PushControlSurface surface = new PushControlSurface (this.host, this.colorManager, this.configuration, output, input, this.reloadableRuntime);
         this.surface = surface;
 

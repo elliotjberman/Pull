@@ -4,13 +4,10 @@
 package de.mossgrabers.pull.core.testing;
 
 import de.mossgrabers.pull.core.api.CatalogClip;
-import de.mossgrabers.pull.core.api.CatalogParameter;
 import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.CoreControls;
-import de.mossgrabers.pull.core.api.ParameterCatalogSnapshot;
-import de.mossgrabers.pull.core.api.ParameterTargetId;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchMode;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
@@ -19,7 +16,6 @@ import de.mossgrabers.pull.core.api.effect.ClipReleaseTrigger;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
-import de.mossgrabers.pull.core.api.effect.SetParameterValueEffect;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.runtime.PullCoreProvider;
 
@@ -375,72 +371,6 @@ class PullControllerCoreTest
 
         assertTrue (host.effects ().executionOrder ().isEmpty ());
         assertEquals (AVAILABLE, light (host, CoreControls.DRUM_FILL_1));
-    }
-
-
-    @Test
-    void drumRibbonTargetsOnlyTheExactPullDrumPitchRemote ()
-    {
-        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
-        host.start (Optional.empty ());
-        final ParameterTargetId wrongPage = new ParameterTargetId (1);
-        final ParameterTargetId drumPitch = new ParameterTargetId (2);
-        host.selectedTrackParameters (new ParameterCatalogSnapshot (7, List.of (
-            new CatalogParameter (wrongPage, "Other", "Drum Pitch", 0.1),
-            new CatalogParameter (drumPitch, "Pull", "Drum Pitch", 0.5))));
-
-        host.absolute (CoreControls.DRUM_PITCH_RIBBON, 0.75);
-
-        assertEquals (new SetParameterValueEffect (7, drumPitch, 0.5625), host.effects ().executionOrder ().getLast ());
-        assertEquals (Set.of (CoreControls.DRUM_PITCH_RIBBON), host.effects ().claimedInputs ());
-        assertEquals (Double.valueOf (0.5), host.effects ().desiredOutput ().absoluteValues ().get (CoreControls.DRUM_PITCH_RIBBON));
-    }
-
-
-    @Test
-    void drumPitchRangePolicyMapsRibbonToTheMiddleQuarterOfBend ()
-    {
-        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
-        host.start (Optional.empty ());
-        final ParameterTargetId drumPitch = new ParameterTargetId (2);
-        host.selectedTrackParameters (new ParameterCatalogSnapshot (7, List.of (
-            new CatalogParameter (drumPitch, "Pull", "Drum Pitch", 0.375))));
-
-        host.absolute (CoreControls.DRUM_PITCH_RIBBON, 1.0);
-
-        assertEquals (new SetParameterValueEffect (7, drumPitch, 0.625), host.effects ().executionOrder ().getLast ());
-        assertEquals (Double.valueOf (0.0), host.effects ().desiredOutput ().absoluteValues ().get (CoreControls.DRUM_PITCH_RIBBON));
-    }
-
-
-    @Test
-    void duplicateExactDrumPitchRemotesAreAmbiguousAndLeaveRibbonUnclaimed ()
-    {
-        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
-        host.start (Optional.empty ());
-        host.selectedTrackParameters (new ParameterCatalogSnapshot (8, List.of (
-            new CatalogParameter (new ParameterTargetId (1), "Pull", "Drum Pitch", 0.25),
-            new CatalogParameter (new ParameterTargetId (2), "Pull", "Drum Pitch", 0.75))));
-
-        host.absolute (CoreControls.DRUM_PITCH_RIBBON, 0.5);
-
-        assertTrue (host.effects ().executionOrder ().isEmpty ());
-        assertTrue (host.effects ().claimedInputs ().isEmpty ());
-        assertTrue (host.effects ().desiredOutput ().absoluteValues ().isEmpty ());
-    }
-
-
-    @Test
-    void missingDrumPitchTargetLeavesRibbonUnclaimed ()
-    {
-        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
-        host.start (Optional.empty ());
-
-        host.absolute (CoreControls.DRUM_PITCH_RIBBON, 0.75);
-
-        assertTrue (host.effects ().executionOrder ().isEmpty ());
-        assertTrue (host.effects ().claimedInputs ().isEmpty ());
-        assertTrue (host.effects ().desiredOutput ().absoluteValues ().isEmpty ());
     }
 
 
