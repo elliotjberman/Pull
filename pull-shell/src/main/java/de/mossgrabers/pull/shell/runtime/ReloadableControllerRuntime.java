@@ -150,12 +150,13 @@ public final class ReloadableControllerRuntime implements AutoCloseable
     /**
      * Route a physical fill pad before the legacy active-view dispatch.
      *
-     * @param drumViewActive True when the drum performance view is active
+     * @param drumControlsActive True when the drum layout owns its controls and the selected target
+     *            supports the drum controller
      * @param event The physical button event
      * @param note The physical grid note
      * @return True when the reloadable runtime owns the event
      */
-    public boolean routeGridEvent (final boolean drumViewActive, final ButtonEvent event, final int note)
+    public boolean routeGridEvent (final boolean drumControlsActive, final ButtonEvent event, final int note)
     {
         Objects.requireNonNull (event, "event");
         final ControlId control = controlForNote (note);
@@ -171,7 +172,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         }
 
         final boolean held = this.environment.isFillPressed (control);
-        if (!drumViewActive && !held)
+        if (!drumControlsActive && !held)
             return false;
 
         if (event == ButtonEvent.LONG || event == ButtonEvent.DOWN && held)
@@ -212,19 +213,20 @@ public final class ReloadableControllerRuntime implements AutoCloseable
      * event. The command-layer callback may subsequently report the same release; authoritative
      * input state makes that duplicate a no-op.
      *
-     * @param drumViewActive True when the drum performance view is active
+     * @param drumControlsActive True when the drum layout owns its controls and the selected target
+     *            supports the drum controller
      * @param status MIDI status byte
      * @param data1 First MIDI data byte
      * @param data2 Second MIDI data byte
      */
-    public void routePhysicalMidiRelease (final boolean drumViewActive, final int status, final int data1, final int data2)
+    public void routePhysicalMidiRelease (final boolean drumControlsActive, final int status, final int data1, final int data2)
     {
         final int command = status & 0xF0;
         final boolean fillPadChannel = (status & 0x0F) == 0 && isFillPad (data1);
         final boolean released = command == MidiConstants.CMD_NOTE_OFF || command == MidiConstants.CMD_NOTE_ON && data2 == 0;
         final ControlId control = fillPadChannel && released ? controlForNote (data1) : null;
         final boolean held = control != null && this.environment != null && !this.closed && this.environment.isFillPressed (control);
-        if (held && this.routeGridEvent (drumViewActive, ButtonEvent.UP, data1))
+        if (held && this.routeGridEvent (drumControlsActive, ButtonEvent.UP, data1))
             this.rawReleasedGestures.add (control);
     }
 

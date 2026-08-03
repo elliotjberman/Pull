@@ -262,6 +262,22 @@ arm/monitor state. Pads and raw ribbon pitch bend therefore follow the selected 
 remains solely a recording decision. A track that explicitly selects `Pads` can still create a
 separate conventional route, even though the input is absent from `All Inputs`.
 
+That same private cursor owns a permanently bounded four-candidate drum-device canopy: one native
+Drum Machine match on the selected track chain, Bitwig's semantic `FIRST_INSTRUMENT` cursor itself
+when it reports drum pads, one native match on its first layer, and one native match on its cursor
+slot. Capability requires one complete candidate whose `exists` and `hasDrumPads` read-back are
+both true; state from separate candidates is never combined. This covers the ordinary ungrouped and
+one-container grouped layouts without claiming arbitrary recursion, additional layers, or parallel
+branches. Its target
+`exists`, `canHoldNoteData`, and candidate read-back define selected-target drum applicability
+independently of the visible view. New fill gestures require both that capability and explicit
+Drum Pads layout ownership; an already-held fill still releases after either state changes. The
+user-pinnable model cursor is never used as applicability truth. Because the current drum renderer
+still consumes that model cursor, the stable shell also compares its stable Bitwig channel ID with
+the private route target on every controller tick. A Track Pin divergence fails closed: note
+mapping, indication, fills, rates, and ribbon ownership disengage until both proxies represent the
+same track.
+
 The route deliberately stops at raw MIDI. A drum track that should interpret the ribbon configures
 that interpretation visibly in the Bitwig project: disable `P. Bend → Expr.`, use native Bend plus
 a MIDI `BEND` modulator for expression-aware instruments, and map a separate MIDI `BEND` modulator

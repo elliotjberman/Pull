@@ -17,7 +17,6 @@ import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.parameter.IFocusedParameter;
 import de.mossgrabers.framework.parameter.IParameter;
 import de.mossgrabers.framework.utils.ButtonEvent;
-import de.mossgrabers.framework.view.Views;
 
 
 /**
@@ -43,7 +42,10 @@ public class ConfigurePitchbendCommand extends AbstractTriggerCommand<PushContro
     @Override
     public void executeNormal (final ButtonEvent event)
     {
-        if (event == ButtonEvent.UP && this.surface.getViewManager ().isActive (Views.SESSION, Views.DRUM_PAD))
+        if (event == ButtonEvent.DOWN && this.surface.beginRawPitchbendGesture ())
+            return;
+
+        if (event == ButtonEvent.UP && (this.surface.endRawPitchbendGesture () || this.surface.isRawPitchbendRoutingActive ()))
         {
             this.surface.sendMidiEvent (MidiConstants.CMD_PITCHBEND, 0, 64);
             this.surface.getMidiOutput ().sendPitchbend (0, 64);
@@ -84,6 +86,12 @@ public class ConfigurePitchbendCommand extends AbstractTriggerCommand<PushContro
     @Override
     public void executeShifted (final ButtonEvent event)
     {
+        if (this.surface.shouldRouteRawPitchbend ())
+        {
+            this.executeNormal (event);
+            return;
+        }
+
         if (event == ButtonEvent.UP)
         {
             this.executeNormal (event);

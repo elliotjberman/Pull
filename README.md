@@ -70,6 +70,19 @@ selection regardless of monitor state; record arm controls recording, not which 
 auditioned. The controller does not expose this cursor's pin control, so pinning the normal model
 cursor cannot strand the Pads route on an old track. Changing selection does not create or
 reconnect note inputs.
+The same private cursor exposes a fixed four-candidate drum-device canopy: a native Drum Machine
+match in the selected track chain, Bitwig's semantic first instrument when it reports drum pads,
+plus native Drum Machine matches in that instrument's first layer and cursor slot. This catches the
+common ungrouped and one-container grouped layouts while keeping selected-target drum capability
+separate from which Push layout is visible and which physical controls that layout owns. It does
+not recursively scan arbitrary nesting or parallel layers.
+The framework's display/device cursor remains pinnable. If Track Pin makes it diverge from the
+private Pads target, Pull temporarily disables and blanks its drum controls until both proxies
+represent the same track; it never displays one drum track while routing gestures to another.
+Bitwig's Dashboard → Settings → Recording → Auto-arm selected → Instrument tracks preference is
+independent of Pull. Disable it if track arm should not follow selection; the direct Pads route
+continues to audition the selected track. A plain Push Record press toggles global arranger record,
+while Shift+Record toggles launcher overdub unless Pull's Flip Record setting reverses them.
 Explicitly selecting `Pads` as another track's input can still create a second conventional route;
 leave other tracks on `All Inputs` when testing the no-duplication behavior.
 

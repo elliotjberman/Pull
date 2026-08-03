@@ -21,6 +21,7 @@ import de.mossgrabers.framework.daw.data.bank.ITrackBank;
 import de.mossgrabers.framework.daw.midi.ArpeggiatorMode;
 import de.mossgrabers.framework.daw.midi.INoteInput;
 import de.mossgrabers.framework.daw.midi.INoteRepeat;
+import de.mossgrabers.framework.featuregroup.IView;
 import de.mossgrabers.framework.scale.Scales;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.shell.runtime.ReloadableControllerRuntime;
@@ -71,25 +72,27 @@ public final class DrumPadControls
     private static final int [] []    PLAY_COLOR_RGB    = createPlayColorRGB ();
     private static final int []       VELOCITY_COLORS   = createVelocityColors ();
 
-    private final PushControlSurface surface;
-    private final PushConfiguration  configuration;
-    private final IModel             model;
-    private final Scales             scales;
+    private final PushControlSurface          surface;
+    private final PushConfiguration           configuration;
+    private final IModel                      model;
+    private final Scales                      scales;
     private final ReloadableControllerRuntime reloadableRuntime;
-    private final int []             fillPadNotes       = ReloadableControllerRuntime.fillPadNotes ();
-    private final int []             playingVelocities = new int [NUM_PLAY_PADS];
-    private final boolean []         ratePadsDown       = new boolean [NUM_RATE_PADS];
-    private final long []            ratePadPressOrder  = new long [NUM_RATE_PADS];
-    private final RgbColor []        previousFillColors = new RgbColor [this.fillPadNotes.length];
-    private final int []             fillColorIndices   = new int [this.fillPadNotes.length];
+    private final int []                      fillPadNotes         = ReloadableControllerRuntime.fillPadNotes ();
+    private final int []                      playingVelocities   = new int [NUM_PLAY_PADS];
+    private final boolean []                  ratePadsDown         = new boolean [NUM_RATE_PADS];
+    private final long []                     ratePadPressOrder    = new long [NUM_RATE_PADS];
+    private final RgbColor []                 previousFillColors   = new RgbColor [this.fillPadNotes.length];
+    private final int []                      fillColorIndices     = new int [this.fillPadNotes.length];
 
-    private boolean active;
-    private int     primaryRatePad      = -1;
-    private int     secondaryRatePad    = -1;
-    private int     selectedTrackIndex  = -1;
-    private long    ratePadPressCounter;
-    private RollState previousRollState;
-    private long    fillOutputGeneration = Long.MIN_VALUE;
+    private boolean                           active;
+    private boolean                           controllerEngaged;
+    private IDrumDevice                       engagedDrumDevice;
+    private int                               primaryRatePad       = -1;
+    private int                               secondaryRatePad     = -1;
+    private int                               selectedTrackIndex   = -1;
+    private long                              ratePadPressCounter;
+    private RollState                         previousRollState;
+    private long                              fillOutputGeneration = Long.MIN_VALUE;
 
 
     /**
@@ -124,14 +127,8 @@ public final class DrumPadControls
         if (this.active)
             return;
 
-        this.clearPlaybackFeedback ();
-        this.refreshSelectedTrack ();
-        this.resetMomentaryRatePads ();
         this.active = true;
-
-        this.model.getDrumDevice ().getDrumPadBank ().setIndication (true);
-        this.surface.setVelocityTranslationTable (Scales.getIdentityMatrix ());
-        this.configureRoll ();
+        this.reconcileControllerState ();
     }
 
 
@@ -145,11 +142,7 @@ public final class DrumPadControls
             return;
 
         this.active = false;
-        this.clearPlaybackFeedback ();
-        this.resetMomentaryRatePads ();
-        this.model.getDrumDevice ().getDrumPadBank ().setIndication (false);
-        this.restoreRoll ();
-        this.restoreVelocityTranslation ();
+        this.reconcileControllerState ();
     }
 
 
@@ -161,6 +154,71 @@ public final class DrumPadControls
     public boolean isActive ()
     {
         return this.active;
+    }
+
+
+    /**
+     * Test whether capability read-back has been reconciled and the controller is engaged.
+     *
+     * @return True after the engage transition and before the disengage transition
+     */
+    public boolean isControllerEngaged ()
+    {
+        return this.controllerEngaged;
+    }
+
+
+    /**
+     * Reconcile the performance controls with authoritative target capability and model identity.
+     * This is polled from the controller flush so asynchronous proxy changes and Track Pin changes
+     * cannot leave the controls engaged against a stale framework cursor.
+     */
+    public void reconcileControllerState ()
+    {
+        final boolean shouldEngage = this.active && this.surface.isDrumControllerApplicable ();
+        final IDrumDevice candidate = shouldEngage ? this.model.getDrumDevice () : null;
+        final boolean candidateChanged = shouldEngage && candidate != this.engagedDrumDevice;
+        if (shouldEngage == this.controllerEngaged && !candidateChanged)
+            return;
+
+        final boolean wasEngaged = this.controllerEngaged;
+        this.clearPlaybackFeedback ();
+        this.resetMomentaryRatePads ();
+
+        if (this.engagedDrumDevice != null && this.engagedDrumDevice != candidate)
+            this.engagedDrumDevice.getDrumPadBank ().setIndication (false);
+        if (candidate != null)
+        {
+            candidate.getDrumPadBank ().scrollTo (this.scales.getDrumOffset (), false);
+            candidate.getDrumPadBank ().setIndication (true);
+        }
+
+        this.controllerEngaged = shouldEngage;
+        this.engagedDrumDevice = candidate;
+
+        if (shouldEngage)
+        {
+            this.refreshSelectedTrack ();
+            if (!wasEngaged)
+            {
+                this.surface.setVelocityTranslationTable (Scales.getIdentityMatrix ());
+                this.configureRoll ();
+            }
+            else
+                this.setNoteRepeatRate (DEFAULT_RATE);
+        }
+        else
+        {
+            this.restoreRoll ();
+            this.restoreVelocityTranslation ();
+        }
+
+        if (wasEngaged != shouldEngage)
+        {
+            final IView activeView = this.surface.getViewManager ().getActive ();
+            if (activeView != null)
+                activeView.updateNoteMapping ();
+        }
     }
 
 
@@ -193,6 +251,9 @@ public final class DrumPadControls
      */
     public void onGridNote (final int note, final int velocity)
     {
+        if (!this.controllerEngaged)
+            return;
+
         if (this.isFillPad (note))
             return;
 
@@ -233,6 +294,12 @@ public final class DrumPadControls
      */
     public void drawOwnedPads (final IPadGrid padGrid)
     {
+        if (!this.controllerEngaged)
+        {
+            this.drawInactivePads (padGrid);
+            return;
+        }
+
         this.drawRatePads (padGrid);
 
         final boolean canPlayNotes = this.model.canSelectedTrackHoldNotes ();
@@ -374,7 +441,7 @@ public final class DrumPadControls
 
     private void onTrackNote (final int trackIndex, final int note, final int velocity)
     {
-        if (!this.active || this.selectedTrackIndex != trackIndex)
+        if (!this.controllerEngaged || this.selectedTrackIndex != trackIndex)
             return;
 
         final int padIndex = note - this.scales.getDrumOffset ();
@@ -490,6 +557,23 @@ public final class DrumPadControls
     }
 
 
+    private void drawInactivePads (final IPadGrid padGrid)
+    {
+        final int bottomRow = padGrid.getRows () - 1;
+        for (int x = 0; x < PLAY_COLUMNS + NUM_RATE_PADS; x++)
+            padGrid.lightEx (x, bottomRow, PAD_OFF_COLOR);
+
+        for (int y = 1; y < PLAY_ROWS; y++)
+        {
+            for (int x = 0; x < PLAY_COLUMNS; x++)
+                padGrid.lightEx (x, bottomRow - y, PAD_OFF_COLOR);
+        }
+
+        for (final int fillPadNote: this.fillPadNotes)
+            padGrid.light (fillPadNote, PAD_OFF_COLOR);
+    }
+
+
     private void resetMomentaryRatePads ()
     {
         Arrays.fill (this.ratePadsDown, false);
@@ -502,7 +586,7 @@ public final class DrumPadControls
 
     private int getRestingPadColor (final int padIndex)
     {
-        if (!this.model.canSelectedTrackHoldNotes ())
+        if (!this.controllerEngaged || !this.model.canSelectedTrackHoldNotes ())
             return PAD_OFF_COLOR;
 
         final IDrumDevice drumDevice = this.model.getDrumDevice ();

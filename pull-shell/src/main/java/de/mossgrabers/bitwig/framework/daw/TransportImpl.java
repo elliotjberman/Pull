@@ -235,6 +235,14 @@ public class TransportImpl implements ITransport
 
     /** {@inheritDoc} */
     @Override
+    public void toggleRecording ()
+    {
+        this.transport.isArrangerRecordEnabled ().toggle ();
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
     public boolean isRecording ()
     {
         return this.transport.isArrangerRecordEnabled ().get ();

@@ -15,6 +15,14 @@
   use optimistic rendering only as an explicit exception with reconciliation and failure tests.
 - Tests should distinguish input, requested effects, applied host state, snapshot read-back, and
   rendered output so a mock cannot accidentally confirm an optimistic shortcut.
+- Model selected-track/device applicability, visible view, and physical-control layout ownership as
+  separate state. A layout may decide which pads it owns, but a generic active-view enum is not
+  proof that the selected target has the capability a controller feature needs.
+- Derive authoritative selected-track applicability from a private selection-following target, not
+  a user-pinnable cursor that can remain attached to a previously selected track.
+- When routing and rendering use different host proxies, compare their stable target identity and
+  fail closed while they disagree. Never render or mutate a pinned model target while physical
+  input is routed to a different selected target.
 - Treat a successful void Bitwig API call as command submission, not completion of the requested
   playback transition. Serialize dependent commands from a later subscribed host observation, and
   keep any exact actuator/lease frozen until that acknowledgement arrives.

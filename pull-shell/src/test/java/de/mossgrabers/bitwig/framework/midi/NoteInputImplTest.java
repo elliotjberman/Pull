@@ -15,7 +15,14 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.bitwig.extension.controller.api.ControllerHost;
 import com.bitwig.extension.controller.api.CursorTrack;
+import com.bitwig.extension.controller.api.Device;
+import com.bitwig.extension.controller.api.DeviceBank;
+import com.bitwig.extension.controller.api.DeviceLayer;
+import com.bitwig.extension.controller.api.DeviceLayerBank;
+import com.bitwig.extension.controller.api.DeviceSlot;
+import com.bitwig.extension.controller.api.MidiIn;
 import com.bitwig.extension.controller.api.NoteInput;
+import com.bitwig.extension.controller.api.PinnableCursorDevice;
 import com.bitwig.extension.controller.api.SettableBooleanValue;
 import com.bitwig.extension.controller.api.Track;
 
@@ -27,6 +34,84 @@ import org.junit.jupiter.api.Test;
  */
 class NoteInputImplTest
 {
+    @Test
+    void selectedTrackStateAndNoteAttachmentShareTheExactPrivateCursor ()
+    {
+        final AtomicReference<CursorTrack> stateTarget = new AtomicReference<> ();
+        final AtomicReference<CursorTrack> attachmentTarget = new AtomicReference<> ();
+        final Device drumMachine = relaxedProxy (Device.class);
+        final DeviceBank drumDevices = proxy (DeviceBank.class, (proxy, method, arguments) -> {
+            if ("getItemAt".equals (method.getName ()))
+                return drumMachine;
+            return relaxedValue (method.getReturnType ());
+        });
+        final DeviceLayer firstLayer = proxy (DeviceLayer.class, (proxy, method, arguments) -> {
+            if ("createDeviceBank".equals (method.getName ()))
+                return drumDevices;
+            return relaxedValue (method.getReturnType ());
+        });
+        final DeviceLayerBank layers = proxy (DeviceLayerBank.class, (proxy, method, arguments) -> {
+            if ("getItemAt".equals (method.getName ()))
+                return firstLayer;
+            return relaxedValue (method.getReturnType ());
+        });
+        final DeviceSlot cursorSlot = proxy (DeviceSlot.class, (proxy, method, arguments) -> {
+            if ("createDeviceBank".equals (method.getName ()))
+                return drumDevices;
+            return relaxedValue (method.getReturnType ());
+        });
+        final PinnableCursorDevice primaryInstrument = proxy (PinnableCursorDevice.class, (proxy, method, arguments) -> {
+            if ("createLayerBank".equals (method.getName ()))
+                return layers;
+            if ("getCursorSlot".equals (method.getName ()))
+                return cursorSlot;
+            return relaxedValue (method.getReturnType ());
+        });
+        final CursorTrack selectedTrack = proxy (CursorTrack.class, (proxy, method, arguments) -> {
+            if ("createDeviceBank".equals (method.getName ()))
+            {
+                stateTarget.set ((CursorTrack) proxy);
+                return drumDevices;
+            }
+            if ("createCursorDevice".equals (method.getName ()))
+            {
+                stateTarget.set ((CursorTrack) proxy);
+                return primaryInstrument;
+            }
+            if ("addNoteSource".equals (method.getName ()))
+            {
+                attachmentTarget.set ((CursorTrack) proxy);
+                return null;
+            }
+            return relaxedValue (method.getReturnType ());
+        });
+        final NoteInput noteInput = relaxedProxy (NoteInput.class);
+        final MidiIn midiIn = proxy (MidiIn.class, (proxy, method, arguments) -> {
+            if ("createNoteInput".equals (method.getName ()))
+                return noteInput;
+            return relaxedValue (method.getReturnType ());
+        });
+        final ControllerHost host = proxy (ControllerHost.class, (proxy, method, arguments) -> {
+            if ("getMidiInPort".equals (method.getName ()))
+                return midiIn;
+            if ("createCursorTrack".equals (method.getName ()))
+                return selectedTrack;
+            return relaxedValue (method.getReturnType ());
+        });
+
+        final MidiInputImpl input = new MidiInputImpl (0, host, "Pull Pads", new String []
+        {
+            "80????",
+            "90????"
+        });
+        input.routeDefaultNoteInputToSelectedTrack ();
+
+        assertSame (selectedTrack, stateTarget.get ());
+        assertSame (selectedTrack, attachmentTarget.get ());
+        assertSame (stateTarget.get (), attachmentTarget.get ());
+    }
+
+
     @Test
     void selectedTrackTargetUsesAPrivateSelectionFollowingCursor ()
     {
@@ -90,6 +175,20 @@ class NoteInputImplTest
         {
             type
         }, handler));
+    }
+
+
+    private static <T> T relaxedProxy (final Class<T> type)
+    {
+        return proxy (type, (proxy, method, arguments) -> relaxedValue (method.getReturnType ()));
+    }
+
+
+    private static Object relaxedValue (final Class<?> type)
+    {
+        if (type.isInterface ())
+            return relaxedProxy (type);
+        return defaultValue (type);
     }
 
 

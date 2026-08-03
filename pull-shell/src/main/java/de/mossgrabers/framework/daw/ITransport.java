@@ -61,6 +61,12 @@ public interface ITransport extends IObserverManagement
 
 
     /**
+     * Toggle arranger recording.
+     */
+    void toggleRecording ();
+
+
+    /**
      * Returns true if arranger recording is enabled.
      *
      * @return True if arranger recording is enabled

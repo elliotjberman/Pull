@@ -8,7 +8,6 @@ import de.mossgrabers.controller.ableton.push.PushConfiguration;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.command.core.AbstractTriggerCommand;
 import de.mossgrabers.framework.daw.IModel;
-import de.mossgrabers.framework.daw.data.IDrumDevice;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.featuregroup.ViewManager;
 import de.mossgrabers.framework.utils.ButtonEvent;
@@ -66,7 +65,7 @@ public class SelectPlayViewCommand extends AbstractTriggerCommand<PushControlSur
         this.restoreOnRelease = false;
         if (this.surface.isShiftPressed ())
         {
-            viewManager.setActive (Views.DRUM_PAD);
+            this.activatePreferredView (Views.DRUM_PAD);
             return;
         }
 
@@ -87,10 +86,9 @@ public class SelectPlayViewCommand extends AbstractTriggerCommand<PushControlSur
 
         if (viewManager.getPreferredView (track.getPosition ()) == null)
         {
-            final IDrumDevice drumDevice = this.model.getDrumDevice ();
-            if (drumDevice.doesExist () && drumDevice.hasDrumPads ())
+            if (this.surface.isDrumControllerApplicable ())
             {
-                viewManager.setActive (Views.DRUM_PAD);
+                this.activatePreferredView (Views.DRUM_PAD);
                 return;
             }
         }

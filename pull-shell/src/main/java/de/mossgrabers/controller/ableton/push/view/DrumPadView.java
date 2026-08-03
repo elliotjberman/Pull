@@ -45,8 +45,8 @@ public final class DrumPadView extends AbstractView<PushControlSurface, PushConf
     @Override
     public void onActivate ()
     {
-        super.onActivate ();
         this.controls.activate ();
+        super.onActivate ();
     }
 
 
@@ -72,6 +72,9 @@ public final class DrumPadView extends AbstractView<PushControlSurface, PushConf
     @Override
     public void executeAftertouchCommand (final int note, final int value)
     {
+        if (!this.surface.isDrumControllerActive ())
+            return;
+
         // Control pads have no musical aftertouch action. A negative note identifies channel
         // pressure rather than a particular rate or fill pad and must still reach the drum view.
         if (note >= 0 && (this.controls.isRatePad (note) || this.controls.isFillPad (note)))
@@ -98,7 +101,7 @@ public final class DrumPadView extends AbstractView<PushControlSurface, PushConf
     @Override
     public void updateNoteMapping ()
     {
-        this.delayedUpdateNoteMapping (this.model.canSelectedTrackHoldNotes () ? this.scales.getDrumMatrix () : EMPTY_TABLE);
+        this.delayedUpdateNoteMapping (this.surface.isDrumControllerActive () ? this.scales.getDrumMatrix () : EMPTY_TABLE);
     }
 
 
@@ -122,7 +125,7 @@ public final class DrumPadView extends AbstractView<PushControlSurface, PushConf
     @Override
     public boolean isOctaveUpButtonOn ()
     {
-        return this.scales.canScrollDrumOctaveUp ();
+        return this.surface.isDrumControllerActive () && this.scales.canScrollDrumOctaveUp ();
     }
 
 
@@ -130,7 +133,7 @@ public final class DrumPadView extends AbstractView<PushControlSurface, PushConf
     @Override
     public boolean isOctaveDownButtonOn ()
     {
-        return this.scales.canScrollDrumOctaveDown ();
+        return this.surface.isDrumControllerActive () && this.scales.canScrollDrumOctaveDown ();
     }
 
 
@@ -138,6 +141,9 @@ public final class DrumPadView extends AbstractView<PushControlSurface, PushConf
     @Override
     public void resetOctave ()
     {
+        if (!this.surface.isDrumControllerActive ())
+            return;
+
         final int previousOffset = this.scales.getDrumOffset ();
         this.keyManager.clearPressedKeys ();
         this.scales.resetDrumOctave ();
@@ -150,7 +156,7 @@ public final class DrumPadView extends AbstractView<PushControlSurface, PushConf
 
     private void changeOctave (final ButtonEvent event, final boolean isUp, final int offset)
     {
-        if (event != ButtonEvent.DOWN)
+        if (event != ButtonEvent.DOWN || !this.surface.isDrumControllerActive ())
             return;
 
         final int previousOffset = this.scales.getDrumOffset ();

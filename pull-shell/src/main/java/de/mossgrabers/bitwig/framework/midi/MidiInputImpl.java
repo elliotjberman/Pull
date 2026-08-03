@@ -27,6 +27,7 @@ import de.mossgrabers.framework.controller.hardware.IHwFader;
 import de.mossgrabers.framework.controller.hardware.IHwRelativeKnob;
 import de.mossgrabers.framework.controller.valuechanger.RelativeEncoding;
 import de.mossgrabers.framework.daw.midi.IMidiInput;
+import de.mossgrabers.framework.daw.midi.ISelectedTrackNoteTarget;
 import de.mossgrabers.framework.daw.midi.INoteInput;
 import de.mossgrabers.framework.daw.midi.MidiShortCallback;
 import de.mossgrabers.framework.daw.midi.MidiSysExCallback;
@@ -112,7 +113,7 @@ public class MidiInputImpl implements IMidiInput
 
     /** {@inheritDoc} */
     @Override
-    public void routeDefaultNoteInputToSelectedTrack ()
+    public ISelectedTrackNoteTarget routeDefaultNoteInputToSelectedTrack ()
     {
         if (this.defaultNoteInput == null)
             throw new IllegalStateException ("MIDI input has no default note input");
@@ -120,7 +121,9 @@ public class MidiInputImpl implements IMidiInput
             throw new IllegalStateException ("MIDI input is already routed to the selected track");
 
         this.selectedTrackNoteTarget = createSelectedTrackNoteTarget (this.host);
+        final ISelectedTrackNoteTarget targetState = new SelectedTrackTargetState (this.host, this.selectedTrackNoteTarget);
         this.defaultNoteInput.routeDirectlyTo (this.selectedTrackNoteTarget);
+        return targetState;
     }
 
 

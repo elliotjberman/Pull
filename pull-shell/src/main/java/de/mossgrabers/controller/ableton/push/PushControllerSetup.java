@@ -122,6 +122,7 @@ import de.mossgrabers.framework.daw.ITransport;
 import de.mossgrabers.framework.daw.ModelSetup;
 import de.mossgrabers.framework.daw.clip.INoteClip;
 import de.mossgrabers.framework.daw.data.ICursorDevice;
+import de.mossgrabers.framework.daw.data.IDrumDevice;
 import de.mossgrabers.framework.daw.data.ILayer;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
@@ -129,6 +130,7 @@ import de.mossgrabers.framework.daw.midi.DeviceInquiry;
 import de.mossgrabers.framework.daw.midi.IMidiAccess;
 import de.mossgrabers.framework.daw.midi.IMidiInput;
 import de.mossgrabers.framework.daw.midi.IMidiOutput;
+import de.mossgrabers.framework.daw.midi.ISelectedTrackNoteTarget;
 import de.mossgrabers.framework.featuregroup.IMode;
 import de.mossgrabers.framework.featuregroup.IView;
 import de.mossgrabers.framework.featuregroup.ModeManager;
@@ -161,10 +163,10 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         "B040??"
     };
 
-    private TouchstripCommand touchstripCommand;
-    private DrumPadControls   drumPadControls;
     private final ReloadableControllerRuntime reloadableRuntime;
-    private boolean           initialHardwareStateReplayed;
+    private TouchstripCommand                 touchstripCommand;
+    private DrumPadControls                   drumPadControls;
+    private boolean                           initialHardwareStateReplayed;
 
 
     /**
@@ -191,6 +193,9 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
     @Override
     public void flush ()
     {
+        if (this.drumPadControls != null)
+            this.drumPadControls.reconcileControllerState ();
+
         if (this.touchstripCommand != null)
             this.touchstripCommand.updateValue ();
 
@@ -239,8 +244,11 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         final IMidiOutput output = midiAccess.createOutput ();
 
         final IMidiInput input = midiAccess.createInput ("Pads", PAD_MIDI_FILTERS);
-        input.routeDefaultNoteInputToSelectedTrack ();
-        final PushControlSurface surface = new PushControlSurface (this.host, this.colorManager, this.configuration, output, input, this.reloadableRuntime);
+        final ISelectedTrackNoteTarget selectedTrackNoteTarget = input.routeDefaultNoteInputToSelectedTrack ();
+        final PushControlSurface surface = new PushControlSurface (this.host, this.colorManager, this.configuration, output, input, selectedTrackNoteTarget, this.model.getCursorTrack (), () -> {
+            final IDrumDevice drumDevice = this.model.getDrumDevice ();
+            return drumDevice.doesExist () && drumDevice.hasDrumPads ();
+        }, this.reloadableRuntime);
         this.surface = surface;
 
         surface.addGraphicsDisplay (new Push2Display (this.host, this.valueChanger.getUpperBound (), this.configuration));
@@ -393,6 +401,8 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         final PushControlSurface surface = this.getSurface ();
         final ViewManager viewManager = surface.getViewManager ();
         this.drumPadControls = new DrumPadControls (surface, this.model, this.reloadableRuntime);
+        surface.setDrumPadLayoutActive (this.drumPadControls::isActive);
+        surface.setDrumControllerEngaged (this.drumPadControls::isControllerEngaged);
         viewManager.register (Views.PLAY, new PlayView (surface, this.model));
         viewManager.register (Views.CHORDS, new ChordsView (surface, this.model));
         viewManager.register (Views.PIANO, new PianoView (surface, this.model));
@@ -815,7 +825,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         final PushControlSurface surface = this.getSurface ();
 
         // Update ribbon mode
-        if (surface.getViewManager ().isActive (Views.SESSION, Views.DRUM_PAD))
+        if (surface.shouldRouteRawPitchbend ())
             surface.setRibbonMode (PushControlSurface.PUSH_RIBBON_PITCHBEND);
         else
             this.updateRibbonMode ();

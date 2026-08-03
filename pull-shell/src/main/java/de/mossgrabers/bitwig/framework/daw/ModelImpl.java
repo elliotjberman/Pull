@@ -5,6 +5,7 @@
 package de.mossgrabers.bitwig.framework.daw;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -15,9 +16,6 @@ import com.bitwig.extension.controller.api.BooleanValue;
 import com.bitwig.extension.controller.api.ControllerHost;
 import com.bitwig.extension.controller.api.CursorDeviceFollowMode;
 import com.bitwig.extension.controller.api.CursorTrack;
-import com.bitwig.extension.controller.api.Device;
-import com.bitwig.extension.controller.api.DeviceBank;
-import com.bitwig.extension.controller.api.DeviceMatcher;
 import com.bitwig.extension.controller.api.LastClickedParameter;
 import com.bitwig.extension.controller.api.MasterTrack;
 import com.bitwig.extension.controller.api.PinnableCursorDevice;
@@ -26,6 +24,7 @@ import com.bitwig.extension.controller.api.SceneBank;
 import com.bitwig.extension.controller.api.Track;
 import com.bitwig.extension.controller.api.TrackBank;
 
+import de.mossgrabers.bitwig.framework.daw.PrimaryDrumDeviceCanopy.Candidate;
 import de.mossgrabers.bitwig.framework.daw.data.CursorDeviceImpl;
 import de.mossgrabers.bitwig.framework.daw.data.CursorTrackImpl;
 import de.mossgrabers.bitwig.framework.daw.data.DrumDeviceImpl;
@@ -40,6 +39,7 @@ import de.mossgrabers.framework.daw.DataSetup;
 import de.mossgrabers.framework.daw.ModelSetup;
 import de.mossgrabers.framework.daw.clip.INoteClip;
 import de.mossgrabers.framework.daw.data.ICursorTrack;
+import de.mossgrabers.framework.daw.data.IDrumDevice;
 import de.mossgrabers.framework.daw.data.ISlot;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.ISceneBank;
@@ -58,6 +58,8 @@ public class ModelImpl extends AbstractModel
 {
     /** The UUID of the Drum Device. */
     public static final UUID               INSTRUMENT_DRUM_MACHINE = UUID.fromString ("8ea97e45-0255-40fd-bc7e-94419741e9d1");
+    private static final String            DRUM_DEVICE_CURSOR_ID   = "DRUM_DEVICE";
+    private static final String            DRUM_DEVICE_CURSOR_NAME = "Drum device";
 
     private final ControllerHost           controllerHost;
     private final CursorTrack              bwCursorTrack;
@@ -156,19 +158,21 @@ public class ModelImpl extends AbstractModel
         final PinnableCursorDevice mainCursorDevice = this.bwCursorTrack.createCursorDevice ("CURSOR_DEVICE", "Cursor device", numSends, CursorDeviceFollowMode.FOLLOW_SELECTION);
         this.cursorDevice = new CursorDeviceImpl (this.host, this.valueChanger, mainCursorDevice, modelSetup);
 
-        // Drum Machine
-        final DeviceMatcher drumMachineDeviceMatcher = controllerHost.createBitwigDeviceMatcher (INSTRUMENT_DRUM_MACHINE);
-        final DeviceBank drumDeviceBank = this.bwCursorTrack.createDeviceBank (1);
-        drumDeviceBank.setDeviceMatcher (drumMachineDeviceMatcher);
-        final Device drumMachineDevice = drumDeviceBank.getItemAt (0);
-        this.drumDevice = new DrumDeviceImpl (this.host, this.valueChanger, drumMachineDevice, numSends, numParamPages, numParams, numDevicesInBank, numDeviceLayers, numDrumPadLayers);
+        // Compatible drum-device candidates in the track chain and one bounded
+        // primary-instrument container level. See PrimaryDrumDeviceCanopy for the topology limit.
+        final List<Candidate> drumMachineCandidates = PrimaryDrumDeviceCanopy.create (controllerHost, this.bwCursorTrack, DRUM_DEVICE_CURSOR_ID, DRUM_DEVICE_CURSOR_NAME, numSends);
+        for (final Candidate candidate: drumMachineCandidates)
+            this.drumDevices.add (new DrumDeviceImpl (this.host, this.valueChanger, candidate.device (), candidate.numLayerSends (), numParamPages, numParams, numDevicesInBank, numDeviceLayers, numDrumPadLayers));
+        this.drumDevice = this.drumDevices.get (0);
 
         // Additional devices exist only to expose an alternate-sized drum-pad bank.
         final int [] additionalDrumDevicePageSizes = modelSetup.wantsAdditionalDrumDevices ();
         for (final int pageSize: additionalDrumDevicePageSizes)
         {
-            final DrumDeviceImpl addDrumDevice = new DrumDeviceImpl (this.host, this.valueChanger, drumMachineDevice, 0, 0, 0, 1, 0, pageSize);
-            this.additionalDrumDevices.put (Integer.valueOf (pageSize), addDrumDevice);
+            final List<IDrumDevice> candidates = drumMachineCandidates.stream ()
+                .map (candidate -> (IDrumDevice) new DrumDeviceImpl (this.host, this.valueChanger, candidate.device (), 0, 0, 0, 1, 0, pageSize))
+                .toList ();
+            this.additionalDrumDevices.put (Integer.valueOf (pageSize), candidates);
         }
 
         final int numResults = this.modelSetup.getNumResults ();

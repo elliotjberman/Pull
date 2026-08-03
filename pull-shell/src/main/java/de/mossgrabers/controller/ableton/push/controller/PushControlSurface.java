@@ -4,13 +4,18 @@
 
 package de.mossgrabers.controller.ableton.push.controller;
 
+import java.util.Objects;
+import java.util.function.BooleanSupplier;
+
 import de.mossgrabers.controller.ableton.push.PushConfiguration;
 import de.mossgrabers.framework.controller.AbstractControlSurface;
 import de.mossgrabers.framework.controller.color.ColorManager;
 import de.mossgrabers.framework.daw.IHost;
+import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.midi.DeviceInquiry;
 import de.mossgrabers.framework.daw.midi.IMidiInput;
 import de.mossgrabers.framework.daw.midi.IMidiOutput;
+import de.mossgrabers.framework.daw.midi.ISelectedTrackNoteTarget;
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.framework.utils.StringUtils;
 import de.mossgrabers.framework.view.Views;
@@ -329,9 +334,15 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
     private static final int         PAD_VELOCITY_CURVE_CHUNK_SIZE        = 16;
     private static final int         NUM_VELOCITY_CURVE_ENTRIES           = 128;
 
-    private final ColorPalette       colorPalette;
-    private final PushPadGrid        pushPadGrid;
+    private final ColorPalette                colorPalette;
+    private final PushPadGrid                 pushPadGrid;
     private final ReloadableControllerRuntime reloadableRuntime;
+    private final ISelectedTrackNoteTarget    selectedTrackNoteTarget;
+    private final ITrack                      drumModelTrack;
+    private final BooleanSupplier             drumModelDeviceReady;
+    private BooleanSupplier                   drumPadLayoutActive       = () -> false;
+    private BooleanSupplier                   drumControllerEngaged     = () -> false;
+    private boolean                           rawPitchbendGestureActive;
 
     private int                      ribbonMode                           = -1;
     private int                      ribbonValue                          = -1;
@@ -356,12 +367,19 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
      * @param configuration The configuration
      * @param output The MIDI output
      * @param input The MIDI input
+     * @param selectedTrackNoteTarget State for the private selected-track note target
+     * @param drumModelTrack Track represented by the framework drum-device model
+     * @param drumModelDeviceReady True when the framework drum-device model rendered by the
+     *            layout is ready
      * @param reloadableRuntime The stable reloadable-core runtime
      */
-    public PushControlSurface (final IHost host, final ColorManager colorManager, final PushConfiguration configuration, final IMidiOutput output, final IMidiInput input, final ReloadableControllerRuntime reloadableRuntime)
+    public PushControlSurface (final IHost host, final ColorManager colorManager, final PushConfiguration configuration, final IMidiOutput output, final IMidiInput input, final ISelectedTrackNoteTarget selectedTrackNoteTarget, final ITrack drumModelTrack, final BooleanSupplier drumModelDeviceReady, final ReloadableControllerRuntime reloadableRuntime)
     {
         super (host, configuration, colorManager, output, input, new PushPadGrid (colorManager, output), 200.0, 156.0);
 
+        this.selectedTrackNoteTarget = Objects.requireNonNull (selectedTrackNoteTarget, "selectedTrackNoteTarget");
+        this.drumModelTrack = Objects.requireNonNull (drumModelTrack, "drumModelTrack");
+        this.drumModelDeviceReady = Objects.requireNonNull (drumModelDeviceReady, "drumModelDeviceReady");
         this.reloadableRuntime = reloadableRuntime;
         this.notifyViewChange = false;
         this.pushPadGrid = (PushPadGrid) this.padGrid;
@@ -375,10 +393,166 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
     @Override
     protected void handleGridNote (final ButtonEvent event, final int note, final int velocity)
     {
-        if (this.reloadableRuntime.routeGridEvent (this.viewManager.isActive (Views.DRUM_PAD), event, note))
+        if (this.reloadableRuntime.routeGridEvent (this.isDrumControllerActive (), event, note))
             return;
 
         super.handleGridNote (event, note, velocity);
+    }
+
+
+    /**
+     * Supply authoritative ownership of the composite drum-pad layout. Fill interception follows
+     * layout ownership rather than inferring it from a generic view identifier.
+     *
+     * @param drumPadLayoutActive True while the drum-pad layout owns its physical controls
+     */
+    public void setDrumPadLayoutActive (final BooleanSupplier drumPadLayoutActive)
+    {
+        this.drumPadLayoutActive = Objects.requireNonNull (drumPadLayoutActive, "drumPadLayoutActive");
+    }
+
+
+    /**
+     * Test whether the composite drum-pad layout currently owns its physical controls.
+     *
+     * @return True while the drum-pad layout is active
+     */
+    public boolean isDrumPadLayoutActive ()
+    {
+        return this.drumPadLayoutActive.getAsBoolean ();
+    }
+
+
+    /**
+     * Supply the reconciled drum-controller state. Unlike live capability read-back, this state
+     * changes only after the drum controls have completed their engage or disengage transition.
+     *
+     * @param drumControllerEngaged True after the controller transition has completed
+     */
+    public void setDrumControllerEngaged (final BooleanSupplier drumControllerEngaged)
+    {
+        this.drumControllerEngaged = Objects.requireNonNull (drumControllerEngaged, "drumControllerEngaged");
+    }
+
+
+    /**
+     * Test whether the actual selected-track note target supports the Pull drum controller and the
+     * framework drum model represents that same track. The identity check prevents a pinned model
+     * cursor from rendering or mutating a different track than the direct Pads route.
+     *
+     * @return True if Pads currently route to a note-capable native Drum Machine track
+     */
+    public boolean isDrumControllerApplicable ()
+    {
+        final boolean targetCapable = isDrumTargetCapable (
+            this.selectedTrackNoteTarget.doesExist (),
+            this.selectedTrackNoteTarget.canHoldNotes (),
+            this.selectedTrackNoteTarget.hasDrumDevice ());
+        final boolean modelAligned = isDrumModelAligned (
+            this.drumModelTrack.doesExist (),
+            this.selectedTrackNoteTarget.getChannelID (),
+            this.drumModelTrack.getChannelID ());
+        final boolean modelDeviceReady = this.drumModelDeviceReady.getAsBoolean ();
+        return isDrumControllerApplicable (targetCapable, modelAligned, modelDeviceReady);
+    }
+
+
+    /**
+     * Test whether the drum layout both owns its controls and has a compatible target.
+     *
+     * @return True when new drum-controller gestures may be acquired
+     */
+    public boolean isDrumControllerActive ()
+    {
+        return isDrumControllerActive (this.isDrumPadLayoutActive (), this.drumControllerEngaged.getAsBoolean ());
+    }
+
+
+    /**
+     * Test whether the ribbon currently has direct raw pitch-bend semantics. Session keeps its
+     * existing policy; the drum path follows layout ownership rather than a view identifier.
+     *
+     * @return True when raw pitch bend should be routed and rendered directly
+     */
+    public boolean isRawPitchbendRoutingActive ()
+    {
+        return isRawPitchbendRoutingActive (this.viewManager.isActive (Views.SESSION), this.isDrumControllerActive ());
+    }
+
+
+    /**
+     * Acquire raw pitch-bend routing for the current ribbon touch. Once acquired, the lease stays
+     * active until release even if selection or view state changes in the meantime.
+     *
+     * @return True if raw routing was acquired
+     */
+    public boolean beginRawPitchbendGesture ()
+    {
+        if (!this.isRawPitchbendRoutingActive ())
+            return false;
+
+        this.rawPitchbendGestureActive = true;
+        return true;
+    }
+
+
+    /**
+     * Release the current raw pitch-bend routing lease.
+     *
+     * @return True if a raw gesture had been active
+     */
+    public boolean endRawPitchbendGesture ()
+    {
+        final boolean wasActive = this.rawPitchbendGestureActive;
+        this.rawPitchbendGestureActive = false;
+        return wasActive;
+    }
+
+
+    /**
+     * Test whether pitch-bend data should be routed raw, including an in-flight gesture lease.
+     *
+     * @return True when raw pitch-bend data should be routed
+     */
+    public boolean shouldRouteRawPitchbend ()
+    {
+        return shouldRouteRawPitchbend (this.isRawPitchbendRoutingActive (), this.rawPitchbendGestureActive);
+    }
+
+
+    static boolean isDrumControllerActive (final boolean layoutActive, final boolean controllerEngaged)
+    {
+        return layoutActive && controllerEngaged;
+    }
+
+
+    static boolean isDrumTargetCapable (final boolean targetExists, final boolean targetCanHoldNotes, final boolean targetHasDrumDevice)
+    {
+        return targetExists && targetCanHoldNotes && targetHasDrumDevice;
+    }
+
+
+    static boolean isDrumModelAligned (final boolean modelTrackExists, final String selectedTargetID, final String modelTrackID)
+    {
+        return modelTrackExists && selectedTargetID != null && !selectedTargetID.isEmpty () && selectedTargetID.equals (modelTrackID);
+    }
+
+
+    static boolean isDrumControllerApplicable (final boolean targetCapable, final boolean modelAligned, final boolean modelDeviceReady)
+    {
+        return targetCapable && modelAligned && modelDeviceReady;
+    }
+
+
+    static boolean isRawPitchbendRoutingActive (final boolean sessionActive, final boolean drumControllerActive)
+    {
+        return sessionActive || drumControllerActive;
+    }
+
+
+    static boolean shouldRouteRawPitchbend (final boolean currentPolicyActive, final boolean gestureLeaseActive)
+    {
+        return currentPolicyActive || gestureLeaseActive;
     }
 
 
@@ -422,7 +596,7 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
     {
         // Observe the physical release below the command layer: consumed pad commands suppress
         // their normal UP callback, but an acquired fill lease must still be released.
-        this.reloadableRuntime.routePhysicalMidiRelease (this.viewManager.isActive (Views.DRUM_PAD), status, data1, data2);
+        this.reloadableRuntime.routePhysicalMidiRelease (this.isDrumControllerActive (), status, data1, data2);
 
         // Ignore active sensing, which seems to be sent from some Push devices
         if (status == 254)

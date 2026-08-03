@@ -157,7 +157,7 @@ public class RecordCommand<S extends IControlSurface<C>, C extends Configuration
             this.transport.toggleLauncherOverdub ();
         }
         else
-            this.transport.startRecording ();
+            this.transport.toggleRecording ();
     }
 
 

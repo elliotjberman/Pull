@@ -4,6 +4,7 @@
 
 package de.mossgrabers.framework.daw;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -57,8 +58,9 @@ public abstract class AbstractModel implements IModel
     protected IMasterTrack                          masterTrack;
     protected ICursorDevice                         cursorDevice;
     protected IDrumDevice                           drumDevice;
+    protected final List<IDrumDevice>                drumDevices          = new ArrayList<> ();
     protected IClipLauncherNavigator                clipLauncherNavigator;
-    protected Map<Integer, IDrumDevice>             additionalDrumDevices = new HashMap<> ();
+    protected Map<Integer, List<IDrumDevice>>       additionalDrumDevices = new HashMap<> ();
     protected Map<String, INoteClip>                cursorClips           = new HashMap<> ();
 
     private int                                     lastSelection;
@@ -189,6 +191,11 @@ public abstract class AbstractModel implements IModel
     @Override
     public IDrumDevice getDrumDevice ()
     {
+        for (final IDrumDevice candidate: this.drumDevices)
+        {
+            if (candidate.doesExist () && candidate.hasDrumPads ())
+                return candidate;
+        }
         return this.drumDevice;
     }
 
@@ -197,10 +204,15 @@ public abstract class AbstractModel implements IModel
     @Override
     public IDrumDevice getDrumDevice (final int pageSize)
     {
-        final IDrumDevice additionalDrumDevice = this.additionalDrumDevices.get (Integer.valueOf (pageSize));
-        if (additionalDrumDevice == null)
+        final List<IDrumDevice> candidates = this.additionalDrumDevices.get (Integer.valueOf (pageSize));
+        if (candidates == null || candidates.isEmpty ())
             throw new FrameworkException ("Additional drum device of size " + pageSize + " was not configured!");
-        return additionalDrumDevice;
+        for (final IDrumDevice candidate: candidates)
+        {
+            if (candidate.doesExist () && candidate.hasDrumPads ())
+                return candidate;
+        }
+        return candidates.get (0);
     }
 
 

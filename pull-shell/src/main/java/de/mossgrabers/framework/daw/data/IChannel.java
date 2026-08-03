@@ -19,6 +19,14 @@ import de.mossgrabers.framework.parameter.IParameter;
 public interface IChannel extends IItem
 {
     /**
+     * Get the stable host ID of this channel.
+     *
+     * @return The channel ID, or an empty string while unresolved
+     */
+    String getChannelID ();
+
+
+    /**
      * Returns true if the channel is activated.
      *
      * @return True if the channel is activated

@@ -18,7 +18,6 @@ import de.mossgrabers.framework.daw.midi.INoteRepeat;
 import de.mossgrabers.framework.daw.midi.MidiConstants;
 import de.mossgrabers.framework.parameter.IFocusedParameter;
 import de.mossgrabers.framework.parameter.IParameter;
-import de.mossgrabers.framework.view.Views;
 
 
 /**
@@ -47,8 +46,12 @@ public class TouchstripCommand extends AbstractPitchbendCommand<PushControlSurfa
     @Override
     public void onPitchbend (final int data1, final int data2)
     {
-        if (this.surface.getViewManager ().isActive (Views.SESSION, Views.DRUM_PAD))
+        if (this.surface.shouldRouteRawPitchbend ())
         {
+            // A policy can become active after touch-down. Acquiring here makes the first raw
+            // value authoritative for the rest of that physical gesture and guarantees centering
+            // on release even if the policy changes again.
+            this.surface.beginRawPitchbendGesture ();
             this.surface.sendMidiEvent (MidiConstants.CMD_PITCHBEND, data1, data2);
             this.surface.getMidiOutput ().sendPitchbend (data1, data2);
             return;
@@ -164,7 +167,7 @@ public class TouchstripCommand extends AbstractPitchbendCommand<PushControlSurfa
     public void updateValue ()
     {
         final IValueChanger valueChanger = this.model.getValueChanger ();
-        if (this.surface.getViewManager ().isActive (Views.SESSION, Views.DRUM_PAD))
+        if (this.surface.shouldRouteRawPitchbend ())
         {
             this.surface.setRibbonMode (PushControlSurface.PUSH_RIBBON_PITCHBEND);
             this.surface.setRibbonValue (64);

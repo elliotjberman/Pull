@@ -85,6 +85,7 @@ public class ChannelImpl extends AbstractDeviceChainImpl<Channel> implements ICh
         }
 
         channel.exists ().markInterested ();
+        channel.channelId ().markInterested ();
         channel.name ().markInterested ();
         channel.isActivated ().markInterested ();
         channel.isMutedBySolo ().markInterested ();
@@ -115,6 +116,7 @@ public class ChannelImpl extends AbstractDeviceChainImpl<Channel> implements ICh
     public void enableObservers (final boolean enable)
     {
         Util.setIsSubscribed (this.deviceChain.exists (), enable);
+        Util.setIsSubscribed (this.deviceChain.channelId (), enable);
         Util.setIsSubscribed (this.deviceChain.name (), enable);
         Util.setIsSubscribed (this.deviceChain.isActivated (), enable);
         Util.setIsSubscribed (this.deviceChain.isMutedBySolo (), enable);
@@ -134,6 +136,14 @@ public class ChannelImpl extends AbstractDeviceChainImpl<Channel> implements ICh
     public boolean doesExist ()
     {
         return this.deviceChain.exists ().get ();
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public String getChannelID ()
+    {
+        return this.deviceChain.channelId ().get ();
     }
 
 
