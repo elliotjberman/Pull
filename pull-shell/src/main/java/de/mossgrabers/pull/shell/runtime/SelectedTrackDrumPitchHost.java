@@ -12,15 +12,12 @@ import com.bitwig.extension.controller.api.SpecificBitwigDevice;
 
 import de.mossgrabers.pull.core.api.ParameterTargetId;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -30,10 +27,11 @@ import java.util.function.LongSupplier;
 /**
  * Owns the selected track's managed Drum Pitch helper.
  *
- * <p>The helper is the exact branded Pull preset for Bitwig's native Bend Note FX. It may live
- * anywhere before the first top-level Drum Machine. Other Bend devices are user-owned and are
- * never adopted or changed. A missing helper is inserted from a neutral bundled preset on the
- * first write when that preset is available.</p>
+ * <p>The helper is Bitwig's native Bend Note FX. A missing helper is inserted directly by UUID on
+ * the first write. Because native insertion exposes no script-owned device identifier, ownership
+ * is acquired only from the exact later topology transition and is then persisted in Bitwig's
+ * document state. Existing Bend devices are never adopted by name, position, or configuration
+ * alone.</p>
  *
  * <p>All Bitwig proxies are created eagerly during extension initialization. The Bend scan is
  * bounded to {@value #HELPER_SCAN_CAPACITY} top-level matches. Device topology is accepted only
@@ -45,8 +43,8 @@ final class SelectedTrackDrumPitchHost implements SelectedTrackParameterHost
 {
     static final String PAGE_NAME = "Pull";
     static final String PARAMETER_NAME = "Drum Pitch";
-    static final String HELPER_PRESET_NAME = BundledDrumPitchPreset.PRESET_NAME;
-    static final String HELPER_PRESET_CREATOR = BundledDrumPitchPreset.PRESET_CREATOR;
+    static final String HELPER_PRESET_NAME = "Pull Drum Pitch Helper v1";
+    static final String HELPER_PRESET_CREATOR = "DrivenByMoss Pull";
     static final int HELPER_SCAN_CAPACITY = 16;
 
     private static final UUID DRUM_MACHINE_DEVICE_ID = UUID.fromString ("8ea97e45-0255-40fd-bc7e-94419741e9d1");
@@ -57,6 +55,7 @@ final class SelectedTrackDrumPitchHost implements SelectedTrackParameterHost
     private static final long TOPOLOGY_SETTLE_MILLIS = 200;
     private static final long INSERT_RETRY_NANOS = 10_000_000_000L;
     private static final long CONFIGURATION_RETRY_NANOS = 1_000_000_000L;
+    private static final long OWNERSHIP_RETRY_NANOS = 1_000_000_000L;
     private static final long VALUE_RETRY_NANOS = 250_000_000L;
     private static final int MAX_INSERT_ATTEMPTS_PER_TRACK = 2;
     private static final int MAX_TRACKED_INSERTIONS = 32;
@@ -74,6 +73,7 @@ final class SelectedTrackDrumPitchHost implements SelectedTrackParameterHost
         new ConfigurationSpec ("CONTENTS/ENV_DELAY_BEATS_OFFSET", 0));
 
     private final Adapter adapter;
+    private final DrumPitchOwnershipStore ownershipStore;
     private final LongSupplier clock;
     private final Consumer<String> warningSink;
     private final Map<String, InsertionAttempt> insertionAttempts = new LinkedHashMap<> ();
@@ -85,8 +85,11 @@ final class SelectedTrackDrumPitchHost implements SelectedTrackParameterHost
     private Double pendingNormalizedValue;
     private long nextValueAttemptNanos;
     private long nextConfigurationAttemptNanos;
+    private long nextOwnershipAttemptNanos;
     private boolean insertionCapacityWarningReported;
     private boolean configurationFailureReported;
+    private boolean ownershipFailureReported;
+    private boolean ownershipStateWarningReported;
     private boolean valueFailureReported;
 
 
@@ -96,11 +99,10 @@ final class SelectedTrackDrumPitchHost implements SelectedTrackParameterHost
      *
      * @param host Bitwig controller host
      * @param selectedTrack Shared selected-track cursor
-     * @param helperPresetPath Optional absolute path to the materialized branded helper preset
      */
-    SelectedTrackDrumPitchHost (final ControllerHost host, final CursorTrack selectedTrack, final Optional<Path> helperPresetPath)
+    SelectedTrackDrumPitchHost (final ControllerHost host, final CursorTrack selectedTrack)
     {
-        this (host, selectedTrack, helperPresetPath, message -> { });
+        this (host, selectedTrack, message -> { });
     }
 
 
@@ -109,30 +111,16 @@ final class SelectedTrackDrumPitchHost implements SelectedTrackParameterHost
      *
      * @param host Bitwig controller host
      * @param selectedTrack Shared selected-track cursor
-     * @param helperPresetPath Optional absolute path to the materialized branded helper preset
      * @param warningSink Recoverable diagnostic sink
      */
-    SelectedTrackDrumPitchHost (final ControllerHost host, final CursorTrack selectedTrack, final Optional<Path> helperPresetPath, final Consumer<String> warningSink)
+    SelectedTrackDrumPitchHost (final ControllerHost host, final CursorTrack selectedTrack, final Consumer<String> warningSink)
     {
         this (new LiveAdapter (
             Objects.requireNonNull (host, "host"),
-            Objects.requireNonNull (selectedTrack, "selectedTrack"),
-            usableHelperPresetPath (helperPresetPath)),
+            Objects.requireNonNull (selectedTrack, "selectedTrack")),
+            new DrumPitchOwnershipStore.Document (host),
             System::nanoTime,
             warningSink);
-    }
-
-
-    /**
-     * Compatibility overload for callers that have a materialized preset path.
-     *
-     * @param host Bitwig controller host
-     * @param selectedTrack Shared selected-track cursor
-     * @param helperPresetPath Materialized helper preset path, or {@code null} when unavailable
-     */
-    SelectedTrackDrumPitchHost (final ControllerHost host, final CursorTrack selectedTrack, final Path helperPresetPath)
-    {
-        this (host, selectedTrack, Optional.ofNullable (helperPresetPath));
     }
 
 
@@ -143,7 +131,7 @@ final class SelectedTrackDrumPitchHost implements SelectedTrackParameterHost
      */
     SelectedTrackDrumPitchHost (final Adapter adapter)
     {
-        this (adapter, System::nanoTime, message -> { });
+        this (adapter, DrumPitchOwnershipStore.Empty.INSTANCE, System::nanoTime, message -> { });
     }
 
 
@@ -155,7 +143,7 @@ final class SelectedTrackDrumPitchHost implements SelectedTrackParameterHost
      */
     SelectedTrackDrumPitchHost (final Adapter adapter, final LongSupplier clock)
     {
-        this (adapter, clock, message -> { });
+        this (adapter, DrumPitchOwnershipStore.Empty.INSTANCE, clock, message -> { });
     }
 
 
@@ -168,7 +156,22 @@ final class SelectedTrackDrumPitchHost implements SelectedTrackParameterHost
      */
     SelectedTrackDrumPitchHost (final Adapter adapter, final LongSupplier clock, final Consumer<String> warningSink)
     {
+        this (adapter, DrumPitchOwnershipStore.Empty.INSTANCE, clock, warningSink);
+    }
+
+
+    /**
+     * Deterministic model-free seam with explicit document ownership state.
+     *
+     * @param adapter Subscribed device adapter
+     * @param ownershipStore Subscribed document ownership store
+     * @param clock Monotonic nanosecond clock
+     * @param warningSink Recoverable diagnostic sink
+     */
+    SelectedTrackDrumPitchHost (final Adapter adapter, final DrumPitchOwnershipStore ownershipStore, final LongSupplier clock, final Consumer<String> warningSink)
+    {
         this.adapter = Objects.requireNonNull (adapter, "adapter");
+        this.ownershipStore = Objects.requireNonNull (ownershipStore, "ownershipStore");
         this.clock = Objects.requireNonNull (clock, "clock");
         this.warningSink = Objects.requireNonNull (warningSink, "warningSink");
     }
@@ -179,9 +182,10 @@ final class SelectedTrackDrumPitchHost implements SelectedTrackParameterHost
     public boolean refresh ()
     {
         final State previous = this.state;
+        final DrumPitchOwnershipStore.Snapshot ownership = Objects.requireNonNull (this.ownershipStore.snapshot (), "drum-pitch ownership snapshot");
         final HostSample sample = Objects.requireNonNull (this.adapter.sample (), "drum-pitch sample");
-        this.accept (sample);
-        this.reconcile (sample);
+        this.accept (sample, ownership);
+        this.reconcile (sample, ownership);
         return !previous.equals (this.state);
     }
 
@@ -209,19 +213,20 @@ final class SelectedTrackDrumPitchHost implements SelectedTrackParameterHost
             throw new IllegalArgumentException ("Drum Pitch target is not coherent and available");
 
         final StructuralIdentity expectedIdentity = this.observedIdentity;
+        final DrumPitchOwnershipStore.Snapshot freshOwnership = Objects.requireNonNull (this.ownershipStore.snapshot (), "drum-pitch ownership snapshot");
         final HostSample freshSample = Objects.requireNonNull (this.adapter.sample (), "drum-pitch sample");
-        final StructuralIdentity freshIdentity = StructuralIdentity.from (freshSample);
+        final StructuralIdentity freshIdentity = StructuralIdentity.from (freshSample, freshOwnership);
         if (expectedIdentity == null || !expectedIdentity.equals (freshIdentity) || !isConfirmed (freshSample))
         {
-            this.accept (freshSample);
+            this.accept (freshSample, freshOwnership);
             throw new IllegalStateException ("Drum Pitch target identity changed before write");
         }
 
-        final Resolution resolution = resolve (freshSample);
+        final Resolution resolution = this.resolve (freshSample, freshOwnership);
         final boolean insertionCanProgress = resolution.kind () != ResolutionKind.NEEDS_INSERTION || this.insertionCanProgress (freshSample.trackId ());
         if ((resolution.kind () != ResolutionKind.NEEDS_INSERTION && resolution.kind () != ResolutionKind.READY) || !insertionCanProgress)
         {
-            this.accept (freshSample);
+            this.accept (freshSample, freshOwnership);
             throw new IllegalStateException ("Drum Pitch target became unavailable before write");
         }
 
@@ -230,8 +235,16 @@ final class SelectedTrackDrumPitchHost implements SelectedTrackParameterHost
     }
 
 
-    private void accept (final HostSample sample)
+    private void accept (final HostSample sample, final DrumPitchOwnershipStore.Snapshot ownership)
     {
+        if (ownership.loaded () && !ownership.valid () && !this.ownershipStateWarningReported)
+        {
+            this.ownershipStateWarningReported = true;
+            this.warn ("document ownership registry is malformed; managed pitch is disabled");
+        }
+        else if (ownership.valid ())
+            this.ownershipStateWarningReported = false;
+
         final String sampledTrackId = sample.trackExists () ? sample.trackId () : "";
         if (!sampledTrackId.equals (this.activeTrackId))
         {
@@ -239,26 +252,28 @@ final class SelectedTrackDrumPitchHost implements SelectedTrackParameterHost
             this.pendingNormalizedValue = null;
             this.nextValueAttemptNanos = 0;
             this.nextConfigurationAttemptNanos = 0;
+            this.nextOwnershipAttemptNanos = 0;
             this.configurationFailureReported = false;
+            this.ownershipFailureReported = false;
             this.valueFailureReported = false;
         }
 
         final boolean confirmed = isConfirmed (sample);
-        if (confirmed && containsOwnedHelper (sample))
+        final Resolution resolution = confirmed ? this.resolve (sample, ownership) : Resolution.unavailable ();
+        if (confirmed && resolution.kind () == ResolutionKind.READY)
         {
             this.insertionAttempts.remove (sample.trackId ());
             if (this.insertionAttempts.size () < MAX_TRACKED_INSERTIONS)
                 this.insertionCapacityWarningReported = false;
         }
 
-        final StructuralIdentity identity = StructuralIdentity.from (sample);
+        final StructuralIdentity identity = StructuralIdentity.from (sample, ownership);
         if (!identity.equals (this.observedIdentity))
         {
             this.observedIdentity = identity;
             this.generation = Math.incrementExact (this.generation);
         }
 
-        final Resolution resolution = confirmed ? resolve (sample) : Resolution.unavailable ();
         final boolean insertionCanProgress = resolution.kind () != ResolutionKind.NEEDS_INSERTION || this.insertionCanProgress (sample.trackId ());
         if (!insertionCanProgress)
             this.pendingNormalizedValue = null;
@@ -269,15 +284,20 @@ final class SelectedTrackDrumPitchHost implements SelectedTrackParameterHost
     }
 
 
-    private void reconcile (final HostSample sample)
+    private void reconcile (final HostSample sample, final DrumPitchOwnershipStore.Snapshot ownership)
     {
         if (!isConfirmed (sample))
             return;
 
-        final Resolution resolution = resolve (sample);
+        final Resolution resolution = this.resolve (sample, ownership);
         if (resolution.kind () == ResolutionKind.NEEDS_CONFIGURATION)
         {
             this.repairConfiguration (resolution.helper ());
+            return;
+        }
+        if (resolution.kind () == ResolutionKind.NEEDS_OWNERSHIP_SAVE)
+        {
+            this.saveOwnership (sample, resolution.helper ());
             return;
         }
 
@@ -298,11 +318,12 @@ final class SelectedTrackDrumPitchHost implements SelectedTrackParameterHost
         switch (resolution.kind ())
         {
             case NEEDS_INSERTION:
-                this.requestInsertion (sample.trackId ());
+                this.requestInsertion (sample);
                 break;
             case WAITING_FOR_METADATA:
             case WAITING_FOR_PARAMETERS:
             case NEEDS_CONFIGURATION:
+            case NEEDS_OWNERSHIP_SAVE:
                 break;
             case READY:
                 this.requestValue (resolution.helper (), immediateValue);
@@ -314,16 +335,26 @@ final class SelectedTrackDrumPitchHost implements SelectedTrackParameterHost
     }
 
 
-    private void requestInsertion (final String trackId)
+    private void requestInsertion (final HostSample sample)
     {
+        final String trackId = sample.trackId ();
         final long now = this.clock.getAsLong ();
         InsertionAttempt attempt = this.insertionAttempts.get (trackId);
         if (attempt == null)
         {
             if (this.insertionAttempts.size () >= MAX_TRACKED_INSERTIONS)
                 return;
-            attempt = new InsertionAttempt ();
+            attempt = InsertionAttempt.at (sample);
             this.insertionAttempts.put (trackId, attempt);
+        }
+        else if (!attempt.baselineStillPossible (sample))
+        {
+            if (!attempt.topologyConflictReported)
+            {
+                attempt.topologyConflictReported = true;
+                this.warn ("helper insertion topology changed before ownership could be proven on track " + trackId);
+            }
+            return;
         }
         if (attempt.attempts >= MAX_INSERT_ATTEMPTS_PER_TRACK || now < attempt.retryAtNanos)
             return;
@@ -337,6 +368,32 @@ final class SelectedTrackDrumPitchHost implements SelectedTrackParameterHost
         catch (final RuntimeException ex)
         {
             this.warn ("helper insertion failed", ex);
+        }
+    }
+
+
+    private void saveOwnership (final HostSample sample, final HelperSample helper)
+    {
+        final long now = this.clock.getAsLong ();
+        if (now < this.nextOwnershipAttemptNanos)
+            return;
+        this.nextOwnershipAttemptNanos = deadline (now, OWNERSHIP_RETRY_NANOS);
+        try
+        {
+            this.ownershipStore.save (new DrumPitchOwnershipStore.Ownership (
+                sample.trackId (),
+                helper.position (),
+                sample.firstDrum ().position (),
+                DrumPitchOwnershipStore.CONFIGURATION_VERSION));
+            this.ownershipFailureReported = false;
+        }
+        catch (final RuntimeException ex)
+        {
+            if (!this.ownershipFailureReported)
+            {
+                this.ownershipFailureReported = true;
+                this.warn ("helper ownership could not be saved", ex);
+            }
         }
     }
 
@@ -355,6 +412,9 @@ final class SelectedTrackDrumPitchHost implements SelectedTrackParameterHost
             }
             return false;
         }
+
+        if (attempt.topologyConflictReported)
+            return false;
 
         if (attempt.attempts < MAX_INSERT_ATTEMPTS_PER_TRACK || this.clock.getAsLong () < attempt.retryAtNanos)
             return true;
@@ -436,12 +496,14 @@ final class SelectedTrackDrumPitchHost implements SelectedTrackParameterHost
     }
 
 
-    private static Resolution resolve (final HostSample sample)
+    private Resolution resolve (final HostSample sample, final DrumPitchOwnershipStore.Snapshot ownership)
     {
         if (!sample.trackExists () || sample.trackId ().isEmpty () || !sample.canHoldNoteData () || sample.drumCount () < 1 || !sample.firstDrum ().exists () || sample.helperCount () > HELPER_SCAN_CAPACITY)
             return Resolution.unavailable ();
+        if (!ownership.loaded () || !ownership.valid ())
+            return Resolution.unavailable ();
 
-        HelperSample owned = null;
+        HelperSample branded = null;
         boolean metadataHydrating = false;
         for (final HelperSample helper: sample.helpers ())
         {
@@ -453,12 +515,33 @@ final class SelectedTrackDrumPitchHost implements SelectedTrackParameterHost
                     metadataHydrating = true;
                     break;
                 case OWNED:
-                    if (owned != null)
+                    if (branded != null || helper.position () >= sample.firstDrum ().position ())
                         return Resolution.unavailable ();
-                    owned = helper;
+                    branded = helper;
                     break;
                 case UNOWNED:
                     break;
+            }
+        }
+
+        final DrumPitchOwnershipStore.Ownership record = ownership.forTrack (sample.trackId ()).orElse (null);
+        final HelperSample recorded = record == null ? null : helperAtRecordedPosition (sample, record);
+        if (branded != null && recorded != null && branded.bankIndex () != recorded.bankIndex ())
+            return Resolution.unavailable ();
+
+        HelperSample owned = branded != null ? branded : recorded;
+        boolean mustSaveOwnership = false;
+        if (owned == null && metadataHydrating)
+            return new Resolution (ResolutionKind.WAITING_FOR_METADATA, null);
+        if (owned == null)
+        {
+            final InsertionAttempt attempt = this.insertionAttempts.get (sample.trackId ());
+            if (attempt != null)
+            {
+                owned = attempt.provisionalHelper (sample);
+                if (owned == null && !attempt.baselineStillPossible (sample))
+                    return Resolution.unavailable ();
+                mustSaveOwnership = owned != null;
             }
         }
 
@@ -476,18 +559,30 @@ final class SelectedTrackDrumPitchHost implements SelectedTrackParameterHost
             return new Resolution (ResolutionKind.WAITING_FOR_PARAMETERS, owned);
         if (!owned.enabled () || !owned.hasCanonicalConfiguration ())
             return new Resolution (ResolutionKind.NEEDS_CONFIGURATION, owned);
+        if (recorded != null && (record.helperPosition () != owned.position () || record.drumPosition () != sample.firstDrum ().position ()))
+            mustSaveOwnership = true;
+        if (mustSaveOwnership)
+            return new Resolution (ResolutionKind.NEEDS_OWNERSHIP_SAVE, owned);
         return new Resolution (ResolutionKind.READY, owned);
     }
 
 
-    private static boolean containsOwnedHelper (final HostSample sample)
+    private static HelperSample helperAtRecordedPosition (final HostSample sample, final DrumPitchOwnershipStore.Ownership ownership)
     {
+        final int delta = sample.firstDrum ().position () - ownership.drumPosition ();
+        final long expected = (long) ownership.helperPosition () + delta;
+        if (expected < 0 || expected >= sample.firstDrum ().position ())
+            return null;
+        HelperSample match = null;
         for (final HelperSample helper: sample.helpers ())
         {
-            if (helper.ownership () == Ownership.OWNED)
-                return true;
+            if (helper.position () != expected)
+                continue;
+            if (match != null)
+                return null;
+            match = helper;
         }
-        return false;
+        return match;
     }
 
 
@@ -548,16 +643,6 @@ final class SelectedTrackDrumPitchHost implements SelectedTrackParameterHost
     private static long deadline (final long now, final long delay)
     {
         return now > Long.MAX_VALUE - delay ? Long.MAX_VALUE : now + delay;
-    }
-
-
-    private static Optional<Path> usableHelperPresetPath (final Optional<Path> helperPresetPath)
-    {
-        final Optional<Path> candidate = Objects.requireNonNull (helperPresetPath, "helperPresetPath");
-        if (candidate.isEmpty () || !candidate.get ().isAbsolute ())
-            return Optional.empty ();
-        final Path normalized = candidate.get ().normalize ();
-        return Files.isRegularFile (normalized) ? Optional.of (normalized) : Optional.empty ();
     }
 
 
@@ -647,8 +732,6 @@ final class SelectedTrackDrumPitchHost implements SelectedTrackParameterHost
                 return Ownership.OWNED;
             if (nameMatches || creatorMatches)
                 return this.presetName.isEmpty () || this.presetCreator.isEmpty () ? Ownership.HYDRATING : Ownership.CONFLICT;
-            if (this.presetName.isEmpty () && this.presetCreator.isEmpty ())
-                return Ownership.HYDRATING;
             return Ownership.UNOWNED;
         }
 
@@ -697,6 +780,7 @@ final class SelectedTrackDrumPitchHost implements SelectedTrackParameterHost
         WAITING_FOR_METADATA,
         WAITING_FOR_PARAMETERS,
         NEEDS_CONFIGURATION,
+        NEEDS_OWNERSHIP_SAVE,
         READY,
         UNAVAILABLE
     }
@@ -719,9 +803,67 @@ final class SelectedTrackDrumPitchHost implements SelectedTrackParameterHost
 
     private static final class InsertionAttempt
     {
+        private final int baselineDrumPosition;
+        private final List<Integer> baselineHelperPositions;
         private int attempts;
         private long retryAtNanos;
         private boolean exhaustionWarningReported;
+        private boolean topologyConflictReported;
+
+
+        private InsertionAttempt (final int baselineDrumPosition, final List<Integer> baselineHelperPositions)
+        {
+            this.baselineDrumPosition = baselineDrumPosition;
+            this.baselineHelperPositions = List.copyOf (baselineHelperPositions);
+        }
+
+
+        private static InsertionAttempt at (final HostSample sample)
+        {
+            final List<Integer> positions = new ArrayList<> (sample.helpers ().size ());
+            for (final HelperSample helper: sample.helpers ())
+                positions.add (Integer.valueOf (helper.position ()));
+            return new InsertionAttempt (sample.firstDrum ().position (), positions);
+        }
+
+
+        private boolean baselineStillPossible (final HostSample sample)
+        {
+            if (sample.firstDrum ().position () != this.baselineDrumPosition || sample.helpers ().size () != this.baselineHelperPositions.size ())
+                return false;
+            for (int index = 0; index < this.baselineHelperPositions.size (); index++)
+            {
+                if (sample.helpers ().get (index).position () != this.baselineHelperPositions.get (index).intValue ())
+                    return false;
+            }
+            return true;
+        }
+
+
+        private HelperSample provisionalHelper (final HostSample sample)
+        {
+            if (sample.firstDrum ().position () != this.baselineDrumPosition + 1 || sample.helpers ().size () != this.baselineHelperPositions.size () + 1)
+                return null;
+
+            final List<Integer> expected = new ArrayList<> (this.baselineHelperPositions.size ());
+            for (final Integer position: this.baselineHelperPositions)
+                expected.add (Integer.valueOf (position.intValue () < this.baselineDrumPosition ? position.intValue () : position.intValue () + 1));
+
+            HelperSample inserted = null;
+            for (final HelperSample helper: sample.helpers ())
+            {
+                if (helper.position () == this.baselineDrumPosition)
+                {
+                    if (inserted != null)
+                        return null;
+                    inserted = helper;
+                    continue;
+                }
+                if (!expected.remove (Integer.valueOf (helper.position ())))
+                    return null;
+            }
+            return expected.isEmpty () ? inserted : null;
+        }
     }
 
 
@@ -739,17 +881,18 @@ final class SelectedTrackDrumPitchHost implements SelectedTrackParameterHost
     }
 
 
-    private record StructuralIdentity (boolean topologySettled, boolean insertionSupported, boolean trackExists, String trackId, boolean canHoldNoteData, int drumCount, DeviceSample firstDrum, int helperCount, List<HelperIdentity> helpers)
+    private record StructuralIdentity (boolean topologySettled, boolean insertionSupported, boolean trackExists, String trackId, boolean canHoldNoteData, int drumCount, DeviceSample firstDrum, int helperCount, List<HelperIdentity> helpers, DrumPitchOwnershipStore.Snapshot ownership)
     {
         private StructuralIdentity
         {
             trackId = Objects.requireNonNull (trackId, "trackId");
             firstDrum = Objects.requireNonNull (firstDrum, "firstDrum");
             helpers = List.copyOf (Objects.requireNonNull (helpers, "helpers"));
+            ownership = Objects.requireNonNull (ownership, "ownership");
         }
 
 
-        private static StructuralIdentity from (final HostSample sample)
+        private static StructuralIdentity from (final HostSample sample, final DrumPitchOwnershipStore.Snapshot ownership)
         {
             final List<HelperIdentity> helpers = new ArrayList<> (sample.helpers ().size ());
             for (final HelperSample helper: sample.helpers ())
@@ -776,7 +919,8 @@ final class SelectedTrackDrumPitchHost implements SelectedTrackParameterHost
                 sample.drumCount (),
                 sample.firstDrum (),
                 sample.helperCount (),
-                helpers);
+                helpers,
+                ownership);
         }
     }
 
@@ -791,17 +935,14 @@ final class SelectedTrackDrumPitchHost implements SelectedTrackParameterHost
         private final Device firstDrum;
         private final DeviceBank helperBank;
         private final List<HelperProxy> helpers;
-        private final Optional<Path> helperPresetPath;
-
         private long topologyGeneration;
         private String observedTrackId = "";
         private boolean topologySettled;
 
 
-        private LiveAdapter (final ControllerHost host, final CursorTrack selectedTrack, final Optional<Path> helperPresetPath)
+        private LiveAdapter (final ControllerHost host, final CursorTrack selectedTrack)
         {
             this.selectedTrack = selectedTrack;
-            this.helperPresetPath = helperPresetPath;
             this.drumBank = selectedTrack.createDeviceBank (1);
             this.drumBank.setDeviceMatcher (host.createBitwigDeviceMatcher (DRUM_MACHINE_DEVICE_ID));
             this.firstDrum = this.drumBank.getItemAt (0);
@@ -863,7 +1004,7 @@ final class SelectedTrackDrumPitchHost implements SelectedTrackParameterHost
 
             return new HostSample (
                 this.topologySettled,
-                this.helperPresetPath.isPresent (),
+                true,
                 this.selectedTrack.exists ().get (),
                 this.selectedTrack.channelId ().get (),
                 this.selectedTrack.canHoldNoteData ().get (),
@@ -878,8 +1019,7 @@ final class SelectedTrackDrumPitchHost implements SelectedTrackParameterHost
         @Override
         public void insertHelperBeforeDrum ()
         {
-            final Path path = this.helperPresetPath.orElseThrow (() -> new IllegalStateException ("Drum Pitch helper preset is unavailable"));
-            this.firstDrum.beforeDeviceInsertionPoint ().insertFile (path.toString ());
+            this.firstDrum.beforeDeviceInsertionPoint ().insertBitwigDevice (BEND_DEVICE_ID);
         }
 
 

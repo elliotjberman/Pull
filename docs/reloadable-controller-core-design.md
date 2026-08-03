@@ -112,9 +112,9 @@ independently.
   `SetParameterValueEffect` requests only against the matching catalog generation and slot identity.
 - Let the core publish generic input ownership and normalized absolute hardware output, so the
   stable router never hard-codes the feature-specific remote name.
-- Reserve the Drum Pitch ribbon in drum performance mode and fail closed when the exact global
-  target is unavailable; raw pitch bend would affect only live-input voices and misrepresent the
-  product behavior.
+- Reserve the Drum Pitch ribbon in drum performance mode only while the exact managed target is
+  provisionable or ready. If subscribed state proves provisioning unavailable, withdraw ownership
+  instead of silently consuming the ordinary pitch-bend path.
 
 ### Later milestones
 
@@ -297,41 +297,45 @@ name or behavior caused the claim.
 ### Drum Pitch session contract
 
 The first consumer is the drum-view Push ribbon. The managed host scans the selected track for the
-first top-level Drum Machine and up to 16 top-level Bend Note FX devices. The shell bundles a
-neutral preset named exactly `Pull Drum Pitch Helper v1`, created by `DrivenByMoss Pull`, publishes
-it with an integrity check to a stable file, and inserts that file immediately before the Drum
-Machine through `beforeDeviceInsertionPoint().insertFile()`. The preset is neutral at insertion, so asynchronous
-read-back cannot leave Bitwig playing through Bend's non-neutral factory `-2 st` state.
+first top-level Drum Machine and up to 16 top-level Bend Note FX devices. It inserts native Bend by
+UUID through `beforeDeviceInsertionPoint().insertBitwigDevice()`. The void API call is only a
+request. Ownership is acquired only when a later complete sample has the exact requested shape:
+one Bend was added at the old Drum Machine position, the Drum Machine shifted by one, and every
+previous Bend retained its expected shifted position.
 
-Ownership requires the Bend UUID plus the exact subscribed preset name and creator. The
-shell never adopts or mutates an arbitrary user device. Exactly one branded helper anywhere before
-the first Drum Machine is valid, so adding another Note FX between them does not create a duplicate.
-A branded helper after the Drum Machine, duplicate branded helpers, a full 16-device scan without a
-helper, overflow, missing parameters, unsettled selected-track topology, selected-track
-disagreement, and unsupported nested Drum Machines all fail closed. A short generation-checked
-settling window after each cursor retarget prevents cached empty device-bank values from authorizing
-an insertion. In-flight insertions are tracked by track identity across A→B→A selection changes,
-and only observing the branded helper on that same track acknowledges the command. After two
-unacknowledged attempts, the target withdraws and the shell logs one actionable warning instead of
-continuing to claim a control it can no longer service.
+Native insertion exposes no script-owned device ID or writable name. After the acquired helper is
+disabled, configured, and re-enabled through subscribed acknowledgements, the shell writes a
+bounded versioned record containing track UUID and helper/Drum positions to Bitwig document state.
+That setting is also a command until its observer reports the new value, and writes are serialized
+so a second track record cannot overwrite an unacknowledged first record. On restart, the recorded
+relative position is the strongest durable identity API 21 exposes. A normal move or deletion no
+longer matches and causes a fresh causal insertion, leaving the old Bend untouched. Exact deletion
+and replacement with another Bend at the same recorded slot is inherently indistinguishable
+without a native persistent device ID. Concurrent topology changes during acquisition fail closed.
+A legacy helper carrying the old exact preset name and creator remains recognizable for migration.
+A full 16-device scan, overflow, missing parameters, unsettled selected-track topology,
+selected-track disagreement, and unsupported nested Drum Machines also fail closed. In-flight
+insertions remain track-scoped across A→B→A selection changes. After two unacknowledged attempts,
+the managed target withdraws and ordinary ribbon handling is no longer swallowed.
 
 The host also subscribes to the helper's enabled state and complete semantic configuration. A
-branded helper is not ready until `DELAY_ON`, delay/duration modes and times, curve, and offset match
-the canonical preset. Drift repair disables an enabled helper first, restores all semantic settings,
+managed helper is not ready until `DELAY_ON`, delay/duration modes and times, curve, and offset match
+the canonical configuration. Drift repair disables an enabled helper first, restores all semantic settings,
 and re-enables it only after subscribed read-back confirms the configuration. Insertion,
 configuration repair, and pitch writes are commands, not acknowledgements; recoverable failures are
 reported without optimistic state changes.
 
 Bend's `CONTENTS/SEMITONES` parameter exposes its physical normalized ±48-semitone range through the
 generic shell contract. The reloadable core maps the ribbon's `0..1` range to `0.375..0.625`, making
-the musical ±12-semitone window reloadable policy. Bend preserves the drum-pad note key and starts
-each new note at the requested offset. The managed configuration holds that offset for two seconds,
-then returns to the note's defined pitch over two seconds. This finite behavior is intentional for
-the stated drum-hit use case; already-sounding long voices and independent preservation of authored
-clip bend are not promised.
+the musical ±12-semitone window reloadable policy. Bend preserves the drum-pad note key and emits
+Bitwig Micro-pitch expression for each new note at the requested offset. Native Bitwig instruments
+consume that expression; a VST-backed pad may ignore it. The managed configuration holds that
+offset for two seconds, then returns to the note's defined pitch over two seconds. This finite
+behavior is intentional for the stated drum-hit use case; already-sounding long voices and
+independent preservation of authored clip bend are not promised.
 
 Installing the helper proxy canopy requires one extension copy and Bitwig restart. After that,
-selected-track changes, helper insertion/recreation, marker strings, filtering, ordering,
+selected-track changes, helper insertion/recreation, ownership policy, filtering, ordering,
 truncation, colors, active-fill policy, Drum Pitch core policy, and behaviors composed from the
 existing catalog/events/effects do not require another restart. A Bitwig property, device type,
 parameter ID, or operation outside the installed bridge still requires a shell change and restart.
@@ -638,9 +642,11 @@ busy/Return/non-busy/retire/later-sample barrier, delayed host acknowledgements,
 retries, stale pre-launch false protection, catalog fences, raw-MIDI safety release, authoritative
 snapshot-driven feedback, reload hydration, failure cleanup, effect validation, and complete
 output-buffer tests. Parameter tests separately cover exact `Pull` page discovery, eight-slot
-coherence, generation and identity fences, command-versus-read-back separation, branded preset
-publication, arbitrary-device non-adoption, one in-flight insertion under rapid input and topology
-churn, deletion/reprovisioning, normalized Bend mapping, semantic-config repair,
+coherence, generation and identity fences, command-versus-read-back separation, legacy branded
+helper migration, non-adoption outside the recorded relative slot, one in-flight insertion under
+rapid input and topology churn, deletion/reprovisioning, normalized Bend mapping, semantic-config
+repair, exact-shape native insertion, serialized document ownership read-back, stale-record
+reprovisioning and distinguishable concurrent-topology rejection,
 capacity/ambiguity failure, and authoritative Drum
 Pitch read-back.
 
@@ -666,7 +672,7 @@ effects, rejections, and desired output. A real Bitwig failure can then become a
 | Clip launch quantization, mode, or Main-vs-ALT release lane | Core reload |
 | Add state/action or exceed capacity outside the installed canopy | API/shell build/install and Bitwig restart |
 | Insert or recreate the selected track's managed Drum Pitch helper | First ribbon move provisions it; no extension restart |
-| Change managed device UUIDs, preset identity, parameter IDs, or the 16-device scan capacity | Shell build/install and Bitwig restart |
+| Change managed device UUIDs, ownership schema, parameter IDs, or the 16-device scan capacity | Shell build/install and Bitwig restart |
 | New Bitwig state the shell never subscribed to | Shell build/install and Bitwig restart |
 | New operation the shell cannot execute | API/shell build/install and Bitwig restart |
 | Bitwig settings schema | Shell build/install and Bitwig restart |

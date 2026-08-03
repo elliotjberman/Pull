@@ -26,6 +26,7 @@ class SelectedTrackDrumPitchHostTest
     private static final ParameterTargetId TARGET = new ParameterTargetId (0);
     private static final long ONE_SECOND = 1_000_000_000L;
     private static final long TEN_SECONDS = 10_000_000_000L;
+    private static final String TRACK_UUID = "00000000-0000-0000-0000-00000000000a";
 
 
     @Test
@@ -83,6 +84,150 @@ class SelectedTrackDrumPitchHostTest
         host.refresh ();
         assertEquals (0.8, slot (host).normalizedValue ());
         assertTrue (host.state ().generation () > absentGeneration);
+    }
+
+
+    @Test
+    void nativeInsertionIsAcquiredOnlyFromCausalTopologyAndPersistedBeforeWrite ()
+    {
+        final FakeClock clock = new FakeClock ();
+        final FakeAdapter adapter = new FakeAdapter (sample (TRACK_UUID, 3, List.of ()));
+        final FakeOwnershipStore ownership = new FakeOwnershipStore (DrumPitchOwnershipStore.Snapshot.loadedEmpty ());
+        final SelectedTrackDrumPitchHost host = new SelectedTrackDrumPitchHost (adapter, ownership, clock, message -> { });
+        host.refresh ();
+
+        host.setImmediately (host.state ().generation (), TARGET, 0.9);
+        adapter.current = sample (
+            TRACK_UUID,
+            4,
+            List.of (nativeHelper (0, 3, true, 0.5, nonCanonicalConfiguration ())));
+        host.refresh ();
+        assertEquals (List.of (new Insert (TRACK_UUID), new Enabled (0, false)), adapter.commands);
+
+        adapter.current = sample (
+            TRACK_UUID,
+            4,
+            List.of (nativeHelper (0, 3, false, 0.5, nonCanonicalConfiguration ())));
+        clock.advance (ONE_SECOND);
+        host.refresh ();
+
+        adapter.current = sample (
+            TRACK_UUID,
+            4,
+            List.of (nativeHelper (0, 3, false, 0.5, canonicalConfiguration ())));
+        clock.advance (ONE_SECOND);
+        host.refresh ();
+
+        adapter.current = sample (TRACK_UUID, 4, List.of (nativeHelper (0, 3, true, 0.5, canonicalConfiguration ())));
+        host.refresh ();
+
+        final DrumPitchOwnershipStore.Ownership saved = new DrumPitchOwnershipStore.Ownership (
+            TRACK_UUID,
+            3,
+            4,
+            DrumPitchOwnershipStore.CONFIGURATION_VERSION);
+        assertEquals (List.of (saved), ownership.requests);
+        assertTrue (adapter.commands.stream ().noneMatch (Semitones.class::isInstance));
+
+        ownership.current = new DrumPitchOwnershipStore.Snapshot (true, true, List.of (saved));
+        host.refresh ();
+
+        assertEquals (List.of (
+            new Insert (TRACK_UUID),
+            new Enabled (0, false),
+            new Configure (0),
+            new Enabled (0, true),
+            new Semitones (0, 0.9)), adapter.commands);
+    }
+
+
+    @Test
+    void nativeProvisioningWaitsForValidDocumentOwnershipReadback ()
+    {
+        final FakeAdapter adapter = new FakeAdapter (sample (TRACK_UUID, 3, List.of ()));
+        final FakeOwnershipStore ownership = new FakeOwnershipStore (DrumPitchOwnershipStore.Snapshot.loading ());
+        final SelectedTrackDrumPitchHost host = new SelectedTrackDrumPitchHost (adapter, ownership, new FakeClock (), message -> { });
+        host.refresh ();
+
+        assertFalse (slot (host).exists ());
+        assertThrows (IllegalArgumentException.class, () -> host.setImmediately (host.state ().generation (), TARGET, 0.8));
+        assertTrue (adapter.commands.isEmpty ());
+
+        ownership.current = DrumPitchOwnershipStore.Snapshot.loadedEmpty ();
+        host.refresh ();
+        assertTrue (slot (host).exists ());
+    }
+
+
+    @Test
+    void concurrentTopologyChangeCannotBeMistakenForNativeInsertion ()
+    {
+        final FakeAdapter adapter = new FakeAdapter (sample (TRACK_UUID, 3, List.of (unbrandedHelper (0, 1, 0.5))));
+        final FakeOwnershipStore ownership = new FakeOwnershipStore (DrumPitchOwnershipStore.Snapshot.loadedEmpty ());
+        final SelectedTrackDrumPitchHost host = new SelectedTrackDrumPitchHost (adapter, ownership, new FakeClock (), message -> { });
+        host.refresh ();
+        host.setImmediately (host.state ().generation (), TARGET, 0.8);
+
+        adapter.current = sample (
+            TRACK_UUID,
+            4,
+            List.of (
+                unbrandedHelper (0, 2, 0.5),
+                nativeHelper (1, 3, true, 0.5, nonCanonicalConfiguration ())));
+        host.refresh ();
+
+        assertFalse (slot (host).exists ());
+        assertEquals (List.of (new Insert (TRACK_UUID)), adapter.commands);
+        assertTrue (ownership.requests.isEmpty ());
+    }
+
+
+    @Test
+    void persistedOwnershipReacquiresExactNativeHelperAfterRestart ()
+    {
+        final DrumPitchOwnershipStore.Ownership record = new DrumPitchOwnershipStore.Ownership (
+            TRACK_UUID,
+            3,
+            4,
+            DrumPitchOwnershipStore.CONFIGURATION_VERSION);
+        final FakeOwnershipStore ownership = new FakeOwnershipStore (new DrumPitchOwnershipStore.Snapshot (true, true, List.of (record)));
+        final FakeAdapter adapter = new FakeAdapter (sample (TRACK_UUID, 6, List.of (nativeHelper (0, 5, true, 0.4, canonicalConfiguration ()))));
+        final SelectedTrackDrumPitchHost host = new SelectedTrackDrumPitchHost (adapter, ownership, new FakeClock (), message -> { });
+        host.refresh ();
+
+        assertFalse (slot (host).exists ());
+        assertEquals (List.of (new DrumPitchOwnershipStore.Ownership (
+            TRACK_UUID,
+            5,
+            6,
+            DrumPitchOwnershipStore.CONFIGURATION_VERSION)), ownership.requests);
+
+        ownership.current = new DrumPitchOwnershipStore.Snapshot (true, true, ownership.requests);
+        host.refresh ();
+        host.setImmediately (host.state ().generation (), TARGET, 0.7);
+
+        assertEquals (List.of (new Semitones (0, 0.7)), adapter.commands);
+    }
+
+
+    @Test
+    void staleOwnershipReprovisionsCausallyWithoutAdoptingAnotherBend ()
+    {
+        final DrumPitchOwnershipStore.Ownership stale = new DrumPitchOwnershipStore.Ownership (
+            TRACK_UUID,
+            2,
+            3,
+            DrumPitchOwnershipStore.CONFIGURATION_VERSION);
+        final FakeOwnershipStore ownership = new FakeOwnershipStore (new DrumPitchOwnershipStore.Snapshot (true, true, List.of (stale)));
+        final FakeAdapter adapter = new FakeAdapter (sample (TRACK_UUID, 3, List.of (unbrandedHelper (0, 1, 0.2))));
+        final SelectedTrackDrumPitchHost host = new SelectedTrackDrumPitchHost (adapter, ownership, new FakeClock (), message -> { });
+        host.refresh ();
+
+        assertTrue (slot (host).exists ());
+        host.setImmediately (host.state ().generation (), TARGET, 0.8);
+
+        assertEquals (List.of (new Insert (TRACK_UUID)), adapter.commands);
+        assertTrue (ownership.requests.isEmpty ());
     }
 
 
@@ -679,6 +824,12 @@ class SelectedTrackDrumPitchHostTest
     }
 
 
+    private static SelectedTrackDrumPitchHost.HelperSample nativeHelper (final int bankIndex, final int position, final boolean enabled, final double semitonesNormalized, final List<SelectedTrackDrumPitchHost.ConfigurationSample> configuration)
+    {
+        return helper (bankIndex, position, "", "", enabled, true, semitonesNormalized, configuration);
+    }
+
+
     private static SelectedTrackDrumPitchHost.HelperSample helper (final int bankIndex, final int position, final String presetName, final String presetCreator, final boolean enabled, final boolean semitonesExists, final double semitonesNormalized, final List<SelectedTrackDrumPitchHost.ConfigurationSample> configuration)
     {
         return new SelectedTrackDrumPitchHost.HelperSample (
@@ -762,6 +913,35 @@ class SelectedTrackDrumPitchHostTest
         private void advance (final long nanoseconds)
         {
             this.now += nanoseconds;
+        }
+    }
+
+
+    private static final class FakeOwnershipStore implements DrumPitchOwnershipStore
+    {
+        private final List<Ownership> requests = new ArrayList<> ();
+        private Snapshot current;
+
+
+        private FakeOwnershipStore (final Snapshot current)
+        {
+            this.current = current;
+        }
+
+
+        /** {@inheritDoc} */
+        @Override
+        public Snapshot snapshot ()
+        {
+            return this.current;
+        }
+
+
+        /** {@inheritDoc} */
+        @Override
+        public void save (final Ownership ownership)
+        {
+            this.requests.add (ownership);
         }
     }
 

@@ -16,11 +16,9 @@ import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 
-import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -115,7 +113,6 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         final SelectedTrackParameterHost drumPitch = new SelectedTrackDrumPitchHost (
             this.controllerHost,
             selectedTrack,
-            this.materializeDrumPitchPreset (),
             this.log::warn);
         this.parameterHost = new CompositeSelectedTrackParameterHost (remoteParameters, drumPitch);
         this.environment = new DrumFillRuntimeEnvironment (this.clipHost, this.parameterHost, this.log, System::nanoTime);
@@ -361,20 +358,5 @@ public final class ReloadableControllerRuntime implements AutoCloseable
                 return FILL_CONTROLS.get (index);
         }
         return null;
-    }
-
-
-    private Optional<Path> materializeDrumPitchPreset ()
-    {
-        try
-        {
-            return Optional.of (BundledDrumPitchPreset.materialize (RuntimePaths.fromSystem ()));
-        }
-        catch (final RuntimeException failure)
-        {
-            final String detail = failure.getMessage ();
-            this.log.warn ("Managed Drum Pitch provisioning is unavailable: " + failure.getClass ().getSimpleName () + (detail == null || detail.isBlank () ? "" : ": " + detail));
-            return Optional.empty ();
-        }
     }
 }

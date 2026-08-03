@@ -67,33 +67,40 @@ requires a live Bitwig smoke test after installing the Core-API-6 shell on Bitwi
 The shell also exposes a generic eight-slot selected-track remote bridge for existing track Remote
 Controls pages tagged `pull`. The exact `Pull` / `Drum Pitch` identity is reserved for a managed
 native helper instead of a session Macro. On the first ribbon move for a selected track containing
-a top-level Drum Machine, the shell inserts its bundled, neutral `Pull Drum Pitch Helper v1`
-Bend Note FX immediately before the first such Drum Machine. Bend applies pitch expression without
+a top-level Drum Machine, the shell inserts Bitwig's native Bend Note FX directly by device UUID
+immediately before the first such Drum Machine. Bend applies pitch expression without
 changing the note key that selects a drum pad. The reloadable core maps the ribbon's centered
 ±12-semitone policy into the native device's full ±48-semitone parameter range. This puts both clip
 and live notes through the same Note FX path without mapping the individual devices inside each
 drum rack.
 
 The managed helper is persistent Bitwig project content, so its first insertion marks the project
-dirty. Ownership is the exact preset name and creator embedded in that helper, not adjacency or
-device type: the shell never adopts or rewrites an arbitrary user Bend device, and inserting
-another Note FX between the helper and Drum Machine does not lose it. The scan is bounded to 16
-top-level Bend devices; duplicates, overflow, unsupported nested Drum Machines, and an owned
-helper moved after the target Drum Machine fail closed. Hardware feedback remains authoritative:
-the ribbon stays at the last subscribed `SEMITONES` value until Bitwig reports a submitted
-insertion or write. Raw live-input pitch bend is never used as a fallback because it does not affect
-clip-triggered Drum Machine voices. Each new note holds the selected offset for two seconds and
-then returns over two seconds; this deliberately optimizes for drum hits rather than indefinitely
-held notes. The controller does not promise to preserve authored bend independently of this global
-offset.
+dirty. Native insertion does not provide a script-owned device ID. During provisioning, the shell
+therefore acquires only the one new Bend evidenced by the later subscribed topology transition, then
+persists its track UUID and helper/Drum positions in the project's `Pull (internal)` document
+state. On later loads that document record plus relative topology is the strongest durable identity
+API 21 exposes. An exact delete-and-replace at the recorded slot is inherently indistinguishable;
+ordinary moves or deletions cause a fresh helper to be provisioned and leave the old Bend alone.
+The scan is bounded to 16 top-level Bend devices; concurrent topology edits during acquisition,
+overflow, unsupported nested Drum Machines, and ambiguous identity fail closed. Hardware feedback
+remains authoritative: the ribbon stays at the last subscribed `SEMITONES` value until Bitwig
+reports a submitted insertion or write. If Bitwig conclusively cannot provision the managed
+target, the core withdraws its ribbon claim instead of swallowing ordinary pitch bend. Each new
+note holds the selected offset for two seconds and then returns over two seconds; this deliberately
+optimizes for drum hits rather than indefinitely held notes. The controller does not promise to
+preserve authored bend independently of this global offset. Bend emits Bitwig Micro-pitch
+expression: native Bitwig instruments consume it, while a nested VST that does not support note
+expression may ignore it.
 
 For the live checkpoint, install this shell build and restart Bitwig once. Select a track whose
 first top-level Drum Machine plays an obviously pitched repeating clip, enter Push's drum view, and
-move the ribbon. The first move should add exactly one `Pull Drum Pitch Helper v1` Bend
-device before the Drum Machine; after subscribed read-back catches up, new clip and Push hits should
-follow the ribbon from -12 to +12 semitones, with center producing no shift. Moving another Note
-FX between the helper and Drum Machine must not add a second helper. The track Inspector's incoming
-pitch-bend conversion is not part of this path and should not need a special session setting.
+move the ribbon. The first move should add exactly one native Bend device before the Drum Machine;
+after subscribed read-back catches up, new clip and Push hits on a
+Bitwig Sampler-backed pad should follow the ribbon from -12 to +12 semitones, with center producing
+no shift. Test a VST-backed pad separately because plug-in expression support varies. Moving or
+deleting the managed helper makes the next ribbon gesture provision a replacement rather than
+mutating the moved device. The track Inspector's incoming pitch-bend conversion is not part of this
+path and should not need a special session setting.
 
 ## Reloading a core during development
 
@@ -114,8 +121,9 @@ sources. If that differs from the running extension, Bitwig reports `restartRequ
 attempting an unsafe core reload—even when the shell change was already committed.
 
 Installing this shell checkpoint requires one extension copy and Bitwig restart because it widens
-the stable API/shell bridge with native device matchers, bounded Bend proxies, preset-file
-insertion, and specific-device parameter subscriptions. After that, selecting new drum tracks,
-provisioning or recreating their helpers, and edits confined to `pull-core` use `tools/reload-core` without
-restarting Bitwig. The broader bounded capability-canopy roadmap is documented in
+the stable API/shell bridge with native device matchers, bounded Bend proxies, native device
+insertion, document-scoped ownership, and specific-device parameter subscriptions. After that,
+selecting new drum tracks, provisioning or recreating their helpers, and edits confined to
+`pull-core` use `tools/reload-core` without restarting Bitwig. The broader bounded
+capability-canopy roadmap is documented in
 [`docs/reloadable-controller-core-design.md`](docs/reloadable-controller-core-design.md).

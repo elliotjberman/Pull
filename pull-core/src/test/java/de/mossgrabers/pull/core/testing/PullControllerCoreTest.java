@@ -414,7 +414,7 @@ class PullControllerCoreTest
 
 
     @Test
-    void duplicateExactDrumPitchRemotesAreAmbiguousButDoNotRestoreRawPitchBend ()
+    void duplicateExactDrumPitchRemotesAreAmbiguousAndLeaveRibbonUnclaimed ()
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
         host.start (Optional.empty ());
@@ -425,13 +425,13 @@ class PullControllerCoreTest
         host.absolute (CoreControls.DRUM_PITCH_RIBBON, 0.5);
 
         assertTrue (host.effects ().executionOrder ().isEmpty ());
-        assertEquals (Set.of (CoreControls.DRUM_PITCH_RIBBON), host.effects ().claimedInputs ());
+        assertTrue (host.effects ().claimedInputs ().isEmpty ());
         assertTrue (host.effects ().desiredOutput ().absoluteValues ().isEmpty ());
     }
 
 
     @Test
-    void missingDrumPitchTargetFailsClosedWithoutRestoringRawPitchBend ()
+    void missingDrumPitchTargetLeavesRibbonUnclaimed ()
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
         host.start (Optional.empty ());
@@ -439,7 +439,7 @@ class PullControllerCoreTest
         host.absolute (CoreControls.DRUM_PITCH_RIBBON, 0.75);
 
         assertTrue (host.effects ().executionOrder ().isEmpty ());
-        assertEquals (Set.of (CoreControls.DRUM_PITCH_RIBBON), host.effects ().claimedInputs ());
+        assertTrue (host.effects ().claimedInputs ().isEmpty ());
         assertTrue (host.effects ().desiredOutput ().absoluteValues ().isEmpty ());
     }
 

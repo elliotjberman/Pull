@@ -248,13 +248,14 @@ final class PullControllerCore implements ControllerCore
         {
             absoluteValues = Map.of ();
         }
-        // Drum performance reserves the ribbon even while the managed helper is unavailable or
-        // still provisioning. Falling back to live-input pitch bend would affect Push notes but
-        // not the clip notes this control is intended to transpose.
+        final Set<ControlId> claimedInputs = drumPitch.isPresent () ? Set.of (CoreControls.DRUM_PITCH_RIBBON) : Set.of ();
+        // The shell may publish a provisionable target before the helper is ready, but it
+        // withdraws that target when provisioning is impossible or exhausted. Do not swallow the
+        // ordinary pitch-bend path once authoritative host state says there is no managed target.
         return new CoreResult (
             new DesiredHardwareOutput (lights, absoluteValues),
             desiredBindings,
-            Set.of (CoreControls.DRUM_PITCH_RIBBON),
+            claimedInputs,
             effects);
     }
 
