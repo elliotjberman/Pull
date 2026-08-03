@@ -5,7 +5,9 @@ package de.mossgrabers.framework.daw.midi;
 
 
 /**
- * Authoritative state for a private selection-following track target that receives a note input.
+ * Authoritative state and actions for a private selection-following track target.
+ *
+ * <p>The target observes selection without owning or changing controller note-input routing.</p>
  */
 public interface ISelectedTrackNoteTarget
 {
@@ -143,12 +145,4 @@ public interface ISelectedTrackNoteTarget
     void returnToArrangement ();
 
 
-    /**
-     * Send a raw MIDI message through the note input that is routed to this selected target.
-     *
-     * @param status MIDI status byte
-     * @param data1 First MIDI data byte
-     * @param data2 Second MIDI data byte
-     */
-    void sendRawMidiEvent (int status, int data1, int data2);
 }

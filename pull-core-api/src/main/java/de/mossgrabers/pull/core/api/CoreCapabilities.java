@@ -47,8 +47,8 @@ public final class CoreCapabilities
     /** Generation-fenced drum-pad state and selection effects. */
     public static final String EFFECT_DRUM_PAD = "effect.drum-pad";
 
-    /** Generation-fenced raw MIDI sent to the private selected-track route. */
-    public static final String EFFECT_SELECTED_TRACK_MIDI = "effect.selected-track-midi";
+    /** Stateful raw MIDI sent through Bitwig's ordinary permanent controller note input. */
+    public static final String EFFECT_NOTE_INPUT_MIDI = "effect.note-input-midi";
 
     private CoreCapabilities ()
     {

@@ -58,13 +58,12 @@ public interface IMidiInput
 
 
     /**
-     * Route the default note input directly to a private selected-track cursor. Direct routing is
-     * independent of monitor state and removes the note input from the host's global input pool so
-     * it cannot also reach armed tracks through a second path.
+     * Create authoritative state for a private selection-following track target. This observes the
+     * selected target without changing normal note-input, monitoring, or record-arm routing.
      *
-     * @return Authoritative state for the same private selection-following target
+     * @return Authoritative state for the private selection-following target
      */
-    ISelectedTrackNoteTarget routeDefaultNoteInputToSelectedTrack ();
+    ISelectedTrackNoteTarget createSelectedTrackTarget ();
 
 
     /**

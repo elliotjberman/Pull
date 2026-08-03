@@ -5,8 +5,6 @@
 package de.mossgrabers.bitwig.framework.midi;
 
 import com.bitwig.extension.controller.api.NoteInput;
-import com.bitwig.extension.controller.api.Track;
-
 import de.mossgrabers.framework.daw.midi.AbstractNoteInput;
 
 
@@ -28,11 +26,20 @@ class NoteInputImpl extends AbstractNoteInput
     public NoteInputImpl (final NoteInput noteInput)
     {
         this.noteInput = noteInput;
-        // Still forward MIDI notes to the registered callback handler even if MIDI notes are fed
-        // directly into Bitwig
+        // Still forward MIDI notes to the registered callback handler in addition to Bitwig's
+        // ordinary note-input routing.
         noteInput.setShouldConsumeEvents (false);
 
         this.noteRepeat = new NoteRepeatImpl (this.noteInput.arpeggiator (), this.noteInput.noteLatch ());
+    }
+
+
+    /**
+     * Keep this input on Bitwig's ordinary input-routing path.
+     */
+    void useNormalRouting ()
+    {
+        this.noteInput.includeInAllInputs ().set (true);
     }
 
 
@@ -55,19 +62,6 @@ class NoteInputImpl extends AbstractNoteInput
     void sendRawMidiEvent (final int status, final int data1, final int data2)
     {
         this.noteInput.sendRawMidiEvent (status, data1, data2);
-    }
-
-
-    void routeDirectlyTo (final Track track)
-    {
-        routeDirectly (this.noteInput, track);
-    }
-
-
-    static void routeDirectly (final NoteInput noteInput, final Track track)
-    {
-        noteInput.includeInAllInputs ().set (false);
-        track.addNoteSource (noteInput);
     }
 
 

@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.bitwig.extension.controller.api.ControllerHost;
@@ -24,21 +25,21 @@ import com.bitwig.extension.controller.api.MidiIn;
 import com.bitwig.extension.controller.api.NoteInput;
 import com.bitwig.extension.controller.api.PinnableCursorDevice;
 import com.bitwig.extension.controller.api.SettableBooleanValue;
-import com.bitwig.extension.controller.api.Track;
 
 import org.junit.jupiter.api.Test;
 
 
 /**
- * Tests direct routing of a controller note input.
+ * Tests normal controller note-input routing and private selected-track observation.
  */
 class NoteInputImplTest
 {
     @Test
-    void selectedTrackStateAndNoteAttachmentShareTheExactPrivateCursor ()
+    void selectedTrackObservationDoesNotAttachTheNoteInputDirectly ()
     {
         final AtomicReference<CursorTrack> stateTarget = new AtomicReference<> ();
-        final AtomicReference<CursorTrack> attachmentTarget = new AtomicReference<> ();
+        final AtomicInteger noteSourceAttachments = new AtomicInteger ();
+        final List<Boolean> includedInAllInputs = new ArrayList<> ();
         final Device drumMachine = relaxedProxy (Device.class);
         final DeviceBank drumDevices = proxy (DeviceBank.class, (proxy, method, arguments) -> {
             if ("getItemAt".equals (method.getName ()))
@@ -80,12 +81,21 @@ class NoteInputImplTest
             }
             if ("addNoteSource".equals (method.getName ()))
             {
-                attachmentTarget.set ((CursorTrack) proxy);
+                noteSourceAttachments.incrementAndGet ();
                 return null;
             }
             return relaxedValue (method.getReturnType ());
         });
-        final NoteInput noteInput = relaxedProxy (NoteInput.class);
+        final SettableBooleanValue includeValue = proxy (SettableBooleanValue.class, (proxy, method, arguments) -> {
+            if ("set".equals (method.getName ()))
+                includedInAllInputs.add ((Boolean) arguments[0]);
+            return relaxedValue (method.getReturnType ());
+        });
+        final NoteInput noteInput = proxy (NoteInput.class, (proxy, method, arguments) -> {
+            if ("includeInAllInputs".equals (method.getName ()))
+                return includeValue;
+            return relaxedValue (method.getReturnType ());
+        });
         final MidiIn midiIn = proxy (MidiIn.class, (proxy, method, arguments) -> {
             if ("createNoteInput".equals (method.getName ()))
                 return noteInput;
@@ -104,11 +114,11 @@ class NoteInputImplTest
             "80????",
             "90????"
         });
-        input.routeDefaultNoteInputToSelectedTrack ();
+        input.createSelectedTrackTarget ();
 
         assertSame (selectedTrack, stateTarget.get ());
-        assertSame (selectedTrack, attachmentTarget.get ());
-        assertSame (stateTarget.get (), attachmentTarget.get ());
+        assertEquals (0, noteSourceAttachments.get ());
+        assertEquals (List.of (Boolean.TRUE), includedInAllInputs);
     }
 
 
@@ -126,7 +136,7 @@ class NoteInputImplTest
             return defaultValue (method.getReturnType ());
         });
 
-        assertSame (selectedTrack, MidiInputImpl.createSelectedTrackNoteTarget (host));
+        assertSame (selectedTrack, MidiInputImpl.createSelectedTrackTargetCursor (host));
         assertArrayEquals (new Object []
         {
             "PULL_PADS_SELECTED_TRACK",
@@ -136,39 +146,6 @@ class NoteInputImplTest
             Boolean.TRUE
         }, cursorArguments.get ());
     }
-
-
-    @Test
-    void directRoutingExcludesTheInputFromAllInputsBeforeAttachingIt ()
-    {
-        final List<String> calls = new ArrayList<> ();
-        final AtomicReference<NoteInput> attachedInput = new AtomicReference<> ();
-        final SettableBooleanValue includedInAllInputs = proxy (SettableBooleanValue.class, (proxy, method, arguments) -> {
-            if ("set".equals (method.getName ()))
-                calls.add ("include:" + arguments[0]);
-            return defaultValue (method.getReturnType ());
-        });
-        final NoteInput noteInput = proxy (NoteInput.class, (proxy, method, arguments) -> {
-            if ("includeInAllInputs".equals (method.getName ()))
-                return includedInAllInputs;
-            return defaultValue (method.getReturnType ());
-        });
-        final Track track = proxy (Track.class, (proxy, method, arguments) -> {
-            if ("addNoteSource".equals (method.getName ()))
-            {
-                calls.add ("attach");
-                attachedInput.set ((NoteInput) arguments[0]);
-            }
-            return defaultValue (method.getReturnType ());
-        });
-
-        NoteInputImpl.routeDirectly (noteInput, track);
-
-        assertEquals (List.of ("include:false", "attach"), calls);
-        assertSame (noteInput, attachedInput.get ());
-    }
-
-
     private static <T> T proxy (final Class<T> type, final java.lang.reflect.InvocationHandler handler)
     {
         return type.cast (Proxy.newProxyInstance (type.getClassLoader (), new Class<?> []

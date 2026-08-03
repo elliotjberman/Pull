@@ -45,7 +45,7 @@ public class MidiInputImpl implements IMidiInput
     private final ControllerHost host;
     private final MidiIn         port;
     private NoteInputImpl        defaultNoteInput;
-    private CursorTrack          selectedTrackNoteTarget;
+    private CursorTrack          selectedTrackTarget;
 
 
     /**
@@ -66,7 +66,10 @@ public class MidiInputImpl implements IMidiInput
         this.port = host.getMidiInPort (portNumber);
 
         if (name != null)
+        {
             this.defaultNoteInput = new NoteInputImpl (this.port.createNoteInput (name, filters));
+            this.defaultNoteInput.useNormalRouting ();
+        }
     }
 
 
@@ -113,21 +116,17 @@ public class MidiInputImpl implements IMidiInput
 
     /** {@inheritDoc} */
     @Override
-    public ISelectedTrackNoteTarget routeDefaultNoteInputToSelectedTrack ()
+    public ISelectedTrackNoteTarget createSelectedTrackTarget ()
     {
-        if (this.defaultNoteInput == null)
-            throw new IllegalStateException ("MIDI input has no default note input");
-        if (this.selectedTrackNoteTarget != null)
-            throw new IllegalStateException ("MIDI input is already routed to the selected track");
+        if (this.selectedTrackTarget != null)
+            throw new IllegalStateException ("Selected-track target already exists");
 
-        this.selectedTrackNoteTarget = createSelectedTrackNoteTarget (this.host);
-        final ISelectedTrackNoteTarget targetState = new SelectedTrackTargetState (this.host, this.selectedTrackNoteTarget, this.defaultNoteInput::sendRawMidiEvent);
-        this.defaultNoteInput.routeDirectlyTo (this.selectedTrackNoteTarget);
-        return targetState;
+        this.selectedTrackTarget = createSelectedTrackTargetCursor (this.host);
+        return new SelectedTrackTargetState (this.host, this.selectedTrackTarget);
     }
 
 
-    static CursorTrack createSelectedTrackNoteTarget (final ControllerHost host)
+    static CursorTrack createSelectedTrackTargetCursor (final ControllerHost host)
     {
         return host.createCursorTrack (SELECTED_TRACK_CURSOR_ID, "Pull Pads Selected Track", 0, 0, true);
     }

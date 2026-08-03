@@ -12,6 +12,7 @@ import de.mossgrabers.framework.daw.data.IDrumDevice;
 import de.mossgrabers.framework.daw.data.IDrumPad;
 import de.mossgrabers.framework.daw.data.bank.IDrumPadBank;
 import de.mossgrabers.framework.daw.midi.ISelectedTrackNoteTarget;
+import de.mossgrabers.framework.daw.midi.MidiShortCallback;
 import de.mossgrabers.framework.daw.midi.SelectedTrackMonitorMode;
 import de.mossgrabers.framework.daw.midi.SelectedTrackNoteTargetSnapshot;
 import de.mossgrabers.pull.core.api.BridgeSubscription;
@@ -31,7 +32,7 @@ import de.mossgrabers.pull.core.api.effect.SelectedTrackAction;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackActionEffect;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackBoolean;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackValue;
-import de.mossgrabers.pull.core.api.effect.SendSelectedTrackMidiEffect;
+import de.mossgrabers.pull.core.api.effect.SendNoteInputMidiEffect;
 import de.mossgrabers.pull.core.api.effect.SetDrumPadBooleanEffect;
 import de.mossgrabers.pull.core.api.effect.SetDrumPadValueEffect;
 import de.mossgrabers.pull.core.api.effect.SetSelectedTrackBooleanEffect;
@@ -67,9 +68,10 @@ final class BoundedControllerBridge
     private final IModel model;
     private final ITransport transport;
     private final ISelectedTrackNoteTarget selectedTarget;
+    private final MidiShortCallback noteInputMidiSender;
     private final PushControlSurface surface;
     private final IValueChanger valueChanger;
-    private final Map<MidiStateKey, MidiState> selectedMidiState = new HashMap<> ();
+    private final Map<MidiStateKey, MidiState> noteInputMidiState = new HashMap<> ();
 
     private ControllerBridgeSnapshot snapshot = ControllerBridgeSnapshot.empty ();
     private DrumContextSnapshot drumSnapshot = DrumContextSnapshot.empty ();
@@ -88,14 +90,16 @@ final class BoundedControllerBridge
      *
      * @param model Stable framework model
      * @param selectedTarget Private selection-following target
+     * @param noteInputMidiSender Raw MIDI sender for Bitwig's ordinary controller note input
      * @param surface Stable Push surface
      * @param valueChanger Stable normalized-value converter
      */
-    BoundedControllerBridge (final IModel model, final ISelectedTrackNoteTarget selectedTarget, final PushControlSurface surface, final IValueChanger valueChanger)
+    BoundedControllerBridge (final IModel model, final ISelectedTrackNoteTarget selectedTarget, final MidiShortCallback noteInputMidiSender, final PushControlSurface surface, final IValueChanger valueChanger)
     {
         this.model = Objects.requireNonNull (model, "model");
         this.transport = Objects.requireNonNull (model.getTransport (), "transport");
         this.selectedTarget = Objects.requireNonNull (selectedTarget, "selectedTarget");
+        this.noteInputMidiSender = Objects.requireNonNull (noteInputMidiSender, "noteInputMidiSender");
         this.surface = Objects.requireNonNull (surface, "surface");
         this.valueChanger = Objects.requireNonNull (valueChanger, "valueChanger");
     }
@@ -114,7 +118,7 @@ final class BoundedControllerBridge
         final DesiredBridgeSubscriptions requested = Objects.requireNonNull (subscriptions, "subscriptions");
         final long selectedGeneration = this.selectedTarget.getGeneration ();
         if (this.observedSelectedGeneration >= 0 && selectedGeneration != this.observedSelectedGeneration)
-            this.resetSelectedMidiState ();
+            this.resetNoteInputMidiState ();
         this.observedSelectedGeneration = selectedGeneration;
 
         final boolean selectedRequested = requested.includes (BridgeSubscription.SELECTED_TRACK);
@@ -166,7 +170,7 @@ final class BoundedControllerBridge
         if (generation < 0)
             throw new IllegalArgumentException ("generation must not be negative");
         if (this.activeCoreGeneration != 0 && generation != this.activeCoreGeneration)
-            this.resetSelectedMidiState ();
+            this.resetNoteInputMidiState ();
         this.activeCoreGeneration = generation;
     }
 
@@ -176,7 +180,7 @@ final class BoundedControllerBridge
      */
     void invalidate ()
     {
-        this.resetSelectedMidiState ();
+        this.resetNoteInputMidiState ();
     }
 
 
@@ -228,11 +232,8 @@ final class BoundedControllerBridge
             this.requireSelectedTarget (action.targetGeneration (), action.channelId ());
             return new PreparedSelectedAction (action.targetGeneration (), action.channelId (), action.action ());
         }
-        if (effect instanceof final SendSelectedTrackMidiEffect midi)
-        {
-            this.requireSelectedTarget (midi.targetGeneration (), midi.channelId ());
-            return new PreparedSelectedMidi (midi.targetGeneration (), midi.channelId (), midi.status (), midi.data1 (), midi.data2 ());
-        }
+        if (effect instanceof final SendNoteInputMidiEffect midi)
+            return new PreparedNoteInputMidi (midi.status (), midi.data1 (), midi.data2 ());
         if (effect instanceof final SetDrumPadBooleanEffect setPad)
         {
             final DrumPadSnapshot pad = this.requireDrumPad (setPad.contextGeneration (), setPad.targetChannelId (), setPad.padIndex ());
@@ -275,8 +276,8 @@ final class BoundedControllerBridge
             this.applySelectedValue (value);
         else if (action instanceof final PreparedSelectedAction selectedAction)
             this.applySelectedAction (selectedAction);
-        else if (action instanceof final PreparedSelectedMidi midi)
-            this.applySelectedMidi (midi);
+        else if (action instanceof final PreparedNoteInputMidi midi)
+            this.applyNoteInputMidi (midi);
         else if (action instanceof final PreparedDrumBoolean state)
             this.applyDrumBoolean (state);
         else if (action instanceof final PreparedDrumValue value)
@@ -518,17 +519,14 @@ final class BoundedControllerBridge
     }
 
 
-    private void applySelectedMidi (final PreparedSelectedMidi request)
+    private void applyNoteInputMidi (final PreparedNoteInputMidi request)
     {
-        if (!this.selectedTargetIsCurrent (request.generation (), request.channelID ()))
-            return;
-
-        this.selectedTarget.sendRawMidiEvent (request.status (), request.data1 (), request.data2 ());
-        this.rememberSelectedMidiState (request.status (), request.data1 (), request.data2 ());
+        this.noteInputMidiSender.handleMidi (request.status (), request.data1 (), request.data2 ());
+        this.rememberNoteInputMidiState (request.status (), request.data1 (), request.data2 ());
     }
 
 
-    private void rememberSelectedMidiState (final int status, final int data1, final int data2)
+    private void rememberNoteInputMidiState (final int status, final int data1, final int data2)
     {
         final int command = status & 0xF0;
         final MidiStateKey key = new MidiStateKey (status, command == 0xB0 ? data1 : 0);
@@ -537,31 +535,31 @@ final class BoundedControllerBridge
             case 0xB0 -> new MidiState (data1, data2, data1, 0);
             case 0xD0 -> new MidiState (data1, data2, 0, 0);
             case 0xE0 -> new MidiState (data1, data2, 0, 64);
-            default -> throw new IllegalArgumentException ("Unsupported stateful selected-track MIDI status");
+            default -> throw new IllegalArgumentException ("Unsupported stateful note-input MIDI status");
         };
         if (state.isNeutral ())
-            this.selectedMidiState.remove (key);
+            this.noteInputMidiState.remove (key);
         else
-            this.selectedMidiState.put (key, state);
+            this.noteInputMidiState.put (key, state);
     }
 
 
-    private void resetSelectedMidiState ()
+    private void resetNoteInputMidiState ()
     {
-        if (this.selectedMidiState.isEmpty ())
+        if (this.noteInputMidiState.isEmpty ())
             return;
 
         try
         {
-            for (final Map.Entry<MidiStateKey, MidiState> entry: List.copyOf (this.selectedMidiState.entrySet ()))
+            for (final Map.Entry<MidiStateKey, MidiState> entry: List.copyOf (this.noteInputMidiState.entrySet ()))
             {
                 final MidiState state = entry.getValue ();
-                this.selectedTarget.sendRawMidiEvent (entry.getKey ().status (), state.neutralData1 (), state.neutralData2 ());
+                this.noteInputMidiSender.handleMidi (entry.getKey ().status (), state.neutralData1 (), state.neutralData2 ());
             }
         }
         finally
         {
-            this.selectedMidiState.clear ();
+            this.noteInputMidiState.clear ();
         }
     }
 
@@ -666,7 +664,7 @@ final class BoundedControllerBridge
     }
 
 
-    sealed interface PreparedAction permits PreparedDrumBoolean, PreparedDrumSelection, PreparedDrumValue, PreparedSelectedAction, PreparedSelectedBoolean, PreparedSelectedMidi, PreparedSelectedMonitor, PreparedSelectedValue, PreparedTransportState, PreparedTransportValue
+    sealed interface PreparedAction permits PreparedDrumBoolean, PreparedDrumSelection, PreparedDrumValue, PreparedNoteInputMidi, PreparedSelectedAction, PreparedSelectedBoolean, PreparedSelectedMonitor, PreparedSelectedValue, PreparedTransportState, PreparedTransportValue
     {
         // Parent-owned primitive intent
     }
@@ -702,7 +700,7 @@ final class BoundedControllerBridge
     }
 
 
-    private record PreparedSelectedMidi (long generation, String channelID, int status, int data1, int data2) implements PreparedAction
+    private record PreparedNoteInputMidi (int status, int data1, int data2) implements PreparedAction
     {
     }
 

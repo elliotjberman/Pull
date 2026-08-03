@@ -20,9 +20,9 @@
   proof that the selected target has the capability a controller feature needs.
 - Derive authoritative selected-track applicability from a private selection-following target, not
   a user-pinnable cursor that can remain attached to a previously selected track.
-- When routing and rendering use different host proxies, compare their stable target identity and
-  fail closed while they disagree. Never render or mutate a pinned model target while physical
-  input is routed to a different selected target.
+- When controller actions and rendering use different host proxies, compare their stable target
+  identity and fail closed while they disagree. Never render or mutate a pinned model target while
+  actions are aimed through a different selected target.
 - Treat a successful void Bitwig API call as command submission, not completion of the requested
   playback transition. Serialize dependent commands from a later subscribed host observation, and
   keep any exact actuator/lease frozen until that acknowledgement arrives.
@@ -65,9 +65,14 @@
 - Controller-command arbitration and Bitwig's native `NoteInput` are separate paths. An
   `EXCLUSIVE` pad or pressure route suppresses legacy framework commands and state only; it does
   not suppress musical note data that Bitwig routes from the permanent Push `NoteInput`.
-- Parent-own cleanup for stateful raw MIDI. Neutralize outstanding CC, channel-pressure, and pitch-
-  bend state when the active core generation changes, the private selected target changes, or the
-  extension shuts down; child-core state must not remain sounding after ownership moves.
+- Keep the private selection-following cursor observation/action-only. Do not attach the permanent
+  Push `NoteInput` with `Track.addNoteSource()` or exclude it from `All Inputs`; Pads and raw ribbon
+  MIDI must follow ordinary Bitwig track-input, monitor, and record-arm routing.
+- Parent-own cleanup for stateful raw MIDI sent through the permanent `NoteInput`. Neutralize
+  outstanding CC, channel-pressure, and pitch-bend state when the active core generation changes,
+  selection changes as a conservative safety boundary, or the extension shuts down. Do not model
+  this target-neutral effect as selected-track MIDI or promise target-specific cleanup; Bitwig
+  decides which normally routed tracks receive both the value and its neutralization.
 - Generation checks at prepare time are not enough for effects aimed through mutable proxies.
   Recheck live selected-track identity before applying selected-track effects. For drum-pad
   effects, also fence the device ID, bank base MIDI note, pad channel ID, and alignment between the
@@ -78,7 +83,7 @@
 - A core-only change inside the installed API/canopy hot reloads. Changing a parent-loaded API
   contract, adding a Bitwig proxy/property/observer, changing a permanent binding or proxy capacity,
   or broadening hardware output ownership requires a shell build/install and Bitwig restart.
-- API 7 still arbitrates general input but only the 12 drum-fill RGB lights have migrated output
+- API 8 still arbitrates general input but only the 12 drum-fill RGB lights have migrated output
   ownership. Do not claim general Push light or display hot reload until stable complete-output
   arbitration exists for those surfaces.
 

@@ -252,13 +252,13 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         final IMidiOutput output = midiAccess.createOutput ();
 
         final IMidiInput input = midiAccess.createInput ("Pads", PAD_MIDI_FILTERS);
-        final ISelectedTrackNoteTarget selectedTrackNoteTarget = input.routeDefaultNoteInputToSelectedTrack ();
+        final ISelectedTrackNoteTarget selectedTrackNoteTarget = input.createSelectedTrackTarget ();
         final PushControlSurface surface = new PushControlSurface (this.host, this.colorManager, this.configuration, output, input, selectedTrackNoteTarget, this.model.getCursorTrack (), () -> {
             final IDrumDevice drumDevice = this.model.getDrumDevice ();
             return drumDevice.doesExist () && drumDevice.hasDrumPads ();
         }, this.reloadableRuntime);
         this.surface = surface;
-        this.reloadableRuntime.connect (this.model, selectedTrackNoteTarget, surface, this.valueChanger);
+        this.reloadableRuntime.connect (this.model, selectedTrackNoteTarget, input::sendRawMidiEvent, surface, this.valueChanger);
 
         surface.addGraphicsDisplay (new Push2Display (this.host, this.valueChanger.getUpperBound (), this.configuration));
 

@@ -8,6 +8,7 @@ import com.bitwig.extension.controller.api.ControllerHost;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.midi.ISelectedTrackNoteTarget;
+import de.mossgrabers.framework.daw.midi.MidiShortCallback;
 import de.mossgrabers.framework.daw.midi.MidiConstants;
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
@@ -101,11 +102,12 @@ public final class ReloadableControllerRuntime implements AutoCloseable
      * setup calls this from inside Bitwig's extension-init phase.
      *
      * @param model The stable model
-     * @param selectedTarget Private selection-following note target
+     * @param selectedTarget Private selection-following target
+     * @param noteInputMidiSender Raw MIDI sender for Bitwig's ordinary controller note input
      * @param surface Stable Push surface
      * @param valueChanger Stable value converter
      */
-    public void connect (final IModel model, final ISelectedTrackNoteTarget selectedTarget, final PushControlSurface surface, final IValueChanger valueChanger)
+    public void connect (final IModel model, final ISelectedTrackNoteTarget selectedTarget, final MidiShortCallback noteInputMidiSender, final PushControlSurface surface, final IValueChanger valueChanger)
     {
         if (this.closed)
             throw new IllegalStateException ("Reloadable controller runtime is closed");
@@ -120,6 +122,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         final BoundedControllerBridge controllerBridge = new BoundedControllerBridge (
             model,
             Objects.requireNonNull (selectedTarget, "selectedTarget"),
+            Objects.requireNonNull (noteInputMidiSender, "noteInputMidiSender"),
             Objects.requireNonNull (surface, "surface"),
             Objects.requireNonNull (valueChanger, "valueChanger"));
         this.environment = new DrumFillRuntimeEnvironment (this.clipHost, controllerBridge, this.log, System::nanoTime);

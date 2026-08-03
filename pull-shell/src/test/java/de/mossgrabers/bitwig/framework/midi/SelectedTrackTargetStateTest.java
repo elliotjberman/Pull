@@ -82,7 +82,6 @@ class SelectedTrackTargetStateTest
         final AtomicReference<ObjectValueChangedCallback<PlayingNote []>> notesObserver = new AtomicReference<> ();
         final AtomicInteger stopCalls = new AtomicInteger ();
         final AtomicInteger returnCalls = new AtomicInteger ();
-        final AtomicReference<int []> rawMidi = new AtomicReference<> ();
 
         final PlayingNoteArrayValue playingNotes = proxy (PlayingNoteArrayValue.class, (proxy, method, arguments) -> {
             if ("get".equals (method.getName ()))
@@ -153,12 +152,7 @@ class SelectedTrackTargetStateTest
             };
         });
         final ControllerHost host = proxy (ControllerHost.class, (proxy, method, arguments) -> "createBitwigDeviceMatcher".equals (method.getName ()) ? drumMatcher : relaxedValue (method.getReturnType ()));
-        final SelectedTrackTargetState state = new SelectedTrackTargetState (host, target, (status, data1, data2) -> rawMidi.set (new int []
-        {
-            status,
-            data1,
-            data2
-        }));
+        final SelectedTrackTargetState state = new SelectedTrackTargetState (host, target);
 
         final SelectedTrackNoteTargetSnapshot snapshot = state.snapshot ();
         assertEquals (1, snapshot.generation ());
@@ -198,7 +192,6 @@ class SelectedTrackTargetStateTest
         state.setPan (0.6);
         state.stop ();
         state.returnToArrangement ();
-        state.sendRawMidiEvent (0xE0, 1, 2);
         assertFalse (expanded.get ());
         assertFalse (activated.get ());
         assertTrue (armed.get ());
@@ -209,12 +202,6 @@ class SelectedTrackTargetStateTest
         assertEquals (0.6, pan.get ().doubleValue ());
         assertEquals (1, stopCalls.get ());
         assertEquals (1, returnCalls.get ());
-        assertArrayEquals (new int []
-        {
-            0xE0,
-            1,
-            2
-        }, rawMidi.get ());
 
         notes.set (new PlayingNote []
         {
@@ -230,13 +217,12 @@ class SelectedTrackTargetStateTest
         assertEquals (3, state.getGeneration ());
         assertThrows (IllegalArgumentException.class, () -> state.setVolume (-0.1));
         assertThrows (IllegalArgumentException.class, () -> state.setPan (Double.NaN));
-        assertThrows (IllegalArgumentException.class, () -> state.sendRawMidiEvent (0x100, 0, 0));
         assertThrows (IllegalArgumentException.class, () -> state.getPlayingVelocity (128));
     }
 
 
     @Test
-    void derivesPrimaryDrumApplicabilityFromTheDirectRoutingTarget ()
+    void derivesPrimaryDrumApplicabilityFromTheSelectedTarget ()
     {
         final AtomicReference<String> targetID = new AtomicReference<> ("track-b");
         final AtomicBoolean targetExists = new AtomicBoolean (true);
@@ -324,9 +310,7 @@ class SelectedTrackTargetStateTest
             return relaxedValue (method.getReturnType ());
         });
 
-        final SelectedTrackTargetState state = new SelectedTrackTargetState (host, target, (status, data1, data2) -> {
-            // Not exercised by this capability test.
-        });
+        final SelectedTrackTargetState state = new SelectedTrackTargetState (host, target);
 
         assertArrayEquals (new Object []
         {

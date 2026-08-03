@@ -436,11 +436,11 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
 
 
     /**
-     * Test whether the actual selected-track note target supports the Pull drum controller and the
+     * Test whether the private selected-track observer supports the Pull drum controller and the
      * framework drum model represents that same track. The identity check prevents a pinned model
-     * cursor from rendering or mutating a different track than the direct Pads route.
+     * cursor from rendering or mutating a different track than the selected-track observer.
      *
-     * @return True if Pads currently route to a note-capable native Drum Machine track
+     * @return True if the selected track is a note-capable native Drum Machine track
      */
     public boolean isDrumControllerApplicable ()
     {

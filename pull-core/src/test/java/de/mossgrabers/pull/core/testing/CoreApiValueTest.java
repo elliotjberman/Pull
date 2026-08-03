@@ -150,7 +150,7 @@ class CoreApiValueTest
     @Test
     void publishesStableVersionCapabilityAndControlIdentifiers ()
     {
-        assertEquals (7, CoreApi.VERSION);
+        assertEquals (8, CoreApi.VERSION);
         assertEquals ("input.drum-fill", CoreCapabilities.INPUT_DRUM_FILL);
         assertEquals ("snapshot.selected-track-clips", CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS);
         assertEquals ("binding.clip-target", CoreCapabilities.BINDING_CLIP_TARGET);
@@ -164,7 +164,7 @@ class CoreApiValueTest
         assertEquals ("effect.transport", CoreCapabilities.EFFECT_TRANSPORT);
         assertEquals ("effect.selected-track", CoreCapabilities.EFFECT_SELECTED_TRACK);
         assertEquals ("effect.drum-pad", CoreCapabilities.EFFECT_DRUM_PAD);
-        assertEquals ("effect.selected-track-midi", CoreCapabilities.EFFECT_SELECTED_TRACK_MIDI);
+        assertEquals ("effect.note-input-midi", CoreCapabilities.EFFECT_NOTE_INPUT_MIDI);
         assertEquals (12, CoreControls.DRUM_FILLS.size ());
         assertEquals (12, new HashSet<> (CoreControls.DRUM_FILLS).size ());
         for (int index = 0; index < CoreControls.DRUM_FILLS.size (); index++)

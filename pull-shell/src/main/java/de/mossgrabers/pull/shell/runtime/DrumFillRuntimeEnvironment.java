@@ -60,7 +60,7 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
         Map.entry (CoreCapabilities.EFFECT_TRANSPORT, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_SELECTED_TRACK, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_DRUM_PAD, Integer.valueOf (1)),
-        Map.entry (CoreCapabilities.EFFECT_SELECTED_TRACK_MIDI, Integer.valueOf (1))));
+        Map.entry (CoreCapabilities.EFFECT_NOTE_INPUT_MIDI, Integer.valueOf (1))));
 
     private final DrumFillClipHost clipHost;
     private final BoundedControllerBridge controllerBridge;

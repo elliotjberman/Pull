@@ -31,7 +31,7 @@ import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DrumContextSnapshot;
 import de.mossgrabers.pull.core.api.effect.SelectDrumPadEffect;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackBoolean;
-import de.mossgrabers.pull.core.api.effect.SendSelectedTrackMidiEffect;
+import de.mossgrabers.pull.core.api.effect.SendNoteInputMidiEffect;
 import de.mossgrabers.pull.core.api.effect.SetSelectedTrackBooleanEffect;
 import de.mossgrabers.pull.core.api.effect.SetTransportStateEffect;
 import de.mossgrabers.pull.core.api.effect.TransportState;
@@ -150,12 +150,12 @@ class BoundedControllerBridgeTest
         applyMidi (fixture, 0xE2, 5, 100);
         fixture.bridge.activateCoreGeneration (2);
 
-        assertEquals (6, fixture.selected.midiMessages.size ());
+        assertEquals (6, fixture.noteInputMidiMessages.size ());
         assertEquals (Set.of (
             new MidiMessage (0xB3, 74, 0),
             new MidiMessage (0xD4, 0, 0),
             new MidiMessage (0xE2, 0, 64)),
-            new HashSet<> (fixture.selected.midiMessages.subList (3, 6)));
+            new HashSet<> (fixture.noteInputMidiMessages.subList (3, 6)));
     }
 
 
@@ -171,14 +171,14 @@ class BoundedControllerBridgeTest
 
         assertEquals (List.of (
             new MidiMessage (0xB1, 1, 127),
-            new MidiMessage (0xB1, 1, 0)), fixture.selected.midiMessages);
+            new MidiMessage (0xB1, 1, 0)), fixture.noteInputMidiMessages);
     }
 
 
     private static void applyMidi (final BridgeFixture fixture, final int status, final int data1, final int data2)
     {
         fixture.bridge.apply (fixture.bridge.prepare (
-            new SendSelectedTrackMidiEffect (1, "track-a", status, data1, data2)));
+            new SendNoteInputMidiEffect (status, data1, data2)));
     }
 
 
@@ -193,6 +193,7 @@ class BoundedControllerBridgeTest
         private final MutableSelectedTarget selected = new MutableSelectedTarget ();
         private final MutableTransport transport = new MutableTransport ();
         private final MutableDrum drum = new MutableDrum (this.selected);
+        private final List<MidiMessage> noteInputMidiMessages = new ArrayList<> ();
         private final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
         private final BoundedControllerBridge bridge;
 
@@ -211,7 +212,7 @@ class BoundedControllerBridgeTest
                 default -> relaxedValue (method.getReturnType ());
             });
             final PushControlSurface surface = createSurface (this.selected, cursorTrack, this.valueChanger);
-            this.bridge = new BoundedControllerBridge (model, this.selected, surface, this.valueChanger);
+            this.bridge = new BoundedControllerBridge (model, this.selected, (status, data1, data2) -> this.noteInputMidiMessages.add (new MidiMessage (status, data1, data2)), surface, this.valueChanger);
         }
     }
 
@@ -280,7 +281,6 @@ class BoundedControllerBridgeTest
 
     private static final class MutableSelectedTarget implements ISelectedTrackNoteTarget
     {
-        private final List<MidiMessage> midiMessages = new ArrayList<> ();
         private long generation = 1;
         private String channelID = "track-a";
         private boolean armed;
@@ -436,13 +436,6 @@ class BoundedControllerBridgeTest
         public void returnToArrangement ()
         {
             // Not relevant to these safety tests.
-        }
-
-
-        @Override
-        public void sendRawMidiEvent (final int status, final int data1, final int data2)
-        {
-            this.midiMessages.add (new MidiMessage (status, data1, data2));
         }
     }
 

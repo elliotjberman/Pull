@@ -61,15 +61,16 @@ Bitwig's default Project Settings → Clip Launcher → ALT Release setting, or 
 override to `Return`. A fill clip's loop enablement and length remain session content.
 
 The slice passes offline fake-host verification. The exact immediate-legato/ALT-Return path still
-requires a live Bitwig smoke test after installing the Core-API-6 shell on Bitwig controller API
+requires a live Bitwig smoke test after installing the Core-API-8 shell on Bitwig controller API
 21.
 
-The Push Pads note input is attached directly to a private Bitwig selected-track cursor and
-excluded from `All Inputs`. Pads and the ribbon's raw pitch-bend messages therefore follow
-selection regardless of monitor state; record arm controls recording, not which track can be
-auditioned. The controller does not expose this cursor's pin control, so pinning the normal model
-cursor cannot strand the Pads route on an old track. Changing selection does not create or
-reconnect note inputs.
+The Push Pads note input remains in Bitwig's ordinary input pool. Pads and the ribbon's raw
+pitch-bend messages therefore follow the project's track-input, monitor, and record-arm routing;
+selection alone does not force a track to receive them. The controller-private selected-track
+cursor is used only for authoritative state, actions, identity, and drum-capability detection. It
+is never exposed to Push's pin command and is not a musical note route. Changing selection does
+not create or reconnect note inputs. More than one track can receive Pads when the project routes
+and monitors or arms more than one track that way.
 The same private cursor exposes a fixed four-candidate drum-device canopy: a native Drum Machine
 match in the selected track chain, Bitwig's semantic first instrument when it reports drum pads,
 plus native Drum Machine matches in that instrument's first layer and cursor slot. This catches the
@@ -77,14 +78,14 @@ common ungrouped and one-container grouped layouts while keeping selected-target
 separate from which Push layout is visible and which physical controls that layout owns. It does
 not recursively scan arbitrary nesting or parallel layers.
 The framework's display/device cursor remains pinnable. If Track Pin makes it diverge from the
-private Pads target, Pull temporarily disables and blanks its drum controls until both proxies
-represent the same track; it never displays one drum track while routing gestures to another.
+private selected target, Pull temporarily disables and blanks its drum controls until both proxies
+represent the same track; it never displays one drum track while applying drum-controller actions
+to another.
 Bitwig's Dashboard → Settings → Recording → Auto-arm selected → Instrument tracks preference is
-independent of Pull. Disable it if track arm should not follow selection; the direct Pads route
-continues to audition the selected track. A plain Push Record press toggles global arranger record,
-while Shift+Record toggles launcher overdub unless Pull's Flip Record setting reverses them.
-Explicitly selecting `Pads` as another track's input can still create a second conventional route;
-leave other tracks on `All Inputs` when testing the no-duplication behavior.
+independent of Pull. Disable it if track arm should not follow selection. With ordinary routing,
+the intended track must accept `Pads` or `All Inputs` and satisfy its monitor/record-arm settings.
+A plain Push Record press toggles global arranger record, while Shift+Record toggles launcher
+overdub unless Pull's Flip Record setting reverses them.
 
 Drum pitch remains an explicit Bitwig session setup rather than controller-managed project
 content. On each drum track:
@@ -100,11 +101,12 @@ The controller does not insert, identify, repair, or own those devices. Raw bend
 message; the session's Bend/modulator mappings define what it changes. This is intentionally
 manual and visible in the project instead of relying on a fragile hidden macro or helper registry.
 
-For the live checkpoint, install this shell build and restart Bitwig once. With the selected drum
-track unarmed and monitoring off or automatic, Push pads should still audition it and its MIDI
-`BEND` modulators should follow the ribbon. A different armed track must not receive a duplicate
-Pads stream. Change selection and verify both notes and bend move to the new track, then exercise
-the fill A→B→release handoff to confirm the original base clip is retained.
+For the live checkpoint, install this shell build and restart Bitwig once. Arm the intended drum
+track or enable monitoring, set its input to accept `Pads` or `All Inputs`, and verify that Push
+pads sound and the track's MIDI `BEND` modulators follow the ribbon. Disarm or stop monitoring it
+and verify that ordinary Bitwig routing stops the input. Check that another track's arm button
+remains independently clickable, then exercise the fill A→B→release handoff to confirm the
+original base clip is retained.
 
 ## Reloading a core during development
 
@@ -125,8 +127,9 @@ sources. If that differs from the running extension, Bitwig reports `restartRequ
 attempting an unsafe core reload—even when the shell change was already committed.
 
 Installing this shell checkpoint requires one extension copy and Bitwig restart because it changes
-the stable note-input topology: the existing Pads input is now directly attached to the
-selected-track cursor and removed from Bitwig's global input pool. After that, selected-track
-changes and edits confined to `pull-core` use `tools/reload-core` without restarting Bitwig. The
-broader bounded capability-canopy roadmap is documented in
+the stable note-input topology and parent-loaded API: the existing Pads input returns to ordinary
+Bitwig input/monitor/record-arm routing, and raw MIDI effects target that stable input rather than a
+selected track. After that, selected-track changes and edits confined to `pull-core` use
+`tools/reload-core` without restarting Bitwig. The broader bounded capability-canopy roadmap is
+documented in
 [`docs/reloadable-controller-core-design.md`](docs/reloadable-controller-core-design.md).

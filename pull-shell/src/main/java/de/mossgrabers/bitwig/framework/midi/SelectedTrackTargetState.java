@@ -26,16 +26,15 @@ import com.bitwig.extension.controller.api.StringValue;
 import de.mossgrabers.bitwig.framework.daw.PrimaryDrumDeviceCanopy;
 import de.mossgrabers.bitwig.framework.daw.PrimaryDrumDeviceCanopy.Candidate;
 import de.mossgrabers.framework.daw.midi.ISelectedTrackNoteTarget;
-import de.mossgrabers.framework.daw.midi.MidiShortCallback;
 import de.mossgrabers.framework.daw.midi.SelectedTrackMonitorMode;
 import de.mossgrabers.framework.daw.midi.SelectedTrackNoteTargetSnapshot;
 
 
 /**
- * Authoritative capability state for the privately owned selected-track note target.
+ * Authoritative capability state for the privately owned selected-track observer.
  *
- * <p>The same private cursor receives the Push Pads note input and owns a fixed primary-drum proxy
- * canopy. Pull never exposes or pins its track or device cursor.</p>
+ * <p>The private cursor owns a fixed primary-drum proxy canopy but does not receive or reroute the
+ * Push Pads note input. Pull never exposes or pins its track or device cursor.</p>
  */
 final class SelectedTrackTargetState implements ISelectedTrackNoteTarget
 {
@@ -43,7 +42,6 @@ final class SelectedTrackTargetState implements ISelectedTrackNoteTarget
     static final String DRUM_DEVICE_CURSOR_NAME = "Pull Pads Drum Device";
 
     private final CursorTrack target;
-    private final MidiShortCallback rawMidiSender;
     private final StringValue targetID;
     private final BooleanValue targetExists;
     private final StringValue targetName;
@@ -78,14 +76,12 @@ final class SelectedTrackTargetState implements ISelectedTrackNoteTarget
      *
      * @param host The Bitwig controller host
      * @param target The private selection-following target
-     * @param rawMidiSender Sends MIDI through the note input routed to the target
      */
-    SelectedTrackTargetState (final ControllerHost host, final CursorTrack target, final MidiShortCallback rawMidiSender)
+    SelectedTrackTargetState (final ControllerHost host, final CursorTrack target)
     {
         final CursorTrack checkedTarget = Objects.requireNonNull (target, "target");
 
         this.target = checkedTarget;
-        this.rawMidiSender = Objects.requireNonNull (rawMidiSender, "rawMidiSender");
         this.targetID = checkedTarget.channelId ();
         this.targetExists = checkedTarget.exists ();
         this.targetName = checkedTarget.name ();
@@ -309,19 +305,6 @@ final class SelectedTrackTargetState implements ISelectedTrackNoteTarget
     }
 
 
-    /** {@inheritDoc} */
-    @Override
-    public void sendRawMidiEvent (final int status, final int data1, final int data2)
-    {
-        if (status < 0x80 || status > 0xEF)
-            throw new IllegalArgumentException ("status must be a MIDI channel-message status byte");
-        requireMidiByte (data1, "data1", 127);
-        requireMidiByte (data2, "data2", 127);
-        if (this.doesExist ())
-            this.rawMidiSender.handleMidi (status, data1, data2);
-    }
-
-
     private String readTrackID ()
     {
         return valueOrEmpty (this.targetID.get ());
@@ -386,13 +369,6 @@ final class SelectedTrackTargetState implements ISelectedTrackNoteTarget
     {
         if (!Double.isFinite (value) || value < 0.0 || value > 1.0)
             throw new IllegalArgumentException (name + " must be finite and normalized");
-    }
-
-
-    private static void requireMidiByte (final int value, final String name, final int maximum)
-    {
-        if (value < 0 || value > maximum)
-            throw new IllegalArgumentException (name + " must be in the range 0.." + maximum);
     }
 
 
