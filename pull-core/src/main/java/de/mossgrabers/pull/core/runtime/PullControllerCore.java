@@ -3,6 +3,7 @@
 
 package de.mossgrabers.pull.core.runtime;
 
+import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.CatalogClip;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
@@ -10,6 +11,12 @@ import de.mossgrabers.pull.core.api.ControllerCore;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.CoreResult;
+import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
+import de.mossgrabers.pull.core.api.DesiredInputRoutes;
+import de.mossgrabers.pull.core.api.InputRoute;
+import de.mossgrabers.pull.core.api.InputRouteMode;
+import de.mossgrabers.pull.core.api.PushControlIds;
+import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
 import de.mossgrabers.pull.core.api.StateEnvelope;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchMode;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
@@ -18,8 +25,13 @@ import de.mossgrabers.pull.core.api.effect.ClipReleaseTrigger;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
+import de.mossgrabers.pull.core.api.effect.SelectedTrackBoolean;
+import de.mossgrabers.pull.core.api.effect.SetSelectedTrackBooleanEffect;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
+import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
+import de.mossgrabers.pull.core.api.event.InputKind;
+import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.output.DesiredHardwareOutput;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 
@@ -41,6 +53,10 @@ final class PullControllerCore implements ControllerCore
     private static final RgbColor FILL_OFF = new RgbColor (0, 0, 0);
     private static final RgbColor FILL_AVAILABLE = new RgbColor (96, 30, 0);
     private static final RgbColor FILL_ACTIVE = new RgbColor (255, 80, 0);
+    private static final ControlId RECORD_BUTTON = PushControlIds.button ("RECORD");
+    private static final ControlId SHIFT_BUTTON = PushControlIds.button ("SHIFT");
+    private static final ControlId SELECT_BUTTON = PushControlIds.button ("SELECT");
+    private static final DesiredBridgeSubscriptions BRIDGE_SUBSCRIPTIONS = new DesiredBridgeSubscriptions (Set.of (BridgeSubscription.SELECTED_TRACK));
     private static final ClipLaunchPolicy FILL_LAUNCH_POLICY = new ClipLaunchPolicy (
         ClipLaunchQuantization.IMMEDIATE,
         ClipLaunchMode.LEGATO_FROM_CLIP_OR_PROJECT,
@@ -88,6 +104,8 @@ final class PullControllerCore implements ControllerCore
             else
                 effects = List.of (new ReleaseClipTargetsEffect (button.controlId ()));
         }
+        else if (event instanceof final ControllerInputEvent input && isRecordRelease (input))
+            effects = recordArmEffects (snapshot);
         else
             effects = List.of ();
 
@@ -182,6 +200,38 @@ final class PullControllerCore implements ControllerCore
     }
 
 
+    private static boolean isRecordRelease (final ControllerInputEvent input)
+    {
+        return RECORD_BUTTON.equals (input.controlId ()) && input.kind () == InputKind.BUTTON && input.phase () == InputPhase.END;
+    }
+
+
+    private static List<CoreEffect> recordArmEffects (final ControllerSnapshot snapshot)
+    {
+        final SelectedTrackSnapshot selectedTrack = snapshot.bridge ().selectedTrack ();
+        if (!selectedTrack.exists ())
+            return List.of ();
+
+        return List.of (new SetSelectedTrackBooleanEffect (
+            selectedTrack.generation (),
+            selectedTrack.channelId (),
+            SelectedTrackBoolean.RECORD_ARMED,
+            !selectedTrack.recordArmed ()));
+    }
+
+
+    private static DesiredInputRoutes desiredInputRoutes (final ControllerSnapshot snapshot)
+    {
+        final Set<InputRoute> routes = new LinkedHashSet<> ();
+        routes.add (new InputRoute (SHIFT_BUTTON, InputKind.BUTTON, InputRouteMode.OBSERVE));
+        routes.add (new InputRoute (SELECT_BUTTON, InputKind.BUTTON, InputRouteMode.OBSERVE));
+        final boolean modifierPressed = snapshot.pressedControls ().contains (SHIFT_BUTTON) || snapshot.pressedControls ().contains (SELECT_BUTTON);
+        if (snapshot.bridge ().selectedTrack ().exists () && !modifierPressed)
+            routes.add (new InputRoute (RECORD_BUTTON, InputKind.BUTTON, InputRouteMode.EXCLUSIVE));
+        return new DesiredInputRoutes (routes);
+    }
+
+
     private static CoreResult result (final ControllerSnapshot snapshot, final Map<ControlId, ClipTargetId> desiredBindings, final List<CoreEffect> effects)
     {
         final Map<ControlId, RgbColor> lights = new LinkedHashMap<> ();
@@ -201,6 +251,8 @@ final class PullControllerCore implements ControllerCore
 
         return new CoreResult (
             new DesiredHardwareOutput (lights),
+            desiredInputRoutes (snapshot),
+            BRIDGE_SUBSCRIPTIONS,
             desiredBindings,
             effects);
     }

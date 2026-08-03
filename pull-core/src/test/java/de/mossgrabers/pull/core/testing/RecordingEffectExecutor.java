@@ -6,6 +6,8 @@ package de.mossgrabers.pull.core.testing;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.CoreResult;
+import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
+import de.mossgrabers.pull.core.api.DesiredInputRoutes;
 import de.mossgrabers.pull.core.api.TimerId;
 import de.mossgrabers.pull.core.api.effect.CancelTimerEffect;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
@@ -32,6 +34,8 @@ final class RecordingEffectExecutor
     private final Map<TimerId, Long> timerDeadlines = new LinkedHashMap<> ();
     private PressClipTargetEffect activeClipLease;
     private DesiredHardwareOutput desiredOutput = DesiredHardwareOutput.empty ();
+    private DesiredInputRoutes desiredInputRoutes = DesiredInputRoutes.empty ();
+    private DesiredBridgeSubscriptions desiredBridgeSubscriptions = DesiredBridgeSubscriptions.empty ();
     private Map<ControlId, ClipTargetId> desiredClipBindings = Map.of ();
 
 
@@ -44,6 +48,8 @@ final class RecordingEffectExecutor
     {
         Objects.requireNonNull (result, "result");
         this.desiredOutput = result.desiredOutput ();
+        this.desiredInputRoutes = result.desiredInputRoutes ();
+        this.desiredBridgeSubscriptions = result.desiredBridgeSubscriptions ();
         this.desiredClipBindings = result.desiredClipBindings ();
         for (final CoreEffect effect: result.effects ())
         {
@@ -148,6 +154,28 @@ final class RecordingEffectExecutor
     DesiredHardwareOutput desiredOutput ()
     {
         return this.desiredOutput;
+    }
+
+
+    /**
+     * Get the latest complete desired input routes.
+     *
+     * @return Desired input routes
+     */
+    DesiredInputRoutes desiredInputRoutes ()
+    {
+        return this.desiredInputRoutes;
+    }
+
+
+    /**
+     * Get the latest complete bridge subscriptions.
+     *
+     * @return Desired bridge subscriptions
+     */
+    DesiredBridgeSubscriptions desiredBridgeSubscriptions ()
+    {
+        return this.desiredBridgeSubscriptions;
     }
 
 

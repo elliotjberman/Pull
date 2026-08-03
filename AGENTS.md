@@ -65,6 +65,17 @@
 - Controller-command arbitration and Bitwig's native `NoteInput` are separate paths. An
   `EXCLUSIVE` pad or pressure route suppresses legacy framework commands and state only; it does
   not suppress musical note data that Bitwig routes from the permanent Push `NoteInput`.
+- Do not confuse a permanent physical binding with permanent behavior policy. If a control and
+  input kind already exist in the stable `PhysicalInputRouter`, and the bridge already exposes the
+  authoritative state and effect needed by the feature, implement its behavior in the reloadable
+  core with `OBSERVE` or `EXCLUSIVE` routing. The stable command is then only a failure fallback;
+  changing that command is not justified merely because it was the pre-migration implementation.
+  A restart is required only when the physical input, required state/effect capability, or output
+  transport is missing from the installed canopy.
+- Input and output migration are independent. A core-owned button action may still use a stable
+  light supplier when that supplier renders the same authoritative Bitwig read-back. Do not put
+  action policy back in the shell merely because general light ownership has not migrated; expand
+  the output canopy only when reloadable policy must also change what the light means.
 - Keep the private selection-following cursor observation/action-only. Do not attach the permanent
   Push `NoteInput` with `Track.addNoteSource()` or exclude it from `All Inputs`; Pads and raw ribbon
   MIDI must follow ordinary Bitwig track-input, monitor, and record-arm routing.
@@ -83,9 +94,10 @@
 - A core-only change inside the installed API/canopy hot reloads. Changing a parent-loaded API
   contract, adding a Bitwig proxy/property/observer, changing a permanent binding or proxy capacity,
   or broadening hardware output ownership requires a shell build/install and Bitwig restart.
-- API 8 still arbitrates general input but only the 12 drum-fill RGB lights have migrated output
-  ownership. Do not claim general Push light or display hot reload until stable complete-output
-  arbitration exists for those surfaces.
+- API 8 arbitrates general input, so mappings whose state and effects are already bridged belong in
+  the reloadable core. Only the 12 drum-fill RGB lights have migrated output ownership; do not
+  claim general Push light or display hot reload until stable complete-output arbitration exists
+  for those surfaces.
 
 ## Bitwig controller API compatibility
 

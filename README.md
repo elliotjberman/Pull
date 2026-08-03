@@ -84,9 +84,11 @@ to another.
 Bitwig's Dashboard → Settings → Recording → Auto-arm selected → Instrument tracks preference is
 independent of Pull. Disable it if track arm should not follow selection. With ordinary routing,
 the intended track must accept `Pads` or `All Inputs` and satisfy its monitor/record-arm settings.
-A plain Push Record press toggles explicit arm on the selected track. Shift+Record toggles launcher
-overdub, and Select+Record creates a new clip. Global arranger record remains available in Bitwig
-but is no longer bound to the plain Push Record button.
+The reloadable core exclusively owns an unmodified Push Record gesture and requests explicit arm
+on the selected track from authoritative read-back. While Shift or Select is held, Record returns
+to the stable fallback so Shift+Record still toggles launcher overdub and Select+Record still
+creates a new clip. Global arranger record remains available in Bitwig but is no longer bound to
+the plain Push Record button while the core is active.
 
 Drum pitch remains an explicit Bitwig session setup rather than controller-managed project
 content. On each drum track:

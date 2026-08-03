@@ -4,11 +4,16 @@
 package de.mossgrabers.pull.core.testing;
 
 import de.mossgrabers.pull.core.api.CatalogClip;
+import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.CoreControls;
+import de.mossgrabers.pull.core.api.InputRouteMode;
+import de.mossgrabers.pull.core.api.PushControlIds;
+import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
+import de.mossgrabers.pull.core.api.TrackMonitorMode;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchMode;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
@@ -16,6 +21,9 @@ import de.mossgrabers.pull.core.api.effect.ClipReleaseTrigger;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
+import de.mossgrabers.pull.core.api.effect.SelectedTrackBoolean;
+import de.mossgrabers.pull.core.api.effect.SetSelectedTrackBooleanEffect;
+import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.runtime.PullCoreProvider;
 
@@ -40,6 +48,9 @@ class PullControllerCoreTest
     private static final RgbColor OFF = new RgbColor (0, 0, 0);
     private static final RgbColor AVAILABLE = new RgbColor (96, 30, 0);
     private static final RgbColor HELD = new RgbColor (255, 80, 0);
+    private static final ControlId RECORD_BUTTON = PushControlIds.button ("RECORD");
+    private static final ControlId SHIFT_BUTTON = PushControlIds.button ("SHIFT");
+    private static final ControlId SELECT_BUTTON = PushControlIds.button ("SELECT");
     private static final ClipLaunchPolicy FILL_POLICY = new ClipLaunchPolicy (
         ClipLaunchQuantization.IMMEDIATE,
         ClipLaunchMode.LEGATO_FROM_CLIP_OR_PROJECT,
@@ -374,9 +385,90 @@ class PullControllerCoreTest
     }
 
 
+    @Test
+    void ownsPlainRecordAndRequestsSelectedTrackState ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+
+        host.start (Optional.empty ());
+
+        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK), host.effects ().desiredBridgeSubscriptions ().domains ());
+        assertEquals (Optional.empty (), host.effects ().desiredInputRoutes ().mode (RECORD_BUTTON, InputKind.BUTTON));
+        host.selectedTrack (selectedTrack (false));
+        assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (RECORD_BUTTON, InputKind.BUTTON));
+        assertEquals (Optional.of (InputRouteMode.OBSERVE), host.effects ().desiredInputRoutes ().mode (SHIFT_BUTTON, InputKind.BUTTON));
+        assertEquals (Optional.of (InputRouteMode.OBSERVE), host.effects ().desiredInputRoutes ().mode (SELECT_BUTTON, InputKind.BUTTON));
+    }
+
+
+    @Test
+    void recordReleaseRequestsInverseOfAuthoritativeSelectedTrackArm ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        host.selectedTrack (selectedTrack (false));
+
+        host.controllerButton (RECORD_BUTTON, true);
+        assertTrue (host.effects ().executionOrder ().isEmpty ());
+        host.controllerButton (RECORD_BUTTON, false);
+
+        assertEquals (new SetSelectedTrackBooleanEffect (7, "track-7", SelectedTrackBoolean.RECORD_ARMED, true), host.effects ().executionOrder ().getLast ());
+
+        host.selectedTrack (selectedTrack (true));
+        host.controllerButton (RECORD_BUTTON, true);
+        host.controllerButton (RECORD_BUTTON, false);
+
+        assertEquals (new SetSelectedTrackBooleanEffect (7, "track-7", SelectedTrackBoolean.RECORD_ARMED, false), host.effects ().executionOrder ().getLast ());
+    }
+
+
+    @Test
+    void modifiersTemporarilyReturnRecordToItsStableFallback ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        host.selectedTrack (selectedTrack (false));
+
+        host.controllerButton (SHIFT_BUTTON, true);
+        assertEquals (Optional.empty (), host.effects ().desiredInputRoutes ().mode (RECORD_BUTTON, InputKind.BUTTON));
+
+        host.controllerButton (SHIFT_BUTTON, false);
+        assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (RECORD_BUTTON, InputKind.BUTTON));
+
+        host.controllerButton (SELECT_BUTTON, true);
+        assertEquals (Optional.empty (), host.effects ().desiredInputRoutes ().mode (RECORD_BUTTON, InputKind.BUTTON));
+    }
+
+
     private static CatalogClip clip (final long target, final String name)
     {
         return new CatalogClip (new ClipTargetId (target), name);
+    }
+
+
+    private static SelectedTrackSnapshot selectedTrack (final boolean recordArmed)
+    {
+        return new SelectedTrackSnapshot (
+            7,
+            "track-7",
+            "Drums",
+            3,
+            "INSTRUMENT",
+            true,
+            false,
+            false,
+            true,
+            false,
+            true,
+            recordArmed,
+            TrackMonitorMode.AUTO,
+            false,
+            false,
+            false,
+            true,
+            0.75,
+            0.5,
+            new RgbColor (100, 50, 25));
     }
 
 

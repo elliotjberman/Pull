@@ -6,12 +6,17 @@ package de.mossgrabers.pull.core.testing;
 import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
+import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ControllerCore;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
+import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.StateEnvelope;
 import de.mossgrabers.pull.core.api.TimerId;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
+import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
+import de.mossgrabers.pull.core.api.event.InputKind;
+import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.event.SnapshotChangedEvent;
 import de.mossgrabers.pull.core.api.event.TimerElapsedEvent;
 import de.mossgrabers.pull.core.api.event.TouchInputEvent;
@@ -40,6 +45,7 @@ final class FakeCoreHost
     private Map<ControlId, ClipTargetId> armedClipTargets;
     private Map<ControlId, ClipTargetId> clipLaunchSessionTargets;
     private Optional<ControlId> activeClipLaunchOwner;
+    private ControllerBridgeSnapshot bridge = ControllerBridgeSnapshot.empty ();
     private long revision;
     private long eventSequence;
 
@@ -142,6 +148,31 @@ final class FakeCoreHost
 
 
     /**
+     * Deliver one normalized controller-button transition after updating authoritative held state.
+     *
+     * @param controlId The physical control
+     * @param pressed True for pressed
+     */
+    void controllerButton (final ControlId controlId, final boolean pressed)
+    {
+        if (pressed)
+            this.pressedControls.add (controlId);
+        else
+            this.pressedControls.remove (controlId);
+
+        this.revision++;
+        this.eventSequence++;
+        this.effectExecutor.apply (this.core.handle (new ControllerInputEvent (
+            this.eventSequence,
+            this.time.nowNanos (),
+            controlId,
+            InputKind.BUTTON,
+            pressed ? InputPhase.BEGIN : InputPhase.END,
+            pressed ? 127 : 0), this.snapshot ()));
+    }
+
+
+    /**
      * Deliver a touch transition after updating authoritative held state.
      *
      * @param controlId The control
@@ -193,6 +224,22 @@ final class FakeCoreHost
     {
         this.activeClipLaunchOwner = Objects.requireNonNull (activeClipLaunchOwner, "activeClipLaunchOwner");
         this.clipLaunchSessionTargets = this.effectExecutor.clipLaunchSessionTargets ();
+        this.snapshotChanged ();
+    }
+
+
+    /**
+     * Replace authoritative selected-track state and notify the core.
+     *
+     * @param selectedTrack Selected-track state
+     */
+    void selectedTrack (final SelectedTrackSnapshot selectedTrack)
+    {
+        this.bridge = new ControllerBridgeSnapshot (
+            this.bridge.transport (),
+            Objects.requireNonNull (selectedTrack, "selectedTrack"),
+            this.bridge.layout (),
+            this.bridge.drum ());
         this.snapshotChanged ();
     }
 
@@ -290,7 +337,7 @@ final class FakeCoreHost
 
     private ControllerSnapshot snapshot ()
     {
-        return new ControllerSnapshot (this.revision, this.time.nowNanos (), this.capabilities, this.clipCatalog, this.armedClipTargets, this.clipLaunchSessionTargets, this.activeClipLaunchOwner, this.pressedControls, this.touchedControls);
+        return new ControllerSnapshot (this.revision, this.time.nowNanos (), this.capabilities, this.bridge, this.clipCatalog, this.armedClipTargets, this.clipLaunchSessionTargets, this.activeClipLaunchOwner, this.pressedControls, this.touchedControls);
     }
 
 
