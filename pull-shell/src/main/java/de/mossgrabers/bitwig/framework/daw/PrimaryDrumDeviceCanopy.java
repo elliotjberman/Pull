@@ -61,10 +61,14 @@ public final class PrimaryDrumDeviceCanopy
         final Device layerDrum = createMatchedDevice (firstLayer.createDeviceBank (1), drumMatcher);
         final Device slotDrum = createMatchedDevice (primaryInstrument.getCursorSlot ().createDeviceBank (1), drumMatcher);
 
+        // Only the track-chain candidate is rooted in the send-capable cursor track. Bitwig's
+        // nested FIRST_INSTRUMENT/layer/slot proxies expose their child channels with a send-bank
+        // capacity of zero. Passing the track's send count through for those paths makes
+        // DrumDeviceImpl eagerly call Channel.sendBank() on a proxy which has no send bank.
         return List.of (
             new Candidate (directDrum, Path.TRACK_CHAIN, numSends),
-            new Candidate (primaryInstrument, Path.FIRST_INSTRUMENT, numSends),
-            new Candidate (layerDrum, Path.FIRST_LAYER, numSends),
+            new Candidate (primaryInstrument, Path.FIRST_INSTRUMENT, 0),
+            new Candidate (layerDrum, Path.FIRST_LAYER, 0),
             new Candidate (slotDrum, Path.CURSOR_SLOT, 0));
     }
 

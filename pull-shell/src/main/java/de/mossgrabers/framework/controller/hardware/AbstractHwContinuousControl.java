@@ -27,7 +27,12 @@ public abstract class AbstractHwContinuousControl extends AbstractHwInputControl
     protected TriggerCommand    touchCommand;
     protected PitchbendCommand  pitchbendCommand;
 
-    protected ButtonEvent       state;
+    private ContinuousValueArbitrator valueArbitrator;
+    private ButtonEventArbitrator     touchEventArbitrator;
+    private ButtonEvent               physicalTouchState;
+    private ButtonEvent               legacyTouchState;
+    private int                       touchScheduleCounter;
+
     protected IntSupplier       supplier;
     protected IntConsumer       consumer;
     protected int               outputValue           = -1;
@@ -63,6 +68,28 @@ public abstract class AbstractHwContinuousControl extends AbstractHwInputControl
 
     /** {@inheritDoc} */
     @Override
+    public final void installValueArbitrator (final ContinuousValueArbitrator arbitrator)
+    {
+        if (arbitrator == null)
+            throw new IllegalArgumentException ("arbitrator must not be null");
+        if (this.valueArbitrator != null)
+            throw new IllegalStateException ("A continuous-value arbitrator is already installed");
+
+        this.valueArbitrator = arbitrator;
+        try
+        {
+            this.onValueArbitratorInstalled ();
+        }
+        catch (final RuntimeException ex)
+        {
+            this.valueArbitrator = null;
+            throw ex;
+        }
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
     public boolean isBound ()
     {
         return this.command != null || this.touchCommand != null || this.pitchbendCommand != null;
@@ -87,6 +114,32 @@ public abstract class AbstractHwContinuousControl extends AbstractHwInputControl
 
     /** {@inheritDoc} */
     @Override
+    public void replaceTouchCommand (final TriggerCommand command)
+    {
+        if (this.touchCommand == null)
+            throw new IllegalStateException ("Cannot replace the command of a control without a touch binding");
+        if (command == null)
+            throw new IllegalArgumentException ("command must not be null");
+        this.touchCommand = command;
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public final void installTouchEventArbitrator (final ButtonEventArbitrator arbitrator)
+    {
+        if (this.touchCommand == null)
+            throw new IllegalStateException ("Cannot arbitrate a control without a touch binding");
+        if (arbitrator == null)
+            throw new IllegalArgumentException ("arbitrator must not be null");
+        if (this.touchEventArbitrator != null)
+            throw new IllegalStateException ("A touch-event arbitrator is already installed");
+        this.touchEventArbitrator = arbitrator;
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
     public PitchbendCommand getPitchbendCommand ()
     {
         return this.pitchbendCommand;
@@ -100,10 +153,16 @@ public abstract class AbstractHwContinuousControl extends AbstractHwInputControl
         if (this.touchCommand == null)
             return;
 
-        this.host.scheduleTask (this::checkButtonState, BUTTON_STATE_INTERVAL);
+        final ButtonEvent event = isDown ? ButtonEvent.DOWN : ButtonEvent.UP;
+        this.physicalTouchState = event;
+        if (isDown)
+        {
+            this.touchScheduleCounter++;
+            this.host.scheduleTask (this::checkButtonState, BUTTON_STATE_INTERVAL);
+        }
 
-        this.state = isDown ? ButtonEvent.DOWN : ButtonEvent.UP;
-        this.touchCommand.execute (this.state, isDown ? 127 : 0);
+        final int velocity = isDown ? 127 : 0;
+        this.arbitrateTouch (event, velocity, () -> this.dispatchLegacyTouch (event, velocity));
     }
 
 
@@ -111,7 +170,7 @@ public abstract class AbstractHwContinuousControl extends AbstractHwInputControl
     @Override
     public boolean isTouched ()
     {
-        return this.state == ButtonEvent.DOWN || this.state == ButtonEvent.LONG;
+        return this.legacyTouchState == ButtonEvent.DOWN || this.legacyTouchState == ButtonEvent.LONG;
     }
 
 
@@ -119,7 +178,7 @@ public abstract class AbstractHwContinuousControl extends AbstractHwInputControl
     @Override
     public boolean isLongTouched ()
     {
-        return this.state == ButtonEvent.LONG;
+        return this.legacyTouchState == ButtonEvent.LONG;
     }
 
 
@@ -172,10 +231,65 @@ public abstract class AbstractHwContinuousControl extends AbstractHwInputControl
      */
     private void checkButtonState ()
     {
-        if (!this.isTouched ())
+        this.touchScheduleCounter--;
+        if (this.touchScheduleCounter > 0)
             return;
-        this.state = ButtonEvent.LONG;
+        if (this.physicalTouchState != ButtonEvent.DOWN && this.physicalTouchState != ButtonEvent.LONG)
+            return;
+        this.physicalTouchState = ButtonEvent.LONG;
+        this.arbitrateTouch (ButtonEvent.LONG, 127, () -> this.dispatchLegacyTouch (ButtonEvent.LONG, 127));
+    }
+
+
+    /**
+     * Called exactly once when value arbitration is installed. Bitwig-backed controls override
+     * this to replace any direct parameter/command target with their stable callback.
+     */
+    protected void onValueArbitratorInstalled ()
+    {
+        // Optional for non-Bitwig implementations which already dispatch through handleValue.
+    }
+
+
+    /**
+     * Test whether value arbitration has been installed.
+     *
+     * @return True if installed
+     */
+    protected final boolean hasValueArbitrator ()
+    {
+        return this.valueArbitrator != null;
+    }
+
+
+    /**
+     * Dispatch one decoded value through the optional arbitrator.
+     *
+     * @param value Decoded control value
+     * @param legacyMutation Complete established mutation
+     */
+    protected final void arbitrateValue (final int value, final Runnable legacyMutation)
+    {
+        if (this.valueArbitrator == null)
+            legacyMutation.run ();
+        else
+            this.valueArbitrator.arbitrate (value, legacyMutation);
+    }
+
+
+    private void arbitrateTouch (final ButtonEvent event, final int velocity, final Runnable legacyDispatch)
+    {
+        if (this.touchEventArbitrator == null)
+            legacyDispatch.run ();
+        else
+            this.touchEventArbitrator.arbitrate (event, velocity, legacyDispatch);
+    }
+
+
+    private void dispatchLegacyTouch (final ButtonEvent event, final int velocity)
+    {
+        this.legacyTouchState = event;
         if (this.touchCommand != null)
-            this.touchCommand.execute (ButtonEvent.LONG, 127);
+            this.touchCommand.execute (event, velocity);
     }
 }

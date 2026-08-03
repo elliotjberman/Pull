@@ -11,6 +11,10 @@ import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.CoreCapabilities;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.CoreResult;
+import de.mossgrabers.pull.core.api.DesiredInputRoutes;
+import de.mossgrabers.pull.core.api.InputRoute;
+import de.mossgrabers.pull.core.api.InputRouteMode;
+import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.TimerId;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchMode;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
@@ -21,6 +25,9 @@ import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
 import de.mossgrabers.pull.core.api.effect.ScheduleTimerEffect;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
+import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
+import de.mossgrabers.pull.core.api.event.InputKind;
+import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.event.SnapshotChangedEvent;
 import de.mossgrabers.pull.core.api.output.DesiredHardwareOutput;
 import de.mossgrabers.pull.core.api.output.RgbColor;
@@ -32,6 +39,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -584,6 +592,87 @@ class DrumFillRuntimeEnvironmentTest
     }
 
 
+    @Test
+    void routeValidationRejectsControlsOutsideTheInstalledPhysicalCanopy ()
+    {
+        final DrumFillRuntimeEnvironment environment = environment (host (1));
+        final ControlId play = PushControlIds.button ("PLAY");
+        final ControlId unknown = new ControlId ("push.button.not-installed");
+        environment.setInputRouteValidator (route -> route.controlId ().equals (play) && route.kind () == InputKind.BUTTON);
+
+        assertThrows (IllegalArgumentException.class, () -> environment.prepare (routedResult (new DesiredInputRoutes (Set.of (
+            new InputRoute (unknown, InputKind.BUTTON, InputRouteMode.OBSERVE))))));
+        assertThrows (IllegalArgumentException.class, () -> environment.prepare (routedResult (new DesiredInputRoutes (Set.of (
+            new InputRoute (play, InputKind.TOUCH, InputRouteMode.EXCLUSIVE))))));
+        assertEquals (DesiredInputRoutes.empty (), environment.desiredInputRoutes ());
+    }
+
+
+    @Test
+    void committedInputRoutesAreACompleteReplayableReplacement ()
+    {
+        final DrumFillRuntimeEnvironment environment = environment (host (1));
+        final ControlId play = PushControlIds.button ("PLAY");
+        final ControlId stop = PushControlIds.button ("STOP");
+        environment.setInputRouteValidator (route -> route.kind () == InputKind.BUTTON && (route.controlId ().equals (play) || route.controlId ().equals (stop)));
+        final DesiredInputRoutes first = new DesiredInputRoutes (Set.of (
+            new InputRoute (play, InputKind.BUTTON, InputRouteMode.OBSERVE),
+            new InputRoute (stop, InputKind.BUTTON, InputRouteMode.EXCLUSIVE)));
+
+        final PreparedCoreResult preparedFirst = environment.prepare (routedResult (first));
+        assertEquals (DesiredInputRoutes.empty (), environment.desiredInputRoutes ());
+        environment.commit (11, preparedFirst);
+        assertEquals (first, environment.desiredInputRoutes ());
+        assertEquals (Optional.of (InputRouteMode.OBSERVE), environment.desiredInputRoutes ().mode (play, InputKind.BUTTON));
+        assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), environment.desiredInputRoutes ().mode (stop, InputKind.BUTTON));
+
+        final DesiredInputRoutes second = new DesiredInputRoutes (Set.of (
+            new InputRoute (play, InputKind.BUTTON, InputRouteMode.EXCLUSIVE)));
+        environment.commit (12, environment.prepare (routedResult (second)));
+
+        assertEquals (second, environment.desiredInputRoutes ());
+        assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), environment.desiredInputRoutes ().mode (play, InputKind.BUTTON));
+        assertEquals (Optional.empty (), environment.desiredInputRoutes ().mode (stop, InputKind.BUTTON));
+    }
+
+
+    @Test
+    void genericGesturePhasesUpdatePressedAndTouchedSnapshotsUsingOneGlobalSequence ()
+    {
+        final DrumFillRuntimeEnvironment environment = environment (host (1));
+        final ControlId play = PushControlIds.button ("PLAY");
+        final ControlId knob = PushControlIds.continuous ("KNOB1");
+
+        final ButtonInputEvent fillBegin = environment.setFillPressed (FIRST, true);
+        final ControllerInputEvent buttonBegin = environment.controllerInput (play, InputKind.BUTTON, InputPhase.BEGIN, 127);
+        assertEquals (1, fillBegin.sequence ());
+        assertEquals (2, buttonBegin.sequence ());
+        assertEquals (2, environment.snapshot ().revision ());
+        assertEquals (Set.of (FIRST, play), environment.snapshot ().pressedControls ());
+        assertTrue (environment.snapshot ().touchedControls ().isEmpty ());
+
+        final ControllerInputEvent buttonLong = environment.controllerInput (play, InputKind.BUTTON, InputPhase.LONG, 127);
+        final ControllerInputEvent touchBegin = environment.controllerInput (knob, InputKind.TOUCH, InputPhase.BEGIN, 127);
+        final ControllerInputEvent touchLong = environment.controllerInput (knob, InputKind.TOUCH, InputPhase.LONG, 127);
+        assertEquals (3, buttonLong.sequence ());
+        assertEquals (4, touchBegin.sequence ());
+        assertEquals (5, touchLong.sequence ());
+        assertEquals (3, environment.snapshot ().revision ());
+        assertEquals (Set.of (FIRST, play), environment.snapshot ().pressedControls ());
+        assertEquals (Set.of (knob), environment.snapshot ().touchedControls ());
+
+        final ControllerInputEvent buttonEnd = environment.controllerInput (play, InputKind.BUTTON, InputPhase.END, 0);
+        final ControllerInputEvent touchEnd = environment.controllerInput (knob, InputKind.TOUCH, InputPhase.END, 0);
+        final ButtonInputEvent fillEnd = environment.setFillPressed (FIRST, false);
+        assertEquals (6, buttonEnd.sequence ());
+        assertEquals (7, touchEnd.sequence ());
+        assertEquals (8, fillEnd.sequence ());
+        assertEquals (6, environment.snapshot ().revision ());
+        assertTrue (environment.snapshot ().pressedControls ().isEmpty ());
+        assertTrue (environment.snapshot ().touchedControls ().isEmpty ());
+    }
+
+
     private static DrumFillRuntimeEnvironment environment (final FakeClipHost host)
     {
         return new DrumFillRuntimeEnvironment (host, new RecordingLog (), () -> 0);
@@ -620,6 +709,12 @@ class DrumFillRuntimeEnvironmentTest
     private static CoreResult result (final Map<ControlId, RgbColor> lights, final Map<ControlId, ClipTargetId> bindings, final List<CoreEffect> effects)
     {
         return new CoreResult (new DesiredHardwareOutput (lights), bindings, effects);
+    }
+
+
+    private static CoreResult routedResult (final DesiredInputRoutes routes)
+    {
+        return new CoreResult (DesiredHardwareOutput.empty (), routes, Map.of (), List.of ());
     }
 
 

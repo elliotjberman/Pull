@@ -31,7 +31,7 @@ import org.junit.jupiter.api.Test;
 class PrimaryDrumDeviceCanopyTest
 {
     @Test
-    void carriesTheActualLayerSendCapacityOfEachProxyPath ()
+    void doesNotAdvertiseTrackSendsOnNestedProxyPaths ()
     {
         final Device directDrum = relaxedProxy (Device.class);
         final Device layerDrum = relaxedProxy (Device.class);
@@ -61,7 +61,7 @@ class PrimaryDrumDeviceCanopyTest
         final List<Candidate> candidates = PrimaryDrumDeviceCanopy.create (host, track, "cursor-id", "Cursor", 8);
 
         assertEquals (List.of (Path.TRACK_CHAIN, Path.FIRST_INSTRUMENT, Path.FIRST_LAYER, Path.CURSOR_SLOT), candidates.stream ().map (Candidate::path).toList ());
-        assertEquals (List.of (Integer.valueOf (8), Integer.valueOf (8), Integer.valueOf (8), Integer.valueOf (0)), candidates.stream ().map (Candidate::numLayerSends).toList ());
+        assertEquals (List.of (Integer.valueOf (8), Integer.valueOf (0), Integer.valueOf (0), Integer.valueOf (0)), candidates.stream ().map (Candidate::numLayerSends).toList ());
         assertSame (directDrum, candidates.get (0).device ());
         assertSame (primaryInstrument, candidates.get (1).device ());
         assertSame (layerDrum, candidates.get (2).device ());

@@ -84,9 +84,14 @@ public abstract class AbstractHwAbsoluteControl<T extends AbsoluteHardwareContro
     @Override
     public void bind (final ContinuousCommand command)
     {
+        this.clearDirectParameterTarget ();
+        this.parameter = null;
         super.bind (command);
 
-        this.binding = this.hardwareControl.setBinding (this.defaultAction);
+        if (this.hasValueArbitrator ())
+            this.pitchbendCommand = null;
+        else
+            this.binding = this.hardwareControl.setBinding (this.defaultAction);
     }
 
 
@@ -94,8 +99,13 @@ public abstract class AbstractHwAbsoluteControl<T extends AbsoluteHardwareContro
     @Override
     public void bind (final PitchbendCommand command)
     {
+        this.clearDirectParameterTarget ();
+        this.parameter = null;
         super.bind (command);
-        this.binding = this.hardwareControl.addBinding (this.controllerHost.createAbsoluteHardwareControlAdjustmentTarget (this::handleValue));
+        if (this.hasValueArbitrator ())
+            this.command = null;
+        else
+            this.binding = this.hardwareControl.addBinding (this.controllerHost.createAbsoluteHardwareControlAdjustmentTarget (this::handleValue));
     }
 
 
@@ -103,12 +113,15 @@ public abstract class AbstractHwAbsoluteControl<T extends AbsoluteHardwareContro
     @Override
     public void bind (final IParameter parameter)
     {
-        if (this.binding != null)
+        if (!this.hasValueArbitrator () && this.binding != null)
             this.binding.removeBinding ();
 
         // Remove the previously bound Bitwig parameter
-        if (this.parameter instanceof final ParameterImpl param)
-            HwUtils.enableObservers (false, this.hardwareControl, param);
+        this.clearDirectParameterTarget ();
+
+        this.parameter = parameter;
+        if (this.hasValueArbitrator ())
+            return;
 
         HardwareBindable target = null;
         if (parameter == null)
@@ -128,7 +141,6 @@ public abstract class AbstractHwAbsoluteControl<T extends AbsoluteHardwareContro
                 target = this.defaultSimpleParameterAction;
         }
 
-        this.parameter = parameter;
         this.binding = target == null ? null : this.hardwareControl.setBinding (target);
     }
 
@@ -188,19 +200,11 @@ public abstract class AbstractHwAbsoluteControl<T extends AbsoluteHardwareContro
     @Override
     public void handleValue (final double value)
     {
-        if (this.command != null)
-        {
-            this.command.execute ((int) Math.round (value * 127.0));
+        if (this.command == null && this.pitchbendCommand == null && this.parameter == null)
             return;
-        }
 
-        if (this.pitchbendCommand != null)
-        {
-            final int midiValue = (int) Math.round (value * 16383.0);
-            final int data1 = midiValue & 0x7F;
-            final int data2 = midiValue >>> 7 & 0x7F;
-            this.pitchbendCommand.onPitchbend (data1, data2);
-        }
+        final int midiValue = (int) Math.round (value * 16383.0);
+        this.arbitrateValue (midiValue, () -> this.dispatchLegacyValue (value, midiValue));
     }
 
 
@@ -208,6 +212,43 @@ public abstract class AbstractHwAbsoluteControl<T extends AbsoluteHardwareContro
     {
         if (this.parameter != null)
             this.parameter.setNormalizedValue (value);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    protected void onValueArbitratorInstalled ()
+    {
+        if (this.binding != null)
+            this.binding.removeBinding ();
+        this.clearDirectParameterTarget ();
+        this.binding = this.hardwareControl.setBinding (this.defaultAction);
+    }
+
+
+    private void dispatchLegacyValue (final double value, final int midiValue)
+    {
+        if (this.parameter != null)
+        {
+            this.parameter.setNormalizedValue (value);
+            return;
+        }
+
+        if (this.command != null)
+        {
+            this.command.execute ((int) Math.round (value * 127.0));
+            return;
+        }
+
+        if (this.pitchbendCommand != null)
+            this.pitchbendCommand.onPitchbend (midiValue & 0x7F, midiValue >>> 7 & 0x7F);
+    }
+
+
+    private void clearDirectParameterTarget ()
+    {
+        if (this.parameter instanceof final ParameterImpl param)
+            HwUtils.enableObservers (false, this.hardwareControl, param);
     }
 
 

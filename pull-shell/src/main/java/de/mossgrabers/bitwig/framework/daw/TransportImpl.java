@@ -243,6 +243,14 @@ public class TransportImpl implements ITransport
 
     /** {@inheritDoc} */
     @Override
+    public void setRecording (final boolean enabled)
+    {
+        this.transport.isArrangerRecordEnabled ().set (enabled);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
     public boolean isRecording ()
     {
         return this.transport.isArrangerRecordEnabled ().get ();
@@ -262,6 +270,14 @@ public class TransportImpl implements ITransport
     public void toggleOverdub ()
     {
         this.transport.isArrangerOverdubEnabled ().toggle ();
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void setArrangerOverdub (final boolean enabled)
+    {
+        this.transport.isArrangerOverdubEnabled ().set (enabled);
     }
 
 

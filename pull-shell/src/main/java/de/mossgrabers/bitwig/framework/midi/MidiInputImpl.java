@@ -121,7 +121,7 @@ public class MidiInputImpl implements IMidiInput
             throw new IllegalStateException ("MIDI input is already routed to the selected track");
 
         this.selectedTrackNoteTarget = createSelectedTrackNoteTarget (this.host);
-        final ISelectedTrackNoteTarget targetState = new SelectedTrackTargetState (this.host, this.selectedTrackNoteTarget);
+        final ISelectedTrackNoteTarget targetState = new SelectedTrackTargetState (this.host, this.selectedTrackNoteTarget, this.defaultNoteInput::sendRawMidiEvent);
         this.defaultNoteInput.routeDirectlyTo (this.selectedTrackNoteTarget);
         return targetState;
     }

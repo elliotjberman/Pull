@@ -42,15 +42,45 @@
 
 ## Bounded stable capability canopy
 
-- Create and subscribe practical Push inputs and reusable Bitwig cursor, bank, transport, clip,
-  and device proxies eagerly during extension initialization. A reloadable child
-  core may compose only the state and operations already present in this stable bounded canopy.
+- Create practical Push input routers and reusable Bitwig cursor, bank, transport, clip, and device
+  proxies, interested values, and observers eagerly during extension initialization. A reloadable
+  child core may compose only the state and operations already present in this stable bounded
+  canopy.
+- Do not confuse eagerly installed Bitwig topology with unconditional shell/core sampling. The
+  core must return the complete replayable `DesiredBridgeSubscriptions` it currently needs;
+  unrequested domains publish their typed `empty()` values and must not incur their high-rate
+  snapshot work. Returning a later result replaces the whole subscription set.
 - Keep every bank, scanner, actuator pool, and proxy window explicitly bounded. Document its
   capacity, identity/generation rules, selection scope, and any required Bitwig
   session setup next to the feature that consumes it.
-- Do not imply that eager subscriptions cover arbitrary project state. Bitwig proxy topology is
-  initialization-owned, bank windows are finite, and projects are unbounded; a feature outside the
-  installed canopy still requires a shell/API change and Bitwig restart.
+- Treat controller input ownership as complete replayable state. An absent route is `NONE`,
+  `OBSERVE` delivers to both the reloadable core and established controller behavior, and
+  `EXCLUSIVE` suppresses established controller-command dispatch. Freeze an edge route selected at
+  gesture `BEGIN` through its `LONG` and `END`, even across a route-map change or core reload, so a
+  release cannot reach behavior that never received the press.
+- Install input arbitration once, below button consumed-state handling and below any continuous
+  command/parameter rebinding. Never add a second MIDI or hardware callback to observe a migrated
+  input. Coalesce relative motion by summing deltas and absolute/pressure motion by keeping the
+  latest sample until the controller tick; preserve edge ordering around touch release.
+- Controller-command arbitration and Bitwig's native `NoteInput` are separate paths. An
+  `EXCLUSIVE` pad or pressure route suppresses legacy framework commands and state only; it does
+  not suppress musical note data that Bitwig routes from the permanent Push `NoteInput`.
+- Parent-own cleanup for stateful raw MIDI. Neutralize outstanding CC, channel-pressure, and pitch-
+  bend state when the active core generation changes, the private selected target changes, or the
+  extension shuts down; child-core state must not remain sounding after ownership moves.
+- Generation checks at prepare time are not enough for effects aimed through mutable proxies.
+  Recheck live selected-track identity before applying selected-track effects. For drum-pad
+  effects, also fence the device ID, bank base MIDI note, pad channel ID, and alignment between the
+  private selected target and rendering model cursor; fail closed if any identity changed.
+- Do not imply that eager proxy/interested-value setup covers arbitrary project state. Bitwig proxy
+  topology is initialization-owned, bank windows are finite, and projects are unbounded; a feature
+  outside the installed canopy still requires a shell/API change and Bitwig restart.
+- A core-only change inside the installed API/canopy hot reloads. Changing a parent-loaded API
+  contract, adding a Bitwig proxy/property/observer, changing a permanent binding or proxy capacity,
+  or broadening hardware output ownership requires a shell build/install and Bitwig restart.
+- API 7 still arbitrates general input but only the 12 drum-fill RGB lights have migrated output
+  ownership. Do not claim general Push light or display hot reload until stable complete-output
+  arbitration exists for those surfaces.
 
 ## Bitwig controller API compatibility
 

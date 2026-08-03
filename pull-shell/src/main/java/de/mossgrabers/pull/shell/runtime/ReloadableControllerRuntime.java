@@ -6,12 +6,17 @@ package de.mossgrabers.pull.shell.runtime;
 import com.bitwig.extension.controller.api.ControllerHost;
 
 import de.mossgrabers.framework.daw.IModel;
+import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
+import de.mossgrabers.framework.daw.midi.ISelectedTrackNoteTarget;
 import de.mossgrabers.framework.daw.midi.MidiConstants;
 import de.mossgrabers.framework.utils.ButtonEvent;
+import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
+import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
+import de.mossgrabers.pull.shell.input.PhysicalInputEvent;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 
 import java.util.HashSet;
@@ -26,6 +31,8 @@ import java.util.function.Predicate;
  */
 public final class ReloadableControllerRuntime implements AutoCloseable
 {
+    private static final long SLOW_TICK_NANOS = 10_000_000L;
+    private static final long SLOW_TICK_WARNING_INTERVAL_NANOS = 5_000_000_000L;
     private static final int [] FILL_PAD_NOTES =
     {
         48,
@@ -50,10 +57,13 @@ public final class ReloadableControllerRuntime implements AutoCloseable
     private SelectedTrackFillClipHost clipHost;
     private DrumFillRuntimeEnvironment environment;
     private CoreReloadSupervisor supervisor;
+    private PushControllerInputBridge inputBridge;
     private Predicate<CoreEvent> eventHandler = event -> false;
     private final Set<ControlId> rawReleasedGestures = new HashSet<> ();
     private boolean started;
     private boolean closed;
+    private boolean drainingControllerInputs;
+    private long lastSlowTickWarningNanos = Long.MIN_VALUE;
 
 
     /**
@@ -91,8 +101,11 @@ public final class ReloadableControllerRuntime implements AutoCloseable
      * setup calls this from inside Bitwig's extension-init phase.
      *
      * @param model The stable model
+     * @param selectedTarget Private selection-following note target
+     * @param surface Stable Push surface
+     * @param valueChanger Stable value converter
      */
-    public void connect (final IModel model)
+    public void connect (final IModel model, final ISelectedTrackNoteTarget selectedTarget, final PushControlSurface surface, final IValueChanger valueChanger)
     {
         if (this.closed)
             throw new IllegalStateException ("Reloadable controller runtime is closed");
@@ -104,7 +117,12 @@ public final class ReloadableControllerRuntime implements AutoCloseable
 
         this.clipHost = new SelectedTrackFillClipHost (this.controllerHost);
         this.clipHost.connect (Objects.requireNonNull (model, "model"));
-        this.environment = new DrumFillRuntimeEnvironment (this.clipHost, this.log, System::nanoTime);
+        final BoundedControllerBridge controllerBridge = new BoundedControllerBridge (
+            model,
+            Objects.requireNonNull (selectedTarget, "selectedTarget"),
+            Objects.requireNonNull (surface, "surface"),
+            Objects.requireNonNull (valueChanger, "valueChanger"));
+        this.environment = new DrumFillRuntimeEnvironment (this.clipHost, controllerBridge, this.log, System::nanoTime);
         this.supervisor = new CoreReloadSupervisor (this.environment, this.log);
         this.eventHandler = this.supervisor::handle;
     }
@@ -128,6 +146,33 @@ public final class ReloadableControllerRuntime implements AutoCloseable
 
 
     /**
+     * Wrap the complete practical Push input set after normal command registration. This changes
+     * command behavior only; it does not add duplicate Bitwig hardware bindings.
+     *
+     * @param surface Stable Push surface
+     * @param valueChanger Relative-value decoder
+     */
+    public void installControllerInputBridge (final PushControlSurface surface, final IValueChanger valueChanger)
+    {
+        if (this.closed)
+            throw new IllegalStateException ("Reloadable controller runtime is closed");
+        if (this.environment == null)
+            throw new IllegalStateException ("Reloadable controller runtime is not connected");
+        if (this.started)
+            throw new IllegalStateException ("Controller inputs must be installed before runtime startup");
+        if (this.inputBridge != null)
+            throw new IllegalStateException ("Controller input bridge is already installed");
+
+        this.inputBridge = new PushControllerInputBridge (
+            Objects.requireNonNull (surface, "surface"),
+            Objects.requireNonNull (valueChanger, "valueChanger"),
+            this.environment::desiredInputRoutes,
+            this::handleControllerInput);
+        this.environment.setInputRouteValidator (this.inputBridge::supports);
+    }
+
+
+    /**
      * Refresh stable state and drain reload work on Bitwig's controller thread.
      */
     public void tick ()
@@ -135,7 +180,20 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         if (!this.started || this.closed)
             return;
 
+        final long startedAt = System.nanoTime ();
         final boolean snapshotChanged = this.environment.refresh ();
+        if (this.inputBridge != null)
+        {
+            this.drainingControllerInputs = true;
+            try
+            {
+                this.inputBridge.flush ();
+            }
+            finally
+            {
+                this.drainingControllerInputs = false;
+            }
+        }
         if (this.supervisor != null)
             this.supervisor.tick ();
         if (snapshotChanged)
@@ -144,6 +202,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             if (this.eventHandler.test (this.environment.snapshotChangedEvent ()))
                 this.environment.acknowledgeSnapshotChange (deliveredRevision);
         }
+        this.reportSlowTick (startedAt);
     }
 
 
@@ -210,8 +269,9 @@ public final class ReloadableControllerRuntime implements AutoCloseable
 
     /**
      * Route a physical MIDI release before the hardware-button command layer can consume its UP
-     * event. The command-layer callback may subsequently report the same release; authoritative
-     * input state makes that duplicate a no-op.
+     * event. This protects the permanent fill controls. Generic button arbitration sits below the
+     * consumed-command gate and therefore receives its ordinary release without a raw-MIDI
+     * workaround.
      *
      * @param drumControlsActive True when the drum layout owns its controls and the selected target
      *            supports the drum controller
@@ -228,6 +288,21 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         final boolean held = control != null && this.environment != null && !this.closed && this.environment.isFillPressed (control);
         if (held && this.routeGridEvent (drumControlsActive, ButtonEvent.UP, data1))
             this.rawReleasedGestures.add (control);
+    }
+
+
+    /**
+     * Route pressure and pedal MIDI through the normalized controller seam.
+     *
+     * @param status MIDI status
+     * @param data1 First MIDI data byte
+     * @param data2 Second MIDI data byte
+     * @param legacy Existing surface MIDI handling
+     * @return True when the bridge handled the message and any allowed legacy dispatch
+     */
+    public boolean routeControllerMidi (final int status, final int data1, final int data2, final Runnable legacy)
+    {
+        return this.inputBridge != null && !this.closed && this.inputBridge.routeMidi (status, data1, data2, Objects.requireNonNull (legacy, "legacy"));
     }
 
 
@@ -287,6 +362,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
 
         this.closed = true;
         this.rawReleasedGestures.clear ();
+        this.inputBridge = null;
         try
         {
             if (this.supervisor != null)
@@ -311,5 +387,41 @@ public final class ReloadableControllerRuntime implements AutoCloseable
                 return FILL_CONTROLS.get (index);
         }
         return null;
+    }
+
+
+    private void handleControllerInput (final PhysicalInputEvent<ControlId> event)
+    {
+        if (this.environment == null || this.closed)
+            return;
+        if (!this.drainingControllerInputs)
+            this.environment.refresh ();
+
+        final ControllerInputEvent input = this.environment.controllerInput (
+            event.control (),
+            de.mossgrabers.pull.core.api.event.InputKind.valueOf (event.kind ().name ()),
+            event.phase () == de.mossgrabers.pull.shell.input.InputPhase.CHANGE ? de.mossgrabers.pull.core.api.event.InputPhase.UPDATE : de.mossgrabers.pull.core.api.event.InputPhase.valueOf (event.phase ().name ()),
+            event.value ());
+        if (this.started)
+            this.eventHandler.test (input);
+    }
+
+
+    private void reportSlowTick (final long startedAt)
+    {
+        final long now = System.nanoTime ();
+        final long elapsed = now - startedAt;
+        if (elapsed <= SLOW_TICK_NANOS || this.lastSlowTickWarningNanos != Long.MIN_VALUE && now - this.lastSlowTickWarningNanos < SLOW_TICK_WARNING_INTERVAL_NANOS)
+            return;
+
+        this.lastSlowTickWarningNanos = now;
+        try
+        {
+            this.log.warn ("Reloadable bridge tick took " + elapsed / 1_000_000.0 + " ms");
+        }
+        catch (final RuntimeException ignored)
+        {
+            // Diagnostics cannot change controller behavior.
+        }
     }
 }

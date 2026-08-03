@@ -106,9 +106,12 @@ public class HwRelativeKnobImpl extends AbstractHwContinuousControl implements I
     @Override
     public void bind (final ContinuousCommand command)
     {
+        this.clearDirectParameterTarget ();
+        this.parameter = null;
         super.bind (command);
 
-        this.binding = this.hardwareKnob.setBinding (this.defaultAction);
+        if (!this.hasValueArbitrator ())
+            this.binding = this.hardwareKnob.setBinding (this.defaultAction);
     }
 
 
@@ -116,12 +119,15 @@ public class HwRelativeKnobImpl extends AbstractHwContinuousControl implements I
     @Override
     public void bind (final IParameter parameter)
     {
-        if (this.binding != null)
+        if (!this.hasValueArbitrator () && this.binding != null)
             this.binding.removeBinding ();
 
         // Remove the previously bound Bitwig parameter
-        if (this.parameter instanceof final ParameterImpl param)
-            HwUtils.enableObservers (false, this.hardwareKnob, param);
+        this.clearDirectParameterTarget ();
+
+        this.parameter = parameter;
+        if (this.hasValueArbitrator ())
+            return;
 
         final HardwareBindable target;
         if (parameter == null)
@@ -141,7 +147,6 @@ public class HwRelativeKnobImpl extends AbstractHwContinuousControl implements I
                 target = this.defaultSimpleParameterAction;
         }
 
-        this.parameter = parameter;
         this.binding = target == null ? null : this.hardwareKnob.setBinding (target);
     }
 
@@ -194,17 +199,23 @@ public class HwRelativeKnobImpl extends AbstractHwContinuousControl implements I
     @Override
     public void handleValue (final double value)
     {
-        if (this.command == null)
+        if (this.command == null && this.parameter == null)
             return;
-
-        this.notifyHasChangedObservers ();
 
         // Convert the value back from the default 2s relative matcher, because we do the conversion
         // our own way
         final double a = value * 63.0;
         final int v = (int) (a > 0 ? Math.ceil (a) : Math.floor (a));
         final int encodedSpeed = RelativeValueChangers.get (this.encoding).encode (v);
-        this.command.execute (encodedSpeed);
+        final double parameterAmount = value * 61.0;
+        final int parameterDelta = (int) (parameterAmount > 0 ? Math.ceil (parameterAmount) : Math.floor (parameterAmount));
+        this.arbitrateValue (encodedSpeed, () -> {
+            this.notifyHasChangedObservers ();
+            if (this.parameter == null)
+                this.command.execute (encodedSpeed);
+            else
+                this.parameter.changeValue (parameterDelta);
+        });
     }
 
 
@@ -220,6 +231,24 @@ public class HwRelativeKnobImpl extends AbstractHwContinuousControl implements I
         final double a = value * 61.0;
         final int v = (int) (a > 0 ? Math.ceil (a) : Math.floor (a));
         this.parameter.changeValue (v);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    protected void onValueArbitratorInstalled ()
+    {
+        if (this.binding != null)
+            this.binding.removeBinding ();
+        this.clearDirectParameterTarget ();
+        this.binding = this.hardwareKnob.setBinding (this.defaultAction);
+    }
+
+
+    private void clearDirectParameterTarget ()
+    {
+        if (this.parameter instanceof final ParameterImpl param)
+            HwUtils.enableObservers (false, this.hardwareKnob, param);
     }
 
 

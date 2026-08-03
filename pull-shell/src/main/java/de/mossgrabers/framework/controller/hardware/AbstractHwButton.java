@@ -27,9 +27,12 @@ public abstract class AbstractHwButton extends AbstractHwInputControl implements
     protected TriggerCommand               command;
     protected IHwLight                     light;
 
-    private ButtonEvent                    state;
+    private ButtonEventArbitrator           eventArbitrator;
+    private ButtonEvent                    physicalState;
+    private ButtonEvent                    legacyState;
     private boolean                        isConsumed;
     private int                            pressedVelocity       = 0;
+    private int                            physicalPressedVelocity = 0;
     private int                            scheduleCounter       = 0;
     private final Object                   buttonStateLock       = new Object ();
 
@@ -74,11 +77,26 @@ public abstract class AbstractHwButton extends AbstractHwInputControl implements
 
     /** {@inheritDoc} */
     @Override
+    public final void installEventArbitrator (final ButtonEventArbitrator arbitrator)
+    {
+        if (this.command == null)
+            throw new IllegalStateException ("Cannot arbitrate an unbound button");
+        if (arbitrator == null)
+            throw new IllegalArgumentException ("arbitrator must not be null");
+        if (this.eventArbitrator != null)
+            throw new IllegalStateException ("A button event arbitrator is already installed");
+        this.eventArbitrator = arbitrator;
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
     public void clearState ()
     {
         synchronized (this.buttonStateLock)
         {
-            this.state = null;
+            this.physicalState = null;
+            this.legacyState = null;
         }
     }
 
@@ -96,17 +114,14 @@ public abstract class AbstractHwButton extends AbstractHwInputControl implements
 
         synchronized (this.buttonStateLock)
         {
-            this.state = ButtonEvent.DOWN;
-            this.isConsumed = false;
+            this.physicalState = ButtonEvent.DOWN;
             this.scheduleCounter++;
             this.host.scheduleTask (this::checkButtonState, this.optimizer.getTimeout ());
         }
 
-        this.pressedVelocity = (int) (value * 127.0);
-        if (this.command != null)
-            this.command.execute (ButtonEvent.DOWN, this.pressedVelocity);
-
-        this.downEventHandlers.forEach (handler -> handler.handle (ButtonEvent.DOWN));
+        final int velocity = (int) (value * 127.0);
+        this.physicalPressedVelocity = velocity;
+        this.arbitrate (ButtonEvent.DOWN, velocity, () -> this.dispatchLegacyPressed (velocity));
     }
 
 
@@ -120,13 +135,10 @@ public abstract class AbstractHwButton extends AbstractHwInputControl implements
 
         synchronized (this.buttonStateLock)
         {
-            this.state = ButtonEvent.UP;
+            this.physicalState = ButtonEvent.UP;
         }
 
-        if (this.command != null && !this.isConsumed)
-            this.command.execute (ButtonEvent.UP, 0);
-
-        this.upEventHandlers.forEach (handler -> handler.handle (ButtonEvent.UP));
+        this.arbitrate (ButtonEvent.UP, 0, this::dispatchLegacyRelease);
     }
 
 
@@ -152,7 +164,7 @@ public abstract class AbstractHwButton extends AbstractHwInputControl implements
     {
         synchronized (this.buttonStateLock)
         {
-            return this.state == ButtonEvent.DOWN || this.state == ButtonEvent.LONG;
+            return this.legacyState == ButtonEvent.DOWN || this.legacyState == ButtonEvent.LONG;
         }
     }
 
@@ -163,7 +175,7 @@ public abstract class AbstractHwButton extends AbstractHwInputControl implements
     {
         synchronized (this.buttonStateLock)
         {
-            return this.state == ButtonEvent.LONG;
+            return this.legacyState == ButtonEvent.LONG;
         }
     }
 
@@ -264,9 +276,59 @@ public abstract class AbstractHwButton extends AbstractHwInputControl implements
             if (this.scheduleCounter > 0)
                 return;
 
-            if (!this.isPressed ())
+            if (this.physicalState != ButtonEvent.DOWN && this.physicalState != ButtonEvent.LONG)
                 return;
-            this.state = ButtonEvent.LONG;
+            this.physicalState = ButtonEvent.LONG;
+        }
+
+        this.arbitrate (ButtonEvent.LONG, this.physicalPressedVelocity, this::dispatchLegacyLongPress);
+    }
+
+
+    private void arbitrate (final ButtonEvent event, final int velocity, final Runnable legacyDispatch)
+    {
+        if (this.eventArbitrator == null)
+            legacyDispatch.run ();
+        else
+            this.eventArbitrator.arbitrate (event, velocity, legacyDispatch);
+    }
+
+
+    private void dispatchLegacyPressed (final int velocity)
+    {
+        synchronized (this.buttonStateLock)
+        {
+            this.legacyState = ButtonEvent.DOWN;
+            this.isConsumed = false;
+        }
+
+        this.pressedVelocity = velocity;
+        if (this.command != null)
+            this.command.execute (ButtonEvent.DOWN, velocity);
+
+        this.downEventHandlers.forEach (handler -> handler.handle (ButtonEvent.DOWN));
+    }
+
+
+    private void dispatchLegacyRelease ()
+    {
+        synchronized (this.buttonStateLock)
+        {
+            this.legacyState = ButtonEvent.UP;
+        }
+
+        if (this.command != null && !this.isConsumed)
+            this.command.execute (ButtonEvent.UP, 0);
+
+        this.upEventHandlers.forEach (handler -> handler.handle (ButtonEvent.UP));
+    }
+
+
+    private void dispatchLegacyLongPress ()
+    {
+        synchronized (this.buttonStateLock)
+        {
+            this.legacyState = ButtonEvent.LONG;
         }
 
         if (this.command != null)

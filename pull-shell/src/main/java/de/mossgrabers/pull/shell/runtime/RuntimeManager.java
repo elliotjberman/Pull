@@ -22,6 +22,8 @@ import java.util.function.BooleanSupplier;
 final class RuntimeManager implements AutoCloseable
 {
     private static final long SLOW_STOP_NANOS = 10_000_000;
+    private static final long SLOW_EVENT_NANOS = 8_000_000;
+    private static final long SLOW_WARNING_INTERVAL_NANOS = 5_000_000_000L;
 
     private final CoreRuntimeEnvironment environment;
     private final RuntimeLog log;
@@ -29,6 +31,7 @@ final class RuntimeManager implements AutoCloseable
     private Thread controllerThread;
     private ActiveCore active;
     private long generation;
+    private long lastSlowEventWarningNanos = Long.MIN_VALUE;
 
 
     RuntimeManager (final CoreRuntimeEnvironment environment, final RuntimeLog log)
@@ -144,6 +147,7 @@ final class RuntimeManager implements AutoCloseable
         if (runtime == null || runtime.generation != eventGeneration)
             return false;
 
+        final long startedAt = System.nanoTime ();
         try
         {
             final ControllerSnapshot snapshot = this.environment.snapshot ();
@@ -156,10 +160,12 @@ final class RuntimeManager implements AutoCloseable
         {
             rethrowFatal (failure);
             this.warn ("Active core event failed: " + sanitize (failure));
+            this.reportSlowEvent (event, startedAt);
             return false;
         }
 
         this.applyCommittedResult (runtime.generation);
+        this.reportSlowEvent (event, startedAt);
         return true;
     }
 
@@ -313,6 +319,18 @@ final class RuntimeManager implements AutoCloseable
             rethrowFatal (failure);
             this.warn ("Committed core effects failed: " + sanitize (failure));
         }
+    }
+
+
+    private void reportSlowEvent (final CoreEvent event, final long startedAt)
+    {
+        final long now = System.nanoTime ();
+        final long elapsed = now - startedAt;
+        if (elapsed <= SLOW_EVENT_NANOS || this.lastSlowEventWarningNanos != Long.MIN_VALUE && now - this.lastSlowEventWarningNanos < SLOW_WARNING_INTERVAL_NANOS)
+            return;
+
+        this.lastSlowEventWarningNanos = now;
+        this.warn ("Reloadable bridge " + event.getClass ().getSimpleName () + " transaction took " + elapsed / 1_000_000.0 + " ms");
     }
 
 

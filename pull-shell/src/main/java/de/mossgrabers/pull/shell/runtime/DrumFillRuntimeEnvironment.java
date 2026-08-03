@@ -6,16 +6,24 @@ package de.mossgrabers.pull.shell.runtime;
 import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
+import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.CoreCapabilities;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.CoreResult;
+import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
+import de.mossgrabers.pull.core.api.DesiredInputRoutes;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
+import de.mossgrabers.pull.core.api.effect.SetTransportStateEffect;
+import de.mossgrabers.pull.core.api.effect.SetTransportValueEffect;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
+import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
+import de.mossgrabers.pull.core.api.event.InputKind;
+import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.event.SnapshotChangedEvent;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 
@@ -29,6 +37,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 
 
 /**
@@ -43,19 +52,32 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
         Map.entry (CoreCapabilities.BINDING_CLIP_TARGET, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD, Integer.valueOf (4)),
-        Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (1))));
+        Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.INPUT_CONTROLLER, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.ROUTING_CONTROLLER_INPUT, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.SUBSCRIPTION_CONTROLLER_BRIDGE, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.EFFECT_TRANSPORT, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.EFFECT_SELECTED_TRACK, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.EFFECT_DRUM_PAD, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.EFFECT_SELECTED_TRACK_MIDI, Integer.valueOf (1))));
 
     private final DrumFillClipHost clipHost;
+    private final BoundedControllerBridge controllerBridge;
     private final RuntimeLog log;
     private final LongSupplier clock;
     private final long timeOrigin;
     private final Set<ControlId> pressedControls = new LinkedHashSet<> ();
+    private final Set<ControlId> touchedControls = new LinkedHashSet<> ();
     private final FillLaunchSession fillSession = new FillLaunchSession ();
 
     private ClipCatalogSnapshot clipCatalog;
     private Map<ControlId, ClipTargetId> armedClipTargets;
     private FillSessionView lastObservedSession;
     private Map<ControlId, RgbColor> fillLightColors = offLights ();
+    private DesiredInputRoutes desiredInputRoutes = DesiredInputRoutes.empty ();
+    private DesiredBridgeSubscriptions desiredBridgeSubscriptions = DesiredBridgeSubscriptions.empty ();
+    private Predicate<de.mossgrabers.pull.core.api.InputRoute> inputRouteValidator = route -> false;
     private long pendingSnapshotRevision = -1;
     private long hostSampleRevision;
     private long lastTime;
@@ -87,7 +109,22 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
      */
     DrumFillRuntimeEnvironment (final DrumFillClipHost clipHost, final RuntimeLog log, final LongSupplier clock)
     {
+        this (clipHost, null, log, clock);
+    }
+
+
+    /**
+     * Constructor with the permanent common-controller bridge.
+     *
+     * @param clipHost Stable selected-track clip host
+     * @param controllerBridge Bounded common controller bridge
+     * @param log Stable runtime log
+     * @param clock Monotonic clock
+     */
+    DrumFillRuntimeEnvironment (final DrumFillClipHost clipHost, final BoundedControllerBridge controllerBridge, final RuntimeLog log, final LongSupplier clock)
+    {
         this.clipHost = Objects.requireNonNull (clipHost, "clipHost");
+        this.controllerBridge = controllerBridge;
         this.log = Objects.requireNonNull (log, "log");
         this.clock = Objects.requireNonNull (clock, "clock");
         this.timeOrigin = clock.getAsLong ();
@@ -124,6 +161,8 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
             this.recordSnapshotChange ();
         }
         this.recordSessionChange ();
+        if (this.controllerBridge != null && this.controllerBridge.refresh (this.now (), this.desiredBridgeSubscriptions))
+            this.recordSnapshotChange ();
 
         return this.hasPendingSnapshotChange ();
     }
@@ -184,6 +223,37 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
 
 
     /**
+     * Apply one normalized generic physical-input sample to parent-owned gesture state.
+     *
+     * @param control Physical control
+     * @param kind Input kind
+     * @param phase Input phase
+     * @param value Normalized kind-specific value
+     * @return Core event with the environment's globally monotonic sequence and clock
+     */
+    ControllerInputEvent controllerInput (final ControlId control, final InputKind kind, final InputPhase phase, final long value)
+    {
+        final ControlId checkedControl = Objects.requireNonNull (control, "control");
+        final InputKind checkedKind = Objects.requireNonNull (kind, "kind");
+        final InputPhase checkedPhase = Objects.requireNonNull (phase, "phase");
+        final Set<ControlId> state = checkedKind == InputKind.TOUCH ? this.touchedControls : checkedKind == InputKind.BUTTON || checkedKind == InputKind.PAD || checkedKind == InputKind.PEDAL ? this.pressedControls : null;
+        if (state != null)
+        {
+            final boolean changed;
+            if (checkedPhase == InputPhase.BEGIN)
+                changed = state.add (checkedControl);
+            else if (checkedPhase == InputPhase.END)
+                changed = state.remove (checkedControl);
+            else
+                changed = false;
+            if (changed)
+                this.advanceSnapshotRevision ();
+        }
+        return new ControllerInputEvent (this.nextEventSequence (), this.now (), checkedControl, checkedKind, checkedPhase, value);
+    }
+
+
+    /**
      * Test whether one physical fill pad is held.
      *
      * @param owner Logical fill-pad owner
@@ -235,15 +305,44 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
+    /**
+     * Get the complete committed generic input routing table.
+     *
+     * @return Desired input routes
+     */
+    DesiredInputRoutes desiredInputRoutes ()
+    {
+        return this.desiredInputRoutes;
+    }
+
+
+    /**
+     * Install validation against the fixed physical registry before the runtime starts.
+     *
+     * @param validator True only for registered control-and-kind pairs
+     */
+    void setInputRouteValidator (final Predicate<de.mossgrabers.pull.core.api.InputRoute> validator)
+    {
+        if (this.committedGeneration != 0)
+            throw new IllegalStateException ("Input-route validation must be installed before core activation");
+        this.inputRouteValidator = Objects.requireNonNull (validator, "validator");
+    }
+
+
     /** {@inheritDoc} */
     @Override
     public PreparedCoreResult prepare (final CoreResult result)
     {
         Objects.requireNonNull (result, "result");
         final Map<ControlId, RgbColor> preparedColors = prepareOutput (result);
+        for (final de.mossgrabers.pull.core.api.InputRoute route: result.desiredInputRoutes ().routes ())
+        {
+            if (!this.inputRouteValidator.test (route))
+                throw new IllegalArgumentException ("Core requested an unregistered controller input route");
+        }
         final Map<ControlId, ClipTargetId> preparedBindings = prepareBindings (result.desiredClipBindings (), this.clipCatalog);
         final List<PreparedAction> preparedActions = this.prepareEffects (result.effects (), preparedBindings);
-        return new PreparedResult (preparedColors, this.clipCatalog.generation (), preparedBindings, preparedActions);
+        return new PreparedResult (preparedColors, result.desiredInputRoutes (), result.desiredBridgeSubscriptions (), this.clipCatalog.generation (), preparedBindings, preparedActions);
     }
 
 
@@ -255,7 +354,11 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
         this.committedResult = prepared;
         this.committedGeneration = generation;
         this.fillLightColors = prepared.fillLightColors ();
+        this.desiredInputRoutes = prepared.desiredInputRoutes ();
+        this.desiredBridgeSubscriptions = prepared.desiredBridgeSubscriptions ();
         this.outputGeneration = generation;
+        if (this.controllerBridge != null)
+            this.controllerBridge.activateCoreGeneration (generation);
     }
 
 
@@ -282,6 +385,8 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
             }
             else if (action instanceof final PreparedRelease release)
                 this.applyRelease (release);
+            else if (action instanceof final PreparedBridgeAction bridgeAction && this.controllerBridge != null)
+                this.controllerBridge.apply (bridgeAction.action ());
         }
         this.recordSessionChange ();
     }
@@ -294,7 +399,12 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
         this.committedResult = null;
         this.committedGeneration = generation;
         this.fillLightColors = offLights ();
+        this.desiredInputRoutes = DesiredInputRoutes.empty ();
+        this.desiredBridgeSubscriptions = DesiredBridgeSubscriptions.empty ();
         this.outputGeneration = generation;
+
+        if (this.controllerBridge != null)
+            this.controllerBridge.invalidate ();
 
         try
         {
@@ -314,6 +424,11 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
         if (!this.pressedControls.isEmpty ())
         {
             this.pressedControls.clear ();
+            this.advanceSnapshotRevision ();
+        }
+        if (!this.touchedControls.isEmpty ())
+        {
+            this.touchedControls.clear ();
             this.advanceSnapshotRevision ();
         }
     }
@@ -365,29 +480,45 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     private List<PreparedAction> prepareEffects (final List<CoreEffect> effects, final Map<ControlId, ClipTargetId> desiredBindings)
     {
         final Set<ControlId> owners = new HashSet<> ();
-        for (final CoreEffect effect: effects)
-        {
-            final ControlId owner;
-            if (effect instanceof final PressClipTargetEffect press)
-                owner = requireFillOwner (press.owner ());
-            else if (effect instanceof final ReleaseClipTargetsEffect release)
-                owner = requireFillOwner (release.owner ());
-            else
-                throw new IllegalArgumentException ("Core requested an unsupported effect " + Objects.requireNonNull (effect, "effect").getClass ().getSimpleName ());
-
-            if (!owners.add (owner))
-                throw new IllegalArgumentException ("Core requested multiple clip effects for one owner");
-        }
-
+        final Set<String> bridgeTargets = new HashSet<> ();
         final List<PreparedAction> actions = new ArrayList<> (effects.size ());
         for (final CoreEffect effect: effects)
         {
             if (effect instanceof final PressClipTargetEffect press)
+            {
+                if (!owners.add (requireFillOwner (press.owner ())))
+                    throw new IllegalArgumentException ("Core requested multiple clip effects for one owner");
                 actions.add (this.preparePress (press, desiredBindings));
+            }
             else if (effect instanceof final ReleaseClipTargetsEffect release)
+            {
+                if (!owners.add (requireFillOwner (release.owner ())))
+                    throw new IllegalArgumentException ("Core requested multiple clip effects for one owner");
                 actions.add (this.prepareRelease (release));
+            }
+            else
+            {
+                final CoreEffect checkedEffect = Objects.requireNonNull (effect, "effect");
+                final String target = bridgeEffectTarget (checkedEffect);
+                if (target != null && !bridgeTargets.add (target))
+                    throw new IllegalArgumentException ("Core requested multiple effects for " + target);
+                final BoundedControllerBridge.PreparedAction action = this.controllerBridge == null ? null : this.controllerBridge.prepare (checkedEffect);
+                if (action == null)
+                    throw new IllegalArgumentException ("Core requested an unsupported effect " + effect.getClass ().getSimpleName ());
+                actions.add (new PreparedBridgeAction (action));
+            }
         }
         return List.copyOf (actions);
+    }
+
+
+    private static String bridgeEffectTarget (final CoreEffect effect)
+    {
+        if (effect instanceof final SetTransportStateEffect state)
+            return "transport state " + state.state ();
+        if (effect instanceof final SetTransportValueEffect value)
+            return "transport value " + value.value ();
+        return null;
     }
 
 
@@ -484,7 +615,8 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     private ControllerSnapshot createSnapshot (final long monotonicTimeNanos)
     {
         final FillSessionView session = this.fillSession.view ();
-        return new ControllerSnapshot (this.revision, monotonicTimeNanos, CAPABILITIES, this.clipCatalog, this.armedClipTargets, session.targets (), session.activeOwner (), this.pressedControls, Set.of ());
+        final ControllerBridgeSnapshot bridge = this.controllerBridge == null ? ControllerBridgeSnapshot.empty () : this.controllerBridge.snapshot ();
+        return new ControllerSnapshot (this.revision, monotonicTimeNanos, CAPABILITIES, bridge, this.clipCatalog, this.armedClipTargets, session.targets (), session.activeOwner (), this.pressedControls, this.touchedControls);
     }
 
 
@@ -839,11 +971,13 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
-    private record PreparedResult (Map<ControlId, RgbColor> fillLightColors, long catalogGeneration, Map<ControlId, ClipTargetId> desiredClipBindings, List<PreparedAction> actions) implements PreparedCoreResult
+    private record PreparedResult (Map<ControlId, RgbColor> fillLightColors, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, long catalogGeneration, Map<ControlId, ClipTargetId> desiredClipBindings, List<PreparedAction> actions) implements PreparedCoreResult
     {
         private PreparedResult
         {
             fillLightColors = Map.copyOf (fillLightColors);
+            desiredInputRoutes = Objects.requireNonNull (desiredInputRoutes, "desiredInputRoutes");
+            desiredBridgeSubscriptions = Objects.requireNonNull (desiredBridgeSubscriptions, "desiredBridgeSubscriptions");
             desiredClipBindings = Map.copyOf (desiredClipBindings);
             actions = List.copyOf (actions);
         }
@@ -863,6 +997,15 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
 
     private record PreparedRelease (ControlId owner) implements PreparedAction
     {
+    }
+
+
+    private record PreparedBridgeAction (BoundedControllerBridge.PreparedAction action) implements PreparedAction
+    {
+        private PreparedBridgeAction
+        {
+            action = Objects.requireNonNull (action, "action");
+        }
     }
 
 

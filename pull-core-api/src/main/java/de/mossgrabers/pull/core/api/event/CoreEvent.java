@@ -6,7 +6,7 @@ package de.mossgrabers.pull.core.api.event;
 /**
  * A normalized input delivered by the stable shell.
  */
-public sealed interface CoreEvent permits ButtonInputEvent, SnapshotChangedEvent, TimerElapsedEvent, TouchInputEvent
+public sealed interface CoreEvent permits ButtonInputEvent, ControllerInputEvent, SnapshotChangedEvent, TimerElapsedEvent, TouchInputEvent
 {
     /**
      * Get the monotonic event sequence.

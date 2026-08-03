@@ -10,6 +10,23 @@ package de.mossgrabers.framework.daw.midi;
 public interface ISelectedTrackNoteTarget
 {
     /**
+     * Capture the bounded authoritative state of the selected target.
+     *
+     * @return The current target snapshot
+     */
+    SelectedTrackNoteTargetSnapshot snapshot ();
+
+
+    /**
+     * Get the identity generation of the selected target. The generation changes whenever the
+     * private cursor resolves to a different target or its existence changes.
+     *
+     * @return The target generation
+     */
+    long getGeneration ();
+
+
+    /**
      * Get the stable Bitwig channel ID of the selected target.
      *
      * @return The channel UUID, or an empty string while no target is resolved
@@ -39,4 +56,99 @@ public interface ISelectedTrackNoteTarget
      * @return True if a drum device exists on the target
      */
     boolean hasDrumDevice ();
+
+
+    /**
+     * Get the current velocity for a playing MIDI note on the authoritative selected target.
+     *
+     * @param note MIDI note number in the range 0..127
+     * @return The current velocity, or zero when the note is not playing
+     */
+    int getPlayingVelocity (int note);
+
+
+    /**
+     * Set whether the selected target is activated.
+     *
+     * @param activated True to activate the target
+     */
+    void setActivated (boolean activated);
+
+
+    /**
+     * Set whether the selected target is expanded when it is a group.
+     *
+     * @param expanded True to expand the group
+     */
+    void setGroupExpanded (boolean expanded);
+
+
+    /**
+     * Set whether the selected target is armed.
+     *
+     * @param armed True to arm the target
+     */
+    void setArmed (boolean armed);
+
+
+    /**
+     * Set the selected target's monitor mode.
+     *
+     * @param mode The absolute monitor mode
+     */
+    void setMonitorMode (SelectedTrackMonitorMode mode);
+
+
+    /**
+     * Set whether the selected target is muted.
+     *
+     * @param muted True to mute the target
+     */
+    void setMuted (boolean muted);
+
+
+    /**
+     * Set whether the selected target is soloed.
+     *
+     * @param soloed True to solo the target
+     */
+    void setSoloed (boolean soloed);
+
+
+    /**
+     * Set the selected target volume.
+     *
+     * @param normalizedVolume Normalized volume in the range 0..1
+     */
+    void setVolume (double normalizedVolume);
+
+
+    /**
+     * Set the selected target pan.
+     *
+     * @param normalizedPan Normalized pan in the range 0..1, with 0.5 at center
+     */
+    void setPan (double normalizedPan);
+
+
+    /**
+     * Stop launcher playback on the selected target.
+     */
+    void stop ();
+
+
+    /**
+     * Return the selected target to arranger playback.
+     */
+    void returnToArrangement ();
+
+
+    /**
+     * Send a raw MIDI message through the note input that is routed to this selected target.
+     *
+     * @param status MIDI status byte
+     * @param data1 First MIDI data byte
+     * @param data2 Second MIDI data byte
+     */
+    void sendRawMidiEvent (int status, int data1, int data2);
 }

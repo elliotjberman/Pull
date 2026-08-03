@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Proxy;
@@ -24,11 +25,23 @@ import com.bitwig.extension.controller.api.DeviceLayer;
 import com.bitwig.extension.controller.api.DeviceLayerBank;
 import com.bitwig.extension.controller.api.DeviceMatcher;
 import com.bitwig.extension.controller.api.DeviceSlot;
+import com.bitwig.extension.controller.api.IntegerValue;
+import com.bitwig.extension.controller.api.Parameter;
+import com.bitwig.extension.controller.api.PlayingNote;
+import com.bitwig.extension.controller.api.PlayingNoteArrayValue;
 import com.bitwig.extension.controller.api.PinnableCursorDevice;
 import com.bitwig.extension.controller.api.SettableBooleanValue;
+import com.bitwig.extension.controller.api.SettableColorValue;
+import com.bitwig.extension.controller.api.SettableEnumValue;
+import com.bitwig.extension.controller.api.SettableRangedValue;
+import com.bitwig.extension.controller.api.SettableStringValue;
+import com.bitwig.extension.controller.api.SoloValue;
 import com.bitwig.extension.controller.api.StringValue;
+import com.bitwig.extension.callback.ObjectValueChangedCallback;
 
 import de.mossgrabers.bitwig.framework.daw.ModelImpl;
+import de.mossgrabers.framework.daw.midi.SelectedTrackMonitorMode;
+import de.mossgrabers.framework.daw.midi.SelectedTrackNoteTargetSnapshot;
 
 import org.junit.jupiter.api.Test;
 
@@ -38,6 +51,190 @@ import org.junit.jupiter.api.Test;
  */
 class SelectedTrackTargetStateTest
 {
+    @Test
+    void exposesBoundedStateAndAbsoluteActions ()
+    {
+        final AtomicInteger interests = new AtomicInteger ();
+        final AtomicReference<String> targetID = new AtomicReference<> ("track-a");
+        final AtomicBoolean targetExists = new AtomicBoolean (true);
+        final AtomicReference<String> name = new AtomicReference<> ("Drums");
+        final AtomicReference<String> type = new AtomicReference<> ("Instrument");
+        final AtomicInteger position = new AtomicInteger (7);
+        final AtomicBoolean canHoldNotes = new AtomicBoolean (true);
+        final AtomicBoolean canHoldAudio = new AtomicBoolean (false);
+        final AtomicBoolean group = new AtomicBoolean (true);
+        final AtomicBoolean expanded = new AtomicBoolean (true);
+        final AtomicBoolean activated = new AtomicBoolean (true);
+        final AtomicBoolean armed = new AtomicBoolean (false);
+        final AtomicReference<String> monitorMode = new AtomicReference<> ("AUTO");
+        final AtomicBoolean muted = new AtomicBoolean (false);
+        final AtomicBoolean soloed = new AtomicBoolean (true);
+        final AtomicBoolean mutedBySolo = new AtomicBoolean (false);
+        final AtomicBoolean stopped = new AtomicBoolean (false);
+        final AtomicReference<Double> volume = new AtomicReference<> (Double.valueOf (0.75));
+        final AtomicReference<Double> pan = new AtomicReference<> (Double.valueOf (0.25));
+        final AtomicReference<PlayingNote []> notes = new AtomicReference<> (new PlayingNote []
+        {
+            playingNote (36, 96),
+            playingNote (36, 112),
+            playingNote (60, 64)
+        });
+        final AtomicReference<ObjectValueChangedCallback<PlayingNote []>> notesObserver = new AtomicReference<> ();
+        final AtomicInteger stopCalls = new AtomicInteger ();
+        final AtomicInteger returnCalls = new AtomicInteger ();
+        final AtomicReference<int []> rawMidi = new AtomicReference<> ();
+
+        final PlayingNoteArrayValue playingNotes = proxy (PlayingNoteArrayValue.class, (proxy, method, arguments) -> {
+            if ("get".equals (method.getName ()))
+                return notes.get ();
+            if ("markInterested".equals (method.getName ()))
+                interests.incrementAndGet ();
+            if ("addValueObserver".equals (method.getName ()))
+            {
+                @SuppressWarnings("unchecked")
+                final ObjectValueChangedCallback<PlayingNote []> observer = (ObjectValueChangedCallback<PlayingNote []>) arguments[0];
+                notesObserver.set (observer);
+                observer.valueChanged (notes.get ());
+            }
+            return relaxedValue (method.getReturnType ());
+        });
+        final SettableRangedValue volumeValue = rangedValue (volume, interests);
+        final SettableRangedValue panValue = rangedValue (pan, interests);
+        final DeviceMatcher drumMatcher = relaxedProxy (DeviceMatcher.class);
+        final Device emptyDrumCandidate = relaxedProxy (Device.class);
+        final DeviceBank directDrumBank = deviceBank (emptyDrumCandidate);
+        final DeviceBank layerDrumBank = deviceBank (emptyDrumCandidate);
+        final DeviceBank slotDrumBank = deviceBank (emptyDrumCandidate);
+        final DeviceLayer firstLayer = proxy (DeviceLayer.class, (proxy, method, arguments) -> "createDeviceBank".equals (method.getName ()) ? layerDrumBank : relaxedValue (method.getReturnType ()));
+        final DeviceLayerBank layers = proxy (DeviceLayerBank.class, (proxy, method, arguments) -> "getItemAt".equals (method.getName ()) ? firstLayer : relaxedValue (method.getReturnType ()));
+        final DeviceSlot cursorSlot = proxy (DeviceSlot.class, (proxy, method, arguments) -> "createDeviceBank".equals (method.getName ()) ? slotDrumBank : relaxedValue (method.getReturnType ()));
+        final PinnableCursorDevice primaryInstrument = proxy (PinnableCursorDevice.class, (proxy, method, arguments) -> {
+            return switch (method.getName ())
+            {
+                case "createLayerBank" -> layers;
+                case "getCursorSlot" -> cursorSlot;
+                default -> relaxedValue (method.getReturnType ());
+            };
+        });
+        final CursorTrack target = proxy (CursorTrack.class, (proxy, method, arguments) -> {
+            return switch (method.getName ())
+            {
+                case "channelId" -> stringValue (targetID, interests);
+                case "exists" -> booleanValue (BooleanValue.class, targetExists, interests);
+                case "name" -> settableStringValue (name, interests);
+                case "color" -> colorValue (0.1F, 0.2F, 0.3F, interests);
+                case "trackType" -> stringValue (type, interests);
+                case "position" -> integerValue (position, interests);
+                case "canHoldNoteData" -> booleanValue (SettableBooleanValue.class, canHoldNotes, interests);
+                case "canHoldAudioData" -> booleanValue (SettableBooleanValue.class, canHoldAudio, interests);
+                case "isGroup" -> booleanValue (BooleanValue.class, group, interests);
+                case "isGroupExpanded" -> booleanValue (SettableBooleanValue.class, expanded, interests);
+                case "isActivated" -> booleanValue (SettableBooleanValue.class, activated, interests);
+                case "arm" -> booleanValue (SettableBooleanValue.class, armed, interests);
+                case "monitorMode" -> enumValue (monitorMode, interests);
+                case "mute" -> booleanValue (SettableBooleanValue.class, muted, interests);
+                case "solo" -> booleanValue (SoloValue.class, soloed, interests);
+                case "isMutedBySolo" -> booleanValue (BooleanValue.class, mutedBySolo, interests);
+                case "isStopped" -> booleanValue (BooleanValue.class, stopped, interests);
+                case "volume" -> parameter (volumeValue);
+                case "pan" -> parameter (panValue);
+                case "playingNotes" -> playingNotes;
+                case "createDeviceBank" -> directDrumBank;
+                case "createCursorDevice" -> primaryInstrument;
+                case "stop" -> {
+                    stopCalls.incrementAndGet ();
+                    yield null;
+                }
+                case "returnToArrangement" -> {
+                    returnCalls.incrementAndGet ();
+                    yield null;
+                }
+                default -> relaxedValue (method.getReturnType ());
+            };
+        });
+        final ControllerHost host = proxy (ControllerHost.class, (proxy, method, arguments) -> "createBitwigDeviceMatcher".equals (method.getName ()) ? drumMatcher : relaxedValue (method.getReturnType ()));
+        final SelectedTrackTargetState state = new SelectedTrackTargetState (host, target, (status, data1, data2) -> rawMidi.set (new int []
+        {
+            status,
+            data1,
+            data2
+        }));
+
+        final SelectedTrackNoteTargetSnapshot snapshot = state.snapshot ();
+        assertEquals (1, snapshot.generation ());
+        assertEquals ("track-a", snapshot.trackID ());
+        assertTrue (snapshot.exists ());
+        assertEquals ("Drums", snapshot.name ());
+        assertEquals (0.1, snapshot.colorRed (), 0.0001);
+        assertEquals (0.2, snapshot.colorGreen (), 0.0001);
+        assertEquals (0.3, snapshot.colorBlue (), 0.0001);
+        assertEquals ("Instrument", snapshot.trackType ());
+        assertEquals (7, snapshot.position ());
+        assertTrue (snapshot.canHoldNotes ());
+        assertFalse (snapshot.canHoldAudio ());
+        assertTrue (snapshot.group ());
+        assertTrue (snapshot.groupExpanded ());
+        assertTrue (snapshot.activated ());
+        assertFalse (snapshot.armed ());
+        assertEquals (SelectedTrackMonitorMode.AUTO, snapshot.monitorMode ());
+        assertFalse (snapshot.muted ());
+        assertTrue (snapshot.soloed ());
+        assertFalse (snapshot.mutedBySolo ());
+        assertTrue (snapshot.clipPlaying ());
+        assertFalse (snapshot.stopped ());
+        assertEquals (0.75, snapshot.volume ());
+        assertEquals (0.25, snapshot.pan ());
+        assertEquals (112, state.getPlayingVelocity (36));
+        assertEquals (64, state.getPlayingVelocity (60));
+        assertEquals (0, state.getPlayingVelocity (37));
+
+        state.setGroupExpanded (false);
+        state.setActivated (false);
+        state.setArmed (true);
+        state.setMonitorMode (SelectedTrackMonitorMode.ON);
+        state.setMuted (true);
+        state.setSoloed (false);
+        state.setVolume (0.5);
+        state.setPan (0.6);
+        state.stop ();
+        state.returnToArrangement ();
+        state.sendRawMidiEvent (0xE0, 1, 2);
+        assertFalse (expanded.get ());
+        assertFalse (activated.get ());
+        assertTrue (armed.get ());
+        assertEquals ("ON", monitorMode.get ());
+        assertTrue (muted.get ());
+        assertFalse (soloed.get ());
+        assertEquals (0.5, volume.get ().doubleValue ());
+        assertEquals (0.6, pan.get ().doubleValue ());
+        assertEquals (1, stopCalls.get ());
+        assertEquals (1, returnCalls.get ());
+        assertArrayEquals (new int []
+        {
+            0xE0,
+            1,
+            2
+        }, rawMidi.get ());
+
+        notes.set (new PlayingNote []
+        {
+            playingNote (48, 100)
+        });
+        notesObserver.get ().valueChanged (notes.get ());
+        assertEquals (0, state.getPlayingVelocity (36));
+        assertEquals (100, state.getPlayingVelocity (48));
+
+        targetID.set ("track-b");
+        assertEquals (2, state.getGeneration ());
+        targetExists.set (false);
+        assertEquals (3, state.getGeneration ());
+        assertThrows (IllegalArgumentException.class, () -> state.setVolume (-0.1));
+        assertThrows (IllegalArgumentException.class, () -> state.setPan (Double.NaN));
+        assertThrows (IllegalArgumentException.class, () -> state.sendRawMidiEvent (0x100, 0, 0));
+        assertThrows (IllegalArgumentException.class, () -> state.getPlayingVelocity (128));
+    }
+
+
     @Test
     void derivesPrimaryDrumApplicabilityFromTheDirectRoutingTarget ()
     {
@@ -127,7 +324,9 @@ class SelectedTrackTargetStateTest
             return relaxedValue (method.getReturnType ());
         });
 
-        final SelectedTrackTargetState state = new SelectedTrackTargetState (host, target);
+        final SelectedTrackTargetState state = new SelectedTrackTargetState (host, target, (status, data1, data2) -> {
+            // Not exercised by this capability test.
+        });
 
         assertArrayEquals (new Object []
         {
@@ -187,6 +386,12 @@ class SelectedTrackTargetStateTest
     }
 
 
+    private static DeviceBank deviceBank (final Device candidate)
+    {
+        return proxy (DeviceBank.class, (proxy, method, arguments) -> "getItemAt".equals (method.getName ()) ? candidate : relaxedValue (method.getReturnType ()));
+    }
+
+
     private static Device device (final AtomicBoolean exists, final AtomicBoolean hasPads, final AtomicInteger interests)
     {
         final BooleanValue existsValue = booleanValue (BooleanValue.class, exists, interests);
@@ -222,11 +427,119 @@ class SelectedTrackTargetStateTest
     }
 
 
+    private static SettableStringValue settableStringValue (final AtomicReference<String> value, final AtomicInteger interests)
+    {
+        return proxy (SettableStringValue.class, (proxy, method, arguments) -> {
+            if ("get".equals (method.getName ()))
+                return value.get ();
+            if ("set".equals (method.getName ()))
+            {
+                value.set ((String) arguments[0]);
+                return null;
+            }
+            if ("markInterested".equals (method.getName ()))
+                interests.incrementAndGet ();
+            return relaxedValue (method.getReturnType ());
+        });
+    }
+
+
+    private static IntegerValue integerValue (final AtomicInteger value, final AtomicInteger interests)
+    {
+        return proxy (IntegerValue.class, (proxy, method, arguments) -> {
+            if ("get".equals (method.getName ()) || "getAsInt".equals (method.getName ()))
+                return Integer.valueOf (value.get ());
+            if ("markInterested".equals (method.getName ()))
+                interests.incrementAndGet ();
+            return relaxedValue (method.getReturnType ());
+        });
+    }
+
+
+    private static SettableColorValue colorValue (final float red, final float green, final float blue, final AtomicInteger interests)
+    {
+        return proxy (SettableColorValue.class, (proxy, method, arguments) -> {
+            if ("red".equals (method.getName ()))
+                return Float.valueOf (red);
+            if ("green".equals (method.getName ()))
+                return Float.valueOf (green);
+            if ("blue".equals (method.getName ()))
+                return Float.valueOf (blue);
+            if ("alpha".equals (method.getName ()))
+                return Float.valueOf (1.0F);
+            if ("markInterested".equals (method.getName ()))
+                interests.incrementAndGet ();
+            return relaxedValue (method.getReturnType ());
+        });
+    }
+
+
+    private static SettableEnumValue enumValue (final AtomicReference<String> value, final AtomicInteger interests)
+    {
+        return proxy (SettableEnumValue.class, (proxy, method, arguments) -> {
+            if ("get".equals (method.getName ()))
+                return value.get ();
+            if ("set".equals (method.getName ()))
+            {
+                value.set ((String) arguments[0]);
+                return null;
+            }
+            if ("markInterested".equals (method.getName ()))
+                interests.incrementAndGet ();
+            return relaxedValue (method.getReturnType ());
+        });
+    }
+
+
+    private static SettableRangedValue rangedValue (final AtomicReference<Double> value, final AtomicInteger interests)
+    {
+        return proxy (SettableRangedValue.class, (proxy, method, arguments) -> {
+            if ("get".equals (method.getName ()) || "getAsDouble".equals (method.getName ()))
+                return value.get ();
+            if ("set".equals (method.getName ()) && arguments.length == 1)
+            {
+                value.set (Double.valueOf (((Number) arguments[0]).doubleValue ()));
+                return null;
+            }
+            if ("markInterested".equals (method.getName ()))
+                interests.incrementAndGet ();
+            return relaxedValue (method.getReturnType ());
+        });
+    }
+
+
+    private static Parameter parameter (final SettableRangedValue value)
+    {
+        return proxy (Parameter.class, (proxy, method, arguments) -> {
+            if ("value".equals (method.getName ()))
+                return value;
+            return relaxedValue (method.getReturnType ());
+        });
+    }
+
+
+    private static PlayingNote playingNote (final int pitch, final int velocity)
+    {
+        return proxy (PlayingNote.class, (proxy, method, arguments) -> {
+            if ("pitch".equals (method.getName ()))
+                return Integer.valueOf (pitch);
+            if ("velocity".equals (method.getName ()))
+                return Integer.valueOf (velocity);
+            return relaxedValue (method.getReturnType ());
+        });
+    }
+
+
     private static <T> T booleanValue (final Class<T> type, final AtomicBoolean value, final AtomicInteger interests)
     {
         return proxy (type, (proxy, method, arguments) -> {
             if ("get".equals (method.getName ()) || "getAsBoolean".equals (method.getName ()))
                 return Boolean.valueOf (value.get ());
+            if ("set".equals (method.getName ()))
+            {
+                value.set (((Boolean) arguments[0]).booleanValue ());
+                return null;
+            }
             if ("markInterested".equals (method.getName ()))
                 interests.incrementAndGet ();
             return relaxedValue (method.getReturnType ());

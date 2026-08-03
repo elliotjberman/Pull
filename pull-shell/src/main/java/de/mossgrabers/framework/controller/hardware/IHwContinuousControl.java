@@ -46,6 +46,16 @@ public interface IHwContinuousControl extends IHwInputControl
 
 
     /**
+     * Install the one permanent physical-value arbitration hook. Once installed, the hardware
+     * remains attached to a stable callback; later command, pitch-bend and parameter binds only
+     * replace the legacy target behind that callback.
+     *
+     * @param arbitrator The value arbitrator
+     */
+    void installValueArbitrator (ContinuousValueArbitrator arbitrator);
+
+
+    /**
      * Bind a command which is executed when the control (knob, fader) is touched.
      *
      * @param command The command to bind to touch
@@ -87,6 +97,26 @@ public interface IHwContinuousControl extends IHwInputControl
      * @return The command or null if not bound
      */
     TriggerCommand getTouchCommand ();
+
+
+    /**
+     * Replace the touch command of an already touch-bound control without adding another hardware
+     * binding. This is intended for stable command decorators installed after normal controller
+     * setup.
+     *
+     * @param command The replacement touch command
+     */
+    void replaceTouchCommand (TriggerCommand command);
+
+
+    /**
+     * Install the one permanent touch-event arbitration hook. The supplied legacy dispatch owns
+     * both the touch command and the publicly visible legacy touch state, so an exclusive owner
+     * can suppress both.
+     *
+     * @param arbitrator The touch-event arbitrator
+     */
+    void installTouchEventArbitrator (ButtonEventArbitrator arbitrator);
 
 
     /**

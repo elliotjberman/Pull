@@ -191,6 +191,15 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
 
     /** {@inheritDoc} */
     @Override
+    public void init ()
+    {
+        super.init ();
+        this.reloadableRuntime.installControllerInputBridge (this.getSurface (), this.valueChanger);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
     public void flush ()
     {
         if (this.drumPadControls != null)
@@ -217,7 +226,6 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         ms.setWantsFocusedParameter (true);
 
         this.model = this.factory.createModel (this.configuration, this.colorManager, this.valueChanger, this.scales, ms);
-        this.reloadableRuntime.connect (this.model);
 
         final ITrackBank trackBank = this.model.getTrackBank ();
         trackBank.setIndication (true);
@@ -250,6 +258,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
             return drumDevice.doesExist () && drumDevice.hasDrumPads ();
         }, this.reloadableRuntime);
         this.surface = surface;
+        this.reloadableRuntime.connect (this.model, selectedTrackNoteTarget, surface, this.valueChanger);
 
         surface.addGraphicsDisplay (new Push2Display (this.host, this.valueChanger.getUpperBound (), this.configuration));
 

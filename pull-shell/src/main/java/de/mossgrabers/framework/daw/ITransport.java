@@ -67,6 +67,14 @@ public interface ITransport extends IObserverManagement
 
 
     /**
+     * Set arranger recording absolutely.
+     *
+     * @param enabled True to enable arranger recording
+     */
+    void setRecording (boolean enabled);
+
+
+    /**
      * Returns true if arranger recording is enabled.
      *
      * @return True if arranger recording is enabled
@@ -86,6 +94,14 @@ public interface ITransport extends IObserverManagement
      * Toggle if arranger overdub is enabled.
      */
     void toggleOverdub ();
+
+
+    /**
+     * Set arranger overdub absolutely.
+     *
+     * @param enabled True to enable arranger overdub
+     */
+    void setArrangerOverdub (boolean enabled);
 
 
     /**

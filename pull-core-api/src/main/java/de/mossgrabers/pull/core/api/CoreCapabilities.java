@@ -26,6 +26,30 @@ public final class CoreCapabilities
     /** Hardware-independent RGB light output. */
     public static final String OUTPUT_RGB_LIGHT = "output.rgb-light";
 
+    /** Normalized bounded Push controller inputs. */
+    public static final String INPUT_CONTROLLER = "input.controller";
+
+    /** Replayable core ownership of normalized controller inputs. */
+    public static final String ROUTING_CONTROLLER_INPUT = "routing.controller-input";
+
+    /** Common bounded transport, selected-track, layout, and drum state. */
+    public static final String SNAPSHOT_CONTROLLER_BRIDGE = "snapshot.controller-bridge";
+
+    /** Replayable selection of bounded bridge-state domains to publish and sample. */
+    public static final String SUBSCRIPTION_CONTROLLER_BRIDGE = "subscription.controller-bridge";
+
+    /** Absolute transport state and value effects. */
+    public static final String EFFECT_TRANSPORT = "effect.transport";
+
+    /** Generation-fenced selected-track state, value, and action effects. */
+    public static final String EFFECT_SELECTED_TRACK = "effect.selected-track";
+
+    /** Generation-fenced drum-pad state and selection effects. */
+    public static final String EFFECT_DRUM_PAD = "effect.drum-pad";
+
+    /** Generation-fenced raw MIDI sent to the private selected-track route. */
+    public static final String EFFECT_SELECTED_TRACK_MIDI = "effect.selected-track-midi";
+
     private CoreCapabilities ()
     {
         // Utility class

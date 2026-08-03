@@ -1,0 +1,250 @@
+// (c) 2026
+// Licensed under LGPLv3 - http://www.gnu.org/licenses/lgpl-3.0.txt
+
+package de.mossgrabers.pull.shell.input;
+
+import org.junit.jupiter.api.Test;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Tests the stable physical-input routing seam independently of Bitwig hardware bindings.
+ */
+class PhysicalInputRouterTest
+{
+    private static final String BUTTON = "push.button.play";
+    private static final String PAD = "push.pad.1";
+    private static final String ENCODER = "push.encoder.1";
+    private static final String RIBBON = "push.ribbon";
+
+
+    @Test
+    void noneFallsBackToLegacyExactlyOncePerEdge ()
+    {
+        final AtomicInteger legacyCalls = new AtomicInteger ();
+        final List<PhysicalInputEvent<String>> events = new ArrayList<> ();
+        final PhysicalInputRouter<String> router = router (InputRoute.NONE, events);
+
+        assertEquals (InputRoute.NONE, router.route (BUTTON, InputKind.BUTTON, InputPhase.BEGIN, 127, legacyCalls::incrementAndGet));
+        assertEquals (1, router.activeGestureCount ());
+        assertEquals (InputRoute.NONE, router.route (BUTTON, InputKind.BUTTON, InputPhase.END, 0, legacyCalls::incrementAndGet));
+
+        assertEquals (2, legacyCalls.get ());
+        assertTrue (events.isEmpty ());
+        assertEquals (0, router.activeGestureCount ());
+    }
+
+
+    @Test
+    void observeRunsLegacyBeforePublishingEachEdge ()
+    {
+        final List<String> order = new ArrayList<> ();
+        final PhysicalControlRegistry<String> registry = registry ();
+        final PhysicalInputRouter<String> router = new PhysicalInputRouter<> (
+            registry,
+            (ignoredControl, ignoredKind) -> InputRoute.OBSERVE,
+            event -> order.add ("core " + event.phase ()),
+            new IncrementingClock ());
+
+        router.route (BUTTON, InputKind.BUTTON, InputPhase.BEGIN, 127, () -> order.add ("legacy begin"));
+        router.route (BUTTON, InputKind.BUTTON, InputPhase.END, 0, () -> order.add ("legacy end"));
+
+        assertEquals (List.of ("legacy begin", "core BEGIN", "legacy end", "core END"), order);
+    }
+
+
+    @Test
+    void exclusiveSuppressesLegacyAndPublishesEachEdge ()
+    {
+        final AtomicInteger legacyCalls = new AtomicInteger ();
+        final List<PhysicalInputEvent<String>> events = new ArrayList<> ();
+        final PhysicalInputRouter<String> router = router (InputRoute.EXCLUSIVE, events);
+
+        router.route (BUTTON, InputKind.BUTTON, InputPhase.BEGIN, 127, legacyCalls::incrementAndGet);
+        router.route (BUTTON, InputKind.BUTTON, InputPhase.LONG, 127, legacyCalls::incrementAndGet);
+        router.route (BUTTON, InputKind.BUTTON, InputPhase.END, 0, legacyCalls::incrementAndGet);
+
+        assertEquals (0, legacyCalls.get ());
+        assertEquals (List.of (InputPhase.BEGIN, InputPhase.LONG, InputPhase.END), events.stream ().map (PhysicalInputEvent::phase).toList ());
+    }
+
+
+    @Test
+    void edgeLeaseCannotChangeOwnerMidGesture ()
+    {
+        final AtomicReference<InputRoute> desiredRoute = new AtomicReference<> (InputRoute.EXCLUSIVE);
+        final AtomicInteger legacyCalls = new AtomicInteger ();
+        final List<PhysicalInputEvent<String>> events = new ArrayList<> ();
+        final PhysicalInputRouter<String> router = new PhysicalInputRouter<> (
+            registry (),
+            (ignoredControl, ignoredKind) -> desiredRoute.get (),
+            events::add,
+            new IncrementingClock ());
+
+        router.route (BUTTON, InputKind.BUTTON, InputPhase.BEGIN, 127, legacyCalls::incrementAndGet);
+        desiredRoute.set (InputRoute.NONE);
+        assertEquals (InputRoute.EXCLUSIVE, router.route (BUTTON, InputKind.BUTTON, InputPhase.LONG, 127, legacyCalls::incrementAndGet));
+        assertEquals (InputRoute.EXCLUSIVE, router.route (BUTTON, InputKind.BUTTON, InputPhase.END, 0, legacyCalls::incrementAndGet));
+
+        assertEquals (0, legacyCalls.get ());
+        assertEquals (3, events.size ());
+        assertEquals (0, router.activeGestureCount ());
+
+        // An END without a leased BEGIN must fall back to legacy even if a newly loaded core now
+        // requests the control. This preserves the owner which could have received the old press.
+        desiredRoute.set (InputRoute.EXCLUSIVE);
+        assertEquals (InputRoute.NONE, router.route (BUTTON, InputKind.BUTTON, InputPhase.END, 0, legacyCalls::incrementAndGet));
+        assertEquals (1, legacyCalls.get ());
+        assertEquals (3, events.size ());
+    }
+
+
+    @Test
+    void legacyGestureCannotBeStolenByAChangedExclusiveRoute ()
+    {
+        final AtomicReference<InputRoute> desiredRoute = new AtomicReference<> (InputRoute.NONE);
+        final AtomicInteger legacyCalls = new AtomicInteger ();
+        final List<PhysicalInputEvent<String>> events = new ArrayList<> ();
+        final PhysicalInputRouter<String> router = new PhysicalInputRouter<> (
+            registry (),
+            (ignoredControl, ignoredKind) -> desiredRoute.get (),
+            events::add,
+            new IncrementingClock ());
+
+        router.route (BUTTON, InputKind.BUTTON, InputPhase.BEGIN, 127, legacyCalls::incrementAndGet);
+        desiredRoute.set (InputRoute.EXCLUSIVE);
+        assertEquals (InputRoute.NONE, router.route (BUTTON, InputKind.BUTTON, InputPhase.END, 0, legacyCalls::incrementAndGet));
+
+        assertEquals (2, legacyCalls.get ());
+        assertTrue (events.isEmpty ());
+    }
+
+
+    @Test
+    void relativeMotionSumsIntoOneBoundedDelivery ()
+    {
+        final AtomicInteger legacyCalls = new AtomicInteger ();
+        final List<PhysicalInputEvent<String>> events = new ArrayList<> ();
+        final PhysicalInputRouter<String> router = router (InputRoute.OBSERVE, events);
+
+        router.route (ENCODER, InputKind.RELATIVE, InputPhase.CHANGE, 2, legacyCalls::incrementAndGet);
+        router.route (ENCODER, InputKind.RELATIVE, InputPhase.CHANGE, -5, legacyCalls::incrementAndGet);
+        router.route (ENCODER, InputKind.RELATIVE, InputPhase.CHANGE, 4, legacyCalls::incrementAndGet);
+
+        assertEquals (3, legacyCalls.get ());
+        assertTrue (events.isEmpty ());
+        assertEquals (1, router.pendingMotionCount ());
+
+        router.flush ();
+
+        assertEquals (1, events.size ());
+        assertEquals (1, events.getFirst ().value ());
+        assertEquals (3, events.getFirst ().sequence ());
+        assertEquals (0, router.pendingMotionCount ());
+    }
+
+
+    @Test
+    void absoluteMotionKeepsOnlyLatestValue ()
+    {
+        final AtomicInteger legacyCalls = new AtomicInteger ();
+        final List<PhysicalInputEvent<String>> events = new ArrayList<> ();
+        final PhysicalInputRouter<String> router = router (InputRoute.EXCLUSIVE, events);
+
+        router.route (RIBBON, InputKind.ABSOLUTE, InputPhase.CHANGE, 1, legacyCalls::incrementAndGet);
+        router.route (RIBBON, InputKind.ABSOLUTE, InputPhase.CHANGE, 63, legacyCalls::incrementAndGet);
+        router.route (RIBBON, InputKind.ABSOLUTE, InputPhase.CHANGE, 127, legacyCalls::incrementAndGet);
+        router.flush (RIBBON, InputKind.ABSOLUTE);
+
+        assertEquals (0, legacyCalls.get ());
+        assertEquals (1, events.size ());
+        assertEquals (127, events.getFirst ().value ());
+        assertEquals (3, events.getFirst ().sequence ());
+    }
+
+
+    @Test
+    void cancellingRelativeMotionDoesNotPublishAZeroDelta ()
+    {
+        final List<PhysicalInputEvent<String>> events = new ArrayList<> ();
+        final PhysicalInputRouter<String> router = router (InputRoute.EXCLUSIVE, events);
+
+        router.route (ENCODER, InputKind.RELATIVE, InputPhase.CHANGE, 7, () -> {
+            // Exclusive routing suppresses this command.
+        });
+        router.route (ENCODER, InputKind.RELATIVE, InputPhase.CHANGE, -7, () -> {
+            // Exclusive routing suppresses this command.
+        });
+
+        assertEquals (0, router.pendingMotionCount ());
+        router.flush ();
+        assertTrue (events.isEmpty ());
+    }
+
+
+    @Test
+    void registryRejectsDuplicateOverflowUnknownControlsAndWrongPhases ()
+    {
+        final PhysicalControlRegistry<String> multiKind = PhysicalControlRegistry.<String>builder (2)
+            .register (BUTTON, InputKind.BUTTON)
+            .register (BUTTON, InputKind.TOUCH)
+            .build ();
+        assertEquals (2, multiKind.size ());
+        assertTrue (multiKind.contains (BUTTON, InputKind.BUTTON));
+        assertTrue (multiKind.contains (BUTTON, InputKind.TOUCH));
+
+        final PhysicalControlRegistry.Builder<String> builder = PhysicalControlRegistry.builder (1);
+        builder.register (BUTTON, InputKind.BUTTON);
+        assertThrows (IllegalArgumentException.class, () -> builder.register (BUTTON, InputKind.BUTTON));
+        assertThrows (IllegalStateException.class, () -> builder.register (ENCODER, InputKind.RELATIVE));
+
+        final PhysicalControlRegistry<String> registry = builder.build ();
+        final PhysicalInputRouter<String> router = new PhysicalInputRouter<> (registry, (ignoredControl, ignoredKind) -> InputRoute.NONE, ignored -> {
+            // No event is expected for the legacy-only route.
+        });
+        assertThrows (IllegalArgumentException.class, () -> router.route ("unknown", InputKind.BUTTON, InputPhase.BEGIN, 1, () -> {
+            // Not reached.
+        }));
+        assertThrows (IllegalArgumentException.class, () -> router.route (BUTTON, InputKind.BUTTON, InputPhase.CHANGE, 1, () -> {
+            // Not reached.
+        }));
+    }
+
+
+    private static PhysicalInputRouter<String> router (final InputRoute route, final List<PhysicalInputEvent<String>> events)
+    {
+        return new PhysicalInputRouter<> (registry (), (ignoredControl, ignoredKind) -> route, events::add, new IncrementingClock ());
+    }
+
+
+    private static PhysicalControlRegistry<String> registry ()
+    {
+        return PhysicalControlRegistry.<String>builder (4)
+            .register (BUTTON, InputKind.BUTTON)
+            .register (PAD, InputKind.PAD)
+            .register (ENCODER, InputKind.RELATIVE)
+            .register (RIBBON, InputKind.ABSOLUTE)
+            .build ();
+    }
+
+
+    private static final class IncrementingClock implements java.util.function.LongSupplier
+    {
+        private final AtomicLong value = new AtomicLong (100);
+
+
+        @Override
+        public long getAsLong ()
+        {
+            return this.value.getAndIncrement ();
+        }
+    }
+}

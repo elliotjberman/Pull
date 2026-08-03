@@ -25,6 +25,15 @@ public interface IHwButton extends IHwInputControl
 
 
     /**
+     * Install the one permanent physical-event arbitration hook. The hook runs below the button's
+     * consumed-command gate and can either invoke or suppress the complete established dispatch.
+     *
+     * @param arbitrator The event arbitrator
+     */
+    void installEventArbitrator (ButtonEventArbitrator arbitrator);
+
+
+    /**
      * Bind a MIDI command coming from a MIDI input to the button.
      *
      * @param input The MIDI input
@@ -100,7 +109,8 @@ public interface IHwButton extends IHwInputControl
 
 
     /**
-     * Set the consumed state, which means the UP event is not fired on button release.
+     * Set the consumed state, which means the established command's UP event is not fired on
+     * button release. A physical-event arbitrator still receives the release.
      */
     void setConsumed ();
 

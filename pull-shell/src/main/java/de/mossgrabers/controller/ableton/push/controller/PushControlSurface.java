@@ -598,6 +598,9 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
         // their normal UP callback, but an acquired fill lease must still be released.
         this.reloadableRuntime.routePhysicalMidiRelease (this.isDrumControllerActive (), status, data1, data2);
 
+        if (this.reloadableRuntime.routeControllerMidi (status, data1, data2, () -> PushControlSurface.super.handleMidi (status, data1, data2)))
+            return;
+
         // Ignore active sensing, which seems to be sent from some Push devices
         if (status == 254)
             return;
