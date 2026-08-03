@@ -1,5 +1,13 @@
 # Repository Agent Instructions
 
+## Repository topology
+
+- `elliotjberman/Pull` is an intentionally one-time fork of
+  `git-moss/DrivenByMoss`, not a branch expected to remain mergeable with upstream.
+- Treat `elliotjberman/Pull:master` as the normal base and destination for Pull feature pull
+  requests. Do not target `git-moss/DrivenByMoss` or interpret its current diff as the Pull review
+  surface unless the user explicitly asks for an upstream contribution or resynchronization.
+
 ## Authoritative state and controller feedback
 
 - Treat hardware input as a request to alter state, not as proof that the requested state change
