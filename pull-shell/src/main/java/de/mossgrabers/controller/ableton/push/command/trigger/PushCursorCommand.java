@@ -10,6 +10,7 @@ import de.mossgrabers.framework.command.trigger.Direction;
 import de.mossgrabers.framework.command.trigger.mode.CursorCommand;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.bank.ISceneBank;
+import de.mossgrabers.framework.daw.data.bank.ITrackBank;
 import de.mossgrabers.framework.featuregroup.IMode;
 
 
@@ -80,6 +81,12 @@ public class PushCursorCommand extends CursorCommand<PushControlSurface, PushCon
     @Override
     protected void scrollLeft ()
     {
+        if (this.surface.isSessionNavigationActive ())
+        {
+            this.scrollTracks (false);
+            return;
+        }
+
         final IMode activeMode = this.surface.getModeManager ().getActive ();
         if (activeMode != null)
             activeMode.selectPreviousItemPage ();
@@ -90,6 +97,12 @@ public class PushCursorCommand extends CursorCommand<PushControlSurface, PushCon
     @Override
     protected void scrollRight ()
     {
+        if (this.surface.isSessionNavigationActive ())
+        {
+            this.scrollTracks (true);
+            return;
+        }
+
         final IMode activeMode = this.surface.getModeManager ().getActive ();
         if (activeMode != null)
             activeMode.selectNextItemPage ();
@@ -124,7 +137,43 @@ public class PushCursorCommand extends CursorCommand<PushControlSurface, PushCon
                 break;
         }
 
-        this.scrollStates.setCanScrollLeft (mode != null && (shiftPressed ? mode.hasPreviousItem () : mode.hasPreviousItemPage ()));
-        this.scrollStates.setCanScrollRight (mode != null && (shiftPressed ? mode.hasNextItem () : mode.hasNextItemPage ()));
+        if (this.surface.isSessionNavigationActive ())
+        {
+            this.scrollStates.setCanScrollLeft (this.canScrollTracks (false));
+            this.scrollStates.setCanScrollRight (this.canScrollTracks (true));
+        }
+        else
+        {
+            this.scrollStates.setCanScrollLeft (mode != null && (shiftPressed ? mode.hasPreviousItem () : mode.hasPreviousItemPage ()));
+            this.scrollStates.setCanScrollRight (mode != null && (shiftPressed ? mode.hasNextItem () : mode.hasNextItemPage ()));
+        }
+    }
+
+
+    private void scrollTracks (final boolean forwards)
+    {
+        final ITrackBank trackBank = this.model.getCurrentTrackBank ();
+        final int option = this.surface.isShiftPressed () ? this.configuration.getCursorKeysTrackShiftedOption () : this.configuration.getCursorKeysTrackOption ();
+        if (option == PushConfiguration.CURSOR_KEYS_TRACK_OPTION_MOVE_BANK_BY_PAGE)
+        {
+            if (forwards)
+                trackBank.selectNextPage ();
+            else
+                trackBank.selectPreviousPage ();
+        }
+        else if (forwards)
+            trackBank.scrollForwards ();
+        else
+            trackBank.scrollBackwards ();
+    }
+
+
+    private boolean canScrollTracks (final boolean forwards)
+    {
+        final ITrackBank trackBank = this.model.getCurrentTrackBank ();
+        final int option = this.surface.isShiftPressed () ? this.configuration.getCursorKeysTrackShiftedOption () : this.configuration.getCursorKeysTrackOption ();
+        if (option == PushConfiguration.CURSOR_KEYS_TRACK_OPTION_MOVE_BANK_BY_PAGE)
+            return forwards ? trackBank.canScrollPageForwards () : trackBank.canScrollPageBackwards ();
+        return forwards ? trackBank.canScrollForwards () : trackBank.canScrollBackwards ();
     }
 }

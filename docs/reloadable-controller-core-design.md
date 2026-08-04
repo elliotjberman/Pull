@@ -122,11 +122,20 @@ independently.
   motion is coalesced to a controller tick, and stateful note-input MIDI is neutralized at ownership
   and lifecycle boundaries.
 
+### Milestone 6: Fixed-view API 10 workspace selection
+
+- Compile migrated core behavior as deterministic fixed-footprint views with explicit input,
+  output, and observer claims.
+- Publish one complete `DesiredControllerWorkspace` containing a diagnostic name and known fixed
+  facets. Stable adapters validate and realize facets but never select combinations by name.
+- Keep workspace composition, Shift + Session entry, Session/Note exit, and checkpoint restoration
+  in the reloadable core. The first composite is specified in
+  [Views API and Composite Workspaces](views-api-design.md).
+
 ### Later milestones
 
-- Migrate drum behavior, then remaining mode/view families through the fixed-footprint view and
-  workspace model in [Views API and Composite Workspaces](views-api-design.md). Its first hardware
-  milestone is the hardcoded `VS Live` composite entered with Shift + Session.
+- Migrate the remaining inherited mode/view mechanics behind typed capabilities so more workspace
+  facets can render and act directly from reloadable core output.
 - Add stable complete-output arbitration for general Push lights and displays, then move their
   policy into the core and add golden output tests.
 - Add event recording and offline replay.
@@ -662,7 +671,7 @@ The development command and shell share `${user.home}/.drivenbymoss/pull/reload`
 
 ```properties
 formatVersion=1
-apiVersion=9
+apiVersion=10
 buildId=20260731T230000Z-0123456789abcdef0123456789abcdef
 ```
 
@@ -672,7 +681,7 @@ verifies its embedded API/build identity, computes SHA-256, and atomically repla
 
 ```properties
 formatVersion=1
-apiVersion=9
+apiVersion=10
 shellFingerprint=0123456789abcdef0123456789abcdef01234567
 buildId=20260731T230000Z-0123456789abcdef0123456789abcdef
 jar=pull-core-20260731T230000Z-0123456789abcdef0123456789abcdef.jar

@@ -64,6 +64,7 @@ import de.mossgrabers.controller.ableton.push.mode.device.DeviceLayerSendMode;
 import de.mossgrabers.controller.ableton.push.mode.device.DeviceLayerVolumeMode;
 import de.mossgrabers.controller.ableton.push.mode.device.DeviceParamsMode;
 import de.mossgrabers.controller.ableton.push.mode.device.UserMode;
+import de.mossgrabers.controller.ableton.push.mode.device.WorkspaceMode;
 import de.mossgrabers.controller.ableton.push.mode.track.AddTrackMode;
 import de.mossgrabers.controller.ableton.push.mode.track.ClipMode;
 import de.mossgrabers.controller.ableton.push.mode.track.CrossfadeMode;
@@ -88,6 +89,7 @@ import de.mossgrabers.controller.ableton.push.view.PrgChangeView;
 import de.mossgrabers.controller.ableton.push.view.RaindropsView;
 import de.mossgrabers.controller.ableton.push.view.SequencerView;
 import de.mossgrabers.controller.ableton.push.view.SessionView;
+import de.mossgrabers.controller.ableton.push.view.WorkspaceView;
 import de.mossgrabers.framework.command.aftertouch.AftertouchViewCommand;
 import de.mossgrabers.framework.command.continuous.KnobRowModeCommand;
 import de.mossgrabers.framework.command.trigger.BrowserCommand;
@@ -314,6 +316,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         modeManager.register (Modes.AUTOMATION, new AutomationSelectionMode (surface, this.model));
         modeManager.register (Modes.TRANSPORT, new MetronomeMode (surface, this.model));
         modeManager.register (Modes.USER, new UserMode (surface, this.model));
+        modeManager.register (Modes.WORKSPACE, new WorkspaceMode (surface, this.model));
 
         modeManager.register (Modes.INFO, new InfoMode (surface, this.model));
         modeManager.register (Modes.SETUP, new SetupMode (surface, this.model));
@@ -423,6 +426,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         viewManager.register (Views.POLY_SEQUENCER, new PolySequencerView (surface, this.model, true));
         viewManager.register (Views.DRUM, new DrumView (surface, this.model));
         viewManager.register (Views.DRUM_PAD, new DrumPadView (surface, this.model, this.drumPadControls));
+        viewManager.register (Views.WORKSPACE, new WorkspaceView (surface, this.model, this.drumPadControls));
         viewManager.register (Views.DRUM_XOX, new DrumXoXView (surface, this.model));
         viewManager.register (Views.DRUM4, new Drum4View (surface, this.model));
         viewManager.register (Views.DRUM8, new Drum8View (surface, this.model));
@@ -530,7 +534,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         this.addButton (ButtonID.ACCENT, "Accent", new AccentCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_ACCENT, this.configuration::isAccentActive);
         this.addButton (ButtonID.ADD_EFFECT, "Add Device", new PushAddEffectCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_ADD_EFFECT);
         this.addButton (ButtonID.ADD_TRACK, "Add Track", new ModeSelectCommand<> (this.model, surface, Modes.ADD_TRACK), PushControlSurface.PUSH_BUTTON_ADD_TRACK);
-        this.addButton (ButtonID.NOTE, "Note", new SelectPlayViewCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_NOTE, () -> !Views.isSessionView (viewManager.getActiveID ()));
+        this.addButton (ButtonID.NOTE, "Note", new SelectPlayViewCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_NOTE, () -> !surface.isSessionLayoutActive ());
 
         final PushCursorCommand cursorDownCommand = new PushCursorCommand (Direction.DOWN, this.model, surface);
         this.addButton (ButtonID.ARROW_DOWN, "Down", cursorDownCommand, PushControlSurface.PUSH_BUTTON_DOWN, cursorDownCommand::canScroll, ColorManager.BUTTON_STATE_OFF, ColorManager.BUTTON_STATE_ON);
@@ -551,7 +555,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         }, ColorManager.BUTTON_STATE_OFF, ColorManager.BUTTON_STATE_ON);
 
         this.addButton (ButtonID.STOP_CLIP, "Stop Clip", new ClipStopCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_STOP_CLIP, () -> surface.isPressed (ButtonID.STOP_CLIP), PushColorManager.PUSH_BUTTON_STATE_STOP_ON, PushColorManager.PUSH_BUTTON_STATE_STOP_HI);
-        this.addButton (ButtonID.SESSION, "Session", new SelectSessionViewCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_SESSION, () -> Views.isSessionView (viewManager.getActiveID ()));
+        this.addButton (ButtonID.SESSION, "Session", new SelectSessionViewCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_SESSION, surface::isSessionLayoutActive);
         this.addButton (ButtonID.REPEAT, "Repeat", new FillModeNoteRepeatCommand<> (this.model, surface, true), PushControlSurface.PUSH_BUTTON_REPEAT, this.configuration::isNoteRepeatActive);
         this.addButton (ButtonID.FOOTSWITCH2, "Foot Controller", new FootswitchCommand<> (this.model, surface, 0), PushControlSurface.PUSH_FOOTSWITCH2);
 

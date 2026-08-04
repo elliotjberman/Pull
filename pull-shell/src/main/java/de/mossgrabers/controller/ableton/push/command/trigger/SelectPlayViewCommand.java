@@ -69,7 +69,7 @@ public class SelectPlayViewCommand extends AbstractTriggerCommand<PushControlSur
             return;
         }
 
-        if (!Views.isSessionView (viewManager.getActiveID ()))
+        if (!this.surface.isSessionLayoutActive ())
             return;
 
         final Views previousView = viewManager.getActiveID ();

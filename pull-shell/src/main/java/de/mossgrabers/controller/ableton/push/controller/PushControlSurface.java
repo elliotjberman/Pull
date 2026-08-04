@@ -8,6 +8,7 @@ import java.util.Objects;
 import java.util.function.BooleanSupplier;
 
 import de.mossgrabers.controller.ableton.push.PushConfiguration;
+import de.mossgrabers.controller.ableton.push.workspace.ControllerWorkspaceHost;
 import de.mossgrabers.framework.controller.AbstractControlSurface;
 import de.mossgrabers.framework.controller.color.ColorManager;
 import de.mossgrabers.framework.daw.IHost;
@@ -20,6 +21,7 @@ import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.framework.utils.StringUtils;
 import de.mossgrabers.framework.view.Views;
 import de.mossgrabers.pull.shell.runtime.ReloadableControllerRuntime;
+import de.mossgrabers.pull.core.api.ControllerViewFacet;
 
 
 /**
@@ -337,6 +339,7 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
     private final ColorPalette                colorPalette;
     private final PushPadGrid                 pushPadGrid;
     private final ReloadableControllerRuntime reloadableRuntime;
+    private final ControllerWorkspaceHost      controllerWorkspaceHost;
     private final ISelectedTrackNoteTarget    selectedTrackNoteTarget;
     private final ITrack                      drumModelTrack;
     private final BooleanSupplier             drumModelDeviceReady;
@@ -381,6 +384,7 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
         this.drumModelTrack = Objects.requireNonNull (drumModelTrack, "drumModelTrack");
         this.drumModelDeviceReady = Objects.requireNonNull (drumModelDeviceReady, "drumModelDeviceReady");
         this.reloadableRuntime = reloadableRuntime;
+        this.controllerWorkspaceHost = new ControllerWorkspaceHost (this);
         this.notifyViewChange = false;
         this.pushPadGrid = (PushPadGrid) this.padGrid;
         this.colorPalette = new ColorPalette (this);
@@ -420,6 +424,39 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
     public boolean isDrumPadLayoutActive ()
     {
         return this.drumPadLayoutActive.getAsBoolean ();
+    }
+
+
+    /**
+     * Get the stable adapter for core-owned fixed-facet workspaces.
+     *
+     * @return The workspace host
+     */
+    public ControllerWorkspaceHost getControllerWorkspaceHost ()
+    {
+        return this.controllerWorkspaceHost;
+    }
+
+
+    /**
+     * Test whether the active layout exposes Session clip navigation.
+     *
+     * @return True for ordinary Session or a workspace Session grid
+     */
+    public boolean isSessionLayoutActive ()
+    {
+        return this.viewManager.isActive (Views.SESSION) || this.controllerWorkspaceHost.hasFacet (ControllerViewFacet.SESSION_CLIP_GRID_UPPER);
+    }
+
+
+    /**
+     * Test whether arrows should navigate the Session track and scene banks.
+     *
+     * @return True when the Session navigation facet is active
+     */
+    public boolean isSessionNavigationActive ()
+    {
+        return this.controllerWorkspaceHost.hasFacet (ControllerViewFacet.SESSION_NAVIGATION);
     }
 
 
@@ -476,7 +513,9 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
      */
     public boolean isRawPitchbendRoutingActive ()
     {
-        return isRawPitchbendRoutingActive (this.viewManager.isActive (Views.SESSION), this.isDrumControllerActive ());
+        final boolean workspacePitchbend = this.controllerWorkspaceHost.hasFacet (ControllerViewFacet.DRUM_PITCH_BEND);
+        final boolean standaloneDrumController = !this.controllerWorkspaceHost.isActive () && this.isDrumControllerActive ();
+        return isRawPitchbendRoutingActive (this.viewManager.isActive (Views.SESSION), workspacePitchbend || standaloneDrumController);
     }
 
 

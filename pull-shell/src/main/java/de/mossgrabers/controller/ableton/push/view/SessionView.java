@@ -17,6 +17,7 @@ import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.ISceneBank;
 import de.mossgrabers.framework.featuregroup.AbstractFeatureGroup;
 import de.mossgrabers.framework.utils.ButtonEvent;
+import de.mossgrabers.framework.utils.Pair;
 import de.mossgrabers.framework.view.AbstractSessionView;
 import de.mossgrabers.framework.view.TransposeView;
 
@@ -28,6 +29,9 @@ import de.mossgrabers.framework.view.TransposeView;
  */
 public class SessionView extends AbstractSessionView<PushControlSurface, PushConfiguration> implements TransposeView
 {
+    private final int yOffset;
+
+
     /**
      * Constructor.
      *
@@ -36,7 +40,23 @@ public class SessionView extends AbstractSessionView<PushControlSurface, PushCon
      */
     public SessionView (final PushControlSurface surface, final IModel model)
     {
-        super ("Session", surface, model, 8, 8, true);
+        this ("Session", surface, model, 8, 0);
+    }
+
+
+    /**
+     * Constructor for a fixed Session-grid region.
+     *
+     * @param name The view name
+     * @param surface The surface
+     * @param model The model
+     * @param rows Number of Session rows
+     * @param yOffset Display-grid row offset
+     */
+    protected SessionView (final String name, final PushControlSurface surface, final IModel model, final int rows, final int yOffset)
+    {
+        super (name, surface, model, rows, 8, true);
+        this.yOffset = yOffset;
 
         final int redLo = PushColorManager.PUSH2_COLOR2_RED_LO;
         final int rose = PushColorManager.PUSH2_COLOR2_ROSE;
@@ -74,15 +94,21 @@ public class SessionView extends AbstractSessionView<PushControlSurface, PushCon
             if (velocity == 0)
                 return;
 
-            final int index = note - 36;
-            final int x = index % this.columns;
-            final int y = this.rows - 1 - index / this.columns;
-
-            this.onGridNoteBirdsEyeView (x, y, 0);
+            final Pair<Integer, Integer> pad = this.getPad (note);
+            if (pad != null)
+                this.onGridNoteBirdsEyeView (pad.getKey ().intValue (), pad.getValue ().intValue (), this.yOffset);
             return;
         }
 
         super.onGridNote (note, velocity);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    protected int getYOffset ()
+    {
+        return this.yOffset;
     }
 
 

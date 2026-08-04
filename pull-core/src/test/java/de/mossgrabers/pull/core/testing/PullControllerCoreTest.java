@@ -9,6 +9,7 @@ import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.CoreControls;
+import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.InputRouteMode;
 import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
@@ -31,6 +32,7 @@ import de.mossgrabers.pull.core.api.effect.TransportState;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.runtime.PullCoreProvider;
+import de.mossgrabers.pull.core.runtime.view.ControllerWorkspaceView;
 
 import org.junit.jupiter.api.Test;
 
@@ -54,6 +56,8 @@ class PullControllerCoreTest
     private static final RgbColor AVAILABLE = new RgbColor (96, 30, 0);
     private static final RgbColor HELD = new RgbColor (255, 80, 0);
     private static final ControlId RECORD_BUTTON = PushControlIds.button ("RECORD");
+    private static final ControlId SESSION_BUTTON = PushControlIds.button ("SESSION");
+    private static final ControlId NOTE_BUTTON = PushControlIds.button ("NOTE");
     private static final ControlId SHIFT_BUTTON = PushControlIds.button ("SHIFT");
     private static final ControlId SELECT_BUTTON = PushControlIds.button ("SELECT");
     private static final ClipLaunchPolicy FILL_POLICY = new ClipLaunchPolicy (
@@ -457,6 +461,57 @@ class PullControllerCoreTest
 
         assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (RECORD_BUTTON, InputKind.BUTTON));
         assertEquals (new SelectedTrackActionEffect (7, "track-7", SelectedTrackAction.CREATE_NEW_CLIP), host.effects ().executionOrder ().getLast ());
+    }
+
+
+    @Test
+    void shiftSessionSelectsVsLiveAndPlainSessionReturnsToTheStableWorkspace ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+
+        assertEquals (DesiredControllerWorkspace.empty (), host.effects ().desiredControllerWorkspace ());
+
+        host.controllerButton (SHIFT_BUTTON, true);
+        host.controllerButton (SESSION_BUTTON, true);
+        host.controllerButton (SESSION_BUTTON, false);
+        host.controllerButton (SHIFT_BUTTON, false);
+
+        assertEquals (ControllerWorkspaceView.VS_LIVE, host.effects ().desiredControllerWorkspace ());
+
+        host.controllerButton (SESSION_BUTTON, true);
+
+        assertEquals (DesiredControllerWorkspace.empty (), host.effects ().desiredControllerWorkspace ());
+    }
+
+
+    @Test
+    void checkpointRestoresVsLiveWithoutReplayingTheShortcut ()
+    {
+        final FakeCoreHost first = host (ClipCatalogSnapshot.empty ());
+        first.start (Optional.empty ());
+        first.controllerButton (SHIFT_BUTTON, true);
+        first.controllerButton (SESSION_BUTTON, true);
+
+        final PullCoreProvider provider = new PullCoreProvider ();
+        final FakeCoreHost restored = new FakeCoreHost (provider.create (), provider.descriptor ().requiredCapabilities ());
+        restored.start (Optional.of (first.checkpoint ()));
+
+        assertEquals (ControllerWorkspaceView.VS_LIVE, restored.effects ().desiredControllerWorkspace ());
+    }
+
+
+    @Test
+    void noteExitsVsLive ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        host.controllerButton (SHIFT_BUTTON, true);
+        host.controllerButton (SESSION_BUTTON, true);
+
+        host.controllerButton (NOTE_BUTTON, true);
+
+        assertEquals (DesiredControllerWorkspace.empty (), host.effects ().desiredControllerWorkspace ());
     }
 
 

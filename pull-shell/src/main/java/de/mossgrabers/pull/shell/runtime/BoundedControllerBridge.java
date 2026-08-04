@@ -20,6 +20,7 @@ import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ControllerLayoutSnapshot;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
+import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DrumContextSnapshot;
 import de.mossgrabers.pull.core.api.DrumPadSnapshot;
 import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
@@ -184,6 +185,30 @@ final class BoundedControllerBridge
     void invalidate ()
     {
         this.resetNoteInputMidiState ();
+        this.surface.getControllerWorkspaceHost ().invalidate ();
+    }
+
+
+    /**
+     * Validate a complete fixed-facet workspace before runtime commit.
+     *
+     * @param workspace The requested workspace
+     * @return The validated value
+     */
+    DesiredControllerWorkspace prepareWorkspace (final DesiredControllerWorkspace workspace)
+    {
+        return this.surface.getControllerWorkspaceHost ().prepare (workspace);
+    }
+
+
+    /**
+     * Apply a previously validated fixed-facet workspace.
+     *
+     * @param workspace The workspace
+     */
+    void applyWorkspace (final DesiredControllerWorkspace workspace)
+    {
+        this.surface.getControllerWorkspaceHost ().apply (workspace);
     }
 
 

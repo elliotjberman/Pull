@@ -72,7 +72,7 @@ public class SelectSessionViewCommand extends AbstractTriggerCommand<PushControl
         {
             this.switchedView = false;
             this.restoreOnRelease = false;
-            if (Views.isSessionView (viewManager.getActiveID ()))
+            if (this.surface.isSessionLayoutActive ())
                 return;
 
             viewManager.setActive (Views.SESSION);

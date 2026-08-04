@@ -203,6 +203,20 @@ The first version is deliberately a Java-defined configuration and a hardcoded e
 proves that fixed views compose correctly before configuration parsing or dynamic negotiation is
 added.
 
+Plain **Session** exits to ordinary Session, while **Note** exits through the existing preferred
+note-view selection. Those controls are observed by core so the stable command chooses the legacy
+destination first and the same core transaction then releases workspace ownership. Stable code
+must not synchronously force the workspace from generic mode/view change listeners; that would race
+the exit command and make the complete desired state fight its own transition.
+
+The stable API addition for this checkpoint is limited to one complete
+`DesiredControllerWorkspace`: a name plus a set of known fixed-facet IDs. `VS Live`, its selected
+facets, its conflict-free composition, and the Shift + Session selection state live in the
+reloadable core. The stable shell contains only reusable adapters for facet mechanics that still
+depend on the inherited Bitwig/DrivenByMoss object graph. There must be no stable-shell branch on
+the name `VS Live`. As individual grid, parameter, display, and navigation capabilities cross the
+core boundary, those adapters can be replaced without changing workspace configuration.
+
 The Bitwig smoke test checks:
 
 1. Existing startup and ordinary Session/Drum/User behavior still work.
@@ -212,7 +226,8 @@ The Bitwig smoke test checks:
 5. Arrow keys navigate the Session bank.
 6. Upper pads launch the expected four scenes; lower pads play drums/rates/fills only.
 7. Pitch bend reaches the selected drum track and releases cleanly.
-8. Leaving and re-entering the workspace restores ordinary ownership and note mapping.
+8. Plain Session and Note leave the workspace through their ordinary destinations; re-entry
+   restores composite ownership and note mapping.
 
 Commit the composite separately so a hardware failure can be bisected to either the view-runtime
 migration or the `VS Live` shell integration.

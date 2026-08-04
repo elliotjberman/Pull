@@ -276,6 +276,23 @@ public final class DrumPadControls
 
 
     /**
+     * Test whether a physical grid note belongs to the playable 4x4 drum block.
+     *
+     * @param note The physical grid note
+     * @return True for a playable drum pad
+     */
+    public boolean isPlayPad (final int note)
+    {
+        final int index = note - this.surface.getPadGrid ().getStartNote ();
+        if (index < 0)
+            return false;
+        final int x = index % this.surface.getPadGrid ().getCols ();
+        final int y = index / this.surface.getPadGrid ().getCols ();
+        return x < PLAY_COLUMNS && y < PLAY_ROWS;
+    }
+
+
+    /**
      * Test whether a physical grid note is one of the reloadable drum-fill controls.
      *
      * @param note The physical grid note

@@ -9,11 +9,13 @@ import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
+import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.CoreApi;
 import de.mossgrabers.pull.core.api.CoreCapabilities;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
+import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredInputRoutes;
 import de.mossgrabers.pull.core.api.InputRoute;
 import de.mossgrabers.pull.core.api.InputRouteMode;
@@ -150,13 +152,14 @@ class CoreApiValueTest
     @Test
     void publishesStableVersionCapabilityAndControlIdentifiers ()
     {
-        assertEquals (9, CoreApi.VERSION);
+        assertEquals (10, CoreApi.VERSION);
         assertEquals ("input.drum-fill", CoreCapabilities.INPUT_DRUM_FILL);
         assertEquals ("snapshot.selected-track-clips", CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS);
         assertEquals ("binding.clip-target", CoreCapabilities.BINDING_CLIP_TARGET);
         assertEquals ("snapshot.clip-launch-session", CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION);
         assertEquals ("effect.clip-launch-hold", CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD);
         assertEquals ("output.rgb-light", CoreCapabilities.OUTPUT_RGB_LIGHT);
+        assertEquals ("output.controller-workspace", CoreCapabilities.OUTPUT_CONTROLLER_WORKSPACE);
         assertEquals ("input.controller", CoreCapabilities.INPUT_CONTROLLER);
         assertEquals ("routing.controller-input", CoreCapabilities.ROUTING_CONTROLLER_INPUT);
         assertEquals ("snapshot.controller-bridge", CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE);
@@ -171,6 +174,23 @@ class CoreApiValueTest
             assertEquals (new ControlId ("drum.fill." + (index + 1)), CoreControls.DRUM_FILLS.get (index));
         assertEquals (CoreControls.DRUM_FILLS, CoreControls.drumFills ());
         assertThrows (UnsupportedOperationException.class, () -> CoreControls.DRUM_FILLS.clear ());
+    }
+
+
+    @Test
+    void controllerWorkspacesAreCompleteImmutableValues ()
+    {
+        final Set<ControllerViewFacet> facets = new HashSet<> (Set.of (ControllerViewFacet.PROJECT_MACRO_CONTROLS));
+        final DesiredControllerWorkspace workspace = new DesiredControllerWorkspace ("  live  ", facets);
+        facets.clear ();
+
+        assertEquals ("live", workspace.name ());
+        assertEquals (Set.of (ControllerViewFacet.PROJECT_MACRO_CONTROLS), workspace.facets ());
+        assertTrue (workspace.isActive ());
+        assertFalse (DesiredControllerWorkspace.empty ().isActive ());
+        assertThrows (UnsupportedOperationException.class, () -> workspace.facets ().clear ());
+        assertThrows (IllegalArgumentException.class, () -> new DesiredControllerWorkspace ("named", Set.of ()));
+        assertThrows (IllegalArgumentException.class, () -> new DesiredControllerWorkspace ("", Set.of (ControllerViewFacet.PROJECT_MACRO_CONTROLS)));
     }
 
 

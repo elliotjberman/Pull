@@ -107,10 +107,11 @@
 - A core-only change inside the installed API/canopy hot reloads. Changing a parent-loaded API
   contract, adding a Bitwig proxy/property/observer, changing a permanent binding or proxy capacity,
   or broadening hardware output ownership requires a shell build/install and Bitwig restart.
-- Core API 9 arbitrates general input, so mappings whose state and effects are already bridged
-  belong in the reloadable core. Only the 12 drum-fill RGB lights have migrated output ownership; do not
-  claim general Push light or display hot reload until stable complete-output arbitration exists
-  for those surfaces.
+- Core API 10 arbitrates general input and complete fixed-facet workspace selection, so mappings
+  whose state and effects are already bridged belong in the reloadable core. Only the 12 drum-fill
+  RGB lights have migrated direct output ownership; workspace facets still use generic stable
+  adapters for inherited Bitwig/DrivenByMoss mechanics. Do not claim general Push light or display
+  hot reload until stable complete-output arbitration exists for those surfaces.
 
 ## Bitwig controller API compatibility
 

@@ -32,7 +32,11 @@ public enum SurfaceArea
     /** Push Shift modifier. */
     SHIFT_MODIFIER (button (1), Set.of (PushControlIds.button ("SHIFT")), InputKind.BUTTON),
     /** Push Select modifier. */
-    SELECT_MODIFIER (button (2), Set.of (PushControlIds.button ("SELECT")), InputKind.BUTTON);
+    SELECT_MODIFIER (button (2), Set.of (PushControlIds.button ("SELECT")), InputKind.BUTTON),
+    /** Push Session button. */
+    SESSION_BUTTON (button (3), Set.of (PushControlIds.button ("SESSION")), InputKind.BUTTON),
+    /** Push Note button. */
+    NOTE_BUTTON (button (4), Set.of (PushControlIds.button ("NOTE")), InputKind.BUTTON);
 
     private final Set<HardwareElement> footprint;
     private final Set<ControlId>       controls;

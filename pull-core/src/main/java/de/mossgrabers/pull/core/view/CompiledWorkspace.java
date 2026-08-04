@@ -9,6 +9,7 @@ import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
+import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredInputRoutes;
 import de.mossgrabers.pull.core.api.InputRoute;
 import de.mossgrabers.pull.core.api.InputRouteMode;
@@ -137,11 +138,20 @@ public final class CompiledWorkspace
     {
         final Map<ControlId, RgbColor> lights = new LinkedHashMap<> ();
         final Map<ControlId, ClipTargetId> clipBindings = new LinkedHashMap<> ();
+        DesiredControllerWorkspace controllerWorkspace = DesiredControllerWorkspace.empty ();
+        String controllerWorkspaceOwner = "";
         for (final ControllerView view: this.views)
         {
             final ViewOutput output = Objects.requireNonNull (view.render (snapshot), "view output");
             mergeUnique (lights, output.lights (), "light", view.id ());
             mergeUnique (clipBindings, output.clipBindings (), "clip binding", view.id ());
+            if (output.controllerWorkspace ().isActive ())
+            {
+                if (controllerWorkspace.isActive ())
+                    throw new IllegalStateException ("multiple controller-workspace owners: " + controllerWorkspaceOwner + " and " + view.id ());
+                controllerWorkspace = output.controllerWorkspace ();
+                controllerWorkspaceOwner = view.id ();
+            }
         }
 
         return new CoreResult (
@@ -149,6 +159,7 @@ public final class CompiledWorkspace
             this.desiredInputRoutes,
             this.desiredBridgeSubscriptions,
             clipBindings,
+            controllerWorkspace,
             effects);
     }
 

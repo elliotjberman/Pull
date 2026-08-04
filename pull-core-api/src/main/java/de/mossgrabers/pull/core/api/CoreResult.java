@@ -21,11 +21,12 @@ import java.util.Objects;
  * @param desiredInputRoutes Complete replayable controller-input ownership
  * @param desiredBridgeSubscriptions Complete replayable bridge-state subscriptions
  * @param desiredClipBindings Complete replayable clip binding state by logical control
+ * @param desiredControllerWorkspace Complete replayable fixed-facet workspace selection
  * @param effects Ordered one-shot shell effects
  */
-public record CoreResult (DesiredHardwareOutput desiredOutput, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, Map<ControlId, ClipTargetId> desiredClipBindings, List<CoreEffect> effects)
+public record CoreResult (DesiredHardwareOutput desiredOutput, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, Map<ControlId, ClipTargetId> desiredClipBindings, DesiredControllerWorkspace desiredControllerWorkspace, List<CoreEffect> effects)
 {
-    private static final CoreResult EMPTY = new CoreResult (DesiredHardwareOutput.empty (), DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), Map.of (), List.of ());
+    private static final CoreResult EMPTY = new CoreResult (DesiredHardwareOutput.empty (), DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), Map.of (), DesiredControllerWorkspace.empty (), List.of ());
 
 
     /**
@@ -37,7 +38,23 @@ public record CoreResult (DesiredHardwareOutput desiredOutput, DesiredInputRoute
         desiredInputRoutes = Objects.requireNonNull (desiredInputRoutes, "desiredInputRoutes");
         desiredBridgeSubscriptions = Objects.requireNonNull (desiredBridgeSubscriptions, "desiredBridgeSubscriptions");
         desiredClipBindings = Map.copyOf (Objects.requireNonNull (desiredClipBindings, "desiredClipBindings"));
+        desiredControllerWorkspace = Objects.requireNonNull (desiredControllerWorkspace, "desiredControllerWorkspace");
         effects = List.copyOf (Objects.requireNonNull (effects, "effects"));
+    }
+
+
+    /**
+     * Construct a result without a controller-workspace override.
+     *
+     * @param desiredOutput Complete replayable hardware output
+     * @param desiredInputRoutes Complete replayable controller-input ownership
+     * @param desiredBridgeSubscriptions Complete replayable bridge-state subscriptions
+     * @param desiredClipBindings Complete replayable clip binding state
+     * @param effects Ordered one-shot shell effects
+     */
+    public CoreResult (final DesiredHardwareOutput desiredOutput, final DesiredInputRoutes desiredInputRoutes, final DesiredBridgeSubscriptions desiredBridgeSubscriptions, final Map<ControlId, ClipTargetId> desiredClipBindings, final List<CoreEffect> effects)
+    {
+        this (desiredOutput, desiredInputRoutes, desiredBridgeSubscriptions, desiredClipBindings, DesiredControllerWorkspace.empty (), effects);
     }
 
 
@@ -50,7 +67,7 @@ public record CoreResult (DesiredHardwareOutput desiredOutput, DesiredInputRoute
      */
     public CoreResult (final DesiredHardwareOutput desiredOutput, final Map<ControlId, ClipTargetId> desiredClipBindings, final List<CoreEffect> effects)
     {
-        this (desiredOutput, DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), desiredClipBindings, effects);
+        this (desiredOutput, DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), desiredClipBindings, DesiredControllerWorkspace.empty (), effects);
     }
 
 
@@ -62,7 +79,7 @@ public record CoreResult (DesiredHardwareOutput desiredOutput, DesiredInputRoute
      */
     public CoreResult (final DesiredHardwareOutput desiredOutput, final List<CoreEffect> effects)
     {
-        this (desiredOutput, DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), Map.of (), effects);
+        this (desiredOutput, DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), Map.of (), DesiredControllerWorkspace.empty (), effects);
     }
 
 
@@ -75,7 +92,7 @@ public record CoreResult (DesiredHardwareOutput desiredOutput, DesiredInputRoute
      */
     public CoreResult (final DesiredHardwareOutput desiredOutput, final DesiredInputRoutes desiredInputRoutes, final List<CoreEffect> effects)
     {
-        this (desiredOutput, desiredInputRoutes, DesiredBridgeSubscriptions.empty (), Map.of (), effects);
+        this (desiredOutput, desiredInputRoutes, DesiredBridgeSubscriptions.empty (), Map.of (), DesiredControllerWorkspace.empty (), effects);
     }
 
 
@@ -90,7 +107,7 @@ public record CoreResult (DesiredHardwareOutput desiredOutput, DesiredInputRoute
      */
     public CoreResult (final DesiredHardwareOutput desiredOutput, final DesiredInputRoutes desiredInputRoutes, final Map<ControlId, ClipTargetId> desiredClipBindings, final List<CoreEffect> effects)
     {
-        this (desiredOutput, desiredInputRoutes, DesiredBridgeSubscriptions.empty (), desiredClipBindings, effects);
+        this (desiredOutput, desiredInputRoutes, DesiredBridgeSubscriptions.empty (), desiredClipBindings, DesiredControllerWorkspace.empty (), effects);
     }
 
 
@@ -104,7 +121,7 @@ public record CoreResult (DesiredHardwareOutput desiredOutput, DesiredInputRoute
      */
     public CoreResult (final DesiredHardwareOutput desiredOutput, final DesiredInputRoutes desiredInputRoutes, final DesiredBridgeSubscriptions desiredBridgeSubscriptions, final List<CoreEffect> effects)
     {
-        this (desiredOutput, desiredInputRoutes, desiredBridgeSubscriptions, Map.of (), effects);
+        this (desiredOutput, desiredInputRoutes, desiredBridgeSubscriptions, Map.of (), DesiredControllerWorkspace.empty (), effects);
     }
 
 

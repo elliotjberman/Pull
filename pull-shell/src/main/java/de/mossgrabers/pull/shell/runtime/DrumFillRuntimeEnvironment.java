@@ -12,6 +12,7 @@ import de.mossgrabers.pull.core.api.CoreCapabilities;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
+import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredInputRoutes;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
@@ -58,6 +59,7 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
         Map.entry (CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD, Integer.valueOf (4)),
         Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_WORKSPACE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.INPUT_CONTROLLER, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.ROUTING_CONTROLLER_INPUT, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE, Integer.valueOf (1)),
@@ -341,8 +343,9 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
                 throw new IllegalArgumentException ("Core requested an unregistered controller input route");
         }
         final Map<ControlId, ClipTargetId> preparedBindings = prepareBindings (result.desiredClipBindings (), this.clipCatalog);
+        final DesiredControllerWorkspace preparedWorkspace = this.prepareWorkspace (result.desiredControllerWorkspace ());
         final List<PreparedAction> preparedActions = this.prepareEffects (result.effects (), preparedBindings);
-        return new PreparedResult (preparedColors, result.desiredInputRoutes (), result.desiredBridgeSubscriptions (), this.clipCatalog.generation (), preparedBindings, preparedActions);
+        return new PreparedResult (preparedColors, result.desiredInputRoutes (), result.desiredBridgeSubscriptions (), preparedWorkspace, this.clipCatalog.generation (), preparedBindings, preparedActions);
     }
 
 
@@ -369,7 +372,10 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
         this.committedState = committed.applied ();
 
         if (this.controllerBridge != null)
+        {
             this.controllerBridge.activateCoreGeneration (generation);
+            this.controllerBridge.applyWorkspace (prepared.desiredControllerWorkspace ());
+        }
 
         this.clipHost.setDesiredBindings (prepared.catalogGeneration (), prepared.desiredClipBindings ());
         boolean acquisitionFailed = false;
@@ -436,6 +442,17 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
             colors.put (owner, new RgbColor (requested.red (), requested.green (), requested.blue ()));
         }
         return Map.copyOf (colors);
+    }
+
+
+    private DesiredControllerWorkspace prepareWorkspace (final DesiredControllerWorkspace workspace)
+    {
+        final DesiredControllerWorkspace requested = Objects.requireNonNull (workspace, "workspace");
+        if (this.controllerBridge != null)
+            return this.controllerBridge.prepareWorkspace (requested);
+        if (requested.isActive ())
+            throw new IllegalArgumentException ("Core requested a controller workspace without a controller bridge");
+        return requested;
     }
 
 
@@ -963,20 +980,21 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
-    private record PreparedResult (Map<ControlId, RgbColor> fillLightColors, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, long catalogGeneration, Map<ControlId, ClipTargetId> desiredClipBindings, List<PreparedAction> actions) implements PreparedCoreResult
+    private record PreparedResult (Map<ControlId, RgbColor> fillLightColors, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, DesiredControllerWorkspace desiredControllerWorkspace, long catalogGeneration, Map<ControlId, ClipTargetId> desiredClipBindings, List<PreparedAction> actions) implements PreparedCoreResult
     {
         private PreparedResult
         {
             fillLightColors = Map.copyOf (fillLightColors);
             desiredInputRoutes = Objects.requireNonNull (desiredInputRoutes, "desiredInputRoutes");
             desiredBridgeSubscriptions = Objects.requireNonNull (desiredBridgeSubscriptions, "desiredBridgeSubscriptions");
+            desiredControllerWorkspace = Objects.requireNonNull (desiredControllerWorkspace, "desiredControllerWorkspace");
             desiredClipBindings = Map.copyOf (desiredClipBindings);
             actions = List.copyOf (actions);
         }
     }
 
 
-    private record CommittedState (long generation, Map<ControlId, RgbColor> fillLightColors, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, PreparedResult pendingResult)
+    private record CommittedState (long generation, Map<ControlId, RgbColor> fillLightColors, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, DesiredControllerWorkspace desiredControllerWorkspace, PreparedResult pendingResult)
     {
         private CommittedState
         {
@@ -985,6 +1003,7 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
             fillLightColors = Map.copyOf (fillLightColors);
             desiredInputRoutes = Objects.requireNonNull (desiredInputRoutes, "desiredInputRoutes");
             desiredBridgeSubscriptions = Objects.requireNonNull (desiredBridgeSubscriptions, "desiredBridgeSubscriptions");
+            desiredControllerWorkspace = Objects.requireNonNull (desiredControllerWorkspace, "desiredControllerWorkspace");
         }
 
 
@@ -997,19 +1016,19 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
         private static CommittedState pending (final long generation, final PreparedResult result)
         {
             final PreparedResult prepared = Objects.requireNonNull (result, "result");
-            return new CommittedState (generation, prepared.fillLightColors (), prepared.desiredInputRoutes (), prepared.desiredBridgeSubscriptions (), prepared);
+            return new CommittedState (generation, prepared.fillLightColors (), prepared.desiredInputRoutes (), prepared.desiredBridgeSubscriptions (), prepared.desiredControllerWorkspace (), prepared);
         }
 
 
         private static CommittedState invalidated (final long generation)
         {
-            return new CommittedState (generation, offLights (), DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), null);
+            return new CommittedState (generation, offLights (), DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), DesiredControllerWorkspace.empty (), null);
         }
 
 
         private CommittedState applied ()
         {
-            return new CommittedState (this.generation, this.fillLightColors, this.desiredInputRoutes, this.desiredBridgeSubscriptions, null);
+            return new CommittedState (this.generation, this.fillLightColors, this.desiredInputRoutes, this.desiredBridgeSubscriptions, this.desiredControllerWorkspace, null);
         }
     }
 

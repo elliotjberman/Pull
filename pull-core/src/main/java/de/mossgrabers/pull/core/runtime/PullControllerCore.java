@@ -8,6 +8,7 @@ import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.StateEnvelope;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
+import de.mossgrabers.pull.core.runtime.view.ControllerWorkspaceView;
 import de.mossgrabers.pull.core.runtime.view.DefaultWorkspace;
 import de.mossgrabers.pull.core.view.CompiledWorkspace;
 
@@ -20,8 +21,8 @@ import java.util.Optional;
  */
 final class PullControllerCore implements ControllerCore
 {
-    private final CompiledWorkspace workspace = DefaultWorkspace.create ();
-
+    private CompiledWorkspace       workspace;
+    private ControllerWorkspaceView controllerWorkspaceView;
     private Lifecycle               lifecycle = Lifecycle.NEW;
 
 
@@ -34,6 +35,8 @@ final class PullControllerCore implements ControllerCore
         if (this.lifecycle != Lifecycle.NEW)
             throw new IllegalStateException ("Core can only be started once");
 
+        this.controllerWorkspaceView = new ControllerWorkspaceView (restoreWorkspace (previousState));
+        this.workspace = DefaultWorkspace.create (this.controllerWorkspaceView);
         this.lifecycle = Lifecycle.RUNNING;
         return this.workspace.start (snapshot);
     }
@@ -55,7 +58,22 @@ final class PullControllerCore implements ControllerCore
     public StateEnvelope checkpoint ()
     {
         this.requireRunning ();
-        return new StateEnvelope (PullCoreProvider.STATE_SCHEMA, PullCoreProvider.STATE_SCHEMA_VERSION, new byte [0]);
+        return new StateEnvelope (
+            PullCoreProvider.STATE_SCHEMA,
+            PullCoreProvider.STATE_SCHEMA_VERSION,
+            new byte []
+            {
+                (byte) (this.controllerWorkspaceView.isActive () ? 1 : 0)
+            });
+    }
+
+
+    private static boolean restoreWorkspace (final Optional<StateEnvelope> previousState)
+    {
+        if (previousState.isEmpty ())
+            return false;
+        final byte [] payload = previousState.get ().payload ();
+        return payload.length == 1 && payload[0] == 1;
     }
 
 
