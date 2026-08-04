@@ -473,6 +473,22 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
 
 
     /**
+     * Test whether the authoritative selected-track observer identifies a compatible Drum Machine
+     * target. Layout selection may use this before the legacy model cursor has caught up; control
+     * engagement still requires {@link #isDrumControllerApplicable()}.
+     *
+     * @return True if the selected track should use the Drum controller layout
+     */
+    public boolean isDrumControllerTarget ()
+    {
+        return isDrumTargetCapable (
+            this.selectedTrackNoteTarget.doesExist (),
+            this.selectedTrackNoteTarget.canHoldNotes (),
+            this.selectedTrackNoteTarget.hasDrumDevice ());
+    }
+
+
+    /**
      * Test whether the private selected-track observer supports the Pull drum controller and the
      * framework drum model represents that same track. The identity check prevents a pinned model
      * cursor from rendering or mutating a different track than the selected-track observer.
@@ -481,16 +497,12 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
      */
     public boolean isDrumControllerApplicable ()
     {
-        final boolean targetCapable = isDrumTargetCapable (
-            this.selectedTrackNoteTarget.doesExist (),
-            this.selectedTrackNoteTarget.canHoldNotes (),
-            this.selectedTrackNoteTarget.hasDrumDevice ());
         final boolean modelAligned = isDrumModelAligned (
             this.drumModelTrack.doesExist (),
             this.selectedTrackNoteTarget.getChannelID (),
             this.drumModelTrack.getChannelID ());
         final boolean modelDeviceReady = this.drumModelDeviceReady.getAsBoolean ();
-        return isDrumControllerApplicable (targetCapable, modelAligned, modelDeviceReady);
+        return isDrumControllerApplicable (this.isDrumControllerTarget (), modelAligned, modelDeviceReady);
     }
 
 
