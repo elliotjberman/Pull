@@ -42,6 +42,11 @@ import java.util.function.Predicate;
 
 /**
  * Stable-shell state and effect boundary for reloadable selected-track controller behavior.
+ *
+ * TODO(Pull architecture): This class temporarily combines generic transaction/bridge wiring with
+ * the feature-specific drum-fill lease workflow to complete the first vertical slice. Split those
+ * responsibilities into modular typed shell capabilities before adding another feature-shaped
+ * workflow here.
  */
 final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
 {

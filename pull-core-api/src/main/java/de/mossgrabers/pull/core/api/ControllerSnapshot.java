@@ -11,6 +11,11 @@ import java.util.Set;
 /**
  * Authoritative shell state supplied to the core.
  *
+ * TODO(Pull architecture): The clip catalog and launch-session fields are intentionally
+ * feature-shaped to get the first drum-fill vertical slice over the line. Before adding another
+ * interaction in this form, split snapshots into modular typed capability segments and extract a
+ * generic interaction lease only from semantics proven by more than one feature.
+ *
  * @param revision Monotonic snapshot revision
  * @param monotonicTimeNanos Shell monotonic time when captured
  * @param capabilities Capabilities available from the shell

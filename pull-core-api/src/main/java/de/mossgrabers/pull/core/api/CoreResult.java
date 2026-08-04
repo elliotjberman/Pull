@@ -13,6 +13,10 @@ import java.util.Objects;
 /**
  * Complete output of one core lifecycle call.
  *
+ * TODO(Pull architecture): {@code desiredClipBindings} is the vertical-slice bridge for drum
+ * fills. Do not add parallel feature-specific binding/session fields here; introduce modular typed
+ * shell capabilities before the next interaction needs stable target ownership.
+ *
  * @param desiredOutput Complete replayable hardware output
  * @param desiredInputRoutes Complete replayable controller-input ownership
  * @param desiredBridgeSubscriptions Complete replayable bridge-state subscriptions
