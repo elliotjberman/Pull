@@ -21,7 +21,6 @@ import java.util.function.BooleanSupplier;
  */
 final class RuntimeManager implements AutoCloseable
 {
-    private static final long SLOW_STOP_NANOS = 10_000_000;
     private static final long SLOW_EVENT_NANOS = 8_000_000;
     private static final long SLOW_WARNING_INTERVAL_NANOS = 5_000_000_000L;
 
@@ -94,7 +93,7 @@ final class RuntimeManager implements AutoCloseable
 
             if (!isLatest.getAsBoolean ())
             {
-                this.stopCandidate (source, candidateCore);
+                this.closeCandidate (source);
                 return new ActivationResult (ActivationResult.State.SUPERSEDED, expectedBuildId, this.activeBuildId (), "Superseded by a newer build");
             }
 
@@ -102,7 +101,7 @@ final class RuntimeManager implements AutoCloseable
         catch (final Throwable failure)
         {
             rethrowFatal (failure);
-            this.stopCandidate (source, candidateCore);
+            this.closeCandidate (source);
             final String message = sanitize (failure);
             this.warn ("Core " + expectedBuildId + " was rejected: " + message);
             return new ActivationResult (ActivationResult.State.FAILED, expectedBuildId, this.activeBuildId (), message);
@@ -117,7 +116,7 @@ final class RuntimeManager implements AutoCloseable
         catch (final Throwable failure)
         {
             rethrowFatal (failure);
-            this.stopCandidate (source, candidateCore);
+            this.closeCandidate (source);
             final String message = "Atomic shell state commit failed: " + sanitize (failure);
             this.warn ("Core " + expectedBuildId + " was rejected: " + message);
             return new ActivationResult (ActivationResult.State.FAILED, expectedBuildId, this.activeBuildId (), message);
@@ -126,7 +125,7 @@ final class RuntimeManager implements AutoCloseable
         this.active = new ActiveCore (descriptor, source, candidateCore, nextGeneration);
         this.generation = nextGeneration;
         this.applyCommittedResult (nextGeneration);
-        this.stopActive (previous);
+        this.closeActive (previous);
         this.info ("Activated reloadable core " + descriptor.buildId ());
         return new ActivationResult (ActivationResult.State.ACTIVE, expectedBuildId, descriptor.buildId (), "Activated");
     }
@@ -209,7 +208,7 @@ final class RuntimeManager implements AutoCloseable
         }
         finally
         {
-            this.stopActive (previous);
+            this.closeActive (previous);
             this.lifecycle = Lifecycle.CLOSED;
         }
     }
@@ -259,52 +258,17 @@ final class RuntimeManager implements AutoCloseable
     }
 
 
-    private void stopCandidate (final CoreProviderSource source, final ControllerCore core)
+    private void closeCandidate (final CoreProviderSource source)
     {
-        if (core != null)
-        {
-            try
-            {
-                source.invokeWithContext ( () -> {
-                    core.stop ();
-                    return null;
-                });
-            }
-            catch (final Throwable failure)
-            {
-                rethrowFatal (failure);
-                this.warn ("Rejected core stop failed: " + sanitize (failure));
-            }
-        }
         closeSource (source, this.log);
     }
 
 
-    private void stopActive (final ActiveCore runtime)
+    private void closeActive (final ActiveCore runtime)
     {
         if (runtime == null)
             return;
-
-        final long startedAt = System.nanoTime ();
-        try
-        {
-            runtime.source.invokeWithContext ( () -> {
-                runtime.core.stop ();
-                return null;
-            });
-        }
-        catch (final Throwable failure)
-        {
-            rethrowFatal (failure);
-            this.warn ("Previous core stop failed: " + sanitize (failure));
-        }
-        finally
-        {
-            closeSource (runtime.source, this.log);
-            final long elapsed = System.nanoTime () - startedAt;
-            if (elapsed > SLOW_STOP_NANOS)
-                this.warn ("Previous core stop took " + elapsed / 1_000_000 + " ms");
-        }
+        closeSource (runtime.source, this.log);
     }
 
 

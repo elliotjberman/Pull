@@ -64,7 +64,6 @@ class FakeCoreHostTest
         firstHost.start (Optional.empty ());
         firstHost.advance (Duration.ofNanos (100));
         final StateEnvelope checkpoint = firstHost.checkpoint ();
-        firstHost.stop ();
 
         final DeterministicTimerCore secondCore = new DeterministicTimerCore ();
         final FakeCoreHost secondHost = new FakeCoreHost (secondCore, ShellCapabilities.empty ());
@@ -185,11 +184,5 @@ class FakeCoreHostTest
             return new StateEnvelope ("test.cancel", 1, new byte [0]);
         }
 
-
-        @Override
-        public void stop ()
-        {
-            // Nothing to release
-        }
     }
 }

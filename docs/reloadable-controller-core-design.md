@@ -1,7 +1,7 @@
 # Reloadable Controller Core
 
 Status: Milestones 1 through 4 are implemented. The current working tree also installs the bounded
-Core API 8 controller bridge described below: normalized Push command input, explicitly requested
+Core API 9 controller bridge described below: normalized Push command input, explicitly requested
 transport/selected-track/layout/drum read-back, and typed transport/selected-track/drum effects.
 The drum-fill shell uses a single-active replacement barrier, while the Pads note input follows
 ordinary Bitwig input, monitor, and record-arm routing. General Push light/display arbitration is
@@ -239,7 +239,7 @@ owned for retry; no replacement proxy is reserved across that wait. A down rejec
 or a deferred target whose catalog generation/binding changes before launch, is discarded rather
 than launched later by surprise.
 
-Core API 8 carries the host-independent launch policy.
+Core API 9 carries the host-independent launch policy.
 Capability `effect.clip-launch-hold` version 4 defines the single-active session and latest-pending
 handoff; `snapshot.clip-launch-session` version 1 reports a map containing at most the one acquired
 owner-to-target lease plus its authoritative active owner. There are no hidden fills or held-pad
@@ -324,7 +324,7 @@ not cross into the core.
 
 ## Installed API 8 bounded capability canopy
 
-Core API 8 installs a broad input seam and a deliberately finite Bitwig state/effect bridge during
+Core API 9 installs a broad input seam and a deliberately finite Bitwig state/effect bridge during
 extension initialization. The existence of a shell capability means that the domain is available;
 it does not mean every state domain is copied into every snapshot.
 
@@ -537,7 +537,7 @@ that bank's generation and marks it pending. Location-targeted effects from the 
 are immediately rejected. The new window is published only after Bitwig's observed membership
 stabilizes.
 
-Core API 8 includes logical timer effects, persistent desired clip bindings, verified armed
+Core API 9 includes logical timer effects, persistent desired clip bindings, verified armed
 bindings, the version-1 authoritative single-lease clip-launch-session snapshot,
 generation-fenced version-4 acquire/replace/release effects, normalized controller-input events and
 routes, explicit bridge subscriptions, typed absolute transport effects, generation-fenced
@@ -654,7 +654,7 @@ The development command and shell share `${user.home}/.drivenbymoss/pull/reload`
 
 ```properties
 formatVersion=1
-apiVersion=8
+apiVersion=9
 buildId=20260731T230000Z-0123456789abcdef0123456789abcdef
 ```
 
@@ -664,7 +664,7 @@ verifies its embedded API/build identity, computes SHA-256, and atomically repla
 
 ```properties
 formatVersion=1
-apiVersion=8
+apiVersion=9
 shellFingerprint=0123456789abcdef0123456789abcdef01234567
 buildId=20260731T230000Z-0123456789abcdef0123456789abcdef
 jar=pull-core-20260731T230000Z-0123456789abcdef0123456789abcdef.jar

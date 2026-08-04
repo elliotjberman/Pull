@@ -122,15 +122,6 @@ final class PullControllerCore implements ControllerCore
         return new StateEnvelope (PullCoreProvider.STATE_SCHEMA, PullCoreProvider.STATE_SCHEMA_VERSION, new byte [0]);
     }
 
-
-    /** {@inheritDoc} */
-    @Override
-    public void stop ()
-    {
-        this.lifecycle = Lifecycle.STOPPED;
-    }
-
-
     private static Map<ControlId, ClipTargetId> desiredBindings (final ControllerSnapshot snapshot, final Set<ControlId> controlsToPreserve)
     {
         final Map<ControlId, ClipTargetId> bindings = canonicalBindings (snapshot);
@@ -268,7 +259,6 @@ final class PullControllerCore implements ControllerCore
     private enum Lifecycle
     {
         NEW,
-        RUNNING,
-        STOPPED
+        RUNNING
     }
 }

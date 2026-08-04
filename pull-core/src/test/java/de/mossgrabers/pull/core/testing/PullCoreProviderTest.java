@@ -72,7 +72,7 @@ class PullCoreProviderTest
 
 
     @Test
-    void enforcesLifecycleAndKeepsCheckpointFreeOfTargetLeases ()
+    void enforcesStartLifecycleAndKeepsCheckpointFreeOfTargetLeases ()
     {
         final PullCoreProvider provider = new PullCoreProvider ();
         final ControllerCore core = provider.create ();
@@ -95,10 +95,6 @@ class PullCoreProviderTest
         assertEquals (provider.descriptor ().stateSchemaVersion (), checkpoint.version ());
         assertEquals (0, checkpoint.payload ().length);
 
-        core.stop ();
-        core.stop ();
-        assertThrows (IllegalStateException.class, core::checkpoint);
-        assertThrows (IllegalStateException.class, () -> core.handle (event, snapshot));
     }
 
 

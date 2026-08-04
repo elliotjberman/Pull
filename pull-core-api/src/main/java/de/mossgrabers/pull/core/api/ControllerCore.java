@@ -38,10 +38,4 @@ public interface ControllerCore
      * @return The checkpoint
      */
     StateEnvelope checkpoint ();
-
-
-    /**
-     * Stop this instance. Implementations must make this idempotent and non-blocking.
-     */
-    void stop ();
 }

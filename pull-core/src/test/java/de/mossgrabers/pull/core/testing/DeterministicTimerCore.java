@@ -36,7 +36,6 @@ final class DeterministicTimerCore implements ControllerCore
 
     private int pulses;
     private boolean running;
-    private boolean stopped;
     private ControllerSnapshot lastSnapshot;
 
 
@@ -46,7 +45,7 @@ final class DeterministicTimerCore implements ControllerCore
     {
         Objects.requireNonNull (snapshot, "snapshot");
         Objects.requireNonNull (previousState, "previousState");
-        if (this.running || this.stopped)
+        if (this.running)
             throw new IllegalStateException ("Core can only be started once");
 
         previousState.ifPresent (this::restore);
@@ -95,16 +94,6 @@ final class DeterministicTimerCore implements ControllerCore
         this.requireRunning ();
         return new StateEnvelope (STATE_SCHEMA, STATE_VERSION, ByteBuffer.allocate (Integer.BYTES).putInt (this.pulses).array ());
     }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void stop ()
-    {
-        this.running = false;
-        this.stopped = true;
-    }
-
 
     /**
      * Get the pulse count.

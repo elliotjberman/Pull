@@ -303,16 +303,6 @@ final class FakeCoreHost
         return this.core.checkpoint ();
     }
 
-
-    /**
-     * Stop the core.
-     */
-    void stop ()
-    {
-        this.core.stop ();
-    }
-
-
     /**
      * Get the fake effect executor for assertions.
      *

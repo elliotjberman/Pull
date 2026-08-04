@@ -56,7 +56,6 @@ class RuntimeManagerTest
         {
             7
         }, secondCore.previousState.orElseThrow ().payload ());
-        assertEquals (1, firstCore.stopCount);
         assertTrue (firstSource.closed);
         assertEquals ("build-b", manager.activeBuildId ());
         assertEquals (2, manager.activeGeneration ());
@@ -64,7 +63,6 @@ class RuntimeManagerTest
         assertEquals (List.of (1L, 2L), environment.appliedGenerations);
 
         manager.close ();
-        assertEquals (1, secondCore.stopCount);
         assertTrue (secondSource.closed);
     }
 
@@ -88,8 +86,7 @@ class RuntimeManagerTest
         assertEquals ("stable", failure.activeBuildId ());
         assertEquals ("stable", manager.activeBuildId ());
         assertEquals (1, manager.activeGeneration ());
-        assertEquals (0, stableCore.stopCount);
-        assertEquals (1, brokenCore.stopCount);
+        assertFalse (stableSource.closed);
         assertTrue (brokenSource.closed);
         assertEquals (List.of (1L), environment.committedGenerations);
         assertEquals (List.of (1L), environment.appliedGenerations);
@@ -136,7 +133,6 @@ class RuntimeManagerTest
         assertEquals ("stable", manager.activeBuildId ());
         assertEquals (List.of (1L), environment.committedGenerations);
         assertEquals (List.of (1L), environment.appliedGenerations);
-        assertEquals (1, supersededCore.stopCount);
         assertTrue (supersededSource.closed);
         manager.close ();
     }
@@ -220,9 +216,7 @@ class RuntimeManagerTest
         assertEquals (ActivationResult.State.FAILED, result.state ());
         assertEquals ("stable", result.activeBuildId ());
         assertEquals ("stable", manager.activeBuildId ());
-        assertEquals (0, stableCore.stopCount);
         assertFalse (stableSource.closed);
-        assertEquals (1, candidateCore.stopCount);
         assertTrue (candidateSource.closed);
         assertEquals (List.of (1L), environment.committedGenerations);
         assertEquals (List.of (1L), environment.appliedGenerations);
@@ -249,9 +243,7 @@ class RuntimeManagerTest
         assertEquals (ActivationResult.State.FAILED, result.state ());
         assertEquals ("stable", manager.activeBuildId ());
         assertEquals (1, manager.activeGeneration ());
-        assertEquals (0, stableCore.stopCount);
         assertFalse (stableSource.closed);
-        assertEquals (1, candidateCore.stopCount);
         assertTrue (candidateSource.closed);
         assertEquals (List.of (1L), environment.committedGenerations);
         assertEquals (List.of (1L), environment.appliedGenerations);
@@ -261,30 +253,31 @@ class RuntimeManagerTest
 
 
     @Test
-    void publishesCandidateBeforeApplyingAndStopsPreviousCoreAfterward ()
+    void publishesCandidateBeforeApplyingAndClosesPreviousSourceAfterward ()
     {
         final TestEnvironment environment = new TestEnvironment (ShellCapabilities.empty ());
         final RuntimeManager manager = new RuntimeManager (environment, new RecordingLog ());
         final TestCore stableCore = new TestCore (1);
+        final TestSource stableSource = source ("stable", stableCore);
         final List<String> order = new ArrayList<> ();
         final List<CommitObservation> commitObservations = new ArrayList<> ();
         final List<ApplyObservation> applyObservations = new ArrayList<> ();
 
         manager.start ();
-        manager.activate ("stable", source ("stable", stableCore), () -> true);
-        environment.onCommit = generation -> commitObservations.add (new CommitObservation (generation, manager.activeBuildId (), manager.activeGeneration (), stableCore.stopCount));
+        manager.activate ("stable", stableSource, () -> true);
+        environment.onCommit = generation -> commitObservations.add (new CommitObservation (generation, manager.activeBuildId (), manager.activeGeneration (), stableSource.closed));
         environment.onApply = generation -> {
             order.add ("apply");
-            applyObservations.add (new ApplyObservation (generation, manager.activeBuildId (), manager.activeGeneration (), stableCore.stopCount, environment.committedGenerations));
+            applyObservations.add (new ApplyObservation (generation, manager.activeBuildId (), manager.activeGeneration (), stableSource.closed, environment.committedGenerations));
         };
-        stableCore.onStop = () -> order.add ("stop");
+        stableSource.onClose = () -> order.add ("close");
 
         final ActivationResult result = manager.activate ("candidate", source ("candidate", new TestCore (2)), () -> true);
 
         assertEquals (ActivationResult.State.ACTIVE, result.state ());
-        assertEquals (List.of ("apply", "stop"), order);
-        assertEquals (List.of (new CommitObservation (2, "stable", 1, 0)), commitObservations);
-        assertEquals (List.of (new ApplyObservation (2, "candidate", 2, 0, List.of (1L, 2L))), applyObservations);
+        assertEquals (List.of ("apply", "close"), order);
+        assertEquals (List.of (new CommitObservation (2, "stable", 1, false)), commitObservations);
+        assertEquals (List.of (new ApplyObservation (2, "candidate", 2, false, List.of (1L, 2L))), applyObservations);
         manager.close ();
     }
 
@@ -297,18 +290,18 @@ class RuntimeManagerTest
         final RuntimeManager manager = new RuntimeManager (environment, log);
         final TestCore stableCore = new TestCore (1);
         final TestCore candidateCore = new TestCore (2);
+        final TestSource stableSource = source ("stable", stableCore);
         final TestSource candidateSource = source ("candidate", candidateCore);
 
         manager.start ();
-        manager.activate ("stable", source ("stable", stableCore), () -> true);
+        manager.activate ("stable", stableSource, () -> true);
         environment.failNextApply = true;
         final ActivationResult result = manager.activate ("candidate", candidateSource, () -> true);
 
         assertEquals (ActivationResult.State.ACTIVE, result.state ());
         assertEquals ("candidate", manager.activeBuildId ());
         assertEquals (2, manager.activeGeneration ());
-        assertEquals (1, stableCore.stopCount);
-        assertEquals (0, candidateCore.stopCount);
+        assertTrue (stableSource.closed);
         assertFalse (candidateSource.closed);
         assertEquals (List.of (1L, 2L), environment.committedGenerations);
         assertEquals (List.of (1L, 2L), environment.appliedGenerations);
@@ -378,6 +371,9 @@ class RuntimeManagerTest
     {
         private final CoreProvider provider;
         private boolean closed;
+        private Runnable onClose = () -> {
+            // No observer by default.
+        };
 
 
         private TestSource (final CoreProvider provider)
@@ -404,6 +400,7 @@ class RuntimeManagerTest
         public void close ()
         {
             this.closed = true;
+            this.onClose.run ();
         }
     }
 
@@ -445,10 +442,6 @@ class RuntimeManagerTest
         private boolean failStart;
         private boolean failCheckpoint;
         private int handleCount;
-        private int stopCount;
-        private Runnable onStop = () -> {
-            // No observer by default.
-        };
 
 
         private TestCore (final int checkpointValue)
@@ -486,13 +479,6 @@ class RuntimeManagerTest
             });
         }
 
-
-        @Override
-        public void stop ()
-        {
-            this.stopCount++;
-            this.onStop.run ();
-        }
     }
 
 
@@ -578,12 +564,12 @@ class RuntimeManagerTest
     }
 
 
-    private record CommitObservation (long committedGeneration, String activeBuildId, long activeGeneration, int previousStopCount)
+    private record CommitObservation (long committedGeneration, String activeBuildId, long activeGeneration, boolean previousSourceClosed)
     {
     }
 
 
-    private record ApplyObservation (long appliedGeneration, String activeBuildId, long activeGeneration, int previousStopCount, List<Long> committedGenerations)
+    private record ApplyObservation (long appliedGeneration, String activeBuildId, long activeGeneration, boolean previousSourceClosed, List<Long> committedGenerations)
     {
         private ApplyObservation
         {

@@ -39,11 +39,4 @@ public final class FixtureControllerCore implements ControllerCore
         return new StateEnvelope ("fixture", 1, new byte [0]);
     }
 
-
-    /** {@inheritDoc} */
-    @Override
-    public void stop ()
-    {
-        // No fixture resources
-    }
 }

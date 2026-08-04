@@ -442,10 +442,6 @@ class CoreJarLoaderTest
                         return new StateEnvelope ("fixture", 1, new byte [0]);
                     }
 
-                    public void stop ()
-                    {
-                        requireCandidateContext ();
-                    }
                 }
             }
             """.formatted (addedField, version, addedMethod, Boolean.toString (failStart));
