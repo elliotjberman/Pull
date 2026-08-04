@@ -124,7 +124,9 @@ independently.
 
 ### Later milestones
 
-- Migrate drum behavior, then remaining mode/view families.
+- Migrate drum behavior, then remaining mode/view families through the fixed-footprint view and
+  workspace model in [Views API and Composite Workspaces](views-api-design.md). Its first hardware
+  milestone is the hardcoded `VS Live` composite entered with Shift + Session.
 - Add stable complete-output arbitration for general Push lights and displays, then move their
   policy into the core and add golden output tests.
 - Add event recording and offline replay.
