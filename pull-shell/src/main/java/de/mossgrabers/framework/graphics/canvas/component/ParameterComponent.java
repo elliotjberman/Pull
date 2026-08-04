@@ -4,7 +4,6 @@
 
 package de.mossgrabers.framework.graphics.canvas.component;
 
-import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -27,12 +26,9 @@ import de.mossgrabers.framework.graphics.canvas.component.LabelComponent.LabelLa
 public class ParameterComponent extends MenuComponent
 {
     private static final ColorEx METER_BACKGROUND = ColorEx.BLACK;
-
-    /** Default cyan meter colors. */
-    public static final MeterColors DEFAULT_METER_COLORS = new MeterColors (
-        ColorEx.fromRGB (20, 54, 65),
-        ColorEx.fromRGB (132, 214, 255),
-        ColorEx.fromRGB (190, 235, 247));
+    private static final ColorEx METER_OFF        = ColorEx.fromRGB (20, 54, 65);
+    private static final ColorEx METER_ON         = ColorEx.fromRGB (132, 214, 255);
+    private static final ColorEx METER_TEXT       = ColorEx.fromRGB (190, 235, 247);
 
     private static final double  LABEL_FONT_SIZE  = 12.5;
     private static final double  LABEL_BASELINE   = 31.0;
@@ -60,26 +56,6 @@ public class ParameterComponent extends MenuComponent
     private final int     paramValue;
     private final int     modulatedParamValue;
     private final boolean isTouched;
-    private final MeterColors meterColors;
-
-
-    /**
-     * Colors for a parameter's resting ring, active ring and text.
-     *
-     * @param off Resting ring color
-     * @param on Active ring and toggle color
-     * @param text Label and value color
-     */
-    public record MeterColors (ColorEx off, ColorEx on, ColorEx text)
-    {
-        /** Validate colors. */
-        public MeterColors
-        {
-            Objects.requireNonNull (off, "off");
-            Objects.requireNonNull (on, "on");
-            Objects.requireNonNull (text, "text");
-        }
-    }
 
 
     /**
@@ -148,7 +124,6 @@ public class ParameterComponent extends MenuComponent
         this.modulatedParamValue = modulatedParamValue;
         this.paramValueText = paramValueText;
         this.isTouched = isTouched;
-        this.meterColors = DEFAULT_METER_COLORS;
     }
 
 
@@ -169,28 +144,6 @@ public class ParameterComponent extends MenuComponent
      */
     public ParameterComponent (final String menuName, final boolean isMenuSelected, final String name, final ChannelType type, final ColorEx color, final boolean isSelected, final String paramName, final int paramValue, final int modulatedParamValue, final String paramValueText, final boolean isTouched)
     {
-        this (menuName, isMenuSelected, name, type, color, isSelected, paramName, paramValue, modulatedParamValue, paramValueText, isTouched, DEFAULT_METER_COLORS);
-    }
-
-
-    /**
-     * Constructor. A parameter with a channel footer and custom meter colors.
-     *
-     * @param menuName The text for the menu
-     * @param isMenuSelected True if the menu is selected
-     * @param name The name of the grid element
-     * @param type The type of the channel
-     * @param color The color to use for the footer, may be null
-     * @param isSelected True if the grid element is selected
-     * @param paramName The name of the parameter
-     * @param paramValue The value of the fader
-     * @param modulatedParamValue The modulated value of the fader, -1 if not modulated
-     * @param paramValueText The textual form of the fader value
-     * @param isTouched True if touched
-     * @param meterColors The parameter meter colors
-     */
-    public ParameterComponent (final String menuName, final boolean isMenuSelected, final String name, final ChannelType type, final ColorEx color, final boolean isSelected, final String paramName, final int paramValue, final int modulatedParamValue, final String paramValueText, final boolean isTouched, final MeterColors meterColors)
-    {
         super (menuName, isMenuSelected, name, ChannelSelectComponent.getIcon (type, false), color, isSelected, true, LabelLayout.TRACK);
 
         this.paramName = paramName;
@@ -198,7 +151,6 @@ public class ParameterComponent extends MenuComponent
         this.modulatedParamValue = modulatedParamValue;
         this.paramValueText = paramValueText;
         this.isTouched = isTouched;
-        this.meterColors = Objects.requireNonNull (meterColors, "meterColors");
     }
 
 
@@ -215,9 +167,9 @@ public class ParameterComponent extends MenuComponent
         final boolean isValueMissing = this.paramValue == -1;
         final boolean isModulated = this.modulatedParamValue != -1;
         final double intensity = this.isTouched ? 1.0 : 0.5;
-        final ColorEx meterOff = this.meterColors.off ().dim (intensity);
-        final ColorEx meterOn = this.meterColors.on ().dim (intensity);
-        final ColorEx meterText = this.meterColors.text ().dim (intensity);
+        final ColorEx meterOff = METER_OFF.dim (intensity);
+        final ColorEx meterOn = METER_ON.dim (intensity);
+        final ColorEx meterText = METER_TEXT.dim (intensity);
 
         gc.fillRectangle (left, 0, width, height, METER_BACKGROUND);
 
@@ -333,7 +285,6 @@ public class ParameterComponent extends MenuComponent
         int result = super.hashCode ();
         result = prime * result + (this.isTouched ? 1231 : 1237);
         result = prime * result + this.modulatedParamValue;
-        result = prime * result + this.meterColors.hashCode ();
         result = prime * result + (this.paramName == null ? 0 : this.paramName.hashCode ());
         result = prime * result + this.paramValue;
         result = prime * result + (this.paramValueText == null ? 0 : this.paramValueText.hashCode ());
@@ -350,7 +301,7 @@ public class ParameterComponent extends MenuComponent
         if (!super.equals (obj) || this.getClass () != obj.getClass ())
             return false;
         final ParameterComponent other = (ParameterComponent) obj;
-        if (this.isTouched != other.isTouched || this.modulatedParamValue != other.modulatedParamValue || !this.meterColors.equals (other.meterColors))
+        if (this.isTouched != other.isTouched || this.modulatedParamValue != other.modulatedParamValue)
             return false;
         if (this.paramName == null)
         {

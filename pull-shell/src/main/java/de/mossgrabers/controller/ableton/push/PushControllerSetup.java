@@ -132,6 +132,7 @@ import de.mossgrabers.framework.daw.midi.IMidiAccess;
 import de.mossgrabers.framework.daw.midi.IMidiInput;
 import de.mossgrabers.framework.daw.midi.IMidiOutput;
 import de.mossgrabers.framework.daw.midi.ISelectedTrackNoteTarget;
+import de.mossgrabers.framework.featuregroup.IExpressionView;
 import de.mossgrabers.framework.featuregroup.IMode;
 import de.mossgrabers.framework.featuregroup.IView;
 import de.mossgrabers.framework.featuregroup.ModeManager;
@@ -600,18 +601,11 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
 
         final ViewManager viewManager = surface.getViewManager ();
 
-        final Views [] views =
-        {
-            Views.PLAY,
-            Views.PIANO,
-            Views.DRUM,
-            Views.DRUM_PAD,
-            Views.DRUM64
-        };
-        for (final Views viewID: views)
+        for (final Views viewID: Views.values ())
         {
             final IView view = viewManager.get (viewID);
-            view.registerAftertouchCommand (new AftertouchViewCommand<> (view, this.model, surface));
+            if (view instanceof IExpressionView)
+                view.registerAftertouchCommand (new AftertouchViewCommand<> (view, this.model, surface));
         }
 
         final IHwFader touchstrip = this.addFader (ContinuousID.TOUCHSTRIP, "Touchstrip", this.touchstripCommand);

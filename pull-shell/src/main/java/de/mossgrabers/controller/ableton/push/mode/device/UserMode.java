@@ -15,7 +15,6 @@ import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.IParameterBank;
 import de.mossgrabers.framework.daw.data.bank.IParameterPageBank;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
-import de.mossgrabers.framework.graphics.canvas.component.ParameterComponent;
 import de.mossgrabers.framework.parameter.IParameter;
 import de.mossgrabers.framework.parameterprovider.device.BankParameterProvider;
 import de.mossgrabers.framework.utils.ButtonEvent;
@@ -168,19 +167,7 @@ public class UserMode extends BaseMode<IParameter>
             final String bottomMenu = track.doesExist () ? track.getName (16) : "";
             final boolean isTopMenuSelected = i == 0 && this.isProjectMode || i == 1 && !this.isProjectMode;
 
-            display.addElement (new ParameterComponent (
-                i == 1 ? trackHeader : TOP_MENU[i],
-                isTopMenuSelected,
-                bottomMenu,
-                track.getType (),
-                track.getColor (),
-                track.isSelected (),
-                parameterName,
-                parameterValue,
-                parameterModulatedValue,
-                parameterValueStr,
-                parameterIsActive,
-                this.isProjectMode ? ProjectMacroColors.at (i) : ParameterComponent.DEFAULT_METER_COLORS));
+            display.addParameterElement (i == 1 ? trackHeader : TOP_MENU[i], isTopMenuSelected, bottomMenu, track.getType (), track.getColor (), track.isSelected (), parameterName, parameterValue, parameterValueStr, parameterIsActive, parameterModulatedValue);
         }
     }
 }

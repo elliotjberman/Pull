@@ -14,7 +14,6 @@ import de.mossgrabers.framework.daw.DAWColor;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
-import de.mossgrabers.framework.graphics.canvas.component.ParameterComponent;
 import de.mossgrabers.framework.parameter.IParameter;
 import de.mossgrabers.framework.parameterprovider.device.BankParameterProvider;
 import de.mossgrabers.framework.parameterprovider.special.EmptyParameterProvider;
@@ -128,7 +127,7 @@ public final class WorkspaceMode extends BaseMode<IParameter> implements Workspa
             final boolean parameterExists = showParameters && parameter.doesExist ();
             final ITrack track = trackBank.getItem (index);
             final boolean trackExists = showTracks && track.doesExist ();
-            display.addElement (new ParameterComponent (
+            display.addParameterElement (
                 showParameters && index == 0 ? "Project" : "",
                 showParameters && index == 0,
                 trackExists ? track.getName (16) : "",
@@ -137,10 +136,9 @@ public final class WorkspaceMode extends BaseMode<IParameter> implements Workspa
                 trackExists && track.isSelected (),
                 parameterExists ? parameter.getName (16) : "",
                 valueChanger.toDisplayValue (parameterExists ? parameter.getValue () : 0),
-                valueChanger.toDisplayValue (parameterExists ? parameter.getModulatedValue () : -1),
                 parameterExists ? parameter.getDisplayedValue (8) : "",
                 parameterExists && this.isKnobTouched (index),
-                ProjectMacroColors.at (index)));
+                valueChanger.toDisplayValue (parameterExists ? parameter.getModulatedValue () : -1));
         }
     }
 
