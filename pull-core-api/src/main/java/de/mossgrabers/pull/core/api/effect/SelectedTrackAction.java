@@ -12,5 +12,8 @@ public enum SelectedTrackAction
     STOP,
 
     /** Return the selected track to Arrangement playback. */
-    RETURN_TO_ARRANGEMENT
+    RETURN_TO_ARRANGEMENT,
+
+    /** Create and launch a new clip using the controller's configured default length. */
+    CREATE_NEW_CLIP
 }

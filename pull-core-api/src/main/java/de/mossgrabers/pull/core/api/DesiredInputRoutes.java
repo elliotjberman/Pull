@@ -16,8 +16,9 @@ import java.util.Set;
  * Complete replayable set of controller inputs observed or exclusively owned by the reloadable
  * core.
  *
- * <p>A route absent from this set remains solely with the stable legacy controller. The shell
- * freezes an exclusive route acquired at gesture begin until the matching end event.</p>
+ * <p>A route absent from this set remains solely with the stable controller. The shell freezes an
+ * exclusive route acquired at gesture begin until the matching end event. Exclusive ownership is
+ * accepted only for a physical input whose stable semantic binding is deliberately inert.</p>
  *
  */
 public final class DesiredInputRoutes
@@ -59,7 +60,7 @@ public final class DesiredInputRoutes
 
 
     /**
-     * Get empty desired routing, which leaves every input with the stable controller.
+     * Get empty desired routing, which leaves every unmigrated input with the stable controller.
      *
      * @return Empty desired routing
      */

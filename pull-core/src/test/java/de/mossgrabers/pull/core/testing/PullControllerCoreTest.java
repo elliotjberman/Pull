@@ -14,6 +14,7 @@ import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.TrackMonitorMode;
+import de.mossgrabers.pull.core.api.TransportSnapshot;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchMode;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
@@ -21,8 +22,12 @@ import de.mossgrabers.pull.core.api.effect.ClipReleaseTrigger;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
+import de.mossgrabers.pull.core.api.effect.SelectedTrackAction;
+import de.mossgrabers.pull.core.api.effect.SelectedTrackActionEffect;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackBoolean;
 import de.mossgrabers.pull.core.api.effect.SetSelectedTrackBooleanEffect;
+import de.mossgrabers.pull.core.api.effect.SetTransportStateEffect;
+import de.mossgrabers.pull.core.api.effect.TransportState;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.runtime.PullCoreProvider;
@@ -392,8 +397,8 @@ class PullControllerCoreTest
 
         host.start (Optional.empty ());
 
-        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK), host.effects ().desiredBridgeSubscriptions ().domains ());
-        assertEquals (Optional.empty (), host.effects ().desiredInputRoutes ().mode (RECORD_BUTTON, InputKind.BUTTON));
+        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT), host.effects ().desiredBridgeSubscriptions ().domains ());
+        assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (RECORD_BUTTON, InputKind.BUTTON));
         host.selectedTrack (selectedTrack (false));
         assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (RECORD_BUTTON, InputKind.BUTTON));
         assertEquals (Optional.of (InputRouteMode.OBSERVE), host.effects ().desiredInputRoutes ().mode (SHIFT_BUTTON, InputKind.BUTTON));
@@ -423,20 +428,35 @@ class PullControllerCoreTest
 
 
     @Test
-    void modifiersTemporarilyReturnRecordToItsStableFallback ()
+    void shiftRecordTogglesLauncherOverdubWithoutChangingOwnership ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        host.selectedTrack (selectedTrack (false));
+        host.transport (transport (false));
+
+        host.controllerButton (SHIFT_BUTTON, true);
+        host.controllerButton (RECORD_BUTTON, true);
+        host.controllerButton (RECORD_BUTTON, false);
+
+        assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (RECORD_BUTTON, InputKind.BUTTON));
+        assertEquals (new SetTransportStateEffect (TransportState.LAUNCHER_OVERDUB, true), host.effects ().executionOrder ().getLast ());
+    }
+
+
+    @Test
+    void selectRecordCreatesANewClipWithoutChangingOwnership ()
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
         host.start (Optional.empty ());
         host.selectedTrack (selectedTrack (false));
 
-        host.controllerButton (SHIFT_BUTTON, true);
-        assertEquals (Optional.empty (), host.effects ().desiredInputRoutes ().mode (RECORD_BUTTON, InputKind.BUTTON));
-
-        host.controllerButton (SHIFT_BUTTON, false);
-        assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (RECORD_BUTTON, InputKind.BUTTON));
-
         host.controllerButton (SELECT_BUTTON, true);
-        assertEquals (Optional.empty (), host.effects ().desiredInputRoutes ().mode (RECORD_BUTTON, InputKind.BUTTON));
+        host.controllerButton (RECORD_BUTTON, true);
+        host.controllerButton (RECORD_BUTTON, false);
+
+        assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (RECORD_BUTTON, InputKind.BUTTON));
+        assertEquals (new SelectedTrackActionEffect (7, "track-7", SelectedTrackAction.CREATE_NEW_CLIP), host.effects ().executionOrder ().getLast ());
     }
 
 
@@ -469,6 +489,12 @@ class PullControllerCoreTest
             0.75,
             0.5,
             new RgbColor (100, 50, 25));
+    }
+
+
+    private static TransportSnapshot transport (final boolean launcherOverdub)
+    {
+        return new TransportSnapshot (true, true, false, false, launcherOverdub, false, false, false, 120, 0, 4, 4);
     }
 
 

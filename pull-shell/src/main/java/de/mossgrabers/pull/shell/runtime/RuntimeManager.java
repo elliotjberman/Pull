@@ -158,7 +158,8 @@ final class RuntimeManager implements AutoCloseable
         catch (final Throwable failure)
         {
             rethrowFatal (failure);
-            this.warn ("Active core event failed: " + sanitize (failure));
+            final String message = sanitize (failure);
+            this.faultActive (runtime, message);
             this.reportSlowEvent (event, startedAt);
             return false;
         }
@@ -269,6 +270,29 @@ final class RuntimeManager implements AutoCloseable
         if (runtime == null)
             return;
         closeSource (runtime.source, this.log);
+    }
+
+
+    private void faultActive (final ActiveCore runtime, final String message)
+    {
+        if (this.active != runtime)
+            return;
+
+        this.generation = Math.incrementExact (this.generation);
+        this.active = null;
+        try
+        {
+            this.environment.invalidate (this.generation);
+        }
+        catch (final RuntimeException invalidationFailure)
+        {
+            this.warn ("Faulted core generation invalidation failed: " + sanitize (invalidationFailure));
+        }
+        finally
+        {
+            this.closeActive (runtime);
+        }
+        this.warn ("Faulted reloadable core " + runtime.descriptor.buildId () + ": " + message);
     }
 
 

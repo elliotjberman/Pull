@@ -61,7 +61,7 @@ Bitwig's default Project Settings → Clip Launcher → ALT Release setting, or 
 override to `Return`. A fill clip's loop enablement and length remain session content.
 
 The slice passes offline fake-host verification. The exact immediate-legato/ALT-Return path still
-requires a live Bitwig smoke test after installing the Core-API-8 shell on Bitwig controller API
+requires a live Bitwig smoke test after installing the Core-API-9 shell on Bitwig controller API
 21.
 
 The Push Pads note input remains in Bitwig's ordinary input pool. Pads and the ribbon's raw
@@ -84,11 +84,12 @@ to another.
 Bitwig's Dashboard → Settings → Recording → Auto-arm selected → Instrument tracks preference is
 independent of Pull. Disable it if track arm should not follow selection. With ordinary routing,
 the intended track must accept `Pads` or `All Inputs` and satisfy its monitor/record-arm settings.
-The reloadable core exclusively owns an unmodified Push Record gesture and requests explicit arm
-on the selected track from authoritative read-back. While Shift or Select is held, Record returns
-to the stable fallback so Shift+Record still toggles launcher overdub and Select+Record still
-creates a new clip. Global arranger record remains available in Bitwig but is no longer bound to
-the plain Push Record button while the core is active.
+The reloadable core exclusively owns every Push Record gesture: plain Record toggles selected-track
+arm from authoritative read-back, Shift+Record toggles launcher overdub, and Select+Record creates
+a new clip. The permanent Record binding is deliberately inert and exists only to retain the input
+and authoritative-light seam; missing or faulted core behavior never invokes a second shell
+implementation. Global arranger record remains available in Bitwig but is not bound to the Push
+Record button.
 
 Drum pitch remains an explicit Bitwig session setup rather than controller-managed project
 content. On each drum track:

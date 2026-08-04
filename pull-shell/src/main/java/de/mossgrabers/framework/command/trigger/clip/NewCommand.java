@@ -8,12 +8,7 @@ import de.mossgrabers.framework.command.core.AbstractTriggerCommand;
 import de.mossgrabers.framework.configuration.Configuration;
 import de.mossgrabers.framework.controller.IControlSurface;
 import de.mossgrabers.framework.daw.IModel;
-import de.mossgrabers.framework.daw.data.ISlot;
-import de.mossgrabers.framework.daw.data.ITrack;
-import de.mossgrabers.framework.daw.data.bank.ISlotBank;
 import de.mossgrabers.framework.utils.ButtonEvent;
-
-import java.util.Optional;
 
 
 /**
@@ -26,6 +21,9 @@ import java.util.Optional;
  */
 public class NewCommand<S extends IControlSurface<C>, C extends Configuration> extends AbstractTriggerCommand<S, C>
 {
+    private final NewClipAction newClipAction;
+
+
     /**
      * Constructor.
      *
@@ -35,6 +33,7 @@ public class NewCommand<S extends IControlSurface<C>, C extends Configuration> e
     public NewCommand (final IModel model, final S surface)
     {
         super (model, surface);
+        this.newClipAction = new NewClipAction (model);
     }
 
 
@@ -72,24 +71,14 @@ public class NewCommand<S extends IControlSurface<C>, C extends Configuration> e
      */
     public void handleExecute (final boolean enableOverdub)
     {
-        final ITrack cursorTrack = this.model.getCursorTrack ();
-        if (!cursorTrack.doesExist ())
+        switch (this.newClipAction.execute (this.getClipLength (), enableOverdub))
         {
-            this.surface.getDisplay ().notify ("Please select an Instrument track first.");
-            return;
+            case NO_TRACK -> this.surface.getDisplay ().notify ("Please select an Instrument track first.");
+            case NO_EMPTY_SLOT -> this.surface.getDisplay ().notify ("No empty slot in the current page. Please scroll down.");
+            case CREATED -> {
+                // Nothing to report.
+            }
         }
-
-        final ISlotBank slotBank = cursorTrack.getSlotBank ();
-        final Optional<ISlot> selectedSlot = slotBank.getSelectedItem ();
-        final int slotIndex = selectedSlot.isEmpty () ? 0 : selectedSlot.get ().getIndex ();
-        final Optional<ISlot> slot = slotBank.getEmptySlot (slotIndex);
-        if (slot.isEmpty ())
-        {
-            this.surface.getDisplay ().notify ("No empty slot in the current page. Please scroll down.");
-            return;
-        }
-
-        this.model.createNoteClip (cursorTrack, slot.get (), this.getClipLength (), enableOverdub);
     }
 
 

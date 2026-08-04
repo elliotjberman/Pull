@@ -13,6 +13,7 @@ import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.StateEnvelope;
 import de.mossgrabers.pull.core.api.TimerId;
+import de.mossgrabers.pull.core.api.TransportSnapshot;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
@@ -238,6 +239,22 @@ final class FakeCoreHost
         this.bridge = new ControllerBridgeSnapshot (
             this.bridge.transport (),
             Objects.requireNonNull (selectedTrack, "selectedTrack"),
+            this.bridge.layout (),
+            this.bridge.drum ());
+        this.snapshotChanged ();
+    }
+
+
+    /**
+     * Replace authoritative transport state and notify the core.
+     *
+     * @param transport Transport state
+     */
+    void transport (final TransportSnapshot transport)
+    {
+        this.bridge = new ControllerBridgeSnapshot (
+            Objects.requireNonNull (transport, "transport"),
+            this.bridge.selectedTrack (),
             this.bridge.layout (),
             this.bridge.drum ());
         this.snapshotChanged ();

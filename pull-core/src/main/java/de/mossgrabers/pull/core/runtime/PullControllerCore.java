@@ -25,8 +25,12 @@ import de.mossgrabers.pull.core.api.effect.ClipReleaseTrigger;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
+import de.mossgrabers.pull.core.api.effect.SelectedTrackAction;
+import de.mossgrabers.pull.core.api.effect.SelectedTrackActionEffect;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackBoolean;
 import de.mossgrabers.pull.core.api.effect.SetSelectedTrackBooleanEffect;
+import de.mossgrabers.pull.core.api.effect.SetTransportStateEffect;
+import de.mossgrabers.pull.core.api.effect.TransportState;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
@@ -56,7 +60,7 @@ final class PullControllerCore implements ControllerCore
     private static final ControlId RECORD_BUTTON = PushControlIds.button ("RECORD");
     private static final ControlId SHIFT_BUTTON = PushControlIds.button ("SHIFT");
     private static final ControlId SELECT_BUTTON = PushControlIds.button ("SELECT");
-    private static final DesiredBridgeSubscriptions BRIDGE_SUBSCRIPTIONS = new DesiredBridgeSubscriptions (Set.of (BridgeSubscription.SELECTED_TRACK));
+    private static final DesiredBridgeSubscriptions BRIDGE_SUBSCRIPTIONS = new DesiredBridgeSubscriptions (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT));
     private static final ClipLaunchPolicy FILL_LAUNCH_POLICY = new ClipLaunchPolicy (
         ClipLaunchQuantization.IMMEDIATE,
         ClipLaunchMode.LEGATO_FROM_CLIP_OR_PROJECT,
@@ -105,7 +109,7 @@ final class PullControllerCore implements ControllerCore
                 effects = List.of (new ReleaseClipTargetsEffect (button.controlId ()));
         }
         else if (event instanceof final ControllerInputEvent input && isRecordRelease (input))
-            effects = recordArmEffects (snapshot);
+            effects = recordEffects (snapshot);
         else
             effects = List.of ();
 
@@ -197,11 +201,21 @@ final class PullControllerCore implements ControllerCore
     }
 
 
-    private static List<CoreEffect> recordArmEffects (final ControllerSnapshot snapshot)
+    private static List<CoreEffect> recordEffects (final ControllerSnapshot snapshot)
     {
+        if (snapshot.pressedControls ().contains (SHIFT_BUTTON))
+        {
+            if (!snapshot.bridge ().transport ().available ())
+                return List.of ();
+            return List.of (new SetTransportStateEffect (TransportState.LAUNCHER_OVERDUB, !snapshot.bridge ().transport ().launcherOverdub ()));
+        }
+
         final SelectedTrackSnapshot selectedTrack = snapshot.bridge ().selectedTrack ();
         if (!selectedTrack.exists ())
             return List.of ();
+
+        if (snapshot.pressedControls ().contains (SELECT_BUTTON))
+            return List.of (new SelectedTrackActionEffect (selectedTrack.generation (), selectedTrack.channelId (), SelectedTrackAction.CREATE_NEW_CLIP));
 
         return List.of (new SetSelectedTrackBooleanEffect (
             selectedTrack.generation (),
@@ -216,9 +230,7 @@ final class PullControllerCore implements ControllerCore
         final Set<InputRoute> routes = new LinkedHashSet<> ();
         routes.add (new InputRoute (SHIFT_BUTTON, InputKind.BUTTON, InputRouteMode.OBSERVE));
         routes.add (new InputRoute (SELECT_BUTTON, InputKind.BUTTON, InputRouteMode.OBSERVE));
-        final boolean modifierPressed = snapshot.pressedControls ().contains (SHIFT_BUTTON) || snapshot.pressedControls ().contains (SELECT_BUTTON);
-        if (snapshot.bridge ().selectedTrack ().exists () && !modifierPressed)
-            routes.add (new InputRoute (RECORD_BUTTON, InputKind.BUTTON, InputRouteMode.EXCLUSIVE));
+        routes.add (new InputRoute (RECORD_BUTTON, InputKind.BUTTON, InputRouteMode.EXCLUSIVE));
         return new DesiredInputRoutes (routes);
     }
 

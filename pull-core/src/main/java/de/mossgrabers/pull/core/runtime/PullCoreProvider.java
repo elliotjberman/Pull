@@ -29,7 +29,15 @@ public final class PullCoreProvider implements CoreProvider
         Map.entry (CoreCapabilities.BINDING_CLIP_TARGET, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD, Integer.valueOf (4)),
-        Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (1))));
+        Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.INPUT_CONTROLLER, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.ROUTING_CONTROLLER_INPUT, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.SUBSCRIPTION_CONTROLLER_BRIDGE, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.EFFECT_TRANSPORT, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.EFFECT_SELECTED_TRACK, Integer.valueOf (2)),
+        Map.entry (CoreCapabilities.EFFECT_DRUM_PAD, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.EFFECT_NOTE_INPUT_MIDI, Integer.valueOf (1))));
 
     private static final CoreDescriptor DESCRIPTOR = new CoreDescriptor (CoreApi.VERSION, CoreBuildMetadata.load ().buildId (), STATE_SCHEMA, STATE_SCHEMA_VERSION, REQUIRED_CAPABILITIES);
 

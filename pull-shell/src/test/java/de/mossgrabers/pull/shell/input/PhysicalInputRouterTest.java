@@ -27,24 +27,24 @@ class PhysicalInputRouterTest
 
 
     @Test
-    void noneFallsBackToLegacyExactlyOncePerEdge ()
+    void unclaimedInputRunsStableCommandExactlyOncePerEdge ()
     {
-        final AtomicInteger legacyCalls = new AtomicInteger ();
+        final AtomicInteger stableCalls = new AtomicInteger ();
         final List<PhysicalInputEvent<String>> events = new ArrayList<> ();
         final PhysicalInputRouter<String> router = router (InputRoute.NONE, events);
 
-        assertEquals (InputRoute.NONE, router.route (BUTTON, InputKind.BUTTON, InputPhase.BEGIN, 127, legacyCalls::incrementAndGet));
+        assertEquals (InputRoute.NONE, router.route (BUTTON, InputKind.BUTTON, InputPhase.BEGIN, 127, stableCalls::incrementAndGet));
         assertEquals (1, router.activeGestureCount ());
-        assertEquals (InputRoute.NONE, router.route (BUTTON, InputKind.BUTTON, InputPhase.END, 0, legacyCalls::incrementAndGet));
+        assertEquals (InputRoute.NONE, router.route (BUTTON, InputKind.BUTTON, InputPhase.END, 0, stableCalls::incrementAndGet));
 
-        assertEquals (2, legacyCalls.get ());
+        assertEquals (2, stableCalls.get ());
         assertTrue (events.isEmpty ());
         assertEquals (0, router.activeGestureCount ());
     }
 
 
     @Test
-    void observeRunsLegacyBeforePublishingEachEdge ()
+    void observeRunsStableCommandBeforePublishingEachEdge ()
     {
         final List<String> order = new ArrayList<> ();
         final PhysicalControlRegistry<String> registry = registry ();
@@ -54,15 +54,15 @@ class PhysicalInputRouterTest
             event -> order.add ("core " + event.phase ()),
             new IncrementingClock ());
 
-        router.route (BUTTON, InputKind.BUTTON, InputPhase.BEGIN, 127, () -> order.add ("legacy begin"));
-        router.route (BUTTON, InputKind.BUTTON, InputPhase.END, 0, () -> order.add ("legacy end"));
+        router.route (BUTTON, InputKind.BUTTON, InputPhase.BEGIN, 127, () -> order.add ("stable begin"));
+        router.route (BUTTON, InputKind.BUTTON, InputPhase.END, 0, () -> order.add ("stable end"));
 
-        assertEquals (List.of ("legacy begin", "core BEGIN", "legacy end", "core END"), order);
+        assertEquals (List.of ("stable begin", "core BEGIN", "stable end", "core END"), order);
     }
 
 
     @Test
-    void exclusiveSuppressesLegacyAndPublishesEachEdge ()
+    void exclusiveSuppressesStableCommandAndPublishesEachEdge ()
     {
         final AtomicInteger legacyCalls = new AtomicInteger ();
         final List<PhysicalInputEvent<String>> events = new ArrayList<> ();
@@ -81,34 +81,41 @@ class PhysicalInputRouterTest
     void edgeLeaseCannotChangeOwnerMidGesture ()
     {
         final AtomicReference<InputRoute> desiredRoute = new AtomicReference<> (InputRoute.EXCLUSIVE);
+        final AtomicLong activeGeneration = new AtomicLong (11);
         final AtomicInteger legacyCalls = new AtomicInteger ();
         final List<PhysicalInputEvent<String>> events = new ArrayList<> ();
         final PhysicalInputRouter<String> router = new PhysicalInputRouter<> (
             registry (),
             (ignoredControl, ignoredKind) -> desiredRoute.get (),
             events::add,
-            new IncrementingClock ());
+            new IncrementingClock (),
+            activeGeneration::get);
 
         router.route (BUTTON, InputKind.BUTTON, InputPhase.BEGIN, 127, legacyCalls::incrementAndGet);
         desiredRoute.set (InputRoute.NONE);
+        activeGeneration.set (12);
         assertEquals (InputRoute.EXCLUSIVE, router.route (BUTTON, InputKind.BUTTON, InputPhase.LONG, 127, legacyCalls::incrementAndGet));
         assertEquals (InputRoute.EXCLUSIVE, router.route (BUTTON, InputKind.BUTTON, InputPhase.END, 0, legacyCalls::incrementAndGet));
 
         assertEquals (0, legacyCalls.get ());
         assertEquals (3, events.size ());
+        assertEquals (List.of (11L, 11L, 11L), events.stream ().map (PhysicalInputEvent::ownerGeneration).toList ());
         assertEquals (0, router.activeGestureCount ());
 
-        // An END without a leased BEGIN must fall back to legacy even if a newly loaded core now
+        // An END without a leased BEGIN remains stable-owned even if a newly loaded core now
         // requests the control. This preserves the owner which could have received the old press.
         desiredRoute.set (InputRoute.EXCLUSIVE);
         assertEquals (InputRoute.NONE, router.route (BUTTON, InputKind.BUTTON, InputPhase.END, 0, legacyCalls::incrementAndGet));
         assertEquals (1, legacyCalls.get ());
         assertEquals (3, events.size ());
+
+        router.route (BUTTON, InputKind.BUTTON, InputPhase.BEGIN, 127, legacyCalls::incrementAndGet);
+        assertEquals (12, events.getLast ().ownerGeneration ());
     }
 
 
     @Test
-    void legacyGestureCannotBeStolenByAChangedExclusiveRoute ()
+    void stableGestureCannotBeStolenByAChangedExclusiveRoute ()
     {
         final AtomicReference<InputRoute> desiredRoute = new AtomicReference<> (InputRoute.NONE);
         final AtomicInteger legacyCalls = new AtomicInteger ();
@@ -149,6 +156,33 @@ class PhysicalInputRouterTest
         assertEquals (1, events.getFirst ().value ());
         assertEquals (3, events.getFirst ().sequence ());
         assertEquals (0, router.pendingMotionCount ());
+    }
+
+
+    @Test
+    void relativeMotionNeverCoalescesAcrossCoreGenerations ()
+    {
+        final AtomicLong generation = new AtomicLong (4);
+        final List<PhysicalInputEvent<String>> events = new ArrayList<> ();
+        final PhysicalInputRouter<String> router = new PhysicalInputRouter<> (
+            registry (),
+            (ignoredControl, ignoredKind) -> InputRoute.EXCLUSIVE,
+            events::add,
+            new IncrementingClock (),
+            generation::get);
+
+        router.route (ENCODER, InputKind.RELATIVE, InputPhase.CHANGE, 7, () -> {
+            // Exclusive routing suppresses this command.
+        });
+        generation.set (5);
+        router.route (ENCODER, InputKind.RELATIVE, InputPhase.CHANGE, 2, () -> {
+            // Exclusive routing suppresses this command.
+        });
+        router.flush ();
+
+        assertEquals (1, events.size ());
+        assertEquals (2, events.getFirst ().value ());
+        assertEquals (5, events.getFirst ().ownerGeneration ());
     }
 
 
@@ -208,7 +242,7 @@ class PhysicalInputRouterTest
 
         final PhysicalControlRegistry<String> registry = builder.build ();
         final PhysicalInputRouter<String> router = new PhysicalInputRouter<> (registry, (ignoredControl, ignoredKind) -> InputRoute.NONE, ignored -> {
-            // No event is expected for the legacy-only route.
+            // No event is expected for the stable-only route.
         });
         assertThrows (IllegalArgumentException.class, () -> router.route ("unknown", InputKind.BUTTON, InputPhase.BEGIN, 1, () -> {
             // Not reached.

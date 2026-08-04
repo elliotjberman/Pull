@@ -5,7 +5,7 @@ Core API 9 controller bridge described below: normalized Push command input, exp
 transport/selected-track/layout/drum read-back, and typed transport/selected-track/drum effects.
 The drum-fill shell uses a single-active replacement barrier, while the Pads note input follows
 ordinary Bitwig input, monitor, and record-arm routing. General Push light/display arbitration is
-not part of this expansion. Because API 8 and its bridge are parent-loaded, installing this
+not part of this expansion. Because API 9 and its bridge are parent-loaded, installing this
 expansion itself requires one shell build/install and Bitwig restart; behavior composed from it can
 then hot reload.
 
@@ -84,7 +84,8 @@ independently.
 - Embed the production core JAR as a nested resource, never exploded classes.
 - Add the child-first runtime classloader and `RuntimeManager`.
 - Add a resource-only bundle so Maven orders core before shell without exposing core classes.
-- Add atomic candidate publication, build IDs, status, failure fallback, and generation fencing.
+- Add atomic candidate publication, build IDs, status, transactional candidate rejection, and
+  generation fencing.
 - Fingerprint the complete parent-loaded shell/API input so installed-version drift requires a restart.
 - Add the compile/publish/reload command and classloader fixture tests.
 - Prove that core version B may add a class, field, and method over version A.
@@ -107,7 +108,7 @@ independently.
 - Cover catalog scans, off-window edits, readiness, overlapping holds, reload hydration, exact
   delayed Return acknowledgements, releases, failures, and transaction ordering without Bitwig.
 
-### Milestone 5: Bounded API 8 controller bridge
+### Milestone 5: Bounded API 9 controller bridge
 
 - Install permanent arbitration around the practical Push inputs that already have stable hardware
   bindings, without registering duplicate MIDI or Bitwig hardware callbacks.
@@ -138,8 +139,8 @@ which creates
 [`GenericControllerExtension`](../pull-shell/src/main/java/de/mossgrabers/bitwig/framework/extension/GenericControllerExtension.java)
 delegates Bitwig's `init`, `flush`, and `exit` lifecycle to that setup.
 [`ReloadableControllerSetup`](../pull-shell/src/main/java/de/mossgrabers/pull/shell/runtime/ReloadableControllerSetup.java)
-now wraps those calls so the reload supervisor starts after legacy startup, drains candidates before
-each legacy flush, and closes before the existing setup releases model/MIDI/USB resources.
+now wraps those calls so the reload supervisor starts after stable startup, drains candidates before
+each stable flush, and closes before the existing setup releases model/MIDI/USB resources.
 
 [`AbstractControllerSetup.init()`](../pull-shell/src/main/java/de/mossgrabers/framework/controller/AbstractControllerSetup.java)
 currently creates one connected graph containing settings, model banks, subscriptions, MIDI/USB,
@@ -150,7 +151,7 @@ active concrete view through
 
 Standard class redefinition can replace compatible method bodies, but it cannot reshape those
 already-live objects or rerun their constructors. Re-registering the graph duplicates callbacks
-and retains old objects. API 8 inserts one permanent router before behavior instead.
+and retains old objects. API 9 inserts one permanent router before behavior instead.
 
 ## Target data flow
 
@@ -317,12 +318,12 @@ The shell owns anything coupled to Bitwig or physical hardware:
 - one permanent binding for every migrated Push control and light;
 - canonical Bitwig snapshot and pressed/touched-control state;
 - timer scheduling, generation fencing, and effect execution;
-- classloading, reload status, logging, and safe fallback.
+- classloading, reload status, logging, fault eviction, and transactional candidate rollback.
 
 The shell may reuse the existing `ModelImpl` and Bitwig wrapper graph internally. That graph must
 not cross into the core.
 
-## Installed API 8 bounded capability canopy
+## Installed API 9 bounded capability canopy
 
 Core API 9 installs a broad input seam and a deliberately finite Bitwig state/effect bridge during
 extension initialization. The existence of a shell capability means that the domain is available;
@@ -350,24 +351,28 @@ core result commits.
 `DesiredInputRoutes` is complete replayable state replaced by every accepted `CoreResult`. For each
 registered control and input kind:
 
-- an absent route is shell-internal `NONE`: only established controller behavior runs;
+- an absent route is shell-internal `NONE`: only stable-owned controller behavior runs;
 - `OBSERVE` delivers the normalized event to the core and also runs established controller
   behavior; and
-- `EXCLUSIVE` delivers to the core and suppresses established controller-command dispatch.
+- `EXCLUSIVE` delivers to the core and suppresses stable controller-command dispatch. The shell
+  accepts this mode only for explicitly migrated control-and-kind pairs whose permanent command is
+  semantically inert; it is not a failure-fallback switch.
 
-Buttons, grid edges, touches, and pedals form gestures. Their route is sampled at `BEGIN` and leased
-unchanged through `LONG` and `END`, even if a hot reload replaces the desired route map meanwhile.
-This prevents a release from reaching a legacy command that did not receive the press. Button
-arbitration sits below the framework's consumed-command gate and separates physical from legacy
-pressed state, so an exclusive release cannot strand legacy state or handlers.
+Buttons, grid edges, touches, and pedals form gestures. Their route and active core generation are
+sampled at `BEGIN` and leased unchanged through `LONG` and `END`, even if a hot reload replaces the
+desired route map meanwhile. A completion after reload is offered only to the old generation and
+is rejected rather than delivered to the new core. This prevents a release from reaching a stable
+command or core that did not receive the press. Button arbitration sits below the framework's
+consumed-command gate and separates physical from stable pressed state, so an exclusive release
+cannot strand stable state or handlers.
 
-Motion does not form a lease. The current route is resolved per physical sample, legacy behavior
+Motion does not form a lease. The current route is resolved per physical sample, stable behavior
 runs immediately for `NONE` and `OBSERVE`, and core delivery is bounded to the next controller
 tick. Relative encoder deltas are summed by control-and-kind; absolute ribbon and pressure inputs
 keep only the latest sample. Pending motion is emitted in physical sequence order. A touch release
 flushes that control's pending motion before its `END` event. Once arbitration is installed, a
 Bitwig-backed continuous control retains one stable callback; later mode changes may rebind the
-legacy command or parameter behind that callback but cannot bypass the bridge with a direct target.
+stable command or parameter behind that callback but cannot bypass the bridge with a direct target.
 
 This arbitration governs controller commands, parameter mutations, and framework pressed/touched
 state. It does **not** suppress Bitwig's parallel native `NoteInput` musical path. An exclusive grid
@@ -418,8 +423,9 @@ the Bitwig controller log. An unused installed domain should first be removed fr
 
 ### Typed effects and live identity fences
 
-API 8 can request absolute transport state and values; selected-track activation, group expansion,
-arm, monitor, mute, solo, volume, pan, stop, and Return to Arrangement; target-neutral note-input
+API 9 can request absolute transport state and values; selected-track activation, group expansion,
+arm, monitor, mute, solo, volume, pan, stop, Return to Arrangement, and new-clip creation;
+target-neutral note-input
 MIDI CC, channel pressure, and pitch bend; and drum-pad activation, mute, solo, volume, pan, or
 selection. These are requests, not optimistic state. Hardware feedback still comes from later
 subscribed Bitwig read-back.
@@ -439,19 +445,19 @@ Bitwig's ordinary routing determines which tracks receive both the original and 
 
 ### Deliberate exclusions
 
-This remains a capability canopy, not a mirror of an unbounded Bitwig project. API 8 does not add
+This remains a capability canopy, not a mirror of an unbounded Bitwig project. API 9 does not add
 arbitrary project track/scene banks, arbitrary device-tree recursion, additional drum layers or
 branches, selected-device pages, general parameter windows, or a general actuator pool. Extending
 one of those shapes or adding a new Bitwig property/action requires a parent-loaded API/shell
 change, extension installation, and Bitwig restart.
 
-Output is narrower than input in API 8. The immutable hardware-output contract is present, but the
+Output is narrower than input in API 9. The immutable hardware-output contract is present, but the
 current shell validates and arbitrates only the 12 drum-fill RGB lights. General Push button/grid
-lights, ribbon output, and USB display buffers still belong to legacy shell rendering. Moving those
+lights, ribbon output, and USB display buffers still belong to stable shell rendering. Moving those
 surfaces requires stable complete-output arbitration in the shell and therefore one more
 install/restart before their policies can hot reload.
 
-Once API 8 is installed, new mappings, modes, gestures, and effects composed only from these exact
+Once API 9 is installed, new mappings, modes, gestures, and effects composed only from these exact
 inputs, subscriptions, and executors can ship by core reload. Capability breadth is bounded, and
 subscription choice controls active publication cost inside that bound.
 
@@ -518,7 +524,7 @@ snapshot.
 
 ## Snapshot and effects
 
-The API 8 snapshot contains revision, monotonic time, shell capabilities, the explicitly subscribed
+The API 9 snapshot contains revision, monotonic time, shell capabilities, the explicitly subscribed
 `ControllerBridgeSnapshot`, the complete selected-track clip catalog, verified per-control armed
 clip bindings, the clip-launch session's optional acquired owner-to-target lease and authoritative
 active owner, and pressed/touched controls. A pending fill intent is shell-private and never appears
@@ -725,7 +731,7 @@ effects, rejections, and desired output. A real Bitwig failure can then become a
 | Safe pure-Java core dependency | Package and core reload |
 | Core-owned/migrated mapping, mode, gesture, layout policy, or fill matching | Core reload |
 | Route a currently registered input between `NONE`, `OBSERVE`, and `EXCLUSIVE` | Core reload |
-| Request or stop requesting an existing API 8 bridge subscription | Core reload |
+| Request or stop requesting an existing API 9 bridge subscription | Core reload |
 | Policy for an output surface already migrated to complete shell arbitration (currently the 12 fill lights) | Core reload |
 | Behavior using existing snapshot/effects | Core reload |
 | Behavior within the installed capability canopy | Core reload |
@@ -753,7 +759,7 @@ effects, rejections, and desired output. A real Bitwig failure can then become a
 - Reload while controls are held produces no stuck modifier, pad, note, or momentary action.
 - A route-map change or core reload during an edge gesture preserves its begin-time ownership
   through release; continuous rebinding cannot bypass arbitration.
-- Unrequested API 8 bridge domains publish typed empty values without domain snapshot construction
+- Unrequested API 9 bridge domains publish typed empty values without domain snapshot construction
   or high-rate sampling/DTO churn.
 - Core handoff, selection change, and shutdown neutralize outstanding target-neutral note-input CC,
   channel-pressure, and pitch-bend state on a best-effort basis through ordinary routing.

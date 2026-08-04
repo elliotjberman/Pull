@@ -8,9 +8,9 @@ package de.mossgrabers.pull.core.api;
  */
 public enum InputRouteMode
 {
-    /** Deliver the input to the core and continue legacy dispatch. */
+    /** Deliver the input to the core and continue stable-controller dispatch. */
     OBSERVE,
 
-    /** Deliver the input to the core and suppress legacy dispatch for the gesture. */
+    /** Deliver the input only to the core; valid only for inputs with inert stable bindings. */
     EXCLUSIVE
 }

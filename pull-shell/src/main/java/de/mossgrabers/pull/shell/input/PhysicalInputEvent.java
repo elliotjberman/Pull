@@ -11,13 +11,14 @@ import java.util.Objects;
  *
  * @param sequence Monotonically increasing physical-input sequence
  * @param timeNanos Monotonic sample time in nanoseconds
+ * @param ownerGeneration Reloadable-core generation which owned this sample, or zero when none
  * @param control Registered physical control key
  * @param kind Physical input kind
  * @param phase Input phase
  * @param value Raw or decoded value; coalesced relative values may exceed the range of one sample
  * @param <C> Control key type
  */
-public record PhysicalInputEvent<C> (long sequence, long timeNanos, C control, InputKind kind, InputPhase phase, long value)
+public record PhysicalInputEvent<C> (long sequence, long timeNanos, long ownerGeneration, C control, InputKind kind, InputPhase phase, long value)
 {
     /**
      * Validate an input event.
@@ -26,6 +27,8 @@ public record PhysicalInputEvent<C> (long sequence, long timeNanos, C control, I
     {
         if (sequence <= 0)
             throw new IllegalArgumentException ("sequence must be positive");
+        if (ownerGeneration < 0)
+            throw new IllegalArgumentException ("ownerGeneration must not be negative");
         Objects.requireNonNull (control, "control");
         Objects.requireNonNull (kind, "kind");
         Objects.requireNonNull (phase, "phase");
@@ -36,6 +39,6 @@ public record PhysicalInputEvent<C> (long sequence, long timeNanos, C control, I
 
     PhysicalInputEvent<C> withValue (final long newValue)
     {
-        return new PhysicalInputEvent<> (this.sequence, this.timeNanos, this.control, this.kind, this.phase, newValue);
+        return new PhysicalInputEvent<> (this.sequence, this.timeNanos, this.ownerGeneration, this.control, this.kind, this.phase, newValue);
     }
 }

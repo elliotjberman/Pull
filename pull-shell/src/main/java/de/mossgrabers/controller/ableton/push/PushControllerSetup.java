@@ -29,7 +29,6 @@ import de.mossgrabers.controller.ableton.push.command.trigger.PushCursorCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.PushMetronomeCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.PushPlayCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.PushQuantizeCommand;
-import de.mossgrabers.controller.ableton.push.command.trigger.PushRecordArmCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.RasteredKnobCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.ScalesCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.SelectCommand;
@@ -443,7 +442,11 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
 
         this.addButton (ButtonID.PLAY, "Play", new PushPlayCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_PLAY, t::isPlaying, PushColorManager.PUSH_BUTTON_STATE_PLAY_ON, PushColorManager.PUSH_BUTTON_STATE_PLAY_HI);
 
-        this.addButton (ButtonID.RECORD, "Arm", new PushRecordArmCommand<> (this.model, surface), PushControlSurface.PUSH_BUTTON_RECORD, () -> {
+        // Record is semantically core-owned. This stable binding intentionally performs no action;
+        // it exists only so the permanent input seam and authoritative light remain installed.
+        this.addButton (ButtonID.RECORD, "Arm", (event, velocity) -> {
+            // No stable semantic implementation for a migrated control.
+        }, PushControlSurface.PUSH_BUTTON_RECORD, () -> {
 
             if (surface.isShiftPressed ())
                 return t.isLauncherOverdub () ? 3 : 2;

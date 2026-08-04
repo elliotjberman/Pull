@@ -8,9 +8,9 @@ package de.mossgrabers.pull.shell.input;
  */
 public enum InputRoute
 {
-    /** The stable legacy command receives the input. */
+    /** Stable-owned controller behavior receives the input. */
     NONE,
-    /** The stable legacy command runs and the reloadable consumer observes the input. */
+    /** Stable-owned behavior runs and the reloadable consumer observes the input. */
     OBSERVE,
     /** Only the reloadable consumer receives the input. */
     EXCLUSIVE

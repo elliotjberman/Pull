@@ -61,10 +61,29 @@ final class CoreReloadSupervisor implements AutoCloseable
      */
     boolean handle (final CoreEvent event)
     {
+        return this.handle (this.activeGeneration (), event);
+    }
+
+
+    /**
+     * Deliver an input event only to the generation which owned its physical gesture.
+     *
+     * @param eventGeneration Captured input-owner generation
+     * @param event The event
+     * @return True when the event reached that active generation
+     */
+    boolean handle (final long eventGeneration, final CoreEvent event)
+    {
         Objects.requireNonNull (event, "event");
         if (!this.started || this.closed)
             return false;
-        return this.runtimeManager.handle (this.runtimeManager.activeGeneration (), event);
+        return this.runtimeManager.handle (eventGeneration, event);
+    }
+
+
+    long activeGeneration ()
+    {
+        return this.started && !this.closed ? this.runtimeManager.activeGeneration () : 0;
     }
 
 

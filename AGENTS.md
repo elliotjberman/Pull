@@ -61,25 +61,30 @@
 - Keep every bank, scanner, actuator pool, and proxy window explicitly bounded. Document its
   capacity, identity/generation rules, selection scope, and any required Bitwig
   session setup next to the feature that consumes it.
-- Treat controller input ownership as complete replayable state. An absent route is `NONE`,
+- Treat controller input ownership as complete replayable state. An absent route is stable-owned,
   `OBSERVE` delivers to both the reloadable core and established controller behavior, and
-  `EXCLUSIVE` suppresses established controller-command dispatch. Freeze an edge route selected at
-  gesture `BEGIN` through its `LONG` and `END`, even across a route-map change or core reload, so a
-  release cannot reach behavior that never received the press.
+  `EXCLUSIVE` is valid only for a migrated control whose permanent stable binding is intentionally
+  semantically inert. Freeze an edge route and its active-core generation at gesture `BEGIN`
+  through `LONG` and `END`, even across a route-map change or core reload. A stale completion is
+  rejected instead of reaching either a new core or behavior that never received the press.
 - Install input arbitration once, below button consumed-state handling and below any continuous
   command/parameter rebinding. Never add a second MIDI or hardware callback to observe a migrated
   input. Coalesce relative motion by summing deltas and absolute/pressure motion by keeping the
   latest sample until the controller tick; preserve edge ordering around touch release.
 - Controller-command arbitration and Bitwig's native `NoteInput` are separate paths. An
-  `EXCLUSIVE` pad or pressure route suppresses legacy framework commands and state only; it does
+  `EXCLUSIVE` pad or pressure route suppresses stable framework commands and state only; it does
   not suppress musical note data that Bitwig routes from the permanent Push `NoteInput`.
 - Do not confuse a permanent physical binding with permanent behavior policy. If a control and
   input kind already exist in the stable `PhysicalInputRouter`, and the bridge already exposes the
   authoritative state and effect needed by the feature, implement its behavior in the reloadable
-  core with `OBSERVE` or `EXCLUSIVE` routing. The stable command is then only a failure fallback;
-  changing that command is not justified merely because it was the pre-migration implementation.
-  A restart is required only when the physical input, required state/effect capability, or output
-  transport is missing from the installed canopy.
+  core with `OBSERVE` or `EXCLUSIVE` routing. Complete the migration: move every semantic variant
+  of an exclusively owned gesture into the core, replace its stable command with an inert binding,
+  and admit that exact control-and-kind pair to exclusive routing. Do not keep a second stable
+  implementation for missing, incomplete, or faulted cores. Missing or faulted core behavior is
+  inert and must be reported; a rejected replacement candidate may leave the previously active
+  core running because activation is transactional. A restart is required only when the physical
+  input, required state/effect capability, or output transport is missing from the installed
+  canopy.
 - Input and output migration are independent. A core-owned button action may still use a stable
   light supplier when that supplier renders the same authoritative Bitwig read-back. Do not put
   action policy back in the shell merely because general light ownership has not migrated; expand
@@ -102,8 +107,8 @@
 - A core-only change inside the installed API/canopy hot reloads. Changing a parent-loaded API
   contract, adding a Bitwig proxy/property/observer, changing a permanent binding or proxy capacity,
   or broadening hardware output ownership requires a shell build/install and Bitwig restart.
-- API 8 arbitrates general input, so mappings whose state and effects are already bridged belong in
-  the reloadable core. Only the 12 drum-fill RGB lights have migrated output ownership; do not
+- Core API 9 arbitrates general input, so mappings whose state and effects are already bridged
+  belong in the reloadable core. Only the 12 drum-fill RGB lights have migrated output ownership; do not
   claim general Push light or display hot reload until stable complete-output arbitration exists
   for those surfaces.
 

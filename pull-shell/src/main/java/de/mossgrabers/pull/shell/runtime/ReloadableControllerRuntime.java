@@ -132,7 +132,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
 
 
     /**
-     * Start the loader after the legacy controller graph has completed startup.
+     * Start the loader after the stable controller graph has completed startup.
      */
     public void start ()
     {
@@ -170,7 +170,8 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             Objects.requireNonNull (surface, "surface"),
             Objects.requireNonNull (valueChanger, "valueChanger"),
             this.environment::desiredInputRoutes,
-            this::handleControllerInput);
+            this::handleControllerInput,
+            () -> this.supervisor == null ? 0 : this.supervisor.activeGeneration ());
         this.environment.setInputRouteValidator (this.inputBridge::supports);
     }
 
@@ -210,7 +211,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
 
 
     /**
-     * Route a physical fill pad before the legacy active-view dispatch.
+     * Route a physical fill pad before the stable active-view dispatch.
      *
      * @param drumControlsActive True when the drum layout owns its controls and the selected target
      *            supports the drum controller
@@ -300,12 +301,12 @@ public final class ReloadableControllerRuntime implements AutoCloseable
      * @param status MIDI status
      * @param data1 First MIDI data byte
      * @param data2 Second MIDI data byte
-     * @param legacy Existing surface MIDI handling
-     * @return True when the bridge handled the message and any allowed legacy dispatch
+     * @param stableDispatch Existing stable surface MIDI handling
+     * @return True when the bridge handled the message and any allowed stable dispatch
      */
-    public boolean routeControllerMidi (final int status, final int data1, final int data2, final Runnable legacy)
+    public boolean routeControllerMidi (final int status, final int data1, final int data2, final Runnable stableDispatch)
     {
-        return this.inputBridge != null && !this.closed && this.inputBridge.routeMidi (status, data1, data2, Objects.requireNonNull (legacy, "legacy"));
+        return this.inputBridge != null && !this.closed && this.inputBridge.routeMidi (status, data1, data2, Objects.requireNonNull (stableDispatch, "stableDispatch"));
     }
 
 
@@ -405,8 +406,12 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             de.mossgrabers.pull.core.api.event.InputKind.valueOf (event.kind ().name ()),
             event.phase () == de.mossgrabers.pull.shell.input.InputPhase.CHANGE ? de.mossgrabers.pull.core.api.event.InputPhase.UPDATE : de.mossgrabers.pull.core.api.event.InputPhase.valueOf (event.phase ().name ()),
             event.value ());
-        if (this.started)
+        if (!this.started)
+            return;
+        if (this.supervisor == null)
             this.eventHandler.test (input);
+        else
+            this.supervisor.handle (event.ownerGeneration (), input);
     }
 
 

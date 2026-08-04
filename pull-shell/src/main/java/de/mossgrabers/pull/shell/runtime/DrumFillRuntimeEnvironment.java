@@ -63,7 +63,7 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
         Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.SUBSCRIPTION_CONTROLLER_BRIDGE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_TRANSPORT, Integer.valueOf (1)),
-        Map.entry (CoreCapabilities.EFFECT_SELECTED_TRACK, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.EFFECT_SELECTED_TRACK, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.EFFECT_DRUM_PAD, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_NOTE_INPUT_MIDI, Integer.valueOf (1))));
 
@@ -79,18 +79,13 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     private ClipCatalogSnapshot clipCatalog;
     private Map<ControlId, ClipTargetId> armedClipTargets;
     private FillSessionView lastObservedSession;
-    private Map<ControlId, RgbColor> fillLightColors = offLights ();
-    private DesiredInputRoutes desiredInputRoutes = DesiredInputRoutes.empty ();
-    private DesiredBridgeSubscriptions desiredBridgeSubscriptions = DesiredBridgeSubscriptions.empty ();
+    private CommittedState committedState = CommittedState.initial ();
     private Predicate<de.mossgrabers.pull.core.api.InputRoute> inputRouteValidator = route -> false;
     private long pendingSnapshotRevision = -1;
     private long hostSampleRevision;
     private long lastTime;
     private long revision;
     private long eventSequence;
-    private long outputGeneration;
-    private long committedGeneration;
-    private PreparedResult committedResult;
 
 
     /**
@@ -166,7 +161,7 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
             this.recordSnapshotChange ();
         }
         this.recordSessionChange ();
-        if (this.controllerBridge != null && this.controllerBridge.refresh (this.now (), this.desiredBridgeSubscriptions))
+        if (this.controllerBridge != null && this.controllerBridge.refresh (this.now (), this.committedState.desiredBridgeSubscriptions ()))
             this.recordSnapshotChange ();
 
         return this.hasPendingSnapshotChange ();
@@ -295,7 +290,7 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
      */
     RgbColor fillLightColor (final ControlId owner)
     {
-        return this.fillLightColors.get (requireFillOwner (owner));
+        return this.committedState.fillLightColors ().get (requireFillOwner (owner));
     }
 
 
@@ -306,7 +301,7 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
      */
     long outputGeneration ()
     {
-        return this.outputGeneration;
+        return this.committedState.generation ();
     }
 
 
@@ -317,7 +312,7 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
      */
     DesiredInputRoutes desiredInputRoutes ()
     {
-        return this.desiredInputRoutes;
+        return this.committedState.desiredInputRoutes ();
     }
 
 
@@ -328,7 +323,7 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
      */
     void setInputRouteValidator (final Predicate<de.mossgrabers.pull.core.api.InputRoute> validator)
     {
-        if (this.committedGeneration != 0)
+        if (this.committedState.generation () != 0)
             throw new IllegalStateException ("Input-route validation must be installed before core activation");
         this.inputRouteValidator = Objects.requireNonNull (validator, "validator");
     }
@@ -356,14 +351,7 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     public void commit (final long generation, final PreparedCoreResult result)
     {
         final PreparedResult prepared = (PreparedResult) result;
-        this.committedResult = prepared;
-        this.committedGeneration = generation;
-        this.fillLightColors = prepared.fillLightColors ();
-        this.desiredInputRoutes = prepared.desiredInputRoutes ();
-        this.desiredBridgeSubscriptions = prepared.desiredBridgeSubscriptions ();
-        this.outputGeneration = generation;
-        if (this.controllerBridge != null)
-            this.controllerBridge.activateCoreGeneration (generation);
+        this.committedState = CommittedState.pending (generation, prepared);
     }
 
 
@@ -371,13 +359,17 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     @Override
     public void apply (final long generation)
     {
-        if (generation != this.committedGeneration)
+        final CommittedState committed = this.committedState;
+        if (generation != committed.generation ())
             return;
 
-        final PreparedResult prepared = this.committedResult;
+        final PreparedResult prepared = committed.pendingResult ();
         if (prepared == null)
             return;
-        this.committedResult = null;
+        this.committedState = committed.applied ();
+
+        if (this.controllerBridge != null)
+            this.controllerBridge.activateCoreGeneration (generation);
 
         this.clipHost.setDesiredBindings (prepared.catalogGeneration (), prepared.desiredClipBindings ());
         boolean acquisitionFailed = false;
@@ -401,12 +393,7 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     @Override
     public void invalidate (final long generation)
     {
-        this.committedResult = null;
-        this.committedGeneration = generation;
-        this.fillLightColors = offLights ();
-        this.desiredInputRoutes = DesiredInputRoutes.empty ();
-        this.desiredBridgeSubscriptions = DesiredBridgeSubscriptions.empty ();
-        this.outputGeneration = generation;
+        this.committedState = CommittedState.invalidated (generation);
 
         if (this.controllerBridge != null)
             this.controllerBridge.invalidate ();
@@ -420,9 +407,9 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
             this.warn ("Clearing fill bindings during invalidation failed: " + sanitize (failure));
         }
 
-        // Runtime invalidation is terminal extension shutdown, not an ordinary child-core reload.
-        // API 21 offers no post-exit observation window, so this can only submit one best-effort
-        // Return for the active fill; normal running handoffs finish from later refreshes.
+        // During a core fault the stable runtime keeps advancing this return. At terminal extension
+        // shutdown API 21 offers no post-exit observation window, so the same request is necessarily
+        // best effort.
         this.fillSession.invalidate (this.hostSampleRevision);
         this.recordSessionChange ();
 
@@ -985,6 +972,44 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
             desiredBridgeSubscriptions = Objects.requireNonNull (desiredBridgeSubscriptions, "desiredBridgeSubscriptions");
             desiredClipBindings = Map.copyOf (desiredClipBindings);
             actions = List.copyOf (actions);
+        }
+    }
+
+
+    private record CommittedState (long generation, Map<ControlId, RgbColor> fillLightColors, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, PreparedResult pendingResult)
+    {
+        private CommittedState
+        {
+            if (generation < 0)
+                throw new IllegalArgumentException ("generation must not be negative");
+            fillLightColors = Map.copyOf (fillLightColors);
+            desiredInputRoutes = Objects.requireNonNull (desiredInputRoutes, "desiredInputRoutes");
+            desiredBridgeSubscriptions = Objects.requireNonNull (desiredBridgeSubscriptions, "desiredBridgeSubscriptions");
+        }
+
+
+        private static CommittedState initial ()
+        {
+            return invalidated (0);
+        }
+
+
+        private static CommittedState pending (final long generation, final PreparedResult result)
+        {
+            final PreparedResult prepared = Objects.requireNonNull (result, "result");
+            return new CommittedState (generation, prepared.fillLightColors (), prepared.desiredInputRoutes (), prepared.desiredBridgeSubscriptions (), prepared);
+        }
+
+
+        private static CommittedState invalidated (final long generation)
+        {
+            return new CommittedState (generation, offLights (), DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), null);
+        }
+
+
+        private CommittedState applied ()
+        {
+            return new CommittedState (this.generation, this.fillLightColors, this.desiredInputRoutes, this.desiredBridgeSubscriptions, null);
         }
     }
 

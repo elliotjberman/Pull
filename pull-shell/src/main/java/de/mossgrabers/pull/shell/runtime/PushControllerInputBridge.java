@@ -17,13 +17,16 @@ import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.shell.input.InputKind;
 import de.mossgrabers.pull.shell.input.InputPhase;
 import de.mossgrabers.pull.shell.input.PhysicalControlRegistry;
+import de.mossgrabers.pull.shell.input.PhysicalInputAddress;
 import de.mossgrabers.pull.shell.input.PhysicalInputEvent;
 import de.mossgrabers.pull.shell.input.PhysicalInputRouter;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 
@@ -41,6 +44,8 @@ final class PushControllerInputBridge
     private static final int MIDI_CC = 0xB0;
     private static final int MIDI_CHANNEL_PRESSURE = 0xD0;
     private static final int SUSTAIN_CC = 64;
+    private static final Set<PhysicalInputAddress<ControlId>> CORE_OWNED_INPUTS = Set.of (
+        new PhysicalInputAddress<> (PushControlIds.button (ButtonID.RECORD.name ()), InputKind.BUTTON));
 
     private static final List<ContinuousID> CONTINUOUS_CONTROLS = List.of (
         ContinuousID.KNOB1,
@@ -70,14 +75,15 @@ final class PushControllerInputBridge
      * @param valueChanger Relative-value decoder
      * @param routes Complete committed route supplier
      * @param eventSink Normalized event sink
+     * @param activeGeneration Current active reloadable-core generation
      */
-    PushControllerInputBridge (final PushControlSurface surface, final IValueChanger valueChanger, final Supplier<DesiredInputRoutes> routes, final Consumer<PhysicalInputEvent<ControlId>> eventSink)
+    PushControllerInputBridge (final PushControlSurface surface, final IValueChanger valueChanger, final Supplier<DesiredInputRoutes> routes, final Consumer<PhysicalInputEvent<ControlId>> eventSink, final LongSupplier activeGeneration)
     {
         this.surface = Objects.requireNonNull (surface, "surface");
         this.valueChanger = Objects.requireNonNull (valueChanger, "valueChanger");
         this.routes = Objects.requireNonNull (routes, "routes");
         this.registry = this.createRegistry ();
-        this.router = new PhysicalInputRouter<> (this.registry, this::resolveRoute, Objects.requireNonNull (eventSink, "eventSink"));
+        this.router = new PhysicalInputRouter<> (this.registry, this::resolveRoute, Objects.requireNonNull (eventSink, "eventSink"), System::nanoTime, Objects.requireNonNull (activeGeneration, "activeGeneration"));
         this.installWrappers ();
     }
 
@@ -100,7 +106,10 @@ final class PushControllerInputBridge
     boolean supports (final de.mossgrabers.pull.core.api.InputRoute route)
     {
         Objects.requireNonNull (route, "route");
-        return this.registry.contains (route.controlId (), toShellKind (route.kind ()));
+        final InputKind kind = toShellKind (route.kind ());
+        if (!this.registry.contains (route.controlId (), kind))
+            return false;
+        return route.mode () != InputRouteMode.EXCLUSIVE || CORE_OWNED_INPUTS.contains (new PhysicalInputAddress<> (route.controlId (), kind));
     }
 
 
@@ -110,10 +119,10 @@ final class PushControllerInputBridge
      * @param status MIDI status
      * @param data1 First MIDI byte
      * @param data2 Second MIDI byte
-     * @param legacy Existing surface MIDI handling
-     * @return True when this method invoked or intentionally suppressed legacy handling
+     * @param stableDispatch Existing stable surface MIDI handling
+     * @return True when this method invoked or intentionally suppressed stable handling
      */
-    boolean routeMidi (final int status, final int data1, final int data2, final Runnable legacy)
+    boolean routeMidi (final int status, final int data1, final int data2, final Runnable stableDispatch)
     {
         final int command = status & 0xF0;
         if (command == MIDI_POLY_PRESSURE)
@@ -121,18 +130,18 @@ final class PushControllerInputBridge
             final int padIndex = data1 - this.surface.getPadGrid ().getStartNote ();
             if (padIndex < 0 || padIndex >= 64)
                 return false;
-            this.router.route (PushControlIds.pad (padIndex + 1), InputKind.POLY_PRESSURE, InputPhase.CHANGE, data2, legacy);
+            this.router.route (PushControlIds.pad (padIndex + 1), InputKind.POLY_PRESSURE, InputPhase.CHANGE, data2, stableDispatch);
             return true;
         }
         if (command == MIDI_CHANNEL_PRESSURE)
         {
-            this.router.route (PushControlIds.CHANNEL_PRESSURE, InputKind.CHANNEL_PRESSURE, InputPhase.CHANGE, data1, legacy);
+            this.router.route (PushControlIds.CHANNEL_PRESSURE, InputKind.CHANNEL_PRESSURE, InputPhase.CHANGE, data1, stableDispatch);
             return true;
         }
         if (command == MIDI_CC && data1 == SUSTAIN_CC)
         {
             final boolean pressed = data2 > 0;
-            this.router.route (PushControlIds.SUSTAIN_PEDAL, InputKind.PEDAL, pressed ? InputPhase.BEGIN : InputPhase.END, pressed ? data2 : 0, legacy);
+            this.router.route (PushControlIds.SUSTAIN_PEDAL, InputKind.PEDAL, pressed ? InputPhase.BEGIN : InputPhase.END, pressed ? data2 : 0, stableDispatch);
             return true;
         }
         return false;
@@ -182,7 +191,7 @@ final class PushControllerInputBridge
             final int padIndex = padIndex (entry.getKey ());
             final ControlId control = padIndex < 0 ? PushControlIds.button (entry.getKey ().name ()) : PushControlIds.pad (padIndex + 1);
             final InputKind kind = padIndex < 0 && entry.getKey () != ButtonID.FOOTSWITCH2 ? InputKind.BUTTON : padIndex < 0 ? InputKind.PEDAL : InputKind.PAD;
-            button.installEventArbitrator ( (event, velocity, legacyDispatch) -> this.router.route (control, kind, toShellPhase (event), velocity, legacyDispatch));
+            button.installEventArbitrator ( (event, velocity, stableDispatch) -> this.router.route (control, kind, toShellPhase (event), velocity, stableDispatch));
         }
 
         for (final ContinuousID id: CONTINUOUS_CONTROLS)
@@ -196,17 +205,17 @@ final class PushControllerInputBridge
             if (isRelative || isAbsolute)
             {
                 final InputKind kind = isRelative ? InputKind.RELATIVE : InputKind.ABSOLUTE;
-                control.installValueArbitrator ( (value, legacyMutation) -> this.router.route (
+                control.installValueArbitrator ( (value, stableMutation) -> this.router.route (
                     controlID,
                     kind,
                     InputPhase.CHANGE,
                     isRelative ? this.valueChanger.decode (value) : value,
-                    legacyMutation));
+                    stableMutation));
             }
 
             if (control.getTouchCommand () != null)
             {
-                control.installTouchEventArbitrator ( (event, velocity, legacyDispatch) -> {
+                control.installTouchEventArbitrator ( (event, velocity, stableDispatch) -> {
                     if (event == ButtonEvent.UP)
                     {
                         if (isRelative)
@@ -214,7 +223,7 @@ final class PushControllerInputBridge
                         if (isAbsolute)
                             this.router.flush (controlID, InputKind.ABSOLUTE);
                     }
-                    this.router.route (controlID, InputKind.TOUCH, toShellPhase (event), velocity, legacyDispatch);
+                    this.router.route (controlID, InputKind.TOUCH, toShellPhase (event), velocity, stableDispatch);
                 });
             }
         }

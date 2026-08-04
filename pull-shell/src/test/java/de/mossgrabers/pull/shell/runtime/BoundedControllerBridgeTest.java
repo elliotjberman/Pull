@@ -18,8 +18,10 @@ import de.mossgrabers.framework.daw.ITransport;
 import de.mossgrabers.framework.daw.data.ICursorTrack;
 import de.mossgrabers.framework.daw.data.IDrumDevice;
 import de.mossgrabers.framework.daw.data.IDrumPad;
+import de.mossgrabers.framework.daw.data.ISlot;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.IDrumPadBank;
+import de.mossgrabers.framework.daw.data.bank.ISlotBank;
 import de.mossgrabers.framework.daw.midi.IMidiInput;
 import de.mossgrabers.framework.daw.midi.IMidiOutput;
 import de.mossgrabers.framework.daw.midi.ISelectedTrackNoteTarget;
@@ -30,6 +32,8 @@ import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DrumContextSnapshot;
 import de.mossgrabers.pull.core.api.effect.SelectDrumPadEffect;
+import de.mossgrabers.pull.core.api.effect.SelectedTrackAction;
+import de.mossgrabers.pull.core.api.effect.SelectedTrackActionEffect;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackBoolean;
 import de.mossgrabers.pull.core.api.effect.SendNoteInputMidiEffect;
 import de.mossgrabers.pull.core.api.effect.SetSelectedTrackBooleanEffect;
@@ -110,6 +114,19 @@ class BoundedControllerBridgeTest
         fixture.bridge.apply (prepared);
 
         assertEquals (0, fixture.selected.armedWriteCount);
+    }
+
+
+    @Test
+    void createsANewClipThroughTheDisplayIndependentSelectedTrackAction ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.SELECTED_TRACK));
+
+        fixture.bridge.apply (fixture.bridge.prepare (
+            new SelectedTrackActionEffect (1, "track-a", SelectedTrackAction.CREATE_NEW_CLIP)));
+
+        assertEquals (1, fixture.newClipCount);
     }
 
 
@@ -196,6 +213,7 @@ class BoundedControllerBridgeTest
         private final List<MidiMessage> noteInputMidiMessages = new ArrayList<> ();
         private final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
         private final BoundedControllerBridge bridge;
+        private int newClipCount;
 
 
         private BridgeFixture ()
@@ -209,6 +227,10 @@ class BoundedControllerBridgeTest
                 case "getCursorTrack" -> cursorTrack;
                 case "getDrumDevice" -> drumDevice;
                 case "getValueChanger" -> this.valueChanger;
+                case "createNoteClip" -> {
+                    this.newClipCount++;
+                    yield null;
+                }
                 default -> relaxedValue (method.getReturnType ());
             });
             final PushControlSurface surface = createSurface (this.selected, cursorTrack, this.valueChanger);
@@ -457,10 +479,18 @@ class BoundedControllerBridgeTest
 
         private ICursorTrack cursorTrack ()
         {
+            final ISlot slot = relaxedProxy (ISlot.class);
+            final ISlotBank slotBank = proxy (ISlotBank.class, (proxy, method, arguments) -> switch (method.getName ())
+            {
+                case "getSelectedItem" -> java.util.Optional.empty ();
+                case "getEmptySlot" -> java.util.Optional.of (slot);
+                default -> relaxedValue (method.getReturnType ());
+            });
             return proxy (ICursorTrack.class, (proxy, method, arguments) -> switch (method.getName ())
             {
                 case "doesExist" -> Boolean.TRUE;
                 case "getChannelID" -> this.selected.channelID;
+                case "getSlotBank" -> slotBank;
                 default -> relaxedValue (method.getReturnType ());
             });
         }

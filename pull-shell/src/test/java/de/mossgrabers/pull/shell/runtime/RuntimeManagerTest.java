@@ -333,7 +333,7 @@ class RuntimeManagerTest
 
 
     @Test
-    void eventPrepareFailurePreservesTheLastCommittedResult ()
+    void eventPrepareFailureFaultsAndInvalidatesTheActiveCore ()
     {
         final TestEnvironment environment = new TestEnvironment (ShellCapabilities.empty ());
         final RecordingLog log = new RecordingLog ();
@@ -342,15 +342,43 @@ class RuntimeManagerTest
         final CoreEvent event = new ButtonInputEvent (1, 0, new ControlId ("test"), true);
 
         manager.start ();
-        manager.activate ("stable", source ("stable", core), () -> true);
+        final TestSource source = source ("stable", core);
+        manager.activate ("stable", source, () -> true);
         environment.failNextPrepare = true;
 
         assertFalse (manager.handle (manager.activeGeneration (), event));
         assertEquals (1, core.handleCount);
-        assertEquals ("stable", manager.activeBuildId ());
+        assertEquals ("", manager.activeBuildId ());
+        assertEquals (0, manager.activeGeneration ());
+        assertTrue (source.closed);
         assertEquals (List.of (1L), environment.committedGenerations);
         assertEquals (List.of (1L), environment.appliedGenerations);
-        assertTrue (log.warnings.stream ().anyMatch (message -> message.contains ("Active core event failed")));
+        assertEquals (List.of (2L), environment.invalidatedGenerations);
+        assertTrue (log.warnings.stream ().anyMatch (message -> message.contains ("Faulted reloadable core stable")));
+        manager.close ();
+    }
+
+
+    @Test
+    void coreHandleFailureFaultsInsteadOfLeavingAControlSwallowingCoreActive ()
+    {
+        final TestEnvironment environment = new TestEnvironment (ShellCapabilities.empty ());
+        final RecordingLog log = new RecordingLog ();
+        final RuntimeManager manager = new RuntimeManager (environment, log);
+        final TestCore core = new TestCore (1);
+        final TestSource source = source ("stable", core);
+        final CoreEvent event = new ButtonInputEvent (1, 0, new ControlId ("test"), true);
+
+        manager.start ();
+        manager.activate ("stable", source, () -> true);
+        core.failHandle = true;
+
+        assertFalse (manager.handle (manager.activeGeneration (), event));
+        assertEquals ("", manager.activeBuildId ());
+        assertEquals (0, manager.activeGeneration ());
+        assertTrue (source.closed);
+        assertEquals (List.of (2L), environment.invalidatedGenerations);
+        assertTrue (log.warnings.stream ().anyMatch (message -> message.contains ("broken handle")));
         manager.close ();
     }
 
@@ -441,6 +469,7 @@ class RuntimeManagerTest
         private Optional<StateEnvelope> previousState = Optional.empty ();
         private boolean failStart;
         private boolean failCheckpoint;
+        private boolean failHandle;
         private int handleCount;
 
 
@@ -464,6 +493,8 @@ class RuntimeManagerTest
         public CoreResult handle (final CoreEvent event, final ControllerSnapshot snapshot)
         {
             this.handleCount++;
+            if (this.failHandle)
+                throw new IllegalStateException ("broken handle");
             return CoreResult.empty ();
         }
 
@@ -487,6 +518,7 @@ class RuntimeManagerTest
         private final ShellCapabilities capabilities;
         private final List<Long> committedGenerations = new ArrayList<> ();
         private final List<Long> appliedGenerations = new ArrayList<> ();
+        private final List<Long> invalidatedGenerations = new ArrayList<> ();
         private long revision;
         private boolean failNextPrepare;
         private boolean failNextCommit;
@@ -554,7 +586,7 @@ class RuntimeManagerTest
         @Override
         public void invalidate (final long generation)
         {
-            // Nothing scheduled in this fake.
+            this.invalidatedGenerations.add (Long.valueOf (generation));
         }
     }
 

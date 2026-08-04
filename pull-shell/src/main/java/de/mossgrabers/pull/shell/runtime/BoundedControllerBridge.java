@@ -4,6 +4,7 @@
 package de.mossgrabers.pull.shell.runtime;
 
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
+import de.mossgrabers.framework.command.trigger.clip.NewClipAction;
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.IModel;
@@ -71,6 +72,7 @@ final class BoundedControllerBridge
     private final MidiShortCallback noteInputMidiSender;
     private final PushControlSurface surface;
     private final IValueChanger valueChanger;
+    private final NewClipAction newClipAction;
     private final Map<MidiStateKey, MidiState> noteInputMidiState = new HashMap<> ();
 
     private ControllerBridgeSnapshot snapshot = ControllerBridgeSnapshot.empty ();
@@ -102,6 +104,7 @@ final class BoundedControllerBridge
         this.noteInputMidiSender = Objects.requireNonNull (noteInputMidiSender, "noteInputMidiSender");
         this.surface = Objects.requireNonNull (surface, "surface");
         this.valueChanger = Objects.requireNonNull (valueChanger, "valueChanger");
+        this.newClipAction = new NewClipAction (model);
     }
 
 
@@ -512,10 +515,21 @@ final class BoundedControllerBridge
     {
         if (!this.selectedTargetIsCurrent (request.generation (), request.channelID ()))
             return;
-        if (request.action () == SelectedTrackAction.STOP)
-            this.selectedTarget.stop ();
-        else
-            this.selectedTarget.returnToArrangement ();
+        switch (request.action ())
+        {
+            case STOP -> this.selectedTarget.stop ();
+            case RETURN_TO_ARRANGEMENT -> this.selectedTarget.returnToArrangement ();
+            case CREATE_NEW_CLIP ->
+            {
+                // Clip creation uses the framework cursor. Fail closed while Track Pin or any other
+                // cursor state points it away from the private selection-following target.
+                if (this.model.getCursorTrack ().doesExist () && request.channelID ().equals (this.model.getCursorTrack ().getChannelID ()))
+                {
+                    final int lengthInBeats = this.surface.getConfiguration ().getNewClipLenghthInBeats (this.model.getTransport ().getQuartersPerMeasure ());
+                    this.newClipAction.execute (lengthInBeats, true);
+                }
+            }
+        }
     }
 
 
