@@ -1,0 +1,412 @@
+// (c) 2026
+// Licensed under LGPLv3 - http://www.gnu.org/licenses/lgpl-3.0.txt
+
+package de.mossgrabers.pull.shell.runtime;
+
+import de.mossgrabers.pull.core.api.ControllerCore;
+import de.mossgrabers.pull.core.api.ControllerSnapshot;
+import de.mossgrabers.pull.core.api.CoreApi;
+import de.mossgrabers.pull.core.api.CoreDescriptor;
+import de.mossgrabers.pull.core.api.CoreProvider;
+import de.mossgrabers.pull.core.api.CoreResult;
+import de.mossgrabers.pull.core.api.StateEnvelope;
+import de.mossgrabers.pull.core.api.event.CoreEvent;
+
+import java.util.Objects;
+import java.util.Optional;
+import java.util.function.BooleanSupplier;
+
+/**
+ * Serial controller-thread owner of the active reloadable core.
+ */
+final class RuntimeManager implements AutoCloseable
+{
+    private static final long SLOW_EVENT_NANOS = 8_000_000;
+    private static final long SLOW_WARNING_INTERVAL_NANOS = 5_000_000_000L;
+
+    private final CoreRuntimeEnvironment environment;
+    private final RuntimeLog log;
+    private Lifecycle lifecycle = Lifecycle.NEW;
+    private Thread controllerThread;
+    private ActiveCore active;
+    private long generation;
+    private long lastSlowEventWarningNanos = Long.MIN_VALUE;
+
+
+    RuntimeManager (final CoreRuntimeEnvironment environment, final RuntimeLog log)
+    {
+        this.environment = Objects.requireNonNull (environment, "environment");
+        this.log = Objects.requireNonNull (log, "log");
+    }
+
+
+    /**
+     * Bind this manager to the current Bitwig controller thread.
+     */
+    void start ()
+    {
+        if (this.lifecycle != Lifecycle.NEW)
+            throw new IllegalStateException ("RuntimeManager can only be started once");
+
+        this.controllerThread = Thread.currentThread ();
+        this.lifecycle = Lifecycle.RUNNING;
+    }
+
+
+    /**
+     * Transactionally activate a verified candidate.
+     *
+     * @param expectedBuildId Build ID from the parent-owned manifest
+     * @param source Candidate provider source
+     * @param isLatest True while this request is still the newest observed manifest
+     * @return The activation result
+     */
+    ActivationResult activate (final String expectedBuildId, final CoreProviderSource source, final BooleanSupplier isLatest)
+    {
+        this.requireRunningOnControllerThread ();
+        Objects.requireNonNull (expectedBuildId, "expectedBuildId");
+        Objects.requireNonNull (source, "source");
+        Objects.requireNonNull (isLatest, "isLatest");
+
+        ControllerCore candidateCore = null;
+        CoreDescriptor descriptor;
+        PreparedCoreResult preparedStartupResult;
+        try
+        {
+            if (!isLatest.getAsBoolean ())
+                return this.supersede (expectedBuildId, source);
+
+            final CoreProvider provider = source.instantiateProvider ();
+            descriptor = source.invokeWithContext (provider::descriptor);
+            this.validateDescriptor (expectedBuildId, descriptor);
+
+            final Optional<StateEnvelope> previousState = this.compatibleCheckpoint (descriptor);
+            final ControllerSnapshot snapshot = this.environment.snapshot ();
+            candidateCore = source.invokeWithContext (provider::create);
+            if (candidateCore == null)
+                throw new IllegalStateException ("CoreProvider.create returned null");
+
+            final ControllerCore startedCore = candidateCore;
+            final CoreResult startupResult = source.invokeWithContext ( () -> startedCore.start (snapshot, previousState));
+            preparedStartupResult = this.environment.prepare (Objects.requireNonNull (startupResult, "ControllerCore.start result"));
+            Objects.requireNonNull (preparedStartupResult, "CoreRuntimeEnvironment.prepare result");
+
+            if (!isLatest.getAsBoolean ())
+            {
+                this.closeCandidate (source);
+                return new ActivationResult (ActivationResult.State.SUPERSEDED, expectedBuildId, this.activeBuildId (), "Superseded by a newer build");
+            }
+
+        }
+        catch (final Throwable failure)
+        {
+            rethrowFatal (failure);
+            this.closeCandidate (source);
+            final String message = sanitize (failure);
+            this.warn ("Core " + expectedBuildId + " was rejected: " + message);
+            return new ActivationResult (ActivationResult.State.FAILED, expectedBuildId, this.activeBuildId (), message);
+        }
+
+        final long nextGeneration = Math.incrementExact (this.generation);
+        final ActiveCore previous = this.active;
+        try
+        {
+            this.environment.commit (nextGeneration, preparedStartupResult);
+        }
+        catch (final Throwable failure)
+        {
+            rethrowFatal (failure);
+            this.closeCandidate (source);
+            final String message = "Atomic shell state commit failed: " + sanitize (failure);
+            this.warn ("Core " + expectedBuildId + " was rejected: " + message);
+            return new ActivationResult (ActivationResult.State.FAILED, expectedBuildId, this.activeBuildId (), message);
+        }
+
+        this.active = new ActiveCore (descriptor, source, candidateCore, nextGeneration);
+        this.generation = nextGeneration;
+        this.applyCommittedResult (nextGeneration);
+        this.closeActive (previous);
+        this.info ("Activated reloadable core " + descriptor.buildId ());
+        return new ActivationResult (ActivationResult.State.ACTIVE, expectedBuildId, descriptor.buildId (), "Activated");
+    }
+
+
+    /**
+     * Deliver an event only to the generation that scheduled it.
+     *
+     * @param eventGeneration The captured active generation
+     * @param event The event
+     * @return True when the event reached the active core
+     */
+    boolean handle (final long eventGeneration, final CoreEvent event)
+    {
+        this.requireRunningOnControllerThread ();
+        Objects.requireNonNull (event, "event");
+        final ActiveCore runtime = this.active;
+        if (runtime == null || runtime.generation != eventGeneration)
+            return false;
+
+        final long startedAt = System.nanoTime ();
+        try
+        {
+            final ControllerSnapshot snapshot = this.environment.snapshot ();
+            final CoreResult result = runtime.source.invokeWithContext ( () -> runtime.core.handle (event, snapshot));
+            final PreparedCoreResult preparedResult = this.environment.prepare (Objects.requireNonNull (result, "ControllerCore.handle result"));
+            Objects.requireNonNull (preparedResult, "CoreRuntimeEnvironment.prepare result");
+            this.environment.commit (runtime.generation, preparedResult);
+        }
+        catch (final Throwable failure)
+        {
+            rethrowFatal (failure);
+            final String message = sanitize (failure);
+            this.faultActive (runtime, message);
+            this.reportSlowEvent (event, startedAt);
+            return false;
+        }
+
+        this.applyCommittedResult (runtime.generation);
+        this.reportSlowEvent (event, startedAt);
+        return true;
+    }
+
+
+    String activeBuildId ()
+    {
+        return this.active == null ? "" : this.active.descriptor.buildId ();
+    }
+
+
+    long activeGeneration ()
+    {
+        return this.active == null ? 0 : this.active.generation;
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void close ()
+    {
+        if (this.lifecycle == Lifecycle.CLOSED)
+            return;
+        if (this.lifecycle == Lifecycle.NEW)
+        {
+            this.lifecycle = Lifecycle.CLOSED;
+            return;
+        }
+
+        this.requireControllerThread ();
+        this.lifecycle = Lifecycle.CLOSING;
+        this.generation = Math.incrementExact (this.generation);
+        final ActiveCore previous = this.active;
+        this.active = null;
+        try
+        {
+            this.environment.invalidate (this.generation);
+        }
+        catch (final RuntimeException failure)
+        {
+            this.warn ("Core generation invalidation failed: " + sanitize (failure));
+        }
+        finally
+        {
+            this.closeActive (previous);
+            this.lifecycle = Lifecycle.CLOSED;
+        }
+    }
+
+
+    private void validateDescriptor (final String expectedBuildId, final CoreDescriptor descriptor)
+    {
+        Objects.requireNonNull (descriptor, "CoreProvider.descriptor result");
+        if (descriptor.apiVersion () != CoreApi.VERSION)
+            throw new IllegalArgumentException ("Core API version " + descriptor.apiVersion () + " does not match shell API " + CoreApi.VERSION);
+        if (!expectedBuildId.equals (descriptor.buildId ()))
+            throw new IllegalArgumentException ("Core descriptor build ID does not match manifest build ID " + expectedBuildId);
+
+        final ControllerSnapshot snapshot = this.environment.snapshot ();
+        if (!snapshot.capabilities ().supports (descriptor.requiredCapabilities ()))
+            throw new IllegalArgumentException ("Core requires shell capabilities that are not available");
+    }
+
+
+    private Optional<StateEnvelope> compatibleCheckpoint (final CoreDescriptor candidateDescriptor)
+    {
+        if (this.active == null)
+            return Optional.empty ();
+
+        try
+        {
+            final StateEnvelope checkpoint = this.active.source.invokeWithContext (this.active.core::checkpoint);
+            if (checkpoint == null)
+                throw new IllegalStateException ("ControllerCore.checkpoint returned null");
+            if (!candidateDescriptor.stateSchema ().equals (checkpoint.schema ()) || candidateDescriptor.stateSchemaVersion () != checkpoint.version ())
+                return Optional.empty ();
+            return Optional.of (checkpoint);
+        }
+        catch (final Throwable failure)
+        {
+            rethrowFatal (failure);
+            this.warn ("Active core checkpoint was discarded: " + sanitize (failure));
+            return Optional.empty ();
+        }
+    }
+
+
+    private ActivationResult supersede (final String expectedBuildId, final CoreProviderSource source)
+    {
+        closeSource (source, this.log);
+        return new ActivationResult (ActivationResult.State.SUPERSEDED, expectedBuildId, this.activeBuildId (), "Superseded by a newer build");
+    }
+
+
+    private void closeCandidate (final CoreProviderSource source)
+    {
+        closeSource (source, this.log);
+    }
+
+
+    private void closeActive (final ActiveCore runtime)
+    {
+        if (runtime == null)
+            return;
+        closeSource (runtime.source, this.log);
+    }
+
+
+    private void faultActive (final ActiveCore runtime, final String message)
+    {
+        if (this.active != runtime)
+            return;
+
+        this.generation = Math.incrementExact (this.generation);
+        this.active = null;
+        try
+        {
+            this.environment.invalidate (this.generation);
+        }
+        catch (final RuntimeException invalidationFailure)
+        {
+            this.warn ("Faulted core generation invalidation failed: " + sanitize (invalidationFailure));
+        }
+        finally
+        {
+            this.closeActive (runtime);
+        }
+        this.warn ("Faulted reloadable core " + runtime.descriptor.buildId () + ": " + message);
+    }
+
+
+    private void applyCommittedResult (final long committedGeneration)
+    {
+        try
+        {
+            this.environment.apply (committedGeneration);
+        }
+        catch (final Throwable failure)
+        {
+            rethrowFatal (failure);
+            this.warn ("Committed core effects failed: " + sanitize (failure));
+        }
+    }
+
+
+    private void reportSlowEvent (final CoreEvent event, final long startedAt)
+    {
+        final long now = System.nanoTime ();
+        final long elapsed = now - startedAt;
+        if (elapsed <= SLOW_EVENT_NANOS || this.lastSlowEventWarningNanos != Long.MIN_VALUE && now - this.lastSlowEventWarningNanos < SLOW_WARNING_INTERVAL_NANOS)
+            return;
+
+        this.lastSlowEventWarningNanos = now;
+        this.warn ("Reloadable bridge " + event.getClass ().getSimpleName () + " transaction took " + elapsed / 1_000_000.0 + " ms");
+    }
+
+
+    private void requireRunningOnControllerThread ()
+    {
+        if (this.lifecycle != Lifecycle.RUNNING)
+            throw new IllegalStateException ("RuntimeManager is not running");
+        this.requireControllerThread ();
+    }
+
+
+    private void requireControllerThread ()
+    {
+        if (Thread.currentThread () != this.controllerThread)
+            throw new IllegalStateException ("RuntimeManager must be called on the controller thread");
+    }
+
+
+    private static void closeSource (final CoreProviderSource source, final RuntimeLog log)
+    {
+        try
+        {
+            source.close ();
+        }
+        catch (final Throwable failure)
+        {
+            rethrowFatal (failure);
+            safeWarn (log, "Core classloader close failed: " + sanitize (failure));
+        }
+    }
+
+
+    private void info (final String message)
+    {
+        try
+        {
+            this.log.info (message);
+        }
+        catch (final RuntimeException ignored)
+        {
+            // Logging must never alter a completed runtime transaction.
+        }
+    }
+
+
+    private void warn (final String message)
+    {
+        safeWarn (this.log, message);
+    }
+
+
+    private static void safeWarn (final RuntimeLog log, final String message)
+    {
+        try
+        {
+            log.warn (message);
+        }
+        catch (final RuntimeException ignored)
+        {
+            // Logging must never alter runtime ownership or cleanup.
+        }
+    }
+
+
+    private static String sanitize (final Throwable failure)
+    {
+        final String detail = failure.getMessage ();
+        return failure.getClass ().getSimpleName () + (detail == null || detail.isBlank () ? "" : ": " + detail);
+    }
+
+
+    private static void rethrowFatal (final Throwable failure)
+    {
+        if (failure instanceof final VirtualMachineError virtualMachineError)
+            throw virtualMachineError;
+    }
+
+
+    private record ActiveCore (CoreDescriptor descriptor, CoreProviderSource source, ControllerCore core, long generation)
+    {
+    }
+
+
+    private enum Lifecycle
+    {
+        NEW,
+        RUNNING,
+        CLOSING,
+        CLOSED
+    }
+}

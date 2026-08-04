@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage ()
+{
+    echo "Usage: tools/reload-core [--directory PATH] [--timeout-ms MILLISECONDS] [--online]" >&2
+}
+
+repository_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+publication_dir="${PULL_CORE_RELOAD_DIR:-${HOME}/.drivenbymoss/pull/reload}"
+timeout_ms="${PULL_CORE_RELOAD_TIMEOUT_MS:-10000}"
+maven_offline=true
+
+if [[ -n "${JAVA_HOME:-}" && -x "${JAVA_HOME}/bin/java" ]]
+then
+    java_command="${JAVA_HOME}/bin/java"
+elif command -v java >/dev/null 2>&1 && java -version >/dev/null 2>&1
+then
+    java_command="$(command -v java)"
+else
+    maven_java_home="$(mvn -v | awk -F'runtime: ' '/^Java version:/ { print $2; exit }')"
+    java_command="${maven_java_home}/bin/java"
+    if [[ ! -x "$java_command" ]]
+    then
+        echo "Could not locate the JDK used by Maven. Set JAVA_HOME and retry." >&2
+        exit 2
+    fi
+fi
+
+while [[ $# -gt 0 ]]
+do
+    case "$1" in
+        --directory)
+            [[ $# -ge 2 ]] || { usage; exit 2; }
+            publication_dir="$2"
+            shift 2
+            ;;
+        --timeout-ms)
+            [[ $# -ge 2 ]] || { usage; exit 2; }
+            timeout_ms="$2"
+            shift 2
+            ;;
+        --online)
+            maven_offline=false
+            shift
+            ;;
+        --help|-h)
+            usage
+            exit 0
+            ;;
+        *)
+            usage
+            exit 2
+            ;;
+    esac
+done
+
+case "$timeout_ms" in
+    ''|*[!0-9]*)
+        echo "--timeout-ms must be a non-negative integer" >&2
+        exit 2
+        ;;
+esac
+
+case "$publication_dir" in
+    /*)
+        ;;
+    *)
+        echo "Reload directory must be an absolute path: $publication_dir" >&2
+        exit 2
+        ;;
+esac
+
+random_suffix="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
+build_id="$(date -u '+%Y%m%dT%H%M%SZ')-${random_suffix}"
+shell_fingerprint_before="$(bash "$repository_dir/tools/shell-fingerprint")"
+
+echo "Building core ${build_id}"
+(
+    cd "$repository_dir"
+    maven_args=(-Dpull.core.buildId="$build_id" -pl pull-core,pull-core-publisher -am package)
+    if $maven_offline
+    then
+        mvn -o "${maven_args[@]}"
+    else
+        mvn "${maven_args[@]}"
+    fi
+)
+
+shell_fingerprint="$(bash "$repository_dir/tools/shell-fingerprint")"
+if [[ "$shell_fingerprint" != "$shell_fingerprint_before" ]]
+then
+    echo "Shell/API sources changed while the core was building; rerun tools/reload-core." >&2
+    exit 4
+fi
+
+publisher_jar="$repository_dir/pull-core-publisher/target/pull-core-publisher.jar"
+core_jar="$repository_dir/pull-core/target/pull-core.jar"
+
+"$java_command" -jar "$publisher_jar" publish "$core_jar" "$publication_dir" "$build_id" "$shell_fingerprint"
+"$java_command" -jar "$publisher_jar" await "$publication_dir" "$build_id" "$timeout_ms"

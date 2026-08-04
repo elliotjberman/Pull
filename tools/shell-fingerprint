@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+repository_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+calculate_fingerprint ()
+{
+    git -C "$repository_dir" ls-files --cached --others --exclude-standard -- \
+        pom.xml \
+        pull-core-api/pom.xml \
+        pull-core-api/src/main \
+        pull-core-bundle/pom.xml \
+        pull-core-bundle/src/main \
+        pull-shell/pom.xml \
+        pull-shell/src/assembly \
+        pull-shell/src/main \
+        tools/shell-fingerprint |
+        LC_ALL=C sort |
+        while IFS= read -r path
+        do
+            [[ -f "$repository_dir/$path" ]] || continue
+            blob_id="$(git -C "$repository_dir" hash-object --no-filters "$path")"
+            printf '%s %s\n' "$blob_id" "$path"
+        done |
+        git -C "$repository_dir" hash-object --stdin
+}
+
+fingerprint="$(calculate_fingerprint)"
+
+if [[ $# -eq 0 ]]
+then
+    printf '%s\n' "$fingerprint"
+elif [[ $# -eq 2 && "$1" == "--properties" ]]
+then
+    destination="$2"
+    mkdir -p "$(dirname "$destination")"
+    temporary="${destination}.tmp.$$"
+    printf 'formatVersion=1\nfingerprint=%s\n' "$fingerprint" > "$temporary"
+    mv "$temporary" "$destination"
+else
+    echo "Usage: tools/shell-fingerprint [--properties PATH]" >&2
+    exit 2
+fi
