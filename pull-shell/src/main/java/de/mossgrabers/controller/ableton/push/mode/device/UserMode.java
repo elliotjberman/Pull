@@ -84,12 +84,10 @@ public class UserMode extends BaseMode<IParameter>
     @Override
     public void onFirstRow (final int index, final ButtonEvent event)
     {
-        if (event != ButtonEvent.UP)
-            return;
-
-        final IParameterPageBank parameterPageBank = ((IParameterBank) this.bank).getPageBank ();
-        if (!parameterPageBank.getItem (index).isBlank ())
-            parameterPageBank.selectPage (index);
+        // TODO(Pull views API): The view/session model should declare the rendered bottom menu and
+        // its button actions together. Until then, explicitly keep this row aligned with the track
+        // menu rendered by updateDisplay2 instead of the old parameter-page action.
+        super.onFirstRow (index, event);
     }
 
 

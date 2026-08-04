@@ -29,6 +29,29 @@ mvn -o -pl pull-core -am test
 
 This loop uses deterministic fake time and does not launch or require Bitwig.
 
+## Reloadability end state
+
+The architectural goal is for every Push behavior policy to be reloadable: mappings, gestures,
+modes, views, navigation, and all pad/button/ribbon/display rendering decisions. The stable shell
+should eventually be only a resource kernel. It must continue to create and own Bitwig proxies and
+interested values, MIDI and USB connections, physical hardware bindings, display transport,
+classloading, effect validation, and controller-thread execution, but it should not decide what a
+Push control means or what the controller renders.
+
+The current mixed-ownership input machinery—`InputRouteMode`, `DesiredInputRoutes`, `NONE`,
+`OBSERVE`, stable command callbacks, and their arbitration—is temporary migration scaffolding, not
+the desired final API. It exists because migrated and unmigrated Push controls currently share one
+running controller. Once all Push policy has moved into `pull-core`, physical input can become an
+unconditional event stream to the active core and these fallback/routing types and the old stable
+Push commands, modes, and views should be deleted.
+
+That cutover should be staged rather than attempted as a mechanical rewrite. The Push-specific
+package currently contains roughly 17,500 lines across 103 classes, plus shared framework behavior.
+The intended sequence is to install complete output arbitration, expand generic bounded state and
+effect capabilities, migrate coherent behavior families with parity tests, and finally remove the
+mixed-ownership layer. The detailed boundary and restart rules live in
+[`docs/reloadable-controller-core-design.md`](docs/reloadable-controller-core-design.md).
+
 Milestone 4 also has shell-side selected-track scanner, pinned-actuator, routing, and launch-lease
 tests:
 
