@@ -39,14 +39,14 @@ public class SessionView extends AbstractSessionView<PushControlSurface, PushCon
         super ("Session", surface, model, 8, 8, true);
 
         final int redLo = PushColorManager.PUSH2_COLOR2_RED_LO;
-        final int redHi = PushColorManager.PUSH2_COLOR2_RED_HI;
+        final int rose = PushColorManager.PUSH2_COLOR2_ROSE;
         final int black = PushColorManager.PUSH2_COLOR2_BLACK;
         final int white = PushColorManager.PUSH2_COLOR2_WHITE;
         final int green = PushColorManager.PUSH2_COLOR2_GREEN;
         final int amber = PushColorManager.PUSH2_COLOR2_AMBER;
         final int grey = PushColorManager.PUSH2_COLOR2_GREY_LO;
-        final LightInfo isRecording = new LightInfo (redHi, redHi, false);
-        final LightInfo isRecordingQueued = new LightInfo (redHi, black, true);
+        final LightInfo isRecording = new LightInfo (rose, rose, false);
+        final LightInfo isRecordingQueued = new LightInfo (rose, black, true);
         final LightInfo isPlaying = new LightInfo (green, green, false);
         final LightInfo isPlayingQueued = new LightInfo (green, green, true);
         final LightInfo isStopQueued = new LightInfo (green, green, true);

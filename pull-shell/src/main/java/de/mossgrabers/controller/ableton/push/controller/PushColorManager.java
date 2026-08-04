@@ -443,7 +443,7 @@ public class PushColorManager extends ColorManager
         this.registerColorIndex (ColorManager.BUTTON_STATE_ON, 30);
         this.registerColorIndex (ColorManager.BUTTON_STATE_HI, 127);
         this.registerColorIndex (PUSH_BUTTON_STATE_REC_ON, PUSH2_COLOR2_GREY_LO);
-        this.registerColorIndex (PUSH_BUTTON_STATE_REC_HI, PUSH2_COLOR2_PINK_HI);
+        this.registerColorIndex (PUSH_BUTTON_STATE_REC_HI, PUSH2_COLOR2_RED_HI);
         this.registerColorIndex (PUSH_BUTTON_STATE_OVR_ON, PUSH2_COLOR2_GREY_LO);
         this.registerColorIndex (PUSH_BUTTON_STATE_OVR_HI, PUSH2_COLOR2_AMBER);
         this.registerColorIndex (PUSH_BUTTON_STATE_PLAY_ON, PUSH2_COLOR2_GREY_LO);
