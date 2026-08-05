@@ -10,7 +10,6 @@ import de.mossgrabers.framework.controller.grid.IPadGrid;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
 import de.mossgrabers.framework.featuregroup.AbstractFeatureGroup;
-import de.mossgrabers.framework.featuregroup.IExpressionView;
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
 
@@ -18,7 +17,7 @@ import de.mossgrabers.pull.core.api.ControllerViewFacet;
 /**
  * Stable grid adapter which realizes fixed Session and Drum workspace facets.
  */
-public final class WorkspaceView extends SessionView implements IExpressionView, WorkspaceFacetAdapter
+public final class WorkspaceView extends SessionView implements WorkspaceFacetAdapter
 {
     private static final int SESSION_ROWS = 4;
 
@@ -89,13 +88,13 @@ public final class WorkspaceView extends SessionView implements IExpressionView,
 
     /** {@inheritDoc} */
     @Override
-    public void executeAftertouchCommand (final int note, final int value)
+    public void onGridPressure (final int note, final int value)
     {
         if (!this.hasFacet (ControllerViewFacet.DRUM_CONTROLLER_LOWER) || !this.surface.isDrumControllerActive ())
             return;
         if (note >= 0 && !this.controls.isPlayPad (note))
             return;
-        super.executeAftertouchCommand (note, value);
+        super.onGridPressure (note, value);
     }
 
 

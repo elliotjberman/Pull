@@ -351,14 +351,6 @@ public interface IModel
 
 
     /**
-     * Get the clip launcher navigator.
-     *
-     * @return The clip launcher navigator
-     */
-    IClipLauncherNavigator getClipLauncherNavigator ();
-
-
-    /**
      * Needs to be called on shutdown in case there is anything to clean up.
      */
     void cleanup ();

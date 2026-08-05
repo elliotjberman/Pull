@@ -18,8 +18,6 @@ public class ModelSetup
     private int                  numFxTracks                = -1;
     private int                  numScenes                  = 8;
     private int                  numSends                   = 8;
-    private boolean              wantsClipLauncherNavigator = false;
-
     private int []               additionalDrumDevices      = {};
 
     private int                  numDevicesInBank           = 8;
@@ -410,28 +408,6 @@ public class ModelSetup
     public int [] wantsAdditionalDrumDevices ()
     {
         return this.additionalDrumDevices;
-    }
-
-
-    /**
-     * Should a ClipLauncherNavigator be created?
-     *
-     * @return True if one should be created
-     */
-    public boolean wantsClipLauncherNavigator ()
-    {
-        return this.wantsClipLauncherNavigator;
-    }
-
-
-    /**
-     * Set if a ClipLauncherNavigator should be created.
-     *
-     * @param wantsClipLauncherNavigator True if one should be created
-     */
-    public void setWantsClipLauncherNavigator (final boolean wantsClipLauncherNavigator)
-    {
-        this.wantsClipLauncherNavigator = wantsClipLauncherNavigator;
     }
 
 

@@ -184,6 +184,22 @@ public class KeyManager implements INoteObserver
 
 
     /**
+     * Test whether the current grid mapping contains any playable note.
+     *
+     * @return True if at least one grid pad maps to a MIDI note
+     */
+    public boolean hasMappedNotes ()
+    {
+        for (final int note: this.noteMap)
+        {
+            if (note >= 0)
+                return true;
+        }
+        return false;
+    }
+
+
+    /**
      * Get the ID of the color to use for a pad with respect to the current scale settings.
      *
      * @param pad The MIDI note of the pad

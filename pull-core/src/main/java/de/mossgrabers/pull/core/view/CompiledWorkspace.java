@@ -224,8 +224,11 @@ public final class CompiledWorkspace
 
                 for (final ControlId control: claim.area ().controls ())
                 {
-                    final RouteKey key = new RouteKey (control, claim.area ().inputKind ());
-                    routes.merge (key, mode, (left, right) -> left == InputRouteMode.EXCLUSIVE || right == InputRouteMode.EXCLUSIVE ? InputRouteMode.EXCLUSIVE : InputRouteMode.OBSERVE);
+                    for (final InputKind inputKind: claim.area ().inputKinds ())
+                    {
+                        final RouteKey key = new RouteKey (control, inputKind);
+                        routes.merge (key, mode, (left, right) -> left == InputRouteMode.EXCLUSIVE || right == InputRouteMode.EXCLUSIVE ? InputRouteMode.EXCLUSIVE : InputRouteMode.OBSERVE);
+                    }
                 }
             }
         }

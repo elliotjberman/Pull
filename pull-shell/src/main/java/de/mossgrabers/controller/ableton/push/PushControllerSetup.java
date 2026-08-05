@@ -90,7 +90,6 @@ import de.mossgrabers.controller.ableton.push.view.RaindropsView;
 import de.mossgrabers.controller.ableton.push.view.SequencerView;
 import de.mossgrabers.controller.ableton.push.view.SessionView;
 import de.mossgrabers.controller.ableton.push.view.WorkspaceView;
-import de.mossgrabers.framework.command.aftertouch.AftertouchViewCommand;
 import de.mossgrabers.framework.command.continuous.KnobRowModeCommand;
 import de.mossgrabers.framework.command.trigger.BrowserCommand;
 import de.mossgrabers.framework.command.trigger.Direction;
@@ -132,7 +131,6 @@ import de.mossgrabers.framework.daw.midi.IMidiAccess;
 import de.mossgrabers.framework.daw.midi.IMidiInput;
 import de.mossgrabers.framework.daw.midi.IMidiOutput;
 import de.mossgrabers.framework.daw.midi.ISelectedTrackNoteTarget;
-import de.mossgrabers.framework.featuregroup.IExpressionView;
 import de.mossgrabers.framework.featuregroup.IMode;
 import de.mossgrabers.framework.featuregroup.IView;
 import de.mossgrabers.framework.featuregroup.ModeManager;
@@ -224,7 +222,6 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         ms.setNumMarkers (8);
         ms.setHasFlatTrackList (this.configuration.isTrackNavigationFlat ());
         ms.setHasFullFlatTrackList (this.configuration.areMasterTracksIncluded ());
-        ms.setWantsClipLauncherNavigator (true);
         ms.setWantsFocusedParameter (true);
 
         this.model = this.factory.createModel (this.configuration, this.colorManager, this.valueChanger, this.scales, ms);
@@ -598,15 +595,6 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         final PlayPositionKnobCommand playPositionCommand = new PlayPositionKnobCommand (this.model, surface);
         final IHwRelativeKnob knobPlayPosition = this.addRelativeKnob (ContinuousID.PLAY_POSITION, "Play Position", playPositionCommand, PushControlSurface.PUSH_SMALL_KNOB2);
         knobPlayPosition.bindTouch (playPositionCommand, input, BindType.NOTE, 0, PushControlSurface.PUSH_SMALL_KNOB2_TOUCH);
-
-        final ViewManager viewManager = surface.getViewManager ();
-
-        for (final Views viewID: Views.values ())
-        {
-            final IView view = viewManager.get (viewID);
-            if (view instanceof IExpressionView)
-                view.registerAftertouchCommand (new AftertouchViewCommand<> (view, this.model, surface));
-        }
 
         final IHwFader touchstrip = this.addFader (ContinuousID.TOUCHSTRIP, "Touchstrip", this.touchstripCommand);
         touchstrip.bindTouch (new ConfigurePitchbendCommand (this.model, surface), input, BindType.NOTE, 0, PushControlSurface.PUSH_RIBBON_TOUCH);

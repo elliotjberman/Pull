@@ -138,9 +138,6 @@ public class ModelImpl extends AbstractModel
         final TrackBank effectTrackBank = controllerHost.createEffectTrackBank (numFxTracks, numSends, numScenes);
         this.effectTrackBank = new EffectTrackBankImpl (this.host, this.valueChanger, effectTrackBank, (CursorTrackImpl) this.cursorTrack, this.rootTrackGroup, (ApplicationImpl) this.application, numFxTracks, numScenes, numSends, numParamPages, numParams, this.trackBank);
 
-        if (modelSetup.wantsClipLauncherNavigator ())
-            this.clipLauncherNavigator = new ClipLauncherNavigatorImpl (controllerHost, this);
-
         //////////////////////////////////////////////////////////////////////////////
         // Create devices
 

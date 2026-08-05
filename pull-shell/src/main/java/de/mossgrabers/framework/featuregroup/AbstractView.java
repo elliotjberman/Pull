@@ -5,7 +5,7 @@
 package de.mossgrabers.framework.featuregroup;
 
 import de.mossgrabers.framework.command.core.AbstractTriggerCommand;
-import de.mossgrabers.framework.command.core.AftertouchCommand;
+import de.mossgrabers.framework.configuration.AbstractConfiguration;
 import de.mossgrabers.framework.configuration.Configuration;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.IControlSurface;
@@ -14,6 +14,7 @@ import de.mossgrabers.framework.daw.DAWColor;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.IScene;
 import de.mossgrabers.framework.daw.data.ITrack;
+import de.mossgrabers.framework.daw.midi.MidiConstants;
 import de.mossgrabers.framework.scale.Scales;
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.framework.utils.ChordIdentifier;
@@ -35,9 +36,6 @@ public abstract class AbstractView<S extends IControlSurface<C>, C extends Confi
     protected final Scales        scales;
     protected final KeyManager    keyManager;
     private String                previousChord;
-
-    private AftertouchCommand     aftertouchCommand;
-
 
     /**
      * Constructor.
@@ -116,22 +114,46 @@ public abstract class AbstractView<S extends IControlSurface<C>, C extends Confi
 
     /** {@inheritDoc} */
     @Override
-    public void registerAftertouchCommand (final AftertouchCommand command)
+    public void onGridPressure (final int note, final int value)
     {
-        this.aftertouchCommand = command;
+        final int conversion = this.surface.getConfiguration ().getConvertAftertouch ();
+        if (conversion == AbstractConfiguration.AFTERTOUCH_CONVERT_OFF)
+            return;
+
+        if (note < 0)
+        {
+            if (!this.keyManager.hasMappedNotes ())
+                return;
+            if (conversion == AbstractConfiguration.AFTERTOUCH_CONVERT_POLY)
+            {
+                for (final Integer pressedNote: this.keyManager.getPressedKeys ())
+                    this.forwardPadPressure (pressedNote.intValue (), value, conversion);
+            }
+            else
+                this.sendPressure (conversion, -1, value);
+            return;
+        }
+
+        this.forwardPadPressure (note, value, conversion);
     }
 
 
-    /** {@inheritDoc} */
-    @Override
-    public void executeAftertouchCommand (final int note, final int value)
+    private void forwardPadPressure (final int physicalNote, final int value, final int conversion)
     {
-        if (this.aftertouchCommand == null)
-            return;
-        if (note == -1)
-            this.aftertouchCommand.onChannelAftertouch (value);
+        final int mappedNote = this.keyManager.getMidiNoteFromGrid (physicalNote);
+        if (mappedNote >= 0)
+            this.sendPressure (conversion, mappedNote, value);
+    }
+
+
+    private void sendPressure (final int conversion, final int mappedNote, final int value)
+    {
+        if (conversion == AbstractConfiguration.AFTERTOUCH_CONVERT_POLY)
+            this.surface.sendMidiEvent (MidiConstants.CMD_POLY_AFTERTOUCH, mappedNote, value);
+        else if (conversion == AbstractConfiguration.AFTERTOUCH_CONVERT_CHANNEL)
+            this.surface.sendMidiEvent (MidiConstants.CMD_CHANNEL_AFTERTOUCH, value, 0);
         else
-            this.aftertouchCommand.onPolyAftertouch (note, value);
+            this.surface.sendMidiEvent (MidiConstants.CMD_CC, conversion, value);
     }
 
 

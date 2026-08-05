@@ -26,28 +26,30 @@ import java.util.Set;
 public enum SurfaceArea
 {
     /** Twelve fill pads at columns 4-7 and rows 1-3 of the lower grid half. */
-    DRUM_FILL_PADS (gridRectangle (4, 1, 4, 3), Set.copyOf (CoreControls.DRUM_FILLS), InputKind.PAD),
+    DRUM_FILL_PADS (gridRectangle (4, 1, 4, 3), Set.copyOf (CoreControls.DRUM_FILLS), Set.of (InputKind.PAD, InputKind.POLY_PRESSURE)),
     /** Push Record button. */
-    RECORD_BUTTON (button (0), Set.of (PushControlIds.button ("RECORD")), InputKind.BUTTON),
+    RECORD_BUTTON (button (0), Set.of (PushControlIds.button ("RECORD")), Set.of (InputKind.BUTTON)),
     /** Push Shift modifier. */
-    SHIFT_MODIFIER (button (1), Set.of (PushControlIds.button ("SHIFT")), InputKind.BUTTON),
+    SHIFT_MODIFIER (button (1), Set.of (PushControlIds.button ("SHIFT")), Set.of (InputKind.BUTTON)),
     /** Push Select modifier. */
-    SELECT_MODIFIER (button (2), Set.of (PushControlIds.button ("SELECT")), InputKind.BUTTON),
+    SELECT_MODIFIER (button (2), Set.of (PushControlIds.button ("SELECT")), Set.of (InputKind.BUTTON)),
     /** Push Session button. */
-    SESSION_BUTTON (button (3), Set.of (PushControlIds.button ("SESSION")), InputKind.BUTTON),
+    SESSION_BUTTON (button (3), Set.of (PushControlIds.button ("SESSION")), Set.of (InputKind.BUTTON)),
     /** Push Note button. */
-    NOTE_BUTTON (button (4), Set.of (PushControlIds.button ("NOTE")), InputKind.BUTTON);
+    NOTE_BUTTON (button (4), Set.of (PushControlIds.button ("NOTE")), Set.of (InputKind.BUTTON));
 
     private final Set<HardwareElement> footprint;
     private final Set<ControlId>       controls;
-    private final InputKind            inputKind;
+    private final Set<InputKind>       inputKinds;
 
 
-    SurfaceArea (final Set<HardwareElement> footprint, final Set<ControlId> controls, final InputKind inputKind)
+    SurfaceArea (final Set<HardwareElement> footprint, final Set<ControlId> controls, final Set<InputKind> inputKinds)
     {
         this.footprint = Set.copyOf (footprint);
         this.controls = Set.copyOf (controls);
-        this.inputKind = Objects.requireNonNull (inputKind, "inputKind");
+        this.inputKinds = Set.copyOf (Objects.requireNonNull (inputKinds, "inputKinds"));
+        if (this.inputKinds.isEmpty ())
+            throw new IllegalArgumentException ("inputKinds must not be empty");
     }
 
 
@@ -81,9 +83,9 @@ public enum SurfaceArea
         if (event instanceof final ButtonInputEvent buttonEvent)
             return this.controls.contains (buttonEvent.controlId ());
         if (event instanceof final ControllerInputEvent inputEvent)
-            return this.inputKind == inputEvent.kind () && this.controls.contains (inputEvent.controlId ());
+            return this.inputKinds.contains (inputEvent.kind ()) && this.controls.contains (inputEvent.controlId ());
         if (event instanceof final TouchInputEvent touchEvent)
-            return this.inputKind == InputKind.TOUCH && this.controls.contains (touchEvent.controlId ());
+            return this.inputKinds.contains (InputKind.TOUCH) && this.controls.contains (touchEvent.controlId ());
         return false;
     }
 
@@ -100,13 +102,13 @@ public enum SurfaceArea
 
 
     /**
-     * Get the normalized input kind for this region.
+     * Get the normalized input kinds for this region.
      *
-     * @return Input kind
+     * @return Immutable input kinds
      */
-    public InputKind inputKind ()
+    public Set<InputKind> inputKinds ()
     {
-        return this.inputKind;
+        return this.inputKinds;
     }
 
 

@@ -9,7 +9,6 @@ import de.mossgrabers.framework.controller.grid.IPadGrid;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
 import de.mossgrabers.framework.featuregroup.AbstractView;
-import de.mossgrabers.framework.featuregroup.IExpressionView;
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.framework.view.TransposeView;
 import de.mossgrabers.framework.view.Views;
@@ -18,7 +17,7 @@ import de.mossgrabers.framework.view.Views;
 /**
  * Full-grid host for the specialized drum performance, rate and fill controls.
  */
-public final class DrumPadView extends AbstractView<PushControlSurface, PushConfiguration> implements TransposeView, IExpressionView
+public final class DrumPadView extends AbstractView<PushControlSurface, PushConfiguration> implements TransposeView
 {
     private final DrumPadControls controls;
 
@@ -70,16 +69,14 @@ public final class DrumPadView extends AbstractView<PushControlSurface, PushConf
 
     /** {@inheritDoc} */
     @Override
-    public void executeAftertouchCommand (final int note, final int value)
+    public void onGridPressure (final int note, final int value)
     {
         if (!this.surface.isDrumControllerActive ())
             return;
 
-        // Control pads have no musical aftertouch action. A negative note identifies channel
-        // pressure rather than a particular rate or fill pad and must still reach the drum view.
-        if (note >= 0 && (this.controls.isRatePad (note) || this.controls.isFillPad (note)))
+        if (note >= 0 && !this.controls.isPlayPad (note))
             return;
-        super.executeAftertouchCommand (note, value);
+        super.onGridPressure (note, value);
     }
 
 

@@ -76,6 +76,12 @@ record SurfaceClaim(
 Multiple observers may coexist. There is exactly one exclusive input owner and one output owner
 for any atomic area in a compiled workspace.
 
+A grid input claim includes the pad edge, its strike velocity, and per-pad pressure. Pressure is a
+companion event for the same physical pad and follows the same compiled owner; it is never enabled
+through a separate concrete-view registration list. A view may ignore pressure, and an unmapped
+pad has no musical pressure destination. Aggregate channel pressure has no pad identity and remains
+a distinct surface-wide input.
+
 ## Fixed Views
 
 A view exposes named profiles, not arbitrary ports:
@@ -196,6 +202,8 @@ Add one hardcoded workspace named `VS Live`, entered with **Shift + Session** fo
 - Drum Controller owns the bottom four pad rows, including its existing 4x4 playable block, rate
   pads, and fill pads.
 - Drum Controller's `pitch-bend` facet owns the touch strip.
+- Per-pad pressure on Drum Controller's playable 4x4 block follows that same lower-grid ownership;
+  pressure on rate, fill, and Session pads has no musical destination.
 - No view claims the lower scene keys merely because they sit beside Drum Controller. Upper scene
   keys may launch the four visible Session scenes through the Session grid's named facet.
 
@@ -226,7 +234,8 @@ The Bitwig smoke test checks:
 5. Arrow keys navigate the Session bank.
 6. Upper pads launch the expected four scenes; lower pads play drums/rates/fills only.
 7. Pitch bend reaches the selected drum track and releases cleanly.
-8. Plain Session and Note leave the workspace through their ordinary destinations; re-entry
+8. Strike velocity and pressure produce the same drum-note behavior as standalone Drum Controller.
+9. Plain Session and Note leave the workspace through their ordinary destinations; re-entry
    restores composite ownership and note mapping.
 
 Commit the composite separately so a hardware failure can be bisected to either the view-runtime

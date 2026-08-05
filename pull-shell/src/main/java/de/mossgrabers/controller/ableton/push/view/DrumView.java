@@ -14,7 +14,6 @@ import de.mossgrabers.framework.daw.data.ICursorDevice;
 import de.mossgrabers.framework.daw.data.IDrumDevice;
 import de.mossgrabers.framework.daw.data.IDrumPad;
 import de.mossgrabers.framework.daw.data.bank.IDrumPadBank;
-import de.mossgrabers.framework.featuregroup.IExpressionView;
 import de.mossgrabers.framework.featuregroup.ModeManager;
 import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.utils.ButtonEvent;
@@ -27,7 +26,7 @@ import de.mossgrabers.framework.view.sequencer.AbstractDrumView;
  *
  * @author Jürgen Moßgraber
  */
-public class DrumView extends AbstractDrumView<PushControlSurface, PushConfiguration> implements IExpressionView
+public class DrumView extends AbstractDrumView<PushControlSurface, PushConfiguration>
 {
     /**
      * Constructor.
