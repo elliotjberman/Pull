@@ -122,12 +122,12 @@ final class SnapbackSession
     {
         final CoreResult base = Objects.requireNonNull (workspaceResult, "workspaceResult");
         final Set<BridgeSubscription> subscriptions = new LinkedHashSet<> (base.desiredBridgeSubscriptions ().domains ());
-        if (this.triggerHeld || !this.captures.isEmpty () || this.isRestoring ())
+        if (this.triggerHeld || !this.captures.isEmpty ())
             subscriptions.add (BridgeSubscription.PARAMETERS);
 
         final Map<RouteKey, InputRoute> routes = new LinkedHashMap<> ();
         base.desiredInputRoutes ().routes ().forEach (route -> routes.put (new RouteKey (route.controlId (), route.kind ()), route));
-        if (!this.captures.isEmpty () || this.isRestoring ())
+        if (!this.captures.isEmpty ())
         {
             for (final ControlId control: TARGET_REBIND_CONTROLS)
                 routes.put (new RouteKey (control, InputKind.BUTTON), new InputRoute (control, InputKind.BUTTON, InputRouteMode.DEFER_STABLE));
@@ -201,11 +201,12 @@ final class SnapbackSession
 
     private List<CoreEffect> advance (final ParameterBridgeSnapshot parameters)
     {
-        if (this.state == State.SETTLING)
-            return this.advanceSettlement (parameters);
-        if (this.state == State.RESTORING)
-            return this.advanceRestoration (parameters);
-        return List.of ();
+        return switch (this.state)
+        {
+            case SETTLING -> this.advanceSettlement (parameters);
+            case RESTORING -> this.advanceRestoration (parameters);
+            default -> List.of ();
+        };
     }
 
 
@@ -326,7 +327,7 @@ final class SnapbackSession
 
     private boolean shouldDefer (final ControllerInputEvent input)
     {
-        return input.kind () == InputKind.BUTTON && TARGET_REBIND_CONTROLS.contains (input.controlId ()) && (!this.captures.isEmpty () || this.isRestoring ());
+        return input.kind () == InputKind.BUTTON && TARGET_REBIND_CONTROLS.contains (input.controlId ()) && !this.captures.isEmpty ();
     }
 
 

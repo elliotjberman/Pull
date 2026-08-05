@@ -35,6 +35,8 @@ final class ParameterTargetHost
 {
     private static final String FIXED_DOMAIN = "fixed";
     private static final String LEASE_DOMAIN = "live-parameter";
+    private static final ParameterTargetRef TEMPO_TARGET = new ParameterTargetRef (FIXED_DOMAIN, "tempo", 0);
+    private static final ParameterTargetRef MASTER_VOLUME_TARGET = new ParameterTargetRef (FIXED_DOMAIN, "master-volume", 0);
     private static final ContinuousID [] ACTIVE_CONTROLS =
     {
         ContinuousID.KNOB1,
@@ -115,13 +117,13 @@ final class ParameterTargetHost
 
         if (checkedControlID == ContinuousID.TEMPO)
         {
-            final LiveTarget target = this.currentTargets.get (new ParameterTargetRef (FIXED_DOMAIN, "tempo", 0));
+            final LiveTarget target = this.currentTargets.get (TEMPO_TARGET);
             return target == null ? null : new TargetedParameter (ParameterSlot.TEMPO, target.snapshot ());
         }
 
         if (checkedControlID != ContinuousID.MASTER_KNOB)
             return null;
-        final LiveTarget target = this.currentTargets.get (new ParameterTargetRef (FIXED_DOMAIN, "master-volume", 0));
+        final LiveTarget target = this.currentTargets.get (MASTER_VOLUME_TARGET);
         return target != null && target.control == checkedControl ? new TargetedParameter (ParameterSlot.MASTER_VOLUME, target.snapshot ()) : null;
     }
 
@@ -241,7 +243,7 @@ final class ParameterTargetHost
             this.reconcileActiveTarget (index, this.surface.getContinuous (ACTIVE_CONTROLS[index]));
 
         final LiveTarget tempo = new LiveTarget (
-            new ParameterTargetRef (FIXED_DOMAIN, "tempo", 0),
+            TEMPO_TARGET,
             null,
             null,
             0,
@@ -258,7 +260,7 @@ final class ParameterTargetHost
             if (parameter.doesExist ())
             {
                 final LiveTarget master = parameterTarget (
-                    new ParameterTargetRef (FIXED_DOMAIN, "master-volume", 0),
+                    MASTER_VOLUME_TARGET,
                     masterControl,
                     parameter,
                     masterControl.getBindingGeneration (),
@@ -304,10 +306,10 @@ final class ParameterTargetHost
             if (target != null && target.isCurrent ())
                 slots.put (ParameterSlot.active (index), target.snapshot ());
         }
-        final LiveTarget tempo = this.currentTargets.get (new ParameterTargetRef (FIXED_DOMAIN, "tempo", 0));
+        final LiveTarget tempo = this.currentTargets.get (TEMPO_TARGET);
         if (tempo != null)
             slots.put (ParameterSlot.TEMPO, tempo.snapshot ());
-        final LiveTarget master = this.currentTargets.get (new ParameterTargetRef (FIXED_DOMAIN, "master-volume", 0));
+        final LiveTarget master = this.currentTargets.get (MASTER_VOLUME_TARGET);
         if (master != null)
             slots.put (ParameterSlot.MASTER_VOLUME, master.snapshot ());
 

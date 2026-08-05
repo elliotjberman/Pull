@@ -88,7 +88,7 @@ final class PushControllerInputBridge
         this.eventSink = Objects.requireNonNull (eventSink, "eventSink");
         this.routes = Objects.requireNonNull (routes, "routes");
         this.registry = this.createRegistry ();
-        this.router = new PhysicalInputRouter<> (this.registry, this::resolveRoute, this::deliverControllerInput, System::nanoTime, Objects.requireNonNull (activeGeneration, "activeGeneration"));
+        this.router = new PhysicalInputRouter<> (this.registry, this::resolveRoute, this.eventSink, System::nanoTime, Objects.requireNonNull (activeGeneration, "activeGeneration"));
         this.installWrappers ();
     }
 
@@ -194,12 +194,6 @@ final class PushControllerInputBridge
                 builder.register (controlID, InputKind.TOUCH);
         }
         return builder.build ();
-    }
-
-
-    private void deliverControllerInput (final PhysicalInputEvent<ControlId> event)
-    {
-        this.eventSink.accept (event);
     }
 
 
