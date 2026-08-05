@@ -1,0 +1,416 @@
+# Reloadable-Core Migration Roadmap
+
+## Goal
+
+Pull should eventually require a Bitwig restart only when changing the permanent resource canopy:
+Bitwig API topology, physical hardware registration, parent-loaded API contracts, or hardware
+transport. Controller mappings, modes, gestures, navigation, product behavior, and rendering policy
+should reload through `pull-core`.
+
+This document inventories the remaining Push behavior in the stable shell and separates:
+
+1. policy that can move with the currently installed canopy;
+2. policy that is movable after one reusable canopy expansion;
+3. temporary migration scaffolding;
+4. infrastructure that genuinely belongs in stable.
+
+For the step-by-step execution procedure and a complete Play-button example, see
+[`reloadable-core-migration-guide.md`](reloadable-core-migration-guide.md).
+
+## Terminology
+
+- **Stable shell**: parent-loaded code that owns Bitwig and Push resources for the extension's
+  lifetime.
+- **Reloadable core**: child-loaded pure Java behavior operating on immutable snapshots, normalized
+  events, typed effects, and replayable desired output.
+- **Canopy**: the bounded set of state, effects, inputs, and output transports created by the shell
+  at initialization.
+- **Migration debt**: product behavior that remains stable because migration was deferred, not
+  because Bitwig requires the behavior itself to be parent-loaded.
+
+Moving a feature does not mean copying its existing class into `pull-core`. Legacy classes commonly
+retain `IModel`, `PushControlSurface`, mode/view managers, observers, or scheduled callbacks. A
+correct migration extracts their policy while the stable shell continues owning those resources.
+
+## Current baseline
+
+On current `master`:
+
+- drum-fill matching, launch-session policy, gesture state, and twelve fill lights are core-owned;
+- Record, Shift+Record, and Select+Record are core-owned;
+- VS Live selection and fixed-facet composition are core-owned;
+- stable adapters still realize VS Live's Session, Drum, macro, track-strip, display, and navigation
+  mechanics;
+- drum-grid pressure interpretation is core-owned in the composite workspace, while the permanent
+  `NoteInput`, ordinary Bitwig routing, and MIDI neutralization remain stable;
+- the practical existing Push input set is normalized by the stable input bridge;
+- transport, selected-track, controller-layout, and bounded drum snapshots/effects exist;
+- complete hardware output ownership exists only for the twelve drum-fill lights.
+
+Before taking an item, inspect the active branch and in-flight work. This inventory describes
+architectural ownership, not a promise that no adjacent PR has changed the exact files.
+
+## Policy that can use the current canopy
+
+These behaviors are already expressible with installed state and effects. A first cut may still
+need one shell change to make an existing semantic binding inert and admit its exact exclusive
+input; subsequent policy changes are core-only.
+
+### Transport
+
+- Play/stop and stopped Shift+Play rewind.
+- Absolute arranger record, arranger overdub, launcher overdub, loop, metronome, and global fill
+  state.
+- Absolute tempo and arranger position.
+
+Not every existing transport command is immediately a complete migration. Metronome, Automation,
+Tempo, and Play Position combine temporary modes, configuration, notifications, or missing actions.
+The migration guide scopes Play as the safe first transport cut.
+
+### Selected track
+
+- activation and group expansion;
+- record arm, mute, and solo;
+- monitor mode;
+- volume and pan;
+- stop, return to Arrangement, and create a new clip.
+
+Existing Mute, Solo, and Stop commands also contain all-tracks, master, layer, lock-mode, or
+view-dependent variants. Do not request exclusive ownership until those branches are migrated or
+explicitly removed as a product decision.
+
+### Selected drum pad
+
+- selection;
+- activation, mute, and solo;
+- volume and pan.
+
+The installed drum window is bounded. Behavior outside that fixed window or across new device-tree
+shapes is not covered merely because selected-pad effects exist.
+
+### Routed raw MIDI
+
+- poly pressure;
+- channel pressure;
+- control change;
+- pitch bend.
+
+The shell owns the permanent `NoteInput`, normal Bitwig routing, and neutralization on reload,
+selection boundaries, and shutdown. The core may own interpretation and requested MIDI values.
+
+### Pure controller policy
+
+- modifier interpretation;
+- press/long/release state machines;
+- timers using the installed core timer effects;
+- fixed workspace selection and composition;
+- behavior using only existing immutable snapshots and typed effects.
+
+## Movable policy requiring reusable canopy expansion
+
+This is the main body of remaining work. It is migration debt, but not a file-only move.
+
+### 1. Complete hardware output
+
+Current limitation: `DesiredHardwareOutput` is structurally general, but stable validation and
+arbitration accept only the twelve fill-pad lights.
+
+Add bounded complete ownership for:
+
+- all Push button lights;
+- all 64 grid-pad lights;
+- scene and row-button lights;
+- touch-strip mode and LEDs;
+- USB display frames or a stable typed display command buffer;
+- transient notifications with explicit lifetime and replacement rules.
+
+After this expansion, color choice, light meaning, display layout, and notification policy move to
+core. Palette lookup, calibrated RGB conversion, USB packet encoding, and physical writes remain
+stable.
+
+This is the highest-leverage expansion because nearly every legacy mode/view mixes behavior with
+rendering.
+
+### 2. Visible track bank and mixer
+
+Install a bounded visible-track-bank snapshot with stable identities and generations for eight
+tracks, including the properties actually rendered by Pull. Add fenced effects for selection,
+activation, arm, mute, solo, volume, pan, and bounded sends.
+
+This unlocks:
+
+- VS Live track-selection strip;
+- ordinary track selection;
+- Track, Volume, Pan, Send, Crossfade, and related mixer modes;
+- multi-track variants of Mute, Solo, and Stop;
+- authoritative track-strip lights and display output.
+
+Do not confuse this with the existing private selected-track snapshot. A selected target cannot
+represent eight visible tracks.
+
+### 3. Session grid
+
+Install a bounded visible Session bank with explicit track/scene offsets, stable slot identity, and
+slot state such as existence, content, name, color, selected, playing, recording, and queued.
+
+Add effects for:
+
+- launch and release/stop of a slot;
+- launch of a scene;
+- selecting a slot or scene where required;
+- bounded bank navigation;
+- creating a clip if the product behavior requires it.
+
+This unlocks:
+
+- VS Live's upper Session grid and scene keys;
+- ordinary `SessionView`;
+- clip-slot rendering and launch behavior;
+- Session navigation and paging.
+
+The existing drum-fill catalog and actuator lease should eventually become a consumer of a generic
+bounded clip/session capability rather than remain a parallel feature-shaped API.
+
+### 4. Generic eight-parameter bank
+
+Install a reusable bounded parameter snapshot containing stable identity, existence, name, raw
+value, modulated value, authoritative displayed value, touch state, and any required reset/default
+metadata. Add fenced set, relative-change, touch, and reset effects.
+
+This unlocks:
+
+- VS Live project macros;
+- User/project parameter modes;
+- large portions of device and track parameter rendering;
+- removal of core-invisible parameter-provider policy from stable.
+
+The shell owns the Bitwig parameter objects. The core owns bank selection policy, encoder mapping,
+touch semantics, and display layout.
+
+### 5. Device, chain, and layer banks
+
+Install bounded selected-device, device-page, chain, and layer snapshots with stable identity and
+generation-fenced effects.
+
+This unlocks:
+
+- Device Params;
+- Device Chains and Layer modes;
+- layer volume, pan, and sends;
+- Device Browser behavior once browser actions are also modeled.
+
+Device-tree recursion must remain explicitly bounded. Do not imply that one cursor mirrors an
+arbitrary nested project.
+
+### 6. Clip content and step editing
+
+Install a bounded selected-clip content model for the exact note/time window rendered by a view,
+plus typed step-edit, note, length, velocity, expression, page, quantize, and duplicate effects as
+required.
+
+This unlocks:
+
+- Sequencer and Poly Sequencer;
+- Drum XoX, Raindrops, and related variants;
+- clip length and note editing;
+- step-page navigation.
+
+This is a later migration because its state surface and asynchronous acknowledgement rules are
+larger than transport or mixer behavior.
+
+### 7. Scale, note layout, repeat, and controller configuration
+
+Publish immutable configuration and scale/layout state needed by the core. Keep Bitwig preference
+schema registration stable, but move interpretation into core. Add typed effects for supported
+configuration changes.
+
+This unlocks:
+
+- Piano, Play, Chords, and Program Change layouts;
+- Scales and Scale Layout modes;
+- Accent and Note Repeat;
+- fixed length and quantize policy;
+- ribbon and pad-pressure configuration policy.
+
+### 8. Application and browser actions
+
+Add typed, capability-checked effects and authoritative availability state for undo/redo, browser,
+add track/device/effect, duplicate, delete, double, convert, and other application-level actions.
+
+These are conceptually reloadable mappings, but they cannot move safely while the core can only
+emit transport, selected-track, drum, MIDI, timer, and fill effects.
+
+## Stable policy families to retire
+
+The following Push-specific families should shrink or disappear after their corresponding
+capabilities migrate:
+
+### Commands
+
+Most classes under:
+
+```text
+pull-shell/src/main/java/de/mossgrabers/controller/ableton/push/command
+```
+
+Their permanent hardware registrations remain in setup, but semantic commands become inert during
+cutover and can later be replaced by generic physical registrations.
+
+### Modes
+
+Most classes under:
+
+```text
+pull-shell/src/main/java/de/mossgrabers/controller/ableton/push/mode
+```
+
+Their parameter interpretation, modifier behavior, display decisions, and button colors belong in
+core. Temporary-mode behavior should become explicit reloadable state rather than an implicit
+stable `ModeManager` side effect.
+
+### Views
+
+Most classes under:
+
+```text
+pull-shell/src/main/java/de/mossgrabers/controller/ableton/push/view
+```
+
+Grid mapping, launch/edit policy, note layouts, navigation, and desired lights belong in core.
+Stable note-input translation or Bitwig resource objects remain behind typed capabilities.
+
+### Parameter providers
+
+Push-specific providers should disappear after generic parameter-bank snapshots/effects can express
+the same selection and mapping policy.
+
+### Mixed-responsibility setup and surface code
+
+`PushControllerSetup` remains, but should converge on resource creation and permanent physical
+registration rather than constructing semantic commands and light policy.
+
+`PushControlSurface` remains, but product applicability, active-view behavior, and render policy
+should move out. MIDI/USB transport and concrete hardware objects stay.
+
+`PushColorManager` should retain hardware palette/calibration concerns while semantic mappings such
+as “recording should be muted pink” move to core output policy.
+
+## Temporary migration scaffolding
+
+These structures exist to bridge core-selected policy back into legacy mechanics and should not be
+mistaken for the final architecture:
+
+- `ControllerWorkspaceHost`;
+- `WorkspaceFacetAdapter`;
+- `WorkspaceView`;
+- `WorkspaceMode`;
+- legacy `Views.WORKSPACE` and `Modes.WORKSPACE` realization;
+- the fixed-facet `DesiredControllerWorkspace` compatibility protocol once core owns the complete
+  underlying input/output behavior;
+- feature-shaped `desiredClipBindings` fields once a generic bounded session interaction API exists;
+- the `DrumFillRuntimeEnvironment` name and feature-specific shape once runtime responsibilities are
+  generalized.
+
+Input arbitration itself is not temporary. Keep normalized input, route validation, edge ordering,
+generation leases, and held-gesture safety. Remove the duplicate stable semantic implementation,
+not the lifecycle protection.
+
+## Infrastructure that stays stable
+
+The following are the intended long-term shell:
+
+- extension definition, controller API version, UUIDs, port definitions, and discovery;
+- Bitwig cursors, banks, observers, interested properties, and bounded actuator pools;
+- MIDI and USB connections, Push display transport, pad-grid objects, and physical writes;
+- permanent physical control registration and normalized event delivery;
+- input arbitration, edge ordering, gesture generation fencing, and motion coalescing;
+- immutable snapshot capture and subscription gating;
+- effect preparation, validation, target-identity fencing, and controller-thread execution;
+- the permanent `NoteInput` and cleanup of outstanding stateful MIDI;
+- clip launch actuators and host-acknowledgement barriers, behind a more generic interface where
+  useful;
+- output arbitration and replay into physical hardware;
+- core JAR watching, classloader isolation, transactional activation, fault handling, and
+  checkpoint transfer;
+- Bitwig settings schema registration;
+- hardware color calibration, palette translation, USB packet encoding, and device-specific
+  protocol details.
+
+## Recommended program order
+
+### Phase 1: Low-risk migrations using current capabilities
+
+1. Play button, using the worked example in the migration guide.
+2. Other complete single-branch transport behavior.
+3. Complete selected-track mappings whose modifier variants are already representable.
+4. Complete selected-drum-pad mappings.
+
+Each first control cutover may require a shell install to make its permanent binding inert and
+admit exclusive ownership. Group several reviewed cutovers into one shell checkpoint if doing so
+does not mix semantic risk.
+
+### Phase 2: Complete output arbitration
+
+Add general lights, display, touch-strip, and notification output. This should be one deliberate
+parent API/shell milestone with its own hardware smoke tests.
+
+### Phase 3: Common performance capabilities
+
+Add, in order:
+
+1. visible track bank;
+2. Session grid;
+3. generic eight-parameter bank.
+
+Then migrate `WorkspaceMode` and `WorkspaceView` completely. These adapters are good acceptance
+targets because the product behavior is already specified and exercised in VS Live.
+
+### Phase 4: Ordinary controller families
+
+Migrate ordinary Session, Drum, track/mixer, project macro, Note, scale, and repeat behavior. Remove
+the corresponding stable semantic commands/modes/views after each complete cutover.
+
+### Phase 5: Deep editing
+
+Add device-tree and clip-content capabilities, then migrate device modes, browser workflows, and
+sequencers.
+
+### Phase 6: Remove compatibility architecture
+
+- remove stable semantic fallbacks;
+- remove workspace adapters and legacy mode/view authority;
+- generalize fill-shaped runtime APIs;
+- make core desired state the only product-behavior authority;
+- retain only the bounded resource kernel described above.
+
+## Definition of done
+
+The migration program is complete when:
+
+1. Changing any existing Pull mapping, mode, gesture, navigation rule, display layout, or color
+   policy requires only a core reload.
+2. The stable Push setup constructs resources and physical bindings but no product behavior.
+3. Missing or faulted core behavior is inert and reported; no stable semantic fallback runs.
+4. All hardware feedback is rendered from authoritative subscribed state.
+5. Tests explicitly separate input, requested effects, host advancement, snapshot read-back, and
+   rendered output.
+6. Every remaining Bitwig restart maps to a permanent canopy change: new Bitwig topology, new
+   parent-loaded contract, new physical control/output transport, or expanded bounded capacity.
+7. No migrated feature retains child-owned Bitwig objects, shell/framework references, observers,
+   callbacks, or threads.
+
+## Assignment checklist
+
+Before handing one item to an implementation agent, specify:
+
+- the exact controls and input kinds;
+- every semantic variant that must be preserved;
+- the installed snapshots, effects, and output lanes it may use;
+- any approved reusable canopy addition;
+- whether one first-run restart is expected;
+- explicit exclusions;
+- deterministic test cases;
+- the live Bitwig/Push smoke test;
+- which in-flight branches or files must not be touched.
+
+If those fields cannot be filled in, the task is not yet small enough to delegate efficiently.
