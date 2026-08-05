@@ -60,6 +60,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
     private DrumFillRuntimeEnvironment environment;
     private CoreReloadSupervisor supervisor;
     private PushControllerInputBridge inputBridge;
+    private PushParameterMutationService parameterMutations;
     private Predicate<CoreEvent> eventHandler = event -> false;
     private final Set<ControlId> rawReleasedGestures = new HashSet<> ();
     private boolean started;
@@ -127,6 +128,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             Objects.requireNonNull (surface, "surface"),
             Objects.requireNonNull (valueChanger, "valueChanger"));
         this.environment = new DrumFillRuntimeEnvironment (this.clipHost, controllerBridge, this.log, System::nanoTime);
+        this.parameterMutations = new PushParameterMutationService (surface, model);
         this.supervisor = new CoreReloadSupervisor (this.environment, this.log);
         this.eventHandler = this.supervisor::handle;
     }
@@ -155,9 +157,8 @@ public final class ReloadableControllerRuntime implements AutoCloseable
      *
      * @param surface Stable Push surface
      * @param valueChanger Relative-value decoder
-     * @param parameterMutations Controller parameter-mutation seam
      */
-    public void installControllerInputBridge (final PushControlSurface surface, final IValueChanger valueChanger, final PushParameterMutationService parameterMutations)
+    public void installControllerInputBridge (final PushControlSurface surface, final IValueChanger valueChanger)
     {
         if (this.closed)
             throw new IllegalStateException ("Reloadable controller runtime is closed");
@@ -167,11 +168,13 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             throw new IllegalStateException ("Controller inputs must be installed before runtime startup");
         if (this.inputBridge != null)
             throw new IllegalStateException ("Controller input bridge is already installed");
+        if (this.parameterMutations == null)
+            throw new IllegalStateException ("Controller parameter mutations are not connected");
 
         this.inputBridge = new PushControllerInputBridge (
             Objects.requireNonNull (surface, "surface"),
             Objects.requireNonNull (valueChanger, "valueChanger"),
-            Objects.requireNonNull (parameterMutations, "parameterMutations"),
+            this.parameterMutations,
             this.environment::desiredInputRoutes,
             this::handleControllerInput,
             () -> this.supervisor == null ? 0 : this.supervisor.activeGeneration ());
@@ -209,6 +212,8 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             if (this.eventHandler.test (this.environment.snapshotChangedEvent ()))
                 this.environment.acknowledgeSnapshotChange (deliveredRevision);
         }
+        if (this.parameterMutations != null)
+            this.parameterMutations.tick ();
         this.reportSlowTick (startedAt);
     }
 
@@ -382,6 +387,8 @@ public final class ReloadableControllerRuntime implements AutoCloseable
                 for (final ControlId control: FILL_CONTROLS)
                     this.environment.safetyRelease (control);
             }
+            if (this.parameterMutations != null)
+                this.parameterMutations.shutdown ();
         }
     }
 

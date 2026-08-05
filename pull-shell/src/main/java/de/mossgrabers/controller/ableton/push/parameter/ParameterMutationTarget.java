@@ -7,7 +7,7 @@ package de.mossgrabers.controller.ableton.push.parameter;
 /**
  * Exact actuator and authoritative read-back for one parameter target.
  */
-public interface ParameterMutationTarget
+interface ParameterMutationTarget
 {
     /**
      * Get the target identity and generation.

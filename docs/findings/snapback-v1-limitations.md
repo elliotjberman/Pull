@@ -24,19 +24,12 @@ A single session should support at least:
 For example, Shift down, changing two project macros, then changing tempo must restore all three
 values together when Shift is released.
 
-## Proposed Mutation Seam
+## Mutation Seam
 
-Controller-originated numeric writes should pass through one `ParameterMutationGateway`. A
-`SnapbackInterceptor` decorates that gateway and owns the trigger/session policy.
-
-```java
-record ParameterMutationRequest (
-    Optional<ParameterMutationTarget> target,
-    Runnable mutation,
-    PersistencePolicy persistence)
-{
-}
-```
+Controller-originated numeric writes pass through `PushParameterMutationService`. While snapback
+is inactive, it runs the established mutation directly. During an active session or restoration
+barrier, it resolves the control to an optional `ParameterMutationTarget`: an absent target remains
+persistent, while an eligible target and its mutation are passed to `SnapbackInterceptor`.
 
 The interceptor keeps one bounded entry per changed target, not an unbounded history of encoder
 deltas. Each entry records:
@@ -60,7 +53,7 @@ The inherited paths are not currently uniform:
 - The dedicated master encoder uses `PushMasterVolumeCommand` and can resolve to master volume, cue
   volume, or zoom depending on controller state.
 
-Adapt these paths into `ParameterMutationRequest`; do not teach `SnapbackInterceptor` about tempo,
+Adapt these paths into `ParameterMutationTarget`; do not teach `SnapbackInterceptor` about tempo,
 tracks, devices, or Push modes individually. Resolve the semantic target first, then apply the
 interceptor.
 

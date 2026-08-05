@@ -90,7 +90,7 @@ public final class PushParameterMutationService
     private PushParameterMutationService (final ParameterTargetResolver targetResolver, final java.util.function.Consumer<String> warningSink)
     {
         this.targetResolver = Objects.requireNonNull (targetResolver, "targetResolver");
-        this.snapback = new SnapbackInterceptor (request -> request.mutation ().run (), warningSink);
+        this.snapback = new SnapbackInterceptor (warningSink);
     }
 
 
@@ -103,10 +103,22 @@ public final class PushParameterMutationService
      */
     public void mutate (final ContinuousID controlID, final IHwContinuousControl control, final Runnable mutation)
     {
+        final ContinuousID checkedControlID = Objects.requireNonNull (controlID, "controlID");
+        final IHwContinuousControl checkedControl = Objects.requireNonNull (control, "control");
+        final Runnable checkedMutation = Objects.requireNonNull (mutation, "mutation");
+        if (!this.snapback.isInterceptingMutations ())
+        {
+            checkedMutation.run ();
+            return;
+        }
+
         final ParameterMutationTarget target = this.targetResolver.resolve (
-            Objects.requireNonNull (controlID, "controlID"),
-            Objects.requireNonNull (control, "control"));
-        this.snapback.mutate (target == null ? ParameterMutationRequest.persistent (mutation) : ParameterMutationRequest.snapback (target, mutation));
+            checkedControlID,
+            checkedControl);
+        if (target == null)
+            checkedMutation.run ();
+        else
+            this.snapback.mutate (target, checkedMutation);
     }
 
 
