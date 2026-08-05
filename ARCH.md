@@ -44,6 +44,25 @@ input, state, effect, and output capability.
 A core-only policy change hot reloads. A new physical input, Bitwig proxy, bank shape, API contract,
 or output transport requires a shell build and Bitwig restart.
 
+### Transitional parameter snapback
+
+Shift snapback currently lives at the stable controller-input seam because general parameter
+targets, authoritative values, and retained actuators are not yet exposed through the bounded core
+API. Shift remains an observed modifier: established stable Shift state updates first, and the same
+normalized edge still reaches core. Modes must not add snapback-specific Shift checks.
+
+While Shift is held, the stable interceptor captures each eligible target's first authoritative
+value once. Shift release flushes pending motion before ending the session and requesting all
+restores. A potentially target-rebinding button waits for later authoritative restoration read-back
+before either its stable behavior or core-observed event proceeds. Touch edges do not define the
+session lifetime.
+
+Direct parameter bindings are only generation-fenced proxy slots in this version. They are a safe
+bounded V1 boundary, not the desired semantic target model. The intended endpoint keeps physical
+controls, semantic `ParameterTargetRef` values, movable Bitwig proxies, and bounded target leases
+independent, with interaction policy in the reloadable core. See
+[`docs/findings/parameter-target-proxy-coupling.md`](docs/findings/parameter-target-proxy-coupling.md).
+
 ## Data Model
 
 ### Surface areas

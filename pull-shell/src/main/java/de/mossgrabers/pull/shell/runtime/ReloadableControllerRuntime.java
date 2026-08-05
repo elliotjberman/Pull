@@ -12,6 +12,7 @@ import de.mossgrabers.framework.daw.midi.MidiShortCallback;
 import de.mossgrabers.framework.daw.midi.MidiConstants;
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
+import de.mossgrabers.controller.ableton.push.parameter.PushParameterMutationService;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
@@ -154,8 +155,9 @@ public final class ReloadableControllerRuntime implements AutoCloseable
      *
      * @param surface Stable Push surface
      * @param valueChanger Relative-value decoder
+     * @param parameterMutations Controller parameter-mutation seam
      */
-    public void installControllerInputBridge (final PushControlSurface surface, final IValueChanger valueChanger)
+    public void installControllerInputBridge (final PushControlSurface surface, final IValueChanger valueChanger, final PushParameterMutationService parameterMutations)
     {
         if (this.closed)
             throw new IllegalStateException ("Reloadable controller runtime is closed");
@@ -169,6 +171,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         this.inputBridge = new PushControllerInputBridge (
             Objects.requireNonNull (surface, "surface"),
             Objects.requireNonNull (valueChanger, "valueChanger"),
+            Objects.requireNonNull (parameterMutations, "parameterMutations"),
             this.environment::desiredInputRoutes,
             this::handleControllerInput,
             () -> this.supervisor == null ? 0 : this.supervisor.activeGeneration ());

@@ -75,6 +75,7 @@ import de.mossgrabers.controller.ableton.push.mode.track.SendMode;
 import de.mossgrabers.controller.ableton.push.mode.track.TrackDetailsMode;
 import de.mossgrabers.controller.ableton.push.mode.track.TrackMode;
 import de.mossgrabers.controller.ableton.push.mode.track.VolumeMode;
+import de.mossgrabers.controller.ableton.push.parameter.PushParameterMutationService;
 import de.mossgrabers.controller.ableton.push.view.ChordsView;
 import de.mossgrabers.controller.ableton.push.view.Drum4View;
 import de.mossgrabers.controller.ableton.push.view.Drum64View;
@@ -171,6 +172,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
     private TouchstripCommand                 touchstripCommand;
     private DrumPadControls                   drumPadControls;
     private SessionBankRegistry               sessionBankRegistry;
+    private PushParameterMutationService      parameterMutationService;
     private boolean                           initialHardwareStateReplayed;
 
 
@@ -199,7 +201,18 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
     public void init ()
     {
         super.init ();
-        this.reloadableRuntime.installControllerInputBridge (this.getSurface (), this.valueChanger);
+        this.parameterMutationService = new PushParameterMutationService (this.getSurface (), this.model);
+        this.reloadableRuntime.installControllerInputBridge (this.getSurface (), this.valueChanger, this.parameterMutationService);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void exit ()
+    {
+        if (this.parameterMutationService != null)
+            this.parameterMutationService.shutdown ();
+        super.exit ();
     }
 
 
@@ -207,6 +220,9 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
     @Override
     public void flush ()
     {
+        if (this.parameterMutationService != null)
+            this.parameterMutationService.tick ();
+
         if (this.drumPadControls != null)
             this.drumPadControls.reconcileControllerState ();
 

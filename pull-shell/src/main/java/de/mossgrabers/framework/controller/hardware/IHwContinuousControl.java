@@ -46,6 +46,22 @@ public interface IHwContinuousControl extends IHwInputControl
 
 
     /**
+     * Get the parameter currently behind this physical control, if any.
+     *
+     * @return Bound parameter or null
+     */
+    IParameter getBoundParameter ();
+
+
+    /**
+     * Get the generation of the current command, pitch-bend, or parameter binding.
+     *
+     * @return Monotonically increasing binding generation
+     */
+    long getBindingGeneration ();
+
+
+    /**
      * Install the one permanent physical-value arbitration hook. Once installed, the hardware
      * remains attached to a stable callback; later command, pitch-bend and parameter binds only
      * replace the legacy target behind that callback.

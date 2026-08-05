@@ -59,6 +59,17 @@ public class PushMasterVolumeCommand extends AbstractContinuousCommand<PushContr
 
 
     /**
+     * Test whether the encoder currently controls master rather than cue volume.
+     *
+     * @return True for master-volume mode
+     */
+    public boolean isMasterVolumeMode ()
+    {
+        return this.isMasterVolumeMode;
+    }
+
+
+    /**
      * Notify the active mode.
      */
     public void notifyMode ()

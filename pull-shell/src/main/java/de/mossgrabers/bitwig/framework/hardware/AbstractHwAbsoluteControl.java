@@ -113,6 +113,7 @@ public abstract class AbstractHwAbsoluteControl<T extends AbsoluteHardwareContro
     @Override
     public void bind (final IParameter parameter)
     {
+        this.markBindingChanged ();
         if (!this.hasValueArbitrator () && this.binding != null)
             this.binding.removeBinding ();
 
@@ -142,6 +143,14 @@ public abstract class AbstractHwAbsoluteControl<T extends AbsoluteHardwareContro
         }
 
         this.binding = target == null ? null : this.hardwareControl.setBinding (target);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public IParameter getBoundParameter ()
+    {
+        return this.parameter;
     }
 
 

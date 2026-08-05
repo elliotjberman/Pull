@@ -11,6 +11,7 @@ import de.mossgrabers.framework.command.core.ContinuousCommand;
 import de.mossgrabers.framework.command.core.PitchbendCommand;
 import de.mossgrabers.framework.command.core.TriggerCommand;
 import de.mossgrabers.framework.daw.IHost;
+import de.mossgrabers.framework.parameter.IParameter;
 import de.mossgrabers.framework.utils.ButtonEvent;
 
 
@@ -32,6 +33,7 @@ public abstract class AbstractHwContinuousControl extends AbstractHwInputControl
     private ButtonEvent               physicalTouchState;
     private ButtonEvent               legacyTouchState;
     private int                       touchScheduleCounter;
+    private long                      bindingGeneration;
 
     protected IntSupplier       supplier;
     protected IntConsumer       consumer;
@@ -54,6 +56,7 @@ public abstract class AbstractHwContinuousControl extends AbstractHwInputControl
     @Override
     public void bind (final ContinuousCommand command)
     {
+        this.markBindingChanged ();
         this.command = command;
     }
 
@@ -62,7 +65,24 @@ public abstract class AbstractHwContinuousControl extends AbstractHwInputControl
     @Override
     public void bind (final PitchbendCommand command)
     {
+        this.markBindingChanged ();
         this.pitchbendCommand = command;
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public IParameter getBoundParameter ()
+    {
+        return null;
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public final long getBindingGeneration ()
+    {
+        return this.bindingGeneration;
     }
 
 
@@ -259,6 +279,15 @@ public abstract class AbstractHwContinuousControl extends AbstractHwInputControl
     protected final boolean hasValueArbitrator ()
     {
         return this.valueArbitrator != null;
+    }
+
+
+    /**
+     * Advance the generation whenever the effective value target is rebound.
+     */
+    protected final void markBindingChanged ()
+    {
+        this.bindingGeneration = Math.incrementExact (this.bindingGeneration);
     }
 
 

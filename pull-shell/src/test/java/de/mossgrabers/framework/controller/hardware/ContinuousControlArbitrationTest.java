@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -176,6 +177,27 @@ class ContinuousControlArbitrationTest
     }
 
 
+    @Test
+    void everyParameterRebindAdvancesTheTargetGeneration ()
+    {
+        final FakeRelativeControl control = new FakeRelativeControl ();
+        final IParameter parameter = parameter (new AtomicInteger ());
+
+        control.bind (value -> {
+            // No-op command.
+        });
+        assertEquals (1, control.getBindingGeneration ());
+        control.bind (parameter);
+        assertEquals (2, control.getBindingGeneration ());
+        assertSame (parameter, control.getBoundParameter ());
+
+        // Cursor remote-control pages reuse the same proxy objects. Rebinding the same object must
+        // still invalidate a retained actuator generation.
+        control.bind (parameter);
+        assertEquals (3, control.getBindingGeneration ());
+    }
+
+
     private static PhysicalInputRouter<String> router (final InputKind kind, final AtomicReference<InputRoute> route, final List<PhysicalInputEvent<String>> events)
     {
         final PhysicalControlRegistry<String> registry = PhysicalControlRegistry.<String>builder (1)
@@ -306,9 +328,17 @@ class ContinuousControlArbitrationTest
         @Override
         public void bind (final IParameter parameter)
         {
+            this.markBindingChanged ();
             this.parameter = parameter;
             if (!this.hasValueArbitrator ())
                 this.replaceHardwareTarget ();
+        }
+
+
+        @Override
+        public IParameter getBoundParameter ()
+        {
+            return this.parameter;
         }
 
 

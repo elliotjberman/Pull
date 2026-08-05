@@ -77,6 +77,9 @@ public final class ControllerWorkspaceHost
     public void apply (final DesiredControllerWorkspace workspace)
     {
         final DesiredControllerWorkspace next = this.prepare (workspace);
+        if (next.equals (this.desiredWorkspace))
+            return;
+
         final boolean hadGrid = usesGridAdapter (this.desiredWorkspace);
         final boolean hadMode = usesModeAdapter (this.desiredWorkspace);
         final boolean wantsGrid = usesGridAdapter (next);
