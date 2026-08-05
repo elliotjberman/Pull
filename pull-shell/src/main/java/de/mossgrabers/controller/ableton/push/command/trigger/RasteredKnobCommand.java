@@ -61,7 +61,8 @@ public class RasteredKnobCommand extends TempoCommand<PushControlSurface, PushCo
 
         if (this.isTempoMode)
         {
-            super.execute (value);
+            // Shift owns momentary snapback on Push, so tempo keeps its normal encoder response.
+            this.transport.changeTempo (this.model.getValueChanger ().isIncrease (value), false);
             this.mvHelper.notifyTempo ();
         }
         else
