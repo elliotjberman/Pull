@@ -1,8 +1,9 @@
 # Views API and Composite Workspaces
 
-Status: design contract for the next Pull milestones. The first two implementation checkpoints are
-defined below so code, offline tests, and Push hardware tests can be compared against an explicit
-target.
+Status: design contract. Checkpoints 1 and 2 are functionally implemented through Core API 12, with
+the remaining migration gaps and stable-adapter shortcuts recorded in [`../ARCH.md`](../ARCH.md).
+The checkpoints remain below so code, offline tests, and Push hardware tests can be compared against
+the intended end state.
 
 ## Goal
 
