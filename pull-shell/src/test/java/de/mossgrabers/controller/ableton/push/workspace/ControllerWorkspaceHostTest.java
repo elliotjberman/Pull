@@ -5,6 +5,7 @@ package de.mossgrabers.controller.ableton.push.workspace;
 
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
+import de.mossgrabers.pull.core.api.SessionBankShape;
 
 import org.junit.jupiter.api.Test;
 
@@ -24,8 +25,9 @@ class ControllerWorkspaceHostTest
             ControllerViewFacet.SESSION_SCENE_KEYS_UPPER,
             ControllerViewFacet.DRUM_CONTROLLER_LOWER,
             ControllerViewFacet.DRUM_PITCH_BEND);
-        final DesiredControllerWorkspace first = new DesiredControllerWorkspace ("first", facets);
-        final DesiredControllerWorkspace second = new DesiredControllerWorkspace ("another name", facets);
+        final SessionBankShape shape = new SessionBankShape (8, 4);
+        final DesiredControllerWorkspace first = new DesiredControllerWorkspace ("first", facets, shape);
+        final DesiredControllerWorkspace second = new DesiredControllerWorkspace ("another name", facets, shape);
 
         assertEquals (first, ControllerWorkspaceHost.validate (first));
         assertEquals (second, ControllerWorkspaceHost.validate (second));

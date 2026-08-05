@@ -12,6 +12,7 @@ import de.mossgrabers.framework.daw.data.bank.ITrackBank;
 import de.mossgrabers.framework.featuregroup.AbstractFeatureGroup;
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
+import de.mossgrabers.pull.core.api.SessionBankShape;
 
 
 /**
@@ -19,7 +20,10 @@ import de.mossgrabers.pull.core.api.ControllerViewFacet;
  */
 public final class WorkspaceView extends SessionView implements WorkspaceFacetAdapter
 {
-    private static final int SESSION_ROWS = 4;
+    /** Session bank shape supported by the current upper-grid adapter. */
+    public static final SessionBankShape SESSION_BANK_SHAPE = new SessionBankShape (8, 4);
+
+    private static final int SESSION_ROWS = SESSION_BANK_SHAPE.scenes ();
 
     private final DrumPadControls controls;
 
@@ -48,6 +52,14 @@ public final class WorkspaceView extends SessionView implements WorkspaceFacetAd
     {
         this.reconcileWorkspaceFacets ();
         super.onActivate ();
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    protected SessionBankShape getSessionBankShape ()
+    {
+        return this.surface.getControllerWorkspaceHost ().getSessionBankShape ();
     }
 
 

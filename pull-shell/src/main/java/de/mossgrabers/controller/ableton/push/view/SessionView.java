@@ -20,6 +20,7 @@ import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.framework.utils.Pair;
 import de.mossgrabers.framework.view.AbstractSessionView;
 import de.mossgrabers.framework.view.TransposeView;
+import de.mossgrabers.pull.core.api.SessionBankShape;
 
 
 /**
@@ -29,6 +30,9 @@ import de.mossgrabers.framework.view.TransposeView;
  */
 public class SessionView extends AbstractSessionView<PushControlSurface, PushConfiguration> implements TransposeView
 {
+    /** Full Push Session grid bank. */
+    public static final SessionBankShape SESSION_BANK_SHAPE = new SessionBankShape (8, 8);
+
     private final int yOffset;
 
 
@@ -78,6 +82,28 @@ public class SessionView extends AbstractSessionView<PushControlSurface, PushCon
 
         this.birdColorHasContent = new LightInfo (amber, -1, false);
         this.birdColorSelected = isPlaying;
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void onActivate ()
+    {
+        final SessionBankShape shape = this.getSessionBankShape ();
+        if (shape.isPresent ())
+            this.surface.getSessionBankRegistry ().activate (shape);
+        super.onActivate ();
+    }
+
+
+    /**
+     * Get the Session bank shape declared by this view.
+     *
+     * @return Session bank shape
+     */
+    protected SessionBankShape getSessionBankShape ()
+    {
+        return SESSION_BANK_SHAPE;
     }
 
 

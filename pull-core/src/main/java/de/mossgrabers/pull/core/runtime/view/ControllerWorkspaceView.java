@@ -8,6 +8,7 @@ import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.PushControlIds;
+import de.mossgrabers.pull.core.api.SessionBankShape;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
@@ -38,7 +39,8 @@ public final class ControllerWorkspaceView implements ControllerView
             ControllerViewFacet.SESSION_CLIP_GRID_UPPER,
             ControllerViewFacet.SESSION_SCENE_KEYS_UPPER,
             ControllerViewFacet.DRUM_CONTROLLER_LOWER,
-            ControllerViewFacet.DRUM_PITCH_BEND));
+            ControllerViewFacet.DRUM_PITCH_BEND),
+        new SessionBankShape (8, 4));
 
     private static final ControlId SESSION_BUTTON = PushControlIds.button ("SESSION");
     private static final ControlId NOTE_BUTTON = PushControlIds.button ("NOTE");

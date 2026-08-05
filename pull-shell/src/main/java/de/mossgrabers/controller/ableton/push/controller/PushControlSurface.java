@@ -9,6 +9,7 @@ import java.util.function.BooleanSupplier;
 
 import de.mossgrabers.controller.ableton.push.PushConfiguration;
 import de.mossgrabers.controller.ableton.push.workspace.ControllerWorkspaceHost;
+import de.mossgrabers.controller.ableton.push.workspace.SessionBankRegistry;
 import de.mossgrabers.framework.controller.AbstractControlSurface;
 import de.mossgrabers.framework.controller.color.ColorManager;
 import de.mossgrabers.framework.daw.IHost;
@@ -340,6 +341,7 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
     private final PushPadGrid                 pushPadGrid;
     private final ReloadableControllerRuntime reloadableRuntime;
     private final ControllerWorkspaceHost      controllerWorkspaceHost;
+    private SessionBankRegistry                 sessionBankRegistry;
     private final ISelectedTrackNoteTarget    selectedTrackNoteTarget;
     private final ITrack                      drumModelTrack;
     private final BooleanSupplier             drumModelDeviceReady;
@@ -435,6 +437,32 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
     public ControllerWorkspaceHost getControllerWorkspaceHost ()
     {
         return this.controllerWorkspaceHost;
+    }
+
+
+    /**
+     * Supply the initialized bounded Session-bank canopy.
+     *
+     * @param sessionBankRegistry Session-bank registry
+     */
+    public void setSessionBankRegistry (final SessionBankRegistry sessionBankRegistry)
+    {
+        if (this.sessionBankRegistry != null)
+            throw new IllegalStateException ("Session-bank registry is already installed");
+        this.sessionBankRegistry = Objects.requireNonNull (sessionBankRegistry, "sessionBankRegistry");
+    }
+
+
+    /**
+     * Get the bounded Session-bank canopy.
+     *
+     * @return Session-bank registry
+     */
+    public SessionBankRegistry getSessionBankRegistry ()
+    {
+        if (this.sessionBankRegistry == null)
+            throw new IllegalStateException ("Session-bank registry has not been installed");
+        return this.sessionBankRegistry;
     }
 
 

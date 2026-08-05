@@ -4,7 +4,9 @@
 
 package de.mossgrabers.controller.ableton.push;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import de.mossgrabers.controller.ableton.push.PushConfiguration.LockState;
 import de.mossgrabers.controller.ableton.push.command.continuous.ConfigurePitchbendCommand;
@@ -90,6 +92,7 @@ import de.mossgrabers.controller.ableton.push.view.RaindropsView;
 import de.mossgrabers.controller.ableton.push.view.SequencerView;
 import de.mossgrabers.controller.ableton.push.view.SessionView;
 import de.mossgrabers.controller.ableton.push.view.WorkspaceView;
+import de.mossgrabers.controller.ableton.push.workspace.SessionBankRegistry;
 import de.mossgrabers.framework.command.continuous.KnobRowModeCommand;
 import de.mossgrabers.framework.command.trigger.BrowserCommand;
 import de.mossgrabers.framework.command.trigger.Direction;
@@ -141,6 +144,7 @@ import de.mossgrabers.framework.view.TransposeView;
 import de.mossgrabers.framework.view.Views;
 import de.mossgrabers.framework.view.sequencer.AbstractSequencerView;
 import de.mossgrabers.framework.view.sequencer.ClipLengthView;
+import de.mossgrabers.pull.core.api.SessionBankShape;
 import de.mossgrabers.pull.shell.runtime.ReloadableControllerRuntime;
 
 
@@ -162,10 +166,12 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         // Sustain pedal - channel 1
         "B040??"
     };
+    private static final Set<SessionBankShape> SESSION_BANK_CANOPY = Set.copyOf (List.of (SessionView.SESSION_BANK_SHAPE, WorkspaceView.SESSION_BANK_SHAPE));
 
     private final ReloadableControllerRuntime reloadableRuntime;
     private TouchstripCommand                 touchstripCommand;
     private DrumPadControls                   drumPadControls;
+    private SessionBankRegistry               sessionBankRegistry;
     private boolean                           initialHardwareStateReplayed;
 
 
@@ -223,12 +229,14 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         ms.setHasFlatTrackList (this.configuration.isTrackNavigationFlat ());
         ms.setHasFullFlatTrackList (this.configuration.areMasterTracksIncluded ());
         ms.setWantsFocusedParameter (true);
+        for (final SessionBankShape shape: SESSION_BANK_CANOPY)
+            ms.addTrackBank (shape.tracks (), shape.scenes ());
 
         this.model = this.factory.createModel (this.configuration, this.colorManager, this.valueChanger, this.scales, ms);
 
-        final ITrackBank trackBank = this.model.getTrackBank ();
-        trackBank.setIndication (true);
-        trackBank.addSelectionObserver ( (index, isSelected) -> this.handleTrackChange (isSelected));
+        this.sessionBankRegistry = new SessionBankRegistry (this.model, SESSION_BANK_CANOPY, SessionView.SESSION_BANK_SHAPE);
+        for (final ITrackBank sessionBank: this.sessionBankRegistry.getBanks ())
+            sessionBank.addSelectionObserver ( (index, isSelected) -> this.handleTrackChange (isSelected));
         final ITrackBank effectTrackBank = this.model.getEffectTrackBank ();
         if (effectTrackBank != null)
             effectTrackBank.addSelectionObserver ( (index, isSelected) -> this.handleTrackChange (isSelected));
@@ -257,6 +265,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
             return drumDevice.doesExist () && drumDevice.hasDrumPads ();
         }, this.reloadableRuntime);
         this.surface = surface;
+        surface.setSessionBankRegistry (this.sessionBankRegistry);
         this.reloadableRuntime.connect (this.model, selectedTrackNoteTarget, input::sendRawMidiEvent, surface, this.valueChanger);
 
         surface.addGraphicsDisplay (new Push2Display (this.host, this.valueChanger.getUpperBound (), this.configuration));

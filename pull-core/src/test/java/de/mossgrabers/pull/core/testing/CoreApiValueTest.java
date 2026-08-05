@@ -21,6 +21,7 @@ import de.mossgrabers.pull.core.api.GridPressureConfiguration;
 import de.mossgrabers.pull.core.api.InputRoute;
 import de.mossgrabers.pull.core.api.InputRouteMode;
 import de.mossgrabers.pull.core.api.PushControlIds;
+import de.mossgrabers.pull.core.api.SessionBankShape;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.StateEnvelope;
 import de.mossgrabers.pull.core.api.TimerId;
@@ -154,7 +155,7 @@ class CoreApiValueTest
     @Test
     void publishesStableVersionCapabilityAndControlIdentifiers ()
     {
-        assertEquals (11, CoreApi.VERSION);
+        assertEquals (12, CoreApi.VERSION);
         assertEquals ("input.drum-fill", CoreCapabilities.INPUT_DRUM_FILL);
         assertEquals ("snapshot.selected-track-clips", CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS);
         assertEquals ("binding.clip-target", CoreCapabilities.BINDING_CLIP_TARGET);
@@ -201,11 +202,20 @@ class CoreApiValueTest
 
         assertEquals ("live", workspace.name ());
         assertEquals (Set.of (ControllerViewFacet.PROJECT_MACRO_CONTROLS), workspace.facets ());
+        assertEquals (SessionBankShape.empty (), workspace.sessionBankShape ());
         assertTrue (workspace.isActive ());
         assertFalse (DesiredControllerWorkspace.empty ().isActive ());
         assertThrows (UnsupportedOperationException.class, () -> workspace.facets ().clear ());
         assertThrows (IllegalArgumentException.class, () -> new DesiredControllerWorkspace ("named", Set.of ()));
         assertThrows (IllegalArgumentException.class, () -> new DesiredControllerWorkspace ("", Set.of (ControllerViewFacet.PROJECT_MACRO_CONTROLS)));
+        assertThrows (IllegalArgumentException.class, () -> new DesiredControllerWorkspace (
+            "session without shape",
+            Set.of (ControllerViewFacet.SESSION_CLIP_GRID_UPPER)));
+        assertThrows (IllegalArgumentException.class, () -> new DesiredControllerWorkspace (
+            "shape without session",
+            Set.of (ControllerViewFacet.PROJECT_MACRO_CONTROLS),
+            new SessionBankShape (8, 4)));
+        assertThrows (IllegalArgumentException.class, () -> new SessionBankShape (8, 0));
     }
 
 

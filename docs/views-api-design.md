@@ -132,6 +132,9 @@ A workspace is intentionally boring data:
 
 ```yaml
 name: VS Live
+session_bank:
+  tracks: 8
+  scenes: 4
 views:
   - use: project-macro-controls
   - use: track-selection-strip
@@ -145,6 +148,14 @@ views:
 The first implementation may construct this exact data in Java. YAML or JSON loading comes only
 after the compiler and ownership diagnostics are stable.
 
+`session_bank` is part of the workspace's fixed footprint, not a free mapping. The normal Session
+view declares `8x8`; the current upper-grid Session profile declares `8x4`. The stable shell eagerly
+installs only the deduplicated bank shapes declared by installed views and adapters. Core selects
+among those banks as replayable workspace state, while stable switches the matching Bitwig proxy,
+preserves track/scene offsets, and gives only that proxy clip-launcher feedback. A core requesting an
+undeclared shape is rejected before activation; adding a new shape requires a shell build and Bitwig
+restart, while selecting or composing already installed shapes remains core-reloadable.
+
 Compilation rules:
 
 1. Expand each selected profile and facet into atomic claims.
@@ -154,6 +165,7 @@ Compilation rules:
    facet and replacement facet.
 5. Produce deterministic input and output ownership tables independent of declaration order.
 6. Validate required shell capabilities before activation.
+7. Validate that the declared Session bank shape matches the fixed Session adapter footprint.
 
 V1 has no dynamic negotiation. V2 may allow a workspace to enable or disable named optional facets
 based on capabilities, but a view's remaining footprint still cannot move.
@@ -203,7 +215,7 @@ Add one hardcoded workspace named `VS Live`, entered with **Shift + Session** fo
 - Session Navigation owns the arrow keys (and established Session paging behavior) so track/scene
   navigation remains available.
 - Session Clip Grid owns the upper four pad rows. Clip launch behavior and scene order match Session
-  view, adjusted only for the four-row viewport.
+  view through its declared `8x4` Session bank rather than an `8x8` bank cropped at render time.
 - Drum Controller owns the bottom four pad rows, including its existing 4x4 playable block, rate
   pads, and fill pads.
 - Drum Controller's `pitch-bend` facet owns the touch strip.

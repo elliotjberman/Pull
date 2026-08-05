@@ -4,12 +4,14 @@
 package de.mossgrabers.controller.ableton.push.workspace;
 
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
+import de.mossgrabers.controller.ableton.push.view.WorkspaceView;
 import de.mossgrabers.framework.featuregroup.ModeManager;
 import de.mossgrabers.framework.featuregroup.ViewManager;
 import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.view.Views;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
+import de.mossgrabers.pull.core.api.SessionBankShape;
 
 import java.util.Objects;
 
@@ -45,7 +47,14 @@ public final class ControllerWorkspaceHost
      */
     public DesiredControllerWorkspace prepare (final DesiredControllerWorkspace workspace)
     {
-        return validate (workspace);
+        final DesiredControllerWorkspace candidate = validate (workspace);
+        if (candidate.sessionBankShape ().isPresent ())
+        {
+            this.surface.getSessionBankRegistry ().requireDeclared (candidate.sessionBankShape ());
+            if (!WorkspaceView.SESSION_BANK_SHAPE.equals (candidate.sessionBankShape ()))
+                throw new IllegalArgumentException ("Workspace grid adapter requires Session bank " + WorkspaceView.SESSION_BANK_SHAPE.tracks () + "x" + WorkspaceView.SESSION_BANK_SHAPE.scenes ());
+        }
+        return candidate;
     }
 
 
@@ -74,6 +83,10 @@ public final class ControllerWorkspaceHost
         final boolean wantsMode = usesModeAdapter (next);
 
         this.desiredWorkspace = next;
+        if (next.sessionBankShape ().isPresent ())
+            this.surface.getSessionBankRegistry ().activate (next.sessionBankShape ());
+        else
+            this.surface.getSessionBankRegistry ().restoreDefault ();
         final ViewManager viewManager = this.surface.getViewManager ();
         final ModeManager modeManager = this.surface.getModeManager ();
 
@@ -141,6 +154,17 @@ public final class ControllerWorkspaceHost
     public boolean isActive ()
     {
         return this.desiredWorkspace.isActive ();
+    }
+
+
+    /**
+     * Get the Session bank requested by the active core workspace.
+     *
+     * @return Declared Session bank shape
+     */
+    public SessionBankShape getSessionBankShape ()
+    {
+        return this.desiredWorkspace.sessionBankShape ();
     }
 
 
