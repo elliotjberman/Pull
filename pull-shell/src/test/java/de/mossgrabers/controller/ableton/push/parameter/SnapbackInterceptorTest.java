@@ -101,6 +101,32 @@ class SnapbackInterceptorTest
 
 
     @Test
+    void failedReadbackCannotLeaveControlsAndNavigationCapturedForever ()
+    {
+        final FakeTarget target = new FakeTarget ("device-remote", 32);
+        final List<String> order = new ArrayList<> ();
+        final List<String> warnings = new ArrayList<> ();
+        final SnapbackInterceptor interceptor = new SnapbackInterceptor (request -> request.mutation ().run (), warnings::add);
+
+        interceptor.triggerPressed ();
+        interceptor.mutate (mutation (target, 90));
+        target.advanceHost ();
+        interceptor.triggerReleased ();
+        interceptor.beforePotentialTargetRebind ( () -> order.add ("navigate"));
+
+        for (int tick = 0; tick < 16; tick++)
+            interceptor.tick ();
+
+        assertFalse (interceptor.isRestoring ());
+        assertEquals (List.of ("navigate"), order);
+        assertEquals (1, warnings.size ());
+
+        interceptor.mutate (mutation (target, 45));
+        assertEquals (45, target.requested);
+    }
+
+
+    @Test
     void staleGenerationNeverRestoresThroughTheReplacementTarget ()
     {
         final FakeTarget original = new FakeTarget ("remote-slot", 15);

@@ -19,6 +19,7 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
 {
     private static final int MAX_CAPTURES = 16;
     private static final int MAX_PENDING_ACTIONS = 64;
+    private static final int MAX_RESTORE_TICKS = 16;
 
     private final ParameterMutationGateway delegate;
     private final Consumer<String> warningSink;
@@ -27,6 +28,7 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
 
     private State state = State.IDLE;
     private boolean triggerHeld;
+    private int restoreTicks;
 
 
     /**
@@ -181,6 +183,12 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
         }
         if (this.captures.isEmpty ())
             this.completeRestoration ();
+        else if (++this.restoreTicks >= MAX_RESTORE_TICKS)
+        {
+            this.warningSink.accept ("Timed out waiting for authoritative snapback restoration; released " + this.captures.size () + " retained target(s)");
+            this.captures.clear ();
+            this.completeRestoration ();
+        }
     }
 
 
@@ -206,6 +214,7 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
         this.pendingActions.clear ();
         this.triggerHeld = false;
         this.state = State.IDLE;
+        this.restoreTicks = 0;
     }
 
 
@@ -226,6 +235,7 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
         if (this.state == State.RESTORING)
             return;
         this.state = State.RESTORING;
+        this.restoreTicks = 0;
 
         final Iterator<Map.Entry<ParameterTargetRef, Capture>> iterator = this.captures.entrySet ().iterator ();
         while (iterator.hasNext ())
@@ -266,6 +276,7 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
             }
         }
         this.state = this.triggerHeld ? State.ACTIVE : State.IDLE;
+        this.restoreTicks = 0;
     }
 
 

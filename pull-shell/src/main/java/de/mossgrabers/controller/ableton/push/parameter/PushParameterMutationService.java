@@ -257,7 +257,7 @@ public final class PushParameterMutationService
             return new FunctionalTarget (
                 reference,
                 parameter::getValue,
-                value -> parameter.setValue ((int) Math.round (value)),
+                value -> parameter.setValueImmediatly ((int) Math.round (value)),
                 current,
                 0.5);
         }

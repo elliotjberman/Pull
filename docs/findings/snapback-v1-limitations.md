@@ -120,6 +120,11 @@ adjacent target/proxy finding.
   long automation touch.
 - Effect submission is not restoration completion. Do not permit a new session for a restoring
   target until later host read-back acknowledges the baseline.
+- Restoration through an `IParameter` uses its immediate setter so Bitwig's configured takeover
+  mode cannot reject the return to the retained baseline.
+- Waiting for authoritative read-back is bounded to 16 controller ticks. A timeout abandons the
+  retained targets and releases deferred navigation so one failed acknowledgement cannot capture
+  controller input indefinitely.
 - The stable shell should retain exact restoration targets and restore them best-effort if the
   active core generation is invalidated.
 
@@ -134,6 +139,7 @@ adjacent target/proxy finding.
 - A stale target generation never mutates the newly selected target.
 - Rapid trigger release and repress cannot capture an unrestored temporary value as a new baseline.
 - Reload or core failure does not silently leave an active retained target temporary.
+- Missing restoration read-back times out and releases parameter and navigation input.
 
 ## Removal Criteria
 
