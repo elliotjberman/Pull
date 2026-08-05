@@ -101,6 +101,11 @@ their stable commands wait behind a replayable route barrier until later host re
 every retained baseline. Stable dispatch then runs before the newly requested workspace applies.
 If Shift remains held, core opens a fresh session after that barrier.
 
+The physical button set is a temporary migration boundary, not the intended action model. The
+follow-up investigation in
+[`physical-input-semantic-action-coupling.md`](physical-input-semantic-action-coupling.md) defines
+the input-to-action-to-effect lifecycle that should replace it.
+
 Policy now lives in the reloadable core. Stable owns only the bounded live actuator window, exact
 leases, absolute effect execution, generation rechecks, and best-effort invalidation restoration.
 An in-flight lease is included immediately in the public snapshot so a same-cycle core reload can

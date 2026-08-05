@@ -97,6 +97,8 @@ Before a known context-changing button can run, pending motion is flushed and co
 waits for authoritative read-back. The normalized edge reaches core while its stable command waits
 behind a bounded route barrier. Stable dispatch runs before the released core workspace applies.
 An unexpected generation change fails closed and never restores through the replacement proxy.
+Inferring that context change from a physical button is itself temporary coupling; see
+[`physical-input-semantic-action-coupling.md`](physical-input-semantic-action-coupling.md).
 
 This is a material implementation of the proposed separation, but not the final semantic target
 model. The active slots still follow rebindable Moss parameters, two slots cannot yet deduplicate a
