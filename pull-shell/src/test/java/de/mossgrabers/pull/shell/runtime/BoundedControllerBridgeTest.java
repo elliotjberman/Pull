@@ -163,16 +163,18 @@ class BoundedControllerBridgeTest
         fixture.bridge.activateCoreGeneration (1);
 
         applyMidi (fixture, 0xB3, 74, 99);
+        applyMidi (fixture, 0xA3, 60, 75);
         applyMidi (fixture, 0xD4, 80, 17);
         applyMidi (fixture, 0xE2, 5, 100);
         fixture.bridge.activateCoreGeneration (2);
 
-        assertEquals (6, fixture.noteInputMidiMessages.size ());
+        assertEquals (8, fixture.noteInputMidiMessages.size ());
         assertEquals (Set.of (
             new MidiMessage (0xB3, 74, 0),
+            new MidiMessage (0xA3, 60, 0),
             new MidiMessage (0xD4, 0, 0),
             new MidiMessage (0xE2, 0, 64)),
-            new HashSet<> (fixture.noteInputMidiMessages.subList (3, 6)));
+            new HashSet<> (fixture.noteInputMidiMessages.subList (4, 8)));
     }
 
 

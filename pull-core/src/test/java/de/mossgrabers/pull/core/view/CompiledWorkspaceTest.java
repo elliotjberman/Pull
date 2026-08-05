@@ -6,8 +6,6 @@ package de.mossgrabers.pull.core.view;
 import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
-import de.mossgrabers.pull.core.api.ControlId;
-import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.InputRouteMode;
 import de.mossgrabers.pull.core.api.PushControlIds;
@@ -67,12 +65,12 @@ class CompiledWorkspaceTest
     @Test
     void gridClaimsPublishPadAndPressureRoutesTogether ()
     {
-        final TestView view = view ("grid", claim (SurfaceArea.DRUM_FILL_PADS, SurfaceClaim.Kind.OBSERVE_INPUT));
+        final TestView view = view ("grid", claim (SurfaceArea.DRUM_PLAY_PADS, SurfaceClaim.Kind.OBSERVE_INPUT));
 
         final CoreResult result = CompiledWorkspace.compile ("grid inputs", List.of (view)).start (snapshot ());
-        final ControlId firstPad = CoreControls.DRUM_FILL_1;
+        final var firstPad = PushControlIds.pad (1);
 
-        assertEquals (24, result.desiredInputRoutes ().routes ().size ());
+        assertEquals (32, result.desiredInputRoutes ().routes ().size ());
         assertEquals (InputRouteMode.OBSERVE, result.desiredInputRoutes ().mode (firstPad, InputKind.PAD).orElseThrow ());
         assertEquals (InputRouteMode.OBSERVE, result.desiredInputRoutes ().mode (firstPad, InputKind.POLY_PRESSURE).orElseThrow ());
     }

@@ -90,11 +90,7 @@ public final class WorkspaceView extends SessionView implements WorkspaceFacetAd
     @Override
     public void onGridPressure (final int note, final int value)
     {
-        if (!this.hasFacet (ControllerViewFacet.DRUM_CONTROLLER_LOWER) || !this.surface.isDrumControllerActive ())
-            return;
-        if (note >= 0 && !this.controls.isPlayPad (note))
-            return;
-        super.onGridPressure (note, value);
+        // The reloadable DrumPressureView owns pressure policy for this composite adapter.
     }
 
 

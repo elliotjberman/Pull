@@ -9,7 +9,7 @@ package de.mossgrabers.pull.core.api.effect;
  * <p>Bitwig's ordinary input, monitoring, and record-arm routing decides which tracks receive the
  * message. This effect does not imply a selected-track destination.</p>
  *
- * @param status MIDI CC, channel-pressure, or pitch-bend status byte
+ * @param status MIDI poly-pressure, CC, channel-pressure, or pitch-bend status byte
  * @param data1 First 7-bit MIDI data byte
  * @param data2 Second 7-bit MIDI data byte
  */
@@ -21,8 +21,8 @@ public record SendNoteInputMidiEffect (int status, int data1, int data2) impleme
     public SendNoteInputMidiEffect
     {
         final int command = status & 0xF0;
-        if (status < 0x80 || status > 0xEF || command != 0xB0 && command != 0xD0 && command != 0xE0)
-            throw new IllegalArgumentException ("status must be MIDI CC, channel pressure, or pitch bend");
+        if (status < 0x80 || status > 0xEF || command != 0xA0 && command != 0xB0 && command != 0xD0 && command != 0xE0)
+            throw new IllegalArgumentException ("status must be MIDI poly pressure, CC, channel pressure, or pitch bend");
         requireMidi7Bit (data1, "data1");
         requireMidi7Bit (data2, "data2");
     }

@@ -82,6 +82,11 @@ through a separate concrete-view registration list. A view may ignore pressure, 
 pad has no musical pressure destination. Aggregate channel pressure has no pad identity and remains
 a distinct surface-wide input.
 
+The stable shell captures those events and publishes the current typed pressure configuration and
+drum base note. A reloadable view owns the mapping from its fixed playable footprint to MIDI effects.
+The stable adapter for a core-owned composite must be inert for pressure, while standalone views
+which have not migrated may continue through the generic stable view contract.
+
 ## Fixed Views
 
 A view exposes named profiles, not arbitrary ports:
@@ -204,6 +209,9 @@ Add one hardcoded workspace named `VS Live`, entered with **Shift + Session** fo
 - Drum Controller's `pitch-bend` facet owns the touch strip.
 - Per-pad pressure on Drum Controller's playable 4x4 block follows that same lower-grid ownership;
   pressure on rate, fill, and Session pads has no musical destination.
+- `DrumPressureView` implements that policy in the reloadable core. It observes the playable pad
+  edges and pressure, honors Off/Poly/Channel/CC configuration, and sends mapped output through the
+  permanent NoteInput MIDI effect. `WorkspaceView` performs no parallel pressure mutation.
 - No view claims the lower scene keys merely because they sit beside Drum Controller. Upper scene
   keys may launch the four visible Session scenes through the Session grid's named facet.
 

@@ -9,7 +9,7 @@ package de.mossgrabers.pull.core.api;
 public final class CoreApi
 {
     /** The current API version. */
-    public static final int VERSION = 10;
+    public static final int VERSION = 11;
 
 
     private CoreApi ()

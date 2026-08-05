@@ -63,12 +63,12 @@ class PullCoreProviderTest
             Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_WORKSPACE, Integer.valueOf (1)),
             Map.entry (CoreCapabilities.INPUT_CONTROLLER, Integer.valueOf (1)),
             Map.entry (CoreCapabilities.ROUTING_CONTROLLER_INPUT, Integer.valueOf (1)),
-            Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE, Integer.valueOf (1)),
+            Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE, Integer.valueOf (2)),
             Map.entry (CoreCapabilities.SUBSCRIPTION_CONTROLLER_BRIDGE, Integer.valueOf (1)),
             Map.entry (CoreCapabilities.EFFECT_TRANSPORT, Integer.valueOf (1)),
             Map.entry (CoreCapabilities.EFFECT_SELECTED_TRACK, Integer.valueOf (2)),
             Map.entry (CoreCapabilities.EFFECT_DRUM_PAD, Integer.valueOf (1)),
-            Map.entry (CoreCapabilities.EFFECT_NOTE_INPUT_MIDI, Integer.valueOf (1))), required);
+            Map.entry (CoreCapabilities.EFFECT_NOTE_INPUT_MIDI, Integer.valueOf (2))), required);
     }
 
 

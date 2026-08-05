@@ -174,6 +174,27 @@ final class FakeCoreHost
 
 
     /**
+     * Deliver one normalized controller motion sample.
+     *
+     * @param controlId The physical control
+     * @param kind Motion input kind
+     * @param value Normalized value
+     */
+    void controllerMotion (final ControlId controlId, final InputKind kind, final long value)
+    {
+        this.revision++;
+        this.eventSequence++;
+        this.effectExecutor.apply (this.core.handle (new ControllerInputEvent (
+            this.eventSequence,
+            this.time.nowNanos (),
+            controlId,
+            kind,
+            InputPhase.UPDATE,
+            value), this.snapshot ()));
+    }
+
+
+    /**
      * Deliver a touch transition after updating authoritative held state.
      *
      * @param controlId The control
@@ -257,6 +278,18 @@ final class FakeCoreHost
             this.bridge.selectedTrack (),
             this.bridge.layout (),
             this.bridge.drum ());
+        this.snapshotChanged ();
+    }
+
+
+    /**
+     * Replace the complete bounded controller bridge and notify the core.
+     *
+     * @param bridge New bridge state
+     */
+    void bridge (final ControllerBridgeSnapshot bridge)
+    {
+        this.bridge = Objects.requireNonNull (bridge, "bridge");
         this.snapshotChanged ();
     }
 

@@ -93,8 +93,9 @@
   Push `NoteInput` with `Track.addNoteSource()` or exclude it from `All Inputs`; Pads and raw ribbon
   MIDI must follow ordinary Bitwig track-input, monitor, and record-arm routing.
 - Parent-own cleanup for stateful raw MIDI sent through the permanent `NoteInput`. Neutralize
-  outstanding CC, channel-pressure, and pitch-bend state when the active core generation changes,
-  selection changes as a conservative safety boundary, or the extension shuts down. Do not model
+  outstanding poly-pressure, CC, channel-pressure, and pitch-bend state when the active core
+  generation changes, selection changes as a conservative safety boundary, or the extension shuts
+  down. Do not model
   this target-neutral effect as selected-track MIDI or promise target-specific cleanup; Bitwig
   decides which normally routed tracks receive both the value and its neutralization.
 - Generation checks at prepare time are not enough for effects aimed through mutable proxies.
@@ -107,7 +108,7 @@
 - A core-only change inside the installed API/canopy hot reloads. Changing a parent-loaded API
   contract, adding a Bitwig proxy/property/observer, changing a permanent binding or proxy capacity,
   or broadening hardware output ownership requires a shell build/install and Bitwig restart.
-- Core API 10 arbitrates general input and complete fixed-facet workspace selection, so mappings
+- Core API 11 arbitrates general input and complete fixed-facet workspace selection, so mappings
   whose state and effects are already bridged belong in the reloadable core. Only the 12 drum-fill
   RGB lights have migrated direct output ownership; workspace facets still use generic stable
   adapters for inherited Bitwig/DrivenByMoss mechanics. Do not claim general Push light or display

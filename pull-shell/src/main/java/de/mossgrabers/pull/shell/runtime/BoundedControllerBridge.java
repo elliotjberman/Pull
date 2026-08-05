@@ -5,6 +5,7 @@ package de.mossgrabers.pull.shell.runtime;
 
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.command.trigger.clip.NewClipAction;
+import de.mossgrabers.framework.configuration.AbstractConfiguration;
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.IModel;
@@ -23,6 +24,7 @@ import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DrumContextSnapshot;
 import de.mossgrabers.pull.core.api.DrumPadSnapshot;
+import de.mossgrabers.pull.core.api.GridPressureConfiguration;
 import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
 import de.mossgrabers.pull.core.api.TrackMonitorMode;
 import de.mossgrabers.pull.core.api.TransportSnapshot;
@@ -352,7 +354,22 @@ final class BoundedControllerBridge
             activeView == null ? "" : activeView.toString (),
             activeMode == null ? "" : activeMode.toString (),
             this.surface.isDrumPadLayoutActive (),
-            this.surface.isDrumControllerActive ());
+            this.surface.isDrumControllerActive (),
+            this.model.getScales ().getDrumOffset (),
+            this.captureGridPressureConfiguration ());
+    }
+
+
+    private GridPressureConfiguration captureGridPressureConfiguration ()
+    {
+        final int conversion = this.surface.getConfiguration ().getConvertAftertouch ();
+        return switch (conversion)
+        {
+            case AbstractConfiguration.AFTERTOUCH_CONVERT_OFF -> GridPressureConfiguration.OFF;
+            case AbstractConfiguration.AFTERTOUCH_CONVERT_POLY -> GridPressureConfiguration.POLY;
+            case AbstractConfiguration.AFTERTOUCH_CONVERT_CHANNEL -> GridPressureConfiguration.CHANNEL;
+            default -> GridPressureConfiguration.controlChange (conversion);
+        };
     }
 
 
@@ -568,9 +585,10 @@ final class BoundedControllerBridge
     private void rememberNoteInputMidiState (final int status, final int data1, final int data2)
     {
         final int command = status & 0xF0;
-        final MidiStateKey key = new MidiStateKey (status, command == 0xB0 ? data1 : 0);
+        final MidiStateKey key = new MidiStateKey (status, command == 0xA0 || command == 0xB0 ? data1 : 0);
         final MidiState state = switch (command)
         {
+            case 0xA0 -> new MidiState (data1, data2, data1, 0);
             case 0xB0 -> new MidiState (data1, data2, data1, 0);
             case 0xD0 -> new MidiState (data1, data2, 0, 0);
             case 0xE0 -> new MidiState (data1, data2, 0, 64);

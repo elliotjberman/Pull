@@ -25,8 +25,12 @@ import java.util.Set;
  */
 public enum SurfaceArea
 {
+    /** Playable four-by-four drum block in the lower-left grid quadrant. */
+    DRUM_PLAY_PADS (gridRectangle (0, 0, 4, 4), gridControls (0, 0, 4, 4), Set.of (InputKind.PAD, InputKind.POLY_PRESSURE)),
     /** Twelve fill pads at columns 4-7 and rows 1-3 of the lower grid half. */
     DRUM_FILL_PADS (gridRectangle (4, 1, 4, 3), Set.copyOf (CoreControls.DRUM_FILLS), Set.of (InputKind.PAD, InputKind.POLY_PRESSURE)),
+    /** Aggregate pressure shared by the complete pad grid. */
+    GRID_CHANNEL_PRESSURE (Set.of (new HardwareElement (ElementType.GRID_PRESSURE, 0)), Set.of (PushControlIds.CHANNEL_PRESSURE), Set.of (InputKind.CHANNEL_PRESSURE)),
     /** Push Record button. */
     RECORD_BUTTON (button (0), Set.of (PushControlIds.button ("RECORD")), Set.of (InputKind.BUTTON)),
     /** Push Shift modifier. */
@@ -130,10 +134,23 @@ public enum SurfaceArea
     }
 
 
+    private static Set<ControlId> gridControls (final int left, final int bottom, final int width, final int height)
+    {
+        final Set<ControlId> controls = new LinkedHashSet<> ();
+        for (int row = bottom; row < bottom + height; row++)
+        {
+            for (int column = left; column < left + width; column++)
+                controls.add (PushControlIds.pad (row * 8 + column + 1));
+        }
+        return controls;
+    }
+
+
     private enum ElementType
     {
         BUTTON,
-        GRID_PAD
+        GRID_PAD,
+        GRID_PRESSURE
     }
 
 

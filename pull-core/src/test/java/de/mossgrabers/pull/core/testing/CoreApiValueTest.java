@@ -17,6 +17,7 @@ import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredInputRoutes;
+import de.mossgrabers.pull.core.api.GridPressureConfiguration;
 import de.mossgrabers.pull.core.api.InputRoute;
 import de.mossgrabers.pull.core.api.InputRouteMode;
 import de.mossgrabers.pull.core.api.PushControlIds;
@@ -31,6 +32,7 @@ import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
 import de.mossgrabers.pull.core.api.effect.ScheduleTimerEffect;
+import de.mossgrabers.pull.core.api.effect.SendNoteInputMidiEffect;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
@@ -152,7 +154,7 @@ class CoreApiValueTest
     @Test
     void publishesStableVersionCapabilityAndControlIdentifiers ()
     {
-        assertEquals (10, CoreApi.VERSION);
+        assertEquals (11, CoreApi.VERSION);
         assertEquals ("input.drum-fill", CoreCapabilities.INPUT_DRUM_FILL);
         assertEquals ("snapshot.selected-track-clips", CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS);
         assertEquals ("binding.clip-target", CoreCapabilities.BINDING_CLIP_TARGET);
@@ -174,6 +176,19 @@ class CoreApiValueTest
             assertEquals (new ControlId ("drum.fill." + (index + 1)), CoreControls.DRUM_FILLS.get (index));
         assertEquals (CoreControls.DRUM_FILLS, CoreControls.drumFills ());
         assertThrows (UnsupportedOperationException.class, () -> CoreControls.DRUM_FILLS.clear ());
+    }
+
+
+    @Test
+    void pressureConfigurationAndMidiEffectsAreTypedAndBounded ()
+    {
+        assertEquals (GridPressureConfiguration.Mode.POLY_AFTERTOUCH, GridPressureConfiguration.POLY.mode ());
+        assertEquals (74, GridPressureConfiguration.controlChange (74).controller ());
+        assertThrows (IllegalArgumentException.class, () -> GridPressureConfiguration.controlChange (128));
+        assertThrows (IllegalArgumentException.class, () -> new GridPressureConfiguration (GridPressureConfiguration.Mode.CHANNEL_AFTERTOUCH, 1));
+
+        assertEquals (0xA0, new SendNoteInputMidiEffect (0xA0, 60, 91).status ());
+        assertThrows (IllegalArgumentException.class, () -> new SendNoteInputMidiEffect (0x90, 60, 91));
     }
 
 
