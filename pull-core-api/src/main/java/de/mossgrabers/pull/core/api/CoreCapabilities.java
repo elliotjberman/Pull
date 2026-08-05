@@ -26,6 +26,9 @@ public final class CoreCapabilities
     /** Hardware-independent RGB light output. */
     public static final String OUTPUT_RGB_LIGHT = "output.rgb-light";
 
+    /** Complete selection of fixed Push 2 view facets. */
+    public static final String OUTPUT_CONTROLLER_WORKSPACE = "output.controller-workspace";
+
     /** Normalized bounded Push controller inputs. */
     public static final String INPUT_CONTROLLER = "input.controller";
 

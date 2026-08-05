@@ -1,11 +1,11 @@
 # Reloadable Controller Core
 
-Status: Milestones 1 through 4 are implemented. The current working tree also installs the bounded
-Core API 9 controller bridge described below: normalized Push command input, explicitly requested
+Status: Milestones 1 through 7 are implemented. The current working tree installs the bounded
+Core API 12 controller bridge described below: normalized Push command input, explicitly requested
 transport/selected-track/layout/drum read-back, and typed transport/selected-track/drum effects.
 The drum-fill shell uses a single-active replacement barrier, while the Pads note input follows
 ordinary Bitwig input, monitor, and record-arm routing. General Push light/display arbitration is
-not part of this expansion. Because API 9 and its bridge are parent-loaded, installing this
+not part of this expansion. Because API 12 and its bridge are parent-loaded, installing this
 expansion itself requires one shell build/install and Bitwig restart; behavior composed from it can
 then hot reload.
 
@@ -122,9 +122,39 @@ independently.
   motion is coalesced to a controller tick, and stateful note-input MIDI is neutralized at ownership
   and lifecycle boundaries.
 
+### Milestone 6: Fixed-view API 10 workspace selection
+
+- Compile migrated core behavior as deterministic fixed-footprint views with explicit input,
+  output, and observer claims.
+- Publish one complete `DesiredControllerWorkspace` containing a diagnostic name and known fixed
+  facets. Stable adapters validate and realize facets but never select combinations by name.
+- Keep workspace composition, Shift + Session entry, Session/Note exit, and checkpoint restoration
+  in the reloadable core. The first composite is specified in
+  [Views API and Composite Workspaces](views-api-design.md).
+
+### Milestone 7: API 11 composite grid pressure
+
+- Publish typed Off/Poly/Channel/CC pressure configuration and the active drum base note with the
+  bounded controller-layout snapshot.
+- Treat pad edges and per-pad pressure as companion inputs of the fixed playable drum area, with
+  aggregate channel pressure modeled separately.
+- Move VS Live's playable 4x4 pressure mapping into the reloadable `DrumControllerView` that owns
+  those pads; leave its stable workspace adapter inert so output cannot be duplicated.
+- Admit poly pressure to the permanent NoteInput MIDI effect and neutralize each outstanding note
+  across core handoff, selected-target change, and shutdown.
+
+### Milestone 8: API 12 declared Session bank shapes
+
+- Add the fixed Session track/scene window to `DesiredControllerWorkspace`; VS Live declares `8x4`.
+- Eagerly install only the deduplicated `8x8` and `8x4` Bitwig banks required by current views.
+- Let core choose among installed shapes while stable preserves offsets, switches the model's current
+  main bank, and enables clip-launcher feedback only for the active bank.
+- Reject undeclared shapes and shapes that do not match the fixed workspace adapter before activation.
+
 ### Later milestones
 
-- Migrate drum behavior, then remaining mode/view families.
+- Migrate the remaining inherited mode/view mechanics behind typed capabilities so more workspace
+  facets can render and act directly from reloadable core output.
 - Add stable complete-output arbitration for general Push lights and displays, then move their
   policy into the core and add golden output tests.
 - Add event recording and offline replay.
@@ -276,8 +306,8 @@ not attach the existing Push Pads `NoteInput` with `Track.addNoteSource()` and d
 input from Bitwig's `All Inputs` pool. The cursor is never exposed to Push's pin command, but it is
 also not a musical-data route.
 
-Pads use the permanent `NoteInput`, and target-neutral raw CC, channel-pressure, and pitch-bend
-effects are sent through that same input. Bitwig's ordinary track-input selection, monitor mode,
+Pads use the permanent `NoteInput`, and target-neutral raw poly-pressure, CC, channel-pressure, and
+pitch-bend effects are sent through that same input. Bitwig's ordinary track-input selection, monitor mode,
 and record-arm state determine which tracks receive them; selecting a track alone does not force
 it to receive Pads. One or several tracks may receive the stream when the project routes them that
 way. Selection changes do not rebuild the note input or attach it to a different track.
@@ -323,9 +353,9 @@ The shell owns anything coupled to Bitwig or physical hardware:
 The shell may reuse the existing `ModelImpl` and Bitwig wrapper graph internally. That graph must
 not cross into the core.
 
-## Installed API 9 bounded capability canopy
+## Installed API 12 bounded capability canopy
 
-Core API 9 installs a broad input seam and a deliberately finite Bitwig state/effect bridge during
+Core API 12 installs a broad input seam and a deliberately finite Bitwig state/effect bridge during
 extension initialization. The existence of a shell capability means that the domain is available;
 it does not mean every state domain is copied into every snapshot.
 
@@ -423,10 +453,10 @@ the Bitwig controller log. An unused installed domain should first be removed fr
 
 ### Typed effects and live identity fences
 
-API 9 can request absolute transport state and values; selected-track activation, group expansion,
+API 12 can request absolute transport state and values; selected-track activation, group expansion,
 arm, monitor, mute, solo, volume, pan, stop, Return to Arrangement, and new-clip creation;
 target-neutral note-input
-MIDI CC, channel pressure, and pitch bend; and drum-pad activation, mute, solo, volume, pan, or
+MIDI poly pressure, CC, channel pressure, and pitch bend; and drum-pad activation, mute, solo, volume, pan, or
 selection. These are requests, not optimistic state. Hardware feedback still comes from later
 subscribed Bitwig read-back.
 
@@ -438,26 +468,26 @@ current bank base, and live pad identity. Any mismatch fails closed instead of m
 cursor or bank now happens to address.
 
 Raw note-input MIDI is parent-owned state when it can remain non-neutral. The shell remembers
-outstanding CC, channel-pressure, and pitch-bend values and emits the corresponding neutral values
-when the active core generation changes, selection changes as a conservative safety boundary, or
+outstanding poly-pressure, CC, channel-pressure, and pitch-bend values and emits the corresponding
+neutral values when the active core generation changes, selection changes as a conservative safety boundary, or
 the extension shuts down. This is best-effort controller-state cleanup, not a target-specific undo:
 Bitwig's ordinary routing determines which tracks receive both the original and neutral messages.
 
 ### Deliberate exclusions
 
-This remains a capability canopy, not a mirror of an unbounded Bitwig project. API 9 does not add
+This remains a capability canopy, not a mirror of an unbounded Bitwig project. API 12 does not add
 arbitrary project track/scene banks, arbitrary device-tree recursion, additional drum layers or
 branches, selected-device pages, general parameter windows, or a general actuator pool. Extending
 one of those shapes or adding a new Bitwig property/action requires a parent-loaded API/shell
 change, extension installation, and Bitwig restart.
 
-Output is narrower than input in API 9. The immutable hardware-output contract is present, but the
+Output is narrower than input in API 12. The immutable hardware-output contract is present, but the
 current shell validates and arbitrates only the 12 drum-fill RGB lights. General Push button/grid
 lights, ribbon output, and USB display buffers still belong to stable shell rendering. Moving those
 surfaces requires stable complete-output arbitration in the shell and therefore one more
 install/restart before their policies can hot reload.
 
-Once API 9 is installed, new mappings, modes, gestures, and effects composed only from these exact
+Once API 12 is installed, new mappings, modes, gestures, and effects composed only from these exact
 inputs, subscriptions, and executors can ship by core reload. Capability breadth is bounded, and
 subscription choice controls active publication cost inside that bound.
 
@@ -524,7 +554,7 @@ snapshot.
 
 ## Snapshot and effects
 
-The API 9 snapshot contains revision, monotonic time, shell capabilities, the explicitly subscribed
+The API 12 snapshot contains revision, monotonic time, shell capabilities, the explicitly subscribed
 `ControllerBridgeSnapshot`, the complete selected-track clip catalog, verified per-control armed
 clip bindings, the clip-launch session's optional acquired owner-to-target lease and authoritative
 active owner, and pressed/touched controls. A pending fill intent is shell-private and never appears
@@ -543,12 +573,12 @@ that bank's generation and marks it pending. Location-targeted effects from the 
 are immediately rejected. The new window is published only after Bitwig's observed membership
 stabilizes.
 
-Core API 9 includes logical timer effects, persistent desired clip bindings, verified armed
+Core API 12 includes logical timer effects, persistent desired clip bindings, verified armed
 bindings, the version-1 authoritative single-lease clip-launch-session snapshot,
 generation-fenced version-4 acquire/replace/release effects, normalized controller-input events and
 routes, explicit bridge subscriptions, typed absolute transport effects, generation-fenced
 selected-track and drum-pad effects, bounded target-neutral note-input
-CC/channel-pressure/pitch-bend output, and desired RGB hardware state. The shell currently accepts
+poly-pressure/CC/channel-pressure/pitch-bend output, and desired RGB hardware state. The shell currently accepts
 that RGB output only for the 12 fill lights. Later typed domains may cover broader clip
 launch/selection, bank scrolling, selected-device parameters, application actions, note
 mapping/repeat, notifications, and complete general Push output.
@@ -660,7 +690,7 @@ The development command and shell share `${user.home}/.drivenbymoss/pull/reload`
 
 ```properties
 formatVersion=1
-apiVersion=9
+apiVersion=12
 buildId=20260731T230000Z-0123456789abcdef0123456789abcdef
 ```
 
@@ -670,7 +700,7 @@ verifies its embedded API/build identity, computes SHA-256, and atomically repla
 
 ```properties
 formatVersion=1
-apiVersion=9
+apiVersion=12
 shellFingerprint=0123456789abcdef0123456789abcdef01234567
 buildId=20260731T230000Z-0123456789abcdef0123456789abcdef
 jar=pull-core-20260731T230000Z-0123456789abcdef0123456789abcdef.jar
@@ -731,7 +761,7 @@ effects, rejections, and desired output. A real Bitwig failure can then become a
 | Safe pure-Java core dependency | Package and core reload |
 | Core-owned/migrated mapping, mode, gesture, layout policy, or fill matching | Core reload |
 | Route a currently registered input between `NONE`, `OBSERVE`, and `EXCLUSIVE` | Core reload |
-| Request or stop requesting an existing API 9 bridge subscription | Core reload |
+| Request or stop requesting an existing API 12 bridge subscription | Core reload |
 | Policy for an output surface already migrated to complete shell arbitration (currently the 12 fill lights) | Core reload |
 | Behavior using existing snapshot/effects | Core reload |
 | Behavior within the installed capability canopy | Core reload |
@@ -759,10 +789,11 @@ effects, rejections, and desired output. A real Bitwig failure can then become a
 - Reload while controls are held produces no stuck modifier, pad, note, or momentary action.
 - A route-map change or core reload during an edge gesture preserves its begin-time ownership
   through release; continuous rebinding cannot bypass arbitration.
-- Unrequested API 9 bridge domains publish typed empty values without domain snapshot construction
+- Unrequested API 12 bridge domains publish typed empty values without domain snapshot construction
   or high-rate sampling/DTO churn.
-- Core handoff, selection change, and shutdown neutralize outstanding target-neutral note-input CC,
-  channel-pressure, and pitch-bend state on a best-effort basis through ordinary routing.
+- Core handoff, selection change, and shutdown neutralize outstanding target-neutral note-input
+  poly-pressure, CC, channel-pressure, and pitch-bend state on a best-effort basis through ordinary
+  routing.
 - Selected-track and drum effects fail closed after any fenced live identity changes.
 - Stale bank effects and old-generation timers cannot act.
 - Core behavior and output tests run without Bitwig.

@@ -37,6 +37,7 @@ import de.mossgrabers.bitwig.framework.daw.data.bank.TrackBankImpl;
 import de.mossgrabers.framework.daw.AbstractModel;
 import de.mossgrabers.framework.daw.DataSetup;
 import de.mossgrabers.framework.daw.ModelSetup;
+import de.mossgrabers.framework.daw.TrackBankPageSize;
 import de.mossgrabers.framework.daw.clip.INoteClip;
 import de.mossgrabers.framework.daw.data.ICursorTrack;
 import de.mossgrabers.framework.daw.data.IDrumDevice;
@@ -111,19 +112,9 @@ public class ModelImpl extends AbstractModel
         //////////////////////////////////////////////////////////////////////////////
         // Create track banks
 
-        final TrackBank tb;
         this.bwCursorTrack = controllerHost.createCursorTrack ("MyCursorTrackID", "The Cursor Track", numSends, numScenes, true);
         final int numTracks = this.modelSetup.getNumTracks ();
-        if (this.modelSetup.hasFlatTrackList ())
-        {
-            if (this.modelSetup.hasFullFlatTrackList ())
-                tb = controllerHost.createTrackBank (numTracks, numSends, numScenes, true);
-            else
-                tb = controllerHost.createMainTrackBank (numTracks, numSends, numScenes);
-            tb.followCursorTrack (this.bwCursorTrack);
-        }
-        else
-            tb = this.bwCursorTrack.createSiblingsTrackBank (numTracks, numSends, numScenes, false, false);
+        final TrackBank tb = this.createTrackBank (numTracks, numSends, numScenes);
 
         this.sceneBank = numScenes > 0 ? tb.sceneBank () : null;
 
@@ -133,13 +124,18 @@ public class ModelImpl extends AbstractModel
         this.masterTrack = new MasterTrackImpl (this.host, this.valueChanger, master, this.bwCursorTrack, this.rootTrackGroup, (ApplicationImpl) this.application, this.sceneBank);
 
         this.trackBank = new TrackBankImpl (this.host, (ApplicationImpl) this.application, this.valueChanger, tb, (CursorTrackImpl) this.cursorTrack, this.rootTrackGroup, numTracks, numScenes, numSends);
+        this.trackBanks.put (new TrackBankPageSize (numTracks, numScenes), this.trackBank);
+        for (final TrackBankPageSize pageSize: this.modelSetup.getAdditionalTrackBanks ())
+        {
+            if (this.trackBanks.containsKey (pageSize))
+                continue;
+            final TrackBank additionalBank = this.createTrackBank (pageSize.tracks (), numSends, pageSize.scenes ());
+            this.trackBanks.put (pageSize, new TrackBankImpl (this.host, (ApplicationImpl) this.application, this.valueChanger, additionalBank, (CursorTrackImpl) this.cursorTrack, this.rootTrackGroup, pageSize.tracks (), pageSize.scenes (), numSends));
+        }
 
         final int numFxTracks = this.modelSetup.getNumFxTracks ();
         final TrackBank effectTrackBank = controllerHost.createEffectTrackBank (numFxTracks, numSends, numScenes);
         this.effectTrackBank = new EffectTrackBankImpl (this.host, this.valueChanger, effectTrackBank, (CursorTrackImpl) this.cursorTrack, this.rootTrackGroup, (ApplicationImpl) this.application, numFxTracks, numScenes, numSends, numParamPages, numParams, this.trackBank);
-
-        if (modelSetup.wantsClipLauncherNavigator ())
-            this.clipLauncherNavigator = new ClipLauncherNavigatorImpl (controllerHost, this);
 
         //////////////////////////////////////////////////////////////////////////////
         // Create devices
@@ -182,9 +178,21 @@ public class ModelImpl extends AbstractModel
         this.masterTrackEqualsValue = mainCursorDevice.channel ().createEqualsValue (master);
         this.masterTrackEqualsValue.markInterested ();
 
-        this.currentTrackBank = this.trackBank;
+        this.currentMainTrackBank = this.trackBank;
+        this.currentTrackBank = this.currentMainTrackBank;
 
         controllerHost.scheduleTask (this::flushWorkaround, 4000);
+    }
+
+
+    private TrackBank createTrackBank (final int numTracks, final int numSends, final int numScenes)
+    {
+        if (!this.modelSetup.hasFlatTrackList ())
+            return this.bwCursorTrack.createSiblingsTrackBank (numTracks, numSends, numScenes, false, false);
+
+        final TrackBank bank = this.modelSetup.hasFullFlatTrackList () ? this.controllerHost.createTrackBank (numTracks, numSends, numScenes, true) : this.controllerHost.createMainTrackBank (numTracks, numSends, numScenes);
+        bank.followCursorTrack (this.bwCursorTrack);
+        return bank;
     }
 
 

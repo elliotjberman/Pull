@@ -8,13 +8,17 @@ import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
+import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.CoreCapabilities;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.DesiredInputRoutes;
+import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
+import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.InputRoute;
 import de.mossgrabers.pull.core.api.InputRouteMode;
 import de.mossgrabers.pull.core.api.PushControlIds;
+import de.mossgrabers.pull.core.api.SessionBankShape;
 import de.mossgrabers.pull.core.api.TimerId;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchMode;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
@@ -89,6 +93,7 @@ class DrumFillRuntimeEnvironmentTest
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.BINDING_CLIP_TARGET));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION));
         assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD));
+        assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_WORKSPACE));
         assertTrue (initial.clipLaunchSessionTargets ().isEmpty ());
         assertEquals (Optional.empty (), initial.activeClipLaunchOwner ());
 
@@ -120,6 +125,27 @@ class DrumFillRuntimeEnvironmentTest
         environment.apply (11);
         assertEquals (1, host.bindingUpdateCount);
         assertEquals (Map.of (FIRST, FIRST_TARGET, SECOND, SECOND_TARGET), host.desiredBindings);
+    }
+
+
+    @Test
+    void rejectsAWorkspaceBeforeCommitWhenNoPermanentControllerBridgeExists ()
+    {
+        final DrumFillRuntimeEnvironment environment = environment (host (1));
+        final DesiredControllerWorkspace workspace = new DesiredControllerWorkspace (
+            "test",
+            Set.of (ControllerViewFacet.PROJECT_MACRO_CONTROLS),
+            SessionBankShape.empty ());
+        final CoreResult result = new CoreResult (
+            DesiredHardwareOutput.empty (),
+            DesiredInputRoutes.empty (),
+            DesiredBridgeSubscriptions.empty (),
+            Map.of (),
+            workspace,
+            List.of ());
+
+        assertThrows (IllegalArgumentException.class, () -> environment.prepare (result));
+        assertEquals (0, environment.outputGeneration ());
     }
 
 
@@ -708,13 +734,25 @@ class DrumFillRuntimeEnvironmentTest
 
     private static CoreResult result (final Map<ControlId, RgbColor> lights, final Map<ControlId, ClipTargetId> bindings, final List<CoreEffect> effects)
     {
-        return new CoreResult (new DesiredHardwareOutput (lights), bindings, effects);
+        return new CoreResult (
+            new DesiredHardwareOutput (lights),
+            DesiredInputRoutes.empty (),
+            DesiredBridgeSubscriptions.empty (),
+            bindings,
+            DesiredControllerWorkspace.empty (),
+            effects);
     }
 
 
     private static CoreResult routedResult (final DesiredInputRoutes routes)
     {
-        return new CoreResult (DesiredHardwareOutput.empty (), routes, Map.of (), List.of ());
+        return new CoreResult (
+            DesiredHardwareOutput.empty (),
+            routes,
+            DesiredBridgeSubscriptions.empty (),
+            Map.of (),
+            DesiredControllerWorkspace.empty (),
+            List.of ());
     }
 
 

@@ -4,6 +4,9 @@
 
 package de.mossgrabers.framework.daw;
 
+import java.util.HashSet;
+import java.util.Set;
+
 /**
  * All configuration parameters for the model.
  *
@@ -18,9 +21,8 @@ public class ModelSetup
     private int                  numFxTracks                = -1;
     private int                  numScenes                  = 8;
     private int                  numSends                   = 8;
-    private boolean              wantsClipLauncherNavigator = false;
-
     private int []               additionalDrumDevices      = {};
+    private final Set<TrackBankPageSize> additionalTrackBanks = new HashSet<> ();
 
     private int                  numDevicesInBank           = 8;
     private int                  numDeviceLayers            = 8;
@@ -66,6 +68,29 @@ public class ModelSetup
     public void setAdditionalDrumDevices (final int [] additionalDrumDevices)
     {
         this.additionalDrumDevices = additionalDrumDevices;
+    }
+
+
+    /**
+     * Eagerly install an additional fixed-size track bank.
+     *
+     * @param numTracks Number of track columns
+     * @param numScenes Number of scene rows
+     */
+    public void addTrackBank (final int numTracks, final int numScenes)
+    {
+        this.additionalTrackBanks.add (new TrackBankPageSize (numTracks, numScenes));
+    }
+
+
+    /**
+     * Get the additional track banks to install during model initialization.
+     *
+     * @return Immutable declared page sizes
+     */
+    public Set<TrackBankPageSize> getAdditionalTrackBanks ()
+    {
+        return Set.copyOf (this.additionalTrackBanks);
     }
 
 
@@ -410,28 +435,6 @@ public class ModelSetup
     public int [] wantsAdditionalDrumDevices ()
     {
         return this.additionalDrumDevices;
-    }
-
-
-    /**
-     * Should a ClipLauncherNavigator be created?
-     *
-     * @return True if one should be created
-     */
-    public boolean wantsClipLauncherNavigator ()
-    {
-        return this.wantsClipLauncherNavigator;
-    }
-
-
-    /**
-     * Set if a ClipLauncherNavigator should be created.
-     *
-     * @param wantsClipLauncherNavigator True if one should be created
-     */
-    public void setWantsClipLauncherNavigator (final boolean wantsClipLauncherNavigator)
-    {
-        this.wantsClipLauncherNavigator = wantsClipLauncherNavigator;
     }
 
 

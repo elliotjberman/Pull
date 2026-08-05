@@ -7,8 +7,12 @@ import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerCore;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.CoreResult;
+import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
+import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
+import de.mossgrabers.pull.core.api.DesiredInputRoutes;
 import de.mossgrabers.pull.core.api.StateEnvelope;
 import de.mossgrabers.pull.core.api.TimerId;
+import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.ScheduleTimerEffect;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
@@ -51,7 +55,7 @@ final class DeterministicTimerCore implements ControllerCore
         previousState.ifPresent (this::restore);
         this.running = true;
         this.lastSnapshot = snapshot;
-        return new CoreResult (this.output (), List.of (new ScheduleTimerEffect (TIMER_ID, Math.addExact (snapshot.monotonicTimeNanos (), TIMER_INTERVAL_NANOS))));
+        return this.result (List.of (new ScheduleTimerEffect (TIMER_ID, Math.addExact (snapshot.monotonicTimeNanos (), TIMER_INTERVAL_NANOS))));
     }
 
 
@@ -67,23 +71,23 @@ final class DeterministicTimerCore implements ControllerCore
         {
             if (snapshot.pressedControls ().contains (button.controlId ()) != button.pressed ())
                 throw new IllegalStateException ("Button state was not applied before event delivery");
-            return new CoreResult (this.output (), List.of ());
+            return this.result (List.of ());
         }
 
         if (event instanceof final TouchInputEvent touch)
         {
             if (snapshot.touchedControls ().contains (touch.controlId ()) != touch.touched ())
                 throw new IllegalStateException ("Touch state was not applied before event delivery");
-            return new CoreResult (this.output (), List.of ());
+            return this.result (List.of ());
         }
 
         if (event instanceof final TimerElapsedEvent timer && TIMER_ID.equals (timer.timerId ()))
         {
             this.pulses = Math.incrementExact (this.pulses);
-            return new CoreResult (this.output (), List.of (new ScheduleTimerEffect (TIMER_ID, Math.addExact (timer.monotonicTimeNanos (), TIMER_INTERVAL_NANOS))));
+            return this.result (List.of (new ScheduleTimerEffect (TIMER_ID, Math.addExact (timer.monotonicTimeNanos (), TIMER_INTERVAL_NANOS))));
         }
 
-        return new CoreResult (this.output (), List.of ());
+        return this.result (List.of ());
     }
 
 
@@ -93,6 +97,18 @@ final class DeterministicTimerCore implements ControllerCore
     {
         this.requireRunning ();
         return new StateEnvelope (STATE_SCHEMA, STATE_VERSION, ByteBuffer.allocate (Integer.BYTES).putInt (this.pulses).array ());
+    }
+
+
+    private CoreResult result (final List<CoreEffect> effects)
+    {
+        return new CoreResult (
+            this.output (),
+            DesiredInputRoutes.empty (),
+            DesiredBridgeSubscriptions.empty (),
+            Map.of (),
+            DesiredControllerWorkspace.empty (),
+            effects);
     }
 
     /**

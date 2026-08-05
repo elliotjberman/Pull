@@ -215,6 +215,24 @@ public interface IModel
 
 
     /**
+     * Get an eagerly installed track bank with the requested page dimensions.
+     *
+     * @param numTracks Number of tracks in one page
+     * @param numScenes Number of scenes in one page
+     * @return The declared track bank
+     */
+    ITrackBank getTrackBank (int numTracks, int numScenes);
+
+
+    /**
+     * Select the main/session track bank used by controller behavior and make it current.
+     *
+     * @param trackBank An eagerly installed main/session track bank
+     */
+    void setCurrentMainTrackBank (ITrackBank trackBank);
+
+
+    /**
      * Get the effect track bank.
      *
      * @return The effect track bank
@@ -348,14 +366,6 @@ public interface IModel
      * @return True if recording
      */
     boolean hasRecordingState ();
-
-
-    /**
-     * Get the clip launcher navigator.
-     *
-     * @return The clip launcher navigator
-     */
-    IClipLauncherNavigator getClipLauncherNavigator ();
 
 
     /**

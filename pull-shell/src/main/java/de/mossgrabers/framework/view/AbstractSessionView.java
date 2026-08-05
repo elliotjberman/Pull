@@ -465,9 +465,20 @@ public abstract class AbstractSessionView<S extends IControlSurface<C>, C extend
 
     protected Pair<Integer, Integer> getPad (final int note)
     {
-        final int index = note - this.surface.getPadGrid ().getStartNote ();
-        final int t = index % this.columns;
-        final int s = this.rows - 1 - index / this.columns;
+        return mapPad (note, this.surface.getPadGrid ().getStartNote (), this.surface.getPadGrid ().getRows (), this.columns, this.rows, this.getYOffset ());
+    }
+
+
+    static Pair<Integer, Integer> mapPad (final int note, final int startNote, final int gridRows, final int columns, final int rows, final int yOffset)
+    {
+        final int index = note - startNote;
+        if (index < 0)
+            return null;
+        final int t = index % columns;
+        final int gridY = gridRows - 1 - index / columns;
+        if (t < 0 || t >= columns || gridY < yOffset || gridY >= yOffset + rows)
+            return null;
+        final int s = gridY - yOffset;
         return new Pair<> (Integer.valueOf (t), Integer.valueOf (s));
     }
 

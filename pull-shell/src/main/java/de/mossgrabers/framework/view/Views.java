@@ -59,7 +59,9 @@ public enum Views
     /** View for editing note parameters. */
     NOTE_EDIT_VIEW,
     /** View for mixing. */
-    MIX;
+    MIX,
+    /** Stable adapter for a reloadable fixed-facet workspace. */
+    WORKSPACE;
 
 
     /** The name of the play view. */

@@ -9,15 +9,19 @@ import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
+import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.CoreApi;
 import de.mossgrabers.pull.core.api.CoreCapabilities;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
+import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredInputRoutes;
+import de.mossgrabers.pull.core.api.GridPressureConfiguration;
 import de.mossgrabers.pull.core.api.InputRoute;
 import de.mossgrabers.pull.core.api.InputRouteMode;
 import de.mossgrabers.pull.core.api.PushControlIds;
+import de.mossgrabers.pull.core.api.SessionBankShape;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.StateEnvelope;
 import de.mossgrabers.pull.core.api.TimerId;
@@ -29,6 +33,7 @@ import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
 import de.mossgrabers.pull.core.api.effect.ScheduleTimerEffect;
+import de.mossgrabers.pull.core.api.effect.SendNoteInputMidiEffect;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
@@ -109,7 +114,7 @@ class CoreApiValueTest
         final Map<ControlId, ClipTargetId> desiredBindings = new HashMap<> (Map.of (control, clip.targetId ()));
         final Set<BridgeSubscription> bridgeDomains = new HashSet<> (Set.of (BridgeSubscription.SELECTED_TRACK));
         final DesiredBridgeSubscriptions bridgeSubscriptions = new DesiredBridgeSubscriptions (bridgeDomains);
-        final CoreResult result = new CoreResult (output, DesiredInputRoutes.empty (), bridgeSubscriptions, desiredBindings, effects);
+        final CoreResult result = new CoreResult (output, DesiredInputRoutes.empty (), bridgeSubscriptions, desiredBindings, DesiredControllerWorkspace.empty (), effects);
         desiredBindings.clear ();
         bridgeDomains.clear ();
         effects.clear ();
@@ -150,13 +155,14 @@ class CoreApiValueTest
     @Test
     void publishesStableVersionCapabilityAndControlIdentifiers ()
     {
-        assertEquals (9, CoreApi.VERSION);
+        assertEquals (12, CoreApi.VERSION);
         assertEquals ("input.drum-fill", CoreCapabilities.INPUT_DRUM_FILL);
         assertEquals ("snapshot.selected-track-clips", CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS);
         assertEquals ("binding.clip-target", CoreCapabilities.BINDING_CLIP_TARGET);
         assertEquals ("snapshot.clip-launch-session", CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION);
         assertEquals ("effect.clip-launch-hold", CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD);
         assertEquals ("output.rgb-light", CoreCapabilities.OUTPUT_RGB_LIGHT);
+        assertEquals ("output.controller-workspace", CoreCapabilities.OUTPUT_CONTROLLER_WORKSPACE);
         assertEquals ("input.controller", CoreCapabilities.INPUT_CONTROLLER);
         assertEquals ("routing.controller-input", CoreCapabilities.ROUTING_CONTROLLER_INPUT);
         assertEquals ("snapshot.controller-bridge", CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE);
@@ -171,6 +177,46 @@ class CoreApiValueTest
             assertEquals (new ControlId ("drum.fill." + (index + 1)), CoreControls.DRUM_FILLS.get (index));
         assertEquals (CoreControls.DRUM_FILLS, CoreControls.drumFills ());
         assertThrows (UnsupportedOperationException.class, () -> CoreControls.DRUM_FILLS.clear ());
+    }
+
+
+    @Test
+    void pressureConfigurationAndMidiEffectsAreTypedAndBounded ()
+    {
+        assertEquals (GridPressureConfiguration.Mode.POLY_AFTERTOUCH, GridPressureConfiguration.POLY.mode ());
+        assertEquals (74, GridPressureConfiguration.controlChange (74).controller ());
+        assertThrows (IllegalArgumentException.class, () -> GridPressureConfiguration.controlChange (128));
+        assertThrows (IllegalArgumentException.class, () -> new GridPressureConfiguration (GridPressureConfiguration.Mode.CHANNEL_AFTERTOUCH, 1));
+
+        assertEquals (0xA0, new SendNoteInputMidiEffect (0xA0, 60, 91).status ());
+        assertThrows (IllegalArgumentException.class, () -> new SendNoteInputMidiEffect (0x90, 60, 91));
+    }
+
+
+    @Test
+    void controllerWorkspacesAreCompleteImmutableValues ()
+    {
+        final Set<ControllerViewFacet> facets = new HashSet<> (Set.of (ControllerViewFacet.PROJECT_MACRO_CONTROLS));
+        final DesiredControllerWorkspace workspace = new DesiredControllerWorkspace ("  live  ", facets, SessionBankShape.empty ());
+        facets.clear ();
+
+        assertEquals ("live", workspace.name ());
+        assertEquals (Set.of (ControllerViewFacet.PROJECT_MACRO_CONTROLS), workspace.facets ());
+        assertEquals (SessionBankShape.empty (), workspace.sessionBankShape ());
+        assertTrue (workspace.isActive ());
+        assertFalse (DesiredControllerWorkspace.empty ().isActive ());
+        assertThrows (UnsupportedOperationException.class, () -> workspace.facets ().clear ());
+        assertThrows (IllegalArgumentException.class, () -> new DesiredControllerWorkspace ("named", Set.of (), SessionBankShape.empty ()));
+        assertThrows (IllegalArgumentException.class, () -> new DesiredControllerWorkspace ("", Set.of (ControllerViewFacet.PROJECT_MACRO_CONTROLS), SessionBankShape.empty ()));
+        assertThrows (IllegalArgumentException.class, () -> new DesiredControllerWorkspace (
+            "session without shape",
+            Set.of (ControllerViewFacet.SESSION_CLIP_GRID_UPPER),
+            SessionBankShape.empty ()));
+        assertThrows (IllegalArgumentException.class, () -> new DesiredControllerWorkspace (
+            "shape without session",
+            Set.of (ControllerViewFacet.PROJECT_MACRO_CONTROLS),
+            new SessionBankShape (8, 4)));
+        assertThrows (IllegalArgumentException.class, () -> new SessionBankShape (8, 0));
     }
 
 
@@ -251,7 +297,13 @@ class CoreApiValueTest
         assertThrows (NullPointerException.class, () -> new ControllerSnapshot (0, 0, ShellCapabilities.empty (), ClipCatalogSnapshot.empty (), Map.of (), Map.of (), null, Set.of (), Set.of ()));
         assertThrows (IllegalArgumentException.class, () -> new ControllerSnapshot (0, 0, ShellCapabilities.empty (), ClipCatalogSnapshot.empty (), Map.of (), Map.of (), Optional.of (new ControlId ("owner")), Set.of (), Set.of ()));
         assertThrows (IllegalArgumentException.class, () -> new ControllerSnapshot (0, 0, ShellCapabilities.empty (), ClipCatalogSnapshot.empty (), Map.of (), Map.of (new ControlId ("one"), new ClipTargetId (1), new ControlId ("two"), new ClipTargetId (2)), Optional.empty (), Set.of (), Set.of ()));
-        assertThrows (NullPointerException.class, () -> new CoreResult (DesiredHardwareOutput.empty (), Map.of (), null));
+        assertThrows (NullPointerException.class, () -> new CoreResult (
+            DesiredHardwareOutput.empty (),
+            DesiredInputRoutes.empty (),
+            DesiredBridgeSubscriptions.empty (),
+            Map.of (),
+            DesiredControllerWorkspace.empty (),
+            null));
         assertThrows (IllegalArgumentException.class, () -> new SnapshotChangedEvent (-1, 0));
         assertThrows (IllegalArgumentException.class, () -> new SnapshotChangedEvent (0, -1));
         assertThrows (IllegalArgumentException.class, () -> new ShellCapabilities (Map.of ("lights", Integer.valueOf (0))));

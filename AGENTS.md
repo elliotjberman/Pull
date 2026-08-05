@@ -1,5 +1,16 @@
 # Repository Agent Instructions
 
+## View architecture
+
+- Read `ARCH.md` before changing Push views, modes, workspaces, input routing, display ownership, or
+  Session bank topology. `docs/views-api-design.md` is the detailed design contract.
+- Treat `ControllerViewFacet` and the stable `WorkspaceView`/`WorkspaceMode` adapters as migration
+  scaffolding, not the final view API. Every selected adapter must belong to a fixed-footprint core
+  `ControllerView` profile with explicit `STABLE_ADAPTER_*` claims; new behavior belongs directly
+  in core when the installed shell canopy supports it.
+- A workspace selects declared views and facets; it must never remap arbitrary callbacks onto raw
+  hardware controls.
+
 ## Repository topology
 
 - `elliotjberman/Pull` is an intentionally one-time fork of
@@ -93,8 +104,9 @@
   Push `NoteInput` with `Track.addNoteSource()` or exclude it from `All Inputs`; Pads and raw ribbon
   MIDI must follow ordinary Bitwig track-input, monitor, and record-arm routing.
 - Parent-own cleanup for stateful raw MIDI sent through the permanent `NoteInput`. Neutralize
-  outstanding CC, channel-pressure, and pitch-bend state when the active core generation changes,
-  selection changes as a conservative safety boundary, or the extension shuts down. Do not model
+  outstanding poly-pressure, CC, channel-pressure, and pitch-bend state when the active core
+  generation changes, selection changes as a conservative safety boundary, or the extension shuts
+  down. Do not model
   this target-neutral effect as selected-track MIDI or promise target-specific cleanup; Bitwig
   decides which normally routed tracks receive both the value and its neutralization.
 - Generation checks at prepare time are not enough for effects aimed through mutable proxies.
@@ -107,10 +119,12 @@
 - A core-only change inside the installed API/canopy hot reloads. Changing a parent-loaded API
   contract, adding a Bitwig proxy/property/observer, changing a permanent binding or proxy capacity,
   or broadening hardware output ownership requires a shell build/install and Bitwig restart.
-- Core API 9 arbitrates general input, so mappings whose state and effects are already bridged
-  belong in the reloadable core. Only the 12 drum-fill RGB lights have migrated output ownership; do not
-  claim general Push light or display hot reload until stable complete-output arbitration exists
-  for those surfaces.
+- Core API 12 arbitrates general input and complete fixed-facet workspace selection, including the
+  declared Session bank shape, so mappings whose state and effects are already bridged belong in
+  the reloadable core. Only the 12 drum-fill
+  RGB lights have migrated direct output ownership; workspace facets still use generic stable
+  adapters for inherited Bitwig/DrivenByMoss mechanics. Do not claim general Push light or display
+  hot reload until stable complete-output arbitration exists for those surfaces.
 
 ## Bitwig controller API compatibility
 

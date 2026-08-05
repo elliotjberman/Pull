@@ -4,7 +4,6 @@
 
 package de.mossgrabers.framework.featuregroup;
 
-import de.mossgrabers.framework.command.core.AftertouchCommand;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.framework.utils.KeyManager;
@@ -19,20 +18,13 @@ import de.mossgrabers.framework.utils.KeyManager;
 public interface IView extends IFeatureGroup
 {
     /**
-     * Registers the aftertouch command.
+     * Pressure changed on the grid. The active view always receives this event; its note mapping
+     * and fixed footprint determine whether the pressure has a musical destination.
      *
-     * @param command The command
+     * @param note The physical pad note, or -1 for aggregate channel pressure
+     * @param value Pressure in the range 0-127
      */
-    void registerAftertouchCommand (AftertouchCommand command);
-
-
-    /**
-     * Execute the aftertouch command which has been registered before.
-     *
-     * @param note The note on which aftertouch is applied. Set to -1 for channel aftertouch
-     * @param value The updated value
-     */
-    void executeAftertouchCommand (int note, int value);
+    void onGridPressure (int note, int value);
 
 
     /**

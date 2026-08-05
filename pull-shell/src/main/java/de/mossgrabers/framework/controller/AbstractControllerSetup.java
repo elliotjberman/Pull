@@ -1231,12 +1231,12 @@ public abstract class AbstractControllerSetup<S extends IControlSurface<C>, C ex
 
 
     /**
-     * Recall last used view (if we are not in session or mix mode).
+     * Recall last used view (if we are not in session, mix or a composite workspace).
      */
     protected void recallLastView ()
     {
         final S surface = this.getSurface ();
-        if (!surface.getViewManager ().isActive (Views.SESSION, Views.MIX))
+        if (!surface.getViewManager ().isActive (Views.SESSION, Views.MIX, Views.WORKSPACE))
             surface.recallPreferredView (this.model.getCursorTrack ());
     }
 

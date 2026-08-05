@@ -52,6 +52,7 @@ public abstract class AbstractModel implements IModel
     protected IArranger                             arranger;
     protected IMarkerBank                           markerBank;
     protected ITrackBank                            currentTrackBank;
+    protected ITrackBank                            currentMainTrackBank;
     protected ITrackBank                            trackBank;
     protected ITrackBank                            effectTrackBank;
     protected ICursorTrack                          cursorTrack;
@@ -59,9 +60,9 @@ public abstract class AbstractModel implements IModel
     protected ICursorDevice                         cursorDevice;
     protected IDrumDevice                           drumDevice;
     protected final List<IDrumDevice>                drumDevices          = new ArrayList<> ();
-    protected IClipLauncherNavigator                clipLauncherNavigator;
     protected Map<Integer, List<IDrumDevice>>       additionalDrumDevices = new HashMap<> ();
     protected Map<String, INoteClip>                cursorClips           = new HashMap<> ();
+    protected final Map<TrackBankPageSize, ITrackBank> trackBanks          = new HashMap<> ();
 
     private int                                     lastSelection;
 
@@ -225,7 +226,7 @@ public abstract class AbstractModel implements IModel
 
         final Optional<ITrack> selectedItem = this.getCurrentTrackBank ().getSelectedItem ();
         final int selPosition = selectedItem.isEmpty () ? -1 : selectedItem.get ().getPosition ();
-        this.currentTrackBank = this.currentTrackBank == this.trackBank ? this.effectTrackBank : this.trackBank;
+        this.currentTrackBank = this.currentTrackBank == this.effectTrackBank ? this.currentMainTrackBank : this.effectTrackBank;
         this.currentTrackBank.selectItemAtPosition (this.lastSelection);
         this.lastSelection = selPosition;
 
@@ -275,6 +276,41 @@ public abstract class AbstractModel implements IModel
 
     /** {@inheritDoc} */
     @Override
+    public ITrackBank getTrackBank (final int numTracks, final int numScenes)
+    {
+        final TrackBankPageSize pageSize = new TrackBankPageSize (numTracks, numScenes);
+        final ITrackBank declaredBank = this.trackBanks.get (pageSize);
+        if (declaredBank == null)
+            throw new FrameworkException ("Track bank " + numTracks + "x" + numScenes + " was not installed during initialization");
+        return declaredBank;
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void setCurrentMainTrackBank (final ITrackBank trackBank)
+    {
+        if (!this.trackBanks.containsValue (trackBank))
+            throw new IllegalArgumentException ("Track bank is not part of the installed main-bank canopy");
+        if (this.currentMainTrackBank == trackBank && this.currentTrackBank == trackBank)
+            return;
+
+        final boolean effectBankActive = this.isEffectTrackBankActive ();
+        final Optional<ITrack> selectedItem = effectBankActive ? this.currentTrackBank.getSelectedItem () : Optional.empty ();
+        this.currentMainTrackBank = trackBank;
+        this.currentTrackBank = trackBank;
+        if (effectBankActive)
+        {
+            final int effectSelection = selectedItem.isEmpty () ? -1 : selectedItem.get ().getPosition ();
+            this.currentTrackBank.selectItemAtPosition (this.lastSelection);
+            this.lastSelection = effectSelection;
+        }
+        this.trackBankObservers.forEach (observer -> observer.update (this.currentTrackBank));
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
     public ITrackBank getEffectTrackBank ()
     {
         return this.effectTrackBank;
@@ -309,7 +345,7 @@ public abstract class AbstractModel implements IModel
     @Override
     public ISceneBank getSceneBank ()
     {
-        return this.trackBank.getSceneBank ();
+        return this.currentMainTrackBank.getSceneBank ();
     }
 
 
@@ -355,14 +391,6 @@ public abstract class AbstractModel implements IModel
                 return true;
         }
         return false;
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public IClipLauncherNavigator getClipLauncherNavigator ()
-    {
-        return this.clipLauncherNavigator;
     }
 
 

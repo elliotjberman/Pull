@@ -7,6 +7,9 @@ import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerCore;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.CoreResult;
+import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
+import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
+import de.mossgrabers.pull.core.api.DesiredInputRoutes;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.StateEnvelope;
 import de.mossgrabers.pull.core.api.TimerId;
@@ -102,9 +105,9 @@ class FakeCoreHostTest
         final TimerId timerId = new TimerId ("replace-me");
         final List<CoreEffect> effects = List.of (new ScheduleTimerEffect (timerId, 10), new ScheduleTimerEffect (timerId, 20), new CancelTimerEffect (timerId));
 
-        executor.apply (new CoreResult (new DesiredHardwareOutput (Map.of (new ControlId ("light"), new RgbColor (1, 2, 3))), effects.subList (0, 2)));
+        executor.apply (result (new DesiredHardwareOutput (Map.of (new ControlId ("light"), new RgbColor (1, 2, 3))), effects.subList (0, 2)));
         assertEquals (20, executor.deadline (timerId).orElseThrow ());
-        executor.apply (new CoreResult (DesiredHardwareOutput.empty (), effects.subList (2, 3)));
+        executor.apply (result (DesiredHardwareOutput.empty (), effects.subList (2, 3)));
 
         assertEquals (effects, executor.executionOrder ());
         assertTrue (executor.deadline (timerId).isEmpty ());
@@ -160,7 +163,7 @@ class FakeCoreHostTest
         {
             Objects.requireNonNull (snapshot, "snapshot");
             Objects.requireNonNull (previousState, "previousState");
-            return new CoreResult (DesiredHardwareOutput.empty (), List.of (new ScheduleTimerEffect (FIRST_TIMER, 10), new ScheduleTimerEffect (SECOND_TIMER, 20)));
+            return result (DesiredHardwareOutput.empty (), List.of (new ScheduleTimerEffect (FIRST_TIMER, 10), new ScheduleTimerEffect (SECOND_TIMER, 20)));
         }
 
 
@@ -172,7 +175,7 @@ class FakeCoreHostTest
             {
                 this.firedTimers.add (timer.timerId ());
                 if (FIRST_TIMER.equals (timer.timerId ()))
-                    return new CoreResult (DesiredHardwareOutput.empty (), List.of (new CancelTimerEffect (SECOND_TIMER)));
+                    return result (DesiredHardwareOutput.empty (), List.of (new CancelTimerEffect (SECOND_TIMER)));
             }
             return CoreResult.empty ();
         }
@@ -184,5 +187,17 @@ class FakeCoreHostTest
             return new StateEnvelope ("test.cancel", 1, new byte [0]);
         }
 
+    }
+
+
+    private static CoreResult result (final DesiredHardwareOutput output, final List<CoreEffect> effects)
+    {
+        return new CoreResult (
+            output,
+            DesiredInputRoutes.empty (),
+            DesiredBridgeSubscriptions.empty (),
+            Map.of (),
+            DesiredControllerWorkspace.empty (),
+            effects);
     }
 }

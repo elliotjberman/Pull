@@ -7,6 +7,7 @@ import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
+import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredInputRoutes;
 import de.mossgrabers.pull.core.api.TimerId;
 import de.mossgrabers.pull.core.api.effect.CancelTimerEffect;
@@ -37,6 +38,7 @@ final class RecordingEffectExecutor
     private DesiredInputRoutes desiredInputRoutes = DesiredInputRoutes.empty ();
     private DesiredBridgeSubscriptions desiredBridgeSubscriptions = DesiredBridgeSubscriptions.empty ();
     private Map<ControlId, ClipTargetId> desiredClipBindings = Map.of ();
+    private DesiredControllerWorkspace desiredControllerWorkspace = DesiredControllerWorkspace.empty ();
 
 
     /**
@@ -51,6 +53,7 @@ final class RecordingEffectExecutor
         this.desiredInputRoutes = result.desiredInputRoutes ();
         this.desiredBridgeSubscriptions = result.desiredBridgeSubscriptions ();
         this.desiredClipBindings = result.desiredClipBindings ();
+        this.desiredControllerWorkspace = result.desiredControllerWorkspace ();
         for (final CoreEffect effect: result.effects ())
         {
             this.executionOrder.add (effect);
@@ -187,6 +190,17 @@ final class RecordingEffectExecutor
     Map<ControlId, ClipTargetId> desiredClipBindings ()
     {
         return this.desiredClipBindings;
+    }
+
+
+    /**
+     * Get the latest complete desired controller workspace.
+     *
+     * @return The desired workspace
+     */
+    DesiredControllerWorkspace desiredControllerWorkspace ()
+    {
+        return this.desiredControllerWorkspace;
     }
 
 

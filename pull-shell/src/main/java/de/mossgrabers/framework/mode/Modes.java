@@ -113,7 +113,9 @@ public enum Modes
     /** A user mode. */
     USER,
     /** A mode to select options for adding a track. */
-    ADD_TRACK;
+    ADD_TRACK,
+    /** Stable adapter for reloadable workspace display and encoder facets. */
+    WORKSPACE;
 
 
     /** The name of the Volume mode. */

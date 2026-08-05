@@ -39,7 +39,7 @@ public class PageLeftCommand extends AbstractTriggerCommand<PushControlSurface, 
     public void execute (final ButtonEvent event, final int velocity)
     {
         final ViewManager viewManager = this.surface.getViewManager ();
-        if (viewManager.isActive (Views.SESSION))
+        if (this.surface.isSessionLayoutActive ())
         {
             if (event == ButtonEvent.DOWN)
                 this.model.getCurrentTrackBank ().selectPreviousPage ();

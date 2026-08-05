@@ -69,7 +69,7 @@ public class SelectPlayViewCommand extends AbstractTriggerCommand<PushControlSur
             return;
         }
 
-        if (!Views.isSessionView (viewManager.getActiveID ()))
+        if (!this.surface.isSessionLayoutActive ())
             return;
 
         final Views previousView = viewManager.getActiveID ();
@@ -86,7 +86,7 @@ public class SelectPlayViewCommand extends AbstractTriggerCommand<PushControlSur
 
         if (viewManager.getPreferredView (track.getPosition ()) == null)
         {
-            if (this.surface.isDrumControllerApplicable ())
+            if (this.surface.isDrumControllerTarget ())
             {
                 this.activatePreferredView (Views.DRUM_PAD);
                 return;

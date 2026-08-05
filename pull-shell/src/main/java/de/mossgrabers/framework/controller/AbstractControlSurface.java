@@ -921,7 +921,7 @@ public abstract class AbstractControlSurface<C extends Configuration> implements
     {
         final IView view = this.viewManager.getActive ();
         if (view != null)
-            view.executeAftertouchCommand (-1, data1);
+            view.onGridPressure (-1, data1);
     }
 
 
@@ -935,7 +935,7 @@ public abstract class AbstractControlSurface<C extends Configuration> implements
     {
         final IView view = this.viewManager.getActive ();
         if (view != null)
-            view.executeAftertouchCommand (data1, data2);
+            view.onGridPressure (data1, data2);
     }
 
 
