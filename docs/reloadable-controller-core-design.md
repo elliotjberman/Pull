@@ -404,6 +404,19 @@ flushes that control's pending motion before its `END` event. Once arbitration i
 Bitwig-backed continuous control retains one stable callback; later mode changes may rebind the
 stable command or parameter behind that callback but cannot bypass the bridge with a direct target.
 
+Shift-triggered parameter snapback is a transitional stable-shell interceptor around that same
+callback. Shift stays `OBSERVE`: stable modifier state is updated before the normalized core edge,
+and core does not duplicate the parameter mutation. Release flushes coalesced motion, updates stable
+Shift state, submits restore requests, and then delivers the normalized release. Buttons that can
+rebind a captured proxy queue both stable and core-observed delivery until later authoritative
+read-back acknowledges every baseline. Knob touch/release does not close the Shift session.
+
+V1 directly retains at most 16 fixed or generation-fenced proxy-slot actuators and at most 64
+deferred navigation actions. It cannot span a proxy rebind and never restores through a changed
+generation. General semantic parameter references and bounded retained actuator leases remain
+outside API 12; adding that canopy is a shell/API change, after which snapback policy belongs in
+the reloadable core.
+
 This arbitration governs controller commands, parameter mutations, and framework pressed/touched
 state. It does **not** suppress Bitwig's parallel native `NoteInput` musical path. An exclusive grid
 pad or pressure route can prevent the existing controller command from running while the permanent

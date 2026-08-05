@@ -4,6 +4,7 @@
 package de.mossgrabers.pull.shell.runtime;
 
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
+import de.mossgrabers.controller.ableton.push.parameter.PushParameterMutationService;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.ContinuousID;
 import de.mossgrabers.framework.controller.hardware.IHwButton;
@@ -21,6 +22,7 @@ import de.mossgrabers.pull.shell.input.PhysicalInputAddress;
 import de.mossgrabers.pull.shell.input.PhysicalInputEvent;
 import de.mossgrabers.pull.shell.input.PhysicalInputRouter;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -63,7 +65,10 @@ final class PushControllerInputBridge
 
     private final PushControlSurface surface;
     private final IValueChanger valueChanger;
+    private final PushParameterMutationService parameterMutations;
+    private final Consumer<PhysicalInputEvent<ControlId>> eventSink;
     private final Supplier<DesiredInputRoutes> routes;
+    private final Map<ControlId, ButtonID> buttonControls = new HashMap<> ();
     private final PhysicalControlRegistry<ControlId> registry;
     private final PhysicalInputRouter<ControlId> router;
 
@@ -73,17 +78,20 @@ final class PushControllerInputBridge
      *
      * @param surface Stable surface
      * @param valueChanger Relative-value decoder
+     * @param parameterMutations Controller parameter-mutation seam
      * @param routes Complete committed route supplier
      * @param eventSink Normalized event sink
      * @param activeGeneration Current active reloadable-core generation
      */
-    PushControllerInputBridge (final PushControlSurface surface, final IValueChanger valueChanger, final Supplier<DesiredInputRoutes> routes, final Consumer<PhysicalInputEvent<ControlId>> eventSink, final LongSupplier activeGeneration)
+    PushControllerInputBridge (final PushControlSurface surface, final IValueChanger valueChanger, final PushParameterMutationService parameterMutations, final Supplier<DesiredInputRoutes> routes, final Consumer<PhysicalInputEvent<ControlId>> eventSink, final LongSupplier activeGeneration)
     {
         this.surface = Objects.requireNonNull (surface, "surface");
         this.valueChanger = Objects.requireNonNull (valueChanger, "valueChanger");
+        this.parameterMutations = Objects.requireNonNull (parameterMutations, "parameterMutations");
+        this.eventSink = Objects.requireNonNull (eventSink, "eventSink");
         this.routes = Objects.requireNonNull (routes, "routes");
         this.registry = this.createRegistry ();
-        this.router = new PhysicalInputRouter<> (this.registry, this::resolveRoute, Objects.requireNonNull (eventSink, "eventSink"), System::nanoTime, Objects.requireNonNull (activeGeneration, "activeGeneration"));
+        this.router = new PhysicalInputRouter<> (this.registry, this::resolveRoute, this::deliverControllerInput, System::nanoTime, Objects.requireNonNull (activeGeneration, "activeGeneration"));
         this.installWrappers ();
     }
 
@@ -157,6 +165,7 @@ final class PushControllerInputBridge
                 continue;
             final int padIndex = padIndex (entry.getKey ());
             final ControlId control = padIndex < 0 ? PushControlIds.button (entry.getKey ().name ()) : PushControlIds.pad (padIndex + 1);
+            this.buttonControls.put (control, entry.getKey ());
             builder.register (control, padIndex < 0 && entry.getKey () != ButtonID.FOOTSWITCH2 ? InputKind.BUTTON : padIndex < 0 ? InputKind.PEDAL : InputKind.PAD);
         }
         for (int index = 0; index < 64; index++)
@@ -181,6 +190,16 @@ final class PushControllerInputBridge
     }
 
 
+    private void deliverControllerInput (final PhysicalInputEvent<ControlId> event)
+    {
+        final ButtonID button = this.buttonControls.get (event.control ());
+        if (button == null)
+            this.eventSink.accept (event);
+        else
+            this.parameterMutations.routeCoreButton (button, () -> this.eventSink.accept (event));
+    }
+
+
     private void installWrappers ()
     {
         for (final Map.Entry<ButtonID, IHwButton> entry: this.surface.getButtons ().entrySet ())
@@ -191,7 +210,12 @@ final class PushControllerInputBridge
             final int padIndex = padIndex (entry.getKey ());
             final ControlId control = padIndex < 0 ? PushControlIds.button (entry.getKey ().name ()) : PushControlIds.pad (padIndex + 1);
             final InputKind kind = padIndex < 0 && entry.getKey () != ButtonID.FOOTSWITCH2 ? InputKind.BUTTON : padIndex < 0 ? InputKind.PEDAL : InputKind.PAD;
-            button.installEventArbitrator ( (event, velocity, stableDispatch) -> this.router.route (control, kind, toShellPhase (event), velocity, stableDispatch));
+            button.installEventArbitrator ( (event, velocity, stableDispatch) -> {
+                final Runnable parameterAwareDispatch = entry.getKey () == ButtonID.SHIFT ?
+                    () -> this.parameterMutations.routeShift (event, this.router::flush, stableDispatch) :
+                    () -> this.parameterMutations.routeButton (entry.getKey (), this.router::flush, stableDispatch);
+                this.router.route (control, kind, toShellPhase (event), velocity, parameterAwareDispatch);
+            });
         }
 
         for (final ContinuousID id: CONTINUOUS_CONTROLS)
@@ -210,7 +234,7 @@ final class PushControllerInputBridge
                     kind,
                     InputPhase.CHANGE,
                     isRelative ? this.valueChanger.decode (value) : value,
-                    stableMutation));
+                    () -> this.parameterMutations.mutate (id, control, stableMutation)));
             }
 
             if (control.getTouchCommand () != null)

@@ -19,6 +19,11 @@
   requests. Do not target `git-moss/DrivenByMoss` or interpret its current diff as the Pull review
   surface unless the user explicitly asks for an upstream contribution or resynchronization.
 
+## Active findings
+
+- Before architectural work, inspect `docs/findings/`; update or delete any finding whose removal
+  criteria the change satisfies.
+
 ## Authoritative state and controller feedback
 
 - Treat hardware input as a request to alter state, not as proof that the requested state change

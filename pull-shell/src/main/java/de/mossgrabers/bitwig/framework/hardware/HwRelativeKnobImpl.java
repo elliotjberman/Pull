@@ -119,6 +119,7 @@ public class HwRelativeKnobImpl extends AbstractHwContinuousControl implements I
     @Override
     public void bind (final IParameter parameter)
     {
+        this.markBindingChanged ();
         if (!this.hasValueArbitrator () && this.binding != null)
             this.binding.removeBinding ();
 
@@ -148,6 +149,14 @@ public class HwRelativeKnobImpl extends AbstractHwContinuousControl implements I
         }
 
         this.binding = target == null ? null : this.hardwareKnob.setBinding (target);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public IParameter getBoundParameter ()
+    {
+        return this.parameter;
     }
 
 
