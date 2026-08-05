@@ -161,7 +161,9 @@ class PushParameterMutationServiceTest
     void ordinaryButtonAndPersistentMutationAreNotDelayed ()
     {
         final AtomicInteger calls = new AtomicInteger ();
-        final PushParameterMutationService service = service (Map.of ());
+        final PushParameterMutationService service = new PushParameterMutationService ( (controlID, control) -> {
+            throw new AssertionError ("Idle mutation must not resolve a snapback target");
+        });
 
         service.routeButton (ButtonID.PLAY, calls::incrementAndGet, calls::incrementAndGet);
         service.routeCoreButton (ButtonID.PLAY, calls::incrementAndGet);

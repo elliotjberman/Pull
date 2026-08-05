@@ -13,7 +13,7 @@ import java.util.Objects;
  * @param identity Identity within the domain
  * @param generation Actuator generation
  */
-public record ParameterTargetRef (String domain, String identity, long generation)
+record ParameterTargetRef (String domain, String identity, long generation)
 {
     /**
      * Validate the target reference.

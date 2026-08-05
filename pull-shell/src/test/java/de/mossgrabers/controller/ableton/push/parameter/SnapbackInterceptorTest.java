@@ -26,9 +26,9 @@ class SnapbackInterceptorTest
         final SnapbackInterceptor interceptor = interceptor ();
 
         interceptor.triggerPressed ();
-        interceptor.mutate (mutation (target, 20));
+        mutate (interceptor, target, 20);
         target.advanceHost ();
-        interceptor.mutate (mutation (target, 30));
+        mutate (interceptor, target, 30);
         target.advanceHost ();
         interceptor.triggerReleased ();
 
@@ -63,7 +63,7 @@ class SnapbackInterceptorTest
         for (int index = 0; index < targets.size (); index++)
         {
             final FakeTarget target = targets.get (index);
-            interceptor.mutate (mutation (target, 100 + index));
+            mutate (interceptor, target, 100 + index);
             target.advanceHost ();
         }
         assertEquals (targets.size (), interceptor.captureCount ());
@@ -92,7 +92,7 @@ class SnapbackInterceptorTest
         final SnapbackInterceptor interceptor = interceptor ();
 
         interceptor.triggerPressed ();
-        interceptor.mutate (mutation (target, 90));
+        mutate (interceptor, target, 90);
         target.advanceHost ();
         interceptor.beforePotentialTargetRebind ( () -> order.add ("navigate"));
 
@@ -118,7 +118,7 @@ class SnapbackInterceptorTest
         final SnapbackInterceptor interceptor = interceptor ();
 
         interceptor.triggerPressed ();
-        interceptor.mutate (mutation (target, 100));
+        mutate (interceptor, target, 100);
         target.advanceHost ();
         interceptor.triggerReleased ();
 
@@ -147,10 +147,10 @@ class SnapbackInterceptorTest
         final FakeTarget target = new FakeTarget ("device-remote", 32);
         final List<String> order = new ArrayList<> ();
         final List<String> warnings = new ArrayList<> ();
-        final SnapbackInterceptor interceptor = new SnapbackInterceptor (request -> request.mutation ().run (), warnings::add);
+        final SnapbackInterceptor interceptor = new SnapbackInterceptor (warnings::add);
 
         interceptor.triggerPressed ();
-        interceptor.mutate (mutation (target, 90));
+        mutate (interceptor, target, 90);
         target.advanceHost ();
         interceptor.triggerReleased ();
         interceptor.beforePotentialTargetRebind ( () -> order.add ("navigate"));
@@ -162,7 +162,7 @@ class SnapbackInterceptorTest
         assertEquals (List.of ("navigate"), order);
         assertEquals (1, warnings.size ());
 
-        interceptor.mutate (mutation (target, 45));
+        mutate (interceptor, target, 45);
         assertEquals (45, target.requested);
     }
 
@@ -173,10 +173,10 @@ class SnapbackInterceptorTest
         final FakeTarget original = new FakeTarget ("remote-slot", 15);
         final AtomicBoolean navigationRan = new AtomicBoolean ();
         final List<String> warnings = new ArrayList<> ();
-        final SnapbackInterceptor interceptor = new SnapbackInterceptor (request -> request.mutation ().run (), warnings::add);
+        final SnapbackInterceptor interceptor = new SnapbackInterceptor (warnings::add);
 
         interceptor.triggerPressed ();
-        interceptor.mutate (mutation (original, 70));
+        mutate (interceptor, original, 70);
         original.advanceHost ();
         original.current = false;
         interceptor.beforePotentialTargetRebind ( () -> navigationRan.set (true));
@@ -194,11 +194,11 @@ class SnapbackInterceptorTest
         final SnapbackInterceptor interceptor = interceptor ();
 
         interceptor.triggerPressed ();
-        interceptor.mutate (mutation (target, 40));
+        mutate (interceptor, target, 40);
         target.advanceHost ();
         interceptor.triggerReleased ();
         interceptor.triggerPressed ();
-        interceptor.mutate (mutation (target, 90));
+        mutate (interceptor, target, 90);
 
         assertEquals (40, target.requested);
         settleAndRequestRestore (interceptor);
@@ -207,7 +207,7 @@ class SnapbackInterceptorTest
         interceptor.tick ();
         interceptor.tick ();
 
-        interceptor.mutate (mutation (target, 25));
+        mutate (interceptor, target, 25);
         target.advanceHost ();
         interceptor.triggerReleased ();
 
@@ -223,7 +223,7 @@ class SnapbackInterceptorTest
         final SnapbackInterceptor interceptor = interceptor ();
 
         interceptor.triggerPressed ();
-        interceptor.mutate (mutation (target, 140));
+        mutate (interceptor, target, 140);
         target.advanceHost ();
         interceptor.shutdown ();
 
@@ -237,14 +237,14 @@ class SnapbackInterceptorTest
     void rejectsTemporaryMutationWhenTheBoundedCaptureSetIsFull ()
     {
         final List<String> warnings = new ArrayList<> ();
-        final SnapbackInterceptor interceptor = new SnapbackInterceptor (request -> request.mutation ().run (), warnings::add);
+        final SnapbackInterceptor interceptor = new SnapbackInterceptor (warnings::add);
 
         interceptor.triggerPressed ();
         for (int index = 0; index < 16; index++)
-            interceptor.mutate (mutation (new FakeTarget ("target-" + index, index), index + 100));
+            mutate (interceptor, new FakeTarget ("target-" + index, index), index + 100);
 
         final FakeTarget overflow = new FakeTarget ("overflow", 99);
-        interceptor.mutate (mutation (overflow, 127));
+        mutate (interceptor, overflow, 127);
 
         assertEquals (99, overflow.requested);
         assertEquals (16, interceptor.captureCount ());
@@ -254,7 +254,7 @@ class SnapbackInterceptorTest
 
     private static SnapbackInterceptor interceptor ()
     {
-        return new SnapbackInterceptor (request -> request.mutation ().run (), ignored -> {
+        return new SnapbackInterceptor (ignored -> {
             // No-op warning sink.
         });
     }
@@ -267,9 +267,9 @@ class SnapbackInterceptorTest
     }
 
 
-    private static ParameterMutationRequest mutation (final FakeTarget target, final double value)
+    private static void mutate (final SnapbackInterceptor interceptor, final FakeTarget target, final double value)
     {
-        return ParameterMutationRequest.snapback (target, () -> target.request (value));
+        interceptor.mutate (target, () -> target.request (value));
     }
 
 

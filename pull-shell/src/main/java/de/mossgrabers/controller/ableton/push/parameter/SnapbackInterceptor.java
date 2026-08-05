@@ -13,9 +13,9 @@ import java.util.function.Consumer;
 
 
 /**
- * Shift-triggered session layer around the controller parameter mutation gateway.
+ * Shift-triggered session layer around eligible controller parameter mutations.
  */
-public final class SnapbackInterceptor implements ParameterMutationGateway
+final class SnapbackInterceptor
 {
     private static final int MAX_CAPTURES = 16;
     private static final int MAX_PENDING_ACTIONS = 64;
@@ -24,7 +24,6 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
     private static final int REQUIRED_SETTLE_CONFIRMATIONS = 2;
     private static final int REQUIRED_RESTORE_CONFIRMATIONS = 2;
 
-    private final ParameterMutationGateway delegate;
     private final Consumer<String> warningSink;
     private final Map<ParameterTargetRef, Capture> captures = new LinkedHashMap<> ();
     private final Queue<Runnable> pendingActions = new ArrayDeque<> (MAX_PENDING_ACTIONS);
@@ -38,59 +37,56 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
     /**
      * Constructor.
      *
-     * @param delegate Mutation gateway to decorate
      * @param warningSink Warning sink
      */
-    public SnapbackInterceptor (final ParameterMutationGateway delegate, final Consumer<String> warningSink)
+    SnapbackInterceptor (final Consumer<String> warningSink)
     {
-        this.delegate = Objects.requireNonNull (delegate, "delegate");
         this.warningSink = Objects.requireNonNull (warningSink, "warningSink");
     }
 
 
-    /** {@inheritDoc} */
-    @Override
-    public void mutate (final ParameterMutationRequest request)
+    /**
+     * Apply one snapback-eligible mutation.
+     *
+     * @param target Current target
+     * @param mutation Mutation to apply
+     */
+    void mutate (final ParameterMutationTarget target, final Runnable mutation)
     {
-        final ParameterMutationRequest checkedRequest = Objects.requireNonNull (request, "request");
-        if (checkedRequest.persistence () == ParameterMutationRequest.PersistencePolicy.PERSISTENT)
-        {
-            this.delegate.mutate (checkedRequest);
-            return;
-        }
+        final ParameterMutationTarget checkedTarget = Objects.requireNonNull (target, "target");
+        final Runnable checkedMutation = Objects.requireNonNull (mutation, "mutation");
 
-        if (this.state == State.SETTLING || this.state == State.RESTORING)
+        if (this.isRestoring ())
             return;
         if (!this.triggerHeld)
         {
-            this.delegate.mutate (checkedRequest);
+            checkedMutation.run ();
             return;
         }
 
-        final ParameterMutationTarget target = checkedRequest.target ().orElseThrow ();
-        if (!target.isCurrent ())
+        if (!checkedTarget.isCurrent ())
         {
-            this.warningSink.accept ("Rejected snapback mutation for stale target " + target.reference ());
+            this.warningSink.accept ("Rejected snapback mutation for stale target " + checkedTarget.reference ());
             return;
         }
 
-        if (!this.captures.containsKey (target.reference ()))
+        if (!this.captures.containsKey (checkedTarget.reference ()))
         {
             if (this.captures.size () >= MAX_CAPTURES)
             {
                 this.warningSink.accept ("Rejected snapback mutation because the bounded capture set was full");
                 return;
             }
-            this.captures.put (target.reference (), new Capture (target, target.readAuthoritativeValue ()));
+            this.captures.put (checkedTarget.reference (), new Capture (checkedTarget, checkedTarget.readAuthoritativeValue ()));
         }
-        this.delegate.mutate (checkedRequest);
+        checkedMutation.run ();
     }
 
 
     /**
      * Open one trigger session.
      */
-    public void triggerPressed ()
+    void triggerPressed ()
     {
         this.triggerHeld = true;
         if (this.state == State.IDLE)
@@ -101,10 +97,10 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
     /**
      * End the trigger session and request restoration of every retained target.
      */
-    public void triggerReleased ()
+    void triggerReleased ()
     {
         this.triggerHeld = false;
-        if (this.state == State.SETTLING || this.state == State.RESTORING)
+        if (this.isRestoring ())
             return;
 
         if (this.captures.isEmpty ())
@@ -122,10 +118,10 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
      *
      * @param action Navigation action
      */
-    public void beforePotentialTargetRebind (final Runnable action)
+    void beforePotentialTargetRebind (final Runnable action)
     {
         final Runnable checkedAction = Objects.requireNonNull (action, "action");
-        if (this.state == State.SETTLING || this.state == State.RESTORING)
+        if (this.isRestoring ())
         {
             this.enqueue (checkedAction);
             return;
@@ -147,10 +143,10 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
      *
      * @param action Core event delivery
      */
-    public void afterPotentialTargetRebind (final Runnable action)
+    void afterPotentialTargetRebind (final Runnable action)
     {
         final Runnable checkedAction = Objects.requireNonNull (action, "action");
-        if (this.state == State.SETTLING || this.state == State.RESTORING)
+        if (this.isRestoring ())
         {
             this.enqueue (checkedAction);
             return;
@@ -162,7 +158,7 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
     /**
      * Reconcile retained targets with authoritative host read-back.
      */
-    public void tick ()
+    void tick ()
     {
         if (this.state == State.ACTIVE)
         {
@@ -220,7 +216,7 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
     /**
      * Best-effort restoration before the stable shell exits.
      */
-    public void shutdown ()
+    void shutdown ()
     {
         for (final Capture capture: this.captures.values ())
         {
@@ -228,7 +224,6 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
                 continue;
             try
             {
-                capture.restoreConfirmations = 0;
                 capture.target.restore (capture.baseline);
             }
             catch (final RuntimeException ex)
@@ -251,6 +246,12 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
     }
 
 
+    boolean isInterceptingMutations ()
+    {
+        return this.state != State.IDLE;
+    }
+
+
     int captureCount ()
     {
         return this.captures.size ();
@@ -259,7 +260,7 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
 
     private void beginSettlement ()
     {
-        if (this.state == State.SETTLING || this.state == State.RESTORING)
+        if (this.isRestoring ())
             return;
         this.state = State.SETTLING;
         this.settleTicks = 0;
