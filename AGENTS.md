@@ -11,6 +11,15 @@
 - A workspace selects declared views and facets; it must never remap arbitrary callbacks onto raw
   hardware controls.
 
+## Stable-to-core migration
+
+- Read `docs/reloadable-core-migration-guide.md` before moving controller behavior across the
+  stable-shell/core boundary. Use `docs/reloadable-core-migration-roadmap.md` to choose reusable
+  canopy work and avoid feature-shaped bridge additions.
+- Complete the guide's capability audit before requesting `EXCLUSIVE` input ownership. Preserve
+  every semantic variant or leave the control stable-owned; never retain a fallback stable
+  implementation for behavior claimed by core.
+
 ## Repository topology
 
 - `elliotjberman/Pull` is an intentionally one-time fork of
