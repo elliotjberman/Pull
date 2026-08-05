@@ -36,19 +36,7 @@ public record DesiredControllerWorkspace (String name, Set<ControllerViewFacet> 
 
 
     /**
-     * Create a workspace which does not use a Session grid.
-     *
-     * @param name Core-owned workspace name
-     * @param facets Fixed facets to activate
-     */
-    public DesiredControllerWorkspace (final String name, final Set<ControllerViewFacet> facets)
-    {
-        this (name, facets, SessionBankShape.empty ());
-    }
-
-
-    /**
-     * Get the empty workspace, which leaves the legacy controller layout active.
+     * Get the empty workspace, which leaves the stable controller layout active.
      *
      * @return Empty workspace
      */

@@ -102,7 +102,7 @@ public final class WorkspaceView extends SessionView implements WorkspaceFacetAd
     @Override
     public void onGridPressure (final int note, final int value)
     {
-        // The reloadable DrumPressureView owns pressure policy for this composite adapter.
+        // The reloadable DrumControllerView owns pressure policy for this composite adapter.
     }
 
 

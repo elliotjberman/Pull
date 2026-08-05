@@ -56,7 +56,6 @@ class SessionBankRegistryTest
         assertFalse (half.indicated);
         assertEquals (32, full.trackPosition);
         assertEquals (12, full.scenePosition);
-        assertEquals (fullShape, registry.getActiveShape ());
     }
 
 

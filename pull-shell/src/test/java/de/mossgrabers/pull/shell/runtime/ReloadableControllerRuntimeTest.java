@@ -11,10 +11,14 @@ import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.CoreResult;
+import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
+import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
+import de.mossgrabers.pull.core.api.DesiredInputRoutes;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchMode;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
 import de.mossgrabers.pull.core.api.effect.ClipReleaseTrigger;
+import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
@@ -92,8 +96,7 @@ class ReloadableControllerRuntimeTest
             if (event instanceof final ButtonInputEvent button && button.pressed ())
             {
                 final ClipTargetId targetId = clipHost.targetId (button.controlId ());
-                final CoreResult press = new CoreResult (
-                    DesiredHardwareOutput.empty (),
+                final CoreResult press = result (
                     clipHost.allBindings (),
                     List.of (new PressClipTargetEffect (button.controlId (), clipHost.catalogGeneration (), targetId, LAUNCH_POLICY)));
                 final long generation = ++coreGeneration[0];
@@ -185,8 +188,7 @@ class ReloadableControllerRuntimeTest
         final ControlId firstControl = CoreControls.drumFills ().getFirst ();
         environment.acknowledgeSnapshotChange (environment.snapshotRevision ());
         environment.setFillPressed (firstControl, true);
-        final CoreResult press = new CoreResult (
-            DesiredHardwareOutput.empty (),
+        final CoreResult press = result (
             clipHost.allBindings (),
             List.of (new PressClipTargetEffect (firstControl, clipHost.catalogGeneration (), clipHost.targetId (firstControl), LAUNCH_POLICY)));
         environment.commit (2, environment.prepare (press));
@@ -220,7 +222,7 @@ class ReloadableControllerRuntimeTest
     private static DrumFillRuntimeEnvironment createArmedEnvironment (final FakeClipHost clipHost)
     {
         final DrumFillRuntimeEnvironment environment = new DrumFillRuntimeEnvironment (clipHost, NoOpLog.INSTANCE, () -> 0);
-        final CoreResult bindings = new CoreResult (DesiredHardwareOutput.empty (), clipHost.allBindings (), List.of ());
+        final CoreResult bindings = result (clipHost.allBindings (), List.of ());
         environment.commit (1, environment.prepare (bindings));
         environment.apply (1);
         environment.refresh ();
@@ -231,6 +233,18 @@ class ReloadableControllerRuntimeTest
     private static List<ButtonInputEvent> buttonEvents (final List<CoreEvent> events)
     {
         return events.stream ().filter (ButtonInputEvent.class::isInstance).map (ButtonInputEvent.class::cast).toList ();
+    }
+
+
+    private static CoreResult result (final Map<ControlId, ClipTargetId> bindings, final List<CoreEffect> effects)
+    {
+        return new CoreResult (
+            DesiredHardwareOutput.empty (),
+            DesiredInputRoutes.empty (),
+            DesiredBridgeSubscriptions.empty (),
+            bindings,
+            DesiredControllerWorkspace.empty (),
+            effects);
     }
 
 

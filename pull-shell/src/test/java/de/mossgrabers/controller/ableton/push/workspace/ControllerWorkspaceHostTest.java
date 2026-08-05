@@ -39,9 +39,11 @@ class ControllerWorkspaceHostTest
     {
         assertThrows (IllegalArgumentException.class, () -> ControllerWorkspaceHost.validate (new DesiredControllerWorkspace (
             "scene keys only",
-            Set.of (ControllerViewFacet.SESSION_SCENE_KEYS_UPPER))));
+            Set.of (ControllerViewFacet.SESSION_SCENE_KEYS_UPPER),
+            SessionBankShape.empty ())));
         assertThrows (IllegalArgumentException.class, () -> ControllerWorkspaceHost.validate (new DesiredControllerWorkspace (
             "pitch only",
-            Set.of (ControllerViewFacet.DRUM_PITCH_BEND))));
+            Set.of (ControllerViewFacet.DRUM_PITCH_BEND),
+            SessionBankShape.empty ())));
     }
 }

@@ -4,7 +4,6 @@
 
 package de.mossgrabers.controller.ableton.push;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -166,7 +165,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         // Sustain pedal - channel 1
         "B040??"
     };
-    private static final Set<SessionBankShape> SESSION_BANK_CANOPY = Set.copyOf (List.of (SessionView.SESSION_BANK_SHAPE, WorkspaceView.SESSION_BANK_SHAPE));
+    private static final Set<SessionBankShape> SESSION_BANK_CANOPY = Set.of (SessionView.SESSION_BANK_SHAPE, WorkspaceView.SESSION_BANK_SHAPE);
 
     private final ReloadableControllerRuntime reloadableRuntime;
     private TouchstripCommand                 touchstripCommand;

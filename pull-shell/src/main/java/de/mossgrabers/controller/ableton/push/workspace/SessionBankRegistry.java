@@ -24,7 +24,6 @@ public final class SessionBankRegistry
     private final Map<SessionBankShape, ITrackBank> banks;
     private final SessionBankShape defaultShape;
 
-    private SessionBankShape activeShape;
     private ITrackBank activeBank;
 
 
@@ -50,7 +49,6 @@ public final class SessionBankRegistry
             resolved.put (shape, model.getTrackBank (shape.tracks (), shape.scenes ()));
         }
         this.banks = Map.copyOf (resolved);
-        this.activeShape = defaultShape;
         this.activeBank = this.requireBank (defaultShape);
         this.model.setCurrentMainTrackBank (this.activeBank);
         this.activeBank.setIndication (true);
@@ -81,7 +79,6 @@ public final class SessionBankRegistry
 
         this.activeBank.setIndication (false);
         nextBank.setIndication (true);
-        this.activeShape = shape;
         this.activeBank = nextBank;
         this.model.setCurrentMainTrackBank (nextBank);
     }
@@ -100,23 +97,10 @@ public final class SessionBankRegistry
      * Require that a shape is part of the installed canopy.
      *
      * @param shape Requested shape
-     * @return The validated shape
      */
-    public SessionBankShape requireDeclared (final SessionBankShape shape)
+    public void requireDeclared (final SessionBankShape shape)
     {
         this.requireBank (shape);
-        return shape;
-    }
-
-
-    /**
-     * Get the active shape.
-     *
-     * @return Active shape
-     */
-    public SessionBankShape getActiveShape ()
-    {
-        return this.activeShape;
     }
 
 

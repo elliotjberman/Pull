@@ -264,18 +264,6 @@ public final class DrumPadControls
 
 
     /**
-     * Test whether a physical grid note is one of the four rate controls.
-     *
-     * @param note The physical grid note
-     * @return True if it is a rate pad
-     */
-    public boolean isRatePad (final int note)
-    {
-        return this.getRatePadIndex (note) >= 0;
-    }
-
-
-    /**
      * Test whether a physical grid note belongs to the playable 4x4 drum block.
      *
      * @param note The physical grid note
@@ -298,7 +286,7 @@ public final class DrumPadControls
      * @param note The physical grid note
      * @return True if this is a fill pad
      */
-    public boolean isFillPad (final int note)
+    private boolean isFillPad (final int note)
     {
         return ReloadableControllerRuntime.isFillPad (note);
     }

@@ -18,6 +18,7 @@ import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.InputRoute;
 import de.mossgrabers.pull.core.api.InputRouteMode;
 import de.mossgrabers.pull.core.api.PushControlIds;
+import de.mossgrabers.pull.core.api.SessionBankShape;
 import de.mossgrabers.pull.core.api.TimerId;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchMode;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
@@ -133,7 +134,8 @@ class DrumFillRuntimeEnvironmentTest
         final DrumFillRuntimeEnvironment environment = environment (host (1));
         final DesiredControllerWorkspace workspace = new DesiredControllerWorkspace (
             "test",
-            Set.of (ControllerViewFacet.PROJECT_MACRO_CONTROLS));
+            Set.of (ControllerViewFacet.PROJECT_MACRO_CONTROLS),
+            SessionBankShape.empty ());
         final CoreResult result = new CoreResult (
             DesiredHardwareOutput.empty (),
             DesiredInputRoutes.empty (),
@@ -732,13 +734,25 @@ class DrumFillRuntimeEnvironmentTest
 
     private static CoreResult result (final Map<ControlId, RgbColor> lights, final Map<ControlId, ClipTargetId> bindings, final List<CoreEffect> effects)
     {
-        return new CoreResult (new DesiredHardwareOutput (lights), bindings, effects);
+        return new CoreResult (
+            new DesiredHardwareOutput (lights),
+            DesiredInputRoutes.empty (),
+            DesiredBridgeSubscriptions.empty (),
+            bindings,
+            DesiredControllerWorkspace.empty (),
+            effects);
     }
 
 
     private static CoreResult routedResult (final DesiredInputRoutes routes)
     {
-        return new CoreResult (DesiredHardwareOutput.empty (), routes, Map.of (), List.of ());
+        return new CoreResult (
+            DesiredHardwareOutput.empty (),
+            routes,
+            DesiredBridgeSubscriptions.empty (),
+            Map.of (),
+            DesiredControllerWorkspace.empty (),
+            List.of ());
     }
 
 

@@ -126,7 +126,7 @@ public final class ControllerWorkspaceHost
 
 
     /**
-     * Restore all legacy areas during core invalidation.
+     * Restore all stable-owned areas during core invalidation.
      */
     public void invalidate ()
     {

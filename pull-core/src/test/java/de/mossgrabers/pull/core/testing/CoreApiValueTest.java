@@ -114,7 +114,7 @@ class CoreApiValueTest
         final Map<ControlId, ClipTargetId> desiredBindings = new HashMap<> (Map.of (control, clip.targetId ()));
         final Set<BridgeSubscription> bridgeDomains = new HashSet<> (Set.of (BridgeSubscription.SELECTED_TRACK));
         final DesiredBridgeSubscriptions bridgeSubscriptions = new DesiredBridgeSubscriptions (bridgeDomains);
-        final CoreResult result = new CoreResult (output, DesiredInputRoutes.empty (), bridgeSubscriptions, desiredBindings, effects);
+        final CoreResult result = new CoreResult (output, DesiredInputRoutes.empty (), bridgeSubscriptions, desiredBindings, DesiredControllerWorkspace.empty (), effects);
         desiredBindings.clear ();
         bridgeDomains.clear ();
         effects.clear ();
@@ -197,7 +197,7 @@ class CoreApiValueTest
     void controllerWorkspacesAreCompleteImmutableValues ()
     {
         final Set<ControllerViewFacet> facets = new HashSet<> (Set.of (ControllerViewFacet.PROJECT_MACRO_CONTROLS));
-        final DesiredControllerWorkspace workspace = new DesiredControllerWorkspace ("  live  ", facets);
+        final DesiredControllerWorkspace workspace = new DesiredControllerWorkspace ("  live  ", facets, SessionBankShape.empty ());
         facets.clear ();
 
         assertEquals ("live", workspace.name ());
@@ -206,11 +206,12 @@ class CoreApiValueTest
         assertTrue (workspace.isActive ());
         assertFalse (DesiredControllerWorkspace.empty ().isActive ());
         assertThrows (UnsupportedOperationException.class, () -> workspace.facets ().clear ());
-        assertThrows (IllegalArgumentException.class, () -> new DesiredControllerWorkspace ("named", Set.of ()));
-        assertThrows (IllegalArgumentException.class, () -> new DesiredControllerWorkspace ("", Set.of (ControllerViewFacet.PROJECT_MACRO_CONTROLS)));
+        assertThrows (IllegalArgumentException.class, () -> new DesiredControllerWorkspace ("named", Set.of (), SessionBankShape.empty ()));
+        assertThrows (IllegalArgumentException.class, () -> new DesiredControllerWorkspace ("", Set.of (ControllerViewFacet.PROJECT_MACRO_CONTROLS), SessionBankShape.empty ()));
         assertThrows (IllegalArgumentException.class, () -> new DesiredControllerWorkspace (
             "session without shape",
-            Set.of (ControllerViewFacet.SESSION_CLIP_GRID_UPPER)));
+            Set.of (ControllerViewFacet.SESSION_CLIP_GRID_UPPER),
+            SessionBankShape.empty ()));
         assertThrows (IllegalArgumentException.class, () -> new DesiredControllerWorkspace (
             "shape without session",
             Set.of (ControllerViewFacet.PROJECT_MACRO_CONTROLS),
@@ -296,7 +297,13 @@ class CoreApiValueTest
         assertThrows (NullPointerException.class, () -> new ControllerSnapshot (0, 0, ShellCapabilities.empty (), ClipCatalogSnapshot.empty (), Map.of (), Map.of (), null, Set.of (), Set.of ()));
         assertThrows (IllegalArgumentException.class, () -> new ControllerSnapshot (0, 0, ShellCapabilities.empty (), ClipCatalogSnapshot.empty (), Map.of (), Map.of (), Optional.of (new ControlId ("owner")), Set.of (), Set.of ()));
         assertThrows (IllegalArgumentException.class, () -> new ControllerSnapshot (0, 0, ShellCapabilities.empty (), ClipCatalogSnapshot.empty (), Map.of (), Map.of (new ControlId ("one"), new ClipTargetId (1), new ControlId ("two"), new ClipTargetId (2)), Optional.empty (), Set.of (), Set.of ()));
-        assertThrows (NullPointerException.class, () -> new CoreResult (DesiredHardwareOutput.empty (), Map.of (), null));
+        assertThrows (NullPointerException.class, () -> new CoreResult (
+            DesiredHardwareOutput.empty (),
+            DesiredInputRoutes.empty (),
+            DesiredBridgeSubscriptions.empty (),
+            Map.of (),
+            DesiredControllerWorkspace.empty (),
+            null));
         assertThrows (IllegalArgumentException.class, () -> new SnapshotChangedEvent (-1, 0));
         assertThrows (IllegalArgumentException.class, () -> new SnapshotChangedEvent (0, -1));
         assertThrows (IllegalArgumentException.class, () -> new ShellCapabilities (Map.of ("lights", Integer.valueOf (0))));
