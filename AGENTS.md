@@ -133,7 +133,8 @@
 - A core-only change inside the installed API/canopy hot reloads. Changing a parent-loaded API
   contract, adding a Bitwig proxy/property/observer, changing a permanent binding or proxy capacity,
   or broadening hardware output ownership requires a shell build/install and Bitwig restart.
-- Core API 12 arbitrates general input and complete fixed-facet workspace selection, including the
+- Core API 13 arbitrates general input, complete fixed-facet workspace selection, and bounded
+  parameter-target leases, including the
   declared Session bank shape, so mappings whose state and effects are already bridged belong in
   the reloadable core. Only the 12 drum-fill
   RGB lights have migrated direct output ownership; workspace facets still use generic stable

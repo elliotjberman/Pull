@@ -244,6 +244,7 @@ class ReloadableControllerRuntimeTest
             DesiredBridgeSubscriptions.empty (),
             bindings,
             DesiredControllerWorkspace.empty (),
+            de.mossgrabers.pull.core.api.DesiredParameterLeases.empty (),
             effects);
     }
 

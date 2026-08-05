@@ -4,7 +4,6 @@
 package de.mossgrabers.pull.shell.runtime;
 
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
-import de.mossgrabers.controller.ableton.push.parameter.PushParameterMutationService;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.ContinuousID;
 import de.mossgrabers.framework.controller.hardware.IHwButton;
@@ -22,7 +21,6 @@ import de.mossgrabers.pull.shell.input.PhysicalInputAddress;
 import de.mossgrabers.pull.shell.input.PhysicalInputEvent;
 import de.mossgrabers.pull.shell.input.PhysicalInputRouter;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -65,10 +63,9 @@ final class PushControllerInputBridge
 
     private final PushControlSurface surface;
     private final IValueChanger valueChanger;
-    private final PushParameterMutationService parameterMutations;
+    private final ParameterMutationDispatcher parameterMutations;
     private final Consumer<PhysicalInputEvent<ControlId>> eventSink;
     private final Supplier<DesiredInputRoutes> routes;
-    private final Map<ControlId, ButtonID> buttonControls = new HashMap<> ();
     private final PhysicalControlRegistry<ControlId> registry;
     private final PhysicalInputRouter<ControlId> router;
 
@@ -83,7 +80,7 @@ final class PushControllerInputBridge
      * @param eventSink Normalized event sink
      * @param activeGeneration Current active reloadable-core generation
      */
-    PushControllerInputBridge (final PushControlSurface surface, final IValueChanger valueChanger, final PushParameterMutationService parameterMutations, final Supplier<DesiredInputRoutes> routes, final Consumer<PhysicalInputEvent<ControlId>> eventSink, final LongSupplier activeGeneration)
+    PushControllerInputBridge (final PushControlSurface surface, final IValueChanger valueChanger, final ParameterMutationDispatcher parameterMutations, final Supplier<DesiredInputRoutes> routes, final Consumer<PhysicalInputEvent<ControlId>> eventSink, final LongSupplier activeGeneration)
     {
         this.surface = Objects.requireNonNull (surface, "surface");
         this.valueChanger = Objects.requireNonNull (valueChanger, "valueChanger");
@@ -105,6 +102,13 @@ final class PushControllerInputBridge
     }
 
 
+    /** Release stable input commands whose core restoration barrier has completed. */
+    void releaseDeferredStableDispatches ()
+    {
+        this.router.releaseDeferredStableDispatches ();
+    }
+
+
     /**
      * Validate one requested API route against the fixed physical registry.
      *
@@ -117,7 +121,11 @@ final class PushControllerInputBridge
         final InputKind kind = toShellKind (route.kind ());
         if (!this.registry.contains (route.controlId (), kind))
             return false;
-        return route.mode () != InputRouteMode.EXCLUSIVE || CORE_OWNED_INPUTS.contains (new PhysicalInputAddress<> (route.controlId (), kind));
+        if (route.mode () == InputRouteMode.EXCLUSIVE)
+            return CORE_OWNED_INPUTS.contains (new PhysicalInputAddress<> (route.controlId (), kind));
+        if (route.mode () == InputRouteMode.DEFER_STABLE)
+            return kind.isEdge ();
+        return route.mode () != InputRouteMode.SUPPRESS_STABLE || kind == InputKind.RELATIVE || kind == InputKind.ABSOLUTE;
     }
 
 
@@ -165,7 +173,6 @@ final class PushControllerInputBridge
                 continue;
             final int padIndex = padIndex (entry.getKey ());
             final ControlId control = padIndex < 0 ? PushControlIds.button (entry.getKey ().name ()) : PushControlIds.pad (padIndex + 1);
-            this.buttonControls.put (control, entry.getKey ());
             builder.register (control, padIndex < 0 && entry.getKey () != ButtonID.FOOTSWITCH2 ? InputKind.BUTTON : padIndex < 0 ? InputKind.PEDAL : InputKind.PAD);
         }
         for (int index = 0; index < 64; index++)
@@ -192,11 +199,7 @@ final class PushControllerInputBridge
 
     private void deliverControllerInput (final PhysicalInputEvent<ControlId> event)
     {
-        final ButtonID button = this.buttonControls.get (event.control ());
-        if (button == null)
-            this.eventSink.accept (event);
-        else
-            this.parameterMutations.routeCoreButton (button, () -> this.eventSink.accept (event));
+        this.eventSink.accept (event);
     }
 
 
@@ -211,10 +214,9 @@ final class PushControllerInputBridge
             final ControlId control = padIndex < 0 ? PushControlIds.button (entry.getKey ().name ()) : PushControlIds.pad (padIndex + 1);
             final InputKind kind = padIndex < 0 && entry.getKey () != ButtonID.FOOTSWITCH2 ? InputKind.BUTTON : padIndex < 0 ? InputKind.PEDAL : InputKind.PAD;
             button.installEventArbitrator ( (event, velocity, stableDispatch) -> {
-                final Runnable parameterAwareDispatch = entry.getKey () == ButtonID.SHIFT ?
-                    () -> this.parameterMutations.routeShift (event, this.router::flush, stableDispatch) :
-                    () -> this.parameterMutations.routeButton (entry.getKey (), this.router::flush, stableDispatch);
-                this.router.route (control, kind, toShellPhase (event), velocity, parameterAwareDispatch);
+                if (entry.getKey () == ButtonID.SHIFT && event == ButtonEvent.UP)
+                    this.router.flush ();
+                this.router.route (control, kind, toShellPhase (event), velocity, stableDispatch);
             });
         }
 
@@ -263,7 +265,13 @@ final class PushControllerInputBridge
 
     private static de.mossgrabers.pull.shell.input.InputRoute toShellRoute (final InputRouteMode route)
     {
-        return route == InputRouteMode.EXCLUSIVE ? de.mossgrabers.pull.shell.input.InputRoute.EXCLUSIVE : de.mossgrabers.pull.shell.input.InputRoute.OBSERVE;
+        return switch (route)
+        {
+            case OBSERVE -> de.mossgrabers.pull.shell.input.InputRoute.OBSERVE;
+            case DEFER_STABLE -> de.mossgrabers.pull.shell.input.InputRoute.DEFER_STABLE;
+            case SUPPRESS_STABLE -> de.mossgrabers.pull.shell.input.InputRoute.SUPPRESS_STABLE;
+            case EXCLUSIVE -> de.mossgrabers.pull.shell.input.InputRoute.EXCLUSIVE;
+        };
     }
 
 
@@ -298,5 +306,12 @@ final class PushControllerInputBridge
                 return index;
         }
         return -1;
+    }
+
+
+    @FunctionalInterface
+    interface ParameterMutationDispatcher
+    {
+        void mutate (ContinuousID controlID, IHwContinuousControl control, Runnable stableMutation);
     }
 }

@@ -82,21 +82,26 @@ view should remove the binding, not redefine the target retained by an independe
 
 ## Current Mitigation
 
-Shift snapback V1 introduces a centralized parameter-mutation seam but does not claim to implement
-this model. For a directly bound parameter it retains the physical control ID, that control's
-monotonic binding generation, the exact current proxy object, and the first authoritative value.
-Every command, pitch-bend, or parameter rebind advances the generation, including rebinding the
-same remote-control proxy object to a new page.
+Core API 13 separates the physical control from the installed target window. Stable publishes eight
+active parameter slots plus fixed tempo and master-volume slots. Each slot contains an opaque target
+identity/generation, authoritative value, and tolerance; it never uses a Push control ID as the
+target identity. Core owns the physical-control-to-slot mapping and the snapback policy.
 
-Before a known context-changing button can run, pending motion is flushed and restoration waits
-for authoritative read-back. Both stable and core-observed halves of that physical edge are then
-released in order. An unexpected generation change fails closed and never restores through the
-replacement proxy, although the old target may remain temporary because V1 has no retained lease.
+Core may retain a complete target-to-baseline lease set. Stable resolves each request to the exact
+current live actuator, rechecks that actuator at apply time, executes absolute restores only through
+leases present in the same result, and restores retained targets best-effort if the core faults.
+The public retained-baseline snapshot lets a replacement core hydrate in-flight work without
+receiving a stable object.
 
-This mitigation is bounded and safe for the supported no-navigation session. It still identifies
-rebindable parameters by physical proxy slot, cannot deduplicate the same semantic parameter bound
-to two controls, and cannot keep the old actuator alive across navigation. The removal criteria
-therefore remain unsatisfied.
+Before a known context-changing button can run, pending motion is flushed and core restoration
+waits for authoritative read-back. The normalized edge reaches core while its stable command waits
+behind a bounded route barrier. Stable dispatch runs before the released core workspace applies.
+An unexpected generation change fails closed and never restores through the replacement proxy.
+
+This is a material implementation of the proposed separation, but not the final semantic target
+model. The active slots still follow rebindable Moss parameters, two slots cannot yet deduplicate a
+shared semantic parameter, and there is no bounded pinned actuator pool that keeps an old target
+addressable across navigation. The removal criteria therefore remain unsatisfied.
 
 ## Target Categories
 

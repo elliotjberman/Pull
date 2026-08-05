@@ -22,9 +22,12 @@ import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ControllerLayoutSnapshot;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
+import de.mossgrabers.pull.core.api.DesiredParameterLeases;
 import de.mossgrabers.pull.core.api.DrumContextSnapshot;
 import de.mossgrabers.pull.core.api.DrumPadSnapshot;
 import de.mossgrabers.pull.core.api.GridPressureConfiguration;
+import de.mossgrabers.pull.core.api.ParameterBridgeSnapshot;
+import de.mossgrabers.pull.core.api.ParameterTargetRef;
 import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
 import de.mossgrabers.pull.core.api.TrackMonitorMode;
 import de.mossgrabers.pull.core.api.TransportSnapshot;
@@ -39,6 +42,7 @@ import de.mossgrabers.pull.core.api.effect.SelectedTrackValue;
 import de.mossgrabers.pull.core.api.effect.SendNoteInputMidiEffect;
 import de.mossgrabers.pull.core.api.effect.SetDrumPadBooleanEffect;
 import de.mossgrabers.pull.core.api.effect.SetDrumPadValueEffect;
+import de.mossgrabers.pull.core.api.effect.SetParameterValueEffect;
 import de.mossgrabers.pull.core.api.effect.SetSelectedTrackBooleanEffect;
 import de.mossgrabers.pull.core.api.effect.SetSelectedTrackMonitorEffect;
 import de.mossgrabers.pull.core.api.effect.SetSelectedTrackValueEffect;
@@ -76,6 +80,7 @@ final class BoundedControllerBridge
     private final PushControlSurface surface;
     private final IValueChanger valueChanger;
     private final NewClipAction newClipAction;
+    private final ParameterTargetHost parameterTargets;
     private final Map<MidiStateKey, MidiState> noteInputMidiState = new HashMap<> ();
 
     private ControllerBridgeSnapshot snapshot = ControllerBridgeSnapshot.empty ();
@@ -90,16 +95,7 @@ final class BoundedControllerBridge
     private long activeCoreGeneration;
 
 
-    /**
-     * Constructor.
-     *
-     * @param model Stable framework model
-     * @param selectedTarget Private selection-following target
-     * @param noteInputMidiSender Raw MIDI sender for Bitwig's ordinary controller note input
-     * @param surface Stable Push surface
-     * @param valueChanger Stable normalized-value converter
-     */
-    BoundedControllerBridge (final IModel model, final ISelectedTrackNoteTarget selectedTarget, final MidiShortCallback noteInputMidiSender, final PushControlSurface surface, final IValueChanger valueChanger)
+    BoundedControllerBridge (final IModel model, final ISelectedTrackNoteTarget selectedTarget, final MidiShortCallback noteInputMidiSender, final PushControlSurface surface, final IValueChanger valueChanger, final RuntimeLog log)
     {
         this.model = Objects.requireNonNull (model, "model");
         this.transport = Objects.requireNonNull (model.getTransport (), "transport");
@@ -108,6 +104,7 @@ final class BoundedControllerBridge
         this.surface = Objects.requireNonNull (surface, "surface");
         this.valueChanger = Objects.requireNonNull (valueChanger, "valueChanger");
         this.newClipAction = new NewClipAction (model);
+        this.parameterTargets = new ParameterTargetHost (surface, model, Objects.requireNonNull (log, "log"));
     }
 
 
@@ -157,7 +154,10 @@ final class BoundedControllerBridge
             this.drumIdentity = "";
         }
 
-        final ControllerBridgeSnapshot refreshed = new ControllerBridgeSnapshot (transportState, selected, layout, this.drumSnapshot);
+        final boolean parametersRequested = requested.includes (BridgeSubscription.PARAMETERS);
+        this.parameterTargets.refresh (parametersRequested);
+        final ParameterBridgeSnapshot parameters = parametersRequested ? this.parameterTargets.snapshot () : ParameterBridgeSnapshot.empty ();
+        final ControllerBridgeSnapshot refreshed = new ControllerBridgeSnapshot (transportState, selected, layout, this.drumSnapshot, parameters);
         if (refreshed.equals (this.snapshot))
             return false;
 
@@ -187,7 +187,40 @@ final class BoundedControllerBridge
     void invalidate ()
     {
         this.resetNoteInputMidiState ();
+        this.parameterTargets.invalidate ();
         this.surface.getControllerWorkspaceHost ().invalidate ();
+    }
+
+
+    ParameterTargetHost.TargetedParameter resolveParameterMutation (final de.mossgrabers.framework.controller.ContinuousID controlID, final de.mossgrabers.framework.controller.hardware.IHwContinuousControl control)
+    {
+        return this.parameterTargets.resolveMutation (controlID, control);
+    }
+
+
+    Map<ParameterTargetRef, ParameterTargetHost.RetainedTarget> prepareParameterLeases (final DesiredParameterLeases desired)
+    {
+        return this.parameterTargets.prepareLeases (desired);
+    }
+
+
+    boolean applyParameterLeases (final Map<ParameterTargetRef, ParameterTargetHost.RetainedTarget> prepared, final boolean parametersRequested)
+    {
+        if (!this.parameterTargets.applyLeases (prepared, parametersRequested))
+            return false;
+        this.snapshot = new ControllerBridgeSnapshot (
+            this.snapshot.transport (),
+            this.snapshot.selectedTrack (),
+            this.snapshot.layout (),
+            this.snapshot.drum (),
+            this.parameterTargets.snapshot ());
+        return true;
+    }
+
+
+    boolean retainsParameterTarget (final ParameterTargetRef target)
+    {
+        return this.parameterTargets.retains (target);
     }
 
 
@@ -231,11 +264,13 @@ final class BoundedControllerBridge
      * @param effect Candidate effect
      * @return Prepared action, or {@code null} when the effect belongs to another shell domain
      */
-    PreparedAction prepare (final CoreEffect effect)
+    PreparedAction prepare (final CoreEffect effect, final Map<ParameterTargetRef, ParameterTargetHost.RetainedTarget> parameterLeases)
     {
         Objects.requireNonNull (effect, "effect");
         if (effect instanceof final SetTransportStateEffect setState)
             return new PreparedTransportState (setState.state (), setState.enabled ());
+        if (effect instanceof final SetParameterValueEffect setParameter)
+            return new PreparedParameterSet (this.parameterTargets.prepare (setParameter, parameterLeases));
         if (effect instanceof final SetTransportValueEffect setValue)
         {
             if (setValue.value () == TransportValue.TEMPO && (setValue.amount () < this.transport.getMinimumTempo () || setValue.amount () > this.transport.getMaximumTempo ()))
@@ -286,6 +321,12 @@ final class BoundedControllerBridge
     }
 
 
+    PreparedAction prepare (final CoreEffect effect)
+    {
+        return this.prepare (effect, Map.of ());
+    }
+
+
     /**
      * Apply one prepared action after the runtime generation has committed.
      *
@@ -296,6 +337,8 @@ final class BoundedControllerBridge
         Objects.requireNonNull (action, "action");
         if (action instanceof final PreparedTransportState state)
             this.applyTransportState (state);
+        else if (action instanceof final PreparedParameterSet parameter)
+            this.parameterTargets.apply (parameter.action ());
         else if (action instanceof final PreparedTransportValue value)
             this.applyTransportValue (value);
         else if (action instanceof final PreparedSelectedBoolean state)
@@ -721,7 +764,7 @@ final class BoundedControllerBridge
     }
 
 
-    sealed interface PreparedAction permits PreparedDrumBoolean, PreparedDrumSelection, PreparedDrumValue, PreparedNoteInputMidi, PreparedSelectedAction, PreparedSelectedBoolean, PreparedSelectedMonitor, PreparedSelectedValue, PreparedTransportState, PreparedTransportValue
+    sealed interface PreparedAction permits PreparedDrumBoolean, PreparedDrumSelection, PreparedDrumValue, PreparedNoteInputMidi, PreparedParameterSet, PreparedSelectedAction, PreparedSelectedBoolean, PreparedSelectedMonitor, PreparedSelectedValue, PreparedTransportState, PreparedTransportValue
     {
         // Parent-owned primitive intent
     }
@@ -733,6 +776,11 @@ final class BoundedControllerBridge
 
 
     private record PreparedTransportValue (TransportValue value, double amount) implements PreparedAction
+    {
+    }
+
+
+    private record PreparedParameterSet (ParameterTargetHost.PreparedSet action) implements PreparedAction
     {
     }
 

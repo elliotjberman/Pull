@@ -30,6 +30,7 @@ final class PullControllerCore implements ControllerCore
     private Map<WorkspaceSelection.Id, CompiledWorkspace> workspaces = Map.of ();
     private WorkspaceSelection                             selection;
     private CompiledWorkspace                              workspace;
+    private final SnapbackSession                          snapback = new SnapbackSession ();
     private Lifecycle                                      lifecycle = Lifecycle.NEW;
 
 
@@ -49,7 +50,8 @@ final class PullControllerCore implements ControllerCore
         this.workspaces = Map.copyOf (compiled);
         this.workspace = this.workspaces.get (this.selection.active ());
         this.lifecycle = Lifecycle.RUNNING;
-        return this.workspace.activate (snapshot);
+        this.snapback.start (snapshot);
+        return this.snapback.decorate (this.workspace.activate (snapshot), List.of ());
     }
 
 
@@ -60,13 +62,15 @@ final class PullControllerCore implements ControllerCore
         this.requireRunning ();
         Objects.requireNonNull (event, "event");
         Objects.requireNonNull (snapshot, "snapshot");
-        final CoreResult currentResult = this.workspace.handle (event, snapshot);
-        final CompiledWorkspace selectedWorkspace = this.workspaces.get (this.selection.active ());
-        if (selectedWorkspace == this.workspace)
-            return currentResult;
-
-        this.workspace = selectedWorkspace;
-        return transitionTo (currentResult.effects (), this.workspace.activate (snapshot));
+        final SnapbackSession.Update update = this.snapback.handle (event, snapshot);
+        CoreResult currentResult = update.intercepted () ? this.workspace.activate (snapshot) : this.dispatchToWorkspace (event, snapshot);
+        final List<CoreEffect> effects = new ArrayList<> (currentResult.effects ());
+        for (final CoreEvent released: update.releasedInputs ())
+        {
+            currentResult = this.dispatchToWorkspace (released, snapshot);
+            effects.addAll (currentResult.effects ());
+        }
+        return this.snapback.decorate (withEffects (currentResult, effects), update.effects ());
     }
 
 
@@ -107,6 +111,32 @@ final class PullControllerCore implements ControllerCore
             activeResult.desiredBridgeSubscriptions (),
             activeResult.desiredClipBindings (),
             activeResult.desiredControllerWorkspace (),
+            activeResult.desiredParameterLeases (),
+            effects);
+    }
+
+
+    private CoreResult dispatchToWorkspace (final CoreEvent event, final ControllerSnapshot snapshot)
+    {
+        final CoreResult currentResult = this.workspace.handle (event, snapshot);
+        final CompiledWorkspace selectedWorkspace = this.workspaces.get (this.selection.active ());
+        if (selectedWorkspace == this.workspace)
+            return currentResult;
+
+        this.workspace = selectedWorkspace;
+        return transitionTo (currentResult.effects (), this.workspace.activate (snapshot));
+    }
+
+
+    private static CoreResult withEffects (final CoreResult result, final List<CoreEffect> effects)
+    {
+        return new CoreResult (
+            result.desiredOutput (),
+            result.desiredInputRoutes (),
+            result.desiredBridgeSubscriptions (),
+            result.desiredClipBindings (),
+            result.desiredControllerWorkspace (),
+            result.desiredParameterLeases (),
             effects);
     }
 

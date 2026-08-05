@@ -78,6 +78,45 @@ class PhysicalInputRouterTest
 
 
     @Test
+    void deferredStableEdgeRunsOnlyAfterTheRouteBarrierReleases ()
+    {
+        final AtomicReference<InputRoute> route = new AtomicReference<> (InputRoute.DEFER_STABLE);
+        final List<String> order = new ArrayList<> ();
+        final PhysicalInputRouter<String> router = new PhysicalInputRouter<> (
+            registry (),
+            (ignoredControl, ignoredKind) -> route.get (),
+            event -> order.add ("core " + event.phase ()),
+            new IncrementingClock ());
+
+        router.route (BUTTON, InputKind.BUTTON, InputPhase.BEGIN, 127, () -> order.add ("stable"));
+        assertEquals (List.of ("core BEGIN"), order);
+        assertEquals (1, router.deferredStableDispatchCount ());
+
+        router.releaseDeferredStableDispatches ();
+        assertEquals (List.of ("core BEGIN"), order);
+        route.set (InputRoute.OBSERVE);
+        router.releaseDeferredStableDispatches ();
+        assertEquals (List.of ("core BEGIN", "stable"), order);
+        assertEquals (0, router.deferredStableDispatchCount ());
+    }
+
+
+    @Test
+    void suppressStableDropsMotionButStillPublishesIt ()
+    {
+        final AtomicInteger stableCalls = new AtomicInteger ();
+        final List<PhysicalInputEvent<String>> events = new ArrayList<> ();
+        final PhysicalInputRouter<String> router = router (InputRoute.SUPPRESS_STABLE, events);
+
+        router.route (ENCODER, InputKind.RELATIVE, InputPhase.CHANGE, 5, stableCalls::incrementAndGet);
+        router.flush ();
+
+        assertEquals (0, stableCalls.get ());
+        assertEquals (5, events.getFirst ().value ());
+    }
+
+
+    @Test
     void edgeLeaseCannotChangeOwnerMidGesture ()
     {
         final AtomicReference<InputRoute> desiredRoute = new AtomicReference<> (InputRoute.EXCLUSIVE);

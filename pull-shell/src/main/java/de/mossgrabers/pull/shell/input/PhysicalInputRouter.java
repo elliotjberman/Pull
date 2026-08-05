@@ -3,6 +3,7 @@
 
 package de.mossgrabers.pull.shell.input;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -22,7 +23,8 @@ import java.util.function.LongSupplier;
  * captured with that ownership, so a gesture cannot complete against a core loaded after its
  * press. Motion is bounded to one
  * pending sample per registered control-and-kind pair: relative deltas are summed and absolute
- * values keep only their latest sample.
+ * values keep only their latest sample. Deferred stable edge commands are bounded separately and
+ * preserve physical order until the core route releases their barrier.
  * </p>
  * <p>
  * This class is intentionally independent of Bitwig hardware classes and reloadable-core DTOs.
@@ -35,6 +37,8 @@ import java.util.function.LongSupplier;
  */
 public final class PhysicalInputRouter<C>
 {
+    private static final int MAX_DEFERRED_STABLE_DISPATCHES = 64;
+
     private final PhysicalControlRegistry<C> registry;
     private final BiFunction<? super C, ? super InputKind, InputRoute> routeResolver;
     private final Consumer<? super PhysicalInputEvent<C>> eventSink;
@@ -42,6 +46,7 @@ public final class PhysicalInputRouter<C>
     private final LongSupplier ownerGeneration;
     private final Map<PhysicalInputAddress<C>, GestureBinding> gestureBindings;
     private final Map<PhysicalInputAddress<C>, PhysicalInputEvent<C>> pendingMotion;
+    private final ArrayDeque<DeferredStableDispatch<C>> deferredStableDispatches = new ArrayDeque<> (MAX_DEFERRED_STABLE_DISPATCHES);
     private long nextSequence = 1;
 
 
@@ -163,6 +168,34 @@ public final class PhysicalInputRouter<C>
     }
 
 
+    /**
+     * Run deferred stable commands whose current route no longer holds the barrier. Global input
+     * order is preserved: a still-deferred head blocks later commands.
+     */
+    public void releaseDeferredStableDispatches ()
+    {
+        while (!this.deferredStableDispatches.isEmpty ())
+        {
+            final DeferredStableDispatch<C> deferred = this.deferredStableDispatches.peekFirst ();
+            if (this.resolveRoute (deferred.input ()) == InputRoute.DEFER_STABLE)
+                return;
+            this.deferredStableDispatches.removeFirst ();
+            deferred.stableCommand ().run ();
+        }
+    }
+
+
+    /**
+     * Get the number of stable commands waiting behind a core barrier.
+     *
+     * @return Deferred command count
+     */
+    public int deferredStableDispatchCount ()
+    {
+        return this.deferredStableDispatches.size ();
+    }
+
+
     private PhysicalInputEvent<C> newEvent (final PhysicalInputAddress<C> input, final InputPhase phase, final long value, final long generation)
     {
         if (this.nextSequence == Long.MAX_VALUE)
@@ -201,7 +234,9 @@ public final class PhysicalInputRouter<C>
     private InputRoute routeMotion (final PhysicalInputAddress<C> input, final InputPhase phase, final long value, final Runnable stableCommand)
     {
         final InputRoute route = this.resolveRoute (input);
-        if (route != InputRoute.EXCLUSIVE)
+        if (route == InputRoute.DEFER_STABLE)
+            throw new IllegalStateException ("DEFER_STABLE is supported only for edge inputs");
+        if (route != InputRoute.EXCLUSIVE && route != InputRoute.SUPPRESS_STABLE)
             stableCommand.run ();
         if (route != InputRoute.NONE)
             this.coalesce (input, this.newEvent (input, phase, value, this.ownerGeneration.getAsLong ()));
@@ -211,10 +246,20 @@ public final class PhysicalInputRouter<C>
 
     private void deliverEdge (final InputRoute route, final PhysicalInputEvent<C> event, final Runnable stableCommand)
     {
-        if (route != InputRoute.EXCLUSIVE)
+        if (route == InputRoute.DEFER_STABLE)
+            this.deferStableDispatch (new PhysicalInputAddress<> (event.control (), event.kind ()), stableCommand);
+        else if (route != InputRoute.EXCLUSIVE && route != InputRoute.SUPPRESS_STABLE)
             stableCommand.run ();
         if (route != InputRoute.NONE)
             this.eventSink.accept (event);
+    }
+
+
+    private void deferStableDispatch (final PhysicalInputAddress<C> input, final Runnable stableCommand)
+    {
+        if (this.deferredStableDispatches.size () >= MAX_DEFERRED_STABLE_DISPATCHES)
+            throw new IllegalStateException ("Deferred stable input capacity exhausted");
+        this.deferredStableDispatches.addLast (new DeferredStableDispatch<> (input, stableCommand));
     }
 
 
@@ -258,6 +303,16 @@ public final class PhysicalInputRouter<C>
             Objects.requireNonNull (route, "route");
             if (generation < 0)
                 throw new IllegalArgumentException ("generation must not be negative");
+        }
+    }
+
+
+    private record DeferredStableDispatch<C> (PhysicalInputAddress<C> input, Runnable stableCommand)
+    {
+        private DeferredStableDispatch
+        {
+            Objects.requireNonNull (input, "input");
+            Objects.requireNonNull (stableCommand, "stableCommand");
         }
     }
 }

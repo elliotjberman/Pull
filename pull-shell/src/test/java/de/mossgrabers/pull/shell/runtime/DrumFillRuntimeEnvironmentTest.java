@@ -142,6 +142,7 @@ class DrumFillRuntimeEnvironmentTest
             DesiredBridgeSubscriptions.empty (),
             Map.of (),
             workspace,
+            de.mossgrabers.pull.core.api.DesiredParameterLeases.empty (),
             List.of ());
 
         assertThrows (IllegalArgumentException.class, () -> environment.prepare (result));
@@ -740,6 +741,7 @@ class DrumFillRuntimeEnvironmentTest
             DesiredBridgeSubscriptions.empty (),
             bindings,
             DesiredControllerWorkspace.empty (),
+            de.mossgrabers.pull.core.api.DesiredParameterLeases.empty (),
             effects);
     }
 
@@ -752,6 +754,7 @@ class DrumFillRuntimeEnvironmentTest
             DesiredBridgeSubscriptions.empty (),
             Map.of (),
             DesiredControllerWorkspace.empty (),
+            de.mossgrabers.pull.core.api.DesiredParameterLeases.empty (),
             List.of ());
     }
 

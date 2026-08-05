@@ -261,7 +261,8 @@ final class FakeCoreHost
             this.bridge.transport (),
             Objects.requireNonNull (selectedTrack, "selectedTrack"),
             this.bridge.layout (),
-            this.bridge.drum ());
+            this.bridge.drum (),
+            this.bridge.parameters ());
         this.snapshotChanged ();
     }
 
@@ -277,7 +278,8 @@ final class FakeCoreHost
             Objects.requireNonNull (transport, "transport"),
             this.bridge.selectedTrack (),
             this.bridge.layout (),
-            this.bridge.drum ());
+            this.bridge.drum (),
+            this.bridge.parameters ());
         this.snapshotChanged ();
     }
 

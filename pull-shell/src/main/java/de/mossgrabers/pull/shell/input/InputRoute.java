@@ -12,6 +12,10 @@ public enum InputRoute
     NONE,
     /** Stable-owned behavior runs and the reloadable consumer observes the input. */
     OBSERVE,
+    /** Core observes the input now; stable dispatch waits for an explicit release barrier. */
+    DEFER_STABLE,
+    /** Core observes the input while the established stable mutation is temporarily suppressed. */
+    SUPPRESS_STABLE,
     /** Only the reloadable consumer receives the input. */
     EXCLUSIVE
 }

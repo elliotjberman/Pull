@@ -628,7 +628,8 @@ class PullControllerCoreTest
             TransportSnapshot.empty (),
             SelectedTrackSnapshot.empty (),
             new ControllerLayoutSnapshot ("WORKSPACE", "PROJECT", true, true, drumBaseMidiNote, pressure),
-            de.mossgrabers.pull.core.api.DrumContextSnapshot.empty ());
+            de.mossgrabers.pull.core.api.DrumContextSnapshot.empty (),
+            de.mossgrabers.pull.core.api.ParameterBridgeSnapshot.empty ());
     }
 
 

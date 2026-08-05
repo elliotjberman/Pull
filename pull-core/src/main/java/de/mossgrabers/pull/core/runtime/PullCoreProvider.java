@@ -38,7 +38,9 @@ public final class PullCoreProvider implements CoreProvider
         Map.entry (CoreCapabilities.EFFECT_TRANSPORT, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_SELECTED_TRACK, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.EFFECT_DRUM_PAD, Integer.valueOf (1)),
-        Map.entry (CoreCapabilities.EFFECT_NOTE_INPUT_MIDI, Integer.valueOf (2))));
+        Map.entry (CoreCapabilities.EFFECT_NOTE_INPUT_MIDI, Integer.valueOf (2)),
+        Map.entry (CoreCapabilities.SNAPSHOT_PARAMETER_TARGETS, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.EFFECT_PARAMETER_TARGET, Integer.valueOf (1))));
 
     private static final CoreDescriptor DESCRIPTOR = new CoreDescriptor (CoreApi.VERSION, CoreBuildMetadata.load ().buildId (), STATE_SCHEMA, STATE_SCHEMA_VERSION, REQUIRED_CAPABILITIES);
 

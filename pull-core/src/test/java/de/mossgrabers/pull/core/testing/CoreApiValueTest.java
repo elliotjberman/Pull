@@ -114,7 +114,7 @@ class CoreApiValueTest
         final Map<ControlId, ClipTargetId> desiredBindings = new HashMap<> (Map.of (control, clip.targetId ()));
         final Set<BridgeSubscription> bridgeDomains = new HashSet<> (Set.of (BridgeSubscription.SELECTED_TRACK));
         final DesiredBridgeSubscriptions bridgeSubscriptions = new DesiredBridgeSubscriptions (bridgeDomains);
-        final CoreResult result = new CoreResult (output, DesiredInputRoutes.empty (), bridgeSubscriptions, desiredBindings, DesiredControllerWorkspace.empty (), effects);
+        final CoreResult result = new CoreResult (output, DesiredInputRoutes.empty (), bridgeSubscriptions, desiredBindings, DesiredControllerWorkspace.empty (), de.mossgrabers.pull.core.api.DesiredParameterLeases.empty (), effects);
         desiredBindings.clear ();
         bridgeDomains.clear ();
         effects.clear ();
@@ -155,7 +155,7 @@ class CoreApiValueTest
     @Test
     void publishesStableVersionCapabilityAndControlIdentifiers ()
     {
-        assertEquals (12, CoreApi.VERSION);
+        assertEquals (13, CoreApi.VERSION);
         assertEquals ("input.drum-fill", CoreCapabilities.INPUT_DRUM_FILL);
         assertEquals ("snapshot.selected-track-clips", CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS);
         assertEquals ("binding.clip-target", CoreCapabilities.BINDING_CLIP_TARGET);
@@ -303,6 +303,7 @@ class CoreApiValueTest
             DesiredBridgeSubscriptions.empty (),
             Map.of (),
             DesiredControllerWorkspace.empty (),
+            de.mossgrabers.pull.core.api.DesiredParameterLeases.empty (),
             null));
         assertThrows (IllegalArgumentException.class, () -> new SnapshotChangedEvent (-1, 0));
         assertThrows (IllegalArgumentException.class, () -> new SnapshotChangedEvent (0, -1));

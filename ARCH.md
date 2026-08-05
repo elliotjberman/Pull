@@ -1,6 +1,6 @@
 # Pull View Architecture
 
-Status: current through Core API 12 and the post-demo `VS Live` view composition.
+Status: current through Core API 13 and the post-demo `VS Live` view composition.
 
 Read this file before changing controller views, modes, workspaces, input routing, or Session bank
 topology. The detailed design contract is in
@@ -44,23 +44,24 @@ input, state, effect, and output capability.
 A core-only policy change hot reloads. A new physical input, Bitwig proxy, bank shape, API contract,
 or output transport requires a shell build and Bitwig restart.
 
-### Transitional parameter snapback
+### Parameter leases and snapback
 
-Shift snapback currently lives at the stable controller-input seam because general parameter
-targets, authoritative values, and retained actuators are not yet exposed through the bounded core
-API. Shift remains an observed modifier: established stable Shift state updates first, and the same
-normalized edge still reaches core. Modes must not add snapback-specific Shift checks.
+Core API 13 exposes eight active parameter slots plus fixed tempo and master-volume slots. Stable
+owns the live Bitwig actuators, opaque target identity/generation, authoritative values, exact
+leases, and apply-time fencing. Physical Push control IDs are not host target identities; core owns
+the mapping from those controls to the installed slots.
 
-While Shift is held, the stable interceptor captures each eligible target's first authoritative
-value once. Shift release flushes pending motion before ending the session and requesting all
-restores. A potentially target-rebinding button waits for later authoritative restoration read-back
-before either its stable behavior or core-observed event proceeds. Touch edges do not define the
-session lifetime.
+Shift snapback policy lives in the reloadable core. The first eligible mutation publishes its
+authoritative baseline before stable submits the write. Core retains that exact target, waits for
+motion to settle, requests an absolute restore, and waits for later authoritative acknowledgement.
+A potentially target-rebinding button reaches core but its stable command waits behind the same
+restoration barrier. Touch edges do not define the session lifetime. Stable restores retained
+targets best-effort if the core faults.
 
-Direct parameter bindings are only generation-fenced proxy slots in this version. They are a safe
-bounded V1 boundary, not the desired semantic target model. The intended endpoint keeps physical
-controls, semantic `ParameterTargetRef` values, movable Bitwig proxies, and bounded target leases
-independent, with interaction policy in the reloadable core. See
+The current active slots are still movable proxy positions, not durable semantic parameter
+identities. API 13 deliberately restores before navigation and has no pinned actuator pool. The
+intended endpoint keeps physical controls, semantic `ParameterTargetRef` values, movable Bitwig
+proxies, and bounded pinned leases independent. See
 [`docs/findings/parameter-target-proxy-coupling.md`](docs/findings/parameter-target-proxy-coupling.md).
 
 ## Data Model

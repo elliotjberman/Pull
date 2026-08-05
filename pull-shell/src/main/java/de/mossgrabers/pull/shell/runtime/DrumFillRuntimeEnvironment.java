@@ -3,6 +3,7 @@
 
 package de.mossgrabers.pull.shell.runtime;
 
+import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
@@ -14,6 +15,9 @@ import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredInputRoutes;
+import de.mossgrabers.pull.core.api.DesiredParameterLeases;
+import de.mossgrabers.pull.core.api.InputRouteMode;
+import de.mossgrabers.pull.core.api.ParameterTargetRef;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
@@ -21,10 +25,13 @@ import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
 import de.mossgrabers.pull.core.api.effect.SetTransportStateEffect;
 import de.mossgrabers.pull.core.api.effect.SetTransportValueEffect;
+import de.mossgrabers.pull.core.api.effect.SetParameterValueEffect;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
+import de.mossgrabers.pull.core.api.event.ControllerTickEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
+import de.mossgrabers.pull.core.api.event.ParameterMutationEvent;
 import de.mossgrabers.pull.core.api.event.SnapshotChangedEvent;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 
@@ -67,7 +74,9 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
         Map.entry (CoreCapabilities.EFFECT_TRANSPORT, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_SELECTED_TRACK, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.EFFECT_DRUM_PAD, Integer.valueOf (1)),
-        Map.entry (CoreCapabilities.EFFECT_NOTE_INPUT_MIDI, Integer.valueOf (2))));
+        Map.entry (CoreCapabilities.EFFECT_NOTE_INPUT_MIDI, Integer.valueOf (2)),
+        Map.entry (CoreCapabilities.SNAPSHOT_PARAMETER_TARGETS, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.EFFECT_PARAMETER_TARGET, Integer.valueOf (1))));
 
     private final DrumFillClipHost clipHost;
     private final BoundedControllerBridge controllerBridge;
@@ -83,6 +92,9 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     private FillSessionView lastObservedSession;
     private CommittedState committedState = CommittedState.initial ();
     private Predicate<de.mossgrabers.pull.core.api.InputRoute> inputRouteValidator = route -> false;
+    private Runnable deferredInputRelease = () -> {
+        // No controller bridge is installed in isolated environment tests.
+    };
     private long pendingSnapshotRevision = -1;
     private long hostSampleRevision;
     private long lastTime;
@@ -255,6 +267,49 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
+    /** Create a normalized pre-mutation event for one current bounded parameter target. */
+    ParameterMutationEvent parameterMutation (final ControlId control, final ParameterTargetHost.TargetedParameter parameter)
+    {
+        final ParameterTargetHost.TargetedParameter checkedParameter = Objects.requireNonNull (parameter, "parameter");
+        return new ParameterMutationEvent (this.nextEventSequence (), this.now (), Objects.requireNonNull (control, "control"), checkedParameter.slot (), checkedParameter.target ());
+    }
+
+
+    /** Create one requested controller-cycle event for authoritative reconciliation. */
+    ControllerTickEvent controllerTickEvent ()
+    {
+        return new ControllerTickEvent (this.nextEventSequence (), this.now ());
+    }
+
+
+    /** Test whether the active core currently requests parameter observations. */
+    boolean observesParameters ()
+    {
+        return this.committedState.desiredBridgeSubscriptions ().includes (BridgeSubscription.PARAMETERS);
+    }
+
+
+    /** Resolve one physical control through the installed bounded parameter window. */
+    ParameterTargetHost.TargetedParameter resolveParameterMutation (final de.mossgrabers.framework.controller.ContinuousID controlID, final de.mossgrabers.framework.controller.hardware.IHwContinuousControl control)
+    {
+        return this.controllerBridge == null ? null : this.controllerBridge.resolveParameterMutation (controlID, control);
+    }
+
+
+    /** Test whether the stable shell currently retains one exact target for this core. */
+    boolean retainsParameterTarget (final ParameterTargetRef target)
+    {
+        return this.controllerBridge != null && this.controllerBridge.retainsParameterTarget (target);
+    }
+
+
+    /** Test whether the latest committed core result suppresses one stable relative mutation. */
+    boolean suppressesStableMutation (final ControlId control)
+    {
+        return this.committedState.desiredInputRoutes ().modeOrNull (Objects.requireNonNull (control, "control"), InputKind.RELATIVE) == InputRouteMode.SUPPRESS_STABLE;
+    }
+
+
     /**
      * Test whether one physical fill pad is held.
      *
@@ -331,6 +386,15 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
+    /** Install the stable-input release barrier before runtime startup. */
+    void setDeferredInputRelease (final Runnable release)
+    {
+        if (this.committedState.generation () != 0)
+            throw new IllegalStateException ("Deferred input release must be installed before core activation");
+        this.deferredInputRelease = Objects.requireNonNull (release, "release");
+    }
+
+
     /** {@inheritDoc} */
     @Override
     public PreparedCoreResult prepare (final CoreResult result)
@@ -344,8 +408,13 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
         }
         final Map<ControlId, ClipTargetId> preparedBindings = prepareBindings (result.desiredClipBindings (), this.clipCatalog);
         final DesiredControllerWorkspace preparedWorkspace = this.prepareWorkspace (result.desiredControllerWorkspace ());
-        final List<PreparedAction> preparedActions = this.prepareEffects (result.effects (), preparedBindings);
-        return new PreparedResult (preparedColors, result.desiredInputRoutes (), result.desiredBridgeSubscriptions (), preparedWorkspace, this.clipCatalog.generation (), preparedBindings, preparedActions);
+        final Map<ParameterTargetRef, ParameterTargetHost.RetainedTarget> preparedParameterLeases = this.controllerBridge == null ? Map.of () : this.controllerBridge.prepareParameterLeases (result.desiredParameterLeases ());
+        if (this.controllerBridge == null && !result.desiredParameterLeases ().baselines ().isEmpty ())
+            throw new IllegalArgumentException ("Core requested parameter leases without a controller bridge");
+        if (!result.desiredParameterLeases ().baselines ().isEmpty () && !result.desiredBridgeSubscriptions ().includes (BridgeSubscription.PARAMETERS))
+            throw new IllegalArgumentException ("Parameter leases require the parameter snapshot subscription");
+        final List<PreparedAction> preparedActions = this.prepareEffects (result.effects (), preparedBindings, preparedParameterLeases);
+        return new PreparedResult (preparedColors, result.desiredInputRoutes (), result.desiredBridgeSubscriptions (), preparedWorkspace, preparedParameterLeases, this.clipCatalog.generation (), preparedBindings, preparedActions);
     }
 
 
@@ -374,6 +443,9 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
         if (this.controllerBridge != null)
         {
             this.controllerBridge.activateCoreGeneration (generation);
+            if (this.controllerBridge.applyParameterLeases (prepared.parameterLeases (), prepared.desiredBridgeSubscriptions ().includes (BridgeSubscription.PARAMETERS)))
+                this.recordSnapshotChange ();
+            this.deferredInputRelease.run ();
             this.controllerBridge.applyWorkspace (prepared.desiredControllerWorkspace ());
         }
 
@@ -402,7 +474,10 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
         this.committedState = CommittedState.invalidated (generation);
 
         if (this.controllerBridge != null)
+        {
             this.controllerBridge.invalidate ();
+            this.deferredInputRelease.run ();
+        }
 
         try
         {
@@ -486,7 +561,7 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
-    private List<PreparedAction> prepareEffects (final List<CoreEffect> effects, final Map<ControlId, ClipTargetId> desiredBindings)
+    private List<PreparedAction> prepareEffects (final List<CoreEffect> effects, final Map<ControlId, ClipTargetId> desiredBindings, final Map<ParameterTargetRef, ParameterTargetHost.RetainedTarget> parameterLeases)
     {
         final Set<ControlId> owners = new HashSet<> ();
         final Set<String> bridgeTargets = new HashSet<> ();
@@ -511,7 +586,7 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
                 final String target = bridgeEffectTarget (checkedEffect);
                 if (target != null && !bridgeTargets.add (target))
                     throw new IllegalArgumentException ("Core requested multiple effects for " + target);
-                final BoundedControllerBridge.PreparedAction action = this.controllerBridge == null ? null : this.controllerBridge.prepare (checkedEffect);
+                final BoundedControllerBridge.PreparedAction action = this.controllerBridge == null ? null : this.controllerBridge.prepare (checkedEffect, parameterLeases);
                 if (action == null)
                     throw new IllegalArgumentException ("Core requested an unsupported effect " + effect.getClass ().getSimpleName ());
                 actions.add (new PreparedBridgeAction (action));
@@ -527,6 +602,8 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
             return "transport state " + state.state ();
         if (effect instanceof final SetTransportValueEffect value)
             return "transport value " + value.value ();
+        if (effect instanceof final SetParameterValueEffect parameter)
+            return "parameter " + parameter.target ();
         return null;
     }
 
@@ -980,7 +1057,7 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
-    private record PreparedResult (Map<ControlId, RgbColor> fillLightColors, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, DesiredControllerWorkspace desiredControllerWorkspace, long catalogGeneration, Map<ControlId, ClipTargetId> desiredClipBindings, List<PreparedAction> actions) implements PreparedCoreResult
+    private record PreparedResult (Map<ControlId, RgbColor> fillLightColors, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, DesiredControllerWorkspace desiredControllerWorkspace, Map<ParameterTargetRef, ParameterTargetHost.RetainedTarget> parameterLeases, long catalogGeneration, Map<ControlId, ClipTargetId> desiredClipBindings, List<PreparedAction> actions) implements PreparedCoreResult
     {
         private PreparedResult
         {
@@ -988,6 +1065,7 @@ final class DrumFillRuntimeEnvironment implements CoreRuntimeEnvironment
             desiredInputRoutes = Objects.requireNonNull (desiredInputRoutes, "desiredInputRoutes");
             desiredBridgeSubscriptions = Objects.requireNonNull (desiredBridgeSubscriptions, "desiredBridgeSubscriptions");
             desiredControllerWorkspace = Objects.requireNonNull (desiredControllerWorkspace, "desiredControllerWorkspace");
+            parameterLeases = Map.copyOf (parameterLeases);
             desiredClipBindings = Map.copyOf (desiredClipBindings);
             actions = List.copyOf (actions);
         }

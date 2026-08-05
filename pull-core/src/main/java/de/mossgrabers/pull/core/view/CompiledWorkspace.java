@@ -12,6 +12,7 @@ import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredInputRoutes;
+import de.mossgrabers.pull.core.api.DesiredParameterLeases;
 import de.mossgrabers.pull.core.api.InputRoute;
 import de.mossgrabers.pull.core.api.InputRouteMode;
 import de.mossgrabers.pull.core.api.SessionBankShape;
@@ -220,6 +221,7 @@ public final class CompiledWorkspace
             this.desiredBridgeSubscriptions,
             clipBindings,
             this.desiredControllerWorkspace,
+            DesiredParameterLeases.empty (),
             effects);
     }
 

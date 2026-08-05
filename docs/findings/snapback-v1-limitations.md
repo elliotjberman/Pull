@@ -26,19 +26,19 @@ values together when Shift is released.
 
 ## Mutation Seam
 
-Controller-originated numeric writes pass through `PushParameterMutationService`. While snapback
-is inactive, it runs the established mutation directly. During an active session or restoration
-barrier, it resolves the control to an optional `ParameterMutationTarget`: an absent target remains
-persistent, while an eligible target and its mutation are passed to `SnapbackInterceptor`.
+Controller-originated numeric writes pass through the permanent `PushControllerInputBridge` once.
+While core requests the `PARAMETERS` subscription, the first eligible write to an unretained target
+publishes a synchronous `ParameterMutationEvent` before the established mutation runs. Core's
+`SnapbackSession` commits the baseline lease before control returns to the stable callback.
 
-The interceptor keeps one bounded entry per changed target, not an unbounded history of encoder
-deltas. Each entry records:
+The session keeps one bounded entry per changed target, not an unbounded history of encoder deltas.
+Each entry records:
 
 - The exact target identity and generation.
 - The original authoritative value, captured once before the first submitted mutation.
 
 Restoration remains pending until the retained target reports the baseline through authoritative
-host read-back. The interceptor does not treat the submitted restore request as acknowledgement.
+host read-back. Core does not treat the submitted restore effect as acknowledgement.
 
 Trigger assignment belongs in one policy object. Parameter modes must not add local
 `isShiftPressed()` branches. Target-specific sensitivity and acceleration remain separate from the
@@ -53,9 +53,9 @@ The inherited paths are not currently uniform:
 - The dedicated master encoder uses `PushMasterVolumeCommand` and can resolve to master volume, cue
   volume, or zoom depending on controller state.
 
-Adapt these paths into `ParameterMutationTarget`; do not teach `SnapbackInterceptor` about tempo,
-tracks, devices, or Push modes individually. Resolve the semantic target first, then apply the
-interceptor.
+The stable `ParameterTargetHost` adapts these paths into one bounded slot window. It does not know
+the Shift policy. Core maps physical Push controls to slots and applies the interaction policy to
+the opaque target identity currently published for that slot.
 
 ## V1 Context Boundary
 
@@ -80,30 +80,32 @@ become persistent.
 ## Current V1 Implementation
 
 `PushControllerInputBridge` wraps the permanent continuous-control callback once. Every established
-stable mutation reaches `PushParameterMutationService`, which resolves it as either persistent or
-snapback-eligible before `SnapbackInterceptor` delegates the original mutation. No mode contains a
-snapback-specific Shift branch, and no second MIDI or hardware callback is installed.
+stable mutation reaches the runtime's pre-mutation seam. No mode contains a snapback-specific Shift
+branch, and no second MIDI or hardware callback is installed.
 
 The installed target set is deliberately narrow:
 
 - Any parameter directly bound to one of the eight top encoders, including project macros and the
-  current selected-device remote-control page, is retained as a generation-fenced proxy slot.
+  current selected-device remote-control page, is published as an opaque generation-fenced target
+  in one active slot.
 - Tempo and master volume use fixed stable-shell actuators.
 - Cue volume, zoom, the touch strip, and unrelated command-bound encoders remain persistent.
 
-The capture set is bounded to 16 entries and the deferred navigation queue to 64 actions. A full
-capture set rejects the new temporary mutation because applying an untracked temporary value would
-make restoration impossible.
+The capture set is bounded to the installed 10 targets and the deferred navigation queue to 64
+edges. A full capture set rejects the new temporary mutation because applying an untracked
+temporary value would make restoration impossible.
 
-Shift remains `OBSERVE` during migration. On release, the bridge flushes coalesced motion, runs the
-legacy Shift release, submits restoration, and then publishes the same normalized release to core.
-Potentially rebinding button edges queue both their stable and core-observed halves in order until
-later host read-back confirms every retained baseline. If Shift remains held, the next mutation
-opens a fresh session after that barrier.
+Shift remains `OBSERVE` during migration. On release, the bridge flushes coalesced motion before the
+normalized release reaches core. Potentially rebinding button edges reach core immediately but
+their stable commands wait behind a replayable route barrier until later host read-back confirms
+every retained baseline. Stable dispatch then runs before the newly requested workspace applies.
+If Shift remains held, core opens a fresh session after that barrier.
 
-This is intentionally stable-shell policy for V1. It survives child-core reloads, but it does not
-provide semantic target identity or a retained actuator lease. Those are the subject of the
-adjacent target/proxy finding.
+Policy now lives in the reloadable core. Stable owns only the bounded live actuator window, exact
+leases, absolute effect execution, generation rechecks, and best-effort invalidation restoration.
+An in-flight lease is included immediately in the public snapshot so a same-cycle core reload can
+hydrate and finish it. The remaining limitation is the absence of a pinned proxy pool: restoration
+still completes before navigation rather than spanning a proxy rebind.
 
 ## V1 Decisions
 

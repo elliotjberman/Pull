@@ -12,7 +12,7 @@ import java.util.Objects;
  *
  * @param controlId Stable physical control identity
  * @param kind Input kind routed for this control
- * @param mode Whether the core observes the input or owns it exclusively
+ * @param mode Stable/core dispatch policy
  */
 public record InputRoute (ControlId controlId, InputKind kind, InputRouteMode mode)
 {

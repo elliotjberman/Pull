@@ -108,6 +108,7 @@ final class DeterministicTimerCore implements ControllerCore
             DesiredBridgeSubscriptions.empty (),
             Map.of (),
             DesiredControllerWorkspace.empty (),
+            de.mossgrabers.pull.core.api.DesiredParameterLeases.empty (),
             effects);
     }
 

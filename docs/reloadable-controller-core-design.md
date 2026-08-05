@@ -1,11 +1,12 @@
 # Reloadable Controller Core
 
-Status: Milestones 1 through 7 are implemented. The current working tree installs the bounded
-Core API 12 controller bridge described below: normalized Push command input, explicitly requested
-transport/selected-track/layout/drum read-back, and typed transport/selected-track/drum effects.
+Status: Milestones 1 through 9 are implemented. The current working tree installs the bounded
+Core API 13 controller bridge described below: normalized Push command input, explicitly requested
+transport/selected-track/layout/drum/parameter read-back, and typed effects against exact retained
+parameter targets as well as transport, selected-track, and drum targets.
 The drum-fill shell uses a single-active replacement barrier, while the Pads note input follows
 ordinary Bitwig input, monitor, and record-arm routing. General Push light/display arbitration is
-not part of this expansion. Because API 12 and its bridge are parent-loaded, installing this
+not part of this expansion. Because API 13 and its bridge are parent-loaded, installing this
 expansion itself requires one shell build/install and Bitwig restart; behavior composed from it can
 then hot reload.
 
@@ -150,6 +151,20 @@ independently.
 - Let core choose among installed shapes while stable preserves offsets, switches the model's current
   main bank, and enables clip-launcher feedback only for the active bank.
 - Reject undeclared shapes and shapes that do not match the fixed workspace adapter before activation.
+
+### Milestone 9: API 13 parameter leases and core snapback
+
+- Expose one bounded active parameter bank of eight slots plus fixed tempo and master-volume slots.
+- Keep physical Push control IDs in core policy; stable publishes only slot bindings, opaque target
+  identity/generation, authoritative value, and equality tolerance.
+- Let core retain a complete replayable target-to-baseline lease set and request absolute restores
+  only through those exact leases.
+- Move the Shift snapback state machine, settlement, read-back acknowledgement, and navigation
+  barrier into the reloadable core. Stable retains only live Bitwig actuators and best-effort
+  invalidation restoration.
+- Defer established stable navigation until core releases its restoration barrier. Temporarily
+  suppress stable parameter motion while restoration is in flight without treating the binding as
+  a permanently core-owned `EXCLUSIVE` input.
 
 ### Later milestones
 
@@ -353,9 +368,9 @@ The shell owns anything coupled to Bitwig or physical hardware:
 The shell may reuse the existing `ModelImpl` and Bitwig wrapper graph internally. That graph must
 not cross into the core.
 
-## Installed API 12 bounded capability canopy
+## Installed API 13 bounded capability canopy
 
-Core API 12 installs a broad input seam and a deliberately finite Bitwig state/effect bridge during
+Core API 13 installs a broad input seam and a deliberately finite Bitwig state/effect bridge during
 extension initialization. The existence of a shell capability means that the domain is available;
 it does not mean every state domain is copied into every snapshot.
 
@@ -384,6 +399,9 @@ registered control and input kind:
 - an absent route is shell-internal `NONE`: only stable-owned controller behavior runs;
 - `OBSERVE` delivers the normalized event to the core and also runs established controller
   behavior; and
+- `DEFER_STABLE` delivers the event to core immediately but queues the stable button command behind
+  a bounded release barrier; `SUPPRESS_STABLE` delivers motion to core while temporarily dropping
+  the established stable mutation; and
 - `EXCLUSIVE` delivers to the core and suppresses stable controller-command dispatch. The shell
   accepts this mode only for explicitly migrated control-and-kind pairs whose permanent command is
   semantically inert; it is not a failure-fallback switch.
@@ -404,18 +422,20 @@ flushes that control's pending motion before its `END` event. Once arbitration i
 Bitwig-backed continuous control retains one stable callback; later mode changes may rebind the
 stable command or parameter behind that callback but cannot bypass the bridge with a direct target.
 
-Shift-triggered parameter snapback is a transitional stable-shell interceptor around that same
-callback. Shift stays `OBSERVE`: stable modifier state is updated before the normalized core edge,
-and core does not duplicate the parameter mutation. Release flushes coalesced motion, updates stable
-Shift state, submits restore requests, and then delivers the normalized release. Buttons that can
-rebind a captured proxy queue both stable and core-observed delivery until later authoritative
-read-back acknowledges every baseline. Knob touch/release does not close the Shift session.
+Shift-triggered parameter snapback is core policy around that permanent callback. Shift stays
+`OBSERVE` while unmigrated stable consumers still need its physical state. The first eligible
+mutation in a Shift session synchronously publishes a pre-mutation event; core captures its
+authoritative baseline once and commits the exact target lease before stable submits the original
+write. Knob touch/release does not close the Shift session.
 
-V1 directly retains at most 16 fixed or generation-fenced proxy-slot actuators and at most 64
-deferred navigation actions. It cannot span a proxy rebind and never restores through a changed
-generation. General semantic parameter references and bounded retained actuator leases remain
-outside API 12; adding that canopy is a shell/API change, after which snapback policy belongs in
-the reloadable core.
+Core owns settlement, restoration requests, two-sample authoritative acknowledgement, retries,
+timeouts, and the 64-edge navigation queue. Stable owns a bounded 10-slot live target host: eight
+current top-encoder parameter slots plus fixed tempo and master-volume slots. It knows the current
+Bitwig actuator behind each slot but does not publish a physical Push knob as target identity.
+Navigation that could rebind a retained target is delivered to core, held on its stable side, and
+released only after core drops the barrier; stable dispatch then runs before the newly requested
+workspace is applied. A generation change fails closed rather than restoring through the
+replacement target. API 13 still does not pin an old rebindable proxy across navigation.
 
 This arbitration governs controller commands, parameter mutations, and framework pressed/touched
 state. It does **not** suppress Bitwig's parallel native `NoteInput` musical path. An exclusive grid
@@ -440,6 +460,7 @@ The current domains are:
 | `SELECTED_TRACK` | stable channel ID and generation, name/type/position/color, data capabilities, group state, activation, arm, monitor, mute/solo, clip-playing, volume, and pan | One private selection-following cursor with zero send and scene capacity; no project track bank. |
 | `CONTROLLER_LAYOUT` | current view ID, mode ID, drum-layout ownership, and reconciled drum-controller engagement | One current Push surface/layout. |
 | `DRUM_PADS` | selected target/device identity, window generation/base note, alignment, and up to 64 pads with identity, name/color, state, mixer values, and playing velocity | One 64-pad model window, sampled no faster than every 33 ms unless selected-target identity changes. |
+| `PARAMETERS` | current slot bindings, opaque target identity/generation, authoritative value/tolerance, and retained baselines | Eight current top-encoder slots plus fixed tempo and master volume; sampled only while requested or while an exact lease remains retained. |
 
 The selected-track cursor and drum capability detection are the private observation/action target
 described above, not the user-pinnable model cursor. Drum compatibility uses exactly four
@@ -466,11 +487,12 @@ the Bitwig controller log. An unused installed domain should first be removed fr
 
 ### Typed effects and live identity fences
 
-API 12 can request absolute transport state and values; selected-track activation, group expansion,
+API 13 can request absolute transport state and values; selected-track activation, group expansion,
 arm, monitor, mute, solo, volume, pan, stop, Return to Arrangement, and new-clip creation;
 target-neutral note-input
 MIDI poly pressure, CC, channel pressure, and pitch bend; and drum-pad activation, mute, solo, volume, pan, or
-selection. These are requests, not optimistic state. Hardware feedback still comes from later
+selection. It can also request an absolute parameter value only when the same result retains that
+exact target and generation. These are requests, not optimistic state. Hardware feedback still comes from later
 subscribed Bitwig read-back.
 
 Selected-track effects carry both the snapshot generation and stable channel ID. The shell validates
@@ -488,19 +510,19 @@ Bitwig's ordinary routing determines which tracks receive both the original and 
 
 ### Deliberate exclusions
 
-This remains a capability canopy, not a mirror of an unbounded Bitwig project. API 12 does not add
+This remains a capability canopy, not a mirror of an unbounded Bitwig project. API 13 does not add
 arbitrary project track/scene banks, arbitrary device-tree recursion, additional drum layers or
-branches, selected-device pages, general parameter windows, or a general actuator pool. Extending
+branches, additional selected-device pages, arbitrary parameter windows, or a pinned actuator pool. Extending
 one of those shapes or adding a new Bitwig property/action requires a parent-loaded API/shell
 change, extension installation, and Bitwig restart.
 
-Output is narrower than input in API 12. The immutable hardware-output contract is present, but the
+Output is narrower than input in API 13. The immutable hardware-output contract is present, but the
 current shell validates and arbitrates only the 12 drum-fill RGB lights. General Push button/grid
 lights, ribbon output, and USB display buffers still belong to stable shell rendering. Moving those
 surfaces requires stable complete-output arbitration in the shell and therefore one more
 install/restart before their policies can hot reload.
 
-Once API 12 is installed, new mappings, modes, gestures, and effects composed only from these exact
+Once API 13 is installed, new mappings, modes, gestures, and effects composed only from these exact
 inputs, subscriptions, and executors can ship by core reload. Capability breadth is bounded, and
 subscription choice controls active publication cost inside that bound.
 
@@ -567,16 +589,16 @@ snapshot.
 
 ## Snapshot and effects
 
-The API 12 snapshot contains revision, monotonic time, shell capabilities, the explicitly subscribed
+The API 13 snapshot contains revision, monotonic time, shell capabilities, the explicitly subscribed
 `ControllerBridgeSnapshot`, the complete selected-track clip catalog, verified per-control armed
 clip bindings, the clip-launch session's optional acquired owner-to-target lease and authoritative
 active owner, and pressed/touched controls. A pending fill intent is shell-private and never appears
 active in this read-back. The bridge contains typed transport, private selected-track,
-controller-layout, and bounded drum contexts; each unsubscribed domain is its typed empty value.
+controller-layout, bounded drum, and bounded parameter contexts; each unsubscribed domain is its typed empty value.
 
 Every `CoreResult` contains complete desired hardware output, complete desired input routes,
-complete desired bridge subscriptions, complete desired clip bindings, and ordered one-shot
-effects. The four desired-state categories are committed together; effects are validated during the
+complete desired bridge subscriptions, complete desired clip bindings, complete desired parameter
+leases, and ordered one-shot effects. These desired-state categories are committed together; effects are validated during the
 same preparation transaction and applied only after the active core pointer switches. This lets a
 replacement core replay ownership and subscriptions without registering parent callbacks or
 inheriting child objects.
@@ -586,12 +608,13 @@ that bank's generation and marks it pending. Location-targeted effects from the 
 are immediately rejected. The new window is published only after Bitwig's observed membership
 stabilizes.
 
-Core API 12 includes logical timer effects, persistent desired clip bindings, verified armed
+Core API 13 includes logical timer effects, persistent desired clip bindings, verified armed
 bindings, the version-1 authoritative single-lease clip-launch-session snapshot,
 generation-fenced version-4 acquire/replace/release effects, normalized controller-input events and
 routes, explicit bridge subscriptions, typed absolute transport effects, generation-fenced
 selected-track and drum-pad effects, bounded target-neutral note-input
-poly-pressure/CC/channel-pressure/pitch-bend output, and desired RGB hardware state. The shell currently accepts
+poly-pressure/CC/channel-pressure/pitch-bend output, bounded parameter snapshots and exact leases,
+generation-fenced absolute parameter restores, and desired RGB hardware state. The shell currently accepts
 that RGB output only for the 12 fill lights. Later typed domains may cover broader clip
 launch/selection, bank scrolling, selected-device parameters, application actions, note
 mapping/repeat, notifications, and complete general Push output.
@@ -703,7 +726,7 @@ The development command and shell share `${user.home}/.drivenbymoss/pull/reload`
 
 ```properties
 formatVersion=1
-apiVersion=12
+apiVersion=13
 buildId=20260731T230000Z-0123456789abcdef0123456789abcdef
 ```
 
@@ -713,7 +736,7 @@ verifies its embedded API/build identity, computes SHA-256, and atomically repla
 
 ```properties
 formatVersion=1
-apiVersion=12
+apiVersion=13
 shellFingerprint=0123456789abcdef0123456789abcdef01234567
 buildId=20260731T230000Z-0123456789abcdef0123456789abcdef
 jar=pull-core-20260731T230000Z-0123456789abcdef0123456789abcdef.jar
@@ -774,7 +797,7 @@ effects, rejections, and desired output. A real Bitwig failure can then become a
 | Safe pure-Java core dependency | Package and core reload |
 | Core-owned/migrated mapping, mode, gesture, layout policy, or fill matching | Core reload |
 | Route a currently registered input between `NONE`, `OBSERVE`, and `EXCLUSIVE` | Core reload |
-| Request or stop requesting an existing API 12 bridge subscription | Core reload |
+| Request or stop requesting an existing API 13 bridge subscription | Core reload |
 | Policy for an output surface already migrated to complete shell arbitration (currently the 12 fill lights) | Core reload |
 | Behavior using existing snapshot/effects | Core reload |
 | Behavior within the installed capability canopy | Core reload |
@@ -802,7 +825,7 @@ effects, rejections, and desired output. A real Bitwig failure can then become a
 - Reload while controls are held produces no stuck modifier, pad, note, or momentary action.
 - A route-map change or core reload during an edge gesture preserves its begin-time ownership
   through release; continuous rebinding cannot bypass arbitration.
-- Unrequested API 12 bridge domains publish typed empty values without domain snapshot construction
+- Unrequested API 13 bridge domains publish typed empty values without domain snapshot construction
   or high-rate sampling/DTO churn.
 - Core handoff, selection change, and shutdown neutralize outstanding target-neutral note-input
   poly-pressure, CC, channel-pressure, and pitch-bend state on a best-effort basis through ordinary

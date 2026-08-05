@@ -53,6 +53,12 @@ public final class CoreCapabilities
     /** Stateful raw MIDI sent through Bitwig's ordinary permanent controller note input. */
     public static final String EFFECT_NOTE_INPUT_MIDI = "effect.note-input-midi";
 
+    /** Pre-mutation events and authoritative bounded parameter-target snapshots. */
+    public static final String SNAPSHOT_PARAMETER_TARGETS = "snapshot.parameter-targets";
+
+    /** Replayable exact parameter leases and generation-fenced absolute effects. */
+    public static final String EFFECT_PARAMETER_TARGET = "effect.parameter-target";
+
     private CoreCapabilities ()
     {
         // Utility class
