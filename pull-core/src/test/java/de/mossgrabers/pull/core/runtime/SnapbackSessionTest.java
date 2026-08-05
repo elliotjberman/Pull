@@ -106,6 +106,21 @@ class SnapbackSessionTest
 
 
     @Test
+    void restorationBarrierUsesTheInstalledPageControls ()
+    {
+        final SnapbackSession session = startedSession (parameters (100, 200));
+        session.handle (mutation (2, KNOB1, ParameterSlot.active (0), FIRST, 100), snapshot (parameters (100, 200), Set.of (SHIFT)));
+
+        final CoreResult result = session.decorate (CoreResult.empty (), List.of ());
+
+        assertEquals (InputRouteMode.DEFER_STABLE, result.desiredInputRoutes ().modeOrNull (PushControlIds.button ("PAGE_LEFT"), InputKind.BUTTON));
+        assertEquals (InputRouteMode.DEFER_STABLE, result.desiredInputRoutes ().modeOrNull (PushControlIds.button ("PAGE_RIGHT"), InputKind.BUTTON));
+        assertEquals (null, result.desiredInputRoutes ().modeOrNull (PushControlIds.button ("DEVICE_LEFT"), InputKind.BUTTON));
+        assertEquals (null, result.desiredInputRoutes ().modeOrNull (PushControlIds.button ("DEVICE_RIGHT"), InputKind.BUTTON));
+    }
+
+
+    @Test
     void hotReloadHydratesStableRetainedTargetsAndFinishesTheirRestore ()
     {
         final SnapbackSession session = new SnapbackSession ();

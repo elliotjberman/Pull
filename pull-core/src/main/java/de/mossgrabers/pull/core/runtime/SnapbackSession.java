@@ -56,7 +56,7 @@ final class SnapbackSession
         button ("ROW2_5"), button ("ROW2_6"), button ("ROW2_7"), button ("ROW2_8"),
         button ("PAGE_LEFT"), button ("PAGE_RIGHT"),
         button ("ARROW_LEFT"), button ("ARROW_RIGHT"), button ("ARROW_UP"), button ("ARROW_DOWN"),
-        button ("DEVICE_LEFT"), button ("DEVICE_RIGHT"), button ("DEVICE"),
+        button ("DEVICE"),
         button ("TRACK"), button ("CLIP"), button ("USER"), button ("SESSION"), button ("NOTE"),
         button ("MASTERTRACK"), button ("ADD_EFFECT"), button ("ADD_TRACK"), button ("BROWSE"));
 
