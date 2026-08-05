@@ -66,6 +66,7 @@ class PushParameterMutationServiceTest
         assertEquals (List.of ("temporary", "flush", "restore"), order);
         target.advanceHost ();
         service.tick ();
+        service.tick ();
         assertEquals (List.of ("temporary", "flush", "restore", "navigate", "core"), order);
     }
 

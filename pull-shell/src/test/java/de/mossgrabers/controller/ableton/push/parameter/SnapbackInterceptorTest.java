@@ -38,6 +38,8 @@ class SnapbackInterceptorTest
 
         target.advanceHost ();
         interceptor.tick ();
+        assertTrue (interceptor.isRestoring ());
+        interceptor.tick ();
 
         assertFalse (interceptor.isRestoring ());
     }
@@ -70,6 +72,8 @@ class SnapbackInterceptorTest
             target.advanceHost ();
         }
         interceptor.tick ();
+        assertTrue (interceptor.isRestoring ());
+        interceptor.tick ();
 
         assertEquals (0, interceptor.captureCount ());
         assertFalse (interceptor.isRestoring ());
@@ -95,8 +99,38 @@ class SnapbackInterceptorTest
 
         target.advanceHost ();
         interceptor.tick ();
+        assertTrue (order.isEmpty ());
+        interceptor.tick ();
 
         assertEquals (List.of ("navigate"), order);
+    }
+
+
+    @Test
+    void retriesWhenLateMotionMovesAConfirmedTargetAwayFromBaseline ()
+    {
+        final FakeTarget target = new FakeTarget ("project-macro", 20);
+        final SnapbackInterceptor interceptor = interceptor ();
+
+        interceptor.triggerPressed ();
+        interceptor.mutate (mutation (target, 100));
+        target.advanceHost ();
+        interceptor.triggerReleased ();
+
+        target.advanceHost ();
+        interceptor.tick ();
+        assertTrue (interceptor.isRestoring ());
+
+        target.request (94);
+        target.advanceHost ();
+        interceptor.tick ();
+        assertEquals (20, target.requested);
+        assertEquals (2, target.restoreRequests);
+
+        target.advanceHost ();
+        interceptor.tick ();
+        interceptor.tick ();
+        assertFalse (interceptor.isRestoring ());
     }
 
 
@@ -161,6 +195,7 @@ class SnapbackInterceptorTest
 
         assertEquals (10, target.requested);
         target.advanceHost ();
+        interceptor.tick ();
         interceptor.tick ();
 
         interceptor.mutate (mutation (target, 25));

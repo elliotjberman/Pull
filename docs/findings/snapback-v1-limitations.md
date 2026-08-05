@@ -122,9 +122,10 @@ adjacent target/proxy finding.
   target until later host read-back acknowledges the baseline.
 - Restoration through an `IParameter` uses its immediate setter so Bitwig's configured takeover
   mode cannot reject the return to the retained baseline.
-- Waiting for authoritative read-back is bounded to 16 controller ticks. A timeout abandons the
-  retained targets and releases deferred navigation so one failed acknowledgement cannot capture
-  controller input indefinitely.
+- Restoration requires two consecutive authoritative baseline samples. If a delayed relative
+  mutation moves the target after the first sample, restoration is requested again. Waiting is
+  bounded to 16 controller ticks; a timeout abandons retained targets and releases deferred
+  navigation so one failed acknowledgement cannot capture controller input indefinitely.
 - The stable shell should retain exact restoration targets and restore them best-effort if the
   active core generation is invalidated.
 
@@ -140,6 +141,7 @@ adjacent target/proxy finding.
 - Rapid trigger release and repress cannot capture an unrestored temporary value as a new baseline.
 - Reload or core failure does not silently leave an active retained target temporary.
 - Missing restoration read-back times out and releases parameter and navigation input.
+- A delayed mutation after the first baseline sample is observed and restored again.
 
 ## Removal Criteria
 

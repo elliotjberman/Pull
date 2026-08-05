@@ -20,6 +20,7 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
     private static final int MAX_CAPTURES = 16;
     private static final int MAX_PENDING_ACTIONS = 64;
     private static final int MAX_RESTORE_TICKS = 16;
+    private static final int REQUIRED_RESTORE_CONFIRMATIONS = 2;
 
     private final ParameterMutationGateway delegate;
     private final Consumer<String> warningSink;
@@ -179,7 +180,23 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
                 iterator.remove ();
             }
             else if (capture.target.isAt (capture.baseline))
-                iterator.remove ();
+            {
+                if (++capture.restoreConfirmations >= REQUIRED_RESTORE_CONFIRMATIONS)
+                    iterator.remove ();
+            }
+            else if (capture.restoreConfirmations > 0)
+            {
+                capture.restoreConfirmations = 0;
+                try
+                {
+                    capture.target.restore (capture.baseline);
+                }
+                catch (final RuntimeException ex)
+                {
+                    this.warningSink.accept ("Failed snapback restoration retry for " + capture.target.reference () + ": " + ex.getMessage ());
+                    iterator.remove ();
+                }
+            }
         }
         if (this.captures.isEmpty ())
             this.completeRestoration ();
@@ -203,6 +220,7 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
                 continue;
             try
             {
+                capture.restoreConfirmations = 0;
                 capture.target.restore (capture.baseline);
             }
             catch (final RuntimeException ex)
@@ -299,11 +317,17 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
     }
 
 
-    private record Capture (ParameterMutationTarget target, double baseline)
+    private static final class Capture
     {
-        private Capture
+        private final ParameterMutationTarget target;
+        private final double baseline;
+        private int restoreConfirmations;
+
+
+        private Capture (final ParameterMutationTarget target, final double baseline)
         {
-            Objects.requireNonNull (target, "target");
+            this.target = Objects.requireNonNull (target, "target");
+            this.baseline = baseline;
         }
     }
 }
