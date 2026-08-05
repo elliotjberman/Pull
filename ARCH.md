@@ -1,6 +1,6 @@
 # Pull View Architecture
 
-Status: current through Core API 12 and the first `VS Live` composite workspace.
+Status: current through Core API 12 and the post-demo `VS Live` view composition.
 
 Read this file before changing controller views, modes, workspaces, input routing, or Session bank
 topology. The detailed design contract is in
@@ -56,10 +56,11 @@ A grid claim includes pad edges, strike velocity, and per-pad pressure. Pressure
 pad owner; it is not enabled by a parallel list of concrete view classes. Aggregate channel pressure
 is a separate surface-wide input because it has no pad identity.
 
-The intended area vocabulary includes encoders and touches, parameter display cells, the bottom
-track strip, upper and lower soft keys, upper and lower grid halves, matching scene keys, navigation
-groups, the touch strip, transport controls, and global modifiers. The current `SurfaceArea` enum is
-only the migrated subset; see **Migration status** below.
+The current vocabulary covers every region used by the installed compiled workspaces: encoders and
+touches, parameter display cells, the bottom track strip, both soft-key rows, upper and lower grid
+halves and drum subregions, matching scene-key groups, navigation groups, the touch strip, and the
+currently migrated transport/modifier controls. Add other named transport areas only when a view
+actually needs them.
 
 ### Claims
 
@@ -68,10 +69,14 @@ A `SurfaceClaim` declares one view's use of an area:
 - `OBSERVE_INPUT`: core observes input while established stable behavior may also receive it.
 - `EXCLUSIVE_INPUT`: core is the only behavior owner for the routed input.
 - `DIRECT_INPUT`: core owns a permanent feature-specific route that predates general arbitration.
-- `OUTPUT`: the view owns replayable hardware output for the area.
+- `STABLE_ADAPTER_INPUT`: the selected view owns input, but its stable adapter still implements it.
+- `OUTPUT`: core owns and directly renders replayable hardware output for the area.
+- `STABLE_ADAPTER_OUTPUT`: the selected view owns output, but its stable adapter still renders it.
 
-Multiple observers may coexist. Two direct/exclusive input owners conflict. Two output owners
-conflict. A compiled result must be independent of view declaration order.
+Multiple observers may coexist. Two owning input claims conflict. Two output claims conflict,
+regardless of whether core or a stable adapter realizes them. Adapter-backed claims are invalid
+without the matching declared `ControllerViewFacet`. A compiled result must be independent of view
+declaration order.
 
 ### Views
 
@@ -88,8 +93,10 @@ read-back, never the value most recently submitted merely for immediacy.
 
 ### Workspaces
 
-`CompiledWorkspace` validates and deterministically composes core views. It merges input routes,
-bridge subscriptions, outputs, clip bindings, and effects into one complete `CoreResult`.
+`CompiledWorkspace` validates and deterministically composes core views. It snapshots each selected
+`ViewProfile` once, expands its named `ViewFacet` values, builds immutable input-owner tables, and
+merges routes, bridge subscriptions, outputs, clip bindings, effects, and the stable-adapter
+manifest into one complete `CoreResult`.
 
 The intended workspace shape is boring configuration:
 
@@ -104,14 +111,15 @@ views:
   - drum-controller: { facets: [pitch-bend] }
 ```
 
-The Java-defined `ControllerWorkspaceView.VS_LIVE` value is the current equivalent. YAML/JSON is
-not implemented and must not become a raw control-mapping language.
+`VsLiveWorkspace.create(...)` constructs this configuration directly in Java. YAML/JSON is not
+implemented and must not become a raw control-mapping language.
 
 ### Stable facets
 
-`ControllerViewFacet` and `DesiredControllerWorkspace` are a migration bridge. They let core select
-fixed mechanics that still depend on the inherited stable-shell object graph. They are not the
-desired final substitute for core `ControllerView` composition.
+`ControllerViewFacet` and `DesiredControllerWorkspace` are a migration bridge. Each real core view
+selects only the fixed mechanical adapters required by its profile; `CompiledWorkspace` derives the
+single complete adapter manifest. Facets are not standalone views and may not carry composition
+policy.
 
 The shell must interpret facet IDs, not workspace names. There must be no stable-shell conditional
 for `"VS Live"`.
@@ -131,9 +139,11 @@ VS Live contains:
 - Drum Controller on the lower four pad rows; and
 - drum pitch bend on the touch strip.
 
-The lower Drum Controller includes its 4x4 playable block, rate pads, and twelve fill pads. It does
-not own the lower scene keys. Per-pad pressure has a musical destination only on the playable 4x4
-block and is implemented by reloadable `DrumPressureView`.
+The lower Drum Controller includes its 4x4 playable block, rate pads, twelve fill pads, octave
+navigation, aggregate grid pressure, and its optional pitch-bend facet. It does not own the lower
+scene keys. Per-pad pressure has a musical destination only on the playable 4x4 block and is part of
+the same reloadable `DrumControllerView`, so pressure cannot be accidentally omitted from a
+composition that owns those pads.
 
 The normal Session view declares an 8x8 bank. VS Live declares 8x4. `SessionBankRegistry` eagerly
 holds exactly those installed shapes, preserves track/scene offsets when switching, and enables
@@ -144,11 +154,17 @@ Bitwig clip-launcher feedback on only the active bank. An undeclared shape is re
 Reloadable core:
 
 - `CompiledWorkspace`: claim validation, routing, deterministic composition.
-- `DefaultWorkspace`: currently migrated core behaviors.
+- `DefaultWorkspace`: ordinary migrated behavior plus shared workspace selection.
+- `VsLiveWorkspace`: Java-defined composition and declared 8x4 Session bank.
+- `ProjectMacroControlsView`: encoders and parameter-display ownership.
+- `TrackSelectionStripView`: lower display strip and lower soft-key ownership.
+- `SessionNavigationView`: arrow and page navigation ownership.
+- `SessionClipGridView`: upper Session grid plus optional upper scene keys.
+- `DrumControllerView`: complete lower Drum Controller, pressure policy, fills, and optional pitch
+  bend.
 - `DrumFillView`: fill selection, launch lifecycle, bindings, and twelve RGB lights.
 - `RecordControlView`: Record modifier policy.
-- `ControllerWorkspaceView`: VS Live selection state and desired stable facets.
-- `DrumPressureView`: VS Live playable-pad pressure policy.
+- `WorkspaceSelectionView`: shared Shift + Session entry and Session/Note exit policy.
 
 Stable shell:
 
@@ -162,26 +178,24 @@ Stable shell:
 
 Implemented:
 
-- Fixed-footprint claims and deterministic conflict detection for migrated core views.
+- Fixed-footprint areas, profiles, named optional facets, and deterministic conflict detection.
+- Independent core views for every VS Live behavior and a real compiled VS Live workspace.
+- Deterministic event-owner tables, active-workspace routes/subscriptions, and exit/re-entry
+  reconciliation.
+- Explicit core versus stable-adapter input/output claims.
 - Behavior-preserving core views for drum fills and Record controls.
 - Core-owned Shift + Session workspace selection and reload checkpoint state.
-- Functional VS Live composition with the specified physical layout.
 - Correct 8x4 Session navigation and Bitwig feedback via a declared bank.
-- Core-owned composite drum pressure using the permanent NoteInput MIDI effect.
+- Drum pressure owned by the same fixed Drum Controller view as its playable pads.
 - Removal of the unused legacy aftertouch commands and ClipLauncherNavigator topology.
 - Transactional shell preparation before a candidate result is committed.
 
 Partial or transitional:
 
-- `SurfaceArea` describes only drum pads, aggregate pressure, and a few buttons. Encoders, displays,
-  soft keys, upper Session pads, scene keys, navigation, octave controls, touch strip, and general
-  transport areas are not yet compiler-visible.
-- VS Live's macro, track-strip, Session, navigation, Drum Controller, and pitch-bend facets are a
-  fixed core-selected set, but most mechanics still run in stable `WorkspaceMode`/`WorkspaceView`.
-- VS Live is not itself a `CompiledWorkspace` of independent core views. One core view emits a
-  `DesiredControllerWorkspace` that activates stable facets inside the default compiled workspace.
-- Optional facets are represented by the closed `ControllerViewFacet` enum. There are no core
-  `ViewProfile`, `FacetId`, or `ViewFacet` types yet.
+- Macro, track-strip, Session, navigation, Drum Controller, and pitch-bend ownership is compiled in
+  core, but their adapter-backed mechanics still run in stable `WorkspaceMode`/`WorkspaceView`.
+- `ControllerViewFacet` remains a closed cross-boundary adapter ID. New adapter mechanics still
+  require a Core API/shell change and Bitwig restart.
 - Capability and Session-shape validation happens during stable result preparation, not entirely in
   `CompiledWorkspace`.
 - General display and light output ownership has not crossed the core API. Only the twelve drum-fill
@@ -213,6 +227,6 @@ Deferred by design:
 8. State explicitly whether the change is core-only/hot-reloadable or changes the shell canopy and
    requires a Bitwig restart.
 
-The next architectural step is not more entries in `ControllerViewFacet`. It is expanding the
-surface/output canopy and moving each stable facet behind a real fixed-footprint core view until VS
-Live can be compiled from those views directly.
+The next architectural step is not another workspace-shaped facet. Expand the typed state, effect,
+and complete-output canopy, then migrate one existing adapter-backed claim at a time from
+`STABLE_ADAPTER_*` to core input/output without changing the workspace configuration.

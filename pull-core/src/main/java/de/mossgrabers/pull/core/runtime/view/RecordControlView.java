@@ -22,6 +22,7 @@ import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.view.ControllerView;
 import de.mossgrabers.pull.core.view.SurfaceArea;
 import de.mossgrabers.pull.core.view.SurfaceClaim;
+import de.mossgrabers.pull.core.view.ViewProfile;
 
 import java.util.List;
 import java.util.Set;
@@ -39,6 +40,7 @@ public final class RecordControlView implements ControllerView
         new SurfaceClaim (SurfaceArea.RECORD_BUTTON, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
         new SurfaceClaim (SurfaceArea.SHIFT_MODIFIER, SurfaceClaim.Kind.OBSERVE_INPUT),
         new SurfaceClaim (SurfaceArea.SELECT_MODIFIER, SurfaceClaim.Kind.OBSERVE_INPUT));
+    private static final ViewProfile PROFILE = ViewProfile.fixed ("default", CLAIMS, Set.of ());
     private static final Set<BridgeSubscription> SUBSCRIPTIONS = Set.of (
         BridgeSubscription.SELECTED_TRACK,
         BridgeSubscription.TRANSPORT);
@@ -54,9 +56,9 @@ public final class RecordControlView implements ControllerView
 
     /** {@inheritDoc} */
     @Override
-    public Set<SurfaceClaim> claims ()
+    public ViewProfile profile ()
     {
-        return CLAIMS;
+        return PROFILE;
     }
 
 

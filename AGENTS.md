@@ -5,8 +5,9 @@
 - Read `ARCH.md` before changing Push views, modes, workspaces, input routing, display ownership, or
   Session bank topology. `docs/views-api-design.md` is the detailed design contract.
 - Treat `ControllerViewFacet` and the stable `WorkspaceView`/`WorkspaceMode` adapters as migration
-  scaffolding, not the final view API. New behavior should move toward fixed-footprint core
-  `ControllerView` implementations when the installed shell canopy supports it.
+  scaffolding, not the final view API. Every selected adapter must belong to a fixed-footprint core
+  `ControllerView` profile with explicit `STABLE_ADAPTER_*` claims; new behavior belongs directly
+  in core when the installed shell canopy supports it.
 - A workspace selects declared views and facets; it must never remap arbitrary callbacks onto raw
   hardware controls.
 

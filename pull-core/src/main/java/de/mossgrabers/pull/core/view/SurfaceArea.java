@@ -25,22 +25,50 @@ import java.util.Set;
  */
 public enum SurfaceArea
 {
+    /** Eight top encoders, including turn and touch input. */
+    ENCODERS (range (ElementType.ENCODER, 0, 8), continuousControls ("KNOB", 8), Set.of (InputKind.RELATIVE, InputKind.TOUCH)),
+    /** Eight parameter cells aligned with the top encoders. */
+    DISPLAY_PARAMETERS (range (ElementType.DISPLAY_PARAMETER, 0, 8), Set.of (), Set.of ()),
+    /** Eight lower display cells aligned with the lower soft keys. */
+    DISPLAY_BOTTOM_STRIP (range (ElementType.DISPLAY_BOTTOM, 0, 8), Set.of (), Set.of ()),
+    /** Eight buttons above the display. */
+    SOFT_KEYS_UPPER (range (ElementType.BUTTON, 108, 8), buttonControls ("ROW2_", 1, 8), Set.of (InputKind.BUTTON)),
+    /** Eight buttons below the display. */
+    SOFT_KEYS_LOWER (range (ElementType.BUTTON, 100, 8), buttonControls ("ROW1_", 1, 8), Set.of (InputKind.BUTTON)),
+    /** Upper four rows of the pad grid. */
+    GRID_UPPER (gridRectangle (0, 4, 8, 4), gridControls (0, 4, 8, 4), Set.of (InputKind.PAD, InputKind.POLY_PRESSURE)),
+    /** Complete lower four rows of the pad grid. */
+    GRID_LOWER (gridRectangle (0, 0, 8, 4), gridControls (0, 0, 8, 4), Set.of (InputKind.PAD, InputKind.POLY_PRESSURE)),
     /** Playable four-by-four drum block in the lower-left grid quadrant. */
     DRUM_PLAY_PADS (gridRectangle (0, 0, 4, 4), gridControls (0, 0, 4, 4), Set.of (InputKind.PAD, InputKind.POLY_PRESSURE)),
+    /** Four momentary drum-rate pads at columns 4-7 on the bottom row. */
+    DRUM_RATE_PADS (gridRectangle (4, 0, 4, 1), gridControls (4, 0, 4, 1), Set.of (InputKind.PAD, InputKind.POLY_PRESSURE)),
     /** Twelve fill pads at columns 4-7 and rows 1-3 of the lower grid half. */
     DRUM_FILL_PADS (gridRectangle (4, 1, 4, 3), Set.copyOf (CoreControls.DRUM_FILLS), Set.of (InputKind.PAD, InputKind.POLY_PRESSURE)),
+    /** Four scene keys aligned to the upper Session grid. */
+    SCENE_KEYS_UPPER (range (ElementType.BUTTON, 200, 4), buttonControls ("SCENE", 1, 4), Set.of (InputKind.BUTTON)),
+    /** Four scene keys aligned to the lower grid half. */
+    SCENE_KEYS_LOWER (range (ElementType.BUTTON, 204, 4), buttonControls ("SCENE", 5, 4), Set.of (InputKind.BUTTON)),
+    /** Four directional arrow keys. */
+    NAVIGATION_ARROWS (range (ElementType.BUTTON, 300, 4), namedButtonControls ("ARROW_LEFT", "ARROW_RIGHT", "ARROW_UP", "ARROW_DOWN"), Set.of (InputKind.BUTTON)),
+    /** Page-left and page-right buttons. */
+    NAVIGATION_PAGE (range (ElementType.BUTTON, 304, 2), namedButtonControls ("PAGE_LEFT", "PAGE_RIGHT"), Set.of (InputKind.BUTTON)),
+    /** Octave-down and octave-up buttons. */
+    NAVIGATION_OCTAVE (range (ElementType.BUTTON, 306, 2), namedButtonControls ("OCTAVE_DOWN", "OCTAVE_UP"), Set.of (InputKind.BUTTON)),
+    /** Touch strip input and output mode. */
+    TOUCH_STRIP (range (ElementType.CONTINUOUS, 0, 1), Set.of (PushControlIds.continuous ("TOUCHSTRIP")), Set.of (InputKind.ABSOLUTE, InputKind.TOUCH)),
     /** Aggregate pressure shared by the complete pad grid. */
-    GRID_CHANNEL_PRESSURE (Set.of (new HardwareElement (ElementType.GRID_PRESSURE, 0)), Set.of (PushControlIds.CHANNEL_PRESSURE), Set.of (InputKind.CHANNEL_PRESSURE)),
+    GRID_CHANNEL_PRESSURE (range (ElementType.GRID_PRESSURE, 0, 1), Set.of (PushControlIds.CHANNEL_PRESSURE), Set.of (InputKind.CHANNEL_PRESSURE)),
     /** Push Record button. */
-    RECORD_BUTTON (button (0), Set.of (PushControlIds.button ("RECORD")), Set.of (InputKind.BUTTON)),
+    RECORD_BUTTON (range (ElementType.BUTTON, 0, 1), Set.of (PushControlIds.button ("RECORD")), Set.of (InputKind.BUTTON)),
     /** Push Shift modifier. */
-    SHIFT_MODIFIER (button (1), Set.of (PushControlIds.button ("SHIFT")), Set.of (InputKind.BUTTON)),
+    SHIFT_MODIFIER (range (ElementType.BUTTON, 1, 1), Set.of (PushControlIds.button ("SHIFT")), Set.of (InputKind.BUTTON)),
     /** Push Select modifier. */
-    SELECT_MODIFIER (button (2), Set.of (PushControlIds.button ("SELECT")), Set.of (InputKind.BUTTON)),
+    SELECT_MODIFIER (range (ElementType.BUTTON, 2, 1), Set.of (PushControlIds.button ("SELECT")), Set.of (InputKind.BUTTON)),
     /** Push Session button. */
-    SESSION_BUTTON (button (3), Set.of (PushControlIds.button ("SESSION")), Set.of (InputKind.BUTTON)),
+    SESSION_BUTTON (range (ElementType.BUTTON, 3, 1), Set.of (PushControlIds.button ("SESSION")), Set.of (InputKind.BUTTON)),
     /** Push Note button. */
-    NOTE_BUTTON (button (4), Set.of (PushControlIds.button ("NOTE")), Set.of (InputKind.BUTTON));
+    NOTE_BUTTON (range (ElementType.BUTTON, 4, 1), Set.of (PushControlIds.button ("NOTE")), Set.of (InputKind.BUTTON));
 
     private final Set<HardwareElement> footprint;
     private final Set<ControlId>       controls;
@@ -52,8 +80,6 @@ public enum SurfaceArea
         this.footprint = Set.copyOf (footprint);
         this.controls = Set.copyOf (controls);
         this.inputKinds = Set.copyOf (Objects.requireNonNull (inputKinds, "inputKinds"));
-        if (this.inputKinds.isEmpty ())
-            throw new IllegalArgumentException ("inputKinds must not be empty");
     }
 
 
@@ -116,9 +142,12 @@ public enum SurfaceArea
     }
 
 
-    private static Set<HardwareElement> button (final int index)
+    private static Set<HardwareElement> range (final ElementType type, final int start, final int count)
     {
-        return Set.of (new HardwareElement (ElementType.BUTTON, index));
+        final Set<HardwareElement> elements = new LinkedHashSet<> ();
+        for (int index = start; index < start + count; index++)
+            elements.add (new HardwareElement (type, index));
+        return elements;
     }
 
 
@@ -146,11 +175,42 @@ public enum SurfaceArea
     }
 
 
+    private static Set<ControlId> continuousControls (final String prefix, final int count)
+    {
+        final Set<ControlId> controls = new LinkedHashSet<> ();
+        for (int index = 1; index <= count; index++)
+            controls.add (PushControlIds.continuous (prefix + index));
+        return controls;
+    }
+
+
+    private static Set<ControlId> buttonControls (final String prefix, final int start, final int count)
+    {
+        final Set<ControlId> controls = new LinkedHashSet<> ();
+        for (int index = start; index < start + count; index++)
+            controls.add (PushControlIds.button (prefix + index));
+        return controls;
+    }
+
+
+    private static Set<ControlId> namedButtonControls (final String... names)
+    {
+        final Set<ControlId> controls = new LinkedHashSet<> ();
+        for (final String name: names)
+            controls.add (PushControlIds.button (name));
+        return controls;
+    }
+
+
     private enum ElementType
     {
         BUTTON,
+        CONTINUOUS,
+        ENCODER,
         GRID_PAD,
-        GRID_PRESSURE
+        GRID_PRESSURE,
+        DISPLAY_PARAMETER,
+        DISPLAY_BOTTOM
     }
 
 

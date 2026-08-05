@@ -7,11 +7,17 @@ import de.mossgrabers.pull.core.api.ControllerCore;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.StateEnvelope;
+import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
-import de.mossgrabers.pull.core.runtime.view.ControllerWorkspaceView;
 import de.mossgrabers.pull.core.runtime.view.DefaultWorkspace;
+import de.mossgrabers.pull.core.runtime.view.VsLiveWorkspace;
+import de.mossgrabers.pull.core.runtime.view.WorkspaceSelection;
 import de.mossgrabers.pull.core.view.CompiledWorkspace;
 
+import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -21,9 +27,10 @@ import java.util.Optional;
  */
 final class PullControllerCore implements ControllerCore
 {
-    private CompiledWorkspace       workspace;
-    private ControllerWorkspaceView controllerWorkspaceView;
-    private Lifecycle               lifecycle = Lifecycle.NEW;
+    private Map<WorkspaceSelection.Id, CompiledWorkspace> workspaces = Map.of ();
+    private WorkspaceSelection                             selection;
+    private CompiledWorkspace                              workspace;
+    private Lifecycle                                      lifecycle = Lifecycle.NEW;
 
 
     /** {@inheritDoc} */
@@ -35,10 +42,14 @@ final class PullControllerCore implements ControllerCore
         if (this.lifecycle != Lifecycle.NEW)
             throw new IllegalStateException ("Core can only be started once");
 
-        this.controllerWorkspaceView = new ControllerWorkspaceView (restoreWorkspace (previousState));
-        this.workspace = DefaultWorkspace.create (this.controllerWorkspaceView);
+        this.selection = new WorkspaceSelection (restoreWorkspace (previousState));
+        final Map<WorkspaceSelection.Id, CompiledWorkspace> compiled = new EnumMap<> (WorkspaceSelection.Id.class);
+        compiled.put (WorkspaceSelection.Id.DEFAULT, DefaultWorkspace.create (this.selection));
+        compiled.put (WorkspaceSelection.Id.VS_LIVE, VsLiveWorkspace.create (this.selection));
+        this.workspaces = Map.copyOf (compiled);
+        this.workspace = this.workspaces.get (this.selection.active ());
         this.lifecycle = Lifecycle.RUNNING;
-        return this.workspace.start (snapshot);
+        return this.workspace.activate (snapshot);
     }
 
 
@@ -49,7 +60,13 @@ final class PullControllerCore implements ControllerCore
         this.requireRunning ();
         Objects.requireNonNull (event, "event");
         Objects.requireNonNull (snapshot, "snapshot");
-        return this.workspace.handle (event, snapshot);
+        final CoreResult currentResult = this.workspace.handle (event, snapshot);
+        final CompiledWorkspace selectedWorkspace = this.workspaces.get (this.selection.active ());
+        if (selectedWorkspace == this.workspace)
+            return currentResult;
+
+        this.workspace = selectedWorkspace;
+        return transitionTo (currentResult.effects (), this.workspace.activate (snapshot));
     }
 
 
@@ -63,17 +80,34 @@ final class PullControllerCore implements ControllerCore
             PullCoreProvider.STATE_SCHEMA_VERSION,
             new byte []
             {
-                (byte) (this.controllerWorkspaceView.isActive () ? 1 : 0)
+                (byte) (this.selection.active () == WorkspaceSelection.Id.VS_LIVE ? 1 : 0)
             });
     }
 
 
-    private static boolean restoreWorkspace (final Optional<StateEnvelope> previousState)
+    private static WorkspaceSelection.Id restoreWorkspace (final Optional<StateEnvelope> previousState)
     {
         if (previousState.isEmpty ())
-            return false;
+            return WorkspaceSelection.Id.DEFAULT;
         final byte [] payload = previousState.get ().payload ();
-        return payload.length == 1 && payload[0] == 1;
+        return payload.length == 1 && payload[0] == 1 ? WorkspaceSelection.Id.VS_LIVE : WorkspaceSelection.Id.DEFAULT;
+    }
+
+
+    private static CoreResult transitionTo (final List<CoreEffect> departingEffects, final CoreResult activeResult)
+    {
+        if (departingEffects.isEmpty ())
+            return activeResult;
+
+        final List<CoreEffect> effects = new ArrayList<> (departingEffects);
+        effects.addAll (activeResult.effects ());
+        return new CoreResult (
+            activeResult.desiredOutput (),
+            activeResult.desiredInputRoutes (),
+            activeResult.desiredBridgeSubscriptions (),
+            activeResult.desiredClipBindings (),
+            activeResult.desiredControllerWorkspace (),
+            effects);
     }
 
 

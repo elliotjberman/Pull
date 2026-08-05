@@ -25,19 +25,24 @@ public record SurfaceClaim (SurfaceArea area, Kind kind)
 
 
     /**
-     * Claim types. Direct input is the same exclusive ownership rule as routed input, but its
-     * permanent shell route does not appear in {@code DesiredInputRoutes}.
+     * Claim types. The stable-adapter variants make the migration boundary explicit: the core
+     * selects and validates the owning view, while an initialization-owned shell adapter still
+     * realizes that input or output.
      */
     public enum Kind
     {
         /** Input delivered by a permanent feature-specific shell route. */
         DIRECT_INPUT,
+        /** Input owned by the selected view but realized by its stable mechanical adapter. */
+        STABLE_ADAPTER_INPUT,
         /** Input observed alongside stable behavior. */
         OBSERVE_INPUT,
         /** Input owned by the reloadable core instead of stable behavior. */
         EXCLUSIVE_INPUT,
-        /** Replayable hardware output. */
-        OUTPUT;
+        /** Replayable hardware output rendered directly by the reloadable core. */
+        OUTPUT,
+        /** Hardware output rendered by the selected view's stable mechanical adapter. */
+        STABLE_ADAPTER_OUTPUT;
 
 
         /**
@@ -47,18 +52,40 @@ public record SurfaceClaim (SurfaceArea area, Kind kind)
          */
         public boolean isInput ()
         {
-            return this != OUTPUT;
+            return this != OUTPUT && this != STABLE_ADAPTER_OUTPUT;
         }
 
 
         /**
          * Test whether this claim owns, rather than merely observes, input.
          *
-         * @return True for direct or exclusive input
+         * @return True for direct, stable-adapter, or exclusive input
          */
         public boolean ownsInput ()
         {
-            return this == DIRECT_INPUT || this == EXCLUSIVE_INPUT;
+            return this == DIRECT_INPUT || this == STABLE_ADAPTER_INPUT || this == EXCLUSIVE_INPUT;
+        }
+
+
+        /**
+         * Test whether this claim owns hardware output.
+         *
+         * @return True for core or stable-adapter output
+         */
+        public boolean ownsOutput ()
+        {
+            return this == OUTPUT || this == STABLE_ADAPTER_OUTPUT;
+        }
+
+
+        /**
+         * Test whether this claim requires a stable mechanical adapter.
+         *
+         * @return True for stable-adapter input or output
+         */
+        public boolean requiresStableAdapter ()
+        {
+            return this == STABLE_ADAPTER_INPUT || this == STABLE_ADAPTER_OUTPUT;
         }
     }
 }

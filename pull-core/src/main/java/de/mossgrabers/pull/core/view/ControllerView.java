@@ -26,11 +26,22 @@ public interface ControllerView
 
 
     /**
-     * Get all fixed surface claims for this view profile.
+     * Get the selected fixed profile and optional facets.
+     *
+     * @return Immutable profile
+     */
+    ViewProfile profile ();
+
+
+    /**
+     * Get all effective claims from the selected profile.
      *
      * @return Immutable claims
      */
-    Set<SurfaceClaim> claims ();
+    default Set<SurfaceClaim> claims ()
+    {
+        return this.profile ().claims ();
+    }
 
 
     /**

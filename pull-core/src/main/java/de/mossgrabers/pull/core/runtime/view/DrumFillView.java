@@ -22,6 +22,7 @@ import de.mossgrabers.pull.core.view.ControllerView;
 import de.mossgrabers.pull.core.view.SurfaceArea;
 import de.mossgrabers.pull.core.view.SurfaceClaim;
 import de.mossgrabers.pull.core.view.ViewOutput;
+import de.mossgrabers.pull.core.view.ViewProfile;
 
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -47,6 +48,7 @@ public final class DrumFillView implements ControllerView
     private static final Set<SurfaceClaim> CLAIMS = Set.of (
         new SurfaceClaim (SurfaceArea.DRUM_FILL_PADS, SurfaceClaim.Kind.DIRECT_INPUT),
         new SurfaceClaim (SurfaceArea.DRUM_FILL_PADS, SurfaceClaim.Kind.OUTPUT));
+    private static final ViewProfile PROFILE = ViewProfile.fixed ("default", CLAIMS, Set.of ());
 
     private Set<ControlId>               previousPressedControls = Set.of ();
     private Map<ControlId, ClipTargetId> desiredBindings = Map.of ();
@@ -62,9 +64,9 @@ public final class DrumFillView implements ControllerView
 
     /** {@inheritDoc} */
     @Override
-    public Set<SurfaceClaim> claims ()
+    public ViewProfile profile ()
     {
-        return CLAIMS;
+        return PROFILE;
     }
 
 

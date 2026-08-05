@@ -10,6 +10,7 @@ import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ControllerLayoutSnapshot;
+import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.InputRouteMode;
@@ -36,7 +37,7 @@ import de.mossgrabers.pull.core.api.effect.TransportState;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.runtime.PullCoreProvider;
-import de.mossgrabers.pull.core.runtime.view.ControllerWorkspaceView;
+import de.mossgrabers.pull.core.runtime.view.VsLiveWorkspace;
 
 import org.junit.jupiter.api.Test;
 
@@ -405,7 +406,7 @@ class PullControllerCoreTest
 
         host.start (Optional.empty ());
 
-        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT), host.effects ().desiredBridgeSubscriptions ().domains ());
+        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT), host.effects ().desiredBridgeSubscriptions ().domains ());
         assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (RECORD_BUTTON, InputKind.BUTTON));
         host.selectedTrack (selectedTrack (false));
         assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (RECORD_BUTTON, InputKind.BUTTON));
@@ -481,11 +482,30 @@ class PullControllerCoreTest
         host.controllerButton (SESSION_BUTTON, false);
         host.controllerButton (SHIFT_BUTTON, false);
 
-        assertEquals (ControllerWorkspaceView.VS_LIVE, host.effects ().desiredControllerWorkspace ());
+        assertVsLive (host.effects ().desiredControllerWorkspace ());
 
         host.controllerButton (SESSION_BUTTON, true);
 
         assertEquals (DesiredControllerWorkspace.empty (), host.effects ().desiredControllerWorkspace ());
+    }
+
+
+    @Test
+    void vsLiveCanExitAndReenterWithItsCompleteOwnershipRestored ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+
+        enterVsLive (host);
+        host.controllerButton (SESSION_BUTTON, true);
+        assertEquals (DesiredControllerWorkspace.empty (), host.effects ().desiredControllerWorkspace ());
+
+        host.controllerButton (SESSION_BUTTON, false);
+        enterVsLive (host);
+
+        assertVsLive (host.effects ().desiredControllerWorkspace ());
+        assertEquals (Optional.of (InputRouteMode.OBSERVE), host.effects ().desiredInputRoutes ().mode (PushControlIds.pad (10), InputKind.POLY_PRESSURE));
+        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT), host.effects ().desiredBridgeSubscriptions ().domains ());
     }
 
 
@@ -501,7 +521,7 @@ class PullControllerCoreTest
         final FakeCoreHost restored = new FakeCoreHost (provider.create (), provider.descriptor ().requiredCapabilities ());
         restored.start (Optional.of (first.checkpoint ()));
 
-        assertEquals (ControllerWorkspaceView.VS_LIVE, restored.effects ().desiredControllerWorkspace ());
+        assertVsLive (restored.effects ().desiredControllerWorkspace ());
     }
 
 
@@ -530,11 +550,16 @@ class PullControllerCoreTest
         assertTrue (host.effects ().executionOrder ().isEmpty ());
 
         enterVsLive (host);
+        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT), host.effects ().desiredBridgeSubscriptions ().domains ());
         host.controllerMotion (PushControlIds.pad (10), InputKind.POLY_PRESSURE, 91);
 
         assertEquals (new SendNoteInputMidiEffect (0xA0, 53, 91), host.effects ().executionOrder ().getLast ());
         assertEquals (Optional.of (InputRouteMode.OBSERVE), host.effects ().desiredInputRoutes ().mode (PushControlIds.pad (10), InputKind.POLY_PRESSURE));
         assertEquals (Optional.of (InputRouteMode.OBSERVE), host.effects ().desiredInputRoutes ().mode (PushControlIds.pad (10), InputKind.PAD));
+
+        host.controllerButton (SESSION_BUTTON, true);
+        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT), host.effects ().desiredBridgeSubscriptions ().domains ());
+        assertEquals (Optional.empty (), host.effects ().desiredInputRoutes ().mode (PushControlIds.pad (10), InputKind.POLY_PRESSURE));
     }
 
 
@@ -613,6 +638,21 @@ class PullControllerCoreTest
         host.controllerButton (SESSION_BUTTON, true);
         host.controllerButton (SESSION_BUTTON, false);
         host.controllerButton (SHIFT_BUTTON, false);
+    }
+
+
+    private static void assertVsLive (final DesiredControllerWorkspace workspace)
+    {
+        assertEquals (VsLiveWorkspace.NAME, workspace.name ());
+        assertEquals (VsLiveWorkspace.SESSION_BANK, workspace.sessionBankShape ());
+        assertEquals (Set.of (
+            ControllerViewFacet.PROJECT_MACRO_CONTROLS,
+            ControllerViewFacet.TRACK_SELECTION_STRIP,
+            ControllerViewFacet.SESSION_NAVIGATION,
+            ControllerViewFacet.SESSION_CLIP_GRID_UPPER,
+            ControllerViewFacet.SESSION_SCENE_KEYS_UPPER,
+            ControllerViewFacet.DRUM_CONTROLLER_LOWER,
+            ControllerViewFacet.DRUM_PITCH_BEND), workspace.facets ());
     }
 
 

@@ -138,8 +138,8 @@ independently.
   bounded controller-layout snapshot.
 - Treat pad edges and per-pad pressure as companion inputs of the fixed playable drum area, with
   aggregate channel pressure modeled separately.
-- Move VS Live's playable 4x4 pressure mapping into a reloadable `DrumPressureView`; leave its
-  stable workspace adapter inert so output cannot be duplicated.
+- Move VS Live's playable 4x4 pressure mapping into the reloadable `DrumControllerView` that owns
+  those pads; leave its stable workspace adapter inert so output cannot be duplicated.
 - Admit poly pressure to the permanent NoteInput MIDI effect and neutralize each outstanding note
   across core handoff, selected-target change, and shutdown.
 

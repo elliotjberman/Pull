@@ -24,12 +24,11 @@ public final class DefaultWorkspace
      *
      * @return Compiled workspace
      */
-    public static CompiledWorkspace create (final ControllerWorkspaceView controllerWorkspaceView)
+    public static CompiledWorkspace create (final WorkspaceSelection selection)
     {
         return CompiledWorkspace.compile ("Pull", List.of (
-            controllerWorkspaceView,
+            new WorkspaceSelectionView (selection),
             new DrumFillView (),
-            new DrumPressureView (controllerWorkspaceView::isActive),
             new RecordControlView ()));
     }
 }

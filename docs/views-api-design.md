@@ -1,9 +1,9 @@
 # Views API and Composite Workspaces
 
-Status: design contract. Checkpoints 1 and 2 are functionally implemented through Core API 12, with
-the remaining migration gaps and stable-adapter shortcuts recorded in [`../ARCH.md`](../ARCH.md).
-The checkpoints remain below so code, offline tests, and Push hardware tests can be compared against
-the intended end state.
+Status: design contract. Checkpoints 1 and 2 are structurally implemented through Core API 12. The
+remaining stable-adapter boundary is represented explicitly in claims and recorded in
+[`../ARCH.md`](../ARCH.md). The checkpoints remain below so code, offline tests, and Push hardware
+tests can be compared against the intended end state.
 
 ## Goal
 
@@ -64,18 +64,26 @@ Smaller fixed subregions may be added when a real view proves the need. They mus
 stable physical footprint, not created ad hoc by a workspace. For example, the current drum-fill
 view occupies the twelve pads at columns 4..7 and rows 1..3 inside `GRID.LOWER`.
 
-A claim also declares the channel it uses:
+A claim declares both ownership and its current realization boundary. The Java API uses explicit
+kinds equivalent to:
 
 ```java
-record SurfaceClaim(
-    SurfaceArea area,
-    ClaimChannel channel,    // INPUT, OUTPUT, or INPUT_OUTPUT
-    InputPolicy inputPolicy  // OBSERVE or EXCLUSIVE when input is present
-) {}
+record SurfaceClaim(SurfaceArea area, ClaimKind kind) {}
+
+enum ClaimKind {
+    OBSERVE_INPUT,
+    EXCLUSIVE_INPUT,
+    DIRECT_INPUT,
+    STABLE_ADAPTER_INPUT,
+    OUTPUT,
+    STABLE_ADAPTER_OUTPUT
+}
 ```
 
-Multiple observers may coexist. There is exactly one exclusive input owner and one output owner
-for any atomic area in a compiled workspace.
+Multiple observers may coexist. There is exactly one owning input claim and one output claim for
+any atomic area in a compiled workspace. The `STABLE_ADAPTER_*` kinds keep ownership in the view
+graph while honestly recording that current shell mechanics still realize it; they require a
+declared stable adapter facet.
 
 A grid input claim includes the pad edge, its strike velocity, and per-pad pressure. Pressure is a
 companion event for the same physical pad and follows the same compiled owner; it is never enabled
@@ -95,25 +103,31 @@ A view exposes named profiles, not arbitrary ports:
 ```java
 interface ControllerView {
     ViewId id();
-    ViewProfile profile(ProfileId id);
-    ViewResult start(ViewContext context);
-    ViewResult handle(CoreEvent event, ViewContext context);
-    ViewResult render(ViewContext context);
+    ViewProfile profile();
+    void start(ControllerSnapshot snapshot);
+    void reconcile(ControllerSnapshot snapshot);
+    List<CoreEffect> handle(CoreEvent event, ControllerSnapshot snapshot);
+    ViewOutput render(ControllerSnapshot snapshot);
 }
 
 record ViewProfile(
+    ProfileId id,
     Set<SurfaceClaim> requiredClaims,
-    Map<FacetId, ViewFacet> optionalFacets
+    Set<ControllerViewFacet> requiredControllerFacets,
+    Map<FacetId, ViewFacet> optionalFacets,
+    Set<FacetId> enabledFacets
 ) {}
 
 record ViewFacet(
-    Set<SurfaceClaim> claims
+    FacetId id,
+    Set<SurfaceClaim> claims,
+    Set<ControllerViewFacet> controllerFacets
 ) {}
 ```
 
-The actual API may use more focused types as implementation exposes useful invariants. The shape
-above is normative: fixed claims live with the view, and configurations select only declared
-profiles/facets.
+The code currently represents IDs as validated strings. The shape above is normative: fixed claims
+live with the view, selected facets are part of the profile, and configurations may select only
+facets that the view declares.
 
 Examples:
 
@@ -125,7 +139,9 @@ Examples:
 - **Project Macro Controls** requires `ENCODERS`, `DISPLAY.PARAMETERS`, and encoder touches. It does
   not implicitly own the lower track strip.
 - **Track Selection Strip** requires `DISPLAY.BOTTOM_STRIP` and `SOFT_KEYS.LOWER`.
-- **Session Navigation** requires `NAVIGATION.ARROWS` and may use `NAVIGATION.PAGE`.
+- **Session Navigation** currently requires `NAVIGATION.ARROWS` and `NAVIGATION.PAGE` because the
+  installed stable adapter realizes them together. Page navigation may become optional only after
+  the shell exposes it as an independently selectable facet.
 
 ## Workspace Compilation
 
@@ -222,9 +238,10 @@ Add one hardcoded workspace named `VS Live`, entered with **Shift + Session** fo
 - Drum Controller's `pitch-bend` facet owns the touch strip.
 - Per-pad pressure on Drum Controller's playable 4x4 block follows that same lower-grid ownership;
   pressure on rate, fill, and Session pads has no musical destination.
-- `DrumPressureView` implements that policy in the reloadable core. It observes the playable pad
-  edges and pressure, honors Off/Poly/Channel/CC configuration, and sends mapped output through the
-  permanent NoteInput MIDI effect. `WorkspaceView` performs no parallel pressure mutation.
+- `DrumControllerView` implements that policy with its other lower-grid behavior. It observes the
+  playable pad edges and pressure, honors Off/Poly/Channel/CC configuration, and sends mapped output
+  through the permanent NoteInput MIDI effect. `WorkspaceView` performs no parallel pressure
+  mutation.
 - No view claims the lower scene keys merely because they sit beside Drum Controller. Upper scene
   keys may launch the four visible Session scenes through the Session grid's named facet.
 
