@@ -37,9 +37,12 @@ class PushParameterMutationServiceTest
         target.advanceHost ();
         service.routeShift (ButtonEvent.UP, () -> order.add ("flush"), () -> order.add ("shift-up"));
 
+        assertEquals (List.of ("shift-down", "temporary", "flush", "shift-up"), order);
+        settleAndRequestRestore (service);
         assertEquals (List.of ("shift-down", "temporary", "flush", "shift-up", "restore"), order);
 
         target.advanceHost ();
+        service.tick ();
         service.tick ();
 
         assertEquals (List.of ("shift-down", "temporary", "flush", "shift-up", "restore"), order);
@@ -63,6 +66,8 @@ class PushParameterMutationServiceTest
         service.routeButton (ButtonID.PAGE_RIGHT, () -> order.add ("flush"), () -> order.add ("navigate"));
         service.routeCoreButton (ButtonID.PAGE_RIGHT, () -> order.add ("core"));
 
+        assertEquals (List.of ("temporary", "flush"), order);
+        settleAndRequestRestore (service);
         assertEquals (List.of ("temporary", "flush", "restore"), order);
         target.advanceHost ();
         service.tick ();
@@ -99,8 +104,10 @@ class PushParameterMutationServiceTest
             // No pending motion.
         }, () -> order.add ("shift-up"));
 
+        settleAndRequestRestore (service);
         for (final FakeTarget target: targets.values ())
             target.advanceHost ();
+        service.tick ();
         service.tick ();
 
         assertTrue (order.containsAll (List.of (
@@ -109,6 +116,44 @@ class PushParameterMutationServiceTest
             "restore tempo",
             "restore master-volume",
             "shift-up")));
+    }
+
+
+    @Test
+    void revisitingAMacroAroundAnotherMacroRestoresTheOriginalBaseline ()
+    {
+        final List<String> order = new ArrayList<> ();
+        final FakeTarget first = new FakeTarget ("first-macro", 10, order);
+        final FakeTarget second = new FakeTarget ("second-macro", 20, order);
+        final PushParameterMutationService service = service (Map.of (
+            ContinuousID.KNOB1, first,
+            ContinuousID.KNOB2, second));
+
+        service.routeShift (ButtonEvent.DOWN, () -> {
+            // No pending motion.
+        }, () -> {
+            // No-op stable Shift press.
+        });
+        service.mutate (ContinuousID.KNOB1, control (), () -> first.requestTemporary (50));
+        first.advanceHost ();
+        service.mutate (ContinuousID.KNOB2, control (), () -> second.requestTemporary (80));
+        second.advanceHost ();
+        service.mutate (ContinuousID.KNOB1, control (), () -> first.requestTemporary (90));
+        service.routeShift (ButtonEvent.UP, () -> {
+            // No pending motion.
+        }, () -> {
+            // No-op stable Shift release.
+        });
+
+        service.tick ();
+        first.advanceHost ();
+        service.tick ();
+        assertEquals (90, first.requested);
+
+        service.tick ();
+        service.tick ();
+        assertEquals (10, first.requested);
+        assertEquals (20, second.requested);
     }
 
 
@@ -129,6 +174,13 @@ class PushParameterMutationServiceTest
     private static PushParameterMutationService service (final Map<ContinuousID, FakeTarget> targets)
     {
         return new PushParameterMutationService ( (controlID, ignoredControl) -> targets.get (controlID));
+    }
+
+
+    private static void settleAndRequestRestore (final PushParameterMutationService service)
+    {
+        service.tick ();
+        service.tick ();
     }
 
 

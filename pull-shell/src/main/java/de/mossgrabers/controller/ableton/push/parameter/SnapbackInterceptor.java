@@ -19,7 +19,9 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
 {
     private static final int MAX_CAPTURES = 16;
     private static final int MAX_PENDING_ACTIONS = 64;
+    private static final int MAX_SETTLE_TICKS = 8;
     private static final int MAX_RESTORE_TICKS = 16;
+    private static final int REQUIRED_SETTLE_CONFIRMATIONS = 2;
     private static final int REQUIRED_RESTORE_CONFIRMATIONS = 2;
 
     private final ParameterMutationGateway delegate;
@@ -29,6 +31,7 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
 
     private State state = State.IDLE;
     private boolean triggerHeld;
+    private int settleTicks;
     private int restoreTicks;
 
 
@@ -56,7 +59,7 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
             return;
         }
 
-        if (this.state == State.RESTORING)
+        if (this.state == State.SETTLING || this.state == State.RESTORING)
             return;
         if (!this.triggerHeld)
         {
@@ -101,7 +104,7 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
     public void triggerReleased ()
     {
         this.triggerHeld = false;
-        if (this.state == State.RESTORING)
+        if (this.state == State.SETTLING || this.state == State.RESTORING)
             return;
 
         if (this.captures.isEmpty ())
@@ -110,7 +113,7 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
             return;
         }
 
-        this.beginRestoration ();
+        this.beginSettlement ();
     }
 
 
@@ -122,7 +125,7 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
     public void beforePotentialTargetRebind (final Runnable action)
     {
         final Runnable checkedAction = Objects.requireNonNull (action, "action");
-        if (this.state == State.RESTORING)
+        if (this.state == State.SETTLING || this.state == State.RESTORING)
         {
             this.enqueue (checkedAction);
             return;
@@ -134,7 +137,7 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
         }
 
         this.enqueue (checkedAction);
-        this.beginRestoration ();
+        this.beginSettlement ();
     }
 
 
@@ -147,7 +150,7 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
     public void afterPotentialTargetRebind (final Runnable action)
     {
         final Runnable checkedAction = Objects.requireNonNull (action, "action");
-        if (this.state == State.RESTORING)
+        if (this.state == State.SETTLING || this.state == State.RESTORING)
         {
             this.enqueue (checkedAction);
             return;
@@ -164,7 +167,12 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
         if (this.state == State.ACTIVE)
         {
             if (this.captures.values ().stream ().anyMatch (capture -> !capture.target.isCurrent ()))
-                this.beginRestoration ();
+                this.beginSettlement ();
+            return;
+        }
+        if (this.state == State.SETTLING)
+        {
+            this.tickSettlement ();
             return;
         }
         if (this.state != State.RESTORING)
@@ -232,13 +240,14 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
         this.pendingActions.clear ();
         this.triggerHeld = false;
         this.state = State.IDLE;
+        this.settleTicks = 0;
         this.restoreTicks = 0;
     }
 
 
     boolean isRestoring ()
     {
-        return this.state == State.RESTORING;
+        return this.state == State.SETTLING || this.state == State.RESTORING;
     }
 
 
@@ -248,11 +257,69 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
     }
 
 
+    private void beginSettlement ()
+    {
+        if (this.state == State.SETTLING || this.state == State.RESTORING)
+            return;
+        this.state = State.SETTLING;
+        this.settleTicks = 0;
+
+        final Iterator<Map.Entry<ParameterTargetRef, Capture>> iterator = this.captures.entrySet ().iterator ();
+        while (iterator.hasNext ())
+        {
+            final Capture capture = iterator.next ().getValue ();
+            if (!capture.target.isCurrent ())
+            {
+                this.warningSink.accept ("Skipped snapback settlement for rebound target " + capture.target.reference ());
+                iterator.remove ();
+                continue;
+            }
+            capture.lastObservedValue = capture.target.readAuthoritativeValue ();
+            capture.settleConfirmations = 0;
+        }
+        if (this.captures.isEmpty ())
+            this.completeRestoration ();
+    }
+
+
+    private void tickSettlement ()
+    {
+        boolean settled = true;
+        final Iterator<Map.Entry<ParameterTargetRef, Capture>> iterator = this.captures.entrySet ().iterator ();
+        while (iterator.hasNext ())
+        {
+            final Capture capture = iterator.next ().getValue ();
+            if (!capture.target.isCurrent ())
+            {
+                this.warningSink.accept ("Abandoned snapback settlement for rebound target " + capture.target.reference ());
+                iterator.remove ();
+                continue;
+            }
+
+            final double currentValue = capture.target.readAuthoritativeValue ();
+            if (Double.compare (currentValue, capture.lastObservedValue) == 0)
+                capture.settleConfirmations++;
+            else
+            {
+                capture.lastObservedValue = currentValue;
+                capture.settleConfirmations = 0;
+            }
+            settled &= capture.settleConfirmations >= REQUIRED_SETTLE_CONFIRMATIONS;
+        }
+
+        if (this.captures.isEmpty ())
+            this.completeRestoration ();
+        else if (settled || ++this.settleTicks >= MAX_SETTLE_TICKS)
+            this.beginRestoration ();
+    }
+
+
     private void beginRestoration ()
     {
         if (this.state == State.RESTORING)
             return;
         this.state = State.RESTORING;
+        this.settleTicks = 0;
         this.restoreTicks = 0;
 
         final Iterator<Map.Entry<ParameterTargetRef, Capture>> iterator = this.captures.entrySet ().iterator ();
@@ -294,6 +361,7 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
             }
         }
         this.state = this.triggerHeld ? State.ACTIVE : State.IDLE;
+        this.settleTicks = 0;
         this.restoreTicks = 0;
     }
 
@@ -313,6 +381,7 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
     {
         IDLE,
         ACTIVE,
+        SETTLING,
         RESTORING
     }
 
@@ -321,6 +390,8 @@ public final class SnapbackInterceptor implements ParameterMutationGateway
     {
         private final ParameterMutationTarget target;
         private final double baseline;
+        private double lastObservedValue;
+        private int settleConfirmations;
         private int restoreConfirmations;
 
 
