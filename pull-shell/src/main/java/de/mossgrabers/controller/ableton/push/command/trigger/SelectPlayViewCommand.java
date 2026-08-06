@@ -86,7 +86,7 @@ public class SelectPlayViewCommand extends AbstractTriggerCommand<PushControlSur
 
         if (viewManager.getPreferredView (track.getPosition ()) == null)
         {
-            if (this.surface.isDrumControllerTarget ())
+            if (this.surface.isDrumControllerTargetAligned ())
             {
                 this.activatePreferredView (Views.DRUM_PAD);
                 return;

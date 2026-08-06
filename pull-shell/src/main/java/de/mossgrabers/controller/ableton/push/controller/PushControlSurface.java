@@ -502,8 +502,7 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
 
     /**
      * Test whether the authoritative selected-track observer identifies a compatible Drum Machine
-     * target. Layout selection may use this before the legacy model cursor has caught up; control
-     * engagement still requires {@link #isDrumControllerApplicable()}.
+     * target. This does not prove that the legacy model cursor represents the same track.
      *
      * @return True if the selected track should use the Drum controller layout
      */
@@ -517,6 +516,19 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
 
 
     /**
+     * Test whether the selected target is compatible with the drum layout and the framework drum
+     * model represents that same track. Layout preference must not be written through a stale or
+     * pinned model cursor.
+     *
+     * @return True if the selected target is drum-capable and aligned with the model cursor
+     */
+    public boolean isDrumControllerTargetAligned ()
+    {
+        return this.isDrumControllerTarget () && this.isDrumModelAligned ();
+    }
+
+
+    /**
      * Test whether the private selected-track observer supports the Pull drum controller and the
      * framework drum model represents that same track. The identity check prevents a pinned model
      * cursor from rendering or mutating a different track than the selected-track observer.
@@ -525,12 +537,17 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
      */
     public boolean isDrumControllerApplicable ()
     {
-        final boolean modelAligned = isDrumModelAligned (
+        final boolean modelDeviceReady = this.drumModelDeviceReady.getAsBoolean ();
+        return isDrumControllerApplicable (this.isDrumControllerTarget (), this.isDrumModelAligned (), modelDeviceReady);
+    }
+
+
+    private boolean isDrumModelAligned ()
+    {
+        return isDrumModelAligned (
             this.drumModelTrack.doesExist (),
             this.selectedTrackNoteTarget.getChannelID (),
             this.drumModelTrack.getChannelID ());
-        final boolean modelDeviceReady = this.drumModelDeviceReady.getAsBoolean ();
-        return isDrumControllerApplicable (this.isDrumControllerTarget (), modelAligned, modelDeviceReady);
     }
 
 

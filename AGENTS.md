@@ -28,6 +28,15 @@
   requests. Do not target `git-moss/DrivenByMoss` or interpret its current diff as the Pull review
   surface unless the user explicitly asks for an upstream contribution or resynchronization.
 
+## Worktree lifecycle
+
+- Perform every feature change and other write operation in its own dedicated worktree; only
+  read-only inspection may use the main checkout. Keep that checkout clean on `master` and
+  fast-forwarded to `origin/master` as the shared synchronization point for concurrent work.
+- After a pull request merges or its work is explicitly abandoned, require a clean worktree,
+  remove it without force, and delete its local branch with a non-forcing delete. Never discard a
+  dirty worktree during cleanup.
+
 ## Active findings
 
 - Before architectural work, inspect `docs/findings/`; update or delete any finding whose removal

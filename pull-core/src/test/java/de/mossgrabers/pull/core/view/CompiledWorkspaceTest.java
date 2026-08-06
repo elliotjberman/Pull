@@ -209,6 +209,11 @@ class CompiledWorkspaceTest
             new ControllerInputEvent (1, 1, firstKnob, InputKind.RELATIVE, InputPhase.UPDATE, 3),
             parameterSnapshot ());
         assertEquals (List.of (new AdjustParameterValueEffect (PROJECT_TARGET, 30)), adjusted.effects ());
+
+        final CoreResult decreased = workspace.handle (
+            new ControllerInputEvent (2, 2, firstKnob, InputKind.RELATIVE, InputPhase.UPDATE, -2),
+            parameterSnapshot ());
+        assertEquals (List.of (new AdjustParameterValueEffect (PROJECT_TARGET, -20)), decreased.effects ());
     }
 
 
