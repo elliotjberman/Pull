@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 public class Push2Display extends AbstractGraphicDisplay
 {
     private final PushUsbDisplay usbDisplay;
+    private final PushDebugCaptureHost debugCapture;
     private boolean              isShutdown = false;
 
 
@@ -39,6 +40,7 @@ public class Push2Display extends AbstractGraphicDisplay
         super (host, configuration, new DefaultGraphicsDimensions (960, 160, maxParameterValue), "Push 2 Display");
 
         this.usbDisplay = new PushUsbDisplay (host);
+        this.debugCapture = new PushDebugCaptureHost ();
     }
 
 
@@ -60,6 +62,7 @@ public class Push2Display extends AbstractGraphicDisplay
         this.send ();
 
         this.isShutdown = true;
+        this.debugCapture.close ();
 
         final ExecutorService executor = Executors.newSingleThreadExecutor ();
         executor.execute ( () -> {
@@ -86,6 +89,7 @@ public class Push2Display extends AbstractGraphicDisplay
     @Override
     protected void send (final IBitmap image)
     {
+        this.debugCapture.capturePending (image);
         if (!this.isShutdown && this.usbDisplay != null)
             this.usbDisplay.send (image);
     }

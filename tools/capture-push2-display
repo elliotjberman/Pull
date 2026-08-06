@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+debug_dir="${HOME}/.drivenbymoss/pull/debug"
+navigation_request_path="${debug_dir}/navigate-request.txt"
+navigation_status_path="${debug_dir}/navigate-status.txt"
+capture_request_path="${debug_dir}/capture-request.txt"
+capture_status_path="${debug_dir}/capture-status.txt"
+lock_dir="${debug_dir}/client.lock"
+
+usage()
+{
+    echo "Usage: $0 [mix|master|project-macros|session]" >&2
+}
+
+if (( $# > 1 ))
+then
+    usage
+    exit 2
+fi
+
+target="${1:-}"
+case "$target" in
+    ""|mix|master|project-macros|session)
+        ;;
+    *)
+        usage
+        exit 2
+        ;;
+esac
+
+mkdir -p "$debug_dir"
+if ! mkdir "$lock_dir" 2>/dev/null
+then
+    echo "Another Push debugger client is active (${lock_dir})." >&2
+    exit 3
+fi
+printf '%s\n' "$$" > "${lock_dir}/pid"
+cleanup()
+{
+    rm -f "${lock_dir}/pid"
+    rmdir "$lock_dir" 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
+request_id="$(date +%s)-$$-${RANDOM}"
+
+if [[ -n "$target" ]]
+then
+    navigation_request_temp="${navigation_request_path}.${request_id}.tmp"
+    printf '%s\t%s\n' "$request_id" "$target" > "$navigation_request_temp"
+    mv "$navigation_request_temp" "$navigation_request_path"
+
+    navigation_ready=false
+    for _ in {1..100}
+    do
+        if [[ -f "$navigation_status_path" ]]
+        then
+            IFS=$'\t' read -r status_request_id status target_name view_id mode_id workspace_active message < "$navigation_status_path" || true
+            if [[ "$status_request_id" == "$request_id" ]]
+            then
+                if [[ "$status" == "READY" ]]
+                then
+                    echo "Push navigation ready: target=${target_name} view=${view_id} mode=${mode_id} workspace=${workspace_active}" >&2
+                    navigation_ready=true
+                    break
+                fi
+                echo "Push navigation failed: ${message:-unknown error} (view=${view_id} mode=${mode_id})" >&2
+                exit 1
+            fi
+        fi
+        sleep 0.1
+    done
+
+    if [[ "$navigation_ready" != true ]]
+    then
+        echo "Timed out waiting for Bitwig to navigate the Push to ${target}." >&2
+        exit 1
+    fi
+fi
+
+capture_request_temp="${capture_request_path}.${request_id}.tmp"
+printf '%s\n' "$request_id" > "$capture_request_temp"
+mv "$capture_request_temp" "$capture_request_path"
+
+for _ in {1..100}
+do
+    if [[ -f "$capture_status_path" ]]
+    then
+        IFS=$'\t' read -r status_request_id status filename message < "$capture_status_path" || true
+        if [[ "$status_request_id" == "$request_id" ]]
+        then
+            if [[ "$status" == "READY" && -n "$filename" && -f "${debug_dir}/${filename}" ]]
+            then
+                echo "${debug_dir}/${filename}"
+                exit 0
+            fi
+            echo "Push display capture failed: ${message:-unknown error}" >&2
+            exit 1
+        fi
+    fi
+    sleep 0.1
+done
+
+echo "Timed out waiting for Bitwig to capture the Push display." >&2
+exit 1

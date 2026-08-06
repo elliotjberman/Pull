@@ -63,6 +63,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
     private ControllerRuntimeEnvironment environment;
     private CoreReloadSupervisor supervisor;
     private PushControllerInputBridge inputBridge;
+    private PushDebugNavigationHost debugNavigation;
     private Predicate<CoreEvent> eventHandler = event -> false;
     private final Set<ControlId> rawReleasedGestures = new HashSet<> ();
     private boolean started;
@@ -182,6 +183,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         this.environment.setControllerActionValidator (this.inputBridge::supports);
         this.environment.setDeferredInputRelease (this.inputBridge::releaseDeferredStableDispatches);
         this.environment.setInputLifecycleIdle (this.inputBridge::inputLifecycleIdle);
+        this.debugNavigation = new PushDebugNavigationHost (surface, this.inputBridge);
     }
 
 
@@ -194,6 +196,8 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             return;
 
         final long startedAt = System.nanoTime ();
+        if (this.debugNavigation != null)
+            this.debugNavigation.tick ();
         final boolean snapshotChanged = this.environment.refresh ();
         if (this.inputBridge != null)
         {
@@ -377,6 +381,9 @@ public final class ReloadableControllerRuntime implements AutoCloseable
 
         this.closed = true;
         this.rawReleasedGestures.clear ();
+        if (this.debugNavigation != null)
+            this.debugNavigation.close ();
+        this.debugNavigation = null;
         this.inputBridge = null;
         try
         {
