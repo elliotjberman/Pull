@@ -18,6 +18,7 @@ final class CoreReloadSupervisor implements AutoCloseable
     private final RuntimeManager runtimeManager;
     private final CoreCandidateWatcher watcher;
     private PreparedCoreCandidate activeCandidate;
+    private PreparedCoreCandidate pendingCandidate;
     private boolean started;
     private boolean closed;
 
@@ -49,7 +50,13 @@ final class CoreReloadSupervisor implements AutoCloseable
 
         this.reportWatcherNotice ();
         this.watcher.takeRejection ().ifPresent (this::acknowledgeRejection);
-        this.watcher.takeCandidate ().ifPresent (this::activate);
+        this.watcher.takeCandidate ().ifPresent (this::queueCandidate);
+        if (this.pendingCandidate != null && this.runtimeManager.canReplaceActiveCore ())
+        {
+            final PreparedCoreCandidate candidate = this.pendingCandidate;
+            this.pendingCandidate = null;
+            this.activate (candidate);
+        }
     }
 
 
@@ -103,6 +110,8 @@ final class CoreReloadSupervisor implements AutoCloseable
         }
         finally
         {
+            this.watcher.release (this.pendingCandidate);
+            this.pendingCandidate = null;
             this.activeCandidate = null;
             this.watcher.cleanup ();
             this.reportWatcherNotice ();
@@ -125,6 +134,12 @@ final class CoreReloadSupervisor implements AutoCloseable
             final ActivationResult result = this.runtimeManager.activate (candidate.buildId (), source, () -> this.watcher.isLatest (candidate.requestGeneration ()));
             if (result.state () == ActivationResult.State.SUPERSEDED)
                 return;
+            if (result.state () == ActivationResult.State.BLOCKED)
+            {
+                this.queueCandidate (candidate);
+                retained = true;
+                return;
+            }
 
             if (result.state () == ActivationResult.State.ACTIVE)
             {
@@ -148,6 +163,14 @@ final class CoreReloadSupervisor implements AutoCloseable
             if (!retained)
                 this.watcher.release (candidate);
         }
+    }
+
+
+    private void queueCandidate (final PreparedCoreCandidate candidate)
+    {
+        final PreparedCoreCandidate previous = this.pendingCandidate;
+        this.pendingCandidate = Objects.requireNonNull (candidate, "candidate");
+        this.watcher.release (previous);
     }
 
 

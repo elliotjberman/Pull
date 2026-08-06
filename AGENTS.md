@@ -90,8 +90,9 @@
   `OBSERVE` delivers to both the reloadable core and established controller behavior, and
   `EXCLUSIVE` is valid only for a migrated control whose permanent stable binding is intentionally
   semantically inert. Freeze an edge route and its active-core generation at gesture `BEGIN`
-  through `LONG` and `END`, even across a route-map change or core reload. A stale completion is
-  rejected instead of reaching either a new core or behavior that never received the press.
+  through `LONG` and `END`, even across a route-map change. Do not replace the active core until the
+  input router has no active gesture, queued motion, or deferred stable callback; a replacement must
+  never receive the completion of a gesture whose press belonged to the previous generation.
 - Install input arbitration once, below button consumed-state handling and below any continuous
   command/parameter rebinding. Never add a second MIDI or hardware callback to observe a migrated
   input. Coalesce relative motion by summing deltas and absolute/pressure motion by keeping the
@@ -127,17 +128,23 @@
   Recheck live selected-track identity before applying selected-track effects. For drum-pad
   effects, also fence the device ID, bank base MIDI note, pad channel ID, and alignment between the
   private selected target and rendering model cursor; fail closed if any identity changed.
+- An `IParameter` wrapper is not a semantic target identity. Cursor remote-control wrappers survive
+  selected-owner and page changes. Fence mutable parameter actuators by their live domain, owner,
+  page, and slot/role at prepare and apply time; exclude an unclassified Bitwig parameter proxy
+  rather than leasing it by Java object identity.
 - Do not imply that eager proxy/interested-value setup covers arbitrary project state. Bitwig proxy
   topology is initialization-owned, bank windows are finite, and projects are unbounded; a feature
   outside the installed canopy still requires a shell/API change and Bitwig restart.
 - A core-only change inside the installed API/canopy hot reloads. Changing a parent-loaded API
   contract, adding a Bitwig proxy/property/observer, changing a permanent binding or proxy capacity,
   or broadening hardware output ownership requires a shell build/install and Bitwig restart.
-- Core API 13 arbitrates general input, complete fixed-facet workspace selection, and bounded
-  parameter-target leases, including the
-  declared Session bank shape, so mappings whose state and effects are already bridged belong in
-  the reloadable core. Only the 12 drum-fill
-  RGB lights have migrated direct output ownership; workspace facets still use generic stable
+- Core API 14 arbitrates general input, complete fixed-facet workspace selection, semantic action
+  intent, named bounded parameter banks, and exact parameter-target leases, including the declared
+  Session bank shape. Project-macro encoder turns are the reference parameter migration: core owns
+  the mapping, relative effect, and snapback policy while stable owns Bitwig proxies, identity
+  validation, read-back, and effect execution. Mappings whose state and effects are already bridged
+  belong in the reloadable core. Only the 12 drum-fill RGB lights have migrated direct output
+  ownership; workspace facets still use generic stable
   adapters for inherited Bitwig/DrivenByMoss mechanics. Do not claim general Push light or display
   hot reload until stable complete-output arbitration exists for those surfaces.
 

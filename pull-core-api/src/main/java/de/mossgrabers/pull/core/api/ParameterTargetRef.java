@@ -9,21 +9,21 @@ import java.util.Objects;
 /**
  * Opaque parameter identity and generation of its current stable actuator.
  *
- * @param domain Stable target domain
- * @param identity Opaque identity within the domain
+ * @param kind Stable target kind
+ * @param identity Opaque identity within the target kind
  * @param generation Monotonic actuator generation
  */
-public record ParameterTargetRef (String domain, String identity, long generation)
+public record ParameterTargetRef (ParameterTargetKind kind, String identity, long generation)
 {
     /**
      * Validate the target reference.
      */
     public ParameterTargetRef
     {
-        domain = Objects.requireNonNull (domain, "domain").strip ();
+        kind = Objects.requireNonNull (kind, "kind");
         identity = Objects.requireNonNull (identity, "identity").strip ();
-        if (domain.isEmpty () || identity.isEmpty ())
-            throw new IllegalArgumentException ("parameter target domain and identity must not be blank");
+        if (identity.isEmpty ())
+            throw new IllegalArgumentException ("parameter target identity must not be blank");
         if (generation < 0)
             throw new IllegalArgumentException ("parameter target generation must not be negative");
     }

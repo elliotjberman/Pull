@@ -26,7 +26,11 @@ import java.util.Set;
 public enum SurfaceArea
 {
     /** Eight top encoders, including turn and touch input. */
-    ENCODERS (range (ElementType.ENCODER, 0, 8), continuousControls ("KNOB", 8), Set.of (InputKind.RELATIVE, InputKind.TOUCH)),
+    ENCODERS (union (range (ElementType.ENCODER_TURN, 0, 8), range (ElementType.ENCODER_TOUCH, 0, 8)), continuousControls ("KNOB", 8), Set.of (InputKind.RELATIVE, InputKind.TOUCH)),
+    /** Relative turn input from the eight top encoders. */
+    ENCODER_TURNS (range (ElementType.ENCODER_TURN, 0, 8), continuousControls ("KNOB", 8), Set.of (InputKind.RELATIVE)),
+    /** Touch input from the eight top encoders. */
+    ENCODER_TOUCHES (range (ElementType.ENCODER_TOUCH, 0, 8), continuousControls ("KNOB", 8), Set.of (InputKind.TOUCH)),
     /** Eight parameter cells aligned with the top encoders. */
     DISPLAY_PARAMETERS (range (ElementType.DISPLAY_PARAMETER, 0, 8), Set.of (), Set.of ()),
     /** Eight lower display cells aligned with the lower soft keys. */
@@ -57,6 +61,10 @@ public enum SurfaceArea
     NAVIGATION_OCTAVE (range (ElementType.BUTTON, 306, 2), namedButtonControls ("OCTAVE_DOWN", "OCTAVE_UP"), Set.of (InputKind.BUTTON)),
     /** Touch strip input and output mode. */
     TOUCH_STRIP (range (ElementType.CONTINUOUS, 0, 1), Set.of (PushControlIds.continuous ("TOUCHSTRIP")), Set.of (InputKind.ABSOLUTE, InputKind.TOUCH)),
+    /** Dedicated tempo encoder. */
+    TEMPO_ENCODER (range (ElementType.CONTINUOUS, 1, 1), Set.of (PushControlIds.continuous ("TEMPO")), Set.of (InputKind.RELATIVE, InputKind.TOUCH)),
+    /** Dedicated master encoder while it addresses master volume. */
+    MASTER_ENCODER (range (ElementType.CONTINUOUS, 2, 1), Set.of (PushControlIds.continuous ("MASTER_KNOB")), Set.of (InputKind.RELATIVE, InputKind.TOUCH)),
     /** Aggregate pressure shared by the complete pad grid. */
     GRID_CHANNEL_PRESSURE (range (ElementType.GRID_PRESSURE, 0, 1), Set.of (PushControlIds.CHANNEL_PRESSURE), Set.of (InputKind.CHANNEL_PRESSURE)),
     /** Push Record button. */
@@ -151,6 +159,16 @@ public enum SurfaceArea
     }
 
 
+    @SafeVarargs
+    private static Set<HardwareElement> union (final Set<HardwareElement>... sets)
+    {
+        final Set<HardwareElement> elements = new LinkedHashSet<> ();
+        for (final Set<HardwareElement> set: sets)
+            elements.addAll (set);
+        return elements;
+    }
+
+
     private static Set<HardwareElement> gridRectangle (final int left, final int bottom, final int width, final int height)
     {
         final Set<HardwareElement> elements = new LinkedHashSet<> ();
@@ -206,7 +224,8 @@ public enum SurfaceArea
     {
         BUTTON,
         CONTINUOUS,
-        ENCODER,
+        ENCODER_TURN,
+        ENCODER_TOUCH,
         GRID_PAD,
         GRID_PRESSURE,
         DISPLAY_PARAMETER,

@@ -69,8 +69,8 @@ class PullCoreProviderTest
             Map.entry (CoreCapabilities.EFFECT_SELECTED_TRACK, Integer.valueOf (2)),
             Map.entry (CoreCapabilities.EFFECT_DRUM_PAD, Integer.valueOf (1)),
             Map.entry (CoreCapabilities.EFFECT_NOTE_INPUT_MIDI, Integer.valueOf (2)),
-            Map.entry (CoreCapabilities.SNAPSHOT_PARAMETER_TARGETS, Integer.valueOf (1)),
-            Map.entry (CoreCapabilities.EFFECT_PARAMETER_TARGET, Integer.valueOf (1))), required);
+            Map.entry (CoreCapabilities.SNAPSHOT_PARAMETER_TARGETS, Integer.valueOf (2)),
+            Map.entry (CoreCapabilities.EFFECT_PARAMETER_TARGET, Integer.valueOf (2))), required);
     }
 
 

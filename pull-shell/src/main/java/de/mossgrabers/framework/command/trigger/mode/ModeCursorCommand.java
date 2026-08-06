@@ -99,6 +99,17 @@ public class ModeCursorCommand<S extends IControlSurface<C>, C extends Configura
     }
 
 
+    /**
+     * Get the semantic direction selected when this command was bound.
+     *
+     * @return Direction
+     */
+    public Direction getDirection ()
+    {
+        return this.direction;
+    }
+
+
     /** {@inheritDoc} */
     @Override
     public void execute (final ButtonEvent event, final int velocity)

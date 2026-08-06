@@ -96,6 +96,30 @@ class RuntimeManagerTest
 
 
     @Test
+    void transactionOwnerRejectsReplacementUntilItsEnvironmentIsIdle ()
+    {
+        final TestEnvironment environment = new TestEnvironment (ShellCapabilities.empty ());
+        final RuntimeManager manager = new RuntimeManager (environment, new RecordingLog ());
+        manager.start ();
+        manager.activate ("stable", source ("stable", new TestCore (1)), () -> true);
+
+        environment.replacementAllowed = false;
+        final TestSource blocked = source ("blocked", new TestCore (2));
+        final ActivationResult result = manager.activate ("blocked", blocked, () -> true);
+
+        assertEquals (ActivationResult.State.BLOCKED, result.state ());
+        assertEquals ("stable", manager.activeBuildId ());
+        assertEquals (1, manager.activeGeneration ());
+        assertTrue (blocked.closed);
+
+        environment.replacementAllowed = true;
+        assertEquals (ActivationResult.State.ACTIVE, manager.activate ("replacement", source ("replacement", new TestCore (3)), () -> true).state ());
+        assertEquals ("replacement", manager.activeBuildId ());
+        manager.close ();
+    }
+
+
+    @Test
     void checkpointFailureFallsBackToAuthoritativeSnapshot ()
     {
         final RecordingLog log = new RecordingLog ();
@@ -523,6 +547,7 @@ class RuntimeManagerTest
         private boolean failNextPrepare;
         private boolean failNextCommit;
         private boolean failNextApply;
+        private boolean replacementAllowed = true;
         private LongConsumer onCommit = generation -> {
             // No observer by default.
         };
@@ -534,6 +559,13 @@ class RuntimeManagerTest
         private TestEnvironment (final ShellCapabilities capabilities)
         {
             this.capabilities = capabilities;
+        }
+
+
+        @Override
+        public boolean canReplaceActiveCore ()
+        {
+            return this.replacementAllowed;
         }
 
 

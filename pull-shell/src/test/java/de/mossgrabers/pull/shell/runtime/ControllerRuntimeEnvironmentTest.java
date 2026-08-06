@@ -15,15 +15,21 @@ import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.DesiredInputRoutes;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
+import de.mossgrabers.pull.core.api.DesiredParameterBanks;
+import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
 import de.mossgrabers.pull.core.api.InputRoute;
 import de.mossgrabers.pull.core.api.InputRouteMode;
 import de.mossgrabers.pull.core.api.PushControlIds;
+import de.mossgrabers.pull.core.api.ParameterBankId;
+import de.mossgrabers.pull.core.api.ParameterTargetKind;
+import de.mossgrabers.pull.core.api.ParameterTargetRef;
 import de.mossgrabers.pull.core.api.SessionBankShape;
 import de.mossgrabers.pull.core.api.TimerId;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchMode;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
 import de.mossgrabers.pull.core.api.effect.ClipReleaseTrigger;
+import de.mossgrabers.pull.core.api.effect.AdjustParameterValueEffect;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
@@ -55,7 +61,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Transaction, single-active fill ownership, and asynchronous read-back tests for the stable shell.
  */
-class DrumFillRuntimeEnvironmentTest
+class ControllerRuntimeEnvironmentTest
 {
     private static final RgbColor OFF = new RgbColor (0, 0, 0);
     private static final RgbColor DIM_RED = new RgbColor (127, 0, 0);
@@ -79,7 +85,7 @@ class DrumFillRuntimeEnvironmentTest
         host.arm (FIRST, FIRST_TARGET);
         host.arm (SECOND, SECOND_TARGET);
         final AtomicLong clock = new AtomicLong (100);
-        final DrumFillRuntimeEnvironment environment = new DrumFillRuntimeEnvironment (host, new RecordingLog (), clock::getAndIncrement);
+        final ControllerRuntimeEnvironment environment = new ControllerRuntimeEnvironment (host, new RecordingLog (), clock::getAndIncrement);
 
         final ControllerSnapshot initial = environment.snapshot ();
         final ControllerSnapshot secondSnapshot = environment.snapshot ();
@@ -94,6 +100,8 @@ class DrumFillRuntimeEnvironmentTest
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION));
         assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_WORKSPACE));
+        assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_PARAMETER_TARGETS));
+        assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_PARAMETER_TARGET));
         assertTrue (initial.clipLaunchSessionTargets ().isEmpty ());
         assertEquals (Optional.empty (), initial.activeClipLaunchOwner ());
 
@@ -129,9 +137,29 @@ class DrumFillRuntimeEnvironmentTest
 
 
     @Test
+    void parameterBanksRequireAnInstalledBridge ()
+    {
+        final ControllerRuntimeEnvironment environment = new ControllerRuntimeEnvironment (host (7, FIRST_TARGET), new RecordingLog ());
+        final DesiredParameterBanks banks = new DesiredParameterBanks (Set.of (ParameterBankId.PROJECT_REMOTE));
+        final CoreResult latentBank = parameterResult (DesiredBridgeSubscriptions.empty (), banks);
+        final CoreResult missingBridge = parameterResult (
+            new DesiredBridgeSubscriptions (Set.of (de.mossgrabers.pull.core.api.BridgeSubscription.PARAMETERS)),
+            banks);
+        final CoreResult unobservedEffect = parameterResult (
+            DesiredBridgeSubscriptions.empty (),
+            banks,
+            List.of (new AdjustParameterValueEffect (new ParameterTargetRef (ParameterTargetKind.LIVE, "stale", 1), 1)));
+
+        assertThrows (IllegalArgumentException.class, () -> environment.prepare (latentBank));
+        assertThrows (IllegalArgumentException.class, () -> environment.prepare (missingBridge));
+        assertThrows (IllegalArgumentException.class, () -> environment.prepare (unobservedEffect));
+    }
+
+
+    @Test
     void rejectsAWorkspaceBeforeCommitWhenNoPermanentControllerBridgeExists ()
     {
-        final DrumFillRuntimeEnvironment environment = environment (host (1));
+        final ControllerRuntimeEnvironment environment = environment (host (1));
         final DesiredControllerWorkspace workspace = new DesiredControllerWorkspace (
             "test",
             Set.of (ControllerViewFacet.PROJECT_MACRO_CONTROLS),
@@ -142,7 +170,9 @@ class DrumFillRuntimeEnvironmentTest
             DesiredBridgeSubscriptions.empty (),
             Map.of (),
             workspace,
-            de.mossgrabers.pull.core.api.DesiredParameterLeases.empty (),
+            de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
+            de.mossgrabers.pull.core.api.DesiredParameterBanks.empty (),
+            de.mossgrabers.pull.core.api.DesiredParameterInteraction.empty (),
             List.of ());
 
         assertThrows (IllegalArgumentException.class, () -> environment.prepare (result));
@@ -155,7 +185,7 @@ class DrumFillRuntimeEnvironmentTest
     {
         final FakeClipHost host = host (4, FIRST_TARGET, SECOND_TARGET);
         host.arm (FIRST, FIRST_TARGET);
-        final DrumFillRuntimeEnvironment environment = environment (host);
+        final ControllerRuntimeEnvironment environment = environment (host);
         environment.setFillPressed (FIRST, true);
 
         assertThrows (IllegalArgumentException.class, () -> environment.prepare (pressResult (3, FIRST, FIRST_TARGET)));
@@ -172,7 +202,7 @@ class DrumFillRuntimeEnvironmentTest
         final FakeClipHost host = host (5, FIRST_TARGET, SECOND_TARGET);
         host.arm (FIRST, FIRST_TARGET);
         host.arm (SECOND, SECOND_TARGET);
-        final DrumFillRuntimeEnvironment environment = environment (host);
+        final ControllerRuntimeEnvironment environment = environment (host);
         environment.setFillPressed (FIRST, true);
         commitAndApply (environment, 1, pressResult (5, FIRST, FIRST_TARGET));
         assertEquals (1, host.target (FIRST).prepareCount);
@@ -237,7 +267,7 @@ class DrumFillRuntimeEnvironmentTest
         host.arm (FIRST, FIRST_TARGET);
         host.arm (SECOND, SECOND_TARGET);
         host.arm (THIRD, THIRD_TARGET);
-        final DrumFillRuntimeEnvironment environment = environment (host);
+        final ControllerRuntimeEnvironment environment = environment (host);
         environment.setFillPressed (FIRST, true);
         commitAndApply (environment, 1, pressResult (5, FIRST, FIRST_TARGET));
         acknowledgeLaunch (host, environment, FIRST);
@@ -276,7 +306,7 @@ class DrumFillRuntimeEnvironmentTest
         final FakeClipHost host = host (5, FIRST_TARGET, SECOND_TARGET);
         host.arm (FIRST, FIRST_TARGET);
         host.arm (SECOND, SECOND_TARGET);
-        final DrumFillRuntimeEnvironment environment = environment (host);
+        final ControllerRuntimeEnvironment environment = environment (host);
         environment.setFillPressed (FIRST, true);
         commitAndApply (environment, 1, pressResult (5, FIRST, FIRST_TARGET));
         acknowledgeLaunch (host, environment, FIRST);
@@ -306,7 +336,7 @@ class DrumFillRuntimeEnvironmentTest
         final FakeClipHost host = host (5, FIRST_TARGET, SECOND_TARGET);
         host.arm (FIRST, FIRST_TARGET);
         host.arm (SECOND, SECOND_TARGET);
-        final DrumFillRuntimeEnvironment environment = environment (host);
+        final ControllerRuntimeEnvironment environment = environment (host);
         environment.setFillPressed (FIRST, true);
         commitAndApply (environment, 1, pressResult (5, FIRST, FIRST_TARGET));
 
@@ -345,7 +375,7 @@ class DrumFillRuntimeEnvironmentTest
         host.arm (FIRST, FIRST_TARGET);
         host.arm (SECOND, SECOND_TARGET);
         final RecordingLog log = new RecordingLog ();
-        final DrumFillRuntimeEnvironment environment = new DrumFillRuntimeEnvironment (host, log, () -> 0);
+        final ControllerRuntimeEnvironment environment = new ControllerRuntimeEnvironment (host, log, () -> 0);
         environment.setFillPressed (FIRST, true);
         commitAndApply (environment, 1, pressResult (1, FIRST, FIRST_TARGET));
         acknowledgeLaunch (host, environment, FIRST);
@@ -386,7 +416,7 @@ class DrumFillRuntimeEnvironmentTest
         host.arm (FIRST, FIRST_TARGET);
         host.arm (SECOND, SECOND_TARGET);
         final RecordingLog log = new RecordingLog ();
-        final DrumFillRuntimeEnvironment environment = new DrumFillRuntimeEnvironment (host, log, () -> 0);
+        final ControllerRuntimeEnvironment environment = new ControllerRuntimeEnvironment (host, log, () -> 0);
         environment.setFillPressed (FIRST, true);
         commitAndApply (environment, 1, pressResult (1, FIRST, FIRST_TARGET));
         acknowledgeLaunch (host, environment, FIRST);
@@ -416,7 +446,7 @@ class DrumFillRuntimeEnvironmentTest
     {
         final FakeClipHost host = host (5, FIRST_TARGET);
         host.arm (FIRST, FIRST_TARGET);
-        final DrumFillRuntimeEnvironment environment = environment (host);
+        final ControllerRuntimeEnvironment environment = environment (host);
         environment.setFillPressed (FIRST, true);
         commitAndApply (environment, 1, pressResult (5, FIRST, FIRST_TARGET));
         assertEquals (Optional.empty (), environment.snapshot ().activeClipLaunchOwner ());
@@ -437,7 +467,7 @@ class DrumFillRuntimeEnvironmentTest
     {
         final FakeClipHost host = host (5, FIRST_TARGET);
         host.arm (FIRST, FIRST_TARGET);
-        final DrumFillRuntimeEnvironment environment = environment (host);
+        final ControllerRuntimeEnvironment environment = environment (host);
         environment.setFillPressed (FIRST, true);
         commitAndApply (environment, 1, result (
             Map.of (FIRST, DIM_RED),
@@ -472,7 +502,7 @@ class DrumFillRuntimeEnvironmentTest
     {
         final FakeClipHost host = host (1, FIRST_TARGET, SECOND_TARGET);
         host.arm (FIRST, FIRST_TARGET);
-        final DrumFillRuntimeEnvironment environment = environment (host);
+        final ControllerRuntimeEnvironment environment = environment (host);
         environment.setFillPressed (FIRST, true);
         final PreparedCoreResult prepared = environment.prepare (pressResult (1, FIRST, FIRST_TARGET));
         environment.commit (8, prepared);
@@ -493,7 +523,7 @@ class DrumFillRuntimeEnvironmentTest
     {
         final FakeClipHost host = host (1, FIRST_TARGET, SECOND_TARGET);
         host.arm (FIRST, FIRST_TARGET);
-        final DrumFillRuntimeEnvironment environment = environment (host);
+        final ControllerRuntimeEnvironment environment = environment (host);
         environment.setFillPressed (FIRST, true);
         final ControlId unknown = new ControlId ("unknown.control");
 
@@ -518,7 +548,7 @@ class DrumFillRuntimeEnvironmentTest
         final FakeClipHost host = host (1, FIRST_TARGET, SECOND_TARGET);
         host.arm (FIRST, FIRST_TARGET);
         host.arm (SECOND, SECOND_TARGET);
-        final DrumFillRuntimeEnvironment environment = environment (host);
+        final ControllerRuntimeEnvironment environment = environment (host);
         environment.setFillPressed (FIRST, true);
         commitAndApply (environment, 1, pressResult (1, FIRST, FIRST_TARGET));
         environment.setFillPressed (SECOND, true);
@@ -540,7 +570,7 @@ class DrumFillRuntimeEnvironmentTest
         host.arm (FIRST, FIRST_TARGET);
         host.target (FIRST).failPressAfterApply = true;
         final RecordingLog log = new RecordingLog ();
-        final DrumFillRuntimeEnvironment environment = new DrumFillRuntimeEnvironment (host, log, () -> 0);
+        final ControllerRuntimeEnvironment environment = new ControllerRuntimeEnvironment (host, log, () -> 0);
         environment.setFillPressed (FIRST, true);
 
         commitAndApply (environment, 1, pressResult (1, FIRST, FIRST_TARGET));
@@ -571,7 +601,7 @@ class DrumFillRuntimeEnvironmentTest
         final FakeClipHost host = host (1, FIRST_TARGET, SECOND_TARGET);
         host.arm (FIRST, FIRST_TARGET);
         host.arm (SECOND, SECOND_TARGET);
-        final DrumFillRuntimeEnvironment environment = environment (host);
+        final ControllerRuntimeEnvironment environment = environment (host);
         environment.setFillPressed (FIRST, true);
         commitAndApply (environment, 4, pressResult (1, FIRST, FIRST_TARGET));
         acknowledgeLaunch (host, environment, FIRST);
@@ -605,7 +635,7 @@ class DrumFillRuntimeEnvironmentTest
     {
         final FakeClipHost host = host (1, FIRST_TARGET);
         host.arm (FIRST, FIRST_TARGET);
-        final DrumFillRuntimeEnvironment environment = environment (host);
+        final ControllerRuntimeEnvironment environment = environment (host);
         environment.setFillPressed (FIRST, true);
         commitAndApply (environment, 1, pressResult (1, FIRST, FIRST_TARGET));
         assertEquals (0, host.target (FIRST).releaseCount);
@@ -622,7 +652,7 @@ class DrumFillRuntimeEnvironmentTest
     @Test
     void routeValidationRejectsControlsOutsideTheInstalledPhysicalCanopy ()
     {
-        final DrumFillRuntimeEnvironment environment = environment (host (1));
+        final ControllerRuntimeEnvironment environment = environment (host (1));
         final ControlId play = PushControlIds.button ("PLAY");
         final ControlId unknown = new ControlId ("push.button.not-installed");
         environment.setInputRouteValidator (route -> route.controlId ().equals (play) && route.kind () == InputKind.BUTTON);
@@ -638,7 +668,7 @@ class DrumFillRuntimeEnvironmentTest
     @Test
     void committedInputRoutesAreACompleteReplayableReplacement ()
     {
-        final DrumFillRuntimeEnvironment environment = environment (host (1));
+        final ControllerRuntimeEnvironment environment = environment (host (1));
         final ControlId play = PushControlIds.button ("PLAY");
         final ControlId stop = PushControlIds.button ("STOP");
         environment.setInputRouteValidator (route -> route.kind () == InputKind.BUTTON && (route.controlId ().equals (play) || route.controlId ().equals (stop)));
@@ -666,7 +696,7 @@ class DrumFillRuntimeEnvironmentTest
     @Test
     void genericGesturePhasesUpdatePressedAndTouchedSnapshotsUsingOneGlobalSequence ()
     {
-        final DrumFillRuntimeEnvironment environment = environment (host (1));
+        final ControllerRuntimeEnvironment environment = environment (host (1));
         final ControlId play = PushControlIds.button ("PLAY");
         final ControlId knob = PushControlIds.continuous ("KNOB1");
 
@@ -700,9 +730,9 @@ class DrumFillRuntimeEnvironmentTest
     }
 
 
-    private static DrumFillRuntimeEnvironment environment (final FakeClipHost host)
+    private static ControllerRuntimeEnvironment environment (final FakeClipHost host)
     {
-        return new DrumFillRuntimeEnvironment (host, new RecordingLog (), () -> 0);
+        return new ControllerRuntimeEnvironment (host, new RecordingLog (), () -> 0);
     }
 
 
@@ -741,7 +771,30 @@ class DrumFillRuntimeEnvironmentTest
             DesiredBridgeSubscriptions.empty (),
             bindings,
             DesiredControllerWorkspace.empty (),
-            de.mossgrabers.pull.core.api.DesiredParameterLeases.empty (),
+            de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
+            de.mossgrabers.pull.core.api.DesiredParameterBanks.empty (),
+            de.mossgrabers.pull.core.api.DesiredParameterInteraction.empty (),
+            effects);
+    }
+
+
+    private static CoreResult parameterResult (final DesiredBridgeSubscriptions subscriptions, final DesiredParameterBanks banks)
+    {
+        return parameterResult (subscriptions, banks, List.of ());
+    }
+
+
+    private static CoreResult parameterResult (final DesiredBridgeSubscriptions subscriptions, final DesiredParameterBanks banks, final List<CoreEffect> effects)
+    {
+        return new CoreResult (
+            DesiredHardwareOutput.empty (),
+            DesiredInputRoutes.empty (),
+            subscriptions,
+            Map.of (),
+            DesiredControllerWorkspace.empty (),
+            de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
+            banks,
+            DesiredParameterInteraction.empty (),
             effects);
     }
 
@@ -754,26 +807,28 @@ class DrumFillRuntimeEnvironmentTest
             DesiredBridgeSubscriptions.empty (),
             Map.of (),
             DesiredControllerWorkspace.empty (),
-            de.mossgrabers.pull.core.api.DesiredParameterLeases.empty (),
+            de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
+            de.mossgrabers.pull.core.api.DesiredParameterBanks.empty (),
+            de.mossgrabers.pull.core.api.DesiredParameterInteraction.empty (),
             List.of ());
     }
 
 
-    private static void commitAndApply (final DrumFillRuntimeEnvironment environment, final long generation, final CoreResult result)
+    private static void commitAndApply (final ControllerRuntimeEnvironment environment, final long generation, final CoreResult result)
     {
         environment.commit (generation, environment.prepare (result));
         environment.apply (generation);
     }
 
 
-    private static void acknowledgeLaunch (final FakeClipHost host, final DrumFillRuntimeEnvironment environment, final ControlId owner)
+    private static void acknowledgeLaunch (final FakeClipHost host, final ControllerRuntimeEnvironment environment, final ControlId owner)
     {
         host.advanceLaunch (owner);
         environment.refresh ();
     }
 
 
-    private static void acknowledgeReturn (final FakeClipHost host, final DrumFillRuntimeEnvironment environment, final ControlId owner)
+    private static void acknowledgeReturn (final FakeClipHost host, final ControllerRuntimeEnvironment environment, final ControlId owner)
     {
         host.advanceReturn (owner);
         environment.refresh ();

@@ -30,9 +30,11 @@ import de.mossgrabers.framework.daw.midi.SelectedTrackNoteTargetSnapshot;
 import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
-import de.mossgrabers.pull.core.api.DesiredParameterLeases;
+import de.mossgrabers.pull.core.api.DesiredParameterBanks;
+import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
 import de.mossgrabers.pull.core.api.DrumContextSnapshot;
 import de.mossgrabers.pull.core.api.ParameterSlot;
+import de.mossgrabers.pull.core.api.ParameterBankId;
 import de.mossgrabers.pull.core.api.ParameterTargetRef;
 import de.mossgrabers.pull.core.api.effect.SelectDrumPadEffect;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackAction;
@@ -68,19 +70,19 @@ class BoundedControllerBridgeTest
     {
         final BridgeFixture fixture = new BridgeFixture ();
 
-        assertFalse (fixture.bridge.refresh (1, DesiredBridgeSubscriptions.empty ()));
+        assertFalse (fixture.bridge.refresh (1, DesiredBridgeSubscriptions.empty (), DesiredParameterBanks.empty ()));
         assertEquals (ControllerBridgeSnapshot.empty (), fixture.bridge.snapshot ());
         assertEquals (0, fixture.selected.snapshotCount);
         assertEquals (0, fixture.transport.snapshotReadCount);
 
-        assertTrue (fixture.bridge.refresh (2, subscriptions (BridgeSubscription.TRANSPORT, BridgeSubscription.SELECTED_TRACK)));
+        assertTrue (fixture.bridge.refresh (2, subscriptions (BridgeSubscription.TRANSPORT, BridgeSubscription.SELECTED_TRACK), DesiredParameterBanks.empty ()));
         assertTrue (fixture.bridge.snapshot ().transport ().available ());
         assertTrue (fixture.bridge.snapshot ().selectedTrack ().exists ());
         assertEquals (1, fixture.selected.snapshotCount);
         assertTrue (fixture.transport.snapshotReadCount > 0);
 
         final int transportReads = fixture.transport.snapshotReadCount;
-        assertTrue (fixture.bridge.refresh (3, DesiredBridgeSubscriptions.empty ()));
+        assertTrue (fixture.bridge.refresh (3, DesiredBridgeSubscriptions.empty (), DesiredParameterBanks.empty ()));
         assertEquals (ControllerBridgeSnapshot.empty (), fixture.bridge.snapshot ());
         assertEquals (1, fixture.selected.snapshotCount);
         assertEquals (transportReads, fixture.transport.snapshotReadCount);
@@ -111,12 +113,14 @@ class BoundedControllerBridgeTest
     void commitsExactParameterLeasesIntoTheImmediateHotReloadSnapshot ()
     {
         final BridgeFixture fixture = new BridgeFixture ();
-        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.PARAMETERS));
+        final DesiredParameterBanks parameterBanks = new DesiredParameterBanks (Set.of (ParameterBankId.GLOBAL));
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.PARAMETERS), parameterBanks);
         final ParameterTargetRef tempo = fixture.bridge.snapshot ().parameters ().slots ().get (ParameterSlot.TEMPO).target ();
-        final Map<ParameterTargetRef, ParameterTargetHost.RetainedTarget> prepared = fixture.bridge.prepareParameterLeases (new DesiredParameterLeases (Map.of (tempo, 120.0)));
-        final BoundedControllerBridge.PreparedAction restore = fixture.bridge.prepare (new SetParameterValueEffect (tempo, 98), prepared);
+        final DesiredParameterInteraction interaction = new DesiredParameterInteraction (1, false, Map.of (tempo, 120.0), Set.of (), Set.of (), 0);
+        final Map<ParameterTargetRef, ControllerBridge.ParameterLease> prepared = fixture.bridge.prepareParameterLeases (interaction, parameterBanks);
+        final ControllerBridge.PreparedAction restore = fixture.bridge.prepare (new SetParameterValueEffect (tempo, 98), prepared);
 
-        assertTrue (fixture.bridge.applyParameterLeases (prepared, true));
+        assertTrue (fixture.bridge.applyParameterLeases (prepared, parameterBanks));
         assertEquals (Map.of (tempo, 120.0), fixture.bridge.snapshot ().parameters ().retainedBaselines ());
         fixture.bridge.apply (restore);
         assertEquals (98, fixture.transport.tempo);
@@ -127,8 +131,8 @@ class BoundedControllerBridgeTest
     void rejectsPreparedSelectedTrackActionAfterTargetHandoff ()
     {
         final BridgeFixture fixture = new BridgeFixture ();
-        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.SELECTED_TRACK));
-        final BoundedControllerBridge.PreparedAction prepared = fixture.bridge.prepare (
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.SELECTED_TRACK), DesiredParameterBanks.empty ());
+        final ControllerBridge.PreparedAction prepared = fixture.bridge.prepare (
             new SetSelectedTrackBooleanEffect (1, "track-a", SelectedTrackBoolean.RECORD_ARMED, true));
 
         fixture.selected.switchTo (2, "track-b");
@@ -142,7 +146,7 @@ class BoundedControllerBridgeTest
     void createsANewClipThroughTheDisplayIndependentSelectedTrackAction ()
     {
         final BridgeFixture fixture = new BridgeFixture ();
-        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.SELECTED_TRACK));
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.SELECTED_TRACK), DesiredParameterBanks.empty ());
 
         fixture.bridge.apply (fixture.bridge.prepare (
             new SelectedTrackActionEffect (1, "track-a", SelectedTrackAction.CREATE_NEW_CLIP)));
@@ -155,9 +159,9 @@ class BoundedControllerBridgeTest
     void rechecksDrumDeviceBankAndPadIdentityAtApplyTime ()
     {
         final BridgeFixture fixture = new BridgeFixture ();
-        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.DRUM_PADS));
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.DRUM_PADS), DesiredParameterBanks.empty ());
         final DrumContextSnapshot drum = fixture.bridge.snapshot ().drum ();
-        final BoundedControllerBridge.PreparedAction prepared = fixture.bridge.prepare (
+        final ControllerBridge.PreparedAction prepared = fixture.bridge.prepare (
             new SelectDrumPadEffect (drum.generation (), drum.targetChannelId (), 0));
 
         fixture.drum.deviceID = "device-b";
@@ -180,7 +184,7 @@ class BoundedControllerBridgeTest
     void neutralizesEveryStatefulMidiFamilyOnCoreHandoff ()
     {
         final BridgeFixture fixture = new BridgeFixture ();
-        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.SELECTED_TRACK));
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.SELECTED_TRACK), DesiredParameterBanks.empty ());
         fixture.bridge.activateCoreGeneration (1);
 
         applyMidi (fixture, 0xB3, 74, 99);
@@ -203,11 +207,11 @@ class BoundedControllerBridgeTest
     void neutralizesStatefulMidiWhenTheSelectedTargetChanges ()
     {
         final BridgeFixture fixture = new BridgeFixture ();
-        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.SELECTED_TRACK));
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.SELECTED_TRACK), DesiredParameterBanks.empty ());
         applyMidi (fixture, 0xB1, 1, 127);
 
         fixture.selected.switchTo (2, "track-b");
-        fixture.bridge.refresh (2, DesiredBridgeSubscriptions.empty ());
+        fixture.bridge.refresh (2, DesiredBridgeSubscriptions.empty (), DesiredParameterBanks.empty ());
 
         assertEquals (List.of (
             new MidiMessage (0xB1, 1, 127),

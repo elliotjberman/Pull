@@ -20,6 +20,17 @@ interface CoreRuntimeEnvironment
 
 
     /**
+     * Test whether replacing the active core would preserve every admitted semantic transaction.
+     *
+     * @return True when a candidate may activate now
+     */
+    default boolean canReplaceActiveCore ()
+    {
+        return true;
+    }
+
+
+    /**
      * Validate and resolve a result without changing shell or hardware state.
      *
      * @param result The candidate result

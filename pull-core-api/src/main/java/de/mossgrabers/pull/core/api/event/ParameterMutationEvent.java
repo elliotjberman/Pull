@@ -4,7 +4,6 @@
 package de.mossgrabers.pull.core.api.event;
 
 import de.mossgrabers.pull.core.api.ControlId;
-import de.mossgrabers.pull.core.api.ParameterSlot;
 import de.mossgrabers.pull.core.api.ParameterTargetSnapshot;
 
 import java.util.Objects;
@@ -16,10 +15,9 @@ import java.util.Objects;
  * @param sequence Monotonic shell event sequence
  * @param monotonicTimeNanos Shell-monotonic event time
  * @param controlId Physical control selected by the active view
- * @param slot View-independent parameter slot
  * @param target Authoritative target state before mutation
  */
-public record ParameterMutationEvent (long sequence, long monotonicTimeNanos, ControlId controlId, ParameterSlot slot, ParameterTargetSnapshot target) implements CoreEvent
+public record ParameterMutationEvent (long sequence, long monotonicTimeNanos, ControlId controlId, ParameterTargetSnapshot target) implements CoreEvent
 {
     /**
      * Validate the event.
@@ -31,7 +29,6 @@ public record ParameterMutationEvent (long sequence, long monotonicTimeNanos, Co
         if (monotonicTimeNanos < 0)
             throw new IllegalArgumentException ("monotonicTimeNanos must not be negative");
         controlId = Objects.requireNonNull (controlId, "controlId");
-        slot = Objects.requireNonNull (slot, "slot");
         target = Objects.requireNonNull (target, "target");
     }
 }

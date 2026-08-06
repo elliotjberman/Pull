@@ -8,7 +8,11 @@ import de.mossgrabers.pull.core.api.CatalogClip;
 import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
+import de.mossgrabers.pull.core.api.ControllerActionBinding;
+import de.mossgrabers.pull.core.api.ControllerActionId;
+import de.mossgrabers.pull.core.api.ControllerActionIntent;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
+import de.mossgrabers.pull.core.api.ControllerStateScope;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.CoreApi;
 import de.mossgrabers.pull.core.api.CoreCapabilities;
@@ -17,10 +21,18 @@ import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredInputRoutes;
+import de.mossgrabers.pull.core.api.DesiredControllerActions;
+import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
+import de.mossgrabers.pull.core.api.DesiredParameterBanks;
 import de.mossgrabers.pull.core.api.GridPressureConfiguration;
 import de.mossgrabers.pull.core.api.InputRoute;
 import de.mossgrabers.pull.core.api.InputRouteMode;
 import de.mossgrabers.pull.core.api.PushControlIds;
+import de.mossgrabers.pull.core.api.ParameterBankId;
+import de.mossgrabers.pull.core.api.ParameterSlot;
+import de.mossgrabers.pull.core.api.ParameterTargetKind;
+import de.mossgrabers.pull.core.api.ParameterTargetRef;
+import de.mossgrabers.pull.core.api.ParameterTargetSnapshot;
 import de.mossgrabers.pull.core.api.SessionBankShape;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.StateEnvelope;
@@ -30,11 +42,14 @@ import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
 import de.mossgrabers.pull.core.api.effect.ClipReleaseTrigger;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
+import de.mossgrabers.pull.core.api.effect.AdjustParameterValueEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
+import de.mossgrabers.pull.core.api.effect.ResetParameterEffect;
 import de.mossgrabers.pull.core.api.effect.ScheduleTimerEffect;
 import de.mossgrabers.pull.core.api.effect.SendNoteInputMidiEffect;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
+import de.mossgrabers.pull.core.api.event.ControllerActionEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.event.SnapshotChangedEvent;
@@ -114,7 +129,7 @@ class CoreApiValueTest
         final Map<ControlId, ClipTargetId> desiredBindings = new HashMap<> (Map.of (control, clip.targetId ()));
         final Set<BridgeSubscription> bridgeDomains = new HashSet<> (Set.of (BridgeSubscription.SELECTED_TRACK));
         final DesiredBridgeSubscriptions bridgeSubscriptions = new DesiredBridgeSubscriptions (bridgeDomains);
-        final CoreResult result = new CoreResult (output, DesiredInputRoutes.empty (), bridgeSubscriptions, desiredBindings, DesiredControllerWorkspace.empty (), de.mossgrabers.pull.core.api.DesiredParameterLeases.empty (), effects);
+        final CoreResult result = new CoreResult (output, DesiredInputRoutes.empty (), bridgeSubscriptions, desiredBindings, DesiredControllerWorkspace.empty (), de.mossgrabers.pull.core.api.DesiredControllerActions.empty (), de.mossgrabers.pull.core.api.DesiredParameterBanks.empty (), de.mossgrabers.pull.core.api.DesiredParameterInteraction.empty (), effects);
         desiredBindings.clear ();
         bridgeDomains.clear ();
         effects.clear ();
@@ -155,7 +170,7 @@ class CoreApiValueTest
     @Test
     void publishesStableVersionCapabilityAndControlIdentifiers ()
     {
-        assertEquals (13, CoreApi.VERSION);
+        assertEquals (14, CoreApi.VERSION);
         assertEquals ("input.drum-fill", CoreCapabilities.INPUT_DRUM_FILL);
         assertEquals ("snapshot.selected-track-clips", CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS);
         assertEquals ("binding.clip-target", CoreCapabilities.BINDING_CLIP_TARGET);
@@ -217,6 +232,73 @@ class CoreApiValueTest
             Set.of (ControllerViewFacet.PROJECT_MACRO_CONTROLS),
             new SessionBankShape (8, 4)));
         assertThrows (IllegalArgumentException.class, () -> new SessionBankShape (8, 0));
+    }
+
+
+    @Test
+    void semanticActionsAndExactParameterInteractionsAreReplayableValues ()
+    {
+        final ControlId page = PushControlIds.button ("PAGE_RIGHT");
+        final ControllerActionBinding binding = new ControllerActionBinding (
+            page,
+            InputKind.BUTTON,
+            ControllerActionId.SELECT_PARAMETER_PAGE,
+            Set.of (ControllerStateScope.ACTIVE_PARAMETERS));
+        final DesiredControllerActions actions = new DesiredControllerActions (Set.of (binding));
+        final ParameterTargetRef target = new ParameterTargetRef (ParameterTargetKind.LIVE, "target", 4);
+        final DesiredParameterInteraction interaction = new DesiredParameterInteraction (
+            7,
+            false,
+            Map.of (target, 42.0),
+            Set.of (target),
+            Set.of (ControllerStateScope.ACTIVE_PARAMETERS),
+            1);
+
+        assertEquals (binding, actions.bindingOrNull (page, InputKind.BUTTON));
+        assertTrue (interaction.blocksAction (binding));
+        final ControllerActionIntent intent = binding.intent ();
+        assertTrue (interaction.blocksAction (intent));
+        assertEquals (intent, new ControllerActionEvent (4, 5, intent).intent ());
+        assertTrue (interaction.blocksMutation (target));
+        assertThrows (IllegalArgumentException.class, () -> new ControllerActionBinding (
+            PushControlIds.continuous ("KNOB1"),
+            InputKind.RELATIVE,
+            ControllerActionId.SELECT_PARAMETER_PAGE,
+            Set.of (ControllerStateScope.ACTIVE_PARAMETERS)));
+        assertThrows (IllegalArgumentException.class, () -> new DesiredParameterInteraction (
+            1,
+            false,
+            Map.of (target, 42.0),
+            Set.of (),
+            Set.of (),
+            1));
+    }
+
+
+    @Test
+    void parameterCanopyUsesNamedBanksAndAuthoritativeMetadata ()
+    {
+        final DesiredParameterBanks banks = new DesiredParameterBanks (Set.of (
+            ParameterBankId.PROJECT_REMOTE,
+            ParameterBankId.SELECTED_DEVICE_REMOTE,
+            ParameterBankId.TRACK_VOLUME,
+            ParameterBankId.TRACK_PAN,
+            ParameterBankId.GLOBAL));
+        final ParameterTargetRef target = new ParameterTargetRef (ParameterTargetKind.LIVE, "project-cutoff", 3);
+        final ParameterTargetSnapshot snapshot = new ParameterTargetSnapshot (target, "Cutoff", 64, 68, "10.2 kHz", 128, 0.5);
+
+        assertTrue (banks.includes (ParameterBankId.PROJECT_REMOTE));
+        assertEquals (ParameterBankId.PROJECT_REMOTE, ParameterSlot.projectRemote (0).bank ());
+        assertEquals (ParameterBankId.SELECTED_DEVICE_REMOTE, ParameterSlot.selectedDeviceRemote (7).bank ());
+        assertEquals ("10.2 kHz", snapshot.displayedValue ());
+        assertEquals (128, snapshot.numberOfSteps ());
+        assertEquals (3, new AdjustParameterValueEffect (target, 3).delta ());
+        assertEquals (target, new ResetParameterEffect (target).target ());
+        assertThrows (UnsupportedOperationException.class, () -> banks.banks ().clear ());
+        assertEquals (6, ParameterBankId.BANK_CAPACITY);
+        assertThrows (IllegalArgumentException.class, () -> new ParameterSlot (ParameterBankId.PROJECT_REMOTE, ParameterSlot.BANK_SIZE));
+        assertThrows (IllegalArgumentException.class, () -> new ParameterSlot (ParameterBankId.GLOBAL, ParameterSlot.GLOBAL_BANK_SIZE));
+        assertThrows (IllegalArgumentException.class, () -> new ParameterTargetSnapshot (target, "", 0, 0, "", -2, 0.5));
     }
 
 
@@ -303,7 +385,9 @@ class CoreApiValueTest
             DesiredBridgeSubscriptions.empty (),
             Map.of (),
             DesiredControllerWorkspace.empty (),
-            de.mossgrabers.pull.core.api.DesiredParameterLeases.empty (),
+            de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
+            de.mossgrabers.pull.core.api.DesiredParameterBanks.empty (),
+            de.mossgrabers.pull.core.api.DesiredParameterInteraction.empty (),
             null));
         assertThrows (IllegalArgumentException.class, () -> new SnapshotChangedEvent (-1, 0));
         assertThrows (IllegalArgumentException.class, () -> new SnapshotChangedEvent (0, -1));

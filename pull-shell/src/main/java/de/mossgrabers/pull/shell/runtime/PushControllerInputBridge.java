@@ -11,6 +11,8 @@ import de.mossgrabers.framework.controller.hardware.IHwContinuousControl;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.pull.core.api.ControlId;
+import de.mossgrabers.pull.core.api.ControllerActionIntent;
+import de.mossgrabers.pull.core.api.ControllerActionBinding;
 import de.mossgrabers.pull.core.api.DesiredInputRoutes;
 import de.mossgrabers.pull.core.api.InputRouteMode;
 import de.mossgrabers.pull.core.api.PushControlIds;
@@ -44,8 +46,7 @@ final class PushControllerInputBridge
     private static final int MIDI_CC = 0xB0;
     private static final int MIDI_CHANNEL_PRESSURE = 0xD0;
     private static final int SUSTAIN_CC = 64;
-    private static final Set<PhysicalInputAddress<ControlId>> CORE_OWNED_INPUTS = Set.of (
-        new PhysicalInputAddress<> (PushControlIds.button (ButtonID.RECORD.name ()), InputKind.BUTTON));
+    private static final Set<PhysicalInputAddress<ControlId>> CORE_OWNED_INPUTS = coreOwnedInputs ();
 
     private static final List<ContinuousID> CONTINUOUS_CONTROLS = List.of (
         ContinuousID.KNOB1,
@@ -68,6 +69,7 @@ final class PushControllerInputBridge
     private final Supplier<DesiredInputRoutes> routes;
     private final PhysicalControlRegistry<ControlId> registry;
     private final PhysicalInputRouter<ControlId> router;
+    private final StableControllerActionResolver stableActions;
 
 
     /**
@@ -77,18 +79,20 @@ final class PushControllerInputBridge
      * @param valueChanger Relative-value decoder
      * @param parameterMutations Controller parameter-mutation seam
      * @param routes Complete committed route supplier
+     * @param stableActionBarrier Semantic stable-action barrier
      * @param eventSink Normalized event sink
      * @param activeGeneration Current active reloadable-core generation
      */
-    PushControllerInputBridge (final PushControlSurface surface, final IValueChanger valueChanger, final ParameterMutationDispatcher parameterMutations, final Supplier<DesiredInputRoutes> routes, final Consumer<PhysicalInputEvent<ControlId>> eventSink, final LongSupplier activeGeneration)
+    PushControllerInputBridge (final PushControlSurface surface, final IValueChanger valueChanger, final ParameterMutationDispatcher parameterMutations, final Supplier<DesiredInputRoutes> routes, final PhysicalInputRouter.StableActionBarrier<ControlId> stableActionBarrier, final Consumer<PhysicalInputEvent<ControlId>> eventSink, final LongSupplier activeGeneration)
     {
         this.surface = Objects.requireNonNull (surface, "surface");
         this.valueChanger = Objects.requireNonNull (valueChanger, "valueChanger");
         this.parameterMutations = Objects.requireNonNull (parameterMutations, "parameterMutations");
         this.eventSink = Objects.requireNonNull (eventSink, "eventSink");
         this.routes = Objects.requireNonNull (routes, "routes");
+        this.stableActions = new StableControllerActionResolver (surface);
         this.registry = this.createRegistry ();
-        this.router = new PhysicalInputRouter<> (this.registry, this::resolveRoute, this.eventSink, System::nanoTime, Objects.requireNonNull (activeGeneration, "activeGeneration"));
+        this.router = new PhysicalInputRouter<> (this.registry, this::resolveRoute, this.eventSink, Objects.requireNonNull (stableActionBarrier, "stableActionBarrier"), System::nanoTime, Objects.requireNonNull (activeGeneration, "activeGeneration"));
         this.installWrappers ();
     }
 
@@ -102,10 +106,17 @@ final class PushControllerInputBridge
     }
 
 
-    /** Release stable input commands whose core restoration barrier has completed. */
+    /** Release stable input commands whose semantic-action barrier has completed. */
     void releaseDeferredStableDispatches ()
     {
         this.router.releaseDeferredStableDispatches ();
+    }
+
+
+    /** Test whether no physical input lifecycle crosses a core generation boundary. */
+    boolean inputLifecycleIdle ()
+    {
+        return this.router.isIdle ();
     }
 
 
@@ -123,9 +134,15 @@ final class PushControllerInputBridge
             return false;
         if (route.mode () == InputRouteMode.EXCLUSIVE)
             return CORE_OWNED_INPUTS.contains (new PhysicalInputAddress<> (route.controlId (), kind));
-        if (route.mode () == InputRouteMode.DEFER_STABLE)
-            return kind.isEdge ();
-        return route.mode () != InputRouteMode.SUPPRESS_STABLE || kind == InputKind.RELATIVE || kind == InputKind.ABSOLUTE;
+        return true;
+    }
+
+
+    /** Validate one view-owned semantic action against the fixed physical registry. */
+    boolean supports (final ControllerActionBinding action)
+    {
+        Objects.requireNonNull (action, "action");
+        return this.registry.contains (action.controlId (), toShellKind (action.inputKind ())) && action.inputKind ().isEdge ();
     }
 
 
@@ -210,7 +227,8 @@ final class PushControllerInputBridge
             button.installEventArbitrator ( (event, velocity, stableDispatch) -> {
                 if (entry.getKey () == ButtonID.SHIFT && event == ButtonEvent.UP)
                     this.router.flush ();
-                this.router.route (control, kind, toShellPhase (event), velocity, stableDispatch);
+                final ControllerActionIntent stableAction = this.stableActions.resolve (button.getCommand (), event);
+                this.router.route (control, kind, toShellPhase (event), velocity, stableAction, stableDispatch);
             });
         }
 
@@ -262,10 +280,18 @@ final class PushControllerInputBridge
         return switch (route)
         {
             case OBSERVE -> de.mossgrabers.pull.shell.input.InputRoute.OBSERVE;
-            case DEFER_STABLE -> de.mossgrabers.pull.shell.input.InputRoute.DEFER_STABLE;
-            case SUPPRESS_STABLE -> de.mossgrabers.pull.shell.input.InputRoute.SUPPRESS_STABLE;
             case EXCLUSIVE -> de.mossgrabers.pull.shell.input.InputRoute.EXCLUSIVE;
         };
+    }
+
+
+    private static Set<PhysicalInputAddress<ControlId>> coreOwnedInputs ()
+    {
+        final java.util.LinkedHashSet<PhysicalInputAddress<ControlId>> inputs = new java.util.LinkedHashSet<> ();
+        inputs.add (new PhysicalInputAddress<> (PushControlIds.button (ButtonID.RECORD.name ()), InputKind.BUTTON));
+        for (int index = 1; index <= 8; index++)
+            inputs.add (new PhysicalInputAddress<> (PushControlIds.continuous ("KNOB" + index), InputKind.RELATIVE));
+        return Set.copyOf (inputs);
     }
 
 

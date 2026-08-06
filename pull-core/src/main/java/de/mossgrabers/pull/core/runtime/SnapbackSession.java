@@ -6,12 +6,10 @@ package de.mossgrabers.pull.core.runtime;
 import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
+import de.mossgrabers.pull.core.api.ControllerStateScope;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
-import de.mossgrabers.pull.core.api.DesiredInputRoutes;
-import de.mossgrabers.pull.core.api.DesiredParameterLeases;
-import de.mossgrabers.pull.core.api.InputRoute;
-import de.mossgrabers.pull.core.api.InputRouteMode;
+import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
 import de.mossgrabers.pull.core.api.ParameterBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ParameterSlot;
 import de.mossgrabers.pull.core.api.ParameterTargetRef;
@@ -25,6 +23,7 @@ import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.event.ParameterMutationEvent;
+import de.mossgrabers.pull.core.view.ResolvedControllerAction;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -37,11 +36,10 @@ import java.util.Set;
 
 
 /**
- * Reloadable Shift-controlled parameter capture, restoration, and navigation barrier.
+ * Reloadable Shift-controlled parameter capture, restoration, and semantic-action barrier.
  */
 final class SnapbackSession
 {
-    private static final int MAX_PENDING_INPUTS = 64;
     private static final int MAX_SETTLE_TICKS = 8;
     private static final int MAX_RESTORE_TICKS = 16;
     private static final int REQUIRED_SETTLE_CONFIRMATIONS = 2;
@@ -49,22 +47,15 @@ final class SnapbackSession
     private static final int RESTORE_RETRY_TICKS = 2;
 
     private static final ControlId SHIFT = PushControlIds.button ("SHIFT");
-    private static final Set<ControlId> TARGET_REBIND_CONTROLS = Set.of (
-        button ("ROW1_1"), button ("ROW1_2"), button ("ROW1_3"), button ("ROW1_4"),
-        button ("ROW1_5"), button ("ROW1_6"), button ("ROW1_7"), button ("ROW1_8"),
-        button ("ROW2_1"), button ("ROW2_2"), button ("ROW2_3"), button ("ROW2_4"),
-        button ("ROW2_5"), button ("ROW2_6"), button ("ROW2_7"), button ("ROW2_8"),
-        button ("PAGE_LEFT"), button ("PAGE_RIGHT"),
-        button ("ARROW_LEFT"), button ("ARROW_RIGHT"), button ("ARROW_UP"), button ("ARROW_DOWN"),
-        button ("DEVICE"),
-        button ("TRACK"), button ("CLIP"), button ("USER"), button ("SESSION"), button ("NOTE"),
-        button ("MASTERTRACK"), button ("ADD_EFFECT"), button ("ADD_TRACK"), button ("BROWSE"));
+    private static final Set<ControllerStateScope> ACTIVE_PARAMETER_SCOPE = Set.of (ControllerStateScope.ACTIVE_PARAMETERS);
 
-    private final Map<ParameterTargetRef, Capture> captures = new LinkedHashMap<> (ParameterBridgeSnapshot.TARGET_CAPACITY);
-    private final ArrayDeque<ControllerInputEvent> pendingInputs = new ArrayDeque<> (MAX_PENDING_INPUTS);
+    private final Map<ParameterTargetRef, Capture> captures = new LinkedHashMap<> (ParameterSlot.INTERACTION_TARGET_CAPACITY);
+    private final ArrayDeque<ResolvedControllerAction> pendingActions = new ArrayDeque<> (DesiredParameterInteraction.PENDING_ACTION_CAPACITY);
 
     private State state = State.IDLE;
     private boolean triggerHeld;
+    private long interactionId;
+    private long nextInteractionId = 1;
     private int settleTicks;
     private int restoreTicks;
 
@@ -74,11 +65,17 @@ final class SnapbackSession
     {
         final ControllerSnapshot initial = Objects.requireNonNull (snapshot, "snapshot");
         this.triggerHeld = initial.pressedControls ().contains (SHIFT);
+        if (this.triggerHeld)
+            this.beginInteraction ();
+
         final ParameterBridgeSnapshot parameters = initial.bridge ().parameters ();
         parameters.retainedBaselines ().forEach ( (target, baseline) -> {
             final Map.Entry<ParameterSlot, ParameterTargetSnapshot> slot = findSlot (parameters, target);
             if (slot != null)
-                this.captures.put (target, new Capture (target, slot.getKey (), controlFor (slot.getKey ()), baseline.doubleValue (), slot.getValue ().value ()));
+            {
+                this.ensureInteraction ();
+                this.captures.put (target, new Capture (target, slot.getKey (), baseline.doubleValue (), slot.getValue ().value ()));
+            }
         });
         if (this.captures.isEmpty ())
             this.state = this.triggerHeld ? State.ACTIVE : State.IDLE;
@@ -87,33 +84,38 @@ final class SnapbackSession
     }
 
 
-    /** Observe one core event and update the session before workspace dispatch. */
-    Update handle (final CoreEvent event, final ControllerSnapshot snapshot)
+    /** Observe one non-action core event. */
+    Update handle (final CoreEvent event, final ControllerSnapshot snapshot, final ParameterSlot mutationSlot)
     {
         final CoreEvent checkedEvent = Objects.requireNonNull (event, "event");
-        final ControllerSnapshot current = Objects.requireNonNull (snapshot, "snapshot");
+        final ParameterBridgeSnapshot parameters = Objects.requireNonNull (snapshot, "snapshot").bridge ().parameters ();
         final List<CoreEffect> effects = new ArrayList<> ();
+
         boolean intercepted = false;
-
-        if (checkedEvent instanceof final ControllerInputEvent input)
-        {
-            if (isShift (input))
-                this.handleShift (input, current.bridge ().parameters ());
-            else if (this.shouldDefer (input))
-            {
-                this.enqueue (input);
-                if (this.state == State.ACTIVE)
-                    this.beginSettlement (current.bridge ().parameters ());
-                intercepted = true;
-            }
-        }
+        if (checkedEvent instanceof final ControllerInputEvent input && isShift (input))
+            this.handleShift (input, parameters);
+        else if (checkedEvent instanceof final ControllerInputEvent input && input.kind () == InputKind.RELATIVE && mutationSlot != null)
+            intercepted = !this.captureControllerMutation (mutationSlot, parameters);
         else if (checkedEvent instanceof final ParameterMutationEvent mutation)
-            this.capture (mutation, current.bridge ().parameters ());
+            this.capture (mutation, mutationSlot, parameters);
         else if (checkedEvent instanceof ControllerTickEvent)
-            effects.addAll (this.advance (current.bridge ().parameters ()));
+            effects.addAll (this.advance (parameters));
 
-        final List<ControllerInputEvent> released = this.state == State.COMPLETED ? this.complete () : List.of ();
-        return new Update (intercepted, released, effects);
+        return this.finishUpdate (intercepted, effects);
+    }
+
+
+    /** Admit or defer one action already resolved by the active workspace. */
+    Update handleAction (final ResolvedControllerAction action, final ControllerSnapshot snapshot)
+    {
+        final ResolvedControllerAction checkedAction = Objects.requireNonNull (action, "action");
+        if (!this.shouldDefer (checkedAction))
+            return this.finishUpdate (false, List.of ());
+
+        this.enqueue (checkedAction);
+        if (this.state == State.ACTIVE)
+            this.beginSettlement (Objects.requireNonNull (snapshot, "snapshot").bridge ().parameters ());
+        return this.finishUpdate (true, List.of ());
     }
 
 
@@ -125,30 +127,33 @@ final class SnapbackSession
         if (this.triggerHeld || !this.captures.isEmpty ())
             subscriptions.add (BridgeSubscription.PARAMETERS);
 
-        final Map<RouteKey, InputRoute> routes = new LinkedHashMap<> ();
-        base.desiredInputRoutes ().routes ().forEach (route -> routes.put (new RouteKey (route.controlId (), route.kind ()), route));
-        if (!this.captures.isEmpty ())
-        {
-            for (final ControlId control: TARGET_REBIND_CONTROLS)
-                routes.put (new RouteKey (control, InputKind.BUTTON), new InputRoute (control, InputKind.BUTTON, InputRouteMode.DEFER_STABLE));
-        }
-        if (this.isRestoring ())
-        {
-            for (final Capture capture: this.captures.values ())
-                routes.put (new RouteKey (capture.control, InputKind.RELATIVE), new InputRoute (capture.control, InputKind.RELATIVE, InputRouteMode.SUPPRESS_STABLE));
-        }
-
         final Map<ParameterTargetRef, Double> baselines = new LinkedHashMap<> ();
         this.captures.forEach ( (target, capture) -> baselines.put (target, Double.valueOf (capture.baseline)));
+        final DesiredParameterInteraction interaction;
+        if (this.interactionId == 0)
+            interaction = DesiredParameterInteraction.empty ();
+        else
+        {
+            interaction = new DesiredParameterInteraction (
+                this.interactionId,
+                this.triggerHeld && this.state == State.ACTIVE,
+                baselines,
+                this.isRestoring () ? baselines.keySet () : Set.of (),
+                baselines.isEmpty () ? Set.of () : ACTIVE_PARAMETER_SCOPE,
+                this.pendingActions.size ());
+        }
+
         final List<CoreEffect> effects = new ArrayList<> (base.effects ());
         effects.addAll (Objects.requireNonNull (sessionEffects, "sessionEffects"));
         return new CoreResult (
             base.desiredOutput (),
-            new DesiredInputRoutes (Set.copyOf (routes.values ())),
+            base.desiredInputRoutes (),
             new DesiredBridgeSubscriptions (subscriptions),
             base.desiredClipBindings (),
             base.desiredControllerWorkspace (),
-            new DesiredParameterLeases (baselines),
+            base.desiredControllerActions (),
+            base.desiredParameterBanks (),
+            interaction,
             effects);
     }
 
@@ -159,7 +164,10 @@ final class SnapbackSession
         {
             this.triggerHeld = true;
             if (this.state == State.IDLE)
+            {
+                this.beginInteraction ();
                 this.state = State.ACTIVE;
+            }
         }
         else if (input.phase () == InputPhase.END)
         {
@@ -167,7 +175,10 @@ final class SnapbackSession
             if (this.state == State.ACTIVE)
             {
                 if (this.captures.isEmpty ())
+                {
                     this.state = State.IDLE;
+                    this.interactionId = 0;
+                }
                 else
                     this.beginSettlement (parameters);
             }
@@ -175,27 +186,51 @@ final class SnapbackSession
     }
 
 
-    private void capture (final ParameterMutationEvent mutation, final ParameterBridgeSnapshot parameters)
+    private void capture (final ParameterMutationEvent mutation, final ParameterSlot mappedSlot, final ParameterBridgeSnapshot parameters)
     {
+        if (!this.triggerHeld || this.state != State.ACTIVE || mappedSlot == null)
+            return;
+
+        this.capture (mutation.target (), mappedSlot, mutation.target ().value (), parameters);
+    }
+
+
+    private boolean captureControllerMutation (final ParameterSlot mappedSlot, final ParameterBridgeSnapshot parameters)
+    {
+        final ParameterTargetSnapshot authoritative = parameters.slots ().get (mappedSlot);
+        if (authoritative == null)
+            return false;
+        if (this.isRestoring () && this.captures.containsKey (authoritative.target ()))
+            return false;
         if (!this.triggerHeld || this.state != State.ACTIVE)
-            return;
-        final ControlId expectedControl = controlFor (mutation.slot ());
-        if (!expectedControl.equals (mutation.controlId ()))
-            return;
+            return true;
+        return this.capture (authoritative, mappedSlot, authoritative.value (), parameters);
+    }
+
+
+    private boolean capture (final ParameterTargetSnapshot observed, final ParameterSlot mappedSlot, final double baseline, final ParameterBridgeSnapshot parameters)
+    {
 
         for (final Capture capture: this.captures.values ())
         {
-            if (capture.slot.equals (mutation.slot ()) && !capture.target.equals (mutation.target ().target ()))
+            if (capture.slot.equals (mappedSlot) && !capture.target.equals (observed.target ()))
             {
                 this.beginSettlement (parameters);
-                return;
+                return false;
             }
         }
-        if (this.captures.size () >= ParameterBridgeSnapshot.TARGET_CAPACITY)
-            return;
+
+        final ParameterTargetSnapshot authoritative = parameters.slots ().get (mappedSlot);
+        if (authoritative == null || !authoritative.target ().equals (observed.target ()))
+            return false;
+        if (this.captures.size () >= ParameterSlot.INTERACTION_TARGET_CAPACITY)
+            return false;
+
+        this.ensureInteraction ();
         this.captures.putIfAbsent (
-            mutation.target ().target (),
-            new Capture (mutation.target ().target (), mutation.slot (), mutation.controlId (), mutation.target ().value (), mutation.target ().value ()));
+            authoritative.target (),
+            new Capture (authoritative.target (), mappedSlot, baseline, authoritative.value ()));
+        return true;
     }
 
 
@@ -314,28 +349,53 @@ final class SnapbackSession
     }
 
 
-    private List<ControllerInputEvent> complete ()
+    private Update finishUpdate (final boolean intercepted, final List<? extends CoreEffect> effects)
     {
-        final List<ControllerInputEvent> released = List.copyOf (this.pendingInputs);
-        this.pendingInputs.clear ();
+        final List<ResolvedControllerAction> released = this.state == State.COMPLETED ? this.complete () : List.of ();
+        return new Update (intercepted, released, new ArrayList<> (effects));
+    }
+
+
+    private List<ResolvedControllerAction> complete ()
+    {
+        final List<ResolvedControllerAction> released = List.copyOf (this.pendingActions);
+        this.pendingActions.clear ();
         this.settleTicks = 0;
         this.restoreTicks = 0;
+        this.interactionId = 0;
         this.state = this.triggerHeld ? State.ACTIVE : State.IDLE;
+        if (this.triggerHeld)
+            this.beginInteraction ();
         return released;
     }
 
 
-    private boolean shouldDefer (final ControllerInputEvent input)
+    private boolean shouldDefer (final ResolvedControllerAction action)
     {
-        return input.kind () == InputKind.BUTTON && TARGET_REBIND_CONTROLS.contains (input.controlId ()) && !this.captures.isEmpty ();
+        return !this.captures.isEmpty () && action.intent ().invalidates ().contains (ControllerStateScope.ACTIVE_PARAMETERS);
     }
 
 
-    private void enqueue (final ControllerInputEvent input)
+    private void enqueue (final ResolvedControllerAction action)
     {
-        if (this.pendingInputs.size () >= MAX_PENDING_INPUTS)
-            throw new IllegalStateException ("Snapback pending input capacity exhausted");
-        this.pendingInputs.addLast (input);
+        if (this.pendingActions.size () >= DesiredParameterInteraction.PENDING_ACTION_CAPACITY)
+            throw new IllegalStateException ("Snapback pending action capacity exhausted");
+        this.pendingActions.addLast (action);
+    }
+
+
+    private void beginInteraction ()
+    {
+        if (this.nextInteractionId == Long.MAX_VALUE)
+            throw new IllegalStateException ("Parameter interaction identity sequence exhausted");
+        this.interactionId = this.nextInteractionId++;
+    }
+
+
+    private void ensureInteraction ()
+    {
+        if (this.interactionId == 0)
+            this.beginInteraction ();
     }
 
 
@@ -362,28 +422,11 @@ final class SnapbackSession
     }
 
 
-    private static ControlId controlFor (final ParameterSlot slot)
-    {
-        return switch (slot.domain ())
-        {
-            case ACTIVE -> PushControlIds.continuous ("KNOB" + (slot.index () + 1));
-            case TEMPO -> PushControlIds.continuous ("TEMPO");
-            case MASTER_VOLUME -> PushControlIds.continuous ("MASTER_KNOB");
-        };
-    }
-
-
-    private static ControlId button (final String name)
-    {
-        return PushControlIds.button (name);
-    }
-
-
-    record Update (boolean intercepted, List<ControllerInputEvent> releasedInputs, List<CoreEffect> effects)
+    record Update (boolean intercepted, List<ResolvedControllerAction> releasedActions, List<CoreEffect> effects)
     {
         Update
         {
-            releasedInputs = List.copyOf (releasedInputs);
+            releasedActions = List.copyOf (releasedActions);
             effects = List.copyOf (effects);
         }
     }
@@ -393,7 +436,6 @@ final class SnapbackSession
     {
         private final ParameterTargetRef target;
         private final ParameterSlot slot;
-        private final ControlId control;
         private final double baseline;
         private double lastObservedValue;
         private int settleConfirmations;
@@ -401,19 +443,13 @@ final class SnapbackSession
         private int restoreRetryTicks;
 
 
-        private Capture (final ParameterTargetRef target, final ParameterSlot slot, final ControlId control, final double baseline, final double lastObservedValue)
+        private Capture (final ParameterTargetRef target, final ParameterSlot slot, final double baseline, final double lastObservedValue)
         {
             this.target = Objects.requireNonNull (target, "target");
             this.slot = Objects.requireNonNull (slot, "slot");
-            this.control = Objects.requireNonNull (control, "control");
             this.baseline = baseline;
             this.lastObservedValue = lastObservedValue;
         }
-    }
-
-
-    private record RouteKey (ControlId control, InputKind kind)
-    {
     }
 
 

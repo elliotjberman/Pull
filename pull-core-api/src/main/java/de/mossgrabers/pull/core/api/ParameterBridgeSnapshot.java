@@ -18,7 +18,7 @@ import java.util.Set;
 public record ParameterBridgeSnapshot (Map<ParameterSlot, ParameterTargetSnapshot> slots, Map<ParameterTargetRef, Double> retainedBaselines)
 {
     /** Total number of simultaneously addressable installed targets. */
-    public static final int TARGET_CAPACITY = ParameterSlot.ACTIVE_SLOT_COUNT + 2;
+    public static final int TARGET_CAPACITY = ParameterSlot.INSTALLED_TARGET_CAPACITY;
 
     private static final ParameterBridgeSnapshot EMPTY = new ParameterBridgeSnapshot (Map.of (), Map.of ());
 
@@ -30,8 +30,10 @@ public record ParameterBridgeSnapshot (Map<ParameterSlot, ParameterTargetSnapsho
     {
         slots = Map.copyOf (Objects.requireNonNull (slots, "slots"));
         retainedBaselines = Map.copyOf (Objects.requireNonNull (retainedBaselines, "retainedBaselines"));
-        if (slots.size () > TARGET_CAPACITY || retainedBaselines.size () > TARGET_CAPACITY)
+        if (slots.size () > TARGET_CAPACITY)
             throw new IllegalArgumentException ("parameter bridge exceeds its installed target capacity");
+        if (retainedBaselines.size () > ParameterSlot.INTERACTION_TARGET_CAPACITY)
+            throw new IllegalArgumentException ("parameter bridge exceeds its interaction lease capacity");
 
         final Set<ParameterTargetRef> currentTargets = new HashSet<> ();
         slots.forEach ( (slot, target) -> {

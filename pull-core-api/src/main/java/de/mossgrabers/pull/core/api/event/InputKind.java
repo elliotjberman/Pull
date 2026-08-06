@@ -30,5 +30,12 @@ public enum InputKind
     CHANNEL_PRESSURE,
 
     /** A discrete pedal or footswitch. */
-    PEDAL
+    PEDAL;
+
+
+    /** Test whether this kind has begin/long/end edge phases. */
+    public boolean isEdge ()
+    {
+        return this == BUTTON || this == PAD || this == TOUCH || this == PEDAL;
+    }
 }

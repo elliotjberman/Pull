@@ -25,4 +25,4 @@ any document their work resolves.
 
 - [Snapback Parameters V1](snapback-v1-limitations.md)
 - [Parameter Targets Are Coupled to Proxy Slots](parameter-target-proxy-coupling.md)
-- [Physical Inputs Are Coupled to Semantic Consequences](physical-input-semantic-action-coupling.md)
+- [Physical Inputs Are Coupled To Semantic Consequences](physical-input-semantic-action-coupling.md)

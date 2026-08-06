@@ -40,6 +40,7 @@ public final class VsLiveWorkspace
             List.of (
                 new WorkspaceSelectionView (selection),
                 new ProjectMacroControlsView (),
+                new GlobalParameterControlsView (),
                 new TrackSelectionStripView (),
                 new SessionNavigationView (),
                 new SessionClipGridView (true),

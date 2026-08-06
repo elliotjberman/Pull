@@ -15,21 +15,15 @@ import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
 import de.mossgrabers.framework.parameter.IParameter;
-import de.mossgrabers.framework.parameterprovider.device.BankParameterProvider;
-import de.mossgrabers.framework.parameterprovider.special.EmptyParameterProvider;
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
 
 
 /**
- * Stable display/encoder adapter for fixed workspace facets.
+ * Stable display and encoder-touch adapter for fixed workspace facets.
  */
 public final class WorkspaceMode extends BaseMode<IParameter> implements WorkspaceFacetAdapter
 {
-    private final BankParameterProvider projectParameterProvider;
-    private final EmptyParameterProvider emptyParameterProvider = new EmptyParameterProvider (8);
-
-
     /**
      * Constructor.
      *
@@ -39,8 +33,6 @@ public final class WorkspaceMode extends BaseMode<IParameter> implements Workspa
     public WorkspaceMode (final PushControlSurface surface, final IModel model)
     {
         super ("Workspace", surface, model, model.getProject ().getParameterBank ());
-        this.projectParameterProvider = new BankParameterProvider (model.getProject ().getParameterBank ());
-        this.setParameterProvider (this.projectParameterProvider);
     }
 
 
@@ -57,8 +49,8 @@ public final class WorkspaceMode extends BaseMode<IParameter> implements Workspa
     @Override
     public void reconcileWorkspaceFacets ()
     {
-        this.setParameterProvider (this.hasFacet (ControllerViewFacet.PROJECT_MACRO_CONTROLS) ? this.projectParameterProvider : this.emptyParameterProvider);
-        this.bindControls ();
+        // Parameter rendering and touch remain stable adapters. Relative mutation is core-owned,
+        // so this mode deliberately never binds its project bank to the hardware encoders.
     }
 
 

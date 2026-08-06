@@ -3,6 +3,8 @@
 
 package de.mossgrabers.pull.shell.input;
 
+import de.mossgrabers.pull.core.api.ControllerActionIntent;
+
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -10,6 +12,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
@@ -24,13 +27,13 @@ import java.util.function.LongSupplier;
  * press. Motion is bounded to one
  * pending sample per registered control-and-kind pair: relative deltas are summed and absolute
  * values keep only their latest sample. Deferred stable edge commands are bounded separately and
- * preserve physical order until the core route releases their barrier.
+ * preserve physical order until their semantic-action barrier releases.
  * </p>
  * <p>
- * This class is intentionally independent of Bitwig hardware classes and reloadable-core DTOs.
- * The controller setup can pass a button's complete stable dispatch or a continuous control's
- * existing command into the {@link #route} callback, then adapt the event sink and route resolver
- * at the permanent shell/API boundary. It is controller-thread confined.
+ * This class is independent of Bitwig hardware classes. Its only core API value is the
+ * parent-loaded semantic action envelope needed to preserve stable dispatch ordering. The
+ * controller setup passes a button's complete stable dispatch or a continuous control's existing
+ * command into {@link #route}; the router remains controller-thread confined.
  * </p>
  *
  * @param <C> Control key type
@@ -42,6 +45,7 @@ public final class PhysicalInputRouter<C>
     private final PhysicalControlRegistry<C> registry;
     private final BiFunction<? super C, ? super InputKind, InputRoute> routeResolver;
     private final Consumer<? super PhysicalInputEvent<C>> eventSink;
+    private final StableActionBarrier<? super C> stableDispatchBarrier;
     private final LongSupplier nanoTime;
     private final LongSupplier ownerGeneration;
     private final Map<PhysicalInputAddress<C>, GestureBinding> gestureBindings;
@@ -59,13 +63,13 @@ public final class PhysicalInputRouter<C>
      */
     public PhysicalInputRouter (final PhysicalControlRegistry<C> registry, final BiFunction<? super C, ? super InputKind, InputRoute> routeResolver, final Consumer<? super PhysicalInputEvent<C>> eventSink)
     {
-        this (registry, routeResolver, eventSink, System::nanoTime, () -> 0);
+        this (registry, routeResolver, eventSink, (ignoredControl, ignoredKind, ignoredAction) -> false, System::nanoTime, () -> 0);
     }
 
 
     PhysicalInputRouter (final PhysicalControlRegistry<C> registry, final BiFunction<? super C, ? super InputKind, InputRoute> routeResolver, final Consumer<? super PhysicalInputEvent<C>> eventSink, final LongSupplier nanoTime)
     {
-        this (registry, routeResolver, eventSink, nanoTime, () -> 0);
+        this (registry, routeResolver, eventSink, (ignoredControl, ignoredKind, ignoredAction) -> false, nanoTime, () -> 0);
     }
 
 
@@ -80,9 +84,26 @@ public final class PhysicalInputRouter<C>
      */
     public PhysicalInputRouter (final PhysicalControlRegistry<C> registry, final BiFunction<? super C, ? super InputKind, InputRoute> routeResolver, final Consumer<? super PhysicalInputEvent<C>> eventSink, final LongSupplier nanoTime, final LongSupplier ownerGeneration)
     {
+        this (registry, routeResolver, eventSink, (ignoredControl, ignoredKind, ignoredAction) -> false, nanoTime, ownerGeneration);
+    }
+
+
+    /**
+     * Create a router with a dedicated semantic-action barrier and explicit clocks.
+     *
+     * @param registry Fixed physical-control registry
+     * @param routeResolver Current route-map adapter; null results are treated as NONE
+     * @param eventSink Reloadable-consumer event adapter
+     * @param stableDispatchBarrier True while one semantic edge action must wait
+     * @param nanoTime Monotonic timestamp supplier
+     * @param ownerGeneration Current active reloadable-core generation
+     */
+    public PhysicalInputRouter (final PhysicalControlRegistry<C> registry, final BiFunction<? super C, ? super InputKind, InputRoute> routeResolver, final Consumer<? super PhysicalInputEvent<C>> eventSink, final StableActionBarrier<? super C> stableDispatchBarrier, final LongSupplier nanoTime, final LongSupplier ownerGeneration)
+    {
         this.registry = Objects.requireNonNull (registry, "registry");
         this.routeResolver = Objects.requireNonNull (routeResolver, "routeResolver");
         this.eventSink = Objects.requireNonNull (eventSink, "eventSink");
+        this.stableDispatchBarrier = Objects.requireNonNull (stableDispatchBarrier, "stableDispatchBarrier");
         this.nanoTime = Objects.requireNonNull (nanoTime, "nanoTime");
         this.ownerGeneration = Objects.requireNonNull (ownerGeneration, "ownerGeneration");
         this.gestureBindings = new HashMap<> (registry.capacity ());
@@ -104,12 +125,21 @@ public final class PhysicalInputRouter<C>
      */
     public InputRoute route (final C control, final InputKind kind, final InputPhase phase, final long value, final Runnable stableCommand)
     {
+        return this.route (control, kind, phase, value, null, stableCommand);
+    }
+
+
+    /** Route one physical sample with a stable-owned semantic action resolved at BEGIN. */
+    public InputRoute route (final C control, final InputKind kind, final InputPhase phase, final long value, final ControllerActionIntent stableAction, final Runnable stableCommand)
+    {
         Objects.requireNonNull (phase, "phase");
         Objects.requireNonNull (stableCommand, "stableCommand");
         final PhysicalInputAddress<C> input = this.registry.require (control, kind);
         if (kind.isEdge () == (phase == InputPhase.CHANGE))
             throw new IllegalArgumentException ("phase " + phase + " is invalid for " + kind);
-        return kind.isEdge () ? this.routeEdge (input, phase, value, stableCommand) : this.routeMotion (input, phase, value, stableCommand);
+        if (!kind.isEdge () && stableAction != null)
+            throw new IllegalArgumentException ("stable semantic actions require edge input");
+        return kind.isEdge () ? this.routeEdge (input, phase, value, stableAction, stableCommand) : this.routeMotion (input, phase, value, stableCommand);
     }
 
 
@@ -169,7 +199,7 @@ public final class PhysicalInputRouter<C>
 
 
     /**
-     * Run deferred stable commands whose current route no longer holds the barrier. Global input
+     * Run deferred stable commands whose semantic action is no longer blocked. Global input
      * order is preserved: a still-deferred head blocks later commands.
      */
     public void releaseDeferredStableDispatches ()
@@ -177,7 +207,7 @@ public final class PhysicalInputRouter<C>
         while (!this.deferredStableDispatches.isEmpty ())
         {
             final DeferredStableDispatch<C> deferred = this.deferredStableDispatches.peekFirst ();
-            if (this.resolveRoute (deferred.input ()) == InputRoute.DEFER_STABLE)
+            if (this.stableDispatchBarrier.test (deferred.input ().control (), deferred.input ().kind (), deferred.stableAction ()))
                 return;
             this.deferredStableDispatches.removeFirst ();
             deferred.stableCommand ().run ();
@@ -196,31 +226,41 @@ public final class PhysicalInputRouter<C>
     }
 
 
-    private PhysicalInputEvent<C> newEvent (final PhysicalInputAddress<C> input, final InputPhase phase, final long value, final long generation)
+    /**
+     * Test whether no physical gesture, coalesced motion, or deferred stable action crosses a core
+     * generation boundary.
+     */
+    public boolean isIdle ()
     {
-        if (this.nextSequence == Long.MAX_VALUE)
-            throw new IllegalStateException ("Physical input sequence exhausted");
-        return new PhysicalInputEvent<> (this.nextSequence++, this.nanoTime.getAsLong (), generation, input.control (), input.kind (), phase, value);
+        return this.gestureBindings.isEmpty () && this.pendingMotion.isEmpty () && this.deferredStableDispatches.isEmpty ();
     }
 
 
-    private InputRoute routeEdge (final PhysicalInputAddress<C> input, final InputPhase phase, final long value, final Runnable stableCommand)
+    private PhysicalInputEvent<C> newEvent (final PhysicalInputAddress<C> input, final InputPhase phase, final long value, final long generation, final ControllerActionIntent stableAction)
+    {
+        if (this.nextSequence == Long.MAX_VALUE)
+            throw new IllegalStateException ("Physical input sequence exhausted");
+        return new PhysicalInputEvent<> (this.nextSequence++, this.nanoTime.getAsLong (), generation, input.control (), input.kind (), phase, value, phase == InputPhase.BEGIN ? Optional.ofNullable (stableAction) : Optional.empty ());
+    }
+
+
+    private InputRoute routeEdge (final PhysicalInputAddress<C> input, final InputPhase phase, final long value, final ControllerActionIntent stableAction, final Runnable stableCommand)
     {
         final GestureBinding binding;
         if (phase == InputPhase.BEGIN)
         {
             final GestureBinding existing = this.gestureBindings.get (input);
-            binding = existing == null ? new GestureBinding (this.resolveRoute (input), this.ownerGeneration.getAsLong ()) : existing;
+            binding = existing == null ? new GestureBinding (this.resolveRoute (input), this.ownerGeneration.getAsLong (), stableAction, this.stableDispatchBarrier.test (input.control (), input.kind (), stableAction)) : existing;
             if (existing == null)
                 this.gestureBindings.put (input, binding);
         }
         else
             binding = this.gestureBindings.getOrDefault (input, GestureBinding.NONE);
 
-        final PhysicalInputEvent<C> event = this.newEvent (input, phase, value, binding.generation ());
+        final PhysicalInputEvent<C> event = this.newEvent (input, phase, value, binding.generation (), binding.stableAction ());
         try
         {
-            this.deliverEdge (binding.route (), event, stableCommand);
+            this.deliverEdge (binding, event, stableCommand);
             return binding.route ();
         }
         finally
@@ -234,32 +274,30 @@ public final class PhysicalInputRouter<C>
     private InputRoute routeMotion (final PhysicalInputAddress<C> input, final InputPhase phase, final long value, final Runnable stableCommand)
     {
         final InputRoute route = this.resolveRoute (input);
-        if (route == InputRoute.DEFER_STABLE)
-            throw new IllegalStateException ("DEFER_STABLE is supported only for edge inputs");
-        if (route != InputRoute.EXCLUSIVE && route != InputRoute.SUPPRESS_STABLE)
+        if (route != InputRoute.EXCLUSIVE)
             stableCommand.run ();
         if (route != InputRoute.NONE)
-            this.coalesce (input, this.newEvent (input, phase, value, this.ownerGeneration.getAsLong ()));
+            this.coalesce (input, this.newEvent (input, phase, value, this.ownerGeneration.getAsLong (), null));
         return route;
     }
 
 
-    private void deliverEdge (final InputRoute route, final PhysicalInputEvent<C> event, final Runnable stableCommand)
+    private void deliverEdge (final GestureBinding binding, final PhysicalInputEvent<C> event, final Runnable stableCommand)
     {
-        if (route == InputRoute.DEFER_STABLE)
-            this.deferStableDispatch (new PhysicalInputAddress<> (event.control (), event.kind ()), stableCommand);
-        else if (route != InputRoute.EXCLUSIVE && route != InputRoute.SUPPRESS_STABLE)
+        if (binding.stableDispatchDeferred ())
+            this.deferStableDispatch (new PhysicalInputAddress<> (event.control (), event.kind ()), binding.stableAction (), stableCommand);
+        else if (binding.route () != InputRoute.EXCLUSIVE)
             stableCommand.run ();
-        if (route != InputRoute.NONE)
+        if (binding.route () != InputRoute.NONE || event.stableAction ().isPresent ())
             this.eventSink.accept (event);
     }
 
 
-    private void deferStableDispatch (final PhysicalInputAddress<C> input, final Runnable stableCommand)
+    private void deferStableDispatch (final PhysicalInputAddress<C> input, final ControllerActionIntent stableAction, final Runnable stableCommand)
     {
         if (this.deferredStableDispatches.size () >= MAX_DEFERRED_STABLE_DISPATCHES)
             throw new IllegalStateException ("Deferred stable input capacity exhausted");
-        this.deferredStableDispatches.addLast (new DeferredStableDispatch<> (input, stableCommand));
+        this.deferredStableDispatches.addLast (new DeferredStableDispatch<> (input, stableAction, stableCommand));
     }
 
 
@@ -293,9 +331,9 @@ public final class PhysicalInputRouter<C>
     }
 
 
-    private record GestureBinding (InputRoute route, long generation)
+    private record GestureBinding (InputRoute route, long generation, ControllerActionIntent stableAction, boolean stableDispatchDeferred)
     {
-        private static final GestureBinding NONE = new GestureBinding (InputRoute.NONE, 0);
+        private static final GestureBinding NONE = new GestureBinding (InputRoute.NONE, 0, null, false);
 
 
         private GestureBinding
@@ -307,12 +345,20 @@ public final class PhysicalInputRouter<C>
     }
 
 
-    private record DeferredStableDispatch<C> (PhysicalInputAddress<C> input, Runnable stableCommand)
+    private record DeferredStableDispatch<C> (PhysicalInputAddress<C> input, ControllerActionIntent stableAction, Runnable stableCommand)
     {
         private DeferredStableDispatch
         {
             Objects.requireNonNull (input, "input");
             Objects.requireNonNull (stableCommand, "stableCommand");
         }
+    }
+
+
+    /** Decide whether one resolved action must wait behind the current transaction. */
+    @FunctionalInterface
+    public interface StableActionBarrier<C>
+    {
+        boolean test (C control, InputKind kind, ControllerActionIntent stableAction);
     }
 }

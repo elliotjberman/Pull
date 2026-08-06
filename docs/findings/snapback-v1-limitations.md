@@ -83,28 +83,31 @@ become persistent.
 stable mutation reaches the runtime's pre-mutation seam. No mode contains a snapback-specific Shift
 branch, and no second MIDI or hardware callback is installed.
 
-The installed target set is deliberately narrow:
+The installed parameter canopy is broader than one gesture: it names the inherited active encoder
+window, project remotes, the selected-device remote page, visible-track volume and pan, and globals.
+Stable publishes only banks selected by the active workspace while `PARAMETERS` is subscribed.
+Project macro turns in VS Live are core-owned and target `PROJECT_REMOTE` directly. Unmigrated
+parameter modes still enter snapback through the active-window compatibility seam. Tempo and master
+volume use fixed stable-shell actuators; cue volume, zoom, the touch strip, and unrelated
+command-bound encoders remain persistent.
 
-- Any parameter directly bound to one of the eight top encoders, including project macros and the
-  current selected-device remote-control page, is published as an opaque generation-fenced target
-  in one active slot.
-- Tempo and master volume use fixed stable-shell actuators.
-- Cue volume, zoom, the touch strip, and unrelated command-bound encoders remain persistent.
-
-The capture set is bounded to the installed 10 targets and the deferred navigation queue to 64
-edges. A full capture set rejects the new temporary mutation because applying an untracked
-temporary value would make restoration impossible.
+The capture set is bounded to 10 simultaneous targets because Push exposes eight top encoders plus
+tempo and master volume in this interaction. That is not the canopy capacity. The deferred
+semantic-action queue is bounded to 64 actions. A full capture set rejects the new temporary
+mutation because applying an untracked temporary value would make restoration impossible.
 
 Shift remains `OBSERVE` during migration. On release, the bridge flushes coalesced motion before the
-normalized release reaches core. Potentially rebinding button edges reach core immediately but
-their stable commands wait behind a replayable route barrier until later host read-back confirms
-every retained baseline. Stable dispatch then runs before the newly requested workspace applies.
-If Shift remains held, core opens a fresh session after that barrier.
+normalized release reaches core. Compiled views map physical edges to semantic actions and declare
+which state scopes those actions may invalidate. Snapback delays only actions whose scopes overlap
+its retained active parameters; it does not contain a physical rebinding-button list.
 
-The physical button set is a temporary migration boundary, not the intended action model. The
-follow-up investigation in
-[`physical-input-semantic-action-coupling.md`](physical-input-semantic-action-coupling.md) defines
-the input-to-action-to-effect lifecycle that should replace it.
+Stable-owned compatibility actions keep their absent physical route and publish a separate typed
+semantic-action event before their established dispatch. That dispatch waits behind the same
+scope barrier until later host read-back confirms every retained baseline. Core-owned actions pass
+through the same policy gate with a complete payload captured at `BEGIN`. Stable dispatch runs
+before a newly requested workspace applies. If Shift remains held, core opens a fresh session after
+that barrier. Core replacement is fenced while a semantic action or its stable dispatch remains
+pending and until the input router has no active gesture, queued motion, or deferred callback.
 
 Policy now lives in the reloadable core. Stable owns only the bounded live actuator window, exact
 leases, absolute effect execution, generation rechecks, and best-effort invalidation restoration.
@@ -137,11 +140,16 @@ still completes before navigation rather than spanning a proxy rebind.
 - Knob touch and release do not close the session.
 - Pending motion is ordered before trigger release.
 - Context-changing navigation restores before proxy rebinding.
-- A stale target generation never mutates the newly selected target.
+- The same remote-control wrapper rebound to another owner or page receives a new target generation,
+  and a stale lease never mutates the replacement target.
+- Reload requested during a held edge waits for release and queued-motion delivery, then activates
+  automatically without replaying the old gesture into the new core.
 - Rapid trigger release and repress cannot capture an unrestored temporary value as a new baseline.
 - Reload or core failure does not silently leave an active retained target temporary.
 - Missing restoration read-back times out and releases parameter and navigation input.
 - A delayed mutation after the first baseline sample is observed and restored again.
+- The same semantic invalidation is gated identically when a view remaps it to another button.
+- Submitted mutations and restores do not count as host acknowledgement in integration tests.
 
 ## Removal Criteria
 

@@ -9,19 +9,25 @@ import java.util.Objects;
 /**
  * One bounded parameter position exposed by the stable shell, independent of physical controls.
  *
- * @param domain Slot domain
- * @param index Zero-based index within the domain
+ * @param bank Installed bank
+ * @param index Zero-based index within the bank
  */
-public record ParameterSlot (Domain domain, int index)
+public record ParameterSlot (ParameterBankId bank, int index)
 {
-    /** Number of active parameter slots aligned with the Push top encoders. */
-    public static final int ACTIVE_SLOT_COUNT = 8;
+    /** Number of parameter slots in each installed bank. */
+    public static final int BANK_SIZE = 8;
+    /** Number of fixed global parameter slots. */
+    public static final int GLOBAL_BANK_SIZE = 2;
+    /** Maximum parameter targets exposed in one snapshot. */
+    public static final int INSTALLED_TARGET_CAPACITY = (ParameterBankId.BANK_CAPACITY - 1) * BANK_SIZE + GLOBAL_BANK_SIZE;
+    /** Maximum exact targets one physical eight-knob interaction can retain, including globals. */
+    public static final int INTERACTION_TARGET_CAPACITY = 10;
 
     /** Fixed tempo target. */
-    public static final ParameterSlot TEMPO = new ParameterSlot (Domain.TEMPO, 0);
+    public static final ParameterSlot TEMPO = new ParameterSlot (ParameterBankId.GLOBAL, 0);
 
     /** Fixed master-volume target. */
-    public static final ParameterSlot MASTER_VOLUME = new ParameterSlot (Domain.MASTER_VOLUME, 0);
+    public static final ParameterSlot MASTER_VOLUME = new ParameterSlot (ParameterBankId.GLOBAL, 1);
 
 
     /**
@@ -29,10 +35,10 @@ public record ParameterSlot (Domain domain, int index)
      */
     public ParameterSlot
     {
-        domain = Objects.requireNonNull (domain, "domain");
-        final int upperBound = domain == Domain.ACTIVE ? ACTIVE_SLOT_COUNT : 1;
-        if (index < 0 || index >= upperBound)
-            throw new IllegalArgumentException ("parameter slot index is outside the installed domain capacity");
+        bank = Objects.requireNonNull (bank, "bank");
+        final int capacity = bank == ParameterBankId.GLOBAL ? GLOBAL_BANK_SIZE : BANK_SIZE;
+        if (index < 0 || index >= capacity)
+            throw new IllegalArgumentException ("parameter slot index is outside the installed bank capacity");
     }
 
 
@@ -44,18 +50,34 @@ public record ParameterSlot (Domain domain, int index)
      */
     public static ParameterSlot active (final int index)
     {
-        return new ParameterSlot (Domain.ACTIVE, index);
+        return new ParameterSlot (ParameterBankId.ACTIVE, index);
     }
 
 
-    /** Stable parameter domains installed at extension startup. */
-    public enum Domain
+    /** Get one project remote-control slot. */
+    public static ParameterSlot projectRemote (final int index)
     {
-        /** Current eight-slot parameter bank selected by the active controller view. */
-        ACTIVE,
-        /** Global transport tempo. */
-        TEMPO,
-        /** Master-track volume while the master encoder is in volume mode. */
-        MASTER_VOLUME
+        return new ParameterSlot (ParameterBankId.PROJECT_REMOTE, index);
+    }
+
+
+    /** Get one selected-device remote-control slot. */
+    public static ParameterSlot selectedDeviceRemote (final int index)
+    {
+        return new ParameterSlot (ParameterBankId.SELECTED_DEVICE_REMOTE, index);
+    }
+
+
+    /** Get one visible-track volume slot. */
+    public static ParameterSlot trackVolume (final int index)
+    {
+        return new ParameterSlot (ParameterBankId.TRACK_VOLUME, index);
+    }
+
+
+    /** Get one visible-track pan slot. */
+    public static ParameterSlot trackPan (final int index)
+    {
+        return new ParameterSlot (ParameterBankId.TRACK_PAN, index);
     }
 }

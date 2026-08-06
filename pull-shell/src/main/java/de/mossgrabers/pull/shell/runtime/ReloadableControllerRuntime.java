@@ -60,7 +60,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
     private final ControllerHost controllerHost;
 
     private SelectedTrackFillClipHost clipHost;
-    private DrumFillRuntimeEnvironment environment;
+    private ControllerRuntimeEnvironment environment;
     private CoreReloadSupervisor supervisor;
     private PushControllerInputBridge inputBridge;
     private Predicate<CoreEvent> eventHandler = event -> false;
@@ -91,7 +91,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
      * @param log The runtime log
      * @param eventHandler Active-core event handler
      */
-    ReloadableControllerRuntime (final DrumFillRuntimeEnvironment environment, final RuntimeLog log, final Predicate<CoreEvent> eventHandler)
+    ReloadableControllerRuntime (final ControllerRuntimeEnvironment environment, final RuntimeLog log, final Predicate<CoreEvent> eventHandler)
     {
         this.controllerHost = null;
         this.clipHost = null;
@@ -130,7 +130,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             Objects.requireNonNull (surface, "surface"),
             Objects.requireNonNull (valueChanger, "valueChanger"),
             this.log);
-        this.environment = new DrumFillRuntimeEnvironment (this.clipHost, controllerBridge, this.log, System::nanoTime);
+        this.environment = new ControllerRuntimeEnvironment (this.clipHost, controllerBridge, this.log, System::nanoTime);
         this.supervisor = new CoreReloadSupervisor (this.environment, this.log);
         this.eventHandler = this.supervisor::handle;
     }
@@ -175,10 +175,13 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             Objects.requireNonNull (valueChanger, "valueChanger"),
             this::handleParameterMutation,
             this.environment::desiredInputRoutes,
+            (control, kind, stableAction) -> this.environment.blocksStableAction (control, de.mossgrabers.pull.core.api.event.InputKind.valueOf (kind.name ()), stableAction),
             this::handleControllerInput,
             () -> this.supervisor == null ? 0 : this.supervisor.activeGeneration ());
         this.environment.setInputRouteValidator (this.inputBridge::supports);
+        this.environment.setControllerActionValidator (this.inputBridge::supports);
         this.environment.setDeferredInputRelease (this.inputBridge::releaseDeferredStableDispatches);
+        this.environment.setInputLifecycleIdle (this.inputBridge::inputLifecycleIdle);
     }
 
 
@@ -409,11 +412,11 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         if (!this.drainingControllerInputs)
             this.environment.refresh ();
 
-        final ControllerInputEvent input = this.environment.controllerInput (
+        final CoreEvent input = event.stableAction ().<CoreEvent>map (this.environment::controllerAction).orElseGet ( () -> this.environment.controllerInput (
             event.control (),
             de.mossgrabers.pull.core.api.event.InputKind.valueOf (event.kind ().name ()),
             event.phase () == de.mossgrabers.pull.shell.input.InputPhase.CHANGE ? de.mossgrabers.pull.core.api.event.InputPhase.UPDATE : de.mossgrabers.pull.core.api.event.InputPhase.valueOf (event.phase ().name ()),
-            event.value ());
+            event.value ()));
         if (!this.started)
             return;
         if (this.supervisor == null)
@@ -423,7 +426,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
     }
 
 
-    private void handleParameterMutation (final ContinuousID controlID, final IHwContinuousControl control, final Runnable stableMutation)
+    void handleParameterMutation (final ContinuousID controlID, final IHwContinuousControl control, final Runnable stableMutation)
     {
         final Runnable mutation = Objects.requireNonNull (stableMutation, "stableMutation");
         if (this.environment == null || this.closed || !this.started || !this.environment.observesParameters ())
@@ -432,10 +435,18 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             return;
         }
 
-        final ParameterTargetHost.TargetedParameter parameter = this.environment.resolveParameterMutation (controlID, control);
-        if (parameter == null || this.environment.retainsParameterTarget (parameter.target ().target ()))
+        final ControllerBridge.TargetedParameter parameter = this.environment.resolveParameterMutation (control);
+        if (parameter == null)
         {
             mutation.run ();
+            return;
+        }
+
+        final de.mossgrabers.pull.core.api.ParameterTargetRef target = parameter.target ().target ();
+        if (this.environment.retainsParameterTarget (target))
+        {
+            if (!this.environment.blocksParameterMutation (target))
+                mutation.run ();
             return;
         }
 
@@ -445,7 +456,12 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             this.eventHandler.test (event);
         else
             this.supervisor.handle (event);
-        if (!this.environment.suppressesStableMutation (physicalControl))
+        if (this.environment.retainsParameterTarget (target))
+        {
+            if (!this.environment.blocksParameterMutation (target))
+                mutation.run ();
+        }
+        else if (!this.environment.acceptsParameterMutations ())
             mutation.run ();
     }
 
