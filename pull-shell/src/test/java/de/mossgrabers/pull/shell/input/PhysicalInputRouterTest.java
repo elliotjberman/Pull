@@ -42,6 +42,7 @@ class PhysicalInputRouterTest
 
         assertEquals (InputRoute.NONE, router.route (BUTTON, InputKind.BUTTON, InputPhase.BEGIN, 127, stableCalls::incrementAndGet));
         assertEquals (1, router.activeGestureCount ());
+        assertTrue (router.isIdle ());
         assertEquals (InputRoute.NONE, router.route (BUTTON, InputKind.BUTTON, InputPhase.END, 0, stableCalls::incrementAndGet));
 
         assertEquals (2, stableCalls.get ());
@@ -98,12 +99,11 @@ class PhysicalInputRouterTest
             () -> 7);
 
         router.route (BUTTON, InputKind.BUTTON, InputPhase.BEGIN, 127, () -> order.add ("stable begin"));
-        blocked.set (false);
         router.route (BUTTON, InputKind.BUTTON, InputPhase.END, 0, () -> order.add ("stable end"));
         assertEquals (List.of ("core BEGIN", "core END"), order);
         assertEquals (2, router.deferredStableDispatchCount ());
 
-        // The BEGIN-time decision is frozen through END even though the live barrier cleared.
+        blocked.set (false);
         router.releaseDeferredStableDispatches ();
         assertEquals (List.of ("core BEGIN", "core END", "stable begin", "stable end"), order);
         assertEquals (0, router.deferredStableDispatchCount ());
@@ -111,7 +111,7 @@ class PhysicalInputRouterTest
 
 
     @Test
-    void stableOwnedInputPublishesOnlyItsResolvedSemanticAction ()
+    void stableOwnedSemanticGestureDrainsLateEndAndReturnsIdle ()
     {
         final AtomicBoolean blocked = new AtomicBoolean (true);
         final AtomicInteger stableCalls = new AtomicInteger ();
@@ -133,6 +133,13 @@ class PhysicalInputRouterTest
         blocked.set (false);
         router.releaseDeferredStableDispatches ();
         assertEquals (1, stableCalls.get ());
+        assertFalse (router.isIdle ());
+
+        router.route (BUTTON, InputKind.BUTTON, InputPhase.END, 0, stableCalls::incrementAndGet);
+
+        assertEquals (2, stableCalls.get ());
+        assertEquals (0, router.deferredStableDispatchCount ());
+        assertTrue (router.isIdle ());
     }
 
 

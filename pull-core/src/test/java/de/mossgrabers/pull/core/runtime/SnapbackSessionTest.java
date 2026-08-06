@@ -32,6 +32,8 @@ import de.mossgrabers.pull.core.api.event.ParameterMutationEvent;
 import de.mossgrabers.pull.core.view.CompiledWorkspace;
 import de.mossgrabers.pull.core.view.ControllerView;
 import de.mossgrabers.pull.core.view.ResolvedControllerAction;
+import de.mossgrabers.pull.core.view.SurfaceArea;
+import de.mossgrabers.pull.core.view.SurfaceClaim;
 import de.mossgrabers.pull.core.view.ViewProfile;
 
 import org.junit.jupiter.api.Test;
@@ -51,7 +53,7 @@ class SnapbackSessionTest
     private static final ControlId SHIFT = PushControlIds.button ("SHIFT");
     private static final ControlId KNOB1 = PushControlIds.continuous ("KNOB1");
     private static final ControlId KNOB2 = PushControlIds.continuous ("KNOB2");
-    private static final ControlId NAVIGATION = PushControlIds.button ("TEST_NAVIGATION");
+    private static final ControlId NAVIGATION = PushControlIds.button ("PAGE_LEFT");
     private static final ParameterTargetRef FIRST = new ParameterTargetRef (ParameterTargetKind.LIVE, "first", 1);
     private static final ParameterTargetRef SECOND = new ParameterTargetRef (ParameterTargetKind.LIVE, "second", 2);
 
@@ -307,7 +309,10 @@ class SnapbackSessionTest
         @Override
         public ViewProfile profile ()
         {
-            return ViewProfile.fixed ("test-action", Set.of (), Set.of ());
+            return ViewProfile.fixed (
+                "test-action",
+                Set.of (new SurfaceClaim (SurfaceArea.NAVIGATION_PAGE, SurfaceClaim.Kind.OBSERVE_INPUT)),
+                Set.of ());
         }
 
 

@@ -90,9 +90,11 @@ the actual command and current mode path before the dispatch waits behind the sa
 barrier. Touch edges do not define the session lifetime. Stable restores retained targets
 best-effort if the core faults.
 
-Core replacement waits until the physical input router has no active gesture, queued motion, or
-deferred stable callback. This keeps one gesture in one policy generation rather than attempting to
-transfer partial gesture state through a core checkpoint.
+Core replacement waits until the physical input router has no core-relevant active gesture, queued
+motion, or deferred stable callback. A stable-only `NONE` gesture with no semantic action never
+entered core and does not fence replacement. This keeps each core-observed, core-owned, semantic, or
+deferred gesture in one policy generation rather than transferring partial gesture state through a
+core checkpoint.
 
 The named bank slots still follow bounded movable proxies; they are not durable project-wide
 parameter identities. API 14 deliberately restores before navigation and has no pinned actuator

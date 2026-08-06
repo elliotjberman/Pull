@@ -107,7 +107,8 @@ scope barrier until later host read-back confirms every retained baseline. Core-
 through the same policy gate with a complete payload captured at `BEGIN`. Stable dispatch runs
 before a newly requested workspace applies. If Shift remains held, core opens a fresh session after
 that barrier. Core replacement is fenced while a semantic action or its stable dispatch remains
-pending and until the input router has no active gesture, queued motion, or deferred callback.
+pending and until the input router has no core-relevant active gesture, queued motion, or deferred
+callback. A pure stable-only `NONE` gesture with no semantic action does not cross that boundary.
 
 Policy now lives in the reloadable core. Stable owns only the bounded live actuator window, exact
 leases, absolute effect execution, generation rechecks, and best-effort invalidation restoration.

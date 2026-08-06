@@ -389,11 +389,19 @@ public final class CompiledWorkspace
             for (final ControllerActionBinding binding: Set.copyOf (Objects.requireNonNull (view.view ().actionBindings (), "action bindings")))
             {
                 final RouteKey key = new RouteKey (binding.controlId (), binding.inputKind ());
+                if (!claimsInput (view.profile (), key))
+                    throw new IllegalArgumentException ("view " + view.id () + " maps a semantic action outside its input claims: " + binding.controlId ());
                 if (owners.putIfAbsent (key, new ActionOwner (binding, view.view ())) != null)
                     throw new IllegalArgumentException ("multiple views map semantic actions from " + binding.controlId ());
             }
         }
         return Map.copyOf (owners);
+    }
+
+
+    private static boolean claimsInput (final ViewProfile profile, final RouteKey key)
+    {
+        return profile.claims ().stream ().anyMatch (claim -> claim.kind ().isInput () && claim.area ().controls ().contains (key.control ()) && claim.area ().inputKinds ().contains (key.kind ()));
     }
 
 

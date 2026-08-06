@@ -423,8 +423,10 @@ remains pending, so hot reload cannot split one gesture across policy generation
 Buttons, grid edges, touches, and pedals form gestures. Their route and active core generation are
 sampled at `BEGIN` and leased unchanged through `LONG` and `END`, even if the active core publishes a
 new desired route map meanwhile. A replacement core cannot activate until the input router has no
-active gesture, queued motion, or deferred stable callback. The old core therefore receives the
-whole gesture, and the candidate activates automatically after physical release and the next drain.
+core-relevant active gesture, queued motion, or deferred stable callback. A pure stable-only `NONE`
+gesture with no semantic action did not enter core and does not fence replacement. The old core
+therefore receives every core-observed, core-owned, semantic, or deferred gesture whole, and the
+candidate activates automatically after physical release and the next drain.
 Button arbitration sits below the framework's consumed-command gate and separates physical from
 stable pressed state, so an exclusive release cannot strand stable state or handlers.
 

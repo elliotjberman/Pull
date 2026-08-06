@@ -227,12 +227,12 @@ public final class PhysicalInputRouter<C>
 
 
     /**
-     * Test whether no physical gesture, coalesced motion, or deferred stable action crosses a core
-     * generation boundary.
+     * Test whether no core-coupled gesture, coalesced motion, or deferred stable action crosses a
+     * core generation boundary. A pure stable-only gesture does not fence core replacement.
      */
     public boolean isIdle ()
     {
-        return this.gestureBindings.isEmpty () && this.pendingMotion.isEmpty () && this.deferredStableDispatches.isEmpty ();
+        return this.gestureBindings.values ().stream ().noneMatch (GestureBinding::crossesCoreGeneration) && this.pendingMotion.isEmpty () && this.deferredStableDispatches.isEmpty ();
     }
 
 
@@ -298,6 +298,7 @@ public final class PhysicalInputRouter<C>
         if (this.deferredStableDispatches.size () >= MAX_DEFERRED_STABLE_DISPATCHES)
             throw new IllegalStateException ("Deferred stable input capacity exhausted");
         this.deferredStableDispatches.addLast (new DeferredStableDispatch<> (input, stableAction, stableCommand));
+        this.releaseDeferredStableDispatches ();
     }
 
 
@@ -341,6 +342,12 @@ public final class PhysicalInputRouter<C>
             Objects.requireNonNull (route, "route");
             if (generation < 0)
                 throw new IllegalArgumentException ("generation must not be negative");
+        }
+
+
+        private boolean crossesCoreGeneration ()
+        {
+            return this.route != InputRoute.NONE || this.stableAction != null || this.stableDispatchDeferred;
         }
     }
 

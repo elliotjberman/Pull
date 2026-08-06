@@ -228,6 +228,18 @@ class CompiledWorkspaceTest
 
 
     @Test
+    void rejectsSemanticActionWithoutSameViewControlAndKindClaim ()
+    {
+        final ControlId session = PushControlIds.button ("SESSION");
+        final ControllerView otherSessionObserver = view ("session observer", claim (SurfaceArea.SESSION_BUTTON, SurfaceClaim.Kind.OBSERVE_INPUT));
+        final ControlId knob = PushControlIds.continuous ("KNOB1");
+
+        assertThrows (IllegalArgumentException.class, () -> CompiledWorkspace.compile ("other view claim", List.of (new ActionView (Set.of (session)), otherSessionObserver)));
+        assertThrows (IllegalArgumentException.class, () -> CompiledWorkspace.compile ("wrong input kind", List.of (new ActionView (Set.of (knob), InputKind.TOUCH, SurfaceArea.ENCODER_TURNS))));
+    }
+
+
+    @Test
     void resolvedWorkspaceActionRetainsItsBeginTimeModifierMeaning ()
     {
         final ControlId shift = PushControlIds.button ("SHIFT");
@@ -363,8 +375,14 @@ class CompiledWorkspaceTest
     }
 
 
-    private record ActionView (Set<ControlId> controls) implements ControllerView
+    private record ActionView (Set<ControlId> controls, InputKind inputKind, SurfaceArea claimedArea) implements ControllerView
     {
+        private ActionView (final Set<ControlId> controls)
+        {
+            this (controls, InputKind.BUTTON, SurfaceArea.NAVIGATION_PAGE);
+        }
+
+
         @Override
         public String id ()
         {
@@ -375,7 +393,7 @@ class CompiledWorkspaceTest
         @Override
         public ViewProfile profile ()
         {
-            return ViewProfile.fixed ("actions", Set.of (), Set.of ());
+            return ViewProfile.fixed ("actions", Set.of (claim (this.claimedArea, SurfaceClaim.Kind.OBSERVE_INPUT)), Set.of ());
         }
 
 
@@ -385,7 +403,7 @@ class CompiledWorkspaceTest
             return this.controls.stream ()
                 .map (control -> new ControllerActionBinding (
                     control,
-                    InputKind.BUTTON,
+                    this.inputKind,
                     ControllerActionId.SELECT_PARAMETER_PAGE,
                     Set.of (ControllerStateScope.ACTIVE_PARAMETERS)))
                 .collect (java.util.stream.Collectors.toUnmodifiableSet ());

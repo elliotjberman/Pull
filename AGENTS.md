@@ -91,8 +91,10 @@
   `EXCLUSIVE` is valid only for a migrated control whose permanent stable binding is intentionally
   semantically inert. Freeze an edge route and its active-core generation at gesture `BEGIN`
   through `LONG` and `END`, even across a route-map change. Do not replace the active core until the
-  input router has no active gesture, queued motion, or deferred stable callback; a replacement must
-  never receive the completion of a gesture whose press belonged to the previous generation.
+  input router has no core-relevant active gesture, queued motion, or deferred stable callback; a
+  pure stable-only `NONE` gesture with no semantic action does not cross the core boundary and does
+  not fence replacement. A replacement must never receive the completion of a gesture whose press
+  belonged to the previous generation.
 - Install input arbitration once, below button consumed-state handling and below any continuous
   command/parameter rebinding. Never add a second MIDI or hardware callback to observe a migrated
   input. Coalesce relative motion by summing deltas and absolute/pressure motion by keeping the
