@@ -31,10 +31,11 @@
 ## Worktree lifecycle
 
 - Perform every feature change and other write operation in its own dedicated worktree; only
-  read-only inspection may use the main checkout. Keep the main checkout clean on `master` so it
-  remains the shared synchronization point for concurrent work.
-- After a pull request merges or its work is abandoned, remove the corresponding worktree and
-  delete its local branch when it is safe to do so.
+  read-only inspection may use the main checkout. Keep that checkout clean on `master` and
+  fast-forwarded to `origin/master` as the shared synchronization point for concurrent work.
+- After a pull request merges or its work is explicitly abandoned, require a clean worktree,
+  remove it without force, and delete its local branch with a non-forcing delete. Never discard a
+  dirty worktree during cleanup.
 
 ## Active findings
 

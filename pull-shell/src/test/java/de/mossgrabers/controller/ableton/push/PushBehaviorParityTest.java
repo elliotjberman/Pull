@@ -19,6 +19,7 @@ import de.mossgrabers.framework.daw.IProject;
 import de.mossgrabers.framework.daw.data.ICursorTrack;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.IParameterBank;
+import de.mossgrabers.framework.daw.data.bank.IParameterPageBank;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
 import de.mossgrabers.framework.daw.midi.IMidiInput;
 import de.mossgrabers.framework.daw.midi.IMidiOutput;
@@ -34,9 +35,9 @@ import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 
 /**
@@ -49,24 +50,34 @@ class PushBehaviorParityTest
     {
         final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
         final IParameter parameter = relaxedProxy (IParameter.class);
+        final List<Integer> selectedParameterPages = new ArrayList<> ();
+        final IParameterPageBank parameterPageBank = proxy (IParameterPageBank.class, (proxy, method, arguments) -> switch (method.getName ())
+        {
+            case "getItem" -> "Page " + (((Integer) arguments[0]).intValue () + 1);
+            case "selectPage" -> {
+                selectedParameterPages.add ((Integer) arguments[0]);
+                yield null;
+            }
+            default -> relaxedValue (method.getReturnType ());
+        });
         final IParameterBank parameterBank = proxy (IParameterBank.class, (proxy, method, arguments) -> switch (method.getName ())
         {
             case "getPageSize" -> Integer.valueOf (8);
             case "getItem" -> parameter;
+            case "getPageBank" -> parameterPageBank;
             default -> relaxedValue (method.getReturnType ());
         });
-        final AtomicInteger [] selections = new AtomicInteger [8];
+        final List<Integer> selectedTrackIndices = new ArrayList<> ();
         final ITrack [] tracks = new ITrack [8];
         for (int index = 0; index < tracks.length; index++)
         {
             final int trackIndex = index;
-            selections[index] = new AtomicInteger ();
             tracks[index] = proxy (ITrack.class, (proxy, method, arguments) -> switch (method.getName ())
             {
                 case "doesExist" -> Boolean.TRUE;
                 case "getName" -> "Track " + (trackIndex + 1);
                 case "select" -> {
-                    selections[trackIndex].incrementAndGet ();
+                    selectedTrackIndices.add (Integer.valueOf (trackIndex));
                     yield null;
                 }
                 default -> relaxedValue (method.getReturnType ());
@@ -103,9 +114,8 @@ class PushBehaviorParityTest
         mode.onFirstRow (3, ButtonEvent.UP);
 
         assertEquals ("Track 4", bottomMenus.get (3));
-        assertEquals (0, selections[0].get ());
-        assertEquals (1, selections[3].get ());
-        assertEquals (0, selections[7].get ());
+        assertEquals (List.of (Integer.valueOf (3)), selectedTrackIndices);
+        assertEquals (List.of (), selectedParameterPages);
     }
 
 
@@ -116,12 +126,14 @@ class PushBehaviorParityTest
         final ICursorTrack cursorTrack = proxy (ICursorTrack.class, (proxy, method, arguments) -> switch (method.getName ())
         {
             case "doesExist" -> Boolean.TRUE;
+            case "getChannelID" -> "track-a";
             case "getPosition" -> Integer.valueOf (4);
             default -> relaxedValue (method.getReturnType ());
         });
         final ISelectedTrackNoteTarget selectedTarget = proxy (ISelectedTrackNoteTarget.class, (proxy, method, arguments) -> switch (method.getName ())
         {
             case "doesExist", "canHoldNotes", "hasDrumDevice" -> Boolean.TRUE;
+            case "getChannelID" -> "track-a";
             default -> relaxedValue (method.getReturnType ());
         });
         final IModel model = proxy (IModel.class, (proxy, method, arguments) -> "getCursorTrack".equals (method.getName ()) ? cursorTrack : relaxedValue (method.getReturnType ()));
@@ -134,6 +146,36 @@ class PushBehaviorParityTest
 
         assertEquals (Views.DRUM_PAD, surface.getViewManager ().getActiveID ());
         assertEquals (Views.DRUM_PAD, surface.getViewManager ().getPreferredView (4));
+    }
+
+
+    @Test
+    void automaticDrumLayoutWaitsForSelectedTrackModelAlignment ()
+    {
+        final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
+        final ICursorTrack cursorTrack = proxy (ICursorTrack.class, (proxy, method, arguments) -> switch (method.getName ())
+        {
+            case "doesExist" -> Boolean.TRUE;
+            case "getChannelID" -> "track-b";
+            case "getPosition" -> Integer.valueOf (4);
+            default -> relaxedValue (method.getReturnType ());
+        });
+        final ISelectedTrackNoteTarget selectedTarget = proxy (ISelectedTrackNoteTarget.class, (proxy, method, arguments) -> switch (method.getName ())
+        {
+            case "doesExist", "canHoldNotes", "hasDrumDevice" -> Boolean.TRUE;
+            case "getChannelID" -> "track-a";
+            default -> relaxedValue (method.getReturnType ());
+        });
+        final IModel model = proxy (IModel.class, (proxy, method, arguments) -> "getCursorTrack".equals (method.getName ()) ? cursorTrack : relaxedValue (method.getReturnType ()));
+        final PushControlSurface surface = createSurface (valueChanger, selectedTarget, cursorTrack);
+        surface.getViewManager ().register (Views.SESSION, relaxedProxy (IView.class));
+        surface.getViewManager ().register (Views.DRUM_PAD, relaxedProxy (IView.class));
+        surface.getViewManager ().setActive (Views.SESSION);
+
+        new SelectPlayViewCommand (model, surface).execute (ButtonEvent.DOWN, 127);
+
+        assertEquals (Views.SESSION, surface.getViewManager ().getActiveID ());
+        assertNull (surface.getViewManager ().getPreferredView (4));
     }
 
 
