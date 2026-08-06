@@ -8,7 +8,7 @@ package de.mossgrabers.controller.ableton.push.controller;
 final class PushPaletteData
 {
     static final String PROFILE_ID    = "bitwig-calibrated-v2";
-    static final String SOURCE_SHA256 = "4b4e3697e25012feddcc515685810e37520b0ecdf6d170f3be1d8ffa53299479";
+    static final String SOURCE_SHA256 = "46f5367829f0e4841a6321715b9fbcf34697eae3778da9b0bd26654b3f0cfc1e";
 
     // @formatter:off
     static final int [] [] COLORS =
@@ -76,7 +76,7 @@ final class PushPaletteData
         { 0xA8, 0x05, 0x1F }, { 0x7C, 0x06, 0x00 }, { 0xFD, 0x1A, 0x00 }, { 0xB0, 0x54, 0x00 },
         { 0x2A, 0xCA, 0xB2 }, { 0x2F, 0x55, 0x01 }, { 0x00, 0x69, 0x19 }, { 0x20, 0xAF, 0xFF },
         { 0x85, 0x31, 0xE0 }, { 0xBD, 0x1D, 0x43 }, { 0xD2, 0x17, 0x12 }, { 0xD8, 0x4E, 0x00 },
-        { 0xC6, 0x79, 0x11 }, { 0x66, 0x92, 0x18 }, { 0x00, 0x7B, 0x65 }, { 0x14, 0x93, 0x2E },
+        { 0xB4, 0x85, 0x02 }, { 0x66, 0x92, 0x18 }, { 0x00, 0x7B, 0x65 }, { 0x14, 0x93, 0x2E },
         { 0x00, 0x72, 0xBA }, { 0x95, 0x0A, 0x42 }, { 0x8B, 0x2B, 0x3F }, { 0xB1, 0x04, 0x0E },
         { 0xC2, 0x2F, 0x0E }, { 0x83, 0x70, 0x01 }, { 0xFF, 0x19, 0x42 }, { 0x01, 0x01, 0x03 },
         { 0x14, 0x14, 0x2B }, { 0x11, 0x72, 0x36 }, { 0xFF, 0x81, 0x00 }, { 0x00, 0x54, 0x5F },
@@ -87,6 +87,19 @@ final class PushPaletteData
         { 0x5D, 0x20, 0x02 }, { 0xFF, 0xAE, 0x56 }, { 0x00, 0x92, 0x49 }, { 0xF6, 0x35, 0x2B }
     };
     // @formatter:on
+
+    // Push palette entries include a parallel white-only value.
+    static final int [] WHITE_VALUES =
+    {
+        0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30,
+        32, 34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 62,
+        64, 66, 68, 70, 72, 74, 76, 78, 80, 80, 81, 81, 82, 82, 83, 83,
+        84, 85, 85, 86, 86, 87, 87, 88, 88, 89, 90, 90, 91, 91, 92, 92,
+        93, 93, 94, 94, 95, 96, 96, 97, 97, 98, 98, 99, 99, 100, 101, 101,
+        102, 102, 103, 103, 104, 104, 105, 106, 106, 107, 107, 108, 108, 109, 109, 110,
+        110, 111, 112, 112, 113, 113, 114, 114, 115, 115, 116, 117, 117, 118, 118, 119,
+        119, 120, 120, 121, 122, 122, 123, 123, 124, 124, 125, 125, 126, 126, 127, 128
+    };
 
 
     private PushPaletteData ()

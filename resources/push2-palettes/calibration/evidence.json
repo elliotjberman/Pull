@@ -26,7 +26,7 @@
     {"name": "MC-202", "targetRgb": "#FFFEA1", "programmedRgb": "#FFFE70", "guardrail": "Do not brighten; preserve pale-yellow versus white."},
     {"name": "Perm", "targetRgb": "#43D2B8", "programmedRgb": "#2ACAB2"},
     {"name": "Minilogue", "targetRgb": "#D92F22", "programmedRgb": "#7C0600"},
-    {"name": "Tetra", "targetRgb": "#E4B74C", "programmedRgb": "#C67911"},
+    {"name": "Tetra", "targetRgb": "#E4B74C", "programmedRgb": "#B48502"},
     {"name": "Juno", "targetRgb": "#0099D7", "programmedRgb": "#0072BA"},
     {"name": "Moog", "targetRgb": "#FF833C", "programmedRgb": "#D84E00"},
     {"name": "Elektron", "targetRgb": "#73B453", "programmedRgb": "#2A8616"},

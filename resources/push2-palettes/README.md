@@ -29,6 +29,12 @@ Every production entry therefore stores two values:
 - `targetRgb`: the logical color used for nearest-color matching;
 - `programmedRgb`: the compensated bytes written to the Push palette.
 
+Each profile also stores all 128 indexed `whiteValues`. This is a parallel white-only palette value,
+not a fourth emitter mixed into the RGB pad color. Push palette writes replace RGB and that value
+together, so a complete profile lets startup write known values without first reading every slot.
+The values were cross-checked against Ableton Live 11's Push 2 `COLOR_TABLE`; slots 64–127 were also
+captured from the tested Push, and the hardware read-back is retained where available.
+
 The hardware-specific lookup remains at the final output boundary:
 
 ```text
@@ -37,6 +43,17 @@ Bitwig RGB -> nearest logical target/index -> programmed Push RGB -> pad
 
 Matching uses Euclidean OKLab distance. The Push LCD is a separate direct-RGB
 path and never uses this indexed palette.
+
+## Startup synchronization
+
+Once the Push answers the bounded device inquiry, the controller sends all 128 RGBW entries and the
+documented Reapply command before flushing the first cached grid frame. This mirrors Ableton Live's
+set-first sequence and avoids briefly rendering session colors through a stale device palette.
+The upload path does not issue palette Get commands and has no fixed one-second wait.
+
+After the first frame, a background pass reads one entry at a time. It repairs and rechecks a
+mismatch, but verification cannot delay visible startup. Bitwig's console reports both the time to
+queue the palette and the total background-verification time.
 
 ## Index constraints
 

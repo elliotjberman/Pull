@@ -32,7 +32,7 @@ def read_profile(path):
         raise PaletteError(f"{path}: {error}") from error
 
     required = ("schemaVersion", "id", "label", "status", "summary", "colorModel")
-    if profile.get("schemaVersion") != 1 or any(key not in profile for key in required):
+    if profile.get("schemaVersion") != 2 or any(key not in profile for key in required):
         raise PaletteError(f"{path}: missing profile metadata")
     if path.stem != profile["id"]:
         raise PaletteError(f"{path}: id must match filename")
@@ -40,6 +40,14 @@ def read_profile(path):
     entries = profile.get("entries")
     if not isinstance(entries, list) or len(entries) != 128:
         raise PaletteError(f"{path}: expected exactly 128 entries")
+
+    white_values = profile.get("whiteValues")
+    if (
+        not isinstance(white_values, list)
+        or len(white_values) != 128
+        or any(not isinstance(value, int) or not 0 <= value <= 255 for value in white_values)
+    ):
+        raise PaletteError(f"{path}: expected exactly 128 whiteValues in the range 0-255")
 
     logical = []
     programmed = []
@@ -61,17 +69,17 @@ def read_profile(path):
         logical.append(target)
         programmed.append(value)
 
-    return profile, logical, programmed if paired else None
+    return profile, logical, programmed if paired else None, white_values
 
 
 def load_profiles():
     profiles = {}
     for path in sorted(PROFILES.glob("*.json")):
-        profile, logical, programmed = read_profile(path)
+        profile, logical, programmed, white_values = read_profile(path)
         profile_id = profile["id"]
         if profile_id in profiles:
             raise PaletteError(f"duplicate profile id {profile_id}")
-        profiles[profile_id] = (path, profile, logical, programmed)
+        profiles[profile_id] = (path, profile, logical, programmed, white_values)
     if not profiles:
         raise PaletteError(f"{PROFILES}: no profiles found")
     return profiles
@@ -100,7 +108,14 @@ def color_rows(colors):
     return "\n".join(rows)
 
 
-def render_java(profile_id, path, logical, programmed):
+def value_rows(values):
+    return "\n".join(
+        "        " + ", ".join(str(value) for value in values[start : start + 16]) + ("," if start < 112 else "")
+        for start in range(0, 128, 16)
+    )
+
+
+def render_java(profile_id, path, logical, programmed, white_values):
     source_hash = hashlib.sha256(path.read_bytes()).hexdigest()
     programmed_source = "    static final boolean HAS_PROGRAMMED_COLORS = false;\n    static final int [] [] PROGRAMMED_COLORS = COLORS;"
     if programmed is not None:
@@ -134,6 +149,12 @@ final class PushPaletteData
 
 {programmed_source}
 
+    // Push palette entries include a parallel white-only value.
+    static final int [] WHITE_VALUES =
+    {{
+{value_rows(white_values)}
+    }};
+
 
     private PushPaletteData ()
     {{
@@ -153,17 +174,6 @@ def replace_text(path, content):
         Path(temporary).unlink(missing_ok=True)
 
 
-def selected(profiles, requested=None):
-    profile_id = requested or active_id()
-    if profile_id not in profiles:
-        raise PaletteError(f"unknown profile {profile_id}")
-    return profile_id, profiles[profile_id]
-
-
-def duplicate_count(colors):
-    return len(colors) - len(set(colors))
-
-
 def main():
     parser = argparse.ArgumentParser()
     action = parser.add_mutually_exclusive_group()
@@ -177,12 +187,15 @@ def main():
         profiles = load_profiles()
         if args.list:
             current = active_id()
-            for profile_id, (_, profile, _, _) in profiles.items():
+            for profile_id, (_, profile, _, _, _) in profiles.items():
                 print(f"{'*' if profile_id == current else ' '} {profile_id:24s} {profile['label']}")
             return
 
-        profile_id, (path, profile, logical, programmed) = selected(profiles, args.use)
-        java = render_java(profile_id, path, logical, programmed)
+        profile_id = args.use or active_id()
+        if profile_id not in profiles:
+            raise PaletteError(f"unknown profile {profile_id}")
+        path, profile, logical, programmed, white_values = profiles[profile_id]
+        java = render_java(profile_id, path, logical, programmed, white_values)
         if args.use:
             replace_text(OUTPUT, java)
             replace_text(ACTIVE, profile_id + "\n")
@@ -193,7 +206,7 @@ def main():
                 raise PaletteError(f"{OUTPUT}: generated data is stale")
             print(f"OK: {len(profiles)} profiles; active={profile_id}; colors=128")
             return
-        print(f"{profile_id}: {profile['label']}\n{profile['summary']}\nduplicates={duplicate_count(logical)}")
+        print(f"{profile_id}: {profile['label']}\n{profile['summary']}\nduplicates={len(logical) - len(set(logical))}")
     except (OSError, PaletteError) as error:
         parser.exit(1, f"push2-palette: {error}\n")
 

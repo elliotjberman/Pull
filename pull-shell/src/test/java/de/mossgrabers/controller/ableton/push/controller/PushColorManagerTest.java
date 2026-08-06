@@ -24,7 +24,7 @@ class PushColorManagerTest
         this.assertMapping ("#FFFEA1", 43, "#FFFE70");
         this.assertMapping ("#43D2B8", 84, "#2ACAB2");
         this.assertMapping ("#D92F22", 81, "#7C0600");
-        this.assertMapping ("#E4B74C", 92, "#C67911");
+        this.assertMapping ("#E4B74C", 92, "#B48502");
         this.assertMapping ("#0099D7", 96, "#0072BA");
         this.assertMapping ("#FF833C", 91, "#D84E00");
         this.assertMapping ("#73B453", 118, "#2A8616");
@@ -40,6 +40,17 @@ class PushColorManagerTest
 
         assertEquals (0, this.colorManager.getColorIndex (IPadGrid.GRID_OFF));
         assertArrayEquals (parseRGB ("#000000"), PushColorManager.getPaletteColorRGB (0));
+    }
+
+
+    @Test
+    void includesACompleteWhiteOnlyProfile ()
+    {
+        assertEquals (128, PushPaletteData.WHITE_VALUES.length);
+        assertEquals (0, PushPaletteData.WHITE_VALUES[0]);
+        assertEquals (81, PushPaletteData.WHITE_VALUES[43]);
+        assertEquals (93, PushPaletteData.WHITE_VALUES[64]);
+        assertEquals (128, PushPaletteData.WHITE_VALUES[127]);
     }
 
 

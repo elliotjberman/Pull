@@ -11,18 +11,6 @@ package de.mossgrabers.controller.ableton.push.controller;
  */
 public class ColorPaletteEntry
 {
-    static enum State
-    {
-        READ,
-        READ_REQUESTED,
-        WRITE,
-        DONE
-    }
-
-
-    /** The maximum number of read/write attempts. */
-    public static final int  MAX_NUMBER_OF_RETRIES  = 10;
-
     private static final int PALETTE_MESSAGE_OUT_ID = 0x03;
     private static final int PALETTE_MESSAGE_IN_ID  = 0x04;
 
@@ -32,12 +20,7 @@ public class ColorPaletteEntry
     private final int        red;
     private final int        green;
     private final int        blue;
-    private int              white;
-
-    private State            state                  = State.READ;
-    private int              readRetries            = 0;
-    private int              writeRetries           = 0;
-    private long             sendTimestamp;
+    private final int        white;
 
 
     /**
@@ -45,13 +28,15 @@ public class ColorPaletteEntry
      *
      * @param index The index of the entry
      * @param color The default palette color consisting of three integers for red, green and blue
+     * @param white The parallel white-only palette value
      */
-    public ColorPaletteEntry (final int index, final int [] color)
+    public ColorPaletteEntry (final int index, final int [] color, final int white)
     {
         this.index = index;
         this.red = color[0];
         this.green = color[1];
         this.blue = color[2];
+        this.white = white;
     }
 
 
@@ -68,88 +53,14 @@ public class ColorPaletteEntry
 
 
     /**
-     * Test if the received data is the same as the already stored one.
+     * Test if the received data contains this entry's complete RGB plus white-only value.
      *
      * @param data The SysEx data of a received color palette entry. Must be 17 characters long.
-     * @return True if the given color is different than the color already stored in this object
+     * @return True if the complete palette value matches
      */
-    public boolean requiresUpdate (final int [] data)
+    public boolean matches (final int [] data)
     {
-        this.white = data[14] + (data[15] << 7);
-        return this.red != data[8] + (data[9] << 7) || this.green != data[10] + (data[11] << 7) || this.blue != data[12] + (data[13] << 7);
-    }
-
-
-    /**
-     * Increases the read request for this palette entry.
-     *
-     * @return True if another attempt is allowed, false if the maximum number of retries has been
-     *         reached
-     */
-    public boolean incReadRetries ()
-    {
-        this.readRetries++;
-        if (this.readRetries > MAX_NUMBER_OF_RETRIES)
-        {
-            this.state = State.DONE;
-            return false;
-        }
-
-        this.state = State.READ_REQUESTED;
-        this.sendTimestamp = System.currentTimeMillis ();
-        return true;
-    }
-
-
-    /**
-     * Increases the write request for this palette entry.
-     *
-     * @return True if another attempt is allowed, false if the maximum number of retries has been
-     *         reached
-     */
-    public boolean incWriteRetries ()
-    {
-        this.writeRetries++;
-
-        if (this.writeRetries > MAX_NUMBER_OF_RETRIES)
-        {
-            this.state = State.DONE;
-            return false;
-        }
-
-        // Set to read for confirmation check
-        this.state = State.READ;
-        this.sendTimestamp = System.currentTimeMillis ();
-        return true;
-    }
-
-
-    /**
-     * Sets the state to WRITE.
-     */
-    public void setWrite ()
-    {
-        this.state = State.WRITE;
-    }
-
-
-    /**
-     * Set the entry to be OK, which means identical to the device.
-     */
-    public void setDone ()
-    {
-        this.state = State.DONE;
-    }
-
-
-    /**
-     * Get the state.
-     *
-     * @return The state
-     */
-    public State getState ()
-    {
-        return this.state;
+        return isValid (data) && this.index == data[7] && this.red == decode (data, 8) && this.green == decode (data, 10) && this.blue == decode (data, 12) && this.white == decode (data, 14);
     }
 
 
@@ -175,13 +86,8 @@ public class ColorPaletteEntry
     }
 
 
-    /**
-     * Get the time in milliseconds when the read/write request was sent.
-     *
-     * @return the sendTimestamp The milliseconds
-     */
-    public long getSendTimestamp ()
+    private static int decode (final int [] data, final int offset)
     {
-        return this.sendTimestamp;
+        return data[offset] + (data[offset + 1] << 7);
     }
 }

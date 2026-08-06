@@ -781,8 +781,6 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
             viewManager.setActive (Views.PLAY);
 
         this.requestDeviceInformation (surface, DEVICE_INQUIRY_ATTEMPTS);
-        surface.updateColorPalette ();
-        surface.flush ();
     }
 
 
@@ -793,7 +791,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
             // The inquiry response proves that Push is accepting MIDI. Repeat the historically
             // delayed pressure-mode command and replay cached hardware state now that it is ready.
             surface.sendPressureMode (true);
-            this.replayInitialHardwareState (surface);
+            this.synchronizeReadyHardware (surface);
             return;
         }
 
@@ -821,6 +819,17 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         this.initialHardwareStateReplayed = true;
         surface.forceFlush ();
         surface.flush ();
+    }
+
+
+    private void synchronizeReadyHardware (final PushControlSurface surface)
+    {
+        // A successful inquiry proves that palette writes can reach this hardware generation. The
+        // upload precedes the cached grid frame; verification then continues in the background.
+        surface.updateColorPalette ();
+        surface.forceFlush ();
+        surface.flush ();
+        this.initialHardwareStateReplayed = true;
     }
 
 

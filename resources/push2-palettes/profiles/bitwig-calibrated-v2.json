@@ -1,10 +1,20 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "bitwig-calibrated-v2",
   "label": "Bitwig calibrated v2",
-  "status": "candidate",
+  "status": "production",
   "summary": "Controller-safe palette optimized directly against Bitwig 6.0.11's 135 exact factory swatches, with a broad Push 2 response model and 10 physically approved drive values.",
   "colorModel": "srgb8-logical-programmed-pair",
+  "whiteValues": [
+    0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30,
+    32, 34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 62,
+    64, 66, 68, 70, 72, 74, 76, 78, 80, 80, 81, 81, 82, 82, 83, 83,
+    84, 85, 85, 86, 86, 87, 87, 88, 88, 89, 90, 90, 91, 91, 92, 92,
+    93, 93, 94, 94, 95, 96, 96, 97, 97, 98, 98, 99, 99, 100, 101, 101,
+    102, 102, 103, 103, 104, 104, 105, 106, 106, 107, 107, 108, 108, 109, 109, 110,
+    110, 111, 112, 112, 113, 113, 114, 114, 115, 115, 116, 117, 117, 118, 118, 119,
+    119, 120, 120, 121, 122, 122, 123, 123, 124, 124, 125, 125, 126, 126, 127, 128
+  ],
   "calibrationEvidence": "../calibration/evidence.json",
   "entries": [
     {"index": 0, "targetRgb": "#000000", "programmedRgb": "#000000", "role": "semantic", "origin": "Existing controller-state index"},
@@ -99,7 +109,7 @@
     {"index": 89, "targetRgb": "#E16691", "programmedRgb": "#BD1D43", "role": "daw-anchor", "origin": "Framework DAWColor block"},
     {"index": 90, "targetRgb": "#EC6157", "programmedRgb": "#D21712", "role": "daw-anchor", "origin": "Framework DAWColor block"},
     {"index": 91, "targetRgb": "#FF833E", "programmedRgb": "#D84E00", "role": "daw-anchor", "origin": "Framework DAWColor block", "note": "Physical direct-tune anchor Moog (#FF833C, logical distance 0.152)."},
-    {"index": 92, "targetRgb": "#E4B74E", "programmedRgb": "#C67911", "role": "daw-anchor", "origin": "Framework DAWColor block", "note": "Physical direct-tune anchor Tetra (#E4B74C, logical distance 0.162)."},
+    {"index": 92, "targetRgb": "#E4B74E", "programmedRgb": "#B48502", "role": "daw-anchor", "origin": "Framework DAWColor block", "note": "Physical direct-tune anchor Tetra (#E4B74C, logical distance 0.162)."},
     {"index": 93, "targetRgb": "#A0C04C", "programmedRgb": "#669218", "role": "daw-anchor", "origin": "Framework DAWColor block"},
     {"index": 94, "targetRgb": "#00A694", "programmedRgb": "#007B65", "role": "daw-anchor", "origin": "Framework DAWColor block"},
     {"index": 95, "targetRgb": "#3EBB62", "programmedRgb": "#14932E", "role": "daw-anchor", "origin": "Framework DAWColor block"},

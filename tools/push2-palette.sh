@@ -5,15 +5,11 @@ set -eu
 PALETTE_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 PALETTE_GENERATOR="$PALETTE_ROOT/tools/push2-palette/generate.py"
 
-case "${1:-status}" in
-    list)
-        exec python3 "$PALETTE_GENERATOR" --list
-        ;;
-    status)
-        exec python3 "$PALETTE_GENERATOR" --status
-        ;;
-    check)
-        exec python3 "$PALETTE_GENERATOR" --check
+COMMAND=${1:-status}
+
+case "$COMMAND" in
+    list|status|check)
+        exec python3 "$PALETTE_GENERATOR" "--$COMMAND"
         ;;
     use)
         if [ "$#" -ne 2 ]; then
