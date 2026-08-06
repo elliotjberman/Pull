@@ -84,6 +84,19 @@ public class ColorManager
 
 
     /**
+     * Get the controller color index which most closely represents the given RGB color. The
+     * default preserves the registered DAW-color mapping; indexed RGB controllers can override it.
+     *
+     * @param color The RGB color
+     * @return The color index
+     */
+    public int getColorIndex (final ColorEx color)
+    {
+        return this.getColorIndex (DAWColor.getColorID (color));
+    }
+
+
+    /**
      * Registers the real RGB color which is represented by the given color index.
      *
      * @param colorIndex The color index

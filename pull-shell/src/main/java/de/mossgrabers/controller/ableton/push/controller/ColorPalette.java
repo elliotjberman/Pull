@@ -4,6 +4,7 @@
 
 package de.mossgrabers.controller.ableton.push.controller;
 
+
 /**
  * The color palette of the Push 2/3.
  *
@@ -11,10 +12,37 @@ package de.mossgrabers.controller.ableton.push.controller;
  */
 public class ColorPalette
 {
-    private final PushControlSurface   surface;
-    private final ColorPaletteEntry [] entries          = new ColorPaletteEntry [128];
-    private final Object               updateLock       = new Object ();
-    private boolean                    entriesHasUpdate = false;
+    interface Host
+    {
+        void sendSysex (int [] parameters);
+
+        void sendSysex (String parameters);
+
+        void scheduleTask (Runnable task, long delay);
+
+        void println (String message);
+
+        void errorln (String message);
+
+        void notifyPaletteStatus (String message);
+    }
+
+
+    private static final int          MAX_VERIFICATION_ATTEMPTS = 3;
+    private static final int          VERIFICATION_TIMEOUT_MS   = 1000;
+
+    private final Host                 host;
+    private final ColorPaletteEntry [] entries                  = new ColorPaletteEntry [128];
+    private final Object               updateLock               = new Object ();
+
+    private boolean                    uploadStarted;
+    private boolean                    verificationRequestOutstanding;
+    private int                        verificationIndex;
+    private int                        verificationAttempt;
+    private int                        correctedEntryCount;
+    private int                        failedEntryCount;
+    private long                       verificationToken;
+    private long                       updateStartedAt;
 
 
     /**
@@ -24,56 +52,45 @@ public class ColorPalette
      */
     public ColorPalette (final PushControlSurface surface)
     {
-        this.surface = surface;
+        this ((Host) surface);
+    }
+
+
+    ColorPalette (final Host host)
+    {
+        this.host = host;
 
         for (int i = 0; i < this.entries.length; i++)
-            this.entries[i] = new ColorPaletteEntry (i, PushColorManager.getPaletteColorRGB (i));
+            this.entries[i] = new ColorPaletteEntry (i, PushColorManager.getPaletteColorRGB (i), PushPaletteData.WHITE_VALUES[i]);
     }
 
 
     /**
-     * Checks all entries in the current pad color palette of the Push 2/3. Sends updates if
-     * necessary.
+     * Upload the complete known RGB plus white-only palette, then verify it in the background. Push
+     * palette Set messages have no reply, so reading every slot before writing only delays the
+     * first correct render. Ableton Live likewise sends its complete table followed by Reapply.
      */
     public void updatePalette ()
     {
+        final long uploadStartedAt;
         synchronized (this.updateLock)
         {
-            final int entryIndex = this.findNextEntry ();
-            // All done?
-            if (entryIndex < 0)
-            {
-                // Re-apply the color palette, if necessary
-                if (this.entriesHasUpdate)
-                    this.surface.scheduleTask ( () -> this.surface.sendSysex ("05"), 1000);
+            if (this.uploadStarted)
                 return;
-            }
 
-            switch (this.entries[entryIndex].getState ())
-            {
-                case READ:
-                    this.sendColorEntryRequest (entryIndex);
-                    break;
+            this.uploadStarted = true;
+            this.updateStartedAt = System.nanoTime ();
+            uploadStartedAt = this.updateStartedAt;
 
-                case READ_REQUESTED:
-                    // 2nd attempt after 1 second...
-                    if (System.currentTimeMillis () - this.entries[entryIndex].getSendTimestamp () > 1000L)
-                        this.sendColorEntryRequest (entryIndex);
-                    break;
-
-                case WRITE:
-                    if (this.entries[entryIndex].incWriteRetries ())
-                        this.surface.sendSysex (this.entries[entryIndex].createUpdateMessage ());
-                    else
-                        this.surface.errorln ("Failed writing color palette entry #" + entryIndex + ".");
-                    break;
-
-                default:
-                    return;
-            }
+            for (final ColorPaletteEntry entry: this.entries)
+                this.host.sendSysex (entry.createUpdateMessage ());
+            this.host.sendSysex ("05");
         }
 
-        this.surface.scheduleTask (this::updatePalette, 10);
+        final long uploadMilliseconds = elapsedMilliseconds (uploadStartedAt);
+        this.host.println ("Push RGBW color palette queued in " + uploadMilliseconds + " ms; verifying in background.");
+        this.host.notifyPaletteStatus ("Push colors syncing");
+        this.host.scheduleTask (this::requestVerification, 0);
     }
 
 
@@ -87,57 +104,123 @@ public class ColorPalette
         if (!ColorPaletteEntry.isValid (data))
             return;
 
+        boolean verificationComplete = false;
         synchronized (this.updateLock)
         {
-            final int index = data[7];
-
-            // Is an update of the color palette entry necessary?
-            if (!this.entries[index].requiresUpdate (data))
-            {
-                this.entries[index].setDone ();
+            if (!this.uploadStarted || !this.verificationRequestOutstanding || this.verificationIndex >= this.entries.length || data[7] != this.verificationIndex)
                 return;
+
+            this.verificationRequestOutstanding = false;
+            this.verificationToken++;
+            final ColorPaletteEntry entry = this.entries[this.verificationIndex];
+            if (entry.matches (data))
+                this.advanceVerification ();
+            else if (this.verificationAttempt < MAX_VERIFICATION_ATTEMPTS)
+            {
+                this.correctedEntryCount++;
+                this.host.sendSysex (entry.createUpdateMessage ());
+                this.host.sendSysex ("05");
+            }
+            else
+            {
+                this.failCurrentEntry ("writing");
+                this.advanceVerification ();
             }
 
-            this.entriesHasUpdate = true;
-            this.entries[index].setWrite ();
+            verificationComplete = this.verificationIndex >= this.entries.length;
         }
+
+        if (verificationComplete)
+            this.finishVerification ();
+        else
+            this.host.scheduleTask (this::requestVerification, 0);
     }
 
 
-    /**
-     * Get the next palette entry which needs to be updated.
-     *
-     * @return The index of the entry or -1 if no further updates are required
-     */
-    private int findNextEntry ()
+    private void requestVerification ()
     {
-        for (int i = 0; i < this.entries.length; i++)
+        final int entryIndex;
+        final long token;
+        synchronized (this.updateLock)
         {
-            if (this.entries[i].getState () != ColorPaletteEntry.State.DONE)
-                return i;
+            if (!this.uploadStarted || this.verificationRequestOutstanding || this.verificationIndex >= this.entries.length)
+                return;
+
+            entryIndex = this.verificationIndex;
+            this.verificationAttempt++;
+            this.verificationRequestOutstanding = true;
+            token = ++this.verificationToken;
+            this.host.sendSysex (new int []
+            {
+                0x04,
+                entryIndex
+            });
         }
 
-        return -1;
+        this.host.scheduleTask (() -> this.handleVerificationTimeout (entryIndex, token), VERIFICATION_TIMEOUT_MS);
     }
 
 
-    /**
-     * Send a request to the Push 2/3 to send the values of an entry of the current color palette.
-     *
-     * @param entryIndex The index of the entry 0-127
-     */
-    private void sendColorEntryRequest (final int entryIndex)
+    private void handleVerificationTimeout (final int entryIndex, final long token)
     {
-        if (!this.entries[entryIndex].incReadRetries ())
+        boolean verificationComplete = false;
+        synchronized (this.updateLock)
         {
-            this.surface.errorln ("Failed reading color palette entry #" + entryIndex + ".");
-            return;
+            if (!this.verificationRequestOutstanding || entryIndex != this.verificationIndex || token != this.verificationToken)
+                return;
+
+            this.verificationRequestOutstanding = false;
+            this.verificationToken++;
+            if (this.verificationAttempt >= MAX_VERIFICATION_ATTEMPTS)
+            {
+                this.failCurrentEntry ("reading");
+                this.advanceVerification ();
+                verificationComplete = this.verificationIndex >= this.entries.length;
+            }
         }
 
-        this.surface.sendSysex (new int []
+        if (verificationComplete)
+            this.finishVerification ();
+        else
+            this.host.scheduleTask (this::requestVerification, 0);
+    }
+
+
+    private void advanceVerification ()
+    {
+        this.verificationIndex++;
+        this.verificationAttempt = 0;
+        this.verificationRequestOutstanding = false;
+    }
+
+
+    private void failCurrentEntry (final String operation)
+    {
+        this.failedEntryCount++;
+        this.host.errorln ("Failed " + operation + " color palette entry #" + this.verificationIndex + ".");
+    }
+
+
+    private void finishVerification ()
+    {
+        final int failed;
+        final int corrected;
+        final long startedAt;
+        synchronized (this.updateLock)
         {
-            0x04,
-            entryIndex
-        });
+            failed = this.failedEntryCount;
+            corrected = this.correctedEntryCount;
+            startedAt = this.updateStartedAt;
+        }
+
+        final String result = failed == 0 ? "verified" : "finished with " + failed + " failed entries";
+        this.host.println ("Push RGBW color palette " + result + " in " + elapsedMilliseconds (startedAt) + " ms (" + corrected + " corrective writes).");
+        this.host.notifyPaletteStatus (failed == 0 ? "Push colors ready" : "Push color verification incomplete");
+    }
+
+
+    private static long elapsedMilliseconds (final long startedAt)
+    {
+        return (System.nanoTime () - startedAt) / 1_000_000L;
     }
 }

@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "device": {
+    "model": "Ableton Push 2",
+    "unitsTested": 1,
+    "ledBrightness": 127,
+    "padWhiteBalance": {"red": 440, "green": 475, "blue": 324}
+  },
+  "logicalRoster": {
+    "source": "135 unique Bitwig Studio 6.0.11 factory swatches",
+    "controllerLockedEntries": 52,
+    "coverageEntries": 76,
+    "selection": "Deterministic greedy facility-location medoids in OKLab",
+    "coverage": {"mean": 0.551, "p95": 3.102, "max": 3.611, "exact": 102}
+  },
+  "broadPadModel": {
+    "id": "rgb-dependent-gamma-v1",
+    "observations": 32,
+    "formula": "gamma = 2.56 + 0.46*luminance - 1.06*chroma - 0.29*redShare",
+    "coefficients": [2.56, 0.46, -1.06, -0.29],
+    "leaveOneTargetOut": {"rgb8ChannelMae": 9.02, "rgb8ChannelRmse": 12.91, "gammaMae": 0.335},
+    "leaveOneSessionOut": {"rgb8ChannelMae": 9.42, "rgb8ChannelRmse": 13.54, "gammaMae": 0.344}
+  },
+  "directAnchors": [
+    {"name": "Drum", "targetRgb": "#C9C9C9", "programmedRgb": "#E3E5E6"},
+    {"name": "MC-202", "targetRgb": "#FFFEA1", "programmedRgb": "#FFFE70", "guardrail": "Do not brighten; preserve pale-yellow versus white."},
+    {"name": "Perm", "targetRgb": "#43D2B8", "programmedRgb": "#2ACAB2"},
+    {"name": "Minilogue", "targetRgb": "#D92F22", "programmedRgb": "#7C0600"},
+    {"name": "Tetra", "targetRgb": "#E4B74C", "programmedRgb": "#B48502"},
+    {"name": "Juno", "targetRgb": "#0099D7", "programmedRgb": "#0072BA"},
+    {"name": "Moog", "targetRgb": "#FF833C", "programmedRgb": "#D84E00"},
+    {"name": "Elektron", "targetRgb": "#73B453", "programmedRgb": "#2A8616"},
+    {"name": "Orange", "targetRgb": "#FF5706", "programmedRgb": "#FD1A00", "guardrail": "Keep local; a larger shift quickly appeared coral."},
+    {"name": "Visible dynamic black", "targetRgb": "#1E1E1E", "programmedRgb": "#040404", "guardrail": "Index 0 remains off; one step darker appeared yellow."}
+  ],
+  "physicalPasses": [
+    {"name": "coarse model", "targets": 32, "result": "Selected power-curve candidates used to fit the broad fallback."},
+    {"name": "session direct tune", "targets": 8, "result": "Eight representative session colors accepted."},
+    {"name": "held-out risk", "targets": 8, "result": "Seven fallback values accepted; saturated orange promoted as one local residual."},
+    {"name": "dark floor", "targets": 8, "result": "Black and the six lowest drives were off; visible violet began above that floor."},
+    {"name": "neutral floor", "targets": 8, "result": "#040404 selected as the dimmest clearly visible neutral."}
+  ],
+  "policy": "Use the broad model for unmeasured entries. Promote only material, repeatable residuals at the final indexed hardware boundary."
+}

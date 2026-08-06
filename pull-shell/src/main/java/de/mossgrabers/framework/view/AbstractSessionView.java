@@ -7,10 +7,9 @@ package de.mossgrabers.framework.view;
 import de.mossgrabers.framework.configuration.Configuration;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.IControlSurface;
-import de.mossgrabers.framework.controller.color.ColorManager;
+import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.grid.IPadGrid;
 import de.mossgrabers.framework.controller.grid.LightInfo;
-import de.mossgrabers.framework.daw.DAWColor;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.clip.ISessionAlternative;
 import de.mossgrabers.framework.daw.data.ISlot;
@@ -432,30 +431,29 @@ public abstract class AbstractSessionView<S extends IControlSurface<C>, C extend
      */
     public LightInfo getPadColor (final ISlot slot, final boolean isArmed)
     {
-        final String colorID = DAWColor.getColorID (slot.getColor ());
-        final ColorManager cm = this.model.getColorManager ();
+        final ColorEx clipColor = slot.getColor ();
 
         if (slot.isRecordingQueued ())
             return this.clipColorIsRecordingQueued;
 
         if (slot.isRecording ())
-            return this.insertClipColor (cm, colorID, this.clipColorIsRecording);
+            return this.insertClipColor (clipColor, this.clipColorIsRecording);
 
         if (slot.isPlayingQueued ())
-            return this.insertClipColor (cm, colorID, this.clipColorIsPlayingQueued);
+            return this.insertClipColor (clipColor, this.clipColorIsPlayingQueued);
 
         if (slot.isStopQueued ())
-            return this.insertClipColor (cm, colorID, this.clipColorIsStopQueued);
+            return this.insertClipColor (clipColor, this.clipColorIsStopQueued);
 
         if (slot.isPlaying ())
-            return this.insertClipColor (cm, colorID, this.clipColorIsPlaying);
+            return this.insertClipColor (clipColor, this.clipColorIsPlaying);
 
         if (slot.hasContent ())
         {
             if (slot.isMuted ())
                 return new LightInfo (this.clipColorIsMuted.getColor (), -1, false);
             final int blinkColor = this.clipColorHasContent.getBlinkColor ();
-            final int color = this.useClipColor && colorID != null ? cm.getColorIndex (colorID) : this.clipColorHasContent.getColor ();
+            final int color = this.useClipColor ? this.model.getColorManager ().getColorIndex (clipColor) : this.clipColorHasContent.getColor ();
             return new LightInfo (color, slot.isSelected () ? blinkColor : -1, this.clipColorHasContent.isFast ());
         }
 
@@ -487,18 +485,17 @@ public abstract class AbstractSessionView<S extends IControlSurface<C>, C extend
      * If blinking is supported and clip colors should be used the given light info is updated with
      * the clips' color.
      *
-     * @param colorManager The color manager
-     * @param colorID The ID of the clip color
+     * @param clipColor The clip color
      * @param lightInfo The light info
      * @return THe updated light info
      */
-    private LightInfo insertClipColor (final ColorManager colorManager, final String colorID, final LightInfo lightInfo)
+    private LightInfo insertClipColor (final ColorEx clipColor, final LightInfo lightInfo)
     {
-        if (this.useClipColor && !this.ignoreClipColorForPlayAndRecord && colorID != null)
+        if (this.useClipColor && !this.ignoreClipColorForPlayAndRecord)
         {
             final int blinkColor = lightInfo.getBlinkColor ();
             if (blinkColor > 0)
-                return new LightInfo (colorManager.getColorIndex (colorID), blinkColor, lightInfo.isFast ());
+                return new LightInfo (this.model.getColorManager ().getColorIndex (clipColor), blinkColor, lightInfo.isFast ());
         }
         return lightInfo;
     }

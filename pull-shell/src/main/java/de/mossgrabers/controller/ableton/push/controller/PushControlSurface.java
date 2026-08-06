@@ -30,7 +30,7 @@ import de.mossgrabers.pull.core.api.ControllerViewFacet;
  *
  * @author Jürgen Moßgraber
  */
-public class PushControlSurface extends AbstractControlSurface<PushConfiguration>
+public class PushControlSurface extends AbstractControlSurface<PushConfiguration> implements ColorPalette.Host
 {
     /** The tap button. */
     public static final int          PUSH_BUTTON_TAP                      = 3;
@@ -1104,6 +1104,14 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
     public void updateColorPalette ()
     {
         this.colorPalette.updatePalette ();
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void notifyPaletteStatus (final String message)
+    {
+        this.getDisplay ().notify (message);
     }
 
 
