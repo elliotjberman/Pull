@@ -25,6 +25,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /** Closed-loop contracts for local Push debugger navigation. */
 class PushDebugNavigationHostTest
 {
+    private static final String MIX_EXIT_WORKSPACE = "NOTE/workspace=false";
+    private static final String MIX                = "TRACK/mode=TRACK,workspace=false";
+    private static final String MASTER             = "MASTERTRACK/mode=MASTER|MASTER_TEMP";
+    private static final String PROJECT_MACROS     = "SHIFT+SESSION/view=WORKSPACE,mode=WORKSPACE,workspace=true";
+    private static final String SESSION            = "SESSION/view=SESSION,mode!=WORKSPACE|MASTER|MASTER_TEMP,workspace=false";
+
     @TempDir
     Path debugDirectory;
 
@@ -34,7 +40,7 @@ class PushDebugNavigationHostTest
     {
         final FakeNavigationSurface surface = new FakeNavigationSurface ("PLAY", "TRACK", false);
         final PushDebugNavigationHost host = this.host (surface);
-        this.request ("project-request", "project-macros");
+        this.request ("project-request", "project-macros", PROJECT_MACROS);
 
         host.tick ();
 
@@ -55,7 +61,7 @@ class PushDebugNavigationHostTest
     {
         final FakeNavigationSurface surface = new FakeNavigationSurface ("WORKSPACE", "WORKSPACE", true);
         final PushDebugNavigationHost host = this.host (surface);
-        this.request ("mix-request", "mix");
+        this.request ("mix-request", "mix", MIX_EXIT_WORKSPACE, MIX);
 
         host.tick ();
         assertEquals (List.of ("NOTE:DOWN", "NOTE:UP"), surface.events);
@@ -80,7 +86,7 @@ class PushDebugNavigationHostTest
         final FakeNavigationSurface surface = new FakeNavigationSurface ("PLAY", "TRACK", false);
         final PushDebugNavigationHost host = this.host (surface);
         surface.pressed.add (ButtonID.SHIFT);
-        this.request ("held-request", "project-macros");
+        this.request ("held-request", "project-macros", PROJECT_MACROS);
 
         host.tick ();
         assertTrue (surface.events.isEmpty ());
@@ -96,7 +102,7 @@ class PushDebugNavigationHostTest
     {
         final FakeNavigationSurface surface = new FakeNavigationSurface ("PLAY", "TRACK", false);
         final PushDebugNavigationHost host = this.host (surface);
-        this.request ("master-request", "master");
+        this.request ("master-request", "master", MASTER);
 
         host.tick ();
         assertEquals (List.of ("MASTERTRACK:DOWN", "MASTERTRACK:UP"), surface.events);
@@ -111,11 +117,26 @@ class PushDebugNavigationHostTest
 
 
     @Test
+    void alreadySatisfiedGenericPlanDoesNotToggleTheView () throws IOException
+    {
+        final FakeNavigationSurface surface = new FakeNavigationSurface ("PLAY", "MASTER", false);
+        final PushDebugNavigationHost host = this.host (surface);
+        this.request ("satisfied-request", "client-label", MASTER);
+
+        host.tick ();
+        host.tick ();
+
+        assertTrue (surface.events.isEmpty ());
+        assertEquals (List.of ("satisfied-request", "READY", "client-label", "PLAY", "MASTER", "false", ""), this.status ());
+    }
+
+
+    @Test
     void sessionRequiresTheWorkspaceToBeReleased () throws IOException
     {
         final FakeNavigationSurface surface = new FakeNavigationSurface ("WORKSPACE", "WORKSPACE", true);
         final PushDebugNavigationHost host = this.host (surface);
-        this.request ("session-request", "session");
+        this.request ("session-request", "session", SESSION);
 
         host.tick ();
         assertEquals (List.of ("SESSION:DOWN", "SESSION:UP"), surface.events);
@@ -133,7 +154,7 @@ class PushDebugNavigationHostTest
     {
         final FakeNavigationSurface surface = new FakeNavigationSurface ("PLAY", "TRACK", false);
         final PushDebugNavigationHost host = this.host (surface);
-        this.request ("bad-request", "record");
+        this.request ("bad-request", "arbitrary-label", "RECORD/*");
 
         host.tick ();
 
@@ -141,7 +162,7 @@ class PushDebugNavigationHostTest
         final List<String> status = this.status ();
         assertEquals ("bad-request", status.get (0));
         assertEquals ("FAILED", status.get (1));
-        assertTrue (status.get (6).contains ("unsupported target"));
+        assertTrue (status.get (6).contains ("unsupported navigation gesture"));
     }
 
 
@@ -151,7 +172,7 @@ class PushDebugNavigationHostTest
         final FakeNavigationSurface surface = new FakeNavigationSurface ("WORKSPACE", "WORKSPACE", true);
         final PushDebugNavigationHost host = this.host (surface);
         surface.pressed.add (ButtonID.NOTE);
-        this.request ("held-mix", "mix");
+        this.request ("held-mix", "mix", MIX_EXIT_WORKSPACE, MIX);
 
         host.tick ();
         assertTrue (surface.events.isEmpty ());
@@ -173,7 +194,7 @@ class PushDebugNavigationHostTest
         final FakeNavigationSurface surface = new FakeNavigationSurface ("PLAY", "TRACK", false);
         final FakeAdmission admission = new FakeAdmission (false);
         final PushDebugNavigationHost host = new PushDebugNavigationHost (this.debugDirectory, surface, admission);
-        this.request ("idle-request", "master");
+        this.request ("idle-request", "master", MASTER);
 
         host.tick ();
         assertTrue (surface.events.isEmpty ());
@@ -189,7 +210,7 @@ class PushDebugNavigationHostTest
     {
         final FakeNavigationSurface surface = new FakeNavigationSurface ("PLAY", "TRACK", false);
         final PushDebugNavigationHost host = this.host (surface);
-        this.request ("one-shot", "master");
+        this.request ("one-shot", "master", MASTER);
 
         for (int tick = 0; tick < 12; tick++)
             host.tick ();
@@ -204,7 +225,7 @@ class PushDebugNavigationHostTest
     {
         final FakeNavigationSurface surface = new FakeNavigationSurface ("PLAY", "MASTER", true);
         final PushDebugNavigationHost host = this.host (surface);
-        this.request ("master-session", "session");
+        this.request ("master-session", "session", SESSION);
 
         host.tick ();
         surface.observe ("SESSION", "MASTER", false);
@@ -221,7 +242,7 @@ class PushDebugNavigationHostTest
         final FakeNavigationSurface surface = new FakeNavigationSurface ("PLAY", "TRACK", false);
         final PushDebugNavigationHost host = this.host (surface);
         surface.failOnDown = true;
-        this.request ("failed-down", "master");
+        this.request ("failed-down", "master", MASTER);
 
         host.tick ();
 
@@ -235,7 +256,7 @@ class PushDebugNavigationHostTest
     {
         final FakeNavigationSurface surface = new FakeNavigationSurface ("PLAY", "TRACK", false);
         final PushDebugNavigationHost host = this.host (surface);
-        this.request ("closing-navigation", "master");
+        this.request ("closing-navigation", "master", MASTER);
         host.tick ();
 
         host.close ();
@@ -253,9 +274,11 @@ class PushDebugNavigationHostTest
     }
 
 
-    private void request (final String requestID, final String target) throws IOException
+    private void request (final String requestID, final String label, final String... steps) throws IOException
     {
-        Files.writeString (this.debugDirectory.resolve (PushDebugNavigationHost.REQUEST_FILE), requestID + "\t" + target + "\n");
+        Files.writeString (
+            this.debugDirectory.resolve (PushDebugNavigationHost.REQUEST_FILE),
+            requestID + "\t" + label + "\t" + String.join ("\t", steps) + "\n");
     }
 
 

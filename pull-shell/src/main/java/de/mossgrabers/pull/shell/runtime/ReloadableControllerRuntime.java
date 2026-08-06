@@ -183,7 +183,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         this.environment.setControllerActionValidator (this.inputBridge::supports);
         this.environment.setDeferredInputRelease (this.inputBridge::releaseDeferredStableDispatches);
         this.environment.setInputLifecycleIdle (this.inputBridge::inputLifecycleIdle);
-        this.debugNavigation = new PushDebugNavigationHost (surface, this.inputBridge);
+        this.debugNavigation = PushDebugNavigationHost.createIfEnabled (surface, this.inputBridge);
     }
 
 

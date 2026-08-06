@@ -8,10 +8,11 @@ navigation_status_path="${debug_dir}/navigate-status.txt"
 capture_request_path="${debug_dir}/capture-request.txt"
 capture_status_path="${debug_dir}/capture-status.txt"
 lock_dir="${debug_dir}/client.lock"
+enabled_path="${debug_dir}/enabled"
 
 usage()
 {
-    echo "Usage: $0 [mix|master|project-macros|session]" >&2
+    echo "Usage: $0 [mix|master|project-macros|session|--enable|--disable]" >&2
 }
 
 if (( $# > 1 ))
@@ -24,11 +25,28 @@ target="${1:-}"
 case "$target" in
     ""|mix|master|project-macros|session)
         ;;
+    --enable)
+        mkdir -p "$debug_dir"
+        touch "$enabled_path"
+        echo "Push debugger enabled. Install this shell build and restart Bitwig to start its transports." >&2
+        exit 0
+        ;;
+    --disable)
+        rm -f "$enabled_path"
+        echo "Push debugger disabled. Restart Bitwig to stop any running transports." >&2
+        exit 0
+        ;;
     *)
         usage
         exit 2
         ;;
 esac
+
+if [[ ! -f "$enabled_path" ]]
+then
+    echo "Push debugger is disabled. Run '$0 --enable', then install this shell build and restart Bitwig." >&2
+    exit 4
+fi
 
 mkdir -p "$debug_dir"
 if ! mkdir "$lock_dir" 2>/dev/null
@@ -48,8 +66,36 @@ request_id="$(date +%s)-$$-${RANDOM}"
 
 if [[ -n "$target" ]]
 then
+    navigation_steps=()
+    case "$target" in
+        mix)
+            navigation_steps+=(
+                'NOTE/workspace=false'
+                'TRACK/mode=TRACK,workspace=false'
+            )
+            ;;
+        master)
+            navigation_steps+=(
+                'MASTERTRACK/mode=MASTER|MASTER_TEMP'
+            )
+            ;;
+        project-macros)
+            navigation_steps+=(
+                'SHIFT+SESSION/view=WORKSPACE,mode=WORKSPACE,workspace=true'
+            )
+            ;;
+        session)
+            navigation_steps+=(
+                'SESSION/view=SESSION,mode!=WORKSPACE|MASTER|MASTER_TEMP,workspace=false'
+            )
+            ;;
+    esac
     navigation_request_temp="${navigation_request_path}.${request_id}.tmp"
-    printf '%s\t%s\n' "$request_id" "$target" > "$navigation_request_temp"
+    {
+        printf '%s\t%s' "$request_id" "$target"
+        printf '\t%s' "${navigation_steps[@]}"
+        printf '\n'
+    } > "$navigation_request_temp"
     mv "$navigation_request_temp" "$navigation_request_path"
 
     navigation_ready=false

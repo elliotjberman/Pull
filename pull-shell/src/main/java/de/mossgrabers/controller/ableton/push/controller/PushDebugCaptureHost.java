@@ -4,6 +4,7 @@
 package de.mossgrabers.controller.ableton.push.controller;
 
 import de.mossgrabers.framework.graphics.IBitmap;
+import de.mossgrabers.pull.shell.PushDebugging;
 
 import javax.imageio.ImageIO;
 
@@ -43,16 +44,19 @@ final class PushDebugCaptureHost implements AutoCloseable
     private final AtomicBoolean             closed = new AtomicBoolean ();
 
 
-    PushDebugCaptureHost ()
+    static PushDebugCaptureHost createIfEnabled ()
     {
-        this (
-            Path.of (System.getProperty ("user.home"), ".drivenbymoss", "pull", "debug"),
-            Executors.newSingleThreadScheduledExecutor (task -> {
-                final Thread thread = new Thread (task, "Pull debug capture transport");
-                thread.setDaemon (true);
-                return thread;
-            }));
-        this.worker.scheduleWithFixedDelay (this::pollFilesSafely, 0, POLL_INTERVAL_MILLIS, TimeUnit.MILLISECONDS);
+        if (!PushDebugging.isEnabled ())
+            return null;
+
+        final ScheduledExecutorService worker = Executors.newSingleThreadScheduledExecutor (task -> {
+            final Thread thread = new Thread (task, "Pull debug capture transport");
+            thread.setDaemon (true);
+            return thread;
+        });
+        final PushDebugCaptureHost host = new PushDebugCaptureHost (PushDebugging.directory (), worker);
+        worker.scheduleWithFixedDelay (host::pollFilesSafely, 0, POLL_INTERVAL_MILLIS, TimeUnit.MILLISECONDS);
+        return host;
     }
 
 

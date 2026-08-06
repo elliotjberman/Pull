@@ -7,14 +7,16 @@ import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.hardware.IHwButton;
 import de.mossgrabers.framework.utils.ButtonEvent;
+import de.mossgrabers.pull.shell.PushDebugging;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.EnumSet;
-import java.util.Locale;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executors;
@@ -27,17 +29,17 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * Local, bounded debugger navigation for closed-loop Push display development.
  *
- * <p>File transport runs on an owned worker. The controller thread admits each recipe only while
- * the permanent input router and every recipe control are idle, submits it once through the
- * installed input arbitrator, and reports success only after two later authoritative layout
- * samples.</p>
+ * <p>The client supplies a short plan made only from safe navigation gestures and authoritative
+ * view predicates. The stable shell validates and executes that generic plan without owning any
+ * named-view recipe policy.</p>
  */
 final class PushDebugNavigationHost implements AutoCloseable
 {
     static final String REQUEST_FILE = "navigate-request.txt";
     static final String STATUS_FILE  = "navigate-status.txt";
 
-    private static final int  MAX_REQUEST_BYTES       = 256;
+    private static final int  MAX_REQUEST_BYTES       = 512;
+    private static final int  MAX_STEPS               = 4;
     private static final int  REQUIRED_STABLE_SAMPLES = 2;
     private static final int  TIMEOUT_TICKS           = 50;
     private static final long POLL_INTERVAL_MILLIS    = 100;
@@ -55,18 +57,20 @@ final class PushDebugNavigationHost implements AutoCloseable
     private PendingNavigation pending;
 
 
-    PushDebugNavigationHost (final PushControlSurface surface, final GestureAdmission admission)
+    static PushDebugNavigationHost createIfEnabled (final PushControlSurface surface, final GestureAdmission admission)
     {
-        this (
-            Path.of (System.getProperty ("user.home"), ".drivenbymoss", "pull", "debug"),
-            new PushNavigationSurface (surface),
-            admission,
-            Executors.newSingleThreadScheduledExecutor (task -> {
-                final Thread thread = new Thread (task, "Pull debug navigation transport");
-                thread.setDaemon (true);
-                return thread;
-            }));
-        this.worker.scheduleWithFixedDelay (this::pollFilesSafely, 0, POLL_INTERVAL_MILLIS, TimeUnit.MILLISECONDS);
+        if (!PushDebugging.isEnabled ())
+            return null;
+
+        final ScheduledExecutorService worker = Executors.newSingleThreadScheduledExecutor (task -> {
+            final Thread thread = new Thread (task, "Pull debug navigation transport");
+            thread.setDaemon (true);
+            return thread;
+        });
+        final PushDebugNavigationHost host = new PushDebugNavigationHost (
+            PushDebugging.directory (), new PushNavigationSurface (surface), admission, worker);
+        worker.scheduleWithFixedDelay (host::pollFilesSafely, 0, POLL_INTERVAL_MILLIS, TimeUnit.MILLISECONDS);
+        return host;
     }
 
 
@@ -111,9 +115,9 @@ final class PushDebugNavigationHost implements AutoCloseable
             if (request != null)
             {
                 if (request.failure ().isEmpty ())
-                    this.pending = new PendingNavigation (request.requestID (), request.target ());
+                    this.pending = new PendingNavigation (request.requestID (), request.label (), request.steps ());
                 else
-                    this.publish (request.requestID (), "FAILED", "", this.surface.observe (), request.failure ());
+                    this.publish (request.requestID (), "FAILED", request.label (), this.surface.observe (), request.failure ());
             }
         }
 
@@ -128,41 +132,51 @@ final class PushDebugNavigationHost implements AutoCloseable
     private void advance ()
     {
         final ObservedNavigation observed = this.surface.observe ();
-        if (this.pending.target.matches (observed))
-        {
-            if (!this.admission.isIdle () || !this.pending.target.controlsFree (this.surface))
-            {
-                this.pending.stableSamples = 0;
-                return;
-            }
-            this.pending.tick++;
-            this.pending.stableSamples++;
-            if (this.pending.stableSamples >= REQUIRED_STABLE_SAMPLES)
-                this.complete ("READY", "", observed);
-            return;
-        }
-
         this.pending.tick++;
-        this.pending.stableSamples = 0;
         if (this.pending.tick >= TIMEOUT_TICKS)
         {
             this.complete ("FAILED", "timed out waiting for authoritative controller state", observed);
             return;
         }
 
-        final Runnable gesture = this.pending.target.nextGesture (this.pending.step, this.surface, observed);
-        if (gesture == null || !this.pending.target.controlsFree (this.surface))
-            return;
+        while (this.pending.stepIndex < this.pending.steps.size ())
+        {
+            final Step step = this.pending.steps.get (this.pending.stepIndex);
+            if (step.submitted)
+            {
+                if (!step.postcondition ().matches (observed))
+                    return;
+                this.pending.stepIndex++;
+                continue;
+            }
+            if (step.postcondition ().matches (observed))
+            {
+                this.pending.stepIndex++;
+                continue;
+            }
+            if (!this.admission.isIdle () || !step.gesture ().controlsFree (this.surface))
+                return;
 
-        try
-        {
-            if (this.admission.trySubmit (gesture))
-                this.pending.step++;
+            try
+            {
+                if (this.admission.trySubmit ( () -> step.gesture ().trigger (this.surface)))
+                    step.submitted = true;
+            }
+            catch (final RuntimeException ex)
+            {
+                this.complete ("FAILED", "could not submit navigation gesture: " + sanitize (ex.getMessage ()), observed);
+            }
+            return;
         }
-        catch (final RuntimeException ex)
+
+        if (!this.pending.finalPredicate.matches (observed) || !this.admission.isIdle () || !this.pending.controlsFree (this.surface))
         {
-            this.complete ("FAILED", "could not submit navigation gesture: " + sanitize (ex.getMessage ()), observed);
+            this.pending.stableSamples = 0;
+            return;
         }
+        this.pending.stableSamples++;
+        if (this.pending.stableSamples >= REQUIRED_STABLE_SAMPLES)
+            this.complete ("READY", "", observed);
     }
 
 
@@ -170,13 +184,13 @@ final class PushDebugNavigationHost implements AutoCloseable
     {
         final PendingNavigation completed = this.pending;
         this.pending = null;
-        this.publish (completed.requestID, state, completed.target.protocolName (), observed, message);
+        this.publish (completed.requestID, state, completed.label, observed, message);
     }
 
 
-    private void publish (final String requestID, final String state, final String target, final ObservedNavigation observed, final String message)
+    private void publish (final String requestID, final String state, final String label, final ObservedNavigation observed, final String message)
     {
-        this.outgoing.set (new Status (requestID, state, target, observed, message));
+        this.outgoing.set (new Status (requestID, state, label, observed, message));
     }
 
 
@@ -211,21 +225,24 @@ final class PushDebugNavigationHost implements AutoCloseable
         if (Files.size (this.requestPath) > MAX_REQUEST_BYTES)
         {
             Files.deleteIfExists (this.requestPath);
-            return Incoming.failed ("invalid", "request exceeds " + MAX_REQUEST_BYTES + " bytes");
+            return Incoming.failed ("invalid", "", "request exceeds " + MAX_REQUEST_BYTES + " bytes");
         }
 
         final String request = Files.readString (this.requestPath).strip ();
         Files.deleteIfExists (this.requestPath);
-        final String [] fields = request.split ("\\s+", 2);
-        if (fields.length != 2 || !isRequestID (fields[0]))
-            return Incoming.failed ("invalid", "expected '<request-id> <target>'");
+        final String [] fields = request.split ("\\t", -1);
+        if (fields.length < 3 || fields.length > MAX_STEPS + 2 || !isIdentifier (fields[0]) || !isIdentifier (fields[1]))
+            return Incoming.failed ("invalid", "", "expected '<request-id> <label> <step>...'");
         try
         {
-            return Incoming.ready (fields[0], NavigationTarget.parse (fields[1]));
+            final List<Step> steps = new ArrayList<> (fields.length - 2);
+            for (int index = 2; index < fields.length; index++)
+                steps.add (Step.parse (fields[index]));
+            return Incoming.ready (fields[0], fields[1], List.copyOf (steps));
         }
         catch (final IllegalArgumentException ex)
         {
-            return Incoming.failed (fields[0], ex.getMessage ());
+            return Incoming.failed (fields[0], fields[1], ex.getMessage ());
         }
     }
 
@@ -237,7 +254,7 @@ final class PushDebugNavigationHost implements AutoCloseable
         final String content = String.join ("\t",
             status.requestID (),
             status.state (),
-            status.target (),
+            status.label (),
             observed.viewID (),
             observed.modeID (),
             Boolean.toString (observed.workspaceActive ()),
@@ -264,12 +281,12 @@ final class PushDebugNavigationHost implements AutoCloseable
         final ObservedNavigation observed = this.surface.observe ();
         if (this.pending != null)
         {
-            this.publish (this.pending.requestID, "FAILED", this.pending.target.protocolName (), observed, "extension is closing");
+            this.publish (this.pending.requestID, "FAILED", this.pending.label, observed, "extension is closing");
             this.pending = null;
         }
         final Incoming queued = this.incoming.getAndSet (null);
         if (queued != null)
-            this.publish (queued.requestID (), "FAILED", queued.target () == null ? "" : queued.target ().protocolName (), observed, "extension is closing");
+            this.publish (queued.requestID (), "FAILED", queued.label (), observed, "extension is closing");
 
         if (this.worker == null)
         {
@@ -292,7 +309,7 @@ final class PushDebugNavigationHost implements AutoCloseable
     }
 
 
-    private static boolean isRequestID (final String value)
+    private static boolean isIdentifier (final String value)
     {
         if (value.isEmpty () || value.length () > 80)
             return false;
@@ -317,8 +334,6 @@ final class PushDebugNavigationHost implements AutoCloseable
         boolean isIdle ();
 
         boolean trySubmit (Runnable gesture);
-
-
     }
 
 
@@ -376,38 +391,47 @@ final class PushDebugNavigationHost implements AutoCloseable
     }
 
 
-    private enum NavigationTarget
+    private enum NavigationGesture
     {
-        MIX (ButtonID.NOTE, ButtonID.TRACK, ButtonID.SHIFT),
-        MASTER (ButtonID.MASTERTRACK, ButtonID.SHIFT),
-        PROJECT_MACROS (ButtonID.SHIFT, ButtonID.SESSION),
-        SESSION (ButtonID.SESSION, ButtonID.SHIFT);
+        NOTE (ButtonID.NOTE),
+        TRACK (ButtonID.TRACK),
+        MASTERTRACK (ButtonID.MASTERTRACK),
+        SESSION (ButtonID.SESSION),
+        SHIFT_SESSION (ButtonID.SHIFT, ButtonID.SESSION);
 
+        private final ButtonID      modifier;
+        private final ButtonID      button;
         private final Set<ButtonID> controls;
 
 
-        NavigationTarget (final ButtonID... controls)
+        NavigationGesture (final ButtonID button)
         {
-            this.controls = Set.copyOf (EnumSet.of (controls[0], controls));
+            this (null, button);
         }
 
 
-        String protocolName ()
+        NavigationGesture (final ButtonID modifier, final ButtonID button)
         {
-            return this.name ().toLowerCase (Locale.ROOT).replace ('_', '-');
+            this.modifier = modifier;
+            this.button = button;
+            final Set<ButtonID> owned = new HashSet<> (Set.of (ButtonID.SHIFT, button));
+            if (modifier != null)
+                owned.add (modifier);
+            this.controls = Set.copyOf (owned);
         }
 
 
-        boolean matches (final ObservedNavigation observed)
+        static NavigationGesture parse (final String value)
         {
-            return switch (this)
+            final String normalized = value.replace ('+', '_');
+            try
             {
-                case MIX -> !observed.workspaceActive () && "TRACK".equals (observed.modeID ());
-                case MASTER -> "MASTER".equals (observed.modeID ()) || "MASTER_TEMP".equals (observed.modeID ());
-                case PROJECT_MACROS -> observed.workspaceActive () && "WORKSPACE".equals (observed.modeID ()) && "WORKSPACE".equals (observed.viewID ());
-                case SESSION -> !observed.workspaceActive () && "SESSION".equals (observed.viewID ()) &&
-                    !"WORKSPACE".equals (observed.modeID ()) && !"MASTER".equals (observed.modeID ()) && !"MASTER_TEMP".equals (observed.modeID ());
-            };
+                return valueOf (normalized);
+            }
+            catch (final IllegalArgumentException ex)
+            {
+                throw new IllegalArgumentException ("unsupported navigation gesture '" + sanitize (value) + "'");
+            }
         }
 
 
@@ -417,86 +441,188 @@ final class PushDebugNavigationHost implements AutoCloseable
         }
 
 
-        Runnable nextGesture (final int step, final NavigationSurface surface, final ObservedNavigation observed)
+        void trigger (final NavigationSurface surface)
         {
-            return switch (this)
+            if (this.modifier == null)
             {
-                case MIX -> {
-                    if (observed.workspaceActive () && step == 0)
-                        yield () -> surface.click (ButtonID.NOTE);
-                    if (!observed.workspaceActive () && step <= 1)
-                        yield () -> surface.click (ButtonID.TRACK);
-                    yield null;
-                }
-                case MASTER -> step == 0 ? () -> surface.click (ButtonID.MASTERTRACK) : null;
-                case PROJECT_MACROS -> step == 0 ? () -> chord (surface, ButtonID.SHIFT, ButtonID.SESSION) : null;
-                case SESSION -> step == 0 ? () -> surface.click (ButtonID.SESSION) : null;
-            };
-        }
-
-
-        static NavigationTarget parse (final String value)
-        {
-            final String normalized = Objects.requireNonNull (value, "value").strip ().toUpperCase (Locale.ROOT).replace ('-', '_');
+                surface.click (this.button);
+                return;
+            }
             try
             {
-                return valueOf (normalized);
-            }
-            catch (final IllegalArgumentException ex)
-            {
-                throw new IllegalArgumentException ("unsupported target '" + sanitize (value) + "' (expected mix, master, project-macros, or session)");
-            }
-        }
-
-
-        private static void chord (final NavigationSurface surface, final ButtonID modifier, final ButtonID button)
-        {
-            try
-            {
-                surface.trigger (modifier, ButtonEvent.DOWN);
-                surface.click (button);
+                surface.trigger (this.modifier, ButtonEvent.DOWN);
+                surface.click (this.button);
             }
             finally
             {
-                surface.trigger (modifier, ButtonEvent.UP);
+                surface.trigger (this.modifier, ButtonEvent.UP);
             }
+        }
+    }
+
+
+    private record NavigationPredicate (
+        Set<String> allowedViews,
+        Set<String> deniedViews,
+        Set<String> allowedModes,
+        Set<String> deniedModes,
+        Boolean workspaceActive)
+    {
+        private static final NavigationPredicate ANY = new NavigationPredicate (Set.of (), Set.of (), Set.of (), Set.of (), null);
+
+
+        static NavigationPredicate parse (final String value)
+        {
+            if ("*".equals (value))
+                return ANY;
+
+            Set<String> allowedViews = Set.of ();
+            Set<String> deniedViews = Set.of ();
+            Set<String> allowedModes = Set.of ();
+            Set<String> deniedModes = Set.of ();
+            Boolean workspace = null;
+            for (final String term: value.split (","))
+            {
+                final boolean denied = term.contains ("!=");
+                final String [] parts = term.split (denied ? "!=" : "=", 2);
+                if (parts.length != 2 || parts[1].isEmpty ())
+                    throw new IllegalArgumentException ("invalid navigation predicate '" + sanitize (value) + "'");
+                switch (parts[0])
+                {
+                    case "view" -> {
+                        if (denied)
+                            deniedViews = parseIDs (parts[1]);
+                        else
+                            allowedViews = parseIDs (parts[1]);
+                    }
+                    case "mode" -> {
+                        if (denied)
+                            deniedModes = parseIDs (parts[1]);
+                        else
+                            allowedModes = parseIDs (parts[1]);
+                    }
+                    case "workspace" -> {
+                        if (denied || workspace != null || !Set.of ("true", "false").contains (parts[1]))
+                            throw new IllegalArgumentException ("invalid workspace predicate '" + sanitize (term) + "'");
+                        workspace = Boolean.valueOf (parts[1]);
+                    }
+                    default -> throw new IllegalArgumentException ("unsupported navigation predicate field '" + sanitize (parts[0]) + "'");
+                }
+            }
+            return new NavigationPredicate (allowedViews, deniedViews, allowedModes, deniedModes, workspace);
+        }
+
+
+        boolean matches (final ObservedNavigation observed)
+        {
+            return (this.allowedViews.isEmpty () || this.allowedViews.contains (observed.viewID ())) &&
+                !this.deniedViews.contains (observed.viewID ()) &&
+                (this.allowedModes.isEmpty () || this.allowedModes.contains (observed.modeID ())) &&
+                !this.deniedModes.contains (observed.modeID ()) &&
+                (this.workspaceActive == null || this.workspaceActive.booleanValue () == observed.workspaceActive ());
+        }
+
+
+        private static Set<String> parseIDs (final String value)
+        {
+            final Set<String> identifiers = new HashSet<> ();
+            for (final String identifier: value.split ("\\|"))
+            {
+                if (!isIdentifier (identifier))
+                    throw new IllegalArgumentException ("invalid navigation state identifier '" + sanitize (identifier) + "'");
+                identifiers.add (identifier);
+            }
+            return Set.copyOf (identifiers);
+        }
+    }
+
+
+    private static final class Step
+    {
+        private final NavigationGesture   gesture;
+        private final NavigationPredicate postcondition;
+        private boolean                   submitted;
+
+
+        private Step (final NavigationGesture gesture, final NavigationPredicate postcondition)
+        {
+            this.gesture = gesture;
+            this.postcondition = postcondition;
+        }
+
+
+        static Step parse (final String value)
+        {
+            final String [] fields = value.split ("/", 2);
+            if (fields.length != 2)
+                throw new IllegalArgumentException ("invalid navigation step '" + sanitize (value) + "'");
+            return new Step (
+                NavigationGesture.parse (fields[0]),
+                NavigationPredicate.parse (fields[1]));
+        }
+
+
+        NavigationGesture gesture ()
+        {
+            return this.gesture;
+        }
+
+
+        NavigationPredicate postcondition ()
+        {
+            return this.postcondition;
         }
     }
 
 
     private static final class PendingNavigation
     {
-        private final String           requestID;
-        private final NavigationTarget target;
-        private int                    tick;
-        private int                    stableSamples;
-        private int                    step;
+        private final String              requestID;
+        private final String              label;
+        private final List<Step>          steps;
+        private final NavigationPredicate finalPredicate;
+        private final Set<ButtonID>       controls;
+        private int                       tick;
+        private int                       stableSamples;
+        private int                       stepIndex;
 
 
-        private PendingNavigation (final String requestID, final NavigationTarget target)
+        private PendingNavigation (final String requestID, final String label, final List<Step> steps)
         {
             this.requestID = requestID;
-            this.target = target;
+            this.label = label;
+            this.steps = steps;
+            this.finalPredicate = steps.get (steps.size () - 1).postcondition ();
+            final Set<ButtonID> allControls = new HashSet<> ();
+            for (final Step step: steps)
+                allControls.addAll (step.gesture ().controls);
+            this.controls = Set.copyOf (allControls);
+        }
+
+
+        private boolean controlsFree (final NavigationSurface surface)
+        {
+            return this.controls.stream ().noneMatch (surface::isPressed);
         }
     }
 
 
-    private record Incoming (String requestID, NavigationTarget target, String failure)
+    private record Incoming (String requestID, String label, List<Step> steps, String failure)
     {
-        private static Incoming ready (final String requestID, final NavigationTarget target)
+        private static Incoming ready (final String requestID, final String label, final List<Step> steps)
         {
-            return new Incoming (requestID, target, "");
+            return new Incoming (requestID, label, steps, "");
         }
 
 
-        private static Incoming failed (final String requestID, final String failure)
+        private static Incoming failed (final String requestID, final String label, final String failure)
         {
-            return new Incoming (requestID, null, sanitize (failure));
+            return new Incoming (requestID, label, List.of (), sanitize (failure));
         }
     }
 
 
-    private record Status (String requestID, String state, String target, ObservedNavigation observed, String message)
+    private record Status (String requestID, String state, String label, ObservedNavigation observed, String message)
     {
     }
 

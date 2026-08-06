@@ -40,7 +40,7 @@ public class Push2Display extends AbstractGraphicDisplay
         super (host, configuration, new DefaultGraphicsDimensions (960, 160, maxParameterValue), "Push 2 Display");
 
         this.usbDisplay = new PushUsbDisplay (host);
-        this.debugCapture = new PushDebugCaptureHost ();
+        this.debugCapture = PushDebugCaptureHost.createIfEnabled ();
     }
 
 
@@ -62,7 +62,8 @@ public class Push2Display extends AbstractGraphicDisplay
         this.send ();
 
         this.isShutdown = true;
-        this.debugCapture.close ();
+        if (this.debugCapture != null)
+            this.debugCapture.close ();
 
         final ExecutorService executor = Executors.newSingleThreadExecutor ();
         executor.execute ( () -> {
@@ -89,7 +90,8 @@ public class Push2Display extends AbstractGraphicDisplay
     @Override
     protected void send (final IBitmap image)
     {
-        this.debugCapture.capturePending (image);
+        if (this.debugCapture != null)
+            this.debugCapture.capturePending (image);
         if (!this.isShutdown && this.usbDisplay != null)
             this.usbDisplay.send (image);
     }
