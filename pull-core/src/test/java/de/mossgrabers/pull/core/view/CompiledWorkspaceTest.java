@@ -208,7 +208,7 @@ class CompiledWorkspaceTest
         final CoreResult adjusted = workspace.handle (
             new ControllerInputEvent (1, 1, firstKnob, InputKind.RELATIVE, InputPhase.UPDATE, 3),
             parameterSnapshot ());
-        assertEquals (List.of (new AdjustParameterValueEffect (PROJECT_TARGET, 3)), adjusted.effects ());
+        assertEquals (List.of (new AdjustParameterValueEffect (PROJECT_TARGET, 30)), adjusted.effects ());
     }
 
 

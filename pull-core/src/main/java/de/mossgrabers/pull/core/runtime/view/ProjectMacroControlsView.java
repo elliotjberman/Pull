@@ -31,6 +31,7 @@ import java.util.Set;
  */
 public final class ProjectMacroControlsView implements ControllerView
 {
+    private static final double PARAMETER_STEP_SIZE = 10.0;
     private static final Map<ControlId, ParameterSlot> PARAMETER_BINDINGS = projectParameterBindings ();
     private static final ViewProfile PROFILE = ViewProfile.fixed (
         "default",
@@ -83,7 +84,7 @@ public final class ProjectMacroControlsView implements ControllerView
         if (slot == null)
             return List.of ();
         final ParameterTargetSnapshot target = snapshot.bridge ().parameters ().slots ().get (slot);
-        return target == null ? List.of () : List.of (new AdjustParameterValueEffect (target.target (), input.value ()));
+        return target == null ? List.of () : List.of (new AdjustParameterValueEffect (target.target (), input.value () * PARAMETER_STEP_SIZE));
     }
 
 
