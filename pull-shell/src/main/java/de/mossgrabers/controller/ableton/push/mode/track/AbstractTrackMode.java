@@ -12,7 +12,6 @@ import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.mode.BaseMode;
 import de.mossgrabers.framework.controller.ButtonID;
-import de.mossgrabers.framework.daw.DAWColor;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.ISend;
 import de.mossgrabers.framework.daw.data.ITrack;
@@ -358,7 +357,7 @@ public abstract class AbstractTrackMode extends BaseMode<ITrack>
             if (track.isRecArm ())
                 return this.colorManager.getColorIndex (PushColorManager.PUSH_RED_HI);
 
-            return this.colorManager.getColorIndex (DAWColor.getColorID (track.getColor ()));
+            return this.colorManager.getColorIndex (track.getColor ());
         }
 
         index = this.isButtonRow (1, buttonID);

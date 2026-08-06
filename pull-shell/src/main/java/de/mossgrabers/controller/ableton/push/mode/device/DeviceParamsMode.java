@@ -13,7 +13,6 @@ import de.mossgrabers.controller.ableton.push.mode.BaseMode;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
-import de.mossgrabers.framework.daw.DAWColor;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.ICursorDevice;
 import de.mossgrabers.framework.daw.data.IDevice;
@@ -310,7 +309,7 @@ public class DeviceParamsMode extends BaseMode<IParameter>
                     return offColor;
                 if (track.isRecArm ())
                     return this.colorManager.getColorIndex (PushColorManager.PUSH_RED_HI);
-                return this.colorManager.getColorIndex (DAWColor.getColorID (track.getColor ()));
+                return this.colorManager.getColorIndex (track.getColor ());
             }
 
             if (!cd.doesExist ())

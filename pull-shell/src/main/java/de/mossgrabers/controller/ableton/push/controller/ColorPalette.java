@@ -15,6 +15,7 @@ public class ColorPalette
     private final ColorPaletteEntry [] entries          = new ColorPaletteEntry [128];
     private final Object               updateLock       = new Object ();
     private boolean                    entriesHasUpdate = false;
+    private int                        failedEntryCount;
 
 
     /**
@@ -43,9 +44,7 @@ public class ColorPalette
             // All done?
             if (entryIndex < 0)
             {
-                // Re-apply the color palette, if necessary
-                if (this.entriesHasUpdate)
-                    this.surface.scheduleTask ( () -> this.surface.sendSysex ("05"), 1000);
+                this.surface.scheduleTask (this::finishUpdate, this.entriesHasUpdate ? 1000 : 0);
                 return;
             }
 
@@ -65,7 +64,10 @@ public class ColorPalette
                     if (this.entries[entryIndex].incWriteRetries ())
                         this.surface.sendSysex (this.entries[entryIndex].createUpdateMessage ());
                     else
+                    {
+                        this.failedEntryCount++;
                         this.surface.errorln ("Failed writing color palette entry #" + entryIndex + ".");
+                    }
                     break;
 
                 default:
@@ -74,6 +76,25 @@ public class ColorPalette
         }
 
         this.surface.scheduleTask (this::updatePalette, 10);
+    }
+
+
+    private void finishUpdate ()
+    {
+        final boolean hasUpdates;
+        final int failed;
+        synchronized (this.updateLock)
+        {
+            hasUpdates = this.entriesHasUpdate;
+            failed = this.failedEntryCount;
+        }
+
+        if (hasUpdates)
+            this.surface.sendSysex ("05");
+
+        final String status = failed == 0 ? "ready" : "finished with " + failed + " failed entries";
+        this.surface.println ("Push color palette is " + status + ".");
+        this.surface.getDisplay ().notify (failed == 0 ? "Push colors ready" : "Push color sync incomplete");
     }
 
 
@@ -90,16 +111,22 @@ public class ColorPalette
         synchronized (this.updateLock)
         {
             final int index = data[7];
+            final ColorPaletteEntry entry = this.entries[index];
+
+            // Retried requests can produce a stale response after this entry has already completed
+            // or exhausted its retries. Never let such a response reopen a terminal entry.
+            if (entry.getState () == ColorPaletteEntry.State.DONE)
+                return;
 
             // Is an update of the color palette entry necessary?
-            if (!this.entries[index].requiresUpdate (data))
+            if (!entry.requiresUpdate (data))
             {
-                this.entries[index].setDone ();
+                entry.setDone ();
                 return;
             }
 
             this.entriesHasUpdate = true;
-            this.entries[index].setWrite ();
+            entry.setWrite ();
         }
     }
 
@@ -130,6 +157,7 @@ public class ColorPalette
     {
         if (!this.entries[entryIndex].incReadRetries ())
         {
+            this.failedEntryCount++;
             this.surface.errorln ("Failed reading color palette entry #" + entryIndex + ".");
             return;
         }

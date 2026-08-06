@@ -13,7 +13,6 @@ import de.mossgrabers.controller.ableton.push.parameterprovider.PushTrackParamet
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
-import de.mossgrabers.framework.daw.DAWColor;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.ICursorTrack;
 import de.mossgrabers.framework.daw.data.ISend;
@@ -160,7 +159,7 @@ public class TrackMode extends AbstractTrackMode
                 return this.colorManager.getColorIndex (PushColorManager.PUSH_BLACK);
             if (track.isRecArm ())
                 return this.colorManager.getColorIndex (PushColorManager.PUSH_RED_HI);
-            return this.colorManager.getColorIndex (DAWColor.getColorID (track.getColor ()));
+            return this.colorManager.getColorIndex (track.getColor ());
         }
 
         index = this.isButtonRow (1, buttonID);

@@ -75,86 +75,13 @@ public class PushColorManager extends ColorManager
     /** ID for color when button signals an activated master state. */
     public static final String         PUSH_BUTTON_STATE_MASTER_HI            = "PUSH_BUTTON_STATE_MASTER_HI";
 
-    // @formatter:off
-    /** The default color palette. */
-    protected static final int [] [] DEFAULT_PALETTE =
-    {
-        { 0x00, 0x00, 0x00 }, { 0x1E, 0x1E, 0x1E }, { 0x7F, 0x7F, 0x7F },
-        { 0xFF, 0xFF, 0xFF }, { 0xFF, 0x4C, 0x4C }, { 0xFF, 0x00, 0x00 },
-        { 0x59, 0x00, 0x00 }, { 0x19, 0x00, 0x00 }, { 0xFF, 0xBD, 0x6C },
-        { 0xFF, 0x54, 0x00 }, { 0x59, 0x1D, 0x00 }, { 0x27, 0x1B, 0x00 },
-        { 0xFF, 0xFF, 0x4C }, { 0xFF, 0xFF, 0x00 }, { 0x59, 0x59, 0x00 },
-        { 0x19, 0x19, 0x00 }, { 0x88, 0xFF, 0x4C }, { 0x54, 0xFF, 0x00 },
-        { 0x1D, 0x59, 0x00 }, { 0x14, 0x2B, 0x00 }, { 0x4C, 0xFF, 0x4C },
-        { 0x00, 0xFF, 0x00 }, { 0x00, 0x59, 0x00 }, { 0x00, 0x19, 0x00 },
-        { 0x4C, 0xFF, 0x5E }, { 0x00, 0xFF, 0x19 }, { 0x00, 0x59, 0x0D },
-        { 0x00, 0x19, 0x02 }, { 0x4C, 0xFF, 0x88 }, { 0x00, 0xFF, 0x55 },
-        { 0x00, 0x59, 0x1D }, { 0x00, 0x1F, 0x12 }, { 0x4C, 0xFF, 0xB7 },
-        { 0x00, 0xFF, 0x99 }, { 0x00, 0x59, 0x35 }, { 0x00, 0x19, 0x12 },
-        { 0x4C, 0xC3, 0xFF }, { 0x00, 0xA9, 0xFF }, { 0x00, 0x41, 0x52 },
-        { 0x00, 0x10, 0x19 }, { 0x4C, 0x88, 0xFF }, { 0x00, 0x55, 0xFF },
-        { 0x00, 0x1D, 0x59 }, { 0x00, 0x08, 0x19 }, { 0x4C, 0x4C, 0xFF },
-        { 0x00, 0x00, 0xFF }, { 0x00, 0x00, 0x59 }, { 0x00, 0x00, 0x19 },
-        { 0x87, 0x4C, 0xFF }, { 0x54, 0x00, 0xFF }, { 0x19, 0x00, 0x64 },
-        { 0x0F, 0x00, 0x30 }, { 0xFF, 0x4C, 0xFF }, { 0xFF, 0x00, 0xFF },
-        { 0x59, 0x00, 0x59 }, { 0x19, 0x00, 0x19 }, { 0xFF, 0x4C, 0x87 },
-        { 0xFF, 0x00, 0x54 }, { 0x59, 0x00, 0x1D }, { 0x22, 0x00, 0x13 },
-        { 0xFF, 0x15, 0x00 }, { 0x99, 0x35, 0x00 }, { 0x79, 0x51, 0x00 },
-        { 0x43, 0x64, 0x00 }, { 0x03, 0x39, 0x00 }, { 0x00, 0x57, 0x35 },
-        { 0x00, 0x54, 0x7F }, { 0x00, 0x00, 0xFF }, { 0x00, 0x45, 0x4F },
-        { 0x25, 0x00, 0xCC }, { 0x7F, 0x7F, 0x7F }, { 0x20, 0x20, 0x20 },
-        { 0xFF, 0x00, 0x00 }, { 0xBD, 0xFF, 0x2D }, { 0xAF, 0xED, 0x06 },
-        { 0x64, 0xFF, 0x09 }, { 0x10, 0x8B, 0x00 }, { 0x00, 0xFF, 0x87 },
-        { 0x00, 0xA9, 0xFF }, { 0x00, 0x2A, 0xFF }, { 0x3F, 0x00, 0xFF },
-        { 0x7A, 0x00, 0xFF }, { 0xB2, 0x1A, 0x7D }, { 0x40, 0x21, 0x00 },
-        { 0xFF, 0x4A, 0x00 }, { 0x88, 0xE1, 0x06 }, { 0x72, 0xFF, 0x15 },
-        { 0x00, 0xFF, 0x00 }, { 0x3B, 0xFF, 0x26 }, { 0x59, 0xFF, 0x71 },
-        { 0x38, 0xFF, 0xCC }, { 0x5B, 0x8A, 0xFF }, { 0x31, 0x51, 0xC6 },
-        { 0x87, 0x7F, 0xE9 }, { 0xD3, 0x1D, 0xFF }, { 0xFF, 0x00, 0x5D },
-        { 0xFF, 0x7F, 0x00 }, { 0xB9, 0xB0, 0x00 }, { 0x90, 0xFF, 0x00 },
-        { 0x83, 0x5D, 0x07 }, { 0x39, 0x2B, 0x00 }, { 0x14, 0x4C, 0x10 },
-        { 0x0D, 0x50, 0x38 }, { 0x15, 0x15, 0x2A }, { 0x16, 0x20, 0x5A },
-        { 0x69, 0x3C, 0x1C }, { 0xA8, 0x00, 0x0A }, { 0xDE, 0x51, 0x3D },
-        { 0xD8, 0x6A, 0x1C }, { 0xFF, 0xE1, 0x26 }, { 0x9E, 0xE1, 0x2F },
-        { 0x67, 0xB5, 0x0F }, { 0x1E, 0x1E, 0x30 }, { 0xDC, 0xFF, 0x6B },
-        { 0x80, 0xFF, 0xBD }, { 0x9A, 0x99, 0xFF }, { 0x8E, 0x66, 0xFF },
-        { 0x40, 0x40, 0x40 }, { 0x75, 0x75, 0x75 }, { 0xE0, 0xFF, 0xFF },
-        { 0xA0, 0x00, 0x00 }, { 0x35, 0x00, 0x00 }, { 0x1A, 0xD0, 0x00 },
-        { 0x07, 0x42, 0x00 }, { 0xB9, 0xB0, 0x00 }, { 0x3F, 0x31, 0x00 },
-        { 0xB3, 0x5F, 0x00 }, { 0x4B, 0x15, 0x02 }
-    };
-    // @formatter:on
+    /** Selected logical palette. The hardware calibration is applied only when the RGB values are sent. */
+    private static final int [] [] TARGET_PALETTE = PushPaletteData.COLORS;
 
-    private static final DAWColor [] DAW_PALETTE_COLORS =
-    {
-        DAWColor.DAW_COLOR_GRAY_HALF,
-        DAWColor.DAW_COLOR_DARK_GRAY,
-        DAWColor.DAW_COLOR_GRAY,
-        DAWColor.DAW_COLOR_LIGHT_GRAY,
-        DAWColor.DAW_COLOR_SILVER,
-        DAWColor.DAW_COLOR_DARK_BROWN,
-        DAWColor.DAW_COLOR_BROWN,
-        DAWColor.DAW_COLOR_DARK_BLUE,
-        DAWColor.DAW_COLOR_PURPLE_BLUE,
-        DAWColor.DAW_COLOR_PURPLE,
-        DAWColor.DAW_COLOR_PINK,
-        DAWColor.DAW_COLOR_RED,
-        DAWColor.DAW_COLOR_ORANGE,
-        DAWColor.DAW_COLOR_LIGHT_ORANGE,
-        DAWColor.DAW_COLOR_MOSS_GREEN,
-        DAWColor.DAW_COLOR_GREEN,
-        DAWColor.DAW_COLOR_COLD_GREEN,
-        DAWColor.DAW_COLOR_BLUE,
-        DAWColor.DAW_COLOR_LIGHT_PURPLE,
-        DAWColor.DAW_COLOR_LIGHT_PINK,
-        DAWColor.DAW_COLOR_ROSE,
-        DAWColor.DAW_COLOR_REDDISH_BROWN,
-        DAWColor.DAW_COLOR_LIGHT_BROWN,
-        DAWColor.DAW_COLOR_LIGHT_GREEN,
-        DAWColor.DAW_COLOR_BLUISH_GREEN,
-        DAWColor.DAW_COLOR_GREEN_BLUE,
-        DAWColor.DAW_COLOR_LIGHT_BLUE
-    };
+    private static final double [] [] OKLAB_PALETTE = createOKLabPalette ();
+
+    /** Dynamic Bitwig black uses a dim visible neutral; index 0 remains semantic off. */
+    private static final int         VISIBLE_BLACK_INDEX                    = 1;
 
     // Second row & Pad button colors
     public static final int            PUSH2_COLOR2_BLACK                     = 0;
@@ -471,6 +398,8 @@ public class PushColorManager extends ColorManager
      */
     public static int [] getPaletteColorRGB (final int index)
     {
+        if (PushPaletteData.HAS_PROGRAMMED_COLORS)
+            return PushPaletteData.PROGRAMMED_COLORS[index].clone ();
         return PushColorCalibration.toLedRGB (getPaletteColor (index).toIntRGB255 ());
     }
 
@@ -483,16 +412,77 @@ public class PushColorManager extends ColorManager
      */
     public static ColorEx getPaletteColor (final int index)
     {
-        final int dawColorIndex = getDawColorIndex (index);
-        if (dawColorIndex >= 0)
-            return DAW_PALETTE_COLORS[dawColorIndex].getColor ();
-        return ColorEx.fromRGB (DEFAULT_PALETTE[index][0], DEFAULT_PALETTE[index][1], DEFAULT_PALETTE[index][2]);
+        return ColorEx.fromRGB (TARGET_PALETTE[index][0], TARGET_PALETTE[index][1], TARGET_PALETTE[index][2]);
     }
 
 
-    private static int getDawColorIndex (final int paletteIndex)
+    /**
+     * Resolve an RGB color to a Push palette index. Keeping this conversion in the Push color
+     * manager lets callers retain the full RGB value until an indexed hardware value is required.
+     * Matching uses the logical palette; physical LED calibration stays in
+     * {@link #getPaletteColorRGB(int)}.
+     *
+     * @param color The RGB color
+     * @return The closest Push palette index
+     */
+    @Override
+    public int getColorIndex (final ColorEx color)
     {
-        return paletteIndex >= DAW_COLOR_FIRST && paletteIndex <= DAW_COLOR_LAST ? paletteIndex - DAW_COLOR_FIRST : -1;
+        if (color.getRed () == 0.0 && color.getGreen () == 0.0 && color.getBlue () == 0.0)
+            return VISIBLE_BLACK_INDEX;
+
+        final double [] target = toOKLab (color);
+        int closestIndex = 0;
+        double closestDistance = Double.MAX_VALUE;
+        for (int index = 0; index < OKLAB_PALETTE.length; index++)
+        {
+            final double [] candidate = OKLAB_PALETTE[index];
+            final double deltaL = target[0] - candidate[0];
+            final double deltaA = target[1] - candidate[1];
+            final double deltaB = target[2] - candidate[2];
+            final double distance = deltaL * deltaL + deltaA * deltaA + deltaB * deltaB;
+            if (distance < closestDistance)
+            {
+                closestIndex = index;
+                closestDistance = distance;
+            }
+        }
+        return closestIndex;
+    }
+
+
+    private static double [] [] createOKLabPalette ()
+    {
+        final double [] [] palette = new double [128] [];
+        for (int index = 0; index < palette.length; index++)
+            palette[index] = toOKLab (getPaletteColor (index));
+        return palette;
+    }
+
+
+    private static double [] toOKLab (final ColorEx color)
+    {
+        final double red = linearize (color.getRed ());
+        final double green = linearize (color.getGreen ());
+        final double blue = linearize (color.getBlue ());
+
+        final double l = Math.cbrt (0.4122214708 * red + 0.5363325363 * green + 0.0514459929 * blue);
+        final double m = Math.cbrt (0.2119034982 * red + 0.6806995451 * green + 0.1073969566 * blue);
+        final double s = Math.cbrt (0.0883024619 * red + 0.2817188376 * green + 0.6299787005 * blue);
+
+        return new double []
+        {
+            0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+            1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+            0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s
+        };
+    }
+
+
+    private static double linearize (final double component)
+    {
+        final double value = Math.max (0.0, Math.min (1.0, component));
+        return value <= 0.04045 ? value / 12.92 : Math.pow ((value + 0.055) / 1.055, 2.4);
     }
 
 
