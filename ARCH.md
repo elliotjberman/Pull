@@ -291,6 +291,14 @@ Deferred by design:
 8. State explicitly whether the change is core-only/hot-reloadable or changes the shell canopy and
    requires a Bitwig restart.
 
+For migrations and smoke-test fixes, begin with a behavior-characterization test that preserves
+the intended Moss contract from physical input and modifiers through effect scale/identity and
+authoritative output; where practical, verify that it fails on the buggy or pre-migration revision.
+Fake hosts must keep command submission separate from explicit host advancement, and every
+software invariant learned during live smoke testing should become a deterministic regression at
+the lowest boundary that can represent it. Physical feel, firmware behavior, and host semantics
+that cannot yet be represented remain a documented live smoke test rather than a cooperative mock.
+
 The next architectural step is not another workspace-shaped facet. Expand the typed state, effect,
 and complete-output canopy, then migrate one existing adapter-backed claim at a time from
 `STABLE_ADAPTER_*` to core input/output without changing the workspace configuration.

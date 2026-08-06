@@ -129,6 +129,7 @@ class ReloadableControllerRuntimeTest
         assertTrue (environment.isFillPressed (secondControl));
         assertEquals (1, clipHost.target (firstControl).releaseCount);
         assertEquals (0, clipHost.target (secondControl).pressCount);
+        assertEquals (firstControl, environment.snapshot ().activeClipLaunchOwner ().orElseThrow ());
 
         acknowledgeReturn (clipHost, runtime, firstControl);
         assertEquals (1, clipHost.target (firstControl).retireCount);
@@ -169,6 +170,7 @@ class ReloadableControllerRuntimeTest
         assertTrue (runtime.routeGridEvent (false, ButtonEvent.UP, EXPECTED_FILL_NOTES[1]));
         assertFalse (environment.isFillPressed (secondControl));
         assertEquals (1, clipHost.target (secondControl).releaseCount);
+        assertEquals (secondControl, environment.snapshot ().activeClipLaunchOwner ().orElseThrow ());
         acknowledgeReturn (clipHost, runtime, secondControl);
         assertTrue (environment.snapshot ().clipLaunchSessionTargets ().isEmpty ());
         assertTrue (environment.snapshot ().activeClipLaunchOwner ().isEmpty ());
