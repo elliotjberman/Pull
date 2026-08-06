@@ -4,14 +4,16 @@
 package de.mossgrabers.pull.core.runtime.view;
 
 import de.mossgrabers.pull.core.api.ControlId;
+import de.mossgrabers.pull.core.api.ControllerActionBinding;
+import de.mossgrabers.pull.core.api.ControllerActionId;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
+import de.mossgrabers.pull.core.api.ControllerStateScope;
 import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
-import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
-import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.view.ControllerView;
+import de.mossgrabers.pull.core.view.ResolvedControllerAction;
 import de.mossgrabers.pull.core.view.SurfaceArea;
 import de.mossgrabers.pull.core.view.SurfaceClaim;
 import de.mossgrabers.pull.core.view.ViewProfile;
@@ -29,6 +31,9 @@ public final class WorkspaceSelectionView implements ControllerView
     private static final ControlId SESSION_BUTTON = PushControlIds.button ("SESSION");
     private static final ControlId NOTE_BUTTON = PushControlIds.button ("NOTE");
     private static final ControlId SHIFT_BUTTON = PushControlIds.button ("SHIFT");
+    private static final Set<ControllerActionBinding> ACTION_BINDINGS = Set.of (
+        new ControllerActionBinding (SESSION_BUTTON, InputKind.BUTTON, ControllerActionId.SWITCH_WORKSPACE, Set.of (ControllerStateScope.ACTIVE_PARAMETERS)),
+        new ControllerActionBinding (NOTE_BUTTON, InputKind.BUTTON, ControllerActionId.SWITCH_WORKSPACE, Set.of (ControllerStateScope.ACTIVE_PARAMETERS)));
     private static final ViewProfile PROFILE = ViewProfile.fixed (
         "session-note",
         Set.of (
@@ -69,17 +74,26 @@ public final class WorkspaceSelectionView implements ControllerView
 
     /** {@inheritDoc} */
     @Override
-    public List<CoreEffect> handle (final CoreEvent event, final ControllerSnapshot snapshot)
+    public Set<ControllerActionBinding> actionBindings ()
     {
-        if (!(event instanceof final ControllerInputEvent input) || input.kind () != InputKind.BUTTON || input.phase () != InputPhase.BEGIN)
-            return List.of ();
+        return ACTION_BINDINGS;
+    }
 
+
+    /** {@inheritDoc} */
+    @Override
+    public ResolvedControllerAction resolveAction (final ControllerActionBinding binding, final ControllerInputEvent input, final ControllerSnapshot snapshot)
+    {
+        final WorkspaceSelection.Id target;
         if (SESSION_BUTTON.equals (input.controlId ()))
-        {
-            this.selection.select (snapshot.pressedControls ().contains (SHIFT_BUTTON) ? WorkspaceSelection.Id.VS_LIVE : WorkspaceSelection.Id.DEFAULT);
-        }
+            target = snapshot.pressedControls ().contains (SHIFT_BUTTON) ? WorkspaceSelection.Id.VS_LIVE : WorkspaceSelection.Id.DEFAULT;
         else if (NOTE_BUTTON.equals (input.controlId ()))
-            this.selection.select (WorkspaceSelection.Id.DEFAULT);
-        return List.of ();
+            target = WorkspaceSelection.Id.DEFAULT;
+        else
+            throw new IllegalArgumentException ("Unsupported workspace action input " + input.controlId ());
+        return ResolvedControllerAction.of (binding.intent (), () -> {
+            this.selection.select (target);
+            return List.of ();
+        });
     }
 }

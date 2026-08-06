@@ -5,6 +5,8 @@ package de.mossgrabers.pull.shell.runtime;
 
 import com.bitwig.extension.controller.api.ControllerHost;
 
+import de.mossgrabers.framework.controller.ContinuousID;
+import de.mossgrabers.framework.controller.hardware.IHwContinuousControl;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.midi.ISelectedTrackNoteTarget;
@@ -12,12 +14,13 @@ import de.mossgrabers.framework.daw.midi.MidiShortCallback;
 import de.mossgrabers.framework.daw.midi.MidiConstants;
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
-import de.mossgrabers.controller.ableton.push.parameter.PushParameterMutationService;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.CoreControls;
+import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
+import de.mossgrabers.pull.core.api.event.ParameterMutationEvent;
 import de.mossgrabers.pull.shell.input.PhysicalInputEvent;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 
@@ -57,10 +60,9 @@ public final class ReloadableControllerRuntime implements AutoCloseable
     private final ControllerHost controllerHost;
 
     private SelectedTrackFillClipHost clipHost;
-    private DrumFillRuntimeEnvironment environment;
+    private ControllerRuntimeEnvironment environment;
     private CoreReloadSupervisor supervisor;
     private PushControllerInputBridge inputBridge;
-    private PushParameterMutationService parameterMutations;
     private Predicate<CoreEvent> eventHandler = event -> false;
     private final Set<ControlId> rawReleasedGestures = new HashSet<> ();
     private boolean started;
@@ -89,7 +91,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
      * @param log The runtime log
      * @param eventHandler Active-core event handler
      */
-    ReloadableControllerRuntime (final DrumFillRuntimeEnvironment environment, final RuntimeLog log, final Predicate<CoreEvent> eventHandler)
+    ReloadableControllerRuntime (final ControllerRuntimeEnvironment environment, final RuntimeLog log, final Predicate<CoreEvent> eventHandler)
     {
         this.controllerHost = null;
         this.clipHost = null;
@@ -126,9 +128,9 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             Objects.requireNonNull (selectedTarget, "selectedTarget"),
             Objects.requireNonNull (noteInputMidiSender, "noteInputMidiSender"),
             Objects.requireNonNull (surface, "surface"),
-            Objects.requireNonNull (valueChanger, "valueChanger"));
-        this.environment = new DrumFillRuntimeEnvironment (this.clipHost, controllerBridge, this.log, System::nanoTime);
-        this.parameterMutations = new PushParameterMutationService (surface, model);
+            Objects.requireNonNull (valueChanger, "valueChanger"),
+            this.log);
+        this.environment = new ControllerRuntimeEnvironment (this.clipHost, controllerBridge, this.log, System::nanoTime);
         this.supervisor = new CoreReloadSupervisor (this.environment, this.log);
         this.eventHandler = this.supervisor::handle;
     }
@@ -168,17 +170,18 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             throw new IllegalStateException ("Controller inputs must be installed before runtime startup");
         if (this.inputBridge != null)
             throw new IllegalStateException ("Controller input bridge is already installed");
-        if (this.parameterMutations == null)
-            throw new IllegalStateException ("Controller parameter mutations are not connected");
-
         this.inputBridge = new PushControllerInputBridge (
             Objects.requireNonNull (surface, "surface"),
             Objects.requireNonNull (valueChanger, "valueChanger"),
-            this.parameterMutations,
+            this::handleParameterMutation,
             this.environment::desiredInputRoutes,
+            (control, kind, stableAction) -> this.environment.blocksStableAction (control, de.mossgrabers.pull.core.api.event.InputKind.valueOf (kind.name ()), stableAction),
             this::handleControllerInput,
             () -> this.supervisor == null ? 0 : this.supervisor.activeGeneration ());
         this.environment.setInputRouteValidator (this.inputBridge::supports);
+        this.environment.setControllerActionValidator (this.inputBridge::supports);
+        this.environment.setDeferredInputRelease (this.inputBridge::releaseDeferredStableDispatches);
+        this.environment.setInputLifecycleIdle (this.inputBridge::inputLifecycleIdle);
     }
 
 
@@ -212,8 +215,8 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             if (this.eventHandler.test (this.environment.snapshotChangedEvent ()))
                 this.environment.acknowledgeSnapshotChange (deliveredRevision);
         }
-        if (this.parameterMutations != null)
-            this.parameterMutations.tick ();
+        if (this.environment.observesParameters ())
+            this.eventHandler.test (this.environment.controllerTickEvent ());
         this.reportSlowTick (startedAt);
     }
 
@@ -387,8 +390,6 @@ public final class ReloadableControllerRuntime implements AutoCloseable
                 for (final ControlId control: FILL_CONTROLS)
                     this.environment.safetyRelease (control);
             }
-            if (this.parameterMutations != null)
-                this.parameterMutations.shutdown ();
         }
     }
 
@@ -411,17 +412,57 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         if (!this.drainingControllerInputs)
             this.environment.refresh ();
 
-        final ControllerInputEvent input = this.environment.controllerInput (
+        final CoreEvent input = event.stableAction ().<CoreEvent>map (this.environment::controllerAction).orElseGet ( () -> this.environment.controllerInput (
             event.control (),
             de.mossgrabers.pull.core.api.event.InputKind.valueOf (event.kind ().name ()),
             event.phase () == de.mossgrabers.pull.shell.input.InputPhase.CHANGE ? de.mossgrabers.pull.core.api.event.InputPhase.UPDATE : de.mossgrabers.pull.core.api.event.InputPhase.valueOf (event.phase ().name ()),
-            event.value ());
+            event.value ()));
         if (!this.started)
             return;
         if (this.supervisor == null)
             this.eventHandler.test (input);
         else
             this.supervisor.handle (event.ownerGeneration (), input);
+    }
+
+
+    void handleParameterMutation (final ContinuousID controlID, final IHwContinuousControl control, final Runnable stableMutation)
+    {
+        final Runnable mutation = Objects.requireNonNull (stableMutation, "stableMutation");
+        if (this.environment == null || this.closed || !this.started || !this.environment.observesParameters ())
+        {
+            mutation.run ();
+            return;
+        }
+
+        final ControllerBridge.TargetedParameter parameter = this.environment.resolveParameterMutation (control);
+        if (parameter == null)
+        {
+            mutation.run ();
+            return;
+        }
+
+        final de.mossgrabers.pull.core.api.ParameterTargetRef target = parameter.target ().target ();
+        if (this.environment.retainsParameterTarget (target))
+        {
+            if (!this.environment.blocksParameterMutation (target))
+                mutation.run ();
+            return;
+        }
+
+        final ControlId physicalControl = PushControlIds.continuous (controlID.name ());
+        final ParameterMutationEvent event = this.environment.parameterMutation (physicalControl, parameter);
+        if (this.supervisor == null)
+            this.eventHandler.test (event);
+        else
+            this.supervisor.handle (event);
+        if (this.environment.retainsParameterTarget (target))
+        {
+            if (!this.environment.blocksParameterMutation (target))
+                mutation.run ();
+        }
+        else if (!this.environment.acceptsParameterMutations ())
+            mutation.run ();
     }
 
 

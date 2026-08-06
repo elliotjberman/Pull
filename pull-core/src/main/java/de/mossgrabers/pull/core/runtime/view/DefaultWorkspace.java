@@ -28,6 +28,8 @@ public final class DefaultWorkspace
     {
         return CompiledWorkspace.compile ("Pull", List.of (
             new WorkspaceSelectionView (selection),
+            new StableParameterControlsView (),
+            new GlobalParameterControlsView (),
             new DrumFillView (),
             new RecordControlView ()));
     }

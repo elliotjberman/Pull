@@ -46,6 +46,12 @@ On current `master`:
 - the practical existing Push input set is normalized by the stable input bridge;
 - transport, selected-track, controller-layout, and bounded drum snapshots/effects exist;
 - complete hardware output ownership exists only for the twelve drum-fill lights.
+- Shift snapback policy, view-owned physical-to-parameter-slot admission, semantic action
+  invalidation, restoration acknowledgement, and navigation ordering are core-owned; stable owns
+  named bounded Bitwig parameter banks, exact actuator leases, identity fencing, effect execution,
+  command-driven compatibility-intent adaptation, and compatibility-action dispatch;
+- VS Live project-macro encoder mapping, relative mutation policy, and snapback admission are
+  core-owned. Stable `WorkspaceMode` remains only its touch/delete and display adapter.
 
 Before taking an item, inspect the active branch and in-flight work. This inventory describes
 architectural ownership, not a promise that no adjacent PR has changed the exact files.
@@ -171,11 +177,17 @@ This unlocks:
 The existing drum-fill catalog and actuator lease should eventually become a consumer of a generic
 bounded clip/session capability rather than remain a parallel feature-shaped API.
 
-### 4. Generic eight-parameter bank
+### 4. Complete parameter-view migration and output
 
-Install a reusable bounded parameter snapshot containing stable identity, existence, name, raw
-value, modulated value, authoritative displayed value, touch state, and any required reset/default
-metadata. Add fenced set, relative-change, touch, and reset effects.
+API 14 installs named bounded parameter snapshots for active compatibility, project remote,
+selected-device remote, visible-track volume/pan, and globals. Snapshots contain exact target
+identity, name, raw and modulated values, authoritative displayed value, step count, and tolerance;
+stable applies fenced absolute, relative-change, and reset effects. Project-macro relative input is
+the first fully core-owned path.
+
+Still add a safe automation-touch lifecycle before moving touch ownership, and complete display
+output arbitration before moving parameter rendering. Migrate remaining stable parameter modes to
+the named banks and delete the inherited active-window compatibility path when no consumers remain.
 
 This unlocks:
 
@@ -184,8 +196,8 @@ This unlocks:
 - large portions of device and track parameter rendering;
 - removal of core-invisible parameter-provider policy from stable.
 
-The shell owns the Bitwig parameter objects. The core owns bank selection policy, encoder mapping,
-touch semantics, and display layout.
+The shell owns Bitwig parameter objects and exact actuation. Core owns bank selection, encoder
+mapping, and mutation semantics now; touch semantics and display layout remain migration work.
 
 ### 5. Device, chain, and layer banks
 
@@ -308,8 +320,8 @@ mistaken for the final architecture:
 - the fixed-facet `DesiredControllerWorkspace` compatibility protocol once core owns the complete
   underlying input/output behavior;
 - feature-shaped `desiredClipBindings` fields once a generic bounded session interaction API exists;
-- the `DrumFillRuntimeEnvironment` name and feature-specific shape once runtime responsibilities are
-  generalized.
+- fill-session fields in `ControllerRuntimeEnvironment` once a generic bounded Session interaction
+  capability replaces the feature-shaped clip API.
 
 Input arbitration itself is not temporary. Keep normalized input, route validation, edge ordering,
 generation leases, and held-gesture safety. Remove the duplicate stable semantic implementation,
@@ -360,10 +372,11 @@ Add, in order:
 
 1. visible track bank;
 2. Session grid;
-3. generic eight-parameter bank.
+3. remaining parameter-bank contexts beyond the API 14 named canopy.
 
-Then migrate `WorkspaceMode` and `WorkspaceView` completely. These adapters are good acceptance
-targets because the product behavior is already specified and exercised in VS Live.
+Then migrate `WorkspaceMode` and `WorkspaceView` completely. Project-macro relative turns have
+already moved; automation touch, display output, track strips, Session, and Drum adapters remain
+good acceptance targets because their product behavior is specified and exercised in VS Live.
 
 ### Phase 4: Ordinary controller families
 

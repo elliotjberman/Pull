@@ -5,16 +5,36 @@ package de.mossgrabers.pull.core.view;
 
 import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
+import de.mossgrabers.pull.core.api.ControlId;
+import de.mossgrabers.pull.core.api.ControllerActionBinding;
+import de.mossgrabers.pull.core.api.ControllerActionId;
+import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
+import de.mossgrabers.pull.core.api.ControllerLayoutSnapshot;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
+import de.mossgrabers.pull.core.api.ControllerStateScope;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.InputRouteMode;
+import de.mossgrabers.pull.core.api.DrumContextSnapshot;
+import de.mossgrabers.pull.core.api.ParameterBankId;
+import de.mossgrabers.pull.core.api.ParameterBridgeSnapshot;
+import de.mossgrabers.pull.core.api.ParameterSlot;
+import de.mossgrabers.pull.core.api.ParameterTargetKind;
+import de.mossgrabers.pull.core.api.ParameterTargetRef;
+import de.mossgrabers.pull.core.api.ParameterTargetSnapshot;
 import de.mossgrabers.pull.core.api.PushControlIds;
+import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
 import de.mossgrabers.pull.core.api.SessionBankShape;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
+import de.mossgrabers.pull.core.api.TransportSnapshot;
+import de.mossgrabers.pull.core.api.effect.AdjustParameterValueEffect;
 import de.mossgrabers.pull.core.api.event.InputKind;
+import de.mossgrabers.pull.core.api.event.InputPhase;
+import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.runtime.view.ProjectMacroControlsView;
 import de.mossgrabers.pull.core.runtime.view.SessionClipGridView;
+import de.mossgrabers.pull.core.runtime.view.WorkspaceSelection;
+import de.mossgrabers.pull.core.runtime.view.WorkspaceSelectionView;
 
 import org.junit.jupiter.api.Test;
 
@@ -24,7 +44,9 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
 /**
@@ -171,13 +193,87 @@ class CompiledWorkspaceTest
 
 
     @Test
-    void stableAdapterInputIsOwnedWithoutPublishingACoreRoute ()
+    void projectMacrosOwnEncoderTurnsWhileStableAdaptsTouchAndDisplay ()
     {
         final CompiledWorkspace workspace = CompiledWorkspace.compile ("macros", List.of (new ProjectMacroControlsView ()));
-        final CoreResult result = workspace.start (snapshot ());
+        final CoreResult result = workspace.start (parameterSnapshot ());
+        final ControlId firstKnob = PushControlIds.continuous ("KNOB1");
 
         assertEquals (Set.of (ControllerViewFacet.PROJECT_MACRO_CONTROLS), result.desiredControllerWorkspace ().facets ());
-        assertEquals (0, result.desiredInputRoutes ().routes ().size ());
+        assertEquals (8, result.desiredInputRoutes ().routes ().size ());
+        assertEquals (InputRouteMode.EXCLUSIVE, result.desiredInputRoutes ().mode (firstKnob, InputKind.RELATIVE).orElseThrow ());
+        assertEquals (Set.of (ParameterBankId.PROJECT_REMOTE), result.desiredParameterBanks ().banks ());
+        assertTrue (result.desiredBridgeSubscriptions ().includes (BridgeSubscription.PARAMETERS));
+
+        final CoreResult adjusted = workspace.handle (
+            new ControllerInputEvent (1, 1, firstKnob, InputKind.RELATIVE, InputPhase.UPDATE, 3),
+            parameterSnapshot ());
+        assertEquals (List.of (new AdjustParameterValueEffect (PROJECT_TARGET, 30)), adjusted.effects ());
+    }
+
+
+    @Test
+    void compilesPhysicalEdgesIntoViewOwnedSemanticActions ()
+    {
+        final ControlId left = PushControlIds.button ("PAGE_LEFT");
+        final ControlId right = PushControlIds.button ("PAGE_RIGHT");
+        final CompiledWorkspace workspace = CompiledWorkspace.compile ("actions", List.of (new ActionView (Set.of (left, right))));
+        final CoreResult result = workspace.start (snapshot ());
+
+        assertEquals (2, result.desiredControllerActions ().bindings ().size ());
+        assertEquals (ControllerActionId.SELECT_PARAMETER_PAGE, result.desiredControllerActions ().bindingOrNull (left, InputKind.BUTTON).action ());
+        assertEquals (InputRouteMode.OBSERVE, result.desiredInputRoutes ().mode (left, InputKind.BUTTON).orElseThrow ());
+        assertNotNull (workspace.resolveAction (new de.mossgrabers.pull.core.api.event.ControllerInputEvent (1, 0, right, InputKind.BUTTON, de.mossgrabers.pull.core.api.event.InputPhase.BEGIN, 127), snapshot ()));
+    }
+
+
+    @Test
+    void rejectsSemanticActionWithoutSameViewControlAndKindClaim ()
+    {
+        final ControlId session = PushControlIds.button ("SESSION");
+        final ControllerView otherSessionObserver = view ("session observer", claim (SurfaceArea.SESSION_BUTTON, SurfaceClaim.Kind.OBSERVE_INPUT));
+        final ControlId knob = PushControlIds.continuous ("KNOB1");
+
+        assertThrows (IllegalArgumentException.class, () -> CompiledWorkspace.compile ("other view claim", List.of (new ActionView (Set.of (session)), otherSessionObserver)));
+        assertThrows (IllegalArgumentException.class, () -> CompiledWorkspace.compile ("wrong input kind", List.of (new ActionView (Set.of (knob), InputKind.TOUCH, SurfaceArea.ENCODER_TURNS))));
+    }
+
+
+    @Test
+    void resolvedWorkspaceActionRetainsItsBeginTimeModifierMeaning ()
+    {
+        final ControlId shift = PushControlIds.button ("SHIFT");
+        final ControlId session = PushControlIds.button ("SESSION");
+        final WorkspaceSelection selection = new WorkspaceSelection (WorkspaceSelection.Id.DEFAULT);
+        final CompiledWorkspace workspace = CompiledWorkspace.compile ("workspace action", List.of (new WorkspaceSelectionView (selection)));
+        final ControllerSnapshot shifted = snapshot (Set.of (shift));
+        workspace.start (shifted);
+
+        final ResolvedControllerAction action = workspace.resolveAction (new ControllerInputEvent (1, 0, session, InputKind.BUTTON, InputPhase.BEGIN, 127), shifted);
+        workspace.handleAction (action, snapshot ());
+
+        assertEquals (WorkspaceSelection.Id.VS_LIVE, selection.active ());
+    }
+
+
+    @Test
+    void rejectsConflictingPhysicalParameterMappings ()
+    {
+        final ControlId knob = PushControlIds.continuous ("KNOB1");
+        final ControllerView first = parameterView ("first", knob, ParameterSlot.active (0));
+        final ControllerView second = parameterView ("second", knob, ParameterSlot.active (1));
+
+        assertThrows (IllegalArgumentException.class, () -> CompiledWorkspace.compile ("conflict", List.of (first, second)));
+    }
+
+
+    @Test
+    void workspaceOwnsThePhysicalControlToParameterSlotMapping ()
+    {
+        final CompiledWorkspace workspace = CompiledWorkspace.compile ("macros", List.of (new ProjectMacroControlsView ()));
+
+        assertEquals (ParameterSlot.projectRemote (0), workspace.parameterSlotOrNull (PushControlIds.continuous ("KNOB1")));
+        assertEquals (ParameterSlot.projectRemote (7), workspace.parameterSlotOrNull (PushControlIds.continuous ("KNOB8")));
     }
 
 
@@ -199,7 +295,40 @@ class CompiledWorkspaceTest
     }
 
 
+    private static ControllerView parameterView (final String id, final ControlId control, final ParameterSlot slot)
+    {
+        return new ControllerView ()
+        {
+            @Override
+            public String id ()
+            {
+                return id;
+            }
+
+
+            @Override
+            public ViewProfile profile ()
+            {
+                return ViewProfile.fixed (id, Set.of (), Set.of ());
+            }
+
+
+            @Override
+            public Map<ControlId, ParameterSlot> parameterBindings ()
+            {
+                return Map.of (control, slot);
+            }
+        };
+    }
+
+
     private static ControllerSnapshot snapshot ()
+    {
+        return snapshot (Set.of ());
+    }
+
+
+    private static ControllerSnapshot snapshot (final Set<ControlId> pressedControls)
     {
         return new ControllerSnapshot (
             0,
@@ -207,8 +336,26 @@ class CompiledWorkspaceTest
             ShellCapabilities.empty (),
             ClipCatalogSnapshot.empty (),
             Map.of (),
-            Set.of (),
+            pressedControls,
             Set.of ());
+    }
+
+
+    private static final ParameterTargetRef PROJECT_TARGET = new ParameterTargetRef (ParameterTargetKind.LIVE, "project-1", 0);
+
+
+    private static ControllerSnapshot parameterSnapshot ()
+    {
+        final ParameterBridgeSnapshot parameters = new ParameterBridgeSnapshot (
+            Map.of (ParameterSlot.projectRemote (0), new ParameterTargetSnapshot (PROJECT_TARGET, 64, 0.5)),
+            Map.of ());
+        final ControllerBridgeSnapshot bridge = new ControllerBridgeSnapshot (
+            TransportSnapshot.empty (),
+            SelectedTrackSnapshot.empty (),
+            ControllerLayoutSnapshot.empty (),
+            DrumContextSnapshot.empty (),
+            parameters);
+        return new ControllerSnapshot (0, 0, ShellCapabilities.empty (), bridge, ClipCatalogSnapshot.empty (), Map.of (), Map.of (), java.util.Optional.empty (), Set.of (), Set.of ());
     }
 
 
@@ -224,6 +371,42 @@ class CompiledWorkspaceTest
         public ViewProfile profile ()
         {
             return ViewProfile.fixed ("test", this.declaredClaims, this.controllerFacets);
+        }
+    }
+
+
+    private record ActionView (Set<ControlId> controls, InputKind inputKind, SurfaceArea claimedArea) implements ControllerView
+    {
+        private ActionView (final Set<ControlId> controls)
+        {
+            this (controls, InputKind.BUTTON, SurfaceArea.NAVIGATION_PAGE);
+        }
+
+
+        @Override
+        public String id ()
+        {
+            return "actions";
+        }
+
+
+        @Override
+        public ViewProfile profile ()
+        {
+            return ViewProfile.fixed ("actions", Set.of (claim (this.claimedArea, SurfaceClaim.Kind.OBSERVE_INPUT)), Set.of ());
+        }
+
+
+        @Override
+        public Set<ControllerActionBinding> actionBindings ()
+        {
+            return this.controls.stream ()
+                .map (control -> new ControllerActionBinding (
+                    control,
+                    this.inputKind,
+                    ControllerActionId.SELECT_PARAMETER_PAGE,
+                    Set.of (ControllerStateScope.ACTIVE_PARAMETERS)))
+                .collect (java.util.stream.Collectors.toUnmodifiableSet ());
         }
     }
 }

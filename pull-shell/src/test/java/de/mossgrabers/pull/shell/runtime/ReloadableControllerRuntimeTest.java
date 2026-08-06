@@ -85,7 +85,7 @@ class ReloadableControllerRuntimeTest
     void routesSingleActiveFillHandoffAndPreservesPhysicalReleaseSafety ()
     {
         final FakeClipHost clipHost = new FakeClipHost (9);
-        final DrumFillRuntimeEnvironment environment = createArmedEnvironment (clipHost);
+        final ControllerRuntimeEnvironment environment = createArmedEnvironment (clipHost);
         final List<CoreEvent> events = new ArrayList<> ();
         final long [] coreGeneration =
         {
@@ -184,7 +184,7 @@ class ReloadableControllerRuntimeTest
     void retriesAuthoritativeSnapshotUntilAcceptedAfterAnInterveningNoOpInput ()
     {
         final FakeClipHost clipHost = new FakeClipHost (9);
-        final DrumFillRuntimeEnvironment environment = createArmedEnvironment (clipHost);
+        final ControllerRuntimeEnvironment environment = createArmedEnvironment (clipHost);
         final ControlId firstControl = CoreControls.drumFills ().getFirst ();
         environment.acknowledgeSnapshotChange (environment.snapshotRevision ());
         environment.setFillPressed (firstControl, true);
@@ -219,9 +219,9 @@ class ReloadableControllerRuntimeTest
     }
 
 
-    private static DrumFillRuntimeEnvironment createArmedEnvironment (final FakeClipHost clipHost)
+    private static ControllerRuntimeEnvironment createArmedEnvironment (final FakeClipHost clipHost)
     {
-        final DrumFillRuntimeEnvironment environment = new DrumFillRuntimeEnvironment (clipHost, NoOpLog.INSTANCE, () -> 0);
+        final ControllerRuntimeEnvironment environment = new ControllerRuntimeEnvironment (clipHost, NoOpLog.INSTANCE, () -> 0);
         final CoreResult bindings = result (clipHost.allBindings (), List.of ());
         environment.commit (1, environment.prepare (bindings));
         environment.apply (1);
@@ -244,6 +244,9 @@ class ReloadableControllerRuntimeTest
             DesiredBridgeSubscriptions.empty (),
             bindings,
             DesiredControllerWorkspace.empty (),
+            de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
+            de.mossgrabers.pull.core.api.DesiredParameterBanks.empty (),
+            de.mossgrabers.pull.core.api.DesiredParameterInteraction.empty (),
             effects);
     }
 

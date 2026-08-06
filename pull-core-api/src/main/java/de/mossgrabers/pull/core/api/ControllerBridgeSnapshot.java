@@ -12,10 +12,11 @@ import java.util.Objects;
  * @param selectedTrack Private selection-following track state
  * @param layout Visible layout and reconciled applicability state
  * @param drum Selected-track drum window
+ * @param parameters Current parameter slots and retained actuators
  */
-public record ControllerBridgeSnapshot (TransportSnapshot transport, SelectedTrackSnapshot selectedTrack, ControllerLayoutSnapshot layout, DrumContextSnapshot drum)
+public record ControllerBridgeSnapshot (TransportSnapshot transport, SelectedTrackSnapshot selectedTrack, ControllerLayoutSnapshot layout, DrumContextSnapshot drum, ParameterBridgeSnapshot parameters)
 {
-    private static final ControllerBridgeSnapshot EMPTY = new ControllerBridgeSnapshot (TransportSnapshot.empty (), SelectedTrackSnapshot.empty (), ControllerLayoutSnapshot.empty (), DrumContextSnapshot.empty ());
+    private static final ControllerBridgeSnapshot EMPTY = new ControllerBridgeSnapshot (TransportSnapshot.empty (), SelectedTrackSnapshot.empty (), ControllerLayoutSnapshot.empty (), DrumContextSnapshot.empty (), ParameterBridgeSnapshot.empty ());
 
 
     /**
@@ -27,6 +28,7 @@ public record ControllerBridgeSnapshot (TransportSnapshot transport, SelectedTra
         selectedTrack = Objects.requireNonNull (selectedTrack, "selectedTrack");
         layout = Objects.requireNonNull (layout, "layout");
         drum = Objects.requireNonNull (drum, "drum");
+        parameters = Objects.requireNonNull (parameters, "parameters");
     }
 
 

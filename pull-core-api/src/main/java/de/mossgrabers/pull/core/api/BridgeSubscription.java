@@ -22,5 +22,8 @@ public enum BridgeSubscription
     CONTROLLER_LAYOUT,
 
     /** The selected track's bounded 64-pad drum window and playing velocities. */
-    DRUM_PADS
+    DRUM_PADS,
+
+    /** Current bounded parameter targets and authoritative values. */
+    PARAMETERS
 }

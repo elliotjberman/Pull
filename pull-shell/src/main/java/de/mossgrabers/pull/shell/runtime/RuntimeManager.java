@@ -68,6 +68,12 @@ final class RuntimeManager implements AutoCloseable
         Objects.requireNonNull (source, "source");
         Objects.requireNonNull (isLatest, "isLatest");
 
+        if (!this.environment.canReplaceActiveCore ())
+        {
+            this.closeCandidate (source);
+            return new ActivationResult (ActivationResult.State.BLOCKED, expectedBuildId, this.activeBuildId (), "Waiting for the active semantic transaction");
+        }
+
         ControllerCore candidateCore = null;
         CoreDescriptor descriptor;
         PreparedCoreResult preparedStartupResult;
@@ -179,6 +185,14 @@ final class RuntimeManager implements AutoCloseable
     long activeGeneration ()
     {
         return this.active == null ? 0 : this.active.generation;
+    }
+
+
+    /** Test whether a candidate may replace the active core without splitting a transaction. */
+    boolean canReplaceActiveCore ()
+    {
+        this.requireRunningOnControllerThread ();
+        return this.environment.canReplaceActiveCore ();
     }
 
 

@@ -1,6 +1,6 @@
 # Pull View Architecture
 
-Status: current through Core API 12 and the post-demo `VS Live` view composition.
+Status: current through Core API 14 and the post-demo `VS Live` view composition.
 
 Read this file before changing controller views, modes, workspaces, input routing, or Session bank
 topology. The detailed design contract is in
@@ -44,23 +44,62 @@ input, state, effect, and output capability.
 A core-only policy change hot reloads. A new physical input, Bitwig proxy, bank shape, API contract,
 or output transport requires a shell build and Bitwig restart.
 
-### Transitional parameter snapback
+### Parameter banks, effects, and snapback
 
-Shift snapback currently lives at the stable controller-input seam because general parameter
-targets, authoritative values, and retained actuators are not yet exposed through the bounded core
-API. Shift remains an observed modifier: established stable Shift state updates first, and the same
-normalized edge still reaches core. Modes must not add snapback-specific Shift checks.
+Core API 14 exposes named, view-independent banks for the inherited active encoder window, project
+remotes, the selected-device remote page, visible-track volume and pan, and fixed globals. A bank
+declaration is latent configuration; stable samples and publishes only the declared banks while
+core requests the `PARAMETERS` subscription. Each slot publishes opaque target identity/generation,
+name, raw and modulated values, authoritative displayed value, step count, and read-back tolerance.
 
-While Shift is held, the stable interceptor captures each eligible target's first authoritative
-value once. Shift release flushes pending motion before ending the session and requesting all
-restores. A potentially target-rebinding button waits for later authoritative restoration read-back
-before either its stable behavior or core-observed event proceeds. Touch edges do not define the
-session lifetime.
+Stable owns the live Bitwig proxies and actuators, target resolution, authoritative read-back,
+exact leases, relative/reset/absolute effect application, and prepare/apply identity fences.
+Physical Push control IDs are not host target identities. Core owns control-to-bank-slot mapping,
+eligibility, relative mutation intent, and interaction policy. The ten-target snapback bound is an
+interaction bound for eight top encoders plus tempo and master volume, not the size of the installed
+parameter canopy.
 
-Direct parameter bindings are only generation-fenced proxy slots in this version. They are a safe
-bounded V1 boundary, not the desired semantic target model. The intended endpoint keeps physical
-controls, semantic `ParameterTargetRef` values, movable Bitwig proxies, and bounded target leases
-independent, with interaction policy in the reloadable core. See
+| Bank | Capacity and scope | Identity fence |
+| --- | --- | --- |
+| `ACTIVE` | 8 slots bound by the current inherited stable mode | Stable binding generation plus resolved live domain/owner/page/role; compatibility only. |
+| `PROJECT_REMOTE` | 8 project remote controls on the current page | Project owner, remote page, slot, and parameter name. |
+| `SELECTED_DEVICE_REMOTE` | 8 controls on the current selected-device page | Device ID, remote page, slot, and parameter name. |
+| `TRACK_VOLUME` / `TRACK_PAN` | 8 visible tracks per bank | Current bank slot, stable channel ID, and parameter role. |
+| `GLOBAL` | Tempo and master volume | Fixed extension-lifetime target; master is available only in master-volume mode. |
+
+Track sends are not installed as parameter-only rows. They belong with the future authoritative
+visible-track bank so the rendered track window and send actuators share one generation fence.
+
+`ProjectMacroControlsView` is the first complete parameter-input migration: its eight encoder turns
+are exclusive core inputs mapped to `PROJECT_REMOTE`, and core emits typed relative effects against
+the authoritative slot target. `WorkspaceMode` no longer binds or mutates those encoders; it remains
+a stable touch/delete and display adapter. Input and output ownership are intentionally independent,
+so project display rendering can migrate later without moving encoder policy back into stable.
+
+For movable Bitwig parameters, stable re-resolves the exact identity from the live parameter
+domain, selected owner, selected page, and slot or channel role. The same Java `IParameter` wrapper
+may therefore produce a new opaque target generation after Bitwig rebinds it. Unclassified Bitwig
+parameter wrappers are not leaseable; wrapper identity alone never authorizes a restore.
+
+Shift snapback policy lives in the reloadable core. The first eligible mutation publishes its
+authoritative baseline before stable submits the write. Core retains that exact target, waits for
+motion to settle, requests an absolute restore, and waits for later authoritative acknowledgement.
+A core-owned view resolves a complete semantic action payload at gesture `BEGIN`. A stable-owned
+command remains stable-owned, but its compatibility adapter publishes semantic intent derived from
+the actual command and current mode path before the dispatch waits behind the same restoration
+barrier. Touch edges do not define the session lifetime. Stable restores retained targets
+best-effort if the core faults.
+
+Core replacement waits until the physical input router has no core-relevant active gesture, queued
+motion, or deferred stable callback. A stable-only `NONE` gesture with no semantic action never
+entered core and does not fence replacement. This keeps each core-observed, core-owned, semantic, or
+deferred gesture in one policy generation rather than transferring partial gesture state through a
+core checkpoint.
+
+The named bank slots still follow bounded movable proxies; they are not durable project-wide
+parameter identities. API 14 deliberately restores before navigation and has no pinned actuator
+pool. The intended endpoint keeps physical controls, semantic `ParameterTargetRef` values, movable
+Bitwig proxies, and bounded pinned leases independent. See
 [`docs/findings/parameter-target-proxy-coupling.md`](docs/findings/parameter-target-proxy-coupling.md).
 
 ## Data Model
@@ -102,6 +141,7 @@ declaration order.
 `ControllerView` is reloadable behavior with fixed claims. It may:
 
 - request authoritative bridge subscriptions;
+- map physical controls to bounded parameter slots and edge inputs to semantic action intents;
 - initialize and reconcile state from snapshots;
 - handle only events covered by its claims;
 - emit ordered effects; and
@@ -175,7 +215,8 @@ Reloadable core:
 - `CompiledWorkspace`: claim validation, routing, deterministic composition.
 - `DefaultWorkspace`: ordinary migrated behavior plus shared workspace selection.
 - `VsLiveWorkspace`: Java-defined composition and declared 8x4 Session bank.
-- `ProjectMacroControlsView`: encoders and parameter-display ownership.
+- `ProjectMacroControlsView`: core-owned relative encoder behavior plus adapter-backed touch and
+  parameter-display ownership.
 - `TrackSelectionStripView`: lower display strip and lower soft-key ownership.
 - `SessionNavigationView`: arrow and page navigation ownership.
 - `SessionClipGridView`: upper Session grid plus optional upper scene keys.
@@ -188,7 +229,10 @@ Reloadable core:
 Stable shell:
 
 - `ControllerWorkspaceHost`: validates and transactionally realizes desired facets.
-- `WorkspaceMode`: project macro and track-strip adapter.
+- `StableControllerActionResolver`: derives semantic intent from remaining stable commands at their
+  dispatch boundary.
+- `ControllerRuntimeEnvironment`: owns bounded leases, action barriers, and committed bridge state.
+- `WorkspaceMode`: project macro touch/delete and display plus track-strip adapter.
 - `WorkspaceView`: upper Session grid plus reusable lower Drum Controller adapter.
 - `SessionBankRegistry`: bounded 8x8/8x4 Bitwig bank canopy.
 - `PushControlSurface`: remaining stable pitch-bend and navigation integration.
@@ -211,8 +255,9 @@ Implemented:
 
 Partial or transitional:
 
-- Macro, track-strip, Session, navigation, Drum Controller, and pitch-bend ownership is compiled in
-  core, but their adapter-backed mechanics still run in stable `WorkspaceMode`/`WorkspaceView`.
+- Project macro relative encoder behavior runs in core; its touch/delete and display remain in
+  stable `WorkspaceMode`. Track-strip, Session, navigation, Drum Controller, and pitch-bend
+  adapter-backed mechanics still run in stable `WorkspaceMode`/`WorkspaceView`.
 - `ControllerViewFacet` remains a closed cross-boundary adapter ID. New adapter mechanics still
   require a Core API/shell change and Bitwig restart.
 - Capability and Session-shape validation happens during stable result preparation, not entirely in

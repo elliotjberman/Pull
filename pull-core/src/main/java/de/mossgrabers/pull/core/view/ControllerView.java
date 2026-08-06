@@ -4,11 +4,17 @@
 package de.mossgrabers.pull.core.view;
 
 import de.mossgrabers.pull.core.api.BridgeSubscription;
+import de.mossgrabers.pull.core.api.ControlId;
+import de.mossgrabers.pull.core.api.ControllerActionBinding;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
+import de.mossgrabers.pull.core.api.ParameterBankId;
+import de.mossgrabers.pull.core.api.ParameterSlot;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
+import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 
@@ -56,6 +62,40 @@ public interface ControllerView
 
 
     /**
+     * Declare physical edge inputs which this view maps to semantic actions.
+     *
+     * @return Complete immutable action binding set
+     */
+    default Set<ControllerActionBinding> actionBindings ()
+    {
+        return Set.of ();
+    }
+
+
+    /**
+     * Declare physical continuous controls mapped to bounded parameter slots by this view.
+     *
+     * @return Complete immutable control-to-slot mapping
+     */
+    default Map<ControlId, ParameterSlot> parameterBindings ()
+    {
+        return Map.of ();
+    }
+
+
+    /**
+     * Select installed parameter banks this view needs sampled. A view may request a bank for
+     * rendering without mapping a physical control to it.
+     *
+     * @return Complete immutable bank selection
+     */
+    default Set<ParameterBankId> parameterBanks ()
+    {
+        return this.parameterBindings ().values ().stream ().map (ParameterSlot::bank).collect (java.util.stream.Collectors.toUnmodifiableSet ());
+    }
+
+
+    /**
      * Initialize view state from an authoritative snapshot.
      *
      * @param snapshot Initial snapshot
@@ -88,6 +128,13 @@ public interface ControllerView
     default List<CoreEffect> handle (final CoreEvent event, final ControllerSnapshot snapshot)
     {
         return List.of ();
+    }
+
+
+    /** Resolve a complete immutable intent at gesture begin. */
+    default ResolvedControllerAction resolveAction (final ControllerActionBinding binding, final ControllerInputEvent input, final ControllerSnapshot snapshot)
+    {
+        return ResolvedControllerAction.stable (binding.intent ());
     }
 
 

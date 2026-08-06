@@ -27,6 +27,7 @@ record ActivationResult (State state, String requestedBuildId, String activeBuil
     enum State
     {
         ACTIVE,
+        BLOCKED,
         FAILED,
         SUPERSEDED
     }

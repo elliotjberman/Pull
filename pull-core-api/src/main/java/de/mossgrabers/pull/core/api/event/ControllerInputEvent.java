@@ -4,7 +4,6 @@
 package de.mossgrabers.pull.core.api.event;
 
 import de.mossgrabers.pull.core.api.ControlId;
-
 import java.util.Objects;
 
 /**
@@ -37,7 +36,6 @@ public record ControllerInputEvent (long sequence, long monotonicTimeNanos, Cont
         controlId = Objects.requireNonNull (controlId, "controlId");
         kind = Objects.requireNonNull (kind, "kind");
         phase = Objects.requireNonNull (phase, "phase");
-
         switch (kind)
         {
             case BUTTON, PAD, TOUCH, PEDAL -> validateGestureValue (phase, value);

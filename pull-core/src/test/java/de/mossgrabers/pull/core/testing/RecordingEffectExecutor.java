@@ -9,6 +9,7 @@ import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredInputRoutes;
+import de.mossgrabers.pull.core.api.DesiredParameterBanks;
 import de.mossgrabers.pull.core.api.TimerId;
 import de.mossgrabers.pull.core.api.effect.CancelTimerEffect;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
@@ -39,6 +40,7 @@ final class RecordingEffectExecutor
     private DesiredBridgeSubscriptions desiredBridgeSubscriptions = DesiredBridgeSubscriptions.empty ();
     private Map<ControlId, ClipTargetId> desiredClipBindings = Map.of ();
     private DesiredControllerWorkspace desiredControllerWorkspace = DesiredControllerWorkspace.empty ();
+    private DesiredParameterBanks desiredParameterBanks = DesiredParameterBanks.empty ();
 
 
     /**
@@ -54,6 +56,7 @@ final class RecordingEffectExecutor
         this.desiredBridgeSubscriptions = result.desiredBridgeSubscriptions ();
         this.desiredClipBindings = result.desiredClipBindings ();
         this.desiredControllerWorkspace = result.desiredControllerWorkspace ();
+        this.desiredParameterBanks = result.desiredParameterBanks ();
         for (final CoreEffect effect: result.effects ())
         {
             this.executionOrder.add (effect);
@@ -201,6 +204,13 @@ final class RecordingEffectExecutor
     DesiredControllerWorkspace desiredControllerWorkspace ()
     {
         return this.desiredControllerWorkspace;
+    }
+
+
+    /** Get the latest complete desired parameter-bank selection. */
+    DesiredParameterBanks desiredParameterBanks ()
+    {
+        return this.desiredParameterBanks;
     }
 
 

@@ -82,21 +82,49 @@ view should remove the binding, not redefine the target retained by an independe
 
 ## Current Mitigation
 
-Shift snapback V1 introduces a centralized parameter-mutation seam but does not claim to implement
-this model. For a directly bound parameter it retains the physical control ID, that control's
-monotonic binding generation, the exact current proxy object, and the first authoritative value.
-Every command, pitch-bend, or parameter rebind advances the generation, including rebinding the
-same remote-control proxy object to a new page.
+Core API 14 separates physical controls from a named bounded parameter canopy. Stable can publish
+the inherited active encoder window, project remotes, the selected-device remote page, visible-track
+volume and pan, and fixed globals. A slot contains an opaque target identity/generation, name, raw
+and modulated values, authoritative display text, step count, and tolerance; it never uses a Push
+control ID as target identity. Core selects which installed banks are sampled, owns view-specific
+control-to-slot mapping, and owns snapback policy.
 
-Before a known context-changing button can run, pending motion is flushed and restoration waits
-for authoritative read-back. Both stable and core-observed halves of that physical edge are then
-released in order. An unexpected generation change fails closed and never restores through the
-replacement proxy, although the old target may remain temporary because V1 has no retained lease.
+`ProjectMacroControlsView` proves the intended mutation direction: it owns the eight relative
+encoder routes in core and emits typed relative effects against `PROJECT_REMOTE` targets. Stable's
+`WorkspaceMode` no longer mutates or binds those encoders; it remains a display and touch/delete
+adapter. The inherited `ACTIVE` bank remains explicit compatibility scaffolding for unmigrated
+stable parameter modes, not the model new views should copy.
 
-This mitigation is bounded and safe for the supported no-navigation session. It still identifies
-rebindable parameters by physical proxy slot, cannot deduplicate the same semantic parameter bound
-to two controls, and cannot keep the old actuator alive across navigation. The removal criteria
-therefore remain unsatisfied.
+Stable re-resolves every movable parameter wrapper to a bounded `domain + owner + page + slot/role`
+identity during refresh and again before effect application. A cursor remote-control wrapper that
+survives a selected-device or remote-page change therefore receives a new opaque target generation.
+An unclassified Bitwig `ParameterImpl` is excluded from the lease window instead of being treated as
+exact merely because its Java wrapper is unchanged.
+
+Core may retain a complete target-to-baseline lease set. Stable resolves each request to the exact
+current live actuator, rechecks that actuator at apply time, executes absolute restores only through
+leases present in the same result, and restores retained targets best-effort if the core faults.
+The public retained-baseline snapshot lets a replacement core hydrate in-flight work without
+receiving a stable object.
+
+Before a semantic action that may invalidate active parameters can run, pending motion is flushed
+and core restoration waits for authoritative read-back. Core-owned views resolve immutable action
+payloads at `BEGIN`; stable-only compatibility commands publish a separate semantic event derived
+from the actual command and current mode path. Snapback compares action invalidation scopes with
+retained parameter dependencies, so downstream policy contains no rebinding-button list.
+Stable-owned compatibility dispatch waits behind the same bounded action barrier used by core-owned
+actions.
+Stable dispatch runs before the released core workspace applies, and a replacement core cannot
+activate while either half remains pending or the input router still owns an edge, queued motion, or
+deferred callback. An unexpected owner/page/slot or generation change fails closed and never
+restores through the replacement proxy.
+
+This implements physical/action separation, named bank selection, and generation-fenced exact
+leases, but not the final semantic target model. Core maps controls to bounded slots and then uses
+the opaque exact target behind the slot; views do not yet bind directly to durable semantic target
+references. The slots still follow rebindable bounded proxies, two slots cannot yet
+deduplicate a shared semantic parameter, and there is no bounded pinned actuator pool that keeps an
+old target addressable across navigation. The removal criteria therefore remain unsatisfied.
 
 ## Target Categories
 
@@ -110,6 +138,10 @@ The design must distinguish:
 
 Each bounded bank or lease pool must document its capacity, identity and generation rules,
 selection scope, and behavior when capacity is exhausted.
+
+API 14 deliberately omits visible-track sends. They should arrive with the authoritative visible
+track bank so send targets and rendered track identities share one generation fence, rather than as
+64 parameter-only slots with an independent alignment model.
 
 ## Stable Shell And Reloadable Core
 

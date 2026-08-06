@@ -22,11 +22,14 @@ import java.util.Objects;
  * @param desiredBridgeSubscriptions Complete replayable bridge-state subscriptions
  * @param desiredClipBindings Complete replayable clip binding state by logical control
  * @param desiredControllerWorkspace Complete replayable fixed-facet workspace selection
+ * @param desiredControllerActions Complete replayable view-owned semantic actions
+ * @param desiredParameterBanks Complete replayable installed parameter-bank selection
+ * @param desiredParameterInteraction Complete replayable parameter leases and barriers
  * @param effects Ordered one-shot shell effects
  */
-public record CoreResult (DesiredHardwareOutput desiredOutput, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, Map<ControlId, ClipTargetId> desiredClipBindings, DesiredControllerWorkspace desiredControllerWorkspace, List<CoreEffect> effects)
+public record CoreResult (DesiredHardwareOutput desiredOutput, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, Map<ControlId, ClipTargetId> desiredClipBindings, DesiredControllerWorkspace desiredControllerWorkspace, DesiredControllerActions desiredControllerActions, DesiredParameterBanks desiredParameterBanks, DesiredParameterInteraction desiredParameterInteraction, List<CoreEffect> effects)
 {
-    private static final CoreResult EMPTY = new CoreResult (DesiredHardwareOutput.empty (), DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), Map.of (), DesiredControllerWorkspace.empty (), List.of ());
+    private static final CoreResult EMPTY = new CoreResult (DesiredHardwareOutput.empty (), DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), Map.of (), DesiredControllerWorkspace.empty (), DesiredControllerActions.empty (), DesiredParameterBanks.empty (), DesiredParameterInteraction.empty (), List.of ());
 
 
     /**
@@ -39,6 +42,9 @@ public record CoreResult (DesiredHardwareOutput desiredOutput, DesiredInputRoute
         desiredBridgeSubscriptions = Objects.requireNonNull (desiredBridgeSubscriptions, "desiredBridgeSubscriptions");
         desiredClipBindings = Map.copyOf (Objects.requireNonNull (desiredClipBindings, "desiredClipBindings"));
         desiredControllerWorkspace = Objects.requireNonNull (desiredControllerWorkspace, "desiredControllerWorkspace");
+        desiredControllerActions = Objects.requireNonNull (desiredControllerActions, "desiredControllerActions");
+        desiredParameterBanks = Objects.requireNonNull (desiredParameterBanks, "desiredParameterBanks");
+        desiredParameterInteraction = Objects.requireNonNull (desiredParameterInteraction, "desiredParameterInteraction");
         effects = List.copyOf (Objects.requireNonNull (effects, "effects"));
     }
 

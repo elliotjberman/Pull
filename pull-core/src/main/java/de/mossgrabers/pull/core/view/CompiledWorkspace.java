@@ -6,20 +6,27 @@ package de.mossgrabers.pull.core.view;
 import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
+import de.mossgrabers.pull.core.api.ControllerActionBinding;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
+import de.mossgrabers.pull.core.api.DesiredControllerActions;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredInputRoutes;
+import de.mossgrabers.pull.core.api.DesiredParameterBanks;
+import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
 import de.mossgrabers.pull.core.api.InputRoute;
 import de.mossgrabers.pull.core.api.InputRouteMode;
+import de.mossgrabers.pull.core.api.ParameterSlot;
+import de.mossgrabers.pull.core.api.ParameterBankId;
 import de.mossgrabers.pull.core.api.SessionBankShape;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
+import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.event.TouchInputEvent;
 import de.mossgrabers.pull.core.api.output.DesiredHardwareOutput;
 import de.mossgrabers.pull.core.api.output.RgbColor;
@@ -44,22 +51,30 @@ public final class CompiledWorkspace
     private final DesiredInputRoutes                   desiredInputRoutes;
     private final DesiredBridgeSubscriptions           desiredBridgeSubscriptions;
     private final DesiredControllerWorkspace           desiredControllerWorkspace;
+    private final DesiredControllerActions             desiredControllerActions;
+    private final DesiredParameterBanks                desiredParameterBanks;
     private final Map<RouteKey, List<ControllerView>>  inputOwners;
     private final Map<ControlId, List<ControllerView>> directInputOwners;
+    private final Map<RouteKey, ActionOwner>           actionOwners;
+    private final Map<ControlId, ParameterSlot>        parameterBindings;
     private final List<ControllerView>                 eventObservers;
 
     private boolean                                    started;
 
 
-    private CompiledWorkspace (final String name, final List<CompiledView> views, final DesiredInputRoutes desiredInputRoutes, final DesiredBridgeSubscriptions desiredBridgeSubscriptions, final DesiredControllerWorkspace desiredControllerWorkspace, final Map<RouteKey, List<ControllerView>> inputOwners, final Map<ControlId, List<ControllerView>> directInputOwners)
+    private CompiledWorkspace (final String name, final List<CompiledView> views, final DesiredInputRoutes desiredInputRoutes, final DesiredBridgeSubscriptions desiredBridgeSubscriptions, final DesiredControllerWorkspace desiredControllerWorkspace, final DesiredControllerActions desiredControllerActions, final DesiredParameterBanks desiredParameterBanks, final Map<RouteKey, List<ControllerView>> inputOwners, final Map<ControlId, List<ControllerView>> directInputOwners, final Map<RouteKey, ActionOwner> actionOwners, final Map<ControlId, ParameterSlot> parameterBindings)
     {
         this.name = name;
         this.views = views;
         this.desiredInputRoutes = desiredInputRoutes;
         this.desiredBridgeSubscriptions = desiredBridgeSubscriptions;
         this.desiredControllerWorkspace = desiredControllerWorkspace;
+        this.desiredControllerActions = desiredControllerActions;
+        this.desiredParameterBanks = desiredParameterBanks;
         this.inputOwners = inputOwners;
         this.directInputOwners = directInputOwners;
+        this.actionOwners = actionOwners;
+        this.parameterBindings = parameterBindings;
         this.eventObservers = views.stream ().map (CompiledView::view).toList ();
     }
 
@@ -97,14 +112,19 @@ public final class CompiledWorkspace
         orderedViews.sort (Comparator.comparing (CompiledView::id));
         validateViews (orderedViews);
         final DesiredControllerWorkspace controllerWorkspace = compileControllerWorkspace (checkedName, Objects.requireNonNull (sessionBankShape, "sessionBankShape"), orderedViews);
+        final Map<RouteKey, ActionOwner> actionOwners = compileActionOwners (orderedViews);
         return new CompiledWorkspace (
             checkedName,
             List.copyOf (orderedViews),
-            compileInputRoutes (orderedViews),
+            compileInputRoutes (orderedViews, actionOwners),
             compileBridgeSubscriptions (orderedViews),
             controllerWorkspace,
+            compileControllerActions (actionOwners),
+            compileParameterBanks (orderedViews),
             compileInputOwners (orderedViews),
-            compileDirectInputOwners (orderedViews));
+            compileDirectInputOwners (orderedViews),
+            actionOwners,
+            compileParameterBindings (orderedViews));
     }
 
 
@@ -203,6 +223,37 @@ public final class CompiledWorkspace
     }
 
 
+    /** Resolve a physical edge through the active view-owned semantic action table. */
+    public ResolvedControllerAction resolveAction (final ControllerInputEvent input, final ControllerSnapshot snapshot)
+    {
+        Objects.requireNonNull (input, "input");
+        Objects.requireNonNull (snapshot, "snapshot");
+        if (input.phase () != InputPhase.BEGIN)
+            return null;
+        final ActionOwner owner = this.actionOwners.get (new RouteKey (input.controlId (), input.kind ()));
+        return owner == null ? null : owner.view ().resolveAction (owner.binding (), input, snapshot);
+    }
+
+
+    /** Execute one previously resolved semantic action and render the complete workspace. */
+    public CoreResult handleAction (final ResolvedControllerAction action, final ControllerSnapshot snapshot)
+    {
+        this.requireStarted ();
+        Objects.requireNonNull (action, "action");
+        Objects.requireNonNull (snapshot, "snapshot");
+        for (final CompiledView view: this.views)
+            view.view ().reconcile (snapshot);
+        return this.render (snapshot, action.dispatch ());
+    }
+
+
+    /** Resolve a physical continuous control through this workspace's parameter mapping. */
+    public ParameterSlot parameterSlotOrNull (final ControlId control)
+    {
+        return this.parameterBindings.get (Objects.requireNonNull (control, "control"));
+    }
+
+
     private CoreResult render (final ControllerSnapshot snapshot, final List<CoreEffect> effects)
     {
         final Map<ControlId, RgbColor> lights = new LinkedHashMap<> ();
@@ -220,6 +271,9 @@ public final class CompiledWorkspace
             this.desiredBridgeSubscriptions,
             clipBindings,
             this.desiredControllerWorkspace,
+            this.desiredControllerActions,
+            this.desiredParameterBanks,
+            DesiredParameterInteraction.empty (),
             effects);
     }
 
@@ -293,7 +347,7 @@ public final class CompiledWorkspace
     }
 
 
-    private static DesiredInputRoutes compileInputRoutes (final List<CompiledView> views)
+    private static DesiredInputRoutes compileInputRoutes (final List<CompiledView> views, final Map<RouteKey, ActionOwner> actionOwners)
     {
         final Map<RouteKey, InputRouteMode> routes = new LinkedHashMap<> ();
         for (final CompiledView view: views)
@@ -319,9 +373,68 @@ public final class CompiledWorkspace
             }
         }
 
+        actionOwners.keySet ().forEach (key -> routes.merge (key, InputRouteMode.OBSERVE, (left, right) -> left == InputRouteMode.EXCLUSIVE ? left : right));
+
         final Set<InputRoute> inputRoutes = new LinkedHashSet<> ();
         routes.forEach ( (key, mode) -> inputRoutes.add (new InputRoute (key.control (), key.kind (), mode)));
         return new DesiredInputRoutes (inputRoutes);
+    }
+
+
+    private static Map<RouteKey, ActionOwner> compileActionOwners (final List<CompiledView> views)
+    {
+        final Map<RouteKey, ActionOwner> owners = new LinkedHashMap<> ();
+        for (final CompiledView view: views)
+        {
+            for (final ControllerActionBinding binding: Set.copyOf (Objects.requireNonNull (view.view ().actionBindings (), "action bindings")))
+            {
+                final RouteKey key = new RouteKey (binding.controlId (), binding.inputKind ());
+                if (!claimsInput (view.profile (), key))
+                    throw new IllegalArgumentException ("view " + view.id () + " maps a semantic action outside its input claims: " + binding.controlId ());
+                if (owners.putIfAbsent (key, new ActionOwner (binding, view.view ())) != null)
+                    throw new IllegalArgumentException ("multiple views map semantic actions from " + binding.controlId ());
+            }
+        }
+        return Map.copyOf (owners);
+    }
+
+
+    private static boolean claimsInput (final ViewProfile profile, final RouteKey key)
+    {
+        return profile.claims ().stream ().anyMatch (claim -> claim.kind ().isInput () && claim.area ().controls ().contains (key.control ()) && claim.area ().inputKinds ().contains (key.kind ()));
+    }
+
+
+    private static DesiredControllerActions compileControllerActions (final Map<RouteKey, ActionOwner> owners)
+    {
+        final Set<ControllerActionBinding> bindings = new LinkedHashSet<> ();
+        owners.values ().forEach (owner -> bindings.add (owner.binding ()));
+        return new DesiredControllerActions (bindings);
+    }
+
+
+    private static Map<ControlId, ParameterSlot> compileParameterBindings (final List<CompiledView> views)
+    {
+        final Map<ControlId, ParameterSlot> bindings = new LinkedHashMap<> ();
+        for (final CompiledView view: views)
+        {
+            for (final Map.Entry<ControlId, ParameterSlot> binding: Map.copyOf (Objects.requireNonNull (view.view ().parameterBindings (), "parameter bindings")).entrySet ())
+            {
+                final ControlId control = Objects.requireNonNull (binding.getKey (), "parameter control");
+                final ParameterSlot slot = Objects.requireNonNull (binding.getValue (), "parameter slot");
+                if (bindings.putIfAbsent (control, slot) != null)
+                    throw new IllegalArgumentException ("multiple views map parameter control " + control);
+            }
+        }
+        return Map.copyOf (bindings);
+    }
+
+
+    private static DesiredParameterBanks compileParameterBanks (final List<CompiledView> views)
+    {
+        final Set<ParameterBankId> banks = new LinkedHashSet<> ();
+        views.forEach (view -> banks.addAll (Set.copyOf (Objects.requireNonNull (view.view ().parameterBanks (), "parameter banks"))));
+        return new DesiredParameterBanks (banks);
     }
 
 
@@ -417,6 +530,11 @@ public final class CompiledWorkspace
 
 
     private record RouteKey (ControlId control, InputKind kind)
+    {
+    }
+
+
+    private record ActionOwner (ControllerActionBinding binding, ControllerView view)
     {
     }
 }

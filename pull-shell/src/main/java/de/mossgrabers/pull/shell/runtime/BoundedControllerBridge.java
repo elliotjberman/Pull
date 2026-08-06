@@ -22,13 +22,19 @@ import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ControllerLayoutSnapshot;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
+import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
+import de.mossgrabers.pull.core.api.DesiredParameterBanks;
 import de.mossgrabers.pull.core.api.DrumContextSnapshot;
 import de.mossgrabers.pull.core.api.DrumPadSnapshot;
 import de.mossgrabers.pull.core.api.GridPressureConfiguration;
+import de.mossgrabers.pull.core.api.ParameterBridgeSnapshot;
+import de.mossgrabers.pull.core.api.ParameterTargetRef;
 import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
 import de.mossgrabers.pull.core.api.TrackMonitorMode;
 import de.mossgrabers.pull.core.api.TransportSnapshot;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
+import de.mossgrabers.pull.core.api.effect.AdjustParameterValueEffect;
+import de.mossgrabers.pull.core.api.effect.ResetParameterEffect;
 import de.mossgrabers.pull.core.api.effect.DrumPadBoolean;
 import de.mossgrabers.pull.core.api.effect.DrumPadValue;
 import de.mossgrabers.pull.core.api.effect.SelectDrumPadEffect;
@@ -39,6 +45,7 @@ import de.mossgrabers.pull.core.api.effect.SelectedTrackValue;
 import de.mossgrabers.pull.core.api.effect.SendNoteInputMidiEffect;
 import de.mossgrabers.pull.core.api.effect.SetDrumPadBooleanEffect;
 import de.mossgrabers.pull.core.api.effect.SetDrumPadValueEffect;
+import de.mossgrabers.pull.core.api.effect.SetParameterValueEffect;
 import de.mossgrabers.pull.core.api.effect.SetSelectedTrackBooleanEffect;
 import de.mossgrabers.pull.core.api.effect.SetSelectedTrackMonitorEffect;
 import de.mossgrabers.pull.core.api.effect.SetSelectedTrackValueEffect;
@@ -50,6 +57,7 @@ import de.mossgrabers.pull.core.api.output.RgbColor;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -62,7 +70,7 @@ import java.util.Objects;
  * only while its stable channel identity matches that target, so Track Pin cannot redirect core
  * rendering or effects to another track.</p>
  */
-final class BoundedControllerBridge
+final class BoundedControllerBridge implements ControllerBridge
 {
     static final int DRUM_PAD_CAPACITY = 64;
 
@@ -76,6 +84,7 @@ final class BoundedControllerBridge
     private final PushControlSurface surface;
     private final IValueChanger valueChanger;
     private final NewClipAction newClipAction;
+    private final ParameterTargetHost parameterTargets;
     private final Map<MidiStateKey, MidiState> noteInputMidiState = new HashMap<> ();
 
     private ControllerBridgeSnapshot snapshot = ControllerBridgeSnapshot.empty ();
@@ -90,16 +99,7 @@ final class BoundedControllerBridge
     private long activeCoreGeneration;
 
 
-    /**
-     * Constructor.
-     *
-     * @param model Stable framework model
-     * @param selectedTarget Private selection-following target
-     * @param noteInputMidiSender Raw MIDI sender for Bitwig's ordinary controller note input
-     * @param surface Stable Push surface
-     * @param valueChanger Stable normalized-value converter
-     */
-    BoundedControllerBridge (final IModel model, final ISelectedTrackNoteTarget selectedTarget, final MidiShortCallback noteInputMidiSender, final PushControlSurface surface, final IValueChanger valueChanger)
+    BoundedControllerBridge (final IModel model, final ISelectedTrackNoteTarget selectedTarget, final MidiShortCallback noteInputMidiSender, final PushControlSurface surface, final IValueChanger valueChanger, final RuntimeLog log)
     {
         this.model = Objects.requireNonNull (model, "model");
         this.transport = Objects.requireNonNull (model.getTransport (), "transport");
@@ -108,6 +108,7 @@ final class BoundedControllerBridge
         this.surface = Objects.requireNonNull (surface, "surface");
         this.valueChanger = Objects.requireNonNull (valueChanger, "valueChanger");
         this.newClipAction = new NewClipAction (model);
+        this.parameterTargets = new ParameterTargetHost (surface, model, Objects.requireNonNull (log, "log"));
     }
 
 
@@ -119,7 +120,8 @@ final class BoundedControllerBridge
      * @param subscriptions State domains requested by the active core
      * @return True when the public bridge snapshot changed
      */
-    boolean refresh (final long monotonicTimeNanos, final DesiredBridgeSubscriptions subscriptions)
+    @Override
+    public boolean refresh (final long monotonicTimeNanos, final DesiredBridgeSubscriptions subscriptions, final DesiredParameterBanks parameterBanks)
     {
         final DesiredBridgeSubscriptions requested = Objects.requireNonNull (subscriptions, "subscriptions");
         final long selectedGeneration = this.selectedTarget.getGeneration ();
@@ -157,7 +159,11 @@ final class BoundedControllerBridge
             this.drumIdentity = "";
         }
 
-        final ControllerBridgeSnapshot refreshed = new ControllerBridgeSnapshot (transportState, selected, layout, this.drumSnapshot);
+        final boolean parametersRequested = requested.includes (BridgeSubscription.PARAMETERS);
+        final DesiredParameterBanks requestedParameterBanks = parametersRequested ? Objects.requireNonNull (parameterBanks, "parameterBanks") : DesiredParameterBanks.empty ();
+        this.parameterTargets.refresh (requestedParameterBanks);
+        final ParameterBridgeSnapshot parameters = parametersRequested ? this.parameterTargets.snapshot () : ParameterBridgeSnapshot.empty ();
+        final ControllerBridgeSnapshot refreshed = new ControllerBridgeSnapshot (transportState, selected, layout, this.drumSnapshot, parameters);
         if (refreshed.equals (this.snapshot))
             return false;
 
@@ -171,7 +177,8 @@ final class BoundedControllerBridge
      *
      * @param generation Active runtime generation
      */
-    void activateCoreGeneration (final long generation)
+    @Override
+    public void activateCoreGeneration (final long generation)
     {
         if (generation < 0)
             throw new IllegalArgumentException ("generation must not be negative");
@@ -184,10 +191,48 @@ final class BoundedControllerBridge
     /**
      * Release parent-owned stateful MIDI during terminal invalidation.
      */
-    void invalidate ()
+    @Override
+    public void invalidate ()
     {
         this.resetNoteInputMidiState ();
+        this.parameterTargets.invalidate ();
         this.surface.getControllerWorkspaceHost ().invalidate ();
+    }
+
+
+    @Override
+    public ControllerBridge.TargetedParameter resolveParameterMutation (final de.mossgrabers.framework.controller.hardware.IHwContinuousControl control)
+    {
+        return this.parameterTargets.resolveMutation (control);
+    }
+
+
+    @Override
+    public Map<ParameterTargetRef, ControllerBridge.ParameterLease> prepareParameterLeases (final DesiredParameterInteraction desired, final DesiredParameterBanks parameterBanks)
+    {
+        return Map.copyOf (this.parameterTargets.prepareLeases (desired, parameterBanks));
+    }
+
+
+    @Override
+    public boolean applyParameterLeases (final Map<ParameterTargetRef, ControllerBridge.ParameterLease> prepared, final DesiredParameterBanks parameterBanks)
+    {
+        if (!this.parameterTargets.applyLeases (retainedTargets (prepared), Objects.requireNonNull (parameterBanks, "parameterBanks")))
+            return false;
+        this.snapshot = new ControllerBridgeSnapshot (
+            this.snapshot.transport (),
+            this.snapshot.selectedTrack (),
+            this.snapshot.layout (),
+            this.snapshot.drum (),
+            this.parameterTargets.snapshot ());
+        return true;
+    }
+
+
+    @Override
+    public boolean retainsParameterTarget (final ParameterTargetRef target)
+    {
+        return this.parameterTargets.retains (target);
     }
 
 
@@ -197,7 +242,8 @@ final class BoundedControllerBridge
      * @param workspace The requested workspace
      * @return The validated value
      */
-    DesiredControllerWorkspace prepareWorkspace (final DesiredControllerWorkspace workspace)
+    @Override
+    public DesiredControllerWorkspace prepareWorkspace (final DesiredControllerWorkspace workspace)
     {
         return this.surface.getControllerWorkspaceHost ().prepare (workspace);
     }
@@ -208,7 +254,8 @@ final class BoundedControllerBridge
      *
      * @param workspace The workspace
      */
-    void applyWorkspace (final DesiredControllerWorkspace workspace)
+    @Override
+    public void applyWorkspace (final DesiredControllerWorkspace workspace)
     {
         this.surface.getControllerWorkspaceHost ().apply (workspace);
     }
@@ -219,7 +266,8 @@ final class BoundedControllerBridge
      *
      * @return Bridge state
      */
-    ControllerBridgeSnapshot snapshot ()
+    @Override
+    public ControllerBridgeSnapshot snapshot ()
     {
         return this.snapshot;
     }
@@ -231,11 +279,18 @@ final class BoundedControllerBridge
      * @param effect Candidate effect
      * @return Prepared action, or {@code null} when the effect belongs to another shell domain
      */
-    PreparedAction prepare (final CoreEffect effect)
+    @Override
+    public ControllerBridge.PreparedAction prepare (final CoreEffect effect, final Map<ParameterTargetRef, ControllerBridge.ParameterLease> parameterLeases)
     {
         Objects.requireNonNull (effect, "effect");
         if (effect instanceof final SetTransportStateEffect setState)
             return new PreparedTransportState (setState.state (), setState.enabled ());
+        if (effect instanceof final SetParameterValueEffect setParameter)
+            return new PreparedParameterSet (this.parameterTargets.prepare (setParameter, retainedTargets (parameterLeases)));
+        if (effect instanceof final AdjustParameterValueEffect adjustParameter)
+            return new PreparedParameterAdjust (this.parameterTargets.prepare (adjustParameter));
+        if (effect instanceof final ResetParameterEffect resetParameter)
+            return new PreparedParameterReset (this.parameterTargets.prepare (resetParameter));
         if (effect instanceof final SetTransportValueEffect setValue)
         {
             if (setValue.value () == TransportValue.TEMPO && (setValue.amount () < this.transport.getMinimumTempo () || setValue.amount () > this.transport.getMaximumTempo ()))
@@ -286,16 +341,41 @@ final class BoundedControllerBridge
     }
 
 
+    ControllerBridge.PreparedAction prepare (final CoreEffect effect)
+    {
+        return this.prepare (effect, Map.of ());
+    }
+
+
+    private static Map<ParameterTargetRef, ParameterTargetHost.RetainedTarget> retainedTargets (final Map<ParameterTargetRef, ControllerBridge.ParameterLease> leases)
+    {
+        final Map<ParameterTargetRef, ParameterTargetHost.RetainedTarget> retained = new LinkedHashMap<> ();
+        Objects.requireNonNull (leases, "leases").forEach ( (target, lease) -> {
+            if (!(lease instanceof final ParameterTargetHost.RetainedTarget retainedTarget))
+                throw new IllegalArgumentException ("Parameter lease belongs to another controller bridge");
+            retained.put (target, retainedTarget);
+        });
+        return Map.copyOf (retained);
+    }
+
+
     /**
      * Apply one prepared action after the runtime generation has committed.
      *
      * @param action Parent-owned action
      */
-    void apply (final PreparedAction action)
+    @Override
+    public void apply (final ControllerBridge.PreparedAction action)
     {
         Objects.requireNonNull (action, "action");
         if (action instanceof final PreparedTransportState state)
             this.applyTransportState (state);
+        else if (action instanceof final PreparedParameterSet parameter)
+            this.parameterTargets.apply (parameter.action ());
+        else if (action instanceof final PreparedParameterAdjust parameter)
+            this.parameterTargets.apply (parameter.action ());
+        else if (action instanceof final PreparedParameterReset parameter)
+            this.parameterTargets.apply (parameter.action ());
         else if (action instanceof final PreparedTransportValue value)
             this.applyTransportValue (value);
         else if (action instanceof final PreparedSelectedBoolean state)
@@ -721,58 +801,67 @@ final class BoundedControllerBridge
     }
 
 
-    sealed interface PreparedAction permits PreparedDrumBoolean, PreparedDrumSelection, PreparedDrumValue, PreparedNoteInputMidi, PreparedSelectedAction, PreparedSelectedBoolean, PreparedSelectedMonitor, PreparedSelectedValue, PreparedTransportState, PreparedTransportValue
-    {
-        // Parent-owned primitive intent
-    }
-
-
-    private record PreparedTransportState (TransportState state, boolean enabled) implements PreparedAction
+    private record PreparedTransportState (TransportState state, boolean enabled) implements ControllerBridge.PreparedAction
     {
     }
 
 
-    private record PreparedTransportValue (TransportValue value, double amount) implements PreparedAction
+    private record PreparedTransportValue (TransportValue value, double amount) implements ControllerBridge.PreparedAction
     {
     }
 
 
-    private record PreparedSelectedBoolean (long generation, String channelID, SelectedTrackBoolean property, boolean enabled) implements PreparedAction
+    private record PreparedParameterSet (ParameterTargetHost.PreparedSet action) implements ControllerBridge.PreparedAction
     {
     }
 
 
-    private record PreparedSelectedMonitor (long generation, String channelID, TrackMonitorMode mode) implements PreparedAction
+    private record PreparedParameterAdjust (ParameterTargetHost.PreparedAdjust action) implements ControllerBridge.PreparedAction
     {
     }
 
 
-    private record PreparedSelectedValue (long generation, String channelID, SelectedTrackValue value, double amount) implements PreparedAction
+    private record PreparedParameterReset (ParameterTargetHost.PreparedReset action) implements ControllerBridge.PreparedAction
     {
     }
 
 
-    private record PreparedSelectedAction (long generation, String channelID, SelectedTrackAction action) implements PreparedAction
+    private record PreparedSelectedBoolean (long generation, String channelID, SelectedTrackBoolean property, boolean enabled) implements ControllerBridge.PreparedAction
     {
     }
 
 
-    private record PreparedNoteInputMidi (int status, int data1, int data2) implements PreparedAction
+    private record PreparedSelectedMonitor (long generation, String channelID, TrackMonitorMode mode) implements ControllerBridge.PreparedAction
     {
     }
 
 
-    private record PreparedDrumBoolean (long generation, String targetID, String deviceID, int baseMidiNote, int padIndex, String padChannelID, DrumPadBoolean property, boolean enabled) implements PreparedAction
+    private record PreparedSelectedValue (long generation, String channelID, SelectedTrackValue value, double amount) implements ControllerBridge.PreparedAction
     {
     }
 
 
-    private record PreparedDrumSelection (long generation, String targetID, String deviceID, int baseMidiNote, int padIndex, String padChannelID) implements PreparedAction
+    private record PreparedSelectedAction (long generation, String channelID, SelectedTrackAction action) implements ControllerBridge.PreparedAction
     {
     }
 
 
-    private record PreparedDrumValue (long generation, String targetID, String deviceID, int baseMidiNote, int padIndex, String padChannelID, DrumPadValue value, double amount) implements PreparedAction
+    private record PreparedNoteInputMidi (int status, int data1, int data2) implements ControllerBridge.PreparedAction
+    {
+    }
+
+
+    private record PreparedDrumBoolean (long generation, String targetID, String deviceID, int baseMidiNote, int padIndex, String padChannelID, DrumPadBoolean property, boolean enabled) implements ControllerBridge.PreparedAction
+    {
+    }
+
+
+    private record PreparedDrumSelection (long generation, String targetID, String deviceID, int baseMidiNote, int padIndex, String padChannelID) implements ControllerBridge.PreparedAction
+    {
+    }
+
+
+    private record PreparedDrumValue (long generation, String targetID, String deviceID, int baseMidiNote, int padIndex, String padChannelID, DrumPadValue value, double amount) implements ControllerBridge.PreparedAction
     {
     }
 

@@ -3,15 +3,22 @@
 
 package de.mossgrabers.pull.shell.input;
 
+import de.mossgrabers.pull.core.api.ControllerActionId;
+import de.mossgrabers.pull.core.api.ControllerActionIntent;
+import de.mossgrabers.pull.core.api.ControllerStateScope;
+
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -35,6 +42,7 @@ class PhysicalInputRouterTest
 
         assertEquals (InputRoute.NONE, router.route (BUTTON, InputKind.BUTTON, InputPhase.BEGIN, 127, stableCalls::incrementAndGet));
         assertEquals (1, router.activeGestureCount ());
+        assertTrue (router.isIdle ());
         assertEquals (InputRoute.NONE, router.route (BUTTON, InputKind.BUTTON, InputPhase.END, 0, stableCalls::incrementAndGet));
 
         assertEquals (2, stableCalls.get ());
@@ -78,6 +86,85 @@ class PhysicalInputRouterTest
 
 
     @Test
+    void semanticActionBarrierDefersTheWholeStableGestureUntilItReleases ()
+    {
+        final AtomicBoolean blocked = new AtomicBoolean (true);
+        final List<String> order = new ArrayList<> ();
+        final PhysicalInputRouter<String> router = new PhysicalInputRouter<> (
+            registry (),
+            (ignoredControl, ignoredKind) -> InputRoute.OBSERVE,
+            event -> order.add ("core " + event.phase ()),
+            (ignoredControl, ignoredKind, ignoredAction) -> blocked.get (),
+            new IncrementingClock (),
+            () -> 7);
+
+        router.route (BUTTON, InputKind.BUTTON, InputPhase.BEGIN, 127, () -> order.add ("stable begin"));
+        router.route (BUTTON, InputKind.BUTTON, InputPhase.END, 0, () -> order.add ("stable end"));
+        assertEquals (List.of ("core BEGIN", "core END"), order);
+        assertEquals (2, router.deferredStableDispatchCount ());
+
+        blocked.set (false);
+        router.releaseDeferredStableDispatches ();
+        assertEquals (List.of ("core BEGIN", "core END", "stable begin", "stable end"), order);
+        assertEquals (0, router.deferredStableDispatchCount ());
+    }
+
+
+    @Test
+    void stableOwnedSemanticGestureDrainsLateEndAndReturnsIdle ()
+    {
+        final AtomicBoolean blocked = new AtomicBoolean (true);
+        final AtomicInteger stableCalls = new AtomicInteger ();
+        final List<PhysicalInputEvent<String>> events = new ArrayList<> ();
+        final ControllerActionIntent action = new ControllerActionIntent (ControllerActionId.SELECT_PARAMETER_PAGE, Set.of (ControllerStateScope.ACTIVE_PARAMETERS));
+        final PhysicalInputRouter<String> router = new PhysicalInputRouter<> (
+            registry (),
+            (ignoredControl, ignoredKind) -> InputRoute.NONE,
+            events::add,
+            (ignoredControl, ignoredKind, resolved) -> resolved != null && blocked.get (),
+            new IncrementingClock (),
+            () -> 7);
+
+        assertEquals (InputRoute.NONE, router.route (BUTTON, InputKind.BUTTON, InputPhase.BEGIN, 127, action, stableCalls::incrementAndGet));
+        assertEquals (1, events.size ());
+        assertEquals (action, events.getFirst ().stableAction ().orElseThrow ());
+        assertEquals (0, stableCalls.get ());
+
+        blocked.set (false);
+        router.releaseDeferredStableDispatches ();
+        assertEquals (1, stableCalls.get ());
+        assertFalse (router.isIdle ());
+
+        router.route (BUTTON, InputKind.BUTTON, InputPhase.END, 0, stableCalls::incrementAndGet);
+
+        assertEquals (2, stableCalls.get ());
+        assertEquals (0, router.deferredStableDispatchCount ());
+        assertTrue (router.isIdle ());
+    }
+
+
+    @Test
+    void semanticActionBarrierDoesNotSuppressUnrelatedMotion ()
+    {
+        final AtomicInteger stableCalls = new AtomicInteger ();
+        final List<PhysicalInputEvent<String>> events = new ArrayList<> ();
+        final PhysicalInputRouter<String> router = new PhysicalInputRouter<> (
+            registry (),
+            (ignoredControl, ignoredKind) -> InputRoute.OBSERVE,
+            events::add,
+            (ignoredControl, ignoredKind, ignoredAction) -> true,
+            new IncrementingClock (),
+            () -> 7);
+
+        router.route (ENCODER, InputKind.RELATIVE, InputPhase.CHANGE, 5, stableCalls::incrementAndGet);
+        router.flush ();
+
+        assertEquals (1, stableCalls.get ());
+        assertEquals (5, events.getFirst ().value ());
+    }
+
+
+    @Test
     void edgeLeaseCannotChangeOwnerMidGesture ()
     {
         final AtomicReference<InputRoute> desiredRoute = new AtomicReference<> (InputRoute.EXCLUSIVE);
@@ -111,6 +198,30 @@ class PhysicalInputRouterTest
 
         router.route (BUTTON, InputKind.BUTTON, InputPhase.BEGIN, 127, legacyCalls::incrementAndGet);
         assertEquals (12, events.getLast ().ownerGeneration ());
+    }
+
+
+    @Test
+    void coreReplacementWaitsForThePhysicalGestureAndItsMotionQueue ()
+    {
+        final PhysicalInputRouter<String> router = router (InputRoute.OBSERVE, new ArrayList<> ());
+
+        assertTrue (router.isIdle ());
+        router.route (BUTTON, InputKind.BUTTON, InputPhase.BEGIN, 127, () -> {
+            // Established stable behavior is irrelevant to the lifecycle fence.
+        });
+        assertFalse (router.isIdle ());
+
+        router.route (ENCODER, InputKind.RELATIVE, InputPhase.CHANGE, 1, () -> {
+            // Established stable behavior is irrelevant to the lifecycle fence.
+        });
+        router.route (BUTTON, InputKind.BUTTON, InputPhase.END, 0, () -> {
+            // Established stable behavior is irrelevant to the lifecycle fence.
+        });
+        assertFalse (router.isIdle ());
+
+        router.flush ();
+        assertTrue (router.isIdle ());
     }
 
 

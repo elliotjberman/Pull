@@ -6,13 +6,19 @@ package de.mossgrabers.pull.core.runtime;
 import de.mossgrabers.pull.core.api.ControllerCore;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.CoreResult;
+import de.mossgrabers.pull.core.api.ParameterSlot;
 import de.mossgrabers.pull.core.api.StateEnvelope;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
+import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
+import de.mossgrabers.pull.core.api.event.ControllerActionEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
+import de.mossgrabers.pull.core.api.event.InputKind;
+import de.mossgrabers.pull.core.api.event.ParameterMutationEvent;
 import de.mossgrabers.pull.core.runtime.view.DefaultWorkspace;
 import de.mossgrabers.pull.core.runtime.view.VsLiveWorkspace;
 import de.mossgrabers.pull.core.runtime.view.WorkspaceSelection;
 import de.mossgrabers.pull.core.view.CompiledWorkspace;
+import de.mossgrabers.pull.core.view.ResolvedControllerAction;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -30,6 +36,7 @@ final class PullControllerCore implements ControllerCore
     private Map<WorkspaceSelection.Id, CompiledWorkspace> workspaces = Map.of ();
     private WorkspaceSelection                             selection;
     private CompiledWorkspace                              workspace;
+    private final SnapbackSession                          snapback = new SnapbackSession ();
     private Lifecycle                                      lifecycle = Lifecycle.NEW;
 
 
@@ -49,7 +56,8 @@ final class PullControllerCore implements ControllerCore
         this.workspaces = Map.copyOf (compiled);
         this.workspace = this.workspaces.get (this.selection.active ());
         this.lifecycle = Lifecycle.RUNNING;
-        return this.workspace.activate (snapshot);
+        this.snapback.start (snapshot);
+        return this.snapback.decorate (this.workspace.activate (snapshot), List.of ());
     }
 
 
@@ -60,13 +68,39 @@ final class PullControllerCore implements ControllerCore
         this.requireRunning ();
         Objects.requireNonNull (event, "event");
         Objects.requireNonNull (snapshot, "snapshot");
-        final CoreResult currentResult = this.workspace.handle (event, snapshot);
-        final CompiledWorkspace selectedWorkspace = this.workspaces.get (this.selection.active ());
-        if (selectedWorkspace == this.workspace)
-            return currentResult;
+        final ParameterSlot mutationSlot;
+        if (event instanceof final ParameterMutationEvent mutation)
+            mutationSlot = this.workspace.parameterSlotOrNull (mutation.controlId ());
+        else if (event instanceof final ControllerInputEvent input && input.kind () == InputKind.RELATIVE)
+            mutationSlot = this.workspace.parameterSlotOrNull (input.controlId ());
+        else
+            mutationSlot = null;
+        SnapbackSession.Update update = this.snapback.handle (event, snapshot, mutationSlot);
+        CoreResult currentResult;
+        final ResolvedControllerAction action;
+        if (event instanceof final ControllerInputEvent input)
+            action = this.workspace.resolveAction (input, snapshot);
+        else if (event instanceof final ControllerActionEvent semanticAction)
+            action = ResolvedControllerAction.stable (semanticAction.intent ());
+        else
+            action = null;
 
-        this.workspace = selectedWorkspace;
-        return transitionTo (currentResult.effects (), this.workspace.activate (snapshot));
+        if (action != null)
+        {
+            final SnapbackSession.Update actionUpdate = this.snapback.handleAction (action, snapshot);
+            update = mergeUpdates (update, actionUpdate);
+            currentResult = actionUpdate.intercepted () ? this.workspace.activate (snapshot) : this.dispatchActionToWorkspace (action, snapshot);
+        }
+        else
+            currentResult = update.intercepted () ? this.workspace.activate (snapshot) : this.dispatchToWorkspace (event, snapshot);
+
+        final List<CoreEffect> effects = new ArrayList<> (currentResult.effects ());
+        for (final ResolvedControllerAction released: update.releasedActions ())
+        {
+            currentResult = this.dispatchActionToWorkspace (released, snapshot);
+            effects.addAll (currentResult.effects ());
+        }
+        return this.snapback.decorate (withEffects (currentResult, effects), update.effects ());
     }
 
 
@@ -107,7 +141,59 @@ final class PullControllerCore implements ControllerCore
             activeResult.desiredBridgeSubscriptions (),
             activeResult.desiredClipBindings (),
             activeResult.desiredControllerWorkspace (),
+            activeResult.desiredControllerActions (),
+            activeResult.desiredParameterBanks (),
+            activeResult.desiredParameterInteraction (),
             effects);
+    }
+
+
+    private CoreResult dispatchToWorkspace (final CoreEvent event, final ControllerSnapshot snapshot)
+    {
+        final CoreResult currentResult = this.workspace.handle (event, snapshot);
+        final CompiledWorkspace selectedWorkspace = this.workspaces.get (this.selection.active ());
+        if (selectedWorkspace == this.workspace)
+            return currentResult;
+
+        this.workspace = selectedWorkspace;
+        return transitionTo (currentResult.effects (), this.workspace.activate (snapshot));
+    }
+
+
+    private CoreResult dispatchActionToWorkspace (final ResolvedControllerAction action, final ControllerSnapshot snapshot)
+    {
+        final CoreResult currentResult = this.workspace.handleAction (action, snapshot);
+        final CompiledWorkspace selectedWorkspace = this.workspaces.get (this.selection.active ());
+        if (selectedWorkspace == this.workspace)
+            return currentResult;
+
+        this.workspace = selectedWorkspace;
+        return transitionTo (currentResult.effects (), this.workspace.activate (snapshot));
+    }
+
+
+    private static CoreResult withEffects (final CoreResult result, final List<CoreEffect> effects)
+    {
+        return new CoreResult (
+            result.desiredOutput (),
+            result.desiredInputRoutes (),
+            result.desiredBridgeSubscriptions (),
+            result.desiredClipBindings (),
+            result.desiredControllerWorkspace (),
+            result.desiredControllerActions (),
+            result.desiredParameterBanks (),
+            result.desiredParameterInteraction (),
+            effects);
+    }
+
+
+    private static SnapbackSession.Update mergeUpdates (final SnapbackSession.Update left, final SnapbackSession.Update right)
+    {
+        final List<ResolvedControllerAction> released = new ArrayList<> (left.releasedActions ());
+        released.addAll (right.releasedActions ());
+        final List<CoreEffect> effects = new ArrayList<> (left.effects ());
+        effects.addAll (right.effects ());
+        return new SnapbackSession.Update (left.intercepted () || right.intercepted (), released, effects);
     }
 
 
