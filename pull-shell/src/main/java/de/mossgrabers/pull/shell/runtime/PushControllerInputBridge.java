@@ -39,7 +39,7 @@ import java.util.function.Supplier;
  * exclusive motion is coalesced until the controller tick; edge gestures retain their begin-time
  * ownership through release.</p>
  */
-final class PushControllerInputBridge
+final class PushControllerInputBridge implements PushDebugNavigationHost.GestureAdmission
 {
     private static final int REGISTRY_CAPACITY = 256;
     private static final int MIDI_POLY_PRESSURE = 0xA0;
@@ -116,7 +116,26 @@ final class PushControllerInputBridge
     /** Test whether no physical input lifecycle crosses a core generation boundary. */
     boolean inputLifecycleIdle ()
     {
+        return this.isIdle ();
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public boolean isIdle ()
+    {
         return this.router.isIdle ();
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public boolean trySubmit (final Runnable gesture)
+    {
+        if (!this.router.isIdle ())
+            return false;
+        Objects.requireNonNull (gesture, "gesture").run ();
+        return true;
     }
 
 

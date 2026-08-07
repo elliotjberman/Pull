@@ -29,6 +29,47 @@ mvn -o -pl pull-core -am test
 
 This loop uses deterministic fake time and does not launch or require Bitwig.
 
+## Live Push display loop
+
+The debugger is off by default. Enable it before installing the shell, then restart Bitwig once so
+the extension constructs its local transports:
+
+```bash
+tools/capture-push2-display --enable
+```
+
+An agent can then select a bounded Push surface and capture the resulting Push 2 framebuffer in one
+command:
+
+```bash
+tools/capture-push2-display mix
+tools/capture-push2-display master
+tools/capture-push2-display project-macros
+tools/capture-push2-display session
+```
+
+Calling the tool without a target captures the current display. A targeted capture injects the
+same permanent button gestures as the hardware, through the installed input arbitrator. The tool
+waits until the input router and relevant physical controls are idle, submits each gesture once,
+and then waits for the stable shell to observe the target view and mode on two later controller
+ticks. The stable shell accepts only a bounded generic plan of safe navigation gestures and
+authoritative view predicates; it cannot invoke transport, recording, deletion, or project-file
+actions. The four named recipes above live in the command-line client, so they can change without
+rebuilding the extension. Filesystem polling and PNG encoding run on owned workers rather than the
+controller thread.
+
+The resulting request-correlated image path is printed on standard output; navigation state is
+reported on standard error. The fixed local handshake directory is
+`~/.drivenbymoss/pull/debug`. One client owns an atomic lock for the complete navigate-and-capture
+transaction, and every PNG is named for that request so another capture cannot satisfy or
+overwrite it. Unless the `enabled` marker exists in that directory at extension startup, neither
+debugger worker is constructed. Run `tools/capture-push2-display --disable` and restart Bitwig to
+turn the transports off again.
+
+Adding the generic debug bridge is a stable-shell change and needs one extension install and Bitwig
+restart. Frame capture and client-side navigation recipes can then be reused across core hot
+reloads.
+
 ## Reloadability end state
 
 The architectural goal is for every Push behavior policy to be reloadable: mappings, gestures,
