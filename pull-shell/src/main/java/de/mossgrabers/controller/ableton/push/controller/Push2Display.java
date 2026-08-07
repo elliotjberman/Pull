@@ -9,10 +9,14 @@ import de.mossgrabers.framework.controller.display.AbstractGraphicDisplay;
 import de.mossgrabers.framework.daw.IHost;
 import de.mossgrabers.framework.graphics.DefaultGraphicsDimensions;
 import de.mossgrabers.framework.graphics.IBitmap;
+import de.mossgrabers.framework.graphics.canvas.component.DisplaySceneComponent;
+import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
 
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 
 /**
@@ -34,11 +38,17 @@ public class Push2Display extends AbstractGraphicDisplay
      * @param host The host
      * @param maxParameterValue The maximum parameter value (upper bound)
      * @param configuration The Push configuration
+     * @param displayOverlaySupplier Reloadable complete display-overlay state
      */
-    public Push2Display (final IHost host, final int maxParameterValue, final PushConfiguration configuration)
+    public Push2Display (final IHost host, final int maxParameterValue, final PushConfiguration configuration, final Supplier<ControllerDisplayOverlay> displayOverlaySupplier)
     {
         super (host, configuration, new DefaultGraphicsDimensions (960, 160, maxParameterValue), "Push 2 Display");
 
+        final Supplier<ControllerDisplayOverlay> checkedSupplier = Objects.requireNonNull (displayOverlaySupplier, "displayOverlaySupplier");
+        this.setFullScreenOverlaySupplier ( () -> {
+            final ControllerDisplayOverlay overlay = Objects.requireNonNull (checkedSupplier.get (), "display overlay");
+            return overlay.active () ? new DisplaySceneComponent (overlay.scene ()) : null;
+        });
         this.usbDisplay = new PushUsbDisplay (host);
         this.debugCapture = PushDebugCaptureHost.createIfEnabled ();
     }

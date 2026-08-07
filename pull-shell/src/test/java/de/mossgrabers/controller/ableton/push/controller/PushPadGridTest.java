@@ -1,0 +1,76 @@
+// (c) 2026
+// Licensed under LGPLv3 - http://www.gnu.org/licenses/lgpl-3.0.txt
+
+package de.mossgrabers.controller.ableton.push.controller;
+
+import de.mossgrabers.framework.controller.color.ColorEx;
+import de.mossgrabers.framework.daw.midi.IMidiOutput;
+import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
+import de.mossgrabers.pull.core.api.output.PadGridPosition;
+import de.mossgrabers.pull.core.api.output.RgbColor;
+
+import org.junit.jupiter.api.Test;
+
+import java.lang.reflect.Proxy;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+
+/** Tests the permanent generic overlay plane beneath reloadable pad animations. */
+class PushPadGridTest
+{
+    @Test
+    void sparseOverlayFreezesTheVisibleFrameAndRestoresTheLatestStableFrame ()
+    {
+        final List<MidiNote> sent = new ArrayList<> ();
+        final IMidiOutput output = proxy (IMidiOutput.class, (ignored, method, arguments) -> {
+            if ("sendNoteEx".equals (method.getName ()))
+                sent.add (new MidiNote (((Integer) arguments[0]).intValue (), ((Integer) arguments[1]).intValue (), ((Integer) arguments[2]).intValue ()));
+            return null;
+        });
+        final PushColorManager colors = new PushColorManager ();
+        final PushPadGrid grid = new PushPadGrid (colors, output);
+        final AtomicReference<ControllerPadGridOverlay> overlay = new AtomicReference<> (ControllerPadGridOverlay.inactive ());
+        grid.setOverlaySupplier (overlay::get);
+
+        grid.light (36, 10);
+        grid.light (37, 11);
+        final RgbColor purple = new RgbColor (160, 48, 255);
+        final int purpleIndex = colors.getColorIndex (ColorEx.fromRGB (purple.red (), purple.green (), purple.blue ()));
+        overlay.set (new ControllerPadGridOverlay (true, Map.of (new PadGridPosition (0, 0), purple)));
+
+        assertEquals (purpleIndex, grid.getLightInfo (36).getColor ());
+        assertEquals (11, grid.getLightInfo (37).getColor ());
+
+        grid.light (36, 20);
+        grid.light (37, 21);
+        assertEquals (purpleIndex, grid.getLightInfo (36).getColor ());
+        assertEquals (11, grid.getLightInfo (37).getColor ());
+        grid.sendState (36);
+        assertEquals (new MidiNote (0, 36, purpleIndex), sent.getLast ());
+
+        overlay.set (ControllerPadGridOverlay.inactive ());
+        assertEquals (20, grid.getLightInfo (36).getColor ());
+        assertEquals (21, grid.getLightInfo (37).getColor ());
+        grid.sendState (36);
+        assertEquals (new MidiNote (0, 36, 20), sent.getLast ());
+    }
+
+
+    private static <T> T proxy (final Class<T> type, final java.lang.reflect.InvocationHandler handler)
+    {
+        return type.cast (Proxy.newProxyInstance (type.getClassLoader (), new Class<?> []
+        {
+            type
+        }, handler));
+    }
+
+
+    private record MidiNote (int channel, int note, int velocity)
+    {
+    }
+}

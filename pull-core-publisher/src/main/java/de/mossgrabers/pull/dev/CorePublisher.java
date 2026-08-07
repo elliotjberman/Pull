@@ -37,7 +37,7 @@ public final class CorePublisher
      * @param sourceJar Packaged core JAR
      * @param publicationDirectory Shell-watched directory
      * @param expectedBuildId Exact build identifier supplied to Maven
-     * @param shellFingerprint Exact local shell/API source fingerprint
+     * @param shellFingerprint Exact local parent-loaded core API source fingerprint
      * @return Published manifest value
      * @throws IOException If publication fails
      */

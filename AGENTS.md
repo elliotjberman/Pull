@@ -149,15 +149,28 @@
 - A core-only change inside the installed API/canopy hot reloads. Changing a parent-loaded API
   contract, adding a Bitwig proxy/property/observer, changing a permanent binding or proxy capacity,
   or broadening hardware output ownership requires a shell build/install and Bitwig restart.
-- Core API 14 arbitrates general input, complete fixed-facet workspace selection, semantic action
+- Core API 22 arbitrates general input, complete fixed-facet workspace selection, semantic action
   intent, named bounded parameter banks, and exact parameter-target leases, including the declared
   Session bank shape. Project-macro encoder turns are the reference parameter migration: core owns
   the mapping, relative effect, and snapback policy while stable owns Bitwig proxies, identity
   validation, read-back, and effect execution. Mappings whose state and effects are already bridged
-  belong in the reloadable core. Only the 12 drum-fill RGB lights have migrated direct output
-  ownership; workspace facets still use generic stable
-  adapters for inherited Bitwig/DrivenByMoss mechanics. Do not claim general Push light or display
-  hot reload until stable complete-output arbitration exists for those surfaces.
+  belong in the reloadable core. The Play action, 12 drum-fill RGB lights, Play and Record lights, both Master
+  button rows, and the Master graphics display have migrated direct output ownership. Play and
+  Record light policy renders authoritative engine, transport, overdub, and selected-track arm
+  read-back in every workspace. Play targets the remembered engine-owning project through a
+  bounded navigate/acknowledge/toggle/acknowledge/return transaction. Its stable command is inert;
+  the stable bindings only preserve the physical seam and translate core RGB to the Push palette.
+  The Master scene's copy,
+  typography, geometry, color, clipping, and shape policy are core-owned; stable only interprets
+  bounded generic primitives. API 22 also installs a bounded pure mixer-control render service:
+  Master and the stable Track Mix adapter must use the same core-owned Volume/Pan/Knob renderer.
+  Cue parameters and Track Mix sends are the same Knob component, not parallel lookalikes. Track
+  Mix accepts only column-local scenes structurally confined to the installed parameter-body
+  region; its menus and footer remain stable-owned, and missing/faulted core output leaves all eight
+  mixer-control slots blank rather than reviving a stable semantic fallback. Other workspace
+  facets still use generic stable adapters for inherited Bitwig/DrivenByMoss mechanics. Do not
+  claim general Push light or display hot reload until stable complete-output arbitration exists
+  for those other surfaces.
 
 ## Bitwig controller API compatibility
 

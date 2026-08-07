@@ -308,7 +308,7 @@ final class CoreCandidateWatcher implements AutoCloseable
                 }
                 if (!manifest.shellFingerprint ().equals (this.shellFingerprint))
                 {
-                    this.reject (requestGeneration, RuntimeStatus.State.RESTART_REQUIRED, manifest.buildId (), "Candidate was built against different shell/API sources; rebuild and install the extension, then restart Bitwig");
+                    this.reject (requestGeneration, RuntimeStatus.State.RESTART_REQUIRED, manifest.buildId (), "Candidate was built against different core API sources; rebuild and install the extension, then restart Bitwig");
                     return;
                 }
 

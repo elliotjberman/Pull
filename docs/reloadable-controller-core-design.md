@@ -1,12 +1,14 @@
 # Reloadable Controller Core
 
-Status: Milestones 1 through 9 are implemented. The current working tree installs the bounded
-Core API 14 controller bridge described below: normalized Push command input, explicitly requested
-transport/selected-track/layout/drum/parameter read-back, and typed effects against exact retained
-parameter targets as well as transport, selected-track, and drum targets.
+Status: Milestones 1 through 9 and the Master-control migration are implemented. The current working
+tree installs the bounded Core API 22 controller bridge described below: normalized Push command
+input, explicitly requested transport/selected-track/layout/drum/parameter/Master read-back, and
+typed effects against exact retained parameter targets as well as transport, selected-track, drum,
+and current-project targets.
 The drum-fill shell uses a single-active replacement barrier, while the Pads note input follows
-ordinary Bitwig input, monitor, and record-arm routing. General Push light/display arbitration is
-not part of this expansion. Because API 14 and its bridge are parent-loaded, installing this
+ordinary Bitwig input, monitor, and record-arm routing. The Master page's two button rows and
+eight-column display now have complete output arbitration; other general Push output does not.
+Because API 22 and its bridge are parent-loaded, installing this
 expansion itself requires one shell build/install and Bitwig restart; behavior composed from it can
 then hot reload.
 
@@ -87,7 +89,8 @@ independently.
 - Add a resource-only bundle so Maven orders core before shell without exposing core classes.
 - Add atomic candidate publication, build IDs, status, transactional candidate rejection, and
   generation fencing.
-- Fingerprint the complete parent-loaded shell/API input so installed-version drift requires a restart.
+- Fingerprint the complete parent-loaded core API input so API drift requires a restart without
+  blocking core reloads on unrelated shell implementation edits.
 - Add the compile/publish/reload command and classloader fixture tests.
 - Prove that core version B may add a class, field, and method over version A.
 
@@ -372,9 +375,9 @@ The shell owns anything coupled to Bitwig or physical hardware:
 The shell may reuse the existing `ModelImpl` and Bitwig wrapper graph internally. That graph must
 not cross into the core.
 
-## Installed API 14 bounded capability canopy
+## Installed API 22 bounded capability canopy
 
-Core API 14 installs a broad input seam and a deliberately finite Bitwig state/effect bridge during
+Core API 22 installs a broad input seam and a deliberately finite Bitwig state/effect bridge during
 extension initialization. The existence of a shell capability means that the domain is available;
 it does not mean every state domain is copied into every snapshot.
 
@@ -406,6 +409,11 @@ registered control and input kind:
 - `EXCLUSIVE` delivers to the core and suppresses stable controller-command dispatch. The shell
   accepts this mode only for explicitly migrated control-and-kind pairs whose permanent command is
   semantically inert; it is not a failure-fallback switch.
+
+The admitted exclusive pairs are Record button edges, relative turns for `KNOB1` through `KNOB8`,
+and button edges for `ROW1_1` through `ROW1_8` and `ROW2_1` through `ROW2_8`. Master row commands and
+Master encoder parameters are intentionally inert in stable code; a missing or faulted core does
+not revive a second implementation.
 
 Input ownership and action ordering are separate. `DesiredControllerActions` is complete replayable
 state compiled from the active views. Each binding maps one physical edge to a semantic action and
@@ -447,7 +455,8 @@ write. Knob touch/release does not close the Shift session.
 Core owns settlement, restoration requests, two-sample authoritative acknowledgement, retries,
 timeouts, the active view's physical-to-slot mapping, relative mutation policy, and the bounded
 semantic-action queue. Stable owns named bounded banks for the inherited active encoder window,
-project remotes, selected-device remotes, visible-track volume and pan, and fixed globals. A bank
+project remotes, selected-device remotes, visible-track volume and pan, fixed Master/Cue controls,
+and fixed globals. A bank
 declaration selects installed topology; actual snapshot work occurs only while `PARAMETERS` is
 subscribed. A Push knob is never used as target identity.
 
@@ -466,7 +475,7 @@ object identity.
 An action whose declared invalidation scope overlaps retained parameters is held until core drops
 the barrier after authoritative restore acknowledgement. Its stable compatibility dispatch then
 runs in physical order. An unexpected target-generation change fails closed rather than restoring
-through the replacement target. API 14 still does not pin an old rebindable proxy across
+through the replacement target. API 15 still does not pin an old rebindable proxy across
 navigation.
 
 This arbitration governs controller commands, parameter mutations, and framework pressed/touched
@@ -492,7 +501,8 @@ The current domains are:
 | `SELECTED_TRACK` | stable channel ID and generation, name/type/position/color, data capabilities, group state, activation, arm, monitor, mute/solo, clip-playing, volume, and pan | One private selection-following cursor with zero send and scene capacity; no project track bank. |
 | `CONTROLLER_LAYOUT` | current view ID, mode ID, drum-layout ownership, and reconciled drum-controller engagement | One current Push surface/layout. |
 | `DRUM_PADS` | selected target/device identity, window generation/base note, alignment, and up to 64 pads with identity, name/color, state, mixer values, and playing velocity | One 64-pad model window, sampled no faster than every 33 ms unless selected-target identity changes. |
-| `PARAMETERS` | Selected named-bank slots with opaque target identity/generation, name, raw/modulated value, host-formatted display value, step count, tolerance, and retained baselines | Banks are `ACTIVE` compatibility, `PROJECT_REMOTE`, current `SELECTED_DEVICE_REMOTE`, eight visible `TRACK_VOLUME` and `TRACK_PAN` slots, and `GLOBAL`; only the complete `DesiredParameterBanks` selection is sampled while subscribed. An interaction keeps its exact retained baselines until release, independently of bank sampling. |
+| `PARAMETERS` | Selected named-bank slots with opaque target identity/generation, name, raw/modulated value, host-formatted display value, step count, tolerance, and retained baselines | Banks are `ACTIVE` compatibility, `PROJECT_REMOTE`, current `SELECTED_DEVICE_REMOTE`, eight visible `TRACK_VOLUME` and `TRACK_PAN` slots, four fixed `MASTER` slots, and `GLOBAL`; only the complete `DesiredParameterBanks` selection is sampled while subscribed. An interaction keeps its exact retained baselines until release, independently of bank sampling. |
+| `MASTER` | current project identity/name/dirty state, audio-engine read-back, learned previous/next availability, serialized-command state, Master track color/selection/activation, cursor pin, and VU values | One current project and Master track. Project navigation is submitted through one lane and acknowledged only after a later stable project-identity sample; an unchanged identity timeout learns that direction as unavailable. |
 
 The selected-track cursor and drum capability detection are the private observation/action target
 described above, not the user-pinnable model cursor. Drum compatibility uses exactly four
@@ -519,7 +529,7 @@ the Bitwig controller log. An unused installed domain should first be removed fr
 
 ### Typed effects and live identity fences
 
-API 14 can request absolute transport state and values; selected-track activation, group expansion,
+API 15 can request absolute transport state and values; selected-track activation, group expansion,
 arm, monitor, mute, solo, volume, pan, stop, Return to Arrangement, and new-clip creation;
 target-neutral note-input
 MIDI poly pressure, CC, channel pressure, and pitch bend; and drum-pad activation, mute, solo, volume, pan, or
@@ -527,7 +537,9 @@ selection. Parameter effects include relative adjustment and host-default reset 
 currently published target, plus absolute restoration only when the same result retains that target
 and generation. Automation touch remains in stable adapters until it has a complete begin/end lease
 and generation-neutralization contract. These are requests, not optimistic state. Hardware feedback
-still comes from later subscribed Bitwig read-back.
+still comes from later subscribed Bitwig read-back. Master effects add project-identity-fenced
+previous/next navigation, Open/Save actions, and absolute audio-engine state. Dependent navigation
+and engine commands remain serialized until subscribed host read-back acknowledges the request.
 
 Selected-track effects carry both the snapshot generation and stable channel ID. The shell validates
 them during result preparation and compares both with the live private cursor again during apply.
@@ -544,22 +556,22 @@ Bitwig's ordinary routing determines which tracks receive both the original and 
 
 ### Deliberate exclusions
 
-This remains a capability canopy, not a mirror of an unbounded Bitwig project. API 14 does not add
+This remains a capability canopy, not a mirror of an unbounded Bitwig project. API 15 does not add
 arbitrary project track/scene banks, arbitrary device-tree recursion, additional drum layers or
 branches, arbitrary parameter windows, automation-touch ownership, or a pinned actuator pool.
 `SELECTED_DEVICE_REMOTE` follows the current installed page rather than retaining every page.
 Visible-track sends are intentionally deferred until the visible-track bank can fence the same
-track-window identity; API 14 does not advertise parameter-only send slots without that alignment.
+track-window identity; API 15 does not advertise parameter-only send slots without that alignment.
 Extending one of those shapes or adding a new Bitwig property/action requires a parent-loaded
 API/shell change, extension installation, and Bitwig restart.
 
-Output is narrower than input in API 14. The immutable hardware-output contract is present, but the
-current shell validates and arbitrates only the 12 drum-fill RGB lights. General Push button/grid
-lights, ribbon output, and USB display buffers still belong to stable shell rendering. Moving those
+Output remains narrower than input in API 15. The shell validates and arbitrates the 12 drum-fill
+RGB lights plus both Master button rows and the Master eight-column display. Other Push button/grid
+lights, ribbon output, and display pages still belong to stable shell rendering. Moving those
 surfaces requires stable complete-output arbitration in the shell and therefore one more
 install/restart before their policies can hot reload.
 
-Once API 14 is installed, new mappings, modes, gestures, and effects composed only from these exact
+Once API 15 is installed, new mappings, modes, gestures, and effects composed only from these exact
 inputs, subscriptions, and executors can ship by core reload. Capability breadth is bounded, and
 subscription choice controls active publication cost inside that bound.
 
@@ -574,7 +586,7 @@ The core owns behavior that should be cheap to change:
 - navigation and selection policy;
 - display layout decisions;
 - desired pad, button, ribbon, and display state for output surfaces whose ownership has migrated
-  (currently only the 12 drum-fill RGB lights);
+  (currently the 12 drum-fill RGB lights and the Master page's button rows/display);
 - feature-specific helpers and safe pure-Java dependencies.
 
 Existing modes/views cannot simply be moved. Many register observers or scheduled lambdas into
@@ -626,12 +638,18 @@ snapshot.
 
 ## Snapshot and effects
 
-The API 14 snapshot contains revision, monotonic time, shell capabilities, the explicitly subscribed
+The API 15 snapshot contains revision, monotonic time, shell capabilities, the explicitly subscribed
 `ControllerBridgeSnapshot`, the complete selected-track clip catalog, verified per-control armed
 clip bindings, the clip-launch session's optional acquired owner-to-target lease and authoritative
 active owner, and pressed/touched controls. A pending fill intent is shell-private and never appears
 active in this read-back. The bridge contains typed transport, private selected-track,
-controller-layout, bounded drum, and bounded parameter contexts; each unsubscribed domain is its typed empty value.
+controller-layout, bounded drum, bounded parameter, lightweight project, and current-project/Master contexts; each
+unsubscribed domain is its typed empty value.
+
+Checkpoint schema version 2 retains workspace selection plus the last authoritative engine-owner
+identity and playback state, so a normal child-core reload while another project is visible does
+not lose remote Play feedback. It never checkpoints an in-flight project-navigation transaction;
+every active step is instead fenced by live stable project identity and command read-back.
 
 Every `CoreResult` contains complete desired hardware output, input routes, bridge subscriptions,
 clip bindings, controller workspace/actions, parameter-bank selection, parameter interaction state,
@@ -646,15 +664,16 @@ that bank's generation and marks it pending. Location-targeted effects from the 
 are immediately rejected. The new window is published only after Bitwig's observed membership
 stabilizes.
 
-Core API 14 includes logical timer effects, persistent desired clip bindings, verified armed
+Core API 22 includes logical timer effects, persistent desired clip bindings, verified armed
 bindings, the version-1 authoritative single-lease clip-launch-session snapshot,
 generation-fenced version-4 acquire/replace/release effects, normalized controller-input events and
 routes, explicit bridge subscriptions, typed absolute transport effects, generation-fenced
 selected-track and drum-pad effects, bounded target-neutral note-input
 poly-pressure/CC/channel-pressure/pitch-bend output, named bounded parameter snapshots and exact
-leases, generation-fenced relative/reset effects and absolute parameter restores, and desired RGB
-hardware state. The shell currently accepts
-that RGB output only for the 12 fill lights. Later typed domains may cover broader clip
+leases, generation-fenced relative/reset effects and absolute parameter restores, serialized
+current-project navigation/engine effects, and desired RGB/display hardware state. The shell
+currently accepts that output for the 12 fill lights and the Master page's two button rows and
+eight-column display. Later typed domains may cover broader clip
 launch/selection, bank scrolling, selected-device parameters, application actions, note
 mapping/repeat, notifications, and complete general Push output.
 
@@ -728,7 +747,7 @@ reuse an old core. The shell extracts the nested resource before loading it.
 
 The development loop publishes unique core JARs plus an atomic properties manifest under a stable
 user directory that Bitwig does not purge. The full extension build also embeds
-`META-INF/pull-shell.properties`, whose fingerprint covers the parent-loaded API, shell sources,
+`META-INF/pull-shell.properties`, whose compatibility fingerprint covers the parent-loaded core API
 packaging edge, and relevant build descriptors. Core-only changes leave it unchanged.
 
 The embedded production provider and every development candidate use the unique manifest build ID
@@ -748,7 +767,7 @@ restored in `finally`. Maven Shade must preserve the provider service entry.
 
 The fast command must:
 
-1. compute the exact local shell/API source fingerprint;
+1. compute the exact local parent-loaded core API source fingerprint;
 2. compile/package only the core, required API, and development publisher;
 3. publish a unique immutable JAR and atomic manifest;
 4. request reload;
@@ -765,7 +784,7 @@ The development command and shell share `${user.home}/.drivenbymoss/pull/reload`
 
 ```properties
 formatVersion=1
-apiVersion=14
+apiVersion=15
 buildId=20260731T230000Z-0123456789abcdef0123456789abcdef
 ```
 
@@ -775,7 +794,7 @@ verifies its embedded API/build identity, computes SHA-256, and atomically repla
 
 ```properties
 formatVersion=1
-apiVersion=14
+apiVersion=15
 shellFingerprint=0123456789abcdef0123456789abcdef01234567
 buildId=20260731T230000Z-0123456789abcdef0123456789abcdef
 jar=pull-core-20260731T230000Z-0123456789abcdef0123456789abcdef.jar
@@ -799,8 +818,8 @@ includes an actionable `message`. The command reports success only when both req
 IDs exactly match its build. A stale status is ignored.
 
 Before loading candidate classes, the running shell compares `shellFingerprint` with its embedded
-fingerprint. Any mismatch is acknowledged as `restartRequired`. This compares exact content, not
-just dirty paths, so it also catches a committed shell/API change that has not been installed yet.
+core API fingerprint. Any mismatch is acknowledged as `restartRequired`. This compares exact API
+content, not just dirty paths, while deliberately ignoring unrelated shell implementation edits.
 
 ## Testing
 
@@ -836,16 +855,16 @@ effects, rejections, and desired output. A real Bitwig failure can then become a
 | Safe pure-Java core dependency | Package and core reload |
 | Core-owned/migrated mapping, mode, gesture, layout policy, or fill matching | Core reload |
 | Route a currently registered input between `NONE`, `OBSERVE`, and `EXCLUSIVE` | Core reload |
-| Request or stop requesting an existing API 14 bridge subscription | Core reload |
-| Select a different installed API 14 parameter bank or remap an installed bank's encoder turns | Core reload |
-| Policy for an output surface already migrated to complete shell arbitration (currently the 12 fill lights) | Core reload |
+| Request or stop requesting an existing API 15 bridge subscription | Core reload |
+| Select a different installed API 15 parameter bank or remap an installed bank's encoder turns | Core reload |
+| Master display, Master row-button, or fill-light policy inside its installed output arbitration | Core reload |
 | Behavior using existing snapshot/effects | Core reload |
 | Behavior within the installed capability canopy | Core reload |
 | Clip launch quantization, mode, or Main-vs-ALT release lane | Core reload |
 | Add/change a parent-loaded core API DTO, event, effect, capability, or subscription domain | API/shell build/install and Bitwig restart |
 | Add state/action or exceed capacity outside the installed canopy | API/shell build/install and Bitwig restart |
 | Register a new physical input kind/control or change permanent input arbitration | Shell build/install and Bitwig restart |
-| Move general Push lights, ribbon output, or display rendering into core ownership | API/shell build/install and Bitwig restart |
+| Move another Push light, ribbon output, or display page into core ownership | API/shell build/install and Bitwig restart |
 | Expand beyond the 64-pad drum window or four fixed drum-device candidates | Shell build/install and Bitwig restart |
 | Change permanent `NoteInput` creation, translation, or ordinary-routing topology | Shell build/install and Bitwig restart |
 | Add or change Bend/MIDI-modulator mappings in a project | No extension restart |
@@ -866,7 +885,7 @@ effects, rejections, and desired output. A real Bitwig failure can then become a
 - A route-map change or core reload during an edge gesture preserves its begin-time ownership
   through release; core replacement waits for the complete input lifecycle to drain, and continuous
   rebinding cannot bypass arbitration.
-- Unrequested API 14 bridge domains publish typed empty values without domain snapshot construction
+- Unrequested API 15 bridge domains publish typed empty values without domain snapshot construction
   or high-rate sampling/DTO churn.
 - Core handoff, selection change, and shutdown neutralize outstanding target-neutral note-input
   poly-pressure, CC, channel-pressure, and pitch-bend state on a best-effort basis through ordinary

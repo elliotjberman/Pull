@@ -11,6 +11,8 @@ import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.ControllerActionBinding;
 import de.mossgrabers.pull.core.api.ControllerActionIntent;
+import de.mossgrabers.pull.core.api.ControllerViewFacet;
+import de.mossgrabers.pull.core.api.CoreExecutionRequirements;
 import de.mossgrabers.pull.core.api.CoreCapabilities;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.CoreResult;
@@ -21,6 +23,7 @@ import de.mossgrabers.pull.core.api.DesiredInputRoutes;
 import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
 import de.mossgrabers.pull.core.api.DesiredParameterBanks;
 import de.mossgrabers.pull.core.api.ParameterTargetRef;
+import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
 import de.mossgrabers.pull.core.api.effect.AdjustParameterValueEffect;
@@ -40,6 +43,10 @@ import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.event.ParameterMutationEvent;
 import de.mossgrabers.pull.core.api.event.SnapshotChangedEvent;
 import de.mossgrabers.pull.core.api.output.RgbColor;
+import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
+import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
+import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
+import de.mossgrabers.pull.core.api.output.DesiredHardwareOutput;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -62,24 +69,34 @@ import java.util.function.Predicate;
 final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
 {
     private static final RgbColor OFF = new RgbColor (0, 0, 0);
+    private static final Set<ControlId> MASTER_ROW_LIGHTS = masterRowLights ();
+    private static final Set<ControlId> GLOBAL_TRANSPORT_LIGHTS = Set.of (
+        PushControlIds.button ("PLAY"),
+        PushControlIds.button ("RECORD"));
     private static final ShellCapabilities CAPABILITIES = new ShellCapabilities (Map.ofEntries (
         Map.entry (CoreCapabilities.INPUT_DRUM_FILL, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.BINDING_CLIP_TARGET, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD, Integer.valueOf (4)),
-        Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_WORKSPACE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.INPUT_CONTROLLER, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.ROUTING_CONTROLLER_INPUT, Integer.valueOf (1)),
-        Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE, Integer.valueOf (2)),
+        Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE, Integer.valueOf (4)),
         Map.entry (CoreCapabilities.SUBSCRIPTION_CONTROLLER_BRIDGE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_TRANSPORT, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_SELECTED_TRACK, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.EFFECT_DRUM_PAD, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_NOTE_INPUT_MIDI, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.SNAPSHOT_PARAMETER_TARGETS, Integer.valueOf (2)),
-        Map.entry (CoreCapabilities.EFFECT_PARAMETER_TARGET, Integer.valueOf (2))));
+        Map.entry (CoreCapabilities.EFFECT_PARAMETER_TARGET, Integer.valueOf (2)),
+        Map.entry (CoreCapabilities.SNAPSHOT_MASTER, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.EFFECT_MASTER, Integer.valueOf (2)),
+        Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_DISPLAY, Integer.valueOf (2)),
+        Map.entry (CoreCapabilities.OUTPUT_PAD_GRID_OVERLAY, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.OUTPUT_DISPLAY_OVERLAY, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.RENDER_MIXER_CONTROLS, Integer.valueOf (1))));
 
     private final DrumFillClipHost clipHost;
     private final ControllerBridge controllerBridge;
@@ -105,6 +122,20 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     private long lastTime;
     private long revision;
     private long eventSequence;
+
+
+    /** Get the complete replayable pad-grid overlay. */
+    ControllerPadGridOverlay padGridOverlay ()
+    {
+        return this.committedState.output ().padGridOverlay ();
+    }
+
+
+    /** Get the complete replayable temporary display overlay. */
+    ControllerDisplayOverlay displayOverlay ()
+    {
+        return this.committedState.output ().displayOverlay ();
+    }
 
 
     /**
@@ -301,10 +332,24 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
+    /** Test whether unchanged host state must still advance core time. */
+    boolean ticksRequested ()
+    {
+        return this.committedState.executionRequirements ().ticksRequested ();
+    }
+
+
     /** Resolve one physical control through the installed bounded parameter window. */
     ControllerBridge.TargetedParameter resolveParameterMutation (final de.mossgrabers.framework.controller.hardware.IHwContinuousControl control)
     {
         return this.controllerBridge == null ? null : this.controllerBridge.resolveParameterMutation (control);
+    }
+
+
+    /** Test whether an unresolved established mutation must fail closed. */
+    boolean requiresResolvedParameterMutation (final de.mossgrabers.framework.controller.hardware.IHwContinuousControl control)
+    {
+        return this.controllerBridge != null && this.controllerBridge.requiresResolvedParameterMutation (control);
     }
 
 
@@ -350,7 +395,10 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     @Override
     public boolean canReplaceActiveCore ()
     {
-        return this.committedState.desiredParameterInteraction ().pendingActionCount () == 0 && this.inputLifecycleIdle.getAsBoolean ();
+        return !this.committedState.executionRequirements ().hasProjectNavigationLease () &&
+            this.committedState.desiredParameterInteraction ().pendingActionCount () == 0 &&
+            this.inputLifecycleIdle.getAsBoolean () &&
+            (this.controllerBridge == null || this.controllerBridge.canReplaceActiveCore ());
     }
 
 
@@ -391,7 +439,21 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
      */
     RgbColor fillLightColor (final ControlId owner)
     {
-        return this.committedState.fillLightColors ().get (requireFillOwner (owner));
+        return this.lightColor (requireFillOwner (owner));
+    }
+
+
+    /** Get one replayable controller light color, defaulting to off. */
+    RgbColor lightColor (final ControlId owner)
+    {
+        return this.committedState.output ().lights ().getOrDefault (Objects.requireNonNull (owner, "light owner"), OFF);
+    }
+
+
+    /** Get the complete replayable controller display. */
+    ControllerDisplayScene controllerDisplay ()
+    {
+        return this.committedState.output ().display ();
     }
 
 
@@ -462,7 +524,6 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     public PreparedCoreResult prepare (final CoreResult result)
     {
         Objects.requireNonNull (result, "result");
-        final Map<ControlId, RgbColor> preparedColors = prepareOutput (result);
         for (final de.mossgrabers.pull.core.api.InputRoute route: result.desiredInputRoutes ().routes ())
         {
             if (!this.inputRouteValidator.test (route))
@@ -475,8 +536,12 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         }
         final Map<ControlId, ClipTargetId> preparedBindings = prepareBindings (result.desiredClipBindings (), this.clipCatalog);
         final DesiredControllerWorkspace preparedWorkspace = this.prepareWorkspace (result.desiredControllerWorkspace ());
+        final DesiredHardwareOutput preparedOutput = prepareOutput (result, preparedWorkspace);
         final DesiredParameterBanks parameterBanks = result.desiredParameterBanks ();
         final DesiredParameterInteraction parameterInteraction = result.desiredParameterInteraction ();
+        if (this.controllerBridge == null && result.executionRequirements ().hasProjectNavigationLease ())
+            throw new IllegalArgumentException ("Core requested a project-navigation lease without a controller bridge");
+        final CoreExecutionRequirements executionRequirements = this.controllerBridge == null ? result.executionRequirements () : this.controllerBridge.prepareExecutionRequirements (result.executionRequirements ());
         final boolean parametersRequested = result.desiredBridgeSubscriptions ().includes (BridgeSubscription.PARAMETERS);
         final DesiredParameterBanks sampledParameterBanks = parametersRequested ? parameterBanks : DesiredParameterBanks.empty ();
         if (parameterInteraction.interactionId () != 0 && !parametersRequested)
@@ -487,7 +552,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
             throw new IllegalArgumentException ("Core requested parameter state without a controller bridge");
         final Map<ParameterTargetRef, ControllerBridge.ParameterLease> preparedParameterLeases = this.controllerBridge == null ? Map.of () : this.controllerBridge.prepareParameterLeases (parameterInteraction, sampledParameterBanks);
         final List<PreparedAction> preparedActions = this.prepareEffects (result.effects (), preparedBindings, preparedParameterLeases);
-        return new PreparedResult (preparedColors, result.desiredInputRoutes (), result.desiredBridgeSubscriptions (), preparedWorkspace, result.desiredControllerActions (), parameterBanks, parameterInteraction, preparedParameterLeases, this.clipCatalog.generation (), preparedBindings, preparedActions);
+        return new PreparedResult (preparedOutput, result.desiredInputRoutes (), result.desiredBridgeSubscriptions (), preparedWorkspace, result.desiredControllerActions (), parameterBanks, parameterInteraction, executionRequirements, preparedParameterLeases, this.clipCatalog.generation (), preparedBindings, preparedActions);
     }
 
 
@@ -516,6 +581,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         if (this.controllerBridge != null)
         {
             this.controllerBridge.activateCoreGeneration (generation);
+            this.controllerBridge.applyExecutionRequirements (prepared.executionRequirements ());
             final DesiredParameterBanks sampledParameterBanks = prepared.desiredBridgeSubscriptions ().includes (BridgeSubscription.PARAMETERS) ? prepared.desiredParameterBanks () : DesiredParameterBanks.empty ();
             if (this.controllerBridge.applyParameterLeases (prepared.parameterLeases (), sampledParameterBanks))
                 this.recordSnapshotChange ();
@@ -581,16 +647,85 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
-    private static Map<ControlId, RgbColor> prepareOutput (final CoreResult result)
+    /** {@inheritDoc} */
+    @Override
+    public void quarantine (final long generation)
+    {
+        if (generation != this.committedState.generation ())
+            return;
+        this.committedState = this.committedState.quarantined ();
+        if (this.controllerBridge != null)
+        {
+            try
+            {
+                this.controllerBridge.abandonActiveCore ();
+            }
+            catch (final RuntimeException failure)
+            {
+                this.warn ("Controller-bridge quarantine cleanup failed: " + sanitize (failure));
+            }
+        }
+        try
+        {
+            this.deferredInputRelease.run ();
+        }
+        catch (final RuntimeException failure)
+        {
+            this.warn ("Deferred-input quarantine cleanup failed: " + sanitize (failure));
+        }
+
+        try
+        {
+            this.clipHost.setDesiredBindings (this.clipCatalog.generation (), Map.of ());
+        }
+        catch (final RuntimeException failure)
+        {
+            this.warn ("Clearing fill bindings during quarantine failed: " + sanitize (failure));
+        }
+        try
+        {
+            this.fillSession.invalidate (this.hostSampleRevision);
+        }
+        catch (final RuntimeException failure)
+        {
+            this.warn ("Fill-session quarantine cleanup failed: " + sanitize (failure));
+        }
+        this.recordSessionChange ();
+    }
+
+
+    private static DesiredHardwareOutput prepareOutput (final CoreResult result, final DesiredControllerWorkspace workspace)
     {
         final Map<ControlId, RgbColor> colors = new LinkedHashMap<> (offLights ());
+        final boolean masterControls = workspace.facets ().contains (ControllerViewFacet.MASTER_CONTROLS);
         for (final Map.Entry<ControlId, RgbColor> light: result.desiredOutput ().lights ().entrySet ())
         {
-            final ControlId owner = requireFillOwner (light.getKey ());
-            final RgbColor requested = Objects.requireNonNull (light.getValue (), "fill light color");
+            final ControlId owner = Objects.requireNonNull (light.getKey (), "light owner");
+            if (!CoreControls.DRUM_FILLS.contains (owner) && !GLOBAL_TRANSPORT_LIGHTS.contains (owner) && !(masterControls && MASTER_ROW_LIGHTS.contains (owner)))
+                throw new IllegalArgumentException ("Unsupported controller light owner");
+            final RgbColor requested = Objects.requireNonNull (light.getValue (), "light color");
             colors.put (owner, new RgbColor (requested.red (), requested.green (), requested.blue ()));
         }
-        return Map.copyOf (colors);
+        final ControllerDisplayScene display = result.desiredOutput ().display ();
+        if (display.isPresent () && !masterControls)
+            throw new IllegalArgumentException ("Controller display output requires the Master-controls facet");
+        final ControllerPadGridOverlay overlay = result.desiredOutput ().padGridOverlay ();
+        final ControllerDisplayOverlay displayOverlay = result.desiredOutput ().displayOverlay ();
+        if (displayOverlay.active () && (displayOverlay.scene ().width () != 960 || displayOverlay.scene ().height () != 160))
+            throw new IllegalArgumentException ("Controller display overlay must use the 960x160 Push viewport");
+        return new DesiredHardwareOutput (colors, display, overlay, displayOverlay);
+    }
+
+
+    private static Set<ControlId> masterRowLights ()
+    {
+        final Set<ControlId> controls = new LinkedHashSet<> (16);
+        for (int row = 1; row <= 2; row++)
+        {
+            for (int column = 1; column <= 8; column++)
+                controls.add (PushControlIds.button ("ROW" + row + "_" + column));
+        }
+        return Set.copyOf (controls);
     }
 
 
@@ -835,6 +970,8 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     {
         final Map<ControlId, RgbColor> colors = new LinkedHashMap<> ();
         for (final ControlId owner: CoreControls.DRUM_FILLS)
+            colors.put (owner, OFF);
+        for (final ControlId owner: GLOBAL_TRANSPORT_LIGHTS)
             colors.put (owner, OFF);
         return Map.copyOf (colors);
     }
@@ -1141,17 +1278,18 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
-    private record PreparedResult (Map<ControlId, RgbColor> fillLightColors, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, DesiredControllerWorkspace desiredControllerWorkspace, DesiredControllerActions desiredControllerActions, DesiredParameterBanks desiredParameterBanks, DesiredParameterInteraction desiredParameterInteraction, Map<ParameterTargetRef, ControllerBridge.ParameterLease> parameterLeases, long catalogGeneration, Map<ControlId, ClipTargetId> desiredClipBindings, List<PreparedAction> actions) implements PreparedCoreResult
+    private record PreparedResult (DesiredHardwareOutput output, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, DesiredControllerWorkspace desiredControllerWorkspace, DesiredControllerActions desiredControllerActions, DesiredParameterBanks desiredParameterBanks, DesiredParameterInteraction desiredParameterInteraction, CoreExecutionRequirements executionRequirements, Map<ParameterTargetRef, ControllerBridge.ParameterLease> parameterLeases, long catalogGeneration, Map<ControlId, ClipTargetId> desiredClipBindings, List<PreparedAction> actions) implements PreparedCoreResult
     {
         private PreparedResult
         {
-            fillLightColors = Map.copyOf (fillLightColors);
+            output = Objects.requireNonNull (output, "output");
             desiredInputRoutes = Objects.requireNonNull (desiredInputRoutes, "desiredInputRoutes");
             desiredBridgeSubscriptions = Objects.requireNonNull (desiredBridgeSubscriptions, "desiredBridgeSubscriptions");
             desiredControllerWorkspace = Objects.requireNonNull (desiredControllerWorkspace, "desiredControllerWorkspace");
             desiredControllerActions = Objects.requireNonNull (desiredControllerActions, "desiredControllerActions");
             desiredParameterBanks = Objects.requireNonNull (desiredParameterBanks, "desiredParameterBanks");
             desiredParameterInteraction = Objects.requireNonNull (desiredParameterInteraction, "desiredParameterInteraction");
+            executionRequirements = Objects.requireNonNull (executionRequirements, "executionRequirements");
             parameterLeases = Map.copyOf (parameterLeases);
             desiredClipBindings = Map.copyOf (desiredClipBindings);
             actions = List.copyOf (actions);
@@ -1159,19 +1297,20 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
-    private record CommittedState (long generation, Map<ControlId, RgbColor> fillLightColors, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, DesiredControllerWorkspace desiredControllerWorkspace, DesiredControllerActions desiredControllerActions, DesiredParameterBanks desiredParameterBanks, DesiredParameterInteraction desiredParameterInteraction, PreparedResult pendingResult)
+    private record CommittedState (long generation, DesiredHardwareOutput output, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, DesiredControllerWorkspace desiredControllerWorkspace, DesiredControllerActions desiredControllerActions, DesiredParameterBanks desiredParameterBanks, DesiredParameterInteraction desiredParameterInteraction, CoreExecutionRequirements executionRequirements, PreparedResult pendingResult)
     {
         private CommittedState
         {
             if (generation < 0)
                 throw new IllegalArgumentException ("generation must not be negative");
-            fillLightColors = Map.copyOf (fillLightColors);
+            output = Objects.requireNonNull (output, "output");
             desiredInputRoutes = Objects.requireNonNull (desiredInputRoutes, "desiredInputRoutes");
             desiredBridgeSubscriptions = Objects.requireNonNull (desiredBridgeSubscriptions, "desiredBridgeSubscriptions");
             desiredControllerWorkspace = Objects.requireNonNull (desiredControllerWorkspace, "desiredControllerWorkspace");
             desiredControllerActions = Objects.requireNonNull (desiredControllerActions, "desiredControllerActions");
             desiredParameterBanks = Objects.requireNonNull (desiredParameterBanks, "desiredParameterBanks");
             desiredParameterInteraction = Objects.requireNonNull (desiredParameterInteraction, "desiredParameterInteraction");
+            executionRequirements = Objects.requireNonNull (executionRequirements, "executionRequirements");
         }
 
 
@@ -1184,19 +1323,26 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         private static CommittedState pending (final long generation, final PreparedResult result)
         {
             final PreparedResult prepared = Objects.requireNonNull (result, "result");
-            return new CommittedState (generation, prepared.fillLightColors (), prepared.desiredInputRoutes (), prepared.desiredBridgeSubscriptions (), prepared.desiredControllerWorkspace (), prepared.desiredControllerActions (), prepared.desiredParameterBanks (), prepared.desiredParameterInteraction (), prepared);
+            return new CommittedState (generation, prepared.output (), prepared.desiredInputRoutes (), prepared.desiredBridgeSubscriptions (), prepared.desiredControllerWorkspace (), prepared.desiredControllerActions (), prepared.desiredParameterBanks (), prepared.desiredParameterInteraction (), prepared.executionRequirements (), prepared);
         }
 
 
         private static CommittedState invalidated (final long generation)
         {
-            return new CommittedState (generation, offLights (), DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), DesiredControllerWorkspace.empty (), DesiredControllerActions.empty (), DesiredParameterBanks.empty (), DesiredParameterInteraction.empty (), null);
+            return new CommittedState (generation, new DesiredHardwareOutput (offLights ()), DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), DesiredControllerWorkspace.empty (), DesiredControllerActions.empty (), DesiredParameterBanks.empty (), DesiredParameterInteraction.empty (), CoreExecutionRequirements.empty (), null);
         }
 
 
         private CommittedState applied ()
         {
-            return new CommittedState (this.generation, this.fillLightColors, this.desiredInputRoutes, this.desiredBridgeSubscriptions, this.desiredControllerWorkspace, this.desiredControllerActions, this.desiredParameterBanks, this.desiredParameterInteraction, null);
+            return new CommittedState (this.generation, this.output, this.desiredInputRoutes, this.desiredBridgeSubscriptions, this.desiredControllerWorkspace, this.desiredControllerActions, this.desiredParameterBanks, this.desiredParameterInteraction, this.executionRequirements, null);
+        }
+
+
+        private CommittedState quarantined ()
+        {
+            final DesiredHardwareOutput passiveOutput = new DesiredHardwareOutput (this.output.lights (), this.output.display (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive ());
+            return new CommittedState (this.generation, passiveOutput, this.desiredInputRoutes, this.desiredBridgeSubscriptions, this.desiredControllerWorkspace, this.desiredControllerActions, DesiredParameterBanks.empty (), DesiredParameterInteraction.empty (), CoreExecutionRequirements.empty (), null);
         }
     }
 

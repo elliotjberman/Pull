@@ -69,6 +69,8 @@ public enum SurfaceArea
     GRID_CHANNEL_PRESSURE (range (ElementType.GRID_PRESSURE, 0, 1), Set.of (PushControlIds.CHANNEL_PRESSURE), Set.of (InputKind.CHANNEL_PRESSURE)),
     /** Push Record button. */
     RECORD_BUTTON (range (ElementType.BUTTON, 0, 1), Set.of (PushControlIds.button ("RECORD")), Set.of (InputKind.BUTTON)),
+    /** Push Play button. */
+    PLAY_BUTTON (range (ElementType.BUTTON, 5, 1), Set.of (PushControlIds.button ("PLAY")), Set.of (InputKind.BUTTON)),
     /** Push Shift modifier. */
     SHIFT_MODIFIER (range (ElementType.BUTTON, 1, 1), Set.of (PushControlIds.button ("SHIFT")), Set.of (InputKind.BUTTON)),
     /** Push Select modifier. */

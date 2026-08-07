@@ -25,6 +25,17 @@ public interface IProject extends IObserverManagement
 
 
     /**
+     * Get a stable identity for the currently selected project tab when available.
+     *
+     * @return Stable identity, or an empty string
+     */
+    default String getIdentity ()
+    {
+        return "";
+    }
+
+
+    /**
      * Switch to the previous open project.
      */
     void previous ();

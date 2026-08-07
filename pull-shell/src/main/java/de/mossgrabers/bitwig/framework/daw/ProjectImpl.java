@@ -17,6 +17,7 @@ import com.bitwig.extension.controller.api.Action;
 import com.bitwig.extension.controller.api.Application;
 import com.bitwig.extension.controller.api.CursorRemoteControlsPage;
 import com.bitwig.extension.controller.api.Project;
+import com.bitwig.extension.controller.api.StringValue;
 import com.bitwig.extension.controller.api.Track;
 
 
@@ -29,6 +30,7 @@ public class ProjectImpl implements IProject
 {
     private final Project        project;
     private final Application    application;
+    private final StringValue    projectIdentity;
     private final IParameter     cueVolumeParameter;
     private final IParameter     cueMixParameter;
     private final IParameterBank parameterBank;
@@ -50,6 +52,8 @@ public class ProjectImpl implements IProject
         this.application = application;
 
         this.application.projectName ().markInterested ();
+        this.projectIdentity = this.project.getRootTrackGroup ().channelId ();
+        this.projectIdentity.markInterested ();
 
         this.project.hasSoloedTracks ().markInterested ();
         this.project.hasMutedTracks ().markInterested ();
@@ -76,6 +80,7 @@ public class ProjectImpl implements IProject
     public void enableObservers (final boolean enable)
     {
         Util.setIsSubscribed (this.application.projectName (), enable);
+        Util.setIsSubscribed (this.projectIdentity, enable);
 
         Util.setIsSubscribed (this.project.hasSoloedTracks (), enable);
         Util.setIsSubscribed (this.project.hasMutedTracks (), enable);
@@ -91,6 +96,17 @@ public class ProjectImpl implements IProject
     public String getName ()
     {
         return this.application.projectName ().get ();
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public String getIdentity ()
+    {
+        // Bitwig's root-track proxy may retain its proxy identity while the active project tab
+        // changes. Include the subscribed project name so ordinary tab navigation still crosses
+        // an observable host-readback boundary.
+        return this.projectIdentity.get () + '\u001F' + this.application.projectName ().get ();
     }
 
 

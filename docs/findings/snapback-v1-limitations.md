@@ -84,12 +84,16 @@ stable mutation reaches the runtime's pre-mutation seam. No mode contains a snap
 branch, and no second MIDI or hardware callback is installed.
 
 The installed parameter canopy is broader than one gesture: it names the inherited active encoder
-window, project remotes, the selected-device remote page, visible-track volume and pan, and globals.
+window, project remotes, the selected-device remote page, visible-track volume and pan, the
+Master/Cue page, and globals.
 Stable publishes only banks selected by the active workspace while `PARAMETERS` is subscribed.
 Project macro turns in VS Live are core-owned and target `PROJECT_REMOTE` directly. Unmigrated
-parameter modes still enter snapback through the active-window compatibility seam. Tempo and master
-volume use fixed stable-shell actuators; cue volume, zoom, the touch strip, and unrelated
-command-bound encoders remain persistent.
+parameter modes still enter snapback through the active-window compatibility seam. The Master page
+uses fixed volume, pan, cue-volume, and cue-mix slots directly in core. Tempo and the dedicated
+master encoder use fixed global actuators; zoom, the touch strip, and unrelated command-bound
+encoders remain persistent. Controller-level composition installs workspace selection and global
+parameter bindings around every page-specific workspace, so Master requests both the `MASTER` and
+`GLOBAL` banks instead of silently dropping persistent controls.
 
 The capture set is bounded to 10 simultaneous targets because Push exposes eight top encoders plus
 tempo and master volume in this interaction. That is not the canopy capacity. The deferred

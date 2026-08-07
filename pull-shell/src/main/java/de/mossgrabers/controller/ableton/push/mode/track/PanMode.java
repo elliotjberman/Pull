@@ -37,7 +37,7 @@ public class PanMode extends AbstractTrackMode
      */
     public PanMode (final PushControlSurface surface, final IModel model)
     {
-        super ("Panning", surface, model);
+        super ("Pan", surface, model);
 
         this.setParameterProvider (new PushPanParameterProvider (model));
     }

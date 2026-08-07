@@ -19,6 +19,7 @@ import de.mossgrabers.framework.daw.midi.SelectedTrackMonitorMode;
 import de.mossgrabers.framework.daw.midi.SelectedTrackNoteTargetSnapshot;
 import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
+import de.mossgrabers.pull.core.api.CoreExecutionRequirements;
 import de.mossgrabers.pull.core.api.ControllerLayoutSnapshot;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
@@ -27,8 +28,10 @@ import de.mossgrabers.pull.core.api.DesiredParameterBanks;
 import de.mossgrabers.pull.core.api.DrumContextSnapshot;
 import de.mossgrabers.pull.core.api.DrumPadSnapshot;
 import de.mossgrabers.pull.core.api.GridPressureConfiguration;
+import de.mossgrabers.pull.core.api.MasterSnapshot;
 import de.mossgrabers.pull.core.api.ParameterBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ParameterTargetRef;
+import de.mossgrabers.pull.core.api.ProjectSnapshot;
 import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
 import de.mossgrabers.pull.core.api.TrackMonitorMode;
 import de.mossgrabers.pull.core.api.TransportSnapshot;
@@ -46,6 +49,7 @@ import de.mossgrabers.pull.core.api.effect.SendNoteInputMidiEffect;
 import de.mossgrabers.pull.core.api.effect.SetDrumPadBooleanEffect;
 import de.mossgrabers.pull.core.api.effect.SetDrumPadValueEffect;
 import de.mossgrabers.pull.core.api.effect.SetParameterValueEffect;
+import de.mossgrabers.pull.core.api.effect.SetProjectTransportStateEffect;
 import de.mossgrabers.pull.core.api.effect.SetSelectedTrackBooleanEffect;
 import de.mossgrabers.pull.core.api.effect.SetSelectedTrackMonitorEffect;
 import de.mossgrabers.pull.core.api.effect.SetSelectedTrackValueEffect;
@@ -83,8 +87,10 @@ final class BoundedControllerBridge implements ControllerBridge
     private final MidiShortCallback noteInputMidiSender;
     private final PushControlSurface surface;
     private final IValueChanger valueChanger;
+    private final RuntimeLog log;
     private final NewClipAction newClipAction;
     private final ParameterTargetHost parameterTargets;
+    private final MasterCommandHost masterCommands;
     private final Map<MidiStateKey, MidiState> noteInputMidiState = new HashMap<> ();
 
     private ControllerBridgeSnapshot snapshot = ControllerBridgeSnapshot.empty ();
@@ -108,7 +114,9 @@ final class BoundedControllerBridge implements ControllerBridge
         this.surface = Objects.requireNonNull (surface, "surface");
         this.valueChanger = Objects.requireNonNull (valueChanger, "valueChanger");
         this.newClipAction = new NewClipAction (model);
-        this.parameterTargets = new ParameterTargetHost (surface, model, Objects.requireNonNull (log, "log"));
+        this.log = Objects.requireNonNull (log, "log");
+        this.parameterTargets = new ParameterTargetHost (surface, model, this.log);
+        this.masterCommands = new MasterCommandHost (model);
     }
 
 
@@ -163,7 +171,12 @@ final class BoundedControllerBridge implements ControllerBridge
         final DesiredParameterBanks requestedParameterBanks = parametersRequested ? Objects.requireNonNull (parameterBanks, "parameterBanks") : DesiredParameterBanks.empty ();
         this.parameterTargets.refresh (requestedParameterBanks);
         final ParameterBridgeSnapshot parameters = parametersRequested ? this.parameterTargets.snapshot () : ParameterBridgeSnapshot.empty ();
-        final ControllerBridgeSnapshot refreshed = new ControllerBridgeSnapshot (transportState, selected, layout, this.drumSnapshot, parameters);
+        final boolean masterRequested = requested.includes (BridgeSubscription.MASTER);
+        final boolean projectRequested = requested.includes (BridgeSubscription.PROJECT);
+        this.masterCommands.refresh (masterRequested, projectRequested);
+        final MasterSnapshot master = masterRequested ? this.masterCommands.snapshot () : MasterSnapshot.empty ();
+        final ProjectSnapshot project = projectRequested ? this.masterCommands.projectSnapshot () : ProjectSnapshot.empty ();
+        final ControllerBridgeSnapshot refreshed = new ControllerBridgeSnapshot (transportState, selected, layout, this.drumSnapshot, parameters, master, project);
         if (refreshed.equals (this.snapshot))
             return false;
 
@@ -201,9 +214,67 @@ final class BoundedControllerBridge implements ControllerBridge
 
 
     @Override
+    public CoreExecutionRequirements prepareExecutionRequirements (final CoreExecutionRequirements requirements)
+    {
+        return this.masterCommands.prepareExecutionRequirements (requirements);
+    }
+
+
+    @Override
+    public void applyExecutionRequirements (final CoreExecutionRequirements requirements)
+    {
+        this.masterCommands.applyExecutionRequirements (requirements);
+    }
+
+
+    @Override
+    public boolean canReplaceActiveCore ()
+    {
+        return this.masterCommands.canReplaceActiveCore ();
+    }
+
+
+    @Override
+    public void abandonActiveCore ()
+    {
+        try
+        {
+            this.masterCommands.abandonActiveCore ();
+        }
+        catch (final RuntimeException failure)
+        {
+            this.log.warn ("Project-navigation quarantine cleanup failed: " + failure.getMessage ());
+        }
+        try
+        {
+            this.resetNoteInputMidiState ();
+        }
+        catch (final RuntimeException failure)
+        {
+            this.log.warn ("Note-input MIDI quarantine cleanup failed: " + failure.getMessage ());
+        }
+        try
+        {
+            this.parameterTargets.invalidate ();
+        }
+        catch (final RuntimeException failure)
+        {
+            this.log.warn ("Parameter quarantine cleanup failed: " + failure.getMessage ());
+        }
+    }
+
+
+    @Override
     public ControllerBridge.TargetedParameter resolveParameterMutation (final de.mossgrabers.framework.controller.hardware.IHwContinuousControl control)
     {
         return this.parameterTargets.resolveMutation (control);
+    }
+
+
+    @Override
+    public boolean requiresResolvedParameterMutation (final de.mossgrabers.framework.controller.hardware.IHwContinuousControl control)
+    {
+        return this.parameterTargets.requiresResolvedMutation (control);
     }
 
 
@@ -224,7 +295,9 @@ final class BoundedControllerBridge implements ControllerBridge
             this.snapshot.selectedTrack (),
             this.snapshot.layout (),
             this.snapshot.drum (),
-            this.parameterTargets.snapshot ());
+            this.parameterTargets.snapshot (),
+            this.snapshot.master (),
+            this.snapshot.project ());
         return true;
     }
 
@@ -283,6 +356,15 @@ final class BoundedControllerBridge implements ControllerBridge
     public ControllerBridge.PreparedAction prepare (final CoreEffect effect, final Map<ParameterTargetRef, ControllerBridge.ParameterLease> parameterLeases)
     {
         Objects.requireNonNull (effect, "effect");
+        final ControllerBridge.PreparedAction masterAction = this.masterCommands.prepare (effect);
+        if (masterAction != null)
+            return masterAction;
+        if (effect instanceof final SetProjectTransportStateEffect setProjectState)
+            return new PreparedProjectTransportState (
+                setProjectState.expectedProjectIdentity (),
+                setProjectState.state (),
+                setProjectState.enabled (),
+                this.masterCommands.canTargetProject (setProjectState.expectedProjectIdentity ()));
         if (effect instanceof final SetTransportStateEffect setState)
             return new PreparedTransportState (setState.state (), setState.enabled ());
         if (effect instanceof final SetParameterValueEffect setParameter)
@@ -368,7 +450,11 @@ final class BoundedControllerBridge implements ControllerBridge
     public void apply (final ControllerBridge.PreparedAction action)
     {
         Objects.requireNonNull (action, "action");
-        if (action instanceof final PreparedTransportState state)
+        if (this.masterCommands.applyIfOwned (action))
+            return;
+        if (action instanceof final PreparedProjectTransportState state)
+            this.applyProjectTransportState (state);
+        else if (action instanceof final PreparedTransportState state)
             this.applyTransportState (state);
         else if (action instanceof final PreparedParameterSet parameter)
             this.parameterTargets.apply (parameter.action ());
@@ -412,6 +498,7 @@ final class BoundedControllerBridge implements ControllerBridge
         final boolean available = tempo > 0 && numerator > 0 && denominator > 0;
         return new TransportSnapshot (
             available,
+            this.model.getApplication ().isEngineActive (),
             this.transport.isPlaying (),
             this.transport.isRecording (),
             this.transport.isArrangerOverdub (),
@@ -591,6 +678,14 @@ final class BoundedControllerBridge implements ControllerBridge
     }
 
 
+    private void applyProjectTransportState (final PreparedProjectTransportState request)
+    {
+        if (!request.preparedForProject () || !this.masterCommands.canTargetProject (request.expectedProjectIdentity ()))
+            return;
+        this.applyTransportState (new PreparedTransportState (request.state (), request.enabled ()));
+    }
+
+
     private void applyTransportValue (final PreparedTransportValue request)
     {
         if (request.value () == TransportValue.TEMPO)
@@ -691,7 +786,14 @@ final class BoundedControllerBridge implements ControllerBridge
             for (final Map.Entry<MidiStateKey, MidiState> entry: List.copyOf (this.noteInputMidiState.entrySet ()))
             {
                 final MidiState state = entry.getValue ();
-                this.noteInputMidiSender.handleMidi (entry.getKey ().status (), state.neutralData1 (), state.neutralData2 ());
+                try
+                {
+                    this.noteInputMidiSender.handleMidi (entry.getKey ().status (), state.neutralData1 (), state.neutralData2 ());
+                }
+                catch (final RuntimeException failure)
+                {
+                    this.log.warn ("Neutralizing note-input MIDI state failed: " + failure.getMessage ());
+                }
             }
         }
         finally
@@ -802,6 +904,11 @@ final class BoundedControllerBridge implements ControllerBridge
 
 
     private record PreparedTransportState (TransportState state, boolean enabled) implements ControllerBridge.PreparedAction
+    {
+    }
+
+
+    private record PreparedProjectTransportState (String expectedProjectIdentity, TransportState state, boolean enabled, boolean preparedForProject) implements ControllerBridge.PreparedAction
     {
     }
 

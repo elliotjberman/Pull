@@ -82,12 +82,16 @@ view should remove the binding, not redefine the target retained by an independe
 
 ## Current Mitigation
 
-Core API 14 separates physical controls from a named bounded parameter canopy. Stable can publish
+Core API 15 separates physical controls from a named bounded parameter canopy. Stable can publish
 the inherited active encoder window, project remotes, the selected-device remote page, visible-track
-volume and pan, and fixed globals. A slot contains an opaque target identity/generation, name, raw
+volume and pan, the project-scoped Master/Cue page, and fixed globals. A slot contains an opaque target identity/generation, name, raw
 and modulated values, authoritative display text, step count, and tolerance; it never uses a Push
 control ID as target identity. Core selects which installed banks are sampled, owns view-specific
 control-to-slot mapping, and owns snapback policy.
+
+Master volume/pan and cue volume/mix are fenced to the subscribed project identity. Even when
+Bitwig retains the same Java parameter wrapper while switching project tabs, stable invalidates the
+old live target and publishes a new generation before accepting another mutation.
 
 `ProjectMacroControlsView` proves the intended mutation direction: it owns the eight relative
 encoder routes in core and emits typed relative effects against `PROJECT_REMOTE` targets. Stable's
@@ -100,6 +104,11 @@ identity during refresh and again before effect application. A cursor remote-con
 survives a selected-device or remote-page change therefore receives a new opaque target generation.
 An unclassified Bitwig `ParameterImpl` is excluded from the lease window instead of being treated as
 exact merely because its Java wrapper is unchanged.
+
+Selected-track Mix is additionally fail-closed against the exact selection-following cursor. Its
+volume, pan, and send encoders cannot fall back to a matching parameter elsewhere in the visible
+track bank; while Bitwig reconciles a project or selection change, an unresolved turn is suppressed
+instead of reaching the stale stable binding.
 
 Core may retain a complete target-to-baseline lease set. Stable resolves each request to the exact
 current live actuator, rechecks that actuator at apply time, executes absolute restores only through
@@ -139,7 +148,7 @@ The design must distinguish:
 Each bounded bank or lease pool must document its capacity, identity and generation rules,
 selection scope, and behavior when capacity is exhausted.
 
-API 14 deliberately omits visible-track sends. They should arrive with the authoritative visible
+API 15 deliberately omits visible-track sends. They should arrive with the authoritative visible
 track bank so send targets and rendered track identities share one generation fence, rather than as
 64 parameter-only slots with an independent alignment model.
 

@@ -12,10 +12,13 @@ import java.util.Objects;
  * Complete replayable hardware state currently owned by the core.
  *
  * @param lights Desired light colors by stable control identifier
+ * @param display Complete controller display scene
+ * @param padGridOverlay Temporary sparse pad-grid overlay
+ * @param displayOverlay Temporary complete scene above the current display page
  */
-public record DesiredHardwareOutput (Map<ControlId, RgbColor> lights)
+public record DesiredHardwareOutput (Map<ControlId, RgbColor> lights, ControllerDisplayScene display, ControllerPadGridOverlay padGridOverlay, ControllerDisplayOverlay displayOverlay)
 {
-    private static final DesiredHardwareOutput EMPTY = new DesiredHardwareOutput (Map.of ());
+    private static final DesiredHardwareOutput EMPTY = new DesiredHardwareOutput (Map.of (), ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive ());
 
 
     /**
@@ -24,6 +27,30 @@ public record DesiredHardwareOutput (Map<ControlId, RgbColor> lights)
     public DesiredHardwareOutput
     {
         lights = Map.copyOf (Objects.requireNonNull (lights, "lights"));
+        display = Objects.requireNonNull (display, "display");
+        padGridOverlay = Objects.requireNonNull (padGridOverlay, "padGridOverlay");
+        displayOverlay = Objects.requireNonNull (displayOverlay, "displayOverlay");
+    }
+
+
+    /** Compatibility constructor without a display overlay. */
+    public DesiredHardwareOutput (final Map<ControlId, RgbColor> lights, final ControllerDisplayScene display, final ControllerPadGridOverlay padGridOverlay)
+    {
+        this (lights, display, padGridOverlay, ControllerDisplayOverlay.inactive ());
+    }
+
+
+    /** Compatibility constructor without temporary overlays. */
+    public DesiredHardwareOutput (final Map<ControlId, RgbColor> lights, final ControllerDisplayScene display)
+    {
+        this (lights, display, ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive ());
+    }
+
+
+    /** Compatibility constructor without a display override. */
+    public DesiredHardwareOutput (final Map<ControlId, RgbColor> lights)
+    {
+        this (lights, ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive ());
     }
 
 

@@ -17,12 +17,17 @@ import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.PushControlIds;
+import de.mossgrabers.pull.core.api.MixerControlsSnapshot;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.event.ParameterMutationEvent;
 import de.mossgrabers.pull.shell.input.PhysicalInputEvent;
 import de.mossgrabers.pull.core.api.output.RgbColor;
+import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
+import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
+import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
+import de.mossgrabers.pull.core.api.output.MixerControlsDisplay;
 
 import java.util.HashSet;
 import java.util.List;
@@ -70,6 +75,41 @@ public final class ReloadableControllerRuntime implements AutoCloseable
     private boolean closed;
     private boolean drainingControllerInputs;
     private long lastSlowTickWarningNanos = Long.MIN_VALUE;
+
+
+    /** Get a replayable core-owned controller light. */
+    public RgbColor lightColor (final ControlId control)
+    {
+        return this.environment == null || this.closed ? OFF : this.environment.lightColor (Objects.requireNonNull (control, "control"));
+    }
+
+
+    /** Get the complete replayable controller display override. */
+    public ControllerDisplayScene controllerDisplay ()
+    {
+        return this.environment == null || this.closed ? ControllerDisplayScene.empty () : this.environment.controllerDisplay ();
+    }
+
+
+    /** Get the complete replayable temporary pad-grid overlay. */
+    public ControllerPadGridOverlay padGridOverlay ()
+    {
+        return this.environment == null || this.closed ? ControllerPadGridOverlay.inactive () : this.environment.padGridOverlay ();
+    }
+
+
+    /** Get the complete replayable temporary display overlay. */
+    public ControllerDisplayOverlay displayOverlay ()
+    {
+        return this.environment == null || this.closed ? ControllerDisplayOverlay.inactive () : this.environment.displayOverlay ();
+    }
+
+
+    /** Render stable authoritative mixer data through the active reloadable visual policy. */
+    public MixerControlsDisplay renderMixerControls (final MixerControlsSnapshot snapshot)
+    {
+        return this.supervisor == null || this.closed ? MixerControlsDisplay.empty () : this.supervisor.renderMixerControls (Objects.requireNonNull (snapshot, "snapshot"));
+    }
 
 
     /**
@@ -219,7 +259,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             if (this.eventHandler.test (this.environment.snapshotChangedEvent ()))
                 this.environment.acknowledgeSnapshotChange (deliveredRevision);
         }
-        if (this.environment.observesParameters ())
+        if (this.environment.observesParameters () || this.environment.ticksRequested ())
             this.eventHandler.test (this.environment.controllerTickEvent ());
         this.reportSlowTick (startedAt);
     }
@@ -438,14 +478,16 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         final Runnable mutation = Objects.requireNonNull (stableMutation, "stableMutation");
         if (this.environment == null || this.closed || !this.started || !this.environment.observesParameters ())
         {
-            mutation.run ();
+            if (!this.environment.requiresResolvedParameterMutation (control))
+                mutation.run ();
             return;
         }
 
         final ControllerBridge.TargetedParameter parameter = this.environment.resolveParameterMutation (control);
         if (parameter == null)
         {
-            mutation.run ();
+            if (!this.environment.requiresResolvedParameterMutation (control))
+                mutation.run ();
             return;
         }
 

@@ -9,8 +9,12 @@ import de.mossgrabers.pull.core.api.CoreApi;
 import de.mossgrabers.pull.core.api.CoreDescriptor;
 import de.mossgrabers.pull.core.api.CoreProvider;
 import de.mossgrabers.pull.core.api.CoreResult;
+import de.mossgrabers.pull.core.api.MixerControlSnapshot;
 import de.mossgrabers.pull.core.api.StateEnvelope;
+import de.mossgrabers.pull.core.api.MixerControlsSnapshot;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
+import de.mossgrabers.pull.core.api.output.MixerControlDisplay;
+import de.mossgrabers.pull.core.api.output.MixerControlsDisplay;
 
 import java.util.Objects;
 import java.util.Optional;
@@ -149,23 +153,46 @@ final class RuntimeManager implements AutoCloseable
         this.requireRunningOnControllerThread ();
         Objects.requireNonNull (event, "event");
         final ActiveCore runtime = this.active;
-        if (runtime == null || runtime.generation != eventGeneration)
+        if (runtime == null || runtime.quarantined || runtime.generation != eventGeneration)
             return false;
 
         final long startedAt = System.nanoTime ();
+        final ControllerSnapshot snapshot;
         try
         {
-            final ControllerSnapshot snapshot = this.environment.snapshot ();
-            final CoreResult result = runtime.source.invokeWithContext ( () -> runtime.core.handle (event, snapshot));
-            final PreparedCoreResult preparedResult = this.environment.prepare (Objects.requireNonNull (result, "ControllerCore.handle result"));
-            Objects.requireNonNull (preparedResult, "CoreRuntimeEnvironment.prepare result");
+            snapshot = this.environment.snapshot ();
+        }
+        catch (final Throwable failure)
+        {
+            rethrowFatal (failure);
+            this.warn ("Controller snapshot failed; retained the last committed core result: " + sanitize (failure));
+            this.reportSlowEvent (event, startedAt);
+            return false;
+        }
+
+        final CoreResult result;
+        try
+        {
+            result = Objects.requireNonNull (runtime.source.invokeWithContext ( () -> runtime.core.handle (event, snapshot)), "ControllerCore.handle result");
+        }
+        catch (final Throwable failure)
+        {
+            rethrowFatal (failure);
+            this.quarantineActive (runtime, sanitize (failure));
+            this.reportSlowEvent (event, startedAt);
+            return false;
+        }
+
+        final PreparedCoreResult preparedResult;
+        try
+        {
+            preparedResult = Objects.requireNonNull (this.environment.prepare (result), "CoreRuntimeEnvironment.prepare result");
             this.environment.commit (runtime.generation, preparedResult);
         }
         catch (final Throwable failure)
         {
             rethrowFatal (failure);
-            final String message = sanitize (failure);
-            this.faultActive (runtime, message);
+            this.quarantineActive (runtime, "Rejected result after child mutation: " + sanitize (failure));
             this.reportSlowEvent (event, startedAt);
             return false;
         }
@@ -173,6 +200,45 @@ final class RuntimeManager implements AutoCloseable
         this.applyCommittedResult (runtime.generation);
         this.reportSlowEvent (event, startedAt);
         return true;
+    }
+
+
+    /** Purely render a stable-data mixer overlay through the active child generation. */
+    MixerControlsDisplay renderMixerControls (final MixerControlsSnapshot snapshot)
+    {
+        this.requireRunningOnControllerThread ();
+        final MixerControlsSnapshot checkedSnapshot = Objects.requireNonNull (snapshot, "snapshot");
+        final ActiveCore runtime = this.active;
+        if (runtime == null || runtime.quarantined)
+            return MixerControlsDisplay.empty ();
+        final MixerControlsDisplay result;
+        try
+        {
+            result = Objects.requireNonNull (runtime.source.invokeWithContext ( () -> runtime.core.renderMixerControls (checkedSnapshot)), "ControllerCore.renderMixerControls result");
+        }
+        catch (final Throwable failure)
+        {
+            rethrowFatal (failure);
+            this.quarantineActive (runtime, sanitize (failure));
+            return MixerControlsDisplay.empty ();
+        }
+
+        try
+        {
+            for (final MixerControlDisplay control: result.controls ())
+            {
+                final MixerControlSnapshot requested = checkedSnapshot.controls ().stream ().filter (candidate -> candidate.column () == control.column ()).findFirst ().orElseThrow ( () -> new IllegalArgumentException ("Mixer renderer returned an unrequested column"));
+                if (requested.kind () != control.kind ())
+                    throw new IllegalArgumentException ("Mixer renderer changed the requested control kind");
+            }
+            return result;
+        }
+        catch (final Throwable failure)
+        {
+            rethrowFatal (failure);
+            this.warn ("Rejected mixer rendering from active core " + runtime.descriptor.buildId () + "; retained the active core: " + sanitize (failure));
+            return MixerControlsDisplay.empty ();
+        }
     }
 
 
@@ -245,7 +311,7 @@ final class RuntimeManager implements AutoCloseable
 
     private Optional<StateEnvelope> compatibleCheckpoint (final CoreDescriptor candidateDescriptor)
     {
-        if (this.active == null)
+        if (this.active == null || this.active.quarantined)
             return Optional.empty ();
 
         try
@@ -287,26 +353,20 @@ final class RuntimeManager implements AutoCloseable
     }
 
 
-    private void faultActive (final ActiveCore runtime, final String message)
+    private void quarantineActive (final ActiveCore runtime, final String message)
     {
-        if (this.active != runtime)
+        if (this.active != runtime || runtime.quarantined)
             return;
-
-        this.generation = Math.incrementExact (this.generation);
-        this.active = null;
+        runtime.quarantined = true;
         try
         {
-            this.environment.invalidate (this.generation);
+            this.environment.quarantine (runtime.generation);
         }
-        catch (final RuntimeException invalidationFailure)
+        catch (final RuntimeException quarantineFailure)
         {
-            this.warn ("Faulted core generation invalidation failed: " + sanitize (invalidationFailure));
+            this.warn ("Core quarantine cleanup failed: " + sanitize (quarantineFailure));
         }
-        finally
-        {
-            this.closeActive (runtime);
-        }
-        this.warn ("Faulted reloadable core " + runtime.descriptor.buildId () + ": " + message);
+        this.warn ("Quarantined reloadable core " + runtime.descriptor.buildId () + " while retaining its last committed output: " + message);
     }
 
 
@@ -411,8 +471,22 @@ final class RuntimeManager implements AutoCloseable
     }
 
 
-    private record ActiveCore (CoreDescriptor descriptor, CoreProviderSource source, ControllerCore core, long generation)
+    private static final class ActiveCore
     {
+        private final CoreDescriptor descriptor;
+        private final CoreProviderSource source;
+        private final ControllerCore core;
+        private final long generation;
+        private boolean quarantined;
+
+
+        private ActiveCore (final CoreDescriptor descriptor, final CoreProviderSource source, final ControllerCore core, final long generation)
+        {
+            this.descriptor = descriptor;
+            this.source = source;
+            this.core = core;
+            this.generation = generation;
+        }
     }
 
 

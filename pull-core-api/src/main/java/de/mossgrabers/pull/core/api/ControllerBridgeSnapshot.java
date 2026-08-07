@@ -13,10 +13,12 @@ import java.util.Objects;
  * @param layout Visible layout and reconciled applicability state
  * @param drum Selected-track drum window
  * @param parameters Current parameter slots and retained actuators
+ * @param master Current project and Master-page state
+ * @param project Lightweight current-project state
  */
-public record ControllerBridgeSnapshot (TransportSnapshot transport, SelectedTrackSnapshot selectedTrack, ControllerLayoutSnapshot layout, DrumContextSnapshot drum, ParameterBridgeSnapshot parameters)
+public record ControllerBridgeSnapshot (TransportSnapshot transport, SelectedTrackSnapshot selectedTrack, ControllerLayoutSnapshot layout, DrumContextSnapshot drum, ParameterBridgeSnapshot parameters, MasterSnapshot master, ProjectSnapshot project)
 {
-    private static final ControllerBridgeSnapshot EMPTY = new ControllerBridgeSnapshot (TransportSnapshot.empty (), SelectedTrackSnapshot.empty (), ControllerLayoutSnapshot.empty (), DrumContextSnapshot.empty (), ParameterBridgeSnapshot.empty ());
+    private static final ControllerBridgeSnapshot EMPTY = new ControllerBridgeSnapshot (TransportSnapshot.empty (), SelectedTrackSnapshot.empty (), ControllerLayoutSnapshot.empty (), DrumContextSnapshot.empty (), ParameterBridgeSnapshot.empty (), MasterSnapshot.empty (), ProjectSnapshot.empty ());
 
 
     /**
@@ -29,6 +31,22 @@ public record ControllerBridgeSnapshot (TransportSnapshot transport, SelectedTra
         layout = Objects.requireNonNull (layout, "layout");
         drum = Objects.requireNonNull (drum, "drum");
         parameters = Objects.requireNonNull (parameters, "parameters");
+        master = Objects.requireNonNull (master, "master");
+        project = Objects.requireNonNull (project, "project");
+    }
+
+
+    /** Compatibility constructor for snapshots without lightweight project state. */
+    public ControllerBridgeSnapshot (final TransportSnapshot transport, final SelectedTrackSnapshot selectedTrack, final ControllerLayoutSnapshot layout, final DrumContextSnapshot drum, final ParameterBridgeSnapshot parameters, final MasterSnapshot master)
+    {
+        this (transport, selectedTrack, layout, drum, parameters, master, ProjectSnapshot.empty ());
+    }
+
+
+    /** Compatibility constructor for snapshots without Master state. */
+    public ControllerBridgeSnapshot (final TransportSnapshot transport, final SelectedTrackSnapshot selectedTrack, final ControllerLayoutSnapshot layout, final DrumContextSnapshot drum, final ParameterBridgeSnapshot parameters)
+    {
+        this (transport, selectedTrack, layout, drum, parameters, MasterSnapshot.empty (), ProjectSnapshot.empty ());
     }
 
 

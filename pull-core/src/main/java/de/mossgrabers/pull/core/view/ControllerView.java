@@ -102,7 +102,7 @@ public interface ControllerView
      */
     default void start (final ControllerSnapshot snapshot)
     {
-        // Most views are stateless.
+        this.reconcile (snapshot);
     }
 
 

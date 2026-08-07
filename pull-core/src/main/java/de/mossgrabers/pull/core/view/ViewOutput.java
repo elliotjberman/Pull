@@ -6,6 +6,9 @@ package de.mossgrabers.pull.core.view;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.output.RgbColor;
+import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
+import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
+import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
 
 import java.util.Map;
 import java.util.Objects;
@@ -16,10 +19,13 @@ import java.util.Objects;
  *
  * @param lights Hardware lights owned by the view
  * @param clipBindings Clip targets owned by the view's shell interaction bridge
+ * @param display Complete controller display owned by the view
+ * @param padGridOverlay Temporary overlay composed above stable pad-grid output
+ * @param displayOverlay Temporary overlay composed above the current display page
  */
-public record ViewOutput (Map<ControlId, RgbColor> lights, Map<ControlId, ClipTargetId> clipBindings)
+public record ViewOutput (Map<ControlId, RgbColor> lights, Map<ControlId, ClipTargetId> clipBindings, ControllerDisplayScene display, ControllerPadGridOverlay padGridOverlay, ControllerDisplayOverlay displayOverlay)
 {
-    private static final ViewOutput EMPTY = new ViewOutput (Map.of (), Map.of ());
+    private static final ViewOutput EMPTY = new ViewOutput (Map.of (), Map.of (), ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive ());
 
 
     /**
@@ -29,6 +35,30 @@ public record ViewOutput (Map<ControlId, RgbColor> lights, Map<ControlId, ClipTa
     {
         lights = Map.copyOf (Objects.requireNonNull (lights, "lights"));
         clipBindings = Map.copyOf (Objects.requireNonNull (clipBindings, "clipBindings"));
+        display = Objects.requireNonNull (display, "display");
+        padGridOverlay = Objects.requireNonNull (padGridOverlay, "padGridOverlay");
+        displayOverlay = Objects.requireNonNull (displayOverlay, "displayOverlay");
+    }
+
+
+    /** Compatibility constructor without a display overlay. */
+    public ViewOutput (final Map<ControlId, RgbColor> lights, final Map<ControlId, ClipTargetId> clipBindings, final ControllerDisplayScene display, final ControllerPadGridOverlay padGridOverlay)
+    {
+        this (lights, clipBindings, display, padGridOverlay, ControllerDisplayOverlay.inactive ());
+    }
+
+
+    /** Compatibility constructor without a pad-grid overlay. */
+    public ViewOutput (final Map<ControlId, RgbColor> lights, final Map<ControlId, ClipTargetId> clipBindings, final ControllerDisplayScene display)
+    {
+        this (lights, clipBindings, display, ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive ());
+    }
+
+
+    /** Compatibility constructor without a display override. */
+    public ViewOutput (final Map<ControlId, RgbColor> lights, final Map<ControlId, ClipTargetId> clipBindings)
+    {
+        this (lights, clipBindings, ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive ());
     }
 
 

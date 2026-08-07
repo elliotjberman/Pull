@@ -250,7 +250,12 @@ public final class PhysicalInputRouter<C>
         if (phase == InputPhase.BEGIN)
         {
             final GestureBinding existing = this.gestureBindings.get (input);
-            binding = existing == null ? new GestureBinding (this.resolveRoute (input), this.ownerGeneration.getAsLong (), stableAction, this.stableDispatchBarrier.test (input.control (), input.kind (), stableAction)) : existing;
+            final InputRoute route = existing == null ? this.resolveRoute (input) : existing.route ();
+            // An exclusive route owns the physical gesture itself. Carrying the stable command's
+            // semantic label would discard that physical identity when the event crosses into the
+            // core, which makes distinct row buttons look like the same legacy action.
+            final ControllerActionIntent routedStableAction = route == InputRoute.EXCLUSIVE ? null : stableAction;
+            binding = existing == null ? new GestureBinding (route, this.ownerGeneration.getAsLong (), routedStableAction, this.stableDispatchBarrier.test (input.control (), input.kind (), routedStableAction)) : existing;
             if (existing == null)
                 this.gestureBindings.put (input, binding);
         }

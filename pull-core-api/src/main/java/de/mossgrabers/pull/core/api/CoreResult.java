@@ -25,11 +25,19 @@ import java.util.Objects;
  * @param desiredControllerActions Complete replayable view-owned semantic actions
  * @param desiredParameterBanks Complete replayable installed parameter-bank selection
  * @param desiredParameterInteraction Complete replayable parameter leases and barriers
+ * @param executionRequirements Complete replayable cadence and transaction fencing
  * @param effects Ordered one-shot shell effects
  */
-public record CoreResult (DesiredHardwareOutput desiredOutput, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, Map<ControlId, ClipTargetId> desiredClipBindings, DesiredControllerWorkspace desiredControllerWorkspace, DesiredControllerActions desiredControllerActions, DesiredParameterBanks desiredParameterBanks, DesiredParameterInteraction desiredParameterInteraction, List<CoreEffect> effects)
+public record CoreResult (DesiredHardwareOutput desiredOutput, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, Map<ControlId, ClipTargetId> desiredClipBindings, DesiredControllerWorkspace desiredControllerWorkspace, DesiredControllerActions desiredControllerActions, DesiredParameterBanks desiredParameterBanks, DesiredParameterInteraction desiredParameterInteraction, CoreExecutionRequirements executionRequirements, List<CoreEffect> effects)
 {
-    private static final CoreResult EMPTY = new CoreResult (DesiredHardwareOutput.empty (), DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), Map.of (), DesiredControllerWorkspace.empty (), DesiredControllerActions.empty (), DesiredParameterBanks.empty (), DesiredParameterInteraction.empty (), List.of ());
+    private static final CoreResult EMPTY = new CoreResult (DesiredHardwareOutput.empty (), DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), Map.of (), DesiredControllerWorkspace.empty (), DesiredControllerActions.empty (), DesiredParameterBanks.empty (), DesiredParameterInteraction.empty (), CoreExecutionRequirements.empty (), List.of ());
+
+
+    /** Construct a result with no runtime cadence or transaction fencing. */
+    public CoreResult (final DesiredHardwareOutput desiredOutput, final DesiredInputRoutes desiredInputRoutes, final DesiredBridgeSubscriptions desiredBridgeSubscriptions, final Map<ControlId, ClipTargetId> desiredClipBindings, final DesiredControllerWorkspace desiredControllerWorkspace, final DesiredControllerActions desiredControllerActions, final DesiredParameterBanks desiredParameterBanks, final DesiredParameterInteraction desiredParameterInteraction, final List<CoreEffect> effects)
+    {
+        this (desiredOutput, desiredInputRoutes, desiredBridgeSubscriptions, desiredClipBindings, desiredControllerWorkspace, desiredControllerActions, desiredParameterBanks, desiredParameterInteraction, CoreExecutionRequirements.empty (), effects);
+    }
 
 
     /**
@@ -45,6 +53,7 @@ public record CoreResult (DesiredHardwareOutput desiredOutput, DesiredInputRoute
         desiredControllerActions = Objects.requireNonNull (desiredControllerActions, "desiredControllerActions");
         desiredParameterBanks = Objects.requireNonNull (desiredParameterBanks, "desiredParameterBanks");
         desiredParameterInteraction = Objects.requireNonNull (desiredParameterInteraction, "desiredParameterInteraction");
+        executionRequirements = Objects.requireNonNull (executionRequirements, "executionRequirements");
         effects = List.copyOf (Objects.requireNonNull (effects, "effects"));
     }
 

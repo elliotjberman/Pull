@@ -7,6 +7,7 @@ package de.mossgrabers.pull.core.api;
  * Common authoritative transport state.
  *
  * @param available True when the stable shell exposes transport state
+ * @param engineActive True when the current project's audio engine is active
  * @param playing Transport playback state
  * @param recording Arranger record state
  * @param arrangerOverdub Arranger overdub state
@@ -19,9 +20,9 @@ package de.mossgrabers.pull.core.api;
  * @param numerator Time-signature numerator, or zero while unavailable
  * @param denominator Time-signature denominator, or zero while unavailable
  */
-public record TransportSnapshot (boolean available, boolean playing, boolean recording, boolean arrangerOverdub, boolean launcherOverdub, boolean loopEnabled, boolean metronomeEnabled, boolean fillModeEnabled, double tempo, double positionBeats, int numerator, int denominator)
+public record TransportSnapshot (boolean available, boolean engineActive, boolean playing, boolean recording, boolean arrangerOverdub, boolean launcherOverdub, boolean loopEnabled, boolean metronomeEnabled, boolean fillModeEnabled, double tempo, double positionBeats, int numerator, int denominator)
 {
-    private static final TransportSnapshot EMPTY = new TransportSnapshot (false, false, false, false, false, false, false, false, 0, 0, 0, 0);
+    private static final TransportSnapshot EMPTY = new TransportSnapshot (false, false, false, false, false, false, false, false, false, 0, 0, 0, 0);
 
 
     /**

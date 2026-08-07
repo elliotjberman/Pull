@@ -6,10 +6,12 @@ package de.mossgrabers.pull.core.testing;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.CoreResult;
+import de.mossgrabers.pull.core.api.CoreExecutionRequirements;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredInputRoutes;
 import de.mossgrabers.pull.core.api.DesiredParameterBanks;
+import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
 import de.mossgrabers.pull.core.api.TimerId;
 import de.mossgrabers.pull.core.api.effect.CancelTimerEffect;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
@@ -41,6 +43,8 @@ final class RecordingEffectExecutor
     private Map<ControlId, ClipTargetId> desiredClipBindings = Map.of ();
     private DesiredControllerWorkspace desiredControllerWorkspace = DesiredControllerWorkspace.empty ();
     private DesiredParameterBanks desiredParameterBanks = DesiredParameterBanks.empty ();
+    private DesiredParameterInteraction desiredParameterInteraction = DesiredParameterInteraction.empty ();
+    private CoreExecutionRequirements executionRequirements = CoreExecutionRequirements.empty ();
 
 
     /**
@@ -57,6 +61,8 @@ final class RecordingEffectExecutor
         this.desiredClipBindings = result.desiredClipBindings ();
         this.desiredControllerWorkspace = result.desiredControllerWorkspace ();
         this.desiredParameterBanks = result.desiredParameterBanks ();
+        this.desiredParameterInteraction = result.desiredParameterInteraction ();
+        this.executionRequirements = result.executionRequirements ();
         for (final CoreEffect effect: result.effects ())
         {
             this.executionOrder.add (effect);
@@ -82,6 +88,12 @@ final class RecordingEffectExecutor
     {
         if (this.activeClipLease != null && release.owner ().equals (this.activeClipLease.owner ()))
             this.activeClipLease = null;
+    }
+
+
+    CoreExecutionRequirements executionRequirements ()
+    {
+        return this.executionRequirements;
     }
 
 
@@ -211,6 +223,13 @@ final class RecordingEffectExecutor
     DesiredParameterBanks desiredParameterBanks ()
     {
         return this.desiredParameterBanks;
+    }
+
+
+    /** Get the latest complete desired parameter interaction. */
+    DesiredParameterInteraction desiredParameterInteraction ()
+    {
+        return this.desiredParameterInteraction;
     }
 
 

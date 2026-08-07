@@ -11,6 +11,7 @@ import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.CoreCapabilities;
 import de.mossgrabers.pull.core.api.CoreControls;
+import de.mossgrabers.pull.core.api.CoreExecutionRequirements;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.DesiredInputRoutes;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
@@ -40,6 +41,11 @@ import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.event.SnapshotChangedEvent;
 import de.mossgrabers.pull.core.api.output.DesiredHardwareOutput;
+import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
+import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
+import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
+import de.mossgrabers.pull.core.api.output.DisplayCommand;
+import de.mossgrabers.pull.core.api.output.PadGridPosition;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 
 import org.junit.jupiter.api.Test;
@@ -51,6 +57,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -99,9 +106,17 @@ class ControllerRuntimeEnvironmentTest
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.BINDING_CLIP_TARGET));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION));
         assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD));
+        assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_RGB_LIGHT));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_WORKSPACE));
+        assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE));
         assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_PARAMETER_TARGETS));
         assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_PARAMETER_TARGET));
+        assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_MASTER));
+        assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_MASTER));
+        assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_DISPLAY));
+        assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_PAD_GRID_OVERLAY));
+        assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_DISPLAY_OVERLAY));
+        assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.RENDER_MIXER_CONTROLS));
         assertTrue (initial.clipLaunchSessionTargets ().isEmpty ());
         assertEquals (Optional.empty (), initial.activeClipLaunchOwner ());
 
@@ -177,6 +192,190 @@ class ControllerRuntimeEnvironmentTest
 
         assertThrows (IllegalArgumentException.class, () -> environment.prepare (result));
         assertEquals (0, environment.outputGeneration ());
+    }
+
+
+    @Test
+    void rejectsProjectNavigationLeaseWithoutPermanentControllerBridge ()
+    {
+        final ControllerRuntimeEnvironment environment = environment (host (1));
+        final CoreResult result = new CoreResult (
+            DesiredHardwareOutput.empty (),
+            DesiredInputRoutes.empty (),
+            DesiredBridgeSubscriptions.empty (),
+            Map.of (),
+            DesiredControllerWorkspace.empty (),
+            de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
+            DesiredParameterBanks.empty (),
+            DesiredParameterInteraction.empty (),
+            new CoreExecutionRequirements (true, 7, "project-a"),
+            List.of ());
+
+        assertThrows (IllegalArgumentException.class, () -> environment.prepare (result));
+        assertEquals (0, environment.outputGeneration ());
+    }
+
+
+    @Test
+    void commitsMasterRowLightsAndDisplayOnlyWithTheMasterFacet ()
+    {
+        final PassthroughControllerBridge bridge = new PassthroughControllerBridge ();
+        final ControllerRuntimeEnvironment environment = new ControllerRuntimeEnvironment (host (1), bridge, new RecordingLog (), () -> 0);
+        final ControlId previous = PushControlIds.button ("ROW2_7");
+        final ControllerDisplayScene display = new ControllerDisplayScene (960, 160, List.of (new DisplayCommand.Rectangle (0, 0, 960, 160, OFF)));
+        final DesiredControllerWorkspace workspace = new DesiredControllerWorkspace ("Master", Set.of (ControllerViewFacet.MASTER_CONTROLS), SessionBankShape.empty ());
+        final CoreResult masterResult = new CoreResult (
+            new DesiredHardwareOutput (Map.of (previous, BRIGHT_RED), display),
+            DesiredInputRoutes.empty (),
+            DesiredBridgeSubscriptions.empty (),
+            Map.of (),
+            workspace,
+            de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
+            DesiredParameterBanks.empty (),
+            DesiredParameterInteraction.empty (),
+            List.of ());
+
+        commitAndApply (environment, 9, masterResult);
+
+        assertEquals (BRIGHT_RED, environment.lightColor (previous));
+        assertEquals (display, environment.controllerDisplay ());
+        assertEquals (workspace, bridge.appliedWorkspace);
+        assertThrows (IllegalArgumentException.class, () -> environment.prepare (new CoreResult (
+            new DesiredHardwareOutput (Map.of (previous, BRIGHT_RED), display),
+            DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), Map.of (),
+            DesiredControllerWorkspace.empty (), de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
+            DesiredParameterBanks.empty (), DesiredParameterInteraction.empty (), List.of ())));
+
+        environment.invalidate (10);
+        assertFalse (environment.controllerDisplay ().isPresent ());
+        assertEquals (OFF, environment.lightColor (previous));
+    }
+
+
+    @Test
+    void commitsAndInvalidatesTheCompleteSparsePadGridOverlay ()
+    {
+        final ControllerRuntimeEnvironment environment = environment (host (1));
+        final ControllerPadGridOverlay overlay = new ControllerPadGridOverlay (
+            true,
+            Map.of (new PadGridPosition (0, 0), new RgbColor (160, 48, 255)));
+        final CoreResult result = new CoreResult (
+            new DesiredHardwareOutput (Map.of (), ControllerDisplayScene.empty (), overlay),
+            DesiredInputRoutes.empty (),
+            DesiredBridgeSubscriptions.empty (),
+            Map.of (),
+            DesiredControllerWorkspace.empty (),
+            de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
+            DesiredParameterBanks.empty (),
+            DesiredParameterInteraction.empty (),
+            List.of ());
+
+        environment.commit (9, environment.prepare (result));
+        assertEquals (overlay, environment.padGridOverlay ());
+
+        environment.invalidate (10);
+        assertFalse (environment.padGridOverlay ().active ());
+    }
+
+
+    @Test
+    void commitsAndInvalidatesACompleteDisplayOverlayOutsideMaster ()
+    {
+        final ControllerRuntimeEnvironment environment = environment (host (1));
+        final ControllerDisplayOverlay overlay = new ControllerDisplayOverlay (
+            true,
+            new ControllerDisplayScene (960, 160, List.of (
+                new DisplayCommand.Rectangle (0, 0, 960, 160, OFF),
+                new DisplayCommand.Rectangle (200, 0, 20, 160, BRIGHT_RED))));
+        final CoreResult result = new CoreResult (
+            new DesiredHardwareOutput (Map.of (), ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), overlay),
+            DesiredInputRoutes.empty (),
+            DesiredBridgeSubscriptions.empty (),
+            Map.of (),
+            DesiredControllerWorkspace.empty (),
+            de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
+            DesiredParameterBanks.empty (),
+            DesiredParameterInteraction.empty (),
+            List.of ());
+
+        environment.commit (9, environment.prepare (result));
+        assertEquals (overlay, environment.displayOverlay ());
+
+        environment.invalidate (10);
+        assertFalse (environment.displayOverlay ().active ());
+    }
+
+
+    @Test
+    void quarantineRetainsPassiveOutputButClearsTransientOverlaysAndReturnsTheActiveFill ()
+    {
+        final FakeClipHost host = host (1, FIRST_TARGET);
+        host.arm (FIRST, FIRST_TARGET);
+        final PassthroughControllerBridge bridge = new PassthroughControllerBridge ();
+        final ControllerRuntimeEnvironment environment = new ControllerRuntimeEnvironment (host, bridge, new RecordingLog (), () -> 0);
+        final AtomicBoolean failDeferredRelease = new AtomicBoolean ();
+        environment.setDeferredInputRelease ( () -> {
+            if (failDeferredRelease.get ())
+                throw new IllegalStateException ("broken deferred release");
+        });
+        final ControlId previous = PushControlIds.button ("ROW2_7");
+        final ControllerDisplayScene display = new ControllerDisplayScene (960, 160, List.of (new DisplayCommand.Rectangle (0, 0, 960, 160, OFF)));
+        final ControllerPadGridOverlay padOverlay = new ControllerPadGridOverlay (true, Map.of (new PadGridPosition (0, 0), BRIGHT_RED));
+        final ControllerDisplayOverlay displayOverlay = new ControllerDisplayOverlay (true, new ControllerDisplayScene (960, 160, List.of (new DisplayCommand.Rectangle (0, 0, 960, 160, BRIGHT_RED))));
+        final DesiredControllerWorkspace workspace = new DesiredControllerWorkspace ("Master", Set.of (ControllerViewFacet.MASTER_CONTROLS), SessionBankShape.empty ());
+        final CoreResult result = new CoreResult (
+            new DesiredHardwareOutput (Map.of (previous, BRIGHT_RED), display, padOverlay, displayOverlay),
+            DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), Map.of (FIRST, FIRST_TARGET),
+            workspace, de.mossgrabers.pull.core.api.DesiredControllerActions.empty (), DesiredParameterBanks.empty (),
+            DesiredParameterInteraction.empty (), new CoreExecutionRequirements (true, 0, ""),
+            List.of (new PressClipTargetEffect (FIRST, 1, FIRST_TARGET, LAUNCH_POLICY)));
+
+        environment.setFillPressed (FIRST, true);
+        commitAndApply (environment, 9, result);
+        acknowledgeLaunch (host, environment, FIRST);
+        assertEquals (Optional.of (FIRST), environment.snapshot ().activeClipLaunchOwner ());
+        bridge.failAbandon = true;
+        failDeferredRelease.set (true);
+
+        environment.quarantine (9);
+
+        assertEquals (BRIGHT_RED, environment.lightColor (previous));
+        assertEquals (display, environment.controllerDisplay ());
+        assertFalse (environment.padGridOverlay ().active ());
+        assertFalse (environment.displayOverlay ().active ());
+        assertFalse (environment.ticksRequested ());
+        assertEquals (Map.of (), host.desiredBindings);
+        assertEquals (1, host.target (FIRST).releaseCount);
+
+        acknowledgeReturn (host, environment, FIRST);
+        assertTrue (environment.snapshot ().clipLaunchSessionTargets ().isEmpty ());
+        assertEquals ("root", host.playing ());
+    }
+
+
+    @Test
+    void admitsOnlyTheBoundedGlobalTransportLightsOutsideMaster ()
+    {
+        final ControllerRuntimeEnvironment environment = environment (host (1));
+        final ControlId play = PushControlIds.button ("PLAY");
+        final ControlId record = PushControlIds.button ("RECORD");
+        final ControlId stop = PushControlIds.button ("STOP");
+
+        environment.commit (7, environment.prepare (result (
+            Map.of (play, BRIGHT_RED, record, DIM_RED),
+            Map.of (),
+            List.of ())));
+
+        assertEquals (BRIGHT_RED, environment.lightColor (play));
+        assertEquals (DIM_RED, environment.lightColor (record));
+        assertThrows (IllegalArgumentException.class, () -> environment.prepare (result (
+            Map.of (stop, BRIGHT_RED),
+            Map.of (),
+            List.of ())));
+
+        environment.invalidate (8);
+        assertEquals (OFF, environment.lightColor (play));
+        assertEquals (OFF, environment.lightColor (record));
     }
 
 
@@ -832,6 +1031,105 @@ class ControllerRuntimeEnvironmentTest
     {
         host.advanceReturn (owner);
         environment.refresh ();
+    }
+
+
+    private static final class PassthroughControllerBridge implements ControllerBridge
+    {
+        private DesiredControllerWorkspace appliedWorkspace = DesiredControllerWorkspace.empty ();
+        private boolean failAbandon;
+
+
+        @Override
+        public boolean refresh (final long monotonicTimeNanos, final DesiredBridgeSubscriptions subscriptions, final DesiredParameterBanks parameterBanks)
+        {
+            return false;
+        }
+
+
+        @Override
+        public void activateCoreGeneration (final long generation)
+        {
+            // No live host in this output transaction test.
+        }
+
+
+        @Override
+        public void invalidate ()
+        {
+            this.appliedWorkspace = DesiredControllerWorkspace.empty ();
+        }
+
+
+        @Override
+        public void abandonActiveCore ()
+        {
+            if (this.failAbandon)
+                throw new IllegalStateException ("broken bridge cleanup");
+        }
+
+
+        @Override
+        public TargetedParameter resolveParameterMutation (final de.mossgrabers.framework.controller.hardware.IHwContinuousControl control)
+        {
+            return null;
+        }
+
+
+        @Override
+        public Map<ParameterTargetRef, ParameterLease> prepareParameterLeases (final DesiredParameterInteraction desired, final DesiredParameterBanks parameterBanks)
+        {
+            return Map.of ();
+        }
+
+
+        @Override
+        public boolean applyParameterLeases (final Map<ParameterTargetRef, ParameterLease> prepared, final DesiredParameterBanks parameterBanks)
+        {
+            return false;
+        }
+
+
+        @Override
+        public boolean retainsParameterTarget (final ParameterTargetRef target)
+        {
+            return false;
+        }
+
+
+        @Override
+        public DesiredControllerWorkspace prepareWorkspace (final DesiredControllerWorkspace workspace)
+        {
+            return workspace;
+        }
+
+
+        @Override
+        public void applyWorkspace (final DesiredControllerWorkspace workspace)
+        {
+            this.appliedWorkspace = workspace;
+        }
+
+
+        @Override
+        public de.mossgrabers.pull.core.api.ControllerBridgeSnapshot snapshot ()
+        {
+            return de.mossgrabers.pull.core.api.ControllerBridgeSnapshot.empty ();
+        }
+
+
+        @Override
+        public PreparedAction prepare (final CoreEffect effect, final Map<ParameterTargetRef, ParameterLease> parameterLeases)
+        {
+            return null;
+        }
+
+
+        @Override
+        public void apply (final PreparedAction action)
+        {
+            // No effects in this output transaction test.
+        }
     }
 
 

@@ -4,10 +4,18 @@
 package de.mossgrabers.controller.ableton.push.controller;
 
 import java.util.Arrays;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Supplier;
 
 import de.mossgrabers.framework.controller.color.ColorManager;
+import de.mossgrabers.framework.controller.color.ColorEx;
+import de.mossgrabers.framework.controller.grid.LightInfo;
 import de.mossgrabers.framework.controller.grid.PadGridImpl;
 import de.mossgrabers.framework.daw.midi.IMidiOutput;
+import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
+import de.mossgrabers.pull.core.api.output.PadGridPosition;
+import de.mossgrabers.pull.core.api.output.RgbColor;
 
 
 /**
@@ -20,6 +28,11 @@ final class PushPadGrid extends PadGridImpl
     private static final int SIXTEENTH_FADE_CHANNEL  = 2;
 
     private final int [] pendingFadeTargets = new int [NUM_NOTES];
+    private final LightInfo [] frozenPadStates = new LightInfo [NUM_NOTES];
+    private final LightInfo [] overlayPadStates = new LightInfo [NUM_NOTES];
+
+    private Supplier<ControllerPadGridOverlay> overlaySupplier = ControllerPadGridOverlay::inactive;
+    private boolean overlayActive;
 
 
     /**
@@ -33,6 +46,40 @@ final class PushPadGrid extends PadGridImpl
         super (colorManager, output);
 
         Arrays.fill (this.pendingFadeTargets, NO_PENDING_FADE);
+        for (int note = 0; note < NUM_NOTES; note++)
+        {
+            this.frozenPadStates[note] = new LightInfo ();
+            this.overlayPadStates[note] = new LightInfo ();
+        }
+    }
+
+
+    /** Install the permanent supplier for the reloadable sparse grid-overlay plane. */
+    void setOverlaySupplier (final Supplier<ControllerPadGridOverlay> overlaySupplier)
+    {
+        this.overlaySupplier = Objects.requireNonNull (overlaySupplier, "overlaySupplier");
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public LightInfo getLightInfo (final int note)
+    {
+        return this.displayState (note);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void sendState (final int note)
+    {
+        final LightInfo state = this.displayState (note);
+        final int [] translated = this.translateToController (note);
+        final int channel = translated[0] < 0 ? 0 : translated[0];
+        this.sendNoteState (channel, translated[1], state.getColor ());
+        final int blinkColor = state.getBlinkColor ();
+        if (blinkColor > 0 && blinkColor < 128)
+            this.sendBlinkState (channel, translated[1], blinkColor, state.isFast ());
     }
 
 
@@ -52,6 +99,45 @@ final class PushPadGrid extends PadGridImpl
         synchronized (this.pendingFadeTargets)
         {
             this.pendingFadeTargets[note] = targetColor;
+        }
+    }
+
+
+    private LightInfo displayState (final int note)
+    {
+        final ControllerPadGridOverlay overlay = Objects.requireNonNull (this.overlaySupplier.get (), "pad-grid overlay");
+        if (!overlay.active ())
+        {
+            this.overlayActive = false;
+            return super.getLightInfo (note);
+        }
+
+        if (!this.overlayActive)
+        {
+            this.captureFrozenFrame ();
+            this.overlayActive = true;
+        }
+
+        final int index = note - this.startNote;
+        final PadGridPosition position = new PadGridPosition (index % this.columns, index / this.columns);
+        final Map<PadGridPosition, RgbColor> colors = overlay.colors ();
+        final RgbColor color = colors.get (position);
+        if (color == null)
+            return this.frozenPadStates[note];
+
+        final int colorIndex = this.colorManager.getColorIndex (ColorEx.fromRGB (color.red (), color.green (), color.blue ()));
+        final LightInfo overlayState = this.overlayPadStates[note];
+        overlayState.setColors (colorIndex, 0, false);
+        return overlayState;
+    }
+
+
+    private void captureFrozenFrame ()
+    {
+        for (int note = this.startNote; note <= this.endNote; note++)
+        {
+            final LightInfo base = super.getLightInfo (note);
+            this.frozenPadStates[note].setColors (base.getColor (), base.getBlinkColor (), base.isFast ());
         }
     }
 

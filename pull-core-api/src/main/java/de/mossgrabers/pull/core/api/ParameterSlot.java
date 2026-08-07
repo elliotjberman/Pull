@@ -29,6 +29,15 @@ public record ParameterSlot (ParameterBankId bank, int index)
     /** Fixed master-volume target. */
     public static final ParameterSlot MASTER_VOLUME = new ParameterSlot (ParameterBankId.GLOBAL, 1);
 
+    /** Master-mode master-volume target. */
+    public static final ParameterSlot MASTER_MIX_VOLUME = new ParameterSlot (ParameterBankId.MASTER, 0);
+    /** Master-mode master-pan target. */
+    public static final ParameterSlot MASTER_MIX_PAN = new ParameterSlot (ParameterBankId.MASTER, 1);
+    /** Master-mode cue-volume target. */
+    public static final ParameterSlot CUE_VOLUME = new ParameterSlot (ParameterBankId.MASTER, 2);
+    /** Master-mode cue-mix target. */
+    public static final ParameterSlot CUE_MIX = new ParameterSlot (ParameterBankId.MASTER, 3);
+
 
     /**
      * Validate the slot.

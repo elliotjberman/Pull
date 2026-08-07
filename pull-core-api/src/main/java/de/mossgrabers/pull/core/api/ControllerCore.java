@@ -4,7 +4,9 @@
 package de.mossgrabers.pull.core.api;
 
 import de.mossgrabers.pull.core.api.event.CoreEvent;
+import de.mossgrabers.pull.core.api.output.MixerControlsDisplay;
 
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -30,6 +32,19 @@ public interface ControllerCore
      * @return Effects and desired output produced by the event
      */
     CoreResult handle (CoreEvent event, ControllerSnapshot snapshot);
+
+
+    /**
+     * Purely render authoritative mixer-control read-back through the active child generation.
+     *
+     * @param snapshot Bounded mixer controls supplied by a stable data adapter
+     * @return Transparent controller scene containing only those controls
+     */
+    default MixerControlsDisplay renderMixerControls (final MixerControlsSnapshot snapshot)
+    {
+        Objects.requireNonNull (snapshot, "snapshot");
+        return MixerControlsDisplay.empty ();
+    }
 
 
     /**

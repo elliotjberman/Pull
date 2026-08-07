@@ -12,6 +12,7 @@ import de.mossgrabers.framework.daw.data.ICursorTrack;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.IBank;
 import de.mossgrabers.framework.daw.data.bank.IParameterBank;
+import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.parameter.IParameter;
 
 import java.util.Objects;
@@ -40,11 +41,14 @@ final class ParameterTargetIdentityResolver
     {
         Objects.requireNonNull (parameter, "parameter");
 
+        final ICursorTrack cursorTrack = this.model.getCursorTrack ();
+        if (this.surface.getModeManager ().getActiveID () == Modes.TRACK)
+            return this.selectedTrackMixParameter (controlIndex, cursorTrack, parameter);
+
         TargetIdentity identity = this.remoteParameter ("project-remote", this.model.getProject ().getName (), this.model.getProject ().getParameterBank (), parameter);
         if (identity != null)
             return identity;
 
-        final ICursorTrack cursorTrack = this.model.getCursorTrack ();
         identity = this.remoteParameter ("track-remote", cursorTrack.getChannelID (), cursorTrack.getParameterBank (), parameter);
         if (identity != null)
             return identity;
@@ -79,6 +83,25 @@ final class ParameterTargetIdentityResolver
             parameter.getPosition (),
             controlIndex,
             parameter.getName ());
+    }
+
+
+    private TargetIdentity selectedTrackMixParameter (final int controlIndex, final ICursorTrack track, final IParameter parameter)
+    {
+        if (track == null || !track.doesExist () || Objects.requireNonNullElse (track.getChannelID (), "").isBlank ())
+            return null;
+        if (controlIndex == 0 && track.getVolumeParameter () == parameter)
+            return channelIdentity (track, "volume", 0, parameter);
+        if (controlIndex == 1 && track.getPanParameter () == parameter)
+            return channelIdentity (track, "pan", 0, parameter);
+        if (controlIndex < 2)
+            return null;
+
+        final int sendIndex = this.surface.getConfiguration ().getTrackMixSendOffset () + controlIndex - 2;
+        final IBank<? extends IParameter> sends = track.getSendBank ();
+        if (sends == null || sendIndex < 0 || sendIndex >= sends.getPageSize () || sends.getItem (sendIndex) != parameter)
+            return null;
+        return channelIdentity (track, "send", sendIndex + sends.getScrollPosition (), parameter);
     }
 
 

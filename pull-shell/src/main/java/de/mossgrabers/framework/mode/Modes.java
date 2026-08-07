@@ -126,8 +126,8 @@ public enum Modes
     public static final String      NAME_LAYER         = "Layer";
     /** The name of the Layer Volume mode. */
     public static final String      NAME_LAYER_VOLUME  = "Layer Volume";
-    /** The name of the Layer Panning mode. */
-    public static final String      NAME_LAYER_PANNING = "Layer Panning";
+    /** The name of the Layer Pan mode. */
+    public static final String      NAME_LAYER_PANNING = "Layer Pan";
     /** The name of the Layer Sends mode. */
     public static final String      NAME_LAYER_SENDS   = "Layer Sends";
 

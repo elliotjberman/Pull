@@ -21,6 +21,7 @@ public final class WorkspaceSelection
     }
 
     private Id active;
+    private long requestSequence;
 
 
     /**
@@ -46,6 +47,17 @@ public final class WorkspaceSelection
 
 
     /**
+     * Get the sequence of explicit workspace-selection requests.
+     *
+     * @return Request sequence
+     */
+    public long requestSequence ()
+    {
+        return this.requestSequence;
+    }
+
+
+    /**
      * Select a workspace.
      *
      * @param workspace Workspace ID
@@ -53,5 +65,6 @@ public final class WorkspaceSelection
     public void select (final Id workspace)
     {
         this.active = Objects.requireNonNull (workspace, "workspace");
+        this.requestSequence++;
     }
 }

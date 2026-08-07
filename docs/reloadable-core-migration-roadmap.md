@@ -45,7 +45,12 @@ On current `master`:
   `NoteInput`, ordinary Bitwig routing, and MIDI neutralization remain stable;
 - the practical existing Push input set is normalized by the stable input bridge;
 - transport, selected-track, controller-layout, and bounded drum snapshots/effects exist;
-- complete hardware output ownership exists only for the twelve drum-fill lights.
+- the Master page's two button rows and graphics scene are core-owned through complete output
+  arbitration; its generic stable scene interpreter contains no Master layout policy;
+- a generic sparse 8x8 pad-grid overlay can freeze, temporarily replace, and restore stable pad
+  output; animation geometry, color, cadence, and activation policy are core-owned;
+- complete underlying hardware output ownership otherwise exists only for the twelve drum-fill
+  lights;
 - Shift snapback policy, view-owned physical-to-parameter-slot admission, semantic action
   invalidation, restoration acknowledgement, and navigation ordering are core-owned; stable owns
   named bounded Bitwig parameter banks, exact actuator leases, identity fencing, effect execution,
@@ -116,18 +121,20 @@ selection boundaries, and shutdown. The core may own interpretation and requeste
 
 This is the main body of remaining work. It is migration debt, but not a file-only move.
 
-### 1. Complete hardware output
+### 1. Complete remaining hardware output
 
-Current limitation: `DesiredHardwareOutput` is structurally general, but stable validation and
-arbitration accept only the twelve fill-pad lights.
+Current limitation: stable validation and arbitration accept the twelve fill-pad lights plus the
+Master page's two button rows and bounded declarative graphics scene. Other Push surfaces remain
+stable-owned.
 
-Add bounded complete ownership for:
+Add bounded complete ownership for the remaining surfaces:
 
-- all Push button lights;
+- Push button lights outside the migrated Master rows;
 - all 64 grid-pad lights;
-- scene and row-button lights;
+- scene lights and non-Master row-button lights;
 - touch-strip mode and LEDs;
-- USB display frames or a stable typed display command buffer;
+- the other USB display pages using the installed scene buffer or a deliberately expanded output
+  canopy;
 - transient notifications with explicit lifetime and replacement rules.
 
 After this expansion, color choice, light meaning, display layout, and notification policy move to
@@ -142,6 +149,11 @@ rendering.
 Install a bounded visible-track-bank snapshot with stable identities and generations for eight
 tracks, including the properties actually rendered by Pull. Add fenced effects for selection,
 activation, arm, mute, solo, volume, pan, and bounded sends.
+
+Controller-level Play is now the reference transport migration: its stable command is inert, its
+edge is core-exclusive, and core targets the remembered engine-owning project through a bounded
+identity-fenced navigate/toggle/return transaction. The lightweight `PROJECT` subscription keeps
+that policy available in every workspace without sampling Master VU.
 
 This unlocks:
 
@@ -179,14 +191,16 @@ bounded clip/session capability rather than remain a parallel feature-shaped API
 
 ### 4. Complete parameter-view migration and output
 
-API 14 installs named bounded parameter snapshots for active compatibility, project remote,
-selected-device remote, visible-track volume/pan, and globals. Snapshots contain exact target
+API 15 installs named bounded parameter snapshots for active compatibility, project remote,
+selected-device remote, visible-track volume/pan, Master/Cue, and globals. Snapshots contain exact target
 identity, name, raw and modulated values, authoritative displayed value, step count, and tolerance;
 stable applies fenced absolute, relative-change, and reset effects. Project-macro relative input is
 the first fully core-owned path.
 
-Still add a safe automation-touch lifecycle before moving touch ownership, and complete display
-output arbitration before moving parameter rendering. Migrate remaining stable parameter modes to
+Still add a safe automation-touch lifecycle before moving touch ownership. The Master page now has
+complete display and row-light arbitration, including a core-authored declarative vector scene
+executed by a generic stable interpreter. Complete the same boundary for other parameter pages
+before moving their rendering. Migrate remaining stable parameter modes to
 the named banks and delete the inherited active-window compatibility path when no consumers remain.
 
 This unlocks:
@@ -197,7 +211,8 @@ This unlocks:
 - removal of core-invisible parameter-provider policy from stable.
 
 The shell owns Bitwig parameter objects and exact actuation. Core owns bank selection, encoder
-mapping, and mutation semantics now; touch semantics and display layout remain migration work.
+mapping, and mutation semantics now; touch semantics and non-Master display layouts remain
+migration work.
 
 ### 5. Device, chain, and layer banks
 
@@ -363,8 +378,9 @@ does not mix semantic risk.
 
 ### Phase 2: Complete output arbitration
 
-Add general lights, display, touch-strip, and notification output. This should be one deliberate
-parent API/shell milestone with its own hardware smoke tests.
+Extend complete light/display ownership to the remaining underlying grid policy, general lights,
+display pages, touch strip, and notification output. The temporary whole-grid overlay transport is
+already installed. Each added surface needs explicit hardware smoke tests.
 
 ### Phase 3: Common performance capabilities
 
@@ -372,7 +388,7 @@ Add, in order:
 
 1. visible track bank;
 2. Session grid;
-3. remaining parameter-bank contexts beyond the API 14 named canopy.
+3. remaining parameter-bank contexts beyond the API 15 named canopy.
 
 Then migrate `WorkspaceMode` and `WorkspaceView` completely. Project-macro relative turns have
 already moved; automation touch, display output, track strips, Session, and Drum adapters remain

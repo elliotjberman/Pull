@@ -67,4 +67,12 @@ interface CoreRuntimeEnvironment
      * @param generation The new invalidation generation
      */
     void invalidate (long generation);
+
+
+    /** Preserve the last committed output while abandoning a rejected child transition. */
+    default void quarantine (final long generation)
+    {
+        // Environments without retained output fall back to ordinary invalidation.
+        this.invalidate (generation);
+    }
 }

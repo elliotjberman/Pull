@@ -44,7 +44,7 @@ public class NoteParameter extends AbstractParameterImpl
     {
         ATTRIBUTE_NAMES.put (NoteAttribute.PITCH, "Pitch");
         ATTRIBUTE_NAMES.put (NoteAttribute.GAIN, "Gain");
-        ATTRIBUTE_NAMES.put (NoteAttribute.PANNING, "Panning");
+        ATTRIBUTE_NAMES.put (NoteAttribute.PANNING, "Pan");
         ATTRIBUTE_NAMES.put (NoteAttribute.DURATION, "Duration");
         ATTRIBUTE_NAMES.put (NoteAttribute.VELOCITY, "Velocity");
         ATTRIBUTE_NAMES.put (NoteAttribute.RELEASE_VELOCITY, "Release Velocity");
@@ -242,7 +242,7 @@ public class NoteParameter extends AbstractParameterImpl
                 case PANNING:
                     final double pan = normalizedValue * 2.0 - 1.0;
                     clip.updateStepPan (notePosition, pan);
-                    this.notify ("Panning: %s", StringUtils.formatPercentage (pan));
+                    this.notify ("Pan: %s", StringUtils.formatPercentage (pan));
                     break;
 
                 case DURATION:

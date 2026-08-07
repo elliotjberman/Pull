@@ -31,7 +31,7 @@ movable Bitwig proxy may already address a replacement target by then.
 
 ## Current Mitigation
 
-Core API 14 carries `ControllerActionIntent` separately from physical input. Core-owned views
+Core API 15 carries `ControllerActionIntent` separately from physical input. Core-owned views
 resolve complete executable intents at gesture `BEGIN`; deferred execution therefore cannot
 reinterpret a released modifier or a replacement workspace. Stable-only commands remain
 stable-owned, but `StableControllerActionResolver` examines the actual installed command and its
@@ -39,6 +39,12 @@ current mode path, publishes a typed `ControllerActionEvent`, and holds the same
 behind core's declared scope barrier. An absent physical route remains stable-owned.
 
 This removes the core-side physical navigation table. It does not yet satisfy the final model:
+
+- The Master page now owns its encoder turns and both button rows in core, including exact
+  project-identity payloads for project navigation, file actions, and absolute engine state.
+- Play is a core-exclusive edge with an inert stable command. Core retains the engine-owning
+  project identity and emits exact project-navigation and project-transport payloads; stable only
+  validates the live project identity and applies the current-document proxy operation.
 
 - Several stable mode commands expose only coarse command-level meaning, not a payload identifying
   the exact selected track, page, device, or workspace.
