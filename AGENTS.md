@@ -135,21 +135,14 @@
   `EXCLUSIVE` pad or pressure route suppresses stable framework commands and state only; it does
   not suppress musical note data that Bitwig routes from the permanent Push `NoteInput`.
 - Do not confuse a permanent physical binding with permanent behavior policy. Implement controller
-  behavior in the reloadable core with `OBSERVE` or `EXCLUSIVE` routing. If the bridge does not yet
-  expose the authoritative state or effect required by the feature, expand the reusable canopy or
-  report the feature as not ready; never put the missing behavior in stable code. Complete the
-  migration: move every semantic variant
-  of an exclusively owned gesture into the core, replace its stable command with an inert binding,
-  and admit that exact control-and-kind pair to exclusive routing. Do not keep a second stable
-  implementation for missing, incomplete, or faulted cores. Missing or faulted core behavior is
-  inert and must be reported; a rejected replacement candidate may leave the previously active
-  core running because activation is transactional. A restart is required only when the physical
-  input, required state/effect capability, or output transport is missing from the installed
-  canopy.
-- Input and output transports are mechanically independent, but that is not permission to split a
-  controller surface's semantics. When migrating or changing a control with a light or display,
-  add reusable output arbitration and move its action and feedback policy to core in the same
-  vertical slice. Do not retain a stable light supplier for a newly migrated control.
+  behavior in the reloadable core with `OBSERVE` or `EXCLUSIVE` routing. Complete the migration:
+  move every semantic variant of an exclusively owned gesture into the core, replace its stable
+  command with an inert binding, and admit that exact control-and-kind pair to exclusive routing.
+  Do not keep a second stable implementation for missing, incomplete, or faulted cores. Missing or
+  faulted core behavior is inert and must be reported; a rejected replacement candidate may leave
+  the previously active core running because activation is transactional. A restart is required
+  only when the physical input, required state/effect capability, or output transport is missing
+  from the installed canopy.
 - Keep the private selection-following cursor observation/action-only. Do not attach the permanent
   Push `NoteInput` with `Track.addNoteSource()` or exclude it from `All Inputs`; Pads and raw ribbon
   MIDI must follow ordinary Bitwig track-input, monitor, and record-arm routing.
@@ -177,25 +170,26 @@
   intent, named bounded parameter banks, and exact parameter-target leases, including the declared
   Session bank shape. Project-macro encoder turns are the reference parameter migration: core owns
   the mapping, relative effect, and snapback policy while stable owns Bitwig proxies, identity
-  validation, read-back, and effect execution. Every new or changed mapping belongs in the
-  reloadable core; missing state/effect coverage requires a reusable canopy expansion rather than a
-  stable implementation. The Play action, 12 drum-fill RGB lights, Play and Record lights, both Master
-  button rows, and the Master graphics display have migrated direct output ownership. Play and
-  Record light policy renders authoritative engine, transport, overdub, and selected-track arm
-  read-back in every workspace. Play targets the remembered engine-owning project through a
-  bounded navigate/acknowledge/toggle/acknowledge/return transaction. Its stable command is inert;
+  validation, read-back, and effect execution. The Play action, 12 drum-fill RGB lights, Play and
+  Record lights, both Master button rows, and the Master graphics display have migrated direct
+  output ownership. Play and Record light policy renders authoritative engine, transport, overdub,
+  and selected-track arm read-back in every workspace. Play targets the remembered engine-owning
+  project through a bounded navigate/acknowledge/toggle/acknowledge/return transaction. Its stable
+  command is inert;
   the stable bindings only preserve the physical seam and translate core RGB to the Push palette.
-  The Master scene's copy,
-  typography, geometry, color, clipping, and shape policy are core-owned; stable only interprets
-  bounded generic primitives. API 22 also installs a bounded pure mixer-control render service:
+  The Master scene's copy, typography, geometry, color, clipping, and shape policy are core-owned;
+  stable only interprets bounded generic primitives. API 22 also installs a temporary sparse 8x8
+  pad-grid overlay and a complete 960x160 display overlay whose activation and visuals are
+  core-owned, plus a bounded pure mixer-control render service:
   Master and the stable Track Mix adapter must use the same core-owned Volume/Pan/Knob renderer.
   Cue parameters and Track Mix sends are the same Knob component, not parallel lookalikes. Track
   Mix accepts only column-local scenes structurally confined to the installed parameter-body
   region; its menus and footer remain stable-owned, and missing/faulted core output leaves all eight
   mixer-control slots blank rather than reviving a stable semantic fallback. Those stable menus,
   footers, and other workspace facets are frozen inherited migration debt, not valid extension
-  points. Do not claim general Push light or display hot reload until stable complete-output
-  arbitration exists for those other surfaces.
+  points. Do not claim arbitrary inherited Push light or display-page hot reload beyond these
+  installed output lanes. Logical timer DTOs have no production capability or executor and must not
+  be emitted while `docs/findings/logical-timer-production-gap.md` is active.
 
 ## Bitwig controller API compatibility
 

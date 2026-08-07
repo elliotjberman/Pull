@@ -380,7 +380,7 @@ The shell owns anything coupled to Bitwig or physical hardware:
 - USB display ownership, buffers, queues, and shutdown;
 - one permanent binding for every migrated Push control and light;
 - canonical Bitwig snapshot and pressed/touched-control state;
-- timer scheduling, generation fencing, and effect execution;
+- capability validation, target/generation fencing, and execution for advertised effects;
 - classloading, reload status, logging, fault eviction, and transactional candidate rollback.
 
 The shell may reuse the existing `ModelImpl` and Bitwig wrapper graph internally. That graph must
@@ -580,10 +580,17 @@ track-window identity; API 22 does not advertise parameter-only send slots witho
 Extending one of those shapes or adding a new Bitwig property/action requires a parent-loaded
 API/shell change, extension installation, and Bitwig restart.
 
-Output remains narrower than input in API 22. The shell validates and arbitrates the 12 drum-fill
-RGB lights, global Play/Record lights, both Master button rows, the Master eight-column display, and
-a temporary sparse grid overlay. Underlying Push grid policy, other Push button lights, ribbon
-output, and display pages remain frozen stable migration debt. They are not valid targets for new
+Output remains narrower than input in API 22. This is the canonical installed-output inventory:
+
+| Lane | Installed ownership |
+| --- | --- |
+| RGB lights | The 12 drum-fill lights and global Play/Record lights; both Master button rows while the Master-controls facet is active. |
+| Master scene | The bounded eight-column Master display scene while the Master-controls facet is active. |
+| Pad-grid overlay | A complete temporary sparse 8x8 replacement overlay with stable restore. |
+| Display overlay | A complete temporary 960x160 replacement overlay with stable restore. |
+
+Underlying Push grid policy, other Push button lights, ribbon output, and inherited display pages
+outside a complete overlay remain frozen stable migration debt. They are not valid targets for new
 behavior. A request that changes one of those meanings must first add complete reusable output
 arbitration and implement the policy in core, requiring one install/restart for that canopy
 expansion.
@@ -603,7 +610,7 @@ The core owns behavior that should be cheap to change:
 - navigation and selection policy;
 - display layout decisions;
 - desired pad, button, ribbon, and display state for output surfaces whose ownership has migrated
-  (currently the 12 drum-fill RGB lights and the Master page's button rows/display);
+  through an installed lane in the canonical inventory above;
 - feature-specific helpers and safe pure-Java dependencies.
 
 Existing modes/views cannot simply be moved. Many register observers or scheduled lambdas into
@@ -617,7 +624,9 @@ events and effects.
 3. Only core-API types, JDK value types, and defensively copied primitive data cross.
 4. The core registers no observers, callbacks, commands, lights, or shutdown hooks.
 5. The core creates no threads or executors.
-6. Timers are requested as effects and returned as generation-tagged events.
+6. Logical timer DTOs are reserved/test-only: the production shell advertises no timer capability
+   or executor, so production core behavior must not emit them while
+   `findings/logical-timer-production-gap.md` is active.
 7. The core performs no Bitwig calls; it returns effects.
 8. Core handlers are synchronous, bounded, and contain no I/O or sleeps.
 9. No child object, exception, lambda, reflection object, or classloader is cached by the shell.
@@ -681,21 +690,22 @@ that bank's generation and marks it pending. Location-targeted effects from the 
 are immediately rejected. The new window is published only after Bitwig's observed membership
 stabilizes.
 
-Core API 22 includes logical timer effects, persistent desired clip bindings, verified armed
-bindings, the version-1 authoritative single-lease clip-launch-session snapshot,
+Core API 22's type hierarchy retains logical timer effects for the proposed contract, but they are
+not an installed production capability. Installed production capabilities include persistent
+desired clip bindings, verified armed bindings, the version-1 authoritative single-lease
+clip-launch-session snapshot,
 generation-fenced version-4 acquire/replace/release effects, normalized controller-input events and
 routes, explicit bridge subscriptions, typed absolute transport effects, generation-fenced
 selected-track and drum-pad effects, bounded target-neutral note-input
 poly-pressure/CC/channel-pressure/pitch-bend output, named bounded parameter snapshots and exact
 leases, generation-fenced relative/reset effects and absolute parameter restores, serialized
-current-project navigation/engine effects, and desired RGB/display hardware state. The shell
-currently accepts that output for the 12 fill lights and the Master page's two button rows and
-eight-column display. Later typed domains may cover broader clip
+current-project navigation/engine effects, and desired RGB/display hardware state through the
+canonical installed-output lanes above. Later typed domains may cover broader clip
 launch/selection, bank scrolling, selected-device parameters, application actions, note
 mapping/repeat, notifications, and complete general Push output.
 
-Adding behavior composed from existing snapshot data and effects is a core-only change. Adding a
-new state domain or executor is a shell-capability change.
+Adding behavior composed from existing snapshot data and installed, capability-advertised effects
+is a core-only change. Adding a new state domain or executor is a shell-capability change.
 
 ## Transactional reload
 
@@ -743,7 +753,7 @@ Requirements:
   new core is active and cannot roll the transaction back halfway through Bitwig calls.
 - Any candidate failure leaves the old core running.
 - Old `stop()` must be non-blocking and latency-instrumented.
-- Old-generation timers, results, and stale bank effects are ignored.
+- Old-generation results and stale bank effects are ignored.
 - Once an output proxy is migrated, success forces its complete replay while bypassing render caches.
 - Extension exit rejects new candidates, requests worker cancellation, waits for a bounded join,
   closes candidate/active loaders, and shuts model/MIDI/USB exactly once. If verification does not
@@ -874,8 +884,8 @@ effects, rejections, and desired output. A real Bitwig failure can then become a
 | Route a currently registered input between `NONE`, `OBSERVE`, and `EXCLUSIVE` | Core reload |
 | Request or stop requesting an existing API 22 bridge subscription | Core reload |
 | Select a different installed API 22 parameter bank or remap an installed bank's encoder turns | Core reload |
-| Master display, Master row-button, or fill-light policy inside its installed output arbitration | Core reload |
-| Behavior using existing snapshot/effects | Core reload |
+| Output policy inside a lane in the canonical API 22 installed-output inventory | Core reload |
+| Behavior using existing snapshots and installed, capability-advertised effects | Core reload |
 | Behavior within the installed capability canopy | Core reload |
 | Clip launch quantization, mode, or Main-vs-ALT release lane | Core reload |
 | Add/change a parent-loaded core API DTO, event, effect, capability, or subscription domain | API/shell build/install and Bitwig restart |
@@ -908,7 +918,7 @@ effects, rejections, and desired output. A real Bitwig failure can then become a
   poly-pressure, CC, channel-pressure, and pitch-bend state on a best-effort basis through ordinary
   routing.
 - Selected-track and drum effects fail closed after any fenced live identity changes.
-- Stale bank effects and old-generation timers cannot act.
+- Stale bank effects cannot act.
 - Core behavior and output tests run without Bitwig.
 - Missing capabilities are rejected explicitly.
 - The development command reports success only when its exact build ID is active.

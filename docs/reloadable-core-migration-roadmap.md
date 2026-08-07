@@ -51,6 +51,8 @@ On current `master`:
   arbitration; its generic stable scene interpreter contains no Master layout policy;
 - a generic sparse 8x8 pad-grid overlay can freeze, temporarily replace, and restore stable pad
   output; animation geometry, color, cadence, and activation policy are core-owned;
+- a generic complete 960x160 display overlay can temporarily replace and restore the inherited
+  display page; overlay copy, geometry, color, and activation policy are core-owned;
 - the twelve drum-fill lights are also core-owned; underlying grid policy and other Push output
   surfaces remain frozen migration debt;
 - Shift snapback policy, view-owned physical-to-parameter-slot admission, semantic action
@@ -63,11 +65,14 @@ On current `master`:
 Before taking an item, inspect the active branch and in-flight work. This inventory describes
 architectural ownership, not a promise that no adjacent PR has changed the exact files.
 
-## Policy that can use the current canopy
+## Installed state and effect primitives
 
-These behaviors are already expressible with installed state and effects. A first cut may still
-need one shell change to make an existing semantic binding inert and admit its exact exclusive
-input; subsequent policy changes are core-only.
+The production shell already exposes the following state and effect primitives. This inventory is
+not a Class A readiness list: a physical control with feedback is Class B until its input, state,
+effect, and complete feedback lane can migrate together. Run the migration guide's Class A/B/C
+audit for every control. The first complete cut may need one shell change to install a reusable
+output lane, make an existing semantic binding inert, and admit its exact exclusive input;
+subsequent policy changes inside that installed vertical slice are core-only.
 
 ### Transport
 
@@ -115,9 +120,13 @@ selection boundaries, and shutdown. The core may own interpretation and requeste
 
 - modifier interpretation;
 - press/long/release state machines;
-- timers using the installed core timer effects;
 - fixed workspace selection and composition;
 - behavior using only existing immutable snapshots and typed effects.
+
+Logical timer DTOs exist in the Core API type hierarchy, but no timer capability or executor is
+installed in the production shell. They are reserved/test-only while
+`findings/logical-timer-production-gap.md` is active and production core behavior must not emit
+them.
 
 ## Movable policy requiring reusable canopy expansion
 
@@ -127,8 +136,9 @@ This is the main body of remaining work. It is migration debt, but not a file-on
 
 Current limitation: stable validation and arbitration accept the twelve fill-pad lights, global
 Play/Record lights, the Master page's two button rows and bounded declarative graphics scene, and a
-temporary sparse whole-grid overlay. Other Push surfaces remain frozen stable migration debt; do
-not implement new output behavior there.
+temporary sparse whole-grid overlay plus a complete 960x160 display overlay. Inherited output
+outside those lanes remains frozen stable migration debt; do not implement new output behavior
+there.
 
 Add bounded complete ownership for the remaining surfaces:
 
@@ -268,7 +278,7 @@ Add typed, capability-checked effects and authoritative availability state for u
 add track/device/effect, duplicate, delete, double, convert, and other application-level actions.
 
 These are conceptually reloadable mappings, but they cannot move safely while the core can only
-emit transport, selected-track, drum, MIDI, timer, and fill effects.
+emit transport, selected-track, drum, MIDI, and fill effects.
 
 ## Stable policy families to retire
 
@@ -345,11 +355,7 @@ Input arbitration itself is not temporary. Keep normalized input, route validati
 generation leases, and held-gesture safety. Remove the duplicate stable semantic implementation,
 not the lifecycle protection.
 
-All listed scaffolding is frozen. It may preserve existing behavior unchanged while reusable
-capabilities are installed, but it is not an approved destination for a feature or bug-fix policy.
-Do not add a semantic branch, color rule, layout decision, navigation recipe, or workspace-specific
-condition to it. If a request reaches a missing boundary, expand the reusable canopy and put the
-new meaning in core, or stop and classify the request as not ready.
+The migration-debt rule above applies to every listed scaffold.
 
 ## Infrastructure that stays stable
 

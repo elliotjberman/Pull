@@ -107,9 +107,7 @@ visible-track bank so the rendered track window and send actuators share one gen
 `ProjectMacroControlsView` is the first complete parameter-input migration: its eight encoder turns
 are exclusive core inputs mapped to `PROJECT_REMOTE`, and core emits typed relative effects against
 the authoritative slot target. `WorkspaceMode` no longer binds or mutates those encoders; it remains
-a frozen stable touch/delete and display adapter. That split records current migration debt; it is
-not a precedent for adding display or touch behavior there. A request that changes those semantics
-must first install the reusable capability and migrate the affected policy into core.
+a frozen stable touch/delete and display adapter pending complete migration.
 
 For movable Bitwig parameters, stable re-resolves the exact identity from the live parameter
 domain, selected owner, selected page, and slot or channel role. The same Java `IParameter` wrapper
@@ -122,8 +120,8 @@ motion to settle, requests an absolute restore, and waits for later authoritativ
 A core-owned view resolves a complete semantic action payload at gesture `BEGIN`. A frozen legacy
 stable command remains unchanged until migrated, but its compatibility adapter publishes semantic
 intent derived from the actual command and current mode path before the dispatch waits behind the
-same restoration barrier. No new action meaning may be added to that path. Touch edges do not
-define the session lifetime. Stable restores retained targets best-effort if the core faults.
+same restoration barrier. Touch edges do not define the session lifetime. Stable restores retained
+targets best-effort if the core faults.
 
 Core replacement waits until the physical input router has no core-relevant active gesture, queued
 motion, or deferred stable callback. A stable-only `NONE` gesture with no semantic action never
@@ -162,11 +160,9 @@ A `SurfaceClaim` declares one view's use of an area:
 - `OBSERVE_INPUT`: core observes input while established stable behavior may also receive it.
 - `EXCLUSIVE_INPUT`: core is the only behavior owner for the routed input.
 - `DIRECT_INPUT`: core owns a permanent feature-specific route that predates general arbitration.
-- `STABLE_ADAPTER_INPUT`: frozen legacy input policy still implemented by a stable adapter pending
-  migration; it may not gain new semantics.
+- `STABLE_ADAPTER_INPUT`: frozen legacy input policy pending migration.
 - `OUTPUT`: core owns and directly renders replayable hardware output for the area.
-- `STABLE_ADAPTER_OUTPUT`: frozen legacy output policy still implemented by a stable adapter pending
-  migration; it may not gain new semantics.
+- `STABLE_ADAPTER_OUTPUT`: frozen legacy output policy pending migration.
 
 Multiple observers may coexist. Two owning input claims conflict. Two output claims conflict,
 regardless of whether core or a stable adapter realizes them. Adapter-backed claims are invalid
@@ -214,10 +210,8 @@ implemented and must not become a raw control-mapping language.
 
 `ControllerViewFacet` and `DesiredControllerWorkspace` are a migration bridge. Each real core view
 selects only the fixed mechanical adapters required by its profile; `CompiledWorkspace` derives the
-single complete adapter manifest. Facets are not standalone views and may not carry composition
-policy. They may preserve existing legacy mechanics only; adding a new behavior branch to a facet
-is forbidden. A feature requiring new facet behavior must first add a reusable canopy capability
-and implement its policy in core.
+single complete adapter manifest. Facets are not standalone views and may carry neither composition
+nor product policy.
 
 The shell must interpret facet IDs, not workspace names. There must be no stable-shell conditional
 for `"VS Live"`.
@@ -303,22 +297,16 @@ Partial or transitional:
 
 - Project macro relative encoder behavior runs in core; its touch/delete and display remain in
   stable `WorkspaceMode`. Track-strip, Session, navigation, Drum Controller, and pitch-bend
-  adapter-backed mechanics still run in stable `WorkspaceMode`/`WorkspaceView`. These paths are
-  frozen: this list records migration debt, not approved locations for new work.
-- `ControllerViewFacet` remains a closed cross-boundary adapter ID. New adapter mechanics still
-  require a reusable Core API/shell capability and core policy; they must not be implemented as a
-  new stable facet branch.
+  adapter-backed mechanics still run in stable `WorkspaceMode`/`WorkspaceView`.
+- `ControllerViewFacet` remains a closed cross-boundary adapter ID.
 - Capability and Session-shape validation happens during stable result preparation, not entirely in
   `CompiledWorkspace`.
 - General display and light output ownership is still partial. The twelve drum-fill RGB lights and
-  global Play/Record lights, and the Master page's two button rows and graphics display use
-  core-owned output arbitration; underlying grid policy and other Push pages remain frozen stable
-  migration debt and may not receive new behavior.
+  global Play/Record lights, the Master page's two button rows and graphics display, a temporary
+  sparse 8x8 grid overlay, and a complete temporary 960x160 display overlay use core-owned output
+  arbitration. The detailed design's API 22 installed-output inventory is canonical.
 
 Deferred by design:
-
-Deferral means existing behavior remains unchanged until its vertical migration. It does not permit
-new stable policy in that family.
 
 - YAML/JSON loading and schema versioning.
 - Capability-driven optional-facet negotiation.
