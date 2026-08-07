@@ -9,7 +9,7 @@ remove_when: generation-fenced logical timers are installed and capability-gated
 
 ## Observation
 
-Core API 22 contains `ScheduleTimerEffect`, `CancelTimerEffect`, and `TimerElapsedEvent`, and the
+Core API 23 contains `ScheduleTimerEffect`, `CancelTimerEffect`, and `TimerElapsedEvent`, and the
 deterministic core test host executes them. The production `ControllerRuntimeEnvironment` has no
 timer executor and deliberately rejects those effects as unsupported during result preparation.
 

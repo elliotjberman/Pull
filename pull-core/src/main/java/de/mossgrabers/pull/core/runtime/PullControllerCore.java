@@ -21,6 +21,7 @@ import de.mossgrabers.pull.core.runtime.view.VsLiveWorkspace;
 import de.mossgrabers.pull.core.runtime.view.MasterWorkspace;
 import de.mossgrabers.pull.core.runtime.view.MixerDisplayScene;
 import de.mossgrabers.pull.core.runtime.view.ProjectPlaybackCoordinator;
+import de.mossgrabers.pull.core.runtime.view.StableDestinationWorkspace;
 import de.mossgrabers.pull.core.runtime.view.WorkspaceSelection;
 import de.mossgrabers.pull.core.view.CompiledWorkspace;
 import de.mossgrabers.pull.core.view.ResolvedControllerAction;
@@ -44,6 +45,7 @@ final class PullControllerCore implements ControllerCore
     private WorkspaceSelection                             selection;
     private CompiledWorkspace                              workspace;
     private Map<WorkspaceSelection.Id, CompiledWorkspace> masterWorkspaces = Map.of ();
+    private Map<WorkspaceSelection.Destination, CompiledWorkspace> destinationWorkspaces = Map.of ();
     private ProjectPlaybackCoordinator                     playbackCoordinator;
     private boolean                                        masterLayoutObserved;
     private long                                           masterEntryWorkspaceRequest;
@@ -61,7 +63,7 @@ final class PullControllerCore implements ControllerCore
             throw new IllegalStateException ("Core can only be started once");
 
         final RestoredState restoredState = restoreState (previousState);
-        this.selection = new WorkspaceSelection (restoredState.workspace ());
+        this.selection = new WorkspaceSelection (restoredState.workspace (), restoredState.destination ());
         this.playbackCoordinator = new ProjectPlaybackCoordinator ();
         this.playbackCoordinator.restoreEngineOwner (restoredState.engineOwnerIdentity (), restoredState.engineOwnerPlaying ());
         final Map<WorkspaceSelection.Id, CompiledWorkspace> compiled = new EnumMap<> (WorkspaceSelection.Id.class);
@@ -72,6 +74,9 @@ final class PullControllerCore implements ControllerCore
         for (final WorkspaceSelection.Id background: WorkspaceSelection.Id.values ())
             compiledMaster.put (background, MasterWorkspace.create (this.selection, this.playbackCoordinator, background));
         this.masterWorkspaces = Map.copyOf (compiledMaster);
+        this.destinationWorkspaces = Map.of (
+            WorkspaceSelection.Destination.SESSION, StableDestinationWorkspace.session (this.selection, this.playbackCoordinator),
+            WorkspaceSelection.Destination.NOTE, StableDestinationWorkspace.note (this.selection, this.playbackCoordinator));
         this.workspace = this.desiredWorkspace (snapshot);
         this.lifecycle = Lifecycle.RUNNING;
         this.snapback.start (snapshot);
@@ -134,9 +139,10 @@ final class PullControllerCore implements ControllerCore
     {
         this.requireRunning ();
         final byte [] owner = this.playbackCoordinator.engineOwnerIdentity ().getBytes (StandardCharsets.UTF_8);
-        final ByteBuffer payload = ByteBuffer.allocate (Integer.BYTES + 2 + owner.length);
+        final ByteBuffer payload = ByteBuffer.allocate (Integer.BYTES + 3 + owner.length);
         payload.put ((byte) (this.selection.active () == WorkspaceSelection.Id.VS_LIVE ? 1 : 0));
         payload.put ((byte) (this.playbackCoordinator.engineOwnerPlaying () ? 1 : 0));
+        payload.put ((byte) this.selection.pendingDestination ().ordinal ());
         payload.putInt (owner.length);
         payload.put (owner);
         return new StateEnvelope (PullCoreProvider.STATE_SCHEMA, PullCoreProvider.STATE_SCHEMA_VERSION, payload.array ());
@@ -156,17 +162,21 @@ final class PullControllerCore implements ControllerCore
         if (previousState.isEmpty ())
             return RestoredState.empty ();
         final byte [] payload = previousState.get ().payload ();
-        if (payload.length < Integer.BYTES + 2)
+        if (payload.length < Integer.BYTES + 3)
             return RestoredState.empty ();
         final ByteBuffer buffer = ByteBuffer.wrap (payload);
         final WorkspaceSelection.Id workspace = buffer.get () == 1 ? WorkspaceSelection.Id.VS_LIVE : WorkspaceSelection.Id.DEFAULT;
         final boolean playing = buffer.get () == 1;
+        final int destinationOrdinal = Byte.toUnsignedInt (buffer.get ());
+        if (destinationOrdinal >= WorkspaceSelection.Destination.values ().length)
+            return RestoredState.empty ();
+        final WorkspaceSelection.Destination destination = WorkspaceSelection.Destination.values ()[destinationOrdinal];
         final int ownerLength = buffer.getInt ();
         if (ownerLength < 0 || ownerLength > 1024 || ownerLength != buffer.remaining ())
-            return new RestoredState (workspace, "", false);
+            return new RestoredState (workspace, destination, "", false);
         final byte [] owner = new byte [ownerLength];
         buffer.get (owner);
-        return new RestoredState (workspace, new String (owner, StandardCharsets.UTF_8), playing);
+        return new RestoredState (workspace, destination, new String (owner, StandardCharsets.UTF_8), playing);
     }
 
 
@@ -204,12 +214,14 @@ final class PullControllerCore implements ControllerCore
 
     private CompiledWorkspace desiredWorkspace (final ControllerSnapshot snapshot)
     {
+        this.selection.observe (snapshot.bridge ().layout ());
+        final CompiledWorkspace selectedWorkspace = this.selectedWorkspace ();
         final String mode = snapshot.bridge ().layout ().modeId ();
         final boolean masterLayout = "MASTER".equals (mode) || "MASTER_TEMP".equals (mode);
         if (!masterLayout)
         {
             this.masterLayoutObserved = false;
-            return this.workspaces.get (this.selection.active ());
+            return selectedWorkspace;
         }
 
         if (!this.masterLayoutObserved)
@@ -217,7 +229,14 @@ final class PullControllerCore implements ControllerCore
             this.masterLayoutObserved = true;
             this.masterEntryWorkspaceRequest = this.selection.requestSequence ();
         }
-        return this.selection.requestSequence () == this.masterEntryWorkspaceRequest ? this.masterWorkspaces.get (this.selection.active ()) : this.workspaces.get (this.selection.active ());
+        return this.selection.requestSequence () == this.masterEntryWorkspaceRequest ? this.masterWorkspaces.get (this.selection.active ()) : selectedWorkspace;
+    }
+
+
+    private CompiledWorkspace selectedWorkspace ()
+    {
+        final WorkspaceSelection.Destination destination = this.selection.pendingDestination ();
+        return destination == WorkspaceSelection.Destination.NONE ? this.workspaces.get (this.selection.active ()) : this.destinationWorkspaces.get (destination);
     }
 
 
@@ -277,11 +296,11 @@ final class PullControllerCore implements ControllerCore
     }
 
 
-    private record RestoredState (WorkspaceSelection.Id workspace, String engineOwnerIdentity, boolean engineOwnerPlaying)
+    private record RestoredState (WorkspaceSelection.Id workspace, WorkspaceSelection.Destination destination, String engineOwnerIdentity, boolean engineOwnerPlaying)
     {
         private static RestoredState empty ()
         {
-            return new RestoredState (WorkspaceSelection.Id.DEFAULT, "", false);
+            return new RestoredState (WorkspaceSelection.Id.DEFAULT, WorkspaceSelection.Destination.NONE, "", false);
         }
     }
 }

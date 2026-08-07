@@ -204,7 +204,7 @@ bounded clip/session capability rather than remain a parallel feature-shaped API
 
 ### 4. Complete parameter-view migration and output
 
-API 22 installs named bounded parameter snapshots for active compatibility, project remote,
+API 23 installs named bounded parameter snapshots for active compatibility, project remote,
 selected-device remote, visible-track volume/pan, Master/Cue, and globals. Snapshots contain exact target
 identity, name, raw and modulated values, authoritative displayed value, step count, and tolerance;
 stable applies fenced absolute, relative-change, and reset effects. Project-macro relative input is
@@ -396,7 +396,7 @@ Add, in order:
 
 1. visible track bank;
 2. Session grid;
-3. remaining parameter-bank contexts beyond the API 22 named canopy.
+3. remaining parameter-bank contexts beyond the API 23 named canopy.
 
 Then migrate `WorkspaceMode` and `WorkspaceView` completely. Project-macro relative turns have
 already moved; automation touch, display output, track strips, Session, and Drum adapters remain

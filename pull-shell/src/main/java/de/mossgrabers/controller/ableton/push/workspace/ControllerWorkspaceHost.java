@@ -4,6 +4,7 @@
 package de.mossgrabers.controller.ableton.push.workspace;
 
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
+import de.mossgrabers.controller.ableton.push.view.SessionView;
 import de.mossgrabers.controller.ableton.push.view.WorkspaceView;
 import de.mossgrabers.framework.featuregroup.ModeManager;
 import de.mossgrabers.framework.featuregroup.ViewManager;
@@ -50,8 +51,9 @@ public final class ControllerWorkspaceHost
         if (candidate.sessionBankShape ().isPresent ())
         {
             this.surface.getSessionBankRegistry ().requireDeclared (candidate.sessionBankShape ());
-            if (!WorkspaceView.SESSION_BANK_SHAPE.equals (candidate.sessionBankShape ()))
-                throw new IllegalArgumentException ("Workspace grid adapter requires Session bank " + WorkspaceView.SESSION_BANK_SHAPE.tracks () + "x" + WorkspaceView.SESSION_BANK_SHAPE.scenes ());
+            final SessionBankShape expectedShape = candidate.facets ().contains (ControllerViewFacet.SESSION_GRID_FULL) ? SessionView.SESSION_BANK_SHAPE : WorkspaceView.SESSION_BANK_SHAPE;
+            if (!expectedShape.equals (candidate.sessionBankShape ()))
+                throw new IllegalArgumentException ("Selected Session view requires bank " + expectedShape.tracks () + "x" + expectedShape.scenes ());
         }
         return candidate;
     }
@@ -64,6 +66,8 @@ public final class ControllerWorkspaceHost
             throw new IllegalArgumentException ("Upper Session scene keys require the upper Session clip grid");
         if (candidate.facets ().contains (ControllerViewFacet.DRUM_PITCH_BEND) && !candidate.facets ().contains (ControllerViewFacet.DRUM_CONTROLLER_LOWER))
             throw new IllegalArgumentException ("Drum pitch bend requires the lower Drum controller");
+        if (candidate.facets ().contains (ControllerViewFacet.SESSION_CLIP_GRID_UPPER) && candidate.facets ().contains (ControllerViewFacet.SESSION_GRID_FULL))
+            throw new IllegalArgumentException ("Upper and full Session views cannot be active together");
         ControllerPageLease.validate (candidate);
         return candidate;
     }
@@ -78,7 +82,10 @@ public final class ControllerWorkspaceHost
     {
         final DesiredControllerWorkspace next = this.prepare (workspace);
         if (next.equals (this.desiredWorkspace))
+        {
+            this.reconcileDesiredAdapters (next);
             return;
+        }
 
         final DesiredControllerWorkspace previous = this.desiredWorkspace;
         final boolean hadGrid = usesGridAdapter (previous);
@@ -96,26 +103,14 @@ public final class ControllerWorkspaceHost
         if (!hadGrid && wantsGrid)
             this.previousView = viewManager.getActiveID ();
 
-        if (wantsGrid)
-        {
-            viewManager.setActive (Views.WORKSPACE);
-            if (!(viewManager.getActive () instanceof final WorkspaceFacetAdapter adapter))
-                throw new IllegalStateException ("Workspace grid adapter is not registered");
-            adapter.reconcileWorkspaceFacets ();
-        }
-        else if (hadGrid)
+        if (!wantsGrid && hadGrid)
         {
             if (viewManager.isActive (Views.WORKSPACE) && this.previousView != null)
                 viewManager.setActive (this.previousView);
             this.previousView = null;
         }
 
-        if (usesWorkspaceModeAdapter (next))
-        {
-            if (!(modeManager.getActive () instanceof final WorkspaceFacetAdapter adapter))
-                throw new IllegalStateException ("Workspace mode adapter is not registered");
-            adapter.reconcileWorkspaceFacets ();
-        }
+        this.reconcileDesiredAdapters (next);
     }
 
 
@@ -164,12 +159,50 @@ public final class ControllerWorkspaceHost
 
     private static boolean usesGridAdapter (final DesiredControllerWorkspace workspace)
     {
-        return workspace.facets ().contains (ControllerViewFacet.SESSION_CLIP_GRID_UPPER) || workspace.facets ().contains (ControllerViewFacet.SESSION_SCENE_KEYS_UPPER) || workspace.facets ().contains (ControllerViewFacet.DRUM_CONTROLLER_LOWER);
+        return desiredGridView (workspace) != null;
+    }
+
+
+    static Views desiredGridView (final DesiredControllerWorkspace workspace)
+    {
+        final DesiredControllerWorkspace checked = Objects.requireNonNull (workspace, "workspace");
+        if (checked.facets ().contains (ControllerViewFacet.SESSION_GRID_FULL))
+            return Views.SESSION;
+        if (checked.facets ().contains (ControllerViewFacet.SESSION_CLIP_GRID_UPPER) || checked.facets ().contains (ControllerViewFacet.SESSION_SCENE_KEYS_UPPER) || checked.facets ().contains (ControllerViewFacet.DRUM_CONTROLLER_LOWER))
+            return Views.WORKSPACE;
+        return null;
     }
 
 
     private static boolean usesWorkspaceModeAdapter (final DesiredControllerWorkspace workspace)
     {
         return workspace.facets ().contains (ControllerViewFacet.PROJECT_MACRO_CONTROLS) || workspace.facets ().contains (ControllerViewFacet.TRACK_SELECTION_STRIP);
+    }
+
+
+    private void reconcileDesiredAdapters (final DesiredControllerWorkspace workspace)
+    {
+        final ViewManager viewManager = this.surface.getViewManager ();
+        final ModeManager modeManager = this.surface.getModeManager ();
+        this.pageLease.reconcile (workspace, modeManager);
+
+        final Views gridView = desiredGridView (workspace);
+        if (gridView != null)
+        {
+            viewManager.setActive (gridView);
+            if (gridView == Views.WORKSPACE)
+            {
+                if (!(viewManager.getActive () instanceof final WorkspaceFacetAdapter adapter))
+                    throw new IllegalStateException ("Workspace grid adapter is not registered");
+                adapter.reconcileWorkspaceFacets ();
+            }
+        }
+
+        if (usesWorkspaceModeAdapter (workspace))
+        {
+            if (!(modeManager.getActive () instanceof final WorkspaceFacetAdapter adapter))
+                throw new IllegalStateException ("Workspace mode adapter is not registered");
+            adapter.reconcileWorkspaceFacets ();
+        }
     }
 }

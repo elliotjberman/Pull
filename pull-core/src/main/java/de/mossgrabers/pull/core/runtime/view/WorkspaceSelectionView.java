@@ -95,14 +95,22 @@ public final class WorkspaceSelectionView implements ControllerView
     public ResolvedControllerAction resolveAction (final ControllerActionBinding binding, final ControllerInputEvent input, final ControllerSnapshot snapshot)
     {
         final WorkspaceSelection.Id target;
+        final WorkspaceSelection.Destination destination;
         if (SESSION_BUTTON.equals (input.controlId ()))
-            target = snapshot.pressedControls ().contains (SHIFT_BUTTON) ? WorkspaceSelection.Id.VS_LIVE : WorkspaceSelection.Id.DEFAULT;
+        {
+            final boolean shifted = snapshot.pressedControls ().contains (SHIFT_BUTTON);
+            target = shifted ? WorkspaceSelection.Id.VS_LIVE : WorkspaceSelection.Id.DEFAULT;
+            destination = shifted ? WorkspaceSelection.Destination.NONE : WorkspaceSelection.Destination.SESSION;
+        }
         else if (NOTE_BUTTON.equals (input.controlId ()))
+        {
             target = WorkspaceSelection.Id.DEFAULT;
+            destination = WorkspaceSelection.Destination.NOTE;
+        }
         else
             throw new IllegalArgumentException ("Unsupported workspace action input " + input.controlId ());
         return ResolvedControllerAction.of (binding.intent (), () -> {
-            this.selection.select (target);
+            this.selection.select (target, destination);
             return List.of ();
         });
     }

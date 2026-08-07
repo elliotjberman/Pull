@@ -57,6 +57,7 @@ import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
 import de.mossgrabers.pull.core.api.output.PadGridPosition;
 import de.mossgrabers.pull.core.api.output.DisplayCommand;
 import de.mossgrabers.pull.core.runtime.PullCoreProvider;
+import de.mossgrabers.pull.core.runtime.view.StableDestinationWorkspace;
 import de.mossgrabers.pull.core.runtime.view.VsLiveWorkspace;
 
 import org.junit.jupiter.api.Test;
@@ -771,6 +772,12 @@ class PullControllerCoreTest
 
         host.controllerButton (SESSION_BUTTON, true);
 
+        assertStableSessionDestination (host.effects ().desiredControllerWorkspace ());
+
+        host.bridge (layoutBridge ("SESSION", "MASTER"));
+        assertStableSessionDestination (host.effects ().desiredControllerWorkspace ());
+
+        host.bridge (layoutBridge ("SESSION", "TRACK"));
         assertEquals (DesiredControllerWorkspace.empty (), host.effects ().desiredControllerWorkspace ());
     }
 
@@ -887,6 +894,9 @@ class PullControllerCoreTest
 
         host.controllerButton (SESSION_BUTTON, true);
 
+        assertStableSessionDestination (host.effects ().desiredControllerWorkspace ());
+
+        host.bridge (layoutBridge ("SESSION", "TRACK"));
         assertEquals (DesiredControllerWorkspace.empty (), host.effects ().desiredControllerWorkspace ());
     }
 
@@ -899,6 +909,8 @@ class PullControllerCoreTest
 
         enterVsLive (host);
         host.controllerButton (SESSION_BUTTON, true);
+        assertStableSessionDestination (host.effects ().desiredControllerWorkspace ());
+        host.bridge (layoutBridge ("SESSION", "TRACK"));
         assertEquals (DesiredControllerWorkspace.empty (), host.effects ().desiredControllerWorkspace ());
 
         host.controllerButton (SESSION_BUTTON, false);
@@ -924,6 +936,24 @@ class PullControllerCoreTest
         restored.start (Optional.of (first.checkpoint ()));
 
         assertVsLive (restored.effects ().desiredControllerWorkspace ());
+    }
+
+
+    @Test
+    void checkpointReplaysAnUnacknowledgedSessionDestinationView ()
+    {
+        final FakeCoreHost first = host (ClipCatalogSnapshot.empty ());
+        first.start (Optional.empty ());
+        enterVsLive (first);
+        first.controllerButton (SESSION_BUTTON, true);
+
+        final PullCoreProvider provider = new PullCoreProvider ();
+        final FakeCoreHost restored = new FakeCoreHost (provider.create (), provider.descriptor ().requiredCapabilities ());
+        restored.start (Optional.of (first.checkpoint ()));
+
+        assertStableSessionDestination (restored.effects ().desiredControllerWorkspace ());
+        restored.bridge (layoutBridge ("SESSION", "TRACK"));
+        assertEquals (DesiredControllerWorkspace.empty (), restored.effects ().desiredControllerWorkspace ());
     }
 
 
@@ -954,6 +984,10 @@ class PullControllerCoreTest
 
         host.controllerButton (NOTE_BUTTON, true);
 
+        assertEquals (Set.of (ControllerViewFacet.TRACK_MIXER_PAGE), host.effects ().desiredControllerWorkspace ().facets ());
+        host.bridge (layoutBridge ("DRUM_PAD", "WORKSPACE"));
+        assertEquals (Set.of (ControllerViewFacet.TRACK_MIXER_PAGE), host.effects ().desiredControllerWorkspace ().facets ());
+        host.bridge (layoutBridge ("DRUM_PAD", "TRACK"));
         assertEquals (DesiredControllerWorkspace.empty (), host.effects ().desiredControllerWorkspace ());
     }
 
@@ -1078,6 +1112,17 @@ class PullControllerCoreTest
     }
 
 
+    private static ControllerBridgeSnapshot layoutBridge (final String view, final String mode)
+    {
+        return new ControllerBridgeSnapshot (
+            TransportSnapshot.empty (),
+            SelectedTrackSnapshot.empty (),
+            new ControllerLayoutSnapshot (view, mode, false, false, 0, GridPressureConfiguration.OFF),
+            de.mossgrabers.pull.core.api.DrumContextSnapshot.empty (),
+            ParameterBridgeSnapshot.empty ());
+    }
+
+
     private static ControllerBridgeSnapshot masterBridge (final boolean canPrevious, final boolean canNext, final boolean pending)
     {
         return masterBridge (canPrevious, canNext, pending, true);
@@ -1143,6 +1188,14 @@ class PullControllerCoreTest
             ControllerViewFacet.SESSION_SCENE_KEYS_UPPER,
             ControllerViewFacet.DRUM_CONTROLLER_LOWER,
             ControllerViewFacet.DRUM_PITCH_BEND), workspace.facets ());
+    }
+
+
+    private static void assertStableSessionDestination (final DesiredControllerWorkspace workspace)
+    {
+        assertEquals ("Session destination", workspace.name ());
+        assertEquals (StableDestinationWorkspace.SESSION_BANK, workspace.sessionBankShape ());
+        assertEquals (Set.of (ControllerViewFacet.TRACK_MIXER_PAGE, ControllerViewFacet.SESSION_GRID_FULL), workspace.facets ());
     }
 
 

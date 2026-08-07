@@ -16,9 +16,6 @@ import java.util.Objects;
  */
 final class ControllerPageLease
 {
-    private Modes stableBaseline;
-
-
     /** Apply one complete desired page transition. */
     void apply (final DesiredControllerWorkspace previous, final DesiredControllerWorkspace next, final ModeManager modes)
     {
@@ -27,19 +24,23 @@ final class ControllerPageLease
         if (previousPage == nextPage)
             return;
 
-        if (previousPage == Page.STABLE)
-            this.stableBaseline = baselineBefore (nextPage, modes);
+        if (nextPage == Page.STABLE)
+            releaseToStableMode (modes);
+        else
+            reconcile (next, modes);
+    }
 
-        switch (nextPage)
+
+    /** Reassert an explicit desired page until controller-layout read-back acknowledges it. */
+    void reconcile (final DesiredControllerWorkspace workspace, final ModeManager modes)
+    {
+        switch (page (workspace))
         {
             case WORKSPACE -> modes.setActive (Modes.WORKSPACE);
-            case MASTER -> {
-                // The permanent Master binding enters the inherited mode before its authoritative
-                // layout read-back selects the core Master page. Do not replay that command here.
-            }
+            case MASTER -> modes.setActive (Modes.MASTER);
+            case TRACK_MIXER -> modes.setActive (Modes.TRACK);
             case STABLE -> {
-                modes.setActive (this.stableBaseline);
-                this.stableBaseline = null;
+                // Stable owns the page after an explicit destination lease has been acknowledged.
             }
         }
     }
@@ -52,10 +53,11 @@ final class ControllerPageLease
     }
 
 
-    private static Modes baselineBefore (final Page nextPage, final ModeManager modes)
+    private static void releaseToStableMode (final ModeManager modes)
     {
-        final Modes candidate = nextPage == Page.MASTER && Modes.isMasterMode (modes.getActiveID ()) ? modes.getPreviousID () : modes.getActiveIDIgnoreTemporary ();
-        return candidate == Modes.WORKSPACE || Modes.isMasterMode (candidate) ? null : candidate;
+        // Fault/invalidation fallback only. Normal exits select an explicit destination page first.
+        if (modes.isActive (Modes.WORKSPACE, Modes.MASTER, Modes.MASTER_TEMP))
+            modes.setActive (Modes.TRACK);
     }
 
 
@@ -63,10 +65,12 @@ final class ControllerPageLease
     {
         final DesiredControllerWorkspace checked = Objects.requireNonNull (workspace, "workspace");
         final boolean master = checked.facets ().contains (ControllerViewFacet.MASTER_CONTROLS);
+        final boolean trackMixer = checked.facets ().contains (ControllerViewFacet.TRACK_MIXER_PAGE);
         final boolean workspaceMode = checked.facets ().contains (ControllerViewFacet.PROJECT_MACRO_CONTROLS) || checked.facets ().contains (ControllerViewFacet.TRACK_SELECTION_STRIP);
-        if (master && workspaceMode)
-            throw new IllegalArgumentException ("Master and workspace-mode page facets cannot be active together");
-        return master ? Page.MASTER : workspaceMode ? Page.WORKSPACE : Page.STABLE;
+        final int pageCount = (master ? 1 : 0) + (trackMixer ? 1 : 0) + (workspaceMode ? 1 : 0);
+        if (pageCount > 1)
+            throw new IllegalArgumentException ("Only one controller page view can be active");
+        return master ? Page.MASTER : trackMixer ? Page.TRACK_MIXER : workspaceMode ? Page.WORKSPACE : Page.STABLE;
     }
 
 
@@ -74,6 +78,7 @@ final class ControllerPageLease
     {
         STABLE,
         WORKSPACE,
-        MASTER
+        MASTER,
+        TRACK_MIXER
     }
 }

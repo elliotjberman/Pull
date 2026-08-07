@@ -1,6 +1,6 @@
 # Views API and Composite Workspaces
 
-Status: design contract. Checkpoints 1 and 2 are structurally implemented through Core API 22. The
+Status: design contract. Checkpoints 1 and 2 are structurally implemented through Core API 23. The
 remaining stable-adapter boundary is represented explicitly in claims and recorded in
 [`../ARCH.md`](../ARCH.md). The checkpoints remain below so code, offline tests, and Push hardware
 tests can be compared against the intended end state.
@@ -209,11 +209,13 @@ state in the checkpoint envelope. A rejected candidate leaves the prior generati
 
 The stable adapter realizes page and grid facets as independent leases. A page overlay such as
 Master may replace the encoder/display page while retaining the selected workspace's grid facets;
-it must not select a different Bitwig track merely to activate the inherited display mode. The
-page lease retains the concrete stable page that preceded a composed workspace and restores that
-page when the core returns an empty workspace. Grid restoration has its own baseline. In
-particular, an empty workspace means "release every core facet" rather than "leave the inherited
-mode on the facet-only WORKSPACE adapter".
+it must not select a different Bitwig track merely to activate the inherited display mode.
+Transitions back to stable layouts are also views, not shell history: plain Session compiles
+`TrackMixerPageView` with `FullSessionView`, and Note compiles `TrackMixerPageView` around the
+stable preferred-note command. Core holds those destination facets until the authoritative layout
+snapshot reports the requested mode/view, then releases them without changing the realized stable
+layout. An empty workspace therefore means only "release every core facet"; it does not choose or
+restore a destination.
 
 ## Implementation Checkpoints
 
@@ -260,11 +262,13 @@ The first version is deliberately a Java-defined configuration and a hardcoded e
 proves that fixed views compose correctly before configuration parsing or dynamic negotiation is
 added.
 
-Plain **Session** exits to ordinary Session, while **Note** exits through the existing preferred
-note-view selection. Those controls are observed by core so the stable command chooses the legacy
-destination first and the same core transaction then releases workspace ownership. Stable code
-must not synchronously force the workspace from generic mode/view change listeners; that would race
-the exit command and make the complete desired state fight its own transition.
+Plain **Session** exits through an explicit destination workspace containing the Track/Mix page and
+the complete `8x8` Session view. **Note** uses an explicit Track/Mix page view around the existing
+preferred-note command because the selected target determines its stable note view. Core holds
+these destination views until controller-layout read-back acknowledges their requested stable
+mode/view; command submission alone does not release ownership. Stable code must not force the
+workspace from generic mode/view change listeners or recover a destination from previous-mode
+history.
 
 The stable API addition for this checkpoint is limited to one complete
 `DesiredControllerWorkspace`: a name plus a set of known fixed-facet IDs. `VS Live`, its selected
