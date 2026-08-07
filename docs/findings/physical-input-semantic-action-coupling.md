@@ -43,6 +43,12 @@ This removes the core-side physical navigation table. It does not yet satisfy th
 
 - The Master page now owns its encoder turns and both button rows in core, including exact
   project-identity payloads for project navigation, file actions, and absolute engine state.
+- The permanent Master binding remains temporarily necessary for its unbridged long-press Frame
+  variant. While a composed core workspace is active, its short press is a page-only compatibility
+  adapter: it activates Master without selecting Bitwig's master track. `ControllerPageLease`
+  retains the concrete stable page independently from grid ownership across
+  `VS Live -> Master -> Session`, so releasing core facets restores Track rather than the
+  facet-only WORKSPACE adapter.
 - Play is a core-exclusive edge with an inert stable command. Core retains the engine-owning
   project identity and emits exact project-navigation and project-transport payloads; stable only
   validates the live project identity and applies the current-document proxy operation.

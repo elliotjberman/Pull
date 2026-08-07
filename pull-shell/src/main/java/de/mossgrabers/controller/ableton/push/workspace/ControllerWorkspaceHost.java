@@ -7,7 +7,6 @@ import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.view.WorkspaceView;
 import de.mossgrabers.framework.featuregroup.ModeManager;
 import de.mossgrabers.framework.featuregroup.ViewManager;
-import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.view.Views;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
@@ -22,10 +21,10 @@ import java.util.Objects;
 public final class ControllerWorkspaceHost
 {
     private final PushControlSurface surface;
+    private final ControllerPageLease pageLease = new ControllerPageLease ();
 
     private DesiredControllerWorkspace desiredWorkspace = DesiredControllerWorkspace.empty ();
     private Views previousView;
-    private Modes previousMode;
 
 
     /**
@@ -65,6 +64,7 @@ public final class ControllerWorkspaceHost
             throw new IllegalArgumentException ("Upper Session scene keys require the upper Session clip grid");
         if (candidate.facets ().contains (ControllerViewFacet.DRUM_PITCH_BEND) && !candidate.facets ().contains (ControllerViewFacet.DRUM_CONTROLLER_LOWER))
             throw new IllegalArgumentException ("Drum pitch bend requires the lower Drum controller");
+        ControllerPageLease.validate (candidate);
         return candidate;
     }
 
@@ -82,9 +82,7 @@ public final class ControllerWorkspaceHost
 
         final DesiredControllerWorkspace previous = this.desiredWorkspace;
         final boolean hadGrid = usesGridAdapter (previous);
-        final boolean hadMode = usesModeAdapter (previous);
         final boolean wantsGrid = usesGridAdapter (next);
-        final boolean wantsMode = usesModeAdapter (next);
 
         this.desiredWorkspace = next;
         if (next.sessionBankShape ().isPresent ())
@@ -93,12 +91,10 @@ public final class ControllerWorkspaceHost
             this.surface.getSessionBankRegistry ().restoreDefault ();
         final ViewManager viewManager = this.surface.getViewManager ();
         final ModeManager modeManager = this.surface.getModeManager ();
-        restoreStableModeWhenLeavingMaster (previous, next, modeManager);
+        this.pageLease.apply (previous, next, modeManager);
 
         if (!hadGrid && wantsGrid)
             this.previousView = viewManager.getActiveID ();
-        if (!hadMode && wantsMode)
-            this.previousMode = modeManager.getActiveID ();
 
         if (wantsGrid)
         {
@@ -114,31 +110,12 @@ public final class ControllerWorkspaceHost
             this.previousView = null;
         }
 
-        if (wantsMode)
+        if (usesWorkspaceModeAdapter (next))
         {
-            modeManager.setActive (Modes.WORKSPACE);
             if (!(modeManager.getActive () instanceof final WorkspaceFacetAdapter adapter))
                 throw new IllegalStateException ("Workspace mode adapter is not registered");
             adapter.reconcileWorkspaceFacets ();
         }
-        else if (hadMode)
-        {
-            if (modeManager.isActive (Modes.WORKSPACE) && this.previousMode != null)
-                modeManager.setActive (this.previousMode);
-            this.previousMode = null;
-        }
-    }
-
-
-    static void restoreStableModeWhenLeavingMaster (final DesiredControllerWorkspace previous, final DesiredControllerWorkspace next, final ModeManager modes)
-    {
-        final boolean leavingMaster = previous.facets ().contains (ControllerViewFacet.MASTER_CONTROLS) && !next.facets ().contains (ControllerViewFacet.MASTER_CONTROLS);
-        if (!leavingMaster || !modes.isActive (Modes.MASTER, Modes.MASTER_TEMP))
-            return;
-
-        modes.restore ();
-        if (modes.isActive (Modes.MASTER, Modes.MASTER_TEMP))
-            modes.setActive (null);
     }
 
 
@@ -191,7 +168,7 @@ public final class ControllerWorkspaceHost
     }
 
 
-    private static boolean usesModeAdapter (final DesiredControllerWorkspace workspace)
+    private static boolean usesWorkspaceModeAdapter (final DesiredControllerWorkspace workspace)
     {
         return workspace.facets ().contains (ControllerViewFacet.PROJECT_MACRO_CONTROLS) || workspace.facets ().contains (ControllerViewFacet.TRACK_SELECTION_STRIP);
     }

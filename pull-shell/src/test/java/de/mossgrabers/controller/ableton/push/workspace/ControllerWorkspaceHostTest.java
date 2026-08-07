@@ -53,22 +53,44 @@ class ControllerWorkspaceHostTest
 
 
     @Test
-    void leavingTheMasterFacetRestoresThePriorStableMode ()
+    void masterPagePreservesTheStableBaselineAcrossAWorkspaceGrid ()
     {
         final ModeManager modes = new ModeManager ();
         modes.register (Modes.TRACK, mode ());
+        modes.register (Modes.WORKSPACE, mode ());
         modes.register (Modes.MASTER, mode ());
         modes.setDefaultID (Modes.TRACK);
         modes.setActive (Modes.TRACK);
-        modes.setActive (Modes.MASTER);
+        final ControllerPageLease lease = new ControllerPageLease ();
+        final DesiredControllerWorkspace vsLive = new DesiredControllerWorkspace (
+            "VS Live",
+            Set.of (ControllerViewFacet.PROJECT_MACRO_CONTROLS),
+            SessionBankShape.empty ());
         final DesiredControllerWorkspace master = new DesiredControllerWorkspace (
             "Master",
             Set.of (ControllerViewFacet.MASTER_CONTROLS),
             SessionBankShape.empty ());
 
-        ControllerWorkspaceHost.restoreStableModeWhenLeavingMaster (master, DesiredControllerWorkspace.empty (), modes);
+        lease.apply (DesiredControllerWorkspace.empty (), vsLive, modes);
+        assertEquals (Modes.WORKSPACE, modes.getActiveID ());
+
+        modes.setActive (Modes.MASTER);
+        lease.apply (vsLive, master, modes);
+        assertEquals (Modes.MASTER, modes.getActiveID ());
+
+        lease.apply (master, DesiredControllerWorkspace.empty (), modes);
 
         assertEquals (Modes.TRACK, modes.getActiveID ());
+    }
+
+
+    @Test
+    void rejectsTwoPageAdaptersInOneWorkspace ()
+    {
+        assertThrows (IllegalArgumentException.class, () -> ControllerWorkspaceHost.validate (new DesiredControllerWorkspace (
+            "ambiguous page",
+            Set.of (ControllerViewFacet.MASTER_CONTROLS, ControllerViewFacet.PROJECT_MACRO_CONTROLS),
+            SessionBankShape.empty ())));
     }
 
 

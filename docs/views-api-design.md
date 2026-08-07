@@ -207,6 +207,14 @@ Activation is transactional. The candidate workspace compiles and renders a comp
 result before it replaces the active workspace. Reload captures the active workspace ID and view
 state in the checkpoint envelope. A rejected candidate leaves the prior generation active.
 
+The stable adapter realizes page and grid facets as independent leases. A page overlay such as
+Master may replace the encoder/display page while retaining the selected workspace's grid facets;
+it must not select a different Bitwig track merely to activate the inherited display mode. The
+page lease retains the concrete stable page that preceded a composed workspace and restores that
+page when the core returns an empty workspace. Grid restoration has its own baseline. In
+particular, an empty workspace means "release every core facet" rather than "leave the inherited
+mode on the facet-only WORKSPACE adapter".
+
 ## Implementation Checkpoints
 
 ### Checkpoint 1: Behavior-Preserving View Runtime

@@ -13,6 +13,9 @@ import de.mossgrabers.framework.featuregroup.ModeManager;
 import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.utils.ButtonEvent;
 
+import java.util.Objects;
+import java.util.function.BooleanSupplier;
+
 
 /**
  * Command to display the master mode.
@@ -21,7 +24,10 @@ import de.mossgrabers.framework.utils.ButtonEvent;
  */
 public class MastertrackCommand extends AbstractTriggerCommand<PushControlSurface, PushConfiguration>
 {
+    private final BooleanSupplier pageOnlyMaster;
+
     private boolean quitMasterMode                = false;
+    private boolean selectedMasterTrack           = false;
     private int     selectedTrackBeforeMasterMode = -1;
 
 
@@ -33,7 +39,14 @@ public class MastertrackCommand extends AbstractTriggerCommand<PushControlSurfac
      */
     public MastertrackCommand (final IModel model, final PushControlSurface surface)
     {
+        this (model, surface, () -> surface.getControllerWorkspaceHost ().isActive ());
+    }
+
+
+    MastertrackCommand (final IModel model, final PushControlSurface surface, final BooleanSupplier pageOnlyMaster)
+    {
         super (model, surface);
+        this.pageOnlyMaster = Objects.requireNonNull (pageOnlyMaster, "pageOnlyMaster");
     }
 
 
@@ -74,14 +87,20 @@ public class MastertrackCommand extends AbstractTriggerCommand<PushControlSurfac
 
         if (Modes.MASTER.equals (modeManager.getActiveID ()))
         {
-            if (this.selectedTrackBeforeMasterMode >= 0)
+            if (this.selectedMasterTrack && this.selectedTrackBeforeMasterMode >= 0)
                 this.model.getCurrentTrackBank ().getItem (this.selectedTrackBeforeMasterMode).select ();
+            else if (!this.selectedMasterTrack)
+                modeManager.restore ();
+            this.selectedMasterTrack = false;
+            this.selectedTrackBeforeMasterMode = -1;
             return;
         }
 
-        modeManager.setActive (Modes.MASTER);
-        this.model.getMasterTrack ().select ();
         final ITrack cursorTrack = this.model.getCursorTrack ();
         this.selectedTrackBeforeMasterMode = cursorTrack.doesExist () ? cursorTrack.getIndex () : -1;
+        modeManager.setActive (Modes.MASTER);
+        this.selectedMasterTrack = !this.pageOnlyMaster.getAsBoolean ();
+        if (this.selectedMasterTrack)
+            this.model.getMasterTrack ().select ();
     }
 }
