@@ -758,7 +758,7 @@ class PullControllerCoreTest
         host.bridge (bridgeWithPressure (GridPressureConfiguration.OFF, 0));
         host.bridge (masterBridge (true, true, false));
 
-        assertEquals (Set.of (ControllerViewFacet.MASTER_CONTROLS), host.effects ().desiredControllerWorkspace ().facets ());
+        assertMasterOverVsLive (host.effects ().desiredControllerWorkspace ());
     }
 
 
@@ -772,6 +772,32 @@ class PullControllerCoreTest
         host.controllerButton (SESSION_BUTTON, true);
 
         assertEquals (DesiredControllerWorkspace.empty (), host.effects ().desiredControllerWorkspace ());
+    }
+
+
+    @Test
+    void enteringMasterFromVsLivePreservesOnlyTheVsLiveGridOwnership ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        enterVsLive (host);
+
+        host.bridge (masterBridge (true, true, false));
+
+        assertMasterOverVsLive (host.effects ().desiredControllerWorkspace ());
+    }
+
+
+    private static void assertMasterOverVsLive (final DesiredControllerWorkspace workspace)
+    {
+        assertEquals (VsLiveWorkspace.SESSION_BANK, workspace.sessionBankShape ());
+        assertEquals (Set.of (
+            ControllerViewFacet.MASTER_CONTROLS,
+            ControllerViewFacet.SESSION_NAVIGATION,
+            ControllerViewFacet.SESSION_CLIP_GRID_UPPER,
+            ControllerViewFacet.SESSION_SCENE_KEYS_UPPER,
+            ControllerViewFacet.DRUM_CONTROLLER_LOWER,
+            ControllerViewFacet.DRUM_PITCH_BEND), workspace.facets ());
     }
 
 

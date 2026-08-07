@@ -43,7 +43,7 @@ final class PullControllerCore implements ControllerCore
     private Map<WorkspaceSelection.Id, CompiledWorkspace> workspaces = Map.of ();
     private WorkspaceSelection                             selection;
     private CompiledWorkspace                              workspace;
-    private CompiledWorkspace                              masterWorkspace;
+    private Map<WorkspaceSelection.Id, CompiledWorkspace> masterWorkspaces = Map.of ();
     private ProjectPlaybackCoordinator                     playbackCoordinator;
     private boolean                                        masterLayoutObserved;
     private long                                           masterEntryWorkspaceRequest;
@@ -68,7 +68,10 @@ final class PullControllerCore implements ControllerCore
         compiled.put (WorkspaceSelection.Id.DEFAULT, DefaultWorkspace.create (this.selection, this.playbackCoordinator));
         compiled.put (WorkspaceSelection.Id.VS_LIVE, VsLiveWorkspace.create (this.selection, this.playbackCoordinator));
         this.workspaces = Map.copyOf (compiled);
-        this.masterWorkspace = MasterWorkspace.create (this.selection, this.playbackCoordinator);
+        final Map<WorkspaceSelection.Id, CompiledWorkspace> compiledMaster = new EnumMap<> (WorkspaceSelection.Id.class);
+        for (final WorkspaceSelection.Id background: WorkspaceSelection.Id.values ())
+            compiledMaster.put (background, MasterWorkspace.create (this.selection, this.playbackCoordinator, background));
+        this.masterWorkspaces = Map.copyOf (compiledMaster);
         this.workspace = this.desiredWorkspace (snapshot);
         this.lifecycle = Lifecycle.RUNNING;
         this.snapback.start (snapshot);
@@ -214,7 +217,7 @@ final class PullControllerCore implements ControllerCore
             this.masterLayoutObserved = true;
             this.masterEntryWorkspaceRequest = this.selection.requestSequence ();
         }
-        return this.selection.requestSequence () == this.masterEntryWorkspaceRequest ? this.masterWorkspace : this.workspaces.get (this.selection.active ());
+        return this.selection.requestSequence () == this.masterEntryWorkspaceRequest ? this.masterWorkspaces.get (this.selection.active ()) : this.workspaces.get (this.selection.active ());
     }
 
 
