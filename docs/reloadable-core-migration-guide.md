@@ -27,22 +27,28 @@ write hardware output                             retain reloadable feature stat
 
 Read `AGENTS.md` before changing code. In particular:
 
-1. A press is a request, not proof that Bitwig changed. Render later authoritative read-back.
-2. Do not let a fake synchronously apply an effect and then call that read-back.
-3. A migrated input has one semantic implementation. Its stable command becomes inert; there is no
+1. No new or changed product semantics may be implemented in `pull-shell`. This includes mappings,
+   modifiers, gestures, navigation recipes, view/workspace selection, colors, light meaning,
+   display layout, and animation.
+2. Missing canopy coverage requires a reusable Class-B capability expansion or a Class-C stop; it
+   never authorizes a temporary stable implementation.
+3. A press is a request, not proof that Bitwig changed. Render later authoritative read-back.
+4. Do not let a fake synchronously apply an effect and then call that read-back.
+5. A migrated input has one semantic implementation. Its stable command becomes inert; there is no
    missing-core fallback implementation.
-4. Migrate every modifier, long-press, touch, release, and mode-dependent variant before requesting
-   `EXCLUSIVE` ownership. Otherwise keep the input observed or leave it stable-owned.
-5. Keep permanent hardware bindings, Bitwig objects, observers, actuator pools, effect execution,
+6. Migrate every modifier, long-press, touch, release, and mode-dependent variant before requesting
+   `EXCLUSIVE` ownership. Otherwise defer the migration and leave the existing stable behavior
+   unchanged; do not add the requested semantics there.
+7. Keep permanent hardware bindings, Bitwig objects, observers, actuator pools, effect execution,
    generation fencing, and class loading in the shell.
-6. Do not pass `IModel`, `PushControlSurface`, modes, views, or other shell/framework objects into
+8. Do not pass `IModel`, `PushControlSurface`, modes, views, or other shell/framework objects into
    the core.
-7. Reuse an installed snapshot, effect, input, and output capability when it is sufficient. Do not
+9. Reuse an installed snapshot, effect, input, and output capability when it is sufficient. Do not
    add feature-shaped API fields as a shortcut.
-8. A new parent-loaded DTO, effect, subscription, Bitwig proxy/property, exclusive-control
+10. A new parent-loaded DTO, effect, subscription, Bitwig proxy/property, exclusive-control
    admission, or output lane requires a shell build/install and Bitwig restart.
-9. A behavior change composed only from installed capabilities requires only a core reload.
-10. Direct Bitwig API changes must use controller API 21, avoid deprecated calls, and pass the full
+11. A behavior change composed only from installed capabilities requires only a core reload.
+12. Direct Bitwig API changes must use controller API 21, avoid deprecated calls, and pass the full
     package build with deprecation reporting.
 
 ## The migration decision
@@ -74,23 +80,30 @@ effect, and output surface is installed. Implement and test entirely in `pull-co
 
 The behavior is conceptually reloadable, but one stable resource, executor, exclusive route, or
 output lane is missing. Add the smallest reusable capability to `pull-core-api` and `pull-shell`,
-install/restart once, then put all semantic policy in `pull-core`.
+put all semantic policy in `pull-core` in the same vertical slice, then install/restart once.
 
 The capability must be reusable. Prefer `VISIBLE_TRACK_BANK` over `TrackSelectionStripState`, and
 prefer a generic button-light output lane over `PlayButtonLight`.
+
+Do not narrow scope by leaving a semantic part of the requested behavior in stable code. A stable
+adapter may remain only for a separate surface the request does not touch. A control's action and
+feedback are one semantic slice and migrate together.
 
 ### Class C: Not ready as one migration
 
 The legacy command combines variants that require several missing capability families. Split the
 work at a real semantic boundary, or first land the shared canopy capability. Do not claim
-exclusive ownership of only the easy branch.
+exclusive ownership of only the easy branch, and do not implement the feature in stable while
+waiting for the missing capabilities.
 
 ## Repeatable implementation workflow
 
 ### 1. Trace the complete legacy behavior
 
 Start from its permanent registration in `PushControllerSetup`, then inspect the complete command,
-mode, view, light supplier, and configuration paths it invokes.
+mode, view, light supplier, display/grid renderer, and configuration paths it invokes. Use this
+audit for every behavior change, including a small visual fix in an inherited stable view; do not
+reserve it only for tasks explicitly called migrations.
 
 Record behavior by input phase and modifier. Do not infer behavior from the class name.
 
@@ -116,6 +129,10 @@ Add or reuse a `SurfaceArea`. The view declares:
 - `OUTPUT` only when the shell already provides complete output arbitration for that surface;
 - the minimum `BridgeSubscription` set needed for authoritative state.
 
+If the requested behavior changes an output surface that lacks complete arbitration, stop this
+step and add a reusable output lane as Class B. Do not edit the stable renderer to produce the new
+meaning.
+
 The complete workspace compiler derives replayable input routes and subscriptions from these
 claims. Do not mutate routing imperatively.
 
@@ -138,10 +155,10 @@ For an exclusively migrated control:
 
 1. Keep its permanent hardware registration.
 2. Replace the stable semantic command with an inert command.
-3. Keep a stable light supplier temporarily if it already renders authoritative Bitwig state and
-   output ownership has not migrated.
-4. Add only that exact control-and-kind pair to the shell's exclusive admission set.
-5. Remove the obsolete stable command class if it has no remaining references.
+3. Add only that exact control-and-kind pair to the shell's exclusive admission set.
+4. If the control has feedback, install reusable output arbitration and make the old stable
+   supplier inert; core emits the complete desired output from authoritative read-back.
+5. Remove the obsolete stable command or supplier class if it has no remaining references.
 
 Do not add a second MIDI callback or a second hardware binding.
 
@@ -160,6 +177,12 @@ At minimum, core tests cover:
 Shell tests cover any new exclusive admission, snapshot capture, effect validation/execution, and
 identity fencing. A fake host must separate command submission from host advancement.
 
+Before verification, account for every changed `pull-shell` line as one of: resource creation,
+authoritative observation/snapshot publication, validation/fencing, effect execution, lifecycle
+safety, generic hardware/output translation, or deletion/inerting of legacy policy. If a shell line
+chooses a control meaning, color, layout, animation, navigation recipe, or workspace behavior, the
+migration is incomplete.
+
 ### 7. Verify proportionally
 
 Run focused tests while iterating, then:
@@ -171,101 +194,66 @@ mvn -o -Dmaven.compiler.showDeprecation=true package
 For a core-only change, publish the core and verify its exact build ID becomes active. For any shell
 change, install the extension, restart Bitwig once, and perform the documented live smoke test.
 
-## Worked example: migrate the Play button
+## Worked example: migrate the complete Play slice
 
-The Play button is the recommended first transport migration. Its complete legacy behavior is
-small and the transport snapshot/effects already exist.
+Play is the reference for a complete vertical migration, not for split ownership. The historical
+input-only version left its light policy stable and forced another shell restart as soon as Play
+became project-aware. Do not repeat that sequence.
 
 ### Capability audit
 
 ```text
-Feature: Push Play button
-Physical inputs and input kinds: PLAY / BUTTON; SHIFT / BUTTON as an observed modifier
-Legacy behavior:
-  - plain DOWN while stopped: play
-  - plain DOWN while playing: stop
-  - Shift+DOWN while stopped: stop and rewind
-  - Shift+DOWN while playing: no action
-  - LONG and UP: no semantic action
-Authoritative state: TransportSnapshot.available and playing
-Effects:
-  - SetTransportStateEffect(PLAYING, enabled)
-  - SetTransportValueEffect(POSITION_BEATS, 0) for rewind
-Output: existing stable Play light already reads authoritative transport state
-Reloadable retained state: none
-Existing canopy: input is registered; transport snapshot/effects exist; Shift can be observed
-Missing canopy: PLAY/BUTTON is not yet admitted to EXCLUSIVE ownership; stable binding is active
-Restart: yes, once, for exclusive admission and the inert permanent binding
-Out of scope: general light ownership and unrelated transport controls
+Feature: Push Play action and authoritative light
+Physical inputs and input kinds: PLAY / BUTTON; any observed modifiers used by the preserved behavior
+All semantic variants: every BEGIN/LONG/END and modifier branch in the legacy command
+Authoritative state: transport plus any project/engine identity required by the requested meaning
+Effects: typed transport/project requests with apply-time identity fences
+Hardware output: generic core-owned button-light lane for PLAY
+Reloadable retained state: only state required by the requested transaction or feedback policy
+Existing canopy coverage: normalized input and available transport/project snapshots and effects
+Missing canopy coverage at first migration: exclusive PLAY admission, inert stable binding, and
+  generic button-light arbitration
+Restart: yes, once, for those reusable parent-loaded mechanisms
+Out of scope: unrelated transport controls whose action or feedback meaning is unchanged
 ```
+
+This is Class B. The generic Play input admission and button-light lane are stable mechanisms; Play
+semantics are not.
 
 ### Required changes
 
 #### Reloadable core
 
-1. Add `PLAY_BUTTON` to `SurfaceArea`.
-2. Add a `PlayControlView` with:
-   - `PLAY_BUTTON` as `EXCLUSIVE_INPUT`;
-   - `SHIFT_MODIFIER` as `OBSERVE_INPUT`;
-   - `BridgeSubscription.TRANSPORT`.
-3. Compose it in `DefaultWorkspace`.
-4. On Play `BEGIN`:
-   - if transport is unavailable, emit nothing;
-   - if Shift is not held, request `PLAYING = !snapshot.playing()`;
-   - if Shift is held and playback is stopped, request `PLAYING = false`, followed by
-     `POSITION_BEATS = 0`;
-   - if Shift is held and playback is active, emit nothing.
-5. Do not change a local `playing` flag after emitting the effect.
-
-Pseudocode:
-
-```java
-if (!isPlayBegin(event) || !snapshot.transport().available())
-    return List.of();
-
-if (!snapshot.pressedControls().contains(SHIFT))
-    return List.of(setPlaying(!snapshot.transport().playing()));
-
-if (snapshot.transport().playing())
-    return List.of();
-
-return List.of(setPlaying(false), setPositionBeats(0));
-```
+1. Declare the complete Play input and output surface.
+2. Request only the authoritative transport/project subscriptions needed by the behavior.
+3. Implement every input phase and modifier variant.
+4. Emit typed effects without mutating the supplied snapshot optimistically.
+5. Render the complete Play light from later authoritative read-back, including every color/state
+   distinction introduced by the request.
+6. Retain only reloadable transaction state; checkpoint it only when replay is safe.
 
 #### Stable shell
 
-1. In `PushControllerSetup`, retain the permanent Play button registration and authoritative
-   `t::isPlaying` light supplier, but replace `PushPlayCommand` with an inert action.
-2. Add exactly `PLAY/BUTTON` to `PushControllerInputBridge.CORE_OWNED_INPUTS`.
-3. Delete `PushPlayCommand` if no references remain.
-4. Do not change MIDI bindings, add observers, or move the light into core in this PR.
+1. Keep the permanent Play hardware registration but replace its semantic command with an inert
+   binding.
+2. Admit exactly `PLAY/BUTTON` to exclusive core routing.
+3. Observe and publish the reusable authoritative state required by the core.
+4. Validate and execute typed effects with live identity fences.
+5. Arbitrate the generic Play light lane and translate the core RGB value to Push hardware.
+6. Remove or inert the legacy Play light supplier. The shell must contain no white/green/purple,
+   engine-owner, modifier, or navigation policy.
 
 ### Required tests
 
-Core tests should prove:
+Core tests prove every phase/modifier branch, requested effect order, output color/state derived from
+authoritative snapshots, no optimistic feedback, and safe reload/checkpoint behavior. Shell tests
+prove exclusive admission, inert stable behavior, effect validation, output-lane validation, and
+mechanical palette translation. The fake host advances transport/project state explicitly after
+submission.
 
-1. Play is exclusive and Shift is observed.
-2. The transport subscription is present.
-3. Plain Play requests the inverse of each authoritative playing snapshot.
-4. Shift+Play while stopped requests stop then position zero, in that order.
-5. Shift+Play while playing emits nothing.
-6. Play `END` and `LONG` emit nothing.
-7. An unavailable transport emits nothing.
-8. An effect does not alter the fake host's transport snapshot until explicit host advancement.
-
-Shell tests should prove:
-
-1. `PLAY/BUTTON` is accepted as exclusive.
-2. A different newly requested exclusive control is still rejected.
-3. The stable binding performs no semantic transport mutation when core owns Play.
-
-Live smoke test after the one required restart:
-
-1. Play toggles playback.
-2. Shift+Play rewinds only while stopped.
-3. The Play light follows actual Bitwig playback, including playback changed in Bitwig itself.
-4. Reload the core and repeat without restarting Bitwig.
-5. Hold Shift across a core reload, release it, and verify no stuck modifier or unexpected Play.
+The first live smoke test follows the installed behavior through action, later Bitwig read-back,
+light output, and a core reload without another restart. Any later change to Play meaning or color
+that uses the installed canopy must be core-only.
 
 ## Remaining transport controls are separate migrations
 
@@ -273,8 +261,8 @@ Do not treat “transport” as one automatically easy PR:
 
 | Control | Current readiness | Missing or complicated behavior |
 | --- | --- | --- |
-| Record | Already core-owned | Stable authoritative light remains intentionally |
-| Play | Ready after the one small shell cutover above | None after cutover |
+| Record | Core-owned action and light | Preserve complete modifier and authoritative feedback behavior |
+| Play | Core-owned action and light | Current project-aware transaction is documented in `ARCH.md` |
 | Metronome | Plain toggle is representable | Long-press temporary Transport mode and its display |
 | Automation | Partial transport state exists | Reset-overrides action, Flip Record configuration, long-press mode/display |
 | Play-position knob | Absolute position effect exists | Relative stepping policy, Select+loop-length behavior, touch notifications |
@@ -298,9 +286,11 @@ scope.
 
 Keep Bitwig/Push resources and effect execution stable; move only policy. Use authoritative
 snapshot read-back, make the stable semantic binding inert before requesting EXCLUSIVE ownership,
-and do not add fallback behavior or duplicate callbacks. Add deterministic core tests plus shell
-tests for any canopy change. Run the full API-21 deprecation build and clearly state whether the
-first live test requires a Bitwig restart.
+move the control's feedback with its action, and do not add fallback behavior or duplicate
+callbacks. If the canopy is incomplete, add a reusable capability or stop; never implement the
+feature in stable. Account for every shell diff as mechanism or legacy-policy deletion. Add
+deterministic core tests plus shell tests for any canopy change. Run the full API-21 deprecation
+build and clearly state whether the first live test requires a Bitwig restart.
 
 Scope: <exact controls and variants>
 Out of scope: <explicit exclusions>

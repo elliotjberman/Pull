@@ -35,15 +35,40 @@ reloadable core: active workspace, view policy, routing, desired state
       |
       | complete replayable result + one-shot effects
       v
-stable shell: validate, commit, execute, render
+stable shell: validate effects/output, execute effects, encode and transmit hardware output
 ```
 
 The stable shell owns resources that Bitwig only allows during extension initialization. The
-reloadable core owns behavior whenever the installed shell canopy already exposes the required
-input, state, effect, and output capability.
+reloadable core owns all new or changed controller behavior. The core decides mappings, gesture
+meaning, navigation policy, view/workspace selection, colors, layout, animation, and desired
+hardware state. The shell may observe authoritative state and mechanically realize a core result;
+it must not decide what that result means.
 
 A core-only policy change hot reloads. A new physical input, Bitwig proxy, bank shape, API contract,
 or output transport requires a shell build and Bitwig restart.
+
+### Zero-new-stable-policy rule
+
+Missing canopy coverage does not make stable behavior acceptable. If a requested behavior needs a
+missing input route, snapshot, effect, or output lane, add the smallest reusable bounded capability
+to the parent-loaded API/shell and implement the complete semantic policy in core. That is a
+Class-B migration and may require one bootstrap restart. If the capability expansion is outside the
+task's safe scope, stop and report the feature as not ready rather than putting a temporary version
+in stable code.
+
+Existing stable modes, views, commands, suppliers, and adapters are frozen migration debt. They may
+preserve their existing behavior unchanged until migrated, but they may not acquire new product
+semantics. Stable changes are limited to resource creation, observation, immutable snapshot
+publication, validation and fencing, effect execution, lifecycle safety, generic output
+interpretation, hardware encoding/transmission, and removal of legacy behavior.
+
+Input and output transports are mechanically independent, but a controller surface's action and
+feedback are one semantic slice. Migrating or changing a control that has feedback requires moving
+both its action and feedback policy to core; do not retain its stable supplier for a later restart.
+A request that changes only a light/display meaning still migrates that output policy. Stable
+performs rendering in the graphics/hardware sense—rasterization, palette translation, clipping,
+encoding, and writes. Core performs rendering in the product sense—content, colors, geometry,
+states, timing, and composition.
 
 Controller-level Play is fully core-owned. The core remembers the last authoritative project that
 owned the audio engine. On another tab it renders purple while that owner is playing and white
@@ -82,8 +107,7 @@ visible-track bank so the rendered track window and send actuators share one gen
 `ProjectMacroControlsView` is the first complete parameter-input migration: its eight encoder turns
 are exclusive core inputs mapped to `PROJECT_REMOTE`, and core emits typed relative effects against
 the authoritative slot target. `WorkspaceMode` no longer binds or mutates those encoders; it remains
-a stable touch/delete and display adapter. Input and output ownership are intentionally independent,
-so project display rendering can migrate later without moving encoder policy back into stable.
+a frozen stable touch/delete and display adapter pending complete migration.
 
 For movable Bitwig parameters, stable re-resolves the exact identity from the live parameter
 domain, selected owner, selected page, and slot or channel role. The same Java `IParameter` wrapper
@@ -93,11 +117,11 @@ parameter wrappers are not leaseable; wrapper identity alone never authorizes a 
 Shift snapback policy lives in the reloadable core. The first eligible mutation publishes its
 authoritative baseline before stable submits the write. Core retains that exact target, waits for
 motion to settle, requests an absolute restore, and waits for later authoritative acknowledgement.
-A core-owned view resolves a complete semantic action payload at gesture `BEGIN`. A stable-owned
-command remains stable-owned, but its compatibility adapter publishes semantic intent derived from
-the actual command and current mode path before the dispatch waits behind the same restoration
-barrier. Touch edges do not define the session lifetime. Stable restores retained targets
-best-effort if the core faults.
+A core-owned view resolves a complete semantic action payload at gesture `BEGIN`. A frozen legacy
+stable command remains unchanged until migrated, but its compatibility adapter publishes semantic
+intent derived from the actual command and current mode path before the dispatch waits behind the
+same restoration barrier. Touch edges do not define the session lifetime. Stable restores retained
+targets best-effort if the core faults.
 
 Core replacement waits until the physical input router has no core-relevant active gesture, queued
 motion, or deferred stable callback. A stable-only `NONE` gesture with no semantic action never
@@ -136,9 +160,9 @@ A `SurfaceClaim` declares one view's use of an area:
 - `OBSERVE_INPUT`: core observes input while established stable behavior may also receive it.
 - `EXCLUSIVE_INPUT`: core is the only behavior owner for the routed input.
 - `DIRECT_INPUT`: core owns a permanent feature-specific route that predates general arbitration.
-- `STABLE_ADAPTER_INPUT`: the selected view owns input, but its stable adapter still implements it.
+- `STABLE_ADAPTER_INPUT`: frozen legacy input policy pending migration.
 - `OUTPUT`: core owns and directly renders replayable hardware output for the area.
-- `STABLE_ADAPTER_OUTPUT`: the selected view owns output, but its stable adapter still renders it.
+- `STABLE_ADAPTER_OUTPUT`: frozen legacy output policy pending migration.
 
 Multiple observers may coexist. Two owning input claims conflict. Two output claims conflict,
 regardless of whether core or a stable adapter realizes them. Adapter-backed claims are invalid
@@ -186,8 +210,8 @@ implemented and must not become a raw control-mapping language.
 
 `ControllerViewFacet` and `DesiredControllerWorkspace` are a migration bridge. Each real core view
 selects only the fixed mechanical adapters required by its profile; `CompiledWorkspace` derives the
-single complete adapter manifest. Facets are not standalone views and may not carry composition
-policy.
+single complete adapter manifest. Facets are not standalone views and may carry neither composition
+nor product policy.
 
 The shell must interpret facet IDs, not workspace names. There must be no stable-shell conditional
 for `"VS Live"`.
@@ -274,13 +298,13 @@ Partial or transitional:
 - Project macro relative encoder behavior runs in core; its touch/delete and display remain in
   stable `WorkspaceMode`. Track-strip, Session, navigation, Drum Controller, and pitch-bend
   adapter-backed mechanics still run in stable `WorkspaceMode`/`WorkspaceView`.
-- `ControllerViewFacet` remains a closed cross-boundary adapter ID. New adapter mechanics still
-  require a Core API/shell change and Bitwig restart.
+- `ControllerViewFacet` remains a closed cross-boundary adapter ID.
 - Capability and Session-shape validation happens during stable result preparation, not entirely in
   `CompiledWorkspace`.
 - General display and light output ownership is still partial. The twelve drum-fill RGB lights and
-  the Master page's two button rows and graphics display use core-owned output arbitration; other
-  Push pages remain stable-owned.
+  global Play/Record lights, the Master page's two button rows and graphics display, a temporary
+  sparse 8x8 grid overlay, and a complete temporary 960x160 display overlay use core-owned output
+  arbitration. The detailed design's API 22 installed-output inventory is canonical.
 
 Deferred by design:
 
@@ -295,9 +319,12 @@ Deferred by design:
 
 1. Decide the fixed physical footprint first. Extend `SurfaceArea` only with a reusable named area,
    never a workspace-specific coordinate fragment.
-2. Put policy in a core `ControllerView` when the stable canopy already has the required capability.
-3. Keep a stable adapter mechanical and generic. It may branch on fixed facet IDs, never workspace
-   names or feature-specific policy that could reload in core.
+2. Put every new or changed product policy in a core `ControllerView`. If the stable canopy is
+   missing a prerequisite, add the smallest reusable capability or stop; never implement the
+   behavior in stable as an interim shortcut.
+3. Keep stable adapters frozen, mechanical, and generic. They may preserve existing facet behavior
+   but may not add a branch for a new feature, workspace, color, layout, gesture, or navigation
+   meaning.
 4. Add all semantic variants of an exclusively owned gesture to core before making its stable
    binding inert.
 5. Render authoritative host state. Submitted effects do not prove that Bitwig applied them.
@@ -307,6 +334,9 @@ Deferred by design:
    authoritative read-back, and workspace exit/re-entry.
 8. State explicitly whether the change is core-only/hot-reloadable or changes the shell canopy and
    requires a Bitwig restart.
+9. Account for every changed `pull-shell` line as resource creation, observation, validation,
+   effect execution, lifecycle safety, generic hardware/output translation, or legacy-policy
+   deletion. A shell diff that makes a product decision fails the architecture review.
 
 For migrations and smoke-test fixes, begin with a behavior-characterization test that preserves
 the intended Moss contract from physical input and modifiers through effect scale/identity and

@@ -1,13 +1,33 @@
 # Repository Agent Instructions
 
+## Zero-new-stable-policy boundary
+
+- Do not add or change Pull product behavior in `pull-shell`. Mappings, modifier meanings, gesture
+  policy, navigation recipes, view/workspace selection, color meaning, light behavior, display
+  layout, animation, and other controller semantics belong in the reloadable core.
+- This rule is not conditional on the installed canopy already being sufficient. If a requested
+  behavior needs missing input, authoritative state, effects, or output ownership, treat it as one
+  bounded canopy expansion: add the smallest reusable parent-loaded mechanism, then implement the
+  complete semantic behavior in `pull-core`. If that expansion is too broad for the task, stop and
+  report the feature as not ready; do not implement a temporary stable version.
+- Stable adapters are frozen migration debt. They may preserve existing legacy behavior unchanged
+  while adjacent capability work lands, but they may not acquire a new semantic branch or satisfy a
+  new feature request. A stable change must be resource creation, state observation, validation,
+  effect execution, hardware translation/transmission, lifecycle safety, or deletion of legacy
+  policy.
+- Input and output transports are mechanically independent, but a controller surface's action and
+  feedback are one semantic slice. When migrating or changing a control that has feedback, migrate
+  its action and feedback together. Do not leave its light/display supplier stable and knowingly
+  create another restart for the next iteration.
+
 ## View architecture
 
 - Read `ARCH.md` before changing Push views, modes, workspaces, input routing, display ownership, or
   Session bank topology. `docs/views-api-design.md` is the detailed design contract.
-- Treat `ControllerViewFacet` and the stable `WorkspaceView`/`WorkspaceMode` adapters as migration
-  scaffolding, not the final view API. Every selected adapter must belong to a fixed-footprint core
-  `ControllerView` profile with explicit `STABLE_ADAPTER_*` claims; new behavior belongs directly
-  in core when the installed shell canopy supports it.
+- Treat `ControllerViewFacet` and the stable `WorkspaceView`/`WorkspaceMode` adapters as frozen
+  migration scaffolding, not the final view API. Every selected adapter must belong to a
+  fixed-footprint core `ControllerView` profile with explicit `STABLE_ADAPTER_*` claims. Preserve
+  existing adapter behavior only until it migrates; never add new behavior to an adapter.
 - A workspace selects declared views and facets; it must never remap arbitrary callbacks onto raw
   hardware controls.
 
@@ -16,9 +36,11 @@
 - Read `docs/reloadable-core-migration-guide.md` before moving controller behavior across the
   stable-shell/core boundary. Use `docs/reloadable-core-migration-roadmap.md` to choose reusable
   canopy work and avoid feature-shaped bridge additions.
+- Use the guide's capability audit before every Push mapping, mode, view, rendering, or navigation
+  change, even when the request is described as a small bug fix rather than a migration.
 - Complete the guide's capability audit before requesting `EXCLUSIVE` input ownership. Preserve
-  every semantic variant or leave the control stable-owned; never retain a fallback stable
-  implementation for behavior claimed by core.
+  every semantic variant or defer the entire migration and leave the existing control unchanged;
+  never extend the stable implementation or retain it as fallback for behavior claimed by core.
 
 ## Repository topology
 
@@ -95,7 +117,8 @@
 - Keep every bank, scanner, actuator pool, and proxy window explicitly bounded. Document its
   capacity, identity/generation rules, selection scope, and any required Bitwig
   session setup next to the feature that consumes it.
-- Treat controller input ownership as complete replayable state. An absent route is stable-owned,
+- Treat controller input ownership as complete replayable state. An absent route preserves only
+  unchanged frozen legacy behavior,
   `OBSERVE` delivers to both the reloadable core and established controller behavior, and
   `EXCLUSIVE` is valid only for a migrated control whose permanent stable binding is intentionally
   semantically inert. Freeze an edge route and its active-core generation at gesture `BEGIN`
@@ -111,21 +134,15 @@
 - Controller-command arbitration and Bitwig's native `NoteInput` are separate paths. An
   `EXCLUSIVE` pad or pressure route suppresses stable framework commands and state only; it does
   not suppress musical note data that Bitwig routes from the permanent Push `NoteInput`.
-- Do not confuse a permanent physical binding with permanent behavior policy. If a control and
-  input kind already exist in the stable `PhysicalInputRouter`, and the bridge already exposes the
-  authoritative state and effect needed by the feature, implement its behavior in the reloadable
-  core with `OBSERVE` or `EXCLUSIVE` routing. Complete the migration: move every semantic variant
-  of an exclusively owned gesture into the core, replace its stable command with an inert binding,
-  and admit that exact control-and-kind pair to exclusive routing. Do not keep a second stable
-  implementation for missing, incomplete, or faulted cores. Missing or faulted core behavior is
-  inert and must be reported; a rejected replacement candidate may leave the previously active
-  core running because activation is transactional. A restart is required only when the physical
-  input, required state/effect capability, or output transport is missing from the installed
-  canopy.
-- Input and output migration are independent. A core-owned button action may still use a stable
-  light supplier when that supplier renders the same authoritative Bitwig read-back. Do not put
-  action policy back in the shell merely because general light ownership has not migrated; expand
-  the output canopy only when reloadable policy must also change what the light means.
+- Do not confuse a permanent physical binding with permanent behavior policy. Implement controller
+  behavior in the reloadable core with `OBSERVE` or `EXCLUSIVE` routing. Complete the migration:
+  move every semantic variant of an exclusively owned gesture into the core, replace its stable
+  command with an inert binding, and admit that exact control-and-kind pair to exclusive routing.
+  Do not keep a second stable implementation for missing, incomplete, or faulted cores. Missing or
+  faulted core behavior is inert and must be reported; a rejected replacement candidate may leave
+  the previously active core running because activation is transactional. A restart is required
+  only when the physical input, required state/effect capability, or output transport is missing
+  from the installed canopy.
 - Keep the private selection-following cursor observation/action-only. Do not attach the permanent
   Push `NoteInput` with `Track.addNoteSource()` or exclude it from `All Inputs`; Pads and raw ribbon
   MIDI must follow ordinary Bitwig track-input, monitor, and record-arm routing.
@@ -153,24 +170,26 @@
   intent, named bounded parameter banks, and exact parameter-target leases, including the declared
   Session bank shape. Project-macro encoder turns are the reference parameter migration: core owns
   the mapping, relative effect, and snapback policy while stable owns Bitwig proxies, identity
-  validation, read-back, and effect execution. Mappings whose state and effects are already bridged
-  belong in the reloadable core. The Play action, 12 drum-fill RGB lights, Play and Record lights, both Master
-  button rows, and the Master graphics display have migrated direct output ownership. Play and
-  Record light policy renders authoritative engine, transport, overdub, and selected-track arm
-  read-back in every workspace. Play targets the remembered engine-owning project through a
-  bounded navigate/acknowledge/toggle/acknowledge/return transaction. Its stable command is inert;
+  validation, read-back, and effect execution. The Play action, 12 drum-fill RGB lights, Play and
+  Record lights, both Master button rows, and the Master graphics display have migrated direct
+  output ownership. Play and Record light policy renders authoritative engine, transport, overdub,
+  and selected-track arm read-back in every workspace. Play targets the remembered engine-owning
+  project through a bounded navigate/acknowledge/toggle/acknowledge/return transaction. Its stable
+  command is inert;
   the stable bindings only preserve the physical seam and translate core RGB to the Push palette.
-  The Master scene's copy,
-  typography, geometry, color, clipping, and shape policy are core-owned; stable only interprets
-  bounded generic primitives. API 22 also installs a bounded pure mixer-control render service:
+  The Master scene's copy, typography, geometry, color, clipping, and shape policy are core-owned;
+  stable only interprets bounded generic primitives. API 22 also installs a temporary sparse 8x8
+  pad-grid overlay and a complete 960x160 display overlay whose activation and visuals are
+  core-owned, plus a bounded pure mixer-control render service:
   Master and the stable Track Mix adapter must use the same core-owned Volume/Pan/Knob renderer.
   Cue parameters and Track Mix sends are the same Knob component, not parallel lookalikes. Track
   Mix accepts only column-local scenes structurally confined to the installed parameter-body
   region; its menus and footer remain stable-owned, and missing/faulted core output leaves all eight
-  mixer-control slots blank rather than reviving a stable semantic fallback. Other workspace
-  facets still use generic stable adapters for inherited Bitwig/DrivenByMoss mechanics. Do not
-  claim general Push light or display hot reload until stable complete-output arbitration exists
-  for those other surfaces.
+  mixer-control slots blank rather than reviving a stable semantic fallback. Those stable menus,
+  footers, and other workspace facets are frozen inherited migration debt, not valid extension
+  points. Do not claim arbitrary inherited Push light or display-page hot reload beyond these
+  installed output lanes. Logical timer DTOs have no production capability or executor and must not
+  be emitted while `docs/findings/logical-timer-production-gap.md` is active.
 
 ## Bitwig controller API compatibility
 

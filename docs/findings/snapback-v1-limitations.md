@@ -105,8 +105,9 @@ normalized release reaches core. Compiled views map physical edges to semantic a
 which state scopes those actions may invalidate. Snapback delays only actions whose scopes overlap
 its retained active parameters; it does not contain a physical rebinding-button list.
 
-Stable-owned compatibility actions keep their absent physical route and publish a separate typed
-semantic-action event before their established dispatch. That dispatch waits behind the same
+Frozen legacy compatibility actions keep their absent physical route and publish a separate typed
+semantic-action event before their established dispatch. No new action semantics may be added to
+that path. The dispatch waits behind the same
 scope barrier until later host read-back confirms every retained baseline. Core-owned actions pass
 through the same policy gate with a complete payload captured at `BEGIN`. Stable dispatch runs
 before a newly requested workspace applies. If Shift remains held, core opens a fresh session after

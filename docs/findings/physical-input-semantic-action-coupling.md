@@ -31,12 +31,13 @@ movable Bitwig proxy may already address a replacement target by then.
 
 ## Current Mitigation
 
-Core API 15 carries `ControllerActionIntent` separately from physical input. Core-owned views
+Core API 22 carries `ControllerActionIntent` separately from physical input. Core-owned views
 resolve complete executable intents at gesture `BEGIN`; deferred execution therefore cannot
-reinterpret a released modifier or a replacement workspace. Stable-only commands remain
-stable-owned, but `StableControllerActionResolver` examines the actual installed command and its
-current mode path, publishes a typed `ControllerActionEvent`, and holds the same stable dispatch
-behind core's declared scope barrier. An absent physical route remains stable-owned.
+reinterpret a released modifier or a replacement workspace. Existing stable-only commands remain
+frozen migration debt, but `StableControllerActionResolver` examines the actual installed command
+and its current mode path, publishes a typed `ControllerActionEvent`, and holds the same stable
+dispatch behind core's declared scope barrier. An absent physical route preserves only that
+unchanged legacy behavior; it is not an extension point for new semantics.
 
 This removes the core-side physical navigation table. It does not yet satisfy the final model:
 
@@ -70,7 +71,7 @@ which Push button, footswitch, display gesture, or agent-authored composite prod
 ## Required Tests
 
 - A deferred Shift+Session retains its begin-time workspace payload after Shift is released.
-- A stable-owned command publishes semantic intent without converting its absent physical route to
+- A frozen legacy command publishes semantic intent without converting its absent physical route to
   `OBSERVE`.
 - A context-sensitive command is classified from the active command/mode path, not only its button.
 - Non-overlapping actions execute immediately; overlapping actions wait for authoritative restore.
