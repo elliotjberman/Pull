@@ -86,6 +86,8 @@ then
             ;;
         session)
             navigation_steps+=(
+                'NOTE/workspace=false'
+                'TRACK/mode=TRACK,workspace=false'
                 'SESSION/view=SESSION,mode!=WORKSPACE|MASTER|MASTER_TEMP,workspace=false'
             )
             ;;

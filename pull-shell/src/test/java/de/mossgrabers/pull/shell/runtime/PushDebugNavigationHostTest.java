@@ -136,10 +136,18 @@ class PushDebugNavigationHostTest
     {
         final FakeNavigationSurface surface = new FakeNavigationSurface ("WORKSPACE", "WORKSPACE", true);
         final PushDebugNavigationHost host = this.host (surface);
-        this.request ("session-request", "session", SESSION);
+        this.request ("session-request", "session", MIX_EXIT_WORKSPACE, MIX, SESSION);
 
         host.tick ();
-        assertEquals (List.of ("SESSION:DOWN", "SESSION:UP"), surface.events);
+        assertEquals (List.of ("NOTE:DOWN", "NOTE:UP"), surface.events);
+
+        surface.observe ("PLAY", "WORKSPACE", false);
+        host.tick ();
+        assertEquals (List.of ("NOTE:DOWN", "NOTE:UP", "TRACK:DOWN", "TRACK:UP"), surface.events);
+
+        surface.observe ("PLAY", "TRACK", false);
+        host.tick ();
+        assertEquals (List.of ("NOTE:DOWN", "NOTE:UP", "TRACK:DOWN", "TRACK:UP", "SESSION:DOWN", "SESSION:UP"), surface.events);
 
         surface.observe ("SESSION", "TRACK", false);
         host.tick ();
@@ -225,7 +233,7 @@ class PushDebugNavigationHostTest
     {
         final FakeNavigationSurface surface = new FakeNavigationSurface ("PLAY", "MASTER", true);
         final PushDebugNavigationHost host = this.host (surface);
-        this.request ("master-session", "session", SESSION);
+        this.request ("master-session", "session", MIX_EXIT_WORKSPACE, MIX, SESSION);
 
         host.tick ();
         surface.observe ("SESSION", "MASTER", false);
