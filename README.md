@@ -66,6 +66,18 @@ overwrite it. Unless the `enabled` marker exists in that directory at extension 
 debugger worker is constructed. Run `tools/capture-push2-display --disable` and restart Bitwig to
 turn the transports off again.
 
+For navigation without a framebuffer capture, use the generic client; named recipes stay client-side:
+
+```bash
+tools/push-debug-request session \
+    'NOTE/workspace=false' \
+    'TRACK/mode=TRACK,workspace=false' \
+    'SESSION/view=SESSION,mode!=WORKSPACE|MASTER|MASTER_TEMP,workspace=false'
+```
+
+The client accepts only the installed safe-navigation protocol. Transport, scene launch, parameter
+motion, and drum fills require a future core-owned debugger ingress, not stable-shell shortcuts.
+
 Adding the generic debug bridge is a stable-shell change and needs one extension install and Bitwig
 restart. Frame capture and client-side navigation recipes can then be reused across core hot
 reloads.

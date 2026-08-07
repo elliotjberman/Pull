@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+test_root="$(mktemp -d)"
+trap 'rm -rf "$test_root"' EXIT
+
+fail()
+{
+    echo "Push debugger client test failed: $*" >&2
+    exit 1
+}
+
+new_debug_home()
+{
+    test_home="$(mktemp -d "${test_root}/home.XXXXXX")"
+    test_debug="${test_home}/.drivenbymoss/pull/debug"
+    mkdir -p "$test_debug"
+    touch "${test_debug}/enabled"
+}
+
+wait_for_file()
+{
+    for _ in {1..200}
+    do
+        [[ -f "$1" ]] && return
+        sleep 0.01
+    done
+    fail "timed out waiting for $1"
+}
+
+assert_status()
+{
+    expected="$1"
+    shift
+    set +e
+    "$@" >/dev/null 2>&1
+    actual=$?
+    set -e
+    [[ "$actual" == "$expected" ]] || fail "expected status ${expected}, got ${actual}"
+}
+
+new_debug_home
+assert_status 2 env HOME="$test_home" "${script_dir}/push-debug-request" 'bad label' 'NOTE/workspace=false'
+printf -v oversized_step '%0600d' 0
+assert_status 2 env HOME="$test_home" "${script_dir}/push-debug-request" valid "$oversized_step"
+mkdir "$test_debug/client.lock"
+assert_status 3 env HOME="$test_home" "${script_dir}/push-debug-request" valid 'NOTE/workspace=false'
+
+new_debug_home
+(
+    wait_for_file "$test_debug/navigate-request.txt"
+    IFS=$'\t' read -r request_id request_label _ < "$test_debug/navigate-request.txt"
+    printf 'stale\tREADY\tstale\tSESSION\tTRACK\tfalse\t\n' > "$test_debug/navigate-status.txt"
+    sleep 0.05
+    printf '%s\tREADY\t%s\tSESSION\tTRACK\tfalse\t\n' "$request_id" "$request_label" > "$test_debug/navigate-status.txt"
+) &
+env HOME="$test_home" "${script_dir}/push-debug-request" correlated 'NOTE/workspace=false' >/dev/null 2>&1
+[[ ! -e "$test_debug/capture-request.txt" ]] || fail "navigation-only request emitted a capture"
+
+new_debug_home
+env HOME="$test_home" "${script_dir}/push-debug-request" interruptible 'NOTE/workspace=false' >/dev/null 2>&1 &
+client_pid=$!
+wait_for_file "$test_debug/navigate-request.txt"
+IFS=$'\t' read -r request_id request_label _ < "$test_debug/navigate-request.txt"
+kill -TERM "$client_pid"
+sleep 0.05
+kill -0 "$client_pid" 2>/dev/null || fail "interrupted client exited before terminal state"
+[[ -d "$test_debug/client.lock" ]] || fail "interrupted client released its lock early"
+printf '%s\tREADY\t%s\tSESSION\tTRACK\tfalse\t\n' "$request_id" "$request_label" > "$test_debug/navigate-status.txt"
+assert_status 130 wait "$client_pid"
+[[ ! -d "$test_debug/client.lock" ]] || fail "terminal client retained its lock"
+
+new_debug_home
+(
+    wait_for_file "$test_debug/navigate-request.txt"
+    IFS=$'\t' read -r navigation_id navigation_label _ < "$test_debug/navigate-request.txt"
+    printf '%s\tREADY\t%s\tSESSION\tTRACK\tfalse\t\n' "$navigation_id" "$navigation_label" > "$test_debug/navigate-status.txt"
+    wait_for_file "$test_debug/capture-request.txt"
+    read -r capture_id < "$test_debug/capture-request.txt"
+    [[ "$capture_id" == "$navigation_id" && -d "$test_debug/client.lock" ]] || fail "capture lost request identity or lock"
+    touch "$test_debug/fake.png"
+    printf '%s\tREADY\tfake.png\t\n' "$capture_id" > "$test_debug/capture-status.txt"
+) &
+capture="$(env HOME="$test_home" "${script_dir}/capture-push2-display" session 2>/dev/null)"
+[[ "$capture" == "$test_debug/fake.png" ]] || fail "capture returned the wrong artifact"
+[[ ! -d "$test_debug/client.lock" ]] || fail "capture retained its lock"
+
+echo "Push debugger client tests passed."

@@ -15,32 +15,47 @@ usage()
     echo "Usage: $0 [mix|master|project-macros|session|--enable|--disable]" >&2
 }
 
-if (( $# > 1 ))
-then
-    usage
-    exit 2
-fi
-
 target="${1:-}"
-case "$target" in
-    ""|mix|master|project-macros|session)
-        ;;
-    --enable)
-        mkdir -p "$debug_dir"
-        touch "$enabled_path"
-        echo "Push debugger enabled. Install this shell build and restart Bitwig to start its transports." >&2
-        exit 0
-        ;;
-    --disable)
-        rm -f "$enabled_path"
-        echo "Push debugger disabled. Restart Bitwig to stop any running transports." >&2
-        exit 0
-        ;;
-    *)
+navigation_only=false
+navigation_label=""
+navigation_steps=()
+if [[ "$target" == "--navigate" ]]
+then
+    if (( $# < 3 || $# > 6 ))
+    then
+        echo "Usage: tools/push-debug-request LABEL STEP [STEP ...]" >&2
+        exit 2
+    fi
+    navigation_only=true
+    navigation_label="$2"
+    navigation_steps=("${@:3}")
+    target=""
+else
+    if (( $# > 1 ))
+    then
         usage
         exit 2
-        ;;
-esac
+    fi
+    case "$target" in
+        ""|mix|master|project-macros|session)
+            ;;
+        --enable)
+            mkdir -p "$debug_dir"
+            touch "$enabled_path"
+            echo "Push debugger enabled. Install this shell build and restart Bitwig to start its transports." >&2
+            exit 0
+            ;;
+        --disable)
+            rm -f "$enabled_path"
+            echo "Push debugger disabled. Restart Bitwig to stop any running transports." >&2
+            exit 0
+            ;;
+        *)
+            usage
+            exit 2
+            ;;
+    esac
+fi
 
 if [[ ! -f "$enabled_path" ]]
 then
@@ -60,71 +75,110 @@ cleanup()
     rm -f "${lock_dir}/pid"
     rmdir "$lock_dir" 2>/dev/null || true
 }
-trap cleanup EXIT INT TERM
+navigation_pending=false
+interrupted=false
+interrupt()
+{
+    if [[ "$navigation_pending" == true ]]
+    then
+        interrupted=true
+        echo "Interrupted; retaining the debugger lock until navigation reaches terminal state." >&2
+        return
+    fi
+    exit 130
+}
+trap cleanup EXIT
+trap interrupt INT TERM
 
 request_id="$(date +%s)-$$-${RANDOM}"
 
-if [[ -n "$target" ]]
+if [[ -n "$target" || "$navigation_only" == true ]]
 then
-    navigation_steps=()
-    case "$target" in
-        mix)
-            navigation_steps+=(
-                'NOTE/workspace=false'
-                'TRACK/mode=TRACK,workspace=false'
-            )
-            ;;
-        master)
-            navigation_steps+=(
-                'MASTERTRACK/mode=MASTER|MASTER_TEMP'
-            )
-            ;;
-        project-macros)
-            navigation_steps+=(
-                'SHIFT+SESSION/view=WORKSPACE,mode=WORKSPACE,workspace=true'
-            )
-            ;;
-        session)
-            navigation_steps+=(
-                'NOTE/workspace=false'
-                'TRACK/mode=TRACK,workspace=false'
-                'SESSION/view=SESSION,mode!=WORKSPACE|MASTER|MASTER_TEMP,workspace=false'
-            )
-            ;;
-    esac
+    if [[ "$navigation_only" != true ]]
+    then
+        navigation_label="$target"
+        case "$target" in
+            mix)
+                navigation_steps=('NOTE/workspace=false' 'TRACK/mode=TRACK,workspace=false')
+                ;;
+            master)
+                navigation_steps=('MASTERTRACK/mode=MASTER|MASTER_TEMP')
+                ;;
+            project-macros)
+                navigation_steps=('SHIFT+SESSION/view=WORKSPACE,mode=WORKSPACE,workspace=true')
+                ;;
+            session)
+                navigation_steps=(
+                    'NOTE/workspace=false'
+                    'TRACK/mode=TRACK,workspace=false'
+                    'SESSION/view=SESSION,mode!=WORKSPACE|MASTER|MASTER_TEMP,workspace=false')
+                ;;
+        esac
+    fi
+    if [[ ! "$navigation_label" =~ ^[[:alnum:]._-]{1,80}$ ]]
+    then
+        echo "Navigation label must contain 1-80 letters, digits, dots, underscores, or hyphens." >&2
+        exit 2
+    fi
+    for step in "${navigation_steps[@]}"
+    do
+        if [[ "$step" == *$'\t'* || "$step" == *$'\r'* || "$step" == *$'\n'* ]]
+        then
+            echo "Navigation steps cannot contain tabs or newlines." >&2
+            exit 2
+        fi
+    done
+    printf -v navigation_request '%s\t%s' "$request_id" "$navigation_label"
+    for step in "${navigation_steps[@]}"
+    do
+        printf -v navigation_request '%s\t%s' "$navigation_request" "$step"
+    done
+    request_bytes="$(printf '%s\n' "$navigation_request" | LC_ALL=C wc -c)"
+    if (( request_bytes > 512 ))
+    then
+        echo "Navigation request exceeds 512 bytes." >&2
+        exit 2
+    fi
     navigation_request_temp="${navigation_request_path}.${request_id}.tmp"
-    {
-        printf '%s\t%s' "$request_id" "$target"
-        printf '\t%s' "${navigation_steps[@]}"
-        printf '\n'
-    } > "$navigation_request_temp"
+    printf '%s\n' "$navigation_request" > "$navigation_request_temp"
+    trap '' INT TERM
     mv "$navigation_request_temp" "$navigation_request_path"
+    navigation_pending=true
+    trap interrupt INT TERM
 
-    navigation_ready=false
-    for _ in {1..100}
+    attempts=0
+    while true
     do
         if [[ -f "$navigation_status_path" ]]
         then
             IFS=$'\t' read -r status_request_id status target_name view_id mode_id workspace_active message < "$navigation_status_path" || true
             if [[ "$status_request_id" == "$request_id" ]]
             then
+                navigation_pending=false
+                if [[ "$interrupted" == true ]]
+                then
+                    exit 130
+                fi
                 if [[ "$status" == "READY" ]]
                 then
                     echo "Push navigation ready: target=${target_name} view=${view_id} mode=${mode_id} workspace=${workspace_active}" >&2
-                    navigation_ready=true
                     break
                 fi
                 echo "Push navigation failed: ${message:-unknown error} (view=${view_id} mode=${mode_id})" >&2
                 exit 1
             fi
         fi
-        sleep 0.1
+        attempts=$((attempts + 1))
+        if (( attempts == 100 ))
+        then
+            echo "Still waiting for terminal navigation state; retaining the debugger lock." >&2
+        fi
+        sleep 0.1 || true
     done
 
-    if [[ "$navigation_ready" != true ]]
+    if [[ "$navigation_only" == true ]]
     then
-        echo "Timed out waiting for Bitwig to navigate the Push to ${target}." >&2
-        exit 1
+        exit 0
     fi
 fi
 
