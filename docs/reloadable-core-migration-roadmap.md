@@ -26,7 +26,8 @@ For the step-by-step execution procedure and a complete Play-button example, see
 - **Canopy**: the bounded set of state, effects, inputs, and output transports created by the shell
   at initialization.
 - **Migration debt**: product behavior that remains stable because migration was deferred, not
-  because Bitwig requires the behavior itself to be parent-loaded.
+  because Bitwig requires the behavior itself to be parent-loaded. It is frozen and may be removed
+  or migrated, but not extended with new semantics.
 
 Moving a feature does not mean copying its existing class into `pull-core`. Legacy classes commonly
 retain `IModel`, `PushControlSurface`, mode/view managers, observers, or scheduled callbacks. A
@@ -45,12 +46,13 @@ On current `master`:
   `NoteInput`, ordinary Bitwig routing, and MIDI neutralization remain stable;
 - the practical existing Push input set is normalized by the stable input bridge;
 - transport, selected-track, controller-layout, and bounded drum snapshots/effects exist;
+- Play and Record lights are core-owned through generic authoritative RGB output;
 - the Master page's two button rows and graphics scene are core-owned through complete output
   arbitration; its generic stable scene interpreter contains no Master layout policy;
 - a generic sparse 8x8 pad-grid overlay can freeze, temporarily replace, and restore stable pad
   output; animation geometry, color, cadence, and activation policy are core-owned;
-- complete underlying hardware output ownership otherwise exists only for the twelve drum-fill
-  lights;
+- the twelve drum-fill lights are also core-owned; underlying grid policy and other Push output
+  surfaces remain frozen migration debt;
 - Shift snapback policy, view-owned physical-to-parameter-slot admission, semantic action
   invalidation, restoration acknowledgement, and navigation ordering are core-owned; stable owns
   named bounded Bitwig parameter banks, exact actuator leases, identity fencing, effect execution,
@@ -123,9 +125,10 @@ This is the main body of remaining work. It is migration debt, but not a file-on
 
 ### 1. Complete remaining hardware output
 
-Current limitation: stable validation and arbitration accept the twelve fill-pad lights plus the
-Master page's two button rows and bounded declarative graphics scene. Other Push surfaces remain
-stable-owned.
+Current limitation: stable validation and arbitration accept the twelve fill-pad lights, global
+Play/Record lights, the Master page's two button rows and bounded declarative graphics scene, and a
+temporary sparse whole-grid overlay. Other Push surfaces remain frozen stable migration debt; do
+not implement new output behavior there.
 
 Add bounded complete ownership for the remaining surfaces:
 
@@ -191,7 +194,7 @@ bounded clip/session capability rather than remain a parallel feature-shaped API
 
 ### 4. Complete parameter-view migration and output
 
-API 15 installs named bounded parameter snapshots for active compatibility, project remote,
+API 22 installs named bounded parameter snapshots for active compatibility, project remote,
 selected-device remote, visible-track volume/pan, Master/Cue, and globals. Snapshots contain exact target
 identity, name, raw and modulated values, authoritative displayed value, step count, and tolerance;
 stable applies fenced absolute, relative-change, and reset effects. Project-macro relative input is
@@ -342,6 +345,12 @@ Input arbitration itself is not temporary. Keep normalized input, route validati
 generation leases, and held-gesture safety. Remove the duplicate stable semantic implementation,
 not the lifecycle protection.
 
+All listed scaffolding is frozen. It may preserve existing behavior unchanged while reusable
+capabilities are installed, but it is not an approved destination for a feature or bug-fix policy.
+Do not add a semantic branch, color rule, layout decision, navigation recipe, or workspace-specific
+condition to it. If a request reaches a missing boundary, expand the reusable canopy and put the
+new meaning in core, or stop and classify the request as not ready.
+
 ## Infrastructure that stays stable
 
 The following are the intended long-term shell:
@@ -365,34 +374,40 @@ The following are the intended long-term shell:
 
 ## Recommended program order
 
-### Phase 1: Low-risk migrations using current capabilities
-
-1. Play button, using the worked example in the migration guide.
-2. Other complete single-branch transport behavior.
-3. Complete selected-track mappings whose modifier variants are already representable.
-4. Complete selected-drum-pad mappings.
-
-Each first control cutover may require a shell install to make its permanent binding inert and
-admit exclusive ownership. Group several reviewed cutovers into one shell checkpoint if doing so
-does not mix semantic risk.
-
-### Phase 2: Complete output arbitration
+### Phase 1: Complete output arbitration
 
 Extend complete light/display ownership to the remaining underlying grid policy, general lights,
 display pages, touch strip, and notification output. The temporary whole-grid overlay transport is
 already installed. Each added surface needs explicit hardware smoke tests.
 
-### Phase 3: Common performance capabilities
+This comes before further ordinary behavior changes because output-only feature work is still
+behavior. Do not edit an inherited stable renderer while waiting for this phase. A smaller feature
+may land a bounded generic output lane early when it is reusable and completes one vertical slice.
+
+### Phase 2: Common performance capabilities
 
 Add, in order:
 
 1. visible track bank;
 2. Session grid;
-3. remaining parameter-bank contexts beyond the API 15 named canopy.
+3. remaining parameter-bank contexts beyond the API 22 named canopy.
 
 Then migrate `WorkspaceMode` and `WorkspaceView` completely. Project-macro relative turns have
 already moved; automation touch, display output, track strips, Session, and Drum adapters remain
 good acceptance targets because their product behavior is specified and exercised in VS Live.
+
+### Phase 3: Complete vertical migrations
+
+Migrate one complete semantic surface at a time using the guide's Class A/B/C audit. A completed
+surface includes every changed input variant, state subscription, typed effect, light/display
+meaning, reload state, and removal or inerting of the stable implementation. Input-only or
+output-only cutovers are valid only for surfaces that genuinely have only that side; a control's
+action and feedback migrate together.
+
+Good early candidates are complete selected-track mappings, selected-drum-pad mappings, and
+single-branch transport controls whose long-press/mode/display behavior is already representable.
+Each first cutover may require one shell install for reusable capabilities. Group compatible canopy
+work when useful, but never use checkpoint scope as a reason to put policy in stable code.
 
 ### Phase 4: Ordinary controller families
 

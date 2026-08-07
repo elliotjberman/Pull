@@ -82,7 +82,7 @@ view should remove the binding, not redefine the target retained by an independe
 
 ## Current Mitigation
 
-Core API 15 separates physical controls from a named bounded parameter canopy. Stable can publish
+Core API 22 separates physical controls from a named bounded parameter canopy. Stable can publish
 the inherited active encoder window, project remotes, the selected-device remote page, visible-track
 volume and pan, the project-scoped Master/Cue page, and fixed globals. A slot contains an opaque target identity/generation, name, raw
 and modulated values, authoritative display text, step count, and tolerance; it never uses a Push
@@ -118,10 +118,10 @@ receiving a stable object.
 
 Before a semantic action that may invalidate active parameters can run, pending motion is flushed
 and core restoration waits for authoritative read-back. Core-owned views resolve immutable action
-payloads at `BEGIN`; stable-only compatibility commands publish a separate semantic event derived
+payloads at `BEGIN`; frozen legacy compatibility commands publish a separate semantic event derived
 from the actual command and current mode path. Snapback compares action invalidation scopes with
 retained parameter dependencies, so downstream policy contains no rebinding-button list.
-Stable-owned compatibility dispatch waits behind the same bounded action barrier used by core-owned
+Frozen legacy compatibility dispatch waits behind the same bounded action barrier used by core-owned
 actions.
 Stable dispatch runs before the released core workspace applies, and a replacement core cannot
 activate while either half remains pending or the input router still owns an edge, queued motion, or
@@ -148,7 +148,7 @@ The design must distinguish:
 Each bounded bank or lease pool must document its capacity, identity and generation rules,
 selection scope, and behavior when capacity is exhausted.
 
-API 15 deliberately omits visible-track sends. They should arrive with the authoritative visible
+API 22 deliberately omits visible-track sends. They should arrive with the authoritative visible
 track bank so send targets and rendered track identities share one generation fence, rather than as
 64 parameter-only slots with an independent alignment model.
 

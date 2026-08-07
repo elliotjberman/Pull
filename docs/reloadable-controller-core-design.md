@@ -39,6 +39,17 @@ The governing rule is:
 > The shell owns resources and side effects. The core receives immutable state and events and
 > returns immutable effects and desired hardware output.
 
+This does not give the shell ownership of product semantics. New or changed mappings, gesture
+meaning, navigation, workspace/view policy, colors, layout, animation, and feedback meaning always
+belong in core. If the installed canopy is missing a prerequisite, add the smallest reusable
+parent-loaded capability and complete the core migration in the same vertical slice, or stop and
+report the feature as not ready. Existing stable behavior may remain unchanged as frozen migration
+debt; it may not be extended as an interim implementation.
+
+The shell “renders” only mechanically: it validates scenes, clips, rasterizes, maps palettes,
+encodes protocols, and writes hardware. The core renders semantically: it chooses content, state,
+color, geometry, timing, and composition.
+
 ## Priorities
 
 1. Eliminate Bitwig restarts for normal behavior, mapping, mode, and rendering work.
@@ -403,7 +414,8 @@ core result commits.
 `DesiredInputRoutes` is complete replayable state replaced by every accepted `CoreResult`. For each
 registered control and input kind:
 
-- an absent route is shell-internal `NONE`: only stable-owned controller behavior runs;
+- an absent route is shell-internal `NONE`: only the existing frozen legacy controller behavior
+  runs;
 - `OBSERVE` delivers the normalized event to the core and also runs established controller
   behavior; and
 - `EXCLUSIVE` delivers to the core and suppresses stable controller-command dispatch. The shell
@@ -420,10 +432,11 @@ state compiled from the active views. Each binding maps one physical edge to a s
 declares the state scopes that action may invalidate. Cross-cutting policy compares those scopes
 with its retained dependencies; it never infers a consequence from a physical button ID.
 
-An action still implemented by a stable command remains stable-owned even when its physical route
-is absent. At gesture `BEGIN`, the compatibility adapter resolves the actual installed command and
-current mode path to `ControllerActionIntent`, publishes a separate `ControllerActionEvent`, and may
-hold the stable dispatch behind core's scope barrier. Core-owned views instead resolve an immutable
+An existing action still implemented by a stable command remains frozen migration debt even when
+its physical route is absent. No new semantic branch may be added there. At gesture `BEGIN`, the
+compatibility adapter resolves the actual installed command and current mode path to
+`ControllerActionIntent`, publishes a separate `ControllerActionEvent`, and may hold the stable
+dispatch behind core's scope barrier. Core-owned views instead resolve an immutable
 executable intent, including modifier-dependent payload, at `BEGIN`. Both paths preserve physical
 dispatch order. A replacement core cannot activate while either a core action or stable dispatch
 remains pending, so hot reload cannot split one gesture across policy generations.
@@ -438,9 +451,9 @@ candidate activates automatically after physical release and the next drain.
 Button arbitration sits below the framework's consumed-command gate and separates physical from
 stable pressed state, so an exclusive release cannot strand stable state or handlers.
 
-Motion does not form a lease. The current route is resolved per physical sample, stable behavior
-runs immediately for `NONE` and `OBSERVE`, and core delivery is bounded to the next controller
-tick. Relative encoder deltas are summed by control-and-kind; absolute ribbon and pressure inputs
+Motion does not form a lease. The current route is resolved per physical sample, unchanged frozen
+legacy behavior runs immediately for `NONE` and `OBSERVE`, and core delivery is bounded to the next
+controller tick. Relative encoder deltas are summed by control-and-kind; absolute ribbon and pressure inputs
 keep only the latest sample. Pending motion is emitted in physical sequence order. A touch release
 flushes that control's pending motion before its `END` event. Once arbitration is installed, a
 Bitwig-backed continuous control retains one stable callback; later mode changes may rebind the
@@ -475,7 +488,7 @@ object identity.
 An action whose declared invalidation scope overlaps retained parameters is held until core drops
 the barrier after authoritative restore acknowledgement. Its stable compatibility dispatch then
 runs in physical order. An unexpected target-generation change fails closed rather than restoring
-through the replacement target. API 15 still does not pin an old rebindable proxy across
+through the replacement target. API 22 still does not pin an old rebindable proxy across
 navigation.
 
 This arbitration governs controller commands, parameter mutations, and framework pressed/touched
@@ -529,14 +542,16 @@ the Bitwig controller log. An unused installed domain should first be removed fr
 
 ### Typed effects and live identity fences
 
-API 15 can request absolute transport state and values; selected-track activation, group expansion,
+API 22 can request absolute transport state and values; selected-track activation, group expansion,
 arm, monitor, mute, solo, volume, pan, stop, Return to Arrangement, and new-clip creation;
 target-neutral note-input
 MIDI poly pressure, CC, channel pressure, and pitch bend; and drum-pad activation, mute, solo, volume, pan, or
 selection. Parameter effects include relative adjustment and host-default reset against an exact
 currently published target, plus absolute restoration only when the same result retains that target
-and generation. Automation touch remains in stable adapters until it has a complete begin/end lease
-and generation-neutralization contract. These are requests, not optimistic state. Hardware feedback
+and generation. Existing automation-touch behavior remains frozen in stable adapters until it has
+a complete begin/end lease and generation-neutralization contract; any request to change its
+semantics must install that capability and move the policy to core. These are requests, not
+optimistic state. Hardware feedback
 still comes from later subscribed Bitwig read-back. Master effects add project-identity-fenced
 previous/next navigation, Open/Save actions, and absolute audio-engine state. Dependent navigation
 and engine commands remain serialized until subscribed host read-back acknowledges the request.
@@ -556,22 +571,24 @@ Bitwig's ordinary routing determines which tracks receive both the original and 
 
 ### Deliberate exclusions
 
-This remains a capability canopy, not a mirror of an unbounded Bitwig project. API 15 does not add
+This remains a capability canopy, not a mirror of an unbounded Bitwig project. API 22 does not add
 arbitrary project track/scene banks, arbitrary device-tree recursion, additional drum layers or
 branches, arbitrary parameter windows, automation-touch ownership, or a pinned actuator pool.
 `SELECTED_DEVICE_REMOTE` follows the current installed page rather than retaining every page.
 Visible-track sends are intentionally deferred until the visible-track bank can fence the same
-track-window identity; API 15 does not advertise parameter-only send slots without that alignment.
+track-window identity; API 22 does not advertise parameter-only send slots without that alignment.
 Extending one of those shapes or adding a new Bitwig property/action requires a parent-loaded
 API/shell change, extension installation, and Bitwig restart.
 
-Output remains narrower than input in API 15. The shell validates and arbitrates the 12 drum-fill
-RGB lights plus both Master button rows and the Master eight-column display. Other Push button/grid
-lights, ribbon output, and display pages still belong to stable shell rendering. Moving those
-surfaces requires stable complete-output arbitration in the shell and therefore one more
-install/restart before their policies can hot reload.
+Output remains narrower than input in API 22. The shell validates and arbitrates the 12 drum-fill
+RGB lights, global Play/Record lights, both Master button rows, the Master eight-column display, and
+a temporary sparse grid overlay. Underlying Push grid policy, other Push button lights, ribbon
+output, and display pages remain frozen stable migration debt. They are not valid targets for new
+behavior. A request that changes one of those meanings must first add complete reusable output
+arbitration and implement the policy in core, requiring one install/restart for that canopy
+expansion.
 
-Once API 15 is installed, new mappings, modes, gestures, and effects composed only from these exact
+Once API 22 is installed, new mappings, modes, gestures, and effects composed only from these exact
 inputs, subscriptions, and executors can ship by core reload. Capability breadth is bounded, and
 subscription choice controls active publication cost inside that bound.
 
@@ -638,7 +655,7 @@ snapshot.
 
 ## Snapshot and effects
 
-The API 15 snapshot contains revision, monotonic time, shell capabilities, the explicitly subscribed
+The API 22 snapshot contains revision, monotonic time, shell capabilities, the explicitly subscribed
 `ControllerBridgeSnapshot`, the complete selected-track clip catalog, verified per-control armed
 clip bindings, the clip-launch session's optional acquired owner-to-target lease and authoritative
 active owner, and pressed/touched controls. A pending fill intent is shell-private and never appears
@@ -784,7 +801,7 @@ The development command and shell share `${user.home}/.drivenbymoss/pull/reload`
 
 ```properties
 formatVersion=1
-apiVersion=15
+apiVersion=22
 buildId=20260731T230000Z-0123456789abcdef0123456789abcdef
 ```
 
@@ -794,7 +811,7 @@ verifies its embedded API/build identity, computes SHA-256, and atomically repla
 
 ```properties
 formatVersion=1
-apiVersion=15
+apiVersion=22
 shellFingerprint=0123456789abcdef0123456789abcdef01234567
 buildId=20260731T230000Z-0123456789abcdef0123456789abcdef
 jar=pull-core-20260731T230000Z-0123456789abcdef0123456789abcdef.jar
@@ -855,8 +872,8 @@ effects, rejections, and desired output. A real Bitwig failure can then become a
 | Safe pure-Java core dependency | Package and core reload |
 | Core-owned/migrated mapping, mode, gesture, layout policy, or fill matching | Core reload |
 | Route a currently registered input between `NONE`, `OBSERVE`, and `EXCLUSIVE` | Core reload |
-| Request or stop requesting an existing API 15 bridge subscription | Core reload |
-| Select a different installed API 15 parameter bank or remap an installed bank's encoder turns | Core reload |
+| Request or stop requesting an existing API 22 bridge subscription | Core reload |
+| Select a different installed API 22 parameter bank or remap an installed bank's encoder turns | Core reload |
 | Master display, Master row-button, or fill-light policy inside its installed output arbitration | Core reload |
 | Behavior using existing snapshot/effects | Core reload |
 | Behavior within the installed capability canopy | Core reload |
@@ -885,7 +902,7 @@ effects, rejections, and desired output. A real Bitwig failure can then become a
 - A route-map change or core reload during an edge gesture preserves its begin-time ownership
   through release; core replacement waits for the complete input lifecycle to drain, and continuous
   rebinding cannot bypass arbitration.
-- Unrequested API 15 bridge domains publish typed empty values without domain snapshot construction
+- Unrequested API 22 bridge domains publish typed empty values without domain snapshot construction
   or high-rate sampling/DTO churn.
 - Core handoff, selection change, and shutdown neutralize outstanding target-neutral note-input
   poly-pressure, CC, channel-pressure, and pitch-bend state on a best-effort basis through ordinary

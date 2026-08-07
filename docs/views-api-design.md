@@ -83,7 +83,9 @@ enum ClaimKind {
 Multiple observers may coexist. There is exactly one owning input claim and one output claim for
 any atomic area in a compiled workspace. The `STABLE_ADAPTER_*` kinds keep ownership in the view
 graph while honestly recording that current shell mechanics still realize it; they require a
-declared stable adapter facet.
+declared stable adapter facet. They are frozen migration-debt markers, not implementation choices
+for new work. An adapter may preserve existing behavior only; a requested semantic change requires
+a reusable canopy expansion and core policy.
 
 A grid input claim includes the pad edge, its strike velocity, and per-pad pressure. Pressure is a
 companion event for the same physical pad and follows the same compiled owner; it is never enabled
@@ -94,7 +96,8 @@ a distinct surface-wide input.
 The stable shell captures those events and publishes the current typed pressure configuration and
 drum base note. A reloadable view owns the mapping from its fixed playable footprint to MIDI effects.
 The stable adapter for a core-owned composite must be inert for pressure, while standalone views
-which have not migrated may continue through the generic stable view contract.
+which have not migrated may preserve their existing generic stable view contract unchanged. They
+may not acquire new pressure or mapping semantics there.
 
 ## Fixed Views
 
@@ -283,7 +286,8 @@ migration or the `VS Live` shell integration.
 
 - YAML/JSON configuration loading and schema versioning.
 - Capability-driven optional-facet negotiation.
-- General display and light ownership in the stable Core API.
+- Complete remaining display and light ownership in the stable Core API. Until each surface
+  migrates, its inherited stable renderer is frozen and may not receive new semantics.
 - Migrating every inherited DrivenByMoss mode/view family.
 - User-authored overlays beyond named, statically validated replacements.
 - Persisting richer per-view navigation state across reload.
