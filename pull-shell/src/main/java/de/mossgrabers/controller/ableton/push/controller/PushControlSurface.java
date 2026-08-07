@@ -389,6 +389,8 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
         this.controllerWorkspaceHost = new ControllerWorkspaceHost (this);
         this.notifyViewChange = false;
         this.pushPadGrid = (PushPadGrid) this.padGrid;
+        if (this.reloadableRuntime != null)
+            this.pushPadGrid.setOverlaySupplier (this.reloadableRuntime::padGridOverlay);
         this.colorPalette = new ColorPalette (this);
 
         this.input.setSysexCallback (this::handleSysEx);

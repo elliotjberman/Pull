@@ -19,12 +19,16 @@ import de.mossgrabers.framework.daw.IProject;
 import de.mossgrabers.framework.daw.ITransport;
 import de.mossgrabers.framework.daw.data.ICursorDevice;
 import de.mossgrabers.framework.daw.data.ICursorTrack;
+import de.mossgrabers.framework.daw.data.IMasterTrack;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.IParameterBank;
 import de.mossgrabers.framework.daw.data.bank.IParameterPageBank;
+import de.mossgrabers.framework.daw.data.bank.ITrackBank;
 import de.mossgrabers.framework.daw.midi.IMidiInput;
 import de.mossgrabers.framework.daw.midi.IMidiOutput;
 import de.mossgrabers.framework.daw.midi.ISelectedTrackNoteTarget;
+import de.mossgrabers.framework.featuregroup.IMode;
+import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.parameter.IParameter;
 import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
 import de.mossgrabers.pull.core.api.DesiredParameterBanks;
@@ -43,9 +47,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -150,6 +157,118 @@ class ParameterTargetHostTest
         assertThrows (IllegalStateException.class, () -> host.applyLeases (prepared, banks));
         assertTrue (host.snapshot ().retainedBaselines ().isEmpty ());
         assertEquals (0, projectParameter.writeCount);
+    }
+
+
+    @Test
+    void masterAndCueTargetsAreFencedToTheObservedProjectTab ()
+    {
+        final MutableParameter volume = new MutableParameter (64);
+        final MutableParameter pan = new MutableParameter (32);
+        final MutableParameter cueVolume = new MutableParameter (48);
+        final MutableParameter cueMix = new MutableParameter (16);
+        final IParameter volumeParameter = volume.proxy ();
+        final IParameter panParameter = pan.proxy ();
+        final IParameter cueVolumeParameter = cueVolume.proxy ();
+        final IParameter cueMixParameter = cueMix.proxy ();
+        final AtomicReference<String> projectIdentity = new AtomicReference<> ("project-a");
+        final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
+        final ITransport transport = relaxedProxy (ITransport.class);
+        final IProject project = proxy (IProject.class, (proxy, method, arguments) -> switch (method.getName ())
+        {
+            case "getIdentity" -> projectIdentity.get ();
+            case "getCueVolumeParameter" -> cueVolumeParameter;
+            case "getCueMixParameter" -> cueMixParameter;
+            default -> relaxedValue (method.getReturnType ());
+        });
+        final IMasterTrack master = proxy (IMasterTrack.class, (proxy, method, arguments) -> switch (method.getName ())
+        {
+            case "getVolumeParameter" -> volumeParameter;
+            case "getPanParameter" -> panParameter;
+            default -> relaxedValue (method.getReturnType ());
+        });
+        final IModel model = proxy (IModel.class, (proxy, method, arguments) -> switch (method.getName ())
+        {
+            case "getTransport" -> transport;
+            case "getProject" -> project;
+            case "getMasterTrack" -> master;
+            case "getValueChanger" -> valueChanger;
+            default -> relaxedValue (method.getReturnType ());
+        });
+        final ParameterTargetHost host = new ParameterTargetHost (createSurface (new MutableContinuous (), valueChanger), model, silentLog ());
+        final DesiredParameterBanks banks = new DesiredParameterBanks (Set.of (ParameterBankId.MASTER));
+
+        host.refresh (banks);
+        final ParameterTargetRef original = host.snapshot ().slots ().get (ParameterSlot.MASTER_MIX_VOLUME).target ();
+        final ParameterTargetHost.PreparedAdjust stale = host.prepare (new AdjustParameterValueEffect (original, 3));
+
+        projectIdentity.set ("project-b");
+        assertThrows (IllegalStateException.class, () -> host.apply (stale));
+        host.refresh (banks);
+        final ParameterTargetRef rebound = host.snapshot ().slots ().get (ParameterSlot.MASTER_MIX_VOLUME).target ();
+        assertNotEquals (original, rebound);
+
+        host.apply (host.prepare (new AdjustParameterValueEffect (rebound, 2)));
+        assertEquals (66, volume.value);
+        assertEquals (1, volume.incrementCount);
+    }
+
+
+    @Test
+    void selectedTrackMixKnobFailsClosedUntilItsBindingMatchesTheDisplayedTrack ()
+    {
+        final MutableParameter selectedVolume = new MutableParameter (64);
+        final MutableParameter staleVolume = new MutableParameter (32);
+        final IParameter selectedParameter = selectedVolume.proxy ();
+        final IParameter staleParameter = staleVolume.proxy ();
+        final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
+        final MutableContinuous continuous = new MutableContinuous ();
+        final PushControlSurface surface = createSurface (continuous, valueChanger);
+        final IHwRelativeKnob knob = surface.createRelativeKnob (ContinuousID.KNOB1, "Knob 1");
+        surface.getModeManager ().register (Modes.TRACK, relaxedProxy (IMode.class));
+        surface.getModeManager ().setDefaultID (Modes.TRACK);
+        surface.getModeManager ().setActive (Modes.TRACK);
+
+        final ICursorTrack selectedTrack = proxy (ICursorTrack.class, (proxy, method, arguments) -> switch (method.getName ())
+        {
+            case "doesExist" -> Boolean.TRUE;
+            case "getChannelID" -> "selected-track";
+            case "getVolumeParameter" -> selectedParameter;
+            default -> relaxedValue (method.getReturnType ());
+        });
+        final ITrack staleTrack = proxy (ITrack.class, (proxy, method, arguments) -> switch (method.getName ())
+        {
+            case "doesExist" -> Boolean.TRUE;
+            case "getChannelID" -> "stale-track";
+            case "getVolumeParameter" -> staleParameter;
+            default -> relaxedValue (method.getReturnType ());
+        });
+        final ITrackBank tracks = proxy (ITrackBank.class, (proxy, method, arguments) -> switch (method.getName ())
+        {
+            case "getPageSize" -> Integer.valueOf (2);
+            case "getItem" -> ((Integer) arguments[0]).intValue () == 0 ? selectedTrack : staleTrack;
+            default -> relaxedValue (method.getReturnType ());
+        });
+        final IModel model = proxy (IModel.class, (proxy, method, arguments) -> switch (method.getName ())
+        {
+            case "getTransport" -> relaxedProxy (ITransport.class);
+            case "getCursorTrack" -> selectedTrack;
+            case "getCurrentTrackBank", "getTrackBank" -> tracks;
+            case "getValueChanger" -> valueChanger;
+            default -> relaxedValue (method.getReturnType ());
+        });
+        final ParameterTargetHost host = new ParameterTargetHost (surface, model, silentLog ());
+        final DesiredParameterBanks banks = new DesiredParameterBanks (Set.of (ParameterBankId.ACTIVE));
+
+        knob.bind (staleParameter);
+        host.refresh (banks);
+        assertNull (host.resolveMutation (knob));
+        assertTrue (host.requiresResolvedMutation (knob));
+
+        knob.bind (selectedParameter);
+        host.refresh (banks);
+        assertNotNull (host.resolveMutation (knob));
+        assertTrue (host.requiresResolvedMutation (knob));
     }
 
 

@@ -307,10 +307,22 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
     private static Set<PhysicalInputAddress<ControlId>> coreOwnedInputs ()
     {
         final java.util.LinkedHashSet<PhysicalInputAddress<ControlId>> inputs = new java.util.LinkedHashSet<> ();
+        inputs.add (new PhysicalInputAddress<> (PushControlIds.button (ButtonID.PLAY.name ()), InputKind.BUTTON));
         inputs.add (new PhysicalInputAddress<> (PushControlIds.button (ButtonID.RECORD.name ()), InputKind.BUTTON));
+        for (int index = 1; index <= 8; index++)
+        {
+            inputs.add (new PhysicalInputAddress<> (PushControlIds.button ("ROW1_" + index), InputKind.BUTTON));
+            inputs.add (new PhysicalInputAddress<> (PushControlIds.button ("ROW2_" + index), InputKind.BUTTON));
+        }
         for (int index = 1; index <= 8; index++)
             inputs.add (new PhysicalInputAddress<> (PushControlIds.continuous ("KNOB" + index), InputKind.RELATIVE));
         return Set.copyOf (inputs);
+    }
+
+
+    static boolean isCoreOwnedInput (final ControlId control, final InputKind kind)
+    {
+        return CORE_OWNED_INPUTS.contains (new PhysicalInputAddress<> (Objects.requireNonNull (control, "control"), Objects.requireNonNull (kind, "kind")));
     }
 
 

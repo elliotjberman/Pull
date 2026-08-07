@@ -18,7 +18,7 @@ import java.util.Properties;
  *
  * @param formatVersion Publication manifest format
  * @param apiVersion Exact parent-loaded core API version
- * @param shellFingerprint Exact parent-loaded shell/API source fingerprint expected by this core
+ * @param shellFingerprint Exact parent-loaded core API source fingerprint expected by this core
  * @param buildId Exact core descriptor build identifier
  * @param jar Immutable artifact file name
  * @param sha256 Lowercase SHA-256 of the artifact

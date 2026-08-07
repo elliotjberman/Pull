@@ -12,7 +12,7 @@ import java.util.Properties;
  * Parent-owned description of one immutable development candidate.
  *
  * @param apiVersion The exact shell API version
- * @param shellFingerprint Exact parent-loaded shell/API source fingerprint expected by the candidate
+ * @param shellFingerprint Exact parent-loaded core API source fingerprint expected by the candidate
  * @param buildId The immutable build identifier
  * @param jarName The candidate JAR basename
  * @param sha256 The lowercase SHA-256 digest

@@ -6,16 +6,11 @@ repository_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 calculate_fingerprint ()
 {
+    # A reloadable core links only against the parent-loaded core API. Shell implementation
+    # changes are not a classloader compatibility boundary and must not block core hot reloads.
     git -C "$repository_dir" ls-files --cached --others --exclude-standard -- \
-        pom.xml \
         pull-core-api/pom.xml \
-        pull-core-api/src/main \
-        pull-core-bundle/pom.xml \
-        pull-core-bundle/src/main \
-        pull-shell/pom.xml \
-        pull-shell/src/assembly \
-        pull-shell/src/main \
-        tools/shell-fingerprint |
+        pull-core-api/src/main |
         LC_ALL=C sort |
         while IFS= read -r path
         do

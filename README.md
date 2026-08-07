@@ -190,9 +190,10 @@ needs dependencies. It publishes to `~/.drivenbymoss/pull/reload`; set
 `PULL_CORE_RELOAD_DIR` or pass an absolute `--directory` to use the shell's configured directory.
 
 Success means the running shell acknowledged the exact requested build ID—not merely that Maven
-succeeded. Each candidate carries an exact fingerprint of the local parent-loaded shell/API
+succeeded. Each candidate carries an exact fingerprint of the local parent-loaded core API
 sources. If that differs from the running extension, Bitwig reports `restartRequired` instead of
-attempting an unsafe core reload—even when the shell change was already committed.
+attempting an unsafe core reload—even when the API change was already committed. Shell-only
+implementation edits do not change this compatibility fingerprint.
 
 Installing this shell checkpoint requires one extension copy and Bitwig restart because it changes
 the stable note-input topology and parent-loaded API: the existing Pads input returns to ordinary

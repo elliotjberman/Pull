@@ -3,6 +3,7 @@
 
 package de.mossgrabers.pull.core.runtime.view;
 
+import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerActionBinding;
 import de.mossgrabers.pull.core.api.ControllerActionId;
@@ -28,6 +29,7 @@ import java.util.Set;
  */
 public final class WorkspaceSelectionView implements ControllerView
 {
+    private static final Set<BridgeSubscription> SUBSCRIPTIONS = Set.of (BridgeSubscription.CONTROLLER_LAYOUT);
     private static final ControlId SESSION_BUTTON = PushControlIds.button ("SESSION");
     private static final ControlId NOTE_BUTTON = PushControlIds.button ("NOTE");
     private static final ControlId SHIFT_BUTTON = PushControlIds.button ("SHIFT");
@@ -77,6 +79,14 @@ public final class WorkspaceSelectionView implements ControllerView
     public Set<ControllerActionBinding> actionBindings ()
     {
         return ACTION_BINDINGS;
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public Set<BridgeSubscription> bridgeSubscriptions ()
+    {
+        return SUBSCRIPTIONS;
     }
 
 

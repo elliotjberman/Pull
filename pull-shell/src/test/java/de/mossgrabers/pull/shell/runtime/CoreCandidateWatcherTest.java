@@ -109,7 +109,7 @@ class CoreCandidateWatcherTest
 
 
     @Test
-    void shellFingerprintMismatchRequiresRestartBeforeCopyingCandidate () throws Exception
+    void coreApiFingerprintMismatchRequiresRestartBeforeCopyingCandidate () throws Exception
     {
         final RuntimePaths paths = new RuntimePaths (this.temporaryDirectory.resolve ("reload"));
         final Path jar = writeCoreJar (paths.root (), "old-shell", CoreApi.VERSION);
@@ -121,7 +121,7 @@ class CoreCandidateWatcherTest
         assertTrue (watcher.takeCandidate ().isEmpty ());
         final CoreCandidateWatcher.RejectedCandidate rejection = watcher.takeRejection ().orElseThrow ();
         assertEquals (RuntimeStatus.State.RESTART_REQUIRED, rejection.state ());
-        assertTrue (rejection.message ().contains ("different shell/API sources"));
+        assertTrue (rejection.message ().contains ("different core API sources"));
         watcher.close ();
     }
 

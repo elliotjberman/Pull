@@ -35,7 +35,7 @@ public final class CoreCapabilities
     /** Replayable core ownership of normalized controller inputs. */
     public static final String ROUTING_CONTROLLER_INPUT = "routing.controller-input";
 
-    /** Common bounded transport, selected-track, layout, and drum state. */
+    /** Common bounded transport, project, selected-track, layout, and drum state. */
     public static final String SNAPSHOT_CONTROLLER_BRIDGE = "snapshot.controller-bridge";
 
     /** Replayable selection of bounded bridge-state domains to publish and sample. */
@@ -58,6 +58,24 @@ public final class CoreCapabilities
 
     /** Replayable exact parameter leases and generation-fenced absolute effects. */
     public static final String EFFECT_PARAMETER_TARGET = "effect.parameter-target";
+
+    /** Authoritative current-project and master-track snapshot. */
+    public static final String SNAPSHOT_MASTER = "snapshot.master";
+
+    /** Serialized project navigation, project file, audio-engine, and identity-fenced transport effects. */
+    public static final String EFFECT_MASTER = "effect.master";
+
+    /** Complete replayable controller display; v2 adds bounded declarative vector scenes. */
+    public static final String OUTPUT_CONTROLLER_DISPLAY = "output.controller-display";
+
+    /** Temporary sparse overlay over a frozen Push pad-grid frame. */
+    public static final String OUTPUT_PAD_GRID_OVERLAY = "output.pad-grid-overlay";
+
+    /** Temporary complete scene composed above the current Push display page. */
+    public static final String OUTPUT_DISPLAY_OVERLAY = "output.display-overlay";
+
+    /** Pure child-core rendering of authoritative stable-adapter mixer data. */
+    public static final String RENDER_MIXER_CONTROLS = "render.mixer-controls";
 
     private CoreCapabilities ()
     {

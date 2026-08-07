@@ -13,13 +13,16 @@ import de.mossgrabers.framework.controller.hardware.IHwSurfaceFactory;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.controller.valuechanger.TwosComplementValueChanger;
 import de.mossgrabers.framework.daw.IHost;
+import de.mossgrabers.framework.daw.IApplication;
 import de.mossgrabers.framework.daw.IModel;
+import de.mossgrabers.framework.daw.IProject;
 import de.mossgrabers.framework.daw.ITransport;
 import de.mossgrabers.framework.daw.data.ICursorTrack;
 import de.mossgrabers.framework.daw.data.IDrumDevice;
 import de.mossgrabers.framework.daw.data.IDrumPad;
 import de.mossgrabers.framework.daw.data.ISlot;
 import de.mossgrabers.framework.daw.data.ITrack;
+import de.mossgrabers.framework.daw.data.IMasterTrack;
 import de.mossgrabers.framework.daw.data.bank.IDrumPadBank;
 import de.mossgrabers.framework.daw.data.bank.ISlotBank;
 import de.mossgrabers.framework.daw.midi.IMidiInput;
@@ -29,6 +32,7 @@ import de.mossgrabers.framework.daw.midi.SelectedTrackMonitorMode;
 import de.mossgrabers.framework.daw.midi.SelectedTrackNoteTargetSnapshot;
 import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
+import de.mossgrabers.pull.core.api.CoreExecutionRequirements;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredParameterBanks;
 import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
@@ -37,6 +41,10 @@ import de.mossgrabers.pull.core.api.ParameterSlot;
 import de.mossgrabers.pull.core.api.ParameterBankId;
 import de.mossgrabers.pull.core.api.ParameterTargetRef;
 import de.mossgrabers.pull.core.api.effect.SelectDrumPadEffect;
+import de.mossgrabers.pull.core.api.effect.NavigateProjectEffect;
+import de.mossgrabers.pull.core.api.effect.ProjectNavigationDirection;
+import de.mossgrabers.pull.core.api.effect.SetProjectEngineEffect;
+import de.mossgrabers.pull.core.api.effect.SetProjectTransportStateEffect;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackAction;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackActionEffect;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackBoolean;
@@ -75,8 +83,10 @@ class BoundedControllerBridgeTest
         assertEquals (0, fixture.selected.snapshotCount);
         assertEquals (0, fixture.transport.snapshotReadCount);
 
+        fixture.application.engineActive = true;
         assertTrue (fixture.bridge.refresh (2, subscriptions (BridgeSubscription.TRANSPORT, BridgeSubscription.SELECTED_TRACK), DesiredParameterBanks.empty ()));
         assertTrue (fixture.bridge.snapshot ().transport ().available ());
+        assertTrue (fixture.bridge.snapshot ().transport ().engineActive ());
         assertTrue (fixture.bridge.snapshot ().selectedTrack ().exists ());
         assertEquals (1, fixture.selected.snapshotCount);
         assertTrue (fixture.transport.snapshotReadCount > 0);
@@ -86,6 +96,169 @@ class BoundedControllerBridgeTest
         assertEquals (ControllerBridgeSnapshot.empty (), fixture.bridge.snapshot ());
         assertEquals (1, fixture.selected.snapshotCount);
         assertEquals (transportReads, fixture.transport.snapshotReadCount);
+    }
+
+
+    @Test
+    void projectNavigationWaitsForAuthoritativeIdentityAndLearnsABoundary ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        final DesiredBridgeSubscriptions master = subscriptions (BridgeSubscription.MASTER);
+        fixture.bridge.refresh (1, master, DesiredParameterBanks.empty ());
+
+        fixture.bridge.apply (fixture.bridge.prepare (new NavigateProjectEffect ("project-a", ProjectNavigationDirection.PREVIOUS)));
+        assertEquals (1, fixture.project.previousCount);
+        assertEquals (0, fixture.project.nextCount);
+
+        final ControllerBridge.PreparedAction ignoredWhilePending = fixture.bridge.prepare (new NavigateProjectEffect ("project-a", ProjectNavigationDirection.NEXT));
+        fixture.bridge.apply (ignoredWhilePending);
+        assertEquals (0, fixture.project.nextCount);
+
+        for (int tick = 0; tick < 100; tick++)
+            fixture.bridge.refresh (2 + tick, master, DesiredParameterBanks.empty ());
+        assertFalse (fixture.bridge.snapshot ().master ().commandPending ());
+        assertFalse (fixture.bridge.snapshot ().master ().canPrevious ());
+        assertTrue (fixture.bridge.snapshot ().master ().canNext ());
+    }
+
+
+    @Test
+    void successfulNavigationAndEngineChangesRequireLaterHostReadback ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        final DesiredBridgeSubscriptions master = subscriptions (BridgeSubscription.MASTER);
+        fixture.bridge.refresh (1, master, DesiredParameterBanks.empty ());
+
+        fixture.bridge.apply (fixture.bridge.prepare (new NavigateProjectEffect ("project-a", ProjectNavigationDirection.NEXT)));
+        fixture.project.identity = "project-b";
+        fixture.bridge.refresh (2, master, DesiredParameterBanks.empty ());
+        assertTrue (fixture.bridge.snapshot ().master ().commandPending ());
+        fixture.bridge.refresh (3, master, DesiredParameterBanks.empty ());
+        assertFalse (fixture.bridge.snapshot ().master ().commandPending ());
+        assertTrue (fixture.bridge.snapshot ().master ().canPrevious ());
+
+        fixture.bridge.apply (fixture.bridge.prepare (new SetProjectEngineEffect ("project-b", true)));
+        assertEquals (1, fixture.application.engineWriteCount);
+        assertFalse (fixture.application.engineActive);
+        fixture.bridge.refresh (4, master, DesiredParameterBanks.empty ());
+        assertTrue (fixture.bridge.snapshot ().master ().commandPending ());
+        fixture.application.engineActive = true;
+        fixture.bridge.refresh (5, master, DesiredParameterBanks.empty ());
+        assertFalse (fixture.bridge.snapshot ().master ().commandPending ());
+        assertTrue (fixture.bridge.snapshot ().master ().engineActive ());
+    }
+
+
+    @Test
+    void abandonedProjectNavigationLeaseRetracesItsAuthoritativePathBeforeReplacement ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        final DesiredBridgeSubscriptions project = subscriptions (BridgeSubscription.PROJECT);
+        final CoreExecutionRequirements lease = new CoreExecutionRequirements (true, 7, "project-a");
+        fixture.bridge.refresh (1, project, DesiredParameterBanks.empty ());
+        fixture.bridge.applyExecutionRequirements (fixture.bridge.prepareExecutionRequirements (lease));
+        assertFalse (fixture.bridge.canReplaceActiveCore ());
+
+        fixture.bridge.apply (fixture.bridge.prepare (new NavigateProjectEffect ("project-a", ProjectNavigationDirection.NEXT)));
+        fixture.project.identity = "project-b";
+        fixture.bridge.refresh (2, project, DesiredParameterBanks.empty ());
+        fixture.bridge.refresh (3, project, DesiredParameterBanks.empty ());
+
+        fixture.bridge.abandonActiveCore ();
+        fixture.bridge.refresh (4, project, DesiredParameterBanks.empty ());
+        assertEquals (1, fixture.project.previousCount);
+        assertFalse (fixture.bridge.canReplaceActiveCore ());
+
+        fixture.project.identity = "project-a";
+        fixture.bridge.refresh (5, project, DesiredParameterBanks.empty ());
+        fixture.bridge.refresh (6, project, DesiredParameterBanks.empty ());
+        assertTrue (fixture.bridge.canReplaceActiveCore ());
+    }
+
+
+    @Test
+    void failedMidiCleanupCannotPreventParameterRestoreOrNavigationUnwind ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        final DesiredParameterBanks parameterBanks = new DesiredParameterBanks (Set.of (ParameterBankId.GLOBAL));
+        final DesiredBridgeSubscriptions requested = subscriptions (BridgeSubscription.PROJECT, BridgeSubscription.PARAMETERS);
+        fixture.bridge.refresh (1, requested, parameterBanks);
+        final ParameterTargetRef tempo = fixture.bridge.snapshot ().parameters ().slots ().get (ParameterSlot.TEMPO).target ();
+        final DesiredParameterInteraction interaction = new DesiredParameterInteraction (1, false, Map.of (tempo, 120.0), Set.of (), Set.of (), 0);
+        final Map<ParameterTargetRef, ControllerBridge.ParameterLease> leases = fixture.bridge.prepareParameterLeases (interaction, parameterBanks);
+        fixture.bridge.applyParameterLeases (leases, parameterBanks);
+        fixture.bridge.apply (fixture.bridge.prepare (new SetParameterValueEffect (tempo, 98), leases));
+        applyMidi (fixture, 0xB1, 74, 99);
+
+        final CoreExecutionRequirements lease = new CoreExecutionRequirements (true, 7, "project-a");
+        fixture.bridge.applyExecutionRequirements (fixture.bridge.prepareExecutionRequirements (lease));
+        fixture.bridge.apply (fixture.bridge.prepare (new NavigateProjectEffect ("project-a", ProjectNavigationDirection.NEXT)));
+        fixture.project.identity = "project-b";
+        fixture.bridge.refresh (2, requested, parameterBanks);
+        fixture.bridge.refresh (3, requested, parameterBanks);
+        fixture.failNeutralMidi = true;
+
+        fixture.bridge.abandonActiveCore ();
+        fixture.bridge.refresh (4, requested, DesiredParameterBanks.empty ());
+
+        assertEquals (120, fixture.transport.tempo);
+        assertEquals (1, fixture.project.previousCount);
+        assertFalse (fixture.bridge.canReplaceActiveCore ());
+        fixture.project.identity = "project-a";
+        fixture.bridge.refresh (5, requested, DesiredParameterBanks.empty ());
+        fixture.bridge.refresh (6, requested, DesiredParameterBanks.empty ());
+        assertTrue (fixture.bridge.canReplaceActiveCore ());
+    }
+
+
+    @Test
+    void masterMeterPublishesAuthoritativeReadbackWheneverMasterIsSubscribed ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.MASTER), DesiredParameterBanks.empty ());
+
+        assertEquals (64, fixture.bridge.snapshot ().master ().vuLeft ());
+        assertEquals (32, fixture.bridge.snapshot ().master ().vuRight ());
+    }
+
+
+    @Test
+    void lightweightProjectSubscriptionDoesNotSampleMasterMeters ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.PROJECT), DesiredParameterBanks.empty ());
+
+        assertTrue (fixture.bridge.snapshot ().project ().available ());
+        assertEquals ("project-a", fixture.bridge.snapshot ().project ().projectIdentity ());
+        assertEquals (0, fixture.masterVuReadCount);
+        assertEquals (de.mossgrabers.pull.core.api.MasterSnapshot.empty (), fixture.bridge.snapshot ().master ());
+    }
+
+
+    @Test
+    void projectTransportEffectRechecksVisibleProjectAtApplyTime ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        final DesiredBridgeSubscriptions requested = subscriptions (BridgeSubscription.PROJECT, BridgeSubscription.TRANSPORT);
+        fixture.bridge.refresh (1, requested, DesiredParameterBanks.empty ());
+        final ControllerBridge.PreparedAction stale = fixture.bridge.prepare (
+            new SetProjectTransportStateEffect ("project-a", TransportState.PLAYING, true));
+
+        fixture.project.identity = "project-b";
+        fixture.bridge.apply (stale);
+        assertEquals (0, fixture.transport.playCount);
+
+        fixture.project.identity = "project-a";
+        fixture.bridge.refresh (2, requested, DesiredParameterBanks.empty ());
+        fixture.bridge.apply (fixture.bridge.prepare (new SetProjectTransportStateEffect ("project-a", TransportState.PLAYING, true)));
+        assertEquals (1, fixture.transport.playCount);
+        assertFalse (fixture.bridge.snapshot ().transport ().playing ());
+
+        fixture.transport.playing = true;
+        fixture.bridge.refresh (3, requested, DesiredParameterBanks.empty ());
+        assertTrue (fixture.bridge.snapshot ().transport ().playing ());
     }
 
 
@@ -204,6 +377,28 @@ class BoundedControllerBridgeTest
 
 
     @Test
+    void abandoningAFaultedCoreRestoresRetainedParametersAndNeutralizesMidi ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        final DesiredParameterBanks parameterBanks = new DesiredParameterBanks (Set.of (ParameterBankId.GLOBAL));
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.PARAMETERS), parameterBanks);
+        final ParameterTargetRef tempo = fixture.bridge.snapshot ().parameters ().slots ().get (ParameterSlot.TEMPO).target ();
+        final DesiredParameterInteraction interaction = new DesiredParameterInteraction (1, false, Map.of (tempo, 120.0), Set.of (), Set.of (), 0);
+        final Map<ParameterTargetRef, ControllerBridge.ParameterLease> leases = fixture.bridge.prepareParameterLeases (interaction, parameterBanks);
+        fixture.bridge.applyParameterLeases (leases, parameterBanks);
+        fixture.bridge.apply (fixture.bridge.prepare (new SetParameterValueEffect (tempo, 98), leases));
+        applyMidi (fixture, 0xB1, 74, 99);
+
+        fixture.bridge.abandonActiveCore ();
+
+        assertEquals (120, fixture.transport.tempo);
+        assertEquals (List.of (
+            new MidiMessage (0xB1, 74, 99),
+            new MidiMessage (0xB1, 74, 0)), fixture.noteInputMidiMessages);
+    }
+
+
+    @Test
     void neutralizesStatefulMidiWhenTheSelectedTargetChanges ()
     {
         final BridgeFixture fixture = new BridgeFixture ();
@@ -237,10 +432,14 @@ class BoundedControllerBridgeTest
         private final MutableSelectedTarget selected = new MutableSelectedTarget ();
         private final MutableTransport transport = new MutableTransport ();
         private final MutableDrum drum = new MutableDrum (this.selected);
+        private final MutableProject project = new MutableProject ();
+        private final MutableApplication application = new MutableApplication ();
         private final List<MidiMessage> noteInputMidiMessages = new ArrayList<> ();
         private final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
         private final BoundedControllerBridge bridge;
         private int newClipCount;
+        private int masterVuReadCount;
+        private boolean failNeutralMidi;
 
 
         private BridgeFixture ()
@@ -254,6 +453,9 @@ class BoundedControllerBridgeTest
                 case "getCursorTrack" -> cursorTrack;
                 case "getDrumDevice" -> drumDevice;
                 case "getValueChanger" -> this.valueChanger;
+                case "getProject" -> this.project.proxy ();
+                case "getApplication" -> this.application.proxy ();
+                case "getMasterTrack" -> this.masterTrack ();
                 case "createNoteClip" -> {
                     this.newClipCount++;
                     yield null;
@@ -264,7 +466,7 @@ class BoundedControllerBridgeTest
             this.bridge = new BoundedControllerBridge (
                 model,
                 this.selected,
-                (status, data1, data2) -> this.noteInputMidiMessages.add (new MidiMessage (status, data1, data2)),
+                this::sendNoteInputMidi,
                 surface,
                 this.valueChanger,
                 new RuntimeLog ()
@@ -283,6 +485,84 @@ class BoundedControllerBridgeTest
                     }
                 });
         }
+
+
+        private void sendNoteInputMidi (final int status, final int data1, final int data2)
+        {
+            if (this.failNeutralMidi && data2 == 0)
+                throw new IllegalStateException ("broken MIDI neutralization");
+            this.noteInputMidiMessages.add (new MidiMessage (status, data1, data2));
+        }
+
+
+        private IMasterTrack masterTrack ()
+        {
+            return proxy (IMasterTrack.class, (proxy, method, arguments) -> switch (method.getName ())
+            {
+                case "getName" -> "Master";
+                case "getColor" -> ColorEx.GRAY;
+                case "isActivated" -> Boolean.TRUE;
+                case "isSelected", "isRecArm" -> Boolean.FALSE;
+                case "getVuLeft" -> {
+                    this.masterVuReadCount++;
+                    yield Integer.valueOf (64);
+                }
+                case "getVuRight" -> {
+                    this.masterVuReadCount++;
+                    yield Integer.valueOf (32);
+                }
+                default -> relaxedValue (method.getReturnType ());
+            });
+        }
+    }
+
+
+    private static final class MutableProject
+    {
+        private String identity = "project-a";
+        private int previousCount;
+        private int nextCount;
+
+
+        private IProject proxy ()
+        {
+            return BoundedControllerBridgeTest.proxy (IProject.class, (proxy, method, arguments) -> switch (method.getName ())
+            {
+                case "getIdentity" -> this.identity;
+                case "getName" -> "Show";
+                case "isDirty" -> Boolean.FALSE;
+                case "previous" -> {
+                    this.previousCount++;
+                    yield null;
+                }
+                case "next" -> {
+                    this.nextCount++;
+                    yield null;
+                }
+                default -> relaxedValue (method.getReturnType ());
+            });
+        }
+    }
+
+
+    private static final class MutableApplication
+    {
+        private boolean engineActive;
+        private int engineWriteCount;
+
+
+        private IApplication proxy ()
+        {
+            return BoundedControllerBridgeTest.proxy (IApplication.class, (proxy, method, arguments) -> switch (method.getName ())
+            {
+                case "isEngineActive" -> Boolean.valueOf (this.engineActive);
+                case "setEngineActive" -> {
+                    this.engineWriteCount++;
+                    yield null;
+                }
+                default -> relaxedValue (method.getReturnType ());
+            });
+        }
     }
 
 
@@ -291,8 +571,11 @@ class BoundedControllerBridgeTest
         private final List<String> writes = new ArrayList<> ();
         private boolean recording;
         private boolean arrangerOverdub;
+        private boolean playing;
         private double tempo = 120;
         private int snapshotReadCount;
+        private int playCount;
+        private int stopCount;
 
 
         private ITransport proxy ()
@@ -301,6 +584,8 @@ class BoundedControllerBridgeTest
                 switch (method.getName ())
                 {
                     case "isPlaying":
+                        this.snapshotReadCount++;
+                        return Boolean.valueOf (this.playing);
                     case "isLauncherOverdub":
                     case "isLoop":
                     case "isMetronomeOn":
@@ -339,6 +624,12 @@ class BoundedControllerBridgeTest
                         return null;
                     case "setTempo":
                         this.tempo = ((Number) arguments[0]).doubleValue ();
+                        return null;
+                    case "play":
+                        this.playCount++;
+                        return null;
+                    case "stop":
+                        this.stopCount++;
                         return null;
                     case "toggleRecording":
                     case "toggleOverdub":

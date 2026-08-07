@@ -9,7 +9,7 @@ import java.util.Objects;
 import java.util.Properties;
 
 /**
- * Exact parent-loaded shell/API source identity embedded by the extension build.
+ * Exact parent-loaded core API source identity embedded by the extension build.
  *
  * @param fingerprint Source fingerprint
  */
@@ -22,7 +22,7 @@ record ShellBuildMetadata (String fingerprint)
     {
         Objects.requireNonNull (fingerprint, "fingerprint");
         if (!fingerprint.matches ("[0-9a-f]{40}|[0-9a-f]{64}"))
-            throw new IllegalArgumentException ("Invalid shell fingerprint");
+            throw new IllegalArgumentException ("Invalid core API fingerprint");
     }
 
 

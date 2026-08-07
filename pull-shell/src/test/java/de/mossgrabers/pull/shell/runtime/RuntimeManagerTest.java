@@ -11,10 +11,18 @@ import de.mossgrabers.pull.core.api.CoreApi;
 import de.mossgrabers.pull.core.api.CoreDescriptor;
 import de.mossgrabers.pull.core.api.CoreProvider;
 import de.mossgrabers.pull.core.api.CoreResult;
+import de.mossgrabers.pull.core.api.MixerControlKind;
+import de.mossgrabers.pull.core.api.MixerControlSnapshot;
+import de.mossgrabers.pull.core.api.MixerControlsSnapshot;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.StateEnvelope;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
+import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
+import de.mossgrabers.pull.core.api.output.DisplayCommand;
+import de.mossgrabers.pull.core.api.output.MixerControlDisplay;
+import de.mossgrabers.pull.core.api.output.MixerControlsDisplay;
+import de.mossgrabers.pull.core.api.output.RgbColor;
 
 import org.junit.jupiter.api.Test;
 
@@ -49,7 +57,8 @@ class RuntimeManagerTest
         final TestSource secondSource = source ("build-b", secondCore);
 
         manager.start ();
-        assertEquals (ActivationResult.State.ACTIVE, manager.activate ("build-a", firstSource, () -> true).state ());
+        final ActivationResult firstActivation = manager.activate ("build-a", firstSource, () -> true);
+        assertEquals (ActivationResult.State.ACTIVE, firstActivation.state (), firstActivation.message ());
         assertEquals (ActivationResult.State.ACTIVE, manager.activate ("build-b", secondSource, () -> true).state ());
 
         assertArrayEquals (new byte []
@@ -357,7 +366,7 @@ class RuntimeManagerTest
 
 
     @Test
-    void eventPrepareFailureFaultsAndInvalidatesTheActiveCore ()
+    void eventPrepareFailureQuarantinesMutatedCoreAndRetainsCommittedOutputUntilReplacement ()
     {
         final TestEnvironment environment = new TestEnvironment (ShellCapabilities.empty ());
         final RecordingLog log = new RecordingLog ();
@@ -372,19 +381,28 @@ class RuntimeManagerTest
 
         assertFalse (manager.handle (manager.activeGeneration (), event));
         assertEquals (1, core.handleCount);
-        assertEquals ("", manager.activeBuildId ());
-        assertEquals (0, manager.activeGeneration ());
-        assertTrue (source.closed);
+        assertEquals ("stable", manager.activeBuildId ());
+        assertEquals (1, manager.activeGeneration ());
+        assertFalse (source.closed);
         assertEquals (List.of (1L), environment.committedGenerations);
         assertEquals (List.of (1L), environment.appliedGenerations);
-        assertEquals (List.of (2L), environment.invalidatedGenerations);
-        assertTrue (log.warnings.stream ().anyMatch (message -> message.contains ("Faulted reloadable core stable")));
+        assertTrue (environment.invalidatedGenerations.isEmpty ());
+        assertEquals (List.of (1L), environment.quarantinedGenerations);
+        assertTrue (log.warnings.stream ().anyMatch (message -> message.contains ("Quarantined reloadable core stable") && message.contains ("retaining its last committed output")));
+
+        assertFalse (manager.handle (manager.activeGeneration (), event));
+        assertEquals (1, core.handleCount);
+        assertEquals (List.of (1L), environment.committedGenerations);
+        assertEquals (List.of (1L), environment.appliedGenerations);
+
+        assertEquals (ActivationResult.State.ACTIVE, manager.activate ("replacement", source ("replacement", new TestCore (2)), () -> true).state ());
+        assertTrue (source.closed);
         manager.close ();
     }
 
 
     @Test
-    void coreHandleFailureFaultsInsteadOfLeavingAControlSwallowingCoreActive ()
+    void coreHandleFailureQuarantinesWithoutBlankingTheLastCommittedOutput ()
     {
         final TestEnvironment environment = new TestEnvironment (ShellCapabilities.empty ());
         final RecordingLog log = new RecordingLog ();
@@ -398,11 +416,66 @@ class RuntimeManagerTest
         core.failHandle = true;
 
         assertFalse (manager.handle (manager.activeGeneration (), event));
-        assertEquals ("", manager.activeBuildId ());
-        assertEquals (0, manager.activeGeneration ());
-        assertTrue (source.closed);
-        assertEquals (List.of (2L), environment.invalidatedGenerations);
+        assertEquals ("stable", manager.activeBuildId ());
+        assertEquals (1, manager.activeGeneration ());
+        assertFalse (source.closed);
+        assertTrue (environment.invalidatedGenerations.isEmpty ());
+        assertEquals (List.of (1L), environment.quarantinedGenerations);
         assertTrue (log.warnings.stream ().anyMatch (message -> message.contains ("broken handle")));
+        assertFalse (manager.handle (manager.activeGeneration (), event));
+        assertEquals (1, core.handleCount);
+
+        assertEquals (ActivationResult.State.ACTIVE, manager.activate ("replacement", source ("replacement", new TestCore (2)), () -> true).state ());
+        assertTrue (source.closed);
+        manager.close ();
+    }
+
+
+    @Test
+    void mixerRenderDispatchesThroughTheActiveGenerationAndQuarantinesOnFailure ()
+    {
+        final TestEnvironment environment = new TestEnvironment (ShellCapabilities.empty ());
+        final RecordingLog log = new RecordingLog ();
+        final RuntimeManager manager = new RuntimeManager (environment, log);
+        final TestCore core = new TestCore (1);
+        final TestSource source = source ("stable", core);
+        final MixerControlsDisplay expected = new MixerControlsDisplay (List.of (new MixerControlDisplay (0, MixerControlKind.VOLUME, new ControllerDisplayScene (MixerControlDisplay.WIDTH, MixerControlDisplay.HEIGHT, List.of (new DisplayCommand.Rectangle (0, 0, 1, 1, new RgbColor (1, 2, 3)))))));
+        final MixerControlsSnapshot snapshot = new MixerControlsSnapshot (List.of (new MixerControlSnapshot (0, MixerControlKind.VOLUME, "", 0.5, -1, "-3 dB", true, new RgbColor (4, 5, 6), 0.25, 0.5)));
+        core.mixerScene = expected;
+
+        manager.start ();
+        manager.activate ("stable", source, () -> true);
+        assertEquals (expected, manager.renderMixerControls (snapshot));
+
+        core.failMixerRender = true;
+        assertEquals (MixerControlsDisplay.empty (), manager.renderMixerControls (snapshot));
+        assertEquals ("stable", manager.activeBuildId ());
+        assertFalse (source.closed);
+        assertTrue (environment.invalidatedGenerations.isEmpty ());
+        assertEquals (List.of (1L), environment.quarantinedGenerations);
+        assertTrue (log.warnings.stream ().anyMatch (message -> message.contains ("broken mixer render")));
+        assertEquals (MixerControlsDisplay.empty (), manager.renderMixerControls (snapshot));
+        manager.close ();
+    }
+
+
+    @Test
+    void mixerRenderRejectsAContainedButUnrequestedColumn ()
+    {
+        final TestEnvironment environment = new TestEnvironment (ShellCapabilities.empty ());
+        final RuntimeManager manager = new RuntimeManager (environment, new RecordingLog ());
+        final TestCore core = new TestCore (1);
+        final TestSource source = source ("stable", core);
+        core.mixerScene = new MixerControlsDisplay (List.of (new MixerControlDisplay (1, MixerControlKind.PAN, new ControllerDisplayScene (MixerControlDisplay.WIDTH, MixerControlDisplay.HEIGHT, List.of (new DisplayCommand.Rectangle (0, 0, 1, 1, new RgbColor (1, 2, 3)))))));
+        final MixerControlsSnapshot requested = new MixerControlsSnapshot (List.of (new MixerControlSnapshot (0, MixerControlKind.VOLUME, "", 0.5, -1, "-3 dB", true, new RgbColor (4, 5, 6), 0.25, 0.5)));
+
+        manager.start ();
+        manager.activate ("stable", source, () -> true);
+
+        assertEquals (MixerControlsDisplay.empty (), manager.renderMixerControls (requested));
+        assertEquals ("stable", manager.activeBuildId ());
+        assertFalse (source.closed);
+        assertTrue (environment.invalidatedGenerations.isEmpty ());
         manager.close ();
     }
 
@@ -494,7 +567,9 @@ class RuntimeManagerTest
         private boolean failStart;
         private boolean failCheckpoint;
         private boolean failHandle;
+        private boolean failMixerRender;
         private int handleCount;
+        private MixerControlsDisplay mixerScene = MixerControlsDisplay.empty ();
 
 
         private TestCore (final int checkpointValue)
@@ -524,6 +599,15 @@ class RuntimeManagerTest
 
 
         @Override
+        public MixerControlsDisplay renderMixerControls (final MixerControlsSnapshot snapshot)
+        {
+            if (this.failMixerRender)
+                throw new IllegalStateException ("broken mixer render");
+            return this.mixerScene;
+        }
+
+
+        @Override
         public StateEnvelope checkpoint ()
         {
             if (this.failCheckpoint)
@@ -543,6 +627,7 @@ class RuntimeManagerTest
         private final List<Long> committedGenerations = new ArrayList<> ();
         private final List<Long> appliedGenerations = new ArrayList<> ();
         private final List<Long> invalidatedGenerations = new ArrayList<> ();
+        private final List<Long> quarantinedGenerations = new ArrayList<> ();
         private long revision;
         private boolean failNextPrepare;
         private boolean failNextCommit;
@@ -619,6 +704,13 @@ class RuntimeManagerTest
         public void invalidate (final long generation)
         {
             this.invalidatedGenerations.add (Long.valueOf (generation));
+        }
+
+
+        @Override
+        public void quarantine (final long generation)
+        {
+            this.quarantinedGenerations.add (Long.valueOf (generation));
         }
     }
 

@@ -36,7 +36,24 @@ public class GraphicsContextImpl implements IGraphicsContext
     {
         gc.setAntialias (antialiasMode);
         this.gc = gc;
+}
+    /** {@inheritDoc} */
+    @Override
+    public void pushClip (final double left, final double top, final double width, final double height)
+    {
+        this.gc.save ();
+        this.gc.rectangle (left, top, width, height);
+        this.gc.clip ();
     }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void popClip ()
+    {
+        this.gc.restore ();
+    }
+
 
 
     /** {@inheritDoc} */

@@ -86,6 +86,28 @@ class PhysicalInputRouterTest
 
 
     @Test
+    void exclusiveRoutePublishesPhysicalIdentityInsteadOfLegacySemanticAction ()
+    {
+        final ControllerActionIntent legacyAction = new ControllerActionIntent (ControllerActionId.SELECT_PARAMETER_CONTEXT, Set.of (ControllerStateScope.ACTIVE_PARAMETERS));
+        final List<PhysicalInputEvent<String>> events = new ArrayList<> ();
+        final PhysicalInputRouter<String> router = new PhysicalInputRouter<> (
+            registry (),
+            (ignoredControl, ignoredKind) -> InputRoute.EXCLUSIVE,
+            events::add,
+            (ignoredControl, ignoredKind, ignoredAction) -> false,
+            new IncrementingClock (),
+            () -> 7);
+
+        router.route (BUTTON, InputKind.BUTTON, InputPhase.BEGIN, 127, legacyAction, () -> {
+            // Exclusive routing suppresses this legacy command.
+        });
+
+        assertEquals (BUTTON, events.getFirst ().control ());
+        assertTrue (events.getFirst ().stableAction ().isEmpty ());
+    }
+
+
+    @Test
     void semanticActionBarrierDefersTheWholeStableGestureUntilItReleases ()
     {
         final AtomicBoolean blocked = new AtomicBoolean (true);

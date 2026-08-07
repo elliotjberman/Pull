@@ -17,6 +17,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import javax.imageio.ImageIO;
 
@@ -53,9 +54,10 @@ public abstract class AbstractGraphicDisplay implements IGraphicDisplay
 {
     /** Timeout for displaying the notification message. */
     private static final int               TIMEOUT                         = 1;
-    private static final Path              DEBUG_DIRECTORY                 = Path.of (System.getProperty ("java.io.tmpdir"), "pull-push2-dev");
+    private static final Path              DEBUG_DIRECTORY                 = Path.of (System.getProperty ("user.home"), ".drivenbymoss", "pull", "debug");
     private static final Path              DEBUG_IMAGE_PATH                = DEBUG_DIRECTORY.resolve ("display.png");
     private static final Path              DEBUG_MARKER_PATH               = DEBUG_DIRECTORY.resolve ("display-debug.txt");
+    private static final Path              DEBUG_REQUEST_PATH              = DEBUG_DIRECTORY.resolve ("capture-request.txt");
 
     private final AtomicInteger            counter                         = new AtomicInteger ();
     private final ScheduledExecutorService executor                        = Executors.newSingleThreadScheduledExecutor ();
@@ -65,6 +67,7 @@ public abstract class AbstractGraphicDisplay implements IGraphicDisplay
     private final List<IComponent>         overlays                        = new ArrayList<> ();
     private final AtomicReference<String>  notificationMessage             = new AtomicReference<> ();
     private ModelInfo                      info                            = new ModelInfo (null, Collections.emptyList (), Collections.emptyList ());
+    private Supplier<IComponent>           fullScreenOverlaySupplier       = () -> null;
 
     protected final IHost                  host;
     protected final IGraphicsConfiguration configuration;
@@ -94,7 +97,7 @@ public abstract class AbstractGraphicDisplay implements IGraphicDisplay
         this.image.setDisplayWindowTitle (windowTitle);
 
         // Manage notification message display time
-        this.executor.scheduleAtFixedRate (this::checkNotificationCounter, 1, 1, TimeUnit.SECONDS);
+        this.executor.scheduleAtFixedRate (this::runHousekeeping, 1, 1, TimeUnit.SECONDS);
     }
 
 
@@ -194,7 +197,16 @@ public abstract class AbstractGraphicDisplay implements IGraphicDisplay
                 notification = this.notificationMessage.get ();
             }
 
-            final ModelInfo newInfo = new ModelInfo (notification, this.columns, this.overlays);
+            final IComponent fullScreenOverlay = this.fullScreenOverlaySupplier.get ();
+            final List<IComponent> renderedOverlays;
+            if (fullScreenOverlay == null)
+                renderedOverlays = this.overlays;
+            else
+            {
+                renderedOverlays = new ArrayList<> (this.overlays);
+                renderedOverlays.add (fullScreenOverlay);
+            }
+            final ModelInfo newInfo = new ModelInfo (fullScreenOverlay == null ? notification : null, this.columns, renderedOverlays);
 
             // Only render image if there is a change in the data
             if (!this.info.equals (newInfo))
@@ -210,6 +222,35 @@ public abstract class AbstractGraphicDisplay implements IGraphicDisplay
         }
 
         this.send (this.image);
+        this.captureDebugRequest ();
+    }
+
+
+    private void runHousekeeping ()
+    {
+        this.checkNotificationCounter ();
+        this.captureDebugRequest ();
+    }
+
+
+    /** Install a generic final overlay rendered over the complete display viewport. */
+    protected void setFullScreenOverlaySupplier (final Supplier<IComponent> supplier)
+    {
+        this.fullScreenOverlaySupplier = java.util.Objects.requireNonNull (supplier, "supplier");
+    }
+
+
+    private void captureDebugRequest ()
+    {
+        try
+        {
+            if (Files.deleteIfExists (DEBUG_REQUEST_PATH))
+                this.saveDebugImage ();
+        }
+        catch (final RuntimeException | IOException ex)
+        {
+            this.host.error ("Could not read Push display capture request from " + DEBUG_REQUEST_PATH + ".", ex);
+        }
     }
 
 

@@ -6,11 +6,13 @@ package de.mossgrabers.controller.ableton.push.mode.track;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.parameterprovider.PushTrackParameterProvider;
 import de.mossgrabers.framework.controller.ButtonID;
+import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.IModel;
@@ -19,6 +21,8 @@ import de.mossgrabers.framework.daw.data.ISend;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.ISendBank;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
+import de.mossgrabers.framework.graphics.canvas.component.IComponent;
+import de.mossgrabers.framework.graphics.canvas.component.MixerControlsComponent;
 import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent;
 import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.MenuData;
 import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.ParameterData;
@@ -26,6 +30,12 @@ import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.Tr
 import de.mossgrabers.framework.parameterprovider.special.EmptyParameterProvider;
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.framework.utils.Pair;
+import de.mossgrabers.pull.core.api.MixerControlKind;
+import de.mossgrabers.pull.core.api.MixerControlSnapshot;
+import de.mossgrabers.pull.core.api.MixerControlsSnapshot;
+import de.mossgrabers.pull.core.api.output.RgbColor;
+import de.mossgrabers.pull.shell.runtime.MixerMeterLevels;
+import de.mossgrabers.pull.shell.runtime.ReloadableControllerRuntime;
 
 
 /**
@@ -35,9 +45,10 @@ import de.mossgrabers.framework.utils.Pair;
  */
 public class TrackMode extends AbstractTrackMode
 {
-    private final PushTrackParameterProvider mixParameterProvider;
-    private final EmptyParameterProvider     inputOutputParameterProvider = new EmptyParameterProvider (8);
-    private boolean                          inputOutputSelected;
+    private final PushTrackParameterProvider  mixParameterProvider;
+    private final EmptyParameterProvider      inputOutputParameterProvider = new EmptyParameterProvider (8);
+    private final ReloadableControllerRuntime reloadableRuntime;
+    private boolean                           inputOutputSelected;
 
 
     /**
@@ -45,11 +56,13 @@ public class TrackMode extends AbstractTrackMode
      *
      * @param surface The control surface
      * @param model The model
+     * @param reloadableRuntime The reloadable controller runtime
      */
-    public TrackMode (final PushControlSurface surface, final IModel model)
+    public TrackMode (final PushControlSurface surface, final IModel model, final ReloadableControllerRuntime reloadableRuntime)
     {
         super ("Track", surface, model);
 
+        this.reloadableRuntime = Objects.requireNonNull (reloadableRuntime, "reloadableRuntime");
         this.mixParameterProvider = new PushTrackParameterProvider (model, surface.getConfiguration ());
         this.setParameterProvider (this.mixParameterProvider);
     }
@@ -204,6 +217,7 @@ public class TrackMode extends AbstractTrackMode
         final List<MenuData> menus = new ArrayList<> (8);
         final List<ParameterData> parameters = new ArrayList<> (8);
         final List<TrackData> tracks = new ArrayList<> (8);
+        final List<MixerControlSnapshot> mixerControls = new ArrayList<> (8);
         final IValueChanger valueChanger = this.model.getValueChanger ();
         final ICursorTrack cursorTrack = this.model.getCursorTrack ();
         for (int i = 0; i < 8; i++)
@@ -216,8 +230,6 @@ public class TrackMode extends AbstractTrackMode
             tracks.add (new TrackData (t.doesExist () ? t.getName (12) : "", this.updateType (t), t.getColor (), t.isSelected (), t.isActivated (), t.isSelected () && cursorTrack.isPinned ()));
         }
 
-        int vuLeft = 0;
-        int vuRight = 0;
         if (cursorTrack.doesExist ())
         {
             final ITrack track = cursorTrack;
@@ -229,8 +241,10 @@ public class TrackMode extends AbstractTrackMode
             }
             else
             {
-                parameters.set (0, new ParameterData ("Track Volume", valueChanger.toDisplayValue (track.getVolume ()), valueChanger.toDisplayValue (track.getModulatedVolume ()), track.getVolumeStr (8), isActive));
-                parameters.set (1, new ParameterData ("Track Panning", valueChanger.toDisplayValue (track.getPan ()), valueChanger.toDisplayValue (track.getModulatedPan ()), this.formatPanValue (track.getPan ()), isActive));
+                final RgbColor accent = toRgb (track.getColor ());
+                final MixerMeterLevels meterLevels = MixerMeterLevels.capture (track);
+                mixerControls.add (new MixerControlSnapshot (0, MixerControlKind.VOLUME, "", valueChanger.toNormalizedValue (track.getVolume ()), normalizedModulated (valueChanger, track.getModulatedVolume ()), track.getVolumeStr (8), isActive, accent, meterLevels.normalizedLeft (valueChanger), meterLevels.normalizedRight (valueChanger)));
+                mixerControls.add (new MixerControlSnapshot (1, MixerControlKind.PAN, "", valueChanger.toNormalizedValue (track.getPan ()), normalizedModulated (valueChanger, track.getModulatedPan ()), this.formatPanValue (track.getPan ()), isActive, accent, 0, 0));
 
                 final ISendBank sendBank = track.getSendBank ();
                 final int sendOffset = this.configuration.getTrackMixSendOffset ();
@@ -242,18 +256,32 @@ public class TrackMode extends AbstractTrackMode
 
                     final ISend send = sendBank.getItem (sendIndex);
                     if (send.doesExist ())
-                        parameters.set (i + 2, new ParameterData (send.getName (), valueChanger.toDisplayValue (send.getValue ()), valueChanger.toDisplayValue (send.getModulatedValue ()), send.getDisplayedValue (8), isActive && send.isEnabled ()));
+                        mixerControls.add (new MixerControlSnapshot (i + 2, MixerControlKind.KNOB, send.getName (), valueChanger.toNormalizedValue (send.getValue ()), normalizedModulated (valueChanger, send.getModulatedValue ()), send.getDisplayedValue (8), isActive && send.isEnabled (), accent, 0, 0));
                 }
 
-                if (this.configuration.isEnableVUMeters ())
-                {
-                    vuLeft = valueChanger.toDisplayValue (track.getVuLeft ());
-                    vuRight = valueChanger.toDisplayValue (track.getVuRight ());
-                }
             }
         }
 
-        display.addElement (new TrackMixerComponent (menus, parameters, tracks, vuLeft, vuRight));
+        final IComponent stableMixerFrame = new TrackMixerComponent (menus, parameters, tracks, 0, 0);
+        final MixerControlsComponent reloadableControls = new MixerControlsComponent (this.reloadableRuntime.renderMixerControls (new MixerControlsSnapshot (mixerControls)));
+        display.addElement (info -> {
+            // Stable retains only menu/footer mechanics. All eight Mix control cells are blank
+            // when no core scene is active; there is no stable semantic fallback.
+            stableMixerFrame.draw (info);
+            reloadableControls.draw (info);
+        });
+    }
+
+
+    private static double normalizedModulated (final IValueChanger valueChanger, final int value)
+    {
+        return value < 0 ? -1 : valueChanger.toNormalizedValue (value);
+    }
+
+
+    private static RgbColor toRgb (final ColorEx color)
+    {
+        return new RgbColor ((int) Math.round (255 * color.getRed ()), (int) Math.round (255 * color.getGreen ()), (int) Math.round (255 * color.getBlue ()));
     }
 
 

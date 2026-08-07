@@ -33,7 +33,7 @@ public record ReloadStatus (int formatVersion, State state, String requestedBuil
         /** Candidate failed; the previous core remains active. */
         FAILED,
 
-        /** The installed shell/API cannot load this candidate. */
+        /** The installed parent-loaded core API cannot load this candidate. */
         RESTART_REQUIRED
     }
 

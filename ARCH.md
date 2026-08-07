@@ -1,6 +1,7 @@
 # Pull View Architecture
 
-Status: current through Core API 14 and the post-demo `VS Live` view composition.
+Status: current through Core API 22, the shared mixer-control renderer, the Master-control
+migration, and the post-demo `VS Live` view composition.
 
 Read this file before changing controller views, modes, workspaces, input routing, or Session bank
 topology. The detailed design contract is in
@@ -44,10 +45,17 @@ input, state, effect, and output capability.
 A core-only policy change hot reloads. A new physical input, Bitwig proxy, bank shape, API contract,
 or output transport requires a shell build and Bitwig restart.
 
+Controller-level Play is fully core-owned. The core remembers the last authoritative project that
+owned the audio engine. On another tab it renders purple while that owner is playing and white
+while paused; pressing Play runs a bounded identity-fenced navigation, transport-toggle, and exact
+return transaction. Bitwig exposes transport only for the visible document, so the core never
+targets an offscreen project optimistically.
+
 ### Parameter banks, effects, and snapback
 
-Core API 14 exposes named, view-independent banks for the inherited active encoder window, project
-remotes, the selected-device remote page, visible-track volume and pan, and fixed globals. A bank
+Core API 22 exposes named, view-independent banks for the inherited active encoder window, project
+remotes, the selected-device remote page, visible-track volume and pan, project-scoped Master/Cue
+controls, and fixed globals. A bank
 declaration is latent configuration; stable samples and publishes only the declared banks while
 core requests the `PARAMETERS` subscription. Each slot publishes opaque target identity/generation,
 name, raw and modulated values, authoritative displayed value, step count, and read-back tolerance.
@@ -65,6 +73,7 @@ parameter canopy.
 | `PROJECT_REMOTE` | 8 project remote controls on the current page | Project owner, remote page, slot, and parameter name. |
 | `SELECTED_DEVICE_REMOTE` | 8 controls on the current selected-device page | Device ID, remote page, slot, and parameter name. |
 | `TRACK_VOLUME` / `TRACK_PAN` | 8 visible tracks per bank | Current bank slot, stable channel ID, and parameter role. |
+| `MASTER` | Master volume/pan and project cue volume/mix | Current project identity plus exact current parameter proxy; a project-tab change creates a new target generation. |
 | `GLOBAL` | Tempo and master volume | Fixed extension-lifetime target; master is available only in master-volume mode. |
 
 Track sends are not installed as parameter-only rows. They belong with the future authoritative
@@ -97,7 +106,7 @@ deferred gesture in one policy generation rather than transferring partial gestu
 core checkpoint.
 
 The named bank slots still follow bounded movable proxies; they are not durable project-wide
-parameter identities. API 14 deliberately restores before navigation and has no pinned actuator
+parameter identities. API 22 deliberately restores before navigation and has no pinned actuator
 pool. The intended endpoint keeps physical controls, semantic `ParameterTargetRef` values, movable
 Bitwig proxies, and bounded pinned leases independent. See
 [`docs/findings/parameter-target-proxy-coupling.md`](docs/findings/parameter-target-proxy-coupling.md).
@@ -223,7 +232,9 @@ Reloadable core:
 - `DrumControllerView`: complete lower Drum Controller, pressure policy, fills, and optional pitch
   bend.
 - `DrumFillView`: fill selection, launch lifecycle, bindings, and twelve RGB lights.
-- `RecordControlView`: Record modifier policy.
+- `TransportControlView`: persistent authoritative Play/Record lights and Record modifier policy.
+- `MasterControlView`: Master/Cue encoder policy, project/audio actions, both row-light banks, and
+  a complete declarative graphics scene.
 - `WorkspaceSelectionView`: shared Shift + Session entry and Session/Note exit policy.
 
 Stable shell:
@@ -252,6 +263,11 @@ Implemented:
 - Drum pressure owned by the same fixed Drum Controller view as its playable pads.
 - Removal of the unused legacy aftertouch commands and ClipLauncherNavigator topology.
 - Transactional shell preparation before a candidate result is committed.
+- Complete Master-page input and output arbitration. The core owns its copy, typography, geometry,
+  colors, clipping, shapes, and composition; the stable shell only interprets bounded generic
+  display primitives. Missing or execution-faulted core behavior is blank and inert. A stable
+  preparation rejection preserves the active generation's last committed output rather than
+  converting one invalid result into a controller-wide fault.
 
 Partial or transitional:
 
@@ -262,8 +278,9 @@ Partial or transitional:
   require a Core API/shell change and Bitwig restart.
 - Capability and Session-shape validation happens during stable result preparation, not entirely in
   `CompiledWorkspace`.
-- General display and light output ownership has not crossed the core API. Only the twelve drum-fill
-  RGB lights currently use core-owned output arbitration.
+- General display and light output ownership is still partial. The twelve drum-fill RGB lights and
+  the Master page's two button rows and graphics display use core-owned output arbitration; other
+  Push pages remain stable-owned.
 
 Deferred by design:
 

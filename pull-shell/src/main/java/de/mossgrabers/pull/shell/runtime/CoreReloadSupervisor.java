@@ -4,6 +4,8 @@
 package de.mossgrabers.pull.shell.runtime;
 
 import de.mossgrabers.pull.core.api.event.CoreEvent;
+import de.mossgrabers.pull.core.api.MixerControlsSnapshot;
+import de.mossgrabers.pull.core.api.output.MixerControlsDisplay;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -91,6 +93,14 @@ final class CoreReloadSupervisor implements AutoCloseable
     long activeGeneration ()
     {
         return this.started && !this.closed ? this.runtimeManager.activeGeneration () : 0;
+    }
+
+
+    MixerControlsDisplay renderMixerControls (final MixerControlsSnapshot snapshot)
+    {
+        if (!this.started || this.closed)
+            return MixerControlsDisplay.empty ();
+        return this.runtimeManager.renderMixerControls (Objects.requireNonNull (snapshot, "snapshot"));
     }
 
 

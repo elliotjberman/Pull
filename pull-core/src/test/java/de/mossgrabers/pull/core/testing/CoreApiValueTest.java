@@ -17,6 +17,7 @@ import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.CoreApi;
 import de.mossgrabers.pull.core.api.CoreCapabilities;
 import de.mossgrabers.pull.core.api.CoreControls;
+import de.mossgrabers.pull.core.api.CoreExecutionRequirements;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
@@ -27,6 +28,9 @@ import de.mossgrabers.pull.core.api.DesiredParameterBanks;
 import de.mossgrabers.pull.core.api.GridPressureConfiguration;
 import de.mossgrabers.pull.core.api.InputRoute;
 import de.mossgrabers.pull.core.api.InputRouteMode;
+import de.mossgrabers.pull.core.api.MixerControlKind;
+import de.mossgrabers.pull.core.api.MixerControlSnapshot;
+import de.mossgrabers.pull.core.api.MixerControlsSnapshot;
 import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.ParameterBankId;
 import de.mossgrabers.pull.core.api.ParameterSlot;
@@ -54,6 +58,15 @@ import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.event.SnapshotChangedEvent;
 import de.mossgrabers.pull.core.api.output.DesiredHardwareOutput;
+import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
+import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
+import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
+import de.mossgrabers.pull.core.api.output.DisplayCommand;
+import de.mossgrabers.pull.core.api.output.DisplayTextAlignment;
+import de.mossgrabers.pull.core.api.output.DisplayTextFit;
+import de.mossgrabers.pull.core.api.output.MixerControlDisplay;
+import de.mossgrabers.pull.core.api.output.MixerControlsDisplay;
+import de.mossgrabers.pull.core.api.output.PadGridPosition;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 
 import org.junit.jupiter.api.Test;
@@ -170,7 +183,7 @@ class CoreApiValueTest
     @Test
     void publishesStableVersionCapabilityAndControlIdentifiers ()
     {
-        assertEquals (14, CoreApi.VERSION);
+        assertEquals (22, CoreApi.VERSION);
         assertEquals ("input.drum-fill", CoreCapabilities.INPUT_DRUM_FILL);
         assertEquals ("snapshot.selected-track-clips", CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS);
         assertEquals ("binding.clip-target", CoreCapabilities.BINDING_CLIP_TARGET);
@@ -186,12 +199,112 @@ class CoreApiValueTest
         assertEquals ("effect.selected-track", CoreCapabilities.EFFECT_SELECTED_TRACK);
         assertEquals ("effect.drum-pad", CoreCapabilities.EFFECT_DRUM_PAD);
         assertEquals ("effect.note-input-midi", CoreCapabilities.EFFECT_NOTE_INPUT_MIDI);
+        assertEquals ("output.pad-grid-overlay", CoreCapabilities.OUTPUT_PAD_GRID_OVERLAY);
+        assertEquals ("output.display-overlay", CoreCapabilities.OUTPUT_DISPLAY_OVERLAY);
+        assertEquals ("render.mixer-controls", CoreCapabilities.RENDER_MIXER_CONTROLS);
         assertEquals (12, CoreControls.DRUM_FILLS.size ());
         assertEquals (12, new HashSet<> (CoreControls.DRUM_FILLS).size ());
         for (int index = 0; index < CoreControls.DRUM_FILLS.size (); index++)
             assertEquals (new ControlId ("drum.fill." + (index + 1)), CoreControls.DRUM_FILLS.get (index));
         assertEquals (CoreControls.DRUM_FILLS, CoreControls.drumFills ());
         assertThrows (UnsupportedOperationException.class, () -> CoreControls.DRUM_FILLS.clear ());
+    }
+
+
+    @Test
+    void controllerDisplayScenesAreImmutableAndBounded ()
+    {
+        final List<DisplayCommand> commands = new ArrayList<> (List.of (
+            new DisplayCommand.Rectangle (0, 0, 960, 160, new RgbColor (0, 0, 0)),
+            new DisplayCommand.TextBox ("second_test", 608, 35, 104, 25, DisplayTextAlignment.LEFT, new RgbColor (255, 255, 255), 19, 12, DisplayTextFit.SHRINK_ELLIPSIS)));
+        final ControllerDisplayScene scene = new ControllerDisplayScene (960, 160, commands);
+        commands.clear ();
+
+        assertEquals (2, scene.commands ().size ());
+        assertEquals (scene, new ControllerDisplayOverlay (true, scene).scene ());
+        assertThrows (IllegalArgumentException.class, () -> new ControllerDisplayOverlay (true, ControllerDisplayScene.empty ()));
+        assertThrows (IllegalArgumentException.class, () -> new ControllerDisplayOverlay (false, scene));
+        assertThrows (UnsupportedOperationException.class, () -> scene.commands ().clear ());
+        assertThrows (IllegalArgumentException.class, () -> new ControllerDisplayScene (960, 160, List.of ()));
+        assertThrows (IllegalArgumentException.class, () -> new DisplayCommand.Circle (0, 0, Double.NaN, new RgbColor (0, 0, 0)));
+        assertThrows (IllegalArgumentException.class, () -> new DisplayCommand.DottedArc (10, 10, 5, 0, 90, 513, 1, new RgbColor (0, 0, 0)));
+        assertThrows (IllegalArgumentException.class, () -> new DisplayCommand.TextAt ("x".repeat (1025), 0, 10, new RgbColor (0, 0, 0), 12));
+
+        final RgbColor black = new RgbColor (0, 0, 0);
+        final List<DisplayCommand> boundedArcs = new ArrayList<> ();
+        for (int index = 0; index < 15; index++)
+            boundedArcs.add (new DisplayCommand.DottedArc (10, 10, 5, 0, 90, 512, 1, black));
+        assertEquals (15, new ControllerDisplayScene (960, 160, boundedArcs).commands ().size ());
+        boundedArcs.add (new DisplayCommand.DottedArc (10, 10, 5, 0, 90, 512, 1, black));
+        assertThrows (IllegalArgumentException.class, () -> new ControllerDisplayScene (960, 160, boundedArcs));
+        assertThrows (IllegalArgumentException.class, () -> new DisplayCommand.DottedArc (10, 10, 5, 360001, 90, 2, 1, black));
+        assertThrows (IllegalArgumentException.class, () -> new ControllerDisplayScene (960, 160, List.of (
+            new DisplayCommand.TextBox ("x".repeat (1024), 0, 0, 960, 40, DisplayTextAlignment.LEFT, black, 512, 1, DisplayTextFit.SHRINK_ELLIPSIS))));
+    }
+
+
+    @Test
+    void padGridOverlaysAreSparseImmutableAndBoundedToThePhysicalGrid ()
+    {
+        final Map<PadGridPosition, RgbColor> colors = new HashMap<> ();
+        colors.put (new PadGridPosition (0, 0), new RgbColor (160, 48, 255));
+        final ControllerPadGridOverlay overlay = new ControllerPadGridOverlay (true, colors);
+        colors.clear ();
+
+        assertEquals (1, overlay.colors ().size ());
+        assertThrows (UnsupportedOperationException.class, overlay.colors ()::clear);
+        assertThrows (IllegalArgumentException.class, () -> new ControllerPadGridOverlay (false, overlay.colors ()));
+        assertThrows (IllegalArgumentException.class, () -> new PadGridPosition (-1, 0));
+        assertThrows (IllegalArgumentException.class, () -> new PadGridPosition (0, 8));
+        assertFalse (DesiredHardwareOutput.empty ().padGridOverlay ().active ());
+    }
+
+
+    @Test
+    void mixerRenderRequestsAreImmutableNormalizedAndColumnBounded ()
+    {
+        final MixerControlSnapshot volume = mixerControl (0, MixerControlKind.VOLUME);
+        final List<MixerControlSnapshot> controls = new ArrayList<> (List.of (volume));
+        final MixerControlsSnapshot snapshot = new MixerControlsSnapshot (controls);
+        controls.clear ();
+
+        assertEquals (List.of (volume), snapshot.controls ());
+        assertThrows (UnsupportedOperationException.class, () -> snapshot.controls ().clear ());
+        assertThrows (IllegalArgumentException.class, () -> new MixerControlsSnapshot (List.of (volume, volume)));
+        assertThrows (IllegalArgumentException.class, () -> new MixerControlsSnapshot (java.util.Collections.nCopies (9, volume)));
+        assertThrows (IllegalArgumentException.class, () -> new MixerControlSnapshot (0, MixerControlKind.PAN, "", 1.01, -1, "R", true, new RgbColor (1, 2, 3), 0, 0));
+        assertThrows (IllegalArgumentException.class, () -> new MixerControlSnapshot (8, MixerControlKind.PAN, "", 0.5, -1, "C", true, new RgbColor (1, 2, 3), 0, 0));
+        assertThrows (IllegalArgumentException.class, () -> new MixerControlSnapshot (2, MixerControlKind.KNOB, "", 0.5, -1, "-12 dB", true, new RgbColor (1, 2, 3), 0, 0));
+    }
+
+
+    @Test
+    void mixerRenderResultsCannotEscapeTheirOwnedColumnBody ()
+    {
+        final RgbColor color = new RgbColor (1, 2, 3);
+        final ControllerDisplayScene containedScene = new ControllerDisplayScene (MixerControlDisplay.WIDTH, MixerControlDisplay.HEIGHT, List.of (new DisplayCommand.Rectangle (0, 0, MixerControlDisplay.WIDTH, MixerControlDisplay.HEIGHT, color)));
+        final MixerControlDisplay contained = new MixerControlDisplay (0, MixerControlKind.VOLUME, containedScene);
+        final MixerControlDisplay containedKnob = new MixerControlDisplay (2, MixerControlKind.KNOB, new ControllerDisplayScene (MixerControlDisplay.WIDTH, MixerControlDisplay.HEIGHT, List.of (new DisplayCommand.DottedArc (33, 89, 25, 220, -130, 100, 1.1, color))));
+
+        assertEquals (List.of (contained), new MixerControlsDisplay (List.of (contained)).controls ());
+        assertEquals (List.of (containedKnob), new MixerControlsDisplay (List.of (containedKnob)).controls ());
+        assertThrows (IllegalArgumentException.class, () -> new MixerControlDisplay (0, MixerControlKind.VOLUME, new ControllerDisplayScene (960, 160, List.of (new DisplayCommand.Rectangle (0, 0, 960, 160, color)))));
+        assertThrows (IllegalArgumentException.class, () -> new MixerControlDisplay (0, MixerControlKind.VOLUME, new ControllerDisplayScene (MixerControlDisplay.WIDTH, MixerControlDisplay.HEIGHT, List.of (new DisplayCommand.Rectangle (0, 0, MixerControlDisplay.WIDTH + 1, 1, color)))));
+        assertThrows (IllegalArgumentException.class, () -> new MixerControlDisplay (0, MixerControlKind.VOLUME, new ControllerDisplayScene (MixerControlDisplay.WIDTH, MixerControlDisplay.HEIGHT, List.of (new DisplayCommand.Circle (10, 10, 1, color)))));
+        assertThrows (IllegalArgumentException.class, () -> new MixerControlDisplay (2, MixerControlKind.KNOB, new ControllerDisplayScene (MixerControlDisplay.WIDTH, MixerControlDisplay.HEIGHT, List.of (new DisplayCommand.DottedArc (10, 10, 25, 220, -130, 100, 1.1, color)))));
+        assertThrows (IllegalArgumentException.class, () -> new MixerControlDisplay (0, MixerControlKind.VOLUME, new ControllerDisplayScene (MixerControlDisplay.WIDTH, MixerControlDisplay.HEIGHT, List.of (new DisplayCommand.TextAt ("x", -1, 17, color, 12.5)))));
+    }
+
+
+    private static MixerControlSnapshot mixerControl (final int column, final MixerControlKind kind)
+    {
+        final String label = kind == MixerControlKind.KNOB ? "A-Reverb" : "";
+        final String displayedValue = switch (kind)
+        {
+            case VOLUME, KNOB -> "-3.0 dB";
+            case PAN -> "C";
+        };
+        return new MixerControlSnapshot (column, kind, label, 0.5, -1, displayedValue, true, new RgbColor (1, 2, 3), 0.25, 0.5);
     }
 
 
@@ -295,7 +408,7 @@ class CoreApiValueTest
         assertEquals (3, new AdjustParameterValueEffect (target, 3).delta ());
         assertEquals (target, new ResetParameterEffect (target).target ());
         assertThrows (UnsupportedOperationException.class, () -> banks.banks ().clear ());
-        assertEquals (6, ParameterBankId.BANK_CAPACITY);
+        assertEquals (7, ParameterBankId.BANK_CAPACITY);
         assertThrows (IllegalArgumentException.class, () -> new ParameterSlot (ParameterBankId.PROJECT_REMOTE, ParameterSlot.BANK_SIZE));
         assertThrows (IllegalArgumentException.class, () -> new ParameterSlot (ParameterBankId.GLOBAL, ParameterSlot.GLOBAL_BANK_SIZE));
         assertThrows (IllegalArgumentException.class, () -> new ParameterTargetSnapshot (target, "", 0, 0, "", -2, 0.5));
@@ -389,6 +502,10 @@ class CoreApiValueTest
             de.mossgrabers.pull.core.api.DesiredParameterBanks.empty (),
             de.mossgrabers.pull.core.api.DesiredParameterInteraction.empty (),
             null));
+        assertEquals (CoreExecutionRequirements.empty (), new CoreExecutionRequirements (false, 0, ""));
+        assertThrows (IllegalArgumentException.class, () -> new CoreExecutionRequirements (true, -1, "project-a"));
+        assertThrows (IllegalArgumentException.class, () -> new CoreExecutionRequirements (true, 1, ""));
+        assertThrows (IllegalArgumentException.class, () -> new CoreExecutionRequirements (true, 0, "project-a"));
         assertThrows (IllegalArgumentException.class, () -> new SnapshotChangedEvent (-1, 0));
         assertThrows (IllegalArgumentException.class, () -> new SnapshotChangedEvent (0, -1));
         assertThrows (IllegalArgumentException.class, () -> new ShellCapabilities (Map.of ("lights", Integer.valueOf (0))));

@@ -9,6 +9,7 @@ import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ControllerCore;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
+import de.mossgrabers.pull.core.api.ParameterTargetSnapshot;
 import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.StateEnvelope;
@@ -16,8 +17,10 @@ import de.mossgrabers.pull.core.api.TimerId;
 import de.mossgrabers.pull.core.api.TransportSnapshot;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
+import de.mossgrabers.pull.core.api.event.ControllerTickEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
+import de.mossgrabers.pull.core.api.event.ParameterMutationEvent;
 import de.mossgrabers.pull.core.api.event.SnapshotChangedEvent;
 import de.mossgrabers.pull.core.api.event.TimerElapsedEvent;
 import de.mossgrabers.pull.core.api.event.TouchInputEvent;
@@ -195,6 +198,33 @@ final class FakeCoreHost
 
 
     /**
+     * Deliver one stable-command pre-mutation observation without changing authoritative state.
+     *
+     * @param controlId The physical control
+     * @param target Pre-mutation target snapshot
+     */
+    void parameterMutation (final ControlId controlId, final ParameterTargetSnapshot target)
+    {
+        this.eventSequence++;
+        this.effectExecutor.apply (this.core.handle (new ParameterMutationEvent (
+            this.eventSequence,
+            this.time.nowNanos (),
+            controlId,
+            target), this.snapshot ()));
+    }
+
+
+    /** Deliver one controller reconciliation tick without changing authoritative state. */
+    void controllerTick ()
+    {
+        this.eventSequence++;
+        this.effectExecutor.apply (this.core.handle (new ControllerTickEvent (
+            this.eventSequence,
+            this.time.nowNanos ()), this.snapshot ()));
+    }
+
+
+    /**
      * Deliver a touch transition after updating authoritative held state.
      *
      * @param controlId The control
@@ -262,7 +292,9 @@ final class FakeCoreHost
             Objects.requireNonNull (selectedTrack, "selectedTrack"),
             this.bridge.layout (),
             this.bridge.drum (),
-            this.bridge.parameters ());
+            this.bridge.parameters (),
+            this.bridge.master (),
+            this.bridge.project ());
         this.snapshotChanged ();
     }
 
@@ -279,7 +311,9 @@ final class FakeCoreHost
             this.bridge.selectedTrack (),
             this.bridge.layout (),
             this.bridge.drum (),
-            this.bridge.parameters ());
+            this.bridge.parameters (),
+            this.bridge.master (),
+            this.bridge.project ());
         this.snapshotChanged ();
     }
 

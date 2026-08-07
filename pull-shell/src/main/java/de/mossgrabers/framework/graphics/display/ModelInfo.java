@@ -77,6 +77,7 @@ public class ModelInfo
         final int prime = 31;
         int result = 1;
         result = prime * result + (this.components == null ? 0 : this.components.hashCode ());
+        result = prime * result + (this.overlays == null ? 0 : this.overlays.hashCode ());
         result = prime * result + (this.notification == null ? 0 : this.notification.hashCode ());
         return result;
     }
@@ -97,6 +98,13 @@ public class ModelInfo
                 return false;
         }
         else if (!this.components.equals (other.components))
+            return false;
+        if (this.overlays == null)
+        {
+            if (other.overlays != null)
+                return false;
+        }
+        else if (!this.overlays.equals (other.overlays))
             return false;
         if (this.notification == null)
         {

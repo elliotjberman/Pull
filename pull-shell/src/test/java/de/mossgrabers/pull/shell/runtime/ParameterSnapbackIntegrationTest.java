@@ -88,6 +88,13 @@ class ParameterSnapbackIntegrationTest
         runtime.tick ();
         assertEquals (new DesiredParameterBanks (Set.of (ParameterBankId.ACTIVE, ParameterBankId.GLOBAL)), bridge.lastAppliedBanks);
 
+        final AtomicInteger staleMutation = new AtomicInteger ();
+        bridge.resolveMutations = false;
+        bridge.requireResolvedMutation = true;
+        runtime.handleParameterMutation (ContinuousID.KNOB1, bridge.control, staleMutation::incrementAndGet);
+        assertEquals (0, staleMutation.get ());
+        bridge.resolveMutations = true;
+
         runtime.handleParameterMutation (ContinuousID.KNOB1, bridge.control, () -> bridge.submit (40));
         assertEquals (100, bridge.authoritativeValue);
         assertEquals (40, bridge.submittedValue);
@@ -208,6 +215,8 @@ class ParameterSnapbackIntegrationTest
         private DesiredParameterBanks lastAppliedBanks = DesiredParameterBanks.empty ();
         private double authoritativeValue = 100;
         private Double submittedValue;
+        private boolean resolveMutations = true;
+        private boolean requireResolvedMutation;
 
 
         @Override
@@ -256,7 +265,14 @@ class ParameterSnapbackIntegrationTest
         @Override
         public ControllerBridge.TargetedParameter resolveParameterMutation (final IHwContinuousControl requestedControl)
         {
-            return requestedControl == this.control ? new ControllerBridge.TargetedParameter (this.targetSnapshot ()) : null;
+            return this.resolveMutations && requestedControl == this.control ? new ControllerBridge.TargetedParameter (this.targetSnapshot ()) : null;
+        }
+
+
+        @Override
+        public boolean requiresResolvedParameterMutation (final IHwContinuousControl requestedControl)
+        {
+            return this.requireResolvedMutation && requestedControl == this.control;
         }
 
 

@@ -6,8 +6,6 @@ package de.mossgrabers.pull.core.runtime.view;
 import de.mossgrabers.pull.core.api.SessionBankShape;
 import de.mossgrabers.pull.core.view.CompiledWorkspace;
 
-import java.util.List;
-
 
 /**
  * First post-demo composite built entirely from fixed controller views.
@@ -32,19 +30,16 @@ public final class VsLiveWorkspace
      * @param selection Shared workspace selection
      * @return Compiled workspace
      */
-    public static CompiledWorkspace create (final WorkspaceSelection selection)
+    public static CompiledWorkspace create (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator)
     {
         return CompiledWorkspace.compile (
             NAME,
             SESSION_BANK,
-            List.of (
-                new WorkspaceSelectionView (selection),
+            ControllerLevelViews.compose (selection, playbackCoordinator,
                 new ProjectMacroControlsView (),
-                new GlobalParameterControlsView (),
                 new TrackSelectionStripView (),
                 new SessionNavigationView (),
                 new SessionClipGridView (true),
-                new DrumControllerView (true),
-                new RecordControlView ()));
+                new DrumControllerView (true)));
     }
 }

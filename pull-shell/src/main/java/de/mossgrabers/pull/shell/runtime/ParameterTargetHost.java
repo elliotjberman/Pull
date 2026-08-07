@@ -12,6 +12,7 @@ import de.mossgrabers.framework.daw.ITransport;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.IParameterBank;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
+import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.parameter.IParameter;
 import de.mossgrabers.pull.core.api.DesiredParameterBanks;
 import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
@@ -32,6 +33,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.DoubleConsumer;
 import java.util.function.DoubleSupplier;
 import java.util.function.IntFunction;
+import java.util.function.Supplier;
 
 
 /**
@@ -69,6 +71,10 @@ final class ParameterTargetHost
     private final Map<ParameterTargetRef, LiveTarget> currentTargets = new LinkedHashMap<> (ParameterBridgeSnapshot.TARGET_CAPACITY);
 
     private Map<ParameterTargetRef, RetainedTarget> retainedTargets = Map.of ();
+    private LiveTarget masterMixVolumeTarget;
+    private LiveTarget masterMixPanTarget;
+    private LiveTarget cueVolumeTarget;
+    private LiveTarget cueMixTarget;
     private ParameterBridgeSnapshot snapshot = ParameterBridgeSnapshot.empty ();
     private DesiredParameterBanks requestedBanks = DesiredParameterBanks.empty ();
     private long nextIdentity = 1;
@@ -132,6 +138,26 @@ final class ParameterTargetHost
             return new ControllerBridge.TargetedParameter (tempo.snapshot ());
         final LiveTarget master = this.currentTargets.get (MASTER_VOLUME_TARGET);
         return master != null && master.control == checkedControl ? new ControllerBridge.TargetedParameter (master.snapshot ()) : null;
+    }
+
+
+    /**
+     * Require the selected-track Mix encoders to resolve against the current selected-track
+     * identity before their established mutation may run. During project navigation the display
+     * can observe the new cursor one host sample before the stable parameter bindings follow it;
+     * that transient mismatch must be inert.
+     */
+    boolean requiresResolvedMutation (final IHwContinuousControl control)
+    {
+        if (!this.requestedBanks.includes (ParameterBankId.ACTIVE) || this.surface.getModeManager ().getActiveID () != Modes.TRACK)
+            return false;
+        final IHwContinuousControl checkedControl = Objects.requireNonNull (control, "control");
+        for (final ContinuousID id: ACTIVE_CONTROLS)
+        {
+            if (this.surface.getContinuous (id) == checkedControl)
+                return true;
+        }
+        return false;
     }
 
 
@@ -331,6 +357,14 @@ final class ParameterTargetHost
                 this.reconcileTrackPanTarget (index, tracks);
         }
 
+        if (banks.includes (ParameterBankId.MASTER))
+        {
+            this.masterMixVolumeTarget = this.reconcileProjectScopedTarget (this.masterMixVolumeTarget, () -> this.model.getMasterTrack ().getVolumeParameter ());
+            this.masterMixPanTarget = this.reconcileProjectScopedTarget (this.masterMixPanTarget, () -> this.model.getMasterTrack ().getPanParameter ());
+            this.cueVolumeTarget = this.reconcileProjectScopedTarget (this.cueVolumeTarget, () -> this.model.getProject ().getCueVolumeParameter ());
+            this.cueMixTarget = this.reconcileProjectScopedTarget (this.cueMixTarget, () -> this.model.getProject ().getCueMixParameter ());
+        }
+
         if (!banks.includes (ParameterBankId.GLOBAL))
             return;
 
@@ -361,6 +395,29 @@ final class ParameterTargetHost
                 this.currentTargets.put (master.reference, master);
             }
         }
+    }
+
+
+    private LiveTarget reconcileProjectScopedTarget (final LiveTarget existing, final Supplier<IParameter> currentParameter)
+    {
+        final String projectIdentity = this.model.getProject ().getIdentity ();
+        final IParameter parameter = currentParameter.get ();
+        if (parameter == null || !parameter.doesExist ())
+            return null;
+
+        LiveTarget target = existing;
+        if (target == null || target.parameter != parameter || !target.isCurrent ())
+        {
+            target = parameterTarget (
+                new ParameterTargetRef (ParameterTargetKind.LIVE, this.nextIdentity (), 0),
+                null,
+                parameter,
+                0,
+                () -> parameter.doesExist () && Objects.equals (projectIdentity, this.model.getProject ().getIdentity ()) && currentParameter.get () == parameter);
+        }
+        if (target.isCurrent ())
+            this.currentTargets.put (target.reference, target);
+        return target;
     }
 
 
@@ -551,10 +608,24 @@ final class ParameterTargetHost
         final LiveTarget master = this.requestedBanks.includes (ParameterBankId.GLOBAL) ? this.currentTargets.get (MASTER_VOLUME_TARGET) : null;
         if (master != null)
             slots.put (ParameterSlot.MASTER_VOLUME, master.snapshot ());
+        this.captureTargetSlot (slots, ParameterBankId.MASTER, ParameterSlot.MASTER_MIX_VOLUME, this.masterMixVolumeTarget);
+        this.captureTargetSlot (slots, ParameterBankId.MASTER, ParameterSlot.MASTER_MIX_PAN, this.masterMixPanTarget);
+        this.captureTargetSlot (slots, ParameterBankId.MASTER, ParameterSlot.CUE_VOLUME, this.cueVolumeTarget);
+        this.captureTargetSlot (slots, ParameterBankId.MASTER, ParameterSlot.CUE_MIX, this.cueMixTarget);
 
         final Map<ParameterTargetRef, Double> baselines = new LinkedHashMap<> ();
         this.retainedTargets.forEach ( (target, retained) -> baselines.put (target, Double.valueOf (retained.baseline)));
         return new ParameterBridgeSnapshot (slots, baselines);
+    }
+
+
+    private void captureTargetSlot (final Map<ParameterSlot, ParameterTargetSnapshot> slots, final ParameterBankId bank, final ParameterSlot slot, final LiveTarget target)
+    {
+        if (!this.requestedBanks.includes (bank) || target == null)
+            return;
+        final LiveTarget liveTarget = this.currentTargets.get (target.reference);
+        if (liveTarget != null && liveTarget.isCurrent ())
+            slots.put (slot, liveTarget.snapshot ());
     }
 
 

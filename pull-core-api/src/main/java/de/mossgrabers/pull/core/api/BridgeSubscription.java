@@ -25,5 +25,11 @@ public enum BridgeSubscription
     DRUM_PADS,
 
     /** Current bounded parameter targets and authoritative values. */
-    PARAMETERS
+    PARAMETERS,
+
+    /** Current project, audio-engine, and master-track state. */
+    MASTER,
+
+    /** Lightweight current-project identity, engine, navigation, and command state. */
+    PROJECT
 }

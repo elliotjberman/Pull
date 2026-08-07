@@ -15,6 +15,21 @@ import de.mossgrabers.framework.controller.color.ColorEx;
 public interface IGraphicsContext
 {
     /**
+     * Save graphics state and intersect drawing with a rectangular clip.
+     *
+     * @param left The left edge
+     * @param top The top edge
+     * @param width The clip width
+     * @param height The clip height
+     */
+    void pushClip (double left, double top, double width, double height);
+
+
+    /** Restore graphics state saved by the matching {@link #pushClip(double, double, double, double)}. */
+    void popClip ();
+
+
+    /**
      * Draw a filled rectangle.
      *
      * @param left The left position of the rectangle

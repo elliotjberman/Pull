@@ -80,8 +80,9 @@ public final class ControllerWorkspaceHost
         if (next.equals (this.desiredWorkspace))
             return;
 
-        final boolean hadGrid = usesGridAdapter (this.desiredWorkspace);
-        final boolean hadMode = usesModeAdapter (this.desiredWorkspace);
+        final DesiredControllerWorkspace previous = this.desiredWorkspace;
+        final boolean hadGrid = usesGridAdapter (previous);
+        final boolean hadMode = usesModeAdapter (previous);
         final boolean wantsGrid = usesGridAdapter (next);
         final boolean wantsMode = usesModeAdapter (next);
 
@@ -92,6 +93,7 @@ public final class ControllerWorkspaceHost
             this.surface.getSessionBankRegistry ().restoreDefault ();
         final ViewManager viewManager = this.surface.getViewManager ();
         final ModeManager modeManager = this.surface.getModeManager ();
+        restoreStableModeWhenLeavingMaster (previous, next, modeManager);
 
         if (!hadGrid && wantsGrid)
             this.previousView = viewManager.getActiveID ();
@@ -125,6 +127,18 @@ public final class ControllerWorkspaceHost
                 modeManager.setActive (this.previousMode);
             this.previousMode = null;
         }
+    }
+
+
+    static void restoreStableModeWhenLeavingMaster (final DesiredControllerWorkspace previous, final DesiredControllerWorkspace next, final ModeManager modes)
+    {
+        final boolean leavingMaster = previous.facets ().contains (ControllerViewFacet.MASTER_CONTROLS) && !next.facets ().contains (ControllerViewFacet.MASTER_CONTROLS);
+        if (!leavingMaster || !modes.isActive (Modes.MASTER, Modes.MASTER_TEMP))
+            return;
+
+        modes.restore ();
+        if (modes.isActive (Modes.MASTER, Modes.MASTER_TEMP))
+            modes.setActive (null);
     }
 
 

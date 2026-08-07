@@ -28,7 +28,6 @@ import de.mossgrabers.controller.ableton.push.command.trigger.PushAddEffectComma
 import de.mossgrabers.controller.ableton.push.command.trigger.PushAutomationCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.PushCursorCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.PushMetronomeCommand;
-import de.mossgrabers.controller.ableton.push.command.trigger.PushPlayCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.PushQuantizeCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.RasteredKnobCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.ScalesCommand;
@@ -115,6 +114,7 @@ import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.ContinuousID;
 import de.mossgrabers.framework.controller.ISetupFactory;
 import de.mossgrabers.framework.controller.color.ColorManager;
+import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.hardware.BindType;
 import de.mossgrabers.framework.controller.hardware.IHwFader;
 import de.mossgrabers.framework.controller.hardware.IHwRelativeKnob;
@@ -144,6 +144,8 @@ import de.mossgrabers.framework.view.Views;
 import de.mossgrabers.framework.view.sequencer.AbstractSequencerView;
 import de.mossgrabers.framework.view.sequencer.ClipLengthView;
 import de.mossgrabers.pull.core.api.SessionBankShape;
+import de.mossgrabers.pull.core.api.PushControlIds;
+import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.shell.runtime.ReloadableControllerRuntime;
 
 
@@ -267,7 +269,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         surface.setSessionBankRegistry (this.sessionBankRegistry);
         this.reloadableRuntime.connect (this.model, selectedTrackNoteTarget, input::sendRawMidiEvent, surface, this.valueChanger);
 
-        surface.addGraphicsDisplay (new Push2Display (this.host, this.valueChanger.getUpperBound (), this.configuration));
+        surface.addGraphicsDisplay (new Push2Display (this.host, this.valueChanger.getUpperBound (), this.configuration, this.reloadableRuntime::displayOverlay));
 
         surface.getModeManager ().setDefaultID (Modes.TRACK);
 
@@ -282,7 +284,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         final PushControlSurface surface = this.getSurface ();
         final ModeManager modeManager = surface.getModeManager ();
 
-        modeManager.register (Modes.TRACK, new TrackMode (surface, this.model));
+        modeManager.register (Modes.TRACK, new TrackMode (surface, this.model, this.reloadableRuntime));
         modeManager.register (Modes.TRACK_DETAILS, new TrackDetailsMode (surface, this.model));
         modeManager.register (Modes.VOLUME, new VolumeMode (surface, this.model));
         modeManager.register (Modes.PAN, new PanMode (surface, this.model));
@@ -291,8 +293,8 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         for (int i = 0; i < 8; i++)
             modeManager.register (Modes.get (Modes.SEND1, i), new SendMode (surface, this.model, i));
 
-        modeManager.register (Modes.MASTER, new MasterMode (surface, this.model, false));
-        modeManager.register (Modes.MASTER_TEMP, new MasterMode (surface, this.model, true));
+        modeManager.register (Modes.MASTER, new MasterMode (surface, this.model, false, this.reloadableRuntime));
+        modeManager.register (Modes.MASTER_TEMP, new MasterMode (surface, this.model, true, this.reloadableRuntime));
 
         modeManager.register (Modes.DEVICE_PARAMS, new DeviceParamsMode (surface, this.model));
         modeManager.register (Modes.DEVICE_CHAINS, new DeviceChainsMode (surface, this.model));
@@ -450,20 +452,17 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         final ModeManager modeManager = surface.getModeManager ();
         final ITransport t = this.model.getTransport ();
 
-        this.addButton (ButtonID.PLAY, "Play", new PushPlayCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_PLAY, t::isPlaying, PushColorManager.PUSH_BUTTON_STATE_PLAY_ON, PushColorManager.PUSH_BUTTON_STATE_PLAY_HI);
+        // Play is semantically core-owned. The stable binding is deliberately inert; the permanent
+        // input seam and palette adapter remain installed across child-core reloads.
+        this.addButton (ButtonID.PLAY, "Play", (event, velocity) -> {
+            // No stable semantic implementation for a migrated control.
+        }, PushControlSurface.PUSH_BUTTON_PLAY, () -> controllerLightColor (this.colorManager, this.reloadableRuntime.lightColor (PushControlIds.button ("PLAY"))));
 
         // Record is semantically core-owned. This stable binding intentionally performs no action;
         // it exists only so the permanent input seam and authoritative light remain installed.
         this.addButton (ButtonID.RECORD, "Arm", (event, velocity) -> {
             // No stable semantic implementation for a migrated control.
-        }, PushControlSurface.PUSH_BUTTON_RECORD, () -> {
-
-            if (surface.isShiftPressed ())
-                return t.isLauncherOverdub () ? 3 : 2;
-            final Optional<ITrack> selectedTrack = this.model.getCurrentTrackBank ().getSelectedItem ();
-            return selectedTrack.isPresent () && selectedTrack.get ().isRecArm () ? 1 : 0;
-
-        }, PushColorManager.PUSH_BUTTON_STATE_REC_ON, PushColorManager.PUSH_BUTTON_STATE_REC_HI, PushColorManager.PUSH_BUTTON_STATE_OVR_ON, PushColorManager.PUSH_BUTTON_STATE_OVR_HI);
+        }, PushControlSurface.PUSH_BUTTON_RECORD, () -> controllerLightColor (this.colorManager, this.reloadableRuntime.lightColor (PushControlIds.button ("RECORD"))));
 
         this.addButton (ButtonID.NEW, "New", new NewCommand<> (this.model, surface), PushControlSurface.PUSH_BUTTON_NEW);
         this.addButton (ButtonID.FIXED_LENGTH, "Fixed Length", new FixedLengthCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_FIXED_LENGTH, () -> modeManager.isActive (Modes.FIXED));
@@ -575,6 +574,14 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         this.addButton (ButtonID.USER, "User", new ModeSelectCommand<> (this.model, surface, Modes.USER), PushControlSurface.PUSH_BUTTON_USER_MODE, () -> modeManager.isActive (Modes.USER));
 
         this.addButton (ButtonID.BROWSE, "Browse", new BrowserCommand<> (this.model, surface), PushControlSurface.PUSH_BUTTON_BROWSE, () -> modeManager.isActive (Modes.BROWSER));
+    }
+
+
+    static int controllerLightColor (final ColorManager colors, final RgbColor color)
+    {
+        if (color.red () == 0 && color.green () == 0 && color.blue () == 0)
+            return PushColorManager.PUSH2_COLOR2_BLACK;
+        return colors.getColorIndex (ColorEx.fromRGB (color.red (), color.green (), color.blue ()));
     }
 
 

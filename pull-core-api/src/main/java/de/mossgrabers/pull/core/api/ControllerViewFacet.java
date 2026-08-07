@@ -24,5 +24,7 @@ public enum ControllerViewFacet
     /** Existing drum performance, rate, and fill controls on the lower grid half. */
     DRUM_CONTROLLER_LOWER,
     /** Raw drum pitch bend on the touch strip. */
-    DRUM_PITCH_BEND
+    DRUM_PITCH_BEND,
+    /** Master-mode display, soft keys, and encoder-touch adapter. */
+    MASTER_CONTROLS
 }

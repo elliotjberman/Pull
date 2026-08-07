@@ -30,6 +30,9 @@ import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.event.TouchInputEvent;
 import de.mossgrabers.pull.core.api.output.DesiredHardwareOutput;
 import de.mossgrabers.pull.core.api.output.RgbColor;
+import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
+import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
+import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -258,15 +261,36 @@ public final class CompiledWorkspace
     {
         final Map<ControlId, RgbColor> lights = new LinkedHashMap<> ();
         final Map<ControlId, ClipTargetId> clipBindings = new LinkedHashMap<> ();
+        ControllerDisplayScene display = ControllerDisplayScene.empty ();
+        ControllerPadGridOverlay padGridOverlay = ControllerPadGridOverlay.inactive ();
+        ControllerDisplayOverlay displayOverlay = ControllerDisplayOverlay.inactive ();
         for (final CompiledView view: this.views)
         {
             final ViewOutput output = Objects.requireNonNull (view.view ().render (snapshot), "view output");
             mergeUnique (lights, output.lights (), "light", view.id ());
             mergeUnique (clipBindings, output.clipBindings (), "clip binding", view.id ());
+            if (output.display ().isPresent ())
+            {
+                if (display.isPresent ())
+                    throw new IllegalStateException ("multiple views own the controller display");
+                display = output.display ();
+            }
+            if (output.padGridOverlay ().active ())
+            {
+                if (padGridOverlay.active ())
+                    throw new IllegalStateException ("multiple views own the pad-grid overlay");
+                padGridOverlay = output.padGridOverlay ();
+            }
+            if (output.displayOverlay ().active ())
+            {
+                if (displayOverlay.active ())
+                    throw new IllegalStateException ("multiple views own the display overlay");
+                displayOverlay = output.displayOverlay ();
+            }
         }
 
         return new CoreResult (
-            new DesiredHardwareOutput (lights),
+            new DesiredHardwareOutput (lights, display, padGridOverlay, displayOverlay),
             this.desiredInputRoutes,
             this.desiredBridgeSubscriptions,
             clipBindings,

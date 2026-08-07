@@ -18,5 +18,11 @@ public enum ControllerActionId
     /** Change the stable controller context which supplies active parameters. */
     SWITCH_PARAMETER_CONTEXT,
     /** Enter another compiled core workspace. */
-    SWITCH_WORKSPACE
+    SWITCH_WORKSPACE,
+    /** Navigate between open project tabs. */
+    NAVIGATE_PROJECT,
+    /** Change the current project's audio-engine state. */
+    SET_PROJECT_ENGINE,
+    /** Invoke a current-project file action. */
+    PROJECT_FILE_ACTION
 }

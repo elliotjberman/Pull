@@ -18,7 +18,9 @@ public enum ParameterBankId
     /** Eight visible-track pan parameters. */
     TRACK_PAN,
     /** Tempo and master-volume parameters. */
-    GLOBAL;
+    GLOBAL,
+    /** Master volume, master pan, cue volume, and cue mix. */
+    MASTER;
 
     /** Number of installed bank identities. */
     public static final int BANK_CAPACITY = values ().length;

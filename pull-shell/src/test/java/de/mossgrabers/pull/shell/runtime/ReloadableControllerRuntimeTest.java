@@ -10,6 +10,7 @@ import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.CoreControls;
+import de.mossgrabers.pull.core.api.CoreExecutionRequirements;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
@@ -22,6 +23,7 @@ import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
+import de.mossgrabers.pull.core.api.event.ControllerTickEvent;
 import de.mossgrabers.pull.core.api.event.SnapshotChangedEvent;
 import de.mossgrabers.pull.core.api.output.DesiredHardwareOutput;
 
@@ -217,6 +219,41 @@ class ReloadableControllerRuntimeTest
         runtime.tick ();
         assertEquals (2, snapshotAttempts.get ());
 
+        runtime.close ();
+    }
+
+
+    @Test
+    void deliversRequestedTicksWithoutEnablingParameterSampling ()
+    {
+        final FakeClipHost clipHost = new FakeClipHost (9);
+        final ControllerRuntimeEnvironment environment = new ControllerRuntimeEnvironment (clipHost, NoOpLog.INSTANCE, () -> 0);
+        final CoreResult ticking = new CoreResult (
+            DesiredHardwareOutput.empty (),
+            DesiredInputRoutes.empty (),
+            DesiredBridgeSubscriptions.empty (),
+            Map.of (),
+            DesiredControllerWorkspace.empty (),
+            de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
+            de.mossgrabers.pull.core.api.DesiredParameterBanks.empty (),
+            de.mossgrabers.pull.core.api.DesiredParameterInteraction.empty (),
+            new CoreExecutionRequirements (true, 0, ""),
+            List.of ());
+        environment.commit (1, environment.prepare (ticking));
+        environment.apply (1);
+        final AtomicInteger ticks = new AtomicInteger ();
+        final ReloadableControllerRuntime runtime = new ReloadableControllerRuntime (environment, NoOpLog.INSTANCE, event -> {
+            if (event instanceof ControllerTickEvent)
+                ticks.incrementAndGet ();
+            return true;
+        });
+        runtime.start ();
+
+        runtime.tick ();
+        runtime.tick ();
+
+        assertEquals (2, ticks.get ());
+        assertFalse (environment.observesParameters ());
         runtime.close ();
     }
 
