@@ -62,7 +62,7 @@ public class SessionView extends AbstractSessionView<PushControlSurface, PushCon
         super (name, surface, model, rows, 8, true);
         this.yOffset = yOffset;
 
-        final int redLo = PushColorManager.PUSH2_COLOR2_RED_LO;
+        final int recordArmedDim = PushColorManager.PUSH2_COLOR2_RECORD_ARMED_DIM;
         final int rose = PushColorManager.PUSH2_COLOR2_ROSE;
         final int black = PushColorManager.PUSH2_COLOR2_BLACK;
         final int white = PushColorManager.PUSH2_COLOR2_WHITE;
@@ -76,7 +76,7 @@ public class SessionView extends AbstractSessionView<PushControlSurface, PushCon
         final LightInfo isStopQueued = new LightInfo (green, green, true);
         final LightInfo hasContent = new LightInfo (amber, white, false);
         final LightInfo noContent = new LightInfo (black, -1, false);
-        final LightInfo recArmed = new LightInfo (redLo, -1, false);
+        final LightInfo recArmed = new LightInfo (recordArmedDim, -1, false);
         final LightInfo isMuted = new LightInfo (grey, -1, false);
         this.setColors (isRecording, isRecordingQueued, isPlaying, isPlayingQueued, isStopQueued, hasContent, noContent, recArmed, isMuted);
 

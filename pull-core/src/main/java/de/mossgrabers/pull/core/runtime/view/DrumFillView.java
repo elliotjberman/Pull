@@ -39,8 +39,8 @@ public final class DrumFillView implements ControllerView
 {
     private static final String           FILL_MARKER = "fill";
     private static final RgbColor         FILL_OFF = new RgbColor (0, 0, 0);
-    private static final RgbColor         FILL_AVAILABLE = new RgbColor (96, 30, 0);
-    private static final RgbColor         FILL_ACTIVE = new RgbColor (255, 80, 0);
+    private static final RgbColor         FILL_AVAILABLE = new RgbColor (167, 107, 34);
+    private static final RgbColor         FILL_ACTIVE = new RgbColor (242, 126, 0);
     private static final ClipLaunchPolicy FILL_LAUNCH_POLICY = new ClipLaunchPolicy (
         ClipLaunchQuantization.IMMEDIATE,
         ClipLaunchMode.LEGATO_FROM_CLIP_OR_PROJECT,

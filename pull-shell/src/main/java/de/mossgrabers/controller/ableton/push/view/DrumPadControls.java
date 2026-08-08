@@ -46,7 +46,7 @@ public final class DrumPadControls
     private static final int          PLAY_COLOR_HIGH   = PushColorManager.PUSH2_COLOR2_GREEN_HI;
     private static final int          PAD_OFF_COLOR     = PushColorManager.PUSH2_COLOR2_BLACK;
     private static final double       ROLL_GATE_RATIO   = 0.5;
-    private static final int          RATE_COLOR        = PushColorManager.PUSH2_COLOR2_YELLOW_LO;
+    private static final int          RATE_COLOR        = PushColorManager.PUSH2_COLOR2_YELLOW_DIM_VISIBLE;
     private static final int          RATE_COLOR_HELD   = PushColorManager.PUSH2_COLOR2_YELLOW;
     private static final int          RATE_COLOR_ACTIVE = PushColorManager.PUSH2_COLOR2_YELLOW_HI;
     private static final Resolution   DEFAULT_RATE      = Resolution.RES_1_16;

@@ -86,8 +86,8 @@ class PullControllerCoreTest
     private static final RgbColor AMBER = new RgbColor (255, 191, 0);
     private static final RgbColor PURPLE = new RgbColor (128, 0, 255);
     private static final RgbColor WAVE_PURPLE = new RgbColor (160, 48, 255);
-    private static final RgbColor AVAILABLE = new RgbColor (96, 30, 0);
-    private static final RgbColor HELD = new RgbColor (255, 80, 0);
+    private static final RgbColor AVAILABLE = new RgbColor (167, 107, 34);
+    private static final RgbColor HELD = new RgbColor (242, 126, 0);
     private static final ControlId PLAY_BUTTON = PushControlIds.button ("PLAY");
     private static final ControlId RECORD_BUTTON = PushControlIds.button ("RECORD");
     private static final ControlId SESSION_BUTTON = PushControlIds.button ("SESSION");

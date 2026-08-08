@@ -28,7 +28,10 @@ class PushColorManagerTest
         this.assertMapping ("#0099D7", 96, "#0072BA");
         this.assertMapping ("#FF833C", 91, "#D84E00");
         this.assertMapping ("#73B453", 118, "#2A8616");
-        this.assertMapping ("#FF5706", 82, "#FD1A00");
+        this.assertMapping ("#DB8A00", 35, "#B13B00");
+        this.assertMapping ("#F27E00", 123, "#E02D00");
+        this.assertMapping ("#601E00", PushColorManager.PUSH2_COLOR2_RECORD_ARMED_DIM, "#110100");
+        this.assertMapping ("#9C8F1D", PushColorManager.PUSH2_COLOR2_YELLOW_DIM_VISIBLE, "#564702");
     }
 
 
