@@ -113,6 +113,7 @@ public class PushColorManager extends ColorManager
     public static final int            PUSH2_COLOR2_SPRING_HI                 = 25;
     public static final int            PUSH2_COLOR2_SPRING                    = 26;
     public static final int            PUSH2_COLOR2_SPRING_LO                 = 27;
+
     public static final int            PUSH2_COLOR2_SPRING_TURQUOISE          = 28;
     public static final int            PUSH2_COLOR2_TURQUOISE_LO              = 29;
     public static final int            PUSH2_COLOR2_TURQUOISE                 = 30;
@@ -149,6 +150,11 @@ public class PushColorManager extends ColorManager
     public static final int            PUSH2_COLOR2_ORANGE                    = 65;
     public static final int            PUSH2_COLOR2_ORANGE_LIGHT              = 3;
     public static final int            PUSH2_COLOR2_LIGHT_BROWN               = 69;
+
+    /** Dark red used for an empty record-armed Session slot. */
+    public static final int            PUSH2_COLOR2_RECORD_ARMED_DIM          = 10;
+    /** Calibrated medium yellow used where the legacy low-yellow slot is too close to off. */
+    public static final int            PUSH2_COLOR2_YELLOW_DIM_VISIBLE        = 62;
 
     // First row colors
     public static final int            PUSH2_COLOR_BLACK                      = 0;
