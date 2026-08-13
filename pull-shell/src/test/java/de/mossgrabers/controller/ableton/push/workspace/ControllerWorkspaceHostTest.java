@@ -101,6 +101,27 @@ class ControllerWorkspaceHostTest
 
 
     @Test
+    void masterPageReconciliationPreservesTemporaryMasterMode ()
+    {
+        final ModeManager modes = new ModeManager ();
+        modes.register (Modes.TRACK, mode ());
+        modes.register (Modes.MASTER, mode ());
+        modes.register (Modes.MASTER_TEMP, mode ());
+        modes.setDefaultID (Modes.TRACK);
+        modes.setActive (Modes.TRACK);
+        modes.setTemporary (Modes.MASTER_TEMP);
+        final DesiredControllerWorkspace master = new DesiredControllerWorkspace (
+            "Master", Set.of (ControllerViewFacet.MASTER_CONTROLS), SessionBankShape.empty ());
+
+        new ControllerPageLease ().reconcile (master, modes);
+
+        assertEquals (Modes.MASTER_TEMP, modes.getActiveID ());
+        modes.restore ();
+        assertEquals (Modes.TRACK, modes.getActiveID ());
+    }
+
+
+    @Test
     void rejectsTwoPageAdaptersInOneWorkspace ()
     {
         assertThrows (IllegalArgumentException.class, () -> ControllerWorkspaceHost.validate (new DesiredControllerWorkspace (

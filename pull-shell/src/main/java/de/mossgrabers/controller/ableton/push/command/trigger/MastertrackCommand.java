@@ -13,9 +13,6 @@ import de.mossgrabers.framework.featuregroup.ModeManager;
 import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.utils.ButtonEvent;
 
-import java.util.Objects;
-import java.util.function.BooleanSupplier;
-
 
 /**
  * Command to display the master mode.
@@ -24,9 +21,8 @@ import java.util.function.BooleanSupplier;
  */
 public class MastertrackCommand extends AbstractTriggerCommand<PushControlSurface, PushConfiguration>
 {
-    private final BooleanSupplier pageOnlyMaster;
-
     private boolean quitMasterMode                = false;
+    private boolean pageOnlyMasterAtPress         = false;
     private boolean selectedMasterTrack           = false;
     private int     selectedTrackBeforeMasterMode = -1;
 
@@ -39,14 +35,7 @@ public class MastertrackCommand extends AbstractTriggerCommand<PushControlSurfac
      */
     public MastertrackCommand (final IModel model, final PushControlSurface surface)
     {
-        this (model, surface, () -> surface.getControllerWorkspaceHost ().isActive ());
-    }
-
-
-    MastertrackCommand (final IModel model, final PushControlSurface surface, final BooleanSupplier pageOnlyMaster)
-    {
         super (model, surface);
-        this.pageOnlyMaster = Objects.requireNonNull (pageOnlyMaster, "pageOnlyMaster");
     }
 
 
@@ -63,6 +52,7 @@ public class MastertrackCommand extends AbstractTriggerCommand<PushControlSurfac
         {
             case DOWN:
                 this.quitMasterMode = false;
+                this.pageOnlyMasterAtPress = this.surface.getControllerWorkspaceHost ().isActive ();
                 break;
 
             case UP:
@@ -99,7 +89,7 @@ public class MastertrackCommand extends AbstractTriggerCommand<PushControlSurfac
         final ITrack cursorTrack = this.model.getCursorTrack ();
         this.selectedTrackBeforeMasterMode = cursorTrack.doesExist () ? cursorTrack.getIndex () : -1;
         modeManager.setActive (Modes.MASTER);
-        this.selectedMasterTrack = !this.pageOnlyMaster.getAsBoolean ();
+        this.selectedMasterTrack = !this.pageOnlyMasterAtPress;
         if (this.selectedMasterTrack)
             this.model.getMasterTrack ().select ();
     }

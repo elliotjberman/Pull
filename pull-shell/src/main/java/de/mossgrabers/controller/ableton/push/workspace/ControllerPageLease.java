@@ -37,7 +37,10 @@ final class ControllerPageLease
         switch (page (workspace))
         {
             case WORKSPACE -> modes.setActive (Modes.WORKSPACE);
-            case MASTER -> modes.setActive (Modes.MASTER);
+            case MASTER -> {
+                if (!modes.isActive (Modes.MASTER, Modes.MASTER_TEMP))
+                    modes.setActive (Modes.MASTER);
+            }
             case TRACK_MIXER -> modes.setActive (Modes.TRACK);
             case STABLE -> {
                 // Stable owns the page after an explicit destination lease has been acknowledged.
