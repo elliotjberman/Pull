@@ -37,7 +37,7 @@ class PushDebugCaptureHostTest
         Files.writeString (this.debugDirectory.resolve (PushDebugCaptureHost.STATUS_FILE), "stale\tREADY\tdisplay-stale.png\t\n");
         Files.writeString (this.debugDirectory.resolve (PushDebugCaptureHost.REQUEST_FILE), "frame-1\n");
 
-        host.capturePending (new FakeBitmap (new byte []
+        host.observeFrame (new FakeBitmap (new byte []
         {
             3, 2, 1, (byte) 255
         }, 1, 1));
@@ -56,7 +56,7 @@ class PushDebugCaptureHostTest
         final PushDebugCaptureHost host = new PushDebugCaptureHost (this.debugDirectory);
         Files.writeString (this.debugDirectory.resolve (PushDebugCaptureHost.REQUEST_FILE), "../escape\n");
 
-        host.capturePending (new FakeBitmap (new byte [4], 1, 1));
+        host.observeFrame (new FakeBitmap (new byte [4], 1, 1));
 
         final List<String> status = this.status ();
         assertEquals ("invalid", status.get (0));
@@ -64,7 +64,7 @@ class PushDebugCaptureHostTest
         assertTrue (status.get (3).contains ("invalid capture request"));
         try (Stream<Path> files = Files.list (this.debugDirectory))
         {
-            assertEquals (0L, files.filter (path -> path.getFileName ().toString ().endsWith (".png")).count ());
+            assertEquals (0L, files.filter (path -> path.getFileName ().toString ().startsWith ("display-")).count ());
         }
     }
 
@@ -85,10 +85,115 @@ class PushDebugCaptureHostTest
     }
 
 
+    @Test
+    void publishesEveryFrameByDefaultWithObservableCostMetrics () throws IOException
+    {
+        final PushDebugCaptureHost host = new PushDebugCaptureHost (this.debugDirectory);
+
+        host.observeFrame (new FakeBitmap (new byte []
+        {
+            3, 2, 1, (byte) 255
+        }, 1, 1));
+        host.observeFrame (new FakeBitmap (new byte []
+        {
+            6, 5, 4, (byte) 255
+        }, 1, 1));
+
+        final Path latest = this.debugDirectory.resolve (PushDebugCaptureHost.LATEST_IMAGE_FILE);
+        assertEquals (0xFF040506, ImageIO.read (latest.toFile ()).getRGB (0, 0));
+        final List<String> metrics = this.latestMetrics ();
+        assertEquals ("2", metrics.get (0));
+        assertEquals ("1", metrics.get (3));
+        assertEquals ("2", metrics.get (4));
+        assertEquals ("0", metrics.get (5));
+        assertTrue (Long.parseLong (metrics.get (6)) >= 0);
+        assertTrue (Long.parseLong (metrics.get (7)) >= 0);
+    }
+
+
+    @Test
+    void requestReturnsCachedLatestFrameWithoutWaitingForAnotherFrame () throws IOException
+    {
+        final PushDebugCaptureHost host = new PushDebugCaptureHost (this.debugDirectory);
+        host.observeFrame (new FakeBitmap (new byte []
+        {
+            9, 8, 7, (byte) 255
+        }, 1, 1));
+        Files.writeString (this.debugDirectory.resolve (PushDebugCaptureHost.REQUEST_FILE), "cached-frame\n");
+
+        host.pollForTest ();
+        host.pollForTest ();
+
+        final List<String> status = this.status ();
+        assertEquals (List.of ("cached-frame", "READY", "display-cached-frame.png", ""), status);
+        assertEquals (0xFF070809, ImageIO.read (this.debugDirectory.resolve (status.get (2)).toFile ()).getRGB (0, 0));
+    }
+
+
+    @Test
+    void nextFrameRequestRejectsCachedPublicationAndBypassesSamplingInterval () throws IOException
+    {
+        final PushDebugCaptureHost host = new PushDebugCaptureHost (this.debugDirectory);
+        Files.writeString (this.debugDirectory.resolve (PushDebugCaptureHost.SAMPLE_RATE_FILE), "600\n");
+        host.pollForTest ();
+        host.observeFrame (new FakeBitmap (new byte []
+        {
+            3, 2, 1, (byte) 255
+        }, 1, 1));
+        Files.writeString (this.debugDirectory.resolve (PushDebugCaptureHost.REQUEST_FILE), "post-navigation\tNEXT_FRAME\n");
+        host.pollForTest ();
+
+        host.observeFrame (new FakeBitmap (new byte []
+        {
+            9, 8, 7, (byte) 255
+        }, 1, 1));
+
+        final List<String> status = this.status ();
+        assertEquals (List.of ("post-navigation", "READY", "display-post-navigation.png", ""), status);
+        assertEquals (0xFF070809, ImageIO.read (this.debugDirectory.resolve (status.get (2)).toFile ()).getRGB (0, 0));
+        assertEquals ("2", this.latestMetrics ().get (0));
+    }
+
+
+    @Test
+    void liveSampleRateCanReduceFramebufferCopies () throws IOException
+    {
+        final PushDebugCaptureHost host = new PushDebugCaptureHost (this.debugDirectory);
+        Files.writeString (this.debugDirectory.resolve (PushDebugCaptureHost.SAMPLE_RATE_FILE), "3\n");
+        host.pollForTest ();
+
+        host.observeFrame (new FakeBitmap (new byte []
+        {
+            3, 2, 1, (byte) 255
+        }, 1, 1));
+        host.observeFrame (new FakeBitmap (new byte []
+        {
+            6, 5, 4, (byte) 255
+        }, 1, 1));
+        host.observeFrame (new FakeBitmap (new byte []
+        {
+            9, 8, 7, (byte) 255
+        }, 1, 1));
+
+        final List<String> metrics = this.latestMetrics ();
+        assertEquals ("3", metrics.get (0));
+        assertEquals ("3", metrics.get (3));
+        assertEquals ("2", metrics.get (4));
+        assertEquals (0xFF070809, ImageIO.read (this.debugDirectory.resolve (PushDebugCaptureHost.LATEST_IMAGE_FILE).toFile ()).getRGB (0, 0));
+    }
+
+
     private List<String> status () throws IOException
     {
         final String content = Files.readString (this.debugDirectory.resolve (PushDebugCaptureHost.STATUS_FILE));
         return List.of (content.substring (0, content.length () - 1).split ("\t", -1));
+    }
+
+
+    private List<String> latestMetrics () throws IOException
+    {
+        final String content = Files.readString (this.debugDirectory.resolve (PushDebugCaptureHost.LATEST_STATUS_FILE));
+        return List.of (content.strip ().split ("\t"));
     }
 
 

@@ -51,18 +51,35 @@ tools/capture-push2-display session
 Calling the tool without a target captures the current display. A targeted capture injects the
 same permanent button gestures as the hardware, through the installed input arbitrator. The tool
 waits until the input router and relevant physical controls are idle, submits each gesture once,
-and then waits for the stable shell to observe the target view and mode on two later controller
-ticks. The stable shell accepts only a bounded generic plan of safe navigation gestures and
-authoritative view predicates; it cannot invoke transport, recording, deletion, or project-file
+then waits for the stable shell to observe the target view and mode on two later controller ticks,
+and finally arms a request for the next outbound framebuffer. That request bypasses passive frame
+sampling, so even a heavily throttled debug stream cannot return a cached pre-navigation image or
+time out waiting for the sampling interval. The stable shell accepts only a bounded generic
+plan of safe navigation gestures and authoritative view predicates; it cannot invoke transport,
+recording, deletion, or project-file
 actions. The four named recipes above live in the command-line client, so they can change without
 rebuilding the extension. Filesystem polling and PNG encoding run on owned workers rather than the
 controller thread.
 
+While debugging is enabled, the Push display transport atomically publishes its newest sampled
+frame to `latest.png` and its metrics to `latest-frame.txt`. The default rate samples every outbound
+frame. Intermediate samples are coalesced into one bounded writer slot if PNG encoding cannot keep
+up; the metrics expose that count along with controller-thread framebuffer-copy time and worker PNG
+time. Inspect or change the live rate without rebuilding:
+
+```bash
+tools/capture-push2-display --stats
+tools/capture-push2-display --sample-rate 10
+```
+
+The setting is read from `frame-sample-rate.txt` and accepts one sample per 1 through 600 outbound
+frames. Deleting that file restores the every-frame default.
+
 The resulting request-correlated image path is printed on standard output; navigation state is
 reported on standard error. The fixed local handshake directory is
 `~/.drivenbymoss/pull/debug`. One client owns an atomic lock for the complete navigate-and-capture
-transaction, and every PNG is named for that request so another capture cannot satisfy or
-overwrite it. Unless the `enabled` marker exists in that directory at extension startup, neither
+transaction, and every request-correlated PNG is named for that request so another capture cannot
+satisfy or overwrite it. Unless the `enabled` marker exists in that directory at extension startup, neither
 debugger worker is constructed. Run `tools/capture-push2-display --disable` and restart Bitwig to
 turn the transports off again.
 

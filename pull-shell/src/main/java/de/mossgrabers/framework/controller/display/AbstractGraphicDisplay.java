@@ -4,11 +4,6 @@
 
 package de.mossgrabers.framework.controller.display;
 
-import java.awt.image.BufferedImage;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -18,8 +13,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
-
-import javax.imageio.ImageIO;
 
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.hardware.IHwGraphicsDisplay;
@@ -54,11 +47,6 @@ public abstract class AbstractGraphicDisplay implements IGraphicDisplay
 {
     /** Timeout for displaying the notification message. */
     private static final int               TIMEOUT                         = 1;
-    private static final Path              DEBUG_DIRECTORY                 = Path.of (System.getProperty ("user.home"), ".drivenbymoss", "pull", "debug");
-    private static final Path              DEBUG_IMAGE_PATH                = DEBUG_DIRECTORY.resolve ("display.png");
-    private static final Path              DEBUG_MARKER_PATH               = DEBUG_DIRECTORY.resolve ("display-debug.txt");
-    private static final Path              DEBUG_REQUEST_PATH              = DEBUG_DIRECTORY.resolve ("capture-request.txt");
-
     private final AtomicInteger            counter                         = new AtomicInteger ();
     private final ScheduledExecutorService executor                        = Executors.newSingleThreadScheduledExecutor ();
     private final Object                   counterSync                     = new Object ();
@@ -133,39 +121,6 @@ public abstract class AbstractGraphicDisplay implements IGraphicDisplay
 
     /** {@inheritDoc} */
     @Override
-    public void saveDebugImage ()
-    {
-        this.host.scheduleTask (this::writeDebugImage, 100);
-    }
-
-
-    private void writeDebugImage ()
-    {
-        try
-        {
-            Files.createDirectories (DEBUG_IMAGE_PATH.getParent ());
-            this.image.encode ( (imageBuffer, width, height) -> {
-                try
-                {
-                    writePng (imageBuffer, width, height, DEBUG_IMAGE_PATH);
-                    Files.writeString (DEBUG_MARKER_PATH, System.nanoTime () + " Saved " + width + "x" + height + " display PNG to " + DEBUG_IMAGE_PATH + ".\n");
-                    this.host.showNotification ("Saved Push display PNG to " + DEBUG_IMAGE_PATH);
-                }
-                catch (final IOException ex)
-                {
-                    this.host.error ("Could not save Push display PNG to " + DEBUG_IMAGE_PATH + ".", ex);
-                }
-            });
-        }
-        catch (final RuntimeException | IOException ex)
-        {
-            this.host.error ("Could not save Push display PNG to " + DEBUG_IMAGE_PATH + ".", ex);
-        }
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
     public void shutdown ()
     {
         this.executor.shutdown ();
@@ -222,14 +177,12 @@ public abstract class AbstractGraphicDisplay implements IGraphicDisplay
         }
 
         this.send (this.image);
-        this.captureDebugRequest ();
     }
 
 
     private void runHousekeeping ()
     {
         this.checkNotificationCounter ();
-        this.captureDebugRequest ();
     }
 
 
@@ -237,20 +190,6 @@ public abstract class AbstractGraphicDisplay implements IGraphicDisplay
     protected void setFullScreenOverlaySupplier (final Supplier<IComponent> supplier)
     {
         this.fullScreenOverlaySupplier = java.util.Objects.requireNonNull (supplier, "supplier");
-    }
-
-
-    private void captureDebugRequest ()
-    {
-        try
-        {
-            if (Files.deleteIfExists (DEBUG_REQUEST_PATH))
-                this.saveDebugImage ();
-        }
-        catch (final RuntimeException | IOException ex)
-        {
-            this.host.error ("Could not read Push display capture request from " + DEBUG_REQUEST_PATH + ".", ex);
-        }
     }
 
 
@@ -473,29 +412,6 @@ public abstract class AbstractGraphicDisplay implements IGraphicDisplay
             gc.drawTextInBounds (notification, 0, 0, width, height, Align.CENTER, colorText, ColorEx.calcContrastColor (colorText), height / 4.0);
 
         });
-    }
-
-
-    private static void writePng (final ByteBuffer imageBuffer, final int width, final int height, final Path outputPath) throws IOException
-    {
-        final ByteBuffer buffer = imageBuffer.duplicate ();
-        buffer.rewind ();
-
-        final BufferedImage image = new BufferedImage (width, height, BufferedImage.TYPE_INT_ARGB);
-        for (int y = 0; y < height; y++)
-        {
-            for (int x = 0; x < width; x++)
-            {
-                final int blue = buffer.get () & 0xFF;
-                final int green = buffer.get () & 0xFF;
-                final int red = buffer.get () & 0xFF;
-                final int alpha = buffer.get () & 0xFF;
-
-                image.setRGB (x, y, alpha << 24 | red << 16 | green << 8 | blue);
-            }
-        }
-
-        ImageIO.write (image, "png", outputPath.toFile ());
     }
 
 

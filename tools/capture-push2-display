@@ -7,12 +7,14 @@ navigation_request_path="${debug_dir}/navigate-request.txt"
 navigation_status_path="${debug_dir}/navigate-status.txt"
 capture_request_path="${debug_dir}/capture-request.txt"
 capture_status_path="${debug_dir}/capture-status.txt"
+latest_status_path="${debug_dir}/latest-frame.txt"
+sample_rate_path="${debug_dir}/frame-sample-rate.txt"
 lock_dir="${debug_dir}/client.lock"
 enabled_path="${debug_dir}/enabled"
 
 usage()
 {
-    echo "Usage: $0 [mix|master|project-macros|session|--enable|--disable]" >&2
+    echo "Usage: $0 [mix|master|project-macros|session|--enable|--disable|--sample-rate N|--stats]" >&2
 }
 
 target="${1:-}"
@@ -31,6 +33,36 @@ then
     navigation_steps=("${@:3}")
     target=""
 else
+    if [[ "$target" == "--sample-rate" ]]
+    then
+        if (( $# != 2 )) || [[ ! "$2" =~ ^[0-9]+$ ]] || (( $2 < 1 || $2 > 600 ))
+        then
+            echo "Sample rate must be an integer from 1 through 600." >&2
+            exit 2
+        fi
+        mkdir -p "$debug_dir"
+        sample_rate_temp="${sample_rate_path}.$$-${RANDOM}.tmp"
+        printf '%s\n' "$2" > "$sample_rate_temp"
+        mv "$sample_rate_temp" "$sample_rate_path"
+        echo "Push debug framebuffer sampling set to every $2 frame(s)." >&2
+        exit 0
+    fi
+    if [[ "$target" == "--stats" ]]
+    then
+        if (( $# != 1 ))
+        then
+            usage
+            exit 2
+        fi
+        if [[ ! -f "$latest_status_path" ]]
+        then
+            echo "No sampled Push framebuffer is available." >&2
+            exit 1
+        fi
+        IFS=$'\t' read -r frame_revision frame_width frame_height sample_interval sampled_frames coalesced_frames capture_micros png_write_micros < "$latest_status_path"
+        echo "frame=${frame_revision} size=${frame_width}x${frame_height} sample_every=${sample_interval} sampled=${sampled_frames} coalesced=${coalesced_frames} capture_us=${capture_micros} png_write_us=${png_write_micros}"
+        exit 0
+    fi
     if (( $# > 1 ))
     then
         usage
@@ -183,7 +215,12 @@ then
 fi
 
 capture_request_temp="${capture_request_path}.${request_id}.tmp"
-printf '%s\n' "$request_id" > "$capture_request_temp"
+if [[ -n "$target" ]]
+then
+    printf '%s\tNEXT_FRAME\n' "$request_id" > "$capture_request_temp"
+else
+    printf '%s\n' "$request_id" > "$capture_request_temp"
+fi
 mv "$capture_request_temp" "$capture_request_path"
 
 for _ in {1..100}

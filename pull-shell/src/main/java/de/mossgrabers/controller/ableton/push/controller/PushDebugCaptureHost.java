@@ -21,26 +21,43 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 
-/** Request-correlated Push framebuffer capture with filesystem work isolated to one owned worker. */
+/** Sampled latest-frame and request-correlated Push capture with filesystem work on one worker. */
 final class PushDebugCaptureHost implements AutoCloseable
 {
-    static final String REQUEST_FILE = "capture-request.txt";
-    static final String STATUS_FILE  = "capture-status.txt";
+    static final String REQUEST_FILE       = "capture-request.txt";
+    static final String STATUS_FILE        = "capture-status.txt";
+    static final String LATEST_IMAGE_FILE  = "latest.png";
+    static final String LATEST_STATUS_FILE = "latest-frame.txt";
+    static final String SAMPLE_RATE_FILE   = "frame-sample-rate.txt";
 
-    private static final int  MAX_REQUEST_BYTES    = 96;
-    private static final int  MAX_CAPTURE_FILES    = 16;
-    private static final long POLL_INTERVAL_MILLIS = 100;
-    private static final long SHUTDOWN_WAIT_MILLIS = 250;
+    private static final int  DEFAULT_FRAME_SAMPLE_INTERVAL = 1;
+    private static final int  MAX_FRAME_SAMPLE_INTERVAL     = 600;
+    private static final int  MAX_REQUEST_BYTES             = 96;
+    private static final int  MAX_CAPTURE_FILES             = 16;
+    private static final long POLL_INTERVAL_MILLIS          = 100;
+    private static final long SHUTDOWN_WAIT_MILLIS          = 250;
 
     private final Path                      directory;
     private final Path                      requestPath;
     private final Path                      statusPath;
+    private final Path                      latestImagePath;
+    private final Path                      latestStatusPath;
+    private final Path                      sampleRatePath;
     private final ScheduledExecutorService  worker;
-    private final AtomicReference<String>   pendingRequest = new AtomicReference<> ();
+    private final AtomicReference<CaptureRequest> pendingRequest = new AtomicReference<> ();
     private final AtomicReference<Capture>  completedCapture = new AtomicReference<> ();
+    private final AtomicReference<Frame>    latestFrame = new AtomicReference<> ();
+    private final AtomicReference<Frame>    pendingLatestWrite = new AtomicReference<> ();
+    private final AtomicInteger             frameSampleInterval = new AtomicInteger (DEFAULT_FRAME_SAMPLE_INTERVAL);
+    private final AtomicLong                frameRevision = new AtomicLong ();
+    private final AtomicLong                sampledFrames = new AtomicLong ();
+    private final AtomicLong                coalescedFrames = new AtomicLong ();
+    private final AtomicBoolean             drainScheduled = new AtomicBoolean ();
     private final AtomicBoolean             closed = new AtomicBoolean ();
 
 
@@ -71,34 +88,53 @@ final class PushDebugCaptureHost implements AutoCloseable
         this.directory = Objects.requireNonNull (directory, "directory");
         this.requestPath = directory.resolve (REQUEST_FILE);
         this.statusPath = directory.resolve (STATUS_FILE);
+        this.latestImagePath = directory.resolve (LATEST_IMAGE_FILE);
+        this.latestStatusPath = directory.resolve (LATEST_STATUS_FILE);
+        this.sampleRatePath = directory.resolve (SAMPLE_RATE_FILE);
         this.worker = worker;
     }
 
 
-    /** Claim at most one request and copy that exact rendered frame before returning. */
-    void capturePending (final IBitmap image)
+    /** Sample outbound frames at the live debug rate; a pending next-frame request forces a sample. */
+    void observeFrame (final IBitmap image)
     {
         if (this.closed.get ())
             return;
         if (this.worker == null)
             this.pollFilesSafely ();
 
-        final String requestID = this.pendingRequest.getAndSet (null);
-        if (requestID != null)
+        final long revision = this.frameRevision.incrementAndGet ();
+        final int sampleInterval = this.frameSampleInterval.get ();
+        if (revision == 1 || revision % sampleInterval == 0 || this.pendingRequest.get () != null)
         {
             try
             {
+                final long captureStarted = System.nanoTime ();
                 Objects.requireNonNull (image, "image").encode ( (buffer, width, height) ->
-                    this.completedCapture.set (Capture.ready (requestID, copy (buffer, width, height), width, height)));
+                {
+                    final byte [] pixels = copy (buffer, width, height);
+                    final long captureMicros = TimeUnit.NANOSECONDS.toMicros (System.nanoTime () - captureStarted);
+                    final Frame frame = new Frame (revision, pixels, width, height, sampleInterval, this.sampledFrames.incrementAndGet (), captureMicros);
+                    this.latestFrame.set (frame);
+                    if (this.pendingLatestWrite.getAndSet (frame) != null)
+                        this.coalescedFrames.incrementAndGet ();
+                    final CaptureRequest request = this.pendingRequest.getAndSet (null);
+                    if (request != null)
+                        this.completedCapture.set (Capture.ready (request.requestID (), frame));
+                });
             }
             catch (final RuntimeException ex)
             {
-                this.completedCapture.set (Capture.failed (requestID, ex.getMessage ()));
+                final CaptureRequest request = this.pendingRequest.getAndSet (null);
+                if (request != null)
+                    this.completedCapture.set (Capture.failed (request.requestID (), ex.getMessage ()));
             }
         }
 
         if (this.worker == null)
             this.pollFilesSafely ();
+        else
+            this.requestDrain ();
     }
 
 
@@ -113,10 +149,14 @@ final class PushDebugCaptureHost implements AutoCloseable
 
     private void pollFilesSafely ()
     {
-        if (this.closed.get () && this.completedCapture.get () == null)
+        if (this.closed.get () && this.completedCapture.get () == null && this.pendingLatestWrite.get () == null)
             return;
         try
         {
+            this.readSampleInterval ();
+            final Frame latest = this.pendingLatestWrite.getAndSet (null);
+            if (latest != null)
+                this.writeLatestFrame (latest);
             final Capture capture = this.completedCapture.getAndSet (null);
             if (capture != null)
                 this.writeCapture (capture);
@@ -135,16 +175,26 @@ final class PushDebugCaptureHost implements AutoCloseable
         if (!Files.isRegularFile (this.requestPath, LinkOption.NOFOLLOW_LINKS))
             return;
 
-        final String requestID;
+        final String requestText;
         if (Files.size (this.requestPath) > MAX_REQUEST_BYTES)
-            requestID = "";
+            requestText = "";
         else
-            requestID = Files.readString (this.requestPath).strip ();
+            requestText = Files.readString (this.requestPath).strip ();
         Files.deleteIfExists (this.requestPath);
 
-        if (isRequestID (requestID) && !this.closed.get ())
-            this.pendingRequest.compareAndSet (null, requestID);
-        else if (isRequestID (requestID))
+        final String [] fields = requestText.split ("\\t", -1);
+        final String requestID = fields.length == 0 ? "" : fields[0];
+        final boolean nextFrame = fields.length == 2 && "NEXT_FRAME".equals (fields[1]);
+        final boolean valid = isRequestID (requestID) && (fields.length == 1 || nextFrame);
+        if (valid && !this.closed.get ())
+        {
+            final Frame frame = nextFrame ? null : this.latestFrame.get ();
+            if (frame == null)
+                this.pendingRequest.compareAndSet (null, new CaptureRequest (requestID));
+            else
+                this.completedCapture.compareAndSet (null, Capture.ready (requestID, frame));
+        }
+        else if (valid)
             this.completedCapture.compareAndSet (null, Capture.failed (requestID, "extension is closing"));
         else
             this.completedCapture.compareAndSet (null, Capture.failed ("invalid", "invalid capture request ID"));
@@ -164,16 +214,74 @@ final class PushDebugCaptureHost implements AutoCloseable
         final Path output = this.directory.resolve (filename);
         final Path temporary = this.directory.resolve (filename + ".tmp");
         writePng (capture.pixels (), capture.width (), capture.height (), temporary);
-        try
-        {
-            Files.move (temporary, output, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-        }
-        catch (final IOException ex)
-        {
-            Files.move (temporary, output, StandardCopyOption.REPLACE_EXISTING);
-        }
+        replaceAtomically (temporary, output);
         this.writeStatus (capture.requestID (), "READY", filename, "");
         this.pruneCaptures ();
+    }
+
+
+    private void writeLatestFrame (final Frame frame) throws IOException
+    {
+        Files.createDirectories (this.directory);
+        final Path imageTemporary = this.latestImagePath.resolveSibling (LATEST_IMAGE_FILE + ".tmp");
+        final long started = System.nanoTime ();
+        writePng (frame.pixels (), frame.width (), frame.height (), imageTemporary);
+        replaceAtomically (imageTemporary, this.latestImagePath);
+        final long writeMicros = TimeUnit.NANOSECONDS.toMicros (System.nanoTime () - started);
+
+        final String status = String.join ("\t",
+            Long.toString (frame.revision ()),
+            Integer.toString (frame.width ()),
+            Integer.toString (frame.height ()),
+            Integer.toString (frame.sampleInterval ()),
+            Long.toString (frame.sampledFrames ()),
+            Long.toString (this.coalescedFrames.get ()),
+            Long.toString (frame.captureMicros ()),
+            Long.toString (writeMicros)) + "\n";
+        final Path statusTemporary = this.latestStatusPath.resolveSibling (LATEST_STATUS_FILE + ".tmp");
+        Files.writeString (statusTemporary, status);
+        replaceAtomically (statusTemporary, this.latestStatusPath);
+    }
+
+
+    private void readSampleInterval () throws IOException
+    {
+        if (!Files.isRegularFile (this.sampleRatePath, LinkOption.NOFOLLOW_LINKS))
+        {
+            this.frameSampleInterval.set (DEFAULT_FRAME_SAMPLE_INTERVAL);
+            return;
+        }
+
+        final int requested;
+        try
+        {
+            requested = Integer.parseInt (Files.readString (this.sampleRatePath).strip ());
+        }
+        catch (final NumberFormatException ex)
+        {
+            return;
+        }
+        if (requested >= 1 && requested <= MAX_FRAME_SAMPLE_INTERVAL)
+            this.frameSampleInterval.set (requested);
+    }
+
+
+    private void requestDrain ()
+    {
+        if (this.worker == null || this.closed.get () || !this.drainScheduled.compareAndSet (false, true))
+            return;
+        this.worker.execute ( () -> {
+            try
+            {
+                this.pollFilesSafely ();
+            }
+            finally
+            {
+                this.drainScheduled.set (false);
+                if (this.pendingLatestWrite.get () != null || this.completedCapture.get () != null)
+                    this.requestDrain ();
+            }
+        });
     }
 
 
@@ -197,13 +305,19 @@ final class PushDebugCaptureHost implements AutoCloseable
         final String content = String.join ("\t", requestID, state, filename, sanitize (message)) + "\n";
         final Path temporary = this.statusPath.resolveSibling (this.statusPath.getFileName () + ".tmp");
         Files.writeString (temporary, content);
+        replaceAtomically (temporary, this.statusPath);
+    }
+
+
+    private static void replaceAtomically (final Path temporary, final Path output) throws IOException
+    {
         try
         {
-            Files.move (temporary, this.statusPath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            Files.move (temporary, output, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         }
         catch (final IOException ex)
         {
-            Files.move (temporary, this.statusPath, StandardCopyOption.REPLACE_EXISTING);
+            Files.move (temporary, output, StandardCopyOption.REPLACE_EXISTING);
         }
     }
 
@@ -214,9 +328,9 @@ final class PushDebugCaptureHost implements AutoCloseable
         if (!this.closed.compareAndSet (false, true))
             return;
 
-        final String pending = this.pendingRequest.getAndSet (null);
+        final CaptureRequest pending = this.pendingRequest.getAndSet (null);
         if (pending != null)
-            this.completedCapture.set (Capture.failed (pending, "extension is closing"));
+            this.completedCapture.set (Capture.failed (pending.requestID (), "extension is closing"));
         if (this.worker == null)
         {
             this.pollFilesSafely ();
@@ -293,9 +407,9 @@ final class PushDebugCaptureHost implements AutoCloseable
 
     private record Capture (String requestID, byte [] pixels, int width, int height, String message)
     {
-        private static Capture ready (final String requestID, final byte [] pixels, final int width, final int height)
+        private static Capture ready (final String requestID, final Frame frame)
         {
-            return new Capture (requestID, pixels, width, height, "");
+            return new Capture (requestID, frame.pixels (), frame.width (), frame.height (), "");
         }
 
 
@@ -303,5 +417,15 @@ final class PushDebugCaptureHost implements AutoCloseable
         {
             return new Capture (requestID, null, 0, 0, sanitize (message));
         }
+    }
+
+
+    private record CaptureRequest (String requestID)
+    {
+    }
+
+
+    private record Frame (long revision, byte [] pixels, int width, int height, int sampleInterval, long sampledFrames, long captureMicros)
+    {
     }
 }

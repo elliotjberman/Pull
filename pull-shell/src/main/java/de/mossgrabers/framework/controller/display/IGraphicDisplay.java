@@ -27,12 +27,6 @@ public interface IGraphicDisplay extends IDisplay
 
 
     /**
-     * Save the current graphics display bitmap as a PNG for debugging.
-     */
-    void saveDebugImage ();
-
-
-    /**
      * Send the message to the display process.
      */
     void send ();

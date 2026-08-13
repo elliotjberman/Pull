@@ -101,7 +101,7 @@ public class Push2Display extends AbstractGraphicDisplay
     protected void send (final IBitmap image)
     {
         if (this.debugCapture != null)
-            this.debugCapture.capturePending (image);
+            this.debugCapture.observeFrame (image);
         if (!this.isShutdown && this.usbDisplay != null)
             this.usbDisplay.send (image);
     }
