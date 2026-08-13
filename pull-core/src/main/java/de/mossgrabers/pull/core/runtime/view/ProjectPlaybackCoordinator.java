@@ -60,7 +60,8 @@ public final class ProjectPlaybackCoordinator
 
     void observe (final ControllerSnapshot snapshot)
     {
-        final ProjectSnapshot project = Objects.requireNonNull (snapshot, "snapshot").bridge ().project ();
+        this.advanceWave (Objects.requireNonNull (snapshot, "snapshot").monotonicTimeNanos ());
+        final ProjectSnapshot project = snapshot.bridge ().project ();
         final TransportSnapshot transport = snapshot.bridge ().transport ();
         if (!project.available ())
             return;
@@ -108,9 +109,8 @@ public final class ProjectPlaybackCoordinator
     }
 
 
-    ControllerPadGridOverlay padGridOverlay (final ControllerSnapshot snapshot)
+    ControllerPadGridOverlay padGridOverlay ()
     {
-        this.advanceWave (Objects.requireNonNull (snapshot, "snapshot").monotonicTimeNanos ());
         if (!this.waveActive)
             return ControllerPadGridOverlay.inactive ();
         if (this.waveProgress >= 1)
@@ -122,9 +122,8 @@ public final class ProjectPlaybackCoordinator
     }
 
 
-    ControllerDisplayOverlay displayOverlay (final ControllerSnapshot snapshot)
+    ControllerDisplayOverlay displayOverlay ()
     {
-        this.advanceWave (Objects.requireNonNull (snapshot, "snapshot").monotonicTimeNanos ());
         if (!this.waveActive)
             return ControllerDisplayOverlay.inactive ();
 
@@ -133,13 +132,6 @@ public final class ProjectPlaybackCoordinator
         if (this.waveProgress < 1)
             addDisplayRipple (commands, this.waveProgress, this.waveBaseColor);
         return new ControllerDisplayOverlay (true, new ControllerDisplayScene (960, 160, commands));
-    }
-
-
-    List<CoreEffect> advance (final ControllerSnapshot snapshot)
-    {
-        this.advanceWave (Objects.requireNonNull (snapshot, "snapshot").monotonicTimeNanos ());
-        return List.of ();
     }
 
 

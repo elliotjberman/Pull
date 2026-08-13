@@ -17,11 +17,9 @@ import de.mossgrabers.pull.core.api.effect.SetSelectedTrackBooleanEffect;
 import de.mossgrabers.pull.core.api.effect.SetTransportStateEffect;
 import de.mossgrabers.pull.core.api.effect.TransportState;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
-import de.mossgrabers.pull.core.api.event.ControllerTickEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
-import de.mossgrabers.pull.core.api.event.SnapshotChangedEvent;
 import de.mossgrabers.pull.core.view.ControllerView;
 import de.mossgrabers.pull.core.view.SurfaceArea;
 import de.mossgrabers.pull.core.view.SurfaceClaim;
@@ -108,14 +106,14 @@ public final class TransportControlView implements ControllerView
         final TransportSnapshot transport = snapshot.bridge ().transport ();
         final RgbColor play = this.playbackCoordinator.playColor (snapshot);
         if (!transport.engineActive ())
-            return new ViewOutput (Map.of (PLAY_BUTTON, play, RECORD_BUTTON, OFF), Map.of (), de.mossgrabers.pull.core.api.output.ControllerDisplayScene.empty (), this.playbackCoordinator.padGridOverlay (snapshot), this.playbackCoordinator.displayOverlay (snapshot));
+            return new ViewOutput (Map.of (PLAY_BUTTON, play, RECORD_BUTTON, OFF), Map.of (), de.mossgrabers.pull.core.api.output.ControllerDisplayScene.empty (), this.playbackCoordinator.padGridOverlay (), this.playbackCoordinator.displayOverlay ());
 
         final RgbColor record;
         if (snapshot.pressedControls ().contains (SHIFT_BUTTON))
             record = transport.launcherOverdub () ? AMBER : WHITE;
         else
             record = snapshot.bridge ().selectedTrack ().recordArmed () ? RED : WHITE;
-        return new ViewOutput (Map.of (PLAY_BUTTON, play, RECORD_BUTTON, record), Map.of (), de.mossgrabers.pull.core.api.output.ControllerDisplayScene.empty (), this.playbackCoordinator.padGridOverlay (snapshot), this.playbackCoordinator.displayOverlay (snapshot));
+        return new ViewOutput (Map.of (PLAY_BUTTON, play, RECORD_BUTTON, record), Map.of (), de.mossgrabers.pull.core.api.output.ControllerDisplayScene.empty (), this.playbackCoordinator.padGridOverlay (), this.playbackCoordinator.displayOverlay ());
     }
 
 
@@ -133,8 +131,6 @@ public final class TransportControlView implements ControllerView
             return this.recordReleased (snapshot);
         }
 
-        if (event instanceof SnapshotChangedEvent || event instanceof ControllerTickEvent)
-            return this.playbackCoordinator.advance (snapshot);
         return List.of ();
     }
 

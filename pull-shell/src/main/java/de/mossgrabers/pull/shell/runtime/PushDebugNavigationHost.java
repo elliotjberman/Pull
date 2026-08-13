@@ -155,12 +155,17 @@ final class PushDebugNavigationHost implements AutoCloseable
                 this.pending.stepIndex++;
                 continue;
             }
+            if (!step.gesture ().contextAvailable (observed))
+            {
+                this.complete ("FAILED", "gesture is unavailable in the current controller context", observed);
+                return;
+            }
             if (!this.admission.isIdle () || !step.gesture ().controlsFree (this.surface))
                 return;
 
             try
             {
-                if (this.admission.trySubmit ( () -> step.gesture ().trigger (this.surface)))
+                if (this.admission.trySubmit ( () -> step.gesture ().triggerChecked (this.surface)))
                     step.submitted = true;
             }
             catch (final RuntimeException ex)
@@ -400,26 +405,40 @@ final class PushDebugNavigationHost implements AutoCloseable
         MASTERTRACK (ButtonID.MASTERTRACK),
         SESSION (ButtonID.SESSION),
         PLAY (ButtonID.PLAY),
-        ROW2_5 (ButtonID.ROW2_5),
-        ROW2_7 (ButtonID.ROW2_7),
-        ROW2_8 (ButtonID.ROW2_8),
+        ROW2_5 (ButtonID.ROW2_5, true),
+        ROW2_7 (ButtonID.ROW2_7, true),
+        ROW2_8 (ButtonID.ROW2_8, true),
         SHIFT_SESSION (ButtonID.SHIFT, ButtonID.SESSION);
 
         private final ButtonID      modifier;
         private final ButtonID      button;
+        private final boolean       masterOnly;
         private final Set<ButtonID> controls;
 
 
         NavigationGesture (final ButtonID button)
         {
-            this (null, button);
+            this (null, button, false);
+        }
+
+
+        NavigationGesture (final ButtonID button, final boolean masterOnly)
+        {
+            this (null, button, masterOnly);
         }
 
 
         NavigationGesture (final ButtonID modifier, final ButtonID button)
         {
+            this (modifier, button, false);
+        }
+
+
+        NavigationGesture (final ButtonID modifier, final ButtonID button, final boolean masterOnly)
+        {
             this.modifier = modifier;
             this.button = button;
+            this.masterOnly = masterOnly;
             final Set<ButtonID> owned = new HashSet<> (Set.of (ButtonID.SHIFT, button));
             if (modifier != null)
                 owned.add (modifier);
@@ -447,8 +466,16 @@ final class PushDebugNavigationHost implements AutoCloseable
         }
 
 
-        void trigger (final NavigationSurface surface)
+        boolean contextAvailable (final ObservedNavigation observed)
         {
+            return !this.masterOnly || observed.workspaceActive () && Set.of ("MASTER", "MASTER_TEMP").contains (observed.modeID ());
+        }
+
+
+        void triggerChecked (final NavigationSurface surface)
+        {
+            if (!this.contextAvailable (surface.observe ()))
+                throw new IllegalStateException ("Push debug Master gesture lost its authoritative context");
             if (this.modifier == null)
             {
                 surface.click (this.button);

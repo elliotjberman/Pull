@@ -188,7 +188,7 @@ class BoundedControllerBridgeTest
 
 
     @Test
-    void failedRemoteReturnReleasesTheCommandLaneWithoutBlockingCoreReplacement ()
+    void timedOutRemoteReturnRetainsTheLaneAndRetriesUntilOriginReadback ()
     {
         final BridgeFixture fixture = new BridgeFixture ();
         final DesiredBridgeSubscriptions requested = subscriptions (BridgeSubscription.PROJECT, BridgeSubscription.TRANSPORT);
@@ -209,8 +209,49 @@ class BoundedControllerBridgeTest
         for (int tick = 0; tick < 100; tick++)
             fixture.bridge.refresh (5 + tick, requested, DesiredParameterBanks.empty ());
 
-        assertFalse (fixture.bridge.snapshot ().project ().commandPending ());
+        assertTrue (fixture.bridge.snapshot ().project ().commandPending ());
+        assertTrue (fixture.project.nextCount >= 2, "the exact return is retried after timeout");
         assertTrue (fixture.bridge.canReplaceActiveCore ());
+
+        fixture.project.identity = "project-b";
+        fixture.application.engineActive = false;
+        fixture.bridge.refresh (106, requested, DesiredParameterBanks.empty ());
+        fixture.bridge.refresh (107, requested, DesiredParameterBanks.empty ());
+
+        assertFalse (fixture.bridge.snapshot ().project ().commandPending ());
+        assertEquals ("project-b", fixture.bridge.snapshot ().project ().projectIdentity ());
+    }
+
+
+    @Test
+    void unexpectedProjectChangeRetainsTheLaneUntilOriginReadback ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        final DesiredBridgeSubscriptions requested = subscriptions (BridgeSubscription.PROJECT, BridgeSubscription.TRANSPORT);
+        fixture.project.identity = "project-b";
+        fixture.transport.playing = true;
+        fixture.bridge.refresh (1, requested, DesiredParameterBanks.empty ());
+        fixture.bridge.apply (fixture.bridge.prepare (new SetProjectTransportStateEffect (
+            "project-b", "project-a", TransportState.PLAYING, false)));
+
+        fixture.project.identity = "project-a";
+        fixture.application.engineActive = true;
+        fixture.bridge.refresh (2, requested, DesiredParameterBanks.empty ());
+        fixture.bridge.refresh (3, requested, DesiredParameterBanks.empty ());
+        assertEquals (1, fixture.transport.stopCount);
+
+        fixture.project.identity = "project-c";
+        fixture.bridge.refresh (4, requested, DesiredParameterBanks.empty ());
+        assertTrue (fixture.bridge.snapshot ().project ().commandPending ());
+        assertTrue (fixture.bridge.canReplaceActiveCore ());
+
+        fixture.project.identity = "project-b";
+        fixture.application.engineActive = false;
+        fixture.bridge.refresh (5, requested, DesiredParameterBanks.empty ());
+        fixture.bridge.refresh (6, requested, DesiredParameterBanks.empty ());
+
+        assertFalse (fixture.bridge.snapshot ().project ().commandPending ());
+        assertEquals ("project-b", fixture.bridge.snapshot ().project ().projectIdentity ());
     }
 
 

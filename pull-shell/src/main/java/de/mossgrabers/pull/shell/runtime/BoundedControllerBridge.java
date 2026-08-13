@@ -416,7 +416,7 @@ final class BoundedControllerBridge implements ControllerBridge
         if (this.masterCommands.applyIfOwned (action))
             return;
         if (action instanceof final PreparedTransportState state)
-            this.applyTransportState (state);
+            this.masterCommands.applyTransportState (state.state (), state.enabled ());
         else if (action instanceof final PreparedParameterSet parameter)
             this.parameterTargets.apply (parameter.action ());
         else if (action instanceof final PreparedParameterAdjust parameter)
@@ -602,40 +602,6 @@ final class BoundedControllerBridge implements ControllerBridge
             return null;
         final IDrumPad pad = bank.getItem (padIndex);
         return pad.doesExist () && padChannelID.equals (pad.getChannelID ()) ? pad : null;
-    }
-
-
-    private void applyTransportState (final PreparedTransportState request)
-    {
-        final boolean current = switch (request.state ())
-        {
-            case PLAYING -> this.transport.isPlaying ();
-            case RECORDING -> this.transport.isRecording ();
-            case ARRANGER_OVERDUB -> this.transport.isArrangerOverdub ();
-            case LAUNCHER_OVERDUB -> this.transport.isLauncherOverdub ();
-            case LOOP -> this.transport.isLoop ();
-            case METRONOME -> this.transport.isMetronomeOn ();
-            case FILL_MODE -> this.transport.isFillModeActive ();
-        };
-        if (current == request.enabled ())
-            return;
-
-        switch (request.state ())
-        {
-            case PLAYING ->
-            {
-                if (request.enabled ())
-                    this.transport.play ();
-                else
-                    this.transport.stop ();
-            }
-            case RECORDING -> this.transport.setRecording (request.enabled ());
-            case ARRANGER_OVERDUB -> this.transport.setArrangerOverdub (request.enabled ());
-            case LAUNCHER_OVERDUB -> this.transport.setLauncherOverdub (request.enabled ());
-            case LOOP -> this.transport.setLoop (request.enabled ());
-            case METRONOME -> this.transport.setMetronome (request.enabled ());
-            case FILL_MODE -> this.transport.setFillModeActive (request.enabled ());
-        }
     }
 
 

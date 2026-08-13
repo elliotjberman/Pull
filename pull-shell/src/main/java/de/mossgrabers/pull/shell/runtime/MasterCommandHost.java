@@ -144,7 +144,7 @@ final class MasterCommandHost
         if (action instanceof final PreparedNavigation navigation)
         {
             if (this.canTargetProject (navigation.expectedProjectIdentity ()))
-                this.beginNavigation (navigation.direction (), false, false);
+                this.beginNavigation (navigation.direction ());
             return true;
         }
         if (action instanceof final PreparedEngine engine)
@@ -244,12 +244,12 @@ final class MasterCommandHost
             this.previousUnavailable = true;
         else
             this.nextUnavailable = true;
-        if (!failed.kind.remoteOwned () || this.remoteTransport == null)
+        if (this.remoteTransport == null)
             return;
 
-        if (failed.kind == PendingKind.REMOTE_RETURN)
+        if (this.remoteTransport.stage == RemoteStage.RETURNING)
         {
-            this.failRemoteTransport ("Could not retrace the project-navigation path");
+            this.log.warn ("Project return was not observed; retaining the command lane and retrying from " + this.currentIdentity ());
             return;
         }
         if (failed.direction == ProjectNavigationDirection.PREVIOUS)
@@ -266,20 +266,20 @@ final class MasterCommandHost
         this.observedProjectIdentity = targetIdentity;
         this.previousUnavailable = false;
         this.nextUnavailable = false;
-        if (!completed.kind.remoteOwned () || this.remoteTransport == null)
+        if (this.remoteTransport == null)
             return;
 
-        if (completed.kind == PendingKind.REMOTE_RETURN)
+        if (this.remoteTransport.stage == RemoteStage.RETURNING)
         {
             if (this.remoteTransport.path.isEmpty ())
             {
-                this.failRemoteTransport ("Project return completed without an acknowledged path");
+                this.retainFailedRemoteTransport ("Project return completed without an acknowledged path");
                 return;
             }
             final PathStep step = this.remoteTransport.path.getLast ();
             if (!step.toIdentity.equals (completed.originIdentity) || !step.fromIdentity.equals (targetIdentity) || opposite (step.direction) != completed.direction)
             {
-                this.failRemoteTransport ("Project return diverged from its acknowledged path");
+                this.retainFailedRemoteTransport ("Project return diverged from its acknowledged path");
                 return;
             }
             this.remoteTransport.path.removeLast ();
@@ -300,6 +300,12 @@ final class MasterCommandHost
         final String currentIdentity = this.currentIdentity ();
         if (currentIdentity.isBlank ())
             return;
+        if (this.remoteTransport.stage == RemoteStage.FAILED_RETURN)
+        {
+            if (currentIdentity.equals (this.remoteTransport.originIdentity))
+                this.remoteTransport = null;
+            return;
+        }
 
         if (!currentIdentity.equals (this.remoteTransport.expectedCurrentIdentity))
         {
@@ -310,7 +316,7 @@ final class MasterCommandHost
             }
             if (this.remoteTransport.path.isEmpty () || !currentIdentity.equals (this.remoteTransport.path.getLast ().toIdentity))
             {
-                this.failRemoteTransport ("Visible project changed outside the remote transport transaction");
+                this.retainFailedRemoteTransport ("Visible project changed outside the remote transport transaction");
                 return;
             }
             this.remoteTransport.expectedCurrentIdentity = currentIdentity;
@@ -322,6 +328,9 @@ final class MasterCommandHost
             case SEARCHING -> this.advanceRemoteSearch (currentIdentity);
             case WAITING_FOR_TRANSPORT -> this.advanceRemoteTransportAcknowledgement (currentIdentity);
             case RETURNING -> this.advanceRemoteReturn (currentIdentity);
+            case FAILED_RETURN -> {
+                // Handled before mutable project-context validation above.
+            }
         }
     }
 
@@ -364,7 +373,7 @@ final class MasterCommandHost
             this.advanceRemoteReturn (currentIdentity);
             return;
         }
-        this.beginNavigation (this.remoteTransport.searchDirection, true, false);
+        this.beginNavigation (this.remoteTransport.searchDirection);
     }
 
 
@@ -391,29 +400,26 @@ final class MasterCommandHost
             if (currentIdentity.equals (this.remoteTransport.originIdentity))
                 this.remoteTransport = null;
             else
-                this.failRemoteTransport ("Remote transport lost its return path");
+                this.retainFailedRemoteTransport ("Remote transport lost its return path");
             return;
         }
 
         final PathStep step = this.remoteTransport.path.getLast ();
         if (!currentIdentity.equals (step.toIdentity))
         {
-            this.failRemoteTransport ("Remote transport no longer matches its return path");
+            this.retainFailedRemoteTransport ("Remote transport no longer matches its return path");
             return;
         }
-        this.beginNavigation (opposite (step.direction), true, true);
+        this.beginNavigation (opposite (step.direction));
     }
 
 
-    private void beginNavigation (final ProjectNavigationDirection direction, final boolean remoteOwned, final boolean returning)
+    private void beginNavigation (final ProjectNavigationDirection direction)
     {
         final String origin = this.currentIdentity ();
         if (origin.isBlank () || this.pending != null)
             return;
-        PendingKind kind = PendingKind.NAVIGATION;
-        if (remoteOwned)
-            kind = returning ? PendingKind.REMOTE_RETURN : PendingKind.REMOTE_SEARCH;
-        this.pending = PendingCommand.navigation (origin, direction, kind);
+        this.pending = PendingCommand.navigation (origin, direction);
         if (direction == ProjectNavigationDirection.PREVIOUS)
             this.project.previous ();
         else
@@ -439,10 +445,10 @@ final class MasterCommandHost
     }
 
 
-    private void failRemoteTransport (final String message)
+    private void retainFailedRemoteTransport (final String message)
     {
-        this.log.warn (message + "; releasing the command lane at project " + this.currentIdentity ());
-        this.remoteTransport = null;
+        this.log.warn (message + "; retaining the command lane until origin " + this.remoteTransport.originIdentity + " is observed");
+        this.remoteTransport.stage = RemoteStage.FAILED_RETURN;
     }
 
 
@@ -461,7 +467,8 @@ final class MasterCommandHost
     }
 
 
-    private void applyTransportState (final TransportState state, final boolean enabled)
+    /** Apply one absolute transport state without entering the cross-project command lane. */
+    void applyTransportState (final TransportState state, final boolean enabled)
     {
         if (this.transportState (state) == enabled)
             return;
@@ -593,22 +600,15 @@ final class MasterCommandHost
     {
         SEARCHING,
         WAITING_FOR_TRANSPORT,
-        RETURNING
+        RETURNING,
+        FAILED_RETURN
     }
 
 
     private enum PendingKind
     {
         ENGINE,
-        NAVIGATION,
-        REMOTE_SEARCH,
-        REMOTE_RETURN;
-
-
-        private boolean remoteOwned ()
-        {
-            return this == REMOTE_SEARCH || this == REMOTE_RETURN;
-        }
+        NAVIGATION
     }
 
 
@@ -656,9 +656,9 @@ final class MasterCommandHost
         }
 
 
-        private static PendingCommand navigation (final String originIdentity, final ProjectNavigationDirection direction, final PendingKind kind)
+        private static PendingCommand navigation (final String originIdentity, final ProjectNavigationDirection direction)
         {
-            return new PendingCommand (originIdentity, direction, kind, false);
+            return new PendingCommand (originIdentity, direction, PendingKind.NAVIGATION, false);
         }
 
 

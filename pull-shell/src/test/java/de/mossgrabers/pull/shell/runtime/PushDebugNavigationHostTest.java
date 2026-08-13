@@ -182,6 +182,51 @@ class PushDebugNavigationHostTest
 
 
     @Test
+    void submittedMasterControlRejectsNonMasterContext () throws IOException
+    {
+        final FakeNavigationSurface surface = new FakeNavigationSurface ("SESSION", "TRACK", false);
+        final PushDebugNavigationHost host = this.host (surface);
+        this.request ("unsafe-row", "next", "ROW2_8/submitted");
+
+        host.tick ();
+
+        assertTrue (surface.events.isEmpty ());
+        assertEquals ("FAILED", this.status ().get (1));
+    }
+
+
+    @Test
+    void submittedMasterControlRechecksContextInsideAdmission () throws IOException
+    {
+        final FakeNavigationSurface surface = new FakeNavigationSurface ("SESSION", "MASTER", true);
+        final PushDebugNavigationHost.GestureAdmission admission = new PushDebugNavigationHost.GestureAdmission ()
+        {
+            @Override
+            public boolean isIdle ()
+            {
+                return true;
+            }
+
+
+            @Override
+            public boolean trySubmit (final Runnable gesture)
+            {
+                surface.observe ("SESSION", "TRACK", false);
+                gesture.run ();
+                return true;
+            }
+        };
+        final PushDebugNavigationHost host = new PushDebugNavigationHost (this.debugDirectory, surface, admission);
+        this.request ("raced-row", "next", "ROW2_8/submitted");
+
+        host.tick ();
+
+        assertTrue (surface.events.isEmpty ());
+        assertEquals ("FAILED", this.status ().get (1));
+    }
+
+
+    @Test
     void sessionRequiresTheWorkspaceToBeReleased () throws IOException
     {
         final FakeNavigationSurface surface = new FakeNavigationSurface ("WORKSPACE", "WORKSPACE", true);
