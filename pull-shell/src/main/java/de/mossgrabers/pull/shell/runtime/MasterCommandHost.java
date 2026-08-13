@@ -35,6 +35,12 @@ import java.util.Objects;
  * window, applies the absolute state only after observing the exact target, waits for authoritative
  * transport readback, and retraces its acknowledged path. The operation survives core reload or
  * quarantine and never owns core lifecycle.</p>
+ *
+ * <p>This cross-project transaction belongs in the stable canopy because Bitwig exposes project
+ * operations through a mutable active-project context. Navigating that context also changes the
+ * project state observed by the reloadable core. The core can choose the semantic target, but the
+ * stable owner must keep the navigate, verify, apply, acknowledge, and return sequence together
+ * while that shared context moves underneath it.</p>
  */
 final class MasterCommandHost
 {
