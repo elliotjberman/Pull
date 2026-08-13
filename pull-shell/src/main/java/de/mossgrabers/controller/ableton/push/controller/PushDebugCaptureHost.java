@@ -49,7 +49,7 @@ final class PushDebugCaptureHost implements AutoCloseable
     private final Path                      latestStatusPath;
     private final Path                      sampleRatePath;
     private final ScheduledExecutorService  worker;
-    private final AtomicReference<String>   pendingRequest = new AtomicReference<> ();
+    private final AtomicReference<CaptureRequest> pendingRequest = new AtomicReference<> ();
     private final AtomicReference<Capture>  completedCapture = new AtomicReference<> ();
     private final AtomicReference<Frame>    latestFrame = new AtomicReference<> ();
     private final AtomicReference<Frame>    pendingLatestWrite = new AtomicReference<> ();
@@ -95,7 +95,7 @@ final class PushDebugCaptureHost implements AutoCloseable
     }
 
 
-    /** Sample outbound frames at the live debug rate; a request returns the newest complete sample. */
+    /** Sample outbound frames at the live debug rate; a pending next-frame request forces a sample. */
     void observeFrame (final IBitmap image)
     {
         if (this.closed.get ())
@@ -105,7 +105,7 @@ final class PushDebugCaptureHost implements AutoCloseable
 
         final long revision = this.frameRevision.incrementAndGet ();
         final int sampleInterval = this.frameSampleInterval.get ();
-        if (revision == 1 || revision % sampleInterval == 0)
+        if (revision == 1 || revision % sampleInterval == 0 || this.pendingRequest.get () != null)
         {
             try
             {
@@ -118,16 +118,16 @@ final class PushDebugCaptureHost implements AutoCloseable
                     this.latestFrame.set (frame);
                     if (this.pendingLatestWrite.getAndSet (frame) != null)
                         this.coalescedFrames.incrementAndGet ();
-                    final String requestID = this.pendingRequest.getAndSet (null);
-                    if (requestID != null)
-                        this.completedCapture.set (Capture.ready (requestID, frame));
+                    final CaptureRequest request = this.pendingRequest.getAndSet (null);
+                    if (request != null)
+                        this.completedCapture.set (Capture.ready (request.requestID (), frame));
                 });
             }
             catch (final RuntimeException ex)
             {
-                final String requestID = this.pendingRequest.getAndSet (null);
-                if (requestID != null)
-                    this.completedCapture.set (Capture.failed (requestID, ex.getMessage ()));
+                final CaptureRequest request = this.pendingRequest.getAndSet (null);
+                if (request != null)
+                    this.completedCapture.set (Capture.failed (request.requestID (), ex.getMessage ()));
             }
         }
 
@@ -175,22 +175,26 @@ final class PushDebugCaptureHost implements AutoCloseable
         if (!Files.isRegularFile (this.requestPath, LinkOption.NOFOLLOW_LINKS))
             return;
 
-        final String requestID;
+        final String requestText;
         if (Files.size (this.requestPath) > MAX_REQUEST_BYTES)
-            requestID = "";
+            requestText = "";
         else
-            requestID = Files.readString (this.requestPath).strip ();
+            requestText = Files.readString (this.requestPath).strip ();
         Files.deleteIfExists (this.requestPath);
 
-        if (isRequestID (requestID) && !this.closed.get ())
+        final String [] fields = requestText.split ("\\t", -1);
+        final String requestID = fields.length == 0 ? "" : fields[0];
+        final boolean nextFrame = fields.length == 2 && "NEXT_FRAME".equals (fields[1]);
+        final boolean valid = isRequestID (requestID) && (fields.length == 1 || nextFrame);
+        if (valid && !this.closed.get ())
         {
-            final Frame frame = this.latestFrame.get ();
+            final Frame frame = nextFrame ? null : this.latestFrame.get ();
             if (frame == null)
-                this.pendingRequest.compareAndSet (null, requestID);
+                this.pendingRequest.compareAndSet (null, new CaptureRequest (requestID));
             else
                 this.completedCapture.compareAndSet (null, Capture.ready (requestID, frame));
         }
-        else if (isRequestID (requestID))
+        else if (valid)
             this.completedCapture.compareAndSet (null, Capture.failed (requestID, "extension is closing"));
         else
             this.completedCapture.compareAndSet (null, Capture.failed ("invalid", "invalid capture request ID"));
@@ -324,9 +328,9 @@ final class PushDebugCaptureHost implements AutoCloseable
         if (!this.closed.compareAndSet (false, true))
             return;
 
-        final String pending = this.pendingRequest.getAndSet (null);
+        final CaptureRequest pending = this.pendingRequest.getAndSet (null);
         if (pending != null)
-            this.completedCapture.set (Capture.failed (pending, "extension is closing"));
+            this.completedCapture.set (Capture.failed (pending.requestID (), "extension is closing"));
         if (this.worker == null)
         {
             this.pollFilesSafely ();
@@ -413,6 +417,11 @@ final class PushDebugCaptureHost implements AutoCloseable
         {
             return new Capture (requestID, null, 0, 0, sanitize (message));
         }
+    }
+
+
+    private record CaptureRequest (String requestID)
+    {
     }
 
 

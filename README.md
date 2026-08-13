@@ -52,7 +52,9 @@ Calling the tool without a target captures the current display. A targeted captu
 same permanent button gestures as the hardware, through the installed input arbitrator. The tool
 waits until the input router and relevant physical controls are idle, submits each gesture once,
 then waits for the stable shell to observe the target view and mode on two later controller ticks,
-and finally waits for a later sampled framebuffer. The stable shell accepts only a bounded generic
+and finally arms a request for the next outbound framebuffer. That request bypasses passive frame
+sampling, so even a heavily throttled debug stream cannot return a cached pre-navigation image or
+time out waiting for the sampling interval. The stable shell accepts only a bounded generic
 plan of safe navigation gestures and authoritative view predicates; it cannot invoke transport,
 recording, deletion, or project-file
 actions. The four named recipes above live in the command-line client, so they can change without

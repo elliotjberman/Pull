@@ -131,6 +131,31 @@ class PushDebugCaptureHostTest
 
 
     @Test
+    void nextFrameRequestRejectsCachedPublicationAndBypassesSamplingInterval () throws IOException
+    {
+        final PushDebugCaptureHost host = new PushDebugCaptureHost (this.debugDirectory);
+        Files.writeString (this.debugDirectory.resolve (PushDebugCaptureHost.SAMPLE_RATE_FILE), "600\n");
+        host.pollForTest ();
+        host.observeFrame (new FakeBitmap (new byte []
+        {
+            3, 2, 1, (byte) 255
+        }, 1, 1));
+        Files.writeString (this.debugDirectory.resolve (PushDebugCaptureHost.REQUEST_FILE), "post-navigation\tNEXT_FRAME\n");
+        host.pollForTest ();
+
+        host.observeFrame (new FakeBitmap (new byte []
+        {
+            9, 8, 7, (byte) 255
+        }, 1, 1));
+
+        final List<String> status = this.status ();
+        assertEquals (List.of ("post-navigation", "READY", "display-post-navigation.png", ""), status);
+        assertEquals (0xFF070809, ImageIO.read (this.debugDirectory.resolve (status.get (2)).toFile ()).getRGB (0, 0));
+        assertEquals ("2", this.latestMetrics ().get (0));
+    }
+
+
+    @Test
     void liveSampleRateCanReduceFramebufferCopies () throws IOException
     {
         final PushDebugCaptureHost host = new PushDebugCaptureHost (this.debugDirectory);

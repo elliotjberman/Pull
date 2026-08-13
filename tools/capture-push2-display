@@ -214,35 +214,13 @@ then
     fi
 fi
 
+capture_request_temp="${capture_request_path}.${request_id}.tmp"
 if [[ -n "$target" ]]
 then
-    latest_before=""
-    if [[ -f "$latest_status_path" ]]
-    then
-        latest_before="$(<"$latest_status_path")"
-    fi
-    for _ in {1..100}
-    do
-        latest_after=""
-        if [[ -f "$latest_status_path" ]]
-        then
-            latest_after="$(<"$latest_status_path")"
-        fi
-        if [[ -n "$latest_after" && "$latest_after" != "$latest_before" ]]
-        then
-            break
-        fi
-        sleep 0.05
-    done
-    if [[ -z "$latest_after" || "$latest_after" == "$latest_before" ]]
-    then
-        echo "Timed out waiting for a sampled framebuffer after navigation." >&2
-        exit 1
-    fi
+    printf '%s\tNEXT_FRAME\n' "$request_id" > "$capture_request_temp"
+else
+    printf '%s\n' "$request_id" > "$capture_request_temp"
 fi
-
-capture_request_temp="${capture_request_path}.${request_id}.tmp"
-printf '%s\n' "$request_id" > "$capture_request_temp"
 mv "$capture_request_temp" "$capture_request_path"
 
 for _ in {1..100}
