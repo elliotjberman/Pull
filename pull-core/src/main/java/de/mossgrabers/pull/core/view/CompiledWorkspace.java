@@ -355,6 +355,8 @@ public final class CompiledWorkspace
 
         if (facets.contains (ControllerViewFacet.SESSION_SCENE_KEYS_UPPER) && !facets.contains (ControllerViewFacet.SESSION_CLIP_GRID_UPPER))
             throw new IllegalArgumentException ("upper Session scene keys require the upper Session clip grid");
+        if (facets.contains (ControllerViewFacet.SESSION_CLIP_GRID_UPPER) && facets.contains (ControllerViewFacet.SESSION_GRID_FULL))
+            throw new IllegalArgumentException ("upper and full Session grid views cannot be active together");
         if (facets.contains (ControllerViewFacet.DRUM_PITCH_BEND) && !facets.contains (ControllerViewFacet.DRUM_CONTROLLER_LOWER))
             throw new IllegalArgumentException ("drum pitch bend requires the lower Drum controller");
         return new DesiredControllerWorkspace (name, facets, sessionBankShape);

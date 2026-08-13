@@ -5,6 +5,8 @@ package de.mossgrabers.pull.core.runtime.view;
 
 import de.mossgrabers.pull.core.view.CompiledWorkspace;
 
+import java.util.List;
+
 
 /**
  * Existing Pull behavior expressed as one fixed-footprint workspace.
@@ -24,8 +26,8 @@ public final class DefaultWorkspace
      */
     public static CompiledWorkspace create (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator)
     {
-        return CompiledWorkspace.compile ("Pull", ControllerLevelViews.compose (selection, playbackCoordinator,
+        return CompiledWorkspace.compile ("Pull", ControllerLevelViews.compose (selection, playbackCoordinator, List.of (
             new StableParameterControlsView (),
-            new DrumFillView ()));
+            new DrumFillView ())));
     }
 }

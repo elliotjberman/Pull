@@ -22,6 +22,8 @@ import de.mossgrabers.framework.utils.ButtonEvent;
 public class MastertrackCommand extends AbstractTriggerCommand<PushControlSurface, PushConfiguration>
 {
     private boolean quitMasterMode                = false;
+    private boolean pageOnlyMasterAtPress         = false;
+    private boolean selectedMasterTrack           = false;
     private int     selectedTrackBeforeMasterMode = -1;
 
 
@@ -50,6 +52,7 @@ public class MastertrackCommand extends AbstractTriggerCommand<PushControlSurfac
         {
             case DOWN:
                 this.quitMasterMode = false;
+                this.pageOnlyMasterAtPress = this.surface.getControllerWorkspaceHost ().isActive ();
                 break;
 
             case UP:
@@ -74,14 +77,20 @@ public class MastertrackCommand extends AbstractTriggerCommand<PushControlSurfac
 
         if (Modes.MASTER.equals (modeManager.getActiveID ()))
         {
-            if (this.selectedTrackBeforeMasterMode >= 0)
+            if (this.selectedMasterTrack && this.selectedTrackBeforeMasterMode >= 0)
                 this.model.getCurrentTrackBank ().getItem (this.selectedTrackBeforeMasterMode).select ();
+            else if (!this.selectedMasterTrack)
+                modeManager.restore ();
+            this.selectedMasterTrack = false;
+            this.selectedTrackBeforeMasterMode = -1;
             return;
         }
 
-        modeManager.setActive (Modes.MASTER);
-        this.model.getMasterTrack ().select ();
         final ITrack cursorTrack = this.model.getCursorTrack ();
         this.selectedTrackBeforeMasterMode = cursorTrack.doesExist () ? cursorTrack.getIndex () : -1;
+        modeManager.setActive (Modes.MASTER);
+        this.selectedMasterTrack = !this.pageOnlyMasterAtPress;
+        if (this.selectedMasterTrack)
+            this.model.getMasterTrack ().select ();
     }
 }

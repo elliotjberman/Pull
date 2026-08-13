@@ -183,7 +183,7 @@ class CoreApiValueTest
     @Test
     void publishesStableVersionCapabilityAndControlIdentifiers ()
     {
-        assertEquals (22, CoreApi.VERSION);
+        assertEquals (23, CoreApi.VERSION);
         assertEquals ("input.drum-fill", CoreCapabilities.INPUT_DRUM_FILL);
         assertEquals ("snapshot.selected-track-clips", CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS);
         assertEquals ("binding.clip-target", CoreCapabilities.BINDING_CLIP_TARGET);
@@ -344,6 +344,10 @@ class CoreApiValueTest
             "shape without session",
             Set.of (ControllerViewFacet.PROJECT_MACRO_CONTROLS),
             new SessionBankShape (8, 4)));
+        assertThrows (IllegalArgumentException.class, () -> new DesiredControllerWorkspace (
+            "two grids",
+            Set.of (ControllerViewFacet.SESSION_CLIP_GRID_UPPER, ControllerViewFacet.SESSION_GRID_FULL),
+            new SessionBankShape (8, 8)));
         assertThrows (IllegalArgumentException.class, () -> new SessionBankShape (8, 0));
     }
 

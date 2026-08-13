@@ -29,7 +29,11 @@ public record DesiredControllerWorkspace (String name, Set<ControllerViewFacet> 
         sessionBankShape = Objects.requireNonNull (sessionBankShape, "sessionBankShape");
         if (name.isEmpty () != facets.isEmpty ())
             throw new IllegalArgumentException ("workspace name and facets must either both be empty or both be present");
-        final boolean hasSessionGrid = facets.contains (ControllerViewFacet.SESSION_CLIP_GRID_UPPER);
+        final boolean hasUpperSessionGrid = facets.contains (ControllerViewFacet.SESSION_CLIP_GRID_UPPER);
+        final boolean hasFullSessionGrid = facets.contains (ControllerViewFacet.SESSION_GRID_FULL);
+        if (hasUpperSessionGrid && hasFullSessionGrid)
+            throw new IllegalArgumentException ("upper and full Session grid facets are mutually exclusive");
+        final boolean hasSessionGrid = hasUpperSessionGrid || hasFullSessionGrid;
         if (hasSessionGrid != sessionBankShape.isPresent ())
             throw new IllegalArgumentException ("Session grid facets and Session bank shape must either both be present or both be absent");
     }

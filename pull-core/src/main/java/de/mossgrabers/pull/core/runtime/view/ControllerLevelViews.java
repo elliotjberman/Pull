@@ -29,10 +29,10 @@ final class ControllerLevelViews
      * @param workspaceViews Page-specific views
      * @return Complete view list for compilation
      */
-    static List<ControllerView> compose (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator, final ControllerView... workspaceViews)
+    static List<ControllerView> compose (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator, final List<? extends ControllerView> workspaceViews)
     {
-        final ControllerView [] checkedWorkspaceViews = Objects.requireNonNull (workspaceViews, "workspaceViews");
-        final List<ControllerView> views = new ArrayList<> (checkedWorkspaceViews.length + 3);
+        final List<? extends ControllerView> checkedWorkspaceViews = Objects.requireNonNull (workspaceViews, "workspaceViews");
+        final List<ControllerView> views = new ArrayList<> (checkedWorkspaceViews.size () + 3);
         views.add (new WorkspaceSelectionView (Objects.requireNonNull (selection, "selection")));
         views.add (new GlobalParameterControlsView ());
         views.add (new TransportControlView (Objects.requireNonNull (playbackCoordinator, "playbackCoordinator")));

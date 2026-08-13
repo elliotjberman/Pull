@@ -5,6 +5,10 @@ package de.mossgrabers.pull.core.runtime.view;
 
 import de.mossgrabers.pull.core.api.SessionBankShape;
 import de.mossgrabers.pull.core.view.CompiledWorkspace;
+import de.mossgrabers.pull.core.view.ControllerView;
+
+import java.util.ArrayList;
+import java.util.List;
 
 
 /**
@@ -32,14 +36,24 @@ public final class VsLiveWorkspace
      */
     public static CompiledWorkspace create (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator)
     {
+        final List<ControllerView> views = new ArrayList<> ();
+        views.add (new ProjectMacroControlsView ());
+        views.add (new TrackSelectionStripView ());
+        views.addAll (gridViews ());
         return CompiledWorkspace.compile (
             NAME,
             SESSION_BANK,
-            ControllerLevelViews.compose (selection, playbackCoordinator,
-                new ProjectMacroControlsView (),
-                new TrackSelectionStripView (),
-                new SessionNavigationView (),
-                new SessionClipGridView (true),
-                new DrumControllerView (true)));
+            ControllerLevelViews.compose (selection, playbackCoordinator, views));
+    }
+
+
+    /**
+     * Create the VS Live views which own only the navigation and pad grid.
+     *
+     * @return Fresh grid views
+     */
+    static List<ControllerView> gridViews ()
+    {
+        return List.of (new SessionNavigationView (), new SessionClipGridView (true), new DrumControllerView (true));
     }
 }

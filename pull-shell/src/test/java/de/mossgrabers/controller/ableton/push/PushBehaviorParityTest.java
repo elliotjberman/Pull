@@ -3,12 +3,14 @@
 
 package de.mossgrabers.controller.ableton.push;
 
+import de.mossgrabers.controller.ableton.push.command.trigger.MastertrackCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.SelectPlayViewCommand;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.mode.device.UserMode;
-import de.mossgrabers.framework.controller.display.IGraphicDisplay;
+import de.mossgrabers.controller.ableton.push.workspace.SessionBankRegistry;
 import de.mossgrabers.framework.controller.color.ColorEx;
+import de.mossgrabers.framework.controller.display.IGraphicDisplay;
 import de.mossgrabers.framework.controller.hardware.IHwButton;
 import de.mossgrabers.framework.controller.hardware.IHwLight;
 import de.mossgrabers.framework.controller.hardware.IHwSurfaceFactory;
@@ -18,6 +20,7 @@ import de.mossgrabers.framework.daw.IHost;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.IProject;
 import de.mossgrabers.framework.daw.data.ICursorTrack;
+import de.mossgrabers.framework.daw.data.IMasterTrack;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.IParameterBank;
 import de.mossgrabers.framework.daw.data.bank.IParameterPageBank;
@@ -25,10 +28,15 @@ import de.mossgrabers.framework.daw.data.bank.ITrackBank;
 import de.mossgrabers.framework.daw.midi.IMidiInput;
 import de.mossgrabers.framework.daw.midi.IMidiOutput;
 import de.mossgrabers.framework.daw.midi.ISelectedTrackNoteTarget;
+import de.mossgrabers.framework.featuregroup.IMode;
 import de.mossgrabers.framework.featuregroup.IView;
+import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.parameter.IParameter;
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.framework.view.Views;
+import de.mossgrabers.pull.core.api.ControllerViewFacet;
+import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
+import de.mossgrabers.pull.core.api.SessionBankShape;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 
 import org.junit.jupiter.api.Test;
@@ -37,6 +45,7 @@ import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -54,6 +63,54 @@ class PushBehaviorParityTest
         assertEquals (PushColorManager.PUSH2_COLOR2_BLACK, PushControllerSetup.controllerLightColor (colors, new RgbColor (0, 0, 0)));
         assertEquals (colors.getColorIndex (ColorEx.WHITE), PushControllerSetup.controllerLightColor (colors, new RgbColor (255, 255, 255)));
         assertEquals (colors.getColorIndex (ColorEx.GREEN), PushControllerSetup.controllerLightColor (colors, new RgbColor (0, 255, 0)));
+    }
+
+
+    @Test
+    void masterButtonFreezesPageOverlayPolicyAtPress ()
+    {
+        final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
+        final ICursorTrack cursorTrack = proxy (ICursorTrack.class, (proxy, method, arguments) -> switch (method.getName ())
+        {
+            case "doesExist" -> Boolean.TRUE;
+            case "getIndex" -> Integer.valueOf (3);
+            default -> relaxedValue (method.getReturnType ());
+        });
+        final List<String> selections = new ArrayList<> ();
+        final IMasterTrack masterTrack = proxy (IMasterTrack.class, (proxy, method, arguments) -> {
+            if ("select".equals (method.getName ()))
+                selections.add ("master");
+            return relaxedValue (method.getReturnType ());
+        });
+        final IModel model = proxy (IModel.class, (proxy, method, arguments) -> switch (method.getName ())
+        {
+            case "getCursorTrack" -> cursorTrack;
+            case "getMasterTrack" -> masterTrack;
+            default -> relaxedValue (method.getReturnType ());
+        });
+        final PushControlSurface surface = createSurface (valueChanger, relaxedProxy (ISelectedTrackNoteTarget.class), cursorTrack);
+        surface.getModeManager ().register (Modes.TRACK, relaxedProxy (IMode.class));
+        surface.getModeManager ().register (Modes.MASTER, relaxedProxy (IMode.class));
+        surface.getModeManager ().setDefaultID (Modes.TRACK);
+        final SessionBankShape sessionShape = new SessionBankShape (8, 8);
+        surface.setSessionBankRegistry (new SessionBankRegistry (model, Set.of (sessionShape), sessionShape));
+        surface.getControllerWorkspaceHost ().apply (new DesiredControllerWorkspace (
+            "Master", Set.of (ControllerViewFacet.MASTER_CONTROLS), SessionBankShape.empty ()));
+        surface.getModeManager ().setActive (Modes.TRACK);
+        final MastertrackCommand command = new MastertrackCommand (model, surface);
+
+        command.execute (ButtonEvent.DOWN, 127);
+        surface.getControllerWorkspaceHost ().invalidate ();
+        command.execute (ButtonEvent.UP, 0);
+
+        assertEquals (Modes.MASTER, surface.getModeManager ().getActiveID ());
+        assertEquals (List.of (), selections);
+
+        command.execute (ButtonEvent.DOWN, 127);
+        command.execute (ButtonEvent.UP, 0);
+
+        assertEquals (Modes.TRACK, surface.getModeManager ().getActiveID ());
+        assertEquals (List.of (), selections);
     }
 
 
