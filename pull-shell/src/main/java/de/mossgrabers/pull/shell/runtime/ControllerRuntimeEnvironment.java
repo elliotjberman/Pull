@@ -395,8 +395,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     @Override
     public boolean canReplaceActiveCore ()
     {
-        return !this.committedState.executionRequirements ().hasProjectNavigationLease () &&
-            this.committedState.desiredParameterInteraction ().pendingActionCount () == 0 &&
+        return this.committedState.desiredParameterInteraction ().pendingActionCount () == 0 &&
             this.inputLifecycleIdle.getAsBoolean () &&
             (this.controllerBridge == null || this.controllerBridge.canReplaceActiveCore ());
     }
@@ -539,9 +538,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         final DesiredHardwareOutput preparedOutput = prepareOutput (result, preparedWorkspace);
         final DesiredParameterBanks parameterBanks = result.desiredParameterBanks ();
         final DesiredParameterInteraction parameterInteraction = result.desiredParameterInteraction ();
-        if (this.controllerBridge == null && result.executionRequirements ().hasProjectNavigationLease ())
-            throw new IllegalArgumentException ("Core requested a project-navigation lease without a controller bridge");
-        final CoreExecutionRequirements executionRequirements = this.controllerBridge == null ? result.executionRequirements () : this.controllerBridge.prepareExecutionRequirements (result.executionRequirements ());
+        final CoreExecutionRequirements executionRequirements = result.executionRequirements ();
         final boolean parametersRequested = result.desiredBridgeSubscriptions ().includes (BridgeSubscription.PARAMETERS);
         final DesiredParameterBanks sampledParameterBanks = parametersRequested ? parameterBanks : DesiredParameterBanks.empty ();
         if (parameterInteraction.interactionId () != 0 && !parametersRequested)
@@ -581,7 +578,6 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         if (this.controllerBridge != null)
         {
             this.controllerBridge.activateCoreGeneration (generation);
-            this.controllerBridge.applyExecutionRequirements (prepared.executionRequirements ());
             final DesiredParameterBanks sampledParameterBanks = prepared.desiredBridgeSubscriptions ().includes (BridgeSubscription.PARAMETERS) ? prepared.desiredParameterBanks () : DesiredParameterBanks.empty ();
             if (this.controllerBridge.applyParameterLeases (prepared.parameterLeases (), sampledParameterBanks))
                 this.recordSnapshotChange ();

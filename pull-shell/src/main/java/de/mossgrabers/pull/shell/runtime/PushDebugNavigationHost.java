@@ -29,9 +29,10 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * Local, bounded debugger navigation for closed-loop Push display development.
  *
- * <p>The client supplies a short plan made only from safe navigation gestures and authoritative
- * view predicates. The stable shell validates and executes that generic plan without owning any
- * named-view recipe policy.</p>
+ * <p>The client supplies a short plan made only from explicitly admitted controller gestures and
+ * authoritative view predicates. A {@code submitted} postcondition is available for a bounded
+ * one-shot gesture whose result is verified separately through framebuffer or host readback. The
+ * stable shell validates and executes that generic plan without owning named workflow policy.</p>
  */
 final class PushDebugNavigationHost implements AutoCloseable
 {
@@ -144,7 +145,7 @@ final class PushDebugNavigationHost implements AutoCloseable
             final Step step = this.pending.steps.get (this.pending.stepIndex);
             if (step.submitted)
             {
-                if (!step.postcondition ().matches (observed))
+                if (!step.postcondition ().submissionOnly () && !step.postcondition ().matches (observed))
                     return;
                 this.pending.stepIndex++;
                 continue;
@@ -154,12 +155,17 @@ final class PushDebugNavigationHost implements AutoCloseable
                 this.pending.stepIndex++;
                 continue;
             }
+            if (!step.gesture ().contextAvailable (observed))
+            {
+                this.complete ("FAILED", "gesture is unavailable in the current controller context", observed);
+                return;
+            }
             if (!this.admission.isIdle () || !step.gesture ().controlsFree (this.surface))
                 return;
 
             try
             {
-                if (this.admission.trySubmit ( () -> step.gesture ().trigger (this.surface)))
+                if (this.admission.trySubmit ( () -> step.gesture ().triggerChecked (this.surface)))
                     step.submitted = true;
             }
             catch (final RuntimeException ex)
@@ -169,7 +175,8 @@ final class PushDebugNavigationHost implements AutoCloseable
             return;
         }
 
-        if (!this.pending.finalPredicate.matches (observed) || !this.admission.isIdle () || !this.pending.controlsFree (this.surface))
+        final boolean finalPostconditionMet = this.pending.finalPredicate.submissionOnly () || this.pending.finalPredicate.matches (observed);
+        if (!finalPostconditionMet || !this.admission.isIdle () || !this.pending.controlsFree (this.surface))
         {
             this.pending.stableSamples = 0;
             return;
@@ -397,23 +404,41 @@ final class PushDebugNavigationHost implements AutoCloseable
         TRACK (ButtonID.TRACK),
         MASTERTRACK (ButtonID.MASTERTRACK),
         SESSION (ButtonID.SESSION),
+        PLAY (ButtonID.PLAY),
+        ROW2_5 (ButtonID.ROW2_5, true),
+        ROW2_7 (ButtonID.ROW2_7, true),
+        ROW2_8 (ButtonID.ROW2_8, true),
         SHIFT_SESSION (ButtonID.SHIFT, ButtonID.SESSION);
 
         private final ButtonID      modifier;
         private final ButtonID      button;
+        private final boolean       masterOnly;
         private final Set<ButtonID> controls;
 
 
         NavigationGesture (final ButtonID button)
         {
-            this (null, button);
+            this (null, button, false);
+        }
+
+
+        NavigationGesture (final ButtonID button, final boolean masterOnly)
+        {
+            this (null, button, masterOnly);
         }
 
 
         NavigationGesture (final ButtonID modifier, final ButtonID button)
         {
+            this (modifier, button, false);
+        }
+
+
+        NavigationGesture (final ButtonID modifier, final ButtonID button, final boolean masterOnly)
+        {
             this.modifier = modifier;
             this.button = button;
+            this.masterOnly = masterOnly;
             final Set<ButtonID> owned = new HashSet<> (Set.of (ButtonID.SHIFT, button));
             if (modifier != null)
                 owned.add (modifier);
@@ -441,8 +466,16 @@ final class PushDebugNavigationHost implements AutoCloseable
         }
 
 
-        void trigger (final NavigationSurface surface)
+        boolean contextAvailable (final ObservedNavigation observed)
         {
+            return !this.masterOnly || observed.workspaceActive () && Set.of ("MASTER", "MASTER_TEMP").contains (observed.modeID ());
+        }
+
+
+        void triggerChecked (final NavigationSurface surface)
+        {
+            if (!this.contextAvailable (surface.observe ()))
+                throw new IllegalStateException ("Push debug Master gesture lost its authoritative context");
             if (this.modifier == null)
             {
                 surface.click (this.button);
@@ -466,15 +499,19 @@ final class PushDebugNavigationHost implements AutoCloseable
         Set<String> deniedViews,
         Set<String> allowedModes,
         Set<String> deniedModes,
-        Boolean workspaceActive)
+        Boolean workspaceActive,
+        boolean submissionOnly)
     {
-        private static final NavigationPredicate ANY = new NavigationPredicate (Set.of (), Set.of (), Set.of (), Set.of (), null);
+        private static final NavigationPredicate ANY = new NavigationPredicate (Set.of (), Set.of (), Set.of (), Set.of (), null, false);
+        private static final NavigationPredicate SUBMITTED = new NavigationPredicate (Set.of (), Set.of (), Set.of (), Set.of (), null, true);
 
 
         static NavigationPredicate parse (final String value)
         {
             if ("*".equals (value))
                 return ANY;
+            if ("submitted".equals (value))
+                return SUBMITTED;
 
             Set<String> allowedViews = Set.of ();
             Set<String> deniedViews = Set.of ();
@@ -509,12 +546,14 @@ final class PushDebugNavigationHost implements AutoCloseable
                     default -> throw new IllegalArgumentException ("unsupported navigation predicate field '" + sanitize (parts[0]) + "'");
                 }
             }
-            return new NavigationPredicate (allowedViews, deniedViews, allowedModes, deniedModes, workspace);
+            return new NavigationPredicate (allowedViews, deniedViews, allowedModes, deniedModes, workspace, false);
         }
 
 
         boolean matches (final ObservedNavigation observed)
         {
+            if (this.submissionOnly)
+                return false;
             return (this.allowedViews.isEmpty () || this.allowedViews.contains (observed.viewID ())) &&
                 !this.deniedViews.contains (observed.viewID ()) &&
                 (this.allowedModes.isEmpty () || this.allowedModes.contains (observed.modeID ())) &&

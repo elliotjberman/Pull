@@ -55,11 +55,12 @@ then waits for the stable shell to observe the target view and mode on two later
 and finally arms a request for the next outbound framebuffer. That request bypasses passive frame
 sampling, so even a heavily throttled debug stream cannot return a cached pre-navigation image or
 time out waiting for the sampling interval. The stable shell accepts only a bounded generic
-plan of safe navigation gestures and authoritative view predicates; it cannot invoke transport,
-recording, deletion, or project-file
-actions. The four named recipes above live in the command-line client, so they can change without
-rebuilding the extension. Filesystem polling and PNG encoding run on owned workers rather than the
-controller thread.
+plan of explicitly admitted gestures and authoritative view predicates. Play and the two Master
+project-navigation buttons may also use a `submitted` postcondition for live regression tests; this
+presses the real routed hardware command exactly once and reports completion only after its input
+lifecycle is idle. Recording, deletion, and project-file actions remain unavailable. The four named
+recipes above live in the command-line client, so they can change without rebuilding the extension.
+Filesystem polling and PNG encoding run on owned workers rather than the controller thread.
 
 While debugging is enabled, the Push display transport atomically publishes its newest sampled
 frame to `latest.png` and its metrics to `latest-frame.txt`. The default rate samples every outbound
@@ -92,8 +93,16 @@ tools/push-debug-request session \
     'SESSION/view=SESSION,mode!=WORKSPACE|MASTER|MASTER_TEMP,workspace=false'
 ```
 
-The client accepts only the installed safe-navigation protocol. Transport, scene launch, parameter
-motion, and drum fills require a future core-owned debugger ingress, not stable-shell shortcuts.
+For an explicitly state-changing playback test, use the permanent routed Play binding and verify
+its result from later authoritative framebuffer and host observations:
+
+```bash
+tools/push-debug-request play 'PLAY/submitted'
+```
+
+Only Play and Master row buttons 5/7/8 (Audio Engine, Previous, and Next) admit this one-shot form.
+Scene launch, parameter motion, and drum fills require a future core-owned debugger ingress, not
+stable-shell shortcuts.
 
 Adding the generic debug bridge is a stable-shell change and needs one extension install and Bitwig
 restart. Frame capture and client-side navigation recipes can then be reused across core hot

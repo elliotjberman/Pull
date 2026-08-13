@@ -477,7 +477,7 @@ class PullControllerCoreTest
 
 
     @Test
-    void remotePlayTargetsTheEngineProjectAndReturnsAfterAuthoritativeAcknowledgements ()
+    void remotePlaySubmitsOneStableOwnedProjectOperationImmediately ()
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
         host.start (Optional.empty ());
@@ -488,30 +488,20 @@ class PullControllerCoreTest
         assertEquals (PURPLE, light (host, PLAY_BUTTON));
 
         host.controllerButton (PLAY_BUTTON, true);
-        assertEquals (new NavigateProjectEffect ("project-b", ProjectNavigationDirection.PREVIOUS), host.effects ().executionOrder ().getLast ());
+        assertEquals (new SetProjectTransportStateEffect ("project-b", "project-a", TransportState.PLAYING, false), host.effects ().executionOrder ().getLast ());
         final int playPressEffectCount = host.effects ().executionOrder ().size ();
         host.controllerButton (PLAY_BUTTON, false);
         assertEquals (playPressEffectCount, host.effects ().executionOrder ().size ());
         assertEquals (PURPLE, light (host, PLAY_BUTTON));
 
-        final int navigationEffectCount = host.effects ().executionOrder ().size ();
         host.bridge (projectBridge ("project-a", true, true, true, true, true, selectedTrack (false)));
-        assertEquals (navigationEffectCount, host.effects ().executionOrder ().size ());
-
-        host.bridge (projectBridge ("project-a", true, true, true, true, false, selectedTrack (false)));
-        assertEquals (new SetProjectTransportStateEffect ("project-a", TransportState.PLAYING, false), host.effects ().executionOrder ().getLast ());
-        assertEquals (GREEN, light (host, PLAY_BUTTON));
-
-        final int transportEffectCount = host.effects ().executionOrder ().size ();
-        host.controllerTick ();
-        assertEquals (transportEffectCount, host.effects ().executionOrder ().size ());
+        assertEquals (playPressEffectCount, host.effects ().executionOrder ().size ());
         assertEquals (GREEN, light (host, PLAY_BUTTON));
 
         host.bridge (projectBridge ("project-a", true, false, true, true, false, selectedTrack (false)));
-        assertEquals (new NavigateProjectEffect ("project-a", ProjectNavigationDirection.NEXT), host.effects ().executionOrder ().getLast ());
-
         host.bridge (projectBridge ("project-b", false, false, true, true, true, selectedTrack (false)));
         host.bridge (projectBridge ("project-b", false, false, true, true, false, selectedTrack (false)));
+        assertEquals (playPressEffectCount, host.effects ().executionOrder ().size ());
         assertEquals (WHITE, light (host, PLAY_BUTTON));
     }
 
@@ -526,8 +516,6 @@ class PullControllerCoreTest
 
         host.controllerButton (PLAY_BUTTON, true);
         assertTrue (host.effects ().executionRequirements ().ticksRequested ());
-        assertTrue (host.effects ().executionRequirements ().hasProjectNavigationLease ());
-        assertEquals ("project-b", host.effects ().executionRequirements ().projectNavigationOrigin ());
         assertFalse (host.effects ().executionOrder ().stream ().anyMatch (ScheduleTimerEffect.class::isInstance));
         ControllerPadGridOverlay overlay = host.effects ().desiredOutput ().padGridOverlay ();
         assertTrue (overlay.active ());
@@ -536,9 +524,6 @@ class PullControllerCoreTest
         assertTrue (host.effects ().desiredOutput ().displayOverlay ().active ());
         assertTrue (host.effects ().desiredOutput ().displayOverlay ().scene ().commands ().contains (new DisplayCommand.Rectangle (0, 0, 960, 160, OFF)));
         assertTrue (host.effects ().desiredOutput ().displayOverlay ().scene ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.Rectangle rectangle && rectangle.x () > 0 && rectangle.color ().red () == rectangle.color ().green () && rectangle.color ().green () == rectangle.color ().blue () && rectangle.color ().blue () > 0));
-        host.bridge (projectBridge ("project-b", false, false, true, true, true, selectedTrack (false)));
-        host.bridge (projectBridge ("project-a", true, true, true, true, true, selectedTrack (false)));
-        host.bridge (projectBridge ("project-a", true, true, true, true, false, selectedTrack (false)));
 
         for (int frame = 1; frame < 10; frame++)
         {
@@ -560,22 +545,16 @@ class PullControllerCoreTest
 
         host.advance (Duration.ofNanos (25_000_000L));
         host.controllerTick ();
-        assertTrue (host.effects ().desiredOutput ().padGridOverlay ().active ());
-        assertEquals (64, host.effects ().desiredOutput ().padGridOverlay ().colors ().size ());
-        assertTrue (nonBlackPads (host.effects ().desiredOutput ().padGridOverlay ()).isEmpty ());
-        assertEquals (List.of (new DisplayCommand.Rectangle (0, 0, 960, 160, OFF)), host.effects ().desiredOutput ().displayOverlay ().scene ().commands ());
+        assertFalse (host.effects ().desiredOutput ().padGridOverlay ().active ());
+        assertFalse (host.effects ().desiredOutput ().displayOverlay ().active ());
 
-        host.bridge (projectBridge ("project-a", true, false, true, true, false, selectedTrack (false)));
-        host.bridge (projectBridge ("project-b", false, false, true, true, true, selectedTrack (false)));
-        host.bridge (projectBridge ("project-b", false, false, true, true, false, selectedTrack (false)));
         assertFalse (host.effects ().desiredOutput ().padGridOverlay ().active ());
         assertFalse (host.effects ().executionRequirements ().ticksRequested ());
-        assertFalse (host.effects ().executionRequirements ().hasProjectNavigationLease ());
     }
 
 
     @Test
-    void remoteAnimationStartsWithTransportSubmissionAfterSlowNavigation ()
+    void remoteAnimationStartsWithTheRequestAndDoesNotDelayTheHostOperation ()
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
         host.start (Optional.empty ());
@@ -583,24 +562,19 @@ class PullControllerCoreTest
         host.bridge (projectBridge ("project-b", false, false, true, true, false, selectedTrack (false)));
 
         host.controllerButton (PLAY_BUTTON, true);
+        assertEquals (new SetProjectTransportStateEffect ("project-b", "project-a", TransportState.PLAYING, true), host.effects ().executionOrder ().getLast ());
+        assertEquals (Map.of (new PadGridPosition (0, 0), WAVE_PURPLE), nonBlackPads (host.effects ().desiredOutput ().padGridOverlay ()));
+        final int requestEffectCount = host.effects ().executionOrder ().size ();
         host.bridge (projectBridge ("project-b", false, false, true, true, true, selectedTrack (false)));
-        final int navigationEffectCount = host.effects ().executionOrder ().size ();
         host.advance (Duration.ofNanos (300_000_000L));
         host.controllerTick ();
-        assertEquals (navigationEffectCount, host.effects ().executionOrder ().size ());
-        assertTrue (host.effects ().desiredOutput ().padGridOverlay ().active ());
-        assertEquals (Map.of (new PadGridPosition (0, 0), WAVE_PURPLE), nonBlackPads (host.effects ().desiredOutput ().padGridOverlay ()));
+        assertEquals (requestEffectCount, host.effects ().executionOrder ().size ());
+        assertFalse (host.effects ().desiredOutput ().padGridOverlay ().active ());
+        assertFalse (host.effects ().desiredOutput ().displayOverlay ().active ());
 
         host.bridge (projectBridge ("project-a", true, false, true, true, true, selectedTrack (false)));
         host.bridge (projectBridge ("project-a", true, false, true, true, false, selectedTrack (false)));
-
-        assertEquals (new SetProjectTransportStateEffect ("project-a", TransportState.PLAYING, true), host.effects ().executionOrder ().getLast ());
-        assertEquals (Map.of (new PadGridPosition (0, 0), WAVE_PURPLE), nonBlackPads (host.effects ().desiredOutput ().padGridOverlay ()));
-
-        host.advance (Duration.ofNanos (25_000_000L));
-        host.controllerTick ();
-        assertTrue (host.effects ().desiredOutput ().padGridOverlay ().active ());
-        assertTrue (nonBlackPads (host.effects ().desiredOutput ().padGridOverlay ()).size () > 1);
+        assertEquals (requestEffectCount, host.effects ().executionOrder ().size ());
     }
 
 
@@ -613,6 +587,7 @@ class PullControllerCoreTest
 
         host.controllerButton (PLAY_BUTTON, true);
 
+        assertEquals (new SetProjectTransportStateEffect ("project-a", "project-a", TransportState.PLAYING, true), host.effects ().executionOrder ().getLast ());
         assertFalse (host.effects ().desiredOutput ().padGridOverlay ().active ());
     }
 
@@ -629,8 +604,32 @@ class PullControllerCoreTest
         assertEquals (OFF, light (host, RECORD_BUTTON));
 
         host.controllerButton (PLAY_BUTTON, true);
+        assertEquals (new SetProjectTransportStateEffect ("project-b", "project-a", TransportState.PLAYING, true), host.effects ().executionOrder ().getLast ());
         assertEquals (new RgbColor (160, 48, 255), nonBlackPads (host.effects ().desiredOutput ().padGridOverlay ()).get (new PadGridPosition (0, 0)));
         assertTrue (host.effects ().desiredOutput ().displayOverlay ().scene ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.Rectangle rectangle && rectangle.x () > 0 && rectangle.color ().blue () > rectangle.color ().red () && rectangle.color ().red () > rectangle.color ().green ()));
+    }
+
+
+    @Test
+    void aLongStableOwnedCommandCannotCaptureCoreAnimationOrInput ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        host.bridge (projectBridge ("project-a", true, true, true, true, false, selectedTrack (false)));
+        host.bridge (projectBridge ("project-b", false, false, true, true, false, selectedTrack (false)));
+
+        host.controllerButton (PLAY_BUTTON, true);
+        final int effectCount = host.effects ().executionOrder ().size ();
+        host.bridge (projectBridge ("project-b", false, false, true, true, true, selectedTrack (false)));
+
+        host.advance (Duration.ofMillis (250));
+        host.controllerTick ();
+        assertFalse (host.effects ().executionRequirements ().ticksRequested ());
+        assertFalse (host.effects ().desiredOutput ().padGridOverlay ().active ());
+        assertFalse (host.effects ().desiredOutput ().displayOverlay ().active ());
+        assertEquals (PURPLE, light (host, PLAY_BUTTON));
+
+        assertEquals (effectCount, host.effects ().executionOrder ().size ());
     }
 
 

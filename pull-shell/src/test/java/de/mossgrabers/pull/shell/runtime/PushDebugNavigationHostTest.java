@@ -132,6 +132,101 @@ class PushDebugNavigationHostTest
 
 
     @Test
+    void submittedPlayGestureRunsExactlyOnceAndWaitsForQuiescence () throws IOException
+    {
+        final FakeNavigationSurface surface = new FakeNavigationSurface ("PLAY", "MASTER", true);
+        final FakeAdmission admission = new FakeAdmission (true);
+        final PushDebugNavigationHost host = new PushDebugNavigationHost (this.debugDirectory, surface, admission);
+        this.request ("play-request", "play", "PLAY/submitted");
+
+        host.tick ();
+        assertEquals (List.of ("PLAY:DOWN", "PLAY:UP"), surface.events);
+        assertFalse (Files.exists (this.statusPath ()), "submission is not debugger completion");
+
+        admission.idle = false;
+        host.tick ();
+        assertFalse (Files.exists (this.statusPath ()), "the routed gesture must become idle");
+
+        admission.idle = true;
+        host.tick ();
+        host.tick ();
+
+        assertEquals (List.of ("PLAY:DOWN", "PLAY:UP"), surface.events);
+        assertEquals (List.of ("play-request", "READY", "play", "PLAY", "MASTER", "true", ""), this.status ());
+    }
+
+
+    @Test
+    void submittedMasterControlsAreExplicitlyAdmitted () throws IOException
+    {
+        final FakeNavigationSurface surface = new FakeNavigationSurface ("PLAY", "MASTER", true);
+        final PushDebugNavigationHost host = this.host (surface);
+        this.request ("next-request", "next", "ROW2_8/submitted");
+
+        host.tick ();
+        host.tick ();
+        host.tick ();
+
+        assertEquals (List.of ("ROW2_8:DOWN", "ROW2_8:UP"), surface.events);
+        assertEquals ("READY", this.status ().get (1));
+
+        Files.delete (this.statusPath ());
+        this.request ("engine-request", "engine", "ROW2_5/submitted");
+        host.tick ();
+        host.tick ();
+        host.tick ();
+
+        assertEquals (List.of ("ROW2_8:DOWN", "ROW2_8:UP", "ROW2_5:DOWN", "ROW2_5:UP"), surface.events);
+        assertEquals ("READY", this.status ().get (1));
+    }
+
+
+    @Test
+    void submittedMasterControlRejectsNonMasterContext () throws IOException
+    {
+        final FakeNavigationSurface surface = new FakeNavigationSurface ("SESSION", "TRACK", false);
+        final PushDebugNavigationHost host = this.host (surface);
+        this.request ("unsafe-row", "next", "ROW2_8/submitted");
+
+        host.tick ();
+
+        assertTrue (surface.events.isEmpty ());
+        assertEquals ("FAILED", this.status ().get (1));
+    }
+
+
+    @Test
+    void submittedMasterControlRechecksContextInsideAdmission () throws IOException
+    {
+        final FakeNavigationSurface surface = new FakeNavigationSurface ("SESSION", "MASTER", true);
+        final PushDebugNavigationHost.GestureAdmission admission = new PushDebugNavigationHost.GestureAdmission ()
+        {
+            @Override
+            public boolean isIdle ()
+            {
+                return true;
+            }
+
+
+            @Override
+            public boolean trySubmit (final Runnable gesture)
+            {
+                surface.observe ("SESSION", "TRACK", false);
+                gesture.run ();
+                return true;
+            }
+        };
+        final PushDebugNavigationHost host = new PushDebugNavigationHost (this.debugDirectory, surface, admission);
+        this.request ("raced-row", "next", "ROW2_8/submitted");
+
+        host.tick ();
+
+        assertTrue (surface.events.isEmpty ());
+        assertEquals ("FAILED", this.status ().get (1));
+    }
+
+
+    @Test
     void sessionRequiresTheWorkspaceToBeReleased () throws IOException
     {
         final FakeNavigationSurface surface = new FakeNavigationSurface ("WORKSPACE", "WORKSPACE", true);

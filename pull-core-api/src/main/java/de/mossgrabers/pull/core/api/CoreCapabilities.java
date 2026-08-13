@@ -62,7 +62,7 @@ public final class CoreCapabilities
     /** Authoritative current-project and master-track snapshot. */
     public static final String SNAPSHOT_MASTER = "snapshot.master";
 
-    /** Serialized project navigation, project file, audio-engine, and identity-fenced transport effects. */
+    /** Serialized project/file/engine commands and stable-owned exact cross-project transport. */
     public static final String EFFECT_MASTER = "effect.master";
 
     /** Complete replayable controller display; v2 adds bounded declarative vector scenes. */

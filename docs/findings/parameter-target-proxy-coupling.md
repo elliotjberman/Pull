@@ -82,7 +82,7 @@ view should remove the binding, not redefine the target retained by an independe
 
 ## Current Mitigation
 
-Core API 23 separates physical controls from a named bounded parameter canopy. Stable can publish
+Core API 24 separates physical controls from a named bounded parameter canopy. Stable can publish
 the inherited active encoder window, project remotes, the selected-device remote page, visible-track
 volume and pan, the project-scoped Master/Cue page, and fixed globals. A slot contains an opaque target identity/generation, name, raw
 and modulated values, authoritative display text, step count, and tolerance; it never uses a Push
@@ -148,7 +148,7 @@ The design must distinguish:
 Each bounded bank or lease pool must document its capacity, identity and generation rules,
 selection scope, and behavior when capacity is exhausted.
 
-API 23 deliberately omits visible-track sends. They should arrive with the authoritative visible
+API 24 deliberately omits visible-track sends. They should arrive with the authoritative visible
 track bank so send targets and rendered track identities share one generation fence, rather than as
 64 parameter-only slots with an independent alignment model.
 

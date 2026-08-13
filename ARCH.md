@@ -1,6 +1,6 @@
 # Pull View Architecture
 
-Status: current through Core API 23, the shared mixer-control renderer, the Master-control
+Status: current through Core API 24, the shared mixer-control renderer, the Master-control
 migration, and the post-demo `VS Live` view composition.
 
 Read this file before changing controller views, modes, workspaces, input routing, or Session bank
@@ -78,7 +78,7 @@ targets an offscreen project optimistically.
 
 ### Parameter banks, effects, and snapback
 
-Core API 23 exposes named, view-independent banks for the inherited active encoder window, project
+Core API 24 exposes named, view-independent banks for the inherited active encoder window, project
 remotes, the selected-device remote page, visible-track volume and pan, project-scoped Master/Cue
 controls, and fixed globals. A bank
 declaration is latent configuration; stable samples and publishes only the declared banks while
@@ -130,7 +130,7 @@ deferred gesture in one policy generation rather than transferring partial gestu
 core checkpoint.
 
 The named bank slots still follow bounded movable proxies; they are not durable project-wide
-parameter identities. API 23 deliberately restores before navigation and has no pinned actuator
+parameter identities. API 24 deliberately restores before navigation and has no pinned actuator
 pool. The intended endpoint keeps physical controls, semantic `ParameterTargetRef` values, movable
 Bitwig proxies, and bounded pinned leases independent. See
 [`docs/findings/parameter-target-proxy-coupling.md`](docs/findings/parameter-target-proxy-coupling.md).
@@ -304,7 +304,7 @@ Partial or transitional:
 - General display and light output ownership is still partial. The twelve drum-fill RGB lights and
   global Play/Record lights, the Master page's two button rows and graphics display, a temporary
   sparse 8x8 grid overlay, and a complete temporary 960x160 display overlay use core-owned output
-  arbitration. The detailed design's API 23 installed-output inventory is canonical.
+  arbitration. The detailed design's API 24 installed-output inventory is canonical.
 
 Deferred by design:
 

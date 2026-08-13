@@ -8,8 +8,6 @@ import de.mossgrabers.pull.core.api.CoreExecutionRequirements;
 import de.mossgrabers.pull.core.api.ProjectSnapshot;
 import de.mossgrabers.pull.core.api.TransportSnapshot;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
-import de.mossgrabers.pull.core.api.effect.NavigateProjectEffect;
-import de.mossgrabers.pull.core.api.effect.ProjectNavigationDirection;
 import de.mossgrabers.pull.core.api.effect.SetProjectTransportStateEffect;
 import de.mossgrabers.pull.core.api.effect.TransportState;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
@@ -29,14 +27,11 @@ import java.util.Objects;
 /**
  * Bounded controller-level Play policy for the one project which owns Bitwig's audio engine.
  *
- * <p>Bitwig's transport proxy addresses only the visible project. A remote toggle therefore
- * navigates through exact observed project identities, waits for every navigation and transport
- * readback, and retraces the acknowledged path to the project the performer was viewing.</p>
+ * <p>Core owns the semantic target, light policy, and transient animation. The stable shell owns
+ * the complete visit/acknowledgement/return transaction required to address another project.</p>
  */
 public final class ProjectPlaybackCoordinator
 {
-    private static final int MAX_NAVIGATION_STEPS = 32;
-    private static final int PLAYBACK_ACKNOWLEDGEMENT_TICKS = 16;
     private static final long WAVE_DURATION_NANOS = 250_000_000L;
     private static final double PAD_MAX_DISTANCE = Math.hypot (7, 7);
     private static final double PAD_TRAIL_WIDTH = 2.2;
@@ -57,18 +52,16 @@ public final class ProjectPlaybackCoordinator
 
     private String engineOwnerIdentity = "";
     private boolean engineOwnerPlaying;
-    private Transaction transaction;
     private boolean waveActive;
-    private boolean waveRunning;
     private long waveStartedNanos;
     private RgbColor waveBaseColor = WAVE_PURPLE;
     private double waveProgress;
-    private long nextNavigationLeaseId = 1;
 
 
     void observe (final ControllerSnapshot snapshot)
     {
-        final ProjectSnapshot project = Objects.requireNonNull (snapshot, "snapshot").bridge ().project ();
+        this.advanceWave (Objects.requireNonNull (snapshot, "snapshot").monotonicTimeNanos ());
+        final ProjectSnapshot project = snapshot.bridge ().project ();
         final TransportSnapshot transport = snapshot.bridge ().transport ();
         if (!project.available ())
             return;
@@ -100,28 +93,24 @@ public final class ProjectPlaybackCoordinator
 
     List<CoreEffect> playPressed (final ControllerSnapshot snapshot)
     {
-        if (this.transaction != null)
-            return List.of ();
-
         final ProjectSnapshot project = snapshot.bridge ().project ();
         if (!project.available () || project.commandPending () || this.engineOwnerIdentity.isBlank ())
             return List.of ();
 
         final boolean remote = !project.projectIdentity ().equals (this.engineOwnerIdentity);
-        this.transaction = new Transaction (
+        final boolean desiredPlaying = !this.engineOwnerPlaying;
+        if (remote)
+            this.startWave (snapshot.monotonicTimeNanos (), desiredPlaying ? WAVE_PURPLE : WHITE);
+        return List.of (new SetProjectTransportStateEffect (
             project.projectIdentity (),
             this.engineOwnerIdentity,
-            !this.engineOwnerPlaying,
-            remote ? this.nextNavigationLeaseId++ : 0);
-        if (remote)
-            this.prepareWave (this.transaction.desiredPlaying ? WAVE_PURPLE : WHITE);
-        return this.advance (snapshot, false);
+            TransportState.PLAYING,
+            desiredPlaying));
     }
 
 
-    ControllerPadGridOverlay padGridOverlay (final ControllerSnapshot snapshot)
+    ControllerPadGridOverlay padGridOverlay ()
     {
-        this.advanceWave (Objects.requireNonNull (snapshot, "snapshot").monotonicTimeNanos ());
         if (!this.waveActive)
             return ControllerPadGridOverlay.inactive ();
         if (this.waveProgress >= 1)
@@ -133,9 +122,8 @@ public final class ProjectPlaybackCoordinator
     }
 
 
-    ControllerDisplayOverlay displayOverlay (final ControllerSnapshot snapshot)
+    ControllerDisplayOverlay displayOverlay ()
     {
-        this.advanceWave (Objects.requireNonNull (snapshot, "snapshot").monotonicTimeNanos ());
         if (!this.waveActive)
             return ControllerDisplayOverlay.inactive ();
 
@@ -144,44 +132,6 @@ public final class ProjectPlaybackCoordinator
         if (this.waveProgress < 1)
             addDisplayRipple (commands, this.waveProgress, this.waveBaseColor);
         return new ControllerDisplayOverlay (true, new ControllerDisplayScene (960, 160, commands));
-    }
-
-
-    List<CoreEffect> advance (final ControllerSnapshot snapshot, final boolean countAcknowledgementTick)
-    {
-        this.advanceWave (Objects.requireNonNull (snapshot, "snapshot").monotonicTimeNanos ());
-        if (this.transaction == null)
-            return List.of ();
-
-        final ProjectSnapshot project = snapshot.bridge ().project ();
-        if (!project.available ())
-            return List.of ();
-
-        if (this.transaction.awaitingNavigation != null)
-        {
-            final List<CoreEffect> navigationResult = this.observeNavigationResult (project, snapshot.monotonicTimeNanos ());
-            if (navigationResult != null)
-                return navigationResult;
-        }
-
-        if (project.commandPending ())
-            return List.of ();
-
-        if (!project.projectIdentity ().equals (this.transaction.expectedCurrentIdentity))
-        {
-            this.finishTransaction ();
-            return List.of ();
-        }
-
-        if (!this.transaction.targetIdentity.equals (this.engineOwnerIdentity))
-            this.transaction.stage = Stage.RETURNING;
-
-        return switch (this.transaction.stage)
-        {
-            case SEARCHING -> this.advanceSearch (project, snapshot.monotonicTimeNanos ());
-            case WAITING_FOR_PLAYBACK -> this.advancePlaybackAcknowledgement (snapshot, countAcknowledgementTick);
-            case RETURNING -> this.advanceReturn (project);
-        };
     }
 
 
@@ -197,12 +147,10 @@ public final class ProjectPlaybackCoordinator
     }
 
 
-    /** Get replayable cadence and project-navigation fencing for the current transaction. */
+    /** Get replayable cadence while the transient animation is active. */
     public CoreExecutionRequirements executionRequirements ()
     {
-        if (this.transaction != null && this.transaction.navigationLeaseId != 0)
-            return new CoreExecutionRequirements (true, this.transaction.navigationLeaseId, this.transaction.originIdentity);
-        return this.transaction != null || this.waveActive ? new CoreExecutionRequirements (true, 0, "") : CoreExecutionRequirements.empty ();
+        return this.waveActive ? new CoreExecutionRequirements (true) : CoreExecutionRequirements.empty ();
     }
 
 
@@ -213,196 +161,23 @@ public final class ProjectPlaybackCoordinator
     }
 
 
-    private List<CoreEffect> observeNavigationResult (final ProjectSnapshot project, final long nowNanos)
-    {
-        final AwaitingNavigation awaiting = this.transaction.awaitingNavigation;
-        if (project.commandPending ())
-            return List.of ();
-
-        if (project.projectIdentity ().equals (awaiting.fromIdentity ()))
-        {
-            this.transaction.awaitingNavigation = null;
-            if (awaiting.returning ())
-            {
-                this.finishTransaction ();
-                return List.of ();
-            }
-
-            final boolean boundary = awaiting.direction () == ProjectNavigationDirection.PREVIOUS ? !project.canPrevious () : !project.canNext ();
-            if (!boundary)
-            {
-                this.transaction.stage = Stage.RETURNING;
-                return this.advanceReturn (project);
-            }
-
-            if (awaiting.direction () == ProjectNavigationDirection.PREVIOUS && this.transaction.searchDirection == ProjectNavigationDirection.PREVIOUS)
-            {
-                this.transaction.searchDirection = ProjectNavigationDirection.NEXT;
-                return this.advanceSearch (project, nowNanos);
-            }
-
-            this.transaction.stage = Stage.RETURNING;
-            return this.advanceReturn (project);
-        }
-
-        this.transaction.awaitingNavigation = null;
-        if (awaiting.returning ())
-        {
-            final PathStep step = this.transaction.path.getLast ();
-            if (!project.projectIdentity ().equals (step.fromIdentity ()))
-            {
-                this.finishTransaction ();
-                return List.of ();
-            }
-            this.transaction.path.removeLast ();
-        }
-        else
-        {
-            this.recordSearchStep (new PathStep (awaiting.fromIdentity (), project.projectIdentity (), awaiting.direction ()));
-            this.transaction.navigationSteps++;
-        }
-        this.transaction.expectedCurrentIdentity = project.projectIdentity ();
-        return null;
-    }
-
-
-    private List<CoreEffect> advanceSearch (final ProjectSnapshot project, final long nowNanos)
-    {
-        if (project.projectIdentity ().equals (this.transaction.targetIdentity))
-        {
-            if (!project.engineActive ())
-            {
-                this.transaction.stage = Stage.RETURNING;
-                return this.advanceReturn (project);
-            }
-            this.transaction.stage = Stage.WAITING_FOR_PLAYBACK;
-            this.transaction.playbackAcknowledgementTicks = 0;
-            this.startWave (nowNanos);
-            return List.of (new SetProjectTransportStateEffect (
-                project.projectIdentity (),
-                TransportState.PLAYING,
-                this.transaction.desiredPlaying));
-        }
-
-        if (this.transaction.navigationSteps >= MAX_NAVIGATION_STEPS)
-        {
-            this.transaction.stage = Stage.RETURNING;
-            return this.advanceReturn (project);
-        }
-
-        if (this.transaction.searchDirection == ProjectNavigationDirection.PREVIOUS && !project.canPrevious ())
-            this.transaction.searchDirection = ProjectNavigationDirection.NEXT;
-
-        final boolean canNavigate = this.transaction.searchDirection == ProjectNavigationDirection.PREVIOUS ? project.canPrevious () : project.canNext ();
-        if (!canNavigate)
-        {
-            this.transaction.stage = Stage.RETURNING;
-            return this.advanceReturn (project);
-        }
-        return this.requestNavigation (project.projectIdentity (), this.transaction.searchDirection, false);
-    }
-
-
-    private List<CoreEffect> advancePlaybackAcknowledgement (final ControllerSnapshot snapshot, final boolean countAcknowledgementTick)
-    {
-        final ProjectSnapshot project = snapshot.bridge ().project ();
-        final TransportSnapshot transport = snapshot.bridge ().transport ();
-        if (project.engineActive () && transport.available () && transport.playing () == this.transaction.desiredPlaying)
-        {
-            this.transaction.stage = Stage.RETURNING;
-            return this.advanceReturn (project);
-        }
-
-        if (countAcknowledgementTick)
-            this.transaction.playbackAcknowledgementTicks++;
-        if (this.transaction.playbackAcknowledgementTicks < PLAYBACK_ACKNOWLEDGEMENT_TICKS)
-            return List.of ();
-
-        this.transaction.stage = Stage.RETURNING;
-        return this.advanceReturn (project);
-    }
-
-
-    private List<CoreEffect> advanceReturn (final ProjectSnapshot project)
-    {
-        if (this.transaction.path.isEmpty ())
-        {
-            this.finishTransaction ();
-            return List.of ();
-        }
-
-        final PathStep step = this.transaction.path.getLast ();
-        if (!project.projectIdentity ().equals (step.toIdentity ()))
-        {
-            this.finishTransaction ();
-            return List.of ();
-        }
-        return this.requestNavigation (project.projectIdentity (), opposite (step.direction ()), true);
-    }
-
-
-    private List<CoreEffect> requestNavigation (final String currentIdentity, final ProjectNavigationDirection direction, final boolean returning)
-    {
-        this.transaction.awaitingNavigation = new AwaitingNavigation (currentIdentity, direction, returning);
-        return List.of (new NavigateProjectEffect (currentIdentity, direction));
-    }
-
-
-    private void recordSearchStep (final PathStep step)
-    {
-        if (!this.transaction.path.isEmpty ())
-        {
-            final PathStep previous = this.transaction.path.getLast ();
-            if (previous.fromIdentity ().equals (step.toIdentity ()) && previous.toIdentity ().equals (step.fromIdentity ()) && opposite (previous.direction ()) == step.direction ())
-            {
-                this.transaction.path.removeLast ();
-                return;
-            }
-        }
-        this.transaction.path.add (step);
-    }
-
-
-    private static ProjectNavigationDirection opposite (final ProjectNavigationDirection direction)
-    {
-        return direction == ProjectNavigationDirection.PREVIOUS ? ProjectNavigationDirection.NEXT : ProjectNavigationDirection.PREVIOUS;
-    }
-
-
-    private void prepareWave (final RgbColor color)
+    private void startWave (final long nowNanos, final RgbColor color)
     {
         this.waveActive = true;
-        this.waveRunning = false;
         this.waveBaseColor = Objects.requireNonNull (color, "color");
         this.waveProgress = 0;
-    }
-
-
-    private void startWave (final long nowNanos)
-    {
-        if (!this.waveActive || this.waveRunning)
-            return;
-        this.waveRunning = true;
         this.waveStartedNanos = nowNanos;
     }
 
 
     private void advanceWave (final long nowNanos)
     {
-        if (!this.waveActive || !this.waveRunning || this.waveProgress >= 1)
+        if (!this.waveActive || this.waveProgress >= 1)
             return;
 
         final long elapsed = Math.max (0, nowNanos - this.waveStartedNanos);
         this.waveProgress = Math.min (1.0, (double) elapsed / WAVE_DURATION_NANOS);
-        if (this.waveProgress >= 1 && this.transaction == null)
-            this.waveActive = false;
-    }
-
-
-    private void finishTransaction ()
-    {
-        this.transaction = null;
-        if (!this.waveRunning || this.waveProgress >= 1)
+        if (this.waveProgress >= 1)
             this.waveActive = false;
     }
 
@@ -558,46 +333,4 @@ public final class ProjectPlaybackCoordinator
     }
 
 
-    private enum Stage
-    {
-        SEARCHING,
-        WAITING_FOR_PLAYBACK,
-        RETURNING
-    }
-
-
-    private static final class Transaction
-    {
-        private final String targetIdentity;
-        private final boolean desiredPlaying;
-        private final String originIdentity;
-        private final long navigationLeaseId;
-        private final List<PathStep> path = new ArrayList<> ();
-        private String expectedCurrentIdentity;
-        private ProjectNavigationDirection searchDirection = ProjectNavigationDirection.PREVIOUS;
-        private Stage stage = Stage.SEARCHING;
-        private AwaitingNavigation awaitingNavigation;
-        private int navigationSteps;
-        private int playbackAcknowledgementTicks;
-
-
-        private Transaction (final String originIdentity, final String targetIdentity, final boolean desiredPlaying, final long navigationLeaseId)
-        {
-            this.originIdentity = originIdentity;
-            this.targetIdentity = targetIdentity;
-            this.desiredPlaying = desiredPlaying;
-            this.navigationLeaseId = navigationLeaseId;
-            this.expectedCurrentIdentity = originIdentity;
-        }
-    }
-
-
-    private record AwaitingNavigation (String fromIdentity, ProjectNavigationDirection direction, boolean returning)
-    {
-    }
-
-
-    private record PathStep (String fromIdentity, String toIdentity, ProjectNavigationDirection direction)
-    {
-    }
 }
