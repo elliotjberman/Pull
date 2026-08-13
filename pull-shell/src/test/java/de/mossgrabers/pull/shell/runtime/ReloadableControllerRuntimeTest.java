@@ -237,7 +237,7 @@ class ReloadableControllerRuntimeTest
             de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
             de.mossgrabers.pull.core.api.DesiredParameterBanks.empty (),
             de.mossgrabers.pull.core.api.DesiredParameterInteraction.empty (),
-            new CoreExecutionRequirements (true, 0, ""),
+            new CoreExecutionRequirements (true),
             List.of ());
         environment.commit (1, environment.prepare (ticking));
         environment.apply (1);

@@ -164,9 +164,10 @@ tracks, including the properties actually rendered by Pull. Add fenced effects f
 activation, arm, mute, solo, volume, pan, and bounded sends.
 
 Controller-level Play is now the reference transport migration: its stable command is inert, its
-edge is core-exclusive, and core targets the remembered engine-owning project through a bounded
-identity-fenced navigate/toggle/return transaction. The lightweight `PROJECT` subscription keeps
-that policy available in every workspace without sampling Master VU.
+edge is core-exclusive, and core targets the remembered engine-owning project with one exact
+origin/target transport effect. Stable owns the complete bounded navigate/readback/return operation,
+so a child-core reload or quarantine cannot split or strand the transaction. The lightweight
+`PROJECT` subscription keeps that policy available in every workspace without sampling Master VU.
 
 This unlocks:
 
@@ -204,7 +205,7 @@ bounded clip/session capability rather than remain a parallel feature-shaped API
 
 ### 4. Complete parameter-view migration and output
 
-API 23 installs named bounded parameter snapshots for active compatibility, project remote,
+API 24 installs named bounded parameter snapshots for active compatibility, project remote,
 selected-device remote, visible-track volume/pan, Master/Cue, and globals. Snapshots contain exact target
 identity, name, raw and modulated values, authoritative displayed value, step count, and tolerance;
 stable applies fenced absolute, relative-change, and reset effects. Project-macro relative input is
@@ -396,7 +397,7 @@ Add, in order:
 
 1. visible track bank;
 2. Session grid;
-3. remaining parameter-bank contexts beyond the API 23 named canopy.
+3. remaining parameter-bank contexts beyond the API 24 named canopy.
 
 Then migrate `WorkspaceMode` and `WorkspaceView` completely. Project-macro relative turns have
 already moved; automation touch, display output, track strips, Session, and Drum adapters remain

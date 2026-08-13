@@ -183,7 +183,7 @@ class CoreApiValueTest
     @Test
     void publishesStableVersionCapabilityAndControlIdentifiers ()
     {
-        assertEquals (23, CoreApi.VERSION);
+        assertEquals (24, CoreApi.VERSION);
         assertEquals ("input.drum-fill", CoreCapabilities.INPUT_DRUM_FILL);
         assertEquals ("snapshot.selected-track-clips", CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS);
         assertEquals ("binding.clip-target", CoreCapabilities.BINDING_CLIP_TARGET);
@@ -506,10 +506,7 @@ class CoreApiValueTest
             de.mossgrabers.pull.core.api.DesiredParameterBanks.empty (),
             de.mossgrabers.pull.core.api.DesiredParameterInteraction.empty (),
             null));
-        assertEquals (CoreExecutionRequirements.empty (), new CoreExecutionRequirements (false, 0, ""));
-        assertThrows (IllegalArgumentException.class, () -> new CoreExecutionRequirements (true, -1, "project-a"));
-        assertThrows (IllegalArgumentException.class, () -> new CoreExecutionRequirements (true, 1, ""));
-        assertThrows (IllegalArgumentException.class, () -> new CoreExecutionRequirements (true, 0, "project-a"));
+        assertEquals (CoreExecutionRequirements.empty (), new CoreExecutionRequirements (false));
         assertThrows (IllegalArgumentException.class, () -> new SnapshotChangedEvent (-1, 0));
         assertThrows (IllegalArgumentException.class, () -> new SnapshotChangedEvent (0, -1));
         assertThrows (IllegalArgumentException.class, () -> new ShellCapabilities (Map.of ("lights", Integer.valueOf (0))));

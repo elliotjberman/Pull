@@ -134,7 +134,7 @@ public final class TransportControlView implements ControllerView
         }
 
         if (event instanceof SnapshotChangedEvent || event instanceof ControllerTickEvent)
-            return this.playbackCoordinator.advance (snapshot, true);
+            return this.playbackCoordinator.advance (snapshot);
         return List.of ();
     }
 

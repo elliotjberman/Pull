@@ -196,7 +196,7 @@ class ControllerRuntimeEnvironmentTest
 
 
     @Test
-    void rejectsProjectNavigationLeaseWithoutPermanentControllerBridge ()
+    void acceptsCoreTickCadenceWithoutAControllerBridge ()
     {
         final ControllerRuntimeEnvironment environment = environment (host (1));
         final CoreResult result = new CoreResult (
@@ -208,10 +208,10 @@ class ControllerRuntimeEnvironmentTest
             de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
             DesiredParameterBanks.empty (),
             DesiredParameterInteraction.empty (),
-            new CoreExecutionRequirements (true, 7, "project-a"),
+            new CoreExecutionRequirements (true),
             List.of ());
 
-        assertThrows (IllegalArgumentException.class, () -> environment.prepare (result));
+        assertTrue (environment.prepare (result) != null);
         assertEquals (0, environment.outputGeneration ());
     }
 
@@ -327,7 +327,7 @@ class ControllerRuntimeEnvironmentTest
             new DesiredHardwareOutput (Map.of (previous, BRIGHT_RED), display, padOverlay, displayOverlay),
             DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), Map.of (FIRST, FIRST_TARGET),
             workspace, de.mossgrabers.pull.core.api.DesiredControllerActions.empty (), DesiredParameterBanks.empty (),
-            DesiredParameterInteraction.empty (), new CoreExecutionRequirements (true, 0, ""),
+            DesiredParameterInteraction.empty (), new CoreExecutionRequirements (true),
             List.of (new PressClipTargetEffect (FIRST, 1, FIRST_TARGET, LAUNCH_POLICY)));
 
         environment.setFillPressed (FIRST, true);

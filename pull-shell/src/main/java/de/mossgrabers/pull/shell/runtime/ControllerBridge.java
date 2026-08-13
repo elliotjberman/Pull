@@ -5,7 +5,6 @@ package de.mossgrabers.pull.shell.runtime;
 
 import de.mossgrabers.framework.controller.hardware.IHwContinuousControl;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
-import de.mossgrabers.pull.core.api.CoreExecutionRequirements;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
@@ -27,16 +26,6 @@ interface ControllerBridge
 
     void invalidate ();
 
-    default CoreExecutionRequirements prepareExecutionRequirements (final CoreExecutionRequirements requirements)
-    {
-        return Objects.requireNonNull (requirements, "requirements");
-    }
-
-    default void applyExecutionRequirements (final CoreExecutionRequirements requirements)
-    {
-        Objects.requireNonNull (requirements, "requirements");
-    }
-
     default boolean canReplaceActiveCore ()
     {
         return true;
@@ -44,7 +33,7 @@ interface ControllerBridge
 
     default void abandonActiveCore ()
     {
-        // No parent-owned transaction to unwind.
+        // No core-owned parent transaction to unwind.
     }
 
     TargetedParameter resolveParameterMutation (IHwContinuousControl control);

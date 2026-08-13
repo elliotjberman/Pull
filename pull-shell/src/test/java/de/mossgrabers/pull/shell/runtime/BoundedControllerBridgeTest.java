@@ -32,7 +32,6 @@ import de.mossgrabers.framework.daw.midi.SelectedTrackMonitorMode;
 import de.mossgrabers.framework.daw.midi.SelectedTrackNoteTargetSnapshot;
 import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
-import de.mossgrabers.pull.core.api.CoreExecutionRequirements;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredParameterBanks;
 import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
@@ -150,64 +149,88 @@ class BoundedControllerBridgeTest
 
 
     @Test
-    void abandonedProjectNavigationLeaseRetracesItsAuthoritativePathBeforeReplacement ()
+    void remoteProjectTransportSurvivesCoreQuarantineAndReturnsAfterReadback ()
     {
         final BridgeFixture fixture = new BridgeFixture ();
-        final DesiredBridgeSubscriptions project = subscriptions (BridgeSubscription.PROJECT);
-        final CoreExecutionRequirements lease = new CoreExecutionRequirements (true, 7, "project-a");
-        fixture.bridge.refresh (1, project, DesiredParameterBanks.empty ());
-        fixture.bridge.applyExecutionRequirements (fixture.bridge.prepareExecutionRequirements (lease));
-        assertFalse (fixture.bridge.canReplaceActiveCore ());
-
-        fixture.bridge.apply (fixture.bridge.prepare (new NavigateProjectEffect ("project-a", ProjectNavigationDirection.NEXT)));
+        final DesiredBridgeSubscriptions requested = subscriptions (BridgeSubscription.PROJECT, BridgeSubscription.TRANSPORT);
         fixture.project.identity = "project-b";
-        fixture.bridge.refresh (2, project, DesiredParameterBanks.empty ());
-        fixture.bridge.refresh (3, project, DesiredParameterBanks.empty ());
+        fixture.application.engineActive = false;
+        fixture.transport.playing = true;
+        fixture.bridge.refresh (1, requested, DesiredParameterBanks.empty ());
 
-        fixture.bridge.abandonActiveCore ();
-        fixture.bridge.refresh (4, project, DesiredParameterBanks.empty ());
+        fixture.bridge.apply (fixture.bridge.prepare (new SetProjectTransportStateEffect (
+            "project-b", "project-a", TransportState.PLAYING, false)));
         assertEquals (1, fixture.project.previousCount);
-        assertFalse (fixture.bridge.canReplaceActiveCore ());
+        fixture.bridge.abandonActiveCore ();
+        assertTrue (fixture.bridge.canReplaceActiveCore ());
 
         fixture.project.identity = "project-a";
-        fixture.bridge.refresh (5, project, DesiredParameterBanks.empty ());
-        fixture.bridge.refresh (6, project, DesiredParameterBanks.empty ());
+        fixture.application.engineActive = true;
+        fixture.bridge.refresh (2, DesiredBridgeSubscriptions.empty (), DesiredParameterBanks.empty ());
+        fixture.bridge.refresh (3, requested, DesiredParameterBanks.empty ());
+        assertEquals (1, fixture.transport.stopCount);
+        assertTrue (fixture.transport.playing);
+        assertTrue (fixture.bridge.snapshot ().project ().commandPending ());
+
+        fixture.bridge.refresh (4, requested, DesiredParameterBanks.empty ());
+        assertEquals (0, fixture.project.nextCount);
+        fixture.transport.playing = false;
+        fixture.bridge.refresh (5, requested, DesiredParameterBanks.empty ());
+        assertEquals (1, fixture.project.nextCount);
+
+        fixture.project.identity = "project-b";
+        fixture.application.engineActive = false;
+        fixture.bridge.refresh (6, requested, DesiredParameterBanks.empty ());
+        fixture.bridge.refresh (7, requested, DesiredParameterBanks.empty ());
+        assertFalse (fixture.bridge.snapshot ().project ().commandPending ());
+        assertEquals ("project-b", fixture.bridge.snapshot ().project ().projectIdentity ());
+    }
+
+
+    @Test
+    void failedRemoteReturnReleasesTheCommandLaneWithoutBlockingCoreReplacement ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        final DesiredBridgeSubscriptions requested = subscriptions (BridgeSubscription.PROJECT, BridgeSubscription.TRANSPORT);
+        fixture.project.identity = "project-b";
+        fixture.transport.playing = true;
+        fixture.bridge.refresh (1, requested, DesiredParameterBanks.empty ());
+        fixture.bridge.apply (fixture.bridge.prepare (new SetProjectTransportStateEffect (
+            "project-b", "project-a", TransportState.PLAYING, false)));
+
+        fixture.project.identity = "project-a";
+        fixture.application.engineActive = true;
+        fixture.bridge.refresh (2, requested, DesiredParameterBanks.empty ());
+        fixture.bridge.refresh (3, requested, DesiredParameterBanks.empty ());
+        fixture.transport.playing = false;
+        fixture.bridge.refresh (4, requested, DesiredParameterBanks.empty ());
+        assertEquals (1, fixture.project.nextCount);
+
+        for (int tick = 0; tick < 100; tick++)
+            fixture.bridge.refresh (5 + tick, requested, DesiredParameterBanks.empty ());
+
+        assertFalse (fixture.bridge.snapshot ().project ().commandPending ());
         assertTrue (fixture.bridge.canReplaceActiveCore ());
     }
 
 
     @Test
-    void failedMidiCleanupCannotPreventParameterRestoreOrNavigationUnwind ()
+    void failedMidiCleanupCannotPreventParameterRestore ()
     {
         final BridgeFixture fixture = new BridgeFixture ();
         final DesiredParameterBanks parameterBanks = new DesiredParameterBanks (Set.of (ParameterBankId.GLOBAL));
-        final DesiredBridgeSubscriptions requested = subscriptions (BridgeSubscription.PROJECT, BridgeSubscription.PARAMETERS);
-        fixture.bridge.refresh (1, requested, parameterBanks);
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.PARAMETERS), parameterBanks);
         final ParameterTargetRef tempo = fixture.bridge.snapshot ().parameters ().slots ().get (ParameterSlot.TEMPO).target ();
         final DesiredParameterInteraction interaction = new DesiredParameterInteraction (1, false, Map.of (tempo, 120.0), Set.of (), Set.of (), 0);
         final Map<ParameterTargetRef, ControllerBridge.ParameterLease> leases = fixture.bridge.prepareParameterLeases (interaction, parameterBanks);
         fixture.bridge.applyParameterLeases (leases, parameterBanks);
         fixture.bridge.apply (fixture.bridge.prepare (new SetParameterValueEffect (tempo, 98), leases));
         applyMidi (fixture, 0xB1, 74, 99);
-
-        final CoreExecutionRequirements lease = new CoreExecutionRequirements (true, 7, "project-a");
-        fixture.bridge.applyExecutionRequirements (fixture.bridge.prepareExecutionRequirements (lease));
-        fixture.bridge.apply (fixture.bridge.prepare (new NavigateProjectEffect ("project-a", ProjectNavigationDirection.NEXT)));
-        fixture.project.identity = "project-b";
-        fixture.bridge.refresh (2, requested, parameterBanks);
-        fixture.bridge.refresh (3, requested, parameterBanks);
         fixture.failNeutralMidi = true;
 
         fixture.bridge.abandonActiveCore ();
-        fixture.bridge.refresh (4, requested, DesiredParameterBanks.empty ());
 
         assertEquals (120, fixture.transport.tempo);
-        assertEquals (1, fixture.project.previousCount);
-        assertFalse (fixture.bridge.canReplaceActiveCore ());
-        fixture.project.identity = "project-a";
-        fixture.bridge.refresh (5, requested, DesiredParameterBanks.empty ());
-        fixture.bridge.refresh (6, requested, DesiredParameterBanks.empty ());
-        assertTrue (fixture.bridge.canReplaceActiveCore ());
     }
 
 
@@ -244,7 +267,7 @@ class BoundedControllerBridgeTest
         final DesiredBridgeSubscriptions requested = subscriptions (BridgeSubscription.PROJECT, BridgeSubscription.TRANSPORT);
         fixture.bridge.refresh (1, requested, DesiredParameterBanks.empty ());
         final ControllerBridge.PreparedAction stale = fixture.bridge.prepare (
-            new SetProjectTransportStateEffect ("project-a", TransportState.PLAYING, true));
+            new SetProjectTransportStateEffect ("project-a", "project-a", TransportState.PLAYING, true));
 
         fixture.project.identity = "project-b";
         fixture.bridge.apply (stale);
@@ -252,7 +275,7 @@ class BoundedControllerBridgeTest
 
         fixture.project.identity = "project-a";
         fixture.bridge.refresh (2, requested, DesiredParameterBanks.empty ());
-        fixture.bridge.apply (fixture.bridge.prepare (new SetProjectTransportStateEffect ("project-a", TransportState.PLAYING, true)));
+        fixture.bridge.apply (fixture.bridge.prepare (new SetProjectTransportStateEffect ("project-a", "project-a", TransportState.PLAYING, true)));
         assertEquals (1, fixture.transport.playCount);
         assertFalse (fixture.bridge.snapshot ().transport ().playing ());
 

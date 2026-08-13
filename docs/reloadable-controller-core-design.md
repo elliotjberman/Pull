@@ -1,14 +1,14 @@
 # Reloadable Controller Core
 
 Status: Milestones 1 through 9 and the Master-control migration are implemented. The current working
-tree installs the bounded Core API 23 controller bridge described below: normalized Push command
+tree installs the bounded Core API 24 controller bridge described below: normalized Push command
 input, explicitly requested transport/selected-track/layout/drum/parameter/Master read-back, and
 typed effects against exact retained parameter targets as well as transport, selected-track, drum,
 and current-project targets.
 The drum-fill shell uses a single-active replacement barrier, while the Pads note input follows
 ordinary Bitwig input, monitor, and record-arm routing. The Master page's two button rows and
 eight-column display now have complete output arbitration; other general Push output does not.
-Because API 23 and its bridge are parent-loaded, installing this
+Because API 24 and its bridge are parent-loaded, installing this
 expansion itself requires one shell build/install and Bitwig restart; behavior composed from it can
 then hot reload.
 
@@ -146,7 +146,7 @@ independently.
 - Keep workspace composition, Shift + Session entry, Session/Note exit, and checkpoint restoration
   in the reloadable core. The first composite is specified in
   [Views API and Composite Workspaces](views-api-design.md).
-- API 23's controller-workspace capability v2 adds explicit Track/Mix-page and full-Session facets.
+- API 24's controller-workspace capability v2 adds explicit Track/Mix-page and full-Session facets.
   Session/Note destination views remain desired state until the controller-layout snapshot
   acknowledges the requested stable layout; the shell never infers the destination from mode
   history.
@@ -390,9 +390,9 @@ The shell owns anything coupled to Bitwig or physical hardware:
 The shell may reuse the existing `ModelImpl` and Bitwig wrapper graph internally. That graph must
 not cross into the core.
 
-## Installed API 23 bounded capability canopy
+## Installed API 24 bounded capability canopy
 
-Core API 23 installs a broad input seam and a deliberately finite Bitwig state/effect bridge during
+Core API 24 installs a broad input seam and a deliberately finite Bitwig state/effect bridge during
 extension initialization. The existence of a shell capability means that the domain is available;
 it does not mean every state domain is copied into every snapshot.
 
@@ -492,7 +492,7 @@ object identity.
 An action whose declared invalidation scope overlaps retained parameters is held until core drops
 the barrier after authoritative restore acknowledgement. Its stable compatibility dispatch then
 runs in physical order. An unexpected target-generation change fails closed rather than restoring
-through the replacement target. API 23 still does not pin an old rebindable proxy across
+through the replacement target. API 24 still does not pin an old rebindable proxy across
 navigation.
 
 This arbitration governs controller commands, parameter mutations, and framework pressed/touched
@@ -546,7 +546,7 @@ the Bitwig controller log. An unused installed domain should first be removed fr
 
 ### Typed effects and live identity fences
 
-API 23 can request absolute transport state and values; selected-track activation, group expansion,
+API 24 can request absolute transport state and values; selected-track activation, group expansion,
 arm, monitor, mute, solo, volume, pan, stop, Return to Arrangement, and new-clip creation;
 target-neutral note-input
 MIDI poly pressure, CC, channel pressure, and pitch bend; and drum-pad activation, mute, solo, volume, pan, or
@@ -559,6 +559,10 @@ optimistic state. Hardware feedback
 still comes from later subscribed Bitwig read-back. Master effects add project-identity-fenced
 previous/next navigation, Open/Save actions, and absolute audio-engine state. Dependent navigation
 and engine commands remain serialized until subscribed host read-back acknowledges the request.
+An exact project-transport effect carries both the visible origin and engine-owner target. Core
+chooses those identities and the absolute state; stable alone owns the bounded tab search,
+authoritative transport acknowledgement, and exact path return. That stable transaction continues
+across child-core reload or quarantine and never participates in core replacement eligibility.
 
 Selected-track effects carry both the snapshot generation and stable channel ID. The shell validates
 them during result preparation and compares both with the live private cursor again during apply.
@@ -575,16 +579,16 @@ Bitwig's ordinary routing determines which tracks receive both the original and 
 
 ### Deliberate exclusions
 
-This remains a capability canopy, not a mirror of an unbounded Bitwig project. API 23 does not add
+This remains a capability canopy, not a mirror of an unbounded Bitwig project. API 24 does not add
 arbitrary project track/scene banks, arbitrary device-tree recursion, additional drum layers or
 branches, arbitrary parameter windows, automation-touch ownership, or a pinned actuator pool.
 `SELECTED_DEVICE_REMOTE` follows the current installed page rather than retaining every page.
 Visible-track sends are intentionally deferred until the visible-track bank can fence the same
-track-window identity; API 23 does not advertise parameter-only send slots without that alignment.
+track-window identity; API 24 does not advertise parameter-only send slots without that alignment.
 Extending one of those shapes or adding a new Bitwig property/action requires a parent-loaded
 API/shell change, extension installation, and Bitwig restart.
 
-Output remains narrower than input in API 23. This is the canonical installed-output inventory:
+Output remains narrower than input in API 24. This is the canonical installed-output inventory:
 
 | Lane | Installed ownership |
 | --- | --- |
@@ -599,7 +603,7 @@ behavior. A request that changes one of those meanings must first add complete r
 arbitration and implement the policy in core, requiring one install/restart for that canopy
 expansion.
 
-Once API 23 is installed, new mappings, modes, gestures, and effects composed only from these exact
+Once API 24 is installed, new mappings, modes, gestures, and effects composed only from these exact
 inputs, subscriptions, and executors can ship by core reload. Capability breadth is bounded, and
 subscription choice controls active publication cost inside that bound.
 
@@ -668,7 +672,7 @@ snapshot.
 
 ## Snapshot and effects
 
-The API 23 snapshot contains revision, monotonic time, shell capabilities, the explicitly subscribed
+The API 24 snapshot contains revision, monotonic time, shell capabilities, the explicitly subscribed
 `ControllerBridgeSnapshot`, the complete selected-track clip catalog, verified per-control armed
 clip bindings, the clip-launch session's optional acquired owner-to-target lease and authoritative
 active owner, and pressed/touched controls. A pending fill intent is shell-private and never appears
@@ -678,8 +682,9 @@ unsubscribed domain is its typed empty value.
 
 Checkpoint schema version 2 retains workspace selection plus the last authoritative engine-owner
 identity and playback state, so a normal child-core reload while another project is visible does
-not lose remote Play feedback. It never checkpoints an in-flight project-navigation transaction;
-every active step is instead fenced by live stable project identity and command read-back.
+not lose remote Play feedback. The child never checkpoints or mirrors an in-flight cross-project
+operation; the stable command host owns it through completion and fences every active step with
+live project identity and command read-back.
 
 Every `CoreResult` contains complete desired hardware output, input routes, bridge subscriptions,
 clip bindings, controller workspace/actions, parameter-bank selection, parameter interaction state,
@@ -694,7 +699,7 @@ that bank's generation and marks it pending. Location-targeted effects from the 
 are immediately rejected. The new window is published only after Bitwig's observed membership
 stabilizes.
 
-Core API 23's type hierarchy retains logical timer effects for the proposed contract, but they are
+Core API 24's type hierarchy retains logical timer effects for the proposed contract, but they are
 not an installed production capability. Installed production capabilities include persistent
 desired clip bindings, verified armed bindings, the version-1 authoritative single-lease
 clip-launch-session snapshot,
@@ -703,8 +708,9 @@ routes, explicit bridge subscriptions, typed absolute transport effects, generat
 selected-track and drum-pad effects, bounded target-neutral note-input
 poly-pressure/CC/channel-pressure/pitch-bend output, named bounded parameter snapshots and exact
 leases, generation-fenced relative/reset effects and absolute parameter restores, serialized
-current-project navigation/engine effects, and desired RGB/display hardware state through the
-canonical installed-output lanes above. Later typed domains may cover broader clip
+current-project navigation/engine effects, stable-owned exact cross-project transport operations,
+and desired RGB/display hardware state through the canonical installed-output lanes above. Later
+typed domains may cover broader clip
 launch/selection, bank scrolling, selected-device parameters, application actions, note
 mapping/repeat, notifications, and complete general Push output.
 
@@ -886,9 +892,9 @@ effects, rejections, and desired output. A real Bitwig failure can then become a
 | Safe pure-Java core dependency | Package and core reload |
 | Core-owned/migrated mapping, mode, gesture, layout policy, or fill matching | Core reload |
 | Route a currently registered input between `NONE`, `OBSERVE`, and `EXCLUSIVE` | Core reload |
-| Request or stop requesting an existing API 23 bridge subscription | Core reload |
-| Select a different installed API 23 parameter bank or remap an installed bank's encoder turns | Core reload |
-| Output policy inside a lane in the canonical API 23 installed-output inventory | Core reload |
+| Request or stop requesting an existing API 24 bridge subscription | Core reload |
+| Select a different installed API 24 parameter bank or remap an installed bank's encoder turns | Core reload |
+| Output policy inside a lane in the canonical API 24 installed-output inventory | Core reload |
 | Behavior using existing snapshots and installed, capability-advertised effects | Core reload |
 | Behavior within the installed capability canopy | Core reload |
 | Clip launch quantization, mode, or Main-vs-ALT release lane | Core reload |
@@ -916,7 +922,7 @@ effects, rejections, and desired output. A real Bitwig failure can then become a
 - A route-map change or core reload during an edge gesture preserves its begin-time ownership
   through release; core replacement waits for the complete input lifecycle to drain, and continuous
   rebinding cannot bypass arbitration.
-- Unrequested API 23 bridge domains publish typed empty values without domain snapshot construction
+- Unrequested API 24 bridge domains publish typed empty values without domain snapshot construction
   or high-rate sampling/DTO churn.
 - Core handoff, selection change, and shutdown neutralize outstanding target-neutral note-input
   poly-pressure, CC, channel-pressure, and pitch-bend state on a best-effort basis through ordinary

@@ -6,14 +6,22 @@ package de.mossgrabers.pull.core.api.effect;
 import java.util.Objects;
 
 
-/** Request absolute transport state through the exact currently visible project proxy. */
-public record SetProjectTransportStateEffect (String expectedProjectIdentity, TransportState state, boolean enabled) implements CoreEffect
+/**
+ * Request absolute transport state for an exact project while preserving the visible project.
+ *
+ * <p>The stable shell applies local requests directly. For a different target it owns the complete
+ * bounded visit, authoritative acknowledgement, and exact return transaction.</p>
+ */
+public record SetProjectTransportStateEffect (String originProjectIdentity, String targetProjectIdentity, TransportState state, boolean enabled) implements CoreEffect
 {
     public SetProjectTransportStateEffect
     {
-        expectedProjectIdentity = Objects.requireNonNull (expectedProjectIdentity, "expectedProjectIdentity");
-        if (expectedProjectIdentity.isBlank ())
-            throw new IllegalArgumentException ("expectedProjectIdentity must not be blank");
+        originProjectIdentity = Objects.requireNonNull (originProjectIdentity, "originProjectIdentity");
+        targetProjectIdentity = Objects.requireNonNull (targetProjectIdentity, "targetProjectIdentity");
+        if (originProjectIdentity.isBlank ())
+            throw new IllegalArgumentException ("originProjectIdentity must not be blank");
+        if (targetProjectIdentity.isBlank ())
+            throw new IllegalArgumentException ("targetProjectIdentity must not be blank");
         state = Objects.requireNonNull (state, "state");
     }
 }
