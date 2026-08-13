@@ -157,7 +157,7 @@ class PushDebugNavigationHostTest
 
 
     @Test
-    void submittedProjectNavigationButtonsAreExplicitlyAdmitted () throws IOException
+    void submittedMasterControlsAreExplicitlyAdmitted () throws IOException
     {
         final FakeNavigationSurface surface = new FakeNavigationSurface ("PLAY", "MASTER", true);
         final PushDebugNavigationHost host = this.host (surface);
@@ -168,6 +168,15 @@ class PushDebugNavigationHostTest
         host.tick ();
 
         assertEquals (List.of ("ROW2_8:DOWN", "ROW2_8:UP"), surface.events);
+        assertEquals ("READY", this.status ().get (1));
+
+        Files.delete (this.statusPath ());
+        this.request ("engine-request", "engine", "ROW2_5/submitted");
+        host.tick ();
+        host.tick ();
+        host.tick ();
+
+        assertEquals (List.of ("ROW2_8:DOWN", "ROW2_8:UP", "ROW2_5:DOWN", "ROW2_5:UP"), surface.events);
         assertEquals ("READY", this.status ().get (1));
     }
 

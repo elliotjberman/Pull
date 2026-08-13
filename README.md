@@ -100,8 +100,9 @@ its result from later authoritative framebuffer and host observations:
 tools/push-debug-request play 'PLAY/submitted'
 ```
 
-Only Play and Master row buttons 7/8 admit this one-shot form. Scene launch, parameter motion, and
-drum fills require a future core-owned debugger ingress, not stable-shell shortcuts.
+Only Play and Master row buttons 5/7/8 (Audio Engine, Previous, and Next) admit this one-shot form.
+Scene launch, parameter motion, and drum fills require a future core-owned debugger ingress, not
+stable-shell shortcuts.
 
 Adding the generic debug bridge is a stable-shell change and needs one extension install and Bitwig
 restart. Frame capture and client-side navigation recipes can then be reused across core hot

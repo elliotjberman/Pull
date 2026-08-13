@@ -400,6 +400,7 @@ final class PushDebugNavigationHost implements AutoCloseable
         MASTERTRACK (ButtonID.MASTERTRACK),
         SESSION (ButtonID.SESSION),
         PLAY (ButtonID.PLAY),
+        ROW2_5 (ButtonID.ROW2_5),
         ROW2_7 (ButtonID.ROW2_7),
         ROW2_8 (ButtonID.ROW2_8),
         SHIFT_SESSION (ButtonID.SHIFT, ButtonID.SESSION);
