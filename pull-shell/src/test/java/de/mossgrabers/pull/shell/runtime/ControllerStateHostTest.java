@@ -114,6 +114,22 @@ class ControllerStateHostTest
 
 
     @Test
+    void alignedSelectedTargetHandoffReentersInTheSameTransaction ()
+    {
+        final Fixture fixture = new Fixture ();
+        fixture.host.apply (fixture.performance (ControllerNoteView.PLAY));
+        fixture.events.clear ();
+        fixture.target.generation = 2;
+        fixture.target.channelID = "track-b";
+
+        fixture.host.apply (state (ControllerNoteView.DRUM_PAD, 2, "track-b"));
+
+        assertEquals (List.of ("layout:NEUTRAL", "midi:neutral", "route:off", "workspace:invalidate", "route:on", "workspace:", "layout:DRUM_PAD"), fixture.events);
+        assertTrue (fixture.target.routeActive);
+    }
+
+
+    @Test
     void invalidationNeutralizesAndDetachesImmediately ()
     {
         final Fixture fixture = new Fixture ();

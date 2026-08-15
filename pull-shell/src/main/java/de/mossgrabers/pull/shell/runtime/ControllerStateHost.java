@@ -88,7 +88,8 @@ final class ControllerStateHost
         {
             this.failClosed (null);
             this.quarantinedUntilInputIdle = !this.inputLifecycleIdle.getAsBoolean ();
-            return;
+            if (requested.active () && !this.liveTargetMatches (requested))
+                return;
         }
 
         if (requested.active ())
