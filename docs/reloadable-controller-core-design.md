@@ -597,7 +597,7 @@ Output remains narrower than input in API 25. This is the canonical installed-ou
 | --- | --- |
 | RGB lights | The 12 drum-fill lights, four drum-rate lights, and global Play/Record lights; both Master button rows while the Master-controls facet is active. |
 | Controller layout | One complete replayable request for an installed bounded note view; stable validates and mechanically activates it. |
-| Note repeat | One complete replayable lease over the permanent NoteInput Repeat engine, with later read-back and manual-state restoration. |
+| Note repeat | One complete replayable lease over the permanent NoteInput Repeat engine, with later read-back, inactive release, and manual-parameter restoration. |
 | Master scene | The bounded eight-column Master display scene while the Master-controls facet is active. |
 | Pad-grid overlay | A complete temporary sparse 8x8 replacement overlay with stable restore. |
 | Display overlay | A complete temporary 960x160 replacement overlay with stable restore. |

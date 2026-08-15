@@ -55,8 +55,9 @@ authoritative snapshot read-back.
 The Pull controller settings include **Drum Controller → Automatic arp / roll**. It defaults to
 On. Turning it Off immediately retires the drum layout's controller-input arpeggiator and blanks
 the four rate pads; turning it back On re-enables the roll engine while the drum layout is engaged.
-Leaving Drum Controller restores the user's manual Repeat settings instead of carrying the
-controller roll into melodic note views.
+Leaving Drum Controller always retires Repeat so the controller roll cannot carry into melodic
+note views. The user's manual mode, octave, rate, gate, latch, free-running, pressure and shuffle
+settings are restored; Repeat can then be enabled manually outside Drum Controller if desired.
 
 While Note is visible, Pull resolves the selected track through its private selection-following
 target. A drum-capable target receives Drum Controller after Bitwig reports the aligned device; an

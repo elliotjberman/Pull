@@ -79,7 +79,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class BoundedControllerBridgeTest
 {
     @Test
-    void automaticRollRestoresTheManualRepeatStateAfterLaterReadback ()
+    void automaticRollRetiresActiveStateAndRestoresManualSettingsAfterLaterReadback ()
     {
         final BridgeFixture fixture = new BridgeFixture ();
         final DesiredNoteRepeat automatic = new DesiredNoteRepeat (true, true, NoteRepeatMode.UP, 0, 0.25, 0.5, false, false, true, true);
@@ -101,7 +101,9 @@ class BoundedControllerBridgeTest
         for (int tick = 0; tick < 5; tick++)
             fixture.refreshNoteRepeat (tick + 10);
 
-        assertTrue (fixture.noteRepeat.active);
+        assertFalse (fixture.noteRepeat.active);
+        assertFalse (fixture.configuration.isNoteRepeatActive ());
+        assertEquals (1, fixture.configuration.activeWriteCount);
         assertEquals (ArpeggiatorMode.RANDOM, fixture.noteRepeat.mode);
         assertEquals (2, fixture.noteRepeat.octaves);
         assertEquals (1.0 / 3.0, fixture.noteRepeat.period);
@@ -110,6 +112,12 @@ class BoundedControllerBridgeTest
         assertTrue (fixture.noteRepeat.freeRunning);
         assertFalse (fixture.noteRepeat.usePressure);
         assertFalse (fixture.noteRepeat.shuffle);
+
+        fixture.configuration.toggleNoteRepeatActive ();
+        fixture.configuration.advanceHost ();
+        fixture.refreshNoteRepeat (100);
+        assertTrue (fixture.configuration.isNoteRepeatActive ());
+        assertTrue (fixture.noteRepeat.active);
     }
 
 
@@ -560,6 +568,7 @@ class BoundedControllerBridgeTest
         private final List<MidiMessage> noteInputMidiMessages = new ArrayList<> ();
         private final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
         private final MutableNoteRepeat noteRepeat;
+        private final ManualRepeatConfiguration configuration;
         private final BoundedControllerBridge bridge;
         private int newClipCount;
         private int masterVuReadCount;
@@ -594,6 +603,7 @@ class BoundedControllerBridgeTest
                 default -> relaxedValue (method.getReturnType ());
             });
             final PushControlSurface surface = createSurface (this.selected, cursorTrack, this.valueChanger, this.noteRepeat, manualRepeatActive);
+            this.configuration = (ManualRepeatConfiguration) surface.getConfiguration ();
             this.bridge = new BoundedControllerBridge (
                 model,
                 this.selected,
@@ -621,6 +631,7 @@ class BoundedControllerBridgeTest
         private void refreshNoteRepeat (final long time)
         {
             this.bridge.refresh (time, subscriptions (BridgeSubscription.NOTE_REPEAT), DesiredParameterBanks.empty ());
+            this.configuration.advanceHost ();
             this.noteRepeat.advanceHost ();
         }
 
@@ -1037,20 +1048,24 @@ class BoundedControllerBridgeTest
         final INoteInput noteInput = proxy (INoteInput.class, (proxy, method, arguments) -> "getNoteRepeat".equals (method.getName ()) ? noteRepeat.proxy () : relaxedValue (method.getReturnType ()));
         final IMidiInput input = proxy (IMidiInput.class, (proxy, method, arguments) -> "getDefaultNoteInput".equals (method.getName ()) ? noteInput : relaxedValue (method.getReturnType ()));
         final IMidiOutput output = relaxedProxy (IMidiOutput.class);
-        final PushConfiguration configuration = new ManualRepeatConfiguration (host, valueChanger, manualRepeatActive);
+        final PushConfiguration configuration = new ManualRepeatConfiguration (host, valueChanger, manualRepeatActive, noteRepeat);
         return new PushControlSurface (host, new PushColorManager (), configuration, output, input, selectedTarget, drumModelTrack, () -> true, null);
     }
 
 
     private static final class ManualRepeatConfiguration extends PushConfiguration
     {
-        private final boolean active;
+        private final MutableNoteRepeat noteRepeat;
+        private boolean active;
+        private Boolean pendingActive;
+        private int activeWriteCount;
 
 
-        private ManualRepeatConfiguration (final IHost host, final IValueChanger valueChanger, final boolean active)
+        private ManualRepeatConfiguration (final IHost host, final IValueChanger valueChanger, final boolean active, final MutableNoteRepeat noteRepeat)
         {
             super (host, valueChanger, List.of (ArpeggiatorMode.values ()));
             this.active = active;
+            this.noteRepeat = noteRepeat;
         }
 
 
@@ -1058,6 +1073,25 @@ class BoundedControllerBridgeTest
         public boolean isNoteRepeatActive ()
         {
             return this.active;
+        }
+
+
+        @Override
+        public void setNoteRepeatActive (final boolean active)
+        {
+            assertTrue (this.pendingActive == null, "Repeat Active write must wait for setting read-back");
+            this.pendingActive = Boolean.valueOf (active);
+            this.activeWriteCount++;
+        }
+
+
+        private void advanceHost ()
+        {
+            if (this.pendingActive == null)
+                return;
+            this.active = this.pendingActive.booleanValue ();
+            this.noteRepeat.active = this.active;
+            this.pendingActive = null;
         }
 
 

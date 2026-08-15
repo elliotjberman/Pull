@@ -111,6 +111,7 @@ final class BoundedControllerBridge implements ControllerBridge
     private long activeCoreGeneration;
     private DesiredNoteRepeat desiredNoteRepeat = DesiredNoteRepeat.unowned ();
     private NoteRepeatLease noteRepeatLease;
+    private boolean noteRepeatActiveReleasePending;
     private PendingNoteRepeatToggle pendingNoteRepeatToggle;
 
 
@@ -141,7 +142,7 @@ final class BoundedControllerBridge implements ControllerBridge
     public boolean refresh (final long monotonicTimeNanos, final DesiredBridgeSubscriptions subscriptions, final DesiredParameterBanks parameterBanks)
     {
         final DesiredBridgeSubscriptions requested = Objects.requireNonNull (subscriptions, "subscriptions");
-        this.reconcileNoteRepeat ();
+        this.reconcileNoteRepeatLease ();
         final long selectedGeneration = this.selectedTarget.getGeneration ();
         if (this.observedSelectedGeneration >= 0 && selectedGeneration != this.observedSelectedGeneration)
             this.resetNoteInputMidiState ();
@@ -355,10 +356,12 @@ final class BoundedControllerBridge implements ControllerBridge
     {
         final DesiredNoteRepeat next = Objects.requireNonNull (noteRepeat, "noteRepeat");
         final INoteRepeat engine = this.noteRepeatEngine ();
+        // Complete desired ownership supplies the lifecycle edge: owned acquires the lease;
+        // unowned releases it only after the terminal inactive state is read back from Bitwig.
         if (next.owned () && this.noteRepeatLease == null && engine != null)
             this.noteRepeatLease = new NoteRepeatLease (engine.isLatchActive (), engine.isFreeRunning (), engine.usePressure (), engine.isShuffle ());
         this.desiredNoteRepeat = next;
-        this.reconcileNoteRepeat ();
+        this.reconcileNoteRepeatLease ();
     }
 
 
@@ -584,8 +587,14 @@ final class BoundedControllerBridge implements ControllerBridge
     }
 
 
-    private void reconcileNoteRepeat ()
+    private void reconcileNoteRepeatLease ()
     {
+        final de.mossgrabers.controller.ableton.push.PushConfiguration configuration = this.surface.getConfiguration ();
+        if (this.noteRepeatActiveReleasePending && !configuration.isNoteRepeatActive ())
+            this.noteRepeatActiveReleasePending = false;
+        if (!this.desiredNoteRepeat.owned () && this.noteRepeatLease == null)
+            return;
+        final boolean activeSettingReleased = this.desiredNoteRepeat.owned () || this.releaseNoteRepeatActiveSetting (configuration);
         final INoteRepeat engine = this.noteRepeatEngine ();
         if (engine == null)
             return;
@@ -597,7 +606,7 @@ final class BoundedControllerBridge implements ControllerBridge
             final NoteRepeatLease lease = this.noteRepeatLease;
             if (lease == null)
                 return;
-            target = this.configuredNoteRepeat (lease);
+            target = this.releasedNoteRepeat (lease);
         }
 
         setIfDifferent (engine.getMode (), ArpeggiatorMode.valueOf (target.mode ().name ()), engine::setMode);
@@ -614,11 +623,24 @@ final class BoundedControllerBridge implements ControllerBridge
 
         if (!this.reconcileToggle (engine, target))
             return;
-        if (!this.desiredNoteRepeat.owned () && matches (engine, target))
+        if (!this.desiredNoteRepeat.owned () && activeSettingReleased && matches (engine, target))
         {
             this.noteRepeatLease = null;
             this.pendingNoteRepeatToggle = null;
         }
+    }
+
+
+    private boolean releaseNoteRepeatActiveSetting (final de.mossgrabers.controller.ableton.push.PushConfiguration configuration)
+    {
+        if (!configuration.isNoteRepeatActive ())
+            return true;
+        if (!this.noteRepeatActiveReleasePending)
+        {
+            configuration.setNoteRepeatActive (false);
+            this.noteRepeatActiveReleasePending = true;
+        }
+        return false;
     }
 
 
@@ -644,12 +666,12 @@ final class BoundedControllerBridge implements ControllerBridge
     }
 
 
-    private DesiredNoteRepeat configuredNoteRepeat (final NoteRepeatLease lease)
+    private DesiredNoteRepeat releasedNoteRepeat (final NoteRepeatLease lease)
     {
         final de.mossgrabers.controller.ableton.push.PushConfiguration configuration = this.surface.getConfiguration ();
         return new DesiredNoteRepeat (
             true,
-            configuration.isNoteRepeatActive (),
+            false,
             NoteRepeatMode.valueOf (configuration.getNoteRepeatMode ().name ()),
             configuration.getNoteRepeatOctave (),
             configuration.getNoteRepeatPeriod ().getValue (),

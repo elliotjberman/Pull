@@ -300,7 +300,8 @@ The Bitwig smoke test checks:
 10. Moving from a melodic track to a drum target while Note is visible selects Drum Controller
     after authoritative drum applicability arrives; moving back selects the track's melodic view.
 11. Automatic roll is present only while Drum Controller owns the rate pads, its lights follow
-    Repeat read-back, and leaving or disabling it restores the prior manual Repeat state.
+    Repeat read-back, and leaving or disabling it retires Repeat while restoring the prior manual
+    parameters.
 
 Commit the composite separately so a hardware failure can be bisected to either the view-runtime
 migration or the `VS Live` shell integration.

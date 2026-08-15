@@ -1104,6 +1104,22 @@ class PullControllerCoreTest
 
 
     @Test
+    void automaticRollIsAttachedOnlyToTheResolvedDrumViewer ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        final SelectedTrackSnapshot drums = selectedTrack (9, "drums", 0, true, false);
+        final NoteViewSnapshot playPreference = new NoteViewSnapshot (9, "drums", 0, ControllerNoteView.PLAY, true);
+        final DesiredNoteRepeat automatic = new DesiredNoteRepeat (true, true, NoteRepeatMode.UP, 0, 1.0 / 4.0, 0.5, false, false, true, true);
+
+        host.bridge (noteBridge ("DRUM_PAD", drums, playPreference, drum (drums), repeatReadback (true, automatic)));
+
+        assertEquals (ControllerNoteView.PLAY, host.effects ().desiredControllerLayout ().noteView ());
+        assertFalse (host.effects ().desiredNoteRepeat ().owned ());
+    }
+
+
+    @Test
     void drumRollOwnsOnlyTheDrumRatePadsAndWaitsForEngineReadback ()
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());

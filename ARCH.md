@@ -77,15 +77,18 @@ return transaction. Bitwig exposes transport only for the visible document, so t
 targets an offscreen project optimistically.
 
 Controller-level note-view selection is also core-owned. Stable publishes the active layout plus a
-selected-target-fenced preference and drum applicability; `NoteViewControllerView` chooses the
-installed melodic, drum-controller, or audio layout and keeps requesting it until later layout
+selected-target-fenced preference and drum applicability. `ResolvedNoteViewer` resolves one
+melodic, drum-controller, or audio viewer and the capabilities attached to that viewer;
+`NoteViewControllerView` requests its layout while `DrumRateView` owns automatic roll only when it
+is attached to the resolved Drum Controller viewer. The request remains active until later layout
 read-back agrees. The stable shell validates the bounded view ID and mechanically activates it. It
 does not infer a view from the current cursor, selected device, or previous layout.
 
 `DrumRateView` exclusively owns the four rate-pad edges and RGB lights whenever Drum Controller is
 authoritatively engaged. It requests a complete note-repeat state through a stable lease. The shell
 captures the user's manual Repeat state before the first owned request, serializes toggle-only API
-operations across later read-back, and restores that manual state when the core releases ownership.
+operations across later read-back, and restores the manual parameters while authoritatively
+retiring Repeat when the core releases ownership.
 The Bitwig **Automatic arp / roll** setting is published as state; core alone decides whether the
 drum workspace owns repeat or leaves it untouched.
 

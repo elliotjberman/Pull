@@ -10,8 +10,6 @@ import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.DesiredControllerLayout;
 import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
 import de.mossgrabers.pull.core.api.NoteRepeatMode;
-import de.mossgrabers.pull.core.api.NoteViewSnapshot;
-import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
@@ -140,10 +138,7 @@ public final class DrumRateView implements ControllerView
 
     private static boolean isEnabled (final ControllerSnapshot snapshot)
     {
-        final SelectedTrackSnapshot selected = snapshot.bridge ().selectedTrack ();
-        final NoteViewSnapshot noteView = snapshot.bridge ().noteView ();
-        final boolean alignedDrumTarget = selected.exists () && noteView.drumControllerApplicable () && selected.generation () == noteView.targetGeneration () && selected.channelId ().equals (noteView.targetChannelId ()) && selected.position () == noteView.trackPosition ();
-        return alignedDrumTarget && snapshot.bridge ().layout ().drumLayoutActive () && snapshot.bridge ().layout ().drumControllerEngaged () && snapshot.bridge ().noteRepeat ().available () && snapshot.bridge ().noteRepeat ().drumRollEnabled ();
+        return ResolvedNoteViewer.resolve (snapshot, false).automaticRollAttached () && snapshot.bridge ().noteRepeat ().available () && snapshot.bridge ().noteRepeat ().drumRollEnabled ();
     }
 
 

@@ -8,8 +8,6 @@ import de.mossgrabers.pull.core.api.ControllerNoteView;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.DesiredControllerLayout;
 import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
-import de.mossgrabers.pull.core.api.NoteViewSnapshot;
-import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
@@ -65,7 +63,7 @@ public final class NoteViewControllerView implements ControllerView
     @Override
     public ViewOutput render (final ControllerSnapshot snapshot)
     {
-        final ControllerNoteView desired = desiredView (snapshot, this.selection.pendingDestination () == WorkspaceSelection.Destination.NOTE);
+        final ControllerNoteView desired = ResolvedNoteViewer.resolve (snapshot, this.selection.pendingDestination () == WorkspaceSelection.Destination.NOTE).layout ();
         if (!desired.isPresent ())
             return ViewOutput.empty ();
         return new ViewOutput (
@@ -79,34 +77,4 @@ public final class NoteViewControllerView implements ControllerView
     }
 
 
-    static ControllerNoteView desiredView (final ControllerSnapshot snapshot, final boolean noteDestinationPending)
-    {
-        final ControllerNoteView active = ControllerNoteView.fromStableId (snapshot.bridge ().layout ().viewId ());
-        if (!noteDestinationPending && (!active.isPresent () || !"TRACK".equals (snapshot.bridge ().layout ().modeId ())))
-            return ControllerNoteView.NONE;
-
-        final SelectedTrackSnapshot selected = snapshot.bridge ().selectedTrack ();
-        final NoteViewSnapshot preference = snapshot.bridge ().noteView ();
-        if (!selected.exists () || !sameTarget (selected, preference))
-            return ControllerNoteView.NONE;
-
-        final boolean drumReady = preference.drumControllerApplicable ();
-        final ControllerNoteView preferred = preference.preferredView ();
-        if (preferred == ControllerNoteView.DRUM_PAD && selected.canHoldNotes () && drumReady)
-            return preferred;
-        if (preferred == ControllerNoteView.CLIP_LENGTH && selected.canHoldAudio ())
-            return preferred;
-        if (preferred.isPresent () && preferred != ControllerNoteView.DRUM_PAD && preferred != ControllerNoteView.CLIP_LENGTH && selected.canHoldNotes ())
-            return preferred;
-
-        if (selected.canHoldNotes ())
-            return drumReady ? ControllerNoteView.DRUM_PAD : ControllerNoteView.PLAY;
-        return selected.canHoldAudio () ? ControllerNoteView.CLIP_LENGTH : ControllerNoteView.NONE;
-    }
-
-
-    private static boolean sameTarget (final SelectedTrackSnapshot selected, final NoteViewSnapshot preference)
-    {
-        return selected.generation () == preference.targetGeneration () && selected.channelId ().equals (preference.targetChannelId ()) && selected.position () == preference.trackPosition ();
-    }
 }
