@@ -84,6 +84,23 @@ class PushPadGridTest
     }
 
 
+    @Test
+    void cachesRgbResolutionForRepeatedOverlaySamples ()
+    {
+        final IMidiOutput output = proxy (IMidiOutput.class, (ignored, method, arguments) -> null);
+        final TrackingPushColorManager colors = new TrackingPushColorManager ();
+        final PushPadGrid grid = new PushPadGrid (colors, output);
+        final RgbColor purple = new RgbColor (160, 48, 255);
+        grid.setOverlaySupplier (() -> new ControllerPadGridOverlay (true, Map.of (new PadGridPosition (0, 0), purple)));
+
+        grid.getLightInfo (36);
+        grid.getLightInfo (36);
+        grid.sendState (36);
+
+        assertEquals (1, colors.rgbResolutions);
+    }
+
+
     private static <T> T proxy (final Class<T> type, final java.lang.reflect.InvocationHandler handler)
     {
         return type.cast (Proxy.newProxyInstance (type.getClassLoader (), new Class<?> []
@@ -95,5 +112,20 @@ class PushPadGridTest
 
     private record MidiNote (int channel, int note, int velocity)
     {
+    }
+
+
+    private static final class TrackingPushColorManager extends PushColorManager
+    {
+        private int rgbResolutions;
+
+
+        /** {@inheritDoc} */
+        @Override
+        public int getColorIndex (final ColorEx color)
+        {
+            this.rgbResolutions++;
+            return super.getColorIndex (color);
+        }
     }
 }

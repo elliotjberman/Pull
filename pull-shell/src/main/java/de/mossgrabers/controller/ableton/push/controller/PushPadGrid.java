@@ -31,6 +31,8 @@ final class PushPadGrid extends PadGridImpl
     private final int [] pendingFadeTargets = new int [NUM_NOTES];
     private final LightInfo [] frozenPadStates = new LightInfo [NUM_NOTES];
     private final LightInfo [] overlayPadStates = new LightInfo [NUM_NOTES];
+    private final PadColor [] requestedOverlayColors = new PadColor [NUM_NOTES];
+    private final int [] resolvedOverlayColors = new int [NUM_NOTES];
 
     private Supplier<ControllerPadGridOverlay> overlaySupplier = ControllerPadGridOverlay::inactive;
     private boolean overlayActive;
@@ -124,10 +126,22 @@ final class PushPadGrid extends PadGridImpl
         if (color == null)
             return this.frozenPadStates[note];
 
-        final int colorIndex = this.resolveColor (PadColor.rgbOrOff (ColorEx.fromRGB (color.red (), color.green (), color.blue ())));
+        final int colorIndex = this.resolveOverlayColor (note, PadColor.rgbOrOff (ColorEx.fromRGB (color.red (), color.green (), color.blue ())));
         final LightInfo overlayState = this.overlayPadStates[note];
         overlayState.setColors (colorIndex, 0, false);
         return overlayState;
+    }
+
+
+    private int resolveOverlayColor (final int note, final PadColor color)
+    {
+        if (!color.equals (this.requestedOverlayColors[note]))
+        {
+            final int resolvedColor = this.resolveColor (color);
+            this.requestedOverlayColors[note] = color;
+            this.resolvedOverlayColors[note] = resolvedColor;
+        }
+        return this.resolvedOverlayColors[note];
     }
 
 

@@ -4,12 +4,14 @@
 package de.mossgrabers.framework.controller.grid;
 
 import de.mossgrabers.framework.controller.color.ColorEx;
+import de.mossgrabers.framework.controller.color.ColorIndexException;
 import de.mossgrabers.framework.controller.color.ColorManager;
 
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
@@ -61,6 +63,21 @@ class PadGridImplTest
 
         grid.light (36, PadColor.rgb (ColorEx.WHITE));
         assertEquals (2, colors.rgbResolutions);
+    }
+
+
+    @Test
+    void retriesAColorWhoseResolutionPreviouslyFailed ()
+    {
+        final TrackingColorManager colors = new TrackingColorManager ();
+        final PadGridImpl grid = new PadGridImpl (colors, null);
+        final PadColor lateColor = PadColor.registered ("LATE_COLOR");
+
+        assertThrows (ColorIndexException.class, () -> grid.light (36, lateColor));
+        colors.registerColorIndex ("LATE_COLOR", 19);
+        grid.light (36, lateColor);
+
+        assertEquals (19, grid.getLightInfo (36).getColor ());
     }
 
 

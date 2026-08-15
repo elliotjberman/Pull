@@ -187,8 +187,9 @@ public class PadGridImpl implements IPadGrid
     {
         if (!color.equals (requested[note]))
         {
+            final int resolvedColor = this.resolveColor (color);
             requested[note] = color;
-            resolved[note] = this.resolveColor (color);
+            resolved[note] = resolvedColor;
         }
         return resolved[note];
     }
