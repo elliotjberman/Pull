@@ -47,6 +47,11 @@ class ControllerStateHostTest
 
         fixture.events.clear ();
         fixture.host.apply (performance);
+        assertTrue (fixture.events.isEmpty ());
+        assertTrue (fixture.target.routeActive);
+
+        fixture.host.activateCoreGeneration (2);
+        fixture.host.apply (performance);
         assertEquals (List.of ("workspace:", "layout:PLAY"), fixture.events);
         assertTrue (fixture.target.routeActive);
     }
@@ -88,7 +93,7 @@ class ControllerStateHostTest
 
         fixture.events.clear ();
         fixture.host.apply (fixture.performance (ControllerNoteView.DRUM_PAD));
-        assertEquals (List.of ("layout:NEUTRAL"), fixture.events);
+        assertTrue (fixture.events.isEmpty ());
         assertFalse (fixture.target.routeActive);
 
         fixture.events.clear ();

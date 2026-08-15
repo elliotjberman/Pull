@@ -358,7 +358,9 @@ parent-owned raw MIDI state, removes the route, and only then activates the inco
 A selection-identity disagreement neutralizes and removes immediately, then quarantines a new
 submission until the selected target and viewer agree and musical input is idle. Core replay
 reasserts the same complete state without route churn; core invalidation neutralizes and removes
-immediately. Entry and failure cleanup roll back the route if surface activation fails. Bitwig
+immediately. Ordinary identical results do not reassert stable actuators, so Device, Browser,
+Scales, and other stable modal overlays preserve the underlying Note viewer and route. Entry and
+failure cleanup roll back the route if surface activation fails. Bitwig
 exposes no route-attachment read-back, so this is ordered topology submission, not an
 acknowledgement claim. The stable shell advances a layout generation only when its complete visible
 layout state changes; a destination request cannot be retired by the stale layout sampled before

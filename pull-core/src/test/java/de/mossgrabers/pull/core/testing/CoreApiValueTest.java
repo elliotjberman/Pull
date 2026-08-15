@@ -357,6 +357,14 @@ class CoreApiValueTest
             "two grids",
             Set.of (ControllerViewFacet.SESSION_CLIP_GRID_UPPER, ControllerViewFacet.SESSION_GRID_FULL),
             new SessionBankShape (8, 8)));
+        assertThrows (IllegalArgumentException.class, () -> new DesiredControllerWorkspace (
+            "full session with drum",
+            Set.of (ControllerViewFacet.SESSION_GRID_FULL, ControllerViewFacet.DRUM_CONTROLLER_LOWER),
+            new SessionBankShape (8, 8)));
+        assertThrows (IllegalArgumentException.class, () -> new DesiredControllerWorkspace (
+            "full session with duplicate navigation",
+            Set.of (ControllerViewFacet.SESSION_GRID_FULL, ControllerViewFacet.SESSION_NAVIGATION),
+            new SessionBankShape (8, 8)));
         assertThrows (IllegalArgumentException.class, () -> new SessionBankShape (8, 0));
     }
 

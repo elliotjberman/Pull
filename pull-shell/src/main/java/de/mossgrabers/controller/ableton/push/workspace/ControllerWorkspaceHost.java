@@ -106,6 +106,8 @@ public final class ControllerWorkspaceHost
             throw new IllegalArgumentException ("Drum pitch bend requires the lower Drum controller");
         if (candidate.facets ().contains (ControllerViewFacet.SESSION_CLIP_GRID_UPPER) && candidate.facets ().contains (ControllerViewFacet.SESSION_GRID_FULL))
             throw new IllegalArgumentException ("Upper and full Session views cannot be active together");
+        if (candidate.facets ().contains (ControllerViewFacet.SESSION_GRID_FULL) && (candidate.facets ().contains (ControllerViewFacet.DRUM_CONTROLLER_LOWER) || candidate.facets ().contains (ControllerViewFacet.SESSION_NAVIGATION) || candidate.facets ().contains (ControllerViewFacet.SESSION_SCENE_KEYS_UPPER)))
+            throw new IllegalArgumentException ("Full Session cannot overlap a separately composed grid or navigation facet");
         ControllerPageLease.validate (candidate);
         return candidate;
     }

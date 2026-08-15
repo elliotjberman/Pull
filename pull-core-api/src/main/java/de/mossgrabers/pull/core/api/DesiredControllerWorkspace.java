@@ -33,6 +33,8 @@ public record DesiredControllerWorkspace (String name, Set<ControllerViewFacet> 
         final boolean hasFullSessionGrid = facets.contains (ControllerViewFacet.SESSION_GRID_FULL);
         if (hasUpperSessionGrid && hasFullSessionGrid)
             throw new IllegalArgumentException ("upper and full Session grid facets are mutually exclusive");
+        if (hasFullSessionGrid && (facets.contains (ControllerViewFacet.DRUM_CONTROLLER_LOWER) || facets.contains (ControllerViewFacet.SESSION_NAVIGATION) || facets.contains (ControllerViewFacet.SESSION_SCENE_KEYS_UPPER)))
+            throw new IllegalArgumentException ("full Session already owns the complete grid and navigation surface");
         final boolean hasSessionGrid = hasUpperSessionGrid || hasFullSessionGrid;
         if (hasSessionGrid != sessionBankShape.isPresent ())
             throw new IllegalArgumentException ("Session grid facets and Session bank shape must either both be present or both be absent");

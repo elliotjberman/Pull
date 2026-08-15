@@ -43,7 +43,7 @@ record ResolvedNoteViewer (ControllerNoteView layout, DesiredNoteInputRoute note
 
         final boolean alignedDrumTarget = preference.drumControllerApplicable ();
         final ControllerNoteView active = ControllerNoteView.fromStableId (snapshot.bridge ().layout ().viewId ());
-        final boolean noteViewerVisible = noteDestinationPending || active.isPresent () && "TRACK".equals (snapshot.bridge ().layout ().modeId ());
+        final boolean noteViewerVisible = noteDestinationPending || active.isPresent ();
         final ControllerNoteView layout = noteViewerVisible ? resolveLayout (selected, Objects.requireNonNull (preferredView, "preferredView"), alignedDrumTarget) : ControllerNoteView.NONE;
         final DesiredNoteInputRoute noteInputRoute = layout.isPresent () && selected.canHoldNotes () ? DesiredNoteInputRoute.selectedTrack (selected.generation (), selected.channelId ()) : DesiredNoteInputRoute.disabled ();
         return new ResolvedNoteViewer (layout, noteInputRoute, automaticRollAttached (snapshot, preference, layout));

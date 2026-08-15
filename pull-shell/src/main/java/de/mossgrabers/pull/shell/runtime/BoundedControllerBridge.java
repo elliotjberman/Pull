@@ -218,6 +218,7 @@ final class BoundedControllerBridge implements ControllerBridge
         if (this.activeCoreGeneration != 0 && generation != this.activeCoreGeneration)
             this.resetNoteInputMidiState ();
         this.activeCoreGeneration = generation;
+        this.controllerState.activateCoreGeneration (generation);
     }
 
 

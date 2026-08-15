@@ -27,7 +27,9 @@ final class ControllerStateHost
     private DesiredNoteInputRoute submittedRoute = DesiredNoteInputRoute.disabled ();
     private DesiredControllerLayout commandedLayout = DesiredControllerLayout.empty ();
     private BooleanSupplier inputLifecycleIdle = () -> true;
+    private long activeCoreGeneration = Long.MIN_VALUE;
     private boolean quarantinedUntilInputIdle;
+    private boolean replayPending;
 
 
     ControllerStateHost (final ISelectedTrackNoteTarget selectedTarget, final ControllerWorkspaceHost workspaceHost, final Runnable routeNeutralizer)
@@ -50,6 +52,18 @@ final class ControllerStateHost
     }
 
 
+    void activateCoreGeneration (final long generation)
+    {
+        if (generation < 0)
+            throw new IllegalArgumentException ("generation must not be negative");
+        if (generation != this.activeCoreGeneration)
+        {
+            this.activeCoreGeneration = generation;
+            this.replayPending = true;
+        }
+    }
+
+
     DesiredControllerState prepare (final DesiredControllerState state)
     {
         final DesiredControllerState requested = Objects.requireNonNull (state, "state");
@@ -63,7 +77,9 @@ final class ControllerStateHost
     void apply (final DesiredControllerState state)
     {
         this.desired = Objects.requireNonNull (state, "state");
-        this.reconcile (true);
+        final boolean replay = this.replayPending;
+        this.replayPending = false;
+        this.reconcile (replay);
     }
 
 

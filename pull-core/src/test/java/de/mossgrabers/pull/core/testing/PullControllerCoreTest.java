@@ -1199,6 +1199,24 @@ class PullControllerCoreTest
 
 
     @Test
+    void stableModalOverlaysPreserveTheUnderlyingNoteViewer ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        final SelectedTrackSnapshot juno = selectedTrack (8, "juno", 5, true, false);
+        final NoteViewSnapshot preference = new NoteViewSnapshot (8, "juno", 5, ControllerNoteView.PLAY, false);
+
+        long generation = 1;
+        for (final String mode: List.of ("DEVICE", "BROWSER", "SCALES"))
+        {
+            host.bridge (noteBridge (generation++, "PLAY", mode, juno, preference, DrumContextSnapshot.empty (), NoteRepeatSnapshot.empty ()));
+            assertEquals (ControllerNoteView.PLAY, host.effects ().desiredControllerLayout ().noteView ());
+            assertEquals (DesiredNoteInputRoute.selectedTrack (8, "juno"), host.effects ().desiredNotePerformance ().inputRoute ());
+        }
+    }
+
+
+    @Test
     void drumRollOwnsOnlyTheDrumRatePadsAndWaitsForEngineReadback ()
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
@@ -1317,10 +1335,16 @@ class PullControllerCoreTest
 
     private static ControllerBridgeSnapshot noteBridge (final long layoutGeneration, final String view, final SelectedTrackSnapshot selected, final NoteViewSnapshot noteView, final DrumContextSnapshot drum, final NoteRepeatSnapshot noteRepeat)
     {
+        return noteBridge (layoutGeneration, view, "TRACK", selected, noteView, drum, noteRepeat);
+    }
+
+
+    private static ControllerBridgeSnapshot noteBridge (final long layoutGeneration, final String view, final String mode, final SelectedTrackSnapshot selected, final NoteViewSnapshot noteView, final DrumContextSnapshot drum, final NoteRepeatSnapshot noteRepeat)
+    {
         return new ControllerBridgeSnapshot (
             TransportSnapshot.empty (),
             selected,
-            new ControllerLayoutSnapshot (layoutGeneration, view, "TRACK", "DRUM_PAD".equals (view), "DRUM_PAD".equals (view), 36, GridPressureConfiguration.OFF),
+            new ControllerLayoutSnapshot (layoutGeneration, view, mode, "DRUM_PAD".equals (view), "DRUM_PAD".equals (view), 36, GridPressureConfiguration.OFF),
             noteView,
             noteRepeat,
             drum,
