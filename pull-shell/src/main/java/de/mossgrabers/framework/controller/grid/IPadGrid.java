@@ -16,6 +16,28 @@ public interface IPadGrid extends ILightGuide
 
 
     /**
+     * Set the unresolved lighting state of a pad.
+     *
+     * @param x The x position of the pad in the grid
+     * @param y The y position of the pad in the grid
+     * @param color The color to resolve at the controller output boundary
+     */
+    void lightEx (int x, int y, PadColor color);
+
+
+    /**
+     * Set the unresolved lighting state of a pad.
+     *
+     * @param x The x position of the pad in the grid
+     * @param y The y position of the pad in the grid
+     * @param color The color to resolve at the controller output boundary
+     * @param blinkColor The optional blink color, or null to disable blinking
+     * @param fast Blinking is fast if true
+     */
+    void lightEx (int x, int y, PadColor color, PadColor blinkColor, boolean fast);
+
+
+    /**
      * Set the lighting state of a pad.
      *
      * @param x The x position of the pad in the grid

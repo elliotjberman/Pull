@@ -11,6 +11,7 @@ import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.grid.IPadGrid;
+import de.mossgrabers.framework.controller.grid.PadColor;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.constants.Resolution;
 import de.mossgrabers.framework.daw.data.IDrumDevice;
@@ -81,9 +82,6 @@ public final class DrumPadControls
     private final int []                      playingVelocities   = new int [NUM_PLAY_PADS];
     private final boolean []                  ratePadsDown         = new boolean [NUM_RATE_PADS];
     private final long []                     ratePadPressOrder    = new long [NUM_RATE_PADS];
-    private final RgbColor []                 previousFillColors   = new RgbColor [this.fillPadNotes.length];
-    private final int []                      fillColorIndices     = new int [this.fillPadNotes.length];
-
     private boolean                           active;
     private boolean                           controllerEngaged;
     private IDrumDevice                       engagedDrumDevice;
@@ -311,7 +309,7 @@ public final class DrumPadControls
         final IDrumDevice drumDevice = this.model.getDrumDevice ();
         final boolean hasDrumPads = canPlayNotes && drumDevice.hasDrumPads ();
         final IDrumPadBank drumPads = hasDrumPads ? drumDevice.getDrumPadBank () : null;
-        final int restingColor = this.getTrackColorIndex ();
+        final PadColor restingColor = this.getTrackColor ();
 
         for (int y = 0; y < PLAY_ROWS; y++)
         {
@@ -319,7 +317,7 @@ public final class DrumPadControls
             {
                 final int padIndex = y * PLAY_COLUMNS + x;
                 final boolean padExists = drumPads != null && drumPads.getItem (padIndex).doesExist ();
-                final int color = padExists ? this.getPlayPadColor (padIndex, restingColor) : PAD_OFF_COLOR;
+                final PadColor color = padExists ? this.getPlayPadColor (padIndex, restingColor) : PadColor.indexed (PAD_OFF_COLOR);
                 padGrid.lightEx (x, padGrid.getRows () - 1 - y, color);
             }
         }
@@ -338,12 +336,7 @@ public final class DrumPadControls
         {
             final int note = this.fillPadNotes[index];
             final RgbColor color = this.reloadableRuntime.fillLightColor (note);
-            if (!color.equals (this.previousFillColors[index]))
-            {
-                this.previousFillColors[index] = color;
-                this.fillColorIndices[index] = findClosestPaletteColor (color);
-            }
-            padGrid.light (note, this.fillColorIndices[index]);
+            padGrid.light (note, PadColor.rgbOrOff (ColorEx.fromRGB (color.red (), color.green (), color.blue ())));
             if (replayOutput)
             {
                 // Replay only the migrated outputs. Going through the ordinary whole-surface
@@ -589,42 +582,30 @@ public final class DrumPadControls
     }
 
 
-    private int getRestingPadColor (final int padIndex)
+    private PadColor getRestingPadColor (final int padIndex)
     {
         if (!this.controllerEngaged || !this.model.canSelectedTrackHoldNotes ())
-            return PAD_OFF_COLOR;
+            return PadColor.indexed (PAD_OFF_COLOR);
 
         final IDrumDevice drumDevice = this.model.getDrumDevice ();
         if (!drumDevice.hasDrumPads ())
-            return PAD_OFF_COLOR;
+            return PadColor.indexed (PAD_OFF_COLOR);
 
         final IDrumPad drumPad = drumDevice.getDrumPadBank ().getItem (padIndex);
-        return drumPad.doesExist () ? this.getTrackColorIndex () : PAD_OFF_COLOR;
+        return drumPad.doesExist () ? this.getTrackColor () : PadColor.indexed (PAD_OFF_COLOR);
     }
 
 
-    private int getTrackColorIndex ()
+    private PadColor getTrackColor ()
     {
-        final ColorEx trackColor = this.model.getCursorTrack ().getColor ();
-        int closestIndex = PushColorManager.DAW_COLOR_FIRST;
-        double closestDistance = Double.MAX_VALUE;
-        for (int index = PushColorManager.DAW_COLOR_FIRST; index <= PushColorManager.DAW_COLOR_LAST; index++)
-        {
-            final double distance = ColorEx.calcDistance (trackColor, PushColorManager.getPaletteColor (index), true);
-            if (distance < closestDistance)
-            {
-                closestIndex = index;
-                closestDistance = distance;
-            }
-        }
-        return closestIndex;
+        return PadColor.rgb (this.model.getCursorTrack ().getColor ());
     }
 
 
-    private int getPlayPadColor (final int padIndex, final int restingColor)
+    private PadColor getPlayPadColor (final int padIndex, final PadColor restingColor)
     {
         final int velocity = this.playingVelocities[padIndex];
-        return velocity > 0 ? getVelocityColor (velocity) : restingColor;
+        return velocity > 0 ? PadColor.indexed (getVelocityColor (velocity)) : restingColor;
     }
 
 
@@ -659,24 +640,6 @@ public final class DrumPadControls
         this.clearPlaybackFeedback ();
         if (this.active)
             this.surface.flush ();
-    }
-
-
-    private static int findClosestPaletteColor (final RgbColor color)
-    {
-        final ColorEx target = ColorEx.fromRGB (color.red (), color.green (), color.blue ());
-        int closestIndex = 0;
-        double closestDistance = Double.MAX_VALUE;
-        for (int index = 0; index < 128; index++)
-        {
-            final double distance = ColorEx.calcDistance (target, PushColorManager.getPaletteColor (index), true);
-            if (distance < closestDistance)
-            {
-                closestIndex = index;
-                closestDistance = distance;
-            }
-        }
-        return closestIndex;
     }
 
 

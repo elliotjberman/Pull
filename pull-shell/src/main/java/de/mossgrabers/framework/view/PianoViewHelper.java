@@ -4,8 +4,8 @@
 
 package de.mossgrabers.framework.view;
 
-import de.mossgrabers.framework.controller.color.ColorManager;
 import de.mossgrabers.framework.controller.grid.IPadGrid;
+import de.mossgrabers.framework.controller.grid.PadColor;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.featuregroup.AbstractView;
@@ -61,20 +61,19 @@ public class PianoViewHelper
             return;
         }
 
-        final ColorManager colorManager = model.getColorManager ();
         final boolean isRecording = model.hasRecordingState ();
         final ITrack track = model.getCursorTrack ();
-        final int playKeyColor = colorManager.getColorIndex (isRecording ? AbstractPlayView.COLOR_RECORD : AbstractPlayView.COLOR_PLAY);
-        final int whiteKeyColor = colorManager.getColorIndex (Scales.SCALE_COLOR_NOTE);
-        final int blackKeyColor = colorManager.getColorIndex (AbstractView.replaceOctaveColorWithTrackColor (track, Scales.SCALE_COLOR_OCTAVE));
-        final int offKeyColor = colorManager.getColorIndex (Scales.SCALE_COLOR_OFF);
+        final PadColor playKeyColor = PadColor.registered (isRecording ? AbstractPlayView.COLOR_RECORD : AbstractPlayView.COLOR_PLAY);
+        final PadColor whiteKeyColor = PadColor.registered (Scales.SCALE_COLOR_NOTE);
+        final PadColor blackKeyColor = AbstractView.replaceOctaveColorWithTrackColor (track, Scales.SCALE_COLOR_OCTAVE);
+        final PadColor offKeyColor = PadColor.registered (Scales.SCALE_COLOR_OFF);
 
         for (int row = 0; row < rows; row++)
         {
             for (int column = 0; column < columns; column++)
             {
                 final int n = startPad + columns * row + column;
-                final int color;
+                final PadColor color;
                 if (row % 2 == 0)
                 {
                     // White keys
@@ -89,7 +88,7 @@ public class PianoViewHelper
                     else
                         color = keyManager.isKeyPressed (n) ? playKeyColor : blackKeyColor;
                 }
-                gridPad.light (n, color, -1, false);
+                gridPad.light (n, color);
             }
         }
     }

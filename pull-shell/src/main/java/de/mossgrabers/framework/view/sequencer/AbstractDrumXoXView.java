@@ -15,7 +15,7 @@ import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.IControlSurface;
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.grid.IPadGrid;
-import de.mossgrabers.framework.controller.grid.LightInfo;
+import de.mossgrabers.framework.controller.grid.PadLight;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.clip.INoteClip;
 import de.mossgrabers.framework.daw.clip.ISessionAlternative;
@@ -151,8 +151,8 @@ public abstract class AbstractDrumXoXView<S extends IControlSurface<C>, C extend
         for (int x = 0; x < this.slotBank.getPageSize (); x++)
         {
             final ISlot slot = this.slotBank.getItem (x);
-            final LightInfo color = view.getPadColor (slot, isRecArmed);
-            padGrid.lightEx (x % this.numColumns, x / this.numColumns, color.getColor (), color.getBlinkColor (), color.isFast ());
+            final PadLight color = view.getPadColor (slot, isRecArmed);
+            padGrid.lightEx (x % this.numColumns, x / this.numColumns, color.color (), color.blinkColor (), color.fast ());
         }
     }
 

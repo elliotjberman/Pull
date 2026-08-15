@@ -12,6 +12,15 @@ package de.mossgrabers.framework.controller.grid;
 public interface ILightGuide
 {
     /**
+     * Set the unresolved lighting state of an LED.
+     *
+     * @param note The MIDI note of the LED
+     * @param color The color to resolve at the controller output boundary
+     */
+    void light (int note, PadColor color);
+
+
+    /**
      * Set the lighting state of an LED.
      *
      * @param note The MIDI note of the LED

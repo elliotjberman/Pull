@@ -12,7 +12,7 @@ import de.mossgrabers.framework.configuration.Configuration;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.IControlSurface;
 import de.mossgrabers.framework.controller.color.ColorEx;
-import de.mossgrabers.framework.daw.DAWColor;
+import de.mossgrabers.framework.controller.grid.PadColor;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.clip.INoteClip;
 import de.mossgrabers.framework.daw.clip.IStepInfo;
@@ -587,19 +587,17 @@ public abstract class AbstractSequencerView<S extends IControlSurface<C>, C exte
      * @param editNotes The currently edited notes
      * @return The color
      */
-    protected String getStepColor (final IStepInfo stepInfo, final boolean highlight, final int channel, final int step, final int pad, final int note, final List<NotePosition> editNotes)
+    protected PadColor getStepColor (final IStepInfo stepInfo, final boolean highlight, final int channel, final int step, final int pad, final int note, final List<NotePosition> editNotes)
     {
         if (stepInfo == null || stepInfo.getState () == StepState.OFF)
         {
             if (highlight)
-                return COLOR_STEP_HILITE_NO_CONTENT;
+                return PadColor.registered (COLOR_STEP_HILITE_NO_CONTENT);
 
-            final String padColor = this.getPadColor (pad, this.useDawColors ? this.model.getCursorTrack () : null);
+            if (this.configuration.isTurnOffScalePads () && Scales.SCALE_COLOR_NOTE.equals (this.keyManager.getColor (pad)))
+                return PadColor.registered (Scales.SCALE_COLOR_OFF);
 
-            if (this.configuration.isTurnOffScalePads () && Scales.SCALE_COLOR_NOTE.equals (padColor))
-                return Scales.SCALE_COLOR_OFF;
-
-            return padColor;
+            return this.getPadColor (pad, this.useDawColors ? this.model.getCursorTrack () : null);
         }
 
         return this.getStepColor (stepInfo, highlight, Optional.empty (), channel, step, note, editNotes);
@@ -618,33 +616,33 @@ public abstract class AbstractSequencerView<S extends IControlSurface<C>, C exte
      * @param editNotes The currently edited notes
      * @return The color
      */
-    protected String getStepColor (final IStepInfo stepInfo, final boolean highlight, final Optional<ColorEx> rowColor, final int channel, final int step, final int note, final List<NotePosition> editNotes)
+    protected PadColor getStepColor (final IStepInfo stepInfo, final boolean highlight, final Optional<ColorEx> rowColor, final int channel, final int step, final int note, final List<NotePosition> editNotes)
     {
         final StepState state = stepInfo == null ? StepState.OFF : stepInfo.getState ();
         switch (state)
         {
             case START:
                 if (highlight)
-                    return COLOR_STEP_HILITE_CONTENT;
+                    return PadColor.registered (COLOR_STEP_HILITE_CONTENT);
                 if (isEdit (channel, step, note, editNotes))
-                    return COLOR_STEP_SELECTED;
+                    return PadColor.registered (COLOR_STEP_SELECTED);
                 if (stepInfo != null && stepInfo.isMuted ())
-                    return COLOR_STEP_MUTED;
-                return rowColor.isPresent () && this.useDawColors ? DAWColor.getColorID (rowColor.get ()) : COLOR_CONTENT;
+                    return PadColor.registered (COLOR_STEP_MUTED);
+                return rowColor.isPresent () && this.useDawColors ? PadColor.rgb (rowColor.get ()) : PadColor.registered (COLOR_CONTENT);
 
             case CONTINUE:
                 if (highlight)
-                    return COLOR_STEP_HILITE_CONTENT;
+                    return PadColor.registered (COLOR_STEP_HILITE_CONTENT);
                 if (isEdit (channel, step, note, editNotes))
-                    return COLOR_STEP_SELECTED;
+                    return PadColor.registered (COLOR_STEP_SELECTED);
                 if (stepInfo != null && stepInfo.isMuted ())
-                    return COLOR_STEP_MUTED_CONT;
-                return rowColor.isPresent () && this.useDawColors ? DAWColor.getColorID (ColorEx.darker (rowColor.get ())) : COLOR_CONTENT_CONT;
+                    return PadColor.registered (COLOR_STEP_MUTED_CONT);
+                return rowColor.isPresent () && this.useDawColors ? PadColor.rgb (ColorEx.darker (rowColor.get ())) : PadColor.registered (COLOR_CONTENT_CONT);
 
             default:
                 if (highlight)
-                    return COLOR_STEP_HILITE_NO_CONTENT;
-                return step / 4 % 2 == 1 ? COLOR_NO_CONTENT_4 : COLOR_NO_CONTENT;
+                    return PadColor.registered (COLOR_STEP_HILITE_NO_CONTENT);
+                return PadColor.registered (step / 4 % 2 == 1 ? COLOR_NO_CONTENT_4 : COLOR_NO_CONTENT);
         }
     }
 }

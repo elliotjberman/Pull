@@ -11,6 +11,7 @@ import java.util.function.Supplier;
 import de.mossgrabers.framework.controller.color.ColorManager;
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.grid.LightInfo;
+import de.mossgrabers.framework.controller.grid.PadColor;
 import de.mossgrabers.framework.controller.grid.PadGridImpl;
 import de.mossgrabers.framework.daw.midi.IMidiOutput;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
@@ -89,16 +90,14 @@ final class PushPadGrid extends PadGridImpl
      * @param note The physical Push pad note
      * @param targetColor The expected target color
      */
-    void requestFade (final int note, final int targetColor)
+    void requestFade (final int note, final PadColor targetColor)
     {
         if (note < this.startNote || note > this.endNote)
             throw new IllegalArgumentException ("Pad note is outside the Push grid.");
-        if (targetColor < 0 || targetColor > 127)
-            throw new IllegalArgumentException ("Pad color must be in the range 0-127.");
 
         synchronized (this.pendingFadeTargets)
         {
-            this.pendingFadeTargets[note] = targetColor;
+            this.pendingFadeTargets[note] = this.resolveColor (targetColor);
         }
     }
 
@@ -125,7 +124,7 @@ final class PushPadGrid extends PadGridImpl
         if (color == null)
             return this.frozenPadStates[note];
 
-        final int colorIndex = this.colorManager.getColorIndex (ColorEx.fromRGB (color.red (), color.green (), color.blue ()));
+        final int colorIndex = this.resolveColor (PadColor.rgbOrOff (ColorEx.fromRGB (color.red (), color.green (), color.blue ())));
         final LightInfo overlayState = this.overlayPadStates[note];
         overlayState.setColors (colorIndex, 0, false);
         return overlayState;
