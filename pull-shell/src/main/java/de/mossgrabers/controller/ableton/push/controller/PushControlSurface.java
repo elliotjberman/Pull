@@ -19,6 +19,7 @@ import de.mossgrabers.framework.daw.midi.DeviceInquiry;
 import de.mossgrabers.framework.daw.midi.IMidiInput;
 import de.mossgrabers.framework.daw.midi.IMidiOutput;
 import de.mossgrabers.framework.daw.midi.ISelectedTrackNoteTarget;
+import de.mossgrabers.framework.daw.midi.SelectedTrackNoteTargetSnapshot;
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.framework.utils.StringUtils;
 import de.mossgrabers.framework.view.Views;
@@ -528,6 +529,18 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
     public boolean isDrumControllerTargetAligned ()
     {
         return this.isDrumControllerTarget () && this.isDrumModelAligned ();
+    }
+
+
+    /**
+     * Get the absolute position of the authoritative selection-following target.
+     *
+     * @return The selected track position, or -1 while no target is resolved
+     */
+    public int getAuthoritativeSelectedTrackPosition ()
+    {
+        final SelectedTrackNoteTargetSnapshot selectedTrack = this.selectedTrackNoteTarget.snapshot ();
+        return selectedTrack.exists () ? selectedTrack.position () : -1;
     }
 
 

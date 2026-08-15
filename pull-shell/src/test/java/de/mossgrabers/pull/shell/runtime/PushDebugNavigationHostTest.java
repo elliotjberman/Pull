@@ -182,6 +182,41 @@ class PushDebugNavigationHostTest
 
 
     @Test
+    void trackButtonWaitsForAuthoritativeSelectedTrackPosition () throws IOException
+    {
+        final FakeNavigationSurface surface = new FakeNavigationSurface ("SESSION", "TRACK", false);
+        surface.observe ("SESSION", "TRACK", false, 4);
+        final PushDebugNavigationHost host = this.host (surface);
+        this.request ("track-request", "track-6", "ROW1_6/track=5");
+
+        host.tick ();
+        assertEquals (List.of ("ROW1_6:DOWN", "ROW1_6:UP"), surface.events);
+        assertFalse (Files.exists (this.statusPath ()), "button submission is not track selection acknowledgement");
+
+        surface.observe ("SESSION", "TRACK", false, 5);
+        host.tick ();
+        assertFalse (Files.exists (this.statusPath ()), "one selected-track sample is not yet stable");
+        host.tick ();
+
+        assertEquals ("READY", this.status ().get (1));
+    }
+
+
+    @Test
+    void trackButtonRejectsNonTrackMode () throws IOException
+    {
+        final FakeNavigationSurface surface = new FakeNavigationSurface ("SESSION", "DEVICE_PARAMS", false);
+        final PushDebugNavigationHost host = this.host (surface);
+        this.request ("unsafe-track", "track-6", "ROW1_6/track=5");
+
+        host.tick ();
+
+        assertTrue (surface.events.isEmpty ());
+        assertEquals ("FAILED", this.status ().get (1));
+    }
+
+
+    @Test
     void submittedMasterControlRejectsNonMasterContext () throws IOException
     {
         final FakeNavigationSurface surface = new FakeNavigationSurface ("SESSION", "TRACK", false);
@@ -414,6 +449,12 @@ class PushDebugNavigationHostTest
         private void observe (final String viewID, final String modeID, final boolean workspaceActive)
         {
             this.observed = new PushDebugNavigationHost.ObservedNavigation (viewID, modeID, workspaceActive);
+        }
+
+
+        private void observe (final String viewID, final String modeID, final boolean workspaceActive, final int selectedTrackPosition)
+        {
+            this.observed = new PushDebugNavigationHost.ObservedNavigation (viewID, modeID, workspaceActive, selectedTrackPosition);
         }
 
 

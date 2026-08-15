@@ -388,8 +388,14 @@ final class PushDebugNavigationHost implements AutoCloseable
     }
 
 
-    record ObservedNavigation (String viewID, String modeID, boolean workspaceActive)
+    record ObservedNavigation (String viewID, String modeID, boolean workspaceActive, int selectedTrackPosition)
     {
+        ObservedNavigation (final String viewID, final String modeID, final boolean workspaceActive)
+        {
+            this (viewID, modeID, workspaceActive, -1);
+        }
+
+
         ObservedNavigation
         {
             viewID = Objects.requireNonNull (viewID, "viewID");
@@ -405,40 +411,48 @@ final class PushDebugNavigationHost implements AutoCloseable
         MASTERTRACK (ButtonID.MASTERTRACK),
         SESSION (ButtonID.SESSION),
         PLAY (ButtonID.PLAY),
-        ROW2_5 (ButtonID.ROW2_5, true),
-        ROW2_7 (ButtonID.ROW2_7, true),
-        ROW2_8 (ButtonID.ROW2_8, true),
+        ROW1_1 (ButtonID.ROW1_1, NavigationContext.TRACK),
+        ROW1_2 (ButtonID.ROW1_2, NavigationContext.TRACK),
+        ROW1_3 (ButtonID.ROW1_3, NavigationContext.TRACK),
+        ROW1_4 (ButtonID.ROW1_4, NavigationContext.TRACK),
+        ROW1_5 (ButtonID.ROW1_5, NavigationContext.TRACK),
+        ROW1_6 (ButtonID.ROW1_6, NavigationContext.TRACK),
+        ROW1_7 (ButtonID.ROW1_7, NavigationContext.TRACK),
+        ROW1_8 (ButtonID.ROW1_8, NavigationContext.TRACK),
+        ROW2_5 (ButtonID.ROW2_5, NavigationContext.MASTER),
+        ROW2_7 (ButtonID.ROW2_7, NavigationContext.MASTER),
+        ROW2_8 (ButtonID.ROW2_8, NavigationContext.MASTER),
         SHIFT_SESSION (ButtonID.SHIFT, ButtonID.SESSION);
 
-        private final ButtonID      modifier;
-        private final ButtonID      button;
-        private final boolean       masterOnly;
-        private final Set<ButtonID> controls;
+        private final ButtonID          modifier;
+        private final ButtonID          button;
+        private final NavigationContext context;
+        private final Set<ButtonID>     controls;
 
 
         NavigationGesture (final ButtonID button)
         {
-            this (null, button, false);
+            this (null, button, NavigationContext.ANY);
         }
 
 
-        NavigationGesture (final ButtonID button, final boolean masterOnly)
+        NavigationGesture (final ButtonID button, final NavigationContext context)
         {
-            this (null, button, masterOnly);
+            this (null, button, context);
         }
 
 
         NavigationGesture (final ButtonID modifier, final ButtonID button)
         {
-            this (modifier, button, false);
+            this (modifier, button, NavigationContext.ANY);
         }
 
 
-        NavigationGesture (final ButtonID modifier, final ButtonID button, final boolean masterOnly)
+        NavigationGesture (final ButtonID modifier, final ButtonID button, final NavigationContext context)
         {
             this.modifier = modifier;
             this.button = button;
-            this.masterOnly = masterOnly;
+            this.context = Objects.requireNonNull (context, "context");
             final Set<ButtonID> owned = new HashSet<> (Set.of (ButtonID.SHIFT, button));
             if (modifier != null)
                 owned.add (modifier);
@@ -468,14 +482,14 @@ final class PushDebugNavigationHost implements AutoCloseable
 
         boolean contextAvailable (final ObservedNavigation observed)
         {
-            return !this.masterOnly || observed.workspaceActive () && Set.of ("MASTER", "MASTER_TEMP").contains (observed.modeID ());
+            return this.context.isAvailable (observed);
         }
 
 
         void triggerChecked (final NavigationSurface surface)
         {
             if (!this.contextAvailable (surface.observe ()))
-                throw new IllegalStateException ("Push debug Master gesture lost its authoritative context");
+                throw new IllegalStateException ("Push debug gesture lost its authoritative context");
             if (this.modifier == null)
             {
                 surface.click (this.button);
@@ -494,16 +508,36 @@ final class PushDebugNavigationHost implements AutoCloseable
     }
 
 
+    private enum NavigationContext
+    {
+        ANY,
+        TRACK,
+        MASTER;
+
+
+        boolean isAvailable (final ObservedNavigation observed)
+        {
+            return switch (this)
+            {
+                case ANY -> true;
+                case TRACK -> !observed.workspaceActive () && "TRACK".equals (observed.modeID ());
+                case MASTER -> observed.workspaceActive () && Set.of ("MASTER", "MASTER_TEMP").contains (observed.modeID ());
+            };
+        }
+    }
+
+
     private record NavigationPredicate (
         Set<String> allowedViews,
         Set<String> deniedViews,
         Set<String> allowedModes,
         Set<String> deniedModes,
         Boolean workspaceActive,
+        Integer selectedTrackPosition,
         boolean submissionOnly)
     {
-        private static final NavigationPredicate ANY = new NavigationPredicate (Set.of (), Set.of (), Set.of (), Set.of (), null, false);
-        private static final NavigationPredicate SUBMITTED = new NavigationPredicate (Set.of (), Set.of (), Set.of (), Set.of (), null, true);
+        private static final NavigationPredicate ANY = new NavigationPredicate (Set.of (), Set.of (), Set.of (), Set.of (), null, null, false);
+        private static final NavigationPredicate SUBMITTED = new NavigationPredicate (Set.of (), Set.of (), Set.of (), Set.of (), null, null, true);
 
 
         static NavigationPredicate parse (final String value)
@@ -518,6 +552,7 @@ final class PushDebugNavigationHost implements AutoCloseable
             Set<String> allowedModes = Set.of ();
             Set<String> deniedModes = Set.of ();
             Boolean workspace = null;
+            Integer trackPosition = null;
             for (final String term: value.split (","))
             {
                 final boolean denied = term.contains ("!=");
@@ -543,10 +578,24 @@ final class PushDebugNavigationHost implements AutoCloseable
                             throw new IllegalArgumentException ("invalid workspace predicate '" + sanitize (term) + "'");
                         workspace = Boolean.valueOf (parts[1]);
                     }
+                    case "track" -> {
+                        if (denied || trackPosition != null)
+                            throw new IllegalArgumentException ("invalid track predicate '" + sanitize (term) + "'");
+                        try
+                        {
+                            trackPosition = Integer.valueOf (parts[1]);
+                        }
+                        catch (final NumberFormatException ex)
+                        {
+                            throw new IllegalArgumentException ("invalid track predicate '" + sanitize (term) + "'");
+                        }
+                        if (trackPosition.intValue () < 0)
+                            throw new IllegalArgumentException ("invalid track predicate '" + sanitize (term) + "'");
+                    }
                     default -> throw new IllegalArgumentException ("unsupported navigation predicate field '" + sanitize (parts[0]) + "'");
                 }
             }
-            return new NavigationPredicate (allowedViews, deniedViews, allowedModes, deniedModes, workspace, false);
+            return new NavigationPredicate (allowedViews, deniedViews, allowedModes, deniedModes, workspace, trackPosition, false);
         }
 
 
@@ -558,7 +607,8 @@ final class PushDebugNavigationHost implements AutoCloseable
                 !this.deniedViews.contains (observed.viewID ()) &&
                 (this.allowedModes.isEmpty () || this.allowedModes.contains (observed.modeID ())) &&
                 !this.deniedModes.contains (observed.modeID ()) &&
-                (this.workspaceActive == null || this.workspaceActive.booleanValue () == observed.workspaceActive ());
+                (this.workspaceActive == null || this.workspaceActive.booleanValue () == observed.workspaceActive ()) &&
+                (this.selectedTrackPosition == null || this.selectedTrackPosition.intValue () == observed.selectedTrackPosition ());
         }
 
 
@@ -685,7 +735,8 @@ final class PushDebugNavigationHost implements AutoCloseable
             return new ObservedNavigation (
                 view == null ? "" : view.toString (),
                 mode == null ? "" : mode.toString (),
-                this.surface.getControllerWorkspaceHost ().isActive ());
+                this.surface.getControllerWorkspaceHost ().isActive (),
+                this.surface.getAuthoritativeSelectedTrackPosition ());
         }
 
 

@@ -110,6 +110,19 @@ tools/push-debug-request session \
     'SESSION/view=SESSION,mode!=WORKSPACE|MASTER|MASTER_TEMP,workspace=false'
 ```
 
+The eight upper display buttons are admitted while ordinary Track mode owns them. A `track=N`
+postcondition waits for the private selection-following target to acknowledge the absolute track
+position before the next gesture runs. For example, this reproduces a Juno-to-Drum-Machine viewer
+transition without leaving Note mode:
+
+```bash
+tools/push-debug-request juno-to-drums \
+    'TRACK/mode=TRACK,workspace=false' \
+    'ROW1_6/track=5' \
+    'NOTE/view=PLAY,track=5' \
+    'ROW1_1/view=DRUM_PAD,track=0'
+```
+
 For an explicitly state-changing playback test, use the permanent routed Play binding and verify
 its result from later authoritative framebuffer and host observations:
 
