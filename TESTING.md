@@ -71,9 +71,9 @@ sampling, so even a heavily throttled debug stream cannot return a cached pre-na
 time out waiting for the sampling interval.
 
 The stable shell accepts only a bounded generic plan of explicitly admitted gestures and
-authoritative view predicates. Play and the two Master project-navigation buttons may also use a
-`submitted` postcondition for live regression tests; this presses the real routed hardware command
-exactly once and reports completion only after its input lifecycle is idle. Recording, deletion,
+authoritative controller-state predicates. Play and the two Master project-navigation buttons may
+also use a `submitted` postcondition for live regression tests; this presses the real routed
+hardware command exactly once and reports completion only after its input lifecycle is idle. Recording, deletion,
 and project-file actions remain unavailable. Named recipes live in the command-line client, so
 they can change without rebuilding the extension. Filesystem polling and PNG encoding run on owned
 workers rather than the controller thread.
@@ -112,15 +112,17 @@ tools/push-debug-request session \
 
 The eight upper display buttons are admitted while ordinary Track mode owns them. A `track=N`
 postcondition waits for the private selection-following target to acknowledge the absolute track
-position before the next gesture runs. For example, this reproduces a Juno-to-Drum-Machine viewer
-transition without leaving Note mode:
+position before the next gesture runs. A `repeat=true|false` postcondition waits for authoritative
+read-back from the permanent Push NoteInput repeat engine. For example, this reproduces a
+Juno-to-Drum-Machine viewer transition without leaving Note mode and proves automatic roll is
+scoped to Drum Controller:
 
 ```bash
 tools/push-debug-request juno-to-drums \
-    'TRACK/mode=TRACK,workspace=false' \
-    'ROW1_6/track=5' \
-    'NOTE/view=PLAY,track=5' \
-    'ROW1_1/view=DRUM_PAD,track=0'
+    'TRACK/mode=TRACK,workspace=false,repeat=false' \
+    'ROW1_6/track=5,repeat=false' \
+    'NOTE/view=PLAY,track=5,repeat=false' \
+    'ROW1_1/view=DRUM_PAD,track=0,repeat=true'
 ```
 
 For an explicitly state-changing playback test, use the permanent routed Play binding and verify

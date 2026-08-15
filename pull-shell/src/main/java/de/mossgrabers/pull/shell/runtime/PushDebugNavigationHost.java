@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * Local, bounded debugger navigation for closed-loop Push display development.
  *
  * <p>The client supplies a short plan made only from explicitly admitted controller gestures and
- * authoritative view predicates. A {@code submitted} postcondition is available for a bounded
+ * authoritative controller-state predicates. A {@code submitted} postcondition is available for a bounded
  * one-shot gesture whose result is verified separately through framebuffer or host readback. The
  * stable shell validates and executes that generic plan without owning named workflow policy.</p>
  */
@@ -265,6 +265,7 @@ final class PushDebugNavigationHost implements AutoCloseable
             observed.viewID (),
             observed.modeID (),
             Boolean.toString (observed.workspaceActive ()),
+            Boolean.toString (observed.noteRepeatActive ()),
             sanitize (status.message ())) + "\n";
         final Path temporaryStatus = this.statusPath.resolveSibling (this.statusPath.getFileName () + ".tmp");
         Files.writeString (temporaryStatus, content);
@@ -388,14 +389,8 @@ final class PushDebugNavigationHost implements AutoCloseable
     }
 
 
-    record ObservedNavigation (String viewID, String modeID, boolean workspaceActive, int selectedTrackPosition)
+    record ObservedNavigation (String viewID, String modeID, boolean workspaceActive, int selectedTrackPosition, boolean noteRepeatActive)
     {
-        ObservedNavigation (final String viewID, final String modeID, final boolean workspaceActive)
-        {
-            this (viewID, modeID, workspaceActive, -1);
-        }
-
-
         ObservedNavigation
         {
             viewID = Objects.requireNonNull (viewID, "viewID");
@@ -534,10 +529,11 @@ final class PushDebugNavigationHost implements AutoCloseable
         Set<String> deniedModes,
         Boolean workspaceActive,
         Integer selectedTrackPosition,
+        Boolean noteRepeatActive,
         boolean submissionOnly)
     {
-        private static final NavigationPredicate ANY = new NavigationPredicate (Set.of (), Set.of (), Set.of (), Set.of (), null, null, false);
-        private static final NavigationPredicate SUBMITTED = new NavigationPredicate (Set.of (), Set.of (), Set.of (), Set.of (), null, null, true);
+        private static final NavigationPredicate ANY = new NavigationPredicate (Set.of (), Set.of (), Set.of (), Set.of (), null, null, null, false);
+        private static final NavigationPredicate SUBMITTED = new NavigationPredicate (Set.of (), Set.of (), Set.of (), Set.of (), null, null, null, true);
 
 
         static NavigationPredicate parse (final String value)
@@ -553,6 +549,7 @@ final class PushDebugNavigationHost implements AutoCloseable
             Set<String> deniedModes = Set.of ();
             Boolean workspace = null;
             Integer trackPosition = null;
+            Boolean repeat = null;
             for (final String term: value.split (","))
             {
                 final boolean denied = term.contains ("!=");
@@ -592,10 +589,15 @@ final class PushDebugNavigationHost implements AutoCloseable
                         if (trackPosition.intValue () < 0)
                             throw new IllegalArgumentException ("invalid track predicate '" + sanitize (term) + "'");
                     }
+                    case "repeat" -> {
+                        if (denied || repeat != null || !Set.of ("true", "false").contains (parts[1]))
+                            throw new IllegalArgumentException ("invalid repeat predicate '" + sanitize (term) + "'");
+                        repeat = Boolean.valueOf (parts[1]);
+                    }
                     default -> throw new IllegalArgumentException ("unsupported navigation predicate field '" + sanitize (parts[0]) + "'");
                 }
             }
-            return new NavigationPredicate (allowedViews, deniedViews, allowedModes, deniedModes, workspace, trackPosition, false);
+            return new NavigationPredicate (allowedViews, deniedViews, allowedModes, deniedModes, workspace, trackPosition, repeat, false);
         }
 
 
@@ -608,7 +610,8 @@ final class PushDebugNavigationHost implements AutoCloseable
                 (this.allowedModes.isEmpty () || this.allowedModes.contains (observed.modeID ())) &&
                 !this.deniedModes.contains (observed.modeID ()) &&
                 (this.workspaceActive == null || this.workspaceActive.booleanValue () == observed.workspaceActive ()) &&
-                (this.selectedTrackPosition == null || this.selectedTrackPosition.intValue () == observed.selectedTrackPosition ());
+                (this.selectedTrackPosition == null || this.selectedTrackPosition.intValue () == observed.selectedTrackPosition ()) &&
+                (this.noteRepeatActive == null || this.noteRepeatActive.booleanValue () == observed.noteRepeatActive ());
         }
 
 
@@ -736,7 +739,8 @@ final class PushDebugNavigationHost implements AutoCloseable
                 view == null ? "" : view.toString (),
                 mode == null ? "" : mode.toString (),
                 this.surface.getControllerWorkspaceHost ().isActive (),
-                this.surface.getAuthoritativeSelectedTrackPosition ());
+                this.surface.getAuthoritativeSelectedTrackPosition (),
+                this.surface.getMidiInput ().getDefaultNoteInput ().getNoteRepeat ().isActive ());
         }
 
 
