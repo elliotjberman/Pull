@@ -8,6 +8,7 @@ import de.mossgrabers.framework.configuration.Configuration;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.IControlSurface;
 import de.mossgrabers.framework.controller.grid.IPadGrid;
+import de.mossgrabers.framework.controller.grid.PadColor;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.clip.INoteClip;
 import de.mossgrabers.framework.daw.clip.NotePosition;
@@ -167,20 +168,17 @@ public abstract class AbstractRaindropsView<S extends IControlSurface<C>, C exte
 
             for (int y = 0; y < this.numDisplayRows; y++)
             {
-                String colorID = y == 0 ? this.getPadColor (x, cursorTrack) : AbstractSequencerView.COLOR_NO_CONTENT;
+                PadColor color = y == 0 ? this.getPadColor (x, cursorTrack) : PadColor.registered (AbstractSequencerView.COLOR_NO_CONTENT);
                 if (isOn)
                 {
                     if (y == distance)
-                        colorID = AbstractSequencerView.COLOR_CONTENT;
+                        color = PadColor.registered (AbstractSequencerView.COLOR_CONTENT);
                     if (left <= distance && y == left || left > distance && y == sum - left)
-                        colorID = AbstractSequencerView.COLOR_STEP_HILITE_NO_CONTENT;
+                        color = PadColor.registered (AbstractSequencerView.COLOR_STEP_HILITE_NO_CONTENT);
                 }
-                else
-                {
-                    if (this.configuration.isTurnOffScalePads () && Scales.SCALE_COLOR_NOTE.equals (colorID))
-                        colorID = Scales.SCALE_COLOR_OFF;
-                }
-                padGrid.lightEx (x, this.numDisplayRows - 1 - y, colorID);
+                else if (this.configuration.isTurnOffScalePads () && y == 0 && Scales.SCALE_COLOR_NOTE.equals (this.keyManager.getColor (x)))
+                    color = PadColor.registered (Scales.SCALE_COLOR_OFF);
+                padGrid.lightEx (x, this.numDisplayRows - 1 - y, color);
             }
         }
     }

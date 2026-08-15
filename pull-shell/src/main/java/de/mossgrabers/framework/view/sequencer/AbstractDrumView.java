@@ -13,9 +13,9 @@ import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.IControlSurface;
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.grid.IPadGrid;
+import de.mossgrabers.framework.controller.grid.PadColor;
 import de.mossgrabers.framework.controller.hardware.ButtonEventHandler;
 import de.mossgrabers.framework.controller.hardware.IHwButton;
-import de.mossgrabers.framework.daw.DAWColor;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.clip.INoteClip;
 import de.mossgrabers.framework.daw.clip.IStepInfo;
@@ -490,33 +490,33 @@ public abstract class AbstractDrumView<S extends IControlSurface<C>, C extends C
     }
 
 
-    protected String getDrumPadColor (final int index, final IDrumPadBank drumPadBank, final boolean isRecording)
+    protected PadColor getDrumPadColor (final int index, final IDrumPadBank drumPadBank, final boolean isRecording)
     {
         final int offsetY = this.scales.getDrumOffset ();
 
         // Playing note?
         if (this.keyManager.isKeyPressed (offsetY + index))
-            return isRecording ? AbstractDrumView.COLOR_PAD_RECORD : AbstractDrumView.COLOR_PAD_PLAY;
+            return PadColor.registered (isRecording ? AbstractDrumView.COLOR_PAD_RECORD : AbstractDrumView.COLOR_PAD_PLAY);
 
         // Selected?
         if (this.selectedPad == index)
-            return AbstractDrumView.COLOR_PAD_SELECTED;
+            return PadColor.registered (AbstractDrumView.COLOR_PAD_SELECTED);
 
         // Exists and active?
         final IChannel drumPad = drumPadBank.getItem (index);
         if (!drumPad.doesExist () || !drumPad.isActivated ())
-            return this.surface.getConfiguration ().isTurnOffEmptyDrumPads () ? AbstractDrumView.COLOR_PAD_OFF : AbstractDrumView.COLOR_PAD_NO_CONTENT;
+            return PadColor.registered (this.surface.getConfiguration ().isTurnOffEmptyDrumPads () ? AbstractDrumView.COLOR_PAD_OFF : AbstractDrumView.COLOR_PAD_NO_CONTENT);
 
         // Muted or soloed?
         if (drumPad.isMute () || drumPadBank.hasSoloedPads () && !drumPad.isSolo ())
-            return AbstractDrumView.COLOR_PAD_MUTED;
+            return PadColor.registered (AbstractDrumView.COLOR_PAD_MUTED);
         return this.getPadContentColor (drumPad);
     }
 
 
-    protected String getPadContentColor (final IChannel drumPad)
+    protected PadColor getPadContentColor (final IChannel drumPad)
     {
-        return this.useDawColors ? DAWColor.getColorID (drumPad.getColor ()) : AbstractDrumView.COLOR_PAD_HAS_CONTENT;
+        return this.useDawColors ? PadColor.rgb (drumPad.getColor ()) : PadColor.registered (AbstractDrumView.COLOR_PAD_HAS_CONTENT);
     }
 
 
@@ -834,7 +834,7 @@ public abstract class AbstractDrumView<S extends IControlSurface<C>, C extends C
             int y = col / this.numColumns;
             if (yModifier != null)
                 y = yModifier.applyAsInt (y);
-            padGrid.lightEx (x, y, isActive ? this.getStepColor (stepInfo, hilite, rowColor, notePosition.getChannel (), col, noteRow, editNotes) : AbstractSequencerView.COLOR_NO_CONTENT);
+            padGrid.lightEx (x, y, isActive ? this.getStepColor (stepInfo, hilite, rowColor, notePosition.getChannel (), col, noteRow, editNotes) : PadColor.registered (AbstractSequencerView.COLOR_NO_CONTENT));
         }
     }
 

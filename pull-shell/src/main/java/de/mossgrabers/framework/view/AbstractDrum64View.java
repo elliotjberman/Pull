@@ -10,7 +10,7 @@ import de.mossgrabers.framework.configuration.Configuration;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.IControlSurface;
 import de.mossgrabers.framework.controller.grid.IPadGrid;
-import de.mossgrabers.framework.daw.DAWColor;
+import de.mossgrabers.framework.controller.grid.PadColor;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.IChannel;
 import de.mossgrabers.framework.daw.data.ITrack;
@@ -182,31 +182,31 @@ public abstract class AbstractDrum64View<S extends IControlSurface<C>, C extends
     }
 
 
-    private String getDrumPadColor (final int index, final IDrumPadBank drumPadBank, final boolean isRecording)
+    private PadColor getDrumPadColor (final int index, final IDrumPadBank drumPadBank, final boolean isRecording)
     {
         // Playing note?
         if (this.pressedKeys[this.offsetY + index] > 0)
-            return isRecording ? AbstractDrumView.COLOR_PAD_RECORD : AbstractDrumView.COLOR_PAD_PLAY;
+            return PadColor.registered (isRecording ? AbstractDrumView.COLOR_PAD_RECORD : AbstractDrumView.COLOR_PAD_PLAY);
         // Selected?
         if (this.selectedPad == index)
-            return AbstractDrumView.COLOR_PAD_SELECTED;
+            return PadColor.registered (AbstractDrumView.COLOR_PAD_SELECTED);
 
         // Exists and active?
         final IChannel drumPad = drumPadBank.getItem (index);
         if (!drumPad.doesExist () || !drumPad.isActivated ())
-            return this.surface.getConfiguration ().isTurnOffEmptyDrumPads () ? AbstractDrumView.COLOR_PAD_OFF : AbstractDrumView.COLOR_PAD_NO_CONTENT;
+            return PadColor.registered (this.surface.getConfiguration ().isTurnOffEmptyDrumPads () ? AbstractDrumView.COLOR_PAD_OFF : AbstractDrumView.COLOR_PAD_NO_CONTENT);
 
         // Muted or soloed?
         if (drumPad.isMute () || drumPadBank.hasSoloedPads () && !drumPad.isSolo ())
-            return AbstractDrumView.COLOR_PAD_MUTED;
+            return PadColor.registered (AbstractDrumView.COLOR_PAD_MUTED);
 
         return this.getPadContentColor (drumPad);
     }
 
 
-    protected String getPadContentColor (final IChannel drumPad)
+    protected PadColor getPadContentColor (final IChannel drumPad)
     {
-        return DAWColor.getColorID (drumPad.getColor ());
+        return PadColor.rgb (drumPad.getColor ());
     }
 
 

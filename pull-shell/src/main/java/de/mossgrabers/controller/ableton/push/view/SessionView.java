@@ -9,7 +9,8 @@ import de.mossgrabers.controller.ableton.push.command.trigger.SelectSessionViewC
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.controller.ButtonID;
-import de.mossgrabers.framework.controller.grid.LightInfo;
+import de.mossgrabers.framework.controller.grid.PadColor;
+import de.mossgrabers.framework.controller.grid.PadLight;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.IScene;
 import de.mossgrabers.framework.daw.data.ISlot;
@@ -69,18 +70,18 @@ public class SessionView extends AbstractSessionView<PushControlSurface, PushCon
         final int green = PushColorManager.PUSH2_COLOR2_GREEN;
         final int amber = PushColorManager.PUSH2_COLOR2_AMBER;
         final int grey = PushColorManager.PUSH2_COLOR2_GREY_LO;
-        final LightInfo isRecording = new LightInfo (rose, rose, false);
-        final LightInfo isRecordingQueued = new LightInfo (rose, black, true);
-        final LightInfo isPlaying = new LightInfo (green, green, false);
-        final LightInfo isPlayingQueued = new LightInfo (green, green, true);
-        final LightInfo isStopQueued = new LightInfo (green, green, true);
-        final LightInfo hasContent = new LightInfo (amber, white, false);
-        final LightInfo noContent = new LightInfo (black, -1, false);
-        final LightInfo recArmed = new LightInfo (recordArmedDim, -1, false);
-        final LightInfo isMuted = new LightInfo (grey, -1, false);
+        final PadLight isRecording = new PadLight (PadColor.indexed (rose), PadColor.indexed (rose), false);
+        final PadLight isRecordingQueued = new PadLight (PadColor.indexed (rose), PadColor.indexed (black), true);
+        final PadLight isPlaying = new PadLight (PadColor.indexed (green), PadColor.indexed (green), false);
+        final PadLight isPlayingQueued = new PadLight (PadColor.indexed (green), PadColor.indexed (green), true);
+        final PadLight isStopQueued = new PadLight (PadColor.indexed (green), PadColor.indexed (green), true);
+        final PadLight hasContent = new PadLight (PadColor.indexed (amber), PadColor.indexed (white), false);
+        final PadLight noContent = new PadLight (PadColor.indexed (black));
+        final PadLight recArmed = new PadLight (PadColor.indexed (recordArmedDim));
+        final PadLight isMuted = new PadLight (PadColor.indexed (grey));
         this.setColors (isRecording, isRecordingQueued, isPlaying, isPlayingQueued, isStopQueued, hasContent, noContent, recArmed, isMuted);
 
-        this.birdColorHasContent = new LightInfo (amber, -1, false);
+        this.birdColorHasContent = new PadLight (PadColor.indexed (amber));
         this.birdColorSelected = isPlaying;
     }
 

@@ -9,8 +9,8 @@ import de.mossgrabers.framework.configuration.AbstractConfiguration;
 import de.mossgrabers.framework.configuration.Configuration;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.IControlSurface;
+import de.mossgrabers.framework.controller.grid.PadColor;
 import de.mossgrabers.framework.controller.hardware.IHwButton;
-import de.mossgrabers.framework.daw.DAWColor;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.IScene;
 import de.mossgrabers.framework.daw.data.ITrack;
@@ -179,9 +179,9 @@ public abstract class AbstractView<S extends IControlSurface<C>, C extends Confi
      * @param pad The MIDI note of the pad
      * @param track A track to use the track color for coloring the octave notes, set to null to use
      *            the default color
-     * @return The color ID
+     * @return The unresolved pad color
      */
-    protected String getPadColor (final int pad, final ITrack track)
+    protected PadColor getPadColor (final int pad, final ITrack track)
     {
         return replaceOctaveColorWithTrackColor (track, this.keyManager.getColor (pad));
     }
@@ -193,18 +193,11 @@ public abstract class AbstractView<S extends IControlSurface<C>, C extends Confi
      * @param track A track to use the track color for coloring the octave notes, set to null to use
      *            the default color
      * @param colorID
-     * @return The color ID
+     * @return The unresolved pad color
      */
-    public static String replaceOctaveColorWithTrackColor (final ITrack track, final String colorID)
+    public static PadColor replaceOctaveColorWithTrackColor (final ITrack track, final String colorID)
     {
-        if (Scales.SCALE_COLOR_OCTAVE.equals (colorID))
-        {
-            if (track == null)
-                return Scales.SCALE_COLOR_OCTAVE;
-            final String c = DAWColor.getColorID (track.getColor ());
-            return c == null ? Scales.SCALE_COLOR_OCTAVE : c;
-        }
-        return colorID;
+        return track != null && Scales.SCALE_COLOR_OCTAVE.equals (colorID) ? PadColor.rgb (track.getColor ()) : PadColor.registered (colorID);
     }
 
 

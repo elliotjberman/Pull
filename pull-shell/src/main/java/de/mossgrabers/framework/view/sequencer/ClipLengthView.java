@@ -8,7 +8,7 @@ import de.mossgrabers.framework.configuration.Configuration;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.IControlSurface;
 import de.mossgrabers.framework.controller.grid.IPadGrid;
-import de.mossgrabers.framework.daw.DAWColor;
+import de.mossgrabers.framework.controller.grid.PadColor;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.ITransport;
 import de.mossgrabers.framework.daw.clip.IClip;
@@ -129,12 +129,13 @@ public class ClipLengthView<S extends IControlSurface<C>, C extends Configuratio
         final int loopStartPad = (int) Math.floor (Math.max (0, start) / quartersPerPad);
         final int loopEndPad = (int) Math.ceil (Math.min (maxQuarters, start + clip.getLoopLength ()) / quartersPerPad);
 
-        final String clipColor = this.useDawColors ? DAWColor.getColorID (clip.getColor ()) : COLOR_PART;
+        final PadColor clipColor = this.useDawColors ? PadColor.rgb (clip.getColor ()) : PadColor.registered (COLOR_PART);
+        final PadColor outsideColor = PadColor.registered (COLOR_OUTSIDE);
         final IPadGrid padGrid = this.surface.getPadGrid ();
         final int cols = padGrid.getCols ();
 
         for (int pad = 0; pad < 64; pad++)
-            padGrid.lightEx (pad % cols, pad / cols, pad >= loopStartPad && pad < loopEndPad ? clipColor : COLOR_OUTSIDE);
+            padGrid.lightEx (pad % cols, pad / cols, pad >= loopStartPad && pad < loopEndPad ? clipColor : outsideColor);
     }
 
 

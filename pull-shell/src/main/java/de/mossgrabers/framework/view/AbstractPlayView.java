@@ -9,6 +9,7 @@ import java.util.Arrays;
 import de.mossgrabers.framework.configuration.Configuration;
 import de.mossgrabers.framework.controller.IControlSurface;
 import de.mossgrabers.framework.controller.grid.ILightGuide;
+import de.mossgrabers.framework.controller.grid.PadColor;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
@@ -146,19 +147,19 @@ public abstract class AbstractPlayView<S extends IControlSurface<C>, C extends C
      * @param note The note of the pad
      * @return The ID of the color
      */
-    protected String getGridColor (final boolean isKeyboardEnabled, final boolean isRecording, final ITrack track, final int note)
+    protected PadColor getGridColor (final boolean isKeyboardEnabled, final boolean isRecording, final ITrack track, final int note)
     {
         if (isKeyboardEnabled)
         {
             if (this.keyManager.isKeyPressed (note))
-                return isRecording ? AbstractPlayView.COLOR_RECORD : AbstractPlayView.COLOR_PLAY;
+                return PadColor.registered (isRecording ? AbstractPlayView.COLOR_RECORD : AbstractPlayView.COLOR_PLAY);
 
             if (this.surface.getConfiguration ().isTurnOffScalePads () && Scales.SCALE_COLOR_NOTE.equals (this.keyManager.getColor (note)))
-                return Scales.SCALE_COLOR_OFF;
+                return PadColor.registered (Scales.SCALE_COLOR_OFF);
 
             return this.getPadColor (note, this.useTrackColor ? track : null);
         }
-        return AbstractPlayView.COLOR_OFF;
+        return PadColor.registered (AbstractPlayView.COLOR_OFF);
     }
 
 

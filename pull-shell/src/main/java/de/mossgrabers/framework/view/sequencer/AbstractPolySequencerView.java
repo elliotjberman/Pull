@@ -13,6 +13,7 @@ import de.mossgrabers.framework.configuration.Configuration;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.IControlSurface;
 import de.mossgrabers.framework.controller.grid.IPadGrid;
+import de.mossgrabers.framework.controller.grid.PadColor;
 import de.mossgrabers.framework.controller.hardware.IHwButton;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.clip.DefaultStepInfo;
@@ -586,21 +587,19 @@ public abstract class AbstractPolySequencerView<S extends IControlSurface<C>, C 
      * @param note The note of the pad
      * @return The ID of the color
      */
-    protected String getGridColor (final boolean isKeyboardEnabled, final boolean isRecording, final ITrack track, final int note)
+    protected PadColor getGridColor (final boolean isKeyboardEnabled, final boolean isRecording, final ITrack track, final int note)
     {
         if (isKeyboardEnabled)
         {
             if (this.keyManager.isKeyPressed (note))
-                return isRecording ? AbstractPlayView.COLOR_RECORD : AbstractPlayView.COLOR_PLAY;
+                return PadColor.registered (isRecording ? AbstractPlayView.COLOR_RECORD : AbstractPlayView.COLOR_PLAY);
 
-            final String padColor = this.getPadColor (note, this.useDawColors ? track : null);
+            if (this.configuration.isTurnOffScalePads () && Scales.SCALE_COLOR_NOTE.equals (this.keyManager.getColor (note)))
+                return PadColor.registered (Scales.SCALE_COLOR_OFF);
 
-            if (this.configuration.isTurnOffScalePads () && Scales.SCALE_COLOR_NOTE.equals (padColor))
-                return Scales.SCALE_COLOR_OFF;
-
-            return padColor;
+            return this.getPadColor (note, this.useDawColors ? track : null);
         }
-        return AbstractPlayView.COLOR_OFF;
+        return PadColor.registered (AbstractPlayView.COLOR_OFF);
     }
 
 

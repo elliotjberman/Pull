@@ -9,7 +9,8 @@ import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.IControlSurface;
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.grid.IPadGrid;
-import de.mossgrabers.framework.controller.grid.LightInfo;
+import de.mossgrabers.framework.controller.grid.PadColor;
+import de.mossgrabers.framework.controller.grid.PadLight;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.clip.ISessionAlternative;
 import de.mossgrabers.framework.daw.data.ISlot;
@@ -40,18 +41,18 @@ public abstract class AbstractSessionView<S extends IControlSurface<C>, C extend
     public static final String COLOR_SCENE_OFF                 = "COLOR_SELECTED_OFF";
 
     // Needs to be overwritten with device specific colors
-    protected LightInfo        clipColorIsRecording            = new LightInfo (0, -1, false);
-    protected LightInfo        clipColorIsRecordingQueued      = new LightInfo (1, -1, false);
-    protected LightInfo        clipColorIsPlaying              = new LightInfo (2, -1, false);
-    protected LightInfo        clipColorIsPlayingQueued        = new LightInfo (3, -1, false);
-    protected LightInfo        clipColorIsStopQueued           = new LightInfo (3, -1, false);
-    protected LightInfo        clipColorHasContent             = new LightInfo (4, -1, false);
-    protected LightInfo        clipColorHasNoContent           = new LightInfo (5, -1, false);
-    protected LightInfo        clipColorIsRecArmed             = new LightInfo (6, -1, false);
-    protected LightInfo        clipColorIsMuted                = new LightInfo (7, -1, false);
+    protected PadLight         clipColorIsRecording            = new PadLight (PadColor.indexed (0));
+    protected PadLight         clipColorIsRecordingQueued      = new PadLight (PadColor.indexed (1));
+    protected PadLight         clipColorIsPlaying              = new PadLight (PadColor.indexed (2));
+    protected PadLight         clipColorIsPlayingQueued        = new PadLight (PadColor.indexed (3));
+    protected PadLight         clipColorIsStopQueued           = new PadLight (PadColor.indexed (3));
+    protected PadLight         clipColorHasContent             = new PadLight (PadColor.indexed (4));
+    protected PadLight         clipColorHasNoContent           = new PadLight (PadColor.indexed (5));
+    protected PadLight         clipColorIsRecArmed             = new PadLight (PadColor.indexed (6));
+    protected PadLight         clipColorIsMuted                = new PadLight (PadColor.indexed (7));
 
-    protected LightInfo        birdColorHasContent             = new LightInfo (4, -1, false);
-    protected LightInfo        birdColorSelected               = new LightInfo (2, -1, false);
+    protected PadLight         birdColorHasContent             = new PadLight (PadColor.indexed (4));
+    protected PadLight         birdColorSelected               = new PadLight (PadColor.indexed (2));
 
     protected int              rows;
     protected int              columns;
@@ -359,19 +360,19 @@ public abstract class AbstractSessionView<S extends IControlSurface<C>, C extend
         final IPadGrid padGrid = this.surface.getPadGrid ();
         for (int x = 0; x < this.columns; x++)
         {
-            final LightInfo rowColor = x < maxX ? this.birdColorHasContent : this.clipColorHasNoContent;
+            final PadLight rowColor = x < maxX ? this.birdColorHasContent : this.clipColorHasNoContent;
             for (int y = 0; y < this.rows; y++)
             {
-                LightInfo color = y < maxY ? rowColor : this.clipColorHasNoContent;
+                PadLight color = y < maxY ? rowColor : this.clipColorHasNoContent;
                 if (selX == x && selY == y)
                     color = this.birdColorSelected;
-                padGrid.lightEx (x, y, color.getColor (), color.getBlinkColor (), color.isFast ());
+                padGrid.lightEx (x, y, color.color (), color.blinkColor (), color.fast ());
             }
         }
     }
 
 
-    protected void setColors (final LightInfo isRecording, final LightInfo isRecordingQueued, final LightInfo isPlaying, final LightInfo isPlayingQueued, final LightInfo isStopQueued, final LightInfo hasContent, final LightInfo noContent, final LightInfo recArmed, final LightInfo isMuted)
+    protected void setColors (final PadLight isRecording, final PadLight isRecordingQueued, final PadLight isPlaying, final PadLight isPlayingQueued, final PadLight isStopQueued, final PadLight hasContent, final PadLight noContent, final PadLight recArmed, final PadLight isMuted)
     {
         this.clipColorIsRecording = isRecording;
         this.clipColorIsRecordingQueued = isRecordingQueued;
@@ -406,8 +407,8 @@ public abstract class AbstractSessionView<S extends IControlSurface<C>, C extend
      */
     protected void drawPad (final ISlot slot, final int x, final int y, final boolean isArmed)
     {
-        final LightInfo color = this.getPadColor (slot, isArmed);
-        this.surface.getPadGrid ().lightEx (x, y + this.getYOffset (), color.getColor (), color.getBlinkColor (), color.isFast ());
+        final PadLight color = this.getPadColor (slot, isArmed);
+        this.surface.getPadGrid ().lightEx (x, y + this.getYOffset (), color.color (), color.blinkColor (), color.fast ());
     }
 
 
@@ -429,7 +430,7 @@ public abstract class AbstractSessionView<S extends IControlSurface<C>, C extend
      * @param isArmed True if armed
      * @return The light info
      */
-    public LightInfo getPadColor (final ISlot slot, final boolean isArmed)
+    public PadLight getPadColor (final ISlot slot, final boolean isArmed)
     {
         final ColorEx clipColor = slot.getColor ();
 
@@ -451,10 +452,9 @@ public abstract class AbstractSessionView<S extends IControlSurface<C>, C extend
         if (slot.hasContent ())
         {
             if (slot.isMuted ())
-                return new LightInfo (this.clipColorIsMuted.getColor (), -1, false);
-            final int blinkColor = this.clipColorHasContent.getBlinkColor ();
-            final int color = this.useClipColor ? this.model.getColorManager ().getColorIndex (clipColor) : this.clipColorHasContent.getColor ();
-            return new LightInfo (color, slot.isSelected () ? blinkColor : -1, this.clipColorHasContent.isFast ());
+                return new PadLight (this.clipColorIsMuted.color ());
+            final PadColor color = this.useClipColor ? PadColor.rgb (clipColor) : this.clipColorHasContent.color ();
+            return new PadLight (color, slot.isSelected () ? this.clipColorHasContent.blinkColor () : null, this.clipColorHasContent.fast ());
         }
 
         return slot.doesExist () && isArmed && this.surface.getConfiguration ().isDrawRecordStripe () ? this.clipColorIsRecArmed : this.clipColorHasNoContent;
@@ -489,13 +489,13 @@ public abstract class AbstractSessionView<S extends IControlSurface<C>, C extend
      * @param lightInfo The light info
      * @return THe updated light info
      */
-    private LightInfo insertClipColor (final ColorEx clipColor, final LightInfo lightInfo)
+    private PadLight insertClipColor (final ColorEx clipColor, final PadLight lightInfo)
     {
         if (this.useClipColor && !this.ignoreClipColorForPlayAndRecord)
         {
-            final int blinkColor = lightInfo.getBlinkColor ();
-            if (blinkColor > 0)
-                return new LightInfo (this.model.getColorManager ().getColorIndex (clipColor), blinkColor, lightInfo.isFast ());
+            final PadColor blinkColor = lightInfo.blinkColor ();
+            if (blinkColor != null && (!(blinkColor instanceof final PadColor.Indexed indexed) || indexed.index () > 0))
+                return new PadLight (PadColor.rgb (clipColor), blinkColor, lightInfo.fast ());
         }
         return lightInfo;
     }

@@ -15,12 +15,19 @@ import de.mossgrabers.framework.daw.midi.IMidiOutput;
  */
 public class PadGridImpl implements IPadGrid
 {
+    private static final PadColor OFF_COLOR = PadColor.registered (GRID_OFF);
+
     protected static final int   NUM_NOTES = 128;
 
     protected final IMidiOutput  output;
     protected final ColorManager colorManager;
 
     protected LightInfo []       padStates;
+
+    private final PadColor []    requestedColors      = new PadColor [NUM_NOTES];
+    private final PadColor []    requestedBlinkColors = new PadColor [NUM_NOTES];
+    private final int []         resolvedColors       = new int [NUM_NOTES];
+    private final int []         resolvedBlinkColors  = new int [NUM_NOTES];
 
     protected int                rows;
     protected int                columns;
@@ -70,7 +77,15 @@ public class PadGridImpl implements IPadGrid
     @Override
     public void light (final int note, final int color)
     {
-        this.setLight (note, color, -1, false);
+        this.writeLight (note, color, this.colorManager.getColorIndex (GRID_OFF), false);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void light (final int note, final PadColor color)
+    {
+        this.writeLight (note, color, null, false);
     }
 
 
@@ -78,7 +93,7 @@ public class PadGridImpl implements IPadGrid
     @Override
     public void light (final int note, final int color, final int blinkColor, final boolean fast)
     {
-        this.setLight (note, color, blinkColor, fast);
+        this.writeLight (note, color, blinkColor < 0 ? this.colorManager.getColorIndex (GRID_OFF) : blinkColor, fast);
     }
 
 
@@ -95,7 +110,24 @@ public class PadGridImpl implements IPadGrid
     public void lightEx (final int x, final int y, final int color, final int blinkColor, final boolean fast)
     {
         final int off = (this.rows - 1) * this.columns + this.startNote;
-        this.setLight (off + x - this.columns * y, color, blinkColor, fast);
+        this.writeLight (off + x - this.columns * y, color, blinkColor < 0 ? this.colorManager.getColorIndex (GRID_OFF) : blinkColor, fast);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void lightEx (final int x, final int y, final PadColor color)
+    {
+        this.lightEx (x, y, color, null, false);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void lightEx (final int x, final int y, final PadColor color, final PadColor blinkColor, final boolean fast)
+    {
+        final int off = (this.rows - 1) * this.columns + this.startNote;
+        this.writeLight (off + x - this.columns * y, color, blinkColor, fast);
     }
 
 
@@ -119,7 +151,7 @@ public class PadGridImpl implements IPadGrid
     @Override
     public void light (final int note, final String colorID, final String blinkColorID, final boolean fast)
     {
-        this.light (note, this.colorManager.getColorIndex (colorID), blinkColorID == null ? -1 : this.colorManager.getColorIndex (blinkColorID), fast);
+        this.writeLight (note, PadColor.registered (colorID), blinkColorID == null ? null : PadColor.registered (blinkColorID), fast);
     }
 
 
@@ -127,7 +159,7 @@ public class PadGridImpl implements IPadGrid
     @Override
     public void lightEx (final int x, final int y, final String colorID, final String blinkColorID, final boolean fast)
     {
-        this.lightEx (x, y, this.colorManager.getColorIndex (colorID), blinkColorID == null ? -1 : this.colorManager.getColorIndex (blinkColorID), fast);
+        this.lightEx (x, y, PadColor.registered (colorID), blinkColorID == null ? null : PadColor.registered (blinkColorID), fast);
     }
 
 
@@ -139,9 +171,44 @@ public class PadGridImpl implements IPadGrid
      * @param blinkColor The state to make a pad blink
      * @param fast Blinking is fast if true
      */
-    protected void setLight (final int note, final int color, final int blinkColor, final boolean fast)
+    private void writeLight (final int note, final PadColor color, final PadColor blinkColor, final boolean fast)
     {
-        this.padStates[note].setColors (color, blinkColor >= 0 ? blinkColor : this.colorManager.getColorIndex (GRID_OFF), fast);
+        this.writeLight (note, this.resolveColor (note, color, this.requestedColors, this.resolvedColors), this.resolveColor (note, blinkColor == null ? OFF_COLOR : blinkColor, this.requestedBlinkColors, this.resolvedBlinkColors), fast);
+    }
+
+
+    private void writeLight (final int note, final int color, final int blinkColor, final boolean fast)
+    {
+        this.padStates[note].setColors (color, blinkColor, fast);
+    }
+
+
+    private int resolveColor (final int note, final PadColor color, final PadColor [] requested, final int [] resolved)
+    {
+        if (!color.equals (requested[note]))
+        {
+            final int resolvedColor = this.resolveColor (color);
+            requested[note] = color;
+            resolved[note] = resolvedColor;
+        }
+        return resolved[note];
+    }
+
+
+    /**
+     * Resolve a pad color immediately before the indexed pad state is written.
+     *
+     * @param color The unresolved pad color
+     * @return The controller-specific color index
+     */
+    protected final int resolveColor (final PadColor color)
+    {
+        return switch (color)
+        {
+            case final PadColor.Indexed indexed -> indexed.index ();
+            case final PadColor.Registered registered -> this.colorManager.getColorIndex (registered.id ());
+            case final PadColor.Rgb rgb -> this.colorManager.getColorIndex (rgb.color ());
+        };
     }
 
 
@@ -217,10 +284,9 @@ public class PadGridImpl implements IPadGrid
     @Override
     public void turnOff ()
     {
-        final int color = this.colorManager.getColorIndex (GRID_OFF);
         for (int i = this.startNote; i <= this.endNote; i++)
         {
-            this.light (i, color, -1, false);
+            this.light (i, OFF_COLOR);
             this.sendState (i);
         }
     }
