@@ -97,7 +97,7 @@ reported on standard error. The fixed local handshake directory is
 `~/.drivenbymoss/pull/debug`. One client owns an atomic lock for the complete navigate-and-capture
 transaction, and every request-correlated PNG is named for that request so another capture cannot
 satisfy or overwrite it. Unless the `enabled` marker exists in that directory at extension
-startup, neither debugger worker is constructed. Run
+startup, no debugger transport is constructed. Run
 `tools/capture-push2-display --disable` and restart Bitwig to turn the transports off again.
 
 For navigation without a framebuffer capture, use the generic client; named recipes stay
@@ -110,19 +110,30 @@ tools/push-debug-request session \
     'SESSION/view=SESSION,mode!=WORKSPACE|MASTER|MASTER_TEMP,workspace=false'
 ```
 
-The eight upper display buttons are admitted while ordinary Track mode owns them. A `track=N`
-postcondition waits for the private selection-following target to acknowledge the absolute track
-position before the next gesture runs. A `repeat=true|false` postcondition waits for authoritative
-read-back from the permanent Push NoteInput repeat engine. For example, this reproduces a
-Juno-to-Drum-Machine viewer transition without leaving Note mode and proves automatic roll is
-scoped to Drum Controller:
+The eight upper display buttons are admitted while ordinary Track mode owns them. Every terminal
+status reports the private selection-following target's `track_position`, stable `track_id`, and
+identity `track_generation`. Bitwig track positions are local to the immediate parent group, so a
+`track=N` predicate is accepted only alongside the exact `track-id=ID` fence. Position remains
+useful context; it is never global proof. A client can first run a harmless already-satisfied plan
+to discover the currently selected identity:
 
 ```bash
+tools/push-debug-request identify 'TRACK/mode=TRACK,workspace=false'
+```
+
+A `repeat=true|false` postcondition waits for authoritative read-back from the permanent Push
+NoteInput repeat engine. With the project-specific identities discovered from terminal statuses,
+this reproduces a Juno-to-Drum-Machine viewer transition without leaving Note mode and proves
+automatic roll is scoped to Drum Controller:
+
+```bash
+JUNO_ID='<juno-track-id>'
+DRUM_ID='<top-level-drum-track-id>'
 tools/push-debug-request juno-to-drums \
     'TRACK/mode=TRACK,workspace=false,repeat=false' \
-    'ROW1_6/track=5,repeat=false' \
-    'NOTE/view=PLAY,track=5,repeat=false' \
-    'ROW1_1/view=DRUM_PAD,track=0,repeat=true'
+    "ROW1_6/track=5,track-id=${JUNO_ID},repeat=false" \
+    "NOTE/view=PLAY,track=5,track-id=${JUNO_ID},repeat=false" \
+    "ROW1_1/view=DRUM_PAD,track=0,track-id=${DRUM_ID},repeat=true"
 ```
 
 Layout and Shift + Layout use the same permanent routed bindings as the hardware. This checks both
@@ -145,6 +156,32 @@ tools/push-debug-request play 'PLAY/submitted'
 Only Play and Master row buttons 5/7/8 (Audio Engine, Previous, and Next) currently admit this
 one-shot form. When another feature needs ingress or read-back, follow the close-the-loop policy
 above: extend the bounded debug seam instead of adding a stable-shell semantic shortcut.
+
+### Request-scoped runtime traces
+
+Arm a bounded trace before reproducing an interaction, then stop it to print the artifact path:
+
+```bash
+trace_id="$(tools/push-debug-trace start button-test 15)"
+tools/push-debug-request play 'PLAY/submitted'
+tools/push-debug-trace stop "$trace_id"
+```
+
+The optional duration is 1 through 60 seconds. A trace records the exact core event, authoritative
+snapshot, returned result, successful stable application, and sparse activation/failure lifecycle
+around each retained transaction. It does not sample semantic input, effects, or changed replayable
+output. A controller tick or snapshot-change event is telemetry only when it has no effects and its
+complete result is unchanged from the preceding retained result; only the newest such entry between
+meaningful transactions is retained, and the number coalesced is reported in the TSV header.
+
+Capture stops at 256 retained entries, 60 seconds, or two million serialized characters. The
+transport retains at most 16 trace files. The controller thread only appends references to bounded
+memory; structural object rendering, filesystem polling, serialization, and pruning run on the
+trace worker. Structural rendering writes into the character bound directly instead of first
+allocating an unbounded object string.
+Automatic timeout still leaves the last trace retrievable with `stop`. A successful `APPLIED` row
+means stable effect submission returned; completion of an asynchronous Bitwig transition still
+requires a later authoritative snapshot or output observation.
 
 Adding or expanding the generic debug bridge is a stable-shell change and needs one extension
 install and Bitwig restart. Frame capture and client-side navigation recipes can then be reused

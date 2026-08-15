@@ -6,6 +6,7 @@ package de.mossgrabers.pull.shell.runtime;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.hardware.IHwButton;
+import de.mossgrabers.framework.daw.midi.SelectedTrackNoteTargetSnapshot;
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.pull.shell.PushDebugging;
 
@@ -13,13 +14,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -44,7 +43,6 @@ final class PushDebugNavigationHost implements AutoCloseable
     private static final int  REQUIRED_STABLE_SAMPLES = 2;
     private static final int  TIMEOUT_TICKS           = 50;
     private static final long POLL_INTERVAL_MILLIS    = 100;
-    private static final long SHUTDOWN_WAIT_MILLIS    = 250;
 
     private final Path                         requestPath;
     private final Path                         statusPath;
@@ -63,11 +61,7 @@ final class PushDebugNavigationHost implements AutoCloseable
         if (!PushDebugging.isEnabled ())
             return null;
 
-        final ScheduledExecutorService worker = Executors.newSingleThreadScheduledExecutor (task -> {
-            final Thread thread = new Thread (task, "Pull debug navigation transport");
-            thread.setDaemon (true);
-            return thread;
-        });
+        final ScheduledExecutorService worker = PushDebugging.createWorker ("Pull debug navigation transport");
         final PushDebugNavigationHost host = new PushDebugNavigationHost (
             PushDebugging.directory (), new PushNavigationSurface (surface), admission, worker);
         worker.scheduleWithFixedDelay (host::pollFilesSafely, 0, POLL_INTERVAL_MILLIS, TimeUnit.MILLISECONDS);
@@ -170,7 +164,7 @@ final class PushDebugNavigationHost implements AutoCloseable
             }
             catch (final RuntimeException ex)
             {
-                this.complete ("FAILED", "could not submit navigation gesture: " + sanitize (ex.getMessage ()), observed);
+                this.complete ("FAILED", "could not submit navigation gesture: " + PushDebugging.sanitize (ex.getMessage ()), observed);
             }
             return;
         }
@@ -179,7 +173,13 @@ final class PushDebugNavigationHost implements AutoCloseable
         if (!finalPostconditionMet || !this.admission.isIdle () || !this.pending.controlsFree (this.surface))
         {
             this.pending.stableSamples = 0;
+            this.pending.stableObservation = null;
             return;
+        }
+        if (!observed.equals (this.pending.stableObservation))
+        {
+            this.pending.stableSamples = 0;
+            this.pending.stableObservation = observed;
         }
         this.pending.stableSamples++;
         if (this.pending.stableSamples >= REQUIRED_STABLE_SAMPLES)
@@ -238,7 +238,7 @@ final class PushDebugNavigationHost implements AutoCloseable
         final String request = Files.readString (this.requestPath).strip ();
         Files.deleteIfExists (this.requestPath);
         final String [] fields = request.split ("\\t", -1);
-        if (fields.length < 3 || fields.length > MAX_STEPS + 2 || !isIdentifier (fields[0]) || !isIdentifier (fields[1]))
+        if (fields.length < 3 || fields.length > MAX_STEPS + 2 || !PushDebugging.isIdentifier (fields[0]) || !PushDebugging.isIdentifier (fields[1]))
             return Incoming.failed ("invalid", "", "expected '<request-id> <label> <step>...'");
         try
         {
@@ -266,17 +266,13 @@ final class PushDebugNavigationHost implements AutoCloseable
             observed.modeID (),
             Boolean.toString (observed.workspaceActive ()),
             Boolean.toString (observed.noteRepeatActive ()),
-            sanitize (status.message ())) + "\n";
+            Integer.toString (observed.selectedTrackPosition ()),
+            observed.selectedTrackID ().isEmpty () ? "-" : PushDebugging.sanitize (observed.selectedTrackID ()),
+            Long.toString (observed.selectedTrackGeneration ()),
+            PushDebugging.sanitize (status.message ())) + "\n";
         final Path temporaryStatus = this.statusPath.resolveSibling (this.statusPath.getFileName () + ".tmp");
         Files.writeString (temporaryStatus, content);
-        try
-        {
-            Files.move (temporaryStatus, this.statusPath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-        }
-        catch (final IOException ex)
-        {
-            Files.move (temporaryStatus, this.statusPath, StandardCopyOption.REPLACE_EXISTING);
-        }
+        PushDebugging.replaceAtomically (temporaryStatus, this.statusPath);
     }
 
 
@@ -302,38 +298,7 @@ final class PushDebugNavigationHost implements AutoCloseable
             return;
         }
 
-        this.worker.execute (this::pollFilesSafely);
-        this.worker.shutdown ();
-        try
-        {
-            if (!this.worker.awaitTermination (SHUTDOWN_WAIT_MILLIS, TimeUnit.MILLISECONDS))
-                this.worker.shutdownNow ();
-        }
-        catch (final InterruptedException ex)
-        {
-            this.worker.shutdownNow ();
-            Thread.currentThread ().interrupt ();
-        }
-    }
-
-
-    private static boolean isIdentifier (final String value)
-    {
-        if (value.isEmpty () || value.length () > 80)
-            return false;
-        for (int index = 0; index < value.length (); index++)
-        {
-            final char character = value.charAt (index);
-            if (!Character.isLetterOrDigit (character) && character != '.' && character != '_' && character != '-')
-                return false;
-        }
-        return true;
-    }
-
-
-    private static String sanitize (final String value)
-    {
-        return value == null ? "" : value.replace ('\t', ' ').replace ('\r', ' ').replace ('\n', ' ');
+        PushDebugging.shutdownWorker (this.worker, this::pollFilesSafely);
     }
 
 
@@ -389,12 +354,15 @@ final class PushDebugNavigationHost implements AutoCloseable
     }
 
 
-    record ObservedNavigation (String viewID, String modeID, boolean workspaceActive, int selectedTrackPosition, boolean noteRepeatActive)
+    record ObservedNavigation (String viewID, String modeID, boolean workspaceActive, int selectedTrackPosition, String selectedTrackID, long selectedTrackGeneration, boolean noteRepeatActive)
     {
         ObservedNavigation
         {
             viewID = Objects.requireNonNull (viewID, "viewID");
             modeID = Objects.requireNonNull (modeID, "modeID");
+            selectedTrackID = Objects.requireNonNull (selectedTrackID, "selectedTrackID");
+            if (selectedTrackGeneration < 0)
+                throw new IllegalArgumentException ("selectedTrackGeneration must not be negative");
         }
     }
 
@@ -466,7 +434,7 @@ final class PushDebugNavigationHost implements AutoCloseable
             }
             catch (final IllegalArgumentException ex)
             {
-                throw new IllegalArgumentException ("unsupported navigation gesture '" + sanitize (value) + "'");
+                throw new IllegalArgumentException ("unsupported navigation gesture '" + PushDebugging.sanitize (value) + "'");
             }
         }
 
@@ -531,11 +499,12 @@ final class PushDebugNavigationHost implements AutoCloseable
         Set<String> deniedModes,
         Boolean workspaceActive,
         Integer selectedTrackPosition,
+        String selectedTrackID,
         Boolean noteRepeatActive,
         boolean submissionOnly)
     {
-        private static final NavigationPredicate ANY = new NavigationPredicate (Set.of (), Set.of (), Set.of (), Set.of (), null, null, null, false);
-        private static final NavigationPredicate SUBMITTED = new NavigationPredicate (Set.of (), Set.of (), Set.of (), Set.of (), null, null, null, true);
+        private static final NavigationPredicate ANY = new NavigationPredicate (Set.of (), Set.of (), Set.of (), Set.of (), null, null, null, null, false);
+        private static final NavigationPredicate SUBMITTED = new NavigationPredicate (Set.of (), Set.of (), Set.of (), Set.of (), null, null, null, null, true);
 
 
         static NavigationPredicate parse (final String value)
@@ -551,13 +520,14 @@ final class PushDebugNavigationHost implements AutoCloseable
             Set<String> deniedModes = Set.of ();
             Boolean workspace = null;
             Integer trackPosition = null;
+            String trackID = null;
             Boolean repeat = null;
             for (final String term: value.split (","))
             {
                 final boolean denied = term.contains ("!=");
                 final String [] parts = term.split (denied ? "!=" : "=", 2);
                 if (parts.length != 2 || parts[1].isEmpty ())
-                    throw new IllegalArgumentException ("invalid navigation predicate '" + sanitize (value) + "'");
+                    throw new IllegalArgumentException ("invalid navigation predicate '" + PushDebugging.sanitize (value) + "'");
                 switch (parts[0])
                 {
                     case "view" -> {
@@ -574,32 +544,39 @@ final class PushDebugNavigationHost implements AutoCloseable
                     }
                     case "workspace" -> {
                         if (denied || workspace != null || !Set.of ("true", "false").contains (parts[1]))
-                            throw new IllegalArgumentException ("invalid workspace predicate '" + sanitize (term) + "'");
+                            throw new IllegalArgumentException ("invalid workspace predicate '" + PushDebugging.sanitize (term) + "'");
                         workspace = Boolean.valueOf (parts[1]);
                     }
                     case "track" -> {
                         if (denied || trackPosition != null)
-                            throw new IllegalArgumentException ("invalid track predicate '" + sanitize (term) + "'");
+                            throw new IllegalArgumentException ("invalid track predicate '" + PushDebugging.sanitize (term) + "'");
                         try
                         {
                             trackPosition = Integer.valueOf (parts[1]);
                         }
                         catch (final NumberFormatException ex)
                         {
-                            throw new IllegalArgumentException ("invalid track predicate '" + sanitize (term) + "'");
+                            throw new IllegalArgumentException ("invalid track predicate '" + PushDebugging.sanitize (term) + "'");
                         }
                         if (trackPosition.intValue () < 0)
-                            throw new IllegalArgumentException ("invalid track predicate '" + sanitize (term) + "'");
+                            throw new IllegalArgumentException ("invalid track predicate '" + PushDebugging.sanitize (term) + "'");
+                    }
+                    case "track-id" -> {
+                        if (denied || trackID != null || !PushDebugging.isIdentifier (parts[1]))
+                            throw new IllegalArgumentException ("invalid track-id predicate '" + PushDebugging.sanitize (term) + "'");
+                        trackID = parts[1];
                     }
                     case "repeat" -> {
                         if (denied || repeat != null || !Set.of ("true", "false").contains (parts[1]))
-                            throw new IllegalArgumentException ("invalid repeat predicate '" + sanitize (term) + "'");
+                            throw new IllegalArgumentException ("invalid repeat predicate '" + PushDebugging.sanitize (term) + "'");
                         repeat = Boolean.valueOf (parts[1]);
                     }
-                    default -> throw new IllegalArgumentException ("unsupported navigation predicate field '" + sanitize (parts[0]) + "'");
+                    default -> throw new IllegalArgumentException ("unsupported navigation predicate field '" + PushDebugging.sanitize (parts[0]) + "'");
                 }
             }
-            return new NavigationPredicate (allowedViews, deniedViews, allowedModes, deniedModes, workspace, trackPosition, repeat, false);
+            if (trackPosition != null && trackID == null)
+                throw new IllegalArgumentException ("track position requires an exact track-id predicate");
+            return new NavigationPredicate (allowedViews, deniedViews, allowedModes, deniedModes, workspace, trackPosition, trackID, repeat, false);
         }
 
 
@@ -613,6 +590,7 @@ final class PushDebugNavigationHost implements AutoCloseable
                 !this.deniedModes.contains (observed.modeID ()) &&
                 (this.workspaceActive == null || this.workspaceActive.booleanValue () == observed.workspaceActive ()) &&
                 (this.selectedTrackPosition == null || this.selectedTrackPosition.intValue () == observed.selectedTrackPosition ()) &&
+                (this.selectedTrackID == null || this.selectedTrackID.equals (observed.selectedTrackID ())) &&
                 (this.noteRepeatActive == null || this.noteRepeatActive.booleanValue () == observed.noteRepeatActive ());
         }
 
@@ -622,8 +600,8 @@ final class PushDebugNavigationHost implements AutoCloseable
             final Set<String> identifiers = new HashSet<> ();
             for (final String identifier: value.split ("\\|"))
             {
-                if (!isIdentifier (identifier))
-                    throw new IllegalArgumentException ("invalid navigation state identifier '" + sanitize (identifier) + "'");
+                if (!PushDebugging.isIdentifier (identifier))
+                    throw new IllegalArgumentException ("invalid navigation state identifier '" + PushDebugging.sanitize (identifier) + "'");
                 identifiers.add (identifier);
             }
             return Set.copyOf (identifiers);
@@ -649,7 +627,7 @@ final class PushDebugNavigationHost implements AutoCloseable
         {
             final String [] fields = value.split ("/", 2);
             if (fields.length != 2)
-                throw new IllegalArgumentException ("invalid navigation step '" + sanitize (value) + "'");
+                throw new IllegalArgumentException ("invalid navigation step '" + PushDebugging.sanitize (value) + "'");
             return new Step (
                 NavigationGesture.parse (fields[0]),
                 NavigationPredicate.parse (fields[1]));
@@ -679,6 +657,7 @@ final class PushDebugNavigationHost implements AutoCloseable
         private int                       tick;
         private int                       stableSamples;
         private int                       stepIndex;
+        private ObservedNavigation        stableObservation;
 
 
         private PendingNavigation (final String requestID, final String label, final List<Step> steps)
@@ -711,7 +690,7 @@ final class PushDebugNavigationHost implements AutoCloseable
 
         private static Incoming failed (final String requestID, final String label, final String failure)
         {
-            return new Incoming (requestID, label, List.of (), sanitize (failure));
+            return new Incoming (requestID, label, List.of (), PushDebugging.sanitize (failure));
         }
     }
 
@@ -737,11 +716,14 @@ final class PushDebugNavigationHost implements AutoCloseable
         {
             final Object view = this.surface.getViewManager ().getActiveID ();
             final Object mode = this.surface.getModeManager ().getActiveID ();
+            final SelectedTrackNoteTargetSnapshot selectedTrack = this.surface.getAuthoritativeSelectedTrackSnapshot ();
             return new ObservedNavigation (
                 view == null ? "" : view.toString (),
                 mode == null ? "" : mode.toString (),
                 this.surface.getControllerWorkspaceHost ().isActive (),
-                this.surface.getAuthoritativeSelectedTrackPosition (),
+                selectedTrack.exists () ? selectedTrack.position () : -1,
+                selectedTrack.exists () ? selectedTrack.trackID () : "",
+                selectedTrack.generation (),
                 this.surface.getMidiInput ().getDefaultNoteInput ().getNoteRepeat ().isActive ());
         }
 

@@ -25,11 +25,11 @@ final class CoreReloadSupervisor implements AutoCloseable
     private boolean closed;
 
 
-    CoreReloadSupervisor (final CoreRuntimeEnvironment environment, final RuntimeLog log)
+    CoreReloadSupervisor (final CoreRuntimeEnvironment environment, final RuntimeLog log, final RuntimeTraceSink trace)
     {
         this.log = Objects.requireNonNull (log, "log");
         this.jarLoader = new CoreJarLoader ();
-        this.runtimeManager = new RuntimeManager (Objects.requireNonNull (environment, "environment"), log);
+        this.runtimeManager = new RuntimeManager (Objects.requireNonNull (environment, "environment"), log, trace);
         this.watcher = new CoreCandidateWatcher (RuntimePaths.fromSystem ());
     }
 

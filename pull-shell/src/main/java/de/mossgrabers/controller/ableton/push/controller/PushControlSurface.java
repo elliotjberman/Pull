@@ -533,14 +533,13 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
 
 
     /**
-     * Get the absolute position of the authoritative selection-following target.
+     * Capture the authoritative private selection-following target.
      *
-     * @return The selected track position, or -1 while no target is resolved
+     * @return The coherent selected-target snapshot
      */
-    public int getAuthoritativeSelectedTrackPosition ()
+    public SelectedTrackNoteTargetSnapshot getAuthoritativeSelectedTrackSnapshot ()
     {
-        final SelectedTrackNoteTargetSnapshot selectedTrack = this.selectedTrackNoteTarget.snapshot ();
-        return selectedTrack.exists () ? selectedTrack.position () : -1;
+        return this.selectedTrackNoteTarget.snapshot ();
     }
 
 

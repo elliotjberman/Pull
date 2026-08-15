@@ -49,14 +49,56 @@ mkdir "$test_debug/client.lock"
 assert_status 3 env HOME="$test_home" "${script_dir}/push-debug-request" valid 'NOTE/workspace=false'
 
 new_debug_home
+assert_status 2 env HOME="$test_home" "${script_dir}/push-debug-trace" start valid 61
+assert_status 2 env HOME="$test_home" "${script_dir}/push-debug-trace" stop 'bad/id'
+mkdir "$test_debug/trace-client.lock"
+assert_status 3 env HOME="$test_home" "${script_dir}/push-debug-trace" start valid
+
+new_debug_home
+(
+    wait_for_file "$test_debug/trace-request.txt"
+    IFS=$'\t' read -r request_id action label duration < "$test_debug/trace-request.txt"
+    [[ "$action" == "ARM" && "$label" == "button-test" && "$duration" == "12000" ]] || fail "trace arm request was malformed"
+    printf 'stale\tARMED\tstale\t\t\n' > "$test_debug/trace-status.txt"
+    sleep 0.05
+    printf '%s\tARMED\t%s\t\t\n' "$request_id" "$request_id" > "$test_debug/trace-status.txt"
+) &
+trace_id="$(env HOME="$test_home" "${script_dir}/push-debug-trace" start button-test 12 2>/dev/null)"
+[[ -n "$trace_id" ]] || fail "trace start did not return an identifier"
+
+rm -f "$test_debug/trace-request.txt"
+(
+    wait_for_file "$test_debug/trace-request.txt"
+    IFS=$'\t' read -r stop_id action stopped_trace < "$test_debug/trace-request.txt"
+    [[ "$action" == "STOP" && "$stopped_trace" == "$trace_id" ]] || fail "trace stop request was malformed"
+    printf 'trace fixture\n' > "$test_debug/trace-fixture.tsv"
+    printf '%s\tREADY\t%s\ttrace-fixture.tsv\t\n' "$stop_id" "$stopped_trace" > "$test_debug/trace-status.txt"
+) &
+trace_path="$(env HOME="$test_home" "${script_dir}/push-debug-trace" stop "$trace_id" 2>/dev/null)"
+[[ "$trace_path" == "$test_debug/trace-fixture.tsv" ]] || fail "trace stop returned the wrong artifact"
+
+new_debug_home
+(
+    wait_for_file "$test_debug/trace-request.txt"
+    IFS=$'\t' read -r failed_id _ < "$test_debug/trace-request.txt"
+    printf '%s\tFAILED\t-\t-\tanother trace is already armed\n' "$failed_id" > "$test_debug/trace-status.txt"
+) &
+set +e
+failure_output="$(env HOME="$test_home" "${script_dir}/push-debug-trace" start collision 2>&1)"
+failure_status=$?
+set -e
+[[ "$failure_status" == "1" && "$failure_output" == *"another trace is already armed"* ]] || fail "trace client lost a server failure message"
+
+new_debug_home
 (
     wait_for_file "$test_debug/navigate-request.txt"
     IFS=$'\t' read -r request_id request_label _ < "$test_debug/navigate-request.txt"
-    printf 'stale\tREADY\tstale\tSESSION\tTRACK\tfalse\tfalse\t\n' > "$test_debug/navigate-status.txt"
+    printf 'stale\tREADY\tstale\tSESSION\tTRACK\tfalse\tfalse\t-1\t-\t0\t\n' > "$test_debug/navigate-status.txt"
     sleep 0.05
-    printf '%s\tREADY\t%s\tSESSION\tTRACK\tfalse\tfalse\t\n' "$request_id" "$request_label" > "$test_debug/navigate-status.txt"
+    printf '%s\tREADY\t%s\tSESSION\tTRACK\tfalse\tfalse\t5\ttrack-a\t2\t\n' "$request_id" "$request_label" > "$test_debug/navigate-status.txt"
 ) &
-env HOME="$test_home" "${script_dir}/push-debug-request" correlated 'NOTE/workspace=false' >/dev/null 2>&1
+navigation_output="$(env HOME="$test_home" "${script_dir}/push-debug-request" correlated 'NOTE/workspace=false' 2>&1)"
+[[ "$navigation_output" == *"track_position=5 track_id=track-a track_generation=2"* ]] || fail "navigation client omitted selected-track identity"
 [[ ! -e "$test_debug/capture-request.txt" ]] || fail "navigation-only request emitted a capture"
 
 new_debug_home
@@ -68,7 +110,7 @@ kill -TERM "$client_pid"
 sleep 0.05
 kill -0 "$client_pid" 2>/dev/null || fail "interrupted client exited before terminal state"
 [[ -d "$test_debug/client.lock" ]] || fail "interrupted client released its lock early"
-printf '%s\tREADY\t%s\tSESSION\tTRACK\tfalse\tfalse\t\n' "$request_id" "$request_label" > "$test_debug/navigate-status.txt"
+printf '%s\tREADY\t%s\tSESSION\tTRACK\tfalse\tfalse\t5\ttrack-a\t2\t\n' "$request_id" "$request_label" > "$test_debug/navigate-status.txt"
 assert_status 130 wait "$client_pid"
 [[ ! -d "$test_debug/client.lock" ]] || fail "terminal client retained its lock"
 
@@ -76,7 +118,7 @@ new_debug_home
 (
     wait_for_file "$test_debug/navigate-request.txt"
     IFS=$'\t' read -r navigation_id navigation_label _ < "$test_debug/navigate-request.txt"
-    printf '%s\tREADY\t%s\tSESSION\tTRACK\tfalse\tfalse\t\n' "$navigation_id" "$navigation_label" > "$test_debug/navigate-status.txt"
+    printf '%s\tREADY\t%s\tSESSION\tTRACK\tfalse\tfalse\t5\ttrack-a\t2\t\n' "$navigation_id" "$navigation_label" > "$test_debug/navigate-status.txt"
     wait_for_file "$test_debug/capture-request.txt"
     IFS=$'\t' read -r capture_id _ < "$test_debug/capture-request.txt"
     [[ "$capture_id" == "$navigation_id" && -d "$test_debug/client.lock" ]] || fail "capture lost request identity or lock"

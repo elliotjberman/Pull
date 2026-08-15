@@ -183,7 +183,7 @@ then
     do
         if [[ -f "$navigation_status_path" ]]
         then
-            IFS=$'\t' read -r status_request_id status target_name view_id mode_id workspace_active repeat_active message < "$navigation_status_path" || true
+            IFS=$'\t' read -r status_request_id status target_name view_id mode_id workspace_active repeat_active track_position track_id track_generation message < "$navigation_status_path" || true
             if [[ "$status_request_id" == "$request_id" ]]
             then
                 navigation_pending=false
@@ -193,10 +193,10 @@ then
                 fi
                 if [[ "$status" == "READY" ]]
                 then
-                    echo "Push navigation ready: target=${target_name} view=${view_id} mode=${mode_id} workspace=${workspace_active} repeat=${repeat_active}" >&2
+                    echo "Push navigation ready: target=${target_name} view=${view_id} mode=${mode_id} workspace=${workspace_active} repeat=${repeat_active} track_position=${track_position} track_id=${track_id} track_generation=${track_generation}" >&2
                     break
                 fi
-                echo "Push navigation failed: ${message:-unknown error} (view=${view_id} mode=${mode_id} repeat=${repeat_active})" >&2
+                echo "Push navigation failed: ${message:-unknown error} (view=${view_id} mode=${mode_id} repeat=${repeat_active} track_position=${track_position} track_id=${track_id} track_generation=${track_generation})" >&2
                 exit 1
             fi
         fi

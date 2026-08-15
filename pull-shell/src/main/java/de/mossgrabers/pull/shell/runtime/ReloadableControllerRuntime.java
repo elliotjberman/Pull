@@ -69,6 +69,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
     private CoreReloadSupervisor supervisor;
     private PushControllerInputBridge inputBridge;
     private PushDebugNavigationHost debugNavigation;
+    private PushDebugTraceHost debugTrace;
     private Predicate<CoreEvent> eventHandler = event -> false;
     private final Set<ControlId> rawReleasedGestures = new HashSet<> ();
     private boolean started;
@@ -172,7 +173,8 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             Objects.requireNonNull (valueChanger, "valueChanger"),
             this.log);
         this.environment = new ControllerRuntimeEnvironment (this.clipHost, controllerBridge, this.log, System::nanoTime);
-        this.supervisor = new CoreReloadSupervisor (this.environment, this.log);
+        this.debugTrace = PushDebugTraceHost.createIfEnabled ();
+        this.supervisor = new CoreReloadSupervisor (this.environment, this.log, this.debugTrace);
         this.eventHandler = this.supervisor::handle;
     }
 
@@ -237,6 +239,8 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             return;
 
         final long startedAt = System.nanoTime ();
+        if (this.debugTrace != null && this.debugTrace.needsControllerTick ())
+            this.debugTrace.tick (this.supervisor == null ? 0 : this.supervisor.activeGeneration (), this.environment.snapshot ());
         if (this.debugNavigation != null)
             this.debugNavigation.tick ();
         final boolean snapshotChanged = this.environment.refresh ();
@@ -433,10 +437,19 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         }
         finally
         {
-            if (this.environment != null)
+            try
             {
-                for (final ControlId control: FILL_CONTROLS)
-                    this.environment.safetyRelease (control);
+                if (this.environment != null)
+                {
+                    for (final ControlId control: FILL_CONTROLS)
+                        this.environment.safetyRelease (control);
+                }
+            }
+            finally
+            {
+                if (this.debugTrace != null)
+                    this.debugTrace.close ();
+                this.debugTrace = null;
             }
         }
     }
