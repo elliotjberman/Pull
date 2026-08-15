@@ -34,7 +34,7 @@ import java.util.Set;
  */
 public final class WorkspaceSelectionView implements ControllerView
 {
-    private static final Set<BridgeSubscription> SUBSCRIPTIONS = Set.of (BridgeSubscription.CONTROLLER_LAYOUT);
+    private static final Set<BridgeSubscription> SUBSCRIPTIONS = Set.of (BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.SELECTED_TRACK, BridgeSubscription.NOTE_VIEW);
     private static final ControlId SESSION_BUTTON = PushControlIds.button ("SESSION");
     private static final ControlId NOTE_BUTTON = PushControlIds.button ("NOTE");
     private static final ControlId SHIFT_BUTTON = PushControlIds.button ("SHIFT");

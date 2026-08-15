@@ -16,6 +16,7 @@ import de.mossgrabers.pull.core.api.CoreExecutionRequirements;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.DesiredInputRoutes;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
+import de.mossgrabers.pull.core.api.DesiredControllerState;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredControllerLayout;
 import de.mossgrabers.pull.core.api.DesiredNoteInputRoute;
@@ -113,8 +114,7 @@ class ControllerRuntimeEnvironmentTest
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION));
         assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD));
         assertEquals (Integer.valueOf (3), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_RGB_LIGHT));
-        assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_WORKSPACE));
-        assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_NOTE_PERFORMANCE));
+        assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_STATE));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_NOTE_VIEW_PREFERENCE));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_NOTE_REPEAT));
         assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.ROUTING_CONTROLLER_INPUT));
@@ -194,7 +194,8 @@ class ControllerRuntimeEnvironmentTest
             DesiredInputRoutes.empty (),
             DesiredBridgeSubscriptions.empty (),
             Map.of (),
-            workspace,
+            new DesiredControllerState (workspace, DesiredNotePerformance.inactive ()),
+            DesiredNoteRepeat.unowned (),
             de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
             de.mossgrabers.pull.core.api.DesiredParameterBanks.empty (),
             de.mossgrabers.pull.core.api.DesiredParameterInteraction.empty (),
@@ -214,7 +215,8 @@ class ControllerRuntimeEnvironmentTest
             DesiredInputRoutes.empty (),
             DesiredBridgeSubscriptions.empty (),
             Map.of (),
-            DesiredControllerWorkspace.empty (),
+            DesiredControllerState.empty (),
+            DesiredNoteRepeat.unowned (),
             de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
             DesiredParameterBanks.empty (),
             DesiredParameterInteraction.empty (),
@@ -239,7 +241,8 @@ class ControllerRuntimeEnvironmentTest
             DesiredInputRoutes.empty (),
             DesiredBridgeSubscriptions.empty (),
             Map.of (),
-            workspace,
+            new DesiredControllerState (workspace, DesiredNotePerformance.inactive ()),
+            DesiredNoteRepeat.unowned (),
             de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
             DesiredParameterBanks.empty (),
             DesiredParameterInteraction.empty (),
@@ -253,7 +256,7 @@ class ControllerRuntimeEnvironmentTest
         assertThrows (IllegalArgumentException.class, () -> environment.prepare (new CoreResult (
             new DesiredHardwareOutput (Map.of (previous, BRIGHT_RED), display),
             DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), Map.of (),
-            DesiredControllerWorkspace.empty (), de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
+            de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
             DesiredParameterBanks.empty (), DesiredParameterInteraction.empty (), List.of ())));
 
         environment.invalidate (10);
@@ -276,8 +279,7 @@ class ControllerRuntimeEnvironmentTest
             DesiredInputRoutes.empty (),
             DesiredBridgeSubscriptions.empty (),
             Map.of (),
-            DesiredControllerWorkspace.empty (),
-            performance,
+            new DesiredControllerState (DesiredControllerWorkspace.empty (), performance),
             repeat,
             de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
             DesiredParameterBanks.empty (),
@@ -296,6 +298,7 @@ class ControllerRuntimeEnvironmentTest
 
         assertEquals (performance, bridge.appliedNotePerformance);
         assertEquals (repeat, bridge.appliedNoteRepeat);
+        assertEquals (List.of ("controller-state", "note-repeat"), bridge.applicationOrder);
         assertEquals (BRIGHT_RED, environment.lightColor (CoreControls.DRUM_RATES.get (0)));
     }
 
@@ -312,7 +315,6 @@ class ControllerRuntimeEnvironmentTest
             DesiredInputRoutes.empty (),
             DesiredBridgeSubscriptions.empty (),
             Map.of (),
-            DesiredControllerWorkspace.empty (),
             de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
             DesiredParameterBanks.empty (),
             DesiredParameterInteraction.empty (),
@@ -340,7 +342,6 @@ class ControllerRuntimeEnvironmentTest
             DesiredInputRoutes.empty (),
             DesiredBridgeSubscriptions.empty (),
             Map.of (),
-            DesiredControllerWorkspace.empty (),
             de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
             DesiredParameterBanks.empty (),
             DesiredParameterInteraction.empty (),
@@ -375,7 +376,7 @@ class ControllerRuntimeEnvironmentTest
         final CoreResult result = new CoreResult (
             new DesiredHardwareOutput (Map.of (previous, BRIGHT_RED, ratePad, BRIGHT_RED), display, padOverlay, displayOverlay),
             DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), Map.of (FIRST, FIRST_TARGET),
-            workspace, de.mossgrabers.pull.core.api.DesiredControllerActions.empty (), DesiredParameterBanks.empty (),
+            new DesiredControllerState (workspace, DesiredNotePerformance.inactive ()), DesiredNoteRepeat.unowned (), de.mossgrabers.pull.core.api.DesiredControllerActions.empty (), DesiredParameterBanks.empty (),
             DesiredParameterInteraction.empty (), new CoreExecutionRequirements (true),
             List.of (new PressClipTargetEffect (FIRST, 1, FIRST_TARGET, LAUNCH_POLICY)));
 
@@ -1019,7 +1020,6 @@ class ControllerRuntimeEnvironmentTest
             DesiredInputRoutes.empty (),
             DesiredBridgeSubscriptions.empty (),
             bindings,
-            DesiredControllerWorkspace.empty (),
             de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
             de.mossgrabers.pull.core.api.DesiredParameterBanks.empty (),
             de.mossgrabers.pull.core.api.DesiredParameterInteraction.empty (),
@@ -1040,7 +1040,6 @@ class ControllerRuntimeEnvironmentTest
             DesiredInputRoutes.empty (),
             subscriptions,
             Map.of (),
-            DesiredControllerWorkspace.empty (),
             de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
             banks,
             DesiredParameterInteraction.empty (),
@@ -1055,7 +1054,6 @@ class ControllerRuntimeEnvironmentTest
             routes,
             DesiredBridgeSubscriptions.empty (),
             Map.of (),
-            DesiredControllerWorkspace.empty (),
             de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
             de.mossgrabers.pull.core.api.DesiredParameterBanks.empty (),
             de.mossgrabers.pull.core.api.DesiredParameterInteraction.empty (),
@@ -1091,6 +1089,7 @@ class ControllerRuntimeEnvironmentTest
         private DesiredNotePerformance appliedNotePerformance = DesiredNotePerformance.inactive ();
         private DesiredNoteRepeat preparedNoteRepeat = DesiredNoteRepeat.unowned ();
         private DesiredNoteRepeat appliedNoteRepeat = DesiredNoteRepeat.unowned ();
+        private final List<String> applicationOrder = new ArrayList<> ();
         private boolean failAbandon;
 
 
@@ -1152,31 +1151,19 @@ class ControllerRuntimeEnvironmentTest
 
 
         @Override
-        public DesiredControllerWorkspace prepareWorkspace (final DesiredControllerWorkspace workspace)
+        public DesiredControllerState prepareControllerState (final DesiredControllerState state)
         {
-            return workspace;
+            this.preparedNotePerformance = state.notePerformance ();
+            return state;
         }
 
 
         @Override
-        public void applyWorkspace (final DesiredControllerWorkspace workspace)
+        public void applyControllerState (final DesiredControllerState state)
         {
-            this.appliedWorkspace = workspace;
-        }
-
-
-        @Override
-        public DesiredNotePerformance prepareNotePerformance (final DesiredNotePerformance performance)
-        {
-            this.preparedNotePerformance = performance;
-            return performance;
-        }
-
-
-        @Override
-        public void applyNotePerformance (final DesiredNotePerformance performance)
-        {
-            this.appliedNotePerformance = performance;
+            this.applicationOrder.add ("controller-state");
+            this.appliedWorkspace = state.workspace ();
+            this.appliedNotePerformance = state.notePerformance ();
         }
 
 
@@ -1191,6 +1178,7 @@ class ControllerRuntimeEnvironmentTest
         @Override
         public void applyNoteRepeat (final DesiredNoteRepeat noteRepeat)
         {
+            this.applicationOrder.add ("note-repeat");
             this.appliedNoteRepeat = noteRepeat;
         }
 

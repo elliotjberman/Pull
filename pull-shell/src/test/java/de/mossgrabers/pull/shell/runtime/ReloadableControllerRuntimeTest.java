@@ -13,8 +13,10 @@ import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.CoreExecutionRequirements;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
+import de.mossgrabers.pull.core.api.DesiredControllerState;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredInputRoutes;
+import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchMode;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
@@ -233,7 +235,8 @@ class ReloadableControllerRuntimeTest
             DesiredInputRoutes.empty (),
             DesiredBridgeSubscriptions.empty (),
             Map.of (),
-            DesiredControllerWorkspace.empty (),
+            DesiredControllerState.empty (),
+            DesiredNoteRepeat.unowned (),
             de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
             de.mossgrabers.pull.core.api.DesiredParameterBanks.empty (),
             de.mossgrabers.pull.core.api.DesiredParameterInteraction.empty (),
@@ -282,7 +285,6 @@ class ReloadableControllerRuntimeTest
             DesiredInputRoutes.empty (),
             DesiredBridgeSubscriptions.empty (),
             bindings,
-            DesiredControllerWorkspace.empty (),
             de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
             de.mossgrabers.pull.core.api.DesiredParameterBanks.empty (),
             de.mossgrabers.pull.core.api.DesiredParameterInteraction.empty (),

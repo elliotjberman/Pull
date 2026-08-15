@@ -12,6 +12,7 @@ import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerActions;
+import de.mossgrabers.pull.core.api.DesiredControllerState;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredNotePerformance;
 import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
@@ -291,9 +292,9 @@ public final class CompiledWorkspace
                     throw new IllegalStateException ("multiple views own the display overlay");
                 displayOverlay = output.displayOverlay ();
             }
-            if (output.notePerformance ().layout ().isPresent ())
+            if (ownsNotePerformance (output.notePerformance ()))
             {
-                if (notePerformance.layout ().isPresent ())
+                if (ownsNotePerformance (notePerformance))
                     throw new IllegalStateException ("multiple views own Note performance");
                 notePerformance = output.notePerformance ();
             }
@@ -310,13 +311,18 @@ public final class CompiledWorkspace
             this.desiredInputRoutes,
             this.desiredBridgeSubscriptions,
             clipBindings,
-            this.desiredControllerWorkspace,
-            notePerformance,
+            new DesiredControllerState (this.desiredControllerWorkspace, notePerformance),
             noteRepeat,
             this.desiredControllerActions,
             this.desiredParameterBanks,
             DesiredParameterInteraction.empty (),
             effects);
+    }
+
+
+    private static boolean ownsNotePerformance (final DesiredNotePerformance performance)
+    {
+        return performance.layout ().isPresent () || performance.inputRoute ().active ();
     }
 
 

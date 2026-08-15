@@ -21,8 +21,7 @@ import java.util.Objects;
  * @param desiredInputRoutes Complete replayable controller-input ownership
  * @param desiredBridgeSubscriptions Complete replayable bridge-state subscriptions
  * @param desiredClipBindings Complete replayable clip binding state by logical control
- * @param desiredControllerWorkspace Complete replayable fixed-facet workspace selection
- * @param desiredNotePerformance Complete replayable Note layout and selected-track routing lifecycle
+ * @param desiredControllerState Complete replayable state composed from every active view
  * @param desiredNoteRepeat Complete replayable note-repeat ownership and state
  * @param desiredControllerActions Complete replayable view-owned semantic actions
  * @param desiredParameterBanks Complete replayable installed parameter-bank selection
@@ -30,29 +29,22 @@ import java.util.Objects;
  * @param executionRequirements Complete replayable cadence and transaction fencing
  * @param effects Ordered one-shot shell effects
  */
-public record CoreResult (DesiredHardwareOutput desiredOutput, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, Map<ControlId, ClipTargetId> desiredClipBindings, DesiredControllerWorkspace desiredControllerWorkspace, DesiredNotePerformance desiredNotePerformance, DesiredNoteRepeat desiredNoteRepeat, DesiredControllerActions desiredControllerActions, DesiredParameterBanks desiredParameterBanks, DesiredParameterInteraction desiredParameterInteraction, CoreExecutionRequirements executionRequirements, List<CoreEffect> effects)
+public record CoreResult (DesiredHardwareOutput desiredOutput, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, Map<ControlId, ClipTargetId> desiredClipBindings, DesiredControllerState desiredControllerState, DesiredNoteRepeat desiredNoteRepeat, DesiredControllerActions desiredControllerActions, DesiredParameterBanks desiredParameterBanks, DesiredParameterInteraction desiredParameterInteraction, CoreExecutionRequirements executionRequirements, List<CoreEffect> effects)
 {
-    private static final CoreResult EMPTY = new CoreResult (DesiredHardwareOutput.empty (), DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), Map.of (), DesiredControllerWorkspace.empty (), DesiredNotePerformance.inactive (), DesiredNoteRepeat.unowned (), DesiredControllerActions.empty (), DesiredParameterBanks.empty (), DesiredParameterInteraction.empty (), CoreExecutionRequirements.empty (), List.of ());
-
-
-    /** Compatibility constructor without note-controller ownership. */
-    public CoreResult (final DesiredHardwareOutput desiredOutput, final DesiredInputRoutes desiredInputRoutes, final DesiredBridgeSubscriptions desiredBridgeSubscriptions, final Map<ControlId, ClipTargetId> desiredClipBindings, final DesiredControllerWorkspace desiredControllerWorkspace, final DesiredControllerActions desiredControllerActions, final DesiredParameterBanks desiredParameterBanks, final DesiredParameterInteraction desiredParameterInteraction, final CoreExecutionRequirements executionRequirements, final List<CoreEffect> effects)
-    {
-        this (desiredOutput, desiredInputRoutes, desiredBridgeSubscriptions, desiredClipBindings, desiredControllerWorkspace, DesiredNotePerformance.inactive (), DesiredNoteRepeat.unowned (), desiredControllerActions, desiredParameterBanks, desiredParameterInteraction, executionRequirements, effects);
-    }
-
-
-    /** Construct a result with note-controller ownership and no runtime cadence or fencing. */
-    public CoreResult (final DesiredHardwareOutput desiredOutput, final DesiredInputRoutes desiredInputRoutes, final DesiredBridgeSubscriptions desiredBridgeSubscriptions, final Map<ControlId, ClipTargetId> desiredClipBindings, final DesiredControllerWorkspace desiredControllerWorkspace, final DesiredNotePerformance desiredNotePerformance, final DesiredNoteRepeat desiredNoteRepeat, final DesiredControllerActions desiredControllerActions, final DesiredParameterBanks desiredParameterBanks, final DesiredParameterInteraction desiredParameterInteraction, final List<CoreEffect> effects)
-    {
-        this (desiredOutput, desiredInputRoutes, desiredBridgeSubscriptions, desiredClipBindings, desiredControllerWorkspace, desiredNotePerformance, desiredNoteRepeat, desiredControllerActions, desiredParameterBanks, desiredParameterInteraction, CoreExecutionRequirements.empty (), effects);
-    }
+    private static final CoreResult EMPTY = new CoreResult (DesiredHardwareOutput.empty (), DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), Map.of (), DesiredControllerState.empty (), DesiredNoteRepeat.unowned (), DesiredControllerActions.empty (), DesiredParameterBanks.empty (), DesiredParameterInteraction.empty (), CoreExecutionRequirements.empty (), List.of ());
 
 
     /** Construct a result with no runtime cadence or transaction fencing. */
-    public CoreResult (final DesiredHardwareOutput desiredOutput, final DesiredInputRoutes desiredInputRoutes, final DesiredBridgeSubscriptions desiredBridgeSubscriptions, final Map<ControlId, ClipTargetId> desiredClipBindings, final DesiredControllerWorkspace desiredControllerWorkspace, final DesiredControllerActions desiredControllerActions, final DesiredParameterBanks desiredParameterBanks, final DesiredParameterInteraction desiredParameterInteraction, final List<CoreEffect> effects)
+    public CoreResult (final DesiredHardwareOutput desiredOutput, final DesiredInputRoutes desiredInputRoutes, final DesiredBridgeSubscriptions desiredBridgeSubscriptions, final Map<ControlId, ClipTargetId> desiredClipBindings, final DesiredControllerState desiredControllerState, final DesiredNoteRepeat desiredNoteRepeat, final DesiredControllerActions desiredControllerActions, final DesiredParameterBanks desiredParameterBanks, final DesiredParameterInteraction desiredParameterInteraction, final List<CoreEffect> effects)
     {
-        this (desiredOutput, desiredInputRoutes, desiredBridgeSubscriptions, desiredClipBindings, desiredControllerWorkspace, DesiredNotePerformance.inactive (), DesiredNoteRepeat.unowned (), desiredControllerActions, desiredParameterBanks, desiredParameterInteraction, CoreExecutionRequirements.empty (), effects);
+        this (desiredOutput, desiredInputRoutes, desiredBridgeSubscriptions, desiredClipBindings, desiredControllerState, desiredNoteRepeat, desiredControllerActions, desiredParameterBanks, desiredParameterInteraction, CoreExecutionRequirements.empty (), effects);
+    }
+
+
+    /** Construct a result without controller-mechanism ownership or runtime cadence. */
+    public CoreResult (final DesiredHardwareOutput desiredOutput, final DesiredInputRoutes desiredInputRoutes, final DesiredBridgeSubscriptions desiredBridgeSubscriptions, final Map<ControlId, ClipTargetId> desiredClipBindings, final DesiredControllerActions desiredControllerActions, final DesiredParameterBanks desiredParameterBanks, final DesiredParameterInteraction desiredParameterInteraction, final List<CoreEffect> effects)
+    {
+        this (desiredOutput, desiredInputRoutes, desiredBridgeSubscriptions, desiredClipBindings, DesiredControllerState.empty (), DesiredNoteRepeat.unowned (), desiredControllerActions, desiredParameterBanks, desiredParameterInteraction, CoreExecutionRequirements.empty (), effects);
     }
 
 
@@ -65,8 +57,7 @@ public record CoreResult (DesiredHardwareOutput desiredOutput, DesiredInputRoute
         desiredInputRoutes = Objects.requireNonNull (desiredInputRoutes, "desiredInputRoutes");
         desiredBridgeSubscriptions = Objects.requireNonNull (desiredBridgeSubscriptions, "desiredBridgeSubscriptions");
         desiredClipBindings = Map.copyOf (Objects.requireNonNull (desiredClipBindings, "desiredClipBindings"));
-        desiredControllerWorkspace = Objects.requireNonNull (desiredControllerWorkspace, "desiredControllerWorkspace");
-        desiredNotePerformance = Objects.requireNonNull (desiredNotePerformance, "desiredNotePerformance");
+        desiredControllerState = Objects.requireNonNull (desiredControllerState, "desiredControllerState");
         desiredNoteRepeat = Objects.requireNonNull (desiredNoteRepeat, "desiredNoteRepeat");
         desiredControllerActions = Objects.requireNonNull (desiredControllerActions, "desiredControllerActions");
         desiredParameterBanks = Objects.requireNonNull (desiredParameterBanks, "desiredParameterBanks");

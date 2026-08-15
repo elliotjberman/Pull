@@ -17,13 +17,11 @@ public record DesiredNotePerformance (DesiredControllerLayout layout, DesiredNot
     private static final DesiredNotePerformance INACTIVE = new DesiredNotePerformance (DesiredControllerLayout.empty (), DesiredNoteInputRoute.disabled ());
 
 
-    /** Validate that musical routing cannot outlive its Note layout. */
+    /** Validate components; their composed physical ownership is checked by DesiredControllerState. */
     public DesiredNotePerformance
     {
         layout = Objects.requireNonNull (layout, "layout");
         inputRoute = Objects.requireNonNull (inputRoute, "inputRoute");
-        if (inputRoute.active () && (!layout.isPresent () || layout.noteView () == ControllerNoteView.CLIP_LENGTH))
-            throw new IllegalArgumentException ("Selected-track note routing requires a musical Note layout");
     }
 
 

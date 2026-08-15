@@ -8,6 +8,8 @@ import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerLayoutSnapshot;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
+import de.mossgrabers.pull.core.api.DesiredControllerLayout;
+import de.mossgrabers.pull.core.api.DesiredNotePerformance;
 import de.mossgrabers.pull.core.api.GridPressureConfiguration;
 import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
@@ -92,7 +94,7 @@ public final class DrumControllerView implements ControllerView
     public Set<BridgeSubscription> bridgeSubscriptions ()
     {
         final Set<BridgeSubscription> subscriptions = new LinkedHashSet<> (this.fillView.bridgeSubscriptions ());
-        subscriptions.add (BridgeSubscription.CONTROLLER_LAYOUT);
+        subscriptions.addAll (Set.of (BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.SELECTED_TRACK, BridgeSubscription.NOTE_VIEW));
         return Set.copyOf (subscriptions);
     }
 
@@ -127,7 +129,16 @@ public final class DrumControllerView implements ControllerView
     @Override
     public ViewOutput render (final ControllerSnapshot snapshot)
     {
-        return this.fillView.render (snapshot);
+        final ViewOutput fill = this.fillView.render (snapshot);
+        final ResolvedNoteViewer resolved = ResolvedNoteViewer.resolveCompositeDrum (snapshot);
+        return new ViewOutput (
+            fill.lights (),
+            fill.clipBindings (),
+            fill.display (),
+            fill.padGridOverlay (),
+            fill.displayOverlay (),
+            new DesiredNotePerformance (DesiredControllerLayout.empty (), resolved.noteInputRoute ()),
+            fill.noteRepeat ());
     }
 
 

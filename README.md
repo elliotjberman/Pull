@@ -83,7 +83,7 @@ Bitwig's default Project Settings → Clip Launcher → ALT Release setting, or 
 override to `Return`. A fill clip's loop enablement and length remain session content.
 
 The slice passes offline fake-host verification. The exact immediate-legato/ALT-Return path still
-requires a live Bitwig smoke test after installing the Core-API-9 shell on Bitwig controller API
+requires a live Bitwig smoke test after installing the Core-API-28 shell on Bitwig controller API
 21.
 
 The permanent Push Pads note input is excluded from Bitwig's `All Inputs` pool. While a musical
@@ -93,8 +93,13 @@ when Note view exits or the core fails. Pull does not change record arm or monit
 testing found that a track in Bitwig's default `Auto` monitor mode must be armed to sound. A project
 track explicitly configured for the named `Pads` input can still receive the same hardware stream
 and is outside this selected-only route.
-Note and Session are exclusively core-owned transitions: routing is submitted before a musical
-layout can activate, Session/failure uses a real neutral layout, and route removal waits for held
+Each active view contributes one declarative controller-state bundle: its fixed controller facets,
+full-grid Note layout when applicable, and selected-track musical route. Composite views merge
+those contributions and reject overlapping physical owners. The full-grid Note viewer and the
+lower-half drum controller therefore preserve the same selected-track route in their respective
+workspaces; the drum controller also preserves its automatic-roll lease in Shift+Session.
+One stable lifecycle owner applies the composed state. Routing is submitted before a musical
+surface can activate, Session/failure uses a real neutral layout, and route removal waits for held
 pads and sustain. Bitwig exposes no route-attachment read-back, so live note observation—not a
 successful void API call—is the final smoke-test evidence.
 The controller-private cursor also provides authoritative state, actions, identity, and drum
@@ -164,7 +169,7 @@ implementation edits do not change this compatibility fingerprint.
 Installing this shell checkpoint requires one extension copy and Bitwig restart because it changes
 the stable note-input topology and parent-loaded API: the existing Pads input leaves `All Inputs`,
 and the stable shell gains the bounded direct selected-track route consumed by the core's complete
-Note-performance lifecycle. After that, selected-track policy changes confined to `pull-core` use
+composed controller-state lifecycle. After that, selected-track policy changes confined to `pull-core` use
 `tools/reload-core` without restarting Bitwig. The broader bounded capability-canopy roadmap is
 documented in
 [`docs/reloadable-controller-core-design.md`](docs/reloadable-controller-core-design.md).

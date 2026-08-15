@@ -65,8 +65,8 @@ final class RecordingEffectExecutor
         this.desiredInputRoutes = result.desiredInputRoutes ();
         this.desiredBridgeSubscriptions = result.desiredBridgeSubscriptions ();
         this.desiredClipBindings = result.desiredClipBindings ();
-        this.desiredControllerWorkspace = result.desiredControllerWorkspace ();
-        this.desiredNotePerformance = result.desiredNotePerformance ();
+        this.desiredControllerWorkspace = result.desiredControllerState ().workspace ();
+        this.desiredNotePerformance = result.desiredControllerState ().notePerformance ();
         this.desiredNoteRepeat = result.desiredNoteRepeat ();
         this.desiredParameterBanks = result.desiredParameterBanks ();
         this.desiredParameterInteraction = result.desiredParameterInteraction ();

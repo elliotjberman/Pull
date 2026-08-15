@@ -24,9 +24,8 @@ import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ControllerLayoutSnapshot;
 import de.mossgrabers.pull.core.api.ControllerNoteView;
 import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
-import de.mossgrabers.pull.core.api.DesiredNotePerformance;
+import de.mossgrabers.pull.core.api.DesiredControllerState;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
-import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
 import de.mossgrabers.pull.core.api.DesiredParameterBanks;
 import de.mossgrabers.pull.core.api.DrumContextSnapshot;
@@ -99,7 +98,7 @@ final class BoundedControllerBridge implements ControllerBridge
     private final NewClipAction newClipAction;
     private final ParameterTargetHost parameterTargets;
     private final MasterCommandHost masterCommands;
-    private final NotePerformanceHost notePerformance;
+    private final ControllerStateHost controllerState;
     private final Map<MidiStateKey, MidiState> noteInputMidiState = new HashMap<> ();
 
     private ControllerBridgeSnapshot snapshot = ControllerBridgeSnapshot.empty ();
@@ -132,7 +131,7 @@ final class BoundedControllerBridge implements ControllerBridge
         this.log = Objects.requireNonNull (log, "log");
         this.parameterTargets = new ParameterTargetHost (surface, model, this.log);
         this.masterCommands = new MasterCommandHost (model, log);
-        this.notePerformance = new NotePerformanceHost (selectedTarget, surface.getControllerWorkspaceHost ()::prepareLayout, surface.getControllerWorkspaceHost ()::applyLayout, this::resetNoteInputMidiState);
+        this.controllerState = new ControllerStateHost (selectedTarget, surface.getControllerWorkspaceHost (), this::resetNoteInputMidiState);
     }
 
 
@@ -149,7 +148,7 @@ final class BoundedControllerBridge implements ControllerBridge
     {
         final DesiredBridgeSubscriptions requested = Objects.requireNonNull (subscriptions, "subscriptions");
         this.reconcileNoteRepeatLease ();
-        this.notePerformance.refresh ();
+        this.controllerState.refresh ();
         final long selectedGeneration = this.selectedTarget.getGeneration ();
         if (this.observedSelectedGeneration >= 0 && selectedGeneration != this.observedSelectedGeneration)
             this.resetNoteInputMidiState ();
@@ -229,10 +228,9 @@ final class BoundedControllerBridge implements ControllerBridge
     public void invalidate ()
     {
         this.resetNoteInputMidiState ();
-        this.notePerformance.invalidate ();
+        this.controllerState.invalidate ();
         this.applyNoteRepeat (DesiredNoteRepeat.unowned ());
         this.parameterTargets.invalidate ();
-        this.surface.getControllerWorkspaceHost ().invalidate ();
     }
 
 
@@ -241,7 +239,7 @@ final class BoundedControllerBridge implements ControllerBridge
     {
         try
         {
-            this.notePerformance.invalidate ();
+            this.controllerState.invalidate ();
         }
         catch (final RuntimeException failure)
         {
@@ -321,49 +319,24 @@ final class BoundedControllerBridge implements ControllerBridge
     }
 
 
-    /**
-     * Validate a complete fixed-facet workspace before runtime commit.
-     *
-     * @param workspace The requested workspace
-     * @return The validated value
-     */
-    @Override
-    public DesiredControllerWorkspace prepareWorkspace (final DesiredControllerWorkspace workspace)
-    {
-        return this.surface.getControllerWorkspaceHost ().prepare (workspace);
-    }
-
-
-    /**
-     * Apply a previously validated fixed-facet workspace.
-     *
-     * @param workspace The workspace
-     */
-    @Override
-    public void applyWorkspace (final DesiredControllerWorkspace workspace)
-    {
-        this.surface.getControllerWorkspaceHost ().apply (workspace);
-    }
-
-
     @Override
     public void setNoteInputLifecycleIdle (final BooleanSupplier idle)
     {
-        this.notePerformance.setInputLifecycleIdle (idle);
+        this.controllerState.setInputLifecycleIdle (idle);
     }
 
 
     @Override
-    public DesiredNotePerformance prepareNotePerformance (final DesiredNotePerformance performance)
+    public DesiredControllerState prepareControllerState (final DesiredControllerState state)
     {
-        return this.notePerformance.prepare (performance);
+        return this.controllerState.prepare (state);
     }
 
 
     @Override
-    public void applyNotePerformance (final DesiredNotePerformance performance)
+    public void applyControllerState (final DesiredControllerState state)
     {
-        this.notePerformance.apply (performance);
+        this.controllerState.apply (state);
     }
 
 

@@ -652,7 +652,7 @@ class PullControllerCoreTest
         host.bridge (masterBridge (true, true, false));
 
         assertEquals (Set.of (ControllerViewFacet.MASTER_CONTROLS), host.effects ().desiredControllerWorkspace ().facets ());
-        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.MASTER, BridgeSubscription.PARAMETERS, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
+        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.MASTER, BridgeSubscription.PARAMETERS, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
         assertEquals (Set.of (ParameterBankId.MASTER, ParameterBankId.GLOBAL), host.effects ().desiredParameterBanks ().banks ());
         assertTrue (host.effects ().desiredOutput ().display ().isPresent ());
         assertEquals (960, host.effects ().desiredOutput ().display ().width ());
@@ -788,6 +788,8 @@ class PullControllerCoreTest
         assertStableSessionDestination (host.effects ().desiredControllerWorkspace ());
 
         host.bridge (layoutBridge (3, "SESSION", "TRACK"));
+        assertStableSessionDestination (host.effects ().desiredControllerWorkspace ());
+        host.controllerButton (SESSION_BUTTON, false);
         assertEquals (DesiredControllerWorkspace.empty (), host.effects ().desiredControllerWorkspace ());
     }
 
@@ -907,6 +909,8 @@ class PullControllerCoreTest
         assertStableSessionDestination (host.effects ().desiredControllerWorkspace ());
 
         host.bridge (layoutBridge ("SESSION", "TRACK"));
+        assertStableSessionDestination (host.effects ().desiredControllerWorkspace ());
+        host.controllerButton (SESSION_BUTTON, false);
         assertEquals (DesiredControllerWorkspace.empty (), host.effects ().desiredControllerWorkspace ());
     }
 
@@ -921,9 +925,10 @@ class PullControllerCoreTest
         host.controllerButton (SESSION_BUTTON, true);
         assertStableSessionDestination (host.effects ().desiredControllerWorkspace ());
         host.bridge (layoutBridge ("SESSION", "TRACK"));
+        assertStableSessionDestination (host.effects ().desiredControllerWorkspace ());
+        host.controllerButton (SESSION_BUTTON, false);
         assertEquals (DesiredControllerWorkspace.empty (), host.effects ().desiredControllerWorkspace ());
 
-        host.controllerButton (SESSION_BUTTON, false);
         enterVsLive (host);
 
         assertVsLive (host.effects ().desiredControllerWorkspace ());
@@ -1022,7 +1027,7 @@ class PullControllerCoreTest
         assertEquals (Optional.of (InputRouteMode.OBSERVE), host.effects ().desiredInputRoutes ().mode (PushControlIds.pad (10), InputKind.PAD));
 
         host.controllerButton (SESSION_BUTTON, true);
-        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
+        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
         assertEquals (Optional.empty (), host.effects ().desiredInputRoutes ().mode (PushControlIds.pad (10), InputKind.POLY_PRESSURE));
     }
 
@@ -1082,10 +1087,12 @@ class PullControllerCoreTest
         assertEquals (DesiredNotePerformance.inactive (), host.effects ().desiredNotePerformance ());
         assertStableSessionDestination (host.effects ().desiredControllerWorkspace ());
 
+        host.bridge (noteBridge (2, "SESSION", juno, preference, DrumContextSnapshot.empty (), NoteRepeatSnapshot.empty ()));
+        assertStableSessionDestination (host.effects ().desiredControllerWorkspace ());
         host.controllerPad (PushControlIds.pad (1), true);
         host.controllerPad (PushControlIds.pad (1), false);
         host.controllerButton (SESSION_BUTTON, false);
-        host.bridge (noteBridge (2, "SESSION", juno, preference, DrumContextSnapshot.empty (), NoteRepeatSnapshot.empty ()));
+        host.bridge (noteBridge (3, "PLAY", juno, preference, DrumContextSnapshot.empty (), NoteRepeatSnapshot.empty ()));
 
         assertEquals (ControllerNoteView.PLAY, host.effects ().desiredControllerLayout ().noteView ());
         assertEquals (DesiredNoteInputRoute.selectedTrack (8, "juno"), host.effects ().desiredNoteInputRoute ());
@@ -1118,6 +1125,7 @@ class PullControllerCoreTest
         final SelectedTrackSnapshot drums = selectedTrack (9, "drums", 0, true, false);
         final NoteViewSnapshot preference = new NoteViewSnapshot (9, "drums", 0, ControllerNoteView.PLAY, true);
         host.bridge (noteBridge ("SESSION", drums, preference, drum (drums), NoteRepeatSnapshot.empty ()));
+        host.controllerButton (SESSION_BUTTON, true);
 
         host.controllerButton (SHIFT_BUTTON, true);
         host.controllerButton (NOTE_BUTTON, true);
@@ -1219,6 +1227,24 @@ class PullControllerCoreTest
 
 
     @Test
+    void shiftSessionDrumControllerOwnsTheSameAutomaticRoll ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        enterVsLive (host);
+        final SelectedTrackSnapshot drums = selectedTrack (9, "drums", 0, true, false);
+        final NoteViewSnapshot preference = new NoteViewSnapshot (9, "drums", 0, ControllerNoteView.NONE, true);
+        final NoteRepeatSnapshot manual = new NoteRepeatSnapshot (true, true, false, NoteRepeatMode.RANDOM, 2, 1.0 / 3.0, 0.25, true, true, false, false);
+
+        host.bridge (workspaceDrumBridge (drums, preference, drum (drums), manual));
+
+        assertEquals (InputRouteMode.EXCLUSIVE, host.effects ().desiredInputRoutes ().modeOrNull (PushControlIds.pad (5), InputKind.PAD));
+        assertTrue (host.effects ().desiredNoteRepeat ().owned ());
+        assertEquals (DesiredNoteInputRoute.selectedTrack (9, "drums"), host.effects ().desiredNotePerformance ().inputRoute ());
+    }
+
+
+    @Test
     void staleDrumLayoutCannotRetainRollAfterTheSelectedTargetChanges ()
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
@@ -1295,6 +1321,21 @@ class PullControllerCoreTest
             TransportSnapshot.empty (),
             selected,
             new ControllerLayoutSnapshot (layoutGeneration, view, "TRACK", "DRUM_PAD".equals (view), "DRUM_PAD".equals (view), 36, GridPressureConfiguration.OFF),
+            noteView,
+            noteRepeat,
+            drum,
+            ParameterBridgeSnapshot.empty (),
+            MasterSnapshot.empty (),
+            ProjectSnapshot.empty ());
+    }
+
+
+    private static ControllerBridgeSnapshot workspaceDrumBridge (final SelectedTrackSnapshot selected, final NoteViewSnapshot noteView, final DrumContextSnapshot drum, final NoteRepeatSnapshot noteRepeat)
+    {
+        return new ControllerBridgeSnapshot (
+            TransportSnapshot.empty (),
+            selected,
+            new ControllerLayoutSnapshot (1, "WORKSPACE", "PROJECT", true, true, 36, GridPressureConfiguration.OFF),
             noteView,
             noteRepeat,
             drum,

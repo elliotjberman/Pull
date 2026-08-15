@@ -21,6 +21,11 @@ import de.mossgrabers.pull.core.api.CoreExecutionRequirements;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
+import de.mossgrabers.pull.core.api.DesiredControllerState;
+import de.mossgrabers.pull.core.api.DesiredControllerLayout;
+import de.mossgrabers.pull.core.api.DesiredNoteInputRoute;
+import de.mossgrabers.pull.core.api.DesiredNotePerformance;
+import de.mossgrabers.pull.core.api.ControllerNoteView;
 import de.mossgrabers.pull.core.api.DesiredInputRoutes;
 import de.mossgrabers.pull.core.api.DesiredControllerActions;
 import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
@@ -142,7 +147,7 @@ class CoreApiValueTest
         final Map<ControlId, ClipTargetId> desiredBindings = new HashMap<> (Map.of (control, clip.targetId ()));
         final Set<BridgeSubscription> bridgeDomains = new HashSet<> (Set.of (BridgeSubscription.SELECTED_TRACK));
         final DesiredBridgeSubscriptions bridgeSubscriptions = new DesiredBridgeSubscriptions (bridgeDomains);
-        final CoreResult result = new CoreResult (output, DesiredInputRoutes.empty (), bridgeSubscriptions, desiredBindings, DesiredControllerWorkspace.empty (), de.mossgrabers.pull.core.api.DesiredControllerActions.empty (), de.mossgrabers.pull.core.api.DesiredParameterBanks.empty (), de.mossgrabers.pull.core.api.DesiredParameterInteraction.empty (), effects);
+        final CoreResult result = new CoreResult (output, DesiredInputRoutes.empty (), bridgeSubscriptions, desiredBindings, de.mossgrabers.pull.core.api.DesiredControllerActions.empty (), de.mossgrabers.pull.core.api.DesiredParameterBanks.empty (), de.mossgrabers.pull.core.api.DesiredParameterInteraction.empty (), effects);
         desiredBindings.clear ();
         bridgeDomains.clear ();
         effects.clear ();
@@ -183,15 +188,14 @@ class CoreApiValueTest
     @Test
     void publishesStableVersionCapabilityAndControlIdentifiers ()
     {
-        assertEquals (27, CoreApi.VERSION);
+        assertEquals (28, CoreApi.VERSION);
         assertEquals ("input.drum-fill", CoreCapabilities.INPUT_DRUM_FILL);
         assertEquals ("snapshot.selected-track-clips", CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS);
         assertEquals ("binding.clip-target", CoreCapabilities.BINDING_CLIP_TARGET);
         assertEquals ("snapshot.clip-launch-session", CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION);
         assertEquals ("effect.clip-launch-hold", CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD);
         assertEquals ("output.rgb-light", CoreCapabilities.OUTPUT_RGB_LIGHT);
-        assertEquals ("output.controller-workspace", CoreCapabilities.OUTPUT_CONTROLLER_WORKSPACE);
-        assertEquals ("output.note-performance", CoreCapabilities.OUTPUT_NOTE_PERFORMANCE);
+        assertEquals ("output.controller-state", CoreCapabilities.OUTPUT_CONTROLLER_STATE);
         assertEquals ("effect.note-view-preference", CoreCapabilities.EFFECT_NOTE_VIEW_PREFERENCE);
         assertEquals ("output.note-repeat", CoreCapabilities.OUTPUT_NOTE_REPEAT);
         assertEquals ("input.controller", CoreCapabilities.INPUT_CONTROLLER);
@@ -358,6 +362,25 @@ class CoreApiValueTest
 
 
     @Test
+    void composedControllerStateRejectsSplitOrOverlappingMusicalOwnership ()
+    {
+        final DesiredNoteInputRoute route = DesiredNoteInputRoute.selectedTrack (4, "drums");
+        final DesiredNotePerformance play = new DesiredNotePerformance (DesiredControllerLayout.note (ControllerNoteView.PLAY), route);
+        final DesiredControllerWorkspace drum = new DesiredControllerWorkspace ("drum", Set.of (ControllerViewFacet.DRUM_CONTROLLER_LOWER), SessionBankShape.empty ());
+        final DesiredControllerWorkspace session = new DesiredControllerWorkspace ("session", Set.of (ControllerViewFacet.SESSION_GRID_FULL), new SessionBankShape (8, 8));
+
+        assertEquals (route, new DesiredControllerState (DesiredControllerWorkspace.empty (), play).notePerformance ().inputRoute ());
+        assertEquals (route, new DesiredControllerState (drum, new DesiredNotePerformance (DesiredControllerLayout.empty (), route)).notePerformance ().inputRoute ());
+        assertThrows (IllegalArgumentException.class, () -> new DesiredControllerState (DesiredControllerWorkspace.empty (), new DesiredNotePerformance (DesiredControllerLayout.empty (), route)));
+        assertThrows (IllegalArgumentException.class, () -> new DesiredControllerState (DesiredControllerWorkspace.empty (), new DesiredNotePerformance (DesiredControllerLayout.note (ControllerNoteView.PLAY), DesiredNoteInputRoute.disabled ())));
+        assertThrows (IllegalArgumentException.class, () -> new DesiredControllerState (drum, play));
+        assertThrows (IllegalArgumentException.class, () -> new DesiredControllerState (drum, new DesiredNotePerformance (DesiredControllerLayout.note (ControllerNoteView.CLIP_LENGTH), DesiredNoteInputRoute.disabled ())));
+        assertThrows (IllegalArgumentException.class, () -> new DesiredControllerState (session, play));
+        assertThrows (IllegalArgumentException.class, () -> new DesiredControllerState (DesiredControllerWorkspace.empty (), new DesiredNotePerformance (DesiredControllerLayout.neutral (), DesiredNoteInputRoute.disabled ())));
+    }
+
+
+    @Test
     void semanticActionsAndExactParameterInteractionsAreReplayableValues ()
     {
         final ControlId page = PushControlIds.button ("PAGE_RIGHT");
@@ -506,7 +529,6 @@ class CoreApiValueTest
             DesiredInputRoutes.empty (),
             DesiredBridgeSubscriptions.empty (),
             Map.of (),
-            DesiredControllerWorkspace.empty (),
             de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
             de.mossgrabers.pull.core.api.DesiredParameterBanks.empty (),
             de.mossgrabers.pull.core.api.DesiredParameterInteraction.empty (),

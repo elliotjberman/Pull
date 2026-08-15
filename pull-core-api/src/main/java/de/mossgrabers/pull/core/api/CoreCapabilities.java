@@ -26,11 +26,8 @@ public final class CoreCapabilities
     /** Hardware-independent RGB light output; v3 admits the four drum-rate pads. */
     public static final String OUTPUT_RGB_LIGHT = "output.rgb-light";
 
-    /** Complete selection of fixed Push 2 view facets. */
-    public static final String OUTPUT_CONTROLLER_WORKSPACE = "output.controller-workspace";
-
-    /** Atomic note-controller layout and target-fenced selected-track input route. */
-    public static final String OUTPUT_NOTE_PERFORMANCE = "output.note-performance";
+    /** Atomic composition of fixed view facets, Note layout, and selected-track note routing. */
+    public static final String OUTPUT_CONTROLLER_STATE = "output.controller-state";
 
     /** Selected-target-fenced persistence of one controller Note-view preference. */
     public static final String EFFECT_NOTE_VIEW_PREFERENCE = "effect.note-view-preference";

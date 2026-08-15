@@ -47,6 +47,7 @@ public final class WorkspaceSelection
     private Id          active;
     private Destination pendingDestination;
     private long        pendingAfterLayoutGeneration = -1;
+    private boolean     sessionDestinationAcknowledged;
     private long        requestSequence;
     private final Map<Gesture, HeldSelection> heldSelections = new EnumMap<> (Gesture.class);
     private PreferredNoteViewRequest preferredNoteViewRequest;
@@ -133,6 +134,7 @@ public final class WorkspaceSelection
         this.active = Objects.requireNonNull (workspace, "workspace");
         this.pendingDestination = Objects.requireNonNull (destination, "destination");
         this.pendingAfterLayoutGeneration = destination == Destination.NONE ? -1 : afterLayoutGeneration;
+        this.sessionDestinationAcknowledged = false;
         this.requestSequence++;
     }
 
@@ -162,6 +164,12 @@ public final class WorkspaceSelection
         final HeldSelection held = this.heldSelections.remove (Objects.requireNonNull (gesture, "gesture"));
         if (held != null && held.switched () && held.temporary ())
             this.select (held.workspace (), held.destination (), Objects.requireNonNull (layout, "layout").generation ());
+        else if (gesture == Gesture.SESSION && this.pendingDestination == Destination.SESSION && this.sessionDestinationAcknowledged)
+        {
+            this.pendingDestination = Destination.NONE;
+            this.pendingAfterLayoutGeneration = -1;
+            this.sessionDestinationAcknowledged = false;
+        }
     }
 
 
@@ -196,7 +204,14 @@ public final class WorkspaceSelection
         if (observed.generation () <= this.pendingAfterLayoutGeneration)
             return;
         if (this.pendingDestination == Destination.SESSION && trackPage && "SESSION".equals (observed.viewId ()))
+        {
+            if (this.heldSelections.containsKey (Gesture.SESSION))
+            {
+                this.sessionDestinationAcknowledged = true;
+                return;
+            }
             this.pendingDestination = Destination.NONE;
+        }
         else if (this.pendingDestination == Destination.NOTE && trackPage && ControllerNoteView.fromStableId (observed.viewId ()).isPresent ())
             this.pendingDestination = Destination.NONE;
         if (this.pendingDestination == Destination.NONE)
