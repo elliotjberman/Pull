@@ -184,7 +184,7 @@ public class DeviceParamsMode extends BaseMode<IParameter>
             track.select ();
         else if (track.isGroup ())
         {
-            if (this.surface.isShiftPressed () || configuration.isTrackNavigationFlat ())
+            if (this.surface.isShiftPressed ())
                 track.toggleGroupExpanded ();
             else
             {

@@ -264,7 +264,7 @@ Do not treat “transport” as one automatically easy PR:
 | Record | Core-owned action and light | Preserve complete modifier and authoritative feedback behavior |
 | Play | Core-owned action and light | Current project-aware transaction is documented in `ARCH.md` |
 | Metronome | Plain toggle is representable | Long-press temporary Transport mode and its display |
-| Automation | Partial transport state exists | Reset-overrides action, Flip Record configuration, long-press mode/display |
+| Automation | Partial transport state exists | Reset-overrides action and long-press mode/display |
 | Play-position knob | Absolute position effect exists | Relative stepping policy, Select+loop-length behavior, touch notifications |
 | Tempo knob | Tempo state/effect exists | Relative/rastered policy, Shift+shuffle, touch display semantics |
 | Tap Tempo | Input exists | A typed tap-tempo effect and any tempo indication semantics |

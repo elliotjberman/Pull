@@ -71,9 +71,8 @@ public abstract class AbstractGraphicDisplay implements IGraphicDisplay
      * @param host The host
      * @param configuration The configuration
      * @param dimensions The pre-calculated dimensions
-     * @param windowTitle The window title
      */
-    protected AbstractGraphicDisplay (final IHost host, final IGraphicsConfiguration configuration, final IGraphicsDimensions dimensions, final String windowTitle)
+    protected AbstractGraphicDisplay (final IHost host, final IGraphicsConfiguration configuration, final IGraphicsDimensions dimensions)
     {
         this.host = host;
         this.configuration = configuration;
@@ -82,8 +81,6 @@ public abstract class AbstractGraphicDisplay implements IGraphicDisplay
         ResourceHandler.init (host);
 
         this.image = host.createBitmap (dimensions.getWidth (), dimensions.getHeight ());
-        this.image.setDisplayWindowTitle (windowTitle);
-
         // Manage notification message display time
         this.executor.scheduleAtFixedRate (this::runHousekeeping, 1, 1, TimeUnit.SECONDS);
     }
@@ -108,14 +105,6 @@ public abstract class AbstractGraphicDisplay implements IGraphicDisplay
         {
             return this.counter.get () > 0;
         }
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void showDebugWindow ()
-    {
-        this.image.showDisplayWindow ();
     }
 
 

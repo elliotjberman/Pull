@@ -21,9 +21,6 @@ import de.mossgrabers.framework.featuregroup.IMode;
  */
 public class PushCursorCommand extends CursorCommand<PushControlSurface, PushConfiguration>
 {
-    private final PushConfiguration configuration;
-
-
     /**
      * Constructor.
      *
@@ -34,8 +31,6 @@ public class PushCursorCommand extends CursorCommand<PushControlSurface, PushCon
     public PushCursorCommand (final Direction direction, final IModel model, final PushControlSurface surface)
     {
         super (direction, model, surface, false);
-
-        this.configuration = this.surface.getConfiguration ();
     }
 
 
@@ -46,15 +41,10 @@ public class PushCursorCommand extends CursorCommand<PushControlSurface, PushCon
     protected void scrollUp ()
     {
         final ISceneBank sceneBank = this.getSceneBank ();
-        switch (this.surface.isShiftPressed () ? this.configuration.getCursorKeysSceneShiftedOption () : this.configuration.getCursorKeysSceneOption ())
-        {
-            case PushConfiguration.CURSOR_KEYS_SCENE_OPTION_MOVE_BANK_BY_PAGE:
-                sceneBank.selectPreviousPage ();
-                break;
-            case PushConfiguration.CURSOR_KEYS_TRACK_OPTION_MOVE_BANK_BY_1:
-                sceneBank.scrollBackwards ();
-                break;
-        }
+        if (this.surface.isShiftPressed ())
+            sceneBank.selectPreviousPage ();
+        else
+            sceneBank.scrollBackwards ();
     }
 
 
@@ -65,15 +55,10 @@ public class PushCursorCommand extends CursorCommand<PushControlSurface, PushCon
     protected void scrollDown ()
     {
         final ISceneBank sceneBank = this.getSceneBank ();
-        switch (this.surface.isShiftPressed () ? this.configuration.getCursorKeysSceneShiftedOption () : this.configuration.getCursorKeysSceneOption ())
-        {
-            case PushConfiguration.CURSOR_KEYS_SCENE_OPTION_MOVE_BANK_BY_PAGE:
-                sceneBank.selectNextPage ();
-                break;
-            case PushConfiguration.CURSOR_KEYS_TRACK_OPTION_MOVE_BANK_BY_1:
-                sceneBank.scrollForwards ();
-                break;
-        }
+        if (this.surface.isShiftPressed ())
+            sceneBank.selectNextPage ();
+        else
+            sceneBank.scrollForwards ();
     }
 
 
@@ -125,16 +110,15 @@ public class PushCursorCommand extends CursorCommand<PushControlSurface, PushCon
         final IMode mode = this.surface.getModeManager ().getActive ();
         final boolean shiftPressed = this.surface.isShiftPressed ();
 
-        switch (shiftPressed ? this.configuration.getCursorKeysSceneShiftedOption () : this.configuration.getCursorKeysSceneOption ())
+        if (shiftPressed)
         {
-            case PushConfiguration.CURSOR_KEYS_SCENE_OPTION_MOVE_BANK_BY_PAGE:
-                this.scrollStates.setCanScrollUp (sceneBank.canScrollPageBackwards ());
-                this.scrollStates.setCanScrollDown (sceneBank.canScrollPageForwards ());
-                break;
-            case PushConfiguration.CURSOR_KEYS_TRACK_OPTION_MOVE_BANK_BY_1:
-                this.scrollStates.setCanScrollUp (sceneBank.canScrollBackwards ());
-                this.scrollStates.setCanScrollDown (sceneBank.canScrollForwards ());
-                break;
+            this.scrollStates.setCanScrollUp (sceneBank.canScrollPageBackwards ());
+            this.scrollStates.setCanScrollDown (sceneBank.canScrollPageForwards ());
+        }
+        else
+        {
+            this.scrollStates.setCanScrollUp (sceneBank.canScrollBackwards ());
+            this.scrollStates.setCanScrollDown (sceneBank.canScrollForwards ());
         }
 
         if (this.surface.isSessionNavigationActive ())
@@ -153,8 +137,7 @@ public class PushCursorCommand extends CursorCommand<PushControlSurface, PushCon
     private void scrollTracks (final boolean forwards)
     {
         final ITrackBank trackBank = this.model.getCurrentTrackBank ();
-        final int option = this.surface.isShiftPressed () ? this.configuration.getCursorKeysTrackShiftedOption () : this.configuration.getCursorKeysTrackOption ();
-        if (option == PushConfiguration.CURSOR_KEYS_TRACK_OPTION_MOVE_BANK_BY_PAGE)
+        if (!this.surface.isShiftPressed ())
         {
             if (forwards)
                 trackBank.selectNextPage ();
@@ -171,8 +154,7 @@ public class PushCursorCommand extends CursorCommand<PushControlSurface, PushCon
     private boolean canScrollTracks (final boolean forwards)
     {
         final ITrackBank trackBank = this.model.getCurrentTrackBank ();
-        final int option = this.surface.isShiftPressed () ? this.configuration.getCursorKeysTrackShiftedOption () : this.configuration.getCursorKeysTrackOption ();
-        if (option == PushConfiguration.CURSOR_KEYS_TRACK_OPTION_MOVE_BANK_BY_PAGE)
+        if (!this.surface.isShiftPressed ())
             return forwards ? trackBank.canScrollPageForwards () : trackBank.canScrollPageBackwards ();
         return forwards ? trackBank.canScrollForwards () : trackBank.canScrollBackwards ();
     }

@@ -4,8 +4,6 @@
 
 package de.mossgrabers.framework.configuration;
 
-import de.mossgrabers.framework.controller.color.ColorEx;
-
 import java.util.List;
 
 
@@ -112,17 +110,6 @@ public interface ISettingsUI
      * @return The object that encapsulates the requested setting
      */
     ISignalSetting getSignalSetting (final String label, final String category, final String title);
-
-
-    /**
-     * Returns a color setting.
-     *
-     * @param label The name of the setting, must not be null
-     * @param category The name of the category, may not be null
-     * @param defaultColor The default color (RGB)
-     * @return The object that encapsulates the requested setting
-     */
-    IColorSetting getColorSetting (final String label, final String category, final ColorEx defaultColor);
 
 
     /**

@@ -68,9 +68,7 @@ public class PushAutomationCommand extends AbstractTriggerCommand<PushControlSur
 
     private void doCommand ()
     {
-        final boolean isShift = this.surface.isShiftPressed ();
-        final boolean flipRecord = this.surface.getConfiguration ().isFlipRecord ();
-        if (isShift && !flipRecord || !isShift && flipRecord)
+        if (this.surface.isShiftPressed ())
             this.model.getTransport ().toggleWriteClipLauncherAutomation ();
         else
             this.model.getTransport ().toggleWriteArrangerAutomation ();

@@ -17,7 +17,7 @@ import de.mossgrabers.framework.utils.ButtonEvent;
 
 
 /**
- * Command to trigger the Add effect. Opens the favorite menu when combined with Select button.
+ * Command to trigger Add Device. Opens the device shortcut menu when combined with Select.
  *
  * @author Jürgen Moßgraber
  */

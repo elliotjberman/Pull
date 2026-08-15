@@ -200,20 +200,6 @@ class PushDebugCaptureHostTest
     private record FakeBitmap (byte [] pixels, int width, int height) implements IBitmap
     {
         @Override
-        public void setDisplayWindowTitle (final String title)
-        {
-            // Not used.
-        }
-
-
-        @Override
-        public void showDisplayWindow ()
-        {
-            // Not used.
-        }
-
-
-        @Override
         public void render (final boolean enableAntialias, final IRenderer renderer)
         {
             // Not used.

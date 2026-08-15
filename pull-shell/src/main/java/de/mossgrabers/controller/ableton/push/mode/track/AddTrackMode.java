@@ -124,44 +124,19 @@ public class AddTrackMode extends BaseMode<IItem>
 
         this.surface.getModeManager ().restore ();
 
-        final ChannelType channelType = this.addMode.getChannelType ();
-        final Optional<IDeviceMetadata> favorite;
-        if (index == 0)
+        if (index == 0 && this.addMode == AddMode.DEVICE)
         {
-            if (this.addMode == AddMode.DEVICE)
-            {
-                this.browserCommand.startBrowser (true, false);
-                return;
-            }
-            favorite = Optional.empty ();
-        }
-        else
-        {
-            final PushConfiguration conf = this.surface.getConfiguration ();
-            switch (this.addMode)
-            {
-                case INSTRUMENT:
-                    favorite = conf.getInstrumentFavorite (index - 1);
-                    break;
-                case AUDIO:
-                    favorite = conf.getAudioFavorite (index - 1);
-                    break;
-                case EFFECT:
-                    favorite = conf.getEffectFavorite (index - 1);
-                    break;
-                case DEVICE:
-                    favorite = conf.getDeviceFavorite (index - 1);
-                    break;
-                default:
-                    return;
-            }
+            this.browserCommand.startBrowser (true, false);
+            return;
         }
 
+        final ChannelType channelType = this.addMode.getChannelType ();
+        final Optional<IDeviceMetadata> shortcut = index == 0 ? Optional.empty () : this.getShortcut (index - 1);
         String channelName = null;
         IDeviceMetadata deviceMetadata = null;
-        if (favorite.isPresent ())
+        if (shortcut.isPresent ())
         {
-            deviceMetadata = favorite.get ();
+            deviceMetadata = shortcut.get ();
             channelName = deviceMetadata.name ();
         }
 
@@ -225,8 +200,8 @@ public class AddTrackMode extends BaseMode<IItem>
             }
             else
             {
-                final Optional<IDeviceMetadata> favorite = this.getFavorite (i - 1);
-                lowerMenu = favorite.isEmpty () ? "" : StringUtils.limit (favorite.get ().name (), 13);
+                final Optional<IDeviceMetadata> shortcut = this.getShortcut (i - 1);
+                lowerMenu = shortcut.isEmpty () ? "" : StringUtils.limit (shortcut.get ().name (), 13);
             }
             final String topLabel = TOP_MENU[i] == null ? "" : TOP_MENU[i].getLabel ();
             final ColorEx topColor = TOP_MENU[i] == null ? null : TOP_MENU[i].getColor ();
@@ -236,26 +211,19 @@ public class AddTrackMode extends BaseMode<IItem>
 
 
     /**
-     * Get the selected favorite depending on the current add mode.
+     * Get the selected shortcut depending on the current add mode.
      *
-     * @param index The index of the favorite
-     * @return The metadata of the favorite, if one is configured
+     * @param index The shortcut index
+     * @return The metadata at that index, if the host exposes one
      */
-    private Optional<IDeviceMetadata> getFavorite (final int index)
+    private Optional<IDeviceMetadata> getShortcut (final int index)
     {
         final PushConfiguration conf = this.surface.getConfiguration ();
-        switch (this.addMode)
+        return switch (this.addMode)
         {
-            case INSTRUMENT:
-                return conf.getInstrumentFavorite (index);
-            case AUDIO:
-                return conf.getAudioFavorite (index);
-            case EFFECT:
-                return conf.getEffectFavorite (index);
-            case DEVICE:
-                return conf.getDeviceFavorite (index);
-            default:
-                return Optional.empty ();
-        }
+            case INSTRUMENT -> conf.getInstrumentShortcut (index);
+            case AUDIO, EFFECT -> conf.getAudioEffectShortcut (index);
+            case DEVICE -> conf.getDeviceShortcut (index);
+        };
     }
 }

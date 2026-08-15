@@ -55,54 +55,6 @@ public interface IGraphicsConfiguration
 
 
     /**
-     * Get the edit color of an element.
-     *
-     * @return The edit color of an element.
-     */
-    ColorEx getColorEdit ();
-
-
-    /**
-     * Get the fader color of an element.
-     *
-     * @return The fader color of an element.
-     */
-    ColorEx getColorFader ();
-
-
-    /**
-     * Get the VU color of an element.
-     *
-     * @return The VU color of an element.
-     */
-    ColorEx getColorVu ();
-
-
-    /**
-     * Get the record color of an element.
-     *
-     * @return The record color of an element.
-     */
-    ColorEx getColorRecord ();
-
-
-    /**
-     * Get the solo color of an element.
-     *
-     * @return The solo color of an element.
-     */
-    ColorEx getColorSolo ();
-
-
-    /**
-     * Get the mute color of an element.
-     *
-     * @return The border mute of an element.
-     */
-    ColorEx getColorMute ();
-
-
-    /**
      * Should anti-aliasing be applied?
      *
      * @return True if enabled

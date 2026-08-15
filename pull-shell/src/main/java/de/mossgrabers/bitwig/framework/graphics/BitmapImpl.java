@@ -25,22 +25,6 @@ public record BitmapImpl (Bitmap bitmap) implements IBitmap
 {
     /** {@inheritDoc} */
     @Override
-    public void setDisplayWindowTitle (final String title)
-    {
-        this.bitmap.setDisplayWindowTitle (title);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void showDisplayWindow ()
-    {
-        this.bitmap.showDisplayWindow ();
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
     public void render (final boolean enableAntialias, final IRenderer renderer)
     {
         this.bitmap.render (gc -> renderer.render (new GraphicsContextImpl (enableAntialias ? AntialiasMode.BEST : AntialiasMode.OFF, gc)));
