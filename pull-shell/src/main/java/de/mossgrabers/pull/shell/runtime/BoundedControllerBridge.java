@@ -1022,81 +1022,42 @@ final class BoundedControllerBridge implements ControllerBridge
 
     private enum NoteRepeatToggle
     {
-        FREE_RUNNING
+        FREE_RUNNING,
+        USE_PRESSURE,
+        SHUFFLE;
+
+
+        boolean read (final INoteRepeat engine)
         {
-            @Override
-            boolean read (final INoteRepeat engine)
+            return switch (this)
             {
-                return engine.isFreeRunning ();
-            }
+                case FREE_RUNNING -> engine.isFreeRunning ();
+                case USE_PRESSURE -> engine.usePressure ();
+                case SHUFFLE -> engine.isShuffle ();
+            };
+        }
 
 
-            @Override
-            boolean expected (final DesiredNoteRepeat desired)
-            {
-                return desired.freeRunning ();
-            }
-
-
-            @Override
-            void toggle (final INoteRepeat engine)
-            {
-                engine.toggleIsFreeRunning ();
-            }
-        },
-        USE_PRESSURE
+        boolean expected (final DesiredNoteRepeat desired)
         {
-            @Override
-            boolean read (final INoteRepeat engine)
+            return switch (this)
             {
-                return engine.usePressure ();
-            }
+                case FREE_RUNNING -> desired.freeRunning ();
+                case USE_PRESSURE -> desired.usePressure ();
+                case SHUFFLE -> desired.shuffle ();
+            };
+        }
 
 
-            @Override
-            boolean expected (final DesiredNoteRepeat desired)
-            {
-                return desired.usePressure ();
-            }
-
-
-            @Override
-            void toggle (final INoteRepeat engine)
-            {
-                engine.toggleUsePressure ();
-            }
-        },
-        SHUFFLE
+        void toggle (final INoteRepeat engine)
         {
-            @Override
-            boolean read (final INoteRepeat engine)
+            switch (this)
             {
-                return engine.isShuffle ();
+                case FREE_RUNNING -> engine.toggleIsFreeRunning ();
+                case USE_PRESSURE -> engine.toggleUsePressure ();
+                case SHUFFLE -> engine.toggleShuffle ();
             }
-
-
-            @Override
-            boolean expected (final DesiredNoteRepeat desired)
-            {
-                return desired.shuffle ();
-            }
-
-
-            @Override
-            void toggle (final INoteRepeat engine)
-            {
-                engine.toggleShuffle ();
-            }
-        };
-
-
-        abstract boolean read (INoteRepeat engine);
-
-
-        abstract boolean expected (DesiredNoteRepeat desired);
-
-
-        abstract void toggle (INoteRepeat engine);
+        }
     }
 
 

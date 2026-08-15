@@ -212,14 +212,7 @@ public final class DrumPadControls
      */
     public void onGridNote (final int note, final int velocity)
     {
-        if (!this.controllerEngaged)
-            return;
-
-        if (this.isFillPad (note))
-            return;
-
-        // Rate pads are an inert permanent binding. Their complete input policy is owned by the
-        // reloadable core through the one physical input router.
+        // Inert permanent binding: core input routes own all drum-controller pad behavior.
     }
 
 

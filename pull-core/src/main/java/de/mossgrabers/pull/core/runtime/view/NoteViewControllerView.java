@@ -92,14 +92,12 @@ public final class NoteViewControllerView implements ControllerView
 
         final boolean drumReady = preference.drumControllerApplicable ();
         final ControllerNoteView preferred = preference.preferredView ();
-        if (preferred.isPresent ())
-        {
-            if (preferred == ControllerNoteView.DRUM_PAD && !drumReady)
-                return ControllerNoteView.NONE;
-            if (preferred == ControllerNoteView.CLIP_LENGTH && !selected.canHoldAudio ())
-                return ControllerNoteView.NONE;
-            return selected.canHoldNotes () || preferred == ControllerNoteView.CLIP_LENGTH ? preferred : ControllerNoteView.NONE;
-        }
+        if (preferred == ControllerNoteView.DRUM_PAD && selected.canHoldNotes () && drumReady)
+            return preferred;
+        if (preferred == ControllerNoteView.CLIP_LENGTH && selected.canHoldAudio ())
+            return preferred;
+        if (preferred.isPresent () && preferred != ControllerNoteView.DRUM_PAD && preferred != ControllerNoteView.CLIP_LENGTH && selected.canHoldNotes ())
+            return preferred;
 
         if (selected.canHoldNotes ())
             return drumReady ? ControllerNoteView.DRUM_PAD : ControllerNoteView.PLAY;

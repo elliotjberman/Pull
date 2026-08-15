@@ -372,14 +372,6 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
 
     /** {@inheritDoc} */
     @Override
-    protected int getNoteRepeatOctave (final PushConfiguration conf, final PushControlSurface surface)
-    {
-        return this.drumPadControls != null && this.drumPadControls.isActive () ? 0 : conf.getNoteRepeatOctave ();
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
     protected void createViews ()
     {
         final PushControlSurface surface = this.getSurface ();

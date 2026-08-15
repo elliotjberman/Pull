@@ -10,6 +10,8 @@ import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.DesiredControllerLayout;
 import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
 import de.mossgrabers.pull.core.api.NoteRepeatMode;
+import de.mossgrabers.pull.core.api.NoteViewSnapshot;
+import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
@@ -43,7 +45,7 @@ public final class DrumRateView implements ControllerView
     private static final RgbColor AVAILABLE = new RgbColor (110, 82, 5);
     private static final RgbColor HELD = new RgbColor (205, 155, 8);
     private static final RgbColor ACTIVE = new RgbColor (255, 220, 30);
-    private static final Set<BridgeSubscription> SUBSCRIPTIONS = Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_REPEAT);
+    private static final Set<BridgeSubscription> SUBSCRIPTIONS = Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.NOTE_REPEAT);
     private static final ViewProfile PROFILE = ViewProfile.fixed (
         "rates",
         Set.of (
@@ -138,7 +140,10 @@ public final class DrumRateView implements ControllerView
 
     private static boolean isEnabled (final ControllerSnapshot snapshot)
     {
-        return snapshot.bridge ().layout ().drumLayoutActive () && snapshot.bridge ().layout ().drumControllerEngaged () && snapshot.bridge ().noteRepeat ().available () && snapshot.bridge ().noteRepeat ().drumRollEnabled ();
+        final SelectedTrackSnapshot selected = snapshot.bridge ().selectedTrack ();
+        final NoteViewSnapshot noteView = snapshot.bridge ().noteView ();
+        final boolean alignedDrumTarget = selected.exists () && noteView.drumControllerApplicable () && selected.generation () == noteView.targetGeneration () && selected.channelId ().equals (noteView.targetChannelId ()) && selected.position () == noteView.trackPosition ();
+        return alignedDrumTarget && snapshot.bridge ().layout ().drumLayoutActive () && snapshot.bridge ().layout ().drumControllerEngaged () && snapshot.bridge ().noteRepeat ().available () && snapshot.bridge ().noteRepeat ().drumRollEnabled ();
     }
 
 
