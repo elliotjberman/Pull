@@ -4,6 +4,7 @@
 package de.mossgrabers.pull.core.runtime.view;
 
 import de.mossgrabers.pull.core.api.ControllerLayoutSnapshot;
+import de.mossgrabers.pull.core.api.ControllerNoteView;
 
 import java.util.Objects;
 
@@ -127,7 +128,7 @@ public final class WorkspaceSelection
         final boolean trackPage = "TRACK".equals (observed.modeId ());
         if (this.pendingDestination == Destination.SESSION && trackPage && "SESSION".equals (observed.viewId ()))
             this.pendingDestination = Destination.NONE;
-        else if (this.pendingDestination == Destination.NOTE && trackPage)
+        else if (this.pendingDestination == Destination.NOTE && trackPage && ControllerNoteView.fromStableId (observed.viewId ()).isPresent ())
             this.pendingDestination = Destination.NONE;
     }
 }

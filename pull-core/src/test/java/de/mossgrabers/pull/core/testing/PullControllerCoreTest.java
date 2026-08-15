@@ -10,12 +10,18 @@ import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ControllerLayoutSnapshot;
+import de.mossgrabers.pull.core.api.ControllerNoteView;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
+import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
+import de.mossgrabers.pull.core.api.DrumContextSnapshot;
 import de.mossgrabers.pull.core.api.InputRouteMode;
 import de.mossgrabers.pull.core.api.GridPressureConfiguration;
 import de.mossgrabers.pull.core.api.MasterSnapshot;
+import de.mossgrabers.pull.core.api.NoteRepeatMode;
+import de.mossgrabers.pull.core.api.NoteRepeatSnapshot;
+import de.mossgrabers.pull.core.api.NoteViewSnapshot;
 import de.mossgrabers.pull.core.api.ParameterBankId;
 import de.mossgrabers.pull.core.api.ParameterBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ParameterSlot;
@@ -438,7 +444,7 @@ class PullControllerCoreTest
 
         host.start (Optional.empty ());
 
-        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
+        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
         assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (PLAY_BUTTON, InputKind.BUTTON));
         assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (RECORD_BUTTON, InputKind.BUTTON));
         host.selectedTrack (selectedTrack (false));
@@ -917,7 +923,7 @@ class PullControllerCoreTest
 
         assertVsLive (host.effects ().desiredControllerWorkspace ());
         assertEquals (Optional.of (InputRouteMode.OBSERVE), host.effects ().desiredInputRoutes ().mode (PushControlIds.pad (10), InputKind.POLY_PRESSURE));
-        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.PARAMETERS, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
+        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_REPEAT, BridgeSubscription.PARAMETERS, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
         assertEquals (Set.of (ParameterBankId.PROJECT_REMOTE, ParameterBankId.GLOBAL), host.effects ().desiredParameterBanks ().banks ());
     }
 
@@ -1002,7 +1008,7 @@ class PullControllerCoreTest
         assertTrue (host.effects ().executionOrder ().isEmpty ());
 
         enterVsLive (host);
-        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.PARAMETERS, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
+        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_REPEAT, BridgeSubscription.PARAMETERS, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
         assertEquals (Set.of (ParameterBankId.PROJECT_REMOTE, ParameterBankId.GLOBAL), host.effects ().desiredParameterBanks ().banks ());
         host.controllerMotion (PushControlIds.pad (10), InputKind.POLY_PRESSURE, 91);
 
@@ -1011,7 +1017,7 @@ class PullControllerCoreTest
         assertEquals (Optional.of (InputRouteMode.OBSERVE), host.effects ().desiredInputRoutes ().mode (PushControlIds.pad (10), InputKind.PAD));
 
         host.controllerButton (SESSION_BUTTON, true);
-        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
+        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
         assertEquals (Optional.empty (), host.effects ().desiredInputRoutes ().mode (PushControlIds.pad (10), InputKind.POLY_PRESSURE));
     }
 
@@ -1034,6 +1040,66 @@ class PullControllerCoreTest
         final int effectCount = host.effects ().executionOrder ().size ();
         host.controllerMotion (PushControlIds.pad (5), InputKind.POLY_PRESSURE, 64);
         assertEquals (effectCount, host.effects ().executionOrder ().size ());
+    }
+
+
+    @Test
+    void selectedTrackNoteViewerFailsClosedUntilPrivatePreferenceIdentityAligns ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        final SelectedTrackSnapshot juno = selectedTrack (8, "juno", 5, true, false);
+
+        host.bridge (noteBridge ("DRUM_PAD", juno, new NoteViewSnapshot (7, "drums", 0, ControllerNoteView.DRUM_PAD, true), DrumContextSnapshot.empty (), NoteRepeatSnapshot.empty ()));
+        assertFalse (host.effects ().desiredControllerLayout ().isPresent ());
+
+        host.bridge (noteBridge ("DRUM_PAD", juno, new NoteViewSnapshot (8, "juno", 5, ControllerNoteView.PLAY, false), DrumContextSnapshot.empty (), NoteRepeatSnapshot.empty ()));
+        assertEquals (ControllerNoteView.PLAY, host.effects ().desiredControllerLayout ().noteView ());
+    }
+
+
+    @Test
+    void derivedNoteViewerAdvancesFromMelodicToDrumAfterAlignedDeviceReadback ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        final SelectedTrackSnapshot drums = selectedTrack (9, "drums", 0, true, false);
+        final NoteViewSnapshot melodic = new NoteViewSnapshot (9, "drums", 0, ControllerNoteView.NONE, false);
+
+        host.bridge (noteBridge ("PLAY", drums, melodic, DrumContextSnapshot.empty (), NoteRepeatSnapshot.empty ()));
+        assertEquals (ControllerNoteView.PLAY, host.effects ().desiredControllerLayout ().noteView ());
+
+        final NoteViewSnapshot drumReady = new NoteViewSnapshot (9, "drums", 0, ControllerNoteView.NONE, true);
+        host.bridge (noteBridge ("PLAY", drums, drumReady, drum (drums), NoteRepeatSnapshot.empty ()));
+        assertEquals (ControllerNoteView.DRUM_PAD, host.effects ().desiredControllerLayout ().noteView ());
+    }
+
+
+    @Test
+    void drumRollOwnsOnlyTheDrumRatePadsAndWaitsForEngineReadback ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        final SelectedTrackSnapshot drums = selectedTrack (9, "drums", 0, true, false);
+        final NoteViewSnapshot preference = new NoteViewSnapshot (9, "drums", 0, ControllerNoteView.NONE, true);
+        final NoteRepeatSnapshot manual = new NoteRepeatSnapshot (true, true, false, NoteRepeatMode.RANDOM, 2, 1.0 / 3.0, 0.25, true, true, false, false);
+        host.bridge (noteBridge ("DRUM_PAD", drums, preference, drum (drums), manual));
+
+        assertEquals (InputRouteMode.EXCLUSIVE, host.effects ().desiredInputRoutes ().modeOrNull (PushControlIds.pad (5), InputKind.PAD));
+        assertTrue (host.effects ().desiredNoteRepeat ().owned ());
+        assertEquals (1.0 / 4.0, host.effects ().desiredNoteRepeat ().period ());
+
+        host.controllerPad (PushControlIds.pad (5), true);
+        final DesiredNoteRepeat requested = host.effects ().desiredNoteRepeat ();
+        final RgbColor awaitingReadback = light (host, PushControlIds.pad (5));
+        assertEquals (2.0 / 3.0, requested.period ());
+
+        host.bridge (noteBridge ("DRUM_PAD", drums, preference, drum (drums), repeatReadback (true, requested)));
+        assertFalse (awaitingReadback.equals (light (host, PushControlIds.pad (5))));
+
+        host.bridge (noteBridge ("DRUM_PAD", drums, preference, drum (drums), repeatReadback (false, requested)));
+        assertFalse (host.effects ().desiredNoteRepeat ().owned ());
+        assertEquals (OFF, light (host, PushControlIds.pad (5)));
     }
 
 
@@ -1066,6 +1132,39 @@ class PullControllerCoreTest
             0.75,
             0.5,
             new RgbColor (100, 50, 25));
+    }
+
+
+    private static SelectedTrackSnapshot selectedTrack (final long generation, final String channelId, final int position, final boolean canHoldNotes, final boolean canHoldAudio)
+    {
+        return new SelectedTrackSnapshot (generation, channelId, channelId, position, "INSTRUMENT", true, false, false, canHoldNotes, canHoldAudio, true, false, TrackMonitorMode.AUTO, false, false, false, false, 0.75, 0.5, new RgbColor (100, 50, 25));
+    }
+
+
+    private static DrumContextSnapshot drum (final SelectedTrackSnapshot selected)
+    {
+        return new DrumContextSnapshot (4, selected.generation (), selected.channelId (), "drum-device", true, true, 36, List.of ());
+    }
+
+
+    private static ControllerBridgeSnapshot noteBridge (final String view, final SelectedTrackSnapshot selected, final NoteViewSnapshot noteView, final DrumContextSnapshot drum, final NoteRepeatSnapshot noteRepeat)
+    {
+        return new ControllerBridgeSnapshot (
+            TransportSnapshot.empty (),
+            selected,
+            new ControllerLayoutSnapshot (view, "TRACK", "DRUM_PAD".equals (view), "DRUM_PAD".equals (view), 36, GridPressureConfiguration.OFF),
+            noteView,
+            noteRepeat,
+            drum,
+            ParameterBridgeSnapshot.empty (),
+            MasterSnapshot.empty (),
+            ProjectSnapshot.empty ());
+    }
+
+
+    private static NoteRepeatSnapshot repeatReadback (final boolean rollEnabled, final DesiredNoteRepeat desired)
+    {
+        return new NoteRepeatSnapshot (true, rollEnabled, desired.active (), desired.mode (), desired.octaves (), desired.period (), desired.noteLength (), desired.latchActive (), desired.freeRunning (), desired.usePressure (), desired.shuffle ());
     }
 
 

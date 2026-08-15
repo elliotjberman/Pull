@@ -176,6 +176,26 @@ final class FakeCoreHost
     }
 
 
+    /** Deliver one normalized controller-pad transition after updating authoritative held state. */
+    void controllerPad (final ControlId controlId, final boolean pressed)
+    {
+        if (pressed)
+            this.pressedControls.add (controlId);
+        else
+            this.pressedControls.remove (controlId);
+
+        this.revision++;
+        this.eventSequence++;
+        this.effectExecutor.apply (this.core.handle (new ControllerInputEvent (
+            this.eventSequence,
+            this.time.nowNanos (),
+            controlId,
+            InputKind.PAD,
+            pressed ? InputPhase.BEGIN : InputPhase.END,
+            pressed ? 127 : 0), this.snapshot ()));
+    }
+
+
     /**
      * Deliver one normalized controller motion sample.
      *
@@ -291,6 +311,8 @@ final class FakeCoreHost
             this.bridge.transport (),
             Objects.requireNonNull (selectedTrack, "selectedTrack"),
             this.bridge.layout (),
+            this.bridge.noteView (),
+            this.bridge.noteRepeat (),
             this.bridge.drum (),
             this.bridge.parameters (),
             this.bridge.master (),
@@ -310,6 +332,8 @@ final class FakeCoreHost
             Objects.requireNonNull (transport, "transport"),
             this.bridge.selectedTrack (),
             this.bridge.layout (),
+            this.bridge.noteView (),
+            this.bridge.noteRepeat (),
             this.bridge.drum (),
             this.bridge.parameters (),
             this.bridge.master (),

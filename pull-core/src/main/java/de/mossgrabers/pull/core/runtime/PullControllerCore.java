@@ -42,6 +42,7 @@ import java.util.Optional;
 final class PullControllerCore implements ControllerCore
 {
     private Map<WorkspaceSelection.Id, CompiledWorkspace> workspaces = Map.of ();
+    private CompiledWorkspace                              defaultDrumWorkspace;
     private WorkspaceSelection                             selection;
     private CompiledWorkspace                              workspace;
     private Map<WorkspaceSelection.Id, CompiledWorkspace> masterWorkspaces = Map.of ();
@@ -70,6 +71,7 @@ final class PullControllerCore implements ControllerCore
         compiled.put (WorkspaceSelection.Id.DEFAULT, DefaultWorkspace.create (this.selection, this.playbackCoordinator));
         compiled.put (WorkspaceSelection.Id.VS_LIVE, VsLiveWorkspace.create (this.selection, this.playbackCoordinator));
         this.workspaces = Map.copyOf (compiled);
+        this.defaultDrumWorkspace = DefaultWorkspace.createDrum (this.selection, this.playbackCoordinator);
         final Map<WorkspaceSelection.Id, CompiledWorkspace> compiledMaster = new EnumMap<> (WorkspaceSelection.Id.class);
         for (final WorkspaceSelection.Id background: WorkspaceSelection.Id.values ())
             compiledMaster.put (background, MasterWorkspace.create (this.selection, this.playbackCoordinator, background));
@@ -193,6 +195,8 @@ final class PullControllerCore implements ControllerCore
             activeResult.desiredBridgeSubscriptions (),
             activeResult.desiredClipBindings (),
             activeResult.desiredControllerWorkspace (),
+            activeResult.desiredControllerLayout (),
+            activeResult.desiredNoteRepeat (),
             activeResult.desiredControllerActions (),
             activeResult.desiredParameterBanks (),
             activeResult.desiredParameterInteraction (),
@@ -215,7 +219,7 @@ final class PullControllerCore implements ControllerCore
     private CompiledWorkspace desiredWorkspace (final ControllerSnapshot snapshot)
     {
         this.selection.observe (snapshot.bridge ().layout ());
-        final CompiledWorkspace selectedWorkspace = this.selectedWorkspace ();
+        final CompiledWorkspace selectedWorkspace = this.selectedWorkspace (snapshot);
         final String mode = snapshot.bridge ().layout ().modeId ();
         final boolean masterLayout = "MASTER".equals (mode) || "MASTER_TEMP".equals (mode);
         if (!masterLayout)
@@ -233,10 +237,14 @@ final class PullControllerCore implements ControllerCore
     }
 
 
-    private CompiledWorkspace selectedWorkspace ()
+    private CompiledWorkspace selectedWorkspace (final ControllerSnapshot snapshot)
     {
         final WorkspaceSelection.Destination destination = this.selection.pendingDestination ();
-        return destination == WorkspaceSelection.Destination.NONE ? this.workspaces.get (this.selection.active ()) : this.destinationWorkspaces.get (destination);
+        if (destination != WorkspaceSelection.Destination.NONE)
+            return this.destinationWorkspaces.get (destination);
+        if (this.selection.active () == WorkspaceSelection.Id.DEFAULT && snapshot.bridge ().layout ().drumLayoutActive ())
+            return this.defaultDrumWorkspace;
+        return this.workspaces.get (this.selection.active ());
     }
 
 
@@ -248,6 +256,8 @@ final class PullControllerCore implements ControllerCore
             result.desiredBridgeSubscriptions (),
             result.desiredClipBindings (),
             result.desiredControllerWorkspace (),
+            result.desiredControllerLayout (),
+            result.desiredNoteRepeat (),
             result.desiredControllerActions (),
             result.desiredParameterBanks (),
             result.desiredParameterInteraction (),
@@ -264,6 +274,8 @@ final class PullControllerCore implements ControllerCore
             result.desiredBridgeSubscriptions (),
             result.desiredClipBindings (),
             result.desiredControllerWorkspace (),
+            result.desiredControllerLayout (),
+            result.desiredNoteRepeat (),
             result.desiredControllerActions (),
             result.desiredParameterBanks (),
             result.desiredParameterInteraction (),

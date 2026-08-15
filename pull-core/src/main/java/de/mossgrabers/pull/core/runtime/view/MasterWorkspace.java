@@ -39,6 +39,6 @@ public final class MasterWorkspace
         }
         else
             sessionBank = SessionBankShape.empty ();
-        return CompiledWorkspace.compile ("Master", sessionBank, ControllerLevelViews.compose (selection, playbackCoordinator, views));
+        return CompiledWorkspace.compile ("Master", sessionBank, ControllerLevelViews.composeWithoutNoteController (selection, playbackCoordinator, views));
     }
 }

@@ -1,6 +1,6 @@
 # Views API and Composite Workspaces
 
-Status: design contract. Checkpoints 1 and 2 are structurally implemented through Core API 24. The
+Status: design contract. Checkpoints 1 and 2 are structurally implemented through Core API 25. The
 remaining stable-adapter boundary is represented explicitly in claims and recorded in
 [`../ARCH.md`](../ARCH.md). The checkpoints remain below so code, offline tests, and Push hardware
 tests can be compared against the intended end state.
@@ -247,7 +247,8 @@ Add one hardcoded workspace named `VS Live`, entered with **Shift + Session** fo
 - Session Clip Grid owns the upper four pad rows. Clip launch behavior and scene order match Session
   view through its declared `8x4` Session bank rather than an `8x8` bank cropped at render time.
 - Drum Controller owns the bottom four pad rows, including its existing 4x4 playable block, rate
-  pads, and fill pads.
+  pads, and fill pads. Separate fixed views implement those subregions: `DrumControllerView` for
+  playable notes and pressure, `DrumRateView` for rate/roll policy, and `DrumFillView` for fills.
 - Drum Controller's `pitch-bend` facet owns the touch strip.
 - Per-pad pressure on Drum Controller's playable 4x4 block follows that same lower-grid ownership;
   pressure on rate, fill, and Session pads has no musical destination.
@@ -263,12 +264,18 @@ proves that fixed views compose correctly before configuration parsing or dynami
 added.
 
 Plain **Session** exits through an explicit destination workspace containing the Track/Mix page and
-the complete `8x8` Session view. **Note** uses an explicit Track/Mix page view around the existing
-preferred-note command because the selected target determines its stable note view. Core holds
-these destination views until controller-layout read-back acknowledges their requested stable
-mode/view; command submission alone does not release ownership. Stable code must not force the
-workspace from generic mode/view change listeners or recover a destination from previous-mode
-history.
+the complete `8x8` Session view. **Note** enters a controller-level core view that resolves the
+selected track's target-fenced preference and applicability to one bounded installed note view.
+Core holds the destination until controller-layout read-back acknowledges the requested stable
+mode/view; command submission alone does not release ownership. Stable code must not infer the
+view from a pinnable cursor, force the workspace from generic mode/view listeners, or recover a
+destination from previous-mode history.
+
+The four rate pads are a complete core-owned semantic slice. Their edge routes and RGB feedback are
+exclusive while Drum Controller is engaged, and the output includes a replayable desired
+note-repeat state. Stable only reads the installed Repeat engine, applies the bounded request, and
+restores the pre-ownership manual state after later read-back. Disabling **Automatic arp / roll**
+releases that lease and blanks the rate pads without changing note-view policy.
 
 The stable API addition for this checkpoint is limited to one complete
 `DesiredControllerWorkspace`: a name plus a set of known fixed-facet IDs. `VS Live`, its selected
@@ -290,6 +297,10 @@ The Bitwig smoke test checks:
 8. Strike velocity and pressure produce the same drum-note behavior as standalone Drum Controller.
 9. Plain Session and Note leave the workspace through their ordinary destinations; re-entry
    restores composite ownership and note mapping.
+10. Moving from a melodic track to a drum target while Note is visible selects Drum Controller
+    after authoritative drum applicability arrives; moving back selects the track's melodic view.
+11. Automatic roll is present only while Drum Controller owns the rate pads, its lights follow
+    Repeat read-back, and leaving or disabling it restores the prior manual Repeat state.
 
 Commit the composite separately so a hardware failure can be bisected to either the view-runtime
 migration or the `VS Live` shell integration.

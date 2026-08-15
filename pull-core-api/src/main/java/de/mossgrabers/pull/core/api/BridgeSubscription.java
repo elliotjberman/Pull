@@ -21,6 +21,12 @@ public enum BridgeSubscription
     /** Current visible view/mode and reconciled drum-layout state. */
     CONTROLLER_LAYOUT,
 
+    /** Selected-target-fenced per-track note-view preference. */
+    NOTE_VIEW,
+
+    /** Live note-repeat read-back and drum-roll setting. */
+    NOTE_REPEAT,
+
     /** The selected track's bounded 64-pad drum window and playing velocities. */
     DRUM_PADS,
 

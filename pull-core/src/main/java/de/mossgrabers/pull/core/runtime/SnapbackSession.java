@@ -151,6 +151,8 @@ final class SnapbackSession
             new DesiredBridgeSubscriptions (subscriptions),
             base.desiredClipBindings (),
             base.desiredControllerWorkspace (),
+            base.desiredControllerLayout (),
+            base.desiredNoteRepeat (),
             base.desiredControllerActions (),
             base.desiredParameterBanks (),
             interaction,

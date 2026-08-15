@@ -7,6 +7,8 @@ import de.mossgrabers.framework.controller.hardware.IHwContinuousControl;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
+import de.mossgrabers.pull.core.api.DesiredControllerLayout;
+import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
 import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
 import de.mossgrabers.pull.core.api.DesiredParameterBanks;
 import de.mossgrabers.pull.core.api.ParameterTargetRef;
@@ -52,6 +54,34 @@ interface ControllerBridge
     DesiredControllerWorkspace prepareWorkspace (DesiredControllerWorkspace workspace);
 
     void applyWorkspace (DesiredControllerWorkspace workspace);
+
+    default DesiredControllerLayout prepareControllerLayout (final DesiredControllerLayout layout)
+    {
+        final DesiredControllerLayout requested = Objects.requireNonNull (layout, "layout");
+        if (requested.isPresent ())
+            throw new IllegalArgumentException ("Controller bridge does not support layout ownership");
+        return requested;
+    }
+
+    default void applyControllerLayout (final DesiredControllerLayout layout)
+    {
+        if (Objects.requireNonNull (layout, "layout").isPresent ())
+            throw new IllegalArgumentException ("Controller bridge does not support layout ownership");
+    }
+
+    default DesiredNoteRepeat prepareNoteRepeat (final DesiredNoteRepeat noteRepeat)
+    {
+        final DesiredNoteRepeat requested = Objects.requireNonNull (noteRepeat, "noteRepeat");
+        if (requested.owned ())
+            throw new IllegalArgumentException ("Controller bridge does not support note-repeat ownership");
+        return requested;
+    }
+
+    default void applyNoteRepeat (final DesiredNoteRepeat noteRepeat)
+    {
+        if (Objects.requireNonNull (noteRepeat, "noteRepeat").owned ())
+            throw new IllegalArgumentException ("Controller bridge does not support note-repeat ownership");
+    }
 
     ControllerBridgeSnapshot snapshot ();
 

@@ -9,6 +9,8 @@ import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.CoreExecutionRequirements;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
+import de.mossgrabers.pull.core.api.DesiredControllerLayout;
+import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
 import de.mossgrabers.pull.core.api.DesiredInputRoutes;
 import de.mossgrabers.pull.core.api.DesiredParameterBanks;
 import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
@@ -42,6 +44,8 @@ final class RecordingEffectExecutor
     private DesiredBridgeSubscriptions desiredBridgeSubscriptions = DesiredBridgeSubscriptions.empty ();
     private Map<ControlId, ClipTargetId> desiredClipBindings = Map.of ();
     private DesiredControllerWorkspace desiredControllerWorkspace = DesiredControllerWorkspace.empty ();
+    private DesiredControllerLayout desiredControllerLayout = DesiredControllerLayout.empty ();
+    private DesiredNoteRepeat desiredNoteRepeat = DesiredNoteRepeat.unowned ();
     private DesiredParameterBanks desiredParameterBanks = DesiredParameterBanks.empty ();
     private DesiredParameterInteraction desiredParameterInteraction = DesiredParameterInteraction.empty ();
     private CoreExecutionRequirements executionRequirements = CoreExecutionRequirements.empty ();
@@ -60,6 +64,8 @@ final class RecordingEffectExecutor
         this.desiredBridgeSubscriptions = result.desiredBridgeSubscriptions ();
         this.desiredClipBindings = result.desiredClipBindings ();
         this.desiredControllerWorkspace = result.desiredControllerWorkspace ();
+        this.desiredControllerLayout = result.desiredControllerLayout ();
+        this.desiredNoteRepeat = result.desiredNoteRepeat ();
         this.desiredParameterBanks = result.desiredParameterBanks ();
         this.desiredParameterInteraction = result.desiredParameterInteraction ();
         this.executionRequirements = result.executionRequirements ();
@@ -172,6 +178,18 @@ final class RecordingEffectExecutor
     DesiredHardwareOutput desiredOutput ()
     {
         return this.desiredOutput;
+    }
+
+
+    DesiredControllerLayout desiredControllerLayout ()
+    {
+        return this.desiredControllerLayout;
+    }
+
+
+    DesiredNoteRepeat desiredNoteRepeat ()
+    {
+        return this.desiredNoteRepeat;
     }
 
 

@@ -13,6 +13,8 @@ import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerActions;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
+import de.mossgrabers.pull.core.api.DesiredControllerLayout;
+import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
 import de.mossgrabers.pull.core.api.DesiredInputRoutes;
 import de.mossgrabers.pull.core.api.DesiredParameterBanks;
 import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
@@ -264,6 +266,8 @@ public final class CompiledWorkspace
         ControllerDisplayScene display = ControllerDisplayScene.empty ();
         ControllerPadGridOverlay padGridOverlay = ControllerPadGridOverlay.inactive ();
         ControllerDisplayOverlay displayOverlay = ControllerDisplayOverlay.inactive ();
+        DesiredControllerLayout controllerLayout = DesiredControllerLayout.empty ();
+        DesiredNoteRepeat noteRepeat = DesiredNoteRepeat.unowned ();
         for (final CompiledView view: this.views)
         {
             final ViewOutput output = Objects.requireNonNull (view.view ().render (snapshot), "view output");
@@ -287,6 +291,18 @@ public final class CompiledWorkspace
                     throw new IllegalStateException ("multiple views own the display overlay");
                 displayOverlay = output.displayOverlay ();
             }
+            if (output.controllerLayout ().isPresent ())
+            {
+                if (controllerLayout.isPresent ())
+                    throw new IllegalStateException ("multiple views own the controller layout");
+                controllerLayout = output.controllerLayout ();
+            }
+            if (output.noteRepeat ().owned ())
+            {
+                if (noteRepeat.owned ())
+                    throw new IllegalStateException ("multiple views own note repeat");
+                noteRepeat = output.noteRepeat ();
+            }
         }
 
         return new CoreResult (
@@ -295,6 +311,8 @@ public final class CompiledWorkspace
             this.desiredBridgeSubscriptions,
             clipBindings,
             this.desiredControllerWorkspace,
+            controllerLayout,
+            noteRepeat,
             this.desiredControllerActions,
             this.desiredParameterBanks,
             DesiredParameterInteraction.empty (),

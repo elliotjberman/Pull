@@ -183,7 +183,7 @@ class CoreApiValueTest
     @Test
     void publishesStableVersionCapabilityAndControlIdentifiers ()
     {
-        assertEquals (24, CoreApi.VERSION);
+        assertEquals (25, CoreApi.VERSION);
         assertEquals ("input.drum-fill", CoreCapabilities.INPUT_DRUM_FILL);
         assertEquals ("snapshot.selected-track-clips", CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS);
         assertEquals ("binding.clip-target", CoreCapabilities.BINDING_CLIP_TARGET);
@@ -191,6 +191,8 @@ class CoreApiValueTest
         assertEquals ("effect.clip-launch-hold", CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD);
         assertEquals ("output.rgb-light", CoreCapabilities.OUTPUT_RGB_LIGHT);
         assertEquals ("output.controller-workspace", CoreCapabilities.OUTPUT_CONTROLLER_WORKSPACE);
+        assertEquals ("output.controller-layout", CoreCapabilities.OUTPUT_CONTROLLER_LAYOUT);
+        assertEquals ("output.note-repeat", CoreCapabilities.OUTPUT_NOTE_REPEAT);
         assertEquals ("input.controller", CoreCapabilities.INPUT_CONTROLLER);
         assertEquals ("routing.controller-input", CoreCapabilities.ROUTING_CONTROLLER_INPUT);
         assertEquals ("snapshot.controller-bridge", CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE);
@@ -208,6 +210,8 @@ class CoreApiValueTest
             assertEquals (new ControlId ("drum.fill." + (index + 1)), CoreControls.DRUM_FILLS.get (index));
         assertEquals (CoreControls.DRUM_FILLS, CoreControls.drumFills ());
         assertThrows (UnsupportedOperationException.class, () -> CoreControls.DRUM_FILLS.clear ());
+        assertEquals (List.of (PushControlIds.pad (5), PushControlIds.pad (6), PushControlIds.pad (7), PushControlIds.pad (8)), CoreControls.DRUM_RATES);
+        assertThrows (UnsupportedOperationException.class, () -> CoreControls.DRUM_RATES.clear ());
     }
 
 

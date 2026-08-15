@@ -532,35 +532,6 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
     }
 
 
-    /** {@inheritDoc} */
-    @Override
-    protected Views resolveDefaultView (final ITrack track)
-    {
-        if (this.isDrumControllerTargetAligned ())
-            return Views.DRUM_PAD;
-        return super.resolveDefaultView (track);
-    }
-
-
-    /**
-     * Re-evaluate a derived note view after Bitwig's asynchronous selected-target and device
-     * observers have advanced. Explicit per-track preferences are never changed here.
-     *
-     * @param track The selected track
-     */
-    public void reconcileDerivedNoteView (final ITrack track)
-    {
-        if (!track.doesExist () || !Views.isNoteView (this.viewManager.getActiveID ()))
-            return;
-        if (this.viewManager.getPreferredView (track.getPosition ()) != null)
-            return;
-
-        final Views resolvedView = this.resolvePreferredView (track);
-        if (resolvedView != this.viewManager.getActiveID ())
-            this.recallPreferredView (track);
-    }
-
-
     /**
      * Get the absolute position of the authoritative selection-following target.
      *

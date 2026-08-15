@@ -205,8 +205,6 @@ public final class DrumControllerView implements ControllerView
         claims.addAll (Set.of (
             new SurfaceClaim (SurfaceArea.DRUM_PLAY_PADS, SurfaceClaim.Kind.OBSERVE_INPUT),
             new SurfaceClaim (SurfaceArea.DRUM_PLAY_PADS, SurfaceClaim.Kind.STABLE_ADAPTER_OUTPUT),
-            new SurfaceClaim (SurfaceArea.DRUM_RATE_PADS, SurfaceClaim.Kind.STABLE_ADAPTER_INPUT),
-            new SurfaceClaim (SurfaceArea.DRUM_RATE_PADS, SurfaceClaim.Kind.STABLE_ADAPTER_OUTPUT),
             new SurfaceClaim (SurfaceArea.GRID_CHANNEL_PRESSURE, SurfaceClaim.Kind.OBSERVE_INPUT),
             new SurfaceClaim (SurfaceArea.NAVIGATION_OCTAVE, SurfaceClaim.Kind.STABLE_ADAPTER_INPUT),
             new SurfaceClaim (SurfaceArea.NAVIGATION_OCTAVE, SurfaceClaim.Kind.STABLE_ADAPTER_OUTPUT)));

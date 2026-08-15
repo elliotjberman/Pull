@@ -18,8 +18,10 @@ import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerActions;
+import de.mossgrabers.pull.core.api.DesiredControllerLayout;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredInputRoutes;
+import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
 import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
 import de.mossgrabers.pull.core.api.DesiredParameterBanks;
 import de.mossgrabers.pull.core.api.ParameterTargetRef;
@@ -79,11 +81,13 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         Map.entry (CoreCapabilities.BINDING_CLIP_TARGET, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD, Integer.valueOf (4)),
-        Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (2)),
+        Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (3)),
         Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_WORKSPACE, Integer.valueOf (2)),
+        Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_LAYOUT, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.OUTPUT_NOTE_REPEAT, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.INPUT_CONTROLLER, Integer.valueOf (1)),
-        Map.entry (CoreCapabilities.ROUTING_CONTROLLER_INPUT, Integer.valueOf (1)),
-        Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE, Integer.valueOf (4)),
+        Map.entry (CoreCapabilities.ROUTING_CONTROLLER_INPUT, Integer.valueOf (2)),
+        Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE, Integer.valueOf (5)),
         Map.entry (CoreCapabilities.SUBSCRIPTION_CONTROLLER_BRIDGE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_TRANSPORT, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_SELECTED_TRACK, Integer.valueOf (2)),
@@ -535,6 +539,8 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         }
         final Map<ControlId, ClipTargetId> preparedBindings = prepareBindings (result.desiredClipBindings (), this.clipCatalog);
         final DesiredControllerWorkspace preparedWorkspace = this.prepareWorkspace (result.desiredControllerWorkspace ());
+        final DesiredControllerLayout preparedLayout = this.prepareControllerLayout (result.desiredControllerLayout ());
+        final DesiredNoteRepeat preparedNoteRepeat = this.prepareNoteRepeat (result.desiredNoteRepeat ());
         final DesiredHardwareOutput preparedOutput = prepareOutput (result, preparedWorkspace);
         final DesiredParameterBanks parameterBanks = result.desiredParameterBanks ();
         final DesiredParameterInteraction parameterInteraction = result.desiredParameterInteraction ();
@@ -549,7 +555,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
             throw new IllegalArgumentException ("Core requested parameter state without a controller bridge");
         final Map<ParameterTargetRef, ControllerBridge.ParameterLease> preparedParameterLeases = this.controllerBridge == null ? Map.of () : this.controllerBridge.prepareParameterLeases (parameterInteraction, sampledParameterBanks);
         final List<PreparedAction> preparedActions = this.prepareEffects (result.effects (), preparedBindings, preparedParameterLeases);
-        return new PreparedResult (preparedOutput, result.desiredInputRoutes (), result.desiredBridgeSubscriptions (), preparedWorkspace, result.desiredControllerActions (), parameterBanks, parameterInteraction, executionRequirements, preparedParameterLeases, this.clipCatalog.generation (), preparedBindings, preparedActions);
+        return new PreparedResult (preparedOutput, result.desiredInputRoutes (), result.desiredBridgeSubscriptions (), preparedWorkspace, preparedLayout, preparedNoteRepeat, result.desiredControllerActions (), parameterBanks, parameterInteraction, executionRequirements, preparedParameterLeases, this.clipCatalog.generation (), preparedBindings, preparedActions);
     }
 
 
@@ -583,6 +589,8 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
                 this.recordSnapshotChange ();
             this.deferredInputRelease.run ();
             this.controllerBridge.applyWorkspace (prepared.desiredControllerWorkspace ());
+            this.controllerBridge.applyControllerLayout (prepared.desiredControllerLayout ());
+            this.controllerBridge.applyNoteRepeat (prepared.desiredNoteRepeat ());
         }
 
         this.clipHost.setDesiredBindings (prepared.catalogGeneration (), prepared.desiredClipBindings ());
@@ -697,7 +705,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         for (final Map.Entry<ControlId, RgbColor> light: result.desiredOutput ().lights ().entrySet ())
         {
             final ControlId owner = Objects.requireNonNull (light.getKey (), "light owner");
-            if (!CoreControls.DRUM_FILLS.contains (owner) && !GLOBAL_TRANSPORT_LIGHTS.contains (owner) && !(masterControls && MASTER_ROW_LIGHTS.contains (owner)))
+            if (!CoreControls.DRUM_FILLS.contains (owner) && !CoreControls.DRUM_RATES.contains (owner) && !GLOBAL_TRANSPORT_LIGHTS.contains (owner) && !(masterControls && MASTER_ROW_LIGHTS.contains (owner)))
                 throw new IllegalArgumentException ("Unsupported controller light owner");
             final RgbColor requested = Objects.requireNonNull (light.getValue (), "light color");
             colors.put (owner, new RgbColor (requested.red (), requested.green (), requested.blue ()));
@@ -732,6 +740,28 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
             return this.controllerBridge.prepareWorkspace (requested);
         if (requested.isActive ())
             throw new IllegalArgumentException ("Core requested a controller workspace without a controller bridge");
+        return requested;
+    }
+
+
+    private DesiredControllerLayout prepareControllerLayout (final DesiredControllerLayout layout)
+    {
+        final DesiredControllerLayout requested = Objects.requireNonNull (layout, "layout");
+        if (this.controllerBridge != null)
+            return this.controllerBridge.prepareControllerLayout (requested);
+        if (requested.isPresent ())
+            throw new IllegalArgumentException ("Core requested a controller layout without a controller bridge");
+        return requested;
+    }
+
+
+    private DesiredNoteRepeat prepareNoteRepeat (final DesiredNoteRepeat noteRepeat)
+    {
+        final DesiredNoteRepeat requested = Objects.requireNonNull (noteRepeat, "noteRepeat");
+        if (this.controllerBridge != null)
+            return this.controllerBridge.prepareNoteRepeat (requested);
+        if (requested.owned ())
+            throw new IllegalArgumentException ("Core requested note repeat without a controller bridge");
         return requested;
     }
 
@@ -966,6 +996,8 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     {
         final Map<ControlId, RgbColor> colors = new LinkedHashMap<> ();
         for (final ControlId owner: CoreControls.DRUM_FILLS)
+            colors.put (owner, OFF);
+        for (final ControlId owner: CoreControls.DRUM_RATES)
             colors.put (owner, OFF);
         for (final ControlId owner: GLOBAL_TRANSPORT_LIGHTS)
             colors.put (owner, OFF);
@@ -1274,7 +1306,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
-    private record PreparedResult (DesiredHardwareOutput output, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, DesiredControllerWorkspace desiredControllerWorkspace, DesiredControllerActions desiredControllerActions, DesiredParameterBanks desiredParameterBanks, DesiredParameterInteraction desiredParameterInteraction, CoreExecutionRequirements executionRequirements, Map<ParameterTargetRef, ControllerBridge.ParameterLease> parameterLeases, long catalogGeneration, Map<ControlId, ClipTargetId> desiredClipBindings, List<PreparedAction> actions) implements PreparedCoreResult
+    private record PreparedResult (DesiredHardwareOutput output, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, DesiredControllerWorkspace desiredControllerWorkspace, DesiredControllerLayout desiredControllerLayout, DesiredNoteRepeat desiredNoteRepeat, DesiredControllerActions desiredControllerActions, DesiredParameterBanks desiredParameterBanks, DesiredParameterInteraction desiredParameterInteraction, CoreExecutionRequirements executionRequirements, Map<ParameterTargetRef, ControllerBridge.ParameterLease> parameterLeases, long catalogGeneration, Map<ControlId, ClipTargetId> desiredClipBindings, List<PreparedAction> actions) implements PreparedCoreResult
     {
         private PreparedResult
         {
@@ -1282,6 +1314,8 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
             desiredInputRoutes = Objects.requireNonNull (desiredInputRoutes, "desiredInputRoutes");
             desiredBridgeSubscriptions = Objects.requireNonNull (desiredBridgeSubscriptions, "desiredBridgeSubscriptions");
             desiredControllerWorkspace = Objects.requireNonNull (desiredControllerWorkspace, "desiredControllerWorkspace");
+            desiredControllerLayout = Objects.requireNonNull (desiredControllerLayout, "desiredControllerLayout");
+            desiredNoteRepeat = Objects.requireNonNull (desiredNoteRepeat, "desiredNoteRepeat");
             desiredControllerActions = Objects.requireNonNull (desiredControllerActions, "desiredControllerActions");
             desiredParameterBanks = Objects.requireNonNull (desiredParameterBanks, "desiredParameterBanks");
             desiredParameterInteraction = Objects.requireNonNull (desiredParameterInteraction, "desiredParameterInteraction");
@@ -1337,7 +1371,10 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
 
         private CommittedState quarantined ()
         {
-            final DesiredHardwareOutput passiveOutput = new DesiredHardwareOutput (this.output.lights (), this.output.display (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive ());
+            final Map<ControlId, RgbColor> passiveLights = new LinkedHashMap<> (this.output.lights ());
+            for (final ControlId ratePad: CoreControls.DRUM_RATES)
+                passiveLights.put (ratePad, OFF);
+            final DesiredHardwareOutput passiveOutput = new DesiredHardwareOutput (passiveLights, this.output.display (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive ());
             return new CommittedState (this.generation, passiveOutput, this.desiredInputRoutes, this.desiredBridgeSubscriptions, this.desiredControllerWorkspace, this.desiredControllerActions, DesiredParameterBanks.empty (), DesiredParameterInteraction.empty (), CoreExecutionRequirements.empty (), null);
         }
     }

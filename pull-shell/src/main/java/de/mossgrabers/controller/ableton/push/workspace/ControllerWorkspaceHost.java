@@ -8,9 +8,11 @@ import de.mossgrabers.controller.ableton.push.view.SessionView;
 import de.mossgrabers.controller.ableton.push.view.WorkspaceView;
 import de.mossgrabers.framework.featuregroup.ModeManager;
 import de.mossgrabers.framework.featuregroup.ViewManager;
+import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.view.Views;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
+import de.mossgrabers.pull.core.api.DesiredControllerLayout;
 import de.mossgrabers.pull.core.api.SessionBankShape;
 
 import java.util.Objects;
@@ -56,6 +58,30 @@ public final class ControllerWorkspaceHost
                 throw new IllegalArgumentException ("Selected Session view requires bank " + expectedShape.tracks () + "x" + expectedShape.scenes ());
         }
         return candidate;
+    }
+
+
+    /** Validate a bounded note-controller layout without changing controller state. */
+    public DesiredControllerLayout prepareLayout (final DesiredControllerLayout layout)
+    {
+        final DesiredControllerLayout requested = Objects.requireNonNull (layout, "layout");
+        if (!requested.isPresent ())
+            return requested;
+        final Views view = Views.valueOf (requested.noteView ().name ());
+        if (this.surface.getViewManager ().get (view) == null)
+            throw new IllegalArgumentException ("Requested note view is not installed: " + requested.noteView ());
+        return requested;
+    }
+
+
+    /** Reassert a prepared note-controller layout until layout read-back acknowledges it. */
+    public void applyLayout (final DesiredControllerLayout layout)
+    {
+        final DesiredControllerLayout requested = this.prepareLayout (layout);
+        if (!requested.isPresent ())
+            return;
+        this.surface.getModeManager ().setActive (Modes.TRACK);
+        this.surface.getViewManager ().setActive (Views.valueOf (requested.noteView ().name ()));
     }
 
 

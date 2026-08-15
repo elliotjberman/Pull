@@ -27,12 +27,18 @@ import de.mossgrabers.framework.daw.data.bank.IDrumPadBank;
 import de.mossgrabers.framework.daw.data.bank.ISlotBank;
 import de.mossgrabers.framework.daw.midi.IMidiInput;
 import de.mossgrabers.framework.daw.midi.IMidiOutput;
+import de.mossgrabers.framework.daw.midi.INoteInput;
+import de.mossgrabers.framework.daw.midi.INoteRepeat;
+import de.mossgrabers.framework.daw.midi.ArpeggiatorMode;
+import de.mossgrabers.framework.daw.constants.Resolution;
 import de.mossgrabers.framework.daw.midi.ISelectedTrackNoteTarget;
 import de.mossgrabers.framework.daw.midi.SelectedTrackMonitorMode;
 import de.mossgrabers.framework.daw.midi.SelectedTrackNoteTargetSnapshot;
 import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
+import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
+import de.mossgrabers.pull.core.api.NoteRepeatMode;
 import de.mossgrabers.pull.core.api.DesiredParameterBanks;
 import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
 import de.mossgrabers.pull.core.api.DrumContextSnapshot;
@@ -72,6 +78,59 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class BoundedControllerBridgeTest
 {
+    @Test
+    void automaticRollRestoresTheManualRepeatStateAfterLaterReadback ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        final DesiredNoteRepeat automatic = new DesiredNoteRepeat (true, true, NoteRepeatMode.UP, 0, 0.25, 0.5, false, false, true, true);
+
+        fixture.bridge.applyNoteRepeat (automatic);
+        for (int tick = 0; tick < 5; tick++)
+            fixture.refreshNoteRepeat (tick + 1);
+
+        assertTrue (fixture.noteRepeat.active);
+        assertEquals (ArpeggiatorMode.UP, fixture.noteRepeat.mode);
+        assertEquals (0, fixture.noteRepeat.octaves);
+        assertEquals (0.25, fixture.noteRepeat.period);
+        assertFalse (fixture.noteRepeat.latch);
+        assertFalse (fixture.noteRepeat.freeRunning);
+        assertTrue (fixture.noteRepeat.usePressure);
+        assertTrue (fixture.noteRepeat.shuffle);
+
+        fixture.bridge.applyNoteRepeat (DesiredNoteRepeat.unowned ());
+        for (int tick = 0; tick < 5; tick++)
+            fixture.refreshNoteRepeat (tick + 10);
+
+        assertTrue (fixture.noteRepeat.active);
+        assertEquals (ArpeggiatorMode.RANDOM, fixture.noteRepeat.mode);
+        assertEquals (2, fixture.noteRepeat.octaves);
+        assertEquals (1.0 / 3.0, fixture.noteRepeat.period);
+        assertEquals (0.25, fixture.noteRepeat.noteLength);
+        assertTrue (fixture.noteRepeat.latch);
+        assertTrue (fixture.noteRepeat.freeRunning);
+        assertFalse (fixture.noteRepeat.usePressure);
+        assertFalse (fixture.noteRepeat.shuffle);
+    }
+
+
+    @Test
+    void automaticRollDoesNotLeakIntoAFormerlyInactiveManualRepeatState ()
+    {
+        final BridgeFixture fixture = new BridgeFixture (false);
+        final DesiredNoteRepeat automatic = new DesiredNoteRepeat (true, true, NoteRepeatMode.UP, 0, 0.25, 0.5, false, false, true, true);
+
+        fixture.bridge.applyNoteRepeat (automatic);
+        for (int tick = 0; tick < 5; tick++)
+            fixture.refreshNoteRepeat (tick + 1);
+
+        fixture.bridge.applyNoteRepeat (DesiredNoteRepeat.unowned ());
+        for (int tick = 0; tick < 5; tick++)
+            fixture.refreshNoteRepeat (tick + 10);
+
+        assertFalse (fixture.noteRepeat.active);
+    }
+
+
     @Test
     void publishesOnlyRequestedDomainsAndClearsThemWhenUnsubscribed ()
     {
@@ -500,6 +559,7 @@ class BoundedControllerBridgeTest
         private final MutableApplication application = new MutableApplication ();
         private final List<MidiMessage> noteInputMidiMessages = new ArrayList<> ();
         private final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
+        private final MutableNoteRepeat noteRepeat;
         private final BoundedControllerBridge bridge;
         private int newClipCount;
         private int masterVuReadCount;
@@ -508,6 +568,13 @@ class BoundedControllerBridgeTest
 
         private BridgeFixture ()
         {
+            this (true);
+        }
+
+
+        private BridgeFixture (final boolean manualRepeatActive)
+        {
+            this.noteRepeat = new MutableNoteRepeat (manualRepeatActive);
             final ITransport transportProxy = this.transport.proxy ();
             final ICursorTrack cursorTrack = this.drum.cursorTrack ();
             final IDrumDevice drumDevice = this.drum.device ();
@@ -526,7 +593,7 @@ class BoundedControllerBridgeTest
                 }
                 default -> relaxedValue (method.getReturnType ());
             });
-            final PushControlSurface surface = createSurface (this.selected, cursorTrack, this.valueChanger);
+            final PushControlSurface surface = createSurface (this.selected, cursorTrack, this.valueChanger, this.noteRepeat, manualRepeatActive);
             this.bridge = new BoundedControllerBridge (
                 model,
                 this.selected,
@@ -548,6 +615,13 @@ class BoundedControllerBridgeTest
                         // No test diagnostics.
                     }
                 });
+        }
+
+
+        private void refreshNoteRepeat (final long time)
+        {
+            this.bridge.refresh (time, subscriptions (BridgeSubscription.NOTE_REPEAT), DesiredParameterBanks.empty ());
+            this.noteRepeat.advanceHost ();
         }
 
 
@@ -949,7 +1023,7 @@ class BoundedControllerBridgeTest
     }
 
 
-    private static PushControlSurface createSurface (final ISelectedTrackNoteTarget selectedTarget, final ITrack drumModelTrack, final IValueChanger valueChanger)
+    private static PushControlSurface createSurface (final ISelectedTrackNoteTarget selectedTarget, final ITrack drumModelTrack, final IValueChanger valueChanger, final MutableNoteRepeat noteRepeat, final boolean manualRepeatActive)
     {
         final IHwButton button = relaxedProxy (IHwButton.class);
         final IHwLight light = relaxedProxy (IHwLight.class);
@@ -960,10 +1034,159 @@ class BoundedControllerBridgeTest
             default -> relaxedValue (method.getReturnType ());
         });
         final IHost host = proxy (IHost.class, (proxy, method, arguments) -> "createSurfaceFactory".equals (method.getName ()) ? surfaceFactory : relaxedValue (method.getReturnType ()));
-        final IMidiInput input = relaxedProxy (IMidiInput.class);
+        final INoteInput noteInput = proxy (INoteInput.class, (proxy, method, arguments) -> "getNoteRepeat".equals (method.getName ()) ? noteRepeat.proxy () : relaxedValue (method.getReturnType ()));
+        final IMidiInput input = proxy (IMidiInput.class, (proxy, method, arguments) -> "getDefaultNoteInput".equals (method.getName ()) ? noteInput : relaxedValue (method.getReturnType ()));
         final IMidiOutput output = relaxedProxy (IMidiOutput.class);
-        final PushConfiguration configuration = new PushConfiguration (host, valueChanger, List.of ());
+        final PushConfiguration configuration = new ManualRepeatConfiguration (host, valueChanger, manualRepeatActive);
         return new PushControlSurface (host, new PushColorManager (), configuration, output, input, selectedTarget, drumModelTrack, () -> true, null);
+    }
+
+
+    private static final class ManualRepeatConfiguration extends PushConfiguration
+    {
+        private final boolean active;
+
+
+        private ManualRepeatConfiguration (final IHost host, final IValueChanger valueChanger, final boolean active)
+        {
+            super (host, valueChanger, List.of (ArpeggiatorMode.values ()));
+            this.active = active;
+        }
+
+
+        @Override
+        public boolean isNoteRepeatActive ()
+        {
+            return this.active;
+        }
+
+
+        @Override
+        public ArpeggiatorMode getNoteRepeatMode ()
+        {
+            return ArpeggiatorMode.RANDOM;
+        }
+
+
+        @Override
+        public int getNoteRepeatOctave ()
+        {
+            return 2;
+        }
+
+
+        @Override
+        public Resolution getNoteRepeatPeriod ()
+        {
+            return Resolution.RES_1_8T;
+        }
+
+
+        @Override
+        public Resolution getNoteRepeatLength ()
+        {
+            return Resolution.RES_1_16;
+        }
+    }
+
+
+    private static final class MutableNoteRepeat
+    {
+        private boolean active;
+        private ArpeggiatorMode mode = ArpeggiatorMode.RANDOM;
+        private int octaves = 2;
+        private double period = 1.0 / 3.0;
+        private double noteLength = 0.25;
+        private boolean latch = true;
+        private boolean freeRunning = true;
+        private boolean usePressure;
+        private boolean shuffle;
+        private boolean freeRunningTogglePending;
+        private boolean usePressureTogglePending;
+        private boolean shuffleTogglePending;
+
+
+        private MutableNoteRepeat (final boolean active)
+        {
+            this.active = active;
+        }
+
+
+        private INoteRepeat proxy ()
+        {
+            return BoundedControllerBridgeTest.proxy (INoteRepeat.class, (proxy, method, arguments) -> switch (method.getName ())
+            {
+                case "isActive" -> Boolean.valueOf (this.active);
+                case "setActive" -> {
+                    this.active = ((Boolean) arguments[0]).booleanValue ();
+                    yield null;
+                }
+                case "getMode" -> this.mode;
+                case "setMode" -> {
+                    this.mode = (ArpeggiatorMode) arguments[0];
+                    yield null;
+                }
+                case "getOctaves" -> Integer.valueOf (this.octaves);
+                case "setOctaves" -> {
+                    this.octaves = ((Number) arguments[0]).intValue ();
+                    yield null;
+                }
+                case "getPeriod" -> Double.valueOf (this.period);
+                case "setPeriod" -> {
+                    this.period = ((Number) arguments[0]).doubleValue ();
+                    yield null;
+                }
+                case "getNoteLength" -> Double.valueOf (this.noteLength);
+                case "setNoteLength" -> {
+                    this.noteLength = ((Number) arguments[0]).doubleValue ();
+                    yield null;
+                }
+                case "isLatchActive" -> Boolean.valueOf (this.latch);
+                case "setLatchActive" -> {
+                    this.latch = ((Boolean) arguments[0]).booleanValue ();
+                    yield null;
+                }
+                case "isFreeRunning" -> Boolean.valueOf (this.freeRunning);
+                case "toggleIsFreeRunning" -> {
+                    assertFalse (this.freeRunningTogglePending, "Free-running toggle must wait for read-back");
+                    this.freeRunningTogglePending = true;
+                    yield null;
+                }
+                case "usePressure" -> Boolean.valueOf (this.usePressure);
+                case "toggleUsePressure" -> {
+                    assertFalse (this.usePressureTogglePending, "Pressure toggle must wait for read-back");
+                    this.usePressureTogglePending = true;
+                    yield null;
+                }
+                case "isShuffle" -> Boolean.valueOf (this.shuffle);
+                case "toggleShuffle" -> {
+                    assertFalse (this.shuffleTogglePending, "Shuffle toggle must wait for read-back");
+                    this.shuffleTogglePending = true;
+                    yield null;
+                }
+                default -> relaxedValue (method.getReturnType ());
+            });
+        }
+
+
+        private void advanceHost ()
+        {
+            if (this.freeRunningTogglePending)
+            {
+                this.freeRunning = !this.freeRunning;
+                this.freeRunningTogglePending = false;
+            }
+            if (this.usePressureTogglePending)
+            {
+                this.usePressure = !this.usePressure;
+                this.usePressureTogglePending = false;
+            }
+            if (this.shuffleTogglePending)
+            {
+                this.shuffle = !this.shuffle;
+                this.shuffleTogglePending = false;
+            }
+        }
     }
 
 

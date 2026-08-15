@@ -61,6 +61,13 @@ public final class CoreControls
         DRUM_FILL_11,
         DRUM_FILL_12);
 
+    /** Four physical drum-rate pads in left-to-right order. */
+    public static final List<ControlId> DRUM_RATES = List.of (
+        PushControlIds.pad (5),
+        PushControlIds.pad (6),
+        PushControlIds.pad (7),
+        PushControlIds.pad (8));
+
 
     private CoreControls ()
     {

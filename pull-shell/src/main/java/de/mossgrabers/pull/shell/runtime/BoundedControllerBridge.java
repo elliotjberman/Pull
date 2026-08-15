@@ -14,12 +14,17 @@ import de.mossgrabers.framework.daw.data.IDrumDevice;
 import de.mossgrabers.framework.daw.data.IDrumPad;
 import de.mossgrabers.framework.daw.data.bank.IDrumPadBank;
 import de.mossgrabers.framework.daw.midi.ISelectedTrackNoteTarget;
+import de.mossgrabers.framework.daw.midi.INoteRepeat;
+import de.mossgrabers.framework.daw.midi.ArpeggiatorMode;
 import de.mossgrabers.framework.daw.midi.MidiShortCallback;
 import de.mossgrabers.framework.daw.midi.SelectedTrackMonitorMode;
 import de.mossgrabers.framework.daw.midi.SelectedTrackNoteTargetSnapshot;
 import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ControllerLayoutSnapshot;
+import de.mossgrabers.pull.core.api.ControllerNoteView;
+import de.mossgrabers.pull.core.api.DesiredControllerLayout;
+import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
@@ -28,6 +33,9 @@ import de.mossgrabers.pull.core.api.DrumContextSnapshot;
 import de.mossgrabers.pull.core.api.DrumPadSnapshot;
 import de.mossgrabers.pull.core.api.GridPressureConfiguration;
 import de.mossgrabers.pull.core.api.MasterSnapshot;
+import de.mossgrabers.pull.core.api.NoteRepeatMode;
+import de.mossgrabers.pull.core.api.NoteRepeatSnapshot;
+import de.mossgrabers.pull.core.api.NoteViewSnapshot;
 import de.mossgrabers.pull.core.api.ParameterBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ParameterTargetRef;
 import de.mossgrabers.pull.core.api.ProjectSnapshot;
@@ -101,6 +109,9 @@ final class BoundedControllerBridge implements ControllerBridge
     private long sampledSelectedGeneration = -1;
     private long observedSelectedGeneration = -1;
     private long activeCoreGeneration;
+    private DesiredNoteRepeat desiredNoteRepeat = DesiredNoteRepeat.unowned ();
+    private NoteRepeatLease noteRepeatLease;
+    private PendingNoteRepeatToggle pendingNoteRepeatToggle;
 
 
     BoundedControllerBridge (final IModel model, final ISelectedTrackNoteTarget selectedTarget, final MidiShortCallback noteInputMidiSender, final PushControlSurface surface, final IValueChanger valueChanger, final RuntimeLog log)
@@ -130,6 +141,7 @@ final class BoundedControllerBridge implements ControllerBridge
     public boolean refresh (final long monotonicTimeNanos, final DesiredBridgeSubscriptions subscriptions, final DesiredParameterBanks parameterBanks)
     {
         final DesiredBridgeSubscriptions requested = Objects.requireNonNull (subscriptions, "subscriptions");
+        this.reconcileNoteRepeat ();
         final long selectedGeneration = this.selectedTarget.getGeneration ();
         if (this.observedSelectedGeneration >= 0 && selectedGeneration != this.observedSelectedGeneration)
             this.resetNoteInputMidiState ();
@@ -137,7 +149,8 @@ final class BoundedControllerBridge implements ControllerBridge
 
         final boolean selectedRequested = requested.includes (BridgeSubscription.SELECTED_TRACK);
         final boolean drumRequested = requested.includes (BridgeSubscription.DRUM_PADS);
-        final SelectedTrackNoteTargetSnapshot selectedState = selectedRequested || drumRequested ? this.selectedTarget.snapshot () : null;
+        final boolean noteViewRequested = requested.includes (BridgeSubscription.NOTE_VIEW);
+        final SelectedTrackNoteTargetSnapshot selectedState = selectedRequested || drumRequested || noteViewRequested ? this.selectedTarget.snapshot () : null;
         final SelectedTrackSnapshot selected = selectedRequested ? toApiSnapshot (selectedState) : SelectedTrackSnapshot.empty ();
 
         final TransportSnapshot transportState;
@@ -150,6 +163,8 @@ final class BoundedControllerBridge implements ControllerBridge
         }
 
         final ControllerLayoutSnapshot layout = requested.includes (BridgeSubscription.CONTROLLER_LAYOUT) ? this.captureLayout () : ControllerLayoutSnapshot.empty ();
+        final NoteViewSnapshot noteView = noteViewRequested ? this.captureNoteView (selectedState) : NoteViewSnapshot.empty ();
+        final NoteRepeatSnapshot noteRepeat = requested.includes (BridgeSubscription.NOTE_REPEAT) ? this.captureNoteRepeat () : NoteRepeatSnapshot.empty ();
 
         if (drumRequested && (selectedState.generation () != this.sampledSelectedGeneration || elapsedAtLeast (monotonicTimeNanos, this.lastDrumSampleNanos, DRUM_SAMPLE_NANOS)))
         {
@@ -174,7 +189,7 @@ final class BoundedControllerBridge implements ControllerBridge
         this.masterCommands.refresh (masterRequested, projectRequested);
         final MasterSnapshot master = masterRequested ? this.masterCommands.snapshot () : MasterSnapshot.empty ();
         final ProjectSnapshot project = projectRequested ? this.masterCommands.projectSnapshot () : ProjectSnapshot.empty ();
-        final ControllerBridgeSnapshot refreshed = new ControllerBridgeSnapshot (transportState, selected, layout, this.drumSnapshot, parameters, master, project);
+        final ControllerBridgeSnapshot refreshed = new ControllerBridgeSnapshot (transportState, selected, layout, noteView, noteRepeat, this.drumSnapshot, parameters, master, project);
         if (refreshed.equals (this.snapshot))
             return false;
 
@@ -206,6 +221,7 @@ final class BoundedControllerBridge implements ControllerBridge
     public void invalidate ()
     {
         this.resetNoteInputMidiState ();
+        this.applyNoteRepeat (DesiredNoteRepeat.unowned ());
         this.parameterTargets.invalidate ();
         this.surface.getControllerWorkspaceHost ().invalidate ();
     }
@@ -229,6 +245,14 @@ final class BoundedControllerBridge implements ControllerBridge
         catch (final RuntimeException failure)
         {
             this.log.warn ("Parameter quarantine cleanup failed: " + failure.getMessage ());
+        }
+        try
+        {
+            this.applyNoteRepeat (DesiredNoteRepeat.unowned ());
+        }
+        catch (final RuntimeException failure)
+        {
+            this.log.warn ("Note-repeat quarantine cleanup failed: " + failure.getMessage ());
         }
     }
 
@@ -263,6 +287,8 @@ final class BoundedControllerBridge implements ControllerBridge
             this.snapshot.transport (),
             this.snapshot.selectedTrack (),
             this.snapshot.layout (),
+            this.snapshot.noteView (),
+            this.snapshot.noteRepeat (),
             this.snapshot.drum (),
             this.parameterTargets.snapshot (),
             this.snapshot.master (),
@@ -300,6 +326,39 @@ final class BoundedControllerBridge implements ControllerBridge
     public void applyWorkspace (final DesiredControllerWorkspace workspace)
     {
         this.surface.getControllerWorkspaceHost ().apply (workspace);
+    }
+
+
+    @Override
+    public DesiredControllerLayout prepareControllerLayout (final DesiredControllerLayout layout)
+    {
+        return this.surface.getControllerWorkspaceHost ().prepareLayout (layout);
+    }
+
+
+    @Override
+    public void applyControllerLayout (final DesiredControllerLayout layout)
+    {
+        this.surface.getControllerWorkspaceHost ().applyLayout (layout);
+    }
+
+
+    @Override
+    public DesiredNoteRepeat prepareNoteRepeat (final DesiredNoteRepeat noteRepeat)
+    {
+        return Objects.requireNonNull (noteRepeat, "noteRepeat");
+    }
+
+
+    @Override
+    public void applyNoteRepeat (final DesiredNoteRepeat noteRepeat)
+    {
+        final DesiredNoteRepeat next = Objects.requireNonNull (noteRepeat, "noteRepeat");
+        final INoteRepeat engine = this.noteRepeatEngine ();
+        if (next.owned () && this.noteRepeatLease == null && engine != null)
+            this.noteRepeatLease = new NoteRepeatLease (engine.isLatchActive (), engine.isFreeRunning (), engine.usePressure (), engine.isShuffle ());
+        this.desiredNoteRepeat = next;
+        this.reconcileNoteRepeat ();
     }
 
 
@@ -485,6 +544,145 @@ final class BoundedControllerBridge implements ControllerBridge
             this.surface.isDrumControllerActive (),
             this.model.getScales ().getDrumOffset (),
             this.captureGridPressureConfiguration ());
+    }
+
+
+    private NoteViewSnapshot captureNoteView (final SelectedTrackNoteTargetSnapshot selected)
+    {
+        if (selected == null || !selected.exists () || selected.trackID ().isBlank ())
+            return NoteViewSnapshot.empty ();
+        final de.mossgrabers.framework.view.Views preferred = this.surface.getViewManager ().getPreferredView (selected.position ());
+        final ControllerNoteView preferredView = preferred == null ? ControllerNoteView.NONE : ControllerNoteView.fromStableId (preferred.name ());
+        return new NoteViewSnapshot (selected.generation (), selected.trackID (), selected.position (), preferredView, this.surface.isDrumControllerApplicable ());
+    }
+
+
+    private NoteRepeatSnapshot captureNoteRepeat ()
+    {
+        final INoteRepeat engine = this.noteRepeatEngine ();
+        if (engine == null)
+            return new NoteRepeatSnapshot (false, this.surface.getConfiguration ().isDrumControllerRollEnabled (), false, NoteRepeatMode.ALL, 0, 0.25, 0.5, false, false, false, false);
+        return new NoteRepeatSnapshot (
+            true,
+            this.surface.getConfiguration ().isDrumControllerRollEnabled (),
+            engine.isActive (),
+            NoteRepeatMode.valueOf (engine.getMode ().name ()),
+            engine.getOctaves (),
+            positiveOrDefault (engine.getPeriod (), 0.25),
+            positiveOrDefault (engine.getNoteLength (), 0.5),
+            engine.isLatchActive (),
+            engine.isFreeRunning (),
+            engine.usePressure (),
+            engine.isShuffle ());
+    }
+
+
+    private INoteRepeat noteRepeatEngine ()
+    {
+        final de.mossgrabers.framework.daw.midi.INoteInput input = this.surface.getMidiInput ().getDefaultNoteInput ();
+        return input == null ? null : input.getNoteRepeat ();
+    }
+
+
+    private void reconcileNoteRepeat ()
+    {
+        final INoteRepeat engine = this.noteRepeatEngine ();
+        if (engine == null)
+            return;
+        final DesiredNoteRepeat target;
+        if (this.desiredNoteRepeat.owned ())
+            target = this.desiredNoteRepeat;
+        else
+        {
+            final NoteRepeatLease lease = this.noteRepeatLease;
+            if (lease == null)
+                return;
+            target = this.configuredNoteRepeat (lease);
+        }
+
+        setIfDifferent (engine.getMode (), ArpeggiatorMode.valueOf (target.mode ().name ()), engine::setMode);
+        if (engine.getOctaves () != target.octaves ())
+            engine.setOctaves (target.octaves ());
+        if (!close (engine.getPeriod (), target.period ()))
+            engine.setPeriod (target.period ());
+        if (!close (engine.getNoteLength (), target.noteLength ()))
+            engine.setNoteLength (target.noteLength ());
+        if (engine.isLatchActive () != target.latchActive ())
+            engine.setLatchActive (target.latchActive ());
+        if (engine.isActive () != target.active ())
+            engine.setActive (target.active ());
+
+        if (!this.reconcileToggle (engine, target))
+            return;
+        if (!this.desiredNoteRepeat.owned () && matches (engine, target))
+        {
+            this.noteRepeatLease = null;
+            this.pendingNoteRepeatToggle = null;
+        }
+    }
+
+
+    private boolean reconcileToggle (final INoteRepeat engine, final DesiredNoteRepeat target)
+    {
+        final PendingNoteRepeatToggle pending = this.pendingNoteRepeatToggle;
+        if (pending != null)
+        {
+            if (pending.kind ().read (engine) != pending.expected ())
+                return false;
+            this.pendingNoteRepeatToggle = null;
+        }
+        for (final NoteRepeatToggle kind: NoteRepeatToggle.values ())
+        {
+            final boolean expected = kind.expected (target);
+            if (kind.read (engine) == expected)
+                continue;
+            kind.toggle (engine);
+            this.pendingNoteRepeatToggle = new PendingNoteRepeatToggle (kind, expected);
+            return false;
+        }
+        return true;
+    }
+
+
+    private DesiredNoteRepeat configuredNoteRepeat (final NoteRepeatLease lease)
+    {
+        final de.mossgrabers.controller.ableton.push.PushConfiguration configuration = this.surface.getConfiguration ();
+        return new DesiredNoteRepeat (
+            true,
+            configuration.isNoteRepeatActive (),
+            NoteRepeatMode.valueOf (configuration.getNoteRepeatMode ().name ()),
+            configuration.getNoteRepeatOctave (),
+            configuration.getNoteRepeatPeriod ().getValue (),
+            configuration.getNoteRepeatLength ().getValue (),
+            lease.latchActive (),
+            lease.freeRunning (),
+            lease.usePressure (),
+            lease.shuffle ());
+    }
+
+
+    private static boolean matches (final INoteRepeat engine, final DesiredNoteRepeat target)
+    {
+        return engine.isActive () == target.active () && engine.getMode ().name ().equals (target.mode ().name ()) && engine.getOctaves () == target.octaves () && close (engine.getPeriod (), target.period ()) && close (engine.getNoteLength (), target.noteLength ()) && engine.isLatchActive () == target.latchActive () && engine.isFreeRunning () == target.freeRunning () && engine.usePressure () == target.usePressure () && engine.isShuffle () == target.shuffle ();
+    }
+
+
+    private static void setIfDifferent (final ArpeggiatorMode actual, final ArpeggiatorMode desired, final java.util.function.Consumer<ArpeggiatorMode> setter)
+    {
+        if (actual != desired)
+            setter.accept (desired);
+    }
+
+
+    private static double positiveOrDefault (final double value, final double fallback)
+    {
+        return Double.isFinite (value) && value > 0 ? value : fallback;
+    }
+
+
+    private static boolean close (final double left, final double right)
+    {
+        return Math.abs (left - right) < 0.000001;
     }
 
 
@@ -819,6 +1017,96 @@ final class BoundedControllerBridge implements ControllerBridge
     private static String valueOrEmpty (final String value)
     {
         return value == null ? "" : value;
+    }
+
+
+    private enum NoteRepeatToggle
+    {
+        FREE_RUNNING
+        {
+            @Override
+            boolean read (final INoteRepeat engine)
+            {
+                return engine.isFreeRunning ();
+            }
+
+
+            @Override
+            boolean expected (final DesiredNoteRepeat desired)
+            {
+                return desired.freeRunning ();
+            }
+
+
+            @Override
+            void toggle (final INoteRepeat engine)
+            {
+                engine.toggleIsFreeRunning ();
+            }
+        },
+        USE_PRESSURE
+        {
+            @Override
+            boolean read (final INoteRepeat engine)
+            {
+                return engine.usePressure ();
+            }
+
+
+            @Override
+            boolean expected (final DesiredNoteRepeat desired)
+            {
+                return desired.usePressure ();
+            }
+
+
+            @Override
+            void toggle (final INoteRepeat engine)
+            {
+                engine.toggleUsePressure ();
+            }
+        },
+        SHUFFLE
+        {
+            @Override
+            boolean read (final INoteRepeat engine)
+            {
+                return engine.isShuffle ();
+            }
+
+
+            @Override
+            boolean expected (final DesiredNoteRepeat desired)
+            {
+                return desired.shuffle ();
+            }
+
+
+            @Override
+            void toggle (final INoteRepeat engine)
+            {
+                engine.toggleShuffle ();
+            }
+        };
+
+
+        abstract boolean read (INoteRepeat engine);
+
+
+        abstract boolean expected (DesiredNoteRepeat desired);
+
+
+        abstract void toggle (INoteRepeat engine);
+    }
+
+
+    private record NoteRepeatLease (boolean latchActive, boolean freeRunning, boolean usePressure, boolean shuffle)
+    {
+    }
+
+
+    private record PendingNoteRepeatToggle (NoteRepeatToggle kind, boolean expected)
+    {
     }
 
 

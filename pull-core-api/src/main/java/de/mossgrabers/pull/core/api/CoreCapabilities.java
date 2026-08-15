@@ -23,19 +23,25 @@ public final class CoreCapabilities
     /** Single-active momentary clip-session effects with a frozen launch policy per target. */
     public static final String EFFECT_CLIP_LAUNCH_HOLD = "effect.clip-launch-hold";
 
-    /** Hardware-independent RGB light output. */
+    /** Hardware-independent RGB light output; v3 admits the four drum-rate pads. */
     public static final String OUTPUT_RGB_LIGHT = "output.rgb-light";
 
     /** Complete selection of fixed Push 2 view facets. */
     public static final String OUTPUT_CONTROLLER_WORKSPACE = "output.controller-workspace";
 
+    /** Replayable selection of one installed stable note-controller view. */
+    public static final String OUTPUT_CONTROLLER_LAYOUT = "output.controller-layout";
+
+    /** Replayable lease over the stable note-repeat engine. */
+    public static final String OUTPUT_NOTE_REPEAT = "output.note-repeat";
+
     /** Normalized bounded Push controller inputs. */
     public static final String INPUT_CONTROLLER = "input.controller";
 
-    /** Replayable core ownership of normalized controller inputs. */
+    /** Replayable core ownership of normalized controller inputs; v2 admits drum-rate input. */
     public static final String ROUTING_CONTROLLER_INPUT = "routing.controller-input";
 
-    /** Common bounded transport, project, selected-track, layout, and drum state. */
+    /** Common bounded controller state; v5 adds note-view and note-repeat domains. */
     public static final String SNAPSHOT_CONTROLLER_BRIDGE = "snapshot.controller-bridge";
 
     /** Replayable selection of bounded bridge-state domains to publish and sample. */

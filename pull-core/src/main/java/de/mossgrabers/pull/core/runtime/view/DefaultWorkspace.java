@@ -30,4 +30,14 @@ public final class DefaultWorkspace
             new StableParameterControlsView (),
             new DrumFillView ())));
     }
+
+
+    /** Create the default workspace while the authoritative drum layout owns its rate pads. */
+    public static CompiledWorkspace createDrum (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator)
+    {
+        return CompiledWorkspace.compile ("Pull Drum", ControllerLevelViews.compose (selection, playbackCoordinator, List.of (
+            new StableParameterControlsView (),
+            new DrumFillView (),
+            new DrumRateView ())));
+    }
 }
