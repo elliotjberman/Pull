@@ -133,7 +133,7 @@ public abstract class AbstractTrackMode extends BaseMode<ITrack>
             // mode
             if (track.isGroup ())
             {
-                if (this.surface.isShiftPressed () || this.configuration.isTrackNavigationFlat ())
+                if (this.surface.isShiftPressed ())
                     track.toggleGroupExpanded ();
                 else
                 {
@@ -226,18 +226,10 @@ public abstract class AbstractTrackMode extends BaseMode<ITrack>
     @Override
     public void selectPreviousItemPage ()
     {
-        switch (this.surface.isShiftPressed () ? this.configuration.getCursorKeysTrackShiftedOption () : this.configuration.getCursorKeysTrackOption ())
-        {
-            case PushConfiguration.CURSOR_KEYS_TRACK_OPTION_MOVE_BANK_BY_PAGE:
-                super.selectPreviousItemPage ();
-                break;
-            case PushConfiguration.CURSOR_KEYS_TRACK_OPTION_MOVE_BANK_BY_1:
-                this.model.getCurrentTrackBank ().scrollBackwards ();
-                break;
-            case PushConfiguration.CURSOR_KEYS_TRACK_OPTION_SWAP:
-                this.model.getCursorTrack ().swapWithPrevious ();
-                break;
-        }
+        if (this.surface.isShiftPressed ())
+            this.model.getCursorTrack ().swapWithPrevious ();
+        else
+            super.selectPreviousItemPage ();
     }
 
 
@@ -245,82 +237,10 @@ public abstract class AbstractTrackMode extends BaseMode<ITrack>
     @Override
     public void selectNextItemPage ()
     {
-        switch (this.surface.isShiftPressed () ? this.configuration.getCursorKeysTrackShiftedOption () : this.configuration.getCursorKeysTrackOption ())
-        {
-            case PushConfiguration.CURSOR_KEYS_TRACK_OPTION_MOVE_BANK_BY_PAGE:
-                super.selectNextItemPage ();
-                break;
-            case PushConfiguration.CURSOR_KEYS_TRACK_OPTION_MOVE_BANK_BY_1:
-                this.model.getCurrentTrackBank ().scrollForwards ();
-                break;
-            case PushConfiguration.CURSOR_KEYS_TRACK_OPTION_SWAP:
-                this.model.getCursorTrack ().swapWithNext ();
-                break;
-        }
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public boolean hasPreviousItem ()
-    {
-        switch (this.configuration.getCursorKeysTrackShiftedOption ())
-        {
-            case PushConfiguration.CURSOR_KEYS_TRACK_OPTION_MOVE_BANK_BY_PAGE:
-                return super.hasPreviousItemPage ();
-            case PushConfiguration.CURSOR_KEYS_TRACK_OPTION_MOVE_BANK_BY_1:
-            case PushConfiguration.CURSOR_KEYS_TRACK_OPTION_SWAP:
-            default:
-                return super.hasPreviousItem ();
-        }
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public boolean hasNextItem ()
-    {
-        switch (this.configuration.getCursorKeysTrackShiftedOption ())
-        {
-            case PushConfiguration.CURSOR_KEYS_TRACK_OPTION_MOVE_BANK_BY_PAGE:
-                return super.hasNextItemPage ();
-            case PushConfiguration.CURSOR_KEYS_TRACK_OPTION_MOVE_BANK_BY_1:
-            case PushConfiguration.CURSOR_KEYS_TRACK_OPTION_SWAP:
-            default:
-                return super.hasNextItem ();
-        }
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public boolean hasPreviousItemPage ()
-    {
-        switch (this.configuration.getCursorKeysTrackOption ())
-        {
-            case PushConfiguration.CURSOR_KEYS_TRACK_OPTION_MOVE_BANK_BY_PAGE:
-                return super.hasPreviousItemPage ();
-            case PushConfiguration.CURSOR_KEYS_TRACK_OPTION_MOVE_BANK_BY_1:
-            case PushConfiguration.CURSOR_KEYS_TRACK_OPTION_SWAP:
-            default:
-                return super.hasPreviousItem ();
-        }
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public boolean hasNextItemPage ()
-    {
-        switch (this.configuration.getCursorKeysTrackOption ())
-        {
-            case PushConfiguration.CURSOR_KEYS_TRACK_OPTION_MOVE_BANK_BY_PAGE:
-                return super.hasNextItemPage ();
-            case PushConfiguration.CURSOR_KEYS_TRACK_OPTION_MOVE_BANK_BY_1:
-            case PushConfiguration.CURSOR_KEYS_TRACK_OPTION_SWAP:
-            default:
-                return super.hasNextItem ();
-        }
+        if (this.surface.isShiftPressed ())
+            this.model.getCursorTrack ().swapWithNext ();
+        else
+            super.selectNextItemPage ();
     }
 
 

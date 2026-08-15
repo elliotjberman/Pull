@@ -134,8 +134,7 @@ public class RecordCommand<S extends IControlSurface<C>, C extends Configuration
 
     protected void handleExecute (final boolean isShiftPressed)
     {
-        final boolean flipRecord = this.surface.getConfiguration ().isFlipRecord ();
-        if (isShiftPressed && !flipRecord || !isShiftPressed && flipRecord)
+        if (isShiftPressed)
         {
             // If the selected clip is recording, stop the recording instead of toggling the
             // launcher overdub

@@ -42,7 +42,7 @@ public class Push2Display extends AbstractGraphicDisplay
      */
     public Push2Display (final IHost host, final int maxParameterValue, final PushConfiguration configuration, final Supplier<ControllerDisplayOverlay> displayOverlaySupplier)
     {
-        super (host, configuration, new DefaultGraphicsDimensions (960, 160, maxParameterValue), "Push 2 Display");
+        super (host, configuration, new DefaultGraphicsDimensions (960, 160, maxParameterValue));
 
         final Supplier<ControllerDisplayOverlay> checkedSupplier = Objects.requireNonNull (displayOverlaySupplier, "displayOverlaySupplier");
         this.setFullScreenOverlaySupplier ( () -> {

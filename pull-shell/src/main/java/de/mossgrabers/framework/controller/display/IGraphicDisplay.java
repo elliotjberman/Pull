@@ -21,12 +21,6 @@ import de.mossgrabers.framework.graphics.canvas.component.IComponent;
 public interface IGraphicDisplay extends IDisplay
 {
     /**
-     * Show the debug window for the graphics display.
-     */
-    void showDebugWindow ();
-
-
-    /**
      * Send the message to the display process.
      */
     void send ();

@@ -6,14 +6,12 @@ package de.mossgrabers.bitwig.framework.configuration;
 
 import de.mossgrabers.framework.configuration.IActionSetting;
 import de.mossgrabers.framework.configuration.IBooleanSetting;
-import de.mossgrabers.framework.configuration.IColorSetting;
 import de.mossgrabers.framework.configuration.IDoubleSetting;
 import de.mossgrabers.framework.configuration.IEnumSetting;
 import de.mossgrabers.framework.configuration.IIntegerSetting;
 import de.mossgrabers.framework.configuration.ISettingsUI;
 import de.mossgrabers.framework.configuration.ISignalSetting;
 import de.mossgrabers.framework.configuration.IStringSetting;
-import de.mossgrabers.framework.controller.color.ColorEx;
 
 import com.bitwig.extension.controller.api.Action;
 import com.bitwig.extension.controller.api.ActionCategory;
@@ -101,15 +99,6 @@ public class SettingsUIImpl implements ISettingsUI
     public ISignalSetting getSignalSetting (final String label, final String category, final String action)
     {
         return new SignalSettingImpl (this.preferences.getSignalSetting (label, category, action));
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public IColorSetting getColorSetting (final String label, final String category, final ColorEx defaultColor)
-    {
-        final com.bitwig.extension.api.Color color = com.bitwig.extension.api.Color.fromRGB (defaultColor.getRed (), defaultColor.getGreen (), defaultColor.getBlue ());
-        return new ColorSettingImpl (this.preferences.getColorSetting (label, category, color));
     }
 
 

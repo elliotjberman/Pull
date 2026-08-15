@@ -5,26 +5,12 @@
 package de.mossgrabers.framework.graphics;
 
 /**
- * An interface to a bitmap, which can also be displayed in a window.
+ * An interface to a bitmap.
  *
  * @author Jürgen Moßgraber
  */
 public interface IBitmap
 {
-    /**
-     * Set a title for the window, which displays the Bitmap.
-     *
-     * @param title The title
-     */
-    void setDisplayWindowTitle (String title);
-
-
-    /**
-     * Show the display window.
-     */
-    void showDisplayWindow ();
-
-
     /**
      * Render the content of the bitmap.
      *

@@ -227,8 +227,9 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         ms.setNumResults (48);
         ms.setNumSends (8);
         ms.setNumMarkers (8);
-        ms.setHasFlatTrackList (this.configuration.isTrackNavigationFlat ());
-        ms.setHasFullFlatTrackList (this.configuration.areMasterTracksIncluded ());
+        // Pull uses hierarchical navigation and includes group/master tracks.
+        ms.setHasFlatTrackList (false);
+        ms.setHasFullFlatTrackList (true);
         ms.setWantsFocusedParameter (true);
         for (final SessionBankShape shape: SESSION_BANK_CANOPY)
             ms.addTrackBank (shape.tracks (), shape.scenes ());
@@ -354,29 +355,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         this.configuration.addSettingObserver (PushConfiguration.RIBBON_MODE, this::updateRibbonMode);
         this.configuration.addSettingObserver (PushConfiguration.RIBBON_MODE_NOTE_REPEAT, this::updateRibbonMode);
         this.configuration.addSettingObserver (AbstractConfiguration.NOTEREPEAT_ACTIVE, this::updateRibbonMode);
-        this.configuration.addSettingObserver (PushConfiguration.DEBUG_MODE, () -> {
-            final ModeManager modeManager = surface.getModeManager ();
-            final Modes debugMode = this.configuration.getMixerMode ();
-            if (modeManager.get (debugMode) != null)
-                modeManager.setActive (debugMode);
-            else
-                this.host.error ("Mode " + debugMode + " not registered.");
-        });
-
-        this.configuration.addSettingObserver (PushConfiguration.DEBUG_WINDOW, () -> this.getSurface ().getGraphicsDisplay ().showDebugWindow ());
         this.configuration.registerDeactivatedItemsHandler (this.model);
-
-        this.configuration.addSettingObserver (PushConfiguration.COLOR_BACKGROUND, this::redraw);
-        this.configuration.addSettingObserver (PushConfiguration.COLOR_BORDER, this::redraw);
-        this.configuration.addSettingObserver (PushConfiguration.COLOR_TEXT, this::redraw);
-        this.configuration.addSettingObserver (PushConfiguration.COLOR_FADER, this::redraw);
-        this.configuration.addSettingObserver (PushConfiguration.COLOR_VU, this::redraw);
-        this.configuration.addSettingObserver (PushConfiguration.COLOR_EDIT, this::redraw);
-        this.configuration.addSettingObserver (PushConfiguration.COLOR_RECORD, this::redraw);
-        this.configuration.addSettingObserver (PushConfiguration.COLOR_SOLO, this::redraw);
-        this.configuration.addSettingObserver (PushConfiguration.COLOR_MUTE, this::redraw);
-        this.configuration.addSettingObserver (PushConfiguration.COLOR_BACKGROUND_DARKER, this::redraw);
-        this.configuration.addSettingObserver (PushConfiguration.COLOR_BACKGROUND_LIGHTER, this::redraw);
 
         this.createScaleObservers (this.configuration);
         this.createNoteRepeatObservers (this.configuration, surface);
@@ -396,17 +375,6 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
     protected int getNoteRepeatOctave (final PushConfiguration conf, final PushControlSurface surface)
     {
         return this.drumPadControls != null && this.drumPadControls.isActive () ? 0 : conf.getNoteRepeatOctave ();
-    }
-
-
-    /**
-     * Redraw the Push 2 display.
-     */
-    public void redraw ()
-    {
-        final IMode mode = this.getSurface ().getModeManager ().getActive ();
-        if (mode != null)
-            mode.updateDisplay ();
     }
 
 
@@ -485,7 +453,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
 
         this.addButton (ButtonID.AUTOMATION, "Automate", new PushAutomationCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_AUTOMATION, () -> {
 
-            if (this.isRecordShifted (surface))
+            if (surface.isShiftPressed ())
                 return t.isWritingClipLauncherAutomation () ? 3 : 2;
             return t.isWritingArrangerAutomation () ? 1 : 0;
 

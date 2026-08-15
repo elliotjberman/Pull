@@ -120,14 +120,6 @@ public interface Configuration
      */
     boolean isEnableVUMeters ();
     /**
-     * Flip the arrange record and clip record buttons?
-     *
-     * @return True if flipped
-     */
-    boolean isFlipRecord ();
-
-
-    /**
      * Is accent active?
      *
      * @return True if active

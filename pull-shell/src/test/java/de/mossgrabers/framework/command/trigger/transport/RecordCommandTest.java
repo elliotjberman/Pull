@@ -7,12 +7,14 @@ package de.mossgrabers.framework.command.trigger.transport;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.lang.reflect.Proxy;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import de.mossgrabers.framework.configuration.Configuration;
 import de.mossgrabers.framework.controller.IControlSurface;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.ITransport;
+import de.mossgrabers.framework.daw.data.bank.ITrackBank;
 import de.mossgrabers.framework.utils.ButtonEvent;
 
 import org.junit.jupiter.api.Test;
@@ -49,6 +51,31 @@ class RecordCommandTest
 
         assertEquals (2, toggles.get ());
         assertEquals (0, starts.get ());
+    }
+
+
+    @Test
+    void shiftedRecordPressTogglesLauncherOverdub ()
+    {
+        final AtomicInteger overdubToggles = new AtomicInteger ();
+        final ITransport transport = proxy (ITransport.class, (proxy, method, arguments) -> {
+            if ("toggleLauncherOverdub".equals (method.getName ()))
+                overdubToggles.incrementAndGet ();
+            return defaultValue (method.getReturnType ());
+        });
+        final ITrackBank trackBank = proxy (ITrackBank.class, (proxy, method, arguments) -> "getSelectedItem".equals (method.getName ()) ? Optional.empty () : defaultValue (method.getReturnType ()));
+        final IModel model = proxy (IModel.class, (proxy, method, arguments) -> switch (method.getName ())
+        {
+            case "getTransport" -> transport;
+            case "getCurrentTrackBank" -> trackBank;
+            default -> defaultValue (method.getReturnType ());
+        });
+        final Configuration configuration = proxy (Configuration.class, (proxy, method, arguments) -> defaultValue (method.getReturnType ()));
+        final RecordCommand<IControlSurface<Configuration>, Configuration> command = new RecordCommand<> (model, controlSurface (configuration));
+
+        command.executeShifted (ButtonEvent.DOWN);
+
+        assertEquals (1, overdubToggles.get ());
     }
 
 

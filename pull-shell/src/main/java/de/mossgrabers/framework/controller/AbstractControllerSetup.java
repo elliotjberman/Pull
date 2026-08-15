@@ -1110,21 +1110,6 @@ public abstract class AbstractControllerSetup<S extends IControlSurface<C>, C ex
 
 
     /**
-     * Test if record mode (Arrange / Session) is flipped due to Shift press or configuration
-     * setting.
-     *
-     * @param surface The surface
-     * @return True if shifted
-     */
-    protected boolean isRecordShifted (final S surface)
-    {
-        final boolean isShift = surface.isShiftPressed ();
-        final boolean isFlipRecord = this.configuration.isFlipRecord ();
-        return isShift && !isFlipRecord || !isShift && isFlipRecord;
-    }
-
-
-    /**
      * Get the color for a button, which is controlled by the active mode.
      *
      * @param buttonID The ID of the button

@@ -63,8 +63,6 @@ public abstract class AbstractConfiguration implements Configuration
     public static final Integer      FIXED_ACCENT_VALUE              = Integer.valueOf (13);
     /** ID for the quantize amount setting. */
     public static final Integer      QUANTIZE_AMOUNT                 = Integer.valueOf (14);
-    /** ID for the flip recording setting. */
-    public static final Integer      FLIP_RECORD                     = Integer.valueOf (15);
     /** Setting for new clip length. */
     public static final Integer      NEW_CLIP_LENGTH                 = Integer.valueOf (16);
     /** Setting for automatic selecting the drum channel. */
@@ -128,14 +126,11 @@ public abstract class AbstractConfiguration implements Configuration
     protected static final String    CATEGORY_DRUMS                  = "Drum Sequencer";
     protected static final String    CATEGORY_SCALES                 = "Scales";
     protected static final String    CATEGORY_SESSION                = "Session";
-    protected static final String    CATEGORY_TRANSPORT              = "Transport";
     protected static final String    CATEGORY_WORKFLOW               = "Workflow";
     protected static final String    CATEGORY_PADS                   = "Pads";
     protected static final String    CATEGORY_PLAY_AND_SEQUENCE      = "Play and Sequence";
     protected static final String    CATEGORY_HARDWARE_SETUP         = "Hardware Setup";
-    protected static final String    CATEGORY_DEBUG                  = "Debug";
     protected static final String    CATEGORY_NOTEREPEAT             = "Note Repeat";
-    private static final String      CATEGORY_FAV_DEVICES            = "Add Track - favorite devices";
 
     private static final String      SCALE_IN_KEY                    = "In Key";
     private static final String      SCALE_CHROMATIC                 = "Chromatic";
@@ -193,12 +188,6 @@ public abstract class AbstractConfiguration implements Configuration
     protected static final ColorEx DEFAULT_COLOR_BACKGROUND         = ColorEx.fromRGB (83, 83, 83);
     protected static final ColorEx DEFAULT_COLOR_BORDER             = ColorEx.BLACK;
     protected static final ColorEx DEFAULT_COLOR_TEXT               = ColorEx.BLACK;
-    protected static final ColorEx DEFAULT_COLOR_FADER              = ColorEx.fromRGB (69, 44, 19);
-    protected static final ColorEx DEFAULT_COLOR_VU                 = ColorEx.GREEN;
-    protected static final ColorEx DEFAULT_COLOR_EDIT               = ColorEx.fromRGB (240, 127, 17);
-    protected static final ColorEx DEFAULT_COLOR_RECORD             = ColorEx.RED;
-    protected static final ColorEx DEFAULT_COLOR_SOLO               = ColorEx.YELLOW;
-    protected static final ColorEx DEFAULT_COLOR_MUTE               = ColorEx.fromRGB (245, 129, 17);
     protected static final ColorEx DEFAULT_COLOR_BACKGROUND_DARKER  = ColorEx.fromRGB (39, 39, 39);
     protected static final ColorEx DEFAULT_COLOR_BACKGROUND_LIGHTER = ColorEx.fromRGB (200, 200, 200);
     /** Aftertouch conversion is set to off. */
@@ -273,13 +262,8 @@ public abstract class AbstractConfiguration implements Configuration
         "On"
     };
 
-    /** The Flat/Hierarchical tracks option. */
-    protected static final String [] TRACK_NAVIGATION_OPTIONS   =
-    {
-        "Flat",
-        "Hierarchical"
-    };
     private static final int                          NUMBER_OF_FOOTSWITCHES              = 4;
+    private static final int                          NUMBER_OF_DEVICE_SHORTCUTS           = 7;
 
     protected final IHost                             host;
 
@@ -300,17 +284,9 @@ public abstract class AbstractConfiguration implements Configuration
     private IEnumSetting                              midiEditChannelSetting;
     private IEnumSetting                              showPlayedChordsSetting;
 
-    private final List<IEnumSetting>                  instrumentSettings                  = new ArrayList<> (7);
-    private final List<IEnumSetting>                  audioSettings                       = new ArrayList<> (3);
-    private final List<IEnumSetting>                  effectSettings                      = new ArrayList<> (3);
-    private final List<IEnumSetting>                  deviceSettings                      = new ArrayList<> (3);
-
-    private List<IDeviceMetadata>                     instrumentMetadata;
-    private List<IDeviceMetadata>                     effectMetadata;
-    private List<IDeviceMetadata>                     deviceMetadata;
-    private String []                                 instrumentNames;
-    private String []                                 effectNames;
-    private String []                                 deviceNames;
+    private List<IDeviceMetadata>                     instrumentShortcuts                 = List.of ();
+    private List<IDeviceMetadata>                     audioEffectShortcuts                = List.of ();
+    private List<IDeviceMetadata>                     deviceShortcuts                     = List.of ();
 
     private final Map<Integer, Set<ISettingObserver>> observers                           = new ConcurrentHashMap<> ();
     protected final Set<Integer>                      dontNotifyAll                       = new HashSet<> ();
@@ -330,7 +306,6 @@ public abstract class AbstractConfiguration implements Configuration
     /** Fixed velocity value for accent. */
     protected int                                     fixedAccentValue                    = 127;
     private int                                       quantizeAmount                      = 100;
-    protected boolean                                 flipRecord                          = false;
     private int                                       newClipLength                       = 2;
     private boolean                                   autoSelectDrum                      = false;
     private int                                       actionForRecArmedPad                = 0;
@@ -348,9 +323,7 @@ public abstract class AbstractConfiguration implements Configuration
     private int                                       midiEditChannel                     = 0;
     private final List<ArpeggiatorMode>               arpeggiatorModes;
 
-    private boolean                                   includeMaster                       = true;
     private boolean                                   excludeDeactivatedItems             = false;
-    private boolean                                   isTrackNavigationFlat               = true;
 
     private Views                                     startupView                         = Views.PLAY;
     protected Views                                   preferredAudioView                  = Views.PLAY;
@@ -566,14 +539,6 @@ public abstract class AbstractConfiguration implements Configuration
     public int getQuantizeAmount ()
     {
         return this.quantizeAmount;
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public boolean isFlipRecord ()
-    {
-        return this.flipRecord;
     }
 
 
@@ -1005,35 +970,6 @@ public abstract class AbstractConfiguration implements Configuration
 
 
     /**
-     * Activate the flip arranger and clip record setting.
-     *
-     * @param settingsUI The settings
-     */
-    protected void activateFlipRecordSetting (final ISettingsUI settingsUI)
-    {
-        final IEnumSetting flipRecordSetting = settingsUI.getEnumSetting ("Flip arranger and clip record / automation", CATEGORY_TRANSPORT, ON_OFF_OPTIONS, ON_OFF_OPTIONS[0]);
-        flipRecordSetting.addValueObserver (value -> {
-            this.flipRecord = "On".equals (value);
-            this.notifyObservers (FLIP_RECORD);
-        });
-
-        this.isSettingActive.add (FLIP_RECORD);
-    }
-
-
-    /**
-     * Activate the include master setting.
-     *
-     * @param settingsUI The settings
-     */
-    protected void activateIncludeMasterSetting (final ISettingsUI settingsUI)
-    {
-        final IEnumSetting includeMasterSetting = settingsUI.getEnumSetting ("Include (Group-)Mastertrack (requires restart)", CATEGORY_WORKFLOW, ON_OFF_OPTIONS, ON_OFF_OPTIONS[1]);
-        this.includeMaster = "On".equals (includeMasterSetting.get ());
-    }
-
-
-    /**
      * Activate the exclude deactivated tracks setting.
      *
      * @param settingsUI The settings
@@ -1047,20 +983,6 @@ public abstract class AbstractConfiguration implements Configuration
         });
 
         this.isSettingActive.add (EXCLUDE_DEACTIVATED_ITEMS);
-    }
-
-
-    /**
-     * Activate the flat or hierarchical tracks setting.
-     *
-     * @param settingsUI The settings
-     * @param category The category to add the setting to or null to use default
-     * @param flatIsDefault The default is set to flat if true
-     */
-    protected void activateTrackNavigationSetting (final ISettingsUI settingsUI, final String category, final boolean flatIsDefault)
-    {
-        final IEnumSetting trackNavigationSetting = settingsUI.getEnumSetting ("Track Navigation (requires restart)", category == null ? CATEGORY_WORKFLOW : category, TRACK_NAVIGATION_OPTIONS, TRACK_NAVIGATION_OPTIONS[flatIsDefault ? 0 : 1]);
-        this.isTrackNavigationFlat = TRACK_NAVIGATION_OPTIONS[0].equals (trackNavigationSetting.get ());
     }
 
 
@@ -1303,48 +1225,16 @@ public abstract class AbstractConfiguration implements Configuration
         this.isSettingActive.add (NOTEREPEAT_OCTAVE);
     }
     /**
-     * Activate the add (track) device favorites.
-     *
-     * @param settingsUI The settings
-     * @param numFavInstruments The number of favorite instrument track devices
-     * @param numFavAudio The number of favorite audio tracks devices
-     * @param numFavEffects The number of favorite effect tracks devices
-     * @param numFavDevices The number of favorite devices
+     * Initialize the fixed device shortcuts shown by the Add Track mode. The host metadata order is
+     * the same order previously used for the preference defaults.
      */
-    protected void activateDeviceFavorites (final ISettingsUI settingsUI, final int numFavInstruments, final int numFavAudio, final int numFavEffects, final int numFavDevices)
+    protected void initializeDeviceShortcuts ()
     {
-        this.instrumentMetadata = this.host.getInstrumentMetadata ();
-        this.effectMetadata = this.host.getAudioEffectMetadata ();
-        this.deviceMetadata = new ArrayList<> ();
-        this.deviceMetadata.addAll (this.instrumentMetadata);
-        this.deviceMetadata.addAll (this.effectMetadata);
-        this.instrumentNames = getDeviceNames (this.instrumentMetadata);
-        this.effectNames = getDeviceNames (this.effectMetadata);
-        this.deviceNames = getDeviceNames (this.deviceMetadata);
-
-        for (int i = 0; i < numFavInstruments; i++)
-        {
-            final IEnumSetting favSetting = settingsUI.getEnumSetting ("Instrument " + (i + 1), CATEGORY_FAV_DEVICES, this.instrumentNames, this.instrumentNames[Math.min (this.instrumentNames.length - 1, i)]);
-            this.instrumentSettings.add (favSetting);
-        }
-
-        for (int i = 0; i < numFavAudio; i++)
-        {
-            final IEnumSetting favSetting = settingsUI.getEnumSetting ("Audio " + (i + 1), CATEGORY_FAV_DEVICES, this.effectNames, this.effectNames[Math.min (this.effectNames.length - 1, i)]);
-            this.audioSettings.add (favSetting);
-        }
-
-        for (int i = 0; i < numFavEffects; i++)
-        {
-            final IEnumSetting favSetting = settingsUI.getEnumSetting ("Effect " + (i + 1), CATEGORY_FAV_DEVICES, this.effectNames, this.effectNames[Math.min (this.effectNames.length - 1, i)]);
-            this.effectSettings.add (favSetting);
-        }
-
-        for (int i = 0; i < numFavDevices; i++)
-        {
-            final IEnumSetting favSetting = settingsUI.getEnumSetting ("Device " + (i + 1), CATEGORY_FAV_DEVICES, this.deviceNames, this.deviceNames[Math.min (this.deviceNames.length - 1, i)]);
-            this.deviceSettings.add (favSetting);
-        }
+        this.instrumentShortcuts = List.copyOf (this.host.getInstrumentMetadata ());
+        this.audioEffectShortcuts = List.copyOf (this.host.getAudioEffectMetadata ());
+        final List<IDeviceMetadata> allDevices = new ArrayList<> (this.instrumentShortcuts);
+        allDevices.addAll (this.audioEffectShortcuts);
+        this.deviceShortcuts = List.copyOf (allDevices);
     }
 
 
@@ -1495,17 +1385,6 @@ public abstract class AbstractConfiguration implements Configuration
 
 
     /**
-     * Should the master track and group-master tracks be included in the track list?
-     *
-     * @return True if they should be included
-     */
-    public boolean areMasterTracksIncluded ()
-    {
-        return this.includeMaster;
-    }
-
-
-    /**
      * Should deactivated tracks be included in the track list?
      *
      * @return False if they should be included
@@ -1514,15 +1393,6 @@ public abstract class AbstractConfiguration implements Configuration
     {
         return this.excludeDeactivatedItems;
     }
-    /**
-     * Returns true if the track navigation should be hierarchical.
-     *
-     * @return True if the track navigation should be hierarchical otherwise flat
-     */
-    public boolean isTrackNavigationFlat ()
-    {
-        return this.isTrackNavigationFlat;
-    }
     /** {@inheritDoc} */
     @Override
     public boolean isShowPlayedChords ()
@@ -1530,72 +1400,45 @@ public abstract class AbstractConfiguration implements Configuration
         return this.showPlayedChords;
     }
     /**
-     * Get one of the favorite instrument devices.
+     * Get one of the fixed instrument shortcuts.
      *
      * @param index The index
-     * @return The devices' metadata or null if none existing
+     * @return The device metadata, if the host exposes an item at that index
      */
-    public Optional<IDeviceMetadata> getInstrumentFavorite (final int index)
+    public Optional<IDeviceMetadata> getInstrumentShortcut (final int index)
     {
-        if (index >= this.instrumentSettings.size ())
-            return Optional.empty ();
-        final String sel = this.instrumentSettings.get (index).get ();
-        final int lookupIndex = lookupIndex (this.instrumentNames, sel);
-        return Optional.ofNullable (lookupIndex >= this.instrumentMetadata.size () ? null : this.instrumentMetadata.get (lookupIndex));
+        return getShortcut (this.instrumentShortcuts, index);
     }
 
 
     /**
-     * Get one of the favorite audio devices.
+     * Get one of the fixed audio-effect shortcuts.
      *
      * @param index The index
-     * @return The devices' metadata or null if none existing
+     * @return The device metadata, if the host exposes an item at that index
      */
-    public Optional<IDeviceMetadata> getAudioFavorite (final int index)
+    public Optional<IDeviceMetadata> getAudioEffectShortcut (final int index)
     {
-        if (index >= this.audioSettings.size ())
-            return Optional.empty ();
-        final String sel = this.audioSettings.get (index).get ();
-        final int lookupIndex = lookupIndex (this.effectNames, sel);
-        return Optional.ofNullable (lookupIndex >= this.effectMetadata.size () ? null : this.effectMetadata.get (lookupIndex));
+        return getShortcut (this.audioEffectShortcuts, index);
     }
 
 
     /**
-     * Get one of the favorite effect devices.
+     * Get one of the fixed device shortcuts.
      *
      * @param index The index
-     * @return The devices' metadata or null if none existing
+     * @return The device metadata, if the host exposes an item at that index
      */
-    public Optional<IDeviceMetadata> getEffectFavorite (final int index)
+    public Optional<IDeviceMetadata> getDeviceShortcut (final int index)
     {
-        if (index >= this.effectSettings.size ())
-            return Optional.empty ();
-        final String sel = this.effectSettings.get (index).get ();
-        final int lookupIndex = lookupIndex (this.effectNames, sel);
-        return Optional.ofNullable (lookupIndex >= this.effectMetadata.size () ? null : this.effectMetadata.get (lookupIndex));
+        return getShortcut (this.deviceShortcuts, index);
     }
 
 
-    /**
-     * Get one of the favorite devices.
-     *
-     * @param index The index
-     * @return The devices' metadata or null if none existing
-     */
-    public Optional<IDeviceMetadata> getDeviceFavorite (final int index)
+    private static Optional<IDeviceMetadata> getShortcut (final List<IDeviceMetadata> shortcuts, final int index)
     {
-        if (index >= this.deviceSettings.size ())
+        if (index < 0 || index >= NUMBER_OF_DEVICE_SHORTCUTS || shortcuts.isEmpty ())
             return Optional.empty ();
-        final String sel = this.deviceSettings.get (index).get ();
-        final int lookupIndex = lookupIndex (this.deviceNames, sel);
-        return Optional.ofNullable (lookupIndex >= this.deviceMetadata.size () ? null : this.deviceMetadata.get (lookupIndex));
-    }
-    private static String [] getDeviceNames (final List<IDeviceMetadata> deviceMetadata)
-    {
-        final String [] deviceNames = new String [deviceMetadata.size ()];
-        for (int i = 0; i < deviceNames.length; i++)
-            deviceNames[i] = deviceMetadata.get (i).fullName ();
-        return deviceNames;
+        return Optional.of (shortcuts.get (Math.min (index, shortcuts.size () - 1)));
     }
 }

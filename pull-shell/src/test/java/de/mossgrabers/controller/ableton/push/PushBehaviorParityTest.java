@@ -4,11 +4,15 @@
 package de.mossgrabers.controller.ableton.push;
 
 import de.mossgrabers.controller.ableton.push.command.trigger.MastertrackCommand;
+import de.mossgrabers.controller.ableton.push.command.trigger.PushAutomationCommand;
+import de.mossgrabers.controller.ableton.push.command.trigger.PushCursorCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.SelectPlayViewCommand;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.mode.device.UserMode;
 import de.mossgrabers.controller.ableton.push.workspace.SessionBankRegistry;
+import de.mossgrabers.framework.command.trigger.Direction;
+import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
 import de.mossgrabers.framework.controller.hardware.IHwButton;
@@ -24,6 +28,7 @@ import de.mossgrabers.framework.daw.data.IMasterTrack;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.IParameterBank;
 import de.mossgrabers.framework.daw.data.bank.IParameterPageBank;
+import de.mossgrabers.framework.daw.data.bank.ISceneBank;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
 import de.mossgrabers.framework.daw.midi.IMidiInput;
 import de.mossgrabers.framework.daw.midi.IMidiOutput;
@@ -46,6 +51,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -63,6 +70,85 @@ class PushBehaviorParityTest
         assertEquals (PushColorManager.PUSH2_COLOR2_BLACK, PushControllerSetup.controllerLightColor (colors, new RgbColor (0, 0, 0)));
         assertEquals (colors.getColorIndex (ColorEx.WHITE), PushControllerSetup.controllerLightColor (colors, new RgbColor (255, 255, 255)));
         assertEquals (colors.getColorIndex (ColorEx.GREEN), PushControllerSetup.controllerLightColor (colors, new RgbColor (0, 255, 0)));
+    }
+
+
+    @Test
+    void fixedDisplayColorsPreserveTheFormerDefaults ()
+    {
+        final PushConfiguration configuration = new PushConfiguration (relaxedProxy (IHost.class), new TwosComplementValueChanger (128, 1), List.of ());
+
+        assertEquals (ColorEx.fromRGB (83, 83, 83), configuration.getColorBackground ());
+        assertEquals (ColorEx.fromRGB (39, 39, 39), configuration.getColorBackgroundDarker ());
+        assertEquals (ColorEx.fromRGB (200, 200, 200), configuration.getColorBackgroundLighter ());
+        assertEquals (ColorEx.BLACK, configuration.getColorBorder ());
+        assertEquals (ColorEx.BLACK, configuration.getColorText ());
+        assertEquals (Modes.DEVICE_LAYER, configuration.getCurrentLayerMixMode ());
+    }
+
+
+    @Test
+    void fixedCursorDefaultsPreserveSceneAndSessionNavigation ()
+    {
+        final AtomicBoolean shiftPressed = new AtomicBoolean ();
+        final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
+        final ICursorTrack cursorTrack = relaxedProxy (ICursorTrack.class);
+        final PushControlSurface surface = createSurface (valueChanger, relaxedProxy (ISelectedTrackNoteTarget.class), cursorTrack, shiftPressed::get);
+        surface.createButton (ButtonID.SHIFT, "Shift");
+
+        final List<String> operations = new ArrayList<> ();
+        final ISceneBank sceneBank = proxy (ISceneBank.class, (proxy, method, arguments) -> {
+            operations.add (method.getName ());
+            return relaxedValue (method.getReturnType ());
+        });
+        final ITrackBank trackBank = proxy (ITrackBank.class, (proxy, method, arguments) -> {
+            if ("getSceneBank".equals (method.getName ()))
+                return sceneBank;
+            operations.add (method.getName ());
+            return relaxedValue (method.getReturnType ());
+        });
+        final IModel model = proxy (IModel.class, (proxy, method, arguments) -> switch (method.getName ())
+        {
+            case "getCurrentTrackBank", "getTrackBank" -> trackBank;
+            default -> relaxedValue (method.getReturnType ());
+        });
+        final SessionBankShape sessionShape = new SessionBankShape (8, 8);
+        surface.setSessionBankRegistry (new SessionBankRegistry (model, Set.of (sessionShape), sessionShape));
+        surface.getControllerWorkspaceHost ().apply (new DesiredControllerWorkspace (
+            "Session navigation", Set.of (ControllerViewFacet.SESSION_NAVIGATION), SessionBankShape.empty ()));
+        operations.clear ();
+        final TestPushCursorCommand command = new TestPushCursorCommand (model, surface);
+
+        command.scrollUpForTest ();
+        command.scrollLeftForTest ();
+        shiftPressed.set (true);
+        command.scrollUpForTest ();
+        command.scrollLeftForTest ();
+
+        assertEquals (List.of ("scrollBackwards", "selectPreviousPage", "selectPreviousPage", "scrollBackwards"), operations);
+    }
+
+
+    @Test
+    void fixedAutomationModifierPreservesArrangerAndLauncherTargets ()
+    {
+        final AtomicBoolean shiftPressed = new AtomicBoolean ();
+        final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
+        final PushControlSurface surface = createSurface (valueChanger, relaxedProxy (ISelectedTrackNoteTarget.class), relaxedProxy (ICursorTrack.class), shiftPressed::get);
+        surface.createButton (ButtonID.SHIFT, "Shift");
+        final List<String> operations = new ArrayList<> ();
+        final de.mossgrabers.framework.daw.ITransport transport = proxy (de.mossgrabers.framework.daw.ITransport.class, (proxy, method, arguments) -> {
+            operations.add (method.getName ());
+            return relaxedValue (method.getReturnType ());
+        });
+        final IModel model = proxy (IModel.class, (proxy, method, arguments) -> "getTransport".equals (method.getName ()) ? transport : relaxedValue (method.getReturnType ()));
+        final PushAutomationCommand command = new PushAutomationCommand (model, surface);
+
+        command.execute (ButtonEvent.UP, 0);
+        shiftPressed.set (true);
+        command.execute (ButtonEvent.UP, 0);
+
+        assertEquals (List.of ("toggleWriteArrangerAutomation", "toggleWriteClipLauncherAutomation"), operations);
     }
 
 
@@ -250,7 +336,13 @@ class PushBehaviorParityTest
 
     private static PushControlSurface createSurface (final IValueChanger valueChanger, final ISelectedTrackNoteTarget selectedTarget, final ITrack drumModelTrack)
     {
-        final IHwButton button = relaxedProxy (IHwButton.class);
+        return createSurface (valueChanger, selectedTarget, drumModelTrack, () -> false);
+    }
+
+
+    private static PushControlSurface createSurface (final IValueChanger valueChanger, final ISelectedTrackNoteTarget selectedTarget, final ITrack drumModelTrack, final BooleanSupplier buttonPressed)
+    {
+        final IHwButton button = proxy (IHwButton.class, (proxy, method, arguments) -> "isPressed".equals (method.getName ()) ? Boolean.valueOf (buttonPressed.getAsBoolean ()) : relaxedValue (method.getReturnType ()));
         final IHwLight light = relaxedProxy (IHwLight.class);
         final IHwSurfaceFactory factory = proxy (IHwSurfaceFactory.class, (proxy, method, arguments) -> switch (method.getName ())
         {
@@ -271,6 +363,27 @@ class PushBehaviorParityTest
             null);
         surface.addGraphicsDisplay (relaxedProxy (IGraphicDisplay.class));
         return surface;
+    }
+
+
+    private static final class TestPushCursorCommand extends PushCursorCommand
+    {
+        private TestPushCursorCommand (final IModel model, final PushControlSurface surface)
+        {
+            super (Direction.UP, model, surface);
+        }
+
+
+        private void scrollUpForTest ()
+        {
+            this.scrollUp ();
+        }
+
+
+        private void scrollLeftForTest ()
+        {
+            this.scrollLeft ();
+        }
     }
 
 
