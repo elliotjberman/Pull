@@ -151,9 +151,14 @@
   the previously active core running because activation is transactional. A restart is required
   only when the physical input, required state/effect capability, or output transport is missing
   from the installed canopy.
-- Keep the private selection-following cursor observation/action-only. Do not attach the permanent
-  Push `NoteInput` with `Track.addNoteSource()` or exclude it from `All Inputs`; Pads and raw ribbon
-  MIDI must follow ordinary Bitwig track-input, monitor, and record-arm routing.
+- Keep selected-track Note routing behind one stable lifecycle owner. The permanent Push
+  `NoteInput` is excluded from `All Inputs`; while an aligned note-capable viewer is active, attach
+  it to the private selection-following cursor with `Track.addNoteSource()`. The core returns one
+  complete target-fenced layout-and-route value. Enter by attaching before activating the layout;
+  exit by relinquishing the layout, waiting for physical input to become idle, neutralizing
+  parent-owned MIDI state, and then detaching. Selection disagreement and core failure detach and
+  fail closed. Replaying an unchanged core result must not churn the route. Bitwig tracks explicitly
+  configured for the named `Pads` input remain outside this selected-only controller guarantee.
 - Parent-own cleanup for stateful raw MIDI sent through the permanent `NoteInput`. Neutralize
   outstanding poly-pressure, CC, channel-pressure, and pitch-bend state when the active core
   generation changes, selection changes as a conservative safety boundary, or the extension shuts
@@ -174,9 +179,11 @@
 - A core-only change inside the installed API/canopy hot reloads. Changing a parent-loaded API
   contract, adding a Bitwig proxy/property/observer, changing a permanent binding or proxy capacity,
   or broadening hardware output ownership requires a shell build/install and Bitwig restart.
-- Core API 22 arbitrates general input, complete fixed-facet workspace selection, semantic action
-  intent, named bounded parameter banks, and exact parameter-target leases, including the declared
-  Session bank shape. Project-macro encoder turns are the reference parameter migration: core owns
+- Core API 28 arbitrates general input, complete composed controller state, semantic action intent,
+  named bounded parameter banks, and exact parameter-target leases. Each active view contributes
+  its fixed facets, Note layout, selected-track musical route, and other owned output; composite
+  workspaces merge disjoint contributions and reject physical overlap. Project-macro encoder turns
+  are the reference parameter migration: core owns
   the mapping, relative effect, and snapback policy while stable owns Bitwig proxies, identity
   validation, read-back, and effect execution. The Play action, 12 drum-fill RGB lights, Play and
   Record lights, both Master button rows, and the Master graphics display have migrated direct

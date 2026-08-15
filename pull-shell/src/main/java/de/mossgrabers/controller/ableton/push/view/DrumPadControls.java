@@ -13,15 +13,11 @@ import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.grid.IPadGrid;
 import de.mossgrabers.framework.controller.grid.PadColor;
 import de.mossgrabers.framework.daw.IModel;
-import de.mossgrabers.framework.daw.constants.Resolution;
 import de.mossgrabers.framework.daw.data.IDrumDevice;
 import de.mossgrabers.framework.daw.data.IDrumPad;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.IDrumPadBank;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
-import de.mossgrabers.framework.daw.midi.ArpeggiatorMode;
-import de.mossgrabers.framework.daw.midi.INoteInput;
-import de.mossgrabers.framework.daw.midi.INoteRepeat;
 import de.mossgrabers.framework.featuregroup.IView;
 import de.mossgrabers.framework.scale.Scales;
 import de.mossgrabers.pull.core.api.output.RgbColor;
@@ -46,24 +42,6 @@ public final class DrumPadControls
     private static final int          PLAY_COLOR_MEDIUM = PushColorManager.PUSH2_COLOR2_GREEN;
     private static final int          PLAY_COLOR_HIGH   = PushColorManager.PUSH2_COLOR2_GREEN_HI;
     private static final int          PAD_OFF_COLOR     = PushColorManager.PUSH2_COLOR2_BLACK;
-    private static final double       ROLL_GATE_RATIO   = 0.5;
-    private static final int          RATE_COLOR        = PushColorManager.PUSH2_COLOR2_YELLOW_DIM_VISIBLE;
-    private static final int          RATE_COLOR_HELD   = PushColorManager.PUSH2_COLOR2_YELLOW;
-    private static final int          RATE_COLOR_ACTIVE = PushColorManager.PUSH2_COLOR2_YELLOW_HI;
-    private static final Resolution   DEFAULT_RATE      = Resolution.RES_1_16;
-    private static final Resolution [] SINGLE_RATES     =
-    {
-        Resolution.RES_1_4T,
-        Resolution.RES_1_8T,
-        Resolution.RES_1_16T,
-        Resolution.RES_1_32T
-    };
-    private static final Resolution [] BETWEEN_RATES    =
-    {
-        Resolution.RES_1_8,
-        Resolution.RES_1_16,
-        Resolution.RES_1_32
-    };
     private static final int []       PLAY_COLOR_STEPS  =
     {
         PLAY_COLOR_LOW,
@@ -80,16 +58,10 @@ public final class DrumPadControls
     private final ReloadableControllerRuntime reloadableRuntime;
     private final int []                      fillPadNotes         = ReloadableControllerRuntime.fillPadNotes ();
     private final int []                      playingVelocities   = new int [NUM_PLAY_PADS];
-    private final boolean []                  ratePadsDown         = new boolean [NUM_RATE_PADS];
-    private final long []                     ratePadPressOrder    = new long [NUM_RATE_PADS];
     private boolean                           active;
     private boolean                           controllerEngaged;
     private IDrumDevice                       engagedDrumDevice;
-    private int                               primaryRatePad       = -1;
-    private int                               secondaryRatePad     = -1;
     private int                               selectedTrackIndex   = -1;
-    private long                              ratePadPressCounter;
-    private RollState                         previousRollState;
     private long                              fillOutputGeneration = Long.MIN_VALUE;
 
 
@@ -181,7 +153,6 @@ public final class DrumPadControls
 
         final boolean wasEngaged = this.controllerEngaged;
         this.clearPlaybackFeedback ();
-        this.resetMomentaryRatePads ();
 
         if (this.engagedDrumDevice != null && this.engagedDrumDevice != candidate)
             this.engagedDrumDevice.getDrumPadBank ().setIndication (false);
@@ -198,18 +169,10 @@ public final class DrumPadControls
         {
             this.refreshSelectedTrack ();
             if (!wasEngaged)
-            {
                 this.surface.setVelocityTranslationTable (Scales.getIdentityMatrix ());
-                this.configureRoll ();
-            }
-            else
-                this.setNoteRepeatRate (DEFAULT_RATE);
         }
         else
-        {
-            this.restoreRoll ();
             this.restoreVelocityTranslation ();
-        }
 
         if (wasEngaged != shouldEngage)
         {
@@ -249,15 +212,7 @@ public final class DrumPadControls
      */
     public void onGridNote (final int note, final int velocity)
     {
-        if (!this.controllerEngaged)
-            return;
-
-        if (this.isFillPad (note))
-            return;
-
-        final int ratePadIndex = this.getRatePadIndex (note);
-        if (ratePadIndex >= 0)
-            this.onRatePad (ratePadIndex, velocity > 0);
+        // Inert permanent binding: core input routes own all drum-controller pad behavior.
     }
 
 
@@ -356,75 +311,6 @@ public final class DrumPadControls
     }
 
 
-    private void configureRoll ()
-    {
-        final INoteRepeat noteRepeat = this.getNoteRepeat ();
-        if (noteRepeat == null)
-            return;
-
-        this.previousRollState = new RollState (
-            this.configuration.isNoteRepeatActive (),
-            this.configuration.getNoteRepeatMode (),
-            noteRepeat.isLatchActive (),
-            noteRepeat.isFreeRunning (),
-            noteRepeat.usePressure (),
-            noteRepeat.isShuffle ());
-
-        // Configuration owns the Repeat button state. The live arpeggiator also receives the
-        // values directly so entering the performance view is deterministic.
-        this.configuration.setNoteRepeatActive (true);
-        this.configuration.setNoteRepeatMode (ArpeggiatorMode.UP);
-        noteRepeat.setActive (true);
-        noteRepeat.setMode (ArpeggiatorMode.UP);
-        noteRepeat.setOctaves (0);
-        noteRepeat.setPeriod (DEFAULT_RATE.getValue ());
-        noteRepeat.setNoteLength (ROLL_GATE_RATIO);
-        noteRepeat.setLatchActive (false);
-        if (noteRepeat.isFreeRunning ())
-            noteRepeat.toggleIsFreeRunning ();
-        if (!noteRepeat.usePressure ())
-            noteRepeat.toggleUsePressure ();
-        if (!noteRepeat.isShuffle ())
-            noteRepeat.toggleShuffle ();
-    }
-
-
-    private void restoreRoll ()
-    {
-        final RollState previousState = this.previousRollState;
-        this.previousRollState = null;
-        if (previousState == null)
-            return;
-
-        this.configuration.setNoteRepeatActive (previousState.active ());
-        this.configuration.setNoteRepeatMode (previousState.mode ());
-
-        final INoteRepeat noteRepeat = this.getNoteRepeat ();
-        if (noteRepeat == null)
-            return;
-
-        noteRepeat.setActive (previousState.active ());
-        noteRepeat.setMode (previousState.mode ());
-        noteRepeat.setOctaves (this.configuration.getNoteRepeatOctave ());
-        noteRepeat.setPeriod (this.configuration.getNoteRepeatPeriod ().getValue ());
-        noteRepeat.setNoteLength (this.configuration.getNoteRepeatLength ().getValue ());
-        noteRepeat.setLatchActive (previousState.latchActive ());
-        if (noteRepeat.isFreeRunning () != previousState.freeRunning ())
-            noteRepeat.toggleIsFreeRunning ();
-        if (noteRepeat.usePressure () != previousState.usePressure ())
-            noteRepeat.toggleUsePressure ();
-        if (noteRepeat.isShuffle () != previousState.shuffle ())
-            noteRepeat.toggleShuffle ();
-    }
-
-
-    private INoteRepeat getNoteRepeat ()
-    {
-        final INoteInput noteInput = this.surface.getMidiInput ().getDefaultNoteInput ();
-        return noteInput == null ? null : noteInput.getNoteRepeat ();
-    }
-
-
     private void restoreVelocityTranslation ()
     {
         final int [] velocityTable = Scales.getIdentityMatrix ();
@@ -465,92 +351,13 @@ public final class DrumPadControls
     }
 
 
-    private int getRatePadIndex (final int note)
-    {
-        final IPadGrid padGrid = this.surface.getPadGrid ();
-        final int index = note - padGrid.getStartNote ();
-        if (index < 0)
-            return -1;
-
-        final int x = index % padGrid.getCols ();
-        final int y = index / padGrid.getCols ();
-        return y == 0 && x >= RATE_PAD_START && x < RATE_PAD_START + NUM_RATE_PADS ? x - RATE_PAD_START : -1;
-    }
-
-
-    private void onRatePad (final int ratePadIndex, final boolean isDown)
-    {
-        if (this.ratePadsDown[ratePadIndex] == isDown)
-            return;
-
-        this.ratePadsDown[ratePadIndex] = isDown;
-        this.ratePadPressOrder[ratePadIndex] = isDown ? ++this.ratePadPressCounter : 0;
-        this.primaryRatePad = this.findPrimaryRatePad ();
-        this.secondaryRatePad = this.findSecondaryRatePad (this.primaryRatePad);
-        this.setNoteRepeatRate (this.getActiveRate ());
-    }
-
-
-    private int findPrimaryRatePad ()
-    {
-        int newestPad = -1;
-        long newestPress = 0;
-        for (int index = 0; index < this.ratePadsDown.length; index++)
-        {
-            if (this.ratePadsDown[index] && this.ratePadPressOrder[index] > newestPress)
-            {
-                newestPad = index;
-                newestPress = this.ratePadPressOrder[index];
-            }
-        }
-        return newestPad;
-    }
-
-
-    private int findSecondaryRatePad (final int ratePadIndex)
-    {
-        if (ratePadIndex < 0)
-            return -1;
-
-        final int left = ratePadIndex - 1;
-        final int right = ratePadIndex + 1;
-        if (left < 0 || !this.ratePadsDown[left])
-            return right < this.ratePadsDown.length && this.ratePadsDown[right] ? right : -1;
-        if (right >= this.ratePadsDown.length || !this.ratePadsDown[right])
-            return left;
-        return this.ratePadPressOrder[left] > this.ratePadPressOrder[right] ? left : right;
-    }
-
-
-    private Resolution getActiveRate ()
-    {
-        if (this.primaryRatePad < 0)
-            return DEFAULT_RATE;
-        if (this.secondaryRatePad < 0)
-            return SINGLE_RATES[this.primaryRatePad];
-        return BETWEEN_RATES[Math.min (this.primaryRatePad, this.secondaryRatePad)];
-    }
-
-
-    private void setNoteRepeatRate (final Resolution resolution)
-    {
-        final INoteRepeat noteRepeat = this.getNoteRepeat ();
-        if (noteRepeat == null)
-            return;
-
-        noteRepeat.setPeriod (resolution.getValue ());
-        noteRepeat.setNoteLength (ROLL_GATE_RATIO);
-    }
-
-
     private void drawRatePads (final IPadGrid padGrid)
     {
-        final int row = padGrid.getRows () - 1;
         for (int index = 0; index < NUM_RATE_PADS; index++)
         {
-            final boolean isSelected = index == this.primaryRatePad || index == this.secondaryRatePad;
-            final int color = isSelected ? RATE_COLOR_ACTIVE : this.ratePadsDown[index] ? RATE_COLOR_HELD : RATE_COLOR;
-            padGrid.lightEx (RATE_PAD_START + index, row, color);
+            final int note = padGrid.getStartNote () + RATE_PAD_START + index;
+            final RgbColor color = this.reloadableRuntime.lightColor (de.mossgrabers.pull.core.api.PushControlIds.pad (RATE_PAD_START + index + 1));
+            padGrid.light (note, PadColor.rgbOrOff (ColorEx.fromRGB (color.red (), color.green (), color.blue ())));
         }
     }
 
@@ -569,16 +376,6 @@ public final class DrumPadControls
 
         for (final int fillPadNote: this.fillPadNotes)
             padGrid.light (fillPadNote, PAD_OFF_COLOR);
-    }
-
-
-    private void resetMomentaryRatePads ()
-    {
-        Arrays.fill (this.ratePadsDown, false);
-        Arrays.fill (this.ratePadPressOrder, 0);
-        this.primaryRatePad = -1;
-        this.secondaryRatePad = -1;
-        this.ratePadPressCounter = 0;
     }
 
 
@@ -703,8 +500,4 @@ public final class DrumPadControls
     }
 
 
-    private record RollState (boolean active, ArpeggiatorMode mode, boolean latchActive, boolean freeRunning, boolean usePressure, boolean shuffle)
-    {
-        // State captured before this component applies its performance-specific roll settings.
-    }
 }

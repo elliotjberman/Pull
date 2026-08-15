@@ -12,7 +12,10 @@ import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerActions;
+import de.mossgrabers.pull.core.api.DesiredControllerState;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
+import de.mossgrabers.pull.core.api.DesiredNotePerformance;
+import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
 import de.mossgrabers.pull.core.api.DesiredInputRoutes;
 import de.mossgrabers.pull.core.api.DesiredParameterBanks;
 import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
@@ -264,6 +267,8 @@ public final class CompiledWorkspace
         ControllerDisplayScene display = ControllerDisplayScene.empty ();
         ControllerPadGridOverlay padGridOverlay = ControllerPadGridOverlay.inactive ();
         ControllerDisplayOverlay displayOverlay = ControllerDisplayOverlay.inactive ();
+        DesiredNotePerformance notePerformance = DesiredNotePerformance.inactive ();
+        DesiredNoteRepeat noteRepeat = DesiredNoteRepeat.unowned ();
         for (final CompiledView view: this.views)
         {
             final ViewOutput output = Objects.requireNonNull (view.view ().render (snapshot), "view output");
@@ -287,6 +292,18 @@ public final class CompiledWorkspace
                     throw new IllegalStateException ("multiple views own the display overlay");
                 displayOverlay = output.displayOverlay ();
             }
+            if (ownsNotePerformance (output.notePerformance ()))
+            {
+                if (ownsNotePerformance (notePerformance))
+                    throw new IllegalStateException ("multiple views own Note performance");
+                notePerformance = output.notePerformance ();
+            }
+            if (output.noteRepeat ().owned ())
+            {
+                if (noteRepeat.owned ())
+                    throw new IllegalStateException ("multiple views own note repeat");
+                noteRepeat = output.noteRepeat ();
+            }
         }
 
         return new CoreResult (
@@ -294,11 +311,18 @@ public final class CompiledWorkspace
             this.desiredInputRoutes,
             this.desiredBridgeSubscriptions,
             clipBindings,
-            this.desiredControllerWorkspace,
+            new DesiredControllerState (this.desiredControllerWorkspace, notePerformance),
+            noteRepeat,
             this.desiredControllerActions,
             this.desiredParameterBanks,
             DesiredParameterInteraction.empty (),
             effects);
+    }
+
+
+    private static boolean ownsNotePerformance (final DesiredNotePerformance performance)
+    {
+        return performance.layout ().isPresent () || performance.inputRoute ().active ();
     }
 
 

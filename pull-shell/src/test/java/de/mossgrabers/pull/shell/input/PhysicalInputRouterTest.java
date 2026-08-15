@@ -52,6 +52,22 @@ class PhysicalInputRouterTest
 
 
     @Test
+    void musicalIdleSeesHeldPadsEvenWhenTheirCoreRouteIsAbsent ()
+    {
+        final PhysicalInputRouter<String> router = router (InputRoute.NONE, new ArrayList<> ());
+
+        router.route (PAD, InputKind.PAD, InputPhase.BEGIN, 100, () -> { });
+
+        assertTrue (router.isIdle ());
+        assertFalse (router.gesturesIdle (input -> input.kind () == InputKind.PAD));
+
+        router.route (PAD, InputKind.PAD, InputPhase.END, 0, () -> { });
+
+        assertTrue (router.gesturesIdle (input -> input.kind () == InputKind.PAD));
+    }
+
+
+    @Test
     void observeRunsStableCommandBeforePublishingEachEdge ()
     {
         final List<String> order = new ArrayList<> ();

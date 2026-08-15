@@ -307,14 +307,14 @@ class ParameterSnapbackIntegrationTest
 
 
         @Override
-        public DesiredControllerWorkspace prepareWorkspace (final DesiredControllerWorkspace workspace)
+        public de.mossgrabers.pull.core.api.DesiredControllerState prepareControllerState (final de.mossgrabers.pull.core.api.DesiredControllerState state)
         {
-            return workspace;
+            return state;
         }
 
 
         @Override
-        public void applyWorkspace (final DesiredControllerWorkspace workspace)
+        public void applyControllerState (final de.mossgrabers.pull.core.api.DesiredControllerState state)
         {
             // The integration scenario remains in the default workspace.
         }

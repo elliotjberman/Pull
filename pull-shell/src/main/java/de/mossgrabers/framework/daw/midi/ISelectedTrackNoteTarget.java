@@ -7,10 +7,22 @@ package de.mossgrabers.framework.daw.midi;
 /**
  * Authoritative state and actions for a private selection-following track target.
  *
- * <p>The target observes selection without owning or changing controller note-input routing.</p>
+ * <p>The target observes selection and owns the stable shell actuator for the permanent controller
+ * note input. Reloadable policy may acquire or release that actuator without receiving Bitwig
+ * objects.</p>
  */
 public interface ISelectedTrackNoteTarget
 {
+    /**
+     * Submit the permanent controller note input's direct selected-track route. Bitwig provides no
+     * attachment read-back, so callers must not treat return from this void operation as proof that
+     * the musical path is audible.
+     *
+     * @param active True to attach directly to this private selected-track cursor
+     */
+    void submitNoteInputRoute (boolean active);
+
+
     /**
      * Capture the bounded authoritative state of the selected target.
      *

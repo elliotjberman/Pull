@@ -274,66 +274,6 @@ class PushBehaviorParityTest
     }
 
 
-    @Test
-    void automaticDrumLayoutBecomesTheTracksPreferredNoteView ()
-    {
-        final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
-        final ICursorTrack cursorTrack = proxy (ICursorTrack.class, (proxy, method, arguments) -> switch (method.getName ())
-        {
-            case "doesExist" -> Boolean.TRUE;
-            case "getChannelID" -> "track-a";
-            case "getPosition" -> Integer.valueOf (4);
-            default -> relaxedValue (method.getReturnType ());
-        });
-        final ISelectedTrackNoteTarget selectedTarget = proxy (ISelectedTrackNoteTarget.class, (proxy, method, arguments) -> switch (method.getName ())
-        {
-            case "doesExist", "canHoldNotes", "hasDrumDevice" -> Boolean.TRUE;
-            case "getChannelID" -> "track-a";
-            default -> relaxedValue (method.getReturnType ());
-        });
-        final IModel model = proxy (IModel.class, (proxy, method, arguments) -> "getCursorTrack".equals (method.getName ()) ? cursorTrack : relaxedValue (method.getReturnType ()));
-        final PushControlSurface surface = createSurface (valueChanger, selectedTarget, cursorTrack);
-        surface.getViewManager ().register (Views.SESSION, relaxedProxy (IView.class));
-        surface.getViewManager ().register (Views.DRUM_PAD, relaxedProxy (IView.class));
-        surface.getViewManager ().setActive (Views.SESSION);
-
-        new SelectPlayViewCommand (model, surface).execute (ButtonEvent.DOWN, 127);
-
-        assertEquals (Views.DRUM_PAD, surface.getViewManager ().getActiveID ());
-        assertEquals (Views.DRUM_PAD, surface.getViewManager ().getPreferredView (4));
-    }
-
-
-    @Test
-    void automaticDrumLayoutWaitsForSelectedTrackModelAlignment ()
-    {
-        final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
-        final ICursorTrack cursorTrack = proxy (ICursorTrack.class, (proxy, method, arguments) -> switch (method.getName ())
-        {
-            case "doesExist" -> Boolean.TRUE;
-            case "getChannelID" -> "track-b";
-            case "getPosition" -> Integer.valueOf (4);
-            default -> relaxedValue (method.getReturnType ());
-        });
-        final ISelectedTrackNoteTarget selectedTarget = proxy (ISelectedTrackNoteTarget.class, (proxy, method, arguments) -> switch (method.getName ())
-        {
-            case "doesExist", "canHoldNotes", "hasDrumDevice" -> Boolean.TRUE;
-            case "getChannelID" -> "track-a";
-            default -> relaxedValue (method.getReturnType ());
-        });
-        final IModel model = proxy (IModel.class, (proxy, method, arguments) -> "getCursorTrack".equals (method.getName ()) ? cursorTrack : relaxedValue (method.getReturnType ()));
-        final PushControlSurface surface = createSurface (valueChanger, selectedTarget, cursorTrack);
-        surface.getViewManager ().register (Views.SESSION, relaxedProxy (IView.class));
-        surface.getViewManager ().register (Views.DRUM_PAD, relaxedProxy (IView.class));
-        surface.getViewManager ().setActive (Views.SESSION);
-
-        new SelectPlayViewCommand (model, surface).execute (ButtonEvent.DOWN, 127);
-
-        assertEquals (Views.SESSION, surface.getViewManager ().getActiveID ());
-        assertNull (surface.getViewManager ().getPreferredView (4));
-    }
-
-
     private static PushControlSurface createSurface (final IValueChanger valueChanger, final ISelectedTrackNoteTarget selectedTarget, final ITrack drumModelTrack)
     {
         return createSurface (valueChanger, selectedTarget, drumModelTrack, () -> false);

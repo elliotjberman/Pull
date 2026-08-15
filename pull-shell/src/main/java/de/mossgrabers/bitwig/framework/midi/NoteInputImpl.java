@@ -4,7 +4,10 @@
 
 package de.mossgrabers.bitwig.framework.midi;
 
+import java.util.Objects;
+
 import com.bitwig.extension.controller.api.NoteInput;
+import com.bitwig.extension.controller.api.Track;
 import de.mossgrabers.framework.daw.midi.AbstractNoteInput;
 
 
@@ -40,6 +43,24 @@ class NoteInputImpl extends AbstractNoteInput
     void useNormalRouting ()
     {
         this.noteInput.includeInAllInputs ().set (true);
+    }
+
+
+    void excludeFromAllInputs ()
+    {
+        this.noteInput.includeInAllInputs ().set (false);
+    }
+
+
+    void routeDirectlyTo (final Track track)
+    {
+        Objects.requireNonNull (track, "track").addNoteSource (this.noteInput);
+    }
+
+
+    void removeDirectRouteFrom (final Track track)
+    {
+        Objects.requireNonNull (track, "track").removeNoteSource (this.noteInput);
     }
 
 

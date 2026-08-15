@@ -107,7 +107,6 @@ final class DeterministicTimerCore implements ControllerCore
             DesiredInputRoutes.empty (),
             DesiredBridgeSubscriptions.empty (),
             Map.of (),
-            DesiredControllerWorkspace.empty (),
             de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
             de.mossgrabers.pull.core.api.DesiredParameterBanks.empty (),
             de.mossgrabers.pull.core.api.DesiredParameterInteraction.empty (),

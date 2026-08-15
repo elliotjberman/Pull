@@ -120,9 +120,12 @@ public class MidiInputImpl implements IMidiInput
     {
         if (this.selectedTrackTarget != null)
             throw new IllegalStateException ("Selected-track target already exists");
+        if (this.defaultNoteInput == null)
+            throw new IllegalStateException ("MIDI input has no default note input");
 
         this.selectedTrackTarget = createSelectedTrackTargetCursor (this.host);
-        return new SelectedTrackTargetState (this.host, this.selectedTrackTarget);
+        this.defaultNoteInput.excludeFromAllInputs ();
+        return new SelectedTrackTargetState (this.host, this.selectedTrackTarget, this.defaultNoteInput);
     }
 
 

@@ -4,7 +4,11 @@
 package de.mossgrabers.pull.core.runtime.view;
 
 import de.mossgrabers.pull.core.api.ControllerLayoutSnapshot;
+import de.mossgrabers.pull.core.api.ControllerNoteView;
+import de.mossgrabers.pull.core.api.NoteViewSnapshot;
 
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.Objects;
 
 
@@ -13,6 +17,13 @@ import java.util.Objects;
  */
 public final class WorkspaceSelection
 {
+    /** Physical workspace-selection gestures whose temporary lifetime spans workspace changes. */
+    public enum Gesture
+    {
+        NOTE,
+        SESSION
+    }
+
     /** Available compiled workspaces. */
     public enum Id
     {
@@ -34,8 +45,13 @@ public final class WorkspaceSelection
     }
 
     private Id          active;
+    private Destination selectedDestination;
     private Destination pendingDestination;
+    private long        pendingAfterLayoutGeneration = -1;
+    private boolean     sessionDestinationAcknowledged;
     private long        requestSequence;
+    private final Map<Gesture, HeldSelection> heldSelections = new EnumMap<> (Gesture.class);
+    private PreferredNoteViewRequest preferredNoteViewRequest;
 
 
     /**
@@ -45,19 +61,21 @@ public final class WorkspaceSelection
      */
     public WorkspaceSelection (final Id active)
     {
-        this (active, Destination.NONE);
+        this (active, Destination.NONE, Destination.NONE);
     }
 
 
     /**
-     * Constructor with a replayed destination handoff.
+     * Constructor with replayed destination state.
      *
      * @param active Initial workspace
+     * @param selectedDestination Retained stable destination
      * @param pendingDestination Destination still awaiting layout read-back
      */
-    public WorkspaceSelection (final Id active, final Destination pendingDestination)
+    public WorkspaceSelection (final Id active, final Destination selectedDestination, final Destination pendingDestination)
     {
         this.active = Objects.requireNonNull (active, "active");
+        this.selectedDestination = Objects.requireNonNull (selectedDestination, "selectedDestination");
         this.pendingDestination = Objects.requireNonNull (pendingDestination, "pendingDestination");
     }
 
@@ -84,6 +102,13 @@ public final class WorkspaceSelection
     }
 
 
+    /** Get the retained stable destination independently of an in-flight handoff. */
+    public Destination selectedDestination ()
+    {
+        return this.selectedDestination;
+    }
+
+
     /** Get the stable destination still awaiting authoritative layout read-back. */
     public Destination pendingDestination ()
     {
@@ -91,28 +116,69 @@ public final class WorkspaceSelection
     }
 
 
-    /**
-     * Select a workspace.
-     *
-     * @param workspace Workspace ID
-     */
-    public void select (final Id workspace)
+    private void select (final Id workspace, final Destination destination, final long afterLayoutGeneration, final boolean handoffRequired)
     {
-        this.select (workspace, Destination.NONE);
+        this.active = Objects.requireNonNull (workspace, "workspace");
+        this.selectedDestination = Objects.requireNonNull (destination, "destination");
+        this.pendingDestination = handoffRequired ? destination : Destination.NONE;
+        this.pendingAfterLayoutGeneration = this.pendingDestination == Destination.NONE ? -1 : afterLayoutGeneration;
+        this.sessionDestinationAcknowledged = false;
+        this.requestSequence++;
     }
 
 
-    /**
-     * Select a workspace and an optional stable destination handoff.
-     *
-     * @param workspace Workspace ID
-     * @param destination Stable destination to realize and acknowledge
-     */
-    public void select (final Id workspace, final Destination destination)
+    /** Begin one selection gesture while retaining the destination it may temporarily replace. */
+    public boolean beginGesture (final Gesture gesture, final Id workspace, final Destination destination, final ControllerLayoutSnapshot layout, final boolean switched)
     {
-        this.active = Objects.requireNonNull (workspace, "workspace");
-        this.pendingDestination = Objects.requireNonNull (destination, "destination");
-        this.requestSequence++;
+        final Gesture checkedGesture = Objects.requireNonNull (gesture, "gesture");
+        final Destination previousDestination = this.currentDestination (layout);
+        final boolean selectionChanged = this.active != workspace || previousDestination != destination;
+        final HeldSelection previous = this.heldSelections.putIfAbsent (checkedGesture, new HeldSelection (this.active, previousDestination, selectionChanged, false));
+        if (previous != null)
+            return false;
+        this.select (workspace, destination, layout.generation (), switched);
+        return true;
+    }
+
+
+    /** Mark a held selection as temporary, either from a long press or Session interaction. */
+    public void makeTemporary (final Gesture gesture)
+    {
+        this.heldSelections.computeIfPresent (Objects.requireNonNull (gesture, "gesture"), (ignored, held) -> held.withTemporary ());
+    }
+
+
+    /** End a selection gesture and restore its prior destination only when it became temporary. */
+    public void endGesture (final Gesture gesture, final ControllerLayoutSnapshot layout)
+    {
+        final HeldSelection held = this.heldSelections.remove (Objects.requireNonNull (gesture, "gesture"));
+        if (held != null && held.selectionChanged () && held.temporary ())
+            this.select (held.workspace (), held.destination (), Objects.requireNonNull (layout, "layout").generation (), true);
+        else if (gesture == Gesture.SESSION && this.pendingDestination == Destination.SESSION && this.sessionDestinationAcknowledged)
+        {
+            this.pendingDestination = Destination.NONE;
+            this.pendingAfterLayoutGeneration = -1;
+            this.sessionDestinationAcknowledged = false;
+        }
+    }
+
+
+    /** Keep a requested per-track preference active until stable read-back acknowledges it. */
+    public void requestPreferredNoteView (final NoteViewSnapshot target, final ControllerNoteView view)
+    {
+        final NoteViewSnapshot checked = Objects.requireNonNull (target, "target");
+        final ControllerNoteView preferred = Objects.requireNonNull (view, "view");
+        if (!preferred.isPresent () || checked.targetChannelId ().isBlank () || checked.trackPosition () < 0)
+            throw new IllegalArgumentException ("preferred note view requires an existing selected target");
+        this.preferredNoteViewRequest = new PreferredNoteViewRequest (checked.targetGeneration (), checked.targetChannelId (), checked.trackPosition (), preferred);
+    }
+
+
+    /** Resolve authoritative preference plus an exact still-unacknowledged request. */
+    public ControllerNoteView preferredNoteView (final NoteViewSnapshot target)
+    {
+        final NoteViewSnapshot checked = Objects.requireNonNull (target, "target");
+        return this.preferredNoteViewRequest != null && this.preferredNoteViewRequest.matches (checked) ? this.preferredNoteViewRequest.view () : checked.preferredView ();
     }
 
 
@@ -124,10 +190,68 @@ public final class WorkspaceSelection
     public void observe (final ControllerLayoutSnapshot layout)
     {
         final ControllerLayoutSnapshot observed = Objects.requireNonNull (layout, "layout");
+        if (this.selectedDestination == Destination.NONE && this.pendingDestination == Destination.NONE && this.active == Id.DEFAULT)
+            this.selectedDestination = destinationOf (observed);
         final boolean trackPage = "TRACK".equals (observed.modeId ());
+        if (observed.generation () <= this.pendingAfterLayoutGeneration)
+            return;
         if (this.pendingDestination == Destination.SESSION && trackPage && "SESSION".equals (observed.viewId ()))
+        {
+            if (this.heldSelections.containsKey (Gesture.SESSION))
+            {
+                this.sessionDestinationAcknowledged = true;
+                return;
+            }
             this.pendingDestination = Destination.NONE;
-        else if (this.pendingDestination == Destination.NOTE && trackPage)
+        }
+        else if (this.pendingDestination == Destination.NOTE && trackPage && ControllerNoteView.fromStableId (observed.viewId ()).isPresent ())
             this.pendingDestination = Destination.NONE;
+        if (this.pendingDestination == Destination.NONE)
+            this.pendingAfterLayoutGeneration = -1;
+    }
+
+
+    /** Retire a preference request only after the stable preference map reports it. */
+    public void observe (final NoteViewSnapshot noteView)
+    {
+        final NoteViewSnapshot observed = Objects.requireNonNull (noteView, "noteView");
+        if (this.preferredNoteViewRequest != null && this.preferredNoteViewRequest.matches (observed) && this.preferredNoteViewRequest.view () == observed.preferredView ())
+            this.preferredNoteViewRequest = null;
+    }
+
+
+    private Destination currentDestination (final ControllerLayoutSnapshot layout)
+    {
+        if (this.selectedDestination != Destination.NONE)
+            return this.selectedDestination;
+        return this.active == Id.DEFAULT ? destinationOf (Objects.requireNonNull (layout, "layout")) : Destination.NONE;
+    }
+
+
+    private static Destination destinationOf (final ControllerLayoutSnapshot layout)
+    {
+        if ("TRACK".equals (layout.modeId ()) && "SESSION".equals (layout.viewId ()))
+            return Destination.SESSION;
+        if (!ControllerNoteView.fromStableId (layout.viewId ()).isPresent ())
+            return Destination.NONE;
+        return Destination.NOTE;
+    }
+
+
+    private record HeldSelection (Id workspace, Destination destination, boolean selectionChanged, boolean temporary)
+    {
+        private HeldSelection withTemporary ()
+        {
+            return new HeldSelection (this.workspace, this.destination, this.selectionChanged, true);
+        }
+    }
+
+
+    private record PreferredNoteViewRequest (long generation, String channelId, int position, ControllerNoteView view)
+    {
+        private boolean matches (final NoteViewSnapshot snapshot)
+        {
+            return this.generation == snapshot.targetGeneration () && this.position == snapshot.trackPosition () && this.channelId.equals (snapshot.targetChannelId ());
+        }
     }
 }

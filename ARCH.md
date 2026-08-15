@@ -1,7 +1,7 @@
 # Pull View Architecture
 
-Status: current through Core API 24, the shared mixer-control renderer, the Master-control
-migration, and the post-demo `VS Live` view composition.
+Status: current through Core API 25, the shared mixer-control renderer, the Master-control
+migration, the post-demo `VS Live` composition, and core-owned note-view and drum-rate policy.
 
 Read this file before changing controller views, modes, workspaces, input routing, or Session bank
 topology. The detailed design contract is in
@@ -75,6 +75,22 @@ owned the audio engine. On another tab it renders purple while that owner is pla
 while paused; pressing Play runs a bounded identity-fenced navigation, transport-toggle, and exact
 return transaction. Bitwig exposes transport only for the visible document, so the core never
 targets an offscreen project optimistically.
+
+Controller-level note-view selection is also core-owned. Stable publishes the active layout plus a
+selected-target-fenced preference and drum applicability. `ResolvedNoteViewer` resolves one
+melodic, drum-controller, or audio viewer and the capabilities attached to that viewer;
+`NoteViewControllerView` requests its layout while `DrumRateView` owns automatic roll only when it
+is attached to the resolved Drum Controller viewer. The request remains active until later layout
+read-back agrees. The stable shell validates the bounded view ID and mechanically activates it. It
+does not infer a view from the current cursor, selected device, or previous layout.
+
+`DrumRateView` exclusively owns the four rate-pad edges and RGB lights whenever Drum Controller is
+authoritatively engaged. It requests a complete note-repeat state through a stable lease. The shell
+captures the user's manual Repeat state before the first owned request, serializes toggle-only API
+operations across later read-back, and restores the manual parameters while authoritatively
+retiring Repeat when the core releases ownership.
+The Bitwig **Automatic arp / roll** setting is published as state; core alone decides whether the
+drum workspace owns repeat or leaves it untouched.
 
 ### Parameter banks, effects, and snapback
 
@@ -231,11 +247,11 @@ VS Live contains:
 - Drum Controller on the lower four pad rows; and
 - drum pitch bend on the touch strip.
 
-The lower Drum Controller includes its 4x4 playable block, rate pads, twelve fill pads, octave
-navigation, aggregate grid pressure, and its optional pitch-bend facet. It does not own the lower
-scene keys. Per-pad pressure has a musical destination only on the playable 4x4 block and is part of
-the same reloadable `DrumControllerView`, so pressure cannot be accidentally omitted from a
-composition that owns those pads.
+The lower Drum Controller includes its 4x4 playable block, four core-owned rate pads, twelve fill
+pads, octave navigation, aggregate grid pressure, and its optional pitch-bend facet. It does not own
+the lower scene keys. Per-pad pressure has a musical destination only on the playable 4x4 block and
+is part of the same reloadable `DrumControllerView`, so pressure cannot be accidentally omitted
+from a composition that owns those pads.
 
 The normal Session view declares an 8x8 bank. VS Live declares 8x4. `SessionBankRegistry` eagerly
 holds exactly those installed shapes, preserves track/scene offsets when switching, and enables
@@ -253,8 +269,9 @@ Reloadable core:
 - `TrackSelectionStripView`: lower display strip and lower soft-key ownership.
 - `SessionNavigationView`: arrow and page navigation ownership.
 - `SessionClipGridView`: upper Session grid plus optional upper scene keys.
-- `DrumControllerView`: complete lower Drum Controller, pressure policy, fills, and optional pitch
-  bend.
+- `NoteViewControllerView`: authoritative per-selected-track note-layout policy.
+- `DrumControllerView`: playable lower-grid mapping, pressure policy, and optional pitch bend.
+- `DrumRateView`: four exclusive rate-pad gestures, RGB output, and desired note-repeat state.
 - `DrumFillView`: fill selection, launch lifecycle, bindings, and twelve RGB lights.
 - `TransportControlView`: persistent authoritative Play/Record lights and Record modifier policy.
 - `MasterControlView`: Master/Cue encoder policy, project/audio actions, both row-light banks, and
@@ -263,7 +280,7 @@ Reloadable core:
 
 Stable shell:
 
-- `ControllerWorkspaceHost`: validates and transactionally realizes desired facets.
+- `ControllerWorkspaceHost`: validates and transactionally realizes desired facets and note views.
 - `StableControllerActionResolver`: derives semantic intent from remaining stable commands at their
   dispatch boundary.
 - `ControllerRuntimeEnvironment`: owns bounded leases, action barriers, and committed bridge state.
@@ -287,6 +304,10 @@ Implemented:
 - Drum pressure owned by the same fixed Drum Controller view as its playable pads.
 - Removal of the unused legacy aftertouch commands and ClipLauncherNavigator topology.
 - Transactional shell preparation before a candidate result is committed.
+- Core-owned selected-track note-view policy with private-target identity fencing and delayed drum
+  applicability reconciliation.
+- Core-owned drum-rate input/output policy with authoritative note-repeat feedback and a
+  stable-owned restoration lease for the user's manual Repeat state.
 - Complete Master-page input and output arbitration. The core owns its copy, typography, geometry,
   colors, clipping, shapes, and composition; the stable shell only interprets bounded generic
   display primitives. Missing or execution-faulted core behavior is blank and inert. A stable
@@ -296,15 +317,17 @@ Implemented:
 Partial or transitional:
 
 - Project macro relative encoder behavior runs in core; its touch/delete and display remain in
-  stable `WorkspaceMode`. Track-strip, Session, navigation, Drum Controller, and pitch-bend
-  adapter-backed mechanics still run in stable `WorkspaceMode`/`WorkspaceView`.
+  stable `WorkspaceMode`. Track-strip, Session, navigation, Drum Controller play pads and octave
+  controls, and pitch-bend adapter-backed mechanics still run in stable
+  `WorkspaceMode`/`WorkspaceView`.
 - `ControllerViewFacet` remains a closed cross-boundary adapter ID.
 - Capability and Session-shape validation happens during stable result preparation, not entirely in
   `CompiledWorkspace`.
-- General display and light output ownership is still partial. The twelve drum-fill RGB lights and
-  global Play/Record lights, the Master page's two button rows and graphics display, a temporary
-  sparse 8x8 grid overlay, and a complete temporary 960x160 display overlay use core-owned output
-  arbitration. The detailed design's API 24 installed-output inventory is canonical.
+- General display and light output ownership is still partial. The twelve drum-fill and four
+  drum-rate RGB lights, global Play/Record lights, the Master page's two button rows and graphics
+  display, a temporary sparse 8x8 grid overlay, and a complete temporary 960x160 display overlay
+  use core-owned output arbitration. The detailed design's API 25 installed-output inventory is
+  canonical.
 
 Deferred by design:
 

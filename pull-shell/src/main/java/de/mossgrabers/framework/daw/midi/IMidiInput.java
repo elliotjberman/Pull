@@ -58,8 +58,9 @@ public interface IMidiInput
 
 
     /**
-     * Create authoritative state for a private selection-following track target. This observes the
-     * selected target without changing normal note-input, monitoring, or record-arm routing.
+     * Create authoritative target state and the direct-note submission actuator for a private
+     * selection-following track target. Bitwig does not expose attachment read-back. This does not
+     * change the target's monitoring or record-arm state.
      *
      * @return Authoritative state for the private selection-following target
      */

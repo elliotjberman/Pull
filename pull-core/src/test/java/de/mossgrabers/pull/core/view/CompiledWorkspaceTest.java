@@ -199,7 +199,7 @@ class CompiledWorkspaceTest
         final CoreResult result = workspace.start (parameterSnapshot ());
         final ControlId firstKnob = PushControlIds.continuous ("KNOB1");
 
-        assertEquals (Set.of (ControllerViewFacet.PROJECT_MACRO_CONTROLS), result.desiredControllerWorkspace ().facets ());
+        assertEquals (Set.of (ControllerViewFacet.PROJECT_MACRO_CONTROLS), result.desiredControllerState ().workspace ().facets ());
         assertEquals (8, result.desiredInputRoutes ().routes ().size ());
         assertEquals (InputRouteMode.EXCLUSIVE, result.desiredInputRoutes ().mode (firstKnob, InputKind.RELATIVE).orElseThrow ());
         assertEquals (Set.of (ParameterBankId.PROJECT_REMOTE), result.desiredParameterBanks ().banks ());

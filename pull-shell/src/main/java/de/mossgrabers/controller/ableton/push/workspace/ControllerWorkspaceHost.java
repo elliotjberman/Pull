@@ -8,9 +8,11 @@ import de.mossgrabers.controller.ableton.push.view.SessionView;
 import de.mossgrabers.controller.ableton.push.view.WorkspaceView;
 import de.mossgrabers.framework.featuregroup.ModeManager;
 import de.mossgrabers.framework.featuregroup.ViewManager;
+import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.view.Views;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
+import de.mossgrabers.pull.core.api.DesiredControllerLayout;
 import de.mossgrabers.pull.core.api.SessionBankShape;
 
 import java.util.Objects;
@@ -59,6 +61,42 @@ public final class ControllerWorkspaceHost
     }
 
 
+    /** Validate a bounded note-controller layout without changing controller state. */
+    public DesiredControllerLayout prepareLayout (final DesiredControllerLayout layout)
+    {
+        final DesiredControllerLayout requested = Objects.requireNonNull (layout, "layout");
+        if (!requested.isPresent ())
+            return requested;
+        final Views view = Views.valueOf (requested.noteView ().name ());
+        if (this.surface.getViewManager ().get (view) == null)
+            throw new IllegalArgumentException ("Requested note view is not installed: " + requested.noteView ());
+        return requested;
+    }
+
+
+    /** Reassert a prepared note-controller layout until layout read-back acknowledges it. */
+    public void applyLayout (final DesiredControllerLayout layout)
+    {
+        final DesiredControllerLayout requested = this.prepareLayout (layout);
+        applyPreparedLayout (requested, this.surface.getModeManager (), this.surface.getViewManager ());
+    }
+
+
+    static void applyPreparedLayout (final DesiredControllerLayout requested, final ModeManager modeManager, final ViewManager viewManager)
+    {
+        if (requested.neutralizing ())
+        {
+            modeManager.setActive (Modes.TRACK);
+            viewManager.setActive (Views.SESSION);
+            return;
+        }
+        if (!requested.isPresent ())
+            return;
+        modeManager.setActive (Modes.TRACK);
+        viewManager.setActive (Views.valueOf (requested.noteView ().name ()));
+    }
+
+
     static DesiredControllerWorkspace validate (final DesiredControllerWorkspace workspace)
     {
         final DesiredControllerWorkspace candidate = Objects.requireNonNull (workspace, "workspace");
@@ -68,6 +106,8 @@ public final class ControllerWorkspaceHost
             throw new IllegalArgumentException ("Drum pitch bend requires the lower Drum controller");
         if (candidate.facets ().contains (ControllerViewFacet.SESSION_CLIP_GRID_UPPER) && candidate.facets ().contains (ControllerViewFacet.SESSION_GRID_FULL))
             throw new IllegalArgumentException ("Upper and full Session views cannot be active together");
+        if (candidate.facets ().contains (ControllerViewFacet.SESSION_GRID_FULL) && (candidate.facets ().contains (ControllerViewFacet.DRUM_CONTROLLER_LOWER) || candidate.facets ().contains (ControllerViewFacet.SESSION_NAVIGATION) || candidate.facets ().contains (ControllerViewFacet.SESSION_SCENE_KEYS_UPPER)))
+            throw new IllegalArgumentException ("Full Session cannot overlap a separately composed grid or navigation facet");
         ControllerPageLease.validate (candidate);
         return candidate;
     }

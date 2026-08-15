@@ -6,7 +6,8 @@ package de.mossgrabers.pull.shell.runtime;
 import de.mossgrabers.framework.controller.hardware.IHwContinuousControl;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
-import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
+import de.mossgrabers.pull.core.api.DesiredControllerState;
+import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
 import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
 import de.mossgrabers.pull.core.api.DesiredParameterBanks;
 import de.mossgrabers.pull.core.api.ParameterTargetRef;
@@ -15,6 +16,7 @@ import de.mossgrabers.pull.core.api.effect.CoreEffect;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 
 
 /** Stable bounded canopy used by the transactional runtime. */
@@ -49,9 +51,38 @@ interface ControllerBridge
 
     boolean retainsParameterTarget (ParameterTargetRef target);
 
-    DesiredControllerWorkspace prepareWorkspace (DesiredControllerWorkspace workspace);
+    default void setNoteInputLifecycleIdle (final BooleanSupplier idle)
+    {
+        Objects.requireNonNull (idle, "idle");
+    }
 
-    void applyWorkspace (DesiredControllerWorkspace workspace);
+    default DesiredControllerState prepareControllerState (final DesiredControllerState state)
+    {
+        final DesiredControllerState requested = Objects.requireNonNull (state, "state");
+        if (!requested.equals (DesiredControllerState.empty ()))
+            throw new IllegalArgumentException ("Controller bridge does not support composed controller-state ownership");
+        return requested;
+    }
+
+    default void applyControllerState (final DesiredControllerState state)
+    {
+        if (!Objects.requireNonNull (state, "state").equals (DesiredControllerState.empty ()))
+            throw new IllegalArgumentException ("Controller bridge does not support composed controller-state ownership");
+    }
+
+    default DesiredNoteRepeat prepareNoteRepeat (final DesiredNoteRepeat noteRepeat)
+    {
+        final DesiredNoteRepeat requested = Objects.requireNonNull (noteRepeat, "noteRepeat");
+        if (requested.owned ())
+            throw new IllegalArgumentException ("Controller bridge does not support note-repeat ownership");
+        return requested;
+    }
+
+    default void applyNoteRepeat (final DesiredNoteRepeat noteRepeat)
+    {
+        if (Objects.requireNonNull (noteRepeat, "noteRepeat").owned ())
+            throw new IllegalArgumentException ("Controller bridge does not support note-repeat ownership");
+    }
 
     ControllerBridgeSnapshot snapshot ();
 

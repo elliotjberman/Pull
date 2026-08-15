@@ -26,19 +26,22 @@ import com.bitwig.extension.controller.api.NoteInput;
 import com.bitwig.extension.controller.api.PinnableCursorDevice;
 import com.bitwig.extension.controller.api.SettableBooleanValue;
 
+import de.mossgrabers.framework.daw.midi.ISelectedTrackNoteTarget;
+
 import org.junit.jupiter.api.Test;
 
 
 /**
- * Tests normal controller note-input routing and private selected-track observation.
+ * Tests selected-track controller note-input routing and private target observation.
  */
 class NoteInputImplTest
 {
     @Test
-    void selectedTrackObservationDoesNotAttachTheNoteInputDirectly ()
+    void selectedTrackRouteExcludesAllInputsAndReconcilesIdempotently ()
     {
         final AtomicReference<CursorTrack> stateTarget = new AtomicReference<> ();
         final AtomicInteger noteSourceAttachments = new AtomicInteger ();
+        final AtomicInteger noteSourceRemovals = new AtomicInteger ();
         final List<Boolean> includedInAllInputs = new ArrayList<> ();
         final Device drumMachine = relaxedProxy (Device.class);
         final DeviceBank drumDevices = proxy (DeviceBank.class, (proxy, method, arguments) -> {
@@ -84,6 +87,11 @@ class NoteInputImplTest
                 noteSourceAttachments.incrementAndGet ();
                 return null;
             }
+            if ("removeNoteSource".equals (method.getName ()))
+            {
+                noteSourceRemovals.incrementAndGet ();
+                return null;
+            }
             return relaxedValue (method.getReturnType ());
         });
         final SettableBooleanValue includeValue = proxy (SettableBooleanValue.class, (proxy, method, arguments) -> {
@@ -114,11 +122,16 @@ class NoteInputImplTest
             "80????",
             "90????"
         });
-        input.createSelectedTrackTarget ();
+        final ISelectedTrackNoteTarget target = input.createSelectedTrackTarget ();
+        target.submitNoteInputRoute (true);
+        target.submitNoteInputRoute (true);
+        target.submitNoteInputRoute (false);
+        target.submitNoteInputRoute (false);
 
         assertSame (selectedTrack, stateTarget.get ());
-        assertEquals (0, noteSourceAttachments.get ());
-        assertEquals (List.of (Boolean.TRUE), includedInAllInputs);
+        assertEquals (1, noteSourceAttachments.get ());
+        assertEquals (1, noteSourceRemovals.get ());
+        assertEquals (List.of (Boolean.TRUE, Boolean.FALSE), includedInAllInputs);
     }
 
 

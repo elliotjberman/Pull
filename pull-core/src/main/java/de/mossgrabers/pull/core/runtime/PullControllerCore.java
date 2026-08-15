@@ -42,6 +42,7 @@ import java.util.Optional;
 final class PullControllerCore implements ControllerCore
 {
     private Map<WorkspaceSelection.Id, CompiledWorkspace> workspaces = Map.of ();
+    private CompiledWorkspace                              defaultDrumWorkspace;
     private WorkspaceSelection                             selection;
     private CompiledWorkspace                              workspace;
     private Map<WorkspaceSelection.Id, CompiledWorkspace> masterWorkspaces = Map.of ();
@@ -63,13 +64,14 @@ final class PullControllerCore implements ControllerCore
             throw new IllegalStateException ("Core can only be started once");
 
         final RestoredState restoredState = restoreState (previousState);
-        this.selection = new WorkspaceSelection (restoredState.workspace (), restoredState.destination ());
+        this.selection = new WorkspaceSelection (restoredState.workspace (), restoredState.selectedDestination (), restoredState.pendingDestination ());
         this.playbackCoordinator = new ProjectPlaybackCoordinator ();
         this.playbackCoordinator.restoreEngineOwner (restoredState.engineOwnerIdentity (), restoredState.engineOwnerPlaying ());
         final Map<WorkspaceSelection.Id, CompiledWorkspace> compiled = new EnumMap<> (WorkspaceSelection.Id.class);
         compiled.put (WorkspaceSelection.Id.DEFAULT, DefaultWorkspace.create (this.selection, this.playbackCoordinator));
         compiled.put (WorkspaceSelection.Id.VS_LIVE, VsLiveWorkspace.create (this.selection, this.playbackCoordinator));
         this.workspaces = Map.copyOf (compiled);
+        this.defaultDrumWorkspace = DefaultWorkspace.createDrum (this.selection, this.playbackCoordinator);
         final Map<WorkspaceSelection.Id, CompiledWorkspace> compiledMaster = new EnumMap<> (WorkspaceSelection.Id.class);
         for (final WorkspaceSelection.Id background: WorkspaceSelection.Id.values ())
             compiledMaster.put (background, MasterWorkspace.create (this.selection, this.playbackCoordinator, background));
@@ -123,6 +125,7 @@ final class PullControllerCore implements ControllerCore
         else
             currentResult = update.intercepted () ? this.workspace.activate (snapshot) : this.workspace.handle (event, snapshot);
 
+        currentResult = this.transitionToSelectedWorkspace (currentResult, snapshot);
         final List<CoreEffect> effects = new ArrayList<> (currentResult.effects ());
         for (final ResolvedControllerAction released: update.releasedActions ())
         {
@@ -139,9 +142,10 @@ final class PullControllerCore implements ControllerCore
     {
         this.requireRunning ();
         final byte [] owner = this.playbackCoordinator.engineOwnerIdentity ().getBytes (StandardCharsets.UTF_8);
-        final ByteBuffer payload = ByteBuffer.allocate (Integer.BYTES + 3 + owner.length);
+        final ByteBuffer payload = ByteBuffer.allocate (Integer.BYTES + 4 + owner.length);
         payload.put ((byte) (this.selection.active () == WorkspaceSelection.Id.VS_LIVE ? 1 : 0));
         payload.put ((byte) (this.playbackCoordinator.engineOwnerPlaying () ? 1 : 0));
+        payload.put ((byte) this.selection.selectedDestination ().ordinal ());
         payload.put ((byte) this.selection.pendingDestination ().ordinal ());
         payload.putInt (owner.length);
         payload.put (owner);
@@ -162,21 +166,25 @@ final class PullControllerCore implements ControllerCore
         if (previousState.isEmpty ())
             return RestoredState.empty ();
         final byte [] payload = previousState.get ().payload ();
-        if (payload.length < Integer.BYTES + 3)
+        if (payload.length < Integer.BYTES + 4)
             return RestoredState.empty ();
         final ByteBuffer buffer = ByteBuffer.wrap (payload);
         final WorkspaceSelection.Id workspace = buffer.get () == 1 ? WorkspaceSelection.Id.VS_LIVE : WorkspaceSelection.Id.DEFAULT;
         final boolean playing = buffer.get () == 1;
-        final int destinationOrdinal = Byte.toUnsignedInt (buffer.get ());
-        if (destinationOrdinal >= WorkspaceSelection.Destination.values ().length)
+        final int selectedDestinationOrdinal = Byte.toUnsignedInt (buffer.get ());
+        final int pendingDestinationOrdinal = Byte.toUnsignedInt (buffer.get ());
+        if (selectedDestinationOrdinal >= WorkspaceSelection.Destination.values ().length || pendingDestinationOrdinal >= WorkspaceSelection.Destination.values ().length)
             return RestoredState.empty ();
-        final WorkspaceSelection.Destination destination = WorkspaceSelection.Destination.values ()[destinationOrdinal];
+        final WorkspaceSelection.Destination selectedDestination = WorkspaceSelection.Destination.values ()[selectedDestinationOrdinal];
+        final WorkspaceSelection.Destination pendingDestination = WorkspaceSelection.Destination.values ()[pendingDestinationOrdinal];
+        if (pendingDestination != WorkspaceSelection.Destination.NONE && pendingDestination != selectedDestination)
+            return RestoredState.empty ();
         final int ownerLength = buffer.getInt ();
         if (ownerLength < 0 || ownerLength > 1024 || ownerLength != buffer.remaining ())
-            return new RestoredState (workspace, destination, "", false);
+            return new RestoredState (workspace, selectedDestination, pendingDestination, "", false);
         final byte [] owner = new byte [ownerLength];
         buffer.get (owner);
-        return new RestoredState (workspace, destination, new String (owner, StandardCharsets.UTF_8), playing);
+        return new RestoredState (workspace, selectedDestination, pendingDestination, new String (owner, StandardCharsets.UTF_8), playing);
     }
 
 
@@ -192,7 +200,8 @@ final class PullControllerCore implements ControllerCore
             activeResult.desiredInputRoutes (),
             activeResult.desiredBridgeSubscriptions (),
             activeResult.desiredClipBindings (),
-            activeResult.desiredControllerWorkspace (),
+            activeResult.desiredControllerState (),
+            activeResult.desiredNoteRepeat (),
             activeResult.desiredControllerActions (),
             activeResult.desiredParameterBanks (),
             activeResult.desiredParameterInteraction (),
@@ -202,7 +211,12 @@ final class PullControllerCore implements ControllerCore
 
     private CoreResult dispatchActionToWorkspace (final ResolvedControllerAction action, final ControllerSnapshot snapshot)
     {
-        final CoreResult currentResult = this.workspace.handleAction (action, snapshot);
+        return this.transitionToSelectedWorkspace (this.workspace.handleAction (action, snapshot), snapshot);
+    }
+
+
+    private CoreResult transitionToSelectedWorkspace (final CoreResult currentResult, final ControllerSnapshot snapshot)
+    {
         final CompiledWorkspace selectedWorkspace = this.desiredWorkspace (snapshot);
         if (selectedWorkspace == this.workspace)
             return currentResult;
@@ -215,7 +229,8 @@ final class PullControllerCore implements ControllerCore
     private CompiledWorkspace desiredWorkspace (final ControllerSnapshot snapshot)
     {
         this.selection.observe (snapshot.bridge ().layout ());
-        final CompiledWorkspace selectedWorkspace = this.selectedWorkspace ();
+        this.selection.observe (snapshot.bridge ().noteView ());
+        final CompiledWorkspace selectedWorkspace = this.selectedWorkspace (snapshot);
         final String mode = snapshot.bridge ().layout ().modeId ();
         final boolean masterLayout = "MASTER".equals (mode) || "MASTER_TEMP".equals (mode);
         if (!masterLayout)
@@ -233,10 +248,14 @@ final class PullControllerCore implements ControllerCore
     }
 
 
-    private CompiledWorkspace selectedWorkspace ()
+    private CompiledWorkspace selectedWorkspace (final ControllerSnapshot snapshot)
     {
         final WorkspaceSelection.Destination destination = this.selection.pendingDestination ();
-        return destination == WorkspaceSelection.Destination.NONE ? this.workspaces.get (this.selection.active ()) : this.destinationWorkspaces.get (destination);
+        if (destination != WorkspaceSelection.Destination.NONE)
+            return this.destinationWorkspaces.get (destination);
+        if (this.selection.active () == WorkspaceSelection.Id.DEFAULT && snapshot.bridge ().layout ().drumLayoutActive ())
+            return this.defaultDrumWorkspace;
+        return this.workspaces.get (this.selection.active ());
     }
 
 
@@ -247,7 +266,8 @@ final class PullControllerCore implements ControllerCore
             result.desiredInputRoutes (),
             result.desiredBridgeSubscriptions (),
             result.desiredClipBindings (),
-            result.desiredControllerWorkspace (),
+            result.desiredControllerState (),
+            result.desiredNoteRepeat (),
             result.desiredControllerActions (),
             result.desiredParameterBanks (),
             result.desiredParameterInteraction (),
@@ -263,7 +283,8 @@ final class PullControllerCore implements ControllerCore
             result.desiredInputRoutes (),
             result.desiredBridgeSubscriptions (),
             result.desiredClipBindings (),
-            result.desiredControllerWorkspace (),
+            result.desiredControllerState (),
+            result.desiredNoteRepeat (),
             result.desiredControllerActions (),
             result.desiredParameterBanks (),
             result.desiredParameterInteraction (),
@@ -296,11 +317,11 @@ final class PullControllerCore implements ControllerCore
     }
 
 
-    private record RestoredState (WorkspaceSelection.Id workspace, WorkspaceSelection.Destination destination, String engineOwnerIdentity, boolean engineOwnerPlaying)
+    private record RestoredState (WorkspaceSelection.Id workspace, WorkspaceSelection.Destination selectedDestination, WorkspaceSelection.Destination pendingDestination, String engineOwnerIdentity, boolean engineOwnerPlaying)
     {
         private static RestoredState empty ()
         {
-            return new RestoredState (WorkspaceSelection.Id.DEFAULT, WorkspaceSelection.Destination.NONE, "", false);
+            return new RestoredState (WorkspaceSelection.Id.DEFAULT, WorkspaceSelection.Destination.NONE, WorkspaceSelection.Destination.NONE, "", false);
         }
     }
 }

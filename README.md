@@ -52,6 +52,20 @@ still-arming pad is off, and a verified ready pad is dim orange. Only the shell-
 is fully lit orange; a press request does not optimistically change the light before that
 authoritative snapshot read-back.
 
+The Pull controller settings include **Drum Controller → Automatic arp / roll**. It defaults to
+On. Turning it Off immediately retires the drum layout's controller-input arpeggiator and blanks
+the four rate pads; turning it back On re-enables the roll engine while the drum layout is engaged.
+Leaving Drum Controller always retires Repeat so the controller roll cannot carry into melodic
+note views. The user's manual mode, octave, rate, gate, latch, free-running, pressure and shuffle
+settings are restored; Repeat can then be enabled manually outside Drum Controller if desired.
+
+While Note is visible, Pull resolves the selected track through its private selection-following
+target. A drum-capable target receives Drum Controller after Bitwig reports the aligned device; an
+ordinary instrument receives its stored melodic view (or Play by default), and an audio track
+receives Clip Length. The core keeps the request active until the visible layout reports the same
+view, so asynchronous selection/device updates cannot leave the preceding track's pad layout on
+screen.
+
 Each pad launches only its assigned clip. The shell keeps a private one-slot Bitwig actuator for
 each pad and freezes it while its launch remains in the session, so session scrolling, selection
 changes, and new core builds cannot retarget the matching release. The shell retains at most one
@@ -69,16 +83,27 @@ Bitwig's default Project Settings → Clip Launcher → ALT Release setting, or 
 override to `Return`. A fill clip's loop enablement and length remain session content.
 
 The slice passes offline fake-host verification. The exact immediate-legato/ALT-Return path still
-requires a live Bitwig smoke test after installing the Core-API-9 shell on Bitwig controller API
+requires a live Bitwig smoke test after installing the Core-API-28 shell on Bitwig controller API
 21.
 
-The Push Pads note input remains in Bitwig's ordinary input pool. Pads and the ribbon's raw
-pitch-bend messages therefore follow the project's track-input, monitor, and record-arm routing;
-selection alone does not force a track to receive them. The controller-private selected-track
-cursor is used only for authoritative state, actions, identity, and drum-capability detection. It
-is never exposed to Push's pin command and is not a musical note route. Changing selection does
-not create or reconnect note inputs. More than one track can receive Pads when the project routes
-and monitors or arms more than one track that way.
+The permanent Push Pads note input is excluded from Bitwig's `All Inputs` pool. While a musical
+Note viewer is active and its private selected-target identity is aligned, Pull routes that input
+directly to the selected note-capable track. Pads do not silently fall back to every armed track
+when Note view exits or the core fails. Pull does not change record arm or monitor mode: live API-21
+testing found that a track in Bitwig's default `Auto` monitor mode must be armed to sound. A project
+track explicitly configured for the named `Pads` input can still receive the same hardware stream
+and is outside this selected-only route.
+Each active view contributes one declarative controller-state bundle: its fixed controller facets,
+full-grid Note layout when applicable, and selected-track musical route. Composite views merge
+those contributions and reject overlapping physical owners. The full-grid Note viewer and the
+lower-half drum controller therefore preserve the same selected-track route in their respective
+workspaces; the drum controller also preserves its automatic-roll lease in Shift+Session.
+One stable lifecycle owner applies the composed state. Routing is submitted before a musical
+surface can activate, Session/failure uses a real neutral layout, and route removal waits for held
+pads and sustain. Bitwig exposes no route-attachment read-back, so live note observation—not a
+successful void API call—is the final smoke-test evidence.
+The controller-private cursor also provides authoritative state, actions, identity, and drum
+capability and is never exposed to Push's pin command.
 The same private cursor exposes a fixed four-candidate drum-device canopy: a native Drum Machine
 match in the selected track chain, Bitwig's semantic first instrument when it reports drum pads,
 plus native Drum Machine matches in that instrument's first layer and cursor slot. This catches the
@@ -90,8 +115,8 @@ private selected target, Pull temporarily disables and blanks its drum controls 
 represent the same track; it never displays one drum track while applying drum-controller actions
 to another.
 Bitwig's Dashboard → Settings → Recording → Auto-arm selected → Instrument tracks preference is
-independent of Pull. Disable it if track arm should not follow selection. With ordinary routing,
-the intended track must accept `Pads` or `All Inputs` and satisfy its monitor/record-arm settings.
+independent of Pull. Disable it if track arm should not follow selection; Pull's direct Note-view
+route does not change arm or monitor mode itself.
 The reloadable core exclusively owns every Push Record gesture: plain Record toggles selected-track
 arm from authoritative read-back, Shift+Record toggles launcher overdub, and Select+Record creates
 a new clip. The permanent Record binding is deliberately inert and exists only to retain the input
@@ -113,12 +138,14 @@ The controller does not insert, identify, repair, or own those devices. Raw bend
 message; the session's Bend/modulator mappings define what it changes. This is intentionally
 manual and visible in the project instead of relying on a fragile hidden macro or helper registry.
 
-For the live checkpoint, install this shell build and restart Bitwig once. Arm the intended drum
-track or enable monitoring, set its input to accept `Pads` or `All Inputs`, and verify that Push
-pads sound and the track's MIDI `BEND` modulators follow the ribbon. Disarm or stop monitoring it
-and verify that ordinary Bitwig routing stops the input. Check that another track's arm button
-remains independently clickable, then exercise the fill A→B→release handoff to confirm the
-original base clip is retained.
+For the live checkpoint, install this shell build and restart Bitwig once. Leave instrument inputs
+on `All Inputs`, enter Note view, and verify that Push pads and the ribbon sound only the selected
+note track when it is armed, even when other tracks are armed. Verify that disarming the selected
+track in `Auto` monitor mode makes it silent, that Session view stops the controller-owned route
+after held controls are released, and that melodic↔drum selection changes retain the right layout
+without leaking automatic roll. A track explicitly set to `Pads` is a deliberate exception to the
+selected-only guarantee. Then exercise the fill A→B→release handoff to confirm the original base
+clip is retained.
 
 ## Reloading a core during development
 
@@ -140,9 +167,9 @@ attempting an unsafe core reload—even when the API change was already committe
 implementation edits do not change this compatibility fingerprint.
 
 Installing this shell checkpoint requires one extension copy and Bitwig restart because it changes
-the stable note-input topology and parent-loaded API: the existing Pads input returns to ordinary
-Bitwig input/monitor/record-arm routing, and raw MIDI effects target that stable input rather than a
-selected track. After that, selected-track changes and edits confined to `pull-core` use
+the stable note-input topology and parent-loaded API: the existing Pads input leaves `All Inputs`,
+and the stable shell gains the bounded direct selected-track route consumed by the core's complete
+composed controller-state lifecycle. After that, selected-track policy changes confined to `pull-core` use
 `tools/reload-core` without restarting Bitwig. The broader bounded capability-canopy roadmap is
 documented in
 [`docs/reloadable-controller-core-design.md`](docs/reloadable-controller-core-design.md).

@@ -9,6 +9,10 @@ import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.CoreExecutionRequirements;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
+import de.mossgrabers.pull.core.api.DesiredControllerLayout;
+import de.mossgrabers.pull.core.api.DesiredNoteInputRoute;
+import de.mossgrabers.pull.core.api.DesiredNotePerformance;
+import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
 import de.mossgrabers.pull.core.api.DesiredInputRoutes;
 import de.mossgrabers.pull.core.api.DesiredParameterBanks;
 import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
@@ -42,6 +46,8 @@ final class RecordingEffectExecutor
     private DesiredBridgeSubscriptions desiredBridgeSubscriptions = DesiredBridgeSubscriptions.empty ();
     private Map<ControlId, ClipTargetId> desiredClipBindings = Map.of ();
     private DesiredControllerWorkspace desiredControllerWorkspace = DesiredControllerWorkspace.empty ();
+    private DesiredNotePerformance desiredNotePerformance = DesiredNotePerformance.inactive ();
+    private DesiredNoteRepeat desiredNoteRepeat = DesiredNoteRepeat.unowned ();
     private DesiredParameterBanks desiredParameterBanks = DesiredParameterBanks.empty ();
     private DesiredParameterInteraction desiredParameterInteraction = DesiredParameterInteraction.empty ();
     private CoreExecutionRequirements executionRequirements = CoreExecutionRequirements.empty ();
@@ -59,7 +65,9 @@ final class RecordingEffectExecutor
         this.desiredInputRoutes = result.desiredInputRoutes ();
         this.desiredBridgeSubscriptions = result.desiredBridgeSubscriptions ();
         this.desiredClipBindings = result.desiredClipBindings ();
-        this.desiredControllerWorkspace = result.desiredControllerWorkspace ();
+        this.desiredControllerWorkspace = result.desiredControllerState ().workspace ();
+        this.desiredNotePerformance = result.desiredControllerState ().notePerformance ();
+        this.desiredNoteRepeat = result.desiredNoteRepeat ();
         this.desiredParameterBanks = result.desiredParameterBanks ();
         this.desiredParameterInteraction = result.desiredParameterInteraction ();
         this.executionRequirements = result.executionRequirements ();
@@ -172,6 +180,30 @@ final class RecordingEffectExecutor
     DesiredHardwareOutput desiredOutput ()
     {
         return this.desiredOutput;
+    }
+
+
+    DesiredControllerLayout desiredControllerLayout ()
+    {
+        return this.desiredNotePerformance.layout ();
+    }
+
+
+    DesiredNoteInputRoute desiredNoteInputRoute ()
+    {
+        return this.desiredNotePerformance.inputRoute ();
+    }
+
+
+    DesiredNotePerformance desiredNotePerformance ()
+    {
+        return this.desiredNotePerformance;
+    }
+
+
+    DesiredNoteRepeat desiredNoteRepeat ()
+    {
+        return this.desiredNoteRepeat;
     }
 
 

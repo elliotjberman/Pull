@@ -43,7 +43,7 @@ public final class VsLiveWorkspace
         return CompiledWorkspace.compile (
             NAME,
             SESSION_BANK,
-            ControllerLevelViews.compose (selection, playbackCoordinator, views));
+            ControllerLevelViews.composeWithoutNoteController (selection, playbackCoordinator, views));
     }
 
 
@@ -54,6 +54,6 @@ public final class VsLiveWorkspace
      */
     static List<ControllerView> gridViews ()
     {
-        return List.of (new SessionNavigationView (), new SessionClipGridView (true), new DrumControllerView (true));
+        return List.of (new SessionNavigationView (), new SessionClipGridView (true), new DrumControllerView (true), new DrumRateView ());
     }
 }
