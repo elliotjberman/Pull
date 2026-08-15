@@ -23,7 +23,7 @@ public final class CoreCapabilities
     /** Single-active momentary clip-session effects with a frozen launch policy per target. */
     public static final String EFFECT_CLIP_LAUNCH_HOLD = "effect.clip-launch-hold";
 
-    /** Hardware-independent RGB light output; v6 admits every registered Push button and grid pad. */
+    /** Hardware-independent light output; v6 admits every registered control and v7 adds tempo blink. */
     public static final String OUTPUT_RGB_LIGHT = "output.rgb-light";
 
     /** Replayable projection onto bounded semantic host-learnable controller endpoints. */
@@ -44,8 +44,11 @@ public final class CoreCapabilities
     /** Replayable input ownership; v5 adds declared semantic variants for one physical edge. */
     public static final String ROUTING_CONTROLLER_INPUT = "routing.controller-input";
 
-    /** Common bounded controller state; v9 adds visible Session-track names and v10 their types. */
+    /** Common bounded controller state; v10 adds Session-track types and v11 the clip timeline. */
     public static final String SNAPSHOT_CONTROLLER_BRIDGE = "snapshot.controller-bridge";
+
+    /** Bounded authoritative selected launcher-clip timeline state. */
+    public static final String SNAPSHOT_CLIP_TIMELINE = "snapshot.clip-timeline";
 
     /** Replayable selection of bounded bridge-state domains to publish and sample. */
     public static final String SUBSCRIPTION_CONTROLLER_BRIDGE = "subscription.controller-bridge";
@@ -63,6 +66,9 @@ public final class CoreCapabilities
 
     /** Generation-fenced drum-pad state and selection effects. */
     public static final String EFFECT_DRUM_PAD = "effect.drum-pad";
+
+    /** Generation-fenced selected launcher-clip range effects. */
+    public static final String EFFECT_CLIP_TIMELINE = "effect.clip-timeline";
 
     /** Stateful raw MIDI sent through Bitwig's ordinary permanent controller note input. */
     public static final String EFFECT_NOTE_INPUT_MIDI = "effect.note-input-midi";

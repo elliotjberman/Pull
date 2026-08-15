@@ -19,6 +19,7 @@ import de.mossgrabers.pull.core.api.effect.ScheduleTimerEffect;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.event.TimerElapsedEvent;
 import de.mossgrabers.pull.core.api.output.DesiredHardwareOutput;
+import de.mossgrabers.pull.core.api.output.ControllerLight;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 
 import org.junit.jupiter.api.Test;
@@ -54,7 +55,7 @@ class FakeCoreHostTest
 
         host.advance (Duration.ofNanos (1));
         assertEquals (1, core.pulses ());
-        assertEquals (new RgbColor (0, 1, 0), host.effects ().desiredOutput ().lights ().get (DeterministicTimerCore.LIGHT_ID));
+        assertEquals (new RgbColor (0, 1, 0), host.effects ().desiredOutput ().lights ().get (DeterministicTimerCore.LIGHT_ID).color ());
         assertEquals (200, host.effects ().deadline (DeterministicTimerCore.TIMER_ID).orElseThrow ());
     }
 
@@ -105,7 +106,7 @@ class FakeCoreHostTest
         final TimerId timerId = new TimerId ("replace-me");
         final List<CoreEffect> effects = List.of (new ScheduleTimerEffect (timerId, 10), new ScheduleTimerEffect (timerId, 20), new CancelTimerEffect (timerId));
 
-        executor.apply (result (new DesiredHardwareOutput (Map.of (new ControlId ("light"), new RgbColor (1, 2, 3))), effects.subList (0, 2)));
+        executor.apply (result (new DesiredHardwareOutput (Map.of (new ControlId ("light"), ControllerLight.steady (new RgbColor (1, 2, 3)))), effects.subList (0, 2)));
         assertEquals (20, executor.deadline (timerId).orElseThrow ());
         executor.apply (result (DesiredHardwareOutput.empty (), effects.subList (2, 3)));
 

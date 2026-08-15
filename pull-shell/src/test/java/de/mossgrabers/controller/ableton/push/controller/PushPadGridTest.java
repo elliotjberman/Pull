@@ -9,6 +9,7 @@ import de.mossgrabers.framework.daw.midi.IMidiOutput;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
+import de.mossgrabers.pull.core.api.output.ControllerLight;
 import de.mossgrabers.pull.core.api.output.PadGridPosition;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 
@@ -93,7 +94,7 @@ class PushPadGridTest
         final ControlId firstPad = PushControlIds.pad (1);
         final AtomicReference<Set<ControlId>> owners = new AtomicReference<> (Set.of (firstPad));
         final RgbColor purple = new RgbColor (160, 48, 255);
-        grid.setCoreLightSupplier (control -> owners.get ().contains (control), ignored -> purple);
+        grid.setCoreLightSupplier (control -> owners.get ().contains (control), ignored -> ControllerLight.steady (purple));
         grid.light (36, 10);
 
         assertEquals (colors.getColorIndex (ColorEx.fromRGB (purple.red (), purple.green (), purple.blue ())), grid.getLightInfo (36).getColor ());
@@ -104,13 +105,35 @@ class PushPadGridTest
 
 
     @Test
+    void animatedCoreLightUsesTheSameSlowFirmwareBlinkChannelAsSessionPlayback ()
+    {
+        final List<MidiNote> sent = new ArrayList<> ();
+        final PushColorManager colors = new PushColorManager ();
+        final PushPadGrid grid = new PushPadGrid (colors, recordingOutput (sent));
+        final RgbColor blue = new RgbColor (0, 80, 255);
+        final RgbColor green = new RgbColor (0, 255, 0);
+        grid.setCoreLightSupplier (PushControlIds.pad (1)::equals, ignored -> ControllerLight.playing (blue, green));
+
+        final int blueIndex = colors.getColorIndex (ColorEx.fromRGB (blue.red (), blue.green (), blue.blue ()));
+        final int greenIndex = colors.getColorIndex (ColorEx.fromRGB (green.red (), green.green (), green.blue ()));
+        assertEquals (blueIndex, grid.getLightInfo (36).getColor ());
+        assertEquals (greenIndex, grid.getLightInfo (36).getBlinkColor ());
+        assertEquals (false, grid.getLightInfo (36).isFast ());
+
+        grid.sendState (36);
+
+        assertEquals (List.of (new MidiNote (0, 36, blueIndex), new MidiNote (10, 36, greenIndex)), sent);
+    }
+
+
+    @Test
     void sparseOverlayFreezesTheCoreOwnedBaseUntilTheOverlayCloses ()
     {
         final PushColorManager colors = new PushColorManager ();
         final PushPadGrid grid = new PushPadGrid (colors, relaxedOutput ());
         final AtomicReference<RgbColor> coreColor = new AtomicReference<> (new RgbColor (160, 48, 255));
         final AtomicReference<ControllerPadGridOverlay> overlay = new AtomicReference<> (ControllerPadGridOverlay.inactive ());
-        grid.setCoreLightSupplier (PushControlIds.pad (1)::equals, ignored -> coreColor.get ());
+        grid.setCoreLightSupplier (PushControlIds.pad (1)::equals, ignored -> ControllerLight.steady (coreColor.get ()));
         grid.setOverlaySupplier (overlay::get);
 
         final int purple = colors.getColorIndex (ColorEx.fromRGB (160, 48, 255));

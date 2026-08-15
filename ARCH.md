@@ -1,10 +1,10 @@
 # Pull View Architecture
 
-Status: current through Core API 41, semantic controller-mapping identities, generic registered
+Status: current through Core API 42, semantic controller-mapping identities, generic registered
 button/grid light arbitration, the shared
 mixer-control renderer, the Master-control migration, the post-demo `VS Live` composition, and
 core-owned Session Stop, selected-track Mute/Solo, VS Live Project/Track and Track/Mix display
-composition, track selection, note-view, and drum-rate policy.
+composition, track selection, note-view, drum-rate policy, and Clip Timeline action/feedback.
 
 Read this file before changing controller views, modes, workspaces, input routing, or Session bank
 topology. The detailed design contract is in
@@ -98,6 +98,15 @@ operations across later read-back, and restores the manual parameters while auth
 retiring Repeat when the core releases ownership.
 The Bitwig **Automatic arp / roll** setting is published as state; core alone decides whether the
 drum workspace owns repeat or leaves it untouched.
+
+Clip Timeline is likewise a complete core-owned semantic slice. Its fixed view owns all 64 grid
+pads and eight scene keys, selects range resolution, emits exact selected-clip range effects, and
+renders selected, selectable, padding, and playing states from later authoritative cursor-clip
+read-back. Selectable unselected pads are white unless the clip color is near-white; padding is
+always off. The playing pad uses the common `ControllerLight` tempo-alternation contract and the
+same Push slow-blink MIDI transport used by Session playback. The stable adapter is inert; stable
+only owns the bounded selection-following cursor clip, target fencing, effect execution, palette
+translation, and MIDI transmission.
 
 `DrumPlayPadView` owns the lower-left 4x4 RGB output and all playable-pad pressure policy in both
 the standalone Drum page and VS Live. Resting lights use authoritative selected-track color;
@@ -460,13 +469,14 @@ Partial or transitional:
 - Every registered Push button light and every physical grid-pad light now has generic explicit
   core-or-stable arbitration. A view may render only controls inside its declared output claims;
   unclaimed lights preserve their frozen legacy supplier exactly. Current core owners are
-  the sixteen drum-play, eight drum-fill, four drum-rate, and four mappable-control lights, global
+  the complete Clip Timeline grid and scenes, sixteen drum-play, eight drum-fill, four drum-rate,
+  and four mappable-control lights, global
   Play/Record, Session Stop Clip, persistent selected-track Mute/Solo, and both Master rows. Authoritative
   semantic Bitwig Boolean feedback and replayable physical-to-semantic mapping leases support the
   mappable controls. General display output is still semantically partial: Master and the composed
   VS Live Project/Track and Track/Mix pages are core-authored, while a generic complete base-scene plane, a
   temporary sparse 8x8 grid overlay, and a complete temporary 960x160 display overlay are
-  arbitrated. The detailed design's API 41 installed-output inventory is canonical.
+  arbitrated. The detailed design's API 42 installed-output inventory is canonical.
 
 Deferred by design:
 

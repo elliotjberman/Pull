@@ -71,7 +71,7 @@ class PushControllerInputBridgeTest
         for (final var control: CoreControls.DRUM_CONTROL_PADS)
         {
             assertTrue (PushControllerInputBridge.isCoreOwnedInput (control, InputKind.PAD));
-            assertFalse (PushControllerInputBridge.isCoreOwnedInput (control, InputKind.POLY_PRESSURE));
+            assertTrue (PushControllerInputBridge.isCoreOwnedInput (control, InputKind.POLY_PRESSURE));
         }
     }
 

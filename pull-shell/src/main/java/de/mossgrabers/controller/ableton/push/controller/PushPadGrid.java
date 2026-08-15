@@ -18,6 +18,8 @@ import de.mossgrabers.framework.daw.midi.IMidiOutput;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
+import de.mossgrabers.pull.core.api.output.ControllerLight;
+import de.mossgrabers.pull.core.api.output.LightBlinkRate;
 import de.mossgrabers.pull.core.api.output.PadGridPosition;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 
@@ -33,11 +35,13 @@ final class PushPadGrid extends PadGridImpl
     private final int [] resolvedOverlayColors = new int [NUM_NOTES];
     private final LightInfo [] corePadStates = new LightInfo [NUM_NOTES];
     private final PadColor [] requestedCoreColors = new PadColor [NUM_NOTES];
+    private final PadColor [] requestedCoreBlinkColors = new PadColor [NUM_NOTES];
     private final int [] resolvedCoreColors = new int [NUM_NOTES];
+    private final int [] resolvedCoreBlinkColors = new int [NUM_NOTES];
 
     private Supplier<ControllerPadGridOverlay> overlaySupplier = ControllerPadGridOverlay::inactive;
     private Predicate<ControlId> coreLightOwner = ignored -> false;
-    private Function<ControlId, RgbColor> coreLightColor = ignored -> new RgbColor (0, 0, 0);
+    private Function<ControlId, ControllerLight> coreLight = ignored -> ControllerLight.steady (new RgbColor (0, 0, 0));
     private boolean overlayActive;
     private int debugObservedNote = -1;
     private boolean debugObservedSend;
@@ -81,10 +85,10 @@ final class PushPadGrid extends PadGridImpl
 
 
     /** Install the permanent explicit core-light ownership plane beneath temporary overlays. */
-    void setCoreLightSupplier (final Predicate<ControlId> owner, final Function<ControlId, RgbColor> color)
+    void setCoreLightSupplier (final Predicate<ControlId> owner, final Function<ControlId, ControllerLight> light)
     {
         this.coreLightOwner = Objects.requireNonNull (owner, "owner");
-        this.coreLightColor = Objects.requireNonNull (color, "color");
+        this.coreLight = Objects.requireNonNull (light, "light");
     }
 
 
@@ -182,7 +186,7 @@ final class PushPadGrid extends PadGridImpl
         if (color == null)
             return this.frozenPadStates[note];
 
-        final int colorIndex = this.resolveOverlayColor (note, PadColor.rgbOrOff (ColorEx.fromRGB (color.red (), color.green (), color.blue ())));
+        final int colorIndex = this.resolveCachedColor (note, toPadColor (color), this.requestedOverlayColors, this.resolvedOverlayColors);
         final LightInfo overlayState = this.overlayPadStates[note];
         overlayState.setColors (colorIndex, 0, false);
         return overlayState;
@@ -196,28 +200,30 @@ final class PushPadGrid extends PadGridImpl
         if (!this.coreLightOwner.test (control))
             return super.getLightInfo (note);
 
-        final RgbColor rgb = Objects.requireNonNull (this.coreLightColor.apply (control), "core light color");
-        final PadColor color = PadColor.rgbOrOff (ColorEx.fromRGB (rgb.red (), rgb.green (), rgb.blue ()));
-        if (!color.equals (this.requestedCoreColors[note]))
-        {
-            this.requestedCoreColors[note] = color;
-            this.resolvedCoreColors[note] = this.resolveColor (color);
-        }
+        final ControllerLight light = Objects.requireNonNull (this.coreLight.apply (control), "core light");
+        final int color = this.resolveCachedColor (note, toPadColor (light.color ()), this.requestedCoreColors, this.resolvedCoreColors);
+        final int blinkColor = light.blinkRate () == LightBlinkRate.NONE ? 0 : this.resolveCachedColor (note, toPadColor (light.blinkColor ()), this.requestedCoreBlinkColors, this.resolvedCoreBlinkColors);
         final LightInfo coreState = this.corePadStates[note];
-        coreState.setColors (this.resolvedCoreColors[note], 0, false);
+        coreState.setColors (color, blinkColor, light.blinkRate () == LightBlinkRate.FAST);
         return coreState;
     }
 
 
-    private int resolveOverlayColor (final int note, final PadColor color)
+    private int resolveCachedColor (final int note, final PadColor color, final PadColor [] requestedColors, final int [] resolvedColors)
     {
-        if (!color.equals (this.requestedOverlayColors[note]))
+        if (!color.equals (requestedColors[note]))
         {
             final int resolvedColor = this.resolveColor (color);
-            this.requestedOverlayColors[note] = color;
-            this.resolvedOverlayColors[note] = resolvedColor;
+            requestedColors[note] = color;
+            resolvedColors[note] = resolvedColor;
         }
-        return this.resolvedOverlayColors[note];
+        return resolvedColors[note];
+    }
+
+
+    private static PadColor toPadColor (final RgbColor color)
+    {
+        return PadColor.rgbOrOff (ColorEx.fromRGB (color.red (), color.green (), color.blue ()));
     }
 
 

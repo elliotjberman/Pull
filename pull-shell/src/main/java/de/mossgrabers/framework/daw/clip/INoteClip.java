@@ -17,6 +17,22 @@ import de.mossgrabers.framework.daw.data.IPinnable;
 public interface INoteClip extends IClip, IPinnable
 {
     /**
+     * Get the stable channel identity of the track which currently owns the cursor clip.
+     *
+     * @return Stable track ID, or an empty string while unresolved
+     */
+    String getTrackId ();
+
+
+    /**
+     * Get the absolute launcher scene represented by the cursor clip.
+     *
+     * @return Scene index, or {@code -1} while unresolved
+     */
+    int getSceneIndex ();
+
+
+    /**
      * Get the row of notes.
      *
      * @return The row of notes

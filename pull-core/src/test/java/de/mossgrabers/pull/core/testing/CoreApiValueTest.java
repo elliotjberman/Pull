@@ -77,6 +77,7 @@ import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.event.SnapshotChangedEvent;
 import de.mossgrabers.pull.core.api.output.DesiredHardwareOutput;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
+import de.mossgrabers.pull.core.api.output.ControllerLight;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
 import de.mossgrabers.pull.core.api.output.DisplayCommand;
@@ -153,7 +154,7 @@ class CoreApiValueTest
         session.clear ();
         clips.clear ();
 
-        final Map<ControlId, RgbColor> lights = new HashMap<> (Map.of (control, new RgbColor (1, 2, 3)));
+        final Map<ControlId, ControllerLight> lights = new HashMap<> (Map.of (control, ControllerLight.steady (new RgbColor (1, 2, 3))));
         final DesiredHardwareOutput output = new DesiredHardwareOutput (lights);
         lights.clear ();
         assertTrue (output.controllerMappings ().bindings ().isEmpty ());
@@ -175,7 +176,7 @@ class CoreApiValueTest
         assertEquals (clip.targetId (), snapshot.clipLaunchSessionTargets ().get (control));
         assertEquals (clip.targetId (), press.target ());
         assertEquals (LAUNCH_POLICY, press.launchPolicy ());
-        assertEquals (new RgbColor (1, 2, 3), result.desiredOutput ().lights ().get (control));
+        assertEquals (new RgbColor (1, 2, 3), result.desiredOutput ().lights ().get (control).color ());
         assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK), result.desiredBridgeSubscriptions ().domains ());
         assertEquals (clip.targetId (), result.desiredClipBindings ().get (control));
         assertEquals (1, result.effects ().size ());
@@ -204,7 +205,7 @@ class CoreApiValueTest
     @Test
     void publishesStableVersionCapabilityAndControlIdentifiers ()
     {
-        assertEquals (41, CoreApi.VERSION);
+        assertEquals (42, CoreApi.VERSION);
         assertEquals ("input.drum-fill", CoreCapabilities.INPUT_DRUM_FILL);
         assertEquals ("snapshot.selected-track-clips", CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS);
         assertEquals ("binding.clip-target", CoreCapabilities.BINDING_CLIP_TARGET);
@@ -218,6 +219,7 @@ class CoreApiValueTest
         assertEquals ("input.controller", CoreCapabilities.INPUT_CONTROLLER);
         assertEquals ("routing.controller-input", CoreCapabilities.ROUTING_CONTROLLER_INPUT);
         assertEquals ("snapshot.controller-bridge", CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE);
+        assertEquals ("snapshot.clip-timeline", CoreCapabilities.SNAPSHOT_CLIP_TIMELINE);
         assertEquals ("subscription.controller-bridge", CoreCapabilities.SUBSCRIPTION_CONTROLLER_BRIDGE);
         assertEquals ("effect.transport", CoreCapabilities.EFFECT_TRANSPORT);
         assertEquals ("effect.selected-track", CoreCapabilities.EFFECT_SELECTED_TRACK);
@@ -225,6 +227,7 @@ class CoreApiValueTest
         assertEquals ("effect.controller-button-consumption", CoreCapabilities.EFFECT_CONTROLLER_BUTTON_CONSUMPTION);
         assertEquals (PushControlIds.button ("SELECT"), new ConsumeControllerButtonEffect (PushControlIds.button ("SELECT")).controlId ());
         assertEquals ("effect.drum-pad", CoreCapabilities.EFFECT_DRUM_PAD);
+        assertEquals ("effect.clip-timeline", CoreCapabilities.EFFECT_CLIP_TIMELINE);
         assertEquals ("effect.note-input-midi", CoreCapabilities.EFFECT_NOTE_INPUT_MIDI);
         assertEquals ("snapshot.controller-mapping-feedback", CoreCapabilities.SNAPSHOT_CONTROLLER_MAPPING_FEEDBACK);
         assertEquals ("output.pad-grid-overlay", CoreCapabilities.OUTPUT_PAD_GRID_OVERLAY);

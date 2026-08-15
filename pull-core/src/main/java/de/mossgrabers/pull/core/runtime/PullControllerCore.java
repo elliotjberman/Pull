@@ -18,6 +18,9 @@ import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.ParameterMutationEvent;
 import de.mossgrabers.pull.core.api.output.MixerControlsDisplay;
+import de.mossgrabers.pull.core.runtime.view.ClipTimelineState;
+import de.mossgrabers.pull.core.runtime.view.ClipTimelineView;
+import de.mossgrabers.pull.core.runtime.view.ClipTimelineWorkspace;
 import de.mossgrabers.pull.core.runtime.view.DefaultWorkspace;
 import de.mossgrabers.pull.core.runtime.view.ControllerLevelViews;
 import de.mossgrabers.pull.core.runtime.view.VsLiveWorkspace;
@@ -59,6 +62,8 @@ final class PullControllerCore implements ControllerCore
     private CompiledWorkspace                              workspace;
     private Map<CompiledWorkspace, CompiledWorkspace>      masterWorkspaces = Map.of ();
     private Map<WorkspaceSelection.Destination, CompiledWorkspace> destinationWorkspaces = Map.of ();
+    private CompiledWorkspace                              clipTimelineWorkspace;
+    private ClipTimelineState                              clipTimelineState;
     private ProjectPlaybackCoordinator                     playbackCoordinator;
     private boolean                                        masterLayoutObserved;
     private long                                           masterEntryWorkspaceRequest;
@@ -82,10 +87,12 @@ final class PullControllerCore implements ControllerCore
 
         final RestoredState restoredState = restoreState (previousState);
         this.selection = new WorkspaceSelection (restoredState.workspace (), restoredState.selectedDestination (), restoredState.pendingDestination ());
+        this.clipTimelineState = new ClipTimelineState (restoredState.clipTimelineResolution ());
         this.playbackCoordinator = new ProjectPlaybackCoordinator ();
         this.playbackCoordinator.restoreEngineOwner (restoredState.engineOwnerIdentity (), restoredState.engineOwnerPlaying ());
         final ControllerLevelViews controllerViews = new ControllerLevelViews (this.selection, this.playbackCoordinator);
         final ControllerView retainedSessionView = new RetainedControllerView (SessionView.full ());
+        final ControllerView retainedClipTimelineView = new RetainedControllerView (new ClipTimelineView (this.clipTimelineState));
         final SessionStopGesture vsLiveStopGesture = new SessionStopGesture ();
         final List<ControllerView> retainedVsLiveGridViews = VsLiveWorkspace.retainedGridViews (vsLiveStopGesture);
         final ControllerView retainedVsLiveTrackSelection = new RetainedControllerView (new TrackSelectionStripView (vsLiveStopGesture));
@@ -98,6 +105,7 @@ final class PullControllerCore implements ControllerCore
         this.defaultSessionWorkspace = StableDestinationWorkspace.selectedSession (controllerViews, retainedSessionView);
         this.vsLiveStablePageWorkspace = VsLiveWorkspace.createWithStablePage (controllerViews, retainedVsLiveGridViews);
         this.vsLiveTrackMixerWorkspace = VsLiveWorkspace.createWithTrackMixerPage (controllerViews, retainedVsLiveTrackSelection, retainedVsLiveGridViews);
+        this.clipTimelineWorkspace = ClipTimelineWorkspace.create (controllerViews, retainedClipTimelineView);
         this.destinationWorkspaces = Map.of (
             WorkspaceSelection.Destination.SESSION, StableDestinationWorkspace.session (this.selection, controllerViews, retainedSessionView),
             WorkspaceSelection.Destination.NOTE, StableDestinationWorkspace.note (controllerViews));
@@ -112,6 +120,7 @@ final class PullControllerCore implements ControllerCore
         compiledMaster.put (this.vsLiveStablePageWorkspace, masterVsLive);
         compiledMaster.put (this.vsLiveTrackMixerWorkspace, masterVsLive);
         compiledMaster.put (this.destinationWorkspaces.get (WorkspaceSelection.Destination.NOTE), compiledMaster.get (compiled.get (WorkspaceSelection.Id.DEFAULT)));
+        compiledMaster.put (this.clipTimelineWorkspace, ClipTimelineWorkspace.master (controllerViews, retainedClipTimelineView));
         this.masterWorkspaces = Map.copyOf (compiledMaster);
         this.workspace = this.desiredWorkspace (snapshot);
         this.lifecycle = Lifecycle.RUNNING;
@@ -176,11 +185,12 @@ final class PullControllerCore implements ControllerCore
     {
         this.requireRunning ();
         final byte [] owner = this.playbackCoordinator.engineOwnerIdentity ().getBytes (StandardCharsets.UTF_8);
-        final ByteBuffer payload = ByteBuffer.allocate (Integer.BYTES + 4 + owner.length);
+        final ByteBuffer payload = ByteBuffer.allocate (Integer.BYTES + 5 + owner.length);
         payload.put ((byte) (this.selection.active () == WorkspaceSelection.Id.VS_LIVE ? 1 : 0));
         payload.put ((byte) (this.playbackCoordinator.engineOwnerPlaying () ? 1 : 0));
         payload.put ((byte) this.selection.selectedDestination ().ordinal ());
         payload.put ((byte) this.selection.pendingDestination ().ordinal ());
+        payload.put ((byte) this.clipTimelineState.resolution ());
         payload.putInt (owner.length);
         payload.put (owner);
         return new StateEnvelope (PullCoreProvider.STATE_SCHEMA, PullCoreProvider.STATE_SCHEMA_VERSION, payload.array ());
@@ -199,7 +209,8 @@ final class PullControllerCore implements ControllerCore
     {
         if (previousState.isEmpty ())
             return RestoredState.empty ();
-        final byte [] payload = previousState.get ().payload ();
+        final StateEnvelope envelope = previousState.get ();
+        final byte [] payload = envelope.payload ();
         if (payload.length < Integer.BYTES + 4)
             return RestoredState.empty ();
         final ByteBuffer buffer = ByteBuffer.wrap (payload);
@@ -213,12 +224,23 @@ final class PullControllerCore implements ControllerCore
         final WorkspaceSelection.Destination pendingDestination = WorkspaceSelection.Destination.values ()[pendingDestinationOrdinal];
         if (pendingDestination != WorkspaceSelection.Destination.NONE && pendingDestination != selectedDestination)
             return RestoredState.empty ();
+        final int clipTimelineResolution;
+        if (envelope.version () >= 5)
+        {
+            if (buffer.remaining () < Integer.BYTES + 1)
+                return RestoredState.empty ();
+            clipTimelineResolution = Byte.toUnsignedInt (buffer.get ());
+            if (clipTimelineResolution >= 3)
+                return RestoredState.empty ();
+        }
+        else
+            clipTimelineResolution = 0;
         final int ownerLength = buffer.getInt ();
         if (ownerLength < 0 || ownerLength > 1024 || ownerLength != buffer.remaining ())
-            return new RestoredState (workspace, selectedDestination, pendingDestination, "", false);
+            return new RestoredState (workspace, selectedDestination, pendingDestination, "", false, clipTimelineResolution);
         final byte [] owner = new byte [ownerLength];
         buffer.get (owner);
-        return new RestoredState (workspace, selectedDestination, pendingDestination, new String (owner, StandardCharsets.UTF_8), playing);
+        return new RestoredState (workspace, selectedDestination, pendingDestination, new String (owner, StandardCharsets.UTF_8), playing, clipTimelineResolution);
     }
 
 
@@ -272,7 +294,8 @@ final class PullControllerCore implements ControllerCore
         this.selection.observe (snapshot.bridge ().layout ());
         this.selection.observe (snapshot.bridge ().noteView ());
         this.observeVsLivePageReadback (snapshot.bridge ().layout ());
-        final CompiledWorkspace selectedWorkspace = this.selectedWorkspace (snapshot);
+        final boolean clipTimelineLayout = "CLIP_LENGTH".equals (snapshot.bridge ().layout ().viewId ());
+        final CompiledWorkspace selectedWorkspace = clipTimelineLayout ? this.clipTimelineWorkspace : this.selectedWorkspace (snapshot);
         final String mode = snapshot.bridge ().layout ().modeId ();
         final boolean masterLayout = "MASTER".equals (mode) || "MASTER_TEMP".equals (mode);
         if (this.masterNavigationLease != null)
@@ -456,11 +479,11 @@ final class PullControllerCore implements ControllerCore
     }
 
 
-    private record RestoredState (WorkspaceSelection.Id workspace, WorkspaceSelection.Destination selectedDestination, WorkspaceSelection.Destination pendingDestination, String engineOwnerIdentity, boolean engineOwnerPlaying)
+    private record RestoredState (WorkspaceSelection.Id workspace, WorkspaceSelection.Destination selectedDestination, WorkspaceSelection.Destination pendingDestination, String engineOwnerIdentity, boolean engineOwnerPlaying, int clipTimelineResolution)
     {
         private static RestoredState empty ()
         {
-            return new RestoredState (WorkspaceSelection.Id.DEFAULT, WorkspaceSelection.Destination.NONE, WorkspaceSelection.Destination.NONE, "", false);
+            return new RestoredState (WorkspaceSelection.Id.DEFAULT, WorkspaceSelection.Destination.NONE, WorkspaceSelection.Destination.NONE, "", false, 0);
         }
     }
 

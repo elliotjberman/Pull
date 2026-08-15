@@ -15,6 +15,7 @@ import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.output.RgbColor;
+import de.mossgrabers.pull.core.api.output.ControllerLight;
 import de.mossgrabers.pull.core.view.ControllerView;
 import de.mossgrabers.pull.core.view.SurfaceArea;
 import de.mossgrabers.pull.core.view.SurfaceClaim;
@@ -92,10 +93,10 @@ public final class SelectedTrackMuteSoloView implements ControllerView
     {
         final SelectedTrackSnapshot selected = snapshot.bridge ().selectedTrack ();
         if (!selected.exists ())
-            return new ViewOutput (Map.of (MUTE, OFF, SOLO, OFF), Map.of ());
-        return new ViewOutput (Map.of (
+            return new ViewOutput (ControllerLight.steadyLights (Map.of (MUTE, OFF, SOLO, OFF)), Map.of ());
+        return new ViewOutput (ControllerLight.steadyLights (Map.of (
             MUTE, selected.muted () ? MUTED : AVAILABLE,
-            SOLO, selected.soloed () ? SOLOED : AVAILABLE), Map.of ());
+            SOLO, selected.soloed () ? SOLOED : AVAILABLE)), Map.of ());
     }
 
 

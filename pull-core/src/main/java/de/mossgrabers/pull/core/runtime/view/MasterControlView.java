@@ -25,6 +25,7 @@ import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
+import de.mossgrabers.pull.core.api.output.ControllerLight;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.view.ControllerView;
 import de.mossgrabers.pull.core.view.ResolvedControllerAction;
@@ -168,7 +169,7 @@ public final class MasterControlView implements ControllerView
 
         final Map<ParameterSlot, ParameterTargetSnapshot> parameters = snapshot.bridge ().parameters ().slots ();
         final ControllerDisplayScene scene = MasterDisplayScene.render (master, parameters);
-        return new ViewOutput (lights, Map.of (), scene);
+        return new ViewOutput (ControllerLight.steadyLights (lights), Map.of (), scene);
     }
 
 

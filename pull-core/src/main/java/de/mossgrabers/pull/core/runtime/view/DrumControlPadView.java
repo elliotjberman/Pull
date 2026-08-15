@@ -15,6 +15,7 @@ import de.mossgrabers.pull.core.api.DesiredNotePerformance;
 import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
+import de.mossgrabers.pull.core.api.output.ControllerLight;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.view.ControllerView;
@@ -75,7 +76,7 @@ public final class DrumControlPadView implements ControllerView
         for (int slot = 0; slot < CoreControls.DRUM_CONTROL_PADS.size (); slot++)
             lights.put (CoreControls.DRUM_CONTROL_PADS.get (slot), feedback.isOn (CoreControllerMappings.DRUM_CONTROL_PADS.get (slot)) ? ON : OFF);
         return new ViewOutput (
-            lights,
+            ControllerLight.steadyLights (lights),
             Map.of (),
             ControllerDisplayScene.empty (),
             ControllerPadGridOverlay.inactive (),

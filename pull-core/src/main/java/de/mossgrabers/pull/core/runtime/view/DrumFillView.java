@@ -20,6 +20,7 @@ import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.output.RgbColor;
+import de.mossgrabers.pull.core.api.output.ControllerLight;
 import de.mossgrabers.pull.core.view.ControllerView;
 import de.mossgrabers.pull.core.view.SurfaceArea;
 import de.mossgrabers.pull.core.view.SurfaceClaim;
@@ -148,7 +149,7 @@ public final class DrumFillView implements ControllerView
                 color = FILL_AVAILABLE;
             lights.put (FILL_LIGHTS.get (index), color);
         }
-        return new ViewOutput (lights, this.desiredBindings);
+        return new ViewOutput (ControllerLight.steadyLights (lights), this.desiredBindings);
     }
 
 

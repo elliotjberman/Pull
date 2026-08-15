@@ -6,6 +6,8 @@ package de.mossgrabers.pull.core.testing;
 import de.mossgrabers.pull.core.api.CatalogClip;
 import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
+import de.mossgrabers.pull.core.api.ClipTimelineSnapshot;
+import de.mossgrabers.pull.core.api.ClipTimelineTarget;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
@@ -73,6 +75,7 @@ import de.mossgrabers.pull.core.api.effect.StopSessionBankEffect;
 import de.mossgrabers.pull.core.api.effect.StopSessionTrackEffect;
 import de.mossgrabers.pull.core.api.effect.SendNoteInputMidiEffect;
 import de.mossgrabers.pull.core.api.effect.SetSelectedTrackBooleanEffect;
+import de.mossgrabers.pull.core.api.effect.SetClipTimelineRangeEffect;
 import de.mossgrabers.pull.core.api.effect.TransportState;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.output.RgbColor;
@@ -158,7 +161,7 @@ class PullControllerCoreTest
         assertTrue (host.effects ().desiredOutput ().lights ().keySet ().containsAll (FILL_LIGHTS));
         assertTrue (host.effects ().desiredOutput ().lights ().keySet ().stream ().noneMatch (CoreControls.DRUM_FILLS::contains));
         assertTrue (host.effects ().desiredOutput ().lights ().keySet ().containsAll (Set.of (PLAY_BUTTON, RECORD_BUTTON, MUTE_BUTTON, SOLO_BUTTON)));
-        assertTrue (host.effects ().desiredOutput ().lights ().values ().stream ().allMatch (OFF::equals));
+        assertTrue (host.effects ().desiredOutput ().lights ().values ().stream ().map (de.mossgrabers.pull.core.api.output.ControllerLight::color).allMatch (OFF::equals));
     }
 
 
@@ -737,7 +740,7 @@ class PullControllerCoreTest
         assertEquals (new SetProjectEngineEffect ("project-a", false), host.effects ().executionOrder ().getLast ());
 
         host.bridge (masterBridge (true, true, false, false));
-        assertEquals (new RgbColor (255, 255, 255), host.effects ().desiredOutput ().lights ().get (engine));
+        assertEquals (new RgbColor (255, 255, 255), host.effects ().desiredOutput ().lights ().get (engine).color ());
 
         final ControlId open = PushControlIds.button ("ROW1_7");
         host.controllerButton (open, true);
@@ -753,7 +756,7 @@ class PullControllerCoreTest
 
         host.bridge (masterBridge (false, true, false));
         final int effectCount = host.effects ().executionOrder ().size ();
-        assertEquals (new RgbColor (30, 30, 30), host.effects ().desiredOutput ().lights ().get (previous));
+        assertEquals (new RgbColor (30, 30, 30), host.effects ().desiredOutput ().lights ().get (previous).color ());
         assertTrue (host.effects ().desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "Previous".equals (text.text ()) && new RgbColor (102, 102, 102).equals (text.color ())));
         host.controllerButton (previous, false);
         host.controllerButton (previous, true);
@@ -1630,6 +1633,48 @@ class PullControllerCoreTest
 
 
     @Test
+    void clipLengthLayoutActivatesTheCoreOwnedTimelineAndKeepsFeedbackAuthoritative ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        final ClipTimelineTarget target = new ClipTimelineTarget (11, 7, "track-7", 2);
+        host.bridge (clipTimelineBridge (target, new RgbColor (20, 80, 220)));
+
+        assertEquals (Set.of (ControllerViewFacet.TRACK_MIXER_PAGE, ControllerViewFacet.CLIP_TIMELINE), host.effects ().desiredControllerWorkspace ().facets ());
+        assertTrue (host.effects ().desiredBridgeSubscriptions ().includes (BridgeSubscription.CLIP_TIMELINE));
+        assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (PushControlIds.pad (57), InputKind.PAD));
+        assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (PushControlIds.button ("SCENE1"), InputKind.BUTTON));
+
+        host.controllerPad (PushControlIds.pad (59), true);
+        host.controllerPad (PushControlIds.pad (59), false);
+
+        assertEquals (new SetClipTimelineRangeEffect (target, 8, 4), host.effects ().executionOrder ().getLast ());
+        assertEquals (WHITE, light (host, PushControlIds.pad (59)));
+    }
+
+
+    @Test
+    void checkpointRestoresClipTimelineResolution ()
+    {
+        final ClipTimelineTarget target = new ClipTimelineTarget (11, 7, "track-7", 2);
+        final FakeCoreHost first = host (ClipCatalogSnapshot.empty ());
+        first.start (Optional.empty ());
+        first.bridge (clipTimelineBridge (target, new RgbColor (20, 80, 220)));
+        first.controllerButton (PushControlIds.button ("SCENE2"), true);
+
+        final PullCoreProvider provider = new PullCoreProvider ();
+        final FakeCoreHost restored = new FakeCoreHost (provider.create (), provider.descriptor ().requiredCapabilities ());
+        restored.start (Optional.of (first.checkpoint ()));
+        restored.bridge (clipTimelineBridge (target, new RgbColor (20, 80, 220)));
+
+        assertEquals (new RgbColor (255, 84, 0), light (restored, PushControlIds.button ("SCENE2")));
+        restored.controllerPad (PushControlIds.pad (60), true);
+        restored.controllerPad (PushControlIds.pad (60), false);
+        assertEquals (new SetClipTimelineRangeEffect (target, 3, 1), restored.effects ().executionOrder ().getLast ());
+    }
+
+
+    @Test
     void defaultDrumAndVsLiveMapPlayablePadPressureInTheReloadableCore ()
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
@@ -1964,7 +2009,7 @@ class PullControllerCoreTest
         host.controllerButton (LAYOUT_BUTTON, true);
 
         assertTrue (host.effects ().executionOrder ().isEmpty ());
-        assertEquals (ControllerNoteView.CLIP_LENGTH, host.effects ().desiredControllerLayout ().noteView ());
+        assertEquals (ControllerNoteView.NONE, host.effects ().desiredControllerLayout ().noteView ());
     }
 
 
@@ -2400,6 +2445,20 @@ class PullControllerCoreTest
     }
 
 
+    private static ControllerBridgeSnapshot clipTimelineBridge (final ClipTimelineTarget target, final RgbColor color)
+    {
+        return new ControllerBridgeSnapshot (
+            transport (true, true, false),
+            selectedTrack (false),
+            new ControllerLayoutSnapshot (1, "CLIP_LENGTH", "TRACK", false, false, 0, GridPressureConfiguration.OFF),
+            new ClipTimelineSnapshot (Optional.of (target), 0, 8, 16, 4, 0.25, color),
+            DrumContextSnapshot.empty (),
+            ParameterBridgeSnapshot.empty (),
+            MasterSnapshot.empty (),
+            ProjectSnapshot.empty ());
+    }
+
+
     private static ControllerBridgeSnapshot sessionBridge (final long layoutGeneration, final String view, final String mode, final SessionBankShape shape)
     {
         final SelectedTrackSnapshot selected = selectedTrack (false);
@@ -2704,6 +2763,6 @@ class PullControllerCoreTest
     {
         final int fillIndex = CoreControls.DRUM_FILLS.indexOf (control);
         final ControlId physicalControl = fillIndex < 0 ? control : FILL_LIGHTS.get (fillIndex);
-        return host.effects ().desiredOutput ().lights ().get (physicalControl);
+        return host.effects ().desiredOutput ().lights ().get (physicalControl).color ();
     }
 }

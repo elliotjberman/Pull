@@ -19,6 +19,7 @@ import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.event.TimerElapsedEvent;
 import de.mossgrabers.pull.core.api.event.TouchInputEvent;
 import de.mossgrabers.pull.core.api.output.DesiredHardwareOutput;
+import de.mossgrabers.pull.core.api.output.ControllerLight;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 
 import java.nio.ByteBuffer;
@@ -149,7 +150,7 @@ final class DeterministicTimerCore implements ControllerCore
 
     private DesiredHardwareOutput output ()
     {
-        return new DesiredHardwareOutput (Map.of (LIGHT_ID, new RgbColor (0, Math.min (this.pulses, 255), 0)));
+        return new DesiredHardwareOutput (Map.of (LIGHT_ID, ControllerLight.steady (new RgbColor (0, Math.min (this.pulses, 255), 0))));
     }
 
 

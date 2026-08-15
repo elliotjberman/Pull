@@ -100,6 +100,8 @@ class ControllerWorkspaceHostTest
         assertEquals (Modes.TRACK, modes.getActiveID ());
         assertEquals (Views.SESSION, ControllerWorkspaceHost.desiredGridView (session));
         assertEquals (Views.WORKSPACE, ControllerWorkspaceHost.desiredGridView (vsLive));
+        assertEquals (Views.CLIP_LENGTH, ControllerWorkspaceHost.desiredGridView (new DesiredControllerWorkspace (
+            "Clip Timeline", Set.of (ControllerViewFacet.CLIP_TIMELINE), SessionBankShape.empty ())));
         assertNull (ControllerWorkspaceHost.desiredGridView (DesiredControllerWorkspace.empty ()));
     }
 

@@ -22,6 +22,7 @@ import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.output.RgbColor;
+import de.mossgrabers.pull.core.api.output.ControllerLight;
 import de.mossgrabers.pull.core.view.ControllerView;
 import de.mossgrabers.pull.core.view.SurfaceArea;
 import de.mossgrabers.pull.core.view.SurfaceClaim;
@@ -107,7 +108,7 @@ public final class SessionView implements ControllerView
     public ViewOutput render (final ControllerSnapshot snapshot)
     {
         final RgbColor color = snapshot.pressedControls ().contains (STOP_CLIP) ? STOP_HELD : STOP_AVAILABLE;
-        return new ViewOutput (Map.of (STOP_CLIP, color), Map.of ());
+        return new ViewOutput (ControllerLight.steadyLights (Map.of (STOP_CLIP, color)), Map.of ());
     }
 
 

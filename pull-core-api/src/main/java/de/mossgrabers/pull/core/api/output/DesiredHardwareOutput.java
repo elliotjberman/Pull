@@ -12,13 +12,13 @@ import java.util.Objects;
 /**
  * Complete replayable hardware state currently owned by the core.
  *
- * @param lights Desired light colors by stable control identifier
+ * @param lights Desired steady or tempo-clocked lights by stable control identifier
  * @param display Complete controller display scene
  * @param padGridOverlay Temporary sparse pad-grid overlay
  * @param displayOverlay Temporary complete scene above the current display page
  * @param controllerMappings Physical-to-semantic host-learned action projections
  */
-public record DesiredHardwareOutput (Map<ControlId, RgbColor> lights, ControllerDisplayScene display, ControllerPadGridOverlay padGridOverlay, ControllerDisplayOverlay displayOverlay, DesiredControllerMappings controllerMappings)
+public record DesiredHardwareOutput (Map<ControlId, ControllerLight> lights, ControllerDisplayScene display, ControllerPadGridOverlay padGridOverlay, ControllerDisplayOverlay displayOverlay, DesiredControllerMappings controllerMappings)
 {
     private static final DesiredHardwareOutput EMPTY = new DesiredHardwareOutput (Map.of (), ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), DesiredControllerMappings.empty ());
 
@@ -37,30 +37,30 @@ public record DesiredHardwareOutput (Map<ControlId, RgbColor> lights, Controller
 
 
     /** Compatibility constructor without host-learned action ownership. */
-    public DesiredHardwareOutput (final Map<ControlId, RgbColor> lights, final ControllerDisplayScene display, final ControllerPadGridOverlay padGridOverlay, final ControllerDisplayOverlay displayOverlay)
+    public DesiredHardwareOutput (final Map<ControlId, ControllerLight> lights, final ControllerDisplayScene display, final ControllerPadGridOverlay padGridOverlay, final ControllerDisplayOverlay displayOverlay)
     {
         this (lights, display, padGridOverlay, displayOverlay, DesiredControllerMappings.empty ());
     }
 
 
     /** Compatibility constructor without a display overlay. */
-    public DesiredHardwareOutput (final Map<ControlId, RgbColor> lights, final ControllerDisplayScene display, final ControllerPadGridOverlay padGridOverlay)
+    public DesiredHardwareOutput (final Map<ControlId, ControllerLight> lights, final ControllerDisplayScene display, final ControllerPadGridOverlay padGridOverlay)
     {
-        this (lights, display, padGridOverlay, ControllerDisplayOverlay.inactive ());
+        this (lights, display, padGridOverlay, ControllerDisplayOverlay.inactive (), DesiredControllerMappings.empty ());
     }
 
 
     /** Compatibility constructor without temporary overlays. */
-    public DesiredHardwareOutput (final Map<ControlId, RgbColor> lights, final ControllerDisplayScene display)
+    public DesiredHardwareOutput (final Map<ControlId, ControllerLight> lights, final ControllerDisplayScene display)
     {
-        this (lights, display, ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive ());
+        this (lights, display, ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), DesiredControllerMappings.empty ());
     }
 
 
     /** Compatibility constructor without a display override. */
-    public DesiredHardwareOutput (final Map<ControlId, RgbColor> lights)
+    public DesiredHardwareOutput (final Map<ControlId, ControllerLight> lights)
     {
-        this (lights, ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive ());
+        this (lights, ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), DesiredControllerMappings.empty ());
     }
 
 

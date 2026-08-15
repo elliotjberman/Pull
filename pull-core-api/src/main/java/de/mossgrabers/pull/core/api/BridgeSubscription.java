@@ -24,6 +24,9 @@ public enum BridgeSubscription
     /** Current visible view/mode and reconciled drum-layout state. */
     CONTROLLER_LAYOUT,
 
+    /** Selected audio clip range, playback, and exact mutation target. */
+    CLIP_TIMELINE,
+
     /** Selected-target-fenced per-track note-view preference. */
     NOTE_VIEW,
 

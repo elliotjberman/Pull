@@ -35,6 +35,7 @@ import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.event.TouchInputEvent;
 import de.mossgrabers.pull.core.api.output.DesiredHardwareOutput;
+import de.mossgrabers.pull.core.api.output.ControllerLight;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
@@ -286,7 +287,7 @@ public final class CompiledWorkspace
 
     private CoreResult render (final ControllerSnapshot snapshot, final List<CoreEffect> effects)
     {
-        final Map<ControlId, RgbColor> lights = new LinkedHashMap<> ();
+        final Map<ControlId, ControllerLight> lights = new LinkedHashMap<> ();
         final Map<ControlId, ClipTargetId> clipBindings = new LinkedHashMap<> ();
         final Set<ControllerMappingBinding> controllerMappingBindings = new LinkedHashSet<> ();
         final Set<ControlId> mappedPhysicalControls = new LinkedHashSet<> ();

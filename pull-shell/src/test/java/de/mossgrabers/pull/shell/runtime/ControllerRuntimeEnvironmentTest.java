@@ -56,6 +56,8 @@ import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.event.SnapshotChangedEvent;
 import de.mossgrabers.pull.core.api.output.DesiredHardwareOutput;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
+import de.mossgrabers.pull.core.api.output.ControllerLight;
+import de.mossgrabers.pull.core.api.output.LightBlinkRate;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
 import de.mossgrabers.pull.core.api.output.DisplayCommand;
@@ -123,13 +125,14 @@ class ControllerRuntimeEnvironmentTest
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.BINDING_CLIP_TARGET));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION));
         assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD));
-        assertEquals (Integer.valueOf (6), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_RGB_LIGHT));
+        assertEquals (Integer.valueOf (7), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_RGB_LIGHT));
         assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_MAPPING));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_STATE));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_NOTE_VIEW_PREFERENCE));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_NOTE_REPEAT));
         assertEquals (Integer.valueOf (5), initial.capabilities ().versions ().get (CoreCapabilities.ROUTING_CONTROLLER_INPUT));
-        assertEquals (Integer.valueOf (10), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE));
+        assertEquals (Integer.valueOf (11), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE));
+        assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_CLIP_TIMELINE));
         assertEquals (Integer.valueOf (3), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_SESSION_BANK));
         assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_CONTROLLER_BUTTON_CONSUMPTION));
         assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_PARAMETER_TARGETS));
@@ -139,6 +142,7 @@ class ControllerRuntimeEnvironmentTest
         assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_MASTER));
         assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_DISPLAY));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_PAD_GRID_OVERLAY));
+        assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_CLIP_TIMELINE));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_DISPLAY_OVERLAY));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.RENDER_MIXER_CONTROLS));
         assertTrue (initial.clipLaunchSessionTargets ().isEmpty ());
@@ -251,7 +255,7 @@ class ControllerRuntimeEnvironmentTest
         final ControllerDisplayScene display = new ControllerDisplayScene (960, 160, List.of (new DisplayCommand.Rectangle (0, 0, 960, 160, OFF)));
         final DesiredControllerWorkspace workspace = new DesiredControllerWorkspace ("Master", Set.of (ControllerViewFacet.MASTER_CONTROLS), SessionBankShape.empty ());
         final CoreResult masterResult = new CoreResult (
-            new DesiredHardwareOutput (Map.of (previous, BRIGHT_RED), display),
+            new DesiredHardwareOutput (ControllerLight.steadyLights (Map.of (previous, BRIGHT_RED)), display),
             DesiredInputRoutes.empty (),
             DesiredBridgeSubscriptions.empty (),
             Map.of (),
@@ -268,7 +272,7 @@ class ControllerRuntimeEnvironmentTest
         assertEquals (display, environment.controllerDisplay ());
         assertEquals (workspace, bridge.appliedWorkspace);
         assertThrows (IllegalArgumentException.class, () -> environment.prepare (new CoreResult (
-            new DesiredHardwareOutput (Map.of (previous, BRIGHT_RED), display),
+            new DesiredHardwareOutput (ControllerLight.steadyLights (Map.of (previous, BRIGHT_RED)), display),
             DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), Map.of (),
             de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
             DesiredParameterBanks.empty (), DesiredParameterInteraction.empty (), List.of ())));
@@ -276,6 +280,31 @@ class ControllerRuntimeEnvironmentTest
         environment.invalidate (10);
         assertFalse (environment.controllerDisplay ().isPresent ());
         assertEquals (OFF, environment.lightColor (previous));
+    }
+
+
+    @Test
+    void preservesAnimatedGridLightsAndRejectsBlinkPolicyOnButtons ()
+    {
+        final ControllerRuntimeEnvironment environment = environment (host (1));
+        final ControlId pad = PushControlIds.pad (1);
+        final ControlId button = PushControlIds.button ("SCENE1");
+        environment.setPhysicalLightOwnerValidator (Set.of (pad, button)::contains);
+        final ControllerLight playing = ControllerLight.playing (BRIGHT_RED, new RgbColor (0, 255, 0));
+        final CoreResult animatedPad = new CoreResult (
+            new DesiredHardwareOutput (Map.of (pad, playing)),
+            DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), Map.of (),
+            de.mossgrabers.pull.core.api.DesiredControllerActions.empty (), DesiredParameterBanks.empty (), DesiredParameterInteraction.empty (), List.of ());
+
+        commitAndApply (environment, 9, animatedPad);
+
+        assertEquals (playing, environment.light (pad));
+        assertEquals (LightBlinkRate.SLOW, environment.light (pad).blinkRate ());
+        final CoreResult animatedButton = new CoreResult (
+            new DesiredHardwareOutput (Map.of (button, playing)),
+            DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), Map.of (),
+            de.mossgrabers.pull.core.api.DesiredControllerActions.empty (), DesiredParameterBanks.empty (), DesiredParameterInteraction.empty (), List.of ());
+        assertThrows (IllegalArgumentException.class, () -> environment.prepare (animatedButton));
     }
 
 
@@ -322,7 +351,7 @@ class ControllerRuntimeEnvironmentTest
         final DesiredControllerMappings mappings = new DesiredControllerMappings (Set.of (binding));
         final DesiredInputRoutes routes = new DesiredInputRoutes (Set.of (new InputRoute (pad, InputKind.PAD, InputRouteMode.EXCLUSIVE)));
         final DesiredHardwareOutput output = new DesiredHardwareOutput (
-            Map.of (pad, BRIGHT_RED),
+            ControllerLight.steadyLights (Map.of (pad, BRIGHT_RED)),
             ControllerDisplayScene.empty (),
             ControllerPadGridOverlay.inactive (),
             ControllerDisplayOverlay.inactive (),
@@ -357,7 +386,7 @@ class ControllerRuntimeEnvironmentTest
         final DesiredControllerMappings unsupportedSemanticMapping = new DesiredControllerMappings (Set.of (
             new ControllerMappingBinding (pad, new ControllerMappingId ("not-installed"))));
         assertThrows (IllegalArgumentException.class, () -> environment.prepare (routedResult (
-            new DesiredHardwareOutput (Map.of (pad, BRIGHT_RED), ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), unsupportedSemanticMapping),
+            new DesiredHardwareOutput (ControllerLight.steadyLights (Map.of (pad, BRIGHT_RED)), ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), unsupportedSemanticMapping),
             routes,
             CONTROLLER_MAPPING_SUBSCRIPTIONS)));
         final ControlId unsupportedPhysical = new ControlId ("not-installed");
@@ -366,7 +395,7 @@ class ControllerRuntimeEnvironmentTest
         final DesiredInputRoutes unsupportedPhysicalRoute = new DesiredInputRoutes (Set.of (
             new InputRoute (unsupportedPhysical, InputKind.PAD, InputRouteMode.EXCLUSIVE)));
         assertThrows (IllegalArgumentException.class, () -> environment.prepare (routedResult (
-            new DesiredHardwareOutput (Map.of (unsupportedPhysical, BRIGHT_RED), ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), unsupportedPhysicalMapping),
+            new DesiredHardwareOutput (ControllerLight.steadyLights (Map.of (unsupportedPhysical, BRIGHT_RED)), ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), unsupportedPhysicalMapping),
             unsupportedPhysicalRoute,
             CONTROLLER_MAPPING_SUBSCRIPTIONS)));
     }
@@ -389,7 +418,7 @@ class ControllerRuntimeEnvironmentTest
             new InputRoute (first, InputKind.PAD, InputRouteMode.EXCLUSIVE),
             new InputRoute (second, InputKind.PAD, InputRouteMode.EXCLUSIVE)));
         final DesiredHardwareOutput output = new DesiredHardwareOutput (
-            Map.of (first, BRIGHT_RED, second, BRIGHT_RED),
+            ControllerLight.steadyLights (Map.of (first, BRIGHT_RED, second, BRIGHT_RED)),
             ControllerDisplayScene.empty (),
             ControllerPadGridOverlay.inactive (),
             ControllerDisplayOverlay.inactive (),
@@ -415,7 +444,7 @@ class ControllerRuntimeEnvironmentTest
         final DesiredNotePerformance performance = new DesiredNotePerformance (layout, route);
         final DesiredNoteRepeat repeat = new DesiredNoteRepeat (true, true, NoteRepeatMode.UP, 0, 0.25, 0.5, false, false, true, true);
         final CoreResult result = new CoreResult (
-            new DesiredHardwareOutput (Map.of (CoreControls.DRUM_RATES.get (0), BRIGHT_RED)),
+            new DesiredHardwareOutput (ControllerLight.steadyLights (Map.of (CoreControls.DRUM_RATES.get (0), BRIGHT_RED))),
             DesiredInputRoutes.empty (),
             DesiredBridgeSubscriptions.empty (),
             Map.of (),
@@ -514,7 +543,7 @@ class ControllerRuntimeEnvironmentTest
         final DesiredControllerWorkspace workspace = new DesiredControllerWorkspace ("Master", Set.of (ControllerViewFacet.MASTER_CONTROLS), SessionBankShape.empty ());
         final ControlId ratePad = CoreControls.DRUM_RATES.get (0);
         final CoreResult result = new CoreResult (
-            new DesiredHardwareOutput (Map.of (previous, BRIGHT_RED, ratePad, BRIGHT_RED), display, padOverlay, displayOverlay),
+            new DesiredHardwareOutput (ControllerLight.steadyLights (Map.of (previous, BRIGHT_RED, ratePad, BRIGHT_RED)), display, padOverlay, displayOverlay),
             DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), Map.of (FIRST, FIRST_TARGET),
             new DesiredControllerState (workspace, DesiredNotePerformance.inactive ()), DesiredNoteRepeat.unowned (), de.mossgrabers.pull.core.api.DesiredControllerActions.empty (), DesiredParameterBanks.empty (),
             DesiredParameterInteraction.empty (), new CoreExecutionRequirements (true),
@@ -1187,7 +1216,7 @@ class ControllerRuntimeEnvironmentTest
     private static CoreResult result (final Map<ControlId, RgbColor> lights, final Map<ControlId, ClipTargetId> bindings, final List<CoreEffect> effects)
     {
         return new CoreResult (
-            new DesiredHardwareOutput (lights),
+            new DesiredHardwareOutput (ControllerLight.steadyLights (lights)),
             DesiredInputRoutes.empty (),
             DesiredBridgeSubscriptions.empty (),
             bindings,

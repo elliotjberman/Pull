@@ -43,6 +43,7 @@ import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
+import de.mossgrabers.pull.core.api.output.ControllerLight;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
 import de.mossgrabers.pull.core.api.output.DisplayCommand;
 import de.mossgrabers.pull.core.api.output.RgbColor;
@@ -104,7 +105,7 @@ class CompiledWorkspaceTest
             @Override
             public ViewOutput render (final ControllerSnapshot ignored)
             {
-                return new ViewOutput (Map.of (PushControlIds.button ("RECORD"), new RgbColor (255, 0, 0)), Map.of ());
+                return new ViewOutput (Map.of (PushControlIds.button ("RECORD"), ControllerLight.steady (new RgbColor (255, 0, 0))), Map.of ());
             }
         };
         final CompiledWorkspace workspace = CompiledWorkspace.compile ("invalid-light", List.of (invalid));

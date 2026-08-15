@@ -18,6 +18,7 @@ import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
 import de.mossgrabers.pull.core.api.output.RgbColor;
+import de.mossgrabers.pull.core.api.output.ControllerLight;
 import de.mossgrabers.pull.core.view.ControllerView;
 import de.mossgrabers.pull.core.view.SurfaceArea;
 import de.mossgrabers.pull.core.view.SurfaceClaim;
@@ -132,7 +133,7 @@ public final class DrumRateView implements ControllerView
             final boolean selected = acknowledged && (index == primary || index == secondary);
             lights.put (RATE_PADS.get (index), !enabled ? OFF : selected ? ACTIVE : this.padsDown[index] ? HELD : AVAILABLE);
         }
-        return new ViewOutput (lights, Map.of (), ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), DesiredNotePerformance.inactive (), desired);
+        return new ViewOutput (ControllerLight.steadyLights (lights), Map.of (), ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), DesiredNotePerformance.inactive (), desired);
     }
 
 

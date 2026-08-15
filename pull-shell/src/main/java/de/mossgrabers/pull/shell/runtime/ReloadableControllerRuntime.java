@@ -24,6 +24,7 @@ import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.event.ParameterMutationEvent;
 import de.mossgrabers.pull.shell.input.PhysicalInputEvent;
 import de.mossgrabers.pull.core.api.output.RgbColor;
+import de.mossgrabers.pull.core.api.output.ControllerLight;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
@@ -82,6 +83,15 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         if (this.environment == null || this.closed)
             return OFF;
         return this.environment.lightColor (Objects.requireNonNull (control, "control"));
+    }
+
+
+    /** Get a replayable core-owned light including tempo-clocked blink state. */
+    public ControllerLight light (final ControlId control)
+    {
+        if (this.environment == null || this.closed)
+            return ControllerLight.steady (OFF);
+        return this.environment.light (Objects.requireNonNull (control, "control"));
     }
 
 

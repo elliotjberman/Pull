@@ -18,6 +18,7 @@ import de.mossgrabers.pull.core.api.effect.StopSessionTrackEffect;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.output.RgbColor;
+import de.mossgrabers.pull.core.api.output.ControllerLight;
 import de.mossgrabers.pull.core.view.ControllerView;
 import de.mossgrabers.pull.core.view.ResolvedControllerAction;
 import de.mossgrabers.pull.core.view.SurfaceArea;
@@ -147,7 +148,7 @@ public final class TrackSelectionStripView implements ControllerView
             lights.put (TRACK_BUTTONS.get (index), !track.exists () || !track.activated () ? OFF : track.recordArmed () ? RECORD_ARMED : track.color ());
         }
         return new ViewOutput (
-            lights,
+            ControllerLight.steadyLights (lights),
             Map.of (),
             TrackFooterDisplayScene.render (tracks));
     }

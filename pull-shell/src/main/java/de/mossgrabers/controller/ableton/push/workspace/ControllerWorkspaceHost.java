@@ -107,6 +107,8 @@ public final class ControllerWorkspaceHost
             throw new IllegalArgumentException ("Upper and full Session views cannot be active together");
         if (candidate.facets ().contains (ControllerViewFacet.SESSION_GRID_FULL) && (candidate.facets ().contains (ControllerViewFacet.DRUM_CONTROLLER_LOWER) || candidate.facets ().contains (ControllerViewFacet.SESSION_NAVIGATION) || candidate.facets ().contains (ControllerViewFacet.SESSION_SCENE_KEYS_UPPER)))
             throw new IllegalArgumentException ("Full Session cannot overlap a separately composed grid or navigation facet");
+        if (candidate.facets ().contains (ControllerViewFacet.CLIP_TIMELINE) && (candidate.facets ().contains (ControllerViewFacet.SESSION_CLIP_GRID_UPPER) || candidate.facets ().contains (ControllerViewFacet.SESSION_GRID_FULL) || candidate.facets ().contains (ControllerViewFacet.DRUM_CONTROLLER_LOWER)))
+            throw new IllegalArgumentException ("Clip Timeline cannot share the pad grid with another workspace");
         ControllerPageLease.validate (candidate);
         return candidate;
     }
@@ -144,7 +146,7 @@ public final class ControllerWorkspaceHost
 
         if (!wantsGrid && hadGrid)
         {
-            if (viewManager.isActive (Views.WORKSPACE) && this.previousView != null)
+            if ((viewManager.isActive (Views.WORKSPACE) || viewManager.isActive (Views.CLIP_LENGTH)) && this.previousView != null)
                 viewManager.setActive (this.previousView);
             this.previousView = null;
         }
@@ -207,6 +209,8 @@ public final class ControllerWorkspaceHost
         final DesiredControllerWorkspace checked = Objects.requireNonNull (workspace, "workspace");
         if (checked.facets ().contains (ControllerViewFacet.SESSION_GRID_FULL))
             return Views.SESSION;
+        if (checked.facets ().contains (ControllerViewFacet.CLIP_TIMELINE))
+            return Views.CLIP_LENGTH;
         if (checked.facets ().contains (ControllerViewFacet.SESSION_CLIP_GRID_UPPER) || checked.facets ().contains (ControllerViewFacet.SESSION_SCENE_KEYS_UPPER) || checked.facets ().contains (ControllerViewFacet.DRUM_CONTROLLER_LOWER))
             return Views.WORKSPACE;
         return null;

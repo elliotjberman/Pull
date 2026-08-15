@@ -8,6 +8,7 @@ import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.DesiredControllerMappings;
 import de.mossgrabers.pull.core.api.DesiredNotePerformance;
 import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
+import de.mossgrabers.pull.core.api.output.ControllerLight;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
@@ -30,7 +31,7 @@ import java.util.Objects;
  * @param noteRepeat Complete replayable note-repeat ownership and state
  * @param controllerMappings Physical-to-semantic host-learned action projections
  */
-public record ViewOutput (Map<ControlId, RgbColor> lights, Map<ControlId, ClipTargetId> clipBindings, ControllerDisplayScene display, ControllerPadGridOverlay padGridOverlay, ControllerDisplayOverlay displayOverlay, DesiredNotePerformance notePerformance, DesiredNoteRepeat noteRepeat, DesiredControllerMappings controllerMappings)
+public record ViewOutput (Map<ControlId, ControllerLight> lights, Map<ControlId, ClipTargetId> clipBindings, ControllerDisplayScene display, ControllerPadGridOverlay padGridOverlay, ControllerDisplayOverlay displayOverlay, DesiredNotePerformance notePerformance, DesiredNoteRepeat noteRepeat, DesiredControllerMappings controllerMappings)
 {
     private static final ViewOutput EMPTY = new ViewOutput (Map.of (), Map.of (), ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), DesiredNotePerformance.inactive (), DesiredNoteRepeat.unowned (), DesiredControllerMappings.empty ());
 
@@ -52,35 +53,35 @@ public record ViewOutput (Map<ControlId, RgbColor> lights, Map<ControlId, ClipTa
 
 
     /** Compatibility constructor without host-learned action ownership. */
-    public ViewOutput (final Map<ControlId, RgbColor> lights, final Map<ControlId, ClipTargetId> clipBindings, final ControllerDisplayScene display, final ControllerPadGridOverlay padGridOverlay, final ControllerDisplayOverlay displayOverlay, final DesiredNotePerformance notePerformance, final DesiredNoteRepeat noteRepeat)
+    public ViewOutput (final Map<ControlId, ControllerLight> lights, final Map<ControlId, ClipTargetId> clipBindings, final ControllerDisplayScene display, final ControllerPadGridOverlay padGridOverlay, final ControllerDisplayOverlay displayOverlay, final DesiredNotePerformance notePerformance, final DesiredNoteRepeat noteRepeat)
     {
         this (lights, clipBindings, display, padGridOverlay, displayOverlay, notePerformance, noteRepeat, DesiredControllerMappings.empty ());
     }
 
 
     /** Compatibility constructor without controller-mechanism ownership. */
-    public ViewOutput (final Map<ControlId, RgbColor> lights, final Map<ControlId, ClipTargetId> clipBindings, final ControllerDisplayScene display, final ControllerPadGridOverlay padGridOverlay, final ControllerDisplayOverlay displayOverlay)
+    public ViewOutput (final Map<ControlId, ControllerLight> lights, final Map<ControlId, ClipTargetId> clipBindings, final ControllerDisplayScene display, final ControllerPadGridOverlay padGridOverlay, final ControllerDisplayOverlay displayOverlay)
     {
         this (lights, clipBindings, display, padGridOverlay, displayOverlay, DesiredNotePerformance.inactive (), DesiredNoteRepeat.unowned ());
     }
 
 
     /** Compatibility constructor without a display overlay. */
-    public ViewOutput (final Map<ControlId, RgbColor> lights, final Map<ControlId, ClipTargetId> clipBindings, final ControllerDisplayScene display, final ControllerPadGridOverlay padGridOverlay)
+    public ViewOutput (final Map<ControlId, ControllerLight> lights, final Map<ControlId, ClipTargetId> clipBindings, final ControllerDisplayScene display, final ControllerPadGridOverlay padGridOverlay)
     {
         this (lights, clipBindings, display, padGridOverlay, ControllerDisplayOverlay.inactive ());
     }
 
 
     /** Compatibility constructor without a pad-grid overlay. */
-    public ViewOutput (final Map<ControlId, RgbColor> lights, final Map<ControlId, ClipTargetId> clipBindings, final ControllerDisplayScene display)
+    public ViewOutput (final Map<ControlId, ControllerLight> lights, final Map<ControlId, ClipTargetId> clipBindings, final ControllerDisplayScene display)
     {
         this (lights, clipBindings, display, ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive ());
     }
 
 
     /** Compatibility constructor without a display override. */
-    public ViewOutput (final Map<ControlId, RgbColor> lights, final Map<ControlId, ClipTargetId> clipBindings)
+    public ViewOutput (final Map<ControlId, ControllerLight> lights, final Map<ControlId, ClipTargetId> clipBindings)
     {
         this (lights, clipBindings, ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive ());
     }

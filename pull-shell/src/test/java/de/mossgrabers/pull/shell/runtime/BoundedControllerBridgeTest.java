@@ -26,6 +26,7 @@ import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.IMasterTrack;
 import de.mossgrabers.framework.daw.data.bank.IDrumPadBank;
 import de.mossgrabers.framework.daw.data.bank.ISlotBank;
+import de.mossgrabers.framework.daw.clip.INoteClip;
 import de.mossgrabers.framework.daw.midi.IMidiInput;
 import de.mossgrabers.framework.daw.midi.IMidiOutput;
 import de.mossgrabers.framework.daw.midi.INoteInput;
@@ -43,6 +44,7 @@ import de.mossgrabers.framework.view.Views;
 import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.CoreControllerMappings;
+import de.mossgrabers.pull.core.api.ClipTimelineTarget;
 import de.mossgrabers.pull.core.api.ControllerNoteView;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
@@ -69,6 +71,7 @@ import de.mossgrabers.pull.core.api.effect.SendNoteInputMidiEffect;
 import de.mossgrabers.pull.core.api.effect.SetSelectedTrackBooleanEffect;
 import de.mossgrabers.pull.core.api.effect.SetParameterValueEffect;
 import de.mossgrabers.pull.core.api.effect.SetTransportStateEffect;
+import de.mossgrabers.pull.core.api.effect.SetClipTimelineRangeEffect;
 import de.mossgrabers.pull.core.api.effect.TransportState;
 
 import org.junit.jupiter.api.Test;
@@ -79,6 +82,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -142,6 +146,98 @@ class BoundedControllerBridgeTest
         fixture.bridge.refresh (2, subscriptions (BridgeSubscription.SELECTED_TRACK), DesiredParameterBanks.empty ());
         fixture.bridge.apply (fixture.bridge.prepare (new SetNoteViewPreferenceEffect (2, "track-b", 2, ControllerNoteView.DRUM_PAD)));
         assertEquals (Views.DRUM_PAD, fixture.surface.getViewManager ().getPreferredView (2));
+    }
+
+
+    @Test
+    void publishesClipTimelineOnlyWhenRequestedAndSelectionAndCursorAgree ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        assertEquals (BoundedControllerBridge.CLIP_TIMELINE_STEP_CAPACITY, fixture.clip.requestedSteps);
+        assertEquals (1, fixture.clip.requestedRows);
+        assertEquals (0.25, fixture.clip.stepLength);
+        fixture.selected.canHoldAudio = true;
+
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.CLIP_TIMELINE), DesiredParameterBanks.empty ());
+
+        assertTrue (fixture.bridge.snapshot ().clipTimeline ().available ());
+        assertFalse (fixture.bridge.snapshot ().selectedTrack ().exists ());
+        assertEquals ("track-a", fixture.bridge.snapshot ().clipTimeline ().target ().orElseThrow ().trackId ());
+        assertEquals (2, fixture.bridge.snapshot ().clipTimeline ().target ().orElseThrow ().sceneIndex ());
+        assertEquals (16, fixture.bridge.snapshot ().clipTimeline ().selectableEnd ());
+
+        fixture.clip.trackID = "pinned-track";
+        fixture.bridge.refresh (2, subscriptions (BridgeSubscription.CLIP_TIMELINE), DesiredParameterBanks.empty ());
+        assertFalse (fixture.bridge.snapshot ().clipTimeline ().available ());
+
+        fixture.bridge.refresh (3, DesiredBridgeSubscriptions.empty (), DesiredParameterBanks.empty ());
+        assertEquals (de.mossgrabers.pull.core.api.ClipTimelineSnapshot.empty (), fixture.bridge.snapshot ().clipTimeline ());
+    }
+
+
+    @Test
+    void clipTimelineSelectableExtentNeverShrinksForTheSameAuthoritativeTarget ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.selected.canHoldAudio = true;
+        final DesiredBridgeSubscriptions requested = subscriptions (BridgeSubscription.CLIP_TIMELINE);
+
+        fixture.bridge.refresh (1, requested, DesiredParameterBanks.empty ());
+        assertEquals (16, fixture.bridge.snapshot ().clipTimeline ().selectableEnd ());
+
+        fixture.clip.playEnd = 8;
+        fixture.clip.loopLength = 4;
+        fixture.bridge.refresh (2, requested, DesiredParameterBanks.empty ());
+
+        assertEquals (16, fixture.bridge.snapshot ().clipTimeline ().selectableEnd ());
+        assertEquals (4, fixture.bridge.snapshot ().clipTimeline ().loopLength ());
+    }
+
+
+    @Test
+    void clipTimelineRangeUsesAnExactPreparedIdentityAndWaitsForReadback ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.selected.canHoldAudio = true;
+        final DesiredBridgeSubscriptions requested = subscriptions (BridgeSubscription.CLIP_TIMELINE);
+        fixture.bridge.refresh (1, requested, DesiredParameterBanks.empty ());
+        final ClipTimelineTarget target = fixture.bridge.snapshot ().clipTimeline ().target ().orElseThrow ();
+        final ControllerBridge.PreparedAction prepared = fixture.bridge.prepare (new SetClipTimelineRangeEffect (target, 4, 12));
+
+        fixture.clip.trackID = "track-b";
+        fixture.bridge.apply (prepared);
+        assertTrue (fixture.clip.writes.isEmpty ());
+
+        fixture.clip.trackID = "track-a";
+        fixture.bridge.apply (prepared);
+        assertEquals (List.of ("loopStart:4.0", "loopLength:12.0", "playRange:4.0:16.0"), fixture.clip.writes);
+        assertEquals (0, fixture.bridge.snapshot ().clipTimeline ().loopStart (), "submitted writes are not authoritative read-back");
+        assertEquals (8, fixture.bridge.snapshot ().clipTimeline ().loopLength ());
+    }
+
+
+    @Test
+    void clipTimelinePreparedRangeRejectsEveryLiveMutableIdentitySeam ()
+    {
+        assertPreparedClipTimelineRangeRejected (fixture -> fixture.selected.switchTo (2, "track-a"));
+        assertPreparedClipTimelineRangeRejected (fixture -> fixture.clip.sceneIndex = 3);
+    }
+
+
+    private static void assertPreparedClipTimelineRangeRejected (final Consumer<BridgeFixture> mutateIdentity)
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.selected.canHoldAudio = true;
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.CLIP_TIMELINE), DesiredParameterBanks.empty ());
+        final ClipTimelineTarget target = fixture.bridge.snapshot ().clipTimeline ().target ().orElseThrow ();
+        final ControllerBridge.PreparedAction prepared = fixture.bridge.prepare (new SetClipTimelineRangeEffect (target, 4, 12));
+
+        mutateIdentity.accept (fixture);
+        fixture.bridge.apply (prepared);
+
+        assertTrue (fixture.clip.writes.isEmpty ());
+        assertEquals (0, fixture.bridge.snapshot ().clipTimeline ().loopStart ());
+        assertEquals (8, fixture.bridge.snapshot ().clipTimeline ().loopLength ());
     }
 
 
@@ -685,6 +781,7 @@ class BoundedControllerBridgeTest
         private final MutableTransport transport = new MutableTransport ();
         private final MutableDrum drum = new MutableDrum (this.selected);
         private final MutableDrum legacyDrum = new MutableDrum (this.selected);
+        private final MutableClip clip = new MutableClip ();
         private final MutableProject project = new MutableProject ();
         private final MutableApplication application = new MutableApplication ();
         private final List<MidiMessage> noteInputMidiMessages = new ArrayList<> ();
@@ -711,12 +808,18 @@ class BoundedControllerBridgeTest
             final ICursorTrack cursorTrack = this.drum.cursorTrack ();
             final IDrumDevice drumDevice = this.drum.device ();
             final IDrumDevice legacyDrumDevice = this.legacyDrum.device ();
+            final INoteClip noteClip = this.clip.proxy ();
             final Scales scales = new Scales (this.valueChanger, 36, 100, 8, 8);
             final IModel model = proxy (IModel.class, (proxy, method, arguments) -> switch (method.getName ())
             {
                 case "getTransport" -> transportProxy;
                 case "getCursorTrack" -> cursorTrack;
                 case "getDrumDevice" -> arguments == null || arguments.length == 0 ? drumDevice : legacyDrumDevice;
+                case "getNoteClip" -> {
+                    this.clip.requestedSteps = ((Integer) arguments[0]).intValue ();
+                    this.clip.requestedRows = ((Integer) arguments[1]).intValue ();
+                    yield noteClip;
+                }
                 case "getScales" -> scales;
                 case "getValueChanger" -> this.valueChanger;
                 case "getProject" -> this.project.proxy ();
@@ -924,6 +1027,7 @@ class BoundedControllerBridgeTest
     private static final class MutableSelectedTarget extends SelectedTrackNoteTargetAdapter
     {
         private boolean armed;
+        private boolean canHoldAudio;
         private boolean noteInputRouteActive;
         private int snapshotCount;
         private int armedWriteCount;
@@ -953,7 +1057,7 @@ class BoundedControllerBridgeTest
                 "Instrument",
                 2,
                 true,
-                false,
+                this.canHoldAudio,
                 false,
                 false,
                 true,
@@ -998,6 +1102,55 @@ class BoundedControllerBridgeTest
         }
 
 
+    }
+
+
+    private static final class MutableClip
+    {
+        private String trackID = "track-a";
+        private int sceneIndex = 2;
+        private boolean exists = true;
+        private int requestedSteps;
+        private int requestedRows;
+        private double loopLength = 8;
+        private double playEnd = 16;
+        private double stepLength;
+        private int currentStep = 4;
+        private final List<String> writes = new ArrayList<> ();
+
+
+        private INoteClip proxy ()
+        {
+            return BoundedControllerBridgeTest.proxy (INoteClip.class, (proxy, method, arguments) -> switch (method.getName ())
+            {
+                case "getTrackId" -> this.trackID;
+                case "getSceneIndex" -> Integer.valueOf (this.sceneIndex);
+                case "doesExist" -> Boolean.valueOf (this.exists);
+                case "getLoopStart" -> Double.valueOf (0);
+                case "getLoopLength" -> Double.valueOf (this.loopLength);
+                case "getPlayEnd" -> Double.valueOf (this.playEnd);
+                case "getCurrentStep" -> Integer.valueOf (this.currentStep);
+                case "getStepLength" -> Double.valueOf (this.stepLength);
+                case "getColor" -> ColorEx.BLUE;
+                case "setStepLength" -> {
+                    this.stepLength = ((Double) arguments[0]).doubleValue ();
+                    yield null;
+                }
+                case "setLoopStart" -> {
+                    this.writes.add ("loopStart:" + arguments[0]);
+                    yield null;
+                }
+                case "setLoopLength" -> {
+                    this.writes.add ("loopLength:" + arguments[0]);
+                    yield null;
+                }
+                case "setPlayRange" -> {
+                    this.writes.add ("playRange:" + arguments[0] + ":" + arguments[1]);
+                    yield null;
+                }
+                default -> relaxedValue (method.getReturnType ());
+            });
+        }
     }
 
 

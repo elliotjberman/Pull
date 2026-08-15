@@ -19,6 +19,7 @@ import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.output.RgbColor;
+import de.mossgrabers.pull.core.api.output.ControllerLight;
 import de.mossgrabers.pull.core.view.ControllerView;
 import de.mossgrabers.pull.core.view.SurfaceArea;
 import de.mossgrabers.pull.core.view.SurfaceClaim;
@@ -114,7 +115,7 @@ public final class DrumPlayPadView implements ControllerView
             final DrumPadSnapshot pad = aligned ? padAt (drum, padIndex) : null;
             lights.put (playPadControl (padIndex), padColor (pad, snapshot.bridge ().selectedTrack ().color ()));
         }
-        return new ViewOutput (lights, Map.of ());
+        return new ViewOutput (ControllerLight.steadyLights (lights), Map.of ());
     }
 
 

@@ -12,6 +12,7 @@ import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
 import de.mossgrabers.pull.core.api.event.ControllerTickEvent;
 import de.mossgrabers.pull.core.api.event.SnapshotChangedEvent;
 import de.mossgrabers.pull.core.api.output.DesiredHardwareOutput;
+import de.mossgrabers.pull.core.api.output.ControllerLight;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 
 import org.junit.jupiter.api.Test;
@@ -230,7 +231,7 @@ class PushDebugTraceHostTest
     {
         final CoreResult empty = CoreResult.empty ();
         return new CoreResult (
-            new DesiredHardwareOutput (Map.of (new ControlId ("test-light"), color)),
+            new DesiredHardwareOutput (Map.of (new ControlId ("test-light"), ControllerLight.steady (color))),
             empty.desiredInputRoutes (),
             empty.desiredBridgeSubscriptions (),
             empty.desiredClipBindings (),

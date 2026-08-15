@@ -10,10 +10,12 @@ import java.util.List;
 
 import com.bitwig.extension.controller.api.Clip;
 import com.bitwig.extension.controller.api.CursorTrack;
+import com.bitwig.extension.controller.api.IntegerValue;
 import com.bitwig.extension.controller.api.NoteOccurrence;
 import com.bitwig.extension.controller.api.NoteStep;
 import com.bitwig.extension.controller.api.PinnableCursorClip;
 import com.bitwig.extension.controller.api.SettableColorValue;
+import com.bitwig.extension.controller.api.StringValue;
 
 import de.mossgrabers.bitwig.framework.daw.data.Util;
 import de.mossgrabers.framework.controller.color.ColorEx;
@@ -46,6 +48,8 @@ public class CursorClipImpl implements INoteClip
 
     private final IStepInfo [] [] [] launcherData;
     private final PinnableCursorClip launcherClip;
+    private final StringValue         launcherTrackId;
+    private final IntegerValue        launcherSceneIndex;
     private int                      editPage        = 0;
     private double                   stepLength;
     private final List<NotePosition> editSteps       = new ArrayList<> ();
@@ -73,6 +77,8 @@ public class CursorClipImpl implements INoteClip
 
         // TODO Bugfix required: https://github.com/teotigraphix/Framework4Bitwig/issues/140
         this.launcherClip = cursorTrack.createLauncherCursorClip (this.numSteps, this.numRows);
+        this.launcherTrackId = this.launcherClip.getTrack ().channelId ();
+        this.launcherSceneIndex = this.launcherClip.clipLauncherSlot ().sceneIndex ();
 
         this.launcherClip.addNoteStepObserver (this::handleStepData);
 
@@ -89,6 +95,8 @@ public class CursorClipImpl implements INoteClip
         this.launcherClip.canScrollStepsForwards ().markInterested ();
         this.launcherClip.color ().markInterested ();
         this.launcherClip.isPinned ().markInterested ();
+        this.launcherTrackId.markInterested ();
+        this.launcherSceneIndex.markInterested ();
 
         this.launcherClip.getTrack ().canHoldNoteData ().markInterested ();
     }
@@ -111,7 +119,25 @@ public class CursorClipImpl implements INoteClip
         Util.setIsSubscribed (this.launcherClip.canScrollStepsForwards (), enable);
         Util.setIsSubscribed (this.launcherClip.color (), enable);
         Util.setIsSubscribed (this.launcherClip.isPinned (), enable);
+        Util.setIsSubscribed (this.launcherTrackId, enable);
+        Util.setIsSubscribed (this.launcherSceneIndex, enable);
         Util.setIsSubscribed (this.launcherClip.getTrack ().canHoldNoteData (), enable);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public String getTrackId ()
+    {
+        return this.launcherTrackId.get ();
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public int getSceneIndex ()
+    {
+        return this.launcherSceneIndex.get ();
     }
 
 

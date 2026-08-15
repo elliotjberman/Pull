@@ -4,12 +4,15 @@
 package de.mossgrabers.controller.ableton.push;
 
 import de.mossgrabers.controller.ableton.push.command.trigger.MastertrackCommand;
+import de.mossgrabers.controller.ableton.push.command.trigger.PageLeftCommand;
+import de.mossgrabers.controller.ableton.push.command.trigger.PageRightCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.PushAutomationCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.PushCursorCommand;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.mode.device.UserMode;
 import de.mossgrabers.controller.ableton.push.mode.device.WorkspaceMode;
+import de.mossgrabers.controller.ableton.push.view.ClipTimelineViewAdapter;
 import de.mossgrabers.controller.ableton.push.workspace.SessionBankRegistry;
 import de.mossgrabers.framework.command.trigger.mode.ButtonRowModeCommand;
 import de.mossgrabers.framework.command.trigger.Direction;
@@ -33,8 +36,10 @@ import de.mossgrabers.framework.daw.data.bank.IParameterBank;
 import de.mossgrabers.framework.daw.data.bank.IParameterPageBank;
 import de.mossgrabers.framework.daw.data.bank.ISceneBank;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
+import de.mossgrabers.framework.daw.clip.INoteClip;
 import de.mossgrabers.framework.daw.midi.IMidiInput;
 import de.mossgrabers.framework.daw.midi.IMidiOutput;
+import de.mossgrabers.framework.daw.midi.INoteInput;
 import de.mossgrabers.framework.daw.midi.ISelectedTrackNoteTarget;
 import de.mossgrabers.framework.featuregroup.IMode;
 import de.mossgrabers.framework.featuregroup.IView;
@@ -43,6 +48,7 @@ import de.mossgrabers.framework.parameter.IParameter;
 import de.mossgrabers.framework.scale.Scales;
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.framework.view.Views;
+import de.mossgrabers.framework.view.sequencer.AbstractSequencerView;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.SessionBankShape;
@@ -52,15 +58,19 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
 /**
@@ -68,6 +78,67 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  */
 class PushBehaviorParityTest
 {
+    @Test
+    void clipTimelineAdapterCannotRunSequencerPagesAndInstallsOnlyEmptyNoteTranslation ()
+    {
+        final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
+        final PushColorManager colors = new PushColorManager ();
+        final Scales scales = new Scales (valueChanger, 36, 100, 8, 8);
+        final AtomicInteger pageScrolls = new AtomicInteger ();
+        final INoteClip clip = proxy (INoteClip.class, (ignored, method, arguments) -> {
+            if ("scrollStepsPageBackwards".equals (method.getName ()) || "scrollStepsPageForward".equals (method.getName ()))
+                pageScrolls.incrementAndGet ();
+            return relaxedValue (method.getReturnType ());
+        });
+        final IModel model = proxy (IModel.class, (ignored, method, arguments) -> switch (method.getName ())
+        {
+            case "getColorManager" -> colors;
+            case "getScales" -> scales;
+            case "getNoteClip" -> clip;
+            default -> relaxedValue (method.getReturnType ());
+        });
+        final AtomicReference<int []> noteTranslation = new AtomicReference<> ();
+        final INoteInput noteInput = proxy (INoteInput.class, (ignored, method, arguments) -> {
+            if ("setKeyTranslationTable".equals (method.getName ()))
+                noteTranslation.set (((int []) arguments[0]).clone ());
+            return relaxedValue (method.getReturnType ());
+        });
+        final IMidiInput midiInput = proxy (IMidiInput.class, (ignored, method, arguments) -> "getDefaultNoteInput".equals (method.getName ()) ? noteInput : relaxedValue (method.getReturnType ()));
+        final IHwButton button = relaxedProxy (IHwButton.class);
+        final IHwLight light = relaxedProxy (IHwLight.class);
+        final IHwSurfaceFactory factory = proxy (IHwSurfaceFactory.class, (ignored, method, arguments) -> switch (method.getName ())
+        {
+            case "createButton" -> button;
+            case "createLight" -> light;
+            default -> relaxedValue (method.getReturnType ());
+        });
+        final IHost host = proxy (IHost.class, (ignored, method, arguments) -> switch (method.getName ())
+        {
+            case "createSurfaceFactory" -> factory;
+            case "scheduleTask" -> {
+                ((Runnable) arguments[0]).run ();
+                yield null;
+            }
+            default -> relaxedValue (method.getReturnType ());
+        });
+        final PushControlSurface surface = new PushControlSurface (
+            host, colors, new PushConfiguration (host, valueChanger, List.of ()), relaxedProxy (IMidiOutput.class), midiInput,
+            relaxedProxy (ISelectedTrackNoteTarget.class), relaxedProxy (ITrack.class), () -> false, null);
+        surface.addGraphicsDisplay (relaxedProxy (IGraphicDisplay.class));
+        final ClipTimelineViewAdapter adapter = new ClipTimelineViewAdapter (surface, model);
+        surface.getViewManager ().register (Views.CLIP_LENGTH, adapter);
+        surface.getViewManager ().setActive (Views.CLIP_LENGTH);
+
+        new PageLeftCommand (model, surface).execute (ButtonEvent.DOWN, 127);
+        new PageRightCommand (model, surface).execute (ButtonEvent.DOWN, 127);
+
+        assertFalse (AbstractSequencerView.class.isAssignableFrom (adapter.getClass ()));
+        assertEquals (0, pageScrolls.get ());
+        assertEquals (128, noteTranslation.get ().length);
+        assertTrue (Arrays.stream (noteTranslation.get ()).allMatch (note -> note == -1));
+    }
+
+
     @Test
     void coreLightAdapterPreservesOffAndMapsRgbToThePushPalette ()
     {

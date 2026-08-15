@@ -12,6 +12,7 @@ import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.ITransport;
+import de.mossgrabers.framework.daw.clip.INoteClip;
 import de.mossgrabers.framework.daw.data.IDrumDevice;
 import de.mossgrabers.framework.daw.data.IDrumPad;
 import de.mossgrabers.framework.daw.data.bank.IDrumPadBank;
@@ -22,6 +23,8 @@ import de.mossgrabers.framework.daw.midi.MidiShortCallback;
 import de.mossgrabers.framework.daw.midi.SelectedTrackMonitorMode;
 import de.mossgrabers.framework.daw.midi.SelectedTrackNoteTargetSnapshot;
 import de.mossgrabers.pull.core.api.BridgeSubscription;
+import de.mossgrabers.pull.core.api.ClipTimelineSnapshot;
+import de.mossgrabers.pull.core.api.ClipTimelineTarget;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ControllerLayoutSnapshot;
@@ -62,6 +65,7 @@ import de.mossgrabers.pull.core.api.effect.StopSessionTrackEffect;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackBoolean;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackValue;
 import de.mossgrabers.pull.core.api.effect.SendNoteInputMidiEffect;
+import de.mossgrabers.pull.core.api.effect.SetClipTimelineRangeEffect;
 import de.mossgrabers.pull.core.api.effect.SetDrumPadBooleanEffect;
 import de.mossgrabers.pull.core.api.effect.SetDrumPadValueEffect;
 import de.mossgrabers.pull.core.api.effect.SetNoteViewPreferenceEffect;
@@ -94,13 +98,17 @@ import java.util.function.BooleanSupplier;
 final class BoundedControllerBridge implements ControllerBridge
 {
     static final int DRUM_PAD_CAPACITY = 16;
+    static final int CLIP_TIMELINE_STEP_CAPACITY = 1024;
 
+    private static final int CLIP_TIMELINE_ROW_CAPACITY = 1;
+    private static final double CLIP_TIMELINE_STEP_LENGTH = 0.25;
     private static final long TRANSPORT_POSITION_SAMPLE_NANOS = 50_000_000L;
     private static final long DRUM_SAMPLE_NANOS = 33_000_000L;
     private static final Map<ControlId, ButtonID> CONSUMABLE_BUTTONS = consumableButtons ();
 
     private final IModel model;
     private final ITransport transport;
+    private final INoteClip clipTimelineClip;
     private final ISelectedTrackNoteTarget selectedTarget;
     private final MidiShortCallback noteInputMidiSender;
     private final PushControlSurface surface;
@@ -115,6 +123,10 @@ final class BoundedControllerBridge implements ControllerBridge
     private final Map<MidiStateKey, MidiState> noteInputMidiState = new HashMap<> ();
 
     private ControllerBridgeSnapshot snapshot = ControllerBridgeSnapshot.empty ();
+    private String clipTimelineTargetIdentity = "";
+    private String clipTimelineExtentIdentity = "";
+    private long clipTimelineGeneration;
+    private double clipTimelineSelectableEnd;
     private ControllerLayoutSnapshot sampledLayout = ControllerLayoutSnapshot.empty ();
     private long layoutGeneration;
     private DrumContextSnapshot drumSnapshot = DrumContextSnapshot.empty ();
@@ -140,6 +152,8 @@ final class BoundedControllerBridge implements ControllerBridge
     {
         this.model = Objects.requireNonNull (model, "model");
         this.transport = Objects.requireNonNull (model.getTransport (), "transport");
+        this.clipTimelineClip = Objects.requireNonNull (model.getNoteClip (CLIP_TIMELINE_STEP_CAPACITY, CLIP_TIMELINE_ROW_CAPACITY), "clipTimelineClip");
+        this.clipTimelineClip.setStepLength (CLIP_TIMELINE_STEP_LENGTH);
         this.selectedTarget = Objects.requireNonNull (selectedTarget, "selectedTarget");
         this.noteInputMidiSender = Objects.requireNonNull (noteInputMidiSender, "noteInputMidiSender");
         this.surface = Objects.requireNonNull (surface, "surface");
@@ -174,9 +188,10 @@ final class BoundedControllerBridge implements ControllerBridge
         this.observedSelectedGeneration = selectedGeneration;
 
         final boolean selectedRequested = requested.includes (BridgeSubscription.SELECTED_TRACK);
+        final boolean clipTimelineRequested = requested.includes (BridgeSubscription.CLIP_TIMELINE);
         final boolean drumRequested = requested.includes (BridgeSubscription.DRUM_PADS);
         final boolean noteViewRequested = requested.includes (BridgeSubscription.NOTE_VIEW);
-        final SelectedTrackNoteTargetSnapshot selectedState = selectedRequested || drumRequested || noteViewRequested ? this.selectedTarget.snapshot () : null;
+        final SelectedTrackNoteTargetSnapshot selectedState = selectedRequested || clipTimelineRequested || drumRequested || noteViewRequested ? this.selectedTarget.snapshot () : null;
         final SelectedTrackSnapshot selected = selectedRequested ? toApiSnapshot (selectedState) : SelectedTrackSnapshot.empty ();
         final boolean sessionBankRequested = requested.includes (BridgeSubscription.SESSION_BANK);
         if (sessionBankRequested)
@@ -193,6 +208,14 @@ final class BoundedControllerBridge implements ControllerBridge
         }
 
         final ControllerLayoutSnapshot layout = requested.includes (BridgeSubscription.CONTROLLER_LAYOUT) ? this.captureLayout () : ControllerLayoutSnapshot.empty ();
+        final ClipTimelineSnapshot clipTimeline;
+        if (clipTimelineRequested)
+            clipTimeline = this.captureClipTimeline (selectedState);
+        else
+        {
+            clipTimeline = ClipTimelineSnapshot.empty ();
+            this.invalidateClipTimelineTarget ();
+        }
         final NoteViewSnapshot noteView = noteViewRequested ? this.captureNoteView (selectedState) : NoteViewSnapshot.empty ();
         final NoteRepeatSnapshot noteRepeat = requested.includes (BridgeSubscription.NOTE_REPEAT) ? this.captureNoteRepeat () : NoteRepeatSnapshot.empty ();
 
@@ -220,7 +243,7 @@ final class BoundedControllerBridge implements ControllerBridge
         this.masterCommands.refresh (masterRequested, projectRequested);
         final MasterSnapshot master = masterRequested ? this.masterCommands.snapshot () : MasterSnapshot.empty ();
         final ProjectSnapshot project = projectRequested ? this.masterCommands.projectSnapshot () : ProjectSnapshot.empty ();
-        final ControllerBridgeSnapshot refreshed = new ControllerBridgeSnapshot (transportState, selected, sessionBankState, layout, noteView, noteRepeat, this.drumSnapshot, parameters, controllerMappingFeedback, master, project);
+        final ControllerBridgeSnapshot refreshed = new ControllerBridgeSnapshot (transportState, selected, sessionBankState, layout, clipTimeline, noteView, noteRepeat, this.drumSnapshot, parameters, controllerMappingFeedback, master, project);
         if (refreshed.equals (this.snapshot))
             return false;
 
@@ -335,6 +358,7 @@ final class BoundedControllerBridge implements ControllerBridge
             this.snapshot.selectedTrack (),
             this.snapshot.sessionBank (),
             this.snapshot.layout (),
+            this.snapshot.clipTimeline (),
             this.snapshot.noteView (),
             this.snapshot.noteRepeat (),
             this.snapshot.drum (),
@@ -476,6 +500,13 @@ final class BoundedControllerBridge implements ControllerBridge
         }
         if (effect instanceof final SendNoteInputMidiEffect midi)
             return new PreparedNoteInputMidi (midi.status (), midi.data1 (), midi.data2 ());
+        if (effect instanceof final SetClipTimelineRangeEffect setRange)
+        {
+            final ClipTimelineTarget target = this.snapshot.clipTimeline ().target ().orElseThrow ( () -> new IllegalArgumentException ("Clip-timeline effect requires an available target"));
+            if (!target.equals (setRange.target ()))
+                throw new IllegalArgumentException ("Clip-timeline effect targets stale state");
+            return new PreparedClipTimelineRange (target, setRange.start (), setRange.length ());
+        }
         if (effect instanceof final SetNoteViewPreferenceEffect preference)
         {
             this.requireSelectedTarget (preference.targetGeneration (), preference.channelId ());
@@ -562,6 +593,8 @@ final class BoundedControllerBridge implements ControllerBridge
             this.surface.setTriggerConsumed (consumption.button ());
         else if (action instanceof final PreparedNoteInputMidi midi)
             this.applyNoteInputMidi (midi);
+        else if (action instanceof final PreparedClipTimelineRange range)
+            this.applyClipTimelineRange (range);
         else if (action instanceof final PreparedNoteViewPreference preference)
             this.applyNoteViewPreference (preference);
         else if (action instanceof final PreparedDrumBoolean state)
@@ -632,6 +665,42 @@ final class BoundedControllerBridge implements ControllerBridge
     private static boolean sameLayout (final ControllerLayoutSnapshot first, final ControllerLayoutSnapshot second)
     {
         return first.viewId ().equals (second.viewId ()) && first.modeId ().equals (second.modeId ()) && first.drumLayoutActive () == second.drumLayoutActive () && first.drumControllerEngaged () == second.drumControllerEngaged () && first.drumBaseMidiNote () == second.drumBaseMidiNote () && first.gridPressure ().equals (second.gridPressure ());
+    }
+
+
+    private ClipTimelineSnapshot captureClipTimeline (final SelectedTrackNoteTargetSnapshot selected)
+    {
+        final INoteClip clip = this.clipTimelineClip;
+        final String trackID = valueOrEmpty (clip.getTrackId ());
+        final int sceneIndex = clip.getSceneIndex ();
+        final boolean exists = clip.doesExist ();
+        final boolean aligned = selected.exists () && selected.canHoldAudio () && !trackID.isBlank () && trackID.equals (selected.trackID ()) && sceneIndex >= 0;
+        this.updateClipTimelineTargetIdentity (selected.generation () + "|" + trackID + "|" + sceneIndex + "|" + exists + "|" + aligned);
+        if (!exists || !aligned)
+            return ClipTimelineSnapshot.empty ();
+        this.updateClipTimelineExtentIdentity (selected.generation () + "|" + trackID + "|" + sceneIndex);
+
+        final double loopStart = clip.getLoopStart ();
+        final double loopLength = clip.getLoopLength ();
+        final double observedEnd = Math.max (clip.getPlayEnd (), loopStart + loopLength);
+        final double stepLength = clip.getStepLength ();
+        if (!Double.isFinite (loopStart) || !Double.isFinite (loopLength) || loopLength <= 0 || !Double.isFinite (observedEnd) || observedEnd <= 0 || !Double.isFinite (stepLength) || stepLength <= 0)
+        {
+            this.invalidateClipTimelineTarget ();
+            return ClipTimelineSnapshot.empty ();
+        }
+        this.clipTimelineSelectableEnd = Math.max (this.clipTimelineSelectableEnd, observedEnd);
+        final ClipTimelineTarget target = new ClipTimelineTarget (this.clipTimelineGeneration, selected.generation (), trackID, sceneIndex);
+        return new ClipTimelineSnapshot (java.util.Optional.of (target), loopStart, loopLength, this.clipTimelineSelectableEnd, Math.max (-1, clip.getCurrentStep ()), stepLength, toRgb (clip.getColor ()));
+    }
+
+
+    private void updateClipTimelineTargetIdentity (final String identity)
+    {
+        if (identity.equals (this.clipTimelineTargetIdentity))
+            return;
+        this.clipTimelineTargetIdentity = identity;
+        this.clipTimelineGeneration = Math.incrementExact (this.clipTimelineGeneration);
     }
 
 
@@ -982,6 +1051,21 @@ final class BoundedControllerBridge implements ControllerBridge
     }
 
 
+    private void applyClipTimelineRange (final PreparedClipTimelineRange request)
+    {
+        final ClipTimelineTarget target = request.target ();
+        if (!this.selectedTargetIsCurrent (target.selectedTrackGeneration (), target.trackId ()) || target.generation () != this.clipTimelineGeneration)
+            return;
+        final INoteClip clip = this.clipTimelineClip;
+        if (!clip.doesExist () || !target.trackId ().equals (valueOrEmpty (clip.getTrackId ())) || target.sceneIndex () != clip.getSceneIndex ())
+            return;
+
+        clip.setLoopStart (request.start ());
+        clip.setLoopLength (request.length ());
+        clip.setPlayRange (request.start (), request.start () + request.length ());
+    }
+
+
     private void applyNoteViewPreference (final PreparedNoteViewPreference request)
     {
         final SelectedTrackNoteTargetSnapshot selected = this.selectedTarget.snapshot ();
@@ -1138,6 +1222,24 @@ final class BoundedControllerBridge implements ControllerBridge
     }
 
 
+    private void invalidateClipTimelineTarget ()
+    {
+        if (this.clipTimelineTargetIdentity.isEmpty ())
+            return;
+        this.clipTimelineTargetIdentity = "";
+        this.clipTimelineGeneration = Math.incrementExact (this.clipTimelineGeneration);
+    }
+
+
+    private void updateClipTimelineExtentIdentity (final String identity)
+    {
+        if (identity.equals (this.clipTimelineExtentIdentity))
+            return;
+        this.clipTimelineExtentIdentity = identity;
+        this.clipTimelineSelectableEnd = 0;
+    }
+
+
     private enum NoteRepeatToggle
     {
         FREE_RUNNING,
@@ -1253,6 +1355,11 @@ final class BoundedControllerBridge implements ControllerBridge
 
 
     private record PreparedNoteInputMidi (int status, int data1, int data2) implements ControllerBridge.PreparedAction
+    {
+    }
+
+
+    private record PreparedClipTimelineRange (ClipTimelineTarget target, double start, double length) implements ControllerBridge.PreparedAction
     {
     }
 
