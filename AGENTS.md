@@ -151,9 +151,14 @@
   the previously active core running because activation is transactional. A restart is required
   only when the physical input, required state/effect capability, or output transport is missing
   from the installed canopy.
-- Keep the private selection-following cursor observation/action-only. Do not attach the permanent
-  Push `NoteInput` with `Track.addNoteSource()` or exclude it from `All Inputs`; Pads and raw ribbon
-  MIDI must follow ordinary Bitwig track-input, monitor, and record-arm routing.
+- Keep selected-track Note routing behind one stable lifecycle owner. The permanent Push
+  `NoteInput` is excluded from `All Inputs`; while an aligned note-capable viewer is active, attach
+  it to the private selection-following cursor with `Track.addNoteSource()`. The core returns one
+  complete target-fenced layout-and-route value. Enter by attaching before activating the layout;
+  exit by relinquishing the layout, waiting for physical input to become idle, neutralizing
+  parent-owned MIDI state, and then detaching. Selection disagreement and core failure detach and
+  fail closed. Replaying an unchanged core result must not churn the route. Bitwig tracks explicitly
+  configured for the named `Pads` input remain outside this selected-only controller guarantee.
 - Parent-own cleanup for stateful raw MIDI sent through the permanent `NoteInput`. Neutralize
   outstanding poly-pressure, CC, channel-pressure, and pitch-bend state when the active core
   generation changes, selection changes as a conservative safety boundary, or the extension shuts

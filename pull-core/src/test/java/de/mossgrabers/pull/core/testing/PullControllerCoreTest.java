@@ -14,6 +14,8 @@ import de.mossgrabers.pull.core.api.ControllerNoteView;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
+import de.mossgrabers.pull.core.api.DesiredNoteInputRoute;
+import de.mossgrabers.pull.core.api.DesiredNotePerformance;
 import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
 import de.mossgrabers.pull.core.api.DrumContextSnapshot;
 import de.mossgrabers.pull.core.api.InputRouteMode;
@@ -1052,9 +1054,14 @@ class PullControllerCoreTest
 
         host.bridge (noteBridge ("DRUM_PAD", juno, new NoteViewSnapshot (7, "drums", 0, ControllerNoteView.DRUM_PAD, true), DrumContextSnapshot.empty (), NoteRepeatSnapshot.empty ()));
         assertFalse (host.effects ().desiredControllerLayout ().isPresent ());
+        assertEquals (DesiredNoteInputRoute.disabled (), host.effects ().desiredNoteInputRoute ());
 
         host.bridge (noteBridge ("DRUM_PAD", juno, new NoteViewSnapshot (8, "juno", 5, ControllerNoteView.PLAY, false), DrumContextSnapshot.empty (), NoteRepeatSnapshot.empty ()));
         assertEquals (ControllerNoteView.PLAY, host.effects ().desiredControllerLayout ().noteView ());
+        assertEquals (DesiredNoteInputRoute.selectedTrack (8, "juno"), host.effects ().desiredNoteInputRoute ());
+
+        host.bridge (noteBridge ("SESSION", juno, new NoteViewSnapshot (8, "juno", 5, ControllerNoteView.PLAY, false), DrumContextSnapshot.empty (), NoteRepeatSnapshot.empty ()));
+        assertEquals (DesiredNotePerformance.inactive (), host.effects ().desiredNotePerformance ());
     }
 
 
@@ -1068,6 +1075,7 @@ class PullControllerCoreTest
 
         host.bridge (noteBridge ("PLAY", drums, melodic, DrumContextSnapshot.empty (), NoteRepeatSnapshot.empty ()));
         assertEquals (ControllerNoteView.PLAY, host.effects ().desiredControllerLayout ().noteView ());
+        assertEquals (DesiredNoteInputRoute.selectedTrack (9, "drums"), host.effects ().desiredNoteInputRoute ());
 
         final NoteViewSnapshot drumReady = new NoteViewSnapshot (9, "drums", 0, ControllerNoteView.NONE, true);
         host.bridge (noteBridge ("PLAY", drums, drumReady, drum (drums), NoteRepeatSnapshot.empty ()));

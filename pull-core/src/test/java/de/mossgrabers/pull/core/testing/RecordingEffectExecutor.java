@@ -10,6 +10,8 @@ import de.mossgrabers.pull.core.api.CoreExecutionRequirements;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredControllerLayout;
+import de.mossgrabers.pull.core.api.DesiredNoteInputRoute;
+import de.mossgrabers.pull.core.api.DesiredNotePerformance;
 import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
 import de.mossgrabers.pull.core.api.DesiredInputRoutes;
 import de.mossgrabers.pull.core.api.DesiredParameterBanks;
@@ -44,7 +46,7 @@ final class RecordingEffectExecutor
     private DesiredBridgeSubscriptions desiredBridgeSubscriptions = DesiredBridgeSubscriptions.empty ();
     private Map<ControlId, ClipTargetId> desiredClipBindings = Map.of ();
     private DesiredControllerWorkspace desiredControllerWorkspace = DesiredControllerWorkspace.empty ();
-    private DesiredControllerLayout desiredControllerLayout = DesiredControllerLayout.empty ();
+    private DesiredNotePerformance desiredNotePerformance = DesiredNotePerformance.inactive ();
     private DesiredNoteRepeat desiredNoteRepeat = DesiredNoteRepeat.unowned ();
     private DesiredParameterBanks desiredParameterBanks = DesiredParameterBanks.empty ();
     private DesiredParameterInteraction desiredParameterInteraction = DesiredParameterInteraction.empty ();
@@ -64,7 +66,7 @@ final class RecordingEffectExecutor
         this.desiredBridgeSubscriptions = result.desiredBridgeSubscriptions ();
         this.desiredClipBindings = result.desiredClipBindings ();
         this.desiredControllerWorkspace = result.desiredControllerWorkspace ();
-        this.desiredControllerLayout = result.desiredControllerLayout ();
+        this.desiredNotePerformance = result.desiredNotePerformance ();
         this.desiredNoteRepeat = result.desiredNoteRepeat ();
         this.desiredParameterBanks = result.desiredParameterBanks ();
         this.desiredParameterInteraction = result.desiredParameterInteraction ();
@@ -183,7 +185,19 @@ final class RecordingEffectExecutor
 
     DesiredControllerLayout desiredControllerLayout ()
     {
-        return this.desiredControllerLayout;
+        return this.desiredNotePerformance.layout ();
+    }
+
+
+    DesiredNoteInputRoute desiredNoteInputRoute ()
+    {
+        return this.desiredNotePerformance.inputRoute ();
+    }
+
+
+    DesiredNotePerformance desiredNotePerformance ()
+    {
+        return this.desiredNotePerformance;
     }
 
 

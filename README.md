@@ -86,13 +86,15 @@ The slice passes offline fake-host verification. The exact immediate-legato/ALT-
 requires a live Bitwig smoke test after installing the Core-API-9 shell on Bitwig controller API
 21.
 
-The Push Pads note input remains in Bitwig's ordinary input pool. Pads and the ribbon's raw
-pitch-bend messages therefore follow the project's track-input, monitor, and record-arm routing;
-selection alone does not force a track to receive them. The controller-private selected-track
-cursor is used only for authoritative state, actions, identity, and drum-capability detection. It
-is never exposed to Push's pin command and is not a musical note route. Changing selection does
-not create or reconnect note inputs. More than one track can receive Pads when the project routes
-and monitors or arms more than one track that way.
+The permanent Push Pads note input is excluded from Bitwig's `All Inputs` pool. While a musical
+Note viewer is active and its private selected-target identity is aligned, Pull routes that input
+directly to the selected note-capable track. Bitwig documents this direct route as independent of
+monitoring, so the selected instrument can be auditioned without record arm; arm remains the
+separate decision to record the performance. Pads do not silently fall back to every armed track
+when Note view exits or the core fails. A project track explicitly configured for the named
+`Pads` input can still receive the same hardware stream and is outside this selected-only route.
+The controller-private cursor also provides authoritative state, actions, identity, and drum
+capability and is never exposed to Push's pin command.
 The same private cursor exposes a fixed four-candidate drum-device canopy: a native Drum Machine
 match in the selected track chain, Bitwig's semantic first instrument when it reports drum pads,
 plus native Drum Machine matches in that instrument's first layer and cursor slot. This catches the
@@ -104,8 +106,8 @@ private selected target, Pull temporarily disables and blanks its drum controls 
 represent the same track; it never displays one drum track while applying drum-controller actions
 to another.
 Bitwig's Dashboard → Settings → Recording → Auto-arm selected → Instrument tracks preference is
-independent of Pull. Disable it if track arm should not follow selection. With ordinary routing,
-the intended track must accept `Pads` or `All Inputs` and satisfy its monitor/record-arm settings.
+independent of Pull. Disable it if track arm should not follow selection; Pull's direct Note-view
+audition route neither requires nor changes arm.
 The reloadable core exclusively owns every Push Record gesture: plain Record toggles selected-track
 arm from authoritative read-back, Shift+Record toggles launcher overdub, and Select+Record creates
 a new clip. The permanent Record binding is deliberately inert and exists only to retain the input
@@ -127,12 +129,13 @@ The controller does not insert, identify, repair, or own those devices. Raw bend
 message; the session's Bend/modulator mappings define what it changes. This is intentionally
 manual and visible in the project instead of relying on a fragile hidden macro or helper registry.
 
-For the live checkpoint, install this shell build and restart Bitwig once. Arm the intended drum
-track or enable monitoring, set its input to accept `Pads` or `All Inputs`, and verify that Push
-pads sound and the track's MIDI `BEND` modulators follow the ribbon. Disarm or stop monitoring it
-and verify that ordinary Bitwig routing stops the input. Check that another track's arm button
-remains independently clickable, then exercise the fill A→B→release handoff to confirm the
-original base clip is retained.
+For the live checkpoint, install this shell build and restart Bitwig once. Leave instrument inputs
+on `All Inputs`, enter Note view, and verify that Push pads and the ribbon sound only the selected
+note track even when other tracks are armed. Verify that the selected track still auditions while
+disarmed, that Session view stops the controller-owned route after held controls are released, and
+that melodic↔drum selection changes retain the right layout without leaking automatic roll. A
+track explicitly set to `Pads` is a deliberate exception to the selected-only guarantee. Then
+exercise the fill A→B→release handoff to confirm the original base clip is retained.
 
 ## Reloading a core during development
 
@@ -154,9 +157,9 @@ attempting an unsafe core reload—even when the API change was already committe
 implementation edits do not change this compatibility fingerprint.
 
 Installing this shell checkpoint requires one extension copy and Bitwig restart because it changes
-the stable note-input topology and parent-loaded API: the existing Pads input returns to ordinary
-Bitwig input/monitor/record-arm routing, and raw MIDI effects target that stable input rather than a
-selected track. After that, selected-track changes and edits confined to `pull-core` use
+the stable note-input topology and parent-loaded API: the existing Pads input leaves `All Inputs`,
+and the stable shell gains the bounded direct selected-track route consumed by the core's complete
+Note-performance lifecycle. After that, selected-track policy changes confined to `pull-core` use
 `tools/reload-core` without restarting Bitwig. The broader bounded capability-canopy roadmap is
 documented in
 [`docs/reloadable-controller-core-design.md`](docs/reloadable-controller-core-design.md).

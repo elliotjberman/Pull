@@ -18,6 +18,8 @@ import de.mossgrabers.pull.core.api.DesiredInputRoutes;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredControllerLayout;
+import de.mossgrabers.pull.core.api.DesiredNoteInputRoute;
+import de.mossgrabers.pull.core.api.DesiredNotePerformance;
 import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
 import de.mossgrabers.pull.core.api.DesiredParameterBanks;
 import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
@@ -265,6 +267,8 @@ class ControllerRuntimeEnvironmentTest
         final PassthroughControllerBridge bridge = new PassthroughControllerBridge ();
         final ControllerRuntimeEnvironment environment = new ControllerRuntimeEnvironment (host (1), bridge, new RecordingLog (), () -> 0);
         final DesiredControllerLayout layout = DesiredControllerLayout.note (ControllerNoteView.DRUM_PAD);
+        final DesiredNoteInputRoute route = DesiredNoteInputRoute.selectedTrack (4, "drums");
+        final DesiredNotePerformance performance = new DesiredNotePerformance (layout, route);
         final DesiredNoteRepeat repeat = new DesiredNoteRepeat (true, true, NoteRepeatMode.UP, 0, 0.25, 0.5, false, false, true, true);
         final CoreResult result = new CoreResult (
             new DesiredHardwareOutput (Map.of (CoreControls.DRUM_RATES.get (0), BRIGHT_RED)),
@@ -273,6 +277,7 @@ class ControllerRuntimeEnvironmentTest
             Map.of (),
             DesiredControllerWorkspace.empty (),
             layout,
+            route,
             repeat,
             de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
             DesiredParameterBanks.empty (),
@@ -281,15 +286,15 @@ class ControllerRuntimeEnvironmentTest
 
         final PreparedCoreResult prepared = environment.prepare (result);
 
-        assertEquals (layout, bridge.preparedLayout);
+        assertEquals (performance, bridge.preparedNotePerformance);
         assertEquals (repeat, bridge.preparedNoteRepeat);
-        assertFalse (bridge.appliedLayout.isPresent ());
+        assertEquals (DesiredNotePerformance.inactive (), bridge.appliedNotePerformance);
         assertFalse (bridge.appliedNoteRepeat.owned ());
 
         environment.commit (9, prepared);
         environment.apply (9);
 
-        assertEquals (layout, bridge.appliedLayout);
+        assertEquals (performance, bridge.appliedNotePerformance);
         assertEquals (repeat, bridge.appliedNoteRepeat);
         assertEquals (BRIGHT_RED, environment.lightColor (CoreControls.DRUM_RATES.get (0)));
     }
@@ -1082,8 +1087,8 @@ class ControllerRuntimeEnvironmentTest
     private static final class PassthroughControllerBridge implements ControllerBridge
     {
         private DesiredControllerWorkspace appliedWorkspace = DesiredControllerWorkspace.empty ();
-        private DesiredControllerLayout preparedLayout = DesiredControllerLayout.empty ();
-        private DesiredControllerLayout appliedLayout = DesiredControllerLayout.empty ();
+        private DesiredNotePerformance preparedNotePerformance = DesiredNotePerformance.inactive ();
+        private DesiredNotePerformance appliedNotePerformance = DesiredNotePerformance.inactive ();
         private DesiredNoteRepeat preparedNoteRepeat = DesiredNoteRepeat.unowned ();
         private DesiredNoteRepeat appliedNoteRepeat = DesiredNoteRepeat.unowned ();
         private boolean failAbandon;
@@ -1161,17 +1166,17 @@ class ControllerRuntimeEnvironmentTest
 
 
         @Override
-        public DesiredControllerLayout prepareControllerLayout (final DesiredControllerLayout layout)
+        public DesiredNotePerformance prepareNotePerformance (final DesiredNotePerformance performance)
         {
-            this.preparedLayout = layout;
-            return layout;
+            this.preparedNotePerformance = performance;
+            return performance;
         }
 
 
         @Override
-        public void applyControllerLayout (final DesiredControllerLayout layout)
+        public void applyNotePerformance (final DesiredNotePerformance performance)
         {
-            this.appliedLayout = layout;
+            this.appliedNotePerformance = performance;
         }
 
 

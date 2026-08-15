@@ -33,8 +33,8 @@ import de.mossgrabers.framework.daw.midi.SelectedTrackNoteTargetSnapshot;
 /**
  * Authoritative capability state for the privately owned selected-track observer.
  *
- * <p>The private cursor owns a fixed primary-drum proxy canopy but does not receive or reroute the
- * Push Pads note input. Pull never exposes or pins its track or device cursor.</p>
+ * <p>The private cursor owns a fixed primary-drum proxy canopy and the stable actuator for a direct
+ * Push Pads note route. Pull never exposes or pins its track or device cursor.</p>
  */
 final class SelectedTrackTargetState implements ISelectedTrackNoteTarget
 {
@@ -62,6 +62,7 @@ final class SelectedTrackTargetState implements ISelectedTrackNoteTarget
     private final SettableRangedValue targetVolume;
     private final SettableRangedValue targetPan;
     private final PlayingNoteArrayValue targetPlayingNotes;
+    private final NoteInputImpl noteInput;
     private final List<DrumCandidateState> drumMachines = new ArrayList<> (PrimaryDrumDeviceCanopy.NUM_CANDIDATES);
     private final int [] playingVelocities = new int [128];
 
@@ -69,6 +70,7 @@ final class SelectedTrackTargetState implements ISelectedTrackNoteTarget
     private String identityTrackID = "";
     private boolean identityExists;
     private long generation;
+    private boolean noteInputRouteActive;
 
 
     /**
@@ -76,12 +78,14 @@ final class SelectedTrackTargetState implements ISelectedTrackNoteTarget
      *
      * @param host The Bitwig controller host
      * @param target The private selection-following target
+     * @param noteInput The permanent controller note input
      */
-    SelectedTrackTargetState (final ControllerHost host, final CursorTrack target)
+    SelectedTrackTargetState (final ControllerHost host, final CursorTrack target, final NoteInputImpl noteInput)
     {
         final CursorTrack checkedTarget = Objects.requireNonNull (target, "target");
 
         this.target = checkedTarget;
+        this.noteInput = Objects.requireNonNull (noteInput, "noteInput");
         this.targetID = checkedTarget.channelId ();
         this.targetExists = checkedTarget.exists ();
         this.targetName = checkedTarget.name ();
@@ -140,6 +144,20 @@ final class SelectedTrackTargetState implements ISelectedTrackNoteTarget
             this.refreshIdentity (trackID, isResolved (trackID, exists));
         });
         this.targetPlayingNotes.addValueObserver (this::handlePlayingNotes);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void setNoteInputRouteActive (final boolean active)
+    {
+        if (active == this.noteInputRouteActive)
+            return;
+        if (active)
+            this.noteInput.routeDirectlyTo (this.target);
+        else
+            this.noteInput.removeDirectRouteFrom (this.target);
+        this.noteInputRouteActive = active;
     }
 
 

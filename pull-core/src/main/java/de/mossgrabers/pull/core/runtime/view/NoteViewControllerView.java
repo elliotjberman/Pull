@@ -7,6 +7,7 @@ import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ControllerNoteView;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.DesiredControllerLayout;
+import de.mossgrabers.pull.core.api.DesiredNotePerformance;
 import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
@@ -63,8 +64,8 @@ public final class NoteViewControllerView implements ControllerView
     @Override
     public ViewOutput render (final ControllerSnapshot snapshot)
     {
-        final ControllerNoteView desired = ResolvedNoteViewer.resolve (snapshot, this.selection.pendingDestination () == WorkspaceSelection.Destination.NOTE).layout ();
-        if (!desired.isPresent ())
+        final ResolvedNoteViewer resolved = ResolvedNoteViewer.resolve (snapshot, this.selection.pendingDestination () == WorkspaceSelection.Destination.NOTE);
+        if (!resolved.layout ().isPresent ())
             return ViewOutput.empty ();
         return new ViewOutput (
             Map.of (),
@@ -72,7 +73,7 @@ public final class NoteViewControllerView implements ControllerView
             ControllerDisplayScene.empty (),
             ControllerPadGridOverlay.inactive (),
             ControllerDisplayOverlay.inactive (),
-            DesiredControllerLayout.note (desired),
+            new DesiredNotePerformance (DesiredControllerLayout.note (resolved.layout ()), resolved.noteInputRoute ()),
             DesiredNoteRepeat.unowned ());
     }
 

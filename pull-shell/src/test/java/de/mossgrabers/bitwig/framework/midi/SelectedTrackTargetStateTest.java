@@ -26,6 +26,7 @@ import com.bitwig.extension.controller.api.DeviceLayerBank;
 import com.bitwig.extension.controller.api.DeviceMatcher;
 import com.bitwig.extension.controller.api.DeviceSlot;
 import com.bitwig.extension.controller.api.IntegerValue;
+import com.bitwig.extension.controller.api.NoteInput;
 import com.bitwig.extension.controller.api.Parameter;
 import com.bitwig.extension.controller.api.PlayingNote;
 import com.bitwig.extension.controller.api.PlayingNoteArrayValue;
@@ -152,7 +153,7 @@ class SelectedTrackTargetStateTest
             };
         });
         final ControllerHost host = proxy (ControllerHost.class, (proxy, method, arguments) -> "createBitwigDeviceMatcher".equals (method.getName ()) ? drumMatcher : relaxedValue (method.getReturnType ()));
-        final SelectedTrackTargetState state = new SelectedTrackTargetState (host, target);
+        final SelectedTrackTargetState state = new SelectedTrackTargetState (host, target, new NoteInputImpl (relaxedProxy (NoteInput.class)));
 
         final SelectedTrackNoteTargetSnapshot snapshot = state.snapshot ();
         assertEquals (1, snapshot.generation ());
@@ -310,7 +311,7 @@ class SelectedTrackTargetStateTest
             return relaxedValue (method.getReturnType ());
         });
 
-        final SelectedTrackTargetState state = new SelectedTrackTargetState (host, target);
+        final SelectedTrackTargetState state = new SelectedTrackTargetState (host, target, new NoteInputImpl (relaxedProxy (NoteInput.class)));
 
         assertArrayEquals (new Object []
         {

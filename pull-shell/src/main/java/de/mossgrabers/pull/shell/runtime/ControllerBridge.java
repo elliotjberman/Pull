@@ -7,7 +7,7 @@ import de.mossgrabers.framework.controller.hardware.IHwContinuousControl;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
-import de.mossgrabers.pull.core.api.DesiredControllerLayout;
+import de.mossgrabers.pull.core.api.DesiredNotePerformance;
 import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
 import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
 import de.mossgrabers.pull.core.api.DesiredParameterBanks;
@@ -17,6 +17,7 @@ import de.mossgrabers.pull.core.api.effect.CoreEffect;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 
 
 /** Stable bounded canopy used by the transactional runtime. */
@@ -55,18 +56,24 @@ interface ControllerBridge
 
     void applyWorkspace (DesiredControllerWorkspace workspace);
 
-    default DesiredControllerLayout prepareControllerLayout (final DesiredControllerLayout layout)
+    default void setInputLifecycleIdle (final BooleanSupplier idle)
     {
-        final DesiredControllerLayout requested = Objects.requireNonNull (layout, "layout");
-        if (requested.isPresent ())
-            throw new IllegalArgumentException ("Controller bridge does not support layout ownership");
+        Objects.requireNonNull (idle, "idle");
+    }
+
+    default DesiredNotePerformance prepareNotePerformance (final DesiredNotePerformance performance)
+    {
+        final DesiredNotePerformance requested = Objects.requireNonNull (performance, "performance");
+        if (requested.layout ().isPresent () || requested.inputRoute ().active ())
+            throw new IllegalArgumentException ("Controller bridge does not support Note-performance ownership");
         return requested;
     }
 
-    default void applyControllerLayout (final DesiredControllerLayout layout)
+    default void applyNotePerformance (final DesiredNotePerformance performance)
     {
-        if (Objects.requireNonNull (layout, "layout").isPresent ())
-            throw new IllegalArgumentException ("Controller bridge does not support layout ownership");
+        final DesiredNotePerformance requested = Objects.requireNonNull (performance, "performance");
+        if (requested.layout ().isPresent () || requested.inputRoute ().active ())
+            throw new IllegalArgumentException ("Controller bridge does not support Note-performance ownership");
     }
 
     default DesiredNoteRepeat prepareNoteRepeat (final DesiredNoteRepeat noteRepeat)

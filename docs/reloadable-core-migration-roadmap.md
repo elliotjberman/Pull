@@ -42,8 +42,9 @@ On current `master`:
 - VS Live selection and fixed-facet composition are core-owned;
 - stable adapters still realize VS Live's Session, Drum, macro, track-strip, display, and navigation
   mechanics;
-- drum-grid pressure interpretation is core-owned in the composite workspace, while the permanent
-  `NoteInput`, ordinary Bitwig routing, and MIDI neutralization remain stable;
+- drum-grid pressure interpretation and selected-target Note routing policy are core-owned in the
+  composite workspace, while the permanent `NoteInput`, direct-route actuator, and MIDI
+  neutralization remain stable;
 - the practical existing Push input set is normalized by the stable input bridge;
 - transport, selected-track, controller-layout, and bounded drum snapshots/effects exist;
 - Play and Record lights are core-owned through generic authoritative RGB output;

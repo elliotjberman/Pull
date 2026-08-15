@@ -18,9 +18,9 @@ import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerActions;
-import de.mossgrabers.pull.core.api.DesiredControllerLayout;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredInputRoutes;
+import de.mossgrabers.pull.core.api.DesiredNotePerformance;
 import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
 import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
 import de.mossgrabers.pull.core.api.DesiredParameterBanks;
@@ -84,6 +84,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (3)),
         Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_WORKSPACE, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_LAYOUT, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.OUTPUT_NOTE_INPUT_ROUTE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.OUTPUT_NOTE_REPEAT, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.INPUT_CONTROLLER, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.ROUTING_CONTROLLER_INPUT, Integer.valueOf (2)),
@@ -519,6 +520,8 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         if (this.committedState.generation () != 0)
             throw new IllegalStateException ("Input lifecycle must be installed before core activation");
         this.inputLifecycleIdle = Objects.requireNonNull (idle, "idle");
+        if (this.controllerBridge != null)
+            this.controllerBridge.setInputLifecycleIdle (idle);
     }
 
 
@@ -539,7 +542,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         }
         final Map<ControlId, ClipTargetId> preparedBindings = prepareBindings (result.desiredClipBindings (), this.clipCatalog);
         final DesiredControllerWorkspace preparedWorkspace = this.prepareWorkspace (result.desiredControllerWorkspace ());
-        final DesiredControllerLayout preparedLayout = this.prepareControllerLayout (result.desiredControllerLayout ());
+        final DesiredNotePerformance preparedNotePerformance = this.prepareNotePerformance (result.desiredNotePerformance ());
         final DesiredNoteRepeat preparedNoteRepeat = this.prepareNoteRepeat (result.desiredNoteRepeat ());
         final DesiredHardwareOutput preparedOutput = prepareOutput (result, preparedWorkspace);
         final DesiredParameterBanks parameterBanks = result.desiredParameterBanks ();
@@ -555,7 +558,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
             throw new IllegalArgumentException ("Core requested parameter state without a controller bridge");
         final Map<ParameterTargetRef, ControllerBridge.ParameterLease> preparedParameterLeases = this.controllerBridge == null ? Map.of () : this.controllerBridge.prepareParameterLeases (parameterInteraction, sampledParameterBanks);
         final List<PreparedAction> preparedActions = this.prepareEffects (result.effects (), preparedBindings, preparedParameterLeases);
-        return new PreparedResult (preparedOutput, result.desiredInputRoutes (), result.desiredBridgeSubscriptions (), preparedWorkspace, preparedLayout, preparedNoteRepeat, result.desiredControllerActions (), parameterBanks, parameterInteraction, executionRequirements, preparedParameterLeases, this.clipCatalog.generation (), preparedBindings, preparedActions);
+        return new PreparedResult (preparedOutput, result.desiredInputRoutes (), result.desiredBridgeSubscriptions (), preparedWorkspace, preparedNotePerformance, preparedNoteRepeat, result.desiredControllerActions (), parameterBanks, parameterInteraction, executionRequirements, preparedParameterLeases, this.clipCatalog.generation (), preparedBindings, preparedActions);
     }
 
 
@@ -589,7 +592,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
                 this.recordSnapshotChange ();
             this.deferredInputRelease.run ();
             this.controllerBridge.applyWorkspace (prepared.desiredControllerWorkspace ());
-            this.controllerBridge.applyControllerLayout (prepared.desiredControllerLayout ());
+            this.controllerBridge.applyNotePerformance (prepared.desiredNotePerformance ());
             this.controllerBridge.applyNoteRepeat (prepared.desiredNoteRepeat ());
         }
 
@@ -744,13 +747,13 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
-    private DesiredControllerLayout prepareControllerLayout (final DesiredControllerLayout layout)
+    private DesiredNotePerformance prepareNotePerformance (final DesiredNotePerformance performance)
     {
-        final DesiredControllerLayout requested = Objects.requireNonNull (layout, "layout");
+        final DesiredNotePerformance requested = Objects.requireNonNull (performance, "performance");
         if (this.controllerBridge != null)
-            return this.controllerBridge.prepareControllerLayout (requested);
-        if (requested.isPresent ())
-            throw new IllegalArgumentException ("Core requested a controller layout without a controller bridge");
+            return this.controllerBridge.prepareNotePerformance (requested);
+        if (requested.layout ().isPresent () || requested.inputRoute ().active ())
+            throw new IllegalArgumentException ("Core requested note performance without a controller bridge");
         return requested;
     }
 
@@ -1306,7 +1309,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
-    private record PreparedResult (DesiredHardwareOutput output, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, DesiredControllerWorkspace desiredControllerWorkspace, DesiredControllerLayout desiredControllerLayout, DesiredNoteRepeat desiredNoteRepeat, DesiredControllerActions desiredControllerActions, DesiredParameterBanks desiredParameterBanks, DesiredParameterInteraction desiredParameterInteraction, CoreExecutionRequirements executionRequirements, Map<ParameterTargetRef, ControllerBridge.ParameterLease> parameterLeases, long catalogGeneration, Map<ControlId, ClipTargetId> desiredClipBindings, List<PreparedAction> actions) implements PreparedCoreResult
+    private record PreparedResult (DesiredHardwareOutput output, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, DesiredControllerWorkspace desiredControllerWorkspace, DesiredNotePerformance desiredNotePerformance, DesiredNoteRepeat desiredNoteRepeat, DesiredControllerActions desiredControllerActions, DesiredParameterBanks desiredParameterBanks, DesiredParameterInteraction desiredParameterInteraction, CoreExecutionRequirements executionRequirements, Map<ParameterTargetRef, ControllerBridge.ParameterLease> parameterLeases, long catalogGeneration, Map<ControlId, ClipTargetId> desiredClipBindings, List<PreparedAction> actions) implements PreparedCoreResult
     {
         private PreparedResult
         {
@@ -1314,7 +1317,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
             desiredInputRoutes = Objects.requireNonNull (desiredInputRoutes, "desiredInputRoutes");
             desiredBridgeSubscriptions = Objects.requireNonNull (desiredBridgeSubscriptions, "desiredBridgeSubscriptions");
             desiredControllerWorkspace = Objects.requireNonNull (desiredControllerWorkspace, "desiredControllerWorkspace");
-            desiredControllerLayout = Objects.requireNonNull (desiredControllerLayout, "desiredControllerLayout");
+            desiredNotePerformance = Objects.requireNonNull (desiredNotePerformance, "desiredNotePerformance");
             desiredNoteRepeat = Objects.requireNonNull (desiredNoteRepeat, "desiredNoteRepeat");
             desiredControllerActions = Objects.requireNonNull (desiredControllerActions, "desiredControllerActions");
             desiredParameterBanks = Objects.requireNonNull (desiredParameterBanks, "desiredParameterBanks");

@@ -32,6 +32,7 @@ public final class PullCoreProvider implements CoreProvider
         Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (3)),
         Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_WORKSPACE, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_LAYOUT, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.OUTPUT_NOTE_INPUT_ROUTE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.OUTPUT_NOTE_REPEAT, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.INPUT_CONTROLLER, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.ROUTING_CONTROLLER_INPUT, Integer.valueOf (2)),

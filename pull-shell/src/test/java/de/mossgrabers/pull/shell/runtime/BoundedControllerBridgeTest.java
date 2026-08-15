@@ -797,8 +797,16 @@ class BoundedControllerBridgeTest
         private long generation = 1;
         private String channelID = "track-a";
         private boolean armed;
+        private boolean noteInputRouteActive;
         private int snapshotCount;
         private int armedWriteCount;
+
+
+        @Override
+        public void setNoteInputRouteActive (final boolean active)
+        {
+            this.noteInputRouteActive = active;
+        }
 
 
         @Override

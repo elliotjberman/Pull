@@ -32,6 +32,9 @@ public final class CoreCapabilities
     /** Replayable selection of one installed stable note-controller view. */
     public static final String OUTPUT_CONTROLLER_LAYOUT = "output.controller-layout";
 
+    /** Target-fenced selected-track routing for the permanent controller note input. */
+    public static final String OUTPUT_NOTE_INPUT_ROUTE = "output.note-input-route";
+
     /** Replayable lease over the stable note-repeat engine. */
     public static final String OUTPUT_NOTE_REPEAT = "output.note-repeat";
 

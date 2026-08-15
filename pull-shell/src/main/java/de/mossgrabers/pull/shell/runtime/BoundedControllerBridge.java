@@ -23,8 +23,8 @@ import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ControllerLayoutSnapshot;
 import de.mossgrabers.pull.core.api.ControllerNoteView;
-import de.mossgrabers.pull.core.api.DesiredControllerLayout;
 import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
+import de.mossgrabers.pull.core.api.DesiredNotePerformance;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
@@ -71,6 +71,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 
 
 /**
@@ -97,6 +98,7 @@ final class BoundedControllerBridge implements ControllerBridge
     private final NewClipAction newClipAction;
     private final ParameterTargetHost parameterTargets;
     private final MasterCommandHost masterCommands;
+    private final NotePerformanceHost notePerformance;
     private final Map<MidiStateKey, MidiState> noteInputMidiState = new HashMap<> ();
 
     private ControllerBridgeSnapshot snapshot = ControllerBridgeSnapshot.empty ();
@@ -127,6 +129,7 @@ final class BoundedControllerBridge implements ControllerBridge
         this.log = Objects.requireNonNull (log, "log");
         this.parameterTargets = new ParameterTargetHost (surface, model, this.log);
         this.masterCommands = new MasterCommandHost (model, log);
+        this.notePerformance = new NotePerformanceHost (selectedTarget, surface.getControllerWorkspaceHost ()::prepareLayout, surface.getControllerWorkspaceHost ()::applyLayout, this::resetNoteInputMidiState);
     }
 
 
@@ -143,6 +146,7 @@ final class BoundedControllerBridge implements ControllerBridge
     {
         final DesiredBridgeSubscriptions requested = Objects.requireNonNull (subscriptions, "subscriptions");
         this.reconcileNoteRepeatLease ();
+        this.notePerformance.refresh ();
         final long selectedGeneration = this.selectedTarget.getGeneration ();
         if (this.observedSelectedGeneration >= 0 && selectedGeneration != this.observedSelectedGeneration)
             this.resetNoteInputMidiState ();
@@ -222,6 +226,7 @@ final class BoundedControllerBridge implements ControllerBridge
     public void invalidate ()
     {
         this.resetNoteInputMidiState ();
+        this.notePerformance.invalidate ();
         this.applyNoteRepeat (DesiredNoteRepeat.unowned ());
         this.parameterTargets.invalidate ();
         this.surface.getControllerWorkspaceHost ().invalidate ();
@@ -231,6 +236,14 @@ final class BoundedControllerBridge implements ControllerBridge
     @Override
     public void abandonActiveCore ()
     {
+        try
+        {
+            this.notePerformance.invalidate ();
+        }
+        catch (final RuntimeException failure)
+        {
+            this.log.warn ("Note-input route quarantine cleanup failed: " + failure.getMessage ());
+        }
         try
         {
             this.resetNoteInputMidiState ();
@@ -331,16 +344,23 @@ final class BoundedControllerBridge implements ControllerBridge
 
 
     @Override
-    public DesiredControllerLayout prepareControllerLayout (final DesiredControllerLayout layout)
+    public void setInputLifecycleIdle (final BooleanSupplier idle)
     {
-        return this.surface.getControllerWorkspaceHost ().prepareLayout (layout);
+        this.notePerformance.setInputLifecycleIdle (idle);
     }
 
 
     @Override
-    public void applyControllerLayout (final DesiredControllerLayout layout)
+    public DesiredNotePerformance prepareNotePerformance (final DesiredNotePerformance performance)
     {
-        this.surface.getControllerWorkspaceHost ().applyLayout (layout);
+        return this.notePerformance.prepare (performance);
+    }
+
+
+    @Override
+    public void applyNotePerformance (final DesiredNotePerformance performance)
+    {
+        this.notePerformance.apply (performance);
     }
 
 
