@@ -52,9 +52,9 @@ new_debug_home
 (
     wait_for_file "$test_debug/navigate-request.txt"
     IFS=$'\t' read -r request_id request_label _ < "$test_debug/navigate-request.txt"
-    printf 'stale\tREADY\tstale\tSESSION\tTRACK\tfalse\t\n' > "$test_debug/navigate-status.txt"
+    printf 'stale\tREADY\tstale\tSESSION\tTRACK\tfalse\tfalse\t\n' > "$test_debug/navigate-status.txt"
     sleep 0.05
-    printf '%s\tREADY\t%s\tSESSION\tTRACK\tfalse\t\n' "$request_id" "$request_label" > "$test_debug/navigate-status.txt"
+    printf '%s\tREADY\t%s\tSESSION\tTRACK\tfalse\tfalse\t\n' "$request_id" "$request_label" > "$test_debug/navigate-status.txt"
 ) &
 env HOME="$test_home" "${script_dir}/push-debug-request" correlated 'NOTE/workspace=false' >/dev/null 2>&1
 [[ ! -e "$test_debug/capture-request.txt" ]] || fail "navigation-only request emitted a capture"
@@ -68,7 +68,7 @@ kill -TERM "$client_pid"
 sleep 0.05
 kill -0 "$client_pid" 2>/dev/null || fail "interrupted client exited before terminal state"
 [[ -d "$test_debug/client.lock" ]] || fail "interrupted client released its lock early"
-printf '%s\tREADY\t%s\tSESSION\tTRACK\tfalse\t\n' "$request_id" "$request_label" > "$test_debug/navigate-status.txt"
+printf '%s\tREADY\t%s\tSESSION\tTRACK\tfalse\tfalse\t\n' "$request_id" "$request_label" > "$test_debug/navigate-status.txt"
 assert_status 130 wait "$client_pid"
 [[ ! -d "$test_debug/client.lock" ]] || fail "terminal client retained its lock"
 
@@ -76,7 +76,7 @@ new_debug_home
 (
     wait_for_file "$test_debug/navigate-request.txt"
     IFS=$'\t' read -r navigation_id navigation_label _ < "$test_debug/navigate-request.txt"
-    printf '%s\tREADY\t%s\tSESSION\tTRACK\tfalse\t\n' "$navigation_id" "$navigation_label" > "$test_debug/navigate-status.txt"
+    printf '%s\tREADY\t%s\tSESSION\tTRACK\tfalse\tfalse\t\n' "$navigation_id" "$navigation_label" > "$test_debug/navigate-status.txt"
     wait_for_file "$test_debug/capture-request.txt"
     IFS=$'\t' read -r capture_id _ < "$test_debug/capture-request.txt"
     [[ "$capture_id" == "$navigation_id" && -d "$test_debug/client.lock" ]] || fail "capture lost request identity or lock"

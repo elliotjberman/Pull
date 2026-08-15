@@ -52,7 +52,7 @@ class PushDebugNavigationHostTest
         assertFalse (Files.exists (this.statusPath ()), "one observed sample is not yet stable");
         host.tick ();
 
-        assertEquals (List.of ("project-request", "READY", "project-macros", "WORKSPACE", "WORKSPACE", "true", ""), this.status ());
+        assertEquals (List.of ("project-request", "READY", "project-macros", "WORKSPACE", "WORKSPACE", "true", "false", ""), this.status ());
     }
 
 
@@ -76,7 +76,7 @@ class PushDebugNavigationHostTest
         host.tick ();
         host.tick ();
 
-        assertEquals (List.of ("mix-request", "READY", "mix", "PLAY", "TRACK", "false", ""), this.status ());
+        assertEquals (List.of ("mix-request", "READY", "mix", "PLAY", "TRACK", "false", "false", ""), this.status ());
     }
 
 
@@ -112,7 +112,7 @@ class PushDebugNavigationHostTest
         host.tick ();
         host.tick ();
 
-        assertEquals (List.of ("master-request", "READY", "master", "PLAY", "MASTER", "false", ""), this.status ());
+        assertEquals (List.of ("master-request", "READY", "master", "PLAY", "MASTER", "false", "false", ""), this.status ());
     }
 
 
@@ -127,7 +127,7 @@ class PushDebugNavigationHostTest
         host.tick ();
 
         assertTrue (surface.events.isEmpty ());
-        assertEquals (List.of ("satisfied-request", "READY", "client-label", "PLAY", "MASTER", "false", ""), this.status ());
+        assertEquals (List.of ("satisfied-request", "READY", "client-label", "PLAY", "MASTER", "false", "false", ""), this.status ());
     }
 
 
@@ -152,7 +152,7 @@ class PushDebugNavigationHostTest
         host.tick ();
 
         assertEquals (List.of ("PLAY:DOWN", "PLAY:UP"), surface.events);
-        assertEquals (List.of ("play-request", "READY", "play", "PLAY", "MASTER", "true", ""), this.status ());
+        assertEquals (List.of ("play-request", "READY", "play", "PLAY", "MASTER", "true", "false", ""), this.status ());
     }
 
 
@@ -199,6 +199,29 @@ class PushDebugNavigationHostTest
         host.tick ();
 
         assertEquals ("READY", this.status ().get (1));
+    }
+
+
+    @Test
+    void repeatPredicateWaitsForAuthoritativeNoteInputState () throws IOException
+    {
+        final FakeNavigationSurface surface = new FakeNavigationSurface ("PLAY", "TRACK", false);
+        surface.observe ("PLAY", "TRACK", false, 5, false);
+        final PushDebugNavigationHost host = this.host (surface);
+        this.request ("repeat-request", "drum-roll", "ROW1_1/view=DRUM_PAD,track=0,repeat=true");
+
+        host.tick ();
+        assertEquals (List.of ("ROW1_1:DOWN", "ROW1_1:UP"), surface.events);
+
+        surface.observe ("DRUM_PAD", "TRACK", false, 0, false);
+        host.tick ();
+        assertFalse (Files.exists (this.statusPath ()), "layout read-back is not repeat read-back");
+
+        surface.observe ("DRUM_PAD", "TRACK", false, 0, true);
+        host.tick ();
+        host.tick ();
+
+        assertEquals (List.of ("repeat-request", "READY", "drum-roll", "DRUM_PAD", "TRACK", "false", "true", ""), this.status ());
     }
 
 
@@ -283,7 +306,7 @@ class PushDebugNavigationHostTest
         host.tick ();
         host.tick ();
 
-        assertEquals (List.of ("session-request", "READY", "session", "SESSION", "TRACK", "false", ""), this.status ());
+        assertEquals (List.of ("session-request", "READY", "session", "SESSION", "TRACK", "false", "false", ""), this.status ());
     }
 
 
@@ -300,7 +323,7 @@ class PushDebugNavigationHostTest
         final List<String> status = this.status ();
         assertEquals ("bad-request", status.get (0));
         assertEquals ("FAILED", status.get (1));
-        assertTrue (status.get (6).contains ("unsupported navigation gesture"));
+        assertTrue (status.get (7).contains ("unsupported navigation gesture"));
     }
 
 
@@ -402,7 +425,7 @@ class PushDebugNavigationHostTest
         final List<String> status = this.status ();
         assertEquals ("closing-navigation", status.get (0));
         assertEquals ("FAILED", status.get (1));
-        assertTrue (status.get (6).contains ("closing"));
+        assertTrue (status.get (7).contains ("closing"));
     }
 
 
@@ -448,13 +471,24 @@ class PushDebugNavigationHostTest
 
         private void observe (final String viewID, final String modeID, final boolean workspaceActive)
         {
-            this.observed = new PushDebugNavigationHost.ObservedNavigation (viewID, modeID, workspaceActive);
+            this.observed = new PushDebugNavigationHost.ObservedNavigation (viewID, modeID, workspaceActive, -1, false);
         }
 
 
         private void observe (final String viewID, final String modeID, final boolean workspaceActive, final int selectedTrackPosition)
         {
-            this.observed = new PushDebugNavigationHost.ObservedNavigation (viewID, modeID, workspaceActive, selectedTrackPosition);
+            this.observed = new PushDebugNavigationHost.ObservedNavigation (viewID, modeID, workspaceActive, selectedTrackPosition, false);
+        }
+
+
+        private void observe (
+            final String viewID,
+            final String modeID,
+            final boolean workspaceActive,
+            final int selectedTrackPosition,
+            final boolean noteRepeatActive)
+        {
+            this.observed = new PushDebugNavigationHost.ObservedNavigation (viewID, modeID, workspaceActive, selectedTrackPosition, noteRepeatActive);
         }
 
 
