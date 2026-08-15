@@ -1118,6 +1118,41 @@ class PullControllerCoreTest
 
 
     @Test
+    void explicitSessionDuringNeutralizedHandoffSupersedesRetainedNoteDestination ()
+    {
+        final FakeCoreHost host = neutralizedJunoToDrumsHandoff ();
+
+        host.controllerButton (SESSION_BUTTON, true);
+        host.controllerButton (SESSION_BUTTON, false);
+
+        final SelectedTrackSnapshot drums = selectedTrack (9, "drums", 0, true, false);
+        final NoteViewSnapshot drumPreference = new NoteViewSnapshot (9, "drums", 0, ControllerNoteView.DRUM_PAD, true);
+        host.bridge (noteBridge (3, "SESSION", drums, drumPreference, drum (drums), NoteRepeatSnapshot.empty ()));
+
+        assertEquals (DesiredNotePerformance.inactive (), host.effects ().desiredNotePerformance ());
+        assertFalse (host.effects ().desiredNoteRepeat ().owned ());
+    }
+
+
+    @Test
+    void temporarySessionDuringNeutralizedHandoffRestoresRetainedNoteDestination ()
+    {
+        final FakeCoreHost host = neutralizedJunoToDrumsHandoff ();
+
+        host.controllerButton (SESSION_BUTTON, true);
+        host.controllerButtonLong (SESSION_BUTTON);
+        host.controllerButton (SESSION_BUTTON, false);
+
+        final SelectedTrackSnapshot drums = selectedTrack (9, "drums", 0, true, false);
+        final NoteViewSnapshot drumPreference = new NoteViewSnapshot (9, "drums", 0, ControllerNoteView.DRUM_PAD, true);
+        host.bridge (noteBridge (3, "SESSION", drums, drumPreference, drum (drums), NoteRepeatSnapshot.empty ()));
+
+        assertEquals (ControllerNoteView.DRUM_PAD, host.effects ().desiredControllerLayout ().noteView ());
+        assertEquals (DesiredNoteInputRoute.selectedTrack (9, "drums"), host.effects ().desiredNoteInputRoute ());
+    }
+
+
+    @Test
     void sessionExitSuppressesNotePerformanceAndAUsedTemporarySessionRestoresIt ()
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
@@ -1416,6 +1451,21 @@ class PullControllerCoreTest
     private static NoteRepeatSnapshot repeatReadback (final boolean rollEnabled, final DesiredNoteRepeat desired)
     {
         return new NoteRepeatSnapshot (true, rollEnabled, desired.active (), desired.mode (), desired.octaves (), desired.period (), desired.noteLength (), desired.latchActive (), desired.freeRunning (), desired.usePressure (), desired.shuffle ());
+    }
+
+
+    private static FakeCoreHost neutralizedJunoToDrumsHandoff ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        final SelectedTrackSnapshot juno = selectedTrack (8, "juno", 5, true, false);
+        final NoteViewSnapshot junoPreference = new NoteViewSnapshot (8, "juno", 5, ControllerNoteView.PLAY, false);
+        host.bridge (noteBridge ("PLAY", juno, junoPreference, DrumContextSnapshot.empty (), NoteRepeatSnapshot.empty ()));
+
+        final SelectedTrackSnapshot drums = selectedTrack (9, "drums", 0, true, false);
+        host.bridge (noteBridge (2, "SESSION", drums, junoPreference, DrumContextSnapshot.empty (), NoteRepeatSnapshot.empty ()));
+        assertEquals (DesiredNotePerformance.inactive (), host.effects ().desiredNotePerformance ());
+        return host;
     }
 
 

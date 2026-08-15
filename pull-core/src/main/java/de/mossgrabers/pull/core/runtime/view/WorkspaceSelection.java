@@ -116,12 +116,12 @@ public final class WorkspaceSelection
     }
 
 
-    private void requestDestination (final Id workspace, final Destination destination, final long afterLayoutGeneration)
+    private void select (final Id workspace, final Destination destination, final long afterLayoutGeneration, final boolean handoffRequired)
     {
         this.active = Objects.requireNonNull (workspace, "workspace");
         this.selectedDestination = Objects.requireNonNull (destination, "destination");
-        this.pendingDestination = destination;
-        this.pendingAfterLayoutGeneration = destination == Destination.NONE ? -1 : afterLayoutGeneration;
+        this.pendingDestination = handoffRequired ? destination : Destination.NONE;
+        this.pendingAfterLayoutGeneration = this.pendingDestination == Destination.NONE ? -1 : afterLayoutGeneration;
         this.sessionDestinationAcknowledged = false;
         this.requestSequence++;
     }
@@ -131,19 +131,12 @@ public final class WorkspaceSelection
     public boolean beginGesture (final Gesture gesture, final Id workspace, final Destination destination, final ControllerLayoutSnapshot layout, final boolean switched)
     {
         final Gesture checkedGesture = Objects.requireNonNull (gesture, "gesture");
-        final HeldSelection previous = this.heldSelections.putIfAbsent (checkedGesture, new HeldSelection (this.active, this.currentDestination (layout), switched, false));
+        final Destination previousDestination = this.currentDestination (layout);
+        final boolean selectionChanged = this.active != workspace || previousDestination != destination;
+        final HeldSelection previous = this.heldSelections.putIfAbsent (checkedGesture, new HeldSelection (this.active, previousDestination, selectionChanged, false));
         if (previous != null)
             return false;
-        if (switched)
-            this.requestDestination (workspace, destination, layout.generation ());
-        else
-        {
-            this.active = Objects.requireNonNull (workspace, "workspace");
-            this.pendingDestination = Destination.NONE;
-            this.pendingAfterLayoutGeneration = -1;
-            this.sessionDestinationAcknowledged = false;
-            this.requestSequence++;
-        }
+        this.select (workspace, destination, layout.generation (), switched);
         return true;
     }
 
@@ -159,8 +152,8 @@ public final class WorkspaceSelection
     public void endGesture (final Gesture gesture, final ControllerLayoutSnapshot layout)
     {
         final HeldSelection held = this.heldSelections.remove (Objects.requireNonNull (gesture, "gesture"));
-        if (held != null && held.switched () && held.temporary ())
-            this.requestDestination (held.workspace (), held.destination (), Objects.requireNonNull (layout, "layout").generation ());
+        if (held != null && held.selectionChanged () && held.temporary ())
+            this.select (held.workspace (), held.destination (), Objects.requireNonNull (layout, "layout").generation (), true);
         else if (gesture == Gesture.SESSION && this.pendingDestination == Destination.SESSION && this.sessionDestinationAcknowledged)
         {
             this.pendingDestination = Destination.NONE;
@@ -245,11 +238,11 @@ public final class WorkspaceSelection
     }
 
 
-    private record HeldSelection (Id workspace, Destination destination, boolean switched, boolean temporary)
+    private record HeldSelection (Id workspace, Destination destination, boolean selectionChanged, boolean temporary)
     {
         private HeldSelection withTemporary ()
         {
-            return new HeldSelection (this.workspace, this.destination, this.switched, true);
+            return new HeldSelection (this.workspace, this.destination, this.selectionChanged, true);
         }
     }
 
