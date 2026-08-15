@@ -21,7 +21,7 @@ public final class PullCoreProvider implements CoreProvider
     public static final String STATE_SCHEMA = "pull.controller";
 
     /** Checkpoint schema version. */
-    public static final int STATE_SCHEMA_VERSION = 3;
+    public static final int STATE_SCHEMA_VERSION = 4;
 
     private static final ShellCapabilities REQUIRED_CAPABILITIES = new ShellCapabilities (Map.ofEntries (
         Map.entry (CoreCapabilities.INPUT_DRUM_FILL, Integer.valueOf (1)),

@@ -147,7 +147,7 @@ class PullCoreProviderTest
         assertEquals (provider.descriptor ().stateSchemaVersion (), checkpoint.version ());
         assertArrayEquals (new byte []
         {
-            0, 0, 0, 0, 0, 0, 0
+            0, 0, 0, 0, 0, 0, 0, 0
         }, checkpoint.payload ());
 
     }

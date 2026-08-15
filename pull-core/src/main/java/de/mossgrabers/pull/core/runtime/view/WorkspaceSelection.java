@@ -45,6 +45,7 @@ public final class WorkspaceSelection
     }
 
     private Id          active;
+    private Destination selectedDestination;
     private Destination pendingDestination;
     private long        pendingAfterLayoutGeneration = -1;
     private boolean     sessionDestinationAcknowledged;
@@ -60,19 +61,21 @@ public final class WorkspaceSelection
      */
     public WorkspaceSelection (final Id active)
     {
-        this (active, Destination.NONE);
+        this (active, Destination.NONE, Destination.NONE);
     }
 
 
     /**
-     * Constructor with a replayed destination handoff.
+     * Constructor with replayed destination state.
      *
      * @param active Initial workspace
+     * @param selectedDestination Retained stable destination
      * @param pendingDestination Destination still awaiting layout read-back
      */
-    public WorkspaceSelection (final Id active, final Destination pendingDestination)
+    public WorkspaceSelection (final Id active, final Destination selectedDestination, final Destination pendingDestination)
     {
         this.active = Objects.requireNonNull (active, "active");
+        this.selectedDestination = Objects.requireNonNull (selectedDestination, "selectedDestination");
         this.pendingDestination = Objects.requireNonNull (pendingDestination, "pendingDestination");
     }
 
@@ -99,6 +102,13 @@ public final class WorkspaceSelection
     }
 
 
+    /** Get the retained stable destination independently of an in-flight handoff. */
+    public Destination selectedDestination ()
+    {
+        return this.selectedDestination;
+    }
+
+
     /** Get the stable destination still awaiting authoritative layout read-back. */
     public Destination pendingDestination ()
     {
@@ -106,33 +116,11 @@ public final class WorkspaceSelection
     }
 
 
-    /**
-     * Select a workspace.
-     *
-     * @param workspace Workspace ID
-     */
-    public void select (final Id workspace)
-    {
-        this.select (workspace, Destination.NONE);
-    }
-
-
-    /**
-     * Select a workspace and an optional stable destination handoff.
-     *
-     * @param workspace Workspace ID
-     * @param destination Stable destination to realize and acknowledge
-     */
-    public void select (final Id workspace, final Destination destination)
-    {
-        this.select (workspace, destination, -1);
-    }
-
-
-    private void select (final Id workspace, final Destination destination, final long afterLayoutGeneration)
+    private void requestDestination (final Id workspace, final Destination destination, final long afterLayoutGeneration)
     {
         this.active = Objects.requireNonNull (workspace, "workspace");
-        this.pendingDestination = Objects.requireNonNull (destination, "destination");
+        this.selectedDestination = Objects.requireNonNull (destination, "destination");
+        this.pendingDestination = destination;
         this.pendingAfterLayoutGeneration = destination == Destination.NONE ? -1 : afterLayoutGeneration;
         this.sessionDestinationAcknowledged = false;
         this.requestSequence++;
@@ -146,7 +134,16 @@ public final class WorkspaceSelection
         final HeldSelection previous = this.heldSelections.putIfAbsent (checkedGesture, new HeldSelection (this.active, this.currentDestination (layout), switched, false));
         if (previous != null)
             return false;
-        this.select (workspace, switched ? destination : Destination.NONE, layout.generation ());
+        if (switched)
+            this.requestDestination (workspace, destination, layout.generation ());
+        else
+        {
+            this.active = Objects.requireNonNull (workspace, "workspace");
+            this.pendingDestination = Destination.NONE;
+            this.pendingAfterLayoutGeneration = -1;
+            this.sessionDestinationAcknowledged = false;
+            this.requestSequence++;
+        }
         return true;
     }
 
@@ -163,7 +160,7 @@ public final class WorkspaceSelection
     {
         final HeldSelection held = this.heldSelections.remove (Objects.requireNonNull (gesture, "gesture"));
         if (held != null && held.switched () && held.temporary ())
-            this.select (held.workspace (), held.destination (), Objects.requireNonNull (layout, "layout").generation ());
+            this.requestDestination (held.workspace (), held.destination (), Objects.requireNonNull (layout, "layout").generation ());
         else if (gesture == Gesture.SESSION && this.pendingDestination == Destination.SESSION && this.sessionDestinationAcknowledged)
         {
             this.pendingDestination = Destination.NONE;
@@ -200,6 +197,8 @@ public final class WorkspaceSelection
     public void observe (final ControllerLayoutSnapshot layout)
     {
         final ControllerLayoutSnapshot observed = Objects.requireNonNull (layout, "layout");
+        if (this.selectedDestination == Destination.NONE && this.pendingDestination == Destination.NONE && this.active == Id.DEFAULT)
+            this.selectedDestination = destinationOf (observed);
         final boolean trackPage = "TRACK".equals (observed.modeId ());
         if (observed.generation () <= this.pendingAfterLayoutGeneration)
             return;
@@ -230,14 +229,19 @@ public final class WorkspaceSelection
 
     private Destination currentDestination (final ControllerLayoutSnapshot layout)
     {
-        if (this.pendingDestination != Destination.NONE)
-            return this.pendingDestination;
-        final ControllerLayoutSnapshot observed = Objects.requireNonNull (layout, "layout");
-        if (this.active != Id.DEFAULT || !"TRACK".equals (observed.modeId ()))
-            return Destination.NONE;
-        if ("SESSION".equals (observed.viewId ()))
+        if (this.selectedDestination != Destination.NONE)
+            return this.selectedDestination;
+        return this.active == Id.DEFAULT ? destinationOf (Objects.requireNonNull (layout, "layout")) : Destination.NONE;
+    }
+
+
+    private static Destination destinationOf (final ControllerLayoutSnapshot layout)
+    {
+        if ("TRACK".equals (layout.modeId ()) && "SESSION".equals (layout.viewId ()))
             return Destination.SESSION;
-        return ControllerNoteView.fromStableId (observed.viewId ()).isPresent () ? Destination.NOTE : Destination.NONE;
+        if (!ControllerNoteView.fromStableId (layout.viewId ()).isPresent ())
+            return Destination.NONE;
+        return Destination.NOTE;
     }
 
 

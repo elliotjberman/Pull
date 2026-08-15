@@ -973,6 +973,25 @@ class PullControllerCoreTest
 
 
     @Test
+    void checkpointRetainsAnAcknowledgedNoteDestinationAcrossNeutralReadback ()
+    {
+        final SelectedTrackSnapshot juno = selectedTrack (8, "juno", 5, true, false);
+        final NoteViewSnapshot preference = new NoteViewSnapshot (8, "juno", 5, ControllerNoteView.PLAY, false);
+        final FakeCoreHost first = host (ClipCatalogSnapshot.empty ());
+        first.start (Optional.empty ());
+        first.bridge (noteBridge ("PLAY", juno, preference, DrumContextSnapshot.empty (), NoteRepeatSnapshot.empty ()));
+
+        final PullCoreProvider provider = new PullCoreProvider ();
+        final FakeCoreHost restored = new FakeCoreHost (provider.create (), provider.descriptor ().requiredCapabilities ());
+        restored.start (Optional.of (first.checkpoint ()));
+        restored.bridge (noteBridge (2, "SESSION", juno, preference, DrumContextSnapshot.empty (), NoteRepeatSnapshot.empty ()));
+
+        assertEquals (ControllerNoteView.PLAY, restored.effects ().desiredControllerLayout ().noteView ());
+        assertEquals (DesiredNoteInputRoute.selectedTrack (8, "juno"), restored.effects ().desiredNoteInputRoute ());
+    }
+
+
+    @Test
     void checkpointRetainsTheLastAuthoritativeEngineOwnerAcrossCoreReload ()
     {
         final FakeCoreHost first = host (ClipCatalogSnapshot.empty ());
@@ -1069,7 +1088,32 @@ class PullControllerCoreTest
         assertEquals (DesiredNoteInputRoute.selectedTrack (8, "juno"), host.effects ().desiredNoteInputRoute ());
 
         host.bridge (noteBridge ("SESSION", juno, new NoteViewSnapshot (8, "juno", 5, ControllerNoteView.PLAY, false), DrumContextSnapshot.empty (), NoteRepeatSnapshot.empty ()));
+        assertEquals (ControllerNoteView.PLAY, host.effects ().desiredControllerLayout ().noteView ());
+        assertEquals (DesiredNoteInputRoute.selectedTrack (8, "juno"), host.effects ().desiredNoteInputRoute ());
+    }
+
+
+    @Test
+    void selectedTrackHandoffRetainsNoteDestinationThroughFailClosedNeutralization ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        final SelectedTrackSnapshot juno = selectedTrack (8, "juno", 5, true, false);
+        final NoteViewSnapshot junoPreference = new NoteViewSnapshot (8, "juno", 5, ControllerNoteView.PLAY, false);
+        host.bridge (noteBridge ("PLAY", juno, junoPreference, DrumContextSnapshot.empty (), NoteRepeatSnapshot.empty ()));
+
+        final SelectedTrackSnapshot drums = selectedTrack (9, "drums", 0, true, false);
+        host.bridge (noteBridge (2, "PLAY", drums, junoPreference, DrumContextSnapshot.empty (), NoteRepeatSnapshot.empty ()));
         assertEquals (DesiredNotePerformance.inactive (), host.effects ().desiredNotePerformance ());
+
+        final NoteViewSnapshot drumPreference = new NoteViewSnapshot (9, "drums", 0, ControllerNoteView.DRUM_PAD, true);
+        host.bridge (noteBridge (3, "SESSION", drums, drumPreference, drum (drums), NoteRepeatSnapshot.empty ()));
+        assertEquals (ControllerNoteView.DRUM_PAD, host.effects ().desiredControllerLayout ().noteView ());
+        assertEquals (DesiredNoteInputRoute.selectedTrack (9, "drums"), host.effects ().desiredNoteInputRoute ());
+
+        final NoteRepeatSnapshot rollEnabled = new NoteRepeatSnapshot (true, true, false, NoteRepeatMode.RANDOM, 2, 1.0 / 3.0, 0.25, true, true, false, false);
+        host.bridge (noteBridge (4, "DRUM_PAD", drums, drumPreference, drum (drums), rollEnabled));
+        assertTrue (host.effects ().desiredNoteRepeat ().owned ());
     }
 
 

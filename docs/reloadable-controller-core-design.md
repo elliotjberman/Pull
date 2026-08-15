@@ -708,11 +708,12 @@ controller-layout, target-fenced note-view, note-repeat, bounded drum, bounded p
 lightweight project, and current-project/Master contexts; each unsubscribed domain is its typed
 empty value.
 
-Checkpoint schema version 2 retains workspace selection plus the last authoritative engine-owner
-identity and playback state, so a normal child-core reload while another project is visible does
-not lose remote Play feedback. The child never checkpoints or mirrors an in-flight cross-project
-operation; the stable command host owns it through completion and fences every active step with
-live project identity and command read-back.
+Checkpoint schema version 4 retains workspace selection, the selected Note/Session destination,
+any destination handoff still awaiting layout read-back, and the last authoritative engine-owner
+identity and playback state. A normal child-core reload therefore preserves both the complete
+controller-view lease and remote Play feedback while another project is visible. The child never
+checkpoints or mirrors an in-flight cross-project operation; the stable command host owns it through
+completion and fences every active step with live project identity and command read-back.
 
 Every `CoreResult` contains complete desired hardware output, input routes, bridge subscriptions,
 clip bindings, composed controller state, controller actions, note-repeat ownership, parameter-bank
