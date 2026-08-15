@@ -1,5 +1,13 @@
 # Repository Agent Instructions
 
+## Closed-loop testing
+
+- Read `TESTING.md` before validating controller behavior or changing debug ingress.
+- A build or submitted command is not proof that a feature worked. Drive the real routed path and
+  verify later authoritative host state and controller output. If the harness cannot drive or
+  observe the feature, add the smallest reusable, bounded, opt-in debug capability needed to close
+  the loop as part of the feature work.
+
 ## Zero-new-stable-policy boundary
 
 - Do not add or change Pull product behavior in `pull-shell`. Mappings, modifier meanings, gesture

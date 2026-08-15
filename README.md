@@ -13,100 +13,10 @@ Pull is based on [DrivenByMoss](https://github.com/git-moss/DrivenByMoss).
 For a targeted extension build, use `mvn -pl pull-shell -am package`. The reactor builds the
 current core first and embeds that resolved artifact through the resource-only core bundle.
 
-## Fast core test loop
+## Testing and live debugging
 
-Run the reloadable controller core and its shell fakes without building the Bitwig extension:
-
-```bash
-mvn -pl pull-core -am test
-```
-
-After that first run has downloaded the test dependencies, repeat fully offline:
-
-```bash
-mvn -o -pl pull-core -am test
-```
-
-This loop uses deterministic fake time and does not launch or require Bitwig.
-
-## Live Push display loop
-
-The debugger is off by default. Enable it before installing the shell, then restart Bitwig once so
-the extension constructs its local transports:
-
-```bash
-tools/capture-push2-display --enable
-```
-
-An agent can then select a bounded Push surface and capture the resulting Push 2 framebuffer in one
-command:
-
-```bash
-tools/capture-push2-display mix
-tools/capture-push2-display master
-tools/capture-push2-display project-macros
-tools/capture-push2-display session
-```
-
-Calling the tool without a target captures the current display. A targeted capture injects the
-same permanent button gestures as the hardware, through the installed input arbitrator. The tool
-waits until the input router and relevant physical controls are idle, submits each gesture once,
-then waits for the stable shell to observe the target view and mode on two later controller ticks,
-and finally arms a request for the next outbound framebuffer. That request bypasses passive frame
-sampling, so even a heavily throttled debug stream cannot return a cached pre-navigation image or
-time out waiting for the sampling interval. The stable shell accepts only a bounded generic
-plan of explicitly admitted gestures and authoritative view predicates. Play and the two Master
-project-navigation buttons may also use a `submitted` postcondition for live regression tests; this
-presses the real routed hardware command exactly once and reports completion only after its input
-lifecycle is idle. Recording, deletion, and project-file actions remain unavailable. The four named
-recipes above live in the command-line client, so they can change without rebuilding the extension.
-Filesystem polling and PNG encoding run on owned workers rather than the controller thread.
-
-While debugging is enabled, the Push display transport atomically publishes its newest sampled
-frame to `latest.png` and its metrics to `latest-frame.txt`. The default rate samples every outbound
-frame. Intermediate samples are coalesced into one bounded writer slot if PNG encoding cannot keep
-up; the metrics expose that count along with controller-thread framebuffer-copy time and worker PNG
-time. Inspect or change the live rate without rebuilding:
-
-```bash
-tools/capture-push2-display --stats
-tools/capture-push2-display --sample-rate 10
-```
-
-The setting is read from `frame-sample-rate.txt` and accepts one sample per 1 through 600 outbound
-frames. Deleting that file restores the every-frame default.
-
-The resulting request-correlated image path is printed on standard output; navigation state is
-reported on standard error. The fixed local handshake directory is
-`~/.drivenbymoss/pull/debug`. One client owns an atomic lock for the complete navigate-and-capture
-transaction, and every request-correlated PNG is named for that request so another capture cannot
-satisfy or overwrite it. Unless the `enabled` marker exists in that directory at extension startup, neither
-debugger worker is constructed. Run `tools/capture-push2-display --disable` and restart Bitwig to
-turn the transports off again.
-
-For navigation without a framebuffer capture, use the generic client; named recipes stay client-side:
-
-```bash
-tools/push-debug-request session \
-    'NOTE/workspace=false' \
-    'TRACK/mode=TRACK,workspace=false' \
-    'SESSION/view=SESSION,mode!=WORKSPACE|MASTER|MASTER_TEMP,workspace=false'
-```
-
-For an explicitly state-changing playback test, use the permanent routed Play binding and verify
-its result from later authoritative framebuffer and host observations:
-
-```bash
-tools/push-debug-request play 'PLAY/submitted'
-```
-
-Only Play and Master row buttons 5/7/8 (Audio Engine, Previous, and Next) admit this one-shot form.
-Scene launch, parameter motion, and drum fills require a future core-owned debugger ingress, not
-stable-shell shortcuts.
-
-Adding the generic debug bridge is a stable-shell change and needs one extension install and Bitwig
-restart. Frame capture and client-side navigation recipes can then be reused across core hot
-reloads.
+See [`TESTING.md`](TESTING.md) for offline test commands, the opt-in Push debugger, and the
+closed-loop validation policy used for feature work.
 
 ## Reloadability end state
 
@@ -132,11 +42,7 @@ mixed-ownership layer. The detailed boundary and restart rules live in
 [`docs/reloadable-controller-core-design.md`](docs/reloadable-controller-core-design.md).
 
 Milestone 4 also has shell-side selected-track scanner, pinned-actuator, routing, and launch-lease
-tests:
-
-```bash
-mvn -o -pl pull-shell -am test
-```
+coverage through the shell test loop documented in [`TESTING.md`](TESTING.md).
 
 The first reloadable behavior occupies the 3x4 Drum Pads region directly above the four yellow
 rate pads. Selected-track clips whose names contain `fill` case-insensitively are assigned in scene
