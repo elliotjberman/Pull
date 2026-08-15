@@ -84,6 +84,7 @@ public final class DrumPadControls
     private final long []                     ratePadPressOrder    = new long [NUM_RATE_PADS];
     private boolean                           active;
     private boolean                           controllerEngaged;
+    private boolean                           rollSuppressedForEngagement;
     private IDrumDevice                       engagedDrumDevice;
     private int                               primaryRatePad       = -1;
     private int                               secondaryRatePad     = -1;
@@ -177,7 +178,10 @@ public final class DrumPadControls
         final IDrumDevice candidate = shouldEngage ? this.model.getDrumDevice () : null;
         final boolean candidateChanged = shouldEngage && candidate != this.engagedDrumDevice;
         if (shouldEngage == this.controllerEngaged && !candidateChanged)
+        {
+            this.reconcileRollState ();
             return;
+        }
 
         final boolean wasEngaged = this.controllerEngaged;
         this.clearPlaybackFeedback ();
@@ -198,16 +202,14 @@ public final class DrumPadControls
         {
             this.refreshSelectedTrack ();
             if (!wasEngaged)
-            {
                 this.surface.setVelocityTranslationTable (Scales.getIdentityMatrix ());
-                this.configureRoll ();
-            }
-            else
+            this.reconcileRollState ();
+            if (wasEngaged && this.previousRollState != null)
                 this.setNoteRepeatRate (DEFAULT_RATE);
         }
         else
         {
-            this.restoreRoll ();
+            this.reconcileRollState ();
             this.restoreVelocityTranslation ();
         }
 
@@ -363,7 +365,6 @@ public final class DrumPadControls
             return;
 
         this.previousRollState = new RollState (
-            this.configuration.isNoteRepeatActive (),
             this.configuration.getNoteRepeatMode (),
             noteRepeat.isLatchActive (),
             noteRepeat.isFreeRunning (),
@@ -389,6 +390,50 @@ public final class DrumPadControls
     }
 
 
+    private void reconcileRollState ()
+    {
+        final boolean shouldEnable = shouldEnableRoll (this.controllerEngaged, this.configuration.isDrumControllerRollEnabled ());
+        if (!this.controllerEngaged)
+        {
+            this.restoreRoll ();
+            this.rollSuppressedForEngagement = false;
+            return;
+        }
+
+        if (shouldEnable)
+        {
+            this.rollSuppressedForEngagement = false;
+            if (this.previousRollState == null)
+                this.configureRoll ();
+            return;
+        }
+
+        final boolean wasConfigured = this.previousRollState != null;
+        if (wasConfigured)
+            this.restoreRoll ();
+        if (!wasConfigured && !this.rollSuppressedForEngagement)
+            this.disableRoll ();
+        if (wasConfigured || !this.rollSuppressedForEngagement)
+            this.resetMomentaryRatePads ();
+        this.rollSuppressedForEngagement = true;
+    }
+
+
+    static boolean shouldEnableRoll (final boolean controllerEngaged, final boolean rollEnabled)
+    {
+        return controllerEngaged && rollEnabled;
+    }
+
+
+    private void disableRoll ()
+    {
+        this.configuration.setNoteRepeatActive (false);
+        final INoteRepeat noteRepeat = this.getNoteRepeat ();
+        if (noteRepeat != null)
+            noteRepeat.setActive (false);
+    }
+
+
     private void restoreRoll ()
     {
         final RollState previousState = this.previousRollState;
@@ -396,14 +441,17 @@ public final class DrumPadControls
         if (previousState == null)
             return;
 
-        this.configuration.setNoteRepeatActive (previousState.active ());
+        // The automatic roll belongs to this controller view, not to the document-wide Repeat
+        // preference. Always retire it when the view loses ownership so a persisted or stale
+        // pre-engagement value cannot leak the arpeggiator into melodic note views.
+        this.configuration.setNoteRepeatActive (false);
         this.configuration.setNoteRepeatMode (previousState.mode ());
 
         final INoteRepeat noteRepeat = this.getNoteRepeat ();
         if (noteRepeat == null)
             return;
 
-        noteRepeat.setActive (previousState.active ());
+        noteRepeat.setActive (false);
         noteRepeat.setMode (previousState.mode ());
         noteRepeat.setOctaves (this.configuration.getNoteRepeatOctave ());
         noteRepeat.setPeriod (this.configuration.getNoteRepeatPeriod ().getValue ());
@@ -480,6 +528,9 @@ public final class DrumPadControls
 
     private void onRatePad (final int ratePadIndex, final boolean isDown)
     {
+        if (!this.configuration.isDrumControllerRollEnabled ())
+            return;
+
         if (this.ratePadsDown[ratePadIndex] == isDown)
             return;
 
@@ -534,6 +585,9 @@ public final class DrumPadControls
 
     private void setNoteRepeatRate (final Resolution resolution)
     {
+        if (this.previousRollState == null)
+            return;
+
         final INoteRepeat noteRepeat = this.getNoteRepeat ();
         if (noteRepeat == null)
             return;
@@ -548,6 +602,11 @@ public final class DrumPadControls
         final int row = padGrid.getRows () - 1;
         for (int index = 0; index < NUM_RATE_PADS; index++)
         {
+            if (!this.configuration.isDrumControllerRollEnabled ())
+            {
+                padGrid.lightEx (RATE_PAD_START + index, row, PAD_OFF_COLOR);
+                continue;
+            }
             final boolean isSelected = index == this.primaryRatePad || index == this.secondaryRatePad;
             final int color = isSelected ? RATE_COLOR_ACTIVE : this.ratePadsDown[index] ? RATE_COLOR_HELD : RATE_COLOR;
             padGrid.lightEx (RATE_PAD_START + index, row, color);
@@ -703,7 +762,7 @@ public final class DrumPadControls
     }
 
 
-    private record RollState (boolean active, ArpeggiatorMode mode, boolean latchActive, boolean freeRunning, boolean usePressure, boolean shuffle)
+    private record RollState (ArpeggiatorMode mode, boolean latchActive, boolean freeRunning, boolean usePressure, boolean shuffle)
     {
         // State captured before this component applies its performance-specific roll settings.
     }

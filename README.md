@@ -52,6 +52,10 @@ still-arming pad is off, and a verified ready pad is dim orange. Only the shell-
 is fully lit orange; a press request does not optimistically change the light before that
 authoritative snapshot read-back.
 
+The Pull controller settings include **Drum Controller → Automatic arp / roll**. It defaults to
+On. Turning it Off immediately retires the drum layout's controller-input arpeggiator and blanks
+the four rate pads; turning it back On re-enables the roll engine while the drum layout is engaged.
+
 Each pad launches only its assigned clip. The shell keeps a private one-slot Bitwig actuator for
 each pad and freezes it while its launch remains in the session, so session scrolling, selection
 changes, and new core builds cannot retarget the matching release. The shell retains at most one

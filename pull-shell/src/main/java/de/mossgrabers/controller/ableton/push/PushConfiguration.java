@@ -47,6 +47,9 @@ public class PushConfiguration extends AbstractConfiguration implements IGraphic
     public static final Integer     RIBBON_MODE_CC_VAL                         = Integer.valueOf (NEXT_SETTING_ID + 1);
     /** Setting for the ribbon mode note repeat. */
     public static final Integer     RIBBON_MODE_NOTE_REPEAT                    = Integer.valueOf (NEXT_SETTING_ID + 2);
+    /** Enable the automatic arpeggiator used by the drum-controller roll pads. */
+    public static final Integer     DRUM_CONTROLLER_ROLL                       = Integer.valueOf (NEXT_SETTING_ID + 3);
+
     /** Setting for the display brightness. */
     public static final Integer     DISPLAY_BRIGHTNESS                         = Integer.valueOf (NEXT_SETTING_ID + 5);
     /** Setting for the pad LED brightness. */
@@ -80,6 +83,8 @@ public class PushConfiguration extends AbstractConfiguration implements IGraphic
     public static final int         NOTE_REPEAT_LENGTH                         = 2;
 
     private static final String     CATEGORY_RIBBON                            = "Ribbon";
+    private static final String     CATEGORY_DRUM_CONTROLLER                   = "Drum Controller";
+
     private static final String []  RIBBON_MODE_VALUES                         =
     {
         "Pitch",
@@ -117,6 +122,8 @@ public class PushConfiguration extends AbstractConfiguration implements IGraphic
     private int                   ribbonMode                   = RIBBON_MODE_PITCH;
     private int                   ribbonModeCCVal              = 1;
     private int                   ribbonModeNoteRepeat         = NOTE_REPEAT_PERIOD;
+    private boolean               drumControllerRoll          = true;
+
     private boolean               stopAutomationOnKnobRelease  = false;
     private Modes                 globalMixMode                = Modes.VOLUME;
     private int                   mixSendOffset;
@@ -197,6 +204,8 @@ public class PushConfiguration extends AbstractConfiguration implements IGraphic
 
         this.activateAutoSelectDrumSetting (globalSettings);
         this.activateTurnOffEmptyDrumPadsSetting (globalSettings);
+        this.activateDrumControllerRollSetting (globalSettings);
+
         ///////////////////////////
         // Workflow
 
@@ -712,6 +721,31 @@ public class PushConfiguration extends AbstractConfiguration implements IGraphic
         this.ribbonModeNoteRepeatSetting.addValueObserver (value -> {
             this.ribbonModeNoteRepeat = lookupIndex (RIBBON_NOTE_REPEAT_VALUES, value);
             this.notifyObservers (RIBBON_MODE_NOTE_REPEAT);
+        });
+    }
+
+
+    /**
+     * Test whether the drum controller should automatically enable its roll arpeggiator.
+     *
+     * @return True if automatic rolls are enabled
+     */
+    public boolean isDrumControllerRollEnabled ()
+    {
+        return this.drumControllerRoll;
+    }
+
+
+    /**
+     * Activate the drum-controller settings.
+     *
+     * @param settingsUI The settings
+     */
+    private void activateDrumControllerRollSetting (final ISettingsUI settingsUI)
+    {
+        settingsUI.getEnumSetting ("Automatic arp / roll", CATEGORY_DRUM_CONTROLLER, ON_OFF_OPTIONS, ON_OFF_OPTIONS[1]).addValueObserver (value -> {
+            this.drumControllerRoll = ON_OFF_OPTIONS[1].equals (value);
+            this.notifyObservers (DRUM_CONTROLLER_ROLL);
         });
     }
 
