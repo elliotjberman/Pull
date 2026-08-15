@@ -4,11 +4,14 @@
 package de.mossgrabers.controller.ableton.push.workspace;
 
 import de.mossgrabers.framework.featuregroup.IMode;
+import de.mossgrabers.framework.featuregroup.IView;
 import de.mossgrabers.framework.featuregroup.ModeManager;
+import de.mossgrabers.framework.featuregroup.ViewManager;
 import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.view.Views;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
+import de.mossgrabers.pull.core.api.DesiredControllerLayout;
 import de.mossgrabers.pull.core.api.SessionBankShape;
 
 import org.junit.jupiter.api.Test;
@@ -131,6 +134,26 @@ class ControllerWorkspaceHostTest
     }
 
 
+    @Test
+    void neutralLayoutActuallyLeavesMusicalPadsForSession ()
+    {
+        final ModeManager modes = new ModeManager ();
+        final ViewManager views = new ViewManager ();
+        modes.register (Modes.TRACK, mode ());
+        modes.setDefaultID (Modes.TRACK);
+        modes.setActive (Modes.TRACK);
+        views.register (Views.PLAY, view ());
+        views.register (Views.SESSION, view ());
+        views.setDefaultID (Views.SESSION);
+        views.setActive (Views.PLAY);
+
+        ControllerWorkspaceHost.applyPreparedLayout (DesiredControllerLayout.neutral (), modes, views);
+
+        assertEquals (Modes.TRACK, modes.getActiveID ());
+        assertEquals (Views.SESSION, views.getActiveID ());
+    }
+
+
     private static IMode mode ()
     {
         return (IMode) Proxy.newProxyInstance (
@@ -138,6 +161,18 @@ class ControllerWorkspaceHostTest
             new Class<?> []
             {
                 IMode.class
+            },
+            (proxy, method, arguments) -> null);
+    }
+
+
+    private static IView view ()
+    {
+        return (IView) Proxy.newProxyInstance (
+            IView.class.getClassLoader (),
+            new Class<?> []
+            {
+                IView.class
             },
             (proxy, method, arguments) -> null);
     }

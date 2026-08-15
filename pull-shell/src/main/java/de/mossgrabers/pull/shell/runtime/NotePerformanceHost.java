@@ -23,7 +23,7 @@ final class NotePerformanceHost
     private final Runnable routeNeutralizer;
 
     private DesiredNotePerformance desired = DesiredNotePerformance.inactive ();
-    private DesiredNoteInputRoute activeRoute = DesiredNoteInputRoute.disabled ();
+    private DesiredNoteInputRoute submittedRoute = DesiredNoteInputRoute.disabled ();
     private DesiredControllerLayout commandedLayout = DesiredControllerLayout.empty ();
     private BooleanSupplier inputLifecycleIdle = () -> true;
     private boolean quarantinedUntilInputIdle;
@@ -67,7 +67,7 @@ final class NotePerformanceHost
     void invalidate ()
     {
         this.desired = DesiredNotePerformance.inactive ();
-        this.applyLayout (DesiredControllerLayout.empty (), true);
+        this.applyLayout (DesiredControllerLayout.neutral (), true);
         this.quarantinedUntilInputIdle = false;
         this.detach ();
     }
@@ -76,9 +76,9 @@ final class NotePerformanceHost
     private void reconcile (final boolean reassertLayout)
     {
         final DesiredNoteInputRoute requested = this.desired.inputRoute ();
-        if (this.activeRoute.active () && !this.liveTargetMatches (this.activeRoute))
+        if (this.submittedRoute.active () && !this.liveTargetMatches (this.submittedRoute))
         {
-            this.applyLayout (DesiredControllerLayout.empty (), false);
+            this.applyLayout (DesiredControllerLayout.neutral (), false);
             this.detach ();
             this.quarantinedUntilInputIdle = !this.inputLifecycleIdle.getAsBoolean ();
         }
@@ -87,30 +87,30 @@ final class NotePerformanceHost
         {
             if (!this.liveTargetMatches (requested))
             {
-                this.applyLayout (DesiredControllerLayout.empty (), reassertLayout);
+                this.applyLayout (DesiredControllerLayout.neutral (), reassertLayout);
                 return;
             }
             if (this.quarantinedUntilInputIdle && !this.inputLifecycleIdle.getAsBoolean ())
             {
-                this.applyLayout (DesiredControllerLayout.empty (), reassertLayout);
+                this.applyLayout (DesiredControllerLayout.neutral (), reassertLayout);
                 return;
             }
 
             this.quarantinedUntilInputIdle = false;
-            final boolean attaching = !requested.equals (this.activeRoute);
-            if (attaching)
+            final boolean submitting = !requested.equals (this.submittedRoute);
+            if (submitting)
             {
-                this.selectedTarget.setNoteInputRouteActive (true);
-                this.activeRoute = requested;
+                this.selectedTarget.submitNoteInputRoute (true);
+                this.submittedRoute = requested;
             }
-            this.applyLayout (this.desired.layout (), reassertLayout || attaching);
+            this.applyLayout (this.desired.layout (), reassertLayout || submitting);
             return;
         }
 
         // A normal exit relinquishes the musical layout before removing its route. Keep the route
-        // only until every physical gesture that could have begun under that layout is complete.
-        this.applyLayout (this.desired.layout (), reassertLayout);
-        if (this.activeRoute.active ())
+        // only until every musical pad or sustain gesture begun under that layout is complete.
+        this.applyLayout (this.submittedRoute.active () ? DesiredControllerLayout.neutral () : this.desired.layout (), reassertLayout);
+        if (this.submittedRoute.active ())
         {
             if (!this.inputLifecycleIdle.getAsBoolean ())
                 this.quarantinedUntilInputIdle = true;
@@ -133,7 +133,7 @@ final class NotePerformanceHost
 
     private void detach ()
     {
-        if (!this.activeRoute.active ())
+        if (!this.submittedRoute.active ())
             return;
         try
         {
@@ -141,8 +141,8 @@ final class NotePerformanceHost
         }
         finally
         {
-            this.selectedTarget.setNoteInputRouteActive (false);
-            this.activeRoute = DesiredNoteInputRoute.disabled ();
+            this.selectedTarget.submitNoteInputRoute (false);
+            this.submittedRoute = DesiredNoteInputRoute.disabled ();
         }
     }
 

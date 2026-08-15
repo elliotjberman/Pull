@@ -5,7 +5,6 @@
 package de.mossgrabers.controller.ableton.push.view;
 
 import de.mossgrabers.controller.ableton.push.PushConfiguration;
-import de.mossgrabers.controller.ableton.push.command.trigger.SelectSessionViewCommand;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.controller.ButtonID;
@@ -112,9 +111,6 @@ public class SessionView extends AbstractSessionView<PushControlSurface, PushCon
     @Override
     public void onGridNote (final int note, final int velocity)
     {
-        if (velocity == 0)
-            ((SelectSessionViewCommand) this.surface.getButton (ButtonID.SESSION).getCommand ()).setTemporary ();
-
         // Birds-eye-view navigation
         if (this.isBirdsEyeActive ())
         {
@@ -226,7 +222,5 @@ public class SessionView extends AbstractSessionView<PushControlSurface, PushCon
     {
         super.onButton (buttonID, event, velocity);
 
-        if (ButtonID.isSceneButton (buttonID) && event == ButtonEvent.UP)
-            ((SelectSessionViewCommand) this.surface.getButton (ButtonID.SESSION).getCommand ()).setTemporary ();
     }
 }

@@ -41,8 +41,12 @@ public enum SurfaceArea
     SOFT_KEYS_LOWER (range (ElementType.BUTTON, 100, 8), buttonControls ("ROW1_", 1, 8), Set.of (InputKind.BUTTON)),
     /** Upper four rows of the pad grid. */
     GRID_UPPER (gridRectangle (0, 4, 8, 4), gridControls (0, 4, 8, 4), Set.of (InputKind.PAD, InputKind.POLY_PRESSURE)),
+    /** Pad press/release edges for the upper four grid rows. */
+    GRID_UPPER_PAD_EDGES (gridRectangle (0, 4, 8, 4), gridControls (0, 4, 8, 4), Set.of (InputKind.PAD)),
     /** Complete lower four rows of the pad grid. */
     GRID_LOWER (gridRectangle (0, 0, 8, 4), gridControls (0, 0, 8, 4), Set.of (InputKind.PAD, InputKind.POLY_PRESSURE)),
+    /** Pad press/release edges for the lower four grid rows. */
+    GRID_LOWER_PAD_EDGES (gridRectangle (0, 0, 8, 4), gridControls (0, 0, 8, 4), Set.of (InputKind.PAD)),
     /** Playable four-by-four drum block in the lower-left grid quadrant. */
     DRUM_PLAY_PADS (gridRectangle (0, 0, 4, 4), gridControls (0, 0, 4, 4), Set.of (InputKind.PAD, InputKind.POLY_PRESSURE)),
     /** Four momentary drum-rate pads at columns 4-7 on the bottom row. */

@@ -113,10 +113,10 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
     }
 
 
-    /** Test whether no physical input lifecycle crosses a core generation boundary. */
-    boolean inputLifecycleIdle ()
+    /** Test whether no pad or sustain lifecycle can outlive the selected Note route. */
+    boolean musicalInputLifecycleIdle ()
     {
-        return this.isIdle ();
+        return this.router.gesturesIdle (PushControllerInputBridge::isMusicalGesture);
     }
 
 
@@ -309,6 +309,8 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
         final java.util.LinkedHashSet<PhysicalInputAddress<ControlId>> inputs = new java.util.LinkedHashSet<> ();
         inputs.add (new PhysicalInputAddress<> (PushControlIds.button (ButtonID.PLAY.name ()), InputKind.BUTTON));
         inputs.add (new PhysicalInputAddress<> (PushControlIds.button (ButtonID.RECORD.name ()), InputKind.BUTTON));
+        inputs.add (new PhysicalInputAddress<> (PushControlIds.button (ButtonID.NOTE.name ()), InputKind.BUTTON));
+        inputs.add (new PhysicalInputAddress<> (PushControlIds.button (ButtonID.SESSION.name ()), InputKind.BUTTON));
         for (final ControlId control: de.mossgrabers.pull.core.api.CoreControls.DRUM_RATES)
         {
             inputs.add (new PhysicalInputAddress<> (control, InputKind.PAD));
@@ -328,6 +330,12 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
     static boolean isCoreOwnedInput (final ControlId control, final InputKind kind)
     {
         return CORE_OWNED_INPUTS.contains (new PhysicalInputAddress<> (Objects.requireNonNull (control, "control"), Objects.requireNonNull (kind, "kind")));
+    }
+
+
+    private static boolean isMusicalGesture (final PhysicalInputAddress<ControlId> input)
+    {
+        return input.kind () == InputKind.PAD || input.kind () == InputKind.PEDAL && PushControlIds.SUSTAIN_PEDAL.equals (input.control ());
     }
 
 

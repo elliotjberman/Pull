@@ -55,6 +55,7 @@ import de.mossgrabers.pull.core.api.effect.SelectedTrackValue;
 import de.mossgrabers.pull.core.api.effect.SendNoteInputMidiEffect;
 import de.mossgrabers.pull.core.api.effect.SetDrumPadBooleanEffect;
 import de.mossgrabers.pull.core.api.effect.SetDrumPadValueEffect;
+import de.mossgrabers.pull.core.api.effect.SetNoteViewPreferenceEffect;
 import de.mossgrabers.pull.core.api.effect.SetParameterValueEffect;
 import de.mossgrabers.pull.core.api.effect.SetSelectedTrackBooleanEffect;
 import de.mossgrabers.pull.core.api.effect.SetSelectedTrackMonitorEffect;
@@ -102,6 +103,8 @@ final class BoundedControllerBridge implements ControllerBridge
     private final Map<MidiStateKey, MidiState> noteInputMidiState = new HashMap<> ();
 
     private ControllerBridgeSnapshot snapshot = ControllerBridgeSnapshot.empty ();
+    private ControllerLayoutSnapshot sampledLayout = ControllerLayoutSnapshot.empty ();
+    private long layoutGeneration;
     private DrumContextSnapshot drumSnapshot = DrumContextSnapshot.empty ();
     private String drumIdentity = "";
     private long drumGeneration;
@@ -344,7 +347,7 @@ final class BoundedControllerBridge implements ControllerBridge
 
 
     @Override
-    public void setInputLifecycleIdle (final BooleanSupplier idle)
+    public void setNoteInputLifecycleIdle (final BooleanSupplier idle)
     {
         this.notePerformance.setInputLifecycleIdle (idle);
     }
@@ -446,6 +449,13 @@ final class BoundedControllerBridge implements ControllerBridge
         }
         if (effect instanceof final SendNoteInputMidiEffect midi)
             return new PreparedNoteInputMidi (midi.status (), midi.data1 (), midi.data2 ());
+        if (effect instanceof final SetNoteViewPreferenceEffect preference)
+        {
+            this.requireSelectedTarget (preference.targetGeneration (), preference.channelId ());
+            if (this.snapshot.selectedTrack ().position () != preference.trackPosition ())
+                throw new IllegalArgumentException ("Note-view preference targets a stale track position");
+            return new PreparedNoteViewPreference (preference.targetGeneration (), preference.channelId (), preference.trackPosition (), preference.view ());
+        }
         if (effect instanceof final SetDrumPadBooleanEffect setPad)
         {
             final DrumPadSnapshot pad = this.requireDrumPad (setPad.contextGeneration (), setPad.targetChannelId (), setPad.padIndex ());
@@ -517,6 +527,8 @@ final class BoundedControllerBridge implements ControllerBridge
             this.applySelectedAction (selectedAction);
         else if (action instanceof final PreparedNoteInputMidi midi)
             this.applyNoteInputMidi (midi);
+        else if (action instanceof final PreparedNoteViewPreference preference)
+            this.applyNoteViewPreference (preference);
         else if (action instanceof final PreparedDrumBoolean state)
             this.applyDrumBoolean (state);
         else if (action instanceof final PreparedDrumValue value)
@@ -560,13 +572,31 @@ final class BoundedControllerBridge implements ControllerBridge
     {
         final Object activeView = this.surface.getViewManager ().getActiveID ();
         final Object activeMode = this.surface.getModeManager ().getActiveID ();
-        return new ControllerLayoutSnapshot (
+        final ControllerLayoutSnapshot captured = new ControllerLayoutSnapshot (
+            this.layoutGeneration,
             activeView == null ? "" : activeView.toString (),
             activeMode == null ? "" : activeMode.toString (),
             this.surface.isDrumPadLayoutActive (),
             this.surface.isDrumControllerActive (),
             this.model.getScales ().getDrumOffset (),
             this.captureGridPressureConfiguration ());
+        if (sameLayout (captured, this.sampledLayout))
+            return this.sampledLayout;
+        this.sampledLayout = new ControllerLayoutSnapshot (
+            ++this.layoutGeneration,
+            captured.viewId (),
+            captured.modeId (),
+            captured.drumLayoutActive (),
+            captured.drumControllerEngaged (),
+            captured.drumBaseMidiNote (),
+            captured.gridPressure ());
+        return this.sampledLayout;
+    }
+
+
+    private static boolean sameLayout (final ControllerLayoutSnapshot first, final ControllerLayoutSnapshot second)
+    {
+        return first.viewId ().equals (second.viewId ()) && first.modeId ().equals (second.modeId ()) && first.drumLayoutActive () == second.drumLayoutActive () && first.drumControllerEngaged () == second.drumControllerEngaged () && first.drumBaseMidiNote () == second.drumBaseMidiNote () && first.gridPressure ().equals (second.gridPressure ());
     }
 
 
@@ -916,6 +946,15 @@ final class BoundedControllerBridge implements ControllerBridge
     }
 
 
+    private void applyNoteViewPreference (final PreparedNoteViewPreference request)
+    {
+        final SelectedTrackNoteTargetSnapshot selected = this.selectedTarget.snapshot ();
+        if (!this.selectedTargetIsCurrent (request.generation (), request.channelID ()) || selected.position () != request.position ())
+            return;
+        this.surface.getViewManager ().setPreferredView (request.position (), de.mossgrabers.framework.view.Views.valueOf (request.view ().name ()));
+    }
+
+
     private void rememberNoteInputMidiState (final int status, final int data1, final int data2)
     {
         final int command = status & 0xF0;
@@ -1159,6 +1198,11 @@ final class BoundedControllerBridge implements ControllerBridge
 
 
     private record PreparedNoteInputMidi (int status, int data1, int data2) implements ControllerBridge.PreparedAction
+    {
+    }
+
+
+    private record PreparedNoteViewPreference (long generation, String channelID, int position, ControllerNoteView view) implements ControllerBridge.PreparedAction
     {
     }
 

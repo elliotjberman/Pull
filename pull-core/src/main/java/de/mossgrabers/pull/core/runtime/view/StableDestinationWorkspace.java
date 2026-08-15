@@ -26,7 +26,10 @@ public final class StableDestinationWorkspace
     /** Create the explicit Track/Mix plus full Session destination. */
     public static CompiledWorkspace session (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator)
     {
-        return create ("Session destination", SESSION_BANK, selection, playbackCoordinator, List.of (new TrackMixerPageView (), new FullSessionView ()));
+        return CompiledWorkspace.compile (
+            "Session destination",
+            SESSION_BANK,
+            ControllerLevelViews.composeWithoutNoteController (selection, playbackCoordinator, List.of (new SessionTemporarySelectionView (selection), new TrackMixerPageView (), new FullSessionView ())));
     }
 
 

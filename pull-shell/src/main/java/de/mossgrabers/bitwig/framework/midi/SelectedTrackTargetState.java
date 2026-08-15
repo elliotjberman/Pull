@@ -70,7 +70,7 @@ final class SelectedTrackTargetState implements ISelectedTrackNoteTarget
     private String identityTrackID = "";
     private boolean identityExists;
     private long generation;
-    private boolean noteInputRouteActive;
+    private boolean noteInputRouteSubmitted;
 
 
     /**
@@ -149,15 +149,17 @@ final class SelectedTrackTargetState implements ISelectedTrackNoteTarget
 
     /** {@inheritDoc} */
     @Override
-    public void setNoteInputRouteActive (final boolean active)
+    public void submitNoteInputRoute (final boolean active)
     {
-        if (active == this.noteInputRouteActive)
+        if (active == this.noteInputRouteSubmitted)
             return;
         if (active)
             this.noteInput.routeDirectlyTo (this.target);
         else
             this.noteInput.removeDirectRouteFrom (this.target);
-        this.noteInputRouteActive = active;
+        // Bitwig exposes no attachment read-back. This flag only suppresses duplicate topology
+        // submissions; selected-target identity and live musical observations remain authoritative.
+        this.noteInputRouteSubmitted = active;
     }
 
 

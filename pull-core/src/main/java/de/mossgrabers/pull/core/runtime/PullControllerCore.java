@@ -125,6 +125,7 @@ final class PullControllerCore implements ControllerCore
         else
             currentResult = update.intercepted () ? this.workspace.activate (snapshot) : this.workspace.handle (event, snapshot);
 
+        currentResult = this.transitionToSelectedWorkspace (currentResult, snapshot);
         final List<CoreEffect> effects = new ArrayList<> (currentResult.effects ());
         for (final ResolvedControllerAction released: update.releasedActions ())
         {
@@ -206,7 +207,12 @@ final class PullControllerCore implements ControllerCore
 
     private CoreResult dispatchActionToWorkspace (final ResolvedControllerAction action, final ControllerSnapshot snapshot)
     {
-        final CoreResult currentResult = this.workspace.handleAction (action, snapshot);
+        return this.transitionToSelectedWorkspace (this.workspace.handleAction (action, snapshot), snapshot);
+    }
+
+
+    private CoreResult transitionToSelectedWorkspace (final CoreResult currentResult, final ControllerSnapshot snapshot)
+    {
         final CompiledWorkspace selectedWorkspace = this.desiredWorkspace (snapshot);
         if (selectedWorkspace == this.workspace)
             return currentResult;
@@ -219,6 +225,7 @@ final class PullControllerCore implements ControllerCore
     private CompiledWorkspace desiredWorkspace (final ControllerSnapshot snapshot)
     {
         this.selection.observe (snapshot.bridge ().layout ());
+        this.selection.observe (snapshot.bridge ().noteView ());
         final CompiledWorkspace selectedWorkspace = this.selectedWorkspace (snapshot);
         final String mode = snapshot.bridge ().layout ().modeId ();
         final boolean masterLayout = "MASTER".equals (mode) || "MASTER_TEMP".equals (mode);

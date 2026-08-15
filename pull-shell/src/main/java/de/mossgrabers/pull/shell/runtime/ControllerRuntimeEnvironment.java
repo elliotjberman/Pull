@@ -83,8 +83,8 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         Map.entry (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD, Integer.valueOf (4)),
         Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (3)),
         Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_WORKSPACE, Integer.valueOf (2)),
-        Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_LAYOUT, Integer.valueOf (1)),
-        Map.entry (CoreCapabilities.OUTPUT_NOTE_INPUT_ROUTE, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.OUTPUT_NOTE_PERFORMANCE, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.EFFECT_NOTE_VIEW_PREFERENCE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.OUTPUT_NOTE_REPEAT, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.INPUT_CONTROLLER, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.ROUTING_CONTROLLER_INPUT, Integer.valueOf (2)),
@@ -520,8 +520,16 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         if (this.committedState.generation () != 0)
             throw new IllegalStateException ("Input lifecycle must be installed before core activation");
         this.inputLifecycleIdle = Objects.requireNonNull (idle, "idle");
+    }
+
+
+    /** Install the narrower musical-input fence used only by Note-route removal. */
+    void setNoteInputLifecycleIdle (final BooleanSupplier idle)
+    {
+        if (this.committedState.generation () != 0)
+            throw new IllegalStateException ("Note-input lifecycle must be installed before core activation");
         if (this.controllerBridge != null)
-            this.controllerBridge.setInputLifecycleIdle (idle);
+            this.controllerBridge.setNoteInputLifecycleIdle (Objects.requireNonNull (idle, "idle"));
     }
 
 

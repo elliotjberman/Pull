@@ -88,11 +88,15 @@ requires a live Bitwig smoke test after installing the Core-API-9 shell on Bitwi
 
 The permanent Push Pads note input is excluded from Bitwig's `All Inputs` pool. While a musical
 Note viewer is active and its private selected-target identity is aligned, Pull routes that input
-directly to the selected note-capable track. Bitwig documents this direct route as independent of
-monitoring, so the selected instrument can be auditioned without record arm; arm remains the
-separate decision to record the performance. Pads do not silently fall back to every armed track
-when Note view exits or the core fails. A project track explicitly configured for the named
-`Pads` input can still receive the same hardware stream and is outside this selected-only route.
+directly to the selected note-capable track. Pads do not silently fall back to every armed track
+when Note view exits or the core fails. Pull does not change record arm or monitor mode: live API-21
+testing found that a track in Bitwig's default `Auto` monitor mode must be armed to sound. A project
+track explicitly configured for the named `Pads` input can still receive the same hardware stream
+and is outside this selected-only route.
+Note and Session are exclusively core-owned transitions: routing is submitted before a musical
+layout can activate, Session/failure uses a real neutral layout, and route removal waits for held
+pads and sustain. Bitwig exposes no route-attachment read-back, so live note observation—not a
+successful void API call—is the final smoke-test evidence.
 The controller-private cursor also provides authoritative state, actions, identity, and drum
 capability and is never exposed to Push's pin command.
 The same private cursor exposes a fixed four-candidate drum-device canopy: a native Drum Machine
@@ -107,7 +111,7 @@ represent the same track; it never displays one drum track while applying drum-c
 to another.
 Bitwig's Dashboard → Settings → Recording → Auto-arm selected → Instrument tracks preference is
 independent of Pull. Disable it if track arm should not follow selection; Pull's direct Note-view
-audition route neither requires nor changes arm.
+route does not change arm or monitor mode itself.
 The reloadable core exclusively owns every Push Record gesture: plain Record toggles selected-track
 arm from authoritative read-back, Shift+Record toggles launcher overdub, and Select+Record creates
 a new clip. The permanent Record binding is deliberately inert and exists only to retain the input
@@ -131,11 +135,12 @@ manual and visible in the project instead of relying on a fragile hidden macro o
 
 For the live checkpoint, install this shell build and restart Bitwig once. Leave instrument inputs
 on `All Inputs`, enter Note view, and verify that Push pads and the ribbon sound only the selected
-note track even when other tracks are armed. Verify that the selected track still auditions while
-disarmed, that Session view stops the controller-owned route after held controls are released, and
-that melodic↔drum selection changes retain the right layout without leaking automatic roll. A
-track explicitly set to `Pads` is a deliberate exception to the selected-only guarantee. Then
-exercise the fill A→B→release handoff to confirm the original base clip is retained.
+note track when it is armed, even when other tracks are armed. Verify that disarming the selected
+track in `Auto` monitor mode makes it silent, that Session view stops the controller-owned route
+after held controls are released, and that melodic↔drum selection changes retain the right layout
+without leaking automatic roll. A track explicitly set to `Pads` is a deliberate exception to the
+selected-only guarantee. Then exercise the fill A→B→release handoff to confirm the original base
+clip is retained.
 
 ## Reloading a core during development
 

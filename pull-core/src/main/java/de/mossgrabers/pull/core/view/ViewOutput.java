@@ -5,8 +5,6 @@ package de.mossgrabers.pull.core.view;
 
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
-import de.mossgrabers.pull.core.api.DesiredControllerLayout;
-import de.mossgrabers.pull.core.api.DesiredNoteInputRoute;
 import de.mossgrabers.pull.core.api.DesiredNotePerformance;
 import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
 import de.mossgrabers.pull.core.api.output.RgbColor;
@@ -49,20 +47,6 @@ public record ViewOutput (Map<ControlId, RgbColor> lights, Map<ControlId, ClipTa
     }
 
 
-    /** Construct output from the former split layout and route arguments. */
-    public ViewOutput (final Map<ControlId, RgbColor> lights, final Map<ControlId, ClipTargetId> clipBindings, final ControllerDisplayScene display, final ControllerPadGridOverlay padGridOverlay, final ControllerDisplayOverlay displayOverlay, final DesiredControllerLayout controllerLayout, final DesiredNoteInputRoute noteInputRoute, final DesiredNoteRepeat noteRepeat)
-    {
-        this (lights, clipBindings, display, padGridOverlay, displayOverlay, new DesiredNotePerformance (controllerLayout, noteInputRoute), noteRepeat);
-    }
-
-
-    /** Compatibility constructor without note-input routing ownership. */
-    public ViewOutput (final Map<ControlId, RgbColor> lights, final Map<ControlId, ClipTargetId> clipBindings, final ControllerDisplayScene display, final ControllerPadGridOverlay padGridOverlay, final ControllerDisplayOverlay displayOverlay, final DesiredControllerLayout controllerLayout, final DesiredNoteRepeat noteRepeat)
-    {
-        this (lights, clipBindings, display, padGridOverlay, displayOverlay, new DesiredNotePerformance (controllerLayout, DesiredNoteInputRoute.disabled ()), noteRepeat);
-    }
-
-
     /** Compatibility constructor without controller-mechanism ownership. */
     public ViewOutput (final Map<ControlId, RgbColor> lights, final Map<ControlId, ClipTargetId> clipBindings, final ControllerDisplayScene display, final ControllerPadGridOverlay padGridOverlay, final ControllerDisplayOverlay displayOverlay)
     {
@@ -102,16 +86,4 @@ public record ViewOutput (Map<ControlId, RgbColor> lights, Map<ControlId, ClipTa
     }
 
 
-    /** @return The layout component of the complete Note-performance lifecycle. */
-    public DesiredControllerLayout controllerLayout ()
-    {
-        return this.notePerformance.layout ();
-    }
-
-
-    /** @return The routing component of the complete Note-performance lifecycle. */
-    public DesiredNoteInputRoute noteInputRoute ()
-    {
-        return this.notePerformance.inputRoute ();
-    }
 }

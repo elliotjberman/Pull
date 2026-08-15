@@ -29,11 +29,11 @@ public final class CoreCapabilities
     /** Complete selection of fixed Push 2 view facets. */
     public static final String OUTPUT_CONTROLLER_WORKSPACE = "output.controller-workspace";
 
-    /** Replayable selection of one installed stable note-controller view. */
-    public static final String OUTPUT_CONTROLLER_LAYOUT = "output.controller-layout";
+    /** Atomic note-controller layout and target-fenced selected-track input route. */
+    public static final String OUTPUT_NOTE_PERFORMANCE = "output.note-performance";
 
-    /** Target-fenced selected-track routing for the permanent controller note input. */
-    public static final String OUTPUT_NOTE_INPUT_ROUTE = "output.note-input-route";
+    /** Selected-target-fenced persistence of one controller Note-view preference. */
+    public static final String EFFECT_NOTE_VIEW_PREFERENCE = "effect.note-view-preference";
 
     /** Replayable lease over the stable note-repeat engine. */
     public static final String OUTPUT_NOTE_REPEAT = "output.note-repeat";

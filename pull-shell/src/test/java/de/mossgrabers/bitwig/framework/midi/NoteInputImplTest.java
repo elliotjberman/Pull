@@ -123,10 +123,10 @@ class NoteInputImplTest
             "90????"
         });
         final ISelectedTrackNoteTarget target = input.createSelectedTrackTarget ();
-        target.setNoteInputRouteActive (true);
-        target.setNoteInputRouteActive (true);
-        target.setNoteInputRouteActive (false);
-        target.setNoteInputRouteActive (false);
+        target.submitNoteInputRoute (true);
+        target.submitNoteInputRoute (true);
+        target.submitNoteInputRoute (false);
+        target.submitNoteInputRoute (false);
 
         assertSame (selectedTrack, stateTarget.get ());
         assertEquals (1, noteSourceAttachments.get ());

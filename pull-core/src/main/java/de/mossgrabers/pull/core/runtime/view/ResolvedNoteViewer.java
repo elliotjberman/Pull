@@ -9,11 +9,19 @@ import de.mossgrabers.pull.core.api.DesiredNoteInputRoute;
 import de.mossgrabers.pull.core.api.NoteViewSnapshot;
 import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
 
+import java.util.Objects;
+
 
 /** One target-fenced note viewer and the controller mechanisms attached to it. */
 record ResolvedNoteViewer (ControllerNoteView layout, DesiredNoteInputRoute noteInputRoute, boolean automaticRollAttached)
 {
     static ResolvedNoteViewer resolve (final ControllerSnapshot snapshot, final boolean noteDestinationPending)
+    {
+        return resolve (snapshot, noteDestinationPending, snapshot.bridge ().noteView ().preferredView ());
+    }
+
+
+    static ResolvedNoteViewer resolve (final ControllerSnapshot snapshot, final boolean noteDestinationPending, final ControllerNoteView preferredView)
     {
         final SelectedTrackSnapshot selected = snapshot.bridge ().selectedTrack ();
         final NoteViewSnapshot preference = snapshot.bridge ().noteView ();
@@ -23,16 +31,15 @@ record ResolvedNoteViewer (ControllerNoteView layout, DesiredNoteInputRoute note
         final boolean alignedDrumTarget = preference.drumControllerApplicable ();
         final ControllerNoteView active = ControllerNoteView.fromStableId (snapshot.bridge ().layout ().viewId ());
         final boolean noteViewerVisible = noteDestinationPending || active.isPresent () && "TRACK".equals (snapshot.bridge ().layout ().modeId ());
-        final ControllerNoteView layout = noteViewerVisible ? resolveLayout (selected, preference, alignedDrumTarget) : ControllerNoteView.NONE;
+        final ControllerNoteView layout = noteViewerVisible ? resolveLayout (selected, Objects.requireNonNull (preferredView, "preferredView"), alignedDrumTarget) : ControllerNoteView.NONE;
         final DesiredNoteInputRoute noteInputRoute = layout.isPresent () && selected.canHoldNotes () ? DesiredNoteInputRoute.selectedTrack (selected.generation (), selected.channelId ()) : DesiredNoteInputRoute.disabled ();
         final boolean drumControllerAttached = alignedDrumTarget && snapshot.bridge ().layout ().drumLayoutActive () && snapshot.bridge ().layout ().drumControllerEngaged ();
         return new ResolvedNoteViewer (layout, noteInputRoute, drumControllerAttached && (!layout.isPresent () || layout == ControllerNoteView.DRUM_PAD));
     }
 
 
-    private static ControllerNoteView resolveLayout (final SelectedTrackSnapshot selected, final NoteViewSnapshot preference, final boolean drumReady)
+    private static ControllerNoteView resolveLayout (final SelectedTrackSnapshot selected, final ControllerNoteView preferred, final boolean drumReady)
     {
-        final ControllerNoteView preferred = preference.preferredView ();
         if (preferred == ControllerNoteView.DRUM_PAD && selected.canHoldNotes () && drumReady)
             return preferred;
         if (preferred == ControllerNoteView.CLIP_LENGTH && selected.canHoldAudio ())

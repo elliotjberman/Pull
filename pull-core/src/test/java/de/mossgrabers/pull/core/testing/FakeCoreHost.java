@@ -176,6 +176,21 @@ final class FakeCoreHost
     }
 
 
+    /** Deliver the long phase of one still-held normalized controller button. */
+    void controllerButtonLong (final ControlId controlId)
+    {
+        this.revision++;
+        this.eventSequence++;
+        this.effectExecutor.apply (this.core.handle (new ControllerInputEvent (
+            this.eventSequence,
+            this.time.nowNanos (),
+            controlId,
+            InputKind.BUTTON,
+            InputPhase.LONG,
+            127), this.snapshot ()));
+    }
+
+
     /** Deliver one normalized controller-pad transition after updating authoritative held state. */
     void controllerPad (final ControlId controlId, final boolean pressed)
     {

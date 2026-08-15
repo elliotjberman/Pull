@@ -53,6 +53,11 @@ This removes the core-side physical navigation table. It does not yet satisfy th
   project identity and emits one exact origin/target project-transport payload. Stable validates
   the live origin and owns the complete bounded tab visit, authoritative transport readback, and
   exact return; core does not mirror that asynchronous transaction.
+- Note and Session are core-exclusive edges with inert stable commands. One core selection owner
+  retains temporary/long gesture state across the destination change, requests the complete Note
+  performance or Session workspace, and retires each request only after a later stable layout
+  generation reports the requested destination. This prevents the inherited stable command from
+  activating a musical layout before its selected-target route is validated.
 
 - Several stable mode commands expose only coarse command-level meaning, not a payload identifying
   the exact selected track, page, device, or workspace.

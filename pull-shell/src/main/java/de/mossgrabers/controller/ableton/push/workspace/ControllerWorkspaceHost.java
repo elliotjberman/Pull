@@ -78,10 +78,22 @@ public final class ControllerWorkspaceHost
     public void applyLayout (final DesiredControllerLayout layout)
     {
         final DesiredControllerLayout requested = this.prepareLayout (layout);
+        applyPreparedLayout (requested, this.surface.getModeManager (), this.surface.getViewManager ());
+    }
+
+
+    static void applyPreparedLayout (final DesiredControllerLayout requested, final ModeManager modeManager, final ViewManager viewManager)
+    {
+        if (requested.neutralizing ())
+        {
+            modeManager.setActive (Modes.TRACK);
+            viewManager.setActive (Views.SESSION);
+            return;
+        }
         if (!requested.isPresent ())
             return;
-        this.surface.getModeManager ().setActive (Modes.TRACK);
-        this.surface.getViewManager ().setActive (Views.valueOf (requested.noteView ().name ()));
+        modeManager.setActive (Modes.TRACK);
+        viewManager.setActive (Views.valueOf (requested.noteView ().name ()));
     }
 
 

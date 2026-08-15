@@ -34,8 +34,14 @@ import de.mossgrabers.framework.daw.constants.Resolution;
 import de.mossgrabers.framework.daw.midi.ISelectedTrackNoteTarget;
 import de.mossgrabers.framework.daw.midi.SelectedTrackMonitorMode;
 import de.mossgrabers.framework.daw.midi.SelectedTrackNoteTargetSnapshot;
+import de.mossgrabers.framework.featuregroup.IMode;
+import de.mossgrabers.framework.featuregroup.IView;
+import de.mossgrabers.framework.mode.Modes;
+import de.mossgrabers.framework.scale.Scales;
+import de.mossgrabers.framework.view.Views;
 import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
+import de.mossgrabers.pull.core.api.ControllerNoteView;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
 import de.mossgrabers.pull.core.api.NoteRepeatMode;
@@ -50,6 +56,7 @@ import de.mossgrabers.pull.core.api.effect.NavigateProjectEffect;
 import de.mossgrabers.pull.core.api.effect.ProjectNavigationDirection;
 import de.mossgrabers.pull.core.api.effect.SetProjectEngineEffect;
 import de.mossgrabers.pull.core.api.effect.SetProjectTransportStateEffect;
+import de.mossgrabers.pull.core.api.effect.SetNoteViewPreferenceEffect;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackAction;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackActionEffect;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackBoolean;
@@ -70,6 +77,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
@@ -78,6 +86,45 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class BoundedControllerBridgeTest
 {
+    @Test
+    void layoutGenerationAdvancesOnlyWithAuthoritativeLayoutChanges ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.surface.getModeManager ().register (Modes.TRACK, relaxedProxy (IMode.class));
+        fixture.surface.getViewManager ().register (Views.PLAY, relaxedProxy (IView.class));
+        fixture.surface.getViewManager ().register (Views.SESSION, relaxedProxy (IView.class));
+        fixture.surface.getModeManager ().setActive (Modes.TRACK);
+        fixture.surface.getViewManager ().setActive (Views.PLAY);
+
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.CONTROLLER_LAYOUT), DesiredParameterBanks.empty ());
+        fixture.bridge.refresh (2, subscriptions (BridgeSubscription.CONTROLLER_LAYOUT), DesiredParameterBanks.empty ());
+        final long playGeneration = fixture.bridge.snapshot ().layout ().generation ();
+        fixture.bridge.refresh (3, subscriptions (BridgeSubscription.CONTROLLER_LAYOUT), DesiredParameterBanks.empty ());
+        assertEquals (playGeneration, fixture.bridge.snapshot ().layout ().generation ());
+
+        fixture.surface.getViewManager ().setActive (Views.SESSION);
+        fixture.bridge.refresh (4, subscriptions (BridgeSubscription.CONTROLLER_LAYOUT), DesiredParameterBanks.empty ());
+        assertEquals (playGeneration + 1, fixture.bridge.snapshot ().layout ().generation ());
+    }
+
+
+    @Test
+    void noteViewPreferenceIsSelectedTargetFencedAtPrepareAndApply ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.SELECTED_TRACK), DesiredParameterBanks.empty ());
+        final ControllerBridge.PreparedAction prepared = fixture.bridge.prepare (new SetNoteViewPreferenceEffect (1, "track-a", 2, ControllerNoteView.DRUM_PAD));
+
+        fixture.selected.switchTo (2, "track-b");
+        fixture.bridge.apply (prepared);
+        assertNull (fixture.surface.getViewManager ().getPreferredView (2));
+
+        fixture.bridge.refresh (2, subscriptions (BridgeSubscription.SELECTED_TRACK), DesiredParameterBanks.empty ());
+        fixture.bridge.apply (fixture.bridge.prepare (new SetNoteViewPreferenceEffect (2, "track-b", 2, ControllerNoteView.DRUM_PAD)));
+        assertEquals (Views.DRUM_PAD, fixture.surface.getViewManager ().getPreferredView (2));
+    }
+
+
     @Test
     void automaticRollRetiresActiveStateAndRestoresManualSettingsAfterLaterReadback ()
     {
@@ -569,6 +616,7 @@ class BoundedControllerBridgeTest
         private final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
         private final MutableNoteRepeat noteRepeat;
         private final ManualRepeatConfiguration configuration;
+        private final PushControlSurface surface;
         private final BoundedControllerBridge bridge;
         private int newClipCount;
         private int masterVuReadCount;
@@ -587,11 +635,13 @@ class BoundedControllerBridgeTest
             final ITransport transportProxy = this.transport.proxy ();
             final ICursorTrack cursorTrack = this.drum.cursorTrack ();
             final IDrumDevice drumDevice = this.drum.device ();
+            final Scales scales = new Scales (this.valueChanger, 36, 100, 8, 8);
             final IModel model = proxy (IModel.class, (proxy, method, arguments) -> switch (method.getName ())
             {
                 case "getTransport" -> transportProxy;
                 case "getCursorTrack" -> cursorTrack;
                 case "getDrumDevice" -> drumDevice;
+                case "getScales" -> scales;
                 case "getValueChanger" -> this.valueChanger;
                 case "getProject" -> this.project.proxy ();
                 case "getApplication" -> this.application.proxy ();
@@ -602,13 +652,13 @@ class BoundedControllerBridgeTest
                 }
                 default -> relaxedValue (method.getReturnType ());
             });
-            final PushControlSurface surface = createSurface (this.selected, cursorTrack, this.valueChanger, this.noteRepeat, manualRepeatActive);
-            this.configuration = (ManualRepeatConfiguration) surface.getConfiguration ();
+            this.surface = createSurface (this.selected, cursorTrack, this.valueChanger, this.noteRepeat, manualRepeatActive);
+            this.configuration = (ManualRepeatConfiguration) this.surface.getConfiguration ();
             this.bridge = new BoundedControllerBridge (
                 model,
                 this.selected,
                 this::sendNoteInputMidi,
-                surface,
+                this.surface,
                 this.valueChanger,
                 new RuntimeLog ()
                 {
@@ -792,10 +842,8 @@ class BoundedControllerBridgeTest
     }
 
 
-    private static final class MutableSelectedTarget implements ISelectedTrackNoteTarget
+    private static final class MutableSelectedTarget extends SelectedTrackNoteTargetAdapter
     {
-        private long generation = 1;
-        private String channelID = "track-a";
         private boolean armed;
         private boolean noteInputRouteActive;
         private int snapshotCount;
@@ -803,7 +851,7 @@ class BoundedControllerBridgeTest
 
 
         @Override
-        public void setNoteInputRouteActive (final boolean active)
+        public void submitNoteInputRoute (final boolean active)
         {
             this.noteInputRouteActive = active;
         }
@@ -840,66 +888,10 @@ class BoundedControllerBridgeTest
         }
 
 
-        private void switchTo (final long newGeneration, final String newChannelID)
-        {
-            this.generation = newGeneration;
-            this.channelID = newChannelID;
-        }
-
-
-        @Override
-        public long getGeneration ()
-        {
-            return this.generation;
-        }
-
-
-        @Override
-        public String getChannelID ()
-        {
-            return this.channelID;
-        }
-
-
-        @Override
-        public boolean doesExist ()
-        {
-            return true;
-        }
-
-
-        @Override
-        public boolean canHoldNotes ()
-        {
-            return true;
-        }
-
-
         @Override
         public boolean hasDrumDevice ()
         {
             return true;
-        }
-
-
-        @Override
-        public int getPlayingVelocity (final int note)
-        {
-            return 0;
-        }
-
-
-        @Override
-        public void setActivated (final boolean activated)
-        {
-            // Not relevant to these safety tests.
-        }
-
-
-        @Override
-        public void setGroupExpanded (final boolean expanded)
-        {
-            // Not relevant to these safety tests.
         }
 
 
@@ -911,53 +903,6 @@ class BoundedControllerBridgeTest
         }
 
 
-        @Override
-        public void setMonitorMode (final SelectedTrackMonitorMode mode)
-        {
-            // Not relevant to these safety tests.
-        }
-
-
-        @Override
-        public void setMuted (final boolean muted)
-        {
-            // Not relevant to these safety tests.
-        }
-
-
-        @Override
-        public void setSoloed (final boolean soloed)
-        {
-            // Not relevant to these safety tests.
-        }
-
-
-        @Override
-        public void setVolume (final double normalizedVolume)
-        {
-            // Not relevant to these safety tests.
-        }
-
-
-        @Override
-        public void setPan (final double normalizedPan)
-        {
-            // Not relevant to these safety tests.
-        }
-
-
-        @Override
-        public void stop ()
-        {
-            // Not relevant to these safety tests.
-        }
-
-
-        @Override
-        public void returnToArrangement ()
-        {
-            // Not relevant to these safety tests.
-        }
     }
 
 

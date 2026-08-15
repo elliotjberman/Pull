@@ -14,11 +14,13 @@ package de.mossgrabers.framework.daw.midi;
 public interface ISelectedTrackNoteTarget
 {
     /**
-     * Reconcile the permanent controller note input's direct selected-track route.
+     * Submit the permanent controller note input's direct selected-track route. Bitwig provides no
+     * attachment read-back, so callers must not treat return from this void operation as proof that
+     * the musical path is audible.
      *
      * @param active True to attach directly to this private selected-track cursor
      */
-    void setNoteInputRouteActive (boolean active);
+    void submitNoteInputRoute (boolean active);
 
 
     /**

@@ -16,6 +16,7 @@ import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 
 /**
  * Stable-shell router for a fixed physical-control canopy.
@@ -233,6 +234,14 @@ public final class PhysicalInputRouter<C>
     public boolean isIdle ()
     {
         return this.gestureBindings.values ().stream ().noneMatch (GestureBinding::crossesCoreGeneration) && this.pendingMotion.isEmpty () && this.deferredStableDispatches.isEmpty ();
+    }
+
+
+    /** Test whether no active edge gesture matches a caller-defined lifecycle boundary. */
+    public boolean gesturesIdle (final Predicate<? super PhysicalInputAddress<C>> boundary)
+    {
+        final Predicate<? super PhysicalInputAddress<C>> checked = Objects.requireNonNull (boundary, "boundary");
+        return this.gestureBindings.keySet ().stream ().noneMatch (checked);
     }
 
 

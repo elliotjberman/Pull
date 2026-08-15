@@ -56,7 +56,7 @@ interface ControllerBridge
 
     void applyWorkspace (DesiredControllerWorkspace workspace);
 
-    default void setInputLifecycleIdle (final BooleanSupplier idle)
+    default void setNoteInputLifecycleIdle (final BooleanSupplier idle)
     {
         Objects.requireNonNull (idle, "idle");
     }
@@ -64,7 +64,7 @@ interface ControllerBridge
     default DesiredNotePerformance prepareNotePerformance (final DesiredNotePerformance performance)
     {
         final DesiredNotePerformance requested = Objects.requireNonNull (performance, "performance");
-        if (requested.layout ().isPresent () || requested.inputRoute ().active ())
+        if (requested.layout ().isPresent () || requested.layout ().neutralizing () || requested.inputRoute ().active ())
             throw new IllegalArgumentException ("Controller bridge does not support Note-performance ownership");
         return requested;
     }
@@ -72,7 +72,7 @@ interface ControllerBridge
     default void applyNotePerformance (final DesiredNotePerformance performance)
     {
         final DesiredNotePerformance requested = Objects.requireNonNull (performance, "performance");
-        if (requested.layout ().isPresent () || requested.inputRoute ().active ())
+        if (requested.layout ().isPresent () || requested.layout ().neutralizing () || requested.inputRoute ().active ())
             throw new IllegalArgumentException ("Controller bridge does not support Note-performance ownership");
     }
 

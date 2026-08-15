@@ -35,13 +35,6 @@ public record CoreResult (DesiredHardwareOutput desiredOutput, DesiredInputRoute
     private static final CoreResult EMPTY = new CoreResult (DesiredHardwareOutput.empty (), DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), Map.of (), DesiredControllerWorkspace.empty (), DesiredNotePerformance.inactive (), DesiredNoteRepeat.unowned (), DesiredControllerActions.empty (), DesiredParameterBanks.empty (), DesiredParameterInteraction.empty (), CoreExecutionRequirements.empty (), List.of ());
 
 
-    /** Compatibility constructor without note-input routing ownership. */
-    public CoreResult (final DesiredHardwareOutput desiredOutput, final DesiredInputRoutes desiredInputRoutes, final DesiredBridgeSubscriptions desiredBridgeSubscriptions, final Map<ControlId, ClipTargetId> desiredClipBindings, final DesiredControllerWorkspace desiredControllerWorkspace, final DesiredControllerLayout desiredControllerLayout, final DesiredNoteRepeat desiredNoteRepeat, final DesiredControllerActions desiredControllerActions, final DesiredParameterBanks desiredParameterBanks, final DesiredParameterInteraction desiredParameterInteraction, final CoreExecutionRequirements executionRequirements, final List<CoreEffect> effects)
-    {
-        this (desiredOutput, desiredInputRoutes, desiredBridgeSubscriptions, desiredClipBindings, desiredControllerWorkspace, new DesiredNotePerformance (desiredControllerLayout, DesiredNoteInputRoute.disabled ()), desiredNoteRepeat, desiredControllerActions, desiredParameterBanks, desiredParameterInteraction, executionRequirements, effects);
-    }
-
-
     /** Compatibility constructor without note-controller ownership. */
     public CoreResult (final DesiredHardwareOutput desiredOutput, final DesiredInputRoutes desiredInputRoutes, final DesiredBridgeSubscriptions desiredBridgeSubscriptions, final Map<ControlId, ClipTargetId> desiredClipBindings, final DesiredControllerWorkspace desiredControllerWorkspace, final DesiredControllerActions desiredControllerActions, final DesiredParameterBanks desiredParameterBanks, final DesiredParameterInteraction desiredParameterInteraction, final CoreExecutionRequirements executionRequirements, final List<CoreEffect> effects)
     {
@@ -53,20 +46,6 @@ public record CoreResult (DesiredHardwareOutput desiredOutput, DesiredInputRoute
     public CoreResult (final DesiredHardwareOutput desiredOutput, final DesiredInputRoutes desiredInputRoutes, final DesiredBridgeSubscriptions desiredBridgeSubscriptions, final Map<ControlId, ClipTargetId> desiredClipBindings, final DesiredControllerWorkspace desiredControllerWorkspace, final DesiredNotePerformance desiredNotePerformance, final DesiredNoteRepeat desiredNoteRepeat, final DesiredControllerActions desiredControllerActions, final DesiredParameterBanks desiredParameterBanks, final DesiredParameterInteraction desiredParameterInteraction, final List<CoreEffect> effects)
     {
         this (desiredOutput, desiredInputRoutes, desiredBridgeSubscriptions, desiredClipBindings, desiredControllerWorkspace, desiredNotePerformance, desiredNoteRepeat, desiredControllerActions, desiredParameterBanks, desiredParameterInteraction, CoreExecutionRequirements.empty (), effects);
-    }
-
-
-    /** Construct a result with note-controller ownership and no runtime cadence or fencing. */
-    public CoreResult (final DesiredHardwareOutput desiredOutput, final DesiredInputRoutes desiredInputRoutes, final DesiredBridgeSubscriptions desiredBridgeSubscriptions, final Map<ControlId, ClipTargetId> desiredClipBindings, final DesiredControllerWorkspace desiredControllerWorkspace, final DesiredControllerLayout desiredControllerLayout, final DesiredNoteInputRoute desiredNoteInputRoute, final DesiredNoteRepeat desiredNoteRepeat, final DesiredControllerActions desiredControllerActions, final DesiredParameterBanks desiredParameterBanks, final DesiredParameterInteraction desiredParameterInteraction, final List<CoreEffect> effects)
-    {
-        this (desiredOutput, desiredInputRoutes, desiredBridgeSubscriptions, desiredClipBindings, desiredControllerWorkspace, new DesiredNotePerformance (desiredControllerLayout, desiredNoteInputRoute), desiredNoteRepeat, desiredControllerActions, desiredParameterBanks, desiredParameterInteraction, CoreExecutionRequirements.empty (), effects);
-    }
-
-
-    /** Construct a result with note-controller ownership and no runtime cadence or fencing. */
-    public CoreResult (final DesiredHardwareOutput desiredOutput, final DesiredInputRoutes desiredInputRoutes, final DesiredBridgeSubscriptions desiredBridgeSubscriptions, final Map<ControlId, ClipTargetId> desiredClipBindings, final DesiredControllerWorkspace desiredControllerWorkspace, final DesiredControllerLayout desiredControllerLayout, final DesiredNoteRepeat desiredNoteRepeat, final DesiredControllerActions desiredControllerActions, final DesiredParameterBanks desiredParameterBanks, final DesiredParameterInteraction desiredParameterInteraction, final List<CoreEffect> effects)
-    {
-        this (desiredOutput, desiredInputRoutes, desiredBridgeSubscriptions, desiredClipBindings, desiredControllerWorkspace, new DesiredNotePerformance (desiredControllerLayout, DesiredNoteInputRoute.disabled ()), desiredNoteRepeat, desiredControllerActions, desiredParameterBanks, desiredParameterInteraction, CoreExecutionRequirements.empty (), effects);
     }
 
 
@@ -94,20 +73,6 @@ public record CoreResult (DesiredHardwareOutput desiredOutput, DesiredInputRoute
         desiredParameterInteraction = Objects.requireNonNull (desiredParameterInteraction, "desiredParameterInteraction");
         executionRequirements = Objects.requireNonNull (executionRequirements, "executionRequirements");
         effects = List.copyOf (Objects.requireNonNull (effects, "effects"));
-    }
-
-
-    /** @return The layout component of the complete Note-performance lifecycle. */
-    public DesiredControllerLayout desiredControllerLayout ()
-    {
-        return this.desiredNotePerformance.layout ();
-    }
-
-
-    /** @return The routing component of the complete Note-performance lifecycle. */
-    public DesiredNoteInputRoute desiredNoteInputRoute ()
-    {
-        return this.desiredNotePerformance.inputRoute ();
     }
 
 

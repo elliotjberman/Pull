@@ -64,7 +64,10 @@ public final class NoteViewControllerView implements ControllerView
     @Override
     public ViewOutput render (final ControllerSnapshot snapshot)
     {
-        final ResolvedNoteViewer resolved = ResolvedNoteViewer.resolve (snapshot, this.selection.pendingDestination () == WorkspaceSelection.Destination.NOTE);
+        final ResolvedNoteViewer resolved = ResolvedNoteViewer.resolve (
+            snapshot,
+            this.selection.pendingDestination () == WorkspaceSelection.Destination.NOTE,
+            this.selection.preferredNoteView (snapshot.bridge ().noteView ()));
         if (!resolved.layout ().isPresent ())
             return ViewOutput.empty ();
         return new ViewOutput (
