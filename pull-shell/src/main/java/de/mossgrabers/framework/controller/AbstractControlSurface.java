@@ -274,15 +274,41 @@ public abstract class AbstractControlSurface<C extends Configuration> implements
         if (!track.doesExist ())
             return;
 
-        Views preferredView = this.viewManager.getPreferredView (track.getPosition ());
-        if (preferredView == null)
-            preferredView = track.canHoldNotes () ? this.configuration.getStartupView () : this.configuration.getPreferredAudioView ();
+        final Views preferredView = this.resolvePreferredView (track);
         final IView view = this.viewManager.get (preferredView);
         if (view == null)
             return;
         this.viewManager.setActive (preferredView);
         if (this.notifyViewChange)
             this.getDisplay ().notify (view.getName ());
+    }
+
+
+    /**
+     * Resolve the view to recall for a track. Controller implementations may specialize the
+     * derived fallback while preserving explicit per-track preferences.
+     *
+     * @param track The track
+     * @return The preferred or derived view
+     */
+    protected Views resolvePreferredView (final ITrack track)
+    {
+        final Views preferredView = this.viewManager.getPreferredView (track.getPosition ());
+        if (preferredView != null)
+            return preferredView;
+        return this.resolveDefaultView (track);
+    }
+
+
+    /**
+     * Resolve the default view for a track which has no explicit per-track preference.
+     *
+     * @param track The track
+     * @return The derived default view
+     */
+    protected Views resolveDefaultView (final ITrack track)
+    {
+        return track.canHoldNotes () ? this.configuration.getStartupView () : this.configuration.getPreferredAudioView ();
     }
 
 

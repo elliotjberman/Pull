@@ -209,6 +209,8 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
     @Override
     public void flush ()
     {
+        this.getSurface ().reconcileDerivedNoteView (this.model.getCursorTrack ());
+
         if (this.drumPadControls != null)
             this.drumPadControls.reconcileControllerState ();
 

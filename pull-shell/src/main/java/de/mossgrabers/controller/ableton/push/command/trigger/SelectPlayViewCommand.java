@@ -73,26 +73,9 @@ public class SelectPlayViewCommand extends AbstractTriggerCommand<PushControlSur
             return;
 
         final Views previousView = viewManager.getActiveID ();
-        this.selectDefaultNoteView (viewManager);
-        this.switchedView = viewManager.getActiveID () != previousView;
-    }
-
-
-    private void selectDefaultNoteView (final ViewManager viewManager)
-    {
         final ITrack track = this.model.getCursorTrack ();
-        if (!track.doesExist ())
-            return;
-
-        if (viewManager.getPreferredView (track.getPosition ()) == null)
-        {
-            if (this.surface.isDrumControllerTargetAligned ())
-            {
-                this.activatePreferredView (Views.DRUM_PAD);
-                return;
-            }
-        }
-
-        this.surface.recallPreferredView (track);
+        if (track.doesExist ())
+            this.surface.recallPreferredView (track);
+        this.switchedView = viewManager.getActiveID () != previousView;
     }
 }
