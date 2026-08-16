@@ -31,7 +31,7 @@ movable Bitwig proxy may already address a replacement target by then.
 
 ## Current Mitigation
 
-Core API 28 carries `ControllerActionIntent` separately from physical input. Core-owned views
+Core API 29 carries `ControllerActionIntent` separately from physical input. Core-owned views
 resolve complete executable intents at gesture `BEGIN`; deferred execution therefore cannot
 reinterpret a released modifier or a replacement workspace. Existing stable-only commands remain
 frozen migration debt, but `StableControllerActionResolver` examines the actual installed command
@@ -60,6 +60,10 @@ This removes the core-side physical navigation table. It does not yet satisfy th
   Bitwig-facing musical route together with their physical-controller facets; composites merge
   those contributions rather than reimplementing routing beside them. This prevents the inherited
   stable command from activating a musical surface before its selected-target route is validated.
+- Layout is also core-exclusive and resolved by the Note controller as `SELECT_NOTE_LAYOUT` with an
+  exact target-fenced preference effect. Track selection is observation-only and cannot invoke the
+  inherited preferred-view actuator. Stable retains only bounded preference storage and mechanical
+  view activation through the composed controller-state host.
 
 - Several stable mode commands expose only coarse command-level meaning, not a payload identifying
   the exact selected track, page, device, or workspace.

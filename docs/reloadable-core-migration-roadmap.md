@@ -45,6 +45,9 @@ On current `master`:
 - drum-grid pressure interpretation and selected-target Note routing policy are core-owned in the
   composite workspace, while the permanent `NoteInput`, direct-route actuator, and MIDI
   neutralization remain stable;
+- Note, Session, and Layout edges are core-exclusive with inert stable commands; selected-track
+  observers no longer recall a stable preferred view, so the composed controller-state host is the
+  only Pull Note-layout actuator;
 - the practical existing Push input set is normalized by the stable input bridge;
 - transport, selected-track, controller-layout, and bounded drum snapshots/effects exist;
 - Play and Record lights are core-owned through generic authoritative RGB output;

@@ -405,6 +405,7 @@ final class PushDebugNavigationHost implements AutoCloseable
         TRACK (ButtonID.TRACK),
         MASTERTRACK (ButtonID.MASTERTRACK),
         SESSION (ButtonID.SESSION),
+        LAYOUT (ButtonID.LAYOUT),
         PLAY (ButtonID.PLAY),
         ROW1_1 (ButtonID.ROW1_1, NavigationContext.TRACK),
         ROW1_2 (ButtonID.ROW1_2, NavigationContext.TRACK),
@@ -417,7 +418,8 @@ final class PushDebugNavigationHost implements AutoCloseable
         ROW2_5 (ButtonID.ROW2_5, NavigationContext.MASTER),
         ROW2_7 (ButtonID.ROW2_7, NavigationContext.MASTER),
         ROW2_8 (ButtonID.ROW2_8, NavigationContext.MASTER),
-        SHIFT_SESSION (ButtonID.SHIFT, ButtonID.SESSION);
+        SHIFT_SESSION (ButtonID.SHIFT, ButtonID.SESSION),
+        SHIFT_LAYOUT (ButtonID.SHIFT, ButtonID.LAYOUT);
 
         private final ButtonID          modifier;
         private final ButtonID          button;

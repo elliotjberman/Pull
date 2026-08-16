@@ -1,6 +1,6 @@
 # Pull View Architecture
 
-Status: current through Core API 25, the shared mixer-control renderer, the Master-control
+Status: current through Core API 29, the shared mixer-control renderer, the Master-control
 migration, the post-demo `VS Live` composition, and core-owned note-view and drum-rate policy.
 
 Read this file before changing controller views, modes, workspaces, input routing, or Session bank
@@ -82,7 +82,11 @@ melodic, drum-controller, or audio viewer and the capabilities attached to that 
 `NoteViewControllerView` requests its layout while `DrumRateView` owns automatic roll only when it
 is attached to the resolved Drum Controller viewer. The request remains active until later layout
 read-back agrees. The stable shell validates the bounded view ID and mechanically activates it. It
-does not infer a view from the current cursor, selected device, or previous layout.
+does not infer a view from the current cursor, selected device, or previous layout. Track-selection
+callbacks publish state but never recall an inherited preferred view. The Layout button is an
+exclusive input of `NoteViewControllerView`; its normal and shifted cycles persist through the
+same target-fenced preference effect and composed Note lifecycle. Layout activation changes only
+the grid view—the independently selected controller page owns its mode.
 
 `DrumRateView` exclusively owns the four rate-pad edges and RGB lights whenever Drum Controller is
 authoritatively engaged. It requests a complete note-repeat state through a stable lease. The shell

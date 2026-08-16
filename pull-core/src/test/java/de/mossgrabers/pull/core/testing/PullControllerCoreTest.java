@@ -102,6 +102,7 @@ class PullControllerCoreTest
     private static final ControlId RECORD_BUTTON = PushControlIds.button ("RECORD");
     private static final ControlId SESSION_BUTTON = PushControlIds.button ("SESSION");
     private static final ControlId NOTE_BUTTON = PushControlIds.button ("NOTE");
+    private static final ControlId LAYOUT_BUTTON = PushControlIds.button ("LAYOUT");
     private static final ControlId SHIFT_BUTTON = PushControlIds.button ("SHIFT");
     private static final ControlId SELECT_BUTTON = PushControlIds.button ("SELECT");
     private static final ClipLaunchPolicy FILL_POLICY = new ClipLaunchPolicy (
@@ -452,6 +453,7 @@ class PullControllerCoreTest
         assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (RECORD_BUTTON, InputKind.BUTTON));
         assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (NOTE_BUTTON, InputKind.BUTTON));
         assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (SESSION_BUTTON, InputKind.BUTTON));
+        assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (LAYOUT_BUTTON, InputKind.BUTTON));
         host.selectedTrack (selectedTrack (false));
         assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (RECORD_BUTTON, InputKind.BUTTON));
         assertEquals (Optional.of (InputRouteMode.OBSERVE), host.effects ().desiredInputRoutes ().mode (SHIFT_BUTTON, InputKind.BUTTON));
@@ -903,6 +905,7 @@ class PullControllerCoreTest
         host.controllerButton (SHIFT_BUTTON, false);
 
         assertVsLive (host.effects ().desiredControllerWorkspace ());
+        assertEquals (Optional.empty (), host.effects ().desiredInputRoutes ().mode (LAYOUT_BUTTON, InputKind.BUTTON));
 
         host.controllerButton (SESSION_BUTTON, true);
 
@@ -1216,6 +1219,74 @@ class PullControllerCoreTest
 
 
     @Test
+    void layoutButtonPreservesTheCompleteLegacyTransitionTable ()
+    {
+        for (final List<ControllerNoteView> cycle: List.of (
+            List.of (ControllerNoteView.PLAY, ControllerNoteView.CHORDS, ControllerNoteView.PIANO, ControllerNoteView.DRUM64),
+            List.of (ControllerNoteView.SEQUENCER, ControllerNoteView.RAINDROPS, ControllerNoteView.DRUM, ControllerNoteView.DRUM4, ControllerNoteView.DRUM8)))
+        {
+            for (int index = 0; index < cycle.size (); index++)
+                assertLayoutTransition (cycle.get (index), cycle.get ( (index + 1) % cycle.size ()), false);
+        }
+        for (final ControllerNoteView sequencer: Set.of (ControllerNoteView.DRUM, ControllerNoteView.DRUM4, ControllerNoteView.DRUM8, ControllerNoteView.SEQUENCER, ControllerNoteView.RAINDROPS, ControllerNoteView.POLY_SEQUENCER))
+            assertLayoutTransition (sequencer, ControllerNoteView.PLAY, true);
+        for (final ControllerNoteView other: Set.of (ControllerNoteView.PLAY, ControllerNoteView.CHORDS, ControllerNoteView.PIANO, ControllerNoteView.DRUM64, ControllerNoteView.DRUM_PAD, ControllerNoteView.DRUM_XOX))
+            assertLayoutTransition (other, ControllerNoteView.SEQUENCER, true);
+    }
+
+
+    @Test
+    void shiftedLayoutEntersSequencerFromSessionThroughTheSameNoteLifecycle ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        final SelectedTrackSnapshot juno = selectedTrack (8, "juno", 5, true, false);
+        final NoteViewSnapshot play = new NoteViewSnapshot (8, "juno", 5, ControllerNoteView.PLAY, false);
+        host.bridge (noteBridge (1, "SESSION", juno, play, DrumContextSnapshot.empty (), NoteRepeatSnapshot.empty ()));
+
+        host.controllerButton (SHIFT_BUTTON, true);
+        host.controllerButton (LAYOUT_BUTTON, true);
+
+        assertEquals (new SetNoteViewPreferenceEffect (8, "juno", 5, ControllerNoteView.SEQUENCER), host.effects ().executionOrder ().getLast ());
+        assertEquals (ControllerNoteView.SEQUENCER, host.effects ().desiredControllerLayout ().noteView ());
+        assertEquals (DesiredNoteInputRoute.selectedTrack (8, "juno"), host.effects ().desiredNoteInputRoute ());
+        assertEquals (Set.of (ControllerViewFacet.TRACK_MIXER_PAGE), host.effects ().desiredControllerWorkspace ().facets ());
+    }
+
+
+    @Test
+    void layoutButtonFailsClosedWhileSelectedAndPreferenceTargetsDisagree ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        final SelectedTrackSnapshot drums = selectedTrack (9, "drums", 0, true, false);
+        final NoteViewSnapshot staleJuno = new NoteViewSnapshot (8, "juno", 5, ControllerNoteView.PLAY, false);
+        host.bridge (noteBridge (1, "PLAY", drums, staleJuno, DrumContextSnapshot.empty (), NoteRepeatSnapshot.empty ()));
+
+        host.controllerButton (LAYOUT_BUTTON, true);
+
+        assertTrue (host.effects ().executionOrder ().isEmpty ());
+        assertEquals (DesiredNotePerformance.inactive (), host.effects ().desiredNotePerformance ());
+    }
+
+
+    @Test
+    void shiftedLayoutDoesNotCreateAMusicalViewerForAnAudioTarget ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        final SelectedTrackSnapshot audio = selectedTrack (8, "audio", 5, false, true);
+        host.bridge (noteBridge (1, "CLIP_LENGTH", audio, new NoteViewSnapshot (8, "audio", 5, ControllerNoteView.CLIP_LENGTH, false), DrumContextSnapshot.empty (), NoteRepeatSnapshot.empty ()));
+
+        host.controllerButton (SHIFT_BUTTON, true);
+        host.controllerButton (LAYOUT_BUTTON, true);
+
+        assertTrue (host.effects ().executionOrder ().isEmpty ());
+        assertEquals (ControllerNoteView.CLIP_LENGTH, host.effects ().desiredControllerLayout ().noteView ());
+    }
+
+
+    @Test
     void derivedNoteViewerAdvancesFromMelodicToDrumAfterAlignedDeviceReadback ()
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
@@ -1365,6 +1436,22 @@ class PullControllerCoreTest
     private static CatalogClip clip (final long target, final String name)
     {
         return new CatalogClip (new ClipTargetId (target), name);
+    }
+
+
+    private static void assertLayoutTransition (final ControllerNoteView active, final ControllerNoteView expected, final boolean shifted)
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        final SelectedTrackSnapshot juno = selectedTrack (8, "juno", 5, true, false);
+        host.bridge (noteBridge (1, active.name (), juno, new NoteViewSnapshot (8, "juno", 5, active, false), DrumContextSnapshot.empty (), NoteRepeatSnapshot.empty ()));
+        if (shifted)
+            host.controllerButton (SHIFT_BUTTON, true);
+        host.controllerButton (LAYOUT_BUTTON, true);
+
+        assertEquals (new SetNoteViewPreferenceEffect (8, "juno", 5, expected), host.effects ().executionOrder ().getLast ());
+        assertEquals (expected, host.effects ().desiredControllerLayout ().noteView ());
+        assertEquals (DesiredNoteInputRoute.selectedTrack (8, "juno"), host.effects ().desiredNoteInputRoute ());
     }
 
 

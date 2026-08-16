@@ -174,6 +174,16 @@ public final class WorkspaceSelection
     }
 
 
+    /** Select one exact per-track Note layout and enter Note when another destination owns the grid. */
+    public void selectPreferredNoteView (final NoteViewSnapshot target, final ControllerNoteView view, final ControllerLayoutSnapshot layout)
+    {
+        this.requestPreferredNoteView (target, view);
+        final ControllerLayoutSnapshot observed = Objects.requireNonNull (layout, "layout");
+        final boolean handoffRequired = this.active != Id.DEFAULT || this.selectedDestination != Destination.NOTE;
+        this.select (Id.DEFAULT, Destination.NOTE, observed.generation (), handoffRequired);
+    }
+
+
     /** Resolve authoritative preference plus an exact still-unacknowledged request. */
     public ControllerNoteView preferredNoteView (final NoteViewSnapshot target)
     {

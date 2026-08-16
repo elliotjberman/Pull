@@ -57,6 +57,29 @@ class PushDebugNavigationHostTest
 
 
     @Test
+    void layoutGesturesUseThePermanentRoutedButtonAndModifierBindings () throws IOException
+    {
+        final FakeNavigationSurface surface = new FakeNavigationSurface ("PLAY", "TRACK", false);
+        final PushDebugNavigationHost host = this.host (surface);
+        this.request ("layout-request", "layout", "LAYOUT/view=CHORDS", "SHIFT_LAYOUT/view=SEQUENCER");
+
+        host.tick ();
+        assertEquals (List.of ("LAYOUT:DOWN", "LAYOUT:UP"), surface.events);
+        surface.observe ("CHORDS", "TRACK", false);
+        host.tick ();
+        host.tick ();
+        host.tick ();
+        assertEquals (List.of ("LAYOUT:DOWN", "LAYOUT:UP", "SHIFT:DOWN", "LAYOUT:DOWN", "LAYOUT:UP", "SHIFT:UP"), surface.events);
+
+        surface.observe ("SEQUENCER", "TRACK", false);
+        host.tick ();
+        host.tick ();
+
+        assertEquals (List.of ("layout-request", "READY", "layout", "SEQUENCER", "TRACK", "false", "false", ""), this.status ());
+    }
+
+
+    @Test
     void mixExitsCoreWorkspaceThenUsesTheStableTrackBinding () throws IOException
     {
         final FakeNavigationSurface surface = new FakeNavigationSurface ("WORKSPACE", "WORKSPACE", true);

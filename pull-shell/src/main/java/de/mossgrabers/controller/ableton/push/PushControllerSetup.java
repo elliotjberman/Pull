@@ -17,7 +17,6 @@ import de.mossgrabers.controller.ableton.push.command.trigger.ClipCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.ClipStopCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.DeviceCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.FixedLengthCommand;
-import de.mossgrabers.controller.ableton.push.command.trigger.LayoutCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.MastertrackCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.MuteCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.OctaveCommand;
@@ -90,6 +89,7 @@ import de.mossgrabers.controller.ableton.push.view.SessionView;
 import de.mossgrabers.controller.ableton.push.view.WorkspaceView;
 import de.mossgrabers.controller.ableton.push.workspace.SessionBankRegistry;
 import de.mossgrabers.framework.command.continuous.KnobRowModeCommand;
+import de.mossgrabers.framework.command.core.TriggerCommand;
 import de.mossgrabers.framework.command.trigger.BrowserCommand;
 import de.mossgrabers.framework.command.trigger.Direction;
 import de.mossgrabers.framework.command.trigger.FootswitchCommand;
@@ -154,6 +154,8 @@ import de.mossgrabers.pull.shell.runtime.ReloadableControllerRuntime;
  */
 public class PushControllerSetup extends AbstractControllerSetup<PushControlSurface, PushConfiguration>
 {
+    /** Permanent binding for controls whose complete semantics are owned by the reloadable core. */
+    private static final TriggerCommand CORE_OWNED_BUTTON_COMMAND = (event, velocity) -> { };
     private static final int       DEVICE_INQUIRY_ATTEMPTS    = 5;
     private static final int       DEVICE_INQUIRY_RETRY_DELAY = 250;
     private static final String [] PAD_MIDI_FILTERS           =
@@ -248,6 +250,14 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
             else if (modeManager.isActive (Modes.MASTER))
                 modeManager.restore ();
         });
+    }
+
+
+    /** Pull track selection publishes state; the reloadable Note controller alone selects layouts. */
+    @Override
+    protected void recallLastView ()
+    {
+        // The inherited selection callback must not actuate a second Note-layout control plane.
     }
 
 
@@ -409,15 +419,11 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
 
         // Play is semantically core-owned. The stable binding is deliberately inert; the permanent
         // input seam and palette adapter remain installed across child-core reloads.
-        this.addButton (ButtonID.PLAY, "Play", (event, velocity) -> {
-            // No stable semantic implementation for a migrated control.
-        }, PushControlSurface.PUSH_BUTTON_PLAY, () -> controllerLightColor (this.colorManager, this.reloadableRuntime.lightColor (PushControlIds.button ("PLAY"))));
+        this.addButton (ButtonID.PLAY, "Play", CORE_OWNED_BUTTON_COMMAND, PushControlSurface.PUSH_BUTTON_PLAY, () -> controllerLightColor (this.colorManager, this.reloadableRuntime.lightColor (PushControlIds.button ("PLAY"))));
 
         // Record is semantically core-owned. This stable binding intentionally performs no action;
         // it exists only so the permanent input seam and authoritative light remain installed.
-        this.addButton (ButtonID.RECORD, "Arm", (event, velocity) -> {
-            // No stable semantic implementation for a migrated control.
-        }, PushControlSurface.PUSH_BUTTON_RECORD, () -> controllerLightColor (this.colorManager, this.reloadableRuntime.lightColor (PushControlIds.button ("RECORD"))));
+        this.addButton (ButtonID.RECORD, "Arm", CORE_OWNED_BUTTON_COMMAND, PushControlSurface.PUSH_BUTTON_RECORD, () -> controllerLightColor (this.colorManager, this.reloadableRuntime.lightColor (PushControlIds.button ("RECORD"))));
 
         this.addButton (ButtonID.NEW, "New", new NewCommand<> (this.model, surface), PushControlSurface.PUSH_BUTTON_NEW);
         this.addButton (ButtonID.FIXED_LENGTH, "Fixed Length", new FixedLengthCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_FIXED_LENGTH, () -> modeManager.isActive (Modes.FIXED));
@@ -494,9 +500,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         this.addButton (ButtonID.ACCENT, "Accent", new AccentCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_ACCENT, this.configuration::isAccentActive);
         this.addButton (ButtonID.ADD_EFFECT, "Add Device", new PushAddEffectCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_ADD_EFFECT);
         this.addButton (ButtonID.ADD_TRACK, "Add Track", new ModeSelectCommand<> (this.model, surface, Modes.ADD_TRACK), PushControlSurface.PUSH_BUTTON_ADD_TRACK);
-        this.addButton (ButtonID.NOTE, "Note", (event, velocity) -> {
-            // No stable semantic implementation for a migrated control.
-        }, PushControlSurface.PUSH_BUTTON_NOTE, () -> !surface.isSessionLayoutActive ());
+        this.addButton (ButtonID.NOTE, "Note", CORE_OWNED_BUTTON_COMMAND, PushControlSurface.PUSH_BUTTON_NOTE, () -> !surface.isSessionLayoutActive ());
 
         final PushCursorCommand cursorDownCommand = new PushCursorCommand (Direction.DOWN, this.model, surface);
         this.addButton (ButtonID.ARROW_DOWN, "Down", cursorDownCommand, PushControlSurface.PUSH_BUTTON_DOWN, cursorDownCommand::canScroll, ColorManager.BUTTON_STATE_OFF, ColorManager.BUTTON_STATE_ON);
@@ -517,13 +521,11 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         }, ColorManager.BUTTON_STATE_OFF, ColorManager.BUTTON_STATE_ON);
 
         this.addButton (ButtonID.STOP_CLIP, "Stop Clip", new ClipStopCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_STOP_CLIP, () -> surface.isPressed (ButtonID.STOP_CLIP), PushColorManager.PUSH_BUTTON_STATE_STOP_ON, PushColorManager.PUSH_BUTTON_STATE_STOP_HI);
-        this.addButton (ButtonID.SESSION, "Session", (event, velocity) -> {
-            // No stable semantic implementation for a migrated control.
-        }, PushControlSurface.PUSH_BUTTON_SESSION, surface::isSessionLayoutActive);
+        this.addButton (ButtonID.SESSION, "Session", CORE_OWNED_BUTTON_COMMAND, PushControlSurface.PUSH_BUTTON_SESSION, surface::isSessionLayoutActive);
         this.addButton (ButtonID.REPEAT, "Repeat", new FillModeNoteRepeatCommand<> (this.model, surface, true), PushControlSurface.PUSH_BUTTON_REPEAT, this.configuration::isNoteRepeatActive);
         this.addButton (ButtonID.FOOTSWITCH2, "Foot Controller", new FootswitchCommand<> (this.model, surface, 0), PushControlSurface.PUSH_FOOTSWITCH2);
 
-        this.addButton (ButtonID.LAYOUT, "Layout", new LayoutCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_LAYOUT);
+        this.addButton (ButtonID.LAYOUT, "Layout", CORE_OWNED_BUTTON_COMMAND, PushControlSurface.PUSH_BUTTON_LAYOUT);
         this.addButton (ButtonID.SETUP, "Setup", new SetupCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_SETUP, () -> modeManager.isActive (Modes.SETUP, Modes.INFO));
         this.addButton (ButtonID.CONVERT, "Convert", new ConvertCommand<> (this.model, surface), PushControlSurface.PUSH_BUTTON_CONVERT, () -> {
             if (!this.model.canConvertClip ())

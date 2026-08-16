@@ -19,6 +19,8 @@ public enum ControllerActionId
     SWITCH_PARAMETER_CONTEXT,
     /** Enter another compiled core workspace. */
     SWITCH_WORKSPACE,
+    /** Select another layout for the current Note viewer. */
+    SELECT_NOTE_LAYOUT,
     /** Navigate between open project tabs. */
     NAVIGATE_PROJECT,
     /** Change the current project's audio-engine state. */
