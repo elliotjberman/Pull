@@ -252,7 +252,7 @@ VS Live contains:
 - drum pitch bend on the touch strip.
 
 The lower Drum Controller includes its 4x4 playable block, four core-owned rate pads, eight fill
-pads, four Bitwig-mappable Boolean controls, octave navigation, aggregate grid pressure, and its optional pitch-bend facet. It does not own
+pads, four Bitwig-manually-mappable control pads, octave navigation, aggregate grid pressure, and its optional pitch-bend facet. It does not own
 the lower scene keys. Per-pad pressure has a musical destination only on the playable 4x4 block and
 is part of the same reloadable `DrumControllerView`, so pressure cannot be accidentally omitted
 from a composition that owns those pads.
@@ -277,7 +277,9 @@ Reloadable core:
 - `DrumControllerView`: playable lower-grid mapping, pressure policy, and optional pitch bend.
 - `DrumRateView`: four exclusive rate-pad gestures, RGB output, and desired note-repeat state.
 - `DrumFillView`: fill selection, launch lifecycle, bindings, and eight RGB lights.
-- `DrumUserControlView`: four exclusive Boolean controls with authoritative red/off feedback.
+- `DrumControlPadView`: four exclusive control-pad routes, a complete view-scoped learned-action
+  lease, and authoritative mapped-light red/off feedback; Bitwig's hardware mapping remains the
+  actuator.
 - `TransportControlView`: persistent authoritative Play/Record lights and Record modifier policy.
 - `MasterControlView`: Master/Cue encoder policy, project/audio actions, both row-light banks, and
   a complete declarative graphics scene.
@@ -293,6 +295,10 @@ Stable shell:
 - `WorkspaceView`: upper Session grid plus reusable lower Drum Controller adapter.
 - `SessionBankRegistry`: bounded 8x8/8x4 Bitwig bank canopy.
 - `PushControlSurface`: remaining stable pitch-bend and navigation integration.
+- `HardwareMappingActivationHost`: mechanically enables four dedicated mapping-only Bitwig
+  hardware actions while core retains their complete view lease. Per pad, lease loss immediately
+  revokes new presses while retaining only an in-flight release through routed END. It never
+  changes the permanent pad matchers used by Session and other views.
 
 ## Migration Status
 
@@ -329,7 +335,7 @@ Partial or transitional:
 - Capability and Session-shape validation happens during stable result preparation, not entirely in
   `CompiledWorkspace`.
 - General display and light output ownership is still partial. The eight drum-fill, four drum-rate,
-  and four user-control RGB lights, global Play/Record lights, the Master page's two button rows and graphics
+  and four mappable-control RGB lights and mapping-only learned-action leases, global Play/Record lights, the Master page's two button rows and graphics
   display, a temporary sparse 8x8 grid overlay, and a complete temporary 960x160 display overlay
   use core-owned output arbitration. The detailed design's API 30 installed-output inventory is
   canonical.

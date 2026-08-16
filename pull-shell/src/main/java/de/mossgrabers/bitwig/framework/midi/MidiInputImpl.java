@@ -197,7 +197,18 @@ public class MidiInputImpl implements IMidiInput
     {
         final HardwareButton hardwareButton = ((HwButtonImpl) button).getHardwareButton ();
         hardwareButton.pressedAction ().setPressureActionMatcher (null);
+        hardwareButton.pressedAction ().setActionMatcher (null);
         hardwareButton.releasedAction ().setActionMatcher (null);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void unbindPress (final IHwButton button)
+    {
+        final HardwareAction pressedAction = ((HwButtonImpl) button).getHardwareButton ().pressedAction ();
+        pressedAction.setPressureActionMatcher (null);
+        pressedAction.setActionMatcher (null);
     }
 
 

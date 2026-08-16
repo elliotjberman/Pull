@@ -62,8 +62,8 @@ GLOBAL_MODIFIERS.*         Shift, Select, Delete, and similar controls
 
 Smaller fixed subregions may be added when a real view proves the need. They must be named for a
 stable physical footprint, not created ad hoc by a workspace. For example, the current drum-fill
-view occupies the eight pads at columns 4..7 and rows 1..2 inside `GRID.LOWER`; four mappable
-Boolean controls occupy columns 4..7 on row 3.
+view occupies the eight pads at columns 4..7 and rows 1..2 inside `GRID.LOWER`; four manually
+mappable control pads occupy columns 4..7 on row 3.
 
 A claim declares both ownership and its current realization boundary. The Java API uses explicit
 kinds equivalent to:
@@ -136,7 +136,7 @@ facets that the view declares.
 Examples:
 
 - **Drum Controller** requires `GRID.LOWER`. Its lower half contains the 4x4 playable drum block,
-  four momentary rate pads, eight fill pads, and four mappable Boolean controls. Its named `pitch-bend` facet claims
+  four momentary rate pads, eight fill pads, and four manually mappable control pads. Its named `pitch-bend` facet claims
   `TOUCH_STRIP`. It does not claim either scene-key group.
 - **Session Clip Grid (upper)** requires `GRID.UPPER` and may claim `SCENE_KEYS.UPPER` as its named
   `scene-launch` facet.
@@ -226,7 +226,9 @@ Introduce the fixed-footprint model and workspace compiler inside the reloadable
 currently migrated behavior through views:
 
 - Drum-fill matching, launch ownership, and eight pad lights become one fixed drum-fill view.
-- Four Bitwig user controls own the remaining row with authoritative red/off feedback.
+- Four dedicated Bitwig mapping-only hardware buttons own the remaining row's learned actions only
+  while core retains that view's complete activation lease; permanent pad dispatch is separate,
+  and core owns red/off policy derived from later authoritative mapped-light feedback.
 - Record, Shift + Record, and Select + Record become one fixed Record control view.
 - A default workspace composes those views.
 - Existing `CoreResult` output, input routes, bridge subscriptions, clip bindings, effects,

@@ -14,6 +14,7 @@ import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 
 /**
@@ -26,10 +27,11 @@ import java.util.Objects;
  * @param displayOverlay Temporary overlay composed above the current display page
  * @param notePerformance Complete replayable Note layout and selected-track routing lifecycle
  * @param noteRepeat Complete replayable note-repeat ownership and state
+ * @param activeMappings Hardware controls whose host-learned actions are active
  */
-public record ViewOutput (Map<ControlId, RgbColor> lights, Map<ControlId, ClipTargetId> clipBindings, ControllerDisplayScene display, ControllerPadGridOverlay padGridOverlay, ControllerDisplayOverlay displayOverlay, DesiredNotePerformance notePerformance, DesiredNoteRepeat noteRepeat)
+public record ViewOutput (Map<ControlId, RgbColor> lights, Map<ControlId, ClipTargetId> clipBindings, ControllerDisplayScene display, ControllerPadGridOverlay padGridOverlay, ControllerDisplayOverlay displayOverlay, DesiredNotePerformance notePerformance, DesiredNoteRepeat noteRepeat, Set<ControlId> activeMappings)
 {
-    private static final ViewOutput EMPTY = new ViewOutput (Map.of (), Map.of (), ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), DesiredNotePerformance.inactive (), DesiredNoteRepeat.unowned ());
+    private static final ViewOutput EMPTY = new ViewOutput (Map.of (), Map.of (), ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), DesiredNotePerformance.inactive (), DesiredNoteRepeat.unowned (), Set.of ());
 
 
     /**
@@ -44,6 +46,14 @@ public record ViewOutput (Map<ControlId, RgbColor> lights, Map<ControlId, ClipTa
         displayOverlay = Objects.requireNonNull (displayOverlay, "displayOverlay");
         notePerformance = Objects.requireNonNull (notePerformance, "notePerformance");
         noteRepeat = Objects.requireNonNull (noteRepeat, "noteRepeat");
+        activeMappings = Set.copyOf (Objects.requireNonNull (activeMappings, "activeMappings"));
+    }
+
+
+    /** Compatibility constructor without host-learned action ownership. */
+    public ViewOutput (final Map<ControlId, RgbColor> lights, final Map<ControlId, ClipTargetId> clipBindings, final ControllerDisplayScene display, final ControllerPadGridOverlay padGridOverlay, final ControllerDisplayOverlay displayOverlay, final DesiredNotePerformance notePerformance, final DesiredNoteRepeat noteRepeat)
+    {
+        this (lights, clipBindings, display, padGridOverlay, displayOverlay, notePerformance, noteRepeat, Set.of ());
     }
 
 

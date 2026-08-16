@@ -114,6 +114,7 @@ class ControllerRuntimeEnvironmentTest
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION));
         assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD));
         assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_RGB_LIGHT));
+        assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_HARDWARE_MAPPING));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_STATE));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_NOTE_VIEW_PREFERENCE));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_NOTE_REPEAT));
@@ -121,8 +122,7 @@ class ControllerRuntimeEnvironmentTest
         assertEquals (Integer.valueOf (6), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE));
         assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_PARAMETER_TARGETS));
         assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_PARAMETER_TARGET));
-        assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_USER_CONTROLS));
-        assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_USER_CONTROL));
+        assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_MAPPED_PAD_LIGHTS));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_MASTER));
         assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_MASTER));
         assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_DISPLAY));
@@ -264,6 +264,35 @@ class ControllerRuntimeEnvironmentTest
         environment.invalidate (10);
         assertFalse (environment.controllerDisplay ().isPresent ());
         assertEquals (OFF, environment.lightColor (previous));
+    }
+
+
+    @Test
+    void admitsMappedActionsOnlyWithTheirExclusiveRouteAndOwnedFeedback ()
+    {
+        final ControllerRuntimeEnvironment environment = environment (host (1));
+        environment.setInputRouteValidator (ignored -> true);
+        final ControlId pad = CoreControls.DRUM_CONTROL_PADS.getFirst ();
+        final DesiredInputRoutes routes = new DesiredInputRoutes (Set.of (new InputRoute (pad, InputKind.PAD, InputRouteMode.EXCLUSIVE)));
+        final DesiredHardwareOutput output = new DesiredHardwareOutput (
+            Map.of (pad, BRIGHT_RED),
+            ControllerDisplayScene.empty (),
+            ControllerPadGridOverlay.inactive (),
+            ControllerDisplayOverlay.inactive (),
+            Set.of (pad));
+        final CoreResult result = routedResult (output, routes);
+
+        commitAndApply (environment, 9, result);
+        assertEquals (Set.of (pad), environment.activeHardwareMappings ());
+
+        environment.quarantine (9);
+        assertTrue (environment.activeHardwareMappings ().isEmpty ());
+        assertEquals (OFF, environment.lightColor (pad));
+
+        assertThrows (IllegalArgumentException.class, () -> environment.prepare (routedResult (output, DesiredInputRoutes.empty ())));
+        assertThrows (IllegalArgumentException.class, () -> environment.prepare (routedResult (
+            new DesiredHardwareOutput (Map.of (), ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), Set.of (pad)),
+            routes)));
     }
 
 
@@ -1051,8 +1080,14 @@ class ControllerRuntimeEnvironmentTest
 
     private static CoreResult routedResult (final DesiredInputRoutes routes)
     {
+        return routedResult (DesiredHardwareOutput.empty (), routes);
+    }
+
+
+    private static CoreResult routedResult (final DesiredHardwareOutput output, final DesiredInputRoutes routes)
+    {
         return new CoreResult (
-            DesiredHardwareOutput.empty (),
+            output,
             routes,
             DesiredBridgeSubscriptions.empty (),
             Map.of (),

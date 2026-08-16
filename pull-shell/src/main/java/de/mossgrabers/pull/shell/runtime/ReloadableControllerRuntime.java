@@ -61,6 +61,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
     private final ControllerHost controllerHost;
 
     private SelectedTrackFillClipHost clipHost;
+    private MappedPadLightHost mappedPadLights;
     private ControllerRuntimeEnvironment environment;
     private CoreReloadSupervisor supervisor;
     private PushControllerInputBridge inputBridge;
@@ -160,14 +161,15 @@ public final class ReloadableControllerRuntime implements AutoCloseable
 
         this.clipHost = new SelectedTrackFillClipHost (this.controllerHost);
         this.clipHost.connect (Objects.requireNonNull (model, "model"));
+        this.mappedPadLights = new MappedPadLightHost (surface);
         final BoundedControllerBridge controllerBridge = new BoundedControllerBridge (
-            this.controllerHost,
             model,
             Objects.requireNonNull (selectedTarget, "selectedTarget"),
             Objects.requireNonNull (noteInputMidiSender, "noteInputMidiSender"),
             Objects.requireNonNull (surface, "surface"),
             Objects.requireNonNull (valueChanger, "valueChanger"),
-            this.log);
+            this.log,
+            this.mappedPadLights);
         this.environment = new ControllerRuntimeEnvironment (this.clipHost, controllerBridge, this.log, System::nanoTime);
         this.supervisor = new CoreReloadSupervisor (this.environment, this.log);
         this.eventHandler = this.supervisor::handle;
@@ -192,8 +194,8 @@ public final class ReloadableControllerRuntime implements AutoCloseable
 
 
     /**
-     * Wrap the complete practical Push input set after normal command registration. This changes
-     * command behavior only; it does not add duplicate Bitwig hardware bindings.
+     * Wrap the complete practical Push input set after normal command registration and attach the
+     * separate bounded mapping-only controls created during connection.
      *
      * @param surface Stable Push surface
      * @param valueChanger Relative-value decoder
@@ -213,6 +215,8 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             Objects.requireNonNull (valueChanger, "valueChanger"),
             this::handleParameterMutation,
             this.environment::desiredInputRoutes,
+            this.environment::activeHardwareMappings,
+            this.mappedPadLights.mappingButtons (),
             (control, kind, stableAction) -> this.environment.blocksStableAction (control, de.mossgrabers.pull.core.api.event.InputKind.valueOf (kind.name ()), stableAction),
             this::handleControllerInput,
             () -> this.supervisor == null ? 0 : this.supervisor.activeGeneration ());

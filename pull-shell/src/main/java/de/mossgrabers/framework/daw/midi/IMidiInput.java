@@ -109,6 +109,15 @@ public interface IMidiInput
 
 
     /**
+     * Unbind only the button's press matcher, retaining its release matcher for an in-flight
+     * gesture.
+     *
+     * @param button The button whose new presses should stop matching
+     */
+    void unbindPress (IHwButton button);
+
+
+    /**
      * Bind the given fader to a MIDI command received on this MIDI input.
      *
      * @param fader The fader to bind

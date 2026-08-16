@@ -37,6 +37,18 @@ public interface IHwSurfaceFactory
 
 
     /**
+     * Create a detached hardware button with a fixed host-facing identifier. Detached buttons are
+     * not entered into a controller surface's ordinary button registry.
+     *
+     * @param surfaceID The ID of the surface
+     * @param hardwareID The stable host-facing hardware identifier
+     * @param label The label of the button
+     * @return The created button
+     */
+    IHwButton createButton (int surfaceID, String hardwareID, String label);
+
+
+    /**
      * Create a proxy to a hardware light.
      *
      * @param surfaceID The ID of the surface

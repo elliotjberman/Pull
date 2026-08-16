@@ -46,6 +46,13 @@ public interface IHwButton extends IHwInputControl
 
 
     /**
+     * Disable only new press matching while retaining the currently installed release matcher.
+     * A later complete {@link #unbind()} or {@link #rebind()} finishes the transition.
+     */
+    void unbindPress ();
+
+
+    /**
      * Get the trigger command,
      *
      * @return The command or null if not bound

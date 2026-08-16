@@ -674,7 +674,8 @@ class BoundedControllerBridgeTest
                     {
                         // No test diagnostics.
                     }
-                });
+                },
+                null);
         }
 
 

@@ -75,7 +75,15 @@ public class HwSurfaceFactoryImpl implements IHwSurfaceFactory
     @Override
     public IHwButton createButton (final int surfaceID, final ButtonID buttonID, final String label)
     {
-        final String id = createID (surfaceID, buttonID.name ());
+        return this.createButton (surfaceID, buttonID.name (), label);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public IHwButton createButton (final int surfaceID, final String hardwareID, final String label)
+    {
+        final String id = createID (surfaceID, hardwareID);
         final HardwareButton hwButton = this.hardwareSurface.createHardwareButton (id);
         return new HwButtonImpl (this.host, hwButton, label, this.buttonTimeoutOptimizer);
     }

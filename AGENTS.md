@@ -186,7 +186,8 @@
   are the reference parameter migration: core owns
   the mapping, relative effect, and snapback policy while stable owns Bitwig proxies, identity
   validation, read-back, and effect execution. The Play action, eight drum-fill RGB lights, four
-  Bitwig-mappable Boolean drum-control pads, Play and
+  Bitwig-manually-mappable drum-control pads with a view-scoped mapping-only hardware-action lease
+  independent of permanent pad dispatch and mapped-light read-back, Play and
   Record lights, both Master button rows, and the Master graphics display have migrated direct
   output ownership. Play and Record light policy renders authoritative engine, transport, overdub,
   and selected-track arm read-back in every workspace. Play targets the remembered engine-owning

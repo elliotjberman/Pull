@@ -187,7 +187,7 @@ public final class DrumPadControls
      * Test whether this component owns a physical grid note.
      *
      * @param note The physical grid note
-     * @return True if the note belongs to the drum block, rate, fill, or user controls
+     * @return True if the note belongs to the drum block, rate, fill, or mappable controls
      */
     public boolean ownsGridNote (final int note)
     {
@@ -299,10 +299,10 @@ public final class DrumPadControls
                 padGrid.sendState (note);
             }
         }
-        for (int index = 0; index < de.mossgrabers.pull.core.api.CoreControls.DRUM_USER_CONTROLS.size (); index++)
+        for (int index = 0; index < de.mossgrabers.pull.core.api.CoreControls.DRUM_CONTROL_PADS.size (); index++)
         {
             final int note = padGrid.getStartNote () + 3 * padGrid.getCols () + RATE_PAD_START + index;
-            final RgbColor color = this.reloadableRuntime.lightColor (de.mossgrabers.pull.core.api.CoreControls.DRUM_USER_CONTROLS.get (index));
+            final RgbColor color = this.reloadableRuntime.lightColor (de.mossgrabers.pull.core.api.CoreControls.DRUM_CONTROL_PADS.get (index));
             padGrid.light (note, PadColor.rgbOrOff (ColorEx.fromRGB (color.red (), color.green (), color.blue ())));
             if (replayOutput)
                 padGrid.sendState (note);
@@ -384,7 +384,7 @@ public final class DrumPadControls
 
         for (final int fillPadNote: this.fillPadNotes)
             padGrid.light (fillPadNote, PAD_OFF_COLOR);
-        for (int index = 0; index < de.mossgrabers.pull.core.api.CoreControls.DRUM_USER_CONTROLS.size (); index++)
+        for (int index = 0; index < de.mossgrabers.pull.core.api.CoreControls.DRUM_CONTROL_PADS.size (); index++)
             padGrid.light (padGrid.getStartNote () + 3 * padGrid.getCols () + RATE_PAD_START + index, PAD_OFF_COLOR);
     }
 

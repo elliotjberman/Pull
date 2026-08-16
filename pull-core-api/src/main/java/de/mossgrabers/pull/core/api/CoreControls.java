@@ -45,8 +45,8 @@ public final class CoreControls
         DRUM_FILL_7,
         DRUM_FILL_8);
 
-    /** Four Bitwig-mappable Boolean control pads in left-to-right order. */
-    public static final List<ControlId> DRUM_USER_CONTROLS = List.of (
+    /** Four Bitwig-manually-mappable control pads in left-to-right order. */
+    public static final List<ControlId> DRUM_CONTROL_PADS = List.of (
         PushControlIds.pad (29),
         PushControlIds.pad (30),
         PushControlIds.pad (31),

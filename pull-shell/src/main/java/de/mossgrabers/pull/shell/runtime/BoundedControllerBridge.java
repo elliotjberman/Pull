@@ -3,7 +3,6 @@
 
 package de.mossgrabers.pull.shell.runtime;
 
-import com.bitwig.extension.controller.api.ControllerHost;
 
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.command.trigger.clip.NewClipAction;
@@ -43,7 +42,7 @@ import de.mossgrabers.pull.core.api.ProjectSnapshot;
 import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
 import de.mossgrabers.pull.core.api.TrackMonitorMode;
 import de.mossgrabers.pull.core.api.TransportSnapshot;
-import de.mossgrabers.pull.core.api.UserControlBankSnapshot;
+import de.mossgrabers.pull.core.api.MappedPadLightsSnapshot;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.AdjustParameterValueEffect;
 import de.mossgrabers.pull.core.api.effect.ResetParameterEffect;
@@ -64,7 +63,6 @@ import de.mossgrabers.pull.core.api.effect.SetSelectedTrackMonitorEffect;
 import de.mossgrabers.pull.core.api.effect.SetSelectedTrackValueEffect;
 import de.mossgrabers.pull.core.api.effect.SetTransportStateEffect;
 import de.mossgrabers.pull.core.api.effect.SetTransportValueEffect;
-import de.mossgrabers.pull.core.api.effect.SetUserControlValueEffect;
 import de.mossgrabers.pull.core.api.effect.TransportState;
 import de.mossgrabers.pull.core.api.effect.TransportValue;
 import de.mossgrabers.pull.core.api.output.RgbColor;
@@ -103,7 +101,7 @@ final class BoundedControllerBridge implements ControllerBridge
     private final ParameterTargetHost parameterTargets;
     private final MasterCommandHost masterCommands;
     private final ControllerStateHost controllerState;
-    private final BoundedUserControlHost userControls;
+    private final MappedPadLightHost mappedPadLights;
     private final Map<MidiStateKey, MidiState> noteInputMidiState = new HashMap<> ();
 
     private ControllerBridgeSnapshot snapshot = ControllerBridgeSnapshot.empty ();
@@ -124,20 +122,8 @@ final class BoundedControllerBridge implements ControllerBridge
     private PendingNoteRepeatToggle pendingNoteRepeatToggle;
 
 
-    BoundedControllerBridge (final ControllerHost host, final IModel model, final ISelectedTrackNoteTarget selectedTarget, final MidiShortCallback noteInputMidiSender, final PushControlSurface surface, final IValueChanger valueChanger, final RuntimeLog log)
-    {
-        this (model, selectedTarget, noteInputMidiSender, surface, valueChanger, log, new BoundedUserControlHost (host));
-    }
-
-
-    /** Test seam for bridge domains which do not require Bitwig user controls. */
-    BoundedControllerBridge (final IModel model, final ISelectedTrackNoteTarget selectedTarget, final MidiShortCallback noteInputMidiSender, final PushControlSurface surface, final IValueChanger valueChanger, final RuntimeLog log)
-    {
-        this (model, selectedTarget, noteInputMidiSender, surface, valueChanger, log, null);
-    }
-
-
-    private BoundedControllerBridge (final IModel model, final ISelectedTrackNoteTarget selectedTarget, final MidiShortCallback noteInputMidiSender, final PushControlSurface surface, final IValueChanger valueChanger, final RuntimeLog log, final BoundedUserControlHost userControls)
+    /** Production and test seam for the fixed mapped-light observation host. */
+    BoundedControllerBridge (final IModel model, final ISelectedTrackNoteTarget selectedTarget, final MidiShortCallback noteInputMidiSender, final PushControlSurface surface, final IValueChanger valueChanger, final RuntimeLog log, final MappedPadLightHost mappedPadLights)
     {
         this.model = Objects.requireNonNull (model, "model");
         this.transport = Objects.requireNonNull (model.getTransport (), "transport");
@@ -150,7 +136,7 @@ final class BoundedControllerBridge implements ControllerBridge
         this.parameterTargets = new ParameterTargetHost (surface, model, this.log);
         this.masterCommands = new MasterCommandHost (model, log);
         this.controllerState = new ControllerStateHost (selectedTarget, surface.getControllerWorkspaceHost (), this::resetNoteInputMidiState);
-        this.userControls = userControls;
+        this.mappedPadLights = mappedPadLights;
     }
 
 
@@ -210,13 +196,13 @@ final class BoundedControllerBridge implements ControllerBridge
         final DesiredParameterBanks requestedParameterBanks = parametersRequested ? Objects.requireNonNull (parameterBanks, "parameterBanks") : DesiredParameterBanks.empty ();
         this.parameterTargets.refresh (requestedParameterBanks);
         final ParameterBridgeSnapshot parameters = parametersRequested ? this.parameterTargets.snapshot () : ParameterBridgeSnapshot.empty ();
-        final UserControlBankSnapshot userControlState = requested.includes (BridgeSubscription.USER_CONTROLS) && this.userControls != null ? this.userControls.snapshot () : UserControlBankSnapshot.empty ();
+        final MappedPadLightsSnapshot mappedPadLightState = requested.includes (BridgeSubscription.MAPPED_PAD_LIGHTS) && this.mappedPadLights != null ? this.mappedPadLights.snapshot () : MappedPadLightsSnapshot.empty ();
         final boolean masterRequested = requested.includes (BridgeSubscription.MASTER);
         final boolean projectRequested = requested.includes (BridgeSubscription.PROJECT);
         this.masterCommands.refresh (masterRequested, projectRequested);
         final MasterSnapshot master = masterRequested ? this.masterCommands.snapshot () : MasterSnapshot.empty ();
         final ProjectSnapshot project = projectRequested ? this.masterCommands.projectSnapshot () : ProjectSnapshot.empty ();
-        final ControllerBridgeSnapshot refreshed = new ControllerBridgeSnapshot (transportState, selected, layout, noteView, noteRepeat, this.drumSnapshot, parameters, userControlState, master, project);
+        final ControllerBridgeSnapshot refreshed = new ControllerBridgeSnapshot (transportState, selected, layout, noteView, noteRepeat, this.drumSnapshot, parameters, mappedPadLightState, master, project);
         if (refreshed.equals (this.snapshot))
             return false;
 
@@ -327,7 +313,7 @@ final class BoundedControllerBridge implements ControllerBridge
             this.snapshot.noteRepeat (),
             this.snapshot.drum (),
             this.parameterTargets.snapshot (),
-            this.snapshot.userControls (),
+            this.snapshot.mappedPadLights (),
             this.snapshot.master (),
             this.snapshot.project ());
         return true;
@@ -410,8 +396,6 @@ final class BoundedControllerBridge implements ControllerBridge
             return masterAction;
         if (effect instanceof final SetTransportStateEffect setState)
             return new PreparedTransportState (setState.state (), setState.enabled ());
-        if (effect instanceof final SetUserControlValueEffect userControl && this.userControls != null)
-            return new PreparedUserControlValue (userControl.slot (), userControl.normalizedValue ());
         if (effect instanceof final SetParameterValueEffect setParameter)
             return new PreparedParameterSet (this.parameterTargets.prepare (setParameter, retainedTargets (parameterLeases)));
         if (effect instanceof final AdjustParameterValueEffect adjustParameter)
@@ -506,8 +490,6 @@ final class BoundedControllerBridge implements ControllerBridge
             return;
         if (action instanceof final PreparedTransportState state)
             this.masterCommands.applyTransportState (state.state (), state.enabled ());
-        else if (action instanceof final PreparedUserControlValue value)
-            this.userControls.set (value.slot (), value.amount ());
         else if (action instanceof final PreparedParameterSet parameter)
             this.parameterTargets.apply (parameter.action ());
         else if (action instanceof final PreparedParameterAdjust parameter)
@@ -1153,12 +1135,6 @@ final class BoundedControllerBridge implements ControllerBridge
 
     private record PreparedTransportState (TransportState state, boolean enabled) implements ControllerBridge.PreparedAction
     {
-    }
-
-
-    private record PreparedUserControlValue (int slot, double amount) implements ControllerBridge.PreparedAction
-    {
-        // Immutable prepared fixed-bank write.
     }
 
 
