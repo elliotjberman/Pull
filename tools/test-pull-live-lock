@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+test_root="$(mktemp -d)"
+trap 'rm -rf "$test_root"' EXIT
+
+fail ()
+{
+    echo "Pull live lock test failed: $*" >&2
+    exit 1
+}
+
+wait_for_file ()
+{
+    for _ in {1..200}
+    do
+        [[ -f "$1" ]] && return
+        sleep 0.01
+    done
+    fail "timed out waiting for $1"
+}
+
+lock_dir="${test_root}/locks"
+ready="${test_root}/ready"
+release="${test_root}/release"
+busy_error="${test_root}/busy-error"
+
+PULL_LIVE_LOCK_DIR="$lock_dir" "${script_dir}/with-pull-live" --owner first -- \
+    sh -c 'touch "$1"; while [ ! -f "$2" ]; do sleep 0.01; done' sh "$ready" "$release" &
+holder_pid=$!
+wait_for_file "$ready"
+
+set +e
+PULL_LIVE_LOCK_DIR="$lock_dir" "${script_dir}/with-pull-live" --owner second -- true 2> "$busy_error"
+busy_status=$?
+set -e
+[[ "$busy_status" == 75 ]] || fail "busy acquisition returned ${busy_status}, expected 75"
+grep -q '^  owner=first$' "$busy_error" || fail "busy message did not identify the owner"
+
+touch "$release"
+wait "$holder_pid"
+[[ ! -f "${lock_dir}/live.owner" ]] || fail "owner metadata remained after release"
+
+PULL_LIVE_LOCK_DIR="$lock_dir" "${script_dir}/with-pull-live" --owner second -- true
+
+set +e
+PULL_LIVE_LOCK_DIR="$lock_dir" "${script_dir}/with-pull-live" --owner status -- sh -c 'exit 23'
+command_status=$?
+set -e
+[[ "$command_status" == 23 ]] || fail "wrapped command status was not preserved"
+
+echo "Pull live lock tests passed."

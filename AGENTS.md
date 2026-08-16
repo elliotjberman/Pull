@@ -1,5 +1,17 @@
 # Repository Agent Instructions
 
+## Singleton live Bitwig/Push environment
+
+- Offline builds, tests, edits, rebases, and reviews may run concurrently in separate worktrees.
+- Before replacing `Pull.bwextension`, publishing or reloading a core, quitting/launching/restarting
+  Bitwig, or driving state-changing Push debugger input, enter `tools/with-pull-live --owner LABEL`.
+  Keep that shell open through exact-build activation and the complete live smoke test; `exit`
+  releases the lease. Do not acquire and release it around only the install/reload step.
+- If the live environment is owned, continue useful offline work or report live verification as
+  pending. Do not bypass the lease with raw copy, publication, process-lifecycle, or debug commands.
+- Read-only log and status inspection may proceed without the lease, but do not treat observations
+  made during another owner's test as evidence for a different build.
+
 ## Closed-loop testing
 
 - Read `TESTING.md` before validating controller behavior or changing debug ingress.

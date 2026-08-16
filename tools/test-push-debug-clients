@@ -47,6 +47,8 @@ write_navigation_status()
 }
 
 new_debug_home
+assert_status 75 env -u PULL_LIVE_LOCK_HELD HOME="$test_home" "${script_dir}/push-debug-request" valid 'NOTE/workspace=false'
+export PULL_LIVE_LOCK_HELD=test
 assert_status 2 env HOME="$test_home" "${script_dir}/push-debug-request" 'bad label' 'NOTE/workspace=false'
 printf -v oversized_step '%0600d' 0
 assert_status 2 env HOME="$test_home" "${script_dir}/push-debug-request" valid "$oversized_step"

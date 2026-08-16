@@ -2,6 +2,13 @@
 
 set -euo pipefail
 
+if [[ "${1:-}" != "--help" && "${1:-}" != "-h" && -z "${PULL_LIVE_LOCK_HELD:-}" ]]
+then
+    echo "Core reload changes the shared Bitwig/Push environment." >&2
+    echo "Enter 'tools/with-pull-live' and keep that session open through live verification." >&2
+    exit 75
+fi
+
 usage ()
 {
     echo "Usage: tools/reload-core [--directory PATH] [--timeout-ms MILLISECONDS] [--online]" >&2

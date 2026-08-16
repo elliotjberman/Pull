@@ -2,6 +2,13 @@
 
 set -euo pipefail
 
+if [[ "${1:-}" != "--stats" && -z "${PULL_LIVE_LOCK_HELD:-}" ]]
+then
+    echo "Push debugging uses the shared Bitwig/Push environment." >&2
+    echo "Enter 'tools/with-pull-live' and keep that session open through live verification." >&2
+    exit 75
+fi
+
 debug_dir="${HOME}/.drivenbymoss/pull/debug"
 navigation_request_path="${debug_dir}/navigate-request.txt"
 navigation_status_path="${debug_dir}/navigate-status.txt"

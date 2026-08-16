@@ -45,6 +45,21 @@ deprecation reporting before the live smoke test.
 
 ## Live Push display loop
 
+Bitwig, its loaded Pull shell/core, and the physical Push form one shared live environment. Acquire
+its machine-wide lease before installing, reloading, restarting, or driving debug input, and keep
+the lease through the complete smoke test:
+
+```bash
+tools/with-pull-live --owner my-feature
+# install/reload, drive the test, and verify authoritative read-back
+exit
+```
+
+Acquisition fails immediately when another agent owns the environment; pass `--wait SECONDS` only
+when waiting is preferable to continuing offline work. The OS releases the lease if its holder
+exits or crashes. `tools/capture-push2-display --stats` remains available without the lease because
+it is read-only.
+
 The debugger is off by default. Enable it before installing the shell, then restart Bitwig once so
 the extension constructs its local transports:
 
