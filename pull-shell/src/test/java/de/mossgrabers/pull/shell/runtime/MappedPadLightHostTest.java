@@ -6,10 +6,12 @@ package de.mossgrabers.pull.shell.runtime;
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.grid.IPadGrid;
 import de.mossgrabers.framework.controller.hardware.BindType;
+import de.mossgrabers.framework.controller.hardware.ButtonEventArbitrator;
 import de.mossgrabers.framework.controller.hardware.IHwButton;
 import de.mossgrabers.framework.controller.hardware.IHwLight;
 import de.mossgrabers.framework.controller.hardware.IHwSurfaceFactory;
 import de.mossgrabers.framework.daw.midi.IMidiInput;
+import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.MappedPadLightsSnapshot;
@@ -24,6 +26,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -31,11 +34,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
-/** Bounded manual-mapping feedback observation tests for the four dedicated host controls. */
+/** Bounded manual-mapping feedback and alternate-dispatch topology tests. */
 class MappedPadLightHostTest
 {
     @Test
-    void createsFourSeparateInitiallyDisabledMappingControls ()
+    void createsFourInitiallyDisabledDispatchControlsForwardingToOriginalPads ()
     {
         final List<String> hardwareIDs = new ArrayList<> ();
         final List<TopologyButton> createdButtons = new ArrayList<> ();
@@ -47,8 +50,6 @@ class MappedPadLightHostTest
                 createdButtons.add (button);
                 return button.button ();
             }
-            if (method.getName ().equals ("createLight"))
-                return fakeLight ();
             return null;
         });
         final IMidiInput input = (IMidiInput) Proxy.newProxyInstance (IMidiInput.class.getClassLoader (), new Class<?> [] {IMidiInput.class}, (proxy, method, arguments) -> null);
@@ -58,26 +59,40 @@ class MappedPadLightHostTest
             case "translateToController" -> new int [] {2, (Integer) arguments[0]};
             default -> null;
         });
+        final Map<ControlId, ForwardedButton> originals = CoreControls.DRUM_CONTROL_PADS.stream ().collect (Collectors.toUnmodifiableMap (control -> control, control -> new ForwardedButton ()));
+        final Map<ControlId, IHwButton> originalButtons = originals.entrySet ().stream ().collect (Collectors.toUnmodifiableMap (Map.Entry::getKey, entry -> entry.getValue ().button ()));
+        final List<IHwLight> lights = List.of (fakeLight (), fakeLight (), fakeLight (), fakeLight ());
 
-        final MappedPadLightHost host = new MappedPadLightHost (factory, 0, input, grid);
+        final MappedPadLightHost host = new MappedPadLightHost (factory, 0, input, grid, originalButtons, lights);
 
-        assertEquals (List.of ("DRUM_CONTROL_PAD_MAPPING_1", "DRUM_CONTROL_PAD_MAPPING_2", "DRUM_CONTROL_PAD_MAPPING_3", "DRUM_CONTROL_PAD_MAPPING_4"), hardwareIDs);
-        assertEquals (Set.copyOf (CoreControls.DRUM_CONTROL_PADS), host.mappingButtons ().keySet ());
+        assertEquals (List.of ("DRUM_CONTROL_PAD_DISPATCH_1", "DRUM_CONTROL_PAD_DISPATCH_2", "DRUM_CONTROL_PAD_DISPATCH_3", "DRUM_CONTROL_PAD_DISPATCH_4"), hardwareIDs);
+        assertEquals (originalButtons, host.mappingButtons ());
+        assertEquals (Set.copyOf (CoreControls.DRUM_CONTROL_PADS), host.dispatchButtons ().keySet ());
         for (int slot = 0; slot < createdButtons.size (); slot++)
         {
             final TopologyButton button = createdButtons.get (slot);
-            assertEquals (1, button.binds);
+            assertEquals (1, button.midiBinds);
+            assertEquals (1, button.commandBinds);
+            assertEquals (1, button.arbitratorInstalls);
             assertEquals (1, button.unbinds);
-            assertEquals (1, button.lights);
             assertEquals (BindType.NOTE, button.type);
             assertEquals (2, button.channel);
             assertEquals (64 + slot, button.control);
         }
+
+        final TopologyButton dispatch = createdButtons.get (0);
+        final ForwardedButton original = originals.get (CoreControls.DRUM_CONTROL_PADS.get (0));
+        dispatch.arbitrator.arbitrate (ButtonEvent.DOWN, 64, () -> {});
+        dispatch.arbitrator.arbitrate (ButtonEvent.LONG, 64, () -> {});
+        dispatch.arbitrator.arbitrate (ButtonEvent.UP, 0, () -> {});
+        assertEquals (List.of (ButtonEvent.DOWN, ButtonEvent.UP), original.events);
+        assertEquals (Math.nextUp (64 / 127.0), original.velocities.get (0));
+        assertEquals (0, original.velocities.get (1));
     }
 
 
     @Test
-    void installsAllObserversAndPublishesOnlyLaterMappedColorCallbacks ()
+    void installsObserversOnOriginalPadLightsAndPublishesLaterMappedCallbacks ()
     {
         final List<Consumer<Optional<ColorEx>>> observers = new ArrayList<> ();
         final List<IHwLight> lights = new ArrayList<> ();
@@ -96,11 +111,13 @@ class MappedPadLightHostTest
             }));
         }
 
-        final Map<ControlId, IHwButton> buttons = CoreControls.DRUM_CONTROL_PADS.stream ().collect (java.util.stream.Collectors.toUnmodifiableMap (control -> control, control -> fakeButton ()));
-        final MappedPadLightHost host = new MappedPadLightHost (buttons, lights);
+        final Map<ControlId, IHwButton> mappingButtons = buttons ();
+        final Map<ControlId, IHwButton> dispatchButtons = buttons ();
+        final MappedPadLightHost host = new MappedPadLightHost (mappingButtons, dispatchButtons, lights);
         assertTrue (observers.stream ().allMatch (java.util.Objects::nonNull));
         assertTrue (host.snapshot ().available ());
-        assertEquals (buttons, host.mappingButtons ());
+        assertEquals (mappingButtons, host.mappingButtons ());
+        assertEquals (dispatchButtons, host.dispatchButtons ());
         assertFalse (host.snapshot ().controlPad (0).mapped ());
 
         observers.get (0).accept (Optional.of (new ColorEx (0.25, 0.5, 1)));
@@ -112,9 +129,20 @@ class MappedPadLightHostTest
 
 
     @Test
-    void rejectsAnyTopologyOtherThanTheFourControlPads ()
+    void rejectsIncompleteOrMismatchedTopologies ()
     {
-        assertThrows (IllegalArgumentException.class, () -> new MappedPadLightHost (Map.of (CoreControls.DRUM_CONTROL_PADS.get (0), fakeButton ()), List.of (fakeLight ())));
+        final Map<ControlId, IHwButton> complete = buttons ();
+        final Map<ControlId, IHwButton> incomplete = Map.of (CoreControls.DRUM_CONTROL_PADS.get (0), fakeButton ());
+        final List<IHwLight> lights = List.of (fakeLight (), fakeLight (), fakeLight (), fakeLight ());
+        assertThrows (IllegalArgumentException.class, () -> new MappedPadLightHost (incomplete, complete, lights));
+        assertThrows (IllegalArgumentException.class, () -> new MappedPadLightHost (complete, incomplete, lights));
+        assertThrows (IllegalArgumentException.class, () -> new MappedPadLightHost (complete, complete, List.of (fakeLight ())));
+    }
+
+
+    private static Map<ControlId, IHwButton> buttons ()
+    {
+        return CoreControls.DRUM_CONTROL_PADS.stream ().collect (Collectors.toUnmodifiableMap (control -> control, control -> fakeButton ()));
     }
 
 
@@ -130,14 +158,36 @@ class MappedPadLightHostTest
     }
 
 
+    private static final class ForwardedButton
+    {
+        private final List<ButtonEvent> events = new ArrayList<> ();
+        private final List<Double> velocities = new ArrayList<> ();
+
+
+        private IHwButton button ()
+        {
+            return (IHwButton) Proxy.newProxyInstance (IHwButton.class.getClassLoader (), new Class<?> [] {IHwButton.class}, (proxy, method, arguments) -> {
+                if (method.getName ().equals ("trigger") && arguments != null && arguments.length == 2)
+                {
+                    this.events.add ((ButtonEvent) arguments[0]);
+                    this.velocities.add ((Double) arguments[1]);
+                }
+                return null;
+            });
+        }
+    }
+
+
     private static final class TopologyButton
     {
-        private int binds;
+        private int midiBinds;
+        private int commandBinds;
+        private int arbitratorInstalls;
         private int unbinds;
-        private int lights;
         private BindType type;
         private int channel;
         private int control;
+        private ButtonEventArbitrator arbitrator;
 
 
         private IHwButton button ()
@@ -145,15 +195,20 @@ class MappedPadLightHostTest
             return (IHwButton) Proxy.newProxyInstance (IHwButton.class.getClassLoader (), new Class<?> [] {IHwButton.class}, (proxy, method, arguments) -> {
                 if (method.getName ().equals ("bind") && arguments.length == 4)
                 {
-                    this.binds++;
+                    this.midiBinds++;
                     this.type = (BindType) arguments[1];
                     this.channel = (Integer) arguments[2];
                     this.control = (Integer) arguments[3];
                 }
+                else if (method.getName ().equals ("bind") && arguments.length == 1)
+                    this.commandBinds++;
+                else if (method.getName ().equals ("installEventArbitrator"))
+                {
+                    this.arbitratorInstalls++;
+                    this.arbitrator = (ButtonEventArbitrator) arguments[0];
+                }
                 else if (method.getName ().equals ("unbind"))
                     this.unbinds++;
-                else if (method.getName ().equals ("addLight"))
-                    this.lights++;
                 return null;
             });
         }

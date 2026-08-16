@@ -295,10 +295,13 @@ Stable shell:
 - `WorkspaceView`: upper Session grid plus reusable lower Drum Controller adapter.
 - `SessionBankRegistry`: bounded 8x8/8x4 Bitwig bank canopy.
 - `PushControlSurface`: remaining stable pitch-bend and navigation integration.
-- `HardwareMappingActivationHost`: mechanically enables four dedicated mapping-only Bitwig
-  hardware actions while core retains their complete view lease. Per pad, lease loss immediately
-  revokes new presses while retaining only an in-flight release through routed END. It never
-  changes the permanent pad matchers used by Session and other views.
+- `HardwareMappingActivationHost`: mechanically switches each of the four physical controls
+  between its original Bitwig-learnable PAD action and a hidden alternate dispatch action. Core
+  retains the complete view lease. Per pad, a lane change immediately revokes new presses from the
+  old lane, retains only its in-flight release through routed END, and admits the new lane only
+  after that lifecycle is idle. The original PAD action owns both learned behavior and mapped-light
+  read-back; alternate dispatch forwards ordinary Session and other-view gestures through the same
+  installed router.
 
 ## Migration Status
 
@@ -335,7 +338,7 @@ Partial or transitional:
 - Capability and Session-shape validation happens during stable result preparation, not entirely in
   `CompiledWorkspace`.
 - General display and light output ownership is still partial. The eight drum-fill, four drum-rate,
-  and four mappable-control RGB lights and mapping-only learned-action leases, global Play/Record lights, the Master page's two button rows and graphics
+  and four mappable-control RGB lights and view-scoped learned-action leases, global Play/Record lights, the Master page's two button rows and graphics
   display, a temporary sparse 8x8 grid overlay, and a complete temporary 960x160 display overlay
   use core-owned output arbitration. The detailed design's API 30 installed-output inventory is
   canonical.

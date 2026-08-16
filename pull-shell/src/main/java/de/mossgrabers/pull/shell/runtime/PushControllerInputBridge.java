@@ -87,12 +87,13 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
      * @param parameterMutations Controller parameter-mutation seam
      * @param routes Complete committed route supplier
      * @param activeMappings Complete committed host-learned action lease
-     * @param mappingButtons Dedicated host-learnable controls, separate from permanent pad dispatch
+     * @param mappingButtons Original PAD actions carrying Bitwig learning and mapped feedback
+     * @param dispatchButtons Hidden alternate actions preserving ordinary pad dispatch
      * @param stableActionBarrier Semantic stable-action barrier
      * @param eventSink Normalized event sink
      * @param activeGeneration Current active reloadable-core generation
      */
-    PushControllerInputBridge (final PushControlSurface surface, final IValueChanger valueChanger, final ParameterMutationDispatcher parameterMutations, final Supplier<DesiredInputRoutes> routes, final Supplier<Set<ControlId>> activeMappings, final Map<ControlId, IHwButton> mappingButtons, final PhysicalInputRouter.StableActionBarrier<ControlId> stableActionBarrier, final Consumer<PhysicalInputEvent<ControlId>> eventSink, final LongSupplier activeGeneration)
+    PushControllerInputBridge (final PushControlSurface surface, final IValueChanger valueChanger, final ParameterMutationDispatcher parameterMutations, final Supplier<DesiredInputRoutes> routes, final Supplier<Set<ControlId>> activeMappings, final Map<ControlId, IHwButton> mappingButtons, final Map<ControlId, IHwButton> dispatchButtons, final PhysicalInputRouter.StableActionBarrier<ControlId> stableActionBarrier, final Consumer<PhysicalInputEvent<ControlId>> eventSink, final LongSupplier activeGeneration)
     {
         this.surface = Objects.requireNonNull (surface, "surface");
         this.valueChanger = Objects.requireNonNull (valueChanger, "valueChanger");
@@ -106,6 +107,7 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
         this.installWrappers ();
         this.mappingActivation = new HardwareMappingActivationHost (
             Objects.requireNonNull (mappingButtons, "mappingButtons"),
+            Objects.requireNonNull (dispatchButtons, "dispatchButtons"),
             control -> !this.heldMappingPads.contains (control) && this.router.gesturesIdle (input -> isMappingGesture (input, control)));
         this.mappingActivation.request (this.activeMappings.get ());
     }
@@ -129,7 +131,7 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
     }
 
 
-    /** Get the mapping-only host actions currently admitting new presses. */
+    /** Get original Bitwig-learnable actions currently admitting new note-on presses. */
     Set<ControlId> activeHardwareMappings ()
     {
         return this.mappingActivation.activeMappings ();

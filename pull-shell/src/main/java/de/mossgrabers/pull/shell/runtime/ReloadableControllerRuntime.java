@@ -195,7 +195,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
 
     /**
      * Wrap the complete practical Push input set after normal command registration and attach the
-     * separate bounded mapping-only controls created during connection.
+     * bounded view-scoped learned-action lane created during connection.
      *
      * @param surface Stable Push surface
      * @param valueChanger Relative-value decoder
@@ -217,6 +217,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             this.environment::desiredInputRoutes,
             this.environment::activeHardwareMappings,
             this.mappedPadLights.mappingButtons (),
+            this.mappedPadLights.dispatchButtons (),
             (control, kind, stableAction) -> this.environment.blocksStableAction (control, de.mossgrabers.pull.core.api.event.InputKind.valueOf (kind.name ()), stableAction),
             this::handleControllerInput,
             () -> this.supervisor == null ? 0 : this.supervisor.activeGeneration ());

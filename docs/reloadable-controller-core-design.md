@@ -546,7 +546,7 @@ The current domains are:
 | `NOTE_REPEAT` | installed Repeat-engine availability and live state plus the Automatic arp / roll setting | One permanent Push NoteInput Repeat engine; sampled only while a rate-owning view requests it or a stable restoration lease is draining. |
 | `DRUM_PADS` | selected target/device identity, window generation/base note, alignment, and up to 64 pads with identity, name/color, state, mixer values, and playing velocity | One 64-pad model window, sampled no faster than every 33 ms unless selected-target identity changes. |
 | `PARAMETERS` | Selected named-bank slots with opaque target identity/generation, name, raw/modulated value, host-formatted display value, step count, tolerance, and retained baselines | Banks are `ACTIVE` compatibility, `PROJECT_REMOTE`, current `SELECTED_DEVICE_REMOTE`, eight visible `TRACK_VOLUME` and `TRACK_PAN` slots, four fixed `MASTER` slots, and `GLOBAL`; only the complete `DesiredParameterBanks` selection is sampled while subscribed. An interaction keeps its exact retained baselines until release, independently of bank sampling. |
-| `MAPPED_PAD_LIGHTS` | Bitwig manual-mapping feedback for the four Drum Controller control pads | Four dedicated mapping-only hardware buttons and background lights are installed during extension initialization, separately from the permanent pad dispatch controls. The shell publishes raw mapped/unmapped color feedback only while subscribed; core decides feature color meaning and the existing physical-pad RGB lane owns transmission. |
+| `MAPPED_PAD_LIGHTS` | Bitwig manual-mapping feedback for the four Drum Controller control pads | The original four PAD hardware buttons own Bitwig learning and their existing background lights expose mapped feedback. Four hidden alternate hardware buttons preserve ordinary dispatch outside the view lease. The shell publishes raw mapped/unmapped color feedback only while subscribed; core decides feature color meaning and the existing physical-pad RGB lane owns transmission. |
 | `MASTER` | current project identity/name/dirty state, audio-engine read-back, learned previous/next availability, serialized-command state, Master track color/selection/activation, cursor pin, and VU values | One current project and Master track. Project navigation is submitted through one lane and acknowledged only after a later stable project-identity sample; an unchanged identity timeout learns that direction as unavailable. |
 
 The selected-track cursor and drum capability detection are the private observation/action target
@@ -580,11 +580,12 @@ target-neutral note-input
 MIDI poly pressure, CC, channel pressure, and pitch bend; and drum-pad activation, mute, solo, volume, pan, or
 selection. The four mappable drum-control pads emit no core effect: Bitwig's hardware-button
 mapping is their actuator, core supplies a complete activation lease only while the control-pad
-view owns them, and feedback follows later mapped-light read-back. Stable changes only the
-dedicated mapping action: ownership loss revokes that pad's new-press matcher immediately, retains
-only its already-held release matcher, and removes the remainder when the permanent routed END
-completes. The permanent pad matcher continues dispatching through the installed router and no
-second input callback is installed.
+view owns them, and feedback follows later mapped-light read-back from the same original PAD
+action. Stable switches each physical note between that original action and one hidden alternate
+dispatch action. A lane change revokes the old lane's new-press matcher immediately, retains only
+its already-held release matcher, and admits the requested lane after the routed END completes.
+Alternate dispatch forwards into the original button state, command, and installed router; no
+second raw MIDI callback or parallel semantic implementation is installed.
 Parameter effects include relative adjustment and host-default reset against an exact
 currently published target, plus absolute restoration only when the same result retains that target
 and generation. Existing automation-touch behavior remains frozen in stable adapters until it has
@@ -628,7 +629,7 @@ Output remains narrower than input in API 30. This is the canonical installed-ou
 | Lane | Installed ownership |
 | --- | --- |
 | RGB lights | The eight drum-fill lights, four drum-rate lights, four mappable-control lights, and global Play/Record lights; both Master button rows while the Master-controls facet is active. |
-| Hardware mappings | Four bounded mapping-only Push pad actions whose Bitwig-learned bindings are active only while the owning core view supplies the complete lease; missing, quarantined, and inactive views disable only those matchers. Permanent pad dispatch remains installed for every other view. |
+| Hardware mappings | Four original Push PAD actions whose Bitwig-learned bindings and mapped-light feedback are active only while the owning core view supplies the complete lease. Four bounded hidden alternate actions preserve ordinary dispatch otherwise. At most one press matcher per physical pad is active, and an in-flight release finishes on its original lane before handoff. |
 | Controller state | One composed replayable state containing fixed view facets, any full-grid Note layout, and the target-fenced selected-track route; one stable lifecycle owner orders topology submission, musical-surface activation, musical-idle-gated removal, mismatch quarantine, and failure cleanup. |
 | Note repeat | One complete replayable lease over the permanent NoteInput Repeat engine, with later read-back, inactive release, and manual-parameter restoration. |
 | Master scene | The bounded eight-column Master display scene while the Master-controls facet is active. |

@@ -38,8 +38,9 @@ correct migration extracts their policy while the stable shell continues owning 
 On current `master`:
 
 - drum-fill matching, launch-session policy, gesture state, and eight fill lights are core-owned;
-- four Bitwig-manually-mappable control pads, their view-scoped mapping-only learned-action leases,
-  and their mapped-light red/off policy are core-owned; permanent pad dispatch remains independent;
+- four Bitwig-manually-mappable control pads, their view-scoped learned-action leases, and their
+  mapped-light red/off policy are core-owned; the original PAD actions own learning and feedback,
+  while hidden alternate actions preserve ordinary dispatch outside that lease;
 - Record, Shift+Record, and Select+Record are core-owned;
 - VS Live selection and fixed-facet composition are core-owned;
 - stable adapters still realize VS Live's Session, Drum, macro, track-strip, display, and navigation
@@ -59,8 +60,8 @@ On current `master`:
   output; animation geometry, color, cadence, and activation policy are core-owned;
 - a generic complete 960x160 display overlay can temporarily replace and restore the inherited
   display page; overlay copy, geometry, color, and activation policy are core-owned;
-- the eight drum-fill and four mappable-control lights and the four control pads' mapping-only learned-action
-  leases are also core-owned; underlying grid policy and other Push output
+- the eight drum-fill and four mappable-control lights and the four control pads' view-scoped
+  learned-action leases are also core-owned; underlying grid policy and other Push output
   surfaces remain frozen migration debt;
 - Shift snapback policy, view-owned physical-to-parameter-slot admission, semantic action
   invalidation, restoration acknowledgement, and navigation ordering are core-owned; stable owns
@@ -142,7 +143,7 @@ This is the main body of remaining work. It is migration debt, but not a file-on
 ### 1. Complete remaining hardware output
 
 Current limitation: stable validation and arbitration accept the eight fill-pad lights, four
-mappable-control pad lights and their view-scoped mapping-only learned-action leases, global
+mappable-control pad lights and their view-scoped learned-action leases, global
 Play/Record lights, the Master page's two button rows and bounded declarative graphics scene, and a
 temporary sparse whole-grid overlay plus a complete 960x160 display overlay. Inherited output
 outside those lanes remains frozen stable migration debt; do not implement new output behavior
