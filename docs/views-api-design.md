@@ -212,10 +212,10 @@ Master may replace the encoder/display page while retaining the selected workspa
 it must not select a different Bitwig track merely to activate the inherited display mode.
 Transitions back to stable layouts are also views, not shell history: plain Session compiles
 `TrackMixerPageView` with `FullSessionView`, and Note compiles `TrackMixerPageView` around the
-stable preferred-note command. Core holds those destination facets until the authoritative layout
-snapshot reports the requested mode/view, then releases them without changing the realized stable
-layout. An empty workspace therefore means only "release every core facet"; it does not choose or
-restore a destination.
+core-owned target-fenced Note viewer. Core holds those destination facets until the authoritative
+layout snapshot reports the requested mode/view, then releases them without changing the realized
+stable layout. An empty workspace therefore means only "release every core facet"; it does not
+choose or restore a destination.
 
 ## Implementation Checkpoints
 
@@ -270,6 +270,12 @@ Core holds the destination until controller-layout read-back acknowledges the re
 mode/view; command submission alone does not release ownership. Stable code must not infer the
 view from a pinnable cursor, force the workspace from generic mode/view listeners, or recover a
 destination from previous-mode history.
+
+The same controller-level Note view owns Layout-button input. Normal and Shift cycles update the
+selected track's fenced preference and flow through the composed Note lifecycle; a track-selection
+observer must never activate a preferred view independently. Page and grid are separate outputs:
+changing the Note layout may update the underlying grid without dismissing a Scale, Device, or
+other stable page overlay.
 
 The four rate pads are a complete core-owned semantic slice. Their edge routes and RGB feedback are
 exclusive while Drum Controller is engaged, and the output includes a replayable desired

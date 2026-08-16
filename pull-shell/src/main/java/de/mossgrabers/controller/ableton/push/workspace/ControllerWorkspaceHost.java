@@ -92,7 +92,6 @@ public final class ControllerWorkspaceHost
         }
         if (!requested.isPresent ())
             return;
-        modeManager.setActive (Modes.TRACK);
         viewManager.setActive (Views.valueOf (requested.noteView ().name ()));
     }
 

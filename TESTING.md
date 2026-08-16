@@ -125,6 +125,16 @@ tools/push-debug-request juno-to-drums \
     'ROW1_1/view=DRUM_PAD,track=0,repeat=true'
 ```
 
+Layout and Shift + Layout use the same permanent routed bindings as the hardware. This checks both
+preference cycles without calling the legacy view manager directly:
+
+```bash
+tools/push-debug-request note-layout \
+    'NOTE/view=PLAY,workspace=false' \
+    'LAYOUT/view=CHORDS,workspace=false' \
+    'SHIFT_LAYOUT/view=SEQUENCER,workspace=false'
+```
+
 For an explicitly state-changing playback test, use the permanent routed Play binding and verify
 its result from later authoritative framebuffer and host observations:
 

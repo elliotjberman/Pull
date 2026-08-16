@@ -82,7 +82,9 @@ public enum SurfaceArea
     /** Push Session button. */
     SESSION_BUTTON (range (ElementType.BUTTON, 3, 1), Set.of (PushControlIds.button ("SESSION")), Set.of (InputKind.BUTTON)),
     /** Push Note button. */
-    NOTE_BUTTON (range (ElementType.BUTTON, 4, 1), Set.of (PushControlIds.button ("NOTE")), Set.of (InputKind.BUTTON));
+    NOTE_BUTTON (range (ElementType.BUTTON, 4, 1), Set.of (PushControlIds.button ("NOTE")), Set.of (InputKind.BUTTON)),
+    /** Push Layout button. */
+    LAYOUT_BUTTON (range (ElementType.BUTTON, 6, 1), Set.of (PushControlIds.button ("LAYOUT")), Set.of (InputKind.BUTTON));
 
     private final Set<HardwareElement> footprint;
     private final Set<ControlId>       controls;

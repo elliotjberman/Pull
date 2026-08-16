@@ -6,13 +6,13 @@ package de.mossgrabers.controller.ableton.push;
 import de.mossgrabers.controller.ableton.push.command.trigger.MastertrackCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.PushAutomationCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.PushCursorCommand;
-import de.mossgrabers.controller.ableton.push.command.trigger.SelectPlayViewCommand;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.mode.device.UserMode;
 import de.mossgrabers.controller.ableton.push.workspace.SessionBankRegistry;
 import de.mossgrabers.framework.command.trigger.Direction;
 import de.mossgrabers.framework.controller.ButtonID;
+import de.mossgrabers.framework.controller.ISetupFactory;
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
 import de.mossgrabers.framework.controller.hardware.IHwButton;
@@ -20,6 +20,7 @@ import de.mossgrabers.framework.controller.hardware.IHwLight;
 import de.mossgrabers.framework.controller.hardware.IHwSurfaceFactory;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.controller.valuechanger.TwosComplementValueChanger;
+import de.mossgrabers.framework.configuration.ISettingsUI;
 import de.mossgrabers.framework.daw.IHost;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.IProject;
@@ -52,6 +53,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -84,6 +86,42 @@ class PushBehaviorParityTest
         assertEquals (ColorEx.BLACK, configuration.getColorBorder ());
         assertEquals (ColorEx.BLACK, configuration.getColorText ());
         assertEquals (Modes.DEVICE_LAYER, configuration.getCurrentLayerMixMode ());
+    }
+
+
+    @Test
+    void selectedTrackMaintenanceDoesNotRecallASecondLegacyNoteLayout ()
+    {
+        final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
+        final ICursorTrack cursorTrack = proxy (ICursorTrack.class, (proxy, method, arguments) -> switch (method.getName ())
+        {
+            case "doesExist" -> Boolean.TRUE;
+            case "getPosition" -> Integer.valueOf (0);
+            default -> relaxedValue (method.getReturnType ());
+        });
+        final IModel model = proxy (IModel.class, (proxy, method, arguments) -> "getCursorTrack".equals (method.getName ()) ? cursorTrack : relaxedValue (method.getReturnType ()));
+        final PushControlSurface surface = createSurface (valueChanger, relaxedProxy (ISelectedTrackNoteTarget.class), cursorTrack);
+        final AtomicInteger noteMappingUpdates = new AtomicInteger ();
+        final IView play = proxy (IView.class, (proxy, method, arguments) -> {
+            if ("updateNoteMapping".equals (method.getName ()))
+                noteMappingUpdates.incrementAndGet ();
+            return relaxedValue (method.getReturnType ());
+        });
+        surface.getViewManager ().register (Views.PLAY, play);
+        surface.getViewManager ().register (Views.DRUM_PAD, relaxedProxy (IView.class));
+        surface.getViewManager ().setDefaultID (Views.PLAY);
+        surface.getViewManager ().setActive (Views.PLAY);
+        surface.getViewManager ().setPreferredView (0, Views.DRUM_PAD);
+        final IHost host = relaxedProxy (IHost.class);
+        final ISetupFactory setupFactory = proxy (ISetupFactory.class, (proxy, method, arguments) -> "getArpeggiatorModes".equals (method.getName ()) ? List.of () : relaxedValue (method.getReturnType ()));
+        final ISettingsUI settings = relaxedProxy (ISettingsUI.class);
+        final TestPushControllerSetup setup = new TestPushControllerSetup (host, setupFactory, settings);
+        setup.install (surface, model);
+
+        setup.updateViewForTest ();
+
+        assertEquals (Views.PLAY, surface.getViewManager ().getActiveID ());
+        assertEquals (1, noteMappingUpdates.get ());
     }
 
 
@@ -323,6 +361,28 @@ class PushBehaviorParityTest
         private void scrollLeftForTest ()
         {
             this.scrollLeft ();
+        }
+    }
+
+
+    private static final class TestPushControllerSetup extends PushControllerSetup
+    {
+        private TestPushControllerSetup (final IHost host, final ISetupFactory factory, final ISettingsUI settings)
+        {
+            super (host, factory, settings, settings, null);
+        }
+
+
+        private void install (final PushControlSurface surface, final IModel model)
+        {
+            this.surface = surface;
+            this.model = model;
+        }
+
+
+        private void updateViewForTest ()
+        {
+            this.updateView ();
         }
     }
 

@@ -16,11 +16,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PushControllerInputBridgeTest
 {
     @Test
-    void admitsPlayAndRecordButNotAnUnmigratedButtonToExclusiveRouting ()
+    void admitsMigratedControllerButtonsToExclusiveRouting ()
     {
         assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("PLAY"), InputKind.BUTTON));
         assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("RECORD"), InputKind.BUTTON));
         assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("SESSION"), InputKind.BUTTON));
         assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("NOTE"), InputKind.BUTTON));
+        assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("LAYOUT"), InputKind.BUTTON));
+        assertFalse (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("SCALES"), InputKind.BUTTON));
     }
 }

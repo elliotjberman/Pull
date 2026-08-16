@@ -9,6 +9,7 @@ import de.mossgrabers.framework.featuregroup.ModeManager;
 import de.mossgrabers.framework.featuregroup.ViewManager;
 import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.view.Views;
+import de.mossgrabers.pull.core.api.ControllerNoteView;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredControllerLayout;
@@ -151,6 +152,27 @@ class ControllerWorkspaceHostTest
 
         assertEquals (Modes.TRACK, modes.getActiveID ());
         assertEquals (Views.SESSION, views.getActiveID ());
+    }
+
+
+    @Test
+    void noteLayoutActuationDoesNotOwnTheIndependentControllerPage ()
+    {
+        final ModeManager modes = new ModeManager ();
+        final ViewManager views = new ViewManager ();
+        modes.register (Modes.TRACK, mode ());
+        modes.register (Modes.SCALES, mode ());
+        modes.setDefaultID (Modes.TRACK);
+        modes.setActive (Modes.SCALES);
+        views.register (Views.PLAY, view ());
+        views.register (Views.CHORDS, view ());
+        views.setDefaultID (Views.PLAY);
+        views.setActive (Views.PLAY);
+
+        ControllerWorkspaceHost.applyPreparedLayout (DesiredControllerLayout.note (ControllerNoteView.CHORDS), modes, views);
+
+        assertEquals (Modes.SCALES, modes.getActiveID ());
+        assertEquals (Views.CHORDS, views.getActiveID ());
     }
 
 

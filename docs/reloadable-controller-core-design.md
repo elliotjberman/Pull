@@ -1,7 +1,7 @@
 # Reloadable Controller Core
 
 Status: Milestones 1 through 9, the Master-control migration, and the note-view/drum-rate migration
-are implemented. The current working tree installs the bounded Core API 28 controller bridge
+are implemented. The current working tree installs the bounded Core API 29 controller bridge
 described below: normalized Push command input, explicitly requested
 transport/selected-track/layout/note-view/note-repeat/drum/parameter/Master read-back, and typed
 effects against exact retained parameter targets as well as transport, selected-track, drum, and
@@ -10,7 +10,7 @@ The drum-fill shell uses a single-active replacement barrier, while one stable c
 lifecycle realizes every active view's fixed facets, Note layout, and selected-track musical route.
 The Master page's two button rows and
 eight-column display now have complete output arbitration; other general Push output does not.
-Because API 28 and its bridge are parent-loaded, installing this
+Because API 29 and its bridge are parent-loaded, installing this
 expansion itself requires one shell build/install and Bitwig restart; behavior composed from it can
 then hot reload.
 
@@ -414,9 +414,9 @@ The shell owns anything coupled to Bitwig or physical hardware:
 The shell may reuse the existing `ModelImpl` and Bitwig wrapper graph internally. That graph must
 not cross into the core.
 
-## Installed API 28 bounded capability canopy
+## Installed API 29 bounded capability canopy
 
-Core API 28 installs a broad input seam and a deliberately finite Bitwig state/effect bridge during
+Core API 29 installs a broad input seam and a deliberately finite Bitwig state/effect bridge during
 extension initialization. The existence of a shell capability means that the domain is available;
 it does not mean every state domain is copied into every snapshot.
 
@@ -450,8 +450,9 @@ registered control and input kind:
   accepts this mode only for explicitly migrated control-and-kind pairs whose permanent command is
   semantically inert; it is not a failure-fallback switch.
 
-The admitted exclusive pairs are Record button edges, relative turns for `KNOB1` through `KNOB8`,
-button edges for `ROW1_1` through `ROW1_8` and `ROW2_1` through `ROW2_8`, and pad edges plus poly
+The admitted exclusive pairs are Play, Record, Note, Session, and Layout button edges; relative
+turns for `KNOB1` through `KNOB8`; button edges for `ROW1_1` through `ROW1_8` and `ROW2_1` through
+`ROW2_8`; and pad edges plus poly
 pressure for the four drum-rate pads. Their permanent stable commands are intentionally inert; a
 missing or faulted core does not revive a second implementation.
 
@@ -604,16 +605,16 @@ controller-state cleanup through the same permanent input, not a target-specific
 
 ### Deliberate exclusions
 
-This remains a capability canopy, not a mirror of an unbounded Bitwig project. API 28 does not add
+This remains a capability canopy, not a mirror of an unbounded Bitwig project. API 29 does not add
 arbitrary project track/scene banks, arbitrary device-tree recursion, additional drum layers or
 branches, arbitrary parameter windows, automation-touch ownership, or a pinned actuator pool.
 `SELECTED_DEVICE_REMOTE` follows the current installed page rather than retaining every page.
 Visible-track sends are intentionally deferred until the visible-track bank can fence the same
-track-window identity; API 28 does not advertise parameter-only send slots without that alignment.
+track-window identity; API 29 does not advertise parameter-only send slots without that alignment.
 Extending one of those shapes or adding a new Bitwig property/action requires a parent-loaded
 API/shell change, extension installation, and Bitwig restart.
 
-Output remains narrower than input in API 28. This is the canonical installed-output inventory:
+Output remains narrower than input in API 29. This is the canonical installed-output inventory:
 
 | Lane | Installed ownership |
 | --- | --- |
@@ -630,7 +631,7 @@ behavior. A request that changes one of those meanings must first add complete r
 arbitration and implement the policy in core, requiring one install/restart for that canopy
 expansion.
 
-Once API 28 is installed, new mappings, modes, gestures, and effects composed only from these exact
+Once API 29 is installed, new mappings, modes, gestures, and effects composed only from these exact
 inputs, subscriptions, and executors can ship by core reload. Capability breadth is bounded, and
 subscription choice controls active publication cost inside that bound.
 
@@ -699,7 +700,7 @@ snapshot.
 
 ## Snapshot and effects
 
-The API 28 snapshot contains revision, monotonic time, shell capabilities, the explicitly subscribed
+The API 29 snapshot contains revision, monotonic time, shell capabilities, the explicitly subscribed
 `ControllerBridgeSnapshot`, the complete selected-track clip catalog, verified per-control armed
 clip bindings, the clip-launch session's optional acquired owner-to-target lease and authoritative
 active owner, and pressed/touched controls. A pending fill intent is shell-private and never appears
@@ -729,7 +730,7 @@ that bank's generation and marks it pending. Location-targeted effects from the 
 are immediately rejected. The new window is published only after Bitwig's observed membership
 stabilizes.
 
-Core API 28's type hierarchy retains logical timer effects for the proposed contract, but they are
+Core API 29's type hierarchy retains logical timer effects for the proposed contract, but they are
 not an installed production capability. Installed production capabilities include persistent
 desired clip bindings, verified armed bindings, the version-1 authoritative single-lease
 clip-launch-session snapshot,
@@ -922,9 +923,9 @@ effects, rejections, and desired output. A real Bitwig failure can then become a
 | Safe pure-Java core dependency | Package and core reload |
 | Core-owned/migrated mapping, mode, gesture, layout policy, or fill matching | Core reload |
 | Route a currently registered input between `NONE`, `OBSERVE`, and `EXCLUSIVE` | Core reload |
-| Request or stop requesting an existing API 28 bridge subscription | Core reload |
-| Select a different installed API 28 parameter bank or remap an installed bank's encoder turns | Core reload |
-| Output policy inside a lane in the canonical API 28 installed-output inventory | Core reload |
+| Request or stop requesting an existing API 29 bridge subscription | Core reload |
+| Select a different installed API 29 parameter bank or remap an installed bank's encoder turns | Core reload |
+| Output policy inside a lane in the canonical API 29 installed-output inventory | Core reload |
 | Behavior using existing snapshots and installed, capability-advertised effects | Core reload |
 | Behavior within the installed capability canopy | Core reload |
 | Clip launch quantization, mode, or Main-vs-ALT release lane | Core reload |
@@ -952,7 +953,7 @@ effects, rejections, and desired output. A real Bitwig failure can then become a
 - A route-map change or core reload during an edge gesture preserves its begin-time ownership
   through release; core replacement waits for the complete input lifecycle to drain, and continuous
   rebinding cannot bypass arbitration.
-- Unrequested API 28 bridge domains publish typed empty values without domain snapshot construction
+- Unrequested API 29 bridge domains publish typed empty values without domain snapshot construction
   or high-rate sampling/DTO churn.
 - Core handoff, route detach, selection change, and shutdown neutralize outstanding target-neutral
   note-input poly-pressure, CC, channel-pressure, and pitch-bend state on a best-effort basis.

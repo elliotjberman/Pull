@@ -17,7 +17,6 @@ import de.mossgrabers.controller.ableton.push.command.trigger.ClipCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.ClipStopCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.DeviceCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.FixedLengthCommand;
-import de.mossgrabers.controller.ableton.push.command.trigger.LayoutCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.MastertrackCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.MuteCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.OctaveCommand;
@@ -248,6 +247,14 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
             else if (modeManager.isActive (Modes.MASTER))
                 modeManager.restore ();
         });
+    }
+
+
+    /** Pull track selection publishes state; the reloadable Note controller alone selects layouts. */
+    @Override
+    protected void recallLastView ()
+    {
+        // The inherited selection callback must not actuate a second Note-layout control plane.
     }
 
 
@@ -523,7 +530,9 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         this.addButton (ButtonID.REPEAT, "Repeat", new FillModeNoteRepeatCommand<> (this.model, surface, true), PushControlSurface.PUSH_BUTTON_REPEAT, this.configuration::isNoteRepeatActive);
         this.addButton (ButtonID.FOOTSWITCH2, "Foot Controller", new FootswitchCommand<> (this.model, surface, 0), PushControlSurface.PUSH_FOOTSWITCH2);
 
-        this.addButton (ButtonID.LAYOUT, "Layout", new LayoutCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_LAYOUT);
+        this.addButton (ButtonID.LAYOUT, "Layout", (event, velocity) -> {
+            // No stable semantic implementation for a migrated control.
+        }, PushControlSurface.PUSH_BUTTON_LAYOUT);
         this.addButton (ButtonID.SETUP, "Setup", new SetupCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_SETUP, () -> modeManager.isActive (Modes.SETUP, Modes.INFO));
         this.addButton (ButtonID.CONVERT, "Convert", new ConvertCommand<> (this.model, surface), PushControlSurface.PUSH_BUTTON_CONVERT, () -> {
             if (!this.model.canConvertClip ())
