@@ -629,7 +629,7 @@ Output remains narrower than input in API 31. This is the canonical installed-ou
 | Lane | Installed ownership |
 | --- | --- |
 | RGB lights | The eight drum-fill lights, four drum-rate lights, four mappable-control lights, and global Play/Record lights; both Master button rows while the Master-controls facet is active. |
-| Hardware mappings | Four original Push PAD actions whose Bitwig-learned bindings and dedicated Boolean feedback lights are active only while the owning core view supplies the complete lease. Four bounded hidden alternate actions preserve ordinary dispatch otherwise. At most one press matcher per physical pad is active, and an in-flight release finishes on its original lane before handoff. |
+| Hardware mappings | Four original Push PAD actions whose Bitwig-learned bindings and dedicated Boolean feedback lights are active only while the owning core view supplies the complete lease. These are the only Bitwig mapping identities. Their release matchers are absent: permanent raw-MIDI ingress completes release and, when a press matcher is inactive, triggers the same established button dispatch without another `HardwareControl`. |
 | Controller state | One composed replayable state containing fixed view facets, any full-grid Note layout, and the target-fenced selected-track route; one stable lifecycle owner orders topology submission, musical-surface activation, musical-idle-gated removal, mismatch quarantine, and failure cleanup. |
 | Note repeat | One complete replayable lease over the permanent NoteInput Repeat engine, with later read-back, inactive release, and manual-parameter restoration. |
 | Master scene | The bounded eight-column Master display scene while the Master-controls facet is active. |

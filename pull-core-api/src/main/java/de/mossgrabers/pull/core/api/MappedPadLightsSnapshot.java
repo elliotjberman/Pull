@@ -9,13 +9,12 @@ import java.util.Objects;
 
 
 /** Authoritative Bitwig manual-mapping feedback for the four Drum Controller control pads. */
-public record MappedPadLightsSnapshot (boolean available, List<Pad> pads)
+public record MappedPadLightsSnapshot (boolean available, List<Boolean> pads)
 {
     /** Fixed control-pad capacity installed during extension initialization. */
     public static final int CAPACITY = 4;
 
-    private static final Pad OFF = new Pad (false);
-    private static final MappedPadLightsSnapshot EMPTY = new MappedPadLightsSnapshot (false, Collections.nCopies (CAPACITY, OFF));
+    private static final MappedPadLightsSnapshot EMPTY = new MappedPadLightsSnapshot (false, Collections.nCopies (CAPACITY, Boolean.FALSE));
 
 
     /** Validate and copy one complete bounded grid sample. */
@@ -28,11 +27,11 @@ public record MappedPadLightsSnapshot (boolean available, List<Pad> pads)
 
 
     /** Get one control pad's feedback by zero-based slot. */
-    public Pad controlPad (final int slot)
+    public boolean controlPad (final int slot)
     {
         if (slot < 0 || slot >= CAPACITY)
             throw new IllegalArgumentException ("control-pad slot must be between zero and three");
-        return this.pads.get (slot);
+        return this.pads.get (slot).booleanValue ();
     }
 
 
@@ -41,9 +40,4 @@ public record MappedPadLightsSnapshot (boolean available, List<Pad> pads)
     {
         return EMPTY;
     }
-
-
-    /** One resolved Bitwig-owned Boolean mapping-light sample. */
-    public record Pad (boolean on)
-    {}
 }

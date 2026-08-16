@@ -227,9 +227,10 @@ currently migrated behavior through views:
 
 - Drum-fill matching, launch ownership, and eight pad lights become one fixed drum-fill view.
 - The original four PAD hardware buttons own the remaining row's Bitwig-learned actions and
-  background-light feedback while core retains that view's complete activation lease. Hidden
-  alternate buttons preserve ordinary dispatch outside the lease. Only one press lane is active per
-  pad, and core owns red/off policy derived from later authoritative mapped-light feedback.
+  background-light feedback while core retains that view's complete activation lease. They remain
+  the only Bitwig mapping identities; outside the lease, the permanent raw-MIDI ingress triggers
+  the same established button dispatch without another `HardwareControl`. Core owns red/off policy
+  derived from later authoritative mapped-light feedback.
 - Record, Shift + Record, and Select + Record become one fixed Record control view.
 - A default workspace composes those views.
 - Existing `CoreResult` output, input routes, bridge subscriptions, clip bindings, effects,

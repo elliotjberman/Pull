@@ -217,7 +217,6 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             this.environment::desiredInputRoutes,
             this.environment::activeHardwareMappings,
             this.mappedPadLights.mappingButtons (),
-            this.mappedPadLights.dispatchButtons (),
             (control, kind, stableAction) -> this.environment.blocksStableAction (control, de.mossgrabers.pull.core.api.event.InputKind.valueOf (kind.name ()), stableAction),
             this::handleControllerInput,
             () -> this.supervisor == null ? 0 : this.supervisor.activeGeneration ());

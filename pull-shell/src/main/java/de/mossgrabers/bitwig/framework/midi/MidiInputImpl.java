@@ -214,6 +214,14 @@ public class MidiInputImpl implements IMidiInput
 
     /** {@inheritDoc} */
     @Override
+    public void unbindRelease (final IHwButton button)
+    {
+        ((HwButtonImpl) button).getHardwareButton ().releasedAction ().setActionMatcher (null);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
     public void bind (final IHwRelativeKnob knob, final BindType type, final int channel, final int control, final RelativeEncoding encoding)
     {
         if (type != BindType.CC)

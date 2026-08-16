@@ -1639,9 +1639,8 @@ class PullControllerCoreTest
 
     private static ControllerBridgeSnapshot mappedPadLightBridge (final boolean on)
     {
-        final MappedPadLightsSnapshot.Pad off = new MappedPadLightsSnapshot.Pad (false);
-        final List<MappedPadLightsSnapshot.Pad> pads = new ArrayList<> (java.util.Collections.nCopies (MappedPadLightsSnapshot.CAPACITY, off));
-        pads.set (0, new MappedPadLightsSnapshot.Pad (on));
+        final List<Boolean> pads = new ArrayList<> (java.util.Collections.nCopies (MappedPadLightsSnapshot.CAPACITY, Boolean.FALSE));
+        pads.set (0, Boolean.valueOf (on));
         return new ControllerBridgeSnapshot (
             TransportSnapshot.empty (),
             SelectedTrackSnapshot.empty (),

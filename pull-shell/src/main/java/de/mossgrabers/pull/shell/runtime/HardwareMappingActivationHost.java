@@ -4,6 +4,7 @@
 package de.mossgrabers.pull.shell.runtime;
 
 import de.mossgrabers.framework.controller.hardware.IHwButton;
+import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.pull.core.api.ControlId;
 
 import java.util.LinkedHashMap;
@@ -13,23 +14,22 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 
-/** Switches each physical control between its Bitwig-learnable action and stable dispatch lane. */
+/** Gates each original Bitwig-learnable action while raw MIDI preserves ordinary dispatch. */
 final class HardwareMappingActivationHost
 {
     private final Map<ControlId, IHwButton> mappingButtons;
-    private final Map<ControlId, IHwButton> dispatchButtons;
     private final Predicate<ControlId> lifecycleIdle;
     private final Map<ControlId, LaneState> states = new LinkedHashMap<> ();
 
 
-    HardwareMappingActivationHost (final Map<ControlId, IHwButton> mappingButtons, final Map<ControlId, IHwButton> dispatchButtons, final Predicate<ControlId> lifecycleIdle)
+    HardwareMappingActivationHost (final Map<ControlId, IHwButton> mappingButtons, final Predicate<ControlId> lifecycleIdle)
     {
         this.mappingButtons = Map.copyOf (Objects.requireNonNull (mappingButtons, "mappingButtons"));
-        this.dispatchButtons = Map.copyOf (Objects.requireNonNull (dispatchButtons, "dispatchButtons"));
         this.lifecycleIdle = Objects.requireNonNull (lifecycleIdle, "lifecycleIdle");
-        if (!this.mappingButtons.keySet ().equals (this.dispatchButtons.keySet ()))
-            throw new IllegalArgumentException ("Mapping and dispatch controls must have identical inventories");
-        this.mappingButtons.keySet ().forEach (control -> this.states.put (control, LaneState.MAPPING));
+        this.mappingButtons.forEach ( (control, button) -> {
+            button.unbindRelease ();
+            this.states.put (control, LaneState.MAPPING);
+        });
     }
 
 
@@ -47,17 +47,14 @@ final class HardwareMappingActivationHost
             {
                 case MAPPING:
                     if (!mappingDesired)
-                        this.leave (control, this.mappingButtons.get (control), this.dispatchButtons.get (control), LaneState.RELEASING_MAPPING, LaneState.DISPATCH);
+                        this.leaveMapping (control);
                     break;
                 case DISPATCH:
                     if (mappingDesired)
-                        this.leave (control, this.dispatchButtons.get (control), this.mappingButtons.get (control), LaneState.RELEASING_DISPATCH, LaneState.MAPPING);
+                        this.leaveDispatch (control);
                     break;
-                case RELEASING_MAPPING:
-                    this.finishRelease (control, this.mappingButtons.get (control), mappingDesired);
-                    break;
-                case RELEASING_DISPATCH:
-                    this.finishRelease (control, this.dispatchButtons.get (control), mappingDesired);
+                case RELEASING_MAPPING, RELEASING_DISPATCH:
+                    this.finishRelease (control, mappingDesired);
                     break;
             }
         }
@@ -74,30 +71,65 @@ final class HardwareMappingActivationHost
     }
 
 
-    private void leave (final ControlId control, final IHwButton current, final IHwButton next, final LaneState releasing, final LaneState active)
+    /** Whether raw MIDI must complete ordinary dispatch without exposing another HardwareButton. */
+    boolean dispatchRaw (final ControlId control, final ButtonEvent event, final double velocity)
     {
-        if (this.lifecycleIdle.test (control))
+        final LaneState state = this.states.get (Objects.requireNonNull (control, "control"));
+        if (state == null)
+            throw new IllegalArgumentException ("Hardware mapping is not installed");
+        final boolean dispatch = switch (state)
         {
-            current.unbind ();
-            next.rebind ();
-            this.states.put (control, active);
-            return;
-        }
-
-        current.unbindPress ();
-        this.states.put (control, releasing);
+            case DISPATCH -> event == ButtonEvent.DOWN || !this.lifecycleIdle.test (control);
+            case MAPPING, RELEASING_MAPPING, RELEASING_DISPATCH -> event == ButtonEvent.UP && !this.lifecycleIdle.test (control);
+        };
+        if (dispatch)
+            this.mappingButtons.get (control).trigger (event, velocity);
+        return dispatch;
     }
 
 
-    private void finishRelease (final ControlId control, final IHwButton releasing, final boolean mappingDesired)
+    private void leaveMapping (final ControlId control)
+    {
+        this.mappingButtons.get (control).unbindPress ();
+        if (this.lifecycleIdle.test (control))
+        {
+            this.states.put (control, LaneState.DISPATCH);
+            return;
+        }
+
+        this.states.put (control, LaneState.RELEASING_MAPPING);
+    }
+
+
+    private void leaveDispatch (final ControlId control)
+    {
+        if (this.lifecycleIdle.test (control))
+        {
+            this.activateMapping (control);
+            this.states.put (control, LaneState.MAPPING);
+            return;
+        }
+
+        this.states.put (control, LaneState.RELEASING_DISPATCH);
+    }
+
+
+    private void finishRelease (final ControlId control, final boolean mappingDesired)
     {
         if (!this.lifecycleIdle.test (control))
             return;
 
-        releasing.unbind ();
-        final IHwButton next = mappingDesired ? this.mappingButtons.get (control) : this.dispatchButtons.get (control);
-        next.rebind ();
+        if (mappingDesired)
+            this.activateMapping (control);
         this.states.put (control, mappingDesired ? LaneState.MAPPING : LaneState.DISPATCH);
+    }
+
+
+    private void activateMapping (final ControlId control)
+    {
+        final IHwButton button = this.mappingButtons.get (control);
+        button.rebind ();
+        button.unbindRelease ();
     }
 
 

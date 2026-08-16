@@ -118,6 +118,14 @@ public interface IMidiInput
 
 
     /**
+     * Unbind only the button's release matcher.
+     *
+     * @param button The button whose release should stop matching
+     */
+    void unbindRelease (IHwButton button);
+
+
+    /**
      * Bind the given fader to a MIDI command received on this MIDI input.
      *
      * @param fader The fader to bind

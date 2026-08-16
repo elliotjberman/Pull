@@ -295,13 +295,13 @@ Stable shell:
 - `WorkspaceView`: upper Session grid plus reusable lower Drum Controller adapter.
 - `SessionBankRegistry`: bounded 8x8/8x4 Bitwig bank canopy.
 - `PushControlSurface`: remaining stable pitch-bend and navigation integration.
-- `HardwareMappingActivationHost`: mechanically switches each of the four physical controls
-  between its original Bitwig-learnable PAD action and a hidden alternate dispatch action. Core
-  retains the complete view lease. Per pad, a lane change immediately revokes new presses from the
-  old lane, retains only its in-flight release through routed END, and admits the new lane only
-  after that lifecycle is idle. The original PAD action owns both learned behavior and mapped-light
-  read-back; alternate dispatch forwards ordinary Session and other-view gestures through the same
-  installed router.
+- `HardwareMappingActivationHost`: mechanically gates the original Bitwig-learnable PAD action for
+  each of the four physical controls. Core retains the complete view lease. Per pad, a lane change
+  immediately revokes new mapped presses, retains only an in-flight mapped release through routed
+  END, and admits the latest lane only after that lifecycle is idle. The original PAD action is the
+  only Bitwig mapping identity and owns mapped-light read-back. Its release matcher is deliberately
+  absent: the permanent raw-MIDI ingress completes release and, while the press matcher is inactive,
+  triggers that same established button dispatch without registering a second `HardwareControl`.
 
 ## Migration Status
 

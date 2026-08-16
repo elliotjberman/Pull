@@ -4,172 +4,132 @@
 package de.mossgrabers.pull.shell.runtime;
 
 import de.mossgrabers.framework.controller.hardware.IHwButton;
+import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.pull.core.api.ControlId;
 
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Proxy;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
-/** Lifecycle tests for the mutually exclusive learned-action and stable-dispatch lanes. */
+/** Lifecycle tests for the single learned identity and raw ordinary-dispatch lane. */
 class HardwareMappingActivationHostTest
 {
     @Test
-    void switchesIdleControlsBetweenExactlyOneInputLane ()
-    {
-        final ControlId first = new ControlId ("push.pad.29");
-        final ControlId second = new ControlId ("push.pad.30");
-        final Binding firstMapping = new Binding (true);
-        final Binding secondMapping = new Binding (true);
-        final Binding firstDispatch = new Binding (false);
-        final Binding secondDispatch = new Binding (false);
-        final HardwareMappingActivationHost host = new HardwareMappingActivationHost (
-            Map.of (first, firstMapping.button (), second, secondMapping.button ()),
-            Map.of (first, firstDispatch.button (), second, secondDispatch.button ()),
-            ignored -> true);
-
-        assertEquals (Set.of (first, second), host.activeMappings ());
-        host.request (Set.of ());
-        host.request (Set.of ());
-        firstMapping.button ().trigger ();
-        firstDispatch.button ().trigger ();
-        assertEquals (1, firstMapping.unbinds);
-        assertEquals (1, firstDispatch.rebinds);
-        assertEquals (0, firstMapping.fires);
-        assertEquals (1, firstDispatch.fires);
-        assertEquals (Set.of (), host.activeMappings ());
-
-        host.request (Set.of (first, second));
-        firstMapping.button ().trigger ();
-        firstDispatch.button ().trigger ();
-        assertEquals (1, firstDispatch.unbinds);
-        assertEquals (1, firstMapping.rebinds);
-        assertEquals (1, firstMapping.fires);
-        assertEquals (1, firstDispatch.fires);
-        assertEquals (Set.of (first, second), host.activeMappings ());
-    }
-
-
-    @Test
-    void retainsOnlyOldReleaseUntilHeldMappingGestureEnds ()
-    {
-        final ControlId first = new ControlId ("push.pad.29");
-        final ControlId second = new ControlId ("push.pad.30");
-        final Binding firstMapping = new Binding (true);
-        final Binding secondMapping = new Binding (true);
-        final Binding firstDispatch = new Binding (false);
-        final Binding secondDispatch = new Binding (false);
-        final Set<ControlId> held = new HashSet<> (Set.of (first));
-        final HardwareMappingActivationHost host = new HardwareMappingActivationHost (
-            Map.of (first, firstMapping.button (), second, secondMapping.button ()),
-            Map.of (first, firstDispatch.button (), second, secondDispatch.button ()),
-            control -> !held.contains (control));
-
-        host.request (Set.of ());
-        firstMapping.button ().trigger ();
-        firstDispatch.button ().trigger ();
-        assertEquals (1, firstMapping.unbindPresses);
-        assertEquals (0, firstMapping.unbinds);
-        assertEquals (0, firstDispatch.rebinds);
-        assertEquals (1, secondMapping.unbinds);
-        assertEquals (1, secondDispatch.rebinds);
-        assertEquals (Set.of (), host.activeMappings ());
-
-        held.remove (first);
-        host.request (Set.of ());
-        firstDispatch.button ().trigger ();
-        assertEquals (1, firstMapping.unbinds);
-        assertEquals (1, firstDispatch.rebinds);
-        assertEquals (1, firstDispatch.fires);
-    }
-
-
-    @Test
-    void resolvesDesiredLaneAgainOnlyAfterHeldDispatchGestureEnds ()
+    void switchesIdleControlBetweenMatcherAndRawDispatch ()
     {
         final ControlId control = new ControlId ("push.pad.29");
-        final Binding mapping = new Binding (true);
-        final Binding dispatch = new Binding (false);
-        final Set<ControlId> held = new HashSet<> ();
-        final HardwareMappingActivationHost host = new HardwareMappingActivationHost (
-            Map.of (control, mapping.button ()),
-            Map.of (control, dispatch.button ()),
-            candidate -> !held.contains (candidate));
-        host.request (Set.of ());
+        final Binding mapping = new Binding ();
+        final AtomicBoolean idle = new AtomicBoolean (true);
+        final HardwareMappingActivationHost host = new HardwareMappingActivationHost (Map.of (control, mapping.button ()), ignored -> idle.get ());
 
-        held.add (control);
+        assertEquals (1, mapping.unbindReleases);
+        assertEquals (Set.of (control), host.activeMappings ());
+        assertFalse (host.dispatchRaw (control, ButtonEvent.DOWN, 0.5));
+
+        host.request (Set.of ());
+        assertEquals (1, mapping.unbindPresses);
+        assertEquals (Set.of (), host.activeMappings ());
+        assertTrue (host.dispatchRaw (control, ButtonEvent.DOWN, 0.5));
+        idle.set (false);
+        assertTrue (host.dispatchRaw (control, ButtonEvent.UP, 0));
+        assertEquals (2, mapping.manualEvents);
+
+        idle.set (true);
         host.request (Set.of (control));
-        host.request (Set.of ());
-        mapping.button ().trigger ();
-        dispatch.button ().trigger ();
-        assertEquals (1, dispatch.unbindPresses);
-        assertEquals (0, mapping.fires);
-        assertEquals (0, dispatch.fires);
-        assertEquals (Set.of (), host.activeMappings ());
-
-        held.remove (control);
-        host.request (Set.of ());
-        dispatch.button ().trigger ();
-        assertEquals (1, dispatch.unbinds);
-        assertEquals (2, dispatch.rebinds);
-        assertEquals (1, dispatch.fires);
-        assertEquals (Set.of (), host.activeMappings ());
+        assertEquals (1, mapping.rebinds);
+        assertEquals (2, mapping.unbindReleases);
+        assertEquals (Set.of (control), host.activeMappings ());
+        assertFalse (host.dispatchRaw (control, ButtonEvent.DOWN, 0.5));
     }
 
 
     @Test
-    void rejectsMismatchedOrUnknownControls ()
+    void retainsOnlyInstalledMatcherReleaseUntilMappingGestureEnds ()
+    {
+        final ControlId control = new ControlId ("push.pad.29");
+        final Binding mapping = new Binding ();
+        final AtomicBoolean idle = new AtomicBoolean (false);
+        final HardwareMappingActivationHost host = new HardwareMappingActivationHost (Map.of (control, mapping.button ()), candidate -> idle.get ());
+
+        host.request (Set.of ());
+        assertEquals (1, mapping.unbindPresses);
+        assertFalse (host.dispatchRaw (control, ButtonEvent.DOWN, 0.5));
+        assertTrue (host.dispatchRaw (control, ButtonEvent.UP, 0));
+        assertEquals (Set.of (), host.activeMappings ());
+
+        idle.set (true);
+        host.request (Set.of ());
+        assertTrue (host.dispatchRaw (control, ButtonEvent.DOWN, 0.5));
+    }
+
+
+    @Test
+    void rawReleaseFinishesOldDispatchBeforeLatestDesiredMatcherActivates ()
+    {
+        final ControlId control = new ControlId ("push.pad.29");
+        final Binding mapping = new Binding ();
+        final AtomicBoolean idle = new AtomicBoolean (true);
+        final HardwareMappingActivationHost host = new HardwareMappingActivationHost (Map.of (control, mapping.button ()), candidate -> idle.get ());
+        host.request (Set.of ());
+
+        idle.set (false);
+        assertTrue (host.dispatchRaw (control, ButtonEvent.DOWN, 0.5));
+        host.request (Set.of (control));
+        host.request (Set.of ());
+        host.request (Set.of (control));
+        assertFalse (host.dispatchRaw (control, ButtonEvent.DOWN, 0.5));
+        assertEquals (1, mapping.manualEvents);
+        assertEquals (Set.of (), host.activeMappings ());
+
+        assertTrue (host.dispatchRaw (control, ButtonEvent.UP, 0));
+        idle.set (true);
+        host.request (Set.of (control));
+        assertEquals (2, mapping.manualEvents);
+        assertEquals (1, mapping.rebinds);
+        assertEquals (Set.of (control), host.activeMappings ());
+    }
+
+
+    @Test
+    void rejectsUnknownControls ()
     {
         final ControlId installed = new ControlId ("push.pad.29");
         final ControlId other = new ControlId ("push.pad.30");
-        assertThrows (IllegalArgumentException.class, () -> new HardwareMappingActivationHost (Map.of (installed, new Binding (true).button ()), Map.of (other, new Binding (false).button ()), ignored -> true));
+        final HardwareMappingActivationHost host = new HardwareMappingActivationHost (Map.of (installed, new Binding ().button ()), ignored -> true);
 
-        final HardwareMappingActivationHost host = new HardwareMappingActivationHost (Map.of (installed, new Binding (true).button ()), Map.of (installed, new Binding (false).button ()), ignored -> true);
         assertThrows (IllegalArgumentException.class, () -> host.request (Set.of (other)));
+        assertThrows (IllegalArgumentException.class, () -> host.dispatchRaw (other, ButtonEvent.DOWN, 1));
     }
 
 
     private static final class Binding
     {
-        private int unbinds;
         private int unbindPresses;
+        private int unbindReleases;
         private int rebinds;
-        private int fires;
-        private boolean pressActive;
-
-
-        private Binding (final boolean pressActive)
-        {
-            this.pressActive = pressActive;
-        }
+        private int manualEvents;
 
 
         private IHwButton button ()
         {
             return (IHwButton) Proxy.newProxyInstance (IHwButton.class.getClassLoader (), new Class<?> [] {IHwButton.class}, (proxy, method, arguments) -> {
-                if (method.getName ().equals ("unbind"))
+                switch (method.getName ())
                 {
-                    this.unbinds++;
-                    this.pressActive = false;
+                    case "unbindPress" -> this.unbindPresses++;
+                    case "unbindRelease" -> this.unbindReleases++;
+                    case "rebind" -> this.rebinds++;
+                    case "trigger" -> this.manualEvents++;
+                    default -> { }
                 }
-                else if (method.getName ().equals ("unbindPress"))
-                {
-                    this.unbindPresses++;
-                    this.pressActive = false;
-                }
-                else if (method.getName ().equals ("rebind"))
-                {
-                    this.rebinds++;
-                    this.pressActive = true;
-                }
-                else if (method.getName ().equals ("trigger") && this.pressActive)
-                    this.fires++;
                 return null;
             });
         }

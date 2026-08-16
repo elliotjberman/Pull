@@ -21,11 +21,15 @@ import com.bitwig.extension.controller.api.DeviceBank;
 import com.bitwig.extension.controller.api.DeviceLayer;
 import com.bitwig.extension.controller.api.DeviceLayerBank;
 import com.bitwig.extension.controller.api.DeviceSlot;
+import com.bitwig.extension.controller.api.HardwareAction;
+import com.bitwig.extension.controller.api.HardwareButton;
 import com.bitwig.extension.controller.api.MidiIn;
 import com.bitwig.extension.controller.api.NoteInput;
 import com.bitwig.extension.controller.api.PinnableCursorDevice;
 import com.bitwig.extension.controller.api.SettableBooleanValue;
 
+import de.mossgrabers.bitwig.framework.daw.HostImpl;
+import de.mossgrabers.bitwig.framework.hardware.HwButtonImpl;
 import de.mossgrabers.framework.daw.midi.ISelectedTrackNoteTarget;
 
 import org.junit.jupiter.api.Test;
@@ -36,6 +40,34 @@ import org.junit.jupiter.api.Test;
  */
 class NoteInputImplTest
 {
+    @Test
+    void unbindReleaseClearsOnlyTheExistingHardwareButtonReleaseMatcher ()
+    {
+        final AtomicInteger releasedMatcherClears = new AtomicInteger ();
+        final AtomicInteger pressedActionReads = new AtomicInteger ();
+        final HardwareAction releasedAction = proxy (HardwareAction.class, (proxy, method, arguments) -> {
+            if ("setActionMatcher".equals (method.getName ()) && arguments[0] == null)
+                releasedMatcherClears.incrementAndGet ();
+            return relaxedValue (method.getReturnType ());
+        });
+        final HardwareButton hardwareButton = proxy (HardwareButton.class, (proxy, method, arguments) -> {
+            if ("releasedAction".equals (method.getName ()))
+                return releasedAction;
+            if ("pressedAction".equals (method.getName ()))
+                pressedActionReads.incrementAndGet ();
+            return relaxedValue (method.getReturnType ());
+        });
+        final MidiIn midiIn = relaxedProxy (MidiIn.class);
+        final ControllerHost host = proxy (ControllerHost.class, (proxy, method, arguments) -> "getMidiInPort".equals (method.getName ()) ? midiIn : relaxedValue (method.getReturnType ()));
+        final MidiInputImpl input = new MidiInputImpl (0, host, null, null);
+
+        input.unbindRelease (new HwButtonImpl (new HostImpl (host), hardwareButton, "Pad"));
+
+        assertEquals (1, releasedMatcherClears.get ());
+        assertEquals (0, pressedActionReads.get ());
+    }
+
+
     @Test
     void selectedTrackRouteExcludesAllInputsAndReconcilesIdempotently ()
     {

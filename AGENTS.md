@@ -188,7 +188,8 @@
   validation, read-back, and effect execution. The Play action, eight drum-fill RGB lights, four
   Bitwig-manually-mappable drum-control pads with a view-scoped learned-action lease and
   authoritative Boolean mapped-state read-back from dedicated no-output background lights on the
-  original PAD actions, plus hidden alternate dispatch outside that lease, Play and
+  original PAD actions, plus raw-MIDI dispatch through those same original buttons outside that
+  lease without a second Bitwig mapping identity, Play and
   Record lights, both Master button rows, and the Master graphics display have migrated direct
   output ownership. Play and Record light policy renders authoritative engine, transport, overdub,
   and selected-track arm read-back in every workspace. Play targets the remembered engine-owning

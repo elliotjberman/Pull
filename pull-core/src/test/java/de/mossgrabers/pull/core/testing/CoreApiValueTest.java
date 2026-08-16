@@ -229,13 +229,12 @@ class CoreApiValueTest
     @Test
     void mappedPadLightFeedbackIsStrictlyBounded ()
     {
-        final MappedPadLightsSnapshot.Pad off = new MappedPadLightsSnapshot.Pad (false);
-        final List<MappedPadLightsSnapshot.Pad> pads = new ArrayList<> (java.util.Collections.nCopies (MappedPadLightsSnapshot.CAPACITY, off));
-        pads.set (0, new MappedPadLightsSnapshot.Pad (true));
+        final List<Boolean> pads = new ArrayList<> (java.util.Collections.nCopies (MappedPadLightsSnapshot.CAPACITY, Boolean.FALSE));
+        pads.set (0, Boolean.TRUE);
         final MappedPadLightsSnapshot snapshot = new MappedPadLightsSnapshot (true, pads);
 
-        assertEquals (new MappedPadLightsSnapshot.Pad (true), snapshot.controlPad (0));
-        assertThrows (IllegalArgumentException.class, () -> new MappedPadLightsSnapshot (true, List.of (off)));
+        assertTrue (snapshot.controlPad (0));
+        assertThrows (IllegalArgumentException.class, () -> new MappedPadLightsSnapshot (true, List.of (Boolean.FALSE)));
         assertThrows (IllegalArgumentException.class, () -> snapshot.controlPad (-1));
         assertThrows (IllegalArgumentException.class, () -> snapshot.controlPad (4));
         assertThrows (UnsupportedOperationException.class, () -> snapshot.pads ().clear ());
