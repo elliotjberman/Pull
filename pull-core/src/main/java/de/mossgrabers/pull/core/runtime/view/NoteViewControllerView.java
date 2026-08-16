@@ -153,7 +153,7 @@ public final class NoteViewControllerView implements ControllerView
     {
         return switch (active)
         {
-            case SEQUENCER, RAINDROPS, POLY_SEQUENCER -> ControllerNoteView.PLAY;
+            case DRUM, DRUM4, DRUM8, SEQUENCER, RAINDROPS, POLY_SEQUENCER -> ControllerNoteView.PLAY;
             default -> ControllerNoteView.SEQUENCER;
         };
     }

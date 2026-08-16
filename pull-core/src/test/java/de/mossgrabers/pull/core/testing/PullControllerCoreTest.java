@@ -1219,27 +1219,19 @@ class PullControllerCoreTest
 
 
     @Test
-    void layoutButtonCyclesTheSelectedTrackPreferenceThroughTheNoteViewer ()
+    void layoutButtonPreservesTheCompleteLegacyTransitionTable ()
     {
-        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
-        host.start (Optional.empty ());
-        final SelectedTrackSnapshot juno = selectedTrack (8, "juno", 5, true, false);
-        final NoteViewSnapshot play = new NoteViewSnapshot (8, "juno", 5, ControllerNoteView.PLAY, false);
-        host.bridge (noteBridge (1, "PLAY", juno, play, DrumContextSnapshot.empty (), NoteRepeatSnapshot.empty ()));
-
-        host.controllerButton (LAYOUT_BUTTON, true);
-
-        assertEquals (new SetNoteViewPreferenceEffect (8, "juno", 5, ControllerNoteView.CHORDS), host.effects ().executionOrder ().getLast ());
-        assertEquals (ControllerNoteView.CHORDS, host.effects ().desiredControllerLayout ().noteView ());
-        assertEquals (DesiredNoteInputRoute.selectedTrack (8, "juno"), host.effects ().desiredNoteInputRoute ());
-
-        host.controllerButton (LAYOUT_BUTTON, false);
-        final NoteViewSnapshot chords = new NoteViewSnapshot (8, "juno", 5, ControllerNoteView.CHORDS, false);
-        host.bridge (noteBridge (2, "CHORDS", juno, chords, DrumContextSnapshot.empty (), NoteRepeatSnapshot.empty ()));
-        host.controllerButton (LAYOUT_BUTTON, true);
-
-        assertEquals (new SetNoteViewPreferenceEffect (8, "juno", 5, ControllerNoteView.PIANO), host.effects ().executionOrder ().getLast ());
-        assertEquals (ControllerNoteView.PIANO, host.effects ().desiredControllerLayout ().noteView ());
+        for (final List<ControllerNoteView> cycle: List.of (
+            List.of (ControllerNoteView.PLAY, ControllerNoteView.CHORDS, ControllerNoteView.PIANO, ControllerNoteView.DRUM64),
+            List.of (ControllerNoteView.SEQUENCER, ControllerNoteView.RAINDROPS, ControllerNoteView.DRUM, ControllerNoteView.DRUM4, ControllerNoteView.DRUM8)))
+        {
+            for (int index = 0; index < cycle.size (); index++)
+                assertLayoutTransition (cycle.get (index), cycle.get ( (index + 1) % cycle.size ()), false);
+        }
+        for (final ControllerNoteView sequencer: Set.of (ControllerNoteView.DRUM, ControllerNoteView.DRUM4, ControllerNoteView.DRUM8, ControllerNoteView.SEQUENCER, ControllerNoteView.RAINDROPS, ControllerNoteView.POLY_SEQUENCER))
+            assertLayoutTransition (sequencer, ControllerNoteView.PLAY, true);
+        for (final ControllerNoteView other: Set.of (ControllerNoteView.PLAY, ControllerNoteView.CHORDS, ControllerNoteView.PIANO, ControllerNoteView.DRUM64, ControllerNoteView.DRUM_PAD, ControllerNoteView.DRUM_XOX))
+            assertLayoutTransition (other, ControllerNoteView.SEQUENCER, true);
     }
 
 
@@ -1259,28 +1251,6 @@ class PullControllerCoreTest
         assertEquals (ControllerNoteView.SEQUENCER, host.effects ().desiredControllerLayout ().noteView ());
         assertEquals (DesiredNoteInputRoute.selectedTrack (8, "juno"), host.effects ().desiredNoteInputRoute ());
         assertEquals (Set.of (ControllerViewFacet.TRACK_MIXER_PAGE), host.effects ().desiredControllerWorkspace ().facets ());
-    }
-
-
-    @Test
-    void shiftedLayoutOnlyReturnsMelodicSequencersToPlay ()
-    {
-        final SelectedTrackSnapshot juno = selectedTrack (8, "juno", 5, true, false);
-        final FakeCoreHost drumSequencer = host (ClipCatalogSnapshot.empty ());
-        drumSequencer.start (Optional.empty ());
-        drumSequencer.bridge (noteBridge (1, "DRUM", juno, new NoteViewSnapshot (8, "juno", 5, ControllerNoteView.DRUM, false), DrumContextSnapshot.empty (), NoteRepeatSnapshot.empty ()));
-        drumSequencer.controllerButton (SHIFT_BUTTON, true);
-        drumSequencer.controllerButton (LAYOUT_BUTTON, true);
-
-        assertEquals (new SetNoteViewPreferenceEffect (8, "juno", 5, ControllerNoteView.SEQUENCER), drumSequencer.effects ().executionOrder ().getLast ());
-
-        final FakeCoreHost melodicSequencer = host (ClipCatalogSnapshot.empty ());
-        melodicSequencer.start (Optional.empty ());
-        melodicSequencer.bridge (noteBridge (1, "POLY_SEQUENCER", juno, new NoteViewSnapshot (8, "juno", 5, ControllerNoteView.POLY_SEQUENCER, false), DrumContextSnapshot.empty (), NoteRepeatSnapshot.empty ()));
-        melodicSequencer.controllerButton (SHIFT_BUTTON, true);
-        melodicSequencer.controllerButton (LAYOUT_BUTTON, true);
-
-        assertEquals (new SetNoteViewPreferenceEffect (8, "juno", 5, ControllerNoteView.PLAY), melodicSequencer.effects ().executionOrder ().getLast ());
     }
 
 
@@ -1466,6 +1436,22 @@ class PullControllerCoreTest
     private static CatalogClip clip (final long target, final String name)
     {
         return new CatalogClip (new ClipTargetId (target), name);
+    }
+
+
+    private static void assertLayoutTransition (final ControllerNoteView active, final ControllerNoteView expected, final boolean shifted)
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        final SelectedTrackSnapshot juno = selectedTrack (8, "juno", 5, true, false);
+        host.bridge (noteBridge (1, active.name (), juno, new NoteViewSnapshot (8, "juno", 5, active, false), DrumContextSnapshot.empty (), NoteRepeatSnapshot.empty ()));
+        if (shifted)
+            host.controllerButton (SHIFT_BUTTON, true);
+        host.controllerButton (LAYOUT_BUTTON, true);
+
+        assertEquals (new SetNoteViewPreferenceEffect (8, "juno", 5, expected), host.effects ().executionOrder ().getLast ());
+        assertEquals (expected, host.effects ().desiredControllerLayout ().noteView ());
+        assertEquals (DesiredNoteInputRoute.selectedTrack (8, "juno"), host.effects ().desiredNoteInputRoute ());
     }
 
 
