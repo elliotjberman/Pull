@@ -26,8 +26,12 @@ class HardwareMappingActivationHostTest
 {
     private static final ControlId PAD_29 = new ControlId ("push.pad.29");
     private static final ControlId PAD_30 = new ControlId ("push.pad.30");
+    private static final ControlId PAD_31 = new ControlId ("push.pad.31");
+    private static final ControlId PAD_32 = new ControlId ("push.pad.32");
     private static final ControllerMappingId DRUM_1 = new ControllerMappingId ("drum-controller.control.1");
     private static final ControllerMappingId DRUM_2 = new ControllerMappingId ("drum-controller.control.2");
+    private static final ControllerMappingId DRUM_3 = new ControllerMappingId ("drum-controller.control.3");
+    private static final ControllerMappingId DRUM_4 = new ControllerMappingId ("drum-controller.control.4");
 
 
     @Test
@@ -150,6 +154,85 @@ class HardwareMappingActivationHostTest
 
 
     @Test
+    void fourLanesActivateIndependentlyAndOneHeldRetirementDoesNotChurnTheOthers ()
+    {
+        final Set<ControlId> physicalControls = Set.of (PAD_29, PAD_30, PAD_31, PAD_32);
+        final Set<ControllerMappingId> mappingIds = Set.of (DRUM_1, DRUM_2, DRUM_3, DRUM_4);
+        final Fixture fixture = new Fixture (physicalControls, mappingIds);
+        final DesiredControllerMappings all = new DesiredControllerMappings (Set.of (
+            new ControllerMappingBinding (PAD_29, DRUM_1),
+            new ControllerMappingBinding (PAD_30, DRUM_2),
+            new ControllerMappingBinding (PAD_31, DRUM_3),
+            new ControllerMappingBinding (PAD_32, DRUM_4)));
+        final DesiredControllerMappings remaining = new DesiredControllerMappings (Set.of (
+            new ControllerMappingBinding (PAD_30, DRUM_2),
+            new ControllerMappingBinding (PAD_31, DRUM_3),
+            new ControllerMappingBinding (PAD_32, DRUM_4)));
+
+        fixture.host.request (all);
+        assertEquals (all, fixture.host.activeMappings ());
+        assertEquals (4, fixture.bindingCalls);
+        assertTrueMatchers (fixture, DRUM_1, DRUM_2, DRUM_3, DRUM_4);
+
+        fixture.idle.put (PAD_29, Boolean.FALSE);
+        fixture.host.request (remaining);
+        assertEquals (remaining, fixture.host.activeMappings ());
+        assertEquals (4, fixture.bindingCalls);
+        assertEquals (false, fixture.semantic.get (DRUM_1).pressMatcher);
+        assertTrueMatchers (fixture, DRUM_2, DRUM_3, DRUM_4);
+        assertEquals (HardwareMappingActivationHost.RawDisposition.SUPPRESSED, fixture.host.dispatchRaw (PAD_29, ButtonEvent.DOWN, 1));
+        assertEquals (HardwareMappingActivationHost.RawDisposition.MAPPED, fixture.host.dispatchRaw (PAD_29, ButtonEvent.UP, 0));
+        assertEquals (HardwareMappingActivationHost.RawDisposition.MAPPED, fixture.host.dispatchRaw (PAD_30, ButtonEvent.DOWN, 1));
+
+        fixture.idle.put (PAD_29, Boolean.TRUE);
+        fixture.host.request (remaining);
+        assertEquals (4, fixture.bindingCalls);
+        assertTrueMatchers (fixture, DRUM_2, DRUM_3, DRUM_4);
+    }
+
+
+    @Test
+    void swapsTwoInstalledSemanticEndpointsWithoutLosingEitherIdentity ()
+    {
+        final Fixture fixture = new Fixture (Set.of (PAD_29, PAD_30), Set.of (DRUM_1, DRUM_2));
+        fixture.host.request (new DesiredControllerMappings (Set.of (
+            new ControllerMappingBinding (PAD_29, DRUM_1),
+            new ControllerMappingBinding (PAD_30, DRUM_2))));
+
+        final DesiredControllerMappings swapped = new DesiredControllerMappings (Set.of (
+            new ControllerMappingBinding (PAD_29, DRUM_2),
+            new ControllerMappingBinding (PAD_30, DRUM_1)));
+        fixture.host.request (swapped);
+
+        assertEquals (swapped, fixture.host.activeMappings ());
+        assertEquals (4, fixture.bindingCalls);
+        assertEquals (PAD_30, fixture.bindings.get (DRUM_1));
+        assertEquals (PAD_29, fixture.bindings.get (DRUM_2));
+        assertEquals (1, fixture.semantic.get (DRUM_1).unbindPresses);
+        assertEquals (1, fixture.semantic.get (DRUM_2).unbindPresses);
+        assertTrueMatchers (fixture, DRUM_1, DRUM_2);
+    }
+
+
+    @Test
+    void invalidReplacementLeavesThePreviouslyActiveProjectionUntouched ()
+    {
+        final Fixture fixture = new Fixture (Set.of (PAD_29, PAD_30), Set.of (DRUM_1));
+        final DesiredControllerMappings original = desired (PAD_29, DRUM_1);
+        fixture.host.request (original);
+        final DesiredControllerMappings invalid = new DesiredControllerMappings (Set.of (
+            new ControllerMappingBinding (PAD_29, DRUM_1),
+            new ControllerMappingBinding (PAD_30, DRUM_2)));
+
+        assertThrows (IllegalArgumentException.class, () -> fixture.host.request (invalid));
+        assertEquals (original, fixture.host.activeMappings ());
+        assertEquals (1, fixture.bindingCalls);
+        assertEquals (0, fixture.semantic.get (DRUM_1).unbindPresses);
+        assertTrueMatchers (fixture, DRUM_1);
+    }
+
+
+    @Test
     void rejectsUnknownPhysicalControlsAndSemanticEndpoints ()
     {
         final Fixture fixture = new Fixture (Set.of (PAD_29), Set.of (DRUM_1));
@@ -163,6 +246,13 @@ class HardwareMappingActivationHostTest
     private static DesiredControllerMappings desired (final ControlId physicalControl, final ControllerMappingId mappingId)
     {
         return new DesiredControllerMappings (Set.of (new ControllerMappingBinding (physicalControl, mappingId)));
+    }
+
+
+    private static void assertTrueMatchers (final Fixture fixture, final ControllerMappingId... mappingIds)
+    {
+        for (final ControllerMappingId mappingId: mappingIds)
+            assertEquals (true, fixture.semantic.get (mappingId).pressMatcher);
     }
 
 
@@ -201,7 +291,9 @@ class HardwareMappingActivationHostTest
                 control -> Boolean.TRUE.equals (this.idle.get (control)),
                 (button, control) -> {
                     this.bindingCalls++;
-                    this.bindings.put (this.mappingId (button), control);
+                    final ControllerMappingId mappingId = this.mappingId (button);
+                    this.bindings.put (mappingId, control);
+                    this.semantic.get (mappingId).pressMatcher = true;
                 });
         }
 
@@ -231,8 +323,12 @@ class HardwareMappingActivationHostTest
                 case "trigger" -> this.manualEvents++;
                 default -> { }
             }
+            if (method.getName ().equals ("unbindPress"))
+                this.pressMatcher = false;
             return null;
         });
+
+        private boolean pressMatcher;
 
 
         private IHwButton button ()

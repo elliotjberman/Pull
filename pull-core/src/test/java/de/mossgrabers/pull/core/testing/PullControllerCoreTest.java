@@ -1062,8 +1062,13 @@ class PullControllerCoreTest
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
         host.start (Optional.empty ());
-        host.bridge (controllerMappingFeedbackBridge (false));
         final ControlId first = CoreControls.DRUM_CONTROL_PADS.getFirst ();
+        final ControlId second = CoreControls.DRUM_CONTROL_PADS.get (1);
+
+        host.bridge (controllerMappingUnavailableBridge ());
+        assertEquals (OFF, light (host, first));
+        assertEquals (OFF, light (host, second));
+        host.bridge (controllerMappingFeedbackBridge (false));
 
         assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (first, InputKind.PAD));
         assertEquals (Set.of (
@@ -1084,6 +1089,7 @@ class PullControllerCoreTest
         assertEquals (OFF, light (host, first));
         host.bridge (controllerMappingFeedbackBridge (true));
         assertEquals (RED, light (host, first));
+        assertEquals (OFF, light (host, second));
         host.controllerPad (first, true);
         assertEquals (beforePress, host.effects ().executionOrder ().size ());
         assertEquals (RED, light (host, first));
@@ -1091,6 +1097,10 @@ class PullControllerCoreTest
 
         host.bridge (controllerMappingFeedbackBridge (false));
         assertEquals (OFF, light (host, first));
+
+        host.bridge (controllerMappingFeedbackBridge (1));
+        assertEquals (OFF, light (host, first));
+        assertEquals (RED, light (host, second));
 
         host.controllerButton (SESSION_BUTTON, true);
         host.bridge (layoutBridge ("SESSION", "TRACK"));
@@ -1645,9 +1655,32 @@ class PullControllerCoreTest
 
     private static ControllerBridgeSnapshot controllerMappingFeedbackBridge (final boolean on)
     {
+        return controllerMappingFeedbackBridge (on ? 0 : -1);
+    }
+
+
+    private static ControllerBridgeSnapshot controllerMappingUnavailableBridge ()
+    {
+        return new ControllerBridgeSnapshot (
+            TransportSnapshot.empty (),
+            SelectedTrackSnapshot.empty (),
+            new ControllerLayoutSnapshot (1, "DRUM_PAD", "TRACK", true, true, 36, GridPressureConfiguration.OFF),
+            NoteViewSnapshot.empty (),
+            NoteRepeatSnapshot.empty (),
+            DrumContextSnapshot.empty (),
+            ParameterBridgeSnapshot.empty (),
+            ControllerMappingFeedbackSnapshot.empty (),
+            MasterSnapshot.empty (),
+            ProjectSnapshot.empty ());
+    }
+
+
+    private static ControllerBridgeSnapshot controllerMappingFeedbackBridge (final int onSlot)
+    {
         final Map<de.mossgrabers.pull.core.api.ControllerMappingId, Boolean> states = new java.util.LinkedHashMap<> ();
         CoreControllerMappings.DRUM_CONTROL_PADS.forEach (mappingId -> states.put (mappingId, Boolean.FALSE));
-        states.put (CoreControllerMappings.DRUM_CONTROL_PADS.getFirst (), Boolean.valueOf (on));
+        if (onSlot >= 0)
+            states.put (CoreControllerMappings.DRUM_CONTROL_PADS.get (onSlot), Boolean.TRUE);
         return new ControllerBridgeSnapshot (
             TransportSnapshot.empty (),
             SelectedTrackSnapshot.empty (),

@@ -10,12 +10,17 @@ import de.mossgrabers.pull.core.api.ControllerActionBinding;
 import de.mossgrabers.pull.core.api.ControllerActionId;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ControllerLayoutSnapshot;
+import de.mossgrabers.pull.core.api.ControllerMappingBinding;
+import de.mossgrabers.pull.core.api.ControllerMappingId;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.ControllerStateScope;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.CoreResult;
-import de.mossgrabers.pull.core.api.InputRouteMode;
+import de.mossgrabers.pull.core.api.DesiredControllerMappings;
+import de.mossgrabers.pull.core.api.DesiredNotePerformance;
+import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
 import de.mossgrabers.pull.core.api.DrumContextSnapshot;
+import de.mossgrabers.pull.core.api.InputRouteMode;
 import de.mossgrabers.pull.core.api.ParameterBankId;
 import de.mossgrabers.pull.core.api.ParameterBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ParameterSlot;
@@ -31,6 +36,9 @@ import de.mossgrabers.pull.core.api.effect.AdjustParameterValueEffect;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
+import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
+import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
+import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
 import de.mossgrabers.pull.core.runtime.view.ProjectMacroControlsView;
 import de.mossgrabers.pull.core.runtime.view.SessionClipGridView;
 import de.mossgrabers.pull.core.runtime.view.WorkspaceSelection;
@@ -273,6 +281,41 @@ class CompiledWorkspaceTest
 
 
     @Test
+    void controllerMappingCompositionRejectsPhysicalAndSemanticCollisions ()
+    {
+        final ControlId firstPhysical = new ControlId ("physical.first");
+        final ControlId secondPhysical = new ControlId ("physical.second");
+        final ControllerMappingId firstSemantic = new ControllerMappingId ("semantic.first");
+        final ControllerMappingId secondSemantic = new ControllerMappingId ("semantic.second");
+        final ControllerView first = mappingView ("first", new ControllerMappingBinding (firstPhysical, firstSemantic));
+
+        final CompiledWorkspace physicalCollision = CompiledWorkspace.compile ("physical collision", List.of (
+            first,
+            mappingView ("same physical", new ControllerMappingBinding (firstPhysical, secondSemantic))));
+        final CompiledWorkspace semanticCollision = CompiledWorkspace.compile ("semantic collision", List.of (
+            first,
+            mappingView ("same semantic", new ControllerMappingBinding (secondPhysical, firstSemantic))));
+
+        assertThrows (IllegalStateException.class, () -> physicalCollision.start (snapshot ()));
+        assertThrows (IllegalStateException.class, () -> semanticCollision.start (snapshot ()));
+    }
+
+
+    @Test
+    void controllerMappingCompositionMergesDisjointVirtualEndpoints ()
+    {
+        final ControllerMappingBinding first = new ControllerMappingBinding (new ControlId ("physical.first"), new ControllerMappingId ("semantic.first"));
+        final ControllerMappingBinding second = new ControllerMappingBinding (new ControlId ("physical.second"), new ControllerMappingId ("semantic.second"));
+
+        final CoreResult result = CompiledWorkspace.compile ("virtual mappings", List.of (
+            mappingView ("first", first),
+            mappingView ("second", second))).start (snapshot ());
+
+        assertEquals (Set.of (first, second), result.desiredOutput ().controllerMappings ().bindings ());
+    }
+
+
+    @Test
     void workspaceOwnsThePhysicalControlToParameterSlotMapping ()
     {
         final CompiledWorkspace workspace = CompiledWorkspace.compile ("macros", List.of (new ProjectMacroControlsView ()));
@@ -322,6 +365,41 @@ class CompiledWorkspaceTest
             public Map<ControlId, ParameterSlot> parameterBindings ()
             {
                 return Map.of (control, slot);
+            }
+        };
+    }
+
+
+    private static ControllerView mappingView (final String id, final ControllerMappingBinding binding)
+    {
+        return new ControllerView ()
+        {
+            @Override
+            public String id ()
+            {
+                return id;
+            }
+
+
+            @Override
+            public ViewProfile profile ()
+            {
+                return ViewProfile.fixed (id, Set.of (), Set.of ());
+            }
+
+
+            @Override
+            public ViewOutput render (final ControllerSnapshot ignored)
+            {
+                return new ViewOutput (
+                    Map.of (),
+                    Map.of (),
+                    ControllerDisplayScene.empty (),
+                    ControllerPadGridOverlay.inactive (),
+                    ControllerDisplayOverlay.inactive (),
+                    DesiredNotePerformance.inactive (),
+                    DesiredNoteRepeat.unowned (),
+                    new DesiredControllerMappings (Set.of (binding)));
             }
         };
     }

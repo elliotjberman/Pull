@@ -84,6 +84,8 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -259,6 +261,34 @@ class CoreApiValueTest
         assertThrows (IllegalArgumentException.class, () -> new ControllerMappingFeedbackSnapshot (false, Map.of (firstMapping, Boolean.FALSE)));
         assertThrows (UnsupportedOperationException.class, () -> desired.bindings ().clear ());
         assertThrows (UnsupportedOperationException.class, () -> snapshot.states ().clear ());
+    }
+
+
+    @Test
+    void controllerMappingApiEnforcesExactCapacityAndNormalizedIdentity ()
+    {
+        final Set<ControllerMappingBinding> bindings = new LinkedHashSet<> ();
+        final Map<ControllerMappingId, Boolean> states = new LinkedHashMap<> ();
+        for (int index = 0; index < DesiredControllerMappings.CAPACITY; index++)
+        {
+            final ControllerMappingId mappingId = new ControllerMappingId ("mapping." + index);
+            bindings.add (new ControllerMappingBinding (new ControlId ("physical." + index), mappingId));
+            states.put (mappingId, Boolean.valueOf ((index & 1) == 0));
+        }
+
+        assertEquals (DesiredControllerMappings.CAPACITY, new DesiredControllerMappings (bindings).bindings ().size ());
+        assertEquals (ControllerMappingFeedbackSnapshot.CAPACITY, new ControllerMappingFeedbackSnapshot (true, states).states ().size ());
+
+        final ControllerMappingId overflowId = new ControllerMappingId ("mapping.overflow");
+        bindings.add (new ControllerMappingBinding (new ControlId ("physical.overflow"), overflowId));
+        states.put (overflowId, Boolean.TRUE);
+        assertThrows (IllegalArgumentException.class, () -> new DesiredControllerMappings (bindings));
+        assertThrows (IllegalArgumentException.class, () -> new ControllerMappingFeedbackSnapshot (true, states));
+        assertEquals (new ControllerMappingId ("trimmed"), new ControllerMappingId ("  trimmed  "));
+        assertThrows (IllegalArgumentException.class, () -> new ControllerMappingId ("   "));
+        assertThrows (IllegalArgumentException.class, () -> new ControllerMappingId ("x".repeat (129)));
+        assertFalse (ControllerMappingFeedbackSnapshot.empty ().supports (CoreControllerMappings.DRUM_CONTROL_PADS.getFirst ()));
+        assertFalse (ControllerMappingFeedbackSnapshot.empty ().isOn (CoreControllerMappings.DRUM_CONTROL_PADS.getFirst ()));
     }
 
 

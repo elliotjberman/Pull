@@ -69,8 +69,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -309,6 +310,8 @@ class ControllerRuntimeEnvironmentTest
     void admitsSemanticMappingsOnlyWithTheirExclusivePhysicalRouteAndOwnedFeedback ()
     {
         final ControllerRuntimeEnvironment environment = environment (host (1));
+        final AtomicReference<DesiredControllerMappings> mappingsAtDeferredRelease = new AtomicReference<> ();
+        environment.setDeferredInputRelease (() -> mappingsAtDeferredRelease.set (environment.activeControllerMappings ()));
         environment.setInputRouteValidator (ignored -> true);
         final ControlId pad = CoreControls.DRUM_CONTROL_PADS.getFirst ();
         final ControllerMappingBinding binding = new ControllerMappingBinding (pad, CoreControllerMappings.DRUM_CONTROL_PADS.getFirst ());
@@ -326,8 +329,19 @@ class ControllerRuntimeEnvironmentTest
         assertEquals (mappings, environment.activeControllerMappings ());
         assertTrue (environment.debugLightObservation (pad).mappingDesired ());
 
+        environment.quarantine (8);
+        assertEquals (mappings, environment.activeControllerMappings ());
         environment.quarantine (9);
         assertTrue (environment.activeControllerMappings ().bindings ().isEmpty ());
+        assertEquals (DesiredControllerMappings.empty (), mappingsAtDeferredRelease.get ());
+        assertEquals (OFF, environment.lightColor (pad));
+
+        commitAndApply (environment, 10, result);
+        assertEquals (mappings, environment.activeControllerMappings ());
+        environment.invalidate (10);
+        assertTrue (environment.activeControllerMappings ().bindings ().isEmpty ());
+        assertEquals (DesiredControllerMappings.empty (), mappingsAtDeferredRelease.get ());
+        assertTrue (environment.desiredInputRoutes ().routes ().isEmpty ());
         assertEquals (OFF, environment.lightColor (pad));
 
         assertThrows (IllegalArgumentException.class, () -> environment.prepare (routedResult (output, DesiredInputRoutes.empty ())));
@@ -339,6 +353,14 @@ class ControllerRuntimeEnvironmentTest
         assertThrows (IllegalArgumentException.class, () -> environment.prepare (routedResult (
             new DesiredHardwareOutput (Map.of (pad, BRIGHT_RED), ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), unsupportedSemanticMapping),
             routes)));
+        final ControlId unsupportedPhysical = new ControlId ("not-installed");
+        final DesiredControllerMappings unsupportedPhysicalMapping = new DesiredControllerMappings (Set.of (
+            new ControllerMappingBinding (unsupportedPhysical, CoreControllerMappings.DRUM_CONTROL_PADS.getFirst ())));
+        final DesiredInputRoutes unsupportedPhysicalRoute = new DesiredInputRoutes (Set.of (
+            new InputRoute (unsupportedPhysical, InputKind.PAD, InputRouteMode.EXCLUSIVE)));
+        assertThrows (IllegalArgumentException.class, () -> environment.prepare (routedResult (
+            new DesiredHardwareOutput (Map.of (unsupportedPhysical, BRIGHT_RED), ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), unsupportedPhysicalMapping),
+            unsupportedPhysicalRoute)));
     }
 
 

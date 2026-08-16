@@ -62,11 +62,24 @@ class ControllerMappingHostTest
         assertTrue (host.snapshot ().available ());
         assertTrue (host.snapshot ().supports (CoreControllerMappings.DRUM_CONTROL_PADS.getFirst ()));
         assertFalse (host.snapshot ().isOn (CoreControllerMappings.DRUM_CONTROL_PADS.getFirst ()));
+        assertThrows (UnsupportedOperationException.class, host.physicalButtons ()::clear);
+        assertThrows (UnsupportedOperationException.class, host.mappingButtons ()::clear);
+        assertThrows (UnsupportedOperationException.class, host.snapshot ().states ()::clear);
 
+        final var beforeUpdate = host.snapshot ();
         factory.feedbackObservers.getFirst ().accept (true);
+        assertFalse (beforeUpdate.isOn (CoreControllerMappings.DRUM_CONTROL_PADS.getFirst ()));
         assertTrue (host.snapshot ().isOn (CoreControllerMappings.DRUM_CONTROL_PADS.getFirst ()));
+        assertFalse (host.snapshot ().isOn (CoreControllerMappings.DRUM_CONTROL_PADS.get (1)));
+        final var afterFirstUpdate = host.snapshot ();
+        factory.feedbackObservers.getFirst ().accept (true);
+        assertSame (afterFirstUpdate, host.snapshot ());
+        factory.feedbackObservers.get (1).accept (true);
+        assertTrue (host.snapshot ().isOn (CoreControllerMappings.DRUM_CONTROL_PADS.getFirst ()));
+        assertTrue (host.snapshot ().isOn (CoreControllerMappings.DRUM_CONTROL_PADS.get (1)));
         factory.feedbackObservers.getFirst ().accept (false);
         assertFalse (host.snapshot ().isOn (CoreControllerMappings.DRUM_CONTROL_PADS.getFirst ()));
+        assertTrue (host.snapshot ().isOn (CoreControllerMappings.DRUM_CONTROL_PADS.get (1)));
     }
 
 

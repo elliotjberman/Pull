@@ -41,6 +41,7 @@ import de.mossgrabers.framework.scale.Scales;
 import de.mossgrabers.framework.view.Views;
 import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
+import de.mossgrabers.pull.core.api.CoreControllerMappings;
 import de.mossgrabers.pull.core.api.ControllerNoteView;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
@@ -209,6 +210,26 @@ class BoundedControllerBridgeTest
         assertEquals (ControllerBridgeSnapshot.empty (), fixture.bridge.snapshot ());
         assertEquals (1, fixture.selected.snapshotCount);
         assertEquals (transportReads, fixture.transport.snapshotReadCount);
+    }
+
+
+    @Test
+    void publishesSemanticMappingFeedbackOnlyWhileItsDomainIsRequested ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+
+        fixture.bridge.refresh (1, DesiredBridgeSubscriptions.empty (), DesiredParameterBanks.empty ());
+        assertFalse (fixture.bridge.snapshot ().controllerMappingFeedback ().available ());
+        assertTrue (fixture.bridge.snapshot ().controllerMappingFeedback ().states ().isEmpty ());
+
+        assertTrue (fixture.bridge.refresh (2, subscriptions (BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK), DesiredParameterBanks.empty ()));
+        assertTrue (fixture.bridge.snapshot ().controllerMappingFeedback ().available ());
+        assertEquals (Set.copyOf (CoreControllerMappings.DRUM_CONTROL_PADS), fixture.bridge.snapshot ().controllerMappingFeedback ().states ().keySet ());
+        assertTrue (fixture.bridge.snapshot ().controllerMappingFeedback ().states ().values ().stream ().noneMatch (Boolean::booleanValue));
+
+        assertTrue (fixture.bridge.refresh (3, DesiredBridgeSubscriptions.empty (), DesiredParameterBanks.empty ()));
+        assertFalse (fixture.bridge.snapshot ().controllerMappingFeedback ().available ());
+        assertTrue (fixture.bridge.snapshot ().controllerMappingFeedback ().states ().isEmpty ());
     }
 
 
@@ -675,7 +696,7 @@ class BoundedControllerBridgeTest
                         // No test diagnostics.
                     }
                 },
-                null);
+                new ControllerMappingHost (this.surface));
         }
 
 

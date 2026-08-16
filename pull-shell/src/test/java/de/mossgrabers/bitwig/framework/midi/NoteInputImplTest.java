@@ -116,6 +116,13 @@ class NoteInputImplTest
         assertSame (secondReleasedMatcher, installedReleasedMatcher.get ());
         button.unbindRelease ();
         assertNull (installedReleasedMatcher.get ());
+
+        button.bind (input, BindType.NOTE, 4, 66);
+        assertSame (secondPressedMatcher, installedPressedMatcher.get ());
+        assertSame (secondReleasedMatcher, installedReleasedMatcher.get ());
+        button.unbind ();
+        assertNull (installedPressedMatcher.get ());
+        assertNull (installedReleasedMatcher.get ());
     }
 
 
