@@ -11,11 +11,15 @@ import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerActionBinding;
 import de.mossgrabers.pull.core.api.ControllerActionId;
 import de.mossgrabers.pull.core.api.ControllerActionIntent;
+import de.mossgrabers.pull.core.api.ControllerMappingBinding;
+import de.mossgrabers.pull.core.api.ControllerMappingFeedbackSnapshot;
+import de.mossgrabers.pull.core.api.ControllerMappingId;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.ControllerStateScope;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.CoreApi;
 import de.mossgrabers.pull.core.api.CoreCapabilities;
+import de.mossgrabers.pull.core.api.CoreControllerMappings;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.CoreExecutionRequirements;
 import de.mossgrabers.pull.core.api.CoreResult;
@@ -23,6 +27,7 @@ import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredControllerState;
 import de.mossgrabers.pull.core.api.DesiredControllerLayout;
+import de.mossgrabers.pull.core.api.DesiredControllerMappings;
 import de.mossgrabers.pull.core.api.DesiredNoteInputRoute;
 import de.mossgrabers.pull.core.api.DesiredNotePerformance;
 import de.mossgrabers.pull.core.api.ControllerNoteView;
@@ -46,7 +51,6 @@ import de.mossgrabers.pull.core.api.SessionBankShape;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.StateEnvelope;
 import de.mossgrabers.pull.core.api.TimerId;
-import de.mossgrabers.pull.core.api.MappedPadLightsSnapshot;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchMode;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
@@ -142,7 +146,7 @@ class CoreApiValueTest
         final Map<ControlId, RgbColor> lights = new HashMap<> (Map.of (control, new RgbColor (1, 2, 3)));
         final DesiredHardwareOutput output = new DesiredHardwareOutput (lights);
         lights.clear ();
-        assertTrue (output.activeMappings ().isEmpty ());
+        assertTrue (output.controllerMappings ().bindings ().isEmpty ());
 
         final PressClipTargetEffect press = new PressClipTargetEffect (control, catalog.generation (), clip.targetId (), LAUNCH_POLICY);
         final List<CoreEffect> effects = new ArrayList<> (List.of (press));
@@ -190,14 +194,14 @@ class CoreApiValueTest
     @Test
     void publishesStableVersionCapabilityAndControlIdentifiers ()
     {
-        assertEquals (31, CoreApi.VERSION);
+        assertEquals (32, CoreApi.VERSION);
         assertEquals ("input.drum-fill", CoreCapabilities.INPUT_DRUM_FILL);
         assertEquals ("snapshot.selected-track-clips", CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS);
         assertEquals ("binding.clip-target", CoreCapabilities.BINDING_CLIP_TARGET);
         assertEquals ("snapshot.clip-launch-session", CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION);
         assertEquals ("effect.clip-launch-hold", CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD);
         assertEquals ("output.rgb-light", CoreCapabilities.OUTPUT_RGB_LIGHT);
-        assertEquals ("output.hardware-mapping", CoreCapabilities.OUTPUT_HARDWARE_MAPPING);
+        assertEquals ("output.controller-mapping", CoreCapabilities.OUTPUT_CONTROLLER_MAPPING);
         assertEquals ("output.controller-state", CoreCapabilities.OUTPUT_CONTROLLER_STATE);
         assertEquals ("effect.note-view-preference", CoreCapabilities.EFFECT_NOTE_VIEW_PREFERENCE);
         assertEquals ("output.note-repeat", CoreCapabilities.OUTPUT_NOTE_REPEAT);
@@ -209,7 +213,7 @@ class CoreApiValueTest
         assertEquals ("effect.selected-track", CoreCapabilities.EFFECT_SELECTED_TRACK);
         assertEquals ("effect.drum-pad", CoreCapabilities.EFFECT_DRUM_PAD);
         assertEquals ("effect.note-input-midi", CoreCapabilities.EFFECT_NOTE_INPUT_MIDI);
-        assertEquals ("snapshot.mapped-pad-lights", CoreCapabilities.SNAPSHOT_MAPPED_PAD_LIGHTS);
+        assertEquals ("snapshot.controller-mapping-feedback", CoreCapabilities.SNAPSHOT_CONTROLLER_MAPPING_FEEDBACK);
         assertEquals ("output.pad-grid-overlay", CoreCapabilities.OUTPUT_PAD_GRID_OVERLAY);
         assertEquals ("output.display-overlay", CoreCapabilities.OUTPUT_DISPLAY_OVERLAY);
         assertEquals ("render.mixer-controls", CoreCapabilities.RENDER_MIXER_CONTROLS);
@@ -223,21 +227,38 @@ class CoreApiValueTest
         assertThrows (UnsupportedOperationException.class, () -> CoreControls.DRUM_RATES.clear ());
         assertEquals (List.of (PushControlIds.pad (29), PushControlIds.pad (30), PushControlIds.pad (31), PushControlIds.pad (32)), CoreControls.DRUM_CONTROL_PADS);
         assertThrows (UnsupportedOperationException.class, () -> CoreControls.DRUM_CONTROL_PADS.clear ());
+        assertEquals (List.of (
+            new ControllerMappingId ("drum-controller.control.1"),
+            new ControllerMappingId ("drum-controller.control.2"),
+            new ControllerMappingId ("drum-controller.control.3"),
+            new ControllerMappingId ("drum-controller.control.4")), CoreControllerMappings.DRUM_CONTROL_PADS);
+        assertThrows (UnsupportedOperationException.class, () -> CoreControllerMappings.DRUM_CONTROL_PADS.clear ());
     }
 
 
     @Test
-    void mappedPadLightFeedbackIsStrictlyBounded ()
+    void controllerMappingProjectionAndFeedbackAreSemanticImmutableAndBounded ()
     {
-        final List<Boolean> pads = new ArrayList<> (java.util.Collections.nCopies (MappedPadLightsSnapshot.CAPACITY, Boolean.FALSE));
-        pads.set (0, Boolean.TRUE);
-        final MappedPadLightsSnapshot snapshot = new MappedPadLightsSnapshot (true, pads);
+        final ControlId firstPhysical = CoreControls.DRUM_CONTROL_PADS.getFirst ();
+        final ControlId secondPhysical = CoreControls.DRUM_CONTROL_PADS.get (1);
+        final ControllerMappingId firstMapping = CoreControllerMappings.DRUM_CONTROL_PADS.getFirst ();
+        final ControllerMappingId secondMapping = CoreControllerMappings.DRUM_CONTROL_PADS.get (1);
+        final ControllerMappingBinding binding = new ControllerMappingBinding (firstPhysical, firstMapping);
+        final DesiredControllerMappings desired = new DesiredControllerMappings (Set.of (binding));
+        final Map<ControllerMappingId, Boolean> states = new HashMap<> (Map.of (firstMapping, Boolean.TRUE, secondMapping, Boolean.FALSE));
+        final ControllerMappingFeedbackSnapshot snapshot = new ControllerMappingFeedbackSnapshot (true, states);
+        states.clear ();
 
-        assertTrue (snapshot.controlPad (0));
-        assertThrows (IllegalArgumentException.class, () -> new MappedPadLightsSnapshot (true, List.of (Boolean.FALSE)));
-        assertThrows (IllegalArgumentException.class, () -> snapshot.controlPad (-1));
-        assertThrows (IllegalArgumentException.class, () -> snapshot.controlPad (4));
-        assertThrows (UnsupportedOperationException.class, () -> snapshot.pads ().clear ());
+        assertEquals (firstMapping, desired.mappingIdOrNull (firstPhysical));
+        assertTrue (snapshot.supports (firstMapping));
+        assertTrue (snapshot.isOn (firstMapping));
+        assertFalse (snapshot.isOn (secondMapping));
+        assertFalse (snapshot.supports (new ControllerMappingId ("not-installed")));
+        assertThrows (IllegalArgumentException.class, () -> new DesiredControllerMappings (Set.of (binding, new ControllerMappingBinding (firstPhysical, secondMapping))));
+        assertThrows (IllegalArgumentException.class, () -> new DesiredControllerMappings (Set.of (binding, new ControllerMappingBinding (secondPhysical, firstMapping))));
+        assertThrows (IllegalArgumentException.class, () -> new ControllerMappingFeedbackSnapshot (false, Map.of (firstMapping, Boolean.FALSE)));
+        assertThrows (UnsupportedOperationException.class, () -> desired.bindings ().clear ());
+        assertThrows (UnsupportedOperationException.class, () -> snapshot.states ().clear ());
     }
 
 

@@ -11,14 +11,16 @@ import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.ControllerActionBinding;
 import de.mossgrabers.pull.core.api.ControllerActionIntent;
+import de.mossgrabers.pull.core.api.ControllerMappingBinding;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.CoreExecutionRequirements;
 import de.mossgrabers.pull.core.api.CoreCapabilities;
+import de.mossgrabers.pull.core.api.CoreControllerMappings;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.CoreResult;
-import de.mossgrabers.pull.core.api.MappedPadLightsSnapshot;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerActions;
+import de.mossgrabers.pull.core.api.DesiredControllerMappings;
 import de.mossgrabers.pull.core.api.DesiredControllerState;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredInputRoutes;
@@ -83,13 +85,13 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         Map.entry (CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD, Integer.valueOf (4)),
         Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (4)),
-        Map.entry (CoreCapabilities.OUTPUT_HARDWARE_MAPPING, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_MAPPING, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_STATE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_NOTE_VIEW_PREFERENCE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.OUTPUT_NOTE_REPEAT, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.INPUT_CONTROLLER, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.ROUTING_CONTROLLER_INPUT, Integer.valueOf (3)),
-        Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE, Integer.valueOf (6)),
+        Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE, Integer.valueOf (7)),
         Map.entry (CoreCapabilities.SUBSCRIPTION_CONTROLLER_BRIDGE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_TRANSPORT, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_SELECTED_TRACK, Integer.valueOf (2)),
@@ -97,7 +99,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         Map.entry (CoreCapabilities.EFFECT_NOTE_INPUT_MIDI, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.SNAPSHOT_PARAMETER_TARGETS, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.EFFECT_PARAMETER_TARGET, Integer.valueOf (2)),
-        Map.entry (CoreCapabilities.SNAPSHOT_MAPPED_PAD_LIGHTS, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_MAPPING_FEEDBACK, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.SNAPSHOT_MASTER, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_MASTER, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_DISPLAY, Integer.valueOf (2)),
@@ -462,17 +464,17 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     {
         final ControlId lightOwner = Objects.requireNonNull (owner, "light owner");
         final RgbColor color = this.committedState.explicitLightOwners ().contains (lightOwner) ? this.committedState.output ().lights ().get (lightOwner) : null;
-        return new DebugLightObservation (this.committedState.generation (), this.appliedResultRevision, color, this.committedState.output ().activeMappings ().contains (lightOwner), this.debugMappedPadOn (lightOwner));
+        final var mappingId = this.committedState.output ().controllerMappings ().mappingIdOrNull (lightOwner);
+        return new DebugLightObservation (this.committedState.generation (), this.appliedResultRevision, color, mappingId != null, this.debugControllerMappingOn (mappingId));
     }
 
 
-    private Boolean debugMappedPadOn (final ControlId control)
+    private Boolean debugControllerMappingOn (final de.mossgrabers.pull.core.api.ControllerMappingId mappingId)
     {
-        final int slot = CoreControls.DRUM_CONTROL_PADS.indexOf (control);
-        if (slot < 0 || this.controllerBridge == null)
+        if (mappingId == null || this.controllerBridge == null)
             return null;
-        final MappedPadLightsSnapshot mappedPads = this.controllerBridge.snapshot ().mappedPadLights ();
-        return mappedPads.available () ? Boolean.valueOf (mappedPads.controlPad (slot)) : null;
+        final var feedback = this.controllerBridge.snapshot ().controllerMappingFeedback ();
+        return feedback.available () && feedback.supports (mappingId) ? Boolean.valueOf (feedback.isOn (mappingId)) : null;
     }
 
 
@@ -505,10 +507,10 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
-    /** Get the complete committed set of active host-learned hardware actions. */
-    Set<ControlId> activeHardwareMappings ()
+    /** Get the complete committed projection onto semantic Bitwig mapping actions. */
+    DesiredControllerMappings activeControllerMappings ()
     {
-        return this.committedState.output ().activeMappings ();
+        return this.committedState.output ().controllerMappings ();
     }
 
 
@@ -764,19 +766,21 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
             throw new IllegalArgumentException ("Controller display output requires the Master-controls facet");
         final ControllerPadGridOverlay overlay = result.desiredOutput ().padGridOverlay ();
         final ControllerDisplayOverlay displayOverlay = result.desiredOutput ().displayOverlay ();
-        final Set<ControlId> activeMappings = result.desiredOutput ().activeMappings ();
-        for (final ControlId control: activeMappings)
+        final DesiredControllerMappings controllerMappings = result.desiredOutput ().controllerMappings ();
+        for (final ControllerMappingBinding binding: controllerMappings.bindings ())
         {
-            if (!CoreControls.DRUM_CONTROL_PADS.contains (control))
-                throw new IllegalArgumentException ("Unsupported hardware mapping owner");
-            if (!result.desiredInputRoutes ().ownsExclusively (control, InputKind.PAD))
-                throw new IllegalArgumentException ("An active hardware mapping requires an exclusive pad route");
-            if (!result.desiredOutput ().lights ().containsKey (control))
-                throw new IllegalArgumentException ("An active hardware mapping requires owned light feedback");
+            if (!CoreControls.DRUM_CONTROL_PADS.contains (binding.physicalControl ()))
+                throw new IllegalArgumentException ("Unsupported physical controller mapping owner");
+            if (!CoreControllerMappings.DRUM_CONTROL_PADS.contains (binding.mappingId ()))
+                throw new IllegalArgumentException ("Unsupported semantic controller mapping endpoint");
+            if (!result.desiredInputRoutes ().ownsExclusively (binding.physicalControl (), InputKind.PAD))
+                throw new IllegalArgumentException ("An active controller mapping requires an exclusive pad route");
+            if (!result.desiredOutput ().lights ().containsKey (binding.physicalControl ()))
+                throw new IllegalArgumentException ("An active controller mapping requires owned physical light feedback");
         }
         if (displayOverlay.active () && (displayOverlay.scene ().width () != 960 || displayOverlay.scene ().height () != 160))
             throw new IllegalArgumentException ("Controller display overlay must use the 960x160 Push viewport");
-        return new DesiredHardwareOutput (colors, display, overlay, displayOverlay, activeMappings);
+        return new DesiredHardwareOutput (colors, display, overlay, displayOverlay, controllerMappings);
     }
 
 
@@ -1433,7 +1437,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
                 passiveLights.put (ratePad, OFF);
             for (final ControlId controlPad: CoreControls.DRUM_CONTROL_PADS)
                 passiveLights.put (controlPad, OFF);
-            final DesiredHardwareOutput passiveOutput = new DesiredHardwareOutput (passiveLights, this.output.display (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), Set.of ());
+            final DesiredHardwareOutput passiveOutput = new DesiredHardwareOutput (passiveLights, this.output.display (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), DesiredControllerMappings.empty ());
             return new CommittedState (this.generation, passiveOutput, Set.of (), this.desiredInputRoutes, this.desiredBridgeSubscriptions, this.desiredControllerState, this.desiredControllerActions, DesiredParameterBanks.empty (), DesiredParameterInteraction.empty (), CoreExecutionRequirements.empty (), null);
         }
     }

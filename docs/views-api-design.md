@@ -1,6 +1,6 @@
 # Views API and Composite Workspaces
 
-Status: design contract. Checkpoints 1 and 2 are structurally implemented through Core API 31. The
+Status: design contract. Checkpoints 1 and 2 are structurally implemented through Core API 32. The
 remaining stable-adapter boundary is represented explicitly in claims and recorded in
 [`../ARCH.md`](../ARCH.md). The checkpoints remain below so code, offline tests, and Push hardware
 tests can be compared against the intended end state.
@@ -226,11 +226,12 @@ Introduce the fixed-footprint model and workspace compiler inside the reloadable
 currently migrated behavior through views:
 
 - Drum-fill matching, launch ownership, and eight pad lights become one fixed drum-fill view.
-- The original four PAD hardware buttons own the remaining row's Bitwig-learned actions and
-  background-light feedback while core retains that view's complete activation lease. They remain
-  the only Bitwig mapping identities; outside the lease, the permanent raw-MIDI ingress triggers
-  the same established button dispatch without another `HardwareControl`. Core owns red/off policy
-  derived from later authoritative mapped-light feedback.
+- Four detached semantic hardware buttons own the remaining row's Bitwig-learned actions and
+  background-light feedback while core retains that view's complete physical-to-semantic lease.
+  The original physical PAD buttons remain ordinary-dispatch-only; outside the lease, permanent raw
+  MIDI triggers those established objects, while inside the lease it supplies the normalized core
+  gesture independently of the one semantic learned action. Core owns red/off policy derived from
+  later authoritative feedback keyed by semantic endpoint.
 - Record, Shift + Record, and Select + Record become one fixed Record control view.
 - A default workspace composes those views.
 - Existing `CoreResult` output, input routes, bridge subscriptions, clip bindings, effects,

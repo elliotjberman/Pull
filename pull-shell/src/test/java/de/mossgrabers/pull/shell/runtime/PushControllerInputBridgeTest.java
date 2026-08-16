@@ -24,11 +24,15 @@ import de.mossgrabers.framework.daw.midi.IMidiOutput;
 import de.mossgrabers.framework.daw.midi.ISelectedTrackNoteTarget;
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.pull.core.api.ControlId;
+import de.mossgrabers.pull.core.api.ControllerMappingBinding;
+import de.mossgrabers.pull.core.api.ControllerMappingId;
+import de.mossgrabers.pull.core.api.DesiredControllerMappings;
 import de.mossgrabers.pull.core.api.DesiredInputRoutes;
 import de.mossgrabers.pull.core.api.InputRoute;
 import de.mossgrabers.pull.core.api.InputRouteMode;
 import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.CoreControls;
+import de.mossgrabers.pull.core.api.CoreControllerMappings;
 import de.mossgrabers.pull.shell.input.InputKind;
 import de.mossgrabers.pull.shell.input.InputPhase;
 import de.mossgrabers.pull.shell.input.PhysicalInputEvent;
@@ -77,9 +81,9 @@ class PushControllerInputBridgeTest
         assertEquals (List.of (InputPhase.BEGIN), fixture.phases ());
 
         fixture.routes.set (DesiredInputRoutes.empty ());
-        fixture.mappings.set (Set.of ());
+        fixture.mappings.set (DesiredControllerMappings.empty ());
         fixture.bridge.flush ();
-        assertEquals (Set.of (), fixture.bridge.activeHardwareMappings ());
+        assertEquals (DesiredControllerMappings.empty (), fixture.bridge.activeControllerMappings ());
 
         // Raw release first closes the frozen routed gesture. The deliberately absent Bitwig
         // release matcher cannot duplicate END afterward.
@@ -93,22 +97,22 @@ class PushControllerInputBridgeTest
         assertEquals (List.of (InputPhase.BEGIN, InputPhase.END), fixture.phases ());
 
         fixture.routes.set (fixture.exclusiveRoute);
-        fixture.mappings.set (Set.of (fixture.control));
+        fixture.mappings.set (fixture.desiredMapping);
         fixture.bridge.flush ();
         fixture.pressMappingPad ();
         assertEquals (List.of (InputPhase.BEGIN, InputPhase.END, InputPhase.BEGIN), fixture.phases ());
 
         // Reverse the callback order while the desired lane changes twice. The old hardware
         // release is inert; raw release completes exactly once and activates only latest desire.
-        fixture.mappings.set (Set.of ());
+        fixture.mappings.set (DesiredControllerMappings.empty ());
         fixture.bridge.flush ();
-        fixture.mappings.set (Set.of (fixture.control));
+        fixture.mappings.set (fixture.desiredMapping);
         fixture.bridge.flush ();
         fixture.pad.physicalRelease ();
         assertEquals (List.of (InputPhase.BEGIN, InputPhase.END, InputPhase.BEGIN), fixture.phases ());
         fixture.rawRelease ();
         assertEquals (List.of (InputPhase.BEGIN, InputPhase.END, InputPhase.BEGIN, InputPhase.END), fixture.phases ());
-        assertEquals (Set.of (fixture.control), fixture.bridge.activeHardwareMappings ());
+        assertEquals (fixture.desiredMapping, fixture.bridge.activeControllerMappings ());
 
         fixture.pressMappingPad ();
         fixture.rawRelease ();
@@ -121,9 +125,11 @@ class PushControllerInputBridgeTest
         private static final int PAD_NOTE = 64;
 
         private final ControlId control = CoreControls.DRUM_CONTROL_PADS.get (0);
+        private final ControllerMappingId mappingId = CoreControllerMappings.DRUM_CONTROL_PADS.get (0);
+        private final DesiredControllerMappings desiredMapping = new DesiredControllerMappings (Set.of (new ControllerMappingBinding (this.control, this.mappingId)));
         private final DesiredInputRoutes exclusiveRoute = new DesiredInputRoutes (Set.of (new InputRoute (this.control, de.mossgrabers.pull.core.api.event.InputKind.PAD, InputRouteMode.EXCLUSIVE)));
         private final AtomicReference<DesiredInputRoutes> routes = new AtomicReference<> (this.exclusiveRoute);
-        private final AtomicReference<Set<ControlId>> mappings = new AtomicReference<> (Set.of (this.control));
+        private final AtomicReference<DesiredControllerMappings> mappings = new AtomicReference<> (this.desiredMapping);
         private final List<PhysicalInputEvent<ControlId>> events = new ArrayList<> ();
         private final PushControlSurface surface;
         private final TestButton pad;
@@ -156,6 +162,8 @@ class PushControllerInputBridgeTest
             final Map<ControlId, IHwButton> mappingButtons = new LinkedHashMap<> ();
             for (int slot = 0; slot < CoreControls.DRUM_CONTROL_PADS.size (); slot++)
                 mappingButtons.put (CoreControls.DRUM_CONTROL_PADS.get (slot), this.surface.getButton (ButtonID.get (ButtonID.PAD1, 28 + slot)));
+            mappingButtons.values ().forEach (IHwButton::unbind);
+            final TestButton semanticButton = new TestButton (hostRef[0], "Drum Controller Control 1");
             this.bridge = new PushControllerInputBridge (
                 this.surface,
                 valueChanger,
@@ -163,6 +171,7 @@ class PushControllerInputBridgeTest
                 this.routes::get,
                 this.mappings::get,
                 mappingButtons,
+                Map.of (this.mappingId, semanticButton),
                 (ignoredControl, ignoredKind, ignoredAction) -> false,
                 this.events::add,
                 () -> 1);
@@ -172,7 +181,6 @@ class PushControllerInputBridgeTest
         private void pressMappingPad ()
         {
             this.rawPress ();
-            this.pad.physicalPress (100);
         }
 
 
