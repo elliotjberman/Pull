@@ -76,6 +76,18 @@ public interface IHwSurfaceFactory
 
 
     /**
+     * Attach a no-output Boolean background light to an existing hardware button. Bitwig manual
+     * mappings override the light's false fallback with their current authoritative Boolean state.
+     *
+     * @param surfaceID The ID of the surface
+     * @param hardwareID Stable host-facing identifier for the feedback light
+     * @param button Hardware button carrying the learned action
+     * @param observer Receives the resolved current Boolean during hardware updates
+     */
+    void installMappedBooleanFeedback (int surfaceID, String hardwareID, IHwButton button, Consumer<Boolean> observer);
+
+
+    /**
      * Create a proxy to a hardware fader.
      *
      * @param surfaceID The ID of the surface

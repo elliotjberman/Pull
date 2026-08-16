@@ -1,6 +1,6 @@
 # Pull View Architecture
 
-Status: current through Core API 30, the shared mixer-control renderer, the Master-control
+Status: current through Core API 31, the shared mixer-control renderer, the Master-control
 migration, the post-demo `VS Live` composition, and core-owned note-view and drum-rate policy.
 
 Read this file before changing controller views, modes, workspaces, input routing, or Session bank
@@ -338,9 +338,9 @@ Partial or transitional:
 - Capability and Session-shape validation happens during stable result preparation, not entirely in
   `CompiledWorkspace`.
 - General display and light output ownership is still partial. The eight drum-fill, four drum-rate,
-  and four mappable-control RGB lights and view-scoped learned-action leases, global Play/Record lights, the Master page's two button rows and graphics
+  and four mappable-control RGB lights, authoritative Bitwig Boolean feedback, and view-scoped learned-action leases, global Play/Record lights, the Master page's two button rows and graphics
   display, a temporary sparse 8x8 grid overlay, and a complete temporary 960x160 display overlay
-  use core-owned output arbitration. The detailed design's API 30 installed-output inventory is
+  use core-owned output arbitration. The detailed design's API 31 installed-output inventory is
   canonical.
 
 Deferred by design:

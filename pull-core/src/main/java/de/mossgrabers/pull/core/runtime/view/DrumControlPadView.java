@@ -68,7 +68,7 @@ public final class DrumControlPadView implements ControllerView
         for (int slot = 0; slot < CoreControls.DRUM_CONTROL_PADS.size (); slot++)
         {
             final MappedPadLightsSnapshot.Pad pad = feedback.controlPad (slot);
-            final boolean on = feedback.available () && pad.mapped () && !OFF.equals (pad.color ());
+            final boolean on = feedback.available () && pad.on ();
             lights.put (CoreControls.DRUM_CONTROL_PADS.get (slot), on ? ON : OFF);
         }
         return new ViewOutput (

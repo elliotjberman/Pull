@@ -1,6 +1,6 @@
 # Views API and Composite Workspaces
 
-Status: design contract. Checkpoints 1 and 2 are structurally implemented through Core API 30. The
+Status: design contract. Checkpoints 1 and 2 are structurally implemented through Core API 31. The
 remaining stable-adapter boundary is represented explicitly in claims and recorded in
 [`../ARCH.md`](../ARCH.md). The checkpoints remain below so code, offline tests, and Push hardware
 tests can be compared against the intended end state.

@@ -1060,7 +1060,7 @@ class PullControllerCoreTest
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
         host.start (Optional.empty ());
-        host.bridge (mappedPadLightBridge (false, OFF));
+        host.bridge (mappedPadLightBridge (false));
         final ControlId first = CoreControls.DRUM_CONTROL_PADS.getFirst ();
 
         assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (first, InputKind.PAD));
@@ -1074,16 +1074,16 @@ class PullControllerCoreTest
         host.controllerPad (first, false);
         assertEquals (beforePress, host.effects ().executionOrder ().size ());
 
-        host.bridge (mappedPadLightBridge (true, OFF));
+        host.bridge (mappedPadLightBridge (false));
         assertEquals (OFF, light (host, first));
-        host.bridge (mappedPadLightBridge (true, new RgbColor (18, 52, 86)));
+        host.bridge (mappedPadLightBridge (true));
         assertEquals (RED, light (host, first));
         host.controllerPad (first, true);
         assertEquals (beforePress, host.effects ().executionOrder ().size ());
         assertEquals (RED, light (host, first));
         host.controllerPad (first, false);
 
-        host.bridge (mappedPadLightBridge (true, OFF));
+        host.bridge (mappedPadLightBridge (false));
         assertEquals (OFF, light (host, first));
 
         host.controllerButton (SESSION_BUTTON, true);
@@ -1637,11 +1637,11 @@ class PullControllerCoreTest
     }
 
 
-    private static ControllerBridgeSnapshot mappedPadLightBridge (final boolean mapped, final RgbColor color)
+    private static ControllerBridgeSnapshot mappedPadLightBridge (final boolean on)
     {
-        final MappedPadLightsSnapshot.Pad unmapped = new MappedPadLightsSnapshot.Pad (false, OFF);
-        final List<MappedPadLightsSnapshot.Pad> pads = new ArrayList<> (java.util.Collections.nCopies (MappedPadLightsSnapshot.CAPACITY, unmapped));
-        pads.set (0, new MappedPadLightsSnapshot.Pad (mapped, color));
+        final MappedPadLightsSnapshot.Pad off = new MappedPadLightsSnapshot.Pad (false);
+        final List<MappedPadLightsSnapshot.Pad> pads = new ArrayList<> (java.util.Collections.nCopies (MappedPadLightsSnapshot.CAPACITY, off));
+        pads.set (0, new MappedPadLightsSnapshot.Pad (on));
         return new ControllerBridgeSnapshot (
             TransportSnapshot.empty (),
             SelectedTrackSnapshot.empty (),

@@ -190,7 +190,7 @@ class CoreApiValueTest
     @Test
     void publishesStableVersionCapabilityAndControlIdentifiers ()
     {
-        assertEquals (30, CoreApi.VERSION);
+        assertEquals (31, CoreApi.VERSION);
         assertEquals ("input.drum-fill", CoreCapabilities.INPUT_DRUM_FILL);
         assertEquals ("snapshot.selected-track-clips", CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS);
         assertEquals ("binding.clip-target", CoreCapabilities.BINDING_CLIP_TARGET);
@@ -229,13 +229,13 @@ class CoreApiValueTest
     @Test
     void mappedPadLightFeedbackIsStrictlyBounded ()
     {
-        final MappedPadLightsSnapshot.Pad unmapped = new MappedPadLightsSnapshot.Pad (false, new RgbColor (0, 0, 0));
-        final List<MappedPadLightsSnapshot.Pad> pads = new ArrayList<> (java.util.Collections.nCopies (MappedPadLightsSnapshot.CAPACITY, unmapped));
-        pads.set (0, new MappedPadLightsSnapshot.Pad (true, new RgbColor (12, 34, 56)));
+        final MappedPadLightsSnapshot.Pad off = new MappedPadLightsSnapshot.Pad (false);
+        final List<MappedPadLightsSnapshot.Pad> pads = new ArrayList<> (java.util.Collections.nCopies (MappedPadLightsSnapshot.CAPACITY, off));
+        pads.set (0, new MappedPadLightsSnapshot.Pad (true));
         final MappedPadLightsSnapshot snapshot = new MappedPadLightsSnapshot (true, pads);
 
-        assertEquals (new MappedPadLightsSnapshot.Pad (true, new RgbColor (12, 34, 56)), snapshot.controlPad (0));
-        assertThrows (IllegalArgumentException.class, () -> new MappedPadLightsSnapshot (true, List.of (unmapped)));
+        assertEquals (new MappedPadLightsSnapshot.Pad (true), snapshot.controlPad (0));
+        assertThrows (IllegalArgumentException.class, () -> new MappedPadLightsSnapshot (true, List.of (off)));
         assertThrows (IllegalArgumentException.class, () -> snapshot.controlPad (-1));
         assertThrows (IllegalArgumentException.class, () -> snapshot.controlPad (4));
         assertThrows (UnsupportedOperationException.class, () -> snapshot.pads ().clear ());

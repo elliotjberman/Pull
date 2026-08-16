@@ -39,8 +39,9 @@ On current `master`:
 
 - drum-fill matching, launch-session policy, gesture state, and eight fill lights are core-owned;
 - four Bitwig-manually-mappable control pads, their view-scoped learned-action leases, and their
-  mapped-light red/off policy are core-owned; the original PAD actions own learning and feedback,
-  while hidden alternate actions preserve ordinary dispatch outside that lease;
+  mapped-light red/off policy are core-owned; the original PAD actions own learning, dedicated
+  no-output Boolean background lights expose authoritative mapped state, and hidden alternate
+  actions preserve ordinary dispatch outside that lease;
 - Record, Shift+Record, and Select+Record are core-owned;
 - VS Live selection and fixed-facet composition are core-owned;
 - stable adapters still realize VS Live's Session, Drum, macro, track-strip, display, and navigation

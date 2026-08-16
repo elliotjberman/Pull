@@ -4,8 +4,6 @@
 
 package de.mossgrabers.bitwig.framework.hardware;
 
-import java.util.Objects;
-import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -13,7 +11,6 @@ import com.bitwig.extension.controller.api.InternalHardwareLightState;
 import com.bitwig.extension.controller.api.MultiStateHardwareLight;
 import com.bitwig.extension.controller.api.ObjectHardwareProperty;
 
-import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.hardware.AbstractHwControl;
 import de.mossgrabers.framework.controller.hardware.IHwLight;
 import de.mossgrabers.framework.daw.IHost;
@@ -28,7 +25,6 @@ public class HwLightImpl extends AbstractHwControl implements IHwLight
 {
     final MultiStateHardwareLight                      hardwareLight;
     private final Supplier<InternalHardwareLightState> valueSupplier;
-    private boolean                                    hasMappedColorObserver;
 
 
     /**
@@ -50,26 +46,6 @@ public class HwLightImpl extends AbstractHwControl implements IHwLight
         state.setValueSupplier (valueSupplier);
         state.onUpdateHardware (hardwareUpdater);
     }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void installMappedColorObserver (final Consumer<Optional<ColorEx>> observer)
-    {
-        if (this.hasMappedColorObserver)
-            throw new IllegalStateException ("A mapped-color observer is already installed");
-
-        final Consumer<Optional<ColorEx>> checkedObserver = Objects.requireNonNull (observer, "observer");
-        this.hasMappedColorObserver = true;
-        this.hardwareLight.setColorToStateFunction (color -> {
-            if (color == null || color.getAlpha () <= 0)
-                checkedObserver.accept (Optional.empty ());
-            else
-                checkedObserver.accept (Optional.of (new ColorEx (color.getRed (), color.getGreen (), color.getBlue ())));
-            return this.valueSupplier.get ();
-        });
-    }
-
 
     /** {@inheritDoc} */
     @Override

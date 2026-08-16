@@ -4,6 +4,7 @@
 
 package de.mossgrabers.bitwig.framework.hardware;
 
+import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.IntFunction;
@@ -11,11 +12,13 @@ import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
 import com.bitwig.extension.api.Color;
+import com.bitwig.extension.controller.api.BooleanHardwareProperty;
 import com.bitwig.extension.controller.api.HardwareButton;
 import com.bitwig.extension.controller.api.HardwareLightVisualState;
 import com.bitwig.extension.controller.api.HardwareSurface;
 import com.bitwig.extension.controller.api.InternalHardwareLightState;
 import com.bitwig.extension.controller.api.MultiStateHardwareLight;
+import com.bitwig.extension.controller.api.OnOffHardwareLight;
 
 import de.mossgrabers.bitwig.framework.daw.HostImpl;
 import de.mossgrabers.bitwig.framework.graphics.BitmapImpl;
@@ -117,6 +120,28 @@ public class HwSurfaceFactoryImpl implements IHwSurfaceFactory
         if (button != null)
             button.addLight (lightImpl);
         return lightImpl;
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void installMappedBooleanFeedback (final int surfaceID, final String hardwareID, final IHwButton button, final Consumer<Boolean> observer)
+    {
+        final String id = createID (surfaceID, hardwareID);
+        final OnOffHardwareLight feedbackLight = this.hardwareSurface.createOnOffHardwareLight (id);
+        if (!(Objects.requireNonNull (button, "button") instanceof final HwButtonImpl hwButton))
+            throw new IllegalArgumentException ("mapped Boolean feedback requires a Bitwig hardware button");
+        installMappedBooleanFeedback (hwButton.getHardwareButton (), feedbackLight, observer);
+    }
+
+
+    static void installMappedBooleanFeedback (final HardwareButton button, final OnOffHardwareLight feedbackLight, final Consumer<Boolean> observer)
+    {
+        final HardwareButton checkedButton = Objects.requireNonNull (button, "button");
+        final BooleanHardwareProperty state = Objects.requireNonNull (feedbackLight, "feedbackLight").isOn ();
+        state.setValue (false);
+        state.onUpdateHardware (Objects.requireNonNull (observer, "observer"));
+        checkedButton.setBackgroundLight (feedbackLight);
     }
 
 

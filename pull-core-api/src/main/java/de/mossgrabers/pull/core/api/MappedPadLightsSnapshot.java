@@ -3,8 +3,6 @@
 
 package de.mossgrabers.pull.core.api;
 
-import de.mossgrabers.pull.core.api.output.RgbColor;
-
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -16,8 +14,8 @@ public record MappedPadLightsSnapshot (boolean available, List<Pad> pads)
     /** Fixed control-pad capacity installed during extension initialization. */
     public static final int CAPACITY = 4;
 
-    private static final Pad UNMAPPED = new Pad (false, new RgbColor (0, 0, 0));
-    private static final MappedPadLightsSnapshot EMPTY = new MappedPadLightsSnapshot (false, Collections.nCopies (CAPACITY, UNMAPPED));
+    private static final Pad OFF = new Pad (false);
+    private static final MappedPadLightsSnapshot EMPTY = new MappedPadLightsSnapshot (false, Collections.nCopies (CAPACITY, OFF));
 
 
     /** Validate and copy one complete bounded grid sample. */
@@ -45,13 +43,7 @@ public record MappedPadLightsSnapshot (boolean available, List<Pad> pads)
     }
 
 
-    /** One Bitwig-owned mapping-light sample. */
-    public record Pad (boolean mapped, RgbColor color)
-    {
-        /** Validate the immutable color. */
-        public Pad
-        {
-            color = Objects.requireNonNull (color, "color");
-        }
-    }
+    /** One resolved Bitwig-owned Boolean mapping-light sample. */
+    public record Pad (boolean on)
+    {}
 }
