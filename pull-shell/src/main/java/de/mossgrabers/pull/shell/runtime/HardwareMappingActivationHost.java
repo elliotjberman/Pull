@@ -77,8 +77,8 @@ final class HardwareMappingActivationHost
 
         final boolean activeMapping = this.active.containsKey (checkedControl);
         final boolean releasingMapping = this.releasingMappings.containsKey (checkedControl);
-        if (activeMapping && (event == ButtonEvent.DOWN || !this.lifecycleIdle.test (checkedControl)))
-            return RawDisposition.MAPPED;
+        if (activeMapping)
+            return event == ButtonEvent.DOWN || !this.lifecycleIdle.test (checkedControl) ? RawDisposition.MAPPED : RawDisposition.SUPPRESSED;
         if (releasingMapping)
             return event == ButtonEvent.UP && !this.lifecycleIdle.test (checkedControl) ? RawDisposition.MAPPED : RawDisposition.SUPPRESSED;
 

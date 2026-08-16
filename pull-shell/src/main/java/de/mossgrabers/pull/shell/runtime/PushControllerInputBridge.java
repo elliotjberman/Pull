@@ -46,7 +46,7 @@ import java.util.function.Supplier;
  */
 final class PushControllerInputBridge implements PushDebugNavigationHost.GestureAdmission
 {
-    private static final int FIRST_MAPPING_PAD_INDEX = 28;
+    private static final int PAD_COUNT = 64;
     private static final int REGISTRY_CAPACITY = 256;
     private static final int MIDI_NOTE_OFF = 0x80;
     private static final int MIDI_NOTE_ON = 0x90;
@@ -80,8 +80,8 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
     private final PhysicalInputRouter<ControlId> router;
     private final StableControllerActionResolver stableActions;
     private final HardwareMappingActivationHost mappingActivation;
-    private final List<MappingPadAddress> mappingPads;
-    private final Set<ControlId> heldMappingPads = new LinkedHashSet<> ();
+    private final List<PhysicalPadAddress> physicalPads;
+    private final Set<ControlId> heldPhysicalPads = new LinkedHashSet<> ();
     private boolean debugInputActive;
 
 
@@ -93,13 +93,13 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
      * @param parameterMutations Controller parameter-mutation seam
      * @param routes Complete committed route supplier
      * @param activeMappings Complete committed physical-to-semantic mapping lease
-     * @param physicalMappingButtons Original PAD actions used only for ordinary raw dispatch
+     * @param physicalPadButtons Original grid-pad actions used only for ordinary raw dispatch
      * @param semanticMappingButtons Permanent semantic Bitwig mapping endpoints
      * @param stableActionBarrier Semantic stable-action barrier
      * @param eventSink Normalized event sink
      * @param activeGeneration Current active reloadable-core generation
      */
-    PushControllerInputBridge (final PushControlSurface surface, final IValueChanger valueChanger, final ParameterMutationDispatcher parameterMutations, final Supplier<DesiredInputRoutes> routes, final Supplier<DesiredControllerMappings> activeMappings, final Map<ControlId, IHwButton> physicalMappingButtons, final Map<ControllerMappingId, IHwButton> semanticMappingButtons, final PhysicalInputRouter.StableActionBarrier<ControlId> stableActionBarrier, final Consumer<PhysicalInputEvent<ControlId>> eventSink, final LongSupplier activeGeneration)
+    PushControllerInputBridge (final PushControlSurface surface, final IValueChanger valueChanger, final ParameterMutationDispatcher parameterMutations, final Supplier<DesiredInputRoutes> routes, final Supplier<DesiredControllerMappings> activeMappings, final Map<ControlId, IHwButton> physicalPadButtons, final Map<ControllerMappingId, IHwButton> semanticMappingButtons, final PhysicalInputRouter.StableActionBarrier<ControlId> stableActionBarrier, final Consumer<PhysicalInputEvent<ControlId>> eventSink, final LongSupplier activeGeneration)
     {
         this.surface = Objects.requireNonNull (surface, "surface");
         this.valueChanger = Objects.requireNonNull (valueChanger, "valueChanger");
@@ -108,14 +108,14 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
         this.routes = Objects.requireNonNull (routes, "routes");
         this.activeMappings = Objects.requireNonNull (activeMappings, "activeMappings");
         this.stableActions = new StableControllerActionResolver (surface);
-        this.mappingPads = mappingPads (surface);
+        this.physicalPads = physicalPads (surface);
         this.registry = this.createRegistry ();
         this.router = new PhysicalInputRouter<> (this.registry, this::resolveRoute, this.eventSink, Objects.requireNonNull (stableActionBarrier, "stableActionBarrier"), System::nanoTime, Objects.requireNonNull (activeGeneration, "activeGeneration"));
         this.installWrappers ();
         this.mappingActivation = new HardwareMappingActivationHost (
-            Objects.requireNonNull (physicalMappingButtons, "physicalMappingButtons"),
+            Objects.requireNonNull (physicalPadButtons, "physicalPadButtons"),
             Objects.requireNonNull (semanticMappingButtons, "semanticMappingButtons"),
-            control -> !this.heldMappingPads.contains (control) && this.router.gesturesIdle (input -> isMappingGesture (input, control)),
+            control -> !this.heldPhysicalPads.contains (control) && this.router.gesturesIdle (input -> isPadGesture (input, control)),
             this::bindMappingMatcher);
         this.mappingActivation.request (this.activeMappings.get ());
     }
@@ -276,7 +276,7 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
     boolean routeMidi (final int status, final int data1, final int data2, final Runnable stableDispatch)
     {
         final int command = status & 0xF0;
-        if ((command == MIDI_NOTE_ON || command == MIDI_NOTE_OFF) && this.routeMappingPadMidi (status, data1, data2))
+        if ((command == MIDI_NOTE_ON || command == MIDI_NOTE_OFF) && this.routePhysicalPadMidi (status, data1, data2))
             return true;
         if (command == MIDI_POLY_PRESSURE)
         {
@@ -349,7 +349,7 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
                     this.router.flush ();
                 final ControllerActionIntent stableAction = this.stableActions.resolve (button.getCommand (), event);
                 this.router.route (control, kind, toShellPhase (event), velocity, stableAction, stableDispatch);
-                if (event == ButtonEvent.UP && CoreControls.DRUM_CONTROL_PADS.contains (control))
+                if (event == ButtonEvent.UP && padIndex >= 0)
                     this.mappingActivation.request (this.activeMappings.get ());
             });
         }
@@ -445,17 +445,17 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
     }
 
 
-    private boolean routeMappingPadMidi (final int status, final int note, final int velocity)
+    private boolean routePhysicalPadMidi (final int status, final int note, final int velocity)
     {
-        final ControlId control = this.mappingControl (status, note);
+        final ControlId control = this.physicalPadControl (status, note);
         if (control == null)
             return false;
 
         final boolean press = (status & 0xF0) == MIDI_NOTE_ON && velocity > 0;
         if (press)
-            this.heldMappingPads.add (control);
+            this.heldPhysicalPads.add (control);
         else
-            this.heldMappingPads.remove (control);
+            this.heldPhysicalPads.remove (control);
 
         final InputPhase phase = press ? InputPhase.BEGIN : InputPhase.END;
         final HardwareMappingActivationHost.RawDisposition disposition = this.mappingActivation.dispatchRaw (control, press ? ButtonEvent.DOWN : ButtonEvent.UP, normalizedVelocity (velocity));
@@ -471,23 +471,23 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
     }
 
 
-    private ControlId mappingControl (final int status, final int note)
+    private ControlId physicalPadControl (final int status, final int note)
     {
-        for (final MappingPadAddress pad: this.mappingPads)
+        for (final PhysicalPadAddress pad: this.physicalPads)
             if (pad.note () == note && (pad.channel () < 0 || pad.channel () == (status & 0x0F)))
                 return pad.control ();
         return null;
     }
 
 
-    private static List<MappingPadAddress> mappingPads (final PushControlSurface surface)
+    private static List<PhysicalPadAddress> physicalPads (final PushControlSurface surface)
     {
-        final java.util.ArrayList<MappingPadAddress> pads = new java.util.ArrayList<> (CoreControls.DRUM_CONTROL_PADS.size ());
-        for (int slot = 0; slot < CoreControls.DRUM_CONTROL_PADS.size (); slot++)
+        final java.util.ArrayList<PhysicalPadAddress> pads = new java.util.ArrayList<> (PAD_COUNT);
+        for (int index = 0; index < PAD_COUNT; index++)
         {
-            final int gridNote = surface.getPadGrid ().getStartNote () + FIRST_MAPPING_PAD_INDEX + slot;
+            final int gridNote = surface.getPadGrid ().getStartNote () + index;
             final int [] translated = surface.getPadGrid ().translateToController (gridNote);
-            pads.add (new MappingPadAddress (CoreControls.DRUM_CONTROL_PADS.get (slot), translated[0], translated[1]));
+            pads.add (new PhysicalPadAddress (PushControlIds.pad (index + 1), translated[0], translated[1]));
         }
         return List.copyOf (pads);
     }
@@ -495,7 +495,7 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
 
     private void bindMappingMatcher (final IHwButton mappingButton, final ControlId physicalControl)
     {
-        for (final MappingPadAddress pad: this.mappingPads)
+        for (final PhysicalPadAddress pad: this.physicalPads)
         {
             if (!pad.control ().equals (physicalControl))
                 continue;
@@ -516,7 +516,7 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
     }
 
 
-    private static boolean isMappingGesture (final PhysicalInputAddress<ControlId> input, final ControlId control)
+    private static boolean isPadGesture (final PhysicalInputAddress<ControlId> input, final ControlId control)
     {
         return input.kind () == InputKind.PAD && input.control ().equals (control);
     }
@@ -563,6 +563,6 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
     }
 
 
-    private record MappingPadAddress (ControlId control, int channel, int note)
+    private record PhysicalPadAddress (ControlId control, int channel, int note)
     {}
 }

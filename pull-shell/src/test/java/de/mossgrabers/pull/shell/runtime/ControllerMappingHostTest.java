@@ -8,7 +8,7 @@ import de.mossgrabers.framework.controller.hardware.IHwSurfaceFactory;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerMappingId;
 import de.mossgrabers.pull.core.api.CoreControllerMappings;
-import de.mossgrabers.pull.core.api.CoreControls;
+import de.mossgrabers.pull.core.api.PushControlIds;
 
 import org.junit.jupiter.api.Test;
 
@@ -56,6 +56,7 @@ class ControllerMappingHostTest
             "CONTROLLER_MAPPING_DRUM_CONTROL_STATE_3",
             "CONTROLLER_MAPPING_DRUM_CONTROL_STATE_4"), factory.feedbackHardwareIDs);
         assertEquals (factory.createdButtons, factory.feedbackButtons);
+        assertEquals (64, physicalHarnesses.size ());
         physicalHarnesses.values ().forEach (harness -> assertEquals (1, harness.unbinds));
         physicalButtons.forEach ( (control, button) -> assertSame (button, host.physicalButtons ().get (control)));
         assertEquals (Set.copyOf (CoreControllerMappings.DRUM_CONTROL_PADS), host.mappingButtons ().keySet ());
@@ -86,7 +87,7 @@ class ControllerMappingHostTest
     @Test
     void rejectsIncompletePhysicalTopology ()
     {
-        final Map<ControlId, IHwButton> incomplete = Map.of (CoreControls.DRUM_CONTROL_PADS.getFirst (), new ButtonHarness ().button ());
+        final Map<ControlId, IHwButton> incomplete = Map.of (PushControlIds.pad (29), new ButtonHarness ().button ());
         assertThrows (IllegalArgumentException.class, () -> new ControllerMappingHost (new FactoryHarness ().factory (), 0, incomplete));
     }
 
@@ -94,8 +95,8 @@ class ControllerMappingHostTest
     private static Map<ControlId, ButtonHarness> physicalHarnesses ()
     {
         final Map<ControlId, ButtonHarness> buttons = new LinkedHashMap<> ();
-        for (final ControlId control: CoreControls.DRUM_CONTROL_PADS)
-            buttons.put (control, new ButtonHarness ());
+        for (int index = 1; index <= 64; index++)
+            buttons.put (PushControlIds.pad (index), new ButtonHarness ());
         return buttons;
     }
 

@@ -296,14 +296,14 @@ Stable shell:
 - `SessionBankRegistry`: bounded 8x8/8x4 Bitwig bank canopy.
 - `PushControlSurface`: remaining stable pitch-bend and navigation integration.
 - `ControllerMappingHost`: eagerly creates the four permanent semantic Bitwig button identities,
-  attaches their no-output Boolean feedback, and removes MIDI matchers from the original physical
-  buttons so those remain ordinary-dispatch-only objects.
+  attaches their no-output Boolean feedback, and removes MIDI matchers from all 64 original grid
+  buttons so physical pads remain ordinary-dispatch-only objects rather than learned identities.
 - `HardwareMappingActivationHost`: mechanically projects the complete core lease onto those
   semantic buttons. A lane change immediately revokes new mapped presses, retains the exact routed
   gesture through `END`, and admits only the latest desired projection after the lifecycle is idle.
   Permanent raw MIDI supplies the normalized core gesture while a semantic matcher is active; when
-  no mapping is active it triggers the established original-button dispatch. No duplicate learned
-  action or second MIDI callback exists.
+  no mapping is active it triggers the established original-button dispatch through the same raw
+  ingress for every grid pad. No duplicate learned action or second MIDI callback exists.
 
 ## Migration Status
 

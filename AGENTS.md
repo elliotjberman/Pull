@@ -188,9 +188,9 @@
   validation, read-back, and effect execution. The Play action, eight drum-fill RGB lights, four
   Bitwig-manually-mappable drum-control pads with a replayable physical-to-semantic mapping lease
   and authoritative Boolean mapped-state read-back from dedicated no-output background lights on
-  permanent semantic Bitwig button identities. The original physical PAD actions are
-  raw-dispatch-only outside that lease, while raw MIDI supplies the routed core gesture during the
-  lease without becoming a second learned action. Play and
+  permanent semantic Bitwig button identities. All 64 original physical PAD actions are
+  raw-dispatch-only and never define learned mapping identity; raw MIDI supplies ordinary dispatch
+  outside a lease and the routed core gesture during one without becoming a second learned action. Play and
   Record lights, both Master button rows, and the Master graphics display have migrated direct
   output ownership. Play and Record light policy renders authoritative engine, transport, overdub,
   and selected-track arm read-back in every workspace. Play targets the remembered engine-owning

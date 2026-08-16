@@ -78,6 +78,18 @@ class HardwareMappingActivationHostTest
 
 
     @Test
+    void mappedReleaseWithoutAnAcceptedPressCannotLeakIntoOrdinaryDispatch ()
+    {
+        final Fixture fixture = new Fixture (Set.of (PAD_29), Set.of (DRUM_1));
+        fixture.host.request (desired (PAD_29, DRUM_1));
+
+        assertEquals (HardwareMappingActivationHost.RawDisposition.SUPPRESSED, fixture.host.dispatchRaw (PAD_29, ButtonEvent.UP, 0));
+        assertEquals (0, fixture.physical.get (PAD_29).manualEvents);
+        assertEquals (desired (PAD_29, DRUM_1), fixture.host.activeMappings ());
+    }
+
+
+    @Test
     void switchesOnePhysicalControlBetweenIndependentSemanticEndpoints ()
     {
         final Fixture fixture = new Fixture (Set.of (PAD_29), Set.of (DRUM_1, DRUM_2));

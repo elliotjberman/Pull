@@ -546,7 +546,7 @@ The current domains are:
 | `NOTE_REPEAT` | installed Repeat-engine availability and live state plus the Automatic arp / roll setting | One permanent Push NoteInput Repeat engine; sampled only while a rate-owning view requests it or a stable restoration lease is draining. |
 | `DRUM_PADS` | selected target/device identity, window generation/base note, alignment, and up to 64 pads with identity, name/color, state, mixer values, and playing velocity | One 64-pad model window, sampled no faster than every 33 ms unless selected-target identity changes. |
 | `PARAMETERS` | Selected named-bank slots with opaque target identity/generation, name, raw/modulated value, host-formatted display value, step count, tolerance, and retained baselines | Banks are `ACTIVE` compatibility, `PROJECT_REMOTE`, current `SELECTED_DEVICE_REMOTE`, eight visible `TRACK_VOLUME` and `TRACK_PAN` slots, four fixed `MASTER` slots, and `GLOBAL`; only the complete `DesiredParameterBanks` selection is sampled while subscribed. An interaction keeps its exact retained baselines until release, independently of bank sampling. |
-| `CONTROLLER_MAPPING_FEEDBACK` | Bitwig manual-mapping Boolean feedback keyed by permanent semantic endpoint | Four detached semantic `HardwareButton` objects own learning and no-output `OnOffHardwareLight` feedback. Their false fallback makes unmapped and mapped-off honestly off. The original physical PAD buttons have no MIDI matchers and remain raw ordinary-dispatch objects. Core decides the endpoint lease and red/off policy; the physical-pad RGB lane owns transmission. |
+| `CONTROLLER_MAPPING_FEEDBACK` | Bitwig manual-mapping Boolean feedback keyed by permanent semantic endpoint | Four detached semantic `HardwareButton` objects own learning and no-output `OnOffHardwareLight` feedback. Their false fallback makes unmapped and mapped-off honestly off. All 64 original physical PAD buttons have no MIDI matchers and remain raw ordinary-dispatch objects. Core decides the endpoint lease and red/off policy; the physical-pad RGB lane owns transmission. |
 | `MASTER` | current project identity/name/dirty state, audio-engine read-back, learned previous/next availability, serialized-command state, Master track color/selection/activation, cursor pin, and VU values | One current project and Master track. Project navigation is submitted through one lane and acknowledged only after a later stable project-identity sample; an unchanged identity timeout learns that direction as unavailable. |
 
 The selected-track cursor and drum capability detection are the private observation/action target
@@ -584,8 +584,9 @@ only while the control-pad view owns them, and feedback follows later authoritat
 read-back from that semantic endpoint. A lane change revokes the old endpoint's new-press matcher
 immediately and admits the latest requested projection only after the exact routed `END` completes.
 Permanent raw MIDI carries that normalized core gesture while mapped; outside the lease it forwards
-into the original physical button's state, command, and installed router. It is not a second learned
-action or parallel semantic implementation.
+into the original physical button's state, command, and installed router. The same single raw lane
+drives ordinary dispatch for all 64 grid pads, none of which remains a learned identity. It is not a
+second learned action or parallel semantic implementation.
 Parameter effects include relative adjustment and host-default reset against an exact
 currently published target, plus absolute restoration only when the same result retains that target
 and generation. Existing automation-touch behavior remains frozen in stable adapters until it has
@@ -629,7 +630,7 @@ Output remains narrower than input in API 32. This is the canonical installed-ou
 | Lane | Installed ownership |
 | --- | --- |
 | RGB lights | The eight drum-fill lights, four drum-rate lights, four mappable-control lights, and global Play/Record lights; both Master button rows while the Master-controls facet is active. |
-| Controller mappings | Four permanent semantic Bitwig buttons with dedicated Boolean feedback, projected onto physical PAD29–32 matchers only while the owning core view supplies the complete lease. The original physical buttons are raw-dispatch-only. Permanent raw ingress carries mapped core gestures and otherwise triggers those original dispatch objects without another learned action. |
+| Controller mappings | Four permanent semantic Bitwig buttons with dedicated Boolean feedback, projected onto physical PAD29–32 matchers only while the owning core view supplies the complete lease. All 64 original physical grid buttons are raw-dispatch-only. Permanent raw ingress carries mapped core gestures and otherwise triggers those original dispatch objects without another learned action. |
 | Controller state | One composed replayable state containing fixed view facets, any full-grid Note layout, and the target-fenced selected-track route; one stable lifecycle owner orders topology submission, musical-surface activation, musical-idle-gated removal, mismatch quarantine, and failure cleanup. |
 | Note repeat | One complete replayable lease over the permanent NoteInput Repeat engine, with later read-back, inactive release, and manual-parameter restoration. |
 | Master scene | The bounded eight-column Master display scene while the Master-controls facet is active. |

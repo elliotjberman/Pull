@@ -40,8 +40,8 @@ On current `master`:
 - drum-fill matching, launch-session policy, gesture state, and eight fill lights are core-owned;
 - four Bitwig-manually-mappable control pads, their replayable physical-to-semantic leases, and
   their mapped-light red/off policy are core-owned; four permanent semantic button identities own
-  Bitwig learning and dedicated no-output Boolean feedback, while the original physical PAD
-  actions remain raw ordinary-dispatch objects outside that lease;
+  Bitwig learning and dedicated no-output Boolean feedback, while all 64 original physical PAD
+  actions remain raw ordinary-dispatch objects and never define learned mapping identity;
 - Record, Shift+Record, and Select+Record are core-owned;
 - VS Live selection and fixed-facet composition are core-owned;
 - stable adapters still realize VS Live's Session, Drum, macro, track-strip, display, and navigation

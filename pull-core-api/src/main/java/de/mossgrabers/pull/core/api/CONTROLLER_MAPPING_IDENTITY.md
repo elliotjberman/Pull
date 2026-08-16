@@ -40,7 +40,8 @@ The Drum Controller slice has one semantic owner for each mapped pad:
   this fences core replacement and completes the exact `END` without creating another learned
   action.
 - Outside Drum Controller, raw input invokes the original physical button's ordinary Pull dispatch
-  without firing any semantic Bitwig mapping action.
+  without firing any semantic Bitwig mapping action. This is the same raw-only ingress used by all
+  64 grid pads; no physical grid button remains a learned identity.
 - Authoritative Bitwig Boolean feedback is keyed by semantic endpoint and rendered by core as
   red/on or black/off on the leased physical LED.
 
@@ -158,7 +159,7 @@ The migration performs this sequence:
    `ControllerMappingFeedbackSnapshot` cross the parent/child boundary.
 2. `CONTROLLER_MAPPING_FEEDBACK` replaces the feature-shaped mapped-pad subscription.
 3. Four detached permanent semantic Bitwig buttons are created during extension initialization.
-4. Original physical pad actions have no MIDI matcher and remain raw-dispatch-only.
+4. All 64 original physical pad actions have no MIDI matcher and remain raw-dispatch-only.
 5. `DrumControlPadView` leases semantic endpoints and renders feedback by mapping ID.
 6. Existing physical exclusive routes and RGB output controls remain physical.
 7. Lane transitions reject new input immediately, retain exact held-gesture ownership through

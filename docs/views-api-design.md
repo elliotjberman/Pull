@@ -228,10 +228,10 @@ currently migrated behavior through views:
 - Drum-fill matching, launch ownership, and eight pad lights become one fixed drum-fill view.
 - Four detached semantic hardware buttons own the remaining row's Bitwig-learned actions and
   background-light feedback while core retains that view's complete physical-to-semantic lease.
-  The original physical PAD buttons remain ordinary-dispatch-only; outside the lease, permanent raw
-  MIDI triggers those established objects, while inside the lease it supplies the normalized core
-  gesture independently of the one semantic learned action. Core owns red/off policy derived from
-  later authoritative feedback keyed by semantic endpoint.
+  All 64 original physical PAD buttons remain ordinary-dispatch-only and never define learned
+  identity. Permanent raw MIDI triggers those established objects outside a mapping lease; inside
+  one it supplies the normalized core gesture independently of the one semantic learned action.
+  Core owns red/off policy derived from later authoritative feedback keyed by semantic endpoint.
 - Record, Shift + Record, and Select + Record become one fixed Record control view.
 - A default workspace composes those views.
 - Existing `CoreResult` output, input routes, bridge subscriptions, clip bindings, effects,

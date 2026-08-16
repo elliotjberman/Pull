@@ -163,15 +163,46 @@ class PushControllerInputBridgeTest
 
         final int eventCount = fixture.events.size ();
         assertFalse (fixture.bridge.routeMidi (0x91, Fixture.PAD_NOTE, 100, () -> {}));
-        assertFalse (fixture.bridge.routeMidi (0x90, Fixture.PAD_NOTE - 1, 100, () -> {}));
-        assertFalse (fixture.bridge.routeMidi (0x90, Fixture.PAD_NOTE + 4, 100, () -> {}));
+        assertFalse (fixture.bridge.routeMidi (0x90, Fixture.GRID_START_NOTE - 1, 100, () -> {}));
+        assertFalse (fixture.bridge.routeMidi (0x90, Fixture.GRID_START_NOTE + 64, 100, () -> {}));
         assertTrue (fixture.bridge.routeMidi (0x90, Fixture.PAD_NOTE, 0, () -> {}));
         assertEquals (eventCount, fixture.events.size ());
     }
 
 
+    @Test
+    void detachesEveryPhysicalPadMatcherAndPreservesOrdinaryRawDispatch ()
+    {
+        final Fixture fixture = new Fixture ();
+        fixture.routes.set (DesiredInputRoutes.empty ());
+        fixture.mappings.set (DesiredControllerMappings.empty ());
+        fixture.bridge.flush ();
+
+        final List<Integer> downs = new ArrayList<> ();
+        final List<Integer> ups = new ArrayList<> ();
+        for (int index = 0; index < 64; index++)
+        {
+            final int padNumber = index + 1;
+            final TestButton button = fixture.physicalPads.get (PushControlIds.pad (padNumber));
+            assertFalse (button.pressMatcher);
+            assertFalse (button.releaseMatcher);
+            button.addEventHandler (ButtonEvent.DOWN, ignored -> downs.add (padNumber));
+            button.addEventHandler (ButtonEvent.UP, ignored -> ups.add (padNumber));
+
+            assertTrue (fixture.bridge.routeMidi (0x90, Fixture.GRID_START_NOTE + index, 63, () -> {}));
+            assertEquals (63, button.getPressedVelocity ());
+            assertTrue (fixture.bridge.routeMidi (0x80, Fixture.GRID_START_NOTE + index, 0, () -> {}));
+        }
+
+        assertEquals (java.util.stream.IntStream.rangeClosed (1, 64).boxed ().toList (), downs);
+        assertEquals (downs, ups);
+        assertTrue (fixture.events.isEmpty ());
+    }
+
+
     private static final class Fixture
     {
+        private static final int GRID_START_NOTE = 36;
         private static final int PAD_NOTE = 64;
 
         private final ControlId control = CoreControls.DRUM_CONTROL_PADS.get (0);
@@ -182,6 +213,7 @@ class PushControllerInputBridgeTest
         private final AtomicReference<DesiredControllerMappings> mappings = new AtomicReference<> (this.desiredMapping);
         private final AtomicLong generation = new AtomicLong (1);
         private final List<PhysicalInputEvent<ControlId>> events = new ArrayList<> ();
+        private final Map<ControlId, TestButton> physicalPads = new LinkedHashMap<> ();
         private final Map<ControllerMappingId, TestButton> semanticButtons = new LinkedHashMap<> ();
         private final PushControlSurface surface;
         private final TestButton pad;
@@ -211,10 +243,15 @@ class PushControllerInputBridgeTest
                 () -> false,
                 new ReloadableControllerRuntime (relaxedProxy (ControllerHost.class)));
             this.pad = (TestButton) this.surface.getButton (ButtonID.get (ButtonID.PAD1, 28));
-            final Map<ControlId, IHwButton> mappingButtons = new LinkedHashMap<> ();
-            for (int slot = 0; slot < CoreControls.DRUM_CONTROL_PADS.size (); slot++)
-                mappingButtons.put (CoreControls.DRUM_CONTROL_PADS.get (slot), this.surface.getButton (ButtonID.get (ButtonID.PAD1, 28 + slot)));
-            mappingButtons.values ().forEach (IHwButton::unbind);
+            final Map<ControlId, IHwButton> physicalButtons = new LinkedHashMap<> ();
+            for (int index = 0; index < 64; index++)
+            {
+                final ControlId physicalControl = PushControlIds.pad (index + 1);
+                final TestButton physicalButton = (TestButton) this.surface.getButton (ButtonID.get (ButtonID.PAD1, index));
+                this.physicalPads.put (physicalControl, physicalButton);
+                physicalButtons.put (physicalControl, physicalButton);
+            }
+            physicalButtons.values ().forEach (IHwButton::unbind);
             for (int slot = 0; slot < CoreControllerMappings.DRUM_CONTROL_PADS.size (); slot++)
                 this.semanticButtons.put (CoreControllerMappings.DRUM_CONTROL_PADS.get (slot), new TestButton (hostRef[0], "Drum Controller Control " + (slot + 1)));
             this.bridge = new PushControllerInputBridge (
@@ -223,7 +260,7 @@ class PushControllerInputBridgeTest
                 (ignoredID, ignoredControl, mutation) -> mutation.run (),
                 this.routes::get,
                 this.mappings::get,
-                mappingButtons,
+                physicalButtons,
                 new LinkedHashMap<> (this.semanticButtons),
                 (ignoredControl, ignoredKind, ignoredAction) -> false,
                 this.events::add,

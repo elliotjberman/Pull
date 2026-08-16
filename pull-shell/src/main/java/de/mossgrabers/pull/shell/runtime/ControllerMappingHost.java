@@ -11,9 +11,10 @@ import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerMappingFeedbackSnapshot;
 import de.mossgrabers.pull.core.api.ControllerMappingId;
 import de.mossgrabers.pull.core.api.CoreControllerMappings;
-import de.mossgrabers.pull.core.api.CoreControls;
+import de.mossgrabers.pull.core.api.PushControlIds;
 
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -22,7 +23,8 @@ import java.util.Set;
 /** Permanent semantic Bitwig mapping endpoints and their authoritative Boolean feedback. */
 final class ControllerMappingHost
 {
-    private static final int FIRST_PHYSICAL_PAD_INDEX = 28;
+    private static final int PAD_COUNT = 64;
+    private static final Set<ControlId> PHYSICAL_PAD_CONTROLS = physicalPadControls ();
 
     private final Map<ControlId, IHwButton> physicalButtons;
     private final Map<ControllerMappingId, IHwButton> mappingButtons;
@@ -71,10 +73,10 @@ final class ControllerMappingHost
     private static Topology createTopology (final PushControlSurface surface)
     {
         final Map<ControlId, IHwButton> physicalButtons = new LinkedHashMap<> ();
-        for (int slot = 0; slot < CoreControls.DRUM_CONTROL_PADS.size (); slot++)
+        for (int index = 0; index < PAD_COUNT; index++)
         {
-            final IHwButton button = Objects.requireNonNull (surface.getButton (ButtonID.get (ButtonID.PAD1, FIRST_PHYSICAL_PAD_INDEX + slot)), "control pad");
-            physicalButtons.put (CoreControls.DRUM_CONTROL_PADS.get (slot), button);
+            final IHwButton button = Objects.requireNonNull (surface.getButton (ButtonID.get (ButtonID.PAD1, index)), "physical pad");
+            physicalButtons.put (PushControlIds.pad (index + 1), button);
         }
         return createTopology (surface.getSurfaceFactory (), surface.getSurfaceID (), physicalButtons);
     }
@@ -84,8 +86,8 @@ final class ControllerMappingHost
     {
         final IHwSurfaceFactory checkedFactory = Objects.requireNonNull (factory, "factory");
         final Map<ControlId, IHwButton> checkedPhysicalButtons = Map.copyOf (Objects.requireNonNull (physicalButtons, "physicalButtons"));
-        if (!checkedPhysicalButtons.keySet ().equals (Set.copyOf (CoreControls.DRUM_CONTROL_PADS)))
-            throw new IllegalArgumentException ("controller mapping host requires the four installed physical control pads");
+        if (!checkedPhysicalButtons.keySet ().equals (PHYSICAL_PAD_CONTROLS))
+            throw new IllegalArgumentException ("controller mapping host requires the complete 64-pad physical grid");
 
         final FeedbackState feedback = new FeedbackState ();
         final Map<ControllerMappingId, IHwButton> mappingButtons = new LinkedHashMap<> ();
@@ -105,10 +107,19 @@ final class ControllerMappingHost
             mappingButtons.put (mappingId, mappingButton);
         }
 
-        // The original physical actions remain the sole ordinary-command dispatch objects, but no
-        // longer expose MIDI matchers or Bitwig-learnable identities. Raw ingress drives them.
+        // Physical pads remain the sole ordinary-command dispatch objects, but none expose native
+        // MIDI matchers or Bitwig-learnable identities. The permanent raw ingress drives them.
         checkedPhysicalButtons.values ().forEach (IHwButton::unbind);
         return new Topology (checkedPhysicalButtons, Map.copyOf (mappingButtons), feedback);
+    }
+
+
+    private static Set<ControlId> physicalPadControls ()
+    {
+        final Set<ControlId> controls = new LinkedHashSet<> (PAD_COUNT);
+        for (int index = 1; index <= PAD_COUNT; index++)
+            controls.add (PushControlIds.pad (index));
+        return Set.copyOf (controls);
     }
 
 
