@@ -38,7 +38,7 @@ import java.util.Set;
 final class SelectedTrackFillClipHost implements DrumFillClipHost
 {
     static final int SCANNER_PAGE_SIZE = 8;
-    static final int ACTUATOR_COUNT = 12;
+    static final int ACTUATOR_COUNT = 8;
 
     private final Adapter adapter;
     private final List<ActuatorState> actuators;
@@ -78,7 +78,7 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
 
         final List<ControlId> controls = CoreControls.drumFills ();
         if (controls.size () != ACTUATOR_COUNT)
-            throw new IllegalStateException ("The shell requires exactly 12 drum-fill controls");
+            throw new IllegalStateException ("The shell requires exactly eight drum-fill controls");
 
         final List<ActuatorState> states = new ArrayList<> (ACTUATOR_COUNT);
         final Map<ControlId, ActuatorState> byControl = new HashMap<> (ACTUATOR_COUNT);

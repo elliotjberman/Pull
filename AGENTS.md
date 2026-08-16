@@ -179,13 +179,17 @@
 - A core-only change inside the installed API/canopy hot reloads. Changing a parent-loaded API
   contract, adding a Bitwig proxy/property/observer, changing a permanent binding or proxy capacity,
   or broadening hardware output ownership requires a shell build/install and Bitwig restart.
-- Core API 28 arbitrates general input, complete composed controller state, semantic action intent,
+- Core API 31 arbitrates general input, complete composed controller state, semantic action intent,
   named bounded parameter banks, and exact parameter-target leases. Each active view contributes
   its fixed facets, Note layout, selected-track musical route, and other owned output; composite
   workspaces merge disjoint contributions and reject physical overlap. Project-macro encoder turns
   are the reference parameter migration: core owns
   the mapping, relative effect, and snapback policy while stable owns Bitwig proxies, identity
-  validation, read-back, and effect execution. The Play action, 12 drum-fill RGB lights, Play and
+  validation, read-back, and effect execution. The Play action, eight drum-fill RGB lights, four
+  Bitwig-manually-mappable drum-control pads with a view-scoped learned-action lease and
+  authoritative Boolean mapped-state read-back from dedicated no-output background lights on the
+  original PAD actions, plus raw-MIDI dispatch through those same original buttons outside that
+  lease without a second Bitwig mapping identity, Play and
   Record lights, both Master button rows, and the Master graphics display have migrated direct
   output ownership. Play and Record light policy renders authoritative engine, transport, overdub,
   and selected-track arm read-back in every workspace. Play targets the remembered engine-owning

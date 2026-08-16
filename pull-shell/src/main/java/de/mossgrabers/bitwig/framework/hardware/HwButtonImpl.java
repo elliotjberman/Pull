@@ -107,6 +107,24 @@ public class HwButtonImpl extends AbstractHwButton
 
     /** {@inheritDoc} */
     @Override
+    public void unbindPress ()
+    {
+        if (this.input != null)
+            this.input.unbindPress (this);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void unbindRelease ()
+    {
+        if (this.input != null)
+            this.input.unbindRelease (this);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
     public void rebind ()
     {
         if (this.input == null)

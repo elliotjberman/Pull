@@ -36,6 +36,7 @@ import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.TrackMonitorMode;
 import de.mossgrabers.pull.core.api.TransportSnapshot;
+import de.mossgrabers.pull.core.api.MappedPadLightsSnapshot;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchMode;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
@@ -112,7 +113,7 @@ class PullControllerCoreTest
 
 
     @Test
-    void bindsTheFirstTwelveCaseInsensitiveFillsInCatalogOrder ()
+    void bindsTheFirstEightCaseInsensitiveFillsInCatalogOrder ()
     {
         final List<CatalogClip> clips = new ArrayList<> ();
         clips.add (clip (100, "verse"));
@@ -123,10 +124,10 @@ class PullControllerCoreTest
         host.start (Optional.empty ());
 
         final Map<ControlId, ClipTargetId> bindings = host.effects ().desiredClipBindings ();
-        assertEquals (12, bindings.size ());
-        for (int index = 0; index < 12; index++)
+        assertEquals (8, bindings.size ());
+        for (int index = 0; index < 8; index++)
             assertEquals (new ClipTargetId (index), bindings.get (CoreControls.DRUM_FILLS.get (index)));
-        assertFalse (bindings.containsValue (new ClipTargetId (12)));
+        assertFalse (bindings.containsValue (new ClipTargetId (8)));
         assertEquals (CoreControls.DRUM_FILLS.size () + 2, host.effects ().desiredOutput ().lights ().size ());
         assertTrue (host.effects ().desiredOutput ().lights ().keySet ().containsAll (CoreControls.DRUM_FILLS));
         assertTrue (host.effects ().desiredOutput ().lights ().keySet ().containsAll (Set.of (PLAY_BUTTON, RECORD_BUTTON)));
@@ -936,7 +937,7 @@ class PullControllerCoreTest
 
         assertVsLive (host.effects ().desiredControllerWorkspace ());
         assertEquals (Optional.of (InputRouteMode.OBSERVE), host.effects ().desiredInputRoutes ().mode (PushControlIds.pad (10), InputKind.POLY_PRESSURE));
-        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.NOTE_REPEAT, BridgeSubscription.PARAMETERS, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
+        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.NOTE_REPEAT, BridgeSubscription.PARAMETERS, BridgeSubscription.MAPPED_PAD_LIGHTS, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
         assertEquals (Set.of (ParameterBankId.PROJECT_REMOTE, ParameterBankId.GLOBAL), host.effects ().desiredParameterBanks ().banks ());
     }
 
@@ -1040,7 +1041,7 @@ class PullControllerCoreTest
         assertTrue (host.effects ().executionOrder ().isEmpty ());
 
         enterVsLive (host);
-        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.NOTE_REPEAT, BridgeSubscription.PARAMETERS, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
+        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.NOTE_REPEAT, BridgeSubscription.PARAMETERS, BridgeSubscription.MAPPED_PAD_LIGHTS, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
         assertEquals (Set.of (ParameterBankId.PROJECT_REMOTE, ParameterBankId.GLOBAL), host.effects ().desiredParameterBanks ().banks ());
         host.controllerMotion (PushControlIds.pad (10), InputKind.POLY_PRESSURE, 91);
 
@@ -1051,6 +1052,44 @@ class PullControllerCoreTest
         host.controllerButton (SESSION_BUTTON, true);
         assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
         assertEquals (Optional.empty (), host.effects ().desiredInputRoutes ().mode (PushControlIds.pad (10), InputKind.POLY_PRESSURE));
+    }
+
+
+    @Test
+    void drumControlPadsScopeMappingsAndRenderOnlyLaterAuthoritativeFeedback ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        host.bridge (mappedPadLightBridge (false));
+        final ControlId first = CoreControls.DRUM_CONTROL_PADS.getFirst ();
+
+        assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (first, InputKind.PAD));
+        assertEquals (Set.copyOf (CoreControls.DRUM_CONTROL_PADS), host.effects ().desiredOutput ().activeMappings ());
+        assertEquals (OFF, light (host, first));
+
+        final int beforePress = host.effects ().executionOrder ().size ();
+        host.controllerPad (first, true);
+        assertEquals (beforePress, host.effects ().executionOrder ().size ());
+        assertEquals (OFF, light (host, first));
+        host.controllerPad (first, false);
+        assertEquals (beforePress, host.effects ().executionOrder ().size ());
+
+        host.bridge (mappedPadLightBridge (false));
+        assertEquals (OFF, light (host, first));
+        host.bridge (mappedPadLightBridge (true));
+        assertEquals (RED, light (host, first));
+        host.controllerPad (first, true);
+        assertEquals (beforePress, host.effects ().executionOrder ().size ());
+        assertEquals (RED, light (host, first));
+        host.controllerPad (first, false);
+
+        host.bridge (mappedPadLightBridge (false));
+        assertEquals (OFF, light (host, first));
+
+        host.controllerButton (SESSION_BUTTON, true);
+        host.bridge (layoutBridge ("SESSION", "TRACK"));
+        host.controllerButton (SESSION_BUTTON, false);
+        assertTrue (host.effects ().desiredOutput ().activeMappings ().isEmpty ());
     }
 
 
@@ -1595,6 +1634,24 @@ class PullControllerCoreTest
             new ControllerLayoutSnapshot (1, "WORKSPACE", "PROJECT", true, true, drumBaseMidiNote, pressure),
             de.mossgrabers.pull.core.api.DrumContextSnapshot.empty (),
             de.mossgrabers.pull.core.api.ParameterBridgeSnapshot.empty ());
+    }
+
+
+    private static ControllerBridgeSnapshot mappedPadLightBridge (final boolean on)
+    {
+        final List<Boolean> pads = new ArrayList<> (java.util.Collections.nCopies (MappedPadLightsSnapshot.CAPACITY, Boolean.FALSE));
+        pads.set (0, Boolean.valueOf (on));
+        return new ControllerBridgeSnapshot (
+            TransportSnapshot.empty (),
+            SelectedTrackSnapshot.empty (),
+            new ControllerLayoutSnapshot (1, "DRUM_PAD", "TRACK", true, true, 36, GridPressureConfiguration.OFF),
+            NoteViewSnapshot.empty (),
+            NoteRepeatSnapshot.empty (),
+            DrumContextSnapshot.empty (),
+            ParameterBridgeSnapshot.empty (),
+            new MappedPadLightsSnapshot (true, pads),
+            MasterSnapshot.empty (),
+            ProjectSnapshot.empty ());
     }
 
 

@@ -33,6 +33,9 @@ public enum BridgeSubscription
     /** Current bounded parameter targets and authoritative values. */
     PARAMETERS,
 
+    /** Bitwig manual-mapping feedback for the four Drum Controller control pads. */
+    MAPPED_PAD_LIGHTS,
+
     /** Current project, audio-engine, and master-track state. */
     MASTER,
 

@@ -37,6 +37,18 @@ public interface IHwSurfaceFactory
 
 
     /**
+     * Create a detached hardware button with a fixed host-facing identifier. Detached buttons are
+     * not entered into a controller surface's ordinary button registry.
+     *
+     * @param surfaceID The ID of the surface
+     * @param hardwareID The stable host-facing hardware identifier
+     * @param label The label of the button
+     * @return The created button
+     */
+    IHwButton createButton (int surfaceID, String hardwareID, String label);
+
+
+    /**
      * Create a proxy to a hardware light.
      *
      * @param surfaceID The ID of the surface
@@ -61,6 +73,18 @@ public interface IHwSurfaceFactory
      * @return The created light
      */
     IHwLight createLight (int surfaceID, OutputID outputID, IntSupplier supplier, IntConsumer sendValueConsumer, IntFunction<ColorEx> stateToColorFunction, IHwButton button);
+
+
+    /**
+     * Attach a no-output Boolean background light to an existing hardware button. Bitwig manual
+     * mappings override the light's false fallback with their current authoritative Boolean state.
+     *
+     * @param surfaceID The ID of the surface
+     * @param hardwareID Stable host-facing identifier for the feedback light
+     * @param button Hardware button carrying the learned action
+     * @param observer Receives the resolved current Boolean during hardware updates
+     */
+    void installMappedBooleanFeedback (int surfaceID, String hardwareID, IHwButton button, Consumer<Boolean> observer);
 
 
     /**

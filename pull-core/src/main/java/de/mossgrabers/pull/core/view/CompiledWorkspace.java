@@ -264,6 +264,7 @@ public final class CompiledWorkspace
     {
         final Map<ControlId, RgbColor> lights = new LinkedHashMap<> ();
         final Map<ControlId, ClipTargetId> clipBindings = new LinkedHashMap<> ();
+        final Set<ControlId> activeMappings = new LinkedHashSet<> ();
         ControllerDisplayScene display = ControllerDisplayScene.empty ();
         ControllerPadGridOverlay padGridOverlay = ControllerPadGridOverlay.inactive ();
         ControllerDisplayOverlay displayOverlay = ControllerDisplayOverlay.inactive ();
@@ -274,6 +275,11 @@ public final class CompiledWorkspace
             final ViewOutput output = Objects.requireNonNull (view.view ().render (snapshot), "view output");
             mergeUnique (lights, output.lights (), "light", view.id ());
             mergeUnique (clipBindings, output.clipBindings (), "clip binding", view.id ());
+            for (final ControlId control: output.activeMappings ())
+            {
+                if (!activeMappings.add (control))
+                    throw new IllegalStateException ("multiple views activate hardware mapping " + control.value ());
+            }
             if (output.display ().isPresent ())
             {
                 if (display.isPresent ())
@@ -307,7 +313,7 @@ public final class CompiledWorkspace
         }
 
         return new CoreResult (
-            new DesiredHardwareOutput (lights, display, padGridOverlay, displayOverlay),
+            new DesiredHardwareOutput (lights, display, padGridOverlay, displayOverlay, activeMappings),
             this.desiredInputRoutes,
             this.desiredBridgeSubscriptions,
             clipBindings,

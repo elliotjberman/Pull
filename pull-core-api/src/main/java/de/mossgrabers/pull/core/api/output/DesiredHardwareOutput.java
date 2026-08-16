@@ -7,6 +7,7 @@ import de.mossgrabers.pull.core.api.ControlId;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Complete replayable hardware state currently owned by the core.
@@ -15,10 +16,11 @@ import java.util.Objects;
  * @param display Complete controller display scene
  * @param padGridOverlay Temporary sparse pad-grid overlay
  * @param displayOverlay Temporary complete scene above the current display page
+ * @param activeMappings Hardware controls whose host-learned actions are active
  */
-public record DesiredHardwareOutput (Map<ControlId, RgbColor> lights, ControllerDisplayScene display, ControllerPadGridOverlay padGridOverlay, ControllerDisplayOverlay displayOverlay)
+public record DesiredHardwareOutput (Map<ControlId, RgbColor> lights, ControllerDisplayScene display, ControllerPadGridOverlay padGridOverlay, ControllerDisplayOverlay displayOverlay, Set<ControlId> activeMappings)
 {
-    private static final DesiredHardwareOutput EMPTY = new DesiredHardwareOutput (Map.of (), ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive ());
+    private static final DesiredHardwareOutput EMPTY = new DesiredHardwareOutput (Map.of (), ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), Set.of ());
 
 
     /**
@@ -30,6 +32,14 @@ public record DesiredHardwareOutput (Map<ControlId, RgbColor> lights, Controller
         display = Objects.requireNonNull (display, "display");
         padGridOverlay = Objects.requireNonNull (padGridOverlay, "padGridOverlay");
         displayOverlay = Objects.requireNonNull (displayOverlay, "displayOverlay");
+        activeMappings = Set.copyOf (Objects.requireNonNull (activeMappings, "activeMappings"));
+    }
+
+
+    /** Compatibility constructor without host-learned action ownership. */
+    public DesiredHardwareOutput (final Map<ControlId, RgbColor> lights, final ControllerDisplayScene display, final ControllerPadGridOverlay padGridOverlay, final ControllerDisplayOverlay displayOverlay)
+    {
+        this (lights, display, padGridOverlay, displayOverlay, Set.of ());
     }
 
 

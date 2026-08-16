@@ -154,7 +154,7 @@ class SelectedTrackFillClipHostTest
 
 
     @Test
-    void supportsTwelveIndependentSimultaneousLeases ()
+    void supportsEightIndependentSimultaneousLeases ()
     {
         final FakeAdapter adapter = new FakeAdapter ();
         adapter.selectTrack ("track-a", 12);
@@ -166,13 +166,13 @@ class SelectedTrackFillClipHostTest
 
         final Map<ControlId, ClipTargetId> bindings = new LinkedHashMap<> ();
         final List<ClipTargetId> targets = host.clipCatalog ().clips ().stream ().map (clip -> clip.targetId ()).toList ();
-        for (int index = 0; index < 12; index++)
+        for (int index = 0; index < 8; index++)
             bindings.put (CoreControls.drumFills ().get (index), targets.get (index));
         host.setDesiredBindings (host.clipCatalog ().generation (), bindings);
-        refreshUntil (host, () -> host.armedClipTargets ().size () == 12);
+        refreshUntil (host, () -> host.armedClipTargets ().size () == 8);
 
-        final List<DrumFillClipHost.LaunchTarget> leases = new ArrayList<> (12);
-        for (int index = 0; index < 12; index++)
+        final List<DrumFillClipHost.LaunchTarget> leases = new ArrayList<> (8);
+        for (int index = 0; index < 8; index++)
         {
             final DrumFillClipHost.LaunchTarget lease = host.prepare (CoreControls.drumFills ().get (index), host.clipCatalog ().generation (), targets.get (index));
             lease.press (LAUNCH_POLICY);
@@ -184,8 +184,8 @@ class SelectedTrackFillClipHostTest
             leases.get (index).retire ();
         }
 
-        assertEquals (12, adapter.presses.size ());
-        assertEquals (12, adapter.releases.size ());
+        assertEquals (8, adapter.presses.size ());
+        assertEquals (8, adapter.releases.size ());
     }
 
 

@@ -38,6 +38,7 @@ public final class DefaultWorkspace
         return CompiledWorkspace.compile ("Pull Drum", ControllerLevelViews.compose (selection, playbackCoordinator, List.of (
             new StableParameterControlsView (),
             new DrumFillView (),
+            new DrumControlPadView (),
             new DrumRateView ())));
     }
 }

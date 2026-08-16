@@ -51,8 +51,10 @@ public enum SurfaceArea
     DRUM_PLAY_PADS (gridRectangle (0, 0, 4, 4), gridControls (0, 0, 4, 4), Set.of (InputKind.PAD, InputKind.POLY_PRESSURE)),
     /** Four momentary drum-rate pads at columns 4-7 on the bottom row. */
     DRUM_RATE_PADS (gridRectangle (4, 0, 4, 1), gridControls (4, 0, 4, 1), Set.of (InputKind.PAD, InputKind.POLY_PRESSURE)),
-    /** Twelve fill pads at columns 4-7 and rows 1-3 of the lower grid half. */
-    DRUM_FILL_PADS (gridRectangle (4, 1, 4, 3), Set.copyOf (CoreControls.DRUM_FILLS), Set.of (InputKind.PAD, InputKind.POLY_PRESSURE)),
+    /** Eight fill pads at columns 4-7 and rows 1-2 of the lower grid half. */
+    DRUM_FILL_PADS (gridRectangle (4, 1, 4, 2), Set.copyOf (CoreControls.DRUM_FILLS), Set.of (InputKind.PAD, InputKind.POLY_PRESSURE)),
+    /** Four Bitwig-manually-mappable control pads at columns 4-7 on row 3. */
+    DRUM_CONTROL_PADS (gridRectangle (4, 3, 4, 1), Set.copyOf (CoreControls.DRUM_CONTROL_PADS), Set.of (InputKind.PAD)),
     /** Four scene keys aligned to the upper Session grid. */
     SCENE_KEYS_UPPER (range (ElementType.BUTTON, 200, 4), buttonControls ("SCENE", 1, 4), Set.of (InputKind.BUTTON)),
     /** Four scene keys aligned to the lower grid half. */

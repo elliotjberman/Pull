@@ -313,6 +313,20 @@ class CommandReplacementTest
 
 
         @Override
+        public void unbindPress ()
+        {
+            // Not needed by this command-only fake.
+        }
+
+
+        @Override
+        public void unbindRelease ()
+        {
+            // Not needed by this command-only fake.
+        }
+
+
+        @Override
         public void rebind ()
         {
             // Not needed by this command-only fake.

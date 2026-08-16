@@ -1,6 +1,6 @@
 # Pull View Architecture
 
-Status: current through Core API 29, the shared mixer-control renderer, the Master-control
+Status: current through Core API 31, the shared mixer-control renderer, the Master-control
 migration, the post-demo `VS Live` composition, and core-owned note-view and drum-rate policy.
 
 Read this file before changing controller views, modes, workspaces, input routing, or Session bank
@@ -251,8 +251,8 @@ VS Live contains:
 - Drum Controller on the lower four pad rows; and
 - drum pitch bend on the touch strip.
 
-The lower Drum Controller includes its 4x4 playable block, four core-owned rate pads, twelve fill
-pads, octave navigation, aggregate grid pressure, and its optional pitch-bend facet. It does not own
+The lower Drum Controller includes its 4x4 playable block, four core-owned rate pads, eight fill
+pads, four Bitwig-manually-mappable control pads, octave navigation, aggregate grid pressure, and its optional pitch-bend facet. It does not own
 the lower scene keys. Per-pad pressure has a musical destination only on the playable 4x4 block and
 is part of the same reloadable `DrumControllerView`, so pressure cannot be accidentally omitted
 from a composition that owns those pads.
@@ -276,7 +276,10 @@ Reloadable core:
 - `NoteViewControllerView`: authoritative per-selected-track note-layout policy.
 - `DrumControllerView`: playable lower-grid mapping, pressure policy, and optional pitch bend.
 - `DrumRateView`: four exclusive rate-pad gestures, RGB output, and desired note-repeat state.
-- `DrumFillView`: fill selection, launch lifecycle, bindings, and twelve RGB lights.
+- `DrumFillView`: fill selection, launch lifecycle, bindings, and eight RGB lights.
+- `DrumControlPadView`: four exclusive control-pad routes, a complete view-scoped learned-action
+  lease, and authoritative mapped-light red/off feedback; Bitwig's hardware mapping remains the
+  actuator.
 - `TransportControlView`: persistent authoritative Play/Record lights and Record modifier policy.
 - `MasterControlView`: Master/Cue encoder policy, project/audio actions, both row-light banks, and
   a complete declarative graphics scene.
@@ -292,6 +295,13 @@ Stable shell:
 - `WorkspaceView`: upper Session grid plus reusable lower Drum Controller adapter.
 - `SessionBankRegistry`: bounded 8x8/8x4 Bitwig bank canopy.
 - `PushControlSurface`: remaining stable pitch-bend and navigation integration.
+- `HardwareMappingActivationHost`: mechanically gates the original Bitwig-learnable PAD action for
+  each of the four physical controls. Core retains the complete view lease. Per pad, a lane change
+  immediately revokes new mapped presses, retains only an in-flight mapped release through routed
+  END, and admits the latest lane only after that lifecycle is idle. The original PAD action is the
+  only Bitwig mapping identity and owns mapped-light read-back. Its release matcher is deliberately
+  absent: the permanent raw-MIDI ingress completes release and, while the press matcher is inactive,
+  triggers that same established button dispatch without registering a second `HardwareControl`.
 
 ## Migration Status
 
@@ -327,10 +337,10 @@ Partial or transitional:
 - `ControllerViewFacet` remains a closed cross-boundary adapter ID.
 - Capability and Session-shape validation happens during stable result preparation, not entirely in
   `CompiledWorkspace`.
-- General display and light output ownership is still partial. The twelve drum-fill and four
-  drum-rate RGB lights, global Play/Record lights, the Master page's two button rows and graphics
+- General display and light output ownership is still partial. The eight drum-fill, four drum-rate,
+  and four mappable-control RGB lights, authoritative Bitwig Boolean feedback, and view-scoped learned-action leases, global Play/Record lights, the Master page's two button rows and graphics
   display, a temporary sparse 8x8 grid overlay, and a complete temporary 960x160 display overlay
-  use core-owned output arbitration. The detailed design's API 25 installed-output inventory is
+  use core-owned output arbitration. The detailed design's API 31 installed-output inventory is
   canonical.
 
 Deferred by design:

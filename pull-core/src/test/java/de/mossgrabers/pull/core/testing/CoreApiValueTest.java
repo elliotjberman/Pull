@@ -46,6 +46,7 @@ import de.mossgrabers.pull.core.api.SessionBankShape;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.StateEnvelope;
 import de.mossgrabers.pull.core.api.TimerId;
+import de.mossgrabers.pull.core.api.MappedPadLightsSnapshot;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchMode;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
@@ -141,6 +142,7 @@ class CoreApiValueTest
         final Map<ControlId, RgbColor> lights = new HashMap<> (Map.of (control, new RgbColor (1, 2, 3)));
         final DesiredHardwareOutput output = new DesiredHardwareOutput (lights);
         lights.clear ();
+        assertTrue (output.activeMappings ().isEmpty ());
 
         final PressClipTargetEffect press = new PressClipTargetEffect (control, catalog.generation (), clip.targetId (), LAUNCH_POLICY);
         final List<CoreEffect> effects = new ArrayList<> (List.of (press));
@@ -188,13 +190,14 @@ class CoreApiValueTest
     @Test
     void publishesStableVersionCapabilityAndControlIdentifiers ()
     {
-        assertEquals (29, CoreApi.VERSION);
+        assertEquals (31, CoreApi.VERSION);
         assertEquals ("input.drum-fill", CoreCapabilities.INPUT_DRUM_FILL);
         assertEquals ("snapshot.selected-track-clips", CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS);
         assertEquals ("binding.clip-target", CoreCapabilities.BINDING_CLIP_TARGET);
         assertEquals ("snapshot.clip-launch-session", CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION);
         assertEquals ("effect.clip-launch-hold", CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD);
         assertEquals ("output.rgb-light", CoreCapabilities.OUTPUT_RGB_LIGHT);
+        assertEquals ("output.hardware-mapping", CoreCapabilities.OUTPUT_HARDWARE_MAPPING);
         assertEquals ("output.controller-state", CoreCapabilities.OUTPUT_CONTROLLER_STATE);
         assertEquals ("effect.note-view-preference", CoreCapabilities.EFFECT_NOTE_VIEW_PREFERENCE);
         assertEquals ("output.note-repeat", CoreCapabilities.OUTPUT_NOTE_REPEAT);
@@ -206,17 +209,35 @@ class CoreApiValueTest
         assertEquals ("effect.selected-track", CoreCapabilities.EFFECT_SELECTED_TRACK);
         assertEquals ("effect.drum-pad", CoreCapabilities.EFFECT_DRUM_PAD);
         assertEquals ("effect.note-input-midi", CoreCapabilities.EFFECT_NOTE_INPUT_MIDI);
+        assertEquals ("snapshot.mapped-pad-lights", CoreCapabilities.SNAPSHOT_MAPPED_PAD_LIGHTS);
         assertEquals ("output.pad-grid-overlay", CoreCapabilities.OUTPUT_PAD_GRID_OVERLAY);
         assertEquals ("output.display-overlay", CoreCapabilities.OUTPUT_DISPLAY_OVERLAY);
         assertEquals ("render.mixer-controls", CoreCapabilities.RENDER_MIXER_CONTROLS);
-        assertEquals (12, CoreControls.DRUM_FILLS.size ());
-        assertEquals (12, new HashSet<> (CoreControls.DRUM_FILLS).size ());
+        assertEquals (8, CoreControls.DRUM_FILLS.size ());
+        assertEquals (8, new HashSet<> (CoreControls.DRUM_FILLS).size ());
         for (int index = 0; index < CoreControls.DRUM_FILLS.size (); index++)
             assertEquals (new ControlId ("drum.fill." + (index + 1)), CoreControls.DRUM_FILLS.get (index));
         assertEquals (CoreControls.DRUM_FILLS, CoreControls.drumFills ());
         assertThrows (UnsupportedOperationException.class, () -> CoreControls.DRUM_FILLS.clear ());
         assertEquals (List.of (PushControlIds.pad (5), PushControlIds.pad (6), PushControlIds.pad (7), PushControlIds.pad (8)), CoreControls.DRUM_RATES);
         assertThrows (UnsupportedOperationException.class, () -> CoreControls.DRUM_RATES.clear ());
+        assertEquals (List.of (PushControlIds.pad (29), PushControlIds.pad (30), PushControlIds.pad (31), PushControlIds.pad (32)), CoreControls.DRUM_CONTROL_PADS);
+        assertThrows (UnsupportedOperationException.class, () -> CoreControls.DRUM_CONTROL_PADS.clear ());
+    }
+
+
+    @Test
+    void mappedPadLightFeedbackIsStrictlyBounded ()
+    {
+        final List<Boolean> pads = new ArrayList<> (java.util.Collections.nCopies (MappedPadLightsSnapshot.CAPACITY, Boolean.FALSE));
+        pads.set (0, Boolean.TRUE);
+        final MappedPadLightsSnapshot snapshot = new MappedPadLightsSnapshot (true, pads);
+
+        assertTrue (snapshot.controlPad (0));
+        assertThrows (IllegalArgumentException.class, () -> new MappedPadLightsSnapshot (true, List.of (Boolean.FALSE)));
+        assertThrows (IllegalArgumentException.class, () -> snapshot.controlPad (-1));
+        assertThrows (IllegalArgumentException.class, () -> snapshot.controlPad (4));
+        assertThrows (UnsupportedOperationException.class, () -> snapshot.pads ().clear ());
     }
 
 

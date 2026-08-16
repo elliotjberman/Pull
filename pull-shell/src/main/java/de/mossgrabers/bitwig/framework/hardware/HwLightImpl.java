@@ -47,7 +47,6 @@ public class HwLightImpl extends AbstractHwControl implements IHwLight
         state.onUpdateHardware (hardwareUpdater);
     }
 
-
     /** {@inheritDoc} */
     @Override
     public void forceFlush ()

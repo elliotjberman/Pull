@@ -23,8 +23,11 @@ public final class CoreCapabilities
     /** Single-active momentary clip-session effects with a frozen launch policy per target. */
     public static final String EFFECT_CLIP_LAUNCH_HOLD = "effect.clip-launch-hold";
 
-    /** Hardware-independent RGB light output; v3 admits the four drum-rate pads. */
+    /** Hardware-independent RGB light output; v4 admits the four drum control pads. */
     public static final String OUTPUT_RGB_LIGHT = "output.rgb-light";
+
+    /** Replayable activation of bounded host-learnable hardware actions. */
+    public static final String OUTPUT_HARDWARE_MAPPING = "output.hardware-mapping";
 
     /** Atomic composition of fixed view facets, Note layout, and selected-track note routing. */
     public static final String OUTPUT_CONTROLLER_STATE = "output.controller-state";
@@ -38,10 +41,10 @@ public final class CoreCapabilities
     /** Normalized bounded Push controller inputs. */
     public static final String INPUT_CONTROLLER = "input.controller";
 
-    /** Replayable core ownership of normalized controller inputs; v2 admits drum-rate input. */
+    /** Replayable core ownership of normalized controller inputs; v3 admits drum control pads. */
     public static final String ROUTING_CONTROLLER_INPUT = "routing.controller-input";
 
-    /** Common bounded controller state; v5 adds note-view and note-repeat domains. */
+    /** Common bounded controller state; v6 adds mapped pad-light feedback. */
     public static final String SNAPSHOT_CONTROLLER_BRIDGE = "snapshot.controller-bridge";
 
     /** Replayable selection of bounded bridge-state domains to publish and sample. */
@@ -64,6 +67,9 @@ public final class CoreCapabilities
 
     /** Replayable exact parameter leases and generation-fenced absolute effects. */
     public static final String EFFECT_PARAMETER_TARGET = "effect.parameter-target";
+
+    /** Authoritative Bitwig manual-mapping feedback for the four drum control pads. */
+    public static final String SNAPSHOT_MAPPED_PAD_LIGHTS = "snapshot.mapped-pad-lights";
 
     /** Authoritative current-project and master-track snapshot. */
     public static final String SNAPSHOT_MASTER = "snapshot.master";

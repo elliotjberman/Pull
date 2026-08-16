@@ -1,6 +1,6 @@
 # Views API and Composite Workspaces
 
-Status: design contract. Checkpoints 1 and 2 are structurally implemented through Core API 25. The
+Status: design contract. Checkpoints 1 and 2 are structurally implemented through Core API 31. The
 remaining stable-adapter boundary is represented explicitly in claims and recorded in
 [`../ARCH.md`](../ARCH.md). The checkpoints remain below so code, offline tests, and Push hardware
 tests can be compared against the intended end state.
@@ -62,7 +62,8 @@ GLOBAL_MODIFIERS.*         Shift, Select, Delete, and similar controls
 
 Smaller fixed subregions may be added when a real view proves the need. They must be named for a
 stable physical footprint, not created ad hoc by a workspace. For example, the current drum-fill
-view occupies the twelve pads at columns 4..7 and rows 1..3 inside `GRID.LOWER`.
+view occupies the eight pads at columns 4..7 and rows 1..2 inside `GRID.LOWER`; four manually
+mappable control pads occupy columns 4..7 on row 3.
 
 A claim declares both ownership and its current realization boundary. The Java API uses explicit
 kinds equivalent to:
@@ -135,7 +136,7 @@ facets that the view declares.
 Examples:
 
 - **Drum Controller** requires `GRID.LOWER`. Its lower half contains the 4x4 playable drum block,
-  four momentary rate pads, and twelve fill pads. Its named `pitch-bend` facet claims
+  four momentary rate pads, eight fill pads, and four manually mappable control pads. Its named `pitch-bend` facet claims
   `TOUCH_STRIP`. It does not claim either scene-key group.
 - **Session Clip Grid (upper)** requires `GRID.UPPER` and may claim `SCENE_KEYS.UPPER` as its named
   `scene-launch` facet.
@@ -224,7 +225,12 @@ choose or restore a destination.
 Introduce the fixed-footprint model and workspace compiler inside the reloadable core. Move the
 currently migrated behavior through views:
 
-- Drum-fill matching, launch ownership, and twelve pad lights become one fixed drum-fill view.
+- Drum-fill matching, launch ownership, and eight pad lights become one fixed drum-fill view.
+- The original four PAD hardware buttons own the remaining row's Bitwig-learned actions and
+  background-light feedback while core retains that view's complete activation lease. They remain
+  the only Bitwig mapping identities; outside the lease, the permanent raw-MIDI ingress triggers
+  the same established button dispatch without another `HardwareControl`. Core owns red/off policy
+  derived from later authoritative mapped-light feedback.
 - Record, Shift + Record, and Select + Record become one fixed Record control view.
 - A default workspace composes those views.
 - Existing `CoreResult` output, input routes, bridge subscriptions, clip bindings, effects,
