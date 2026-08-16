@@ -36,6 +36,7 @@ import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.TrackMonitorMode;
 import de.mossgrabers.pull.core.api.TransportSnapshot;
+import de.mossgrabers.pull.core.api.UserControlBankSnapshot;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchMode;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
@@ -59,6 +60,7 @@ import de.mossgrabers.pull.core.api.effect.SelectedTrackBoolean;
 import de.mossgrabers.pull.core.api.effect.SendNoteInputMidiEffect;
 import de.mossgrabers.pull.core.api.effect.SetSelectedTrackBooleanEffect;
 import de.mossgrabers.pull.core.api.effect.SetTransportStateEffect;
+import de.mossgrabers.pull.core.api.effect.SetUserControlValueEffect;
 import de.mossgrabers.pull.core.api.effect.TransportState;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.output.RgbColor;
@@ -112,7 +114,7 @@ class PullControllerCoreTest
 
 
     @Test
-    void bindsTheFirstTwelveCaseInsensitiveFillsInCatalogOrder ()
+    void bindsTheFirstEightCaseInsensitiveFillsInCatalogOrder ()
     {
         final List<CatalogClip> clips = new ArrayList<> ();
         clips.add (clip (100, "verse"));
@@ -123,10 +125,10 @@ class PullControllerCoreTest
         host.start (Optional.empty ());
 
         final Map<ControlId, ClipTargetId> bindings = host.effects ().desiredClipBindings ();
-        assertEquals (12, bindings.size ());
-        for (int index = 0; index < 12; index++)
+        assertEquals (8, bindings.size ());
+        for (int index = 0; index < 8; index++)
             assertEquals (new ClipTargetId (index), bindings.get (CoreControls.DRUM_FILLS.get (index)));
-        assertFalse (bindings.containsValue (new ClipTargetId (12)));
+        assertFalse (bindings.containsValue (new ClipTargetId (8)));
         assertEquals (CoreControls.DRUM_FILLS.size () + 2, host.effects ().desiredOutput ().lights ().size ());
         assertTrue (host.effects ().desiredOutput ().lights ().keySet ().containsAll (CoreControls.DRUM_FILLS));
         assertTrue (host.effects ().desiredOutput ().lights ().keySet ().containsAll (Set.of (PLAY_BUTTON, RECORD_BUTTON)));
@@ -936,7 +938,7 @@ class PullControllerCoreTest
 
         assertVsLive (host.effects ().desiredControllerWorkspace ());
         assertEquals (Optional.of (InputRouteMode.OBSERVE), host.effects ().desiredInputRoutes ().mode (PushControlIds.pad (10), InputKind.POLY_PRESSURE));
-        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.NOTE_REPEAT, BridgeSubscription.PARAMETERS, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
+        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.NOTE_REPEAT, BridgeSubscription.PARAMETERS, BridgeSubscription.USER_CONTROLS, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
         assertEquals (Set.of (ParameterBankId.PROJECT_REMOTE, ParameterBankId.GLOBAL), host.effects ().desiredParameterBanks ().banks ());
     }
 
@@ -1040,7 +1042,7 @@ class PullControllerCoreTest
         assertTrue (host.effects ().executionOrder ().isEmpty ());
 
         enterVsLive (host);
-        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.NOTE_REPEAT, BridgeSubscription.PARAMETERS, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
+        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.NOTE_REPEAT, BridgeSubscription.PARAMETERS, BridgeSubscription.USER_CONTROLS, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
         assertEquals (Set.of (ParameterBankId.PROJECT_REMOTE, ParameterBankId.GLOBAL), host.effects ().desiredParameterBanks ().banks ());
         host.controllerMotion (PushControlIds.pad (10), InputKind.POLY_PRESSURE, 91);
 
@@ -1051,6 +1053,35 @@ class PullControllerCoreTest
         host.controllerButton (SESSION_BUTTON, true);
         assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
         assertEquals (Optional.empty (), host.effects ().desiredInputRoutes ().mode (PushControlIds.pad (10), InputKind.POLY_PRESSURE));
+    }
+
+
+    @Test
+    void drumUserControlsToggleFromAuthoritativeReadbackAndRenderRed ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        host.bridge (userControlBridge (0, 0, 0, 0));
+        final ControlId first = CoreControls.DRUM_USER_CONTROLS.getFirst ();
+
+        assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (first, InputKind.PAD));
+        assertEquals (OFF, light (host, first));
+
+        host.controllerPad (first, true);
+        assertEquals (new SetUserControlValueEffect (0, 1), host.effects ().executionOrder ().getLast ());
+        assertEquals (OFF, light (host, first));
+        final int afterPress = host.effects ().executionOrder ().size ();
+        host.controllerPad (first, false);
+        assertEquals (afterPress, host.effects ().executionOrder ().size ());
+
+        host.bridge (userControlBridge (1, 0, 0, 0));
+        assertEquals (RED, light (host, first));
+        host.controllerPad (first, true);
+        assertEquals (new SetUserControlValueEffect (0, 0), host.effects ().executionOrder ().getLast ());
+        assertEquals (RED, light (host, first));
+
+        host.bridge (userControlBridge (0, 0, 0, 0));
+        assertEquals (OFF, light (host, first));
     }
 
 
@@ -1595,6 +1626,22 @@ class PullControllerCoreTest
             new ControllerLayoutSnapshot (1, "WORKSPACE", "PROJECT", true, true, drumBaseMidiNote, pressure),
             de.mossgrabers.pull.core.api.DrumContextSnapshot.empty (),
             de.mossgrabers.pull.core.api.ParameterBridgeSnapshot.empty ());
+    }
+
+
+    private static ControllerBridgeSnapshot userControlBridge (final double first, final double second, final double third, final double fourth)
+    {
+        return new ControllerBridgeSnapshot (
+            TransportSnapshot.empty (),
+            SelectedTrackSnapshot.empty (),
+            new ControllerLayoutSnapshot (1, "DRUM_PAD", "TRACK", true, true, 36, GridPressureConfiguration.OFF),
+            NoteViewSnapshot.empty (),
+            NoteRepeatSnapshot.empty (),
+            DrumContextSnapshot.empty (),
+            ParameterBridgeSnapshot.empty (),
+            new UserControlBankSnapshot (true, List.of (Double.valueOf (first), Double.valueOf (second), Double.valueOf (third), Double.valueOf (fourth))),
+            MasterSnapshot.empty (),
+            ProjectSnapshot.empty ());
     }
 
 

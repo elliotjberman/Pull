@@ -37,7 +37,8 @@ correct migration extracts their policy while the stable shell continues owning 
 
 On current `master`:
 
-- drum-fill matching, launch-session policy, gesture state, and twelve fill lights are core-owned;
+- drum-fill matching, launch-session policy, gesture state, and eight fill lights are core-owned;
+- four Bitwig-mappable Boolean control pads and their red/off feedback are core-owned;
 - Record, Shift+Record, and Select+Record are core-owned;
 - VS Live selection and fixed-facet composition are core-owned;
 - stable adapters still realize VS Live's Session, Drum, macro, track-strip, display, and navigation
@@ -57,7 +58,7 @@ On current `master`:
   output; animation geometry, color, cadence, and activation policy are core-owned;
 - a generic complete 960x160 display overlay can temporarily replace and restore the inherited
   display page; overlay copy, geometry, color, and activation policy are core-owned;
-- the twelve drum-fill lights are also core-owned; underlying grid policy and other Push output
+- the eight drum-fill and four user-control lights are also core-owned; underlying grid policy and other Push output
   surfaces remain frozen migration debt;
 - Shift snapback policy, view-owned physical-to-parameter-slot admission, semantic action
   invalidation, restoration acknowledgement, and navigation ordering are core-owned; stable owns
@@ -138,7 +139,8 @@ This is the main body of remaining work. It is migration debt, but not a file-on
 
 ### 1. Complete remaining hardware output
 
-Current limitation: stable validation and arbitration accept the twelve fill-pad lights, global
+Current limitation: stable validation and arbitration accept the eight fill-pad lights, four
+user-control pad lights, global
 Play/Record lights, the Master page's two button rows and bounded declarative graphics scene, and a
 temporary sparse whole-grid overlay plus a complete 960x160 display overlay. Inherited output
 outside those lanes remains frozen stable migration debt; do not implement new output behavior

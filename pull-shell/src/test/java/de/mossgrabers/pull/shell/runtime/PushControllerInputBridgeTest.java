@@ -4,6 +4,7 @@
 package de.mossgrabers.pull.shell.runtime;
 
 import de.mossgrabers.pull.core.api.PushControlIds;
+import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.shell.input.InputKind;
 
 import org.junit.jupiter.api.Test;
@@ -24,5 +25,10 @@ class PushControllerInputBridgeTest
         assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("NOTE"), InputKind.BUTTON));
         assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("LAYOUT"), InputKind.BUTTON));
         assertFalse (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("SCALES"), InputKind.BUTTON));
+        for (final var control: CoreControls.DRUM_USER_CONTROLS)
+        {
+            assertTrue (PushControllerInputBridge.isCoreOwnedInput (control, InputKind.PAD));
+            assertFalse (PushControllerInputBridge.isCoreOwnedInput (control, InputKind.POLY_PRESSURE));
+        }
     }
 }

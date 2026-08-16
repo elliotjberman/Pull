@@ -330,6 +330,7 @@ final class FakeCoreHost
             this.bridge.noteRepeat (),
             this.bridge.drum (),
             this.bridge.parameters (),
+            this.bridge.userControls (),
             this.bridge.master (),
             this.bridge.project ());
         this.snapshotChanged ();
@@ -351,6 +352,7 @@ final class FakeCoreHost
             this.bridge.noteRepeat (),
             this.bridge.drum (),
             this.bridge.parameters (),
+            this.bridge.userControls (),
             this.bridge.master (),
             this.bridge.project ());
         this.snapshotChanged ();

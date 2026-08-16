@@ -36,6 +36,7 @@ import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
 import de.mossgrabers.pull.core.api.effect.SetTransportStateEffect;
 import de.mossgrabers.pull.core.api.effect.SetTransportValueEffect;
 import de.mossgrabers.pull.core.api.effect.SetParameterValueEffect;
+import de.mossgrabers.pull.core.api.effect.SetUserControlValueEffect;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.ControllerActionEvent;
@@ -81,13 +82,13 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         Map.entry (CoreCapabilities.BINDING_CLIP_TARGET, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD, Integer.valueOf (4)),
-        Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (3)),
+        Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (4)),
         Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_STATE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_NOTE_VIEW_PREFERENCE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.OUTPUT_NOTE_REPEAT, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.INPUT_CONTROLLER, Integer.valueOf (1)),
-        Map.entry (CoreCapabilities.ROUTING_CONTROLLER_INPUT, Integer.valueOf (2)),
-        Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE, Integer.valueOf (5)),
+        Map.entry (CoreCapabilities.ROUTING_CONTROLLER_INPUT, Integer.valueOf (3)),
+        Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE, Integer.valueOf (6)),
         Map.entry (CoreCapabilities.SUBSCRIPTION_CONTROLLER_BRIDGE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_TRANSPORT, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_SELECTED_TRACK, Integer.valueOf (2)),
@@ -95,6 +96,8 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         Map.entry (CoreCapabilities.EFFECT_NOTE_INPUT_MIDI, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.SNAPSHOT_PARAMETER_TARGETS, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.EFFECT_PARAMETER_TARGET, Integer.valueOf (2)),
+        Map.entry (CoreCapabilities.SNAPSHOT_USER_CONTROLS, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.EFFECT_USER_CONTROL, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.SNAPSHOT_MASTER, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_MASTER, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_DISPLAY, Integer.valueOf (2)),
@@ -713,7 +716,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         for (final Map.Entry<ControlId, RgbColor> light: result.desiredOutput ().lights ().entrySet ())
         {
             final ControlId owner = Objects.requireNonNull (light.getKey (), "light owner");
-            if (!CoreControls.DRUM_FILLS.contains (owner) && !CoreControls.DRUM_RATES.contains (owner) && !GLOBAL_TRANSPORT_LIGHTS.contains (owner) && !(masterControls && MASTER_ROW_LIGHTS.contains (owner)))
+            if (!CoreControls.DRUM_FILLS.contains (owner) && !CoreControls.DRUM_RATES.contains (owner) && !CoreControls.DRUM_USER_CONTROLS.contains (owner) && !GLOBAL_TRANSPORT_LIGHTS.contains (owner) && !(masterControls && MASTER_ROW_LIGHTS.contains (owner)))
                 throw new IllegalArgumentException ("Unsupported controller light owner");
             final RgbColor requested = Objects.requireNonNull (light.getValue (), "light color");
             colors.put (owner, new RgbColor (requested.red (), requested.green (), requested.blue ()));
@@ -840,6 +843,8 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
             return new BridgeEffectTarget (BridgeEffectDomain.PARAMETER, parameter.target ());
         if (effect instanceof final ResetParameterEffect parameter)
             return new BridgeEffectTarget (BridgeEffectDomain.PARAMETER, parameter.target ());
+        if (effect instanceof final SetUserControlValueEffect userControl)
+            return new BridgeEffectTarget (BridgeEffectDomain.USER_CONTROL, Integer.valueOf (userControl.slot ()));
         return null;
     }
 
@@ -995,6 +1000,8 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         for (final ControlId owner: CoreControls.DRUM_FILLS)
             colors.put (owner, OFF);
         for (final ControlId owner: CoreControls.DRUM_RATES)
+            colors.put (owner, OFF);
+        for (final ControlId owner: CoreControls.DRUM_USER_CONTROLS)
             colors.put (owner, OFF);
         for (final ControlId owner: GLOBAL_TRANSPORT_LIGHTS)
             colors.put (owner, OFF);
@@ -1396,7 +1403,8 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     {
         TRANSPORT_STATE,
         TRANSPORT_VALUE,
-        PARAMETER
+        PARAMETER,
+        USER_CONTROL
     }
 
 

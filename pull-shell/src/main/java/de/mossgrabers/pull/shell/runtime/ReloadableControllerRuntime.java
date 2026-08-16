@@ -52,11 +52,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         56,
         57,
         58,
-        59,
-        64,
-        65,
-        66,
-        67
+        59
     };
     private static final List<ControlId> FILL_CONTROLS = CoreControls.drumFills ();
     private static final RgbColor OFF = new RgbColor (0, 0, 0);
@@ -165,6 +161,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         this.clipHost = new SelectedTrackFillClipHost (this.controllerHost);
         this.clipHost.connect (Objects.requireNonNull (model, "model"));
         final BoundedControllerBridge controllerBridge = new BoundedControllerBridge (
+            this.controllerHost,
             model,
             Objects.requireNonNull (selectedTarget, "selectedTarget"),
             Objects.requireNonNull (noteInputMidiSender, "noteInputMidiSender"),

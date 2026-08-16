@@ -33,7 +33,7 @@ import java.util.Set;
 
 
 /**
- * Selected-track drum-fill behavior for its fixed twelve-pad region.
+ * Selected-track drum-fill behavior for its fixed eight-pad region.
  */
 public final class DrumFillView implements ControllerView
 {

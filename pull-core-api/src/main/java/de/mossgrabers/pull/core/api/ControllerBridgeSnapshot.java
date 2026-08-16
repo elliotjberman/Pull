@@ -15,12 +15,13 @@ import java.util.Objects;
  * @param noteRepeat Live note-repeat read-back and drum-roll setting
  * @param drum Selected-track drum window
  * @param parameters Current parameter slots and retained actuators
+ * @param userControls Four Bitwig-mappable user-control values
  * @param master Current project and Master-page state
  * @param project Lightweight current-project state
  */
-public record ControllerBridgeSnapshot (TransportSnapshot transport, SelectedTrackSnapshot selectedTrack, ControllerLayoutSnapshot layout, NoteViewSnapshot noteView, NoteRepeatSnapshot noteRepeat, DrumContextSnapshot drum, ParameterBridgeSnapshot parameters, MasterSnapshot master, ProjectSnapshot project)
+public record ControllerBridgeSnapshot (TransportSnapshot transport, SelectedTrackSnapshot selectedTrack, ControllerLayoutSnapshot layout, NoteViewSnapshot noteView, NoteRepeatSnapshot noteRepeat, DrumContextSnapshot drum, ParameterBridgeSnapshot parameters, UserControlBankSnapshot userControls, MasterSnapshot master, ProjectSnapshot project)
 {
-    private static final ControllerBridgeSnapshot EMPTY = new ControllerBridgeSnapshot (TransportSnapshot.empty (), SelectedTrackSnapshot.empty (), ControllerLayoutSnapshot.empty (), NoteViewSnapshot.empty (), NoteRepeatSnapshot.empty (), DrumContextSnapshot.empty (), ParameterBridgeSnapshot.empty (), MasterSnapshot.empty (), ProjectSnapshot.empty ());
+    private static final ControllerBridgeSnapshot EMPTY = new ControllerBridgeSnapshot (TransportSnapshot.empty (), SelectedTrackSnapshot.empty (), ControllerLayoutSnapshot.empty (), NoteViewSnapshot.empty (), NoteRepeatSnapshot.empty (), DrumContextSnapshot.empty (), ParameterBridgeSnapshot.empty (), UserControlBankSnapshot.empty (), MasterSnapshot.empty (), ProjectSnapshot.empty ());
 
 
     /**
@@ -35,29 +36,37 @@ public record ControllerBridgeSnapshot (TransportSnapshot transport, SelectedTra
         noteRepeat = Objects.requireNonNull (noteRepeat, "noteRepeat");
         drum = Objects.requireNonNull (drum, "drum");
         parameters = Objects.requireNonNull (parameters, "parameters");
+        userControls = Objects.requireNonNull (userControls, "userControls");
         master = Objects.requireNonNull (master, "master");
         project = Objects.requireNonNull (project, "project");
+    }
+
+
+    /** Compatibility constructor for snapshots without user controls. */
+    public ControllerBridgeSnapshot (final TransportSnapshot transport, final SelectedTrackSnapshot selectedTrack, final ControllerLayoutSnapshot layout, final NoteViewSnapshot noteView, final NoteRepeatSnapshot noteRepeat, final DrumContextSnapshot drum, final ParameterBridgeSnapshot parameters, final MasterSnapshot master, final ProjectSnapshot project)
+    {
+        this (transport, selectedTrack, layout, noteView, noteRepeat, drum, parameters, UserControlBankSnapshot.empty (), master, project);
     }
 
 
     /** Compatibility constructor for snapshots without note-controller state. */
     public ControllerBridgeSnapshot (final TransportSnapshot transport, final SelectedTrackSnapshot selectedTrack, final ControllerLayoutSnapshot layout, final DrumContextSnapshot drum, final ParameterBridgeSnapshot parameters, final MasterSnapshot master, final ProjectSnapshot project)
     {
-        this (transport, selectedTrack, layout, NoteViewSnapshot.empty (), NoteRepeatSnapshot.empty (), drum, parameters, master, project);
+        this (transport, selectedTrack, layout, NoteViewSnapshot.empty (), NoteRepeatSnapshot.empty (), drum, parameters, UserControlBankSnapshot.empty (), master, project);
     }
 
 
     /** Compatibility constructor for snapshots without lightweight project state. */
     public ControllerBridgeSnapshot (final TransportSnapshot transport, final SelectedTrackSnapshot selectedTrack, final ControllerLayoutSnapshot layout, final DrumContextSnapshot drum, final ParameterBridgeSnapshot parameters, final MasterSnapshot master)
     {
-        this (transport, selectedTrack, layout, NoteViewSnapshot.empty (), NoteRepeatSnapshot.empty (), drum, parameters, master, ProjectSnapshot.empty ());
+        this (transport, selectedTrack, layout, NoteViewSnapshot.empty (), NoteRepeatSnapshot.empty (), drum, parameters, UserControlBankSnapshot.empty (), master, ProjectSnapshot.empty ());
     }
 
 
     /** Compatibility constructor for snapshots without Master state. */
     public ControllerBridgeSnapshot (final TransportSnapshot transport, final SelectedTrackSnapshot selectedTrack, final ControllerLayoutSnapshot layout, final DrumContextSnapshot drum, final ParameterBridgeSnapshot parameters)
     {
-        this (transport, selectedTrack, layout, NoteViewSnapshot.empty (), NoteRepeatSnapshot.empty (), drum, parameters, MasterSnapshot.empty (), ProjectSnapshot.empty ());
+        this (transport, selectedTrack, layout, NoteViewSnapshot.empty (), NoteRepeatSnapshot.empty (), drum, parameters, UserControlBankSnapshot.empty (), MasterSnapshot.empty (), ProjectSnapshot.empty ());
     }
 
 

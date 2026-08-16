@@ -317,6 +317,8 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
             inputs.add (new PhysicalInputAddress<> (control, InputKind.PAD));
             inputs.add (new PhysicalInputAddress<> (control, InputKind.POLY_PRESSURE));
         }
+        for (final ControlId control: de.mossgrabers.pull.core.api.CoreControls.DRUM_USER_CONTROLS)
+            inputs.add (new PhysicalInputAddress<> (control, InputKind.PAD));
         for (int index = 1; index <= 8; index++)
         {
             inputs.add (new PhysicalInputAddress<> (PushControlIds.button ("ROW1_" + index), InputKind.BUTTON));

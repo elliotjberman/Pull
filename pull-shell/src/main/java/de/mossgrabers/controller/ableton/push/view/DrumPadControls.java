@@ -25,8 +25,8 @@ import de.mossgrabers.pull.shell.runtime.ReloadableControllerRuntime;
 
 
 /**
- * The performance controls for the 4x4 drum-pad block, four momentary roll-rate pads and twelve
- * reloadable fill pads.
+ * The performance controls for the 4x4 drum-pad block, four momentary roll-rate pads, eight
+ * reloadable fill pads, and four Bitwig-mappable controls.
  * <p>
  * This class owns only its pad regions. A full-grid view or a composite view is responsible for
  * drawing everything outside those regions.
@@ -187,7 +187,7 @@ public final class DrumPadControls
      * Test whether this component owns a physical grid note.
      *
      * @param note The physical grid note
-     * @return True if the note belongs to the drum block, rate controls or fill controls
+     * @return True if the note belongs to the drum block, rate, fill, or user controls
      */
     public boolean ownsGridNote (final int note)
     {
@@ -197,7 +197,7 @@ public final class DrumPadControls
 
         final int x = index % this.surface.getPadGrid ().getCols ();
         final int y = index / this.surface.getPadGrid ().getCols ();
-        return y < PLAY_ROWS && x < PLAY_COLUMNS || y == 0 && x >= RATE_PAD_START && x < RATE_PAD_START + NUM_RATE_PADS || this.isFillPad (note);
+        return y < PLAY_ROWS && x < PLAY_COLUMNS || y == 0 && x >= RATE_PAD_START && x < RATE_PAD_START + NUM_RATE_PADS || y == 3 && x >= RATE_PAD_START || this.isFillPad (note);
     }
 
 
@@ -299,6 +299,14 @@ public final class DrumPadControls
                 padGrid.sendState (note);
             }
         }
+        for (int index = 0; index < de.mossgrabers.pull.core.api.CoreControls.DRUM_USER_CONTROLS.size (); index++)
+        {
+            final int note = padGrid.getStartNote () + 3 * padGrid.getCols () + RATE_PAD_START + index;
+            final RgbColor color = this.reloadableRuntime.lightColor (de.mossgrabers.pull.core.api.CoreControls.DRUM_USER_CONTROLS.get (index));
+            padGrid.light (note, PadColor.rgbOrOff (ColorEx.fromRGB (color.red (), color.green (), color.blue ())));
+            if (replayOutput)
+                padGrid.sendState (note);
+        }
     }
 
 
@@ -376,6 +384,8 @@ public final class DrumPadControls
 
         for (final int fillPadNote: this.fillPadNotes)
             padGrid.light (fillPadNote, PAD_OFF_COLOR);
+        for (int index = 0; index < de.mossgrabers.pull.core.api.CoreControls.DRUM_USER_CONTROLS.size (); index++)
+            padGrid.light (padGrid.getStartNote () + 3 * padGrid.getCols () + RATE_PAD_START + index, PAD_OFF_COLOR);
     }
 
 

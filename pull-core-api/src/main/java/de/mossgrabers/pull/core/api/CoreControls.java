@@ -34,18 +34,6 @@ public final class CoreControls
     /** Eighth momentary drum-fill slot. */
     public static final ControlId DRUM_FILL_8 = new ControlId ("drum.fill.8");
 
-    /** Ninth momentary drum-fill slot. */
-    public static final ControlId DRUM_FILL_9 = new ControlId ("drum.fill.9");
-
-    /** Tenth momentary drum-fill slot. */
-    public static final ControlId DRUM_FILL_10 = new ControlId ("drum.fill.10");
-
-    /** Eleventh momentary drum-fill slot. */
-    public static final ControlId DRUM_FILL_11 = new ControlId ("drum.fill.11");
-
-    /** Twelfth momentary drum-fill slot. */
-    public static final ControlId DRUM_FILL_12 = new ControlId ("drum.fill.12");
-
     /** All drum-fill slots in physical display order. */
     public static final List<ControlId> DRUM_FILLS = List.of (
         DRUM_FILL_1,
@@ -55,11 +43,14 @@ public final class CoreControls
         DRUM_FILL_5,
         DRUM_FILL_6,
         DRUM_FILL_7,
-        DRUM_FILL_8,
-        DRUM_FILL_9,
-        DRUM_FILL_10,
-        DRUM_FILL_11,
-        DRUM_FILL_12);
+        DRUM_FILL_8);
+
+    /** Four Bitwig-mappable Boolean control pads in left-to-right order. */
+    public static final List<ControlId> DRUM_USER_CONTROLS = List.of (
+        PushControlIds.pad (29),
+        PushControlIds.pad (30),
+        PushControlIds.pad (31),
+        PushControlIds.pad (32));
 
     /** Four physical drum-rate pads in left-to-right order. */
     public static final List<ControlId> DRUM_RATES = List.of (

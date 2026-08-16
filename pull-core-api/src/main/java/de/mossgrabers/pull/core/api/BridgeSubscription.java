@@ -33,6 +33,9 @@ public enum BridgeSubscription
     /** Current bounded parameter targets and authoritative values. */
     PARAMETERS,
 
+    /** Four Bitwig-mappable user-control values. */
+    USER_CONTROLS,
+
     /** Current project, audio-engine, and master-track state. */
     MASTER,
 

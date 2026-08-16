@@ -61,16 +61,12 @@ class ReloadableControllerRuntimeTest
         56,
         57,
         58,
-        59,
-        64,
-        65,
-        66,
-        67
+        59
     };
 
 
     @Test
-    void exposesTwelveFillPadsInBottomUpRowMajorOrder ()
+    void exposesEightFillPadsInBottomUpRowMajorOrder ()
     {
         final int [] notes = ReloadableControllerRuntime.fillPadNotes ();
         assertArrayEquals (EXPECTED_FILL_NOTES, notes);
@@ -78,6 +74,7 @@ class ReloadableControllerRuntimeTest
             assertTrue (ReloadableControllerRuntime.isFillPad (note));
         assertFalse (ReloadableControllerRuntime.isFillPad (47));
         assertFalse (ReloadableControllerRuntime.isFillPad (52));
+        assertFalse (ReloadableControllerRuntime.isFillPad (64));
         assertFalse (ReloadableControllerRuntime.isFillPad (68));
 
         notes[0] = 0;

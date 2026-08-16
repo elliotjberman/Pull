@@ -54,6 +54,6 @@ public final class VsLiveWorkspace
      */
     static List<ControllerView> gridViews ()
     {
-        return List.of (new SessionNavigationView (), new SessionClipGridView (true), new DrumControllerView (true), new DrumRateView ());
+        return List.of (new SessionNavigationView (), new SessionClipGridView (true), new DrumControllerView (true), new DrumUserControlView (), new DrumRateView ());
     }
 }
