@@ -25,6 +25,7 @@ import de.mossgrabers.framework.utils.StringUtils;
 import de.mossgrabers.framework.view.Views;
 import de.mossgrabers.pull.shell.runtime.ReloadableControllerRuntime;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
+import de.mossgrabers.pull.core.api.output.RgbColor;
 
 
 /**
@@ -533,14 +534,13 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
 
 
     /**
-     * Get the absolute position of the authoritative selection-following target.
+     * Capture the authoritative private selection-following target.
      *
-     * @return The selected track position, or -1 while no target is resolved
+     * @return The coherent selected-target snapshot
      */
-    public int getAuthoritativeSelectedTrackPosition ()
+    public SelectedTrackNoteTargetSnapshot getAuthoritativeSelectedTrackSnapshot ()
     {
-        final SelectedTrackNoteTargetSnapshot selectedTrack = this.selectedTrackNoteTarget.snapshot ();
-        return selectedTrack.exists () ? selectedTrack.position () : -1;
+        return this.selectedTrackNoteTarget.snapshot ();
     }
 
 
@@ -688,6 +688,64 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
     public void cancelPadFade (final int note)
     {
         this.pushPadGrid.cancelFade (note);
+    }
+
+
+    /** Begin observing successful transmissions for one physical Push pad. */
+    public void beginDebugPadObservation (final int oneBasedPad)
+    {
+        this.pushPadGrid.beginDebugObservation (this.debugPadNote (oneBasedPad));
+    }
+
+
+    /** Snapshot one observed pad's resolved light and successful outbound MIDI state. */
+    public DebugPadOutput debugPadOutput (final int oneBasedPad)
+    {
+        final int note = this.debugPadNote (oneBasedPad);
+        final PushPadGrid.DebugObservation observed = this.pushPadGrid.debugObservation (note);
+        return new DebugPadOutput (
+            oneBasedPad, note, observed.color (), observed.blinkColor (), observed.fast (),
+            toDebugTransmission (observed.base ()), toDebugTransmission (observed.blink ()));
+    }
+
+
+    /** Resolve hardware-independent RGB through the same Push palette used by pad rendering. */
+    public int resolveDebugPadColor (final RgbColor color)
+    {
+        return PushColorManager.resolveCoreColor (this.colorManager, Objects.requireNonNull (color, "color"));
+    }
+
+
+    /** End the single bounded pad-transmission observation lane. */
+    public void endDebugPadObservation (final int oneBasedPad)
+    {
+        this.pushPadGrid.endDebugObservation (this.debugPadNote (oneBasedPad));
+    }
+
+
+    private int debugPadNote (final int oneBasedPad)
+    {
+        if (oneBasedPad < 1 || oneBasedPad > 64)
+            throw new IllegalArgumentException ("Push pad must be between 1 and 64.");
+        return this.pushPadGrid.getStartNote () + oneBasedPad - 1;
+    }
+
+
+    private static DebugPadTransmission toDebugTransmission (final PushPadGrid.Transmission transmission)
+    {
+        return new DebugPadTransmission (transmission.revision (), transmission.channel (), transmission.note (), transmission.color ());
+    }
+
+
+    /** Immutable debug-only view of one resolved pad output and its matching transmissions. */
+    public record DebugPadOutput (int oneBasedPad, int midiNote, int color, int blinkColor, boolean fast, DebugPadTransmission base, DebugPadTransmission blink)
+    {
+    }
+
+
+    /** One successful outbound pad MIDI transmission. */
+    public record DebugPadTransmission (long revision, int channel, int note, int color)
+    {
     }
 
 

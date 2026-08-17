@@ -79,6 +79,7 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
     private final HardwareMappingActivationHost mappingActivation;
     private final List<MappingPadAddress> mappingPads;
     private final Set<ControlId> heldMappingPads = new LinkedHashSet<> ();
+    private boolean debugInputActive;
 
 
     /**
@@ -150,7 +151,7 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
     @Override
     public boolean isIdle ()
     {
-        return this.router.isIdle ();
+        return this.router.isIdle () && !this.debugInputActive;
     }
 
 
@@ -158,10 +159,75 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
     @Override
     public boolean trySubmit (final Runnable gesture)
     {
-        if (!this.router.isIdle ())
+        if (!this.isIdle ())
             return false;
         Objects.requireNonNull (gesture, "gesture").run ();
         return true;
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public boolean tryBeginDebugInput (final Runnable press)
+    {
+        if (!this.isIdle ())
+            return false;
+        this.debugInputActive = true;
+        boolean submitted = false;
+        try
+        {
+            Objects.requireNonNull (press, "press").run ();
+            submitted = true;
+            return true;
+        }
+        finally
+        {
+            if (!submitted)
+                this.debugInputActive = false;
+        }
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void endDebugInput (final Runnable release)
+    {
+        if (!this.debugInputActive)
+            throw new IllegalStateException ("No debug input is active");
+        Objects.requireNonNull (release, "release").run ();
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void completeDebugInput ()
+    {
+        this.debugInputActive = false;
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public InputRouteMode debugPadRoute (final ControlId control)
+    {
+        final PhysicalInputAddress<ControlId> address = new PhysicalInputAddress<> (Objects.requireNonNull (control, "control"), InputKind.PAD);
+        return this.registry.contains (control, InputKind.PAD) && CORE_OWNED_INPUTS.contains (address) ? this.routes.get ().modeOrNull (control, toApiKind (InputKind.PAD)) : null;
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public boolean debugPadMappingActive (final ControlId control)
+    {
+        return this.activeHardwareMappings ().contains (Objects.requireNonNull (control, "control"));
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public boolean debugInputRouteIdle ()
+    {
+        return this.router.isIdle ();
     }
 
 

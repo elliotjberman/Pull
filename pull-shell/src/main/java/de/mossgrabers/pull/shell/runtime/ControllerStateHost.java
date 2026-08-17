@@ -97,6 +97,12 @@ final class ControllerStateHost
     }
 
 
+    ControllerBridge.NotePerformanceState state ()
+    {
+        return new ControllerBridge.NotePerformanceState (true, this.desired.notePerformance (), this.submittedRoute, this.commandedLayout);
+    }
+
+
     private void reconcile (final boolean reassertLayout)
     {
         final DesiredNoteInputRoute requested = this.desired.notePerformance ().inputRoute ();

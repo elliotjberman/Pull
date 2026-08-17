@@ -5,8 +5,11 @@ package de.mossgrabers.pull.shell.runtime;
 
 import de.mossgrabers.framework.controller.hardware.IHwContinuousControl;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
+import de.mossgrabers.pull.core.api.DesiredControllerLayout;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerState;
+import de.mossgrabers.pull.core.api.DesiredNoteInputRoute;
+import de.mossgrabers.pull.core.api.DesiredNotePerformance;
 import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
 import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
 import de.mossgrabers.pull.core.api.DesiredParameterBanks;
@@ -56,6 +59,11 @@ interface ControllerBridge
         Objects.requireNonNull (idle, "idle");
     }
 
+    default void setInputLifecycleCleanup (final Runnable cleanup)
+    {
+        Objects.requireNonNull (cleanup, "cleanup");
+    }
+
     default DesiredControllerState prepareControllerState (final DesiredControllerState state)
     {
         final DesiredControllerState requested = Objects.requireNonNull (state, "state");
@@ -68,6 +76,11 @@ interface ControllerBridge
     {
         if (!Objects.requireNonNull (state, "state").equals (DesiredControllerState.empty ()))
             throw new IllegalArgumentException ("Controller bridge does not support composed controller-state ownership");
+    }
+
+    default NotePerformanceState notePerformanceState ()
+    {
+        return NotePerformanceState.unavailable ();
     }
 
     default DesiredNoteRepeat prepareNoteRepeat (final DesiredNoteRepeat noteRepeat)
@@ -111,6 +124,27 @@ interface ControllerBridge
         public TargetedParameter
         {
             Objects.requireNonNull (target, "target");
+        }
+    }
+
+
+    /** Parent-owned Note-performance command state exposed only to bounded diagnostics. */
+    record NotePerformanceState (boolean available, DesiredNotePerformance desired, DesiredNoteInputRoute submittedRoute, DesiredControllerLayout commandedLayout)
+    {
+        private static final NotePerformanceState UNAVAILABLE = new NotePerformanceState (false, DesiredNotePerformance.inactive (), DesiredNoteInputRoute.disabled (), DesiredControllerLayout.empty ());
+
+
+        public NotePerformanceState
+        {
+            desired = Objects.requireNonNull (desired, "desired");
+            submittedRoute = Objects.requireNonNull (submittedRoute, "submittedRoute");
+            commandedLayout = Objects.requireNonNull (commandedLayout, "commandedLayout");
+        }
+
+
+        static NotePerformanceState unavailable ()
+        {
+            return UNAVAILABLE;
         }
     }
 }

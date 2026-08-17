@@ -43,7 +43,7 @@ class PushDebugCaptureHostTest
         }, 1, 1));
 
         final List<String> status = this.status ();
-        assertEquals (List.of ("frame-1", "READY", "display-frame-1.png", ""), status);
+        assertEquals (List.of ("frame-1", "READY", "display-frame-1.png", "-"), status);
         final Path output = this.debugDirectory.resolve (status.get (2));
         assertTrue (Files.isRegularFile (output));
         assertEquals (0xFF010203, ImageIO.read (output.toFile ()).getRGB (0, 0));
@@ -125,7 +125,7 @@ class PushDebugCaptureHostTest
         host.pollForTest ();
 
         final List<String> status = this.status ();
-        assertEquals (List.of ("cached-frame", "READY", "display-cached-frame.png", ""), status);
+        assertEquals (List.of ("cached-frame", "READY", "display-cached-frame.png", "-"), status);
         assertEquals (0xFF070809, ImageIO.read (this.debugDirectory.resolve (status.get (2)).toFile ()).getRGB (0, 0));
     }
 
@@ -149,7 +149,7 @@ class PushDebugCaptureHostTest
         }, 1, 1));
 
         final List<String> status = this.status ();
-        assertEquals (List.of ("post-navigation", "READY", "display-post-navigation.png", ""), status);
+        assertEquals (List.of ("post-navigation", "READY", "display-post-navigation.png", "-"), status);
         assertEquals (0xFF070809, ImageIO.read (this.debugDirectory.resolve (status.get (2)).toFile ()).getRGB (0, 0));
         assertEquals ("2", this.latestMetrics ().get (0));
     }

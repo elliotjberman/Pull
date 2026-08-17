@@ -116,6 +116,9 @@ final class BoundedControllerBridge implements ControllerBridge
     private long sampledSelectedGeneration = -1;
     private long observedSelectedGeneration = -1;
     private long activeCoreGeneration;
+    private Runnable inputLifecycleCleanup = () -> {
+        // No debugger input is active unless the optional debugger installs one.
+    };
     private DesiredNoteRepeat desiredNoteRepeat = DesiredNoteRepeat.unowned ();
     private NoteRepeatLease noteRepeatLease;
     private boolean noteRepeatActiveReleasePending;
@@ -242,6 +245,13 @@ final class BoundedControllerBridge implements ControllerBridge
 
 
     @Override
+    public void setInputLifecycleCleanup (final Runnable cleanup)
+    {
+        this.inputLifecycleCleanup = Objects.requireNonNull (cleanup, "cleanup");
+    }
+
+
+    @Override
     public void abandonActiveCore ()
     {
         try
@@ -345,6 +355,13 @@ final class BoundedControllerBridge implements ControllerBridge
     public void applyControllerState (final DesiredControllerState state)
     {
         this.controllerState.apply (state);
+    }
+
+
+    @Override
+    public NotePerformanceState notePerformanceState ()
+    {
+        return this.controllerState.state ();
     }
 
 
@@ -957,6 +974,7 @@ final class BoundedControllerBridge implements ControllerBridge
 
     private void resetNoteInputMidiState ()
     {
+        this.inputLifecycleCleanup.run ();
         if (this.noteInputMidiState.isEmpty ())
             return;
 

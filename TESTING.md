@@ -97,7 +97,7 @@ reported on standard error. The fixed local handshake directory is
 `~/.drivenbymoss/pull/debug`. One client owns an atomic lock for the complete navigate-and-capture
 transaction, and every request-correlated PNG is named for that request so another capture cannot
 satisfy or overwrite it. Unless the `enabled` marker exists in that directory at extension
-startup, neither debugger worker is constructed. Run
+startup, no debugger transport is constructed. Run
 `tools/capture-push2-display --disable` and restart Bitwig to turn the transports off again.
 
 For navigation without a framebuffer capture, use the generic client; named recipes stay
@@ -110,19 +110,32 @@ tools/push-debug-request session \
     'SESSION/view=SESSION,mode!=WORKSPACE|MASTER|MASTER_TEMP,workspace=false'
 ```
 
-The eight upper display buttons are admitted while ordinary Track mode owns them. A `track=N`
-postcondition waits for the private selection-following target to acknowledge the absolute track
-position before the next gesture runs. A `repeat=true|false` postcondition waits for authoritative
-read-back from the permanent Push NoteInput repeat engine. For example, this reproduces a
-Juno-to-Drum-Machine viewer transition without leaving Note mode and proves automatic roll is
-scoped to Drum Controller:
+The eight upper display buttons are admitted while ordinary Track mode owns them. Every terminal
+status reports the private selection-following target's `track_position`, stable `track_id`,
+identity `track_generation`, `armed` state, and `monitor` mode. It also reports authoritative
+`repeat` and `latch` state plus parent-owned Note-route command state. Bitwig track positions are
+local to the immediate parent group, so a
+`track=N` predicate is accepted only alongside the exact `track-id=ID` fence. Position remains
+useful context; it is never global proof. A client can first run a harmless already-satisfied plan
+to discover the currently selected identity:
 
 ```bash
+tools/push-debug-request identify 'TRACK/mode=TRACK,workspace=false'
+```
+
+A `repeat=true|false` postcondition waits for authoritative read-back from the permanent Push
+NoteInput repeat engine. With the project-specific identities discovered from terminal statuses,
+this reproduces a Juno-to-Drum-Machine viewer transition without leaving Note mode and proves
+automatic roll is scoped to Drum Controller:
+
+```bash
+JUNO_ID='<juno-track-id>'
+DRUM_ID='<top-level-drum-track-id>'
 tools/push-debug-request juno-to-drums \
     'TRACK/mode=TRACK,workspace=false,repeat=false' \
-    'ROW1_6/track=5,repeat=false' \
-    'NOTE/view=PLAY,track=5,repeat=false' \
-    'ROW1_1/view=DRUM_PAD,track=0,repeat=true'
+    "ROW1_6/track=5,track-id=${JUNO_ID},repeat=false" \
+    "NOTE/view=PLAY,track=5,track-id=${JUNO_ID},repeat=false" \
+    "ROW1_1/view=DRUM_PAD,track=0,track-id=${DRUM_ID},repeat=true"
 ```
 
 Layout and Shift + Layout use the same permanent routed bindings as the hardware. This checks both
@@ -135,6 +148,64 @@ tools/push-debug-request note-layout \
     'SHIFT_LAYOUT/view=SEQUENCER,workspace=false'
 ```
 
+### Routed pad-output proof
+
+The navigation lane can also hold one physical Push pad through the permanent input arbitrator and
+close the feedback loop through core intent, stable light resolution, and the final MIDI output:
+
+```bash
+tools/push-debug-request drum-rate-pad \
+    "PAD_OUTPUT_29_100/view=DRUM_PAD,mode=TRACK,workspace=false,track-id=${DRUM_ID},repeat=true"
+```
+
+`PAD_OUTPUT_<one-based-pad>_<velocity>` accepts pads 1 through 64 and velocities 1 through 127.
+It requires one exact `view`, one exact `mode`, and an explicit `workspace=true|false` predicate.
+The exact pad must also be present in the installed physical registry and have an active
+core-owned `EXCLUSIVE` PAD route and an `activeMappings` lease. Absent and `OBSERVE` routes or an
+absent lease fail without emitting DOWN. Because stable matcher activation can lag the desired lease
+by one controller tick, the probe waits until the original Bitwig-learnable PAD action is actually
+accepting new note-on presses before emitting DOWN. `mapping_active=false` while the hidden ordinary
+dispatch lane owns the press matcher and throughout either release-only lane transition. The probe
+also waits for the subscribed authoritative `MappedPadLightsSnapshot` sample to become available.
+This is a generic debug mechanism, not pad policy: the production core/shell slice still owns which
+pads are routed, mapping-enabled, and light-owned.
+
+After DOWN, the probe requires a later successfully applied complete core result with an explicit
+RGB entry for that pad. It resolves that RGB through the Push palette, waits for two matching stable
+samples of the resolved `LightInfo`, and requires a successful outbound base-color transmission
+(plus the matching blink transmission when blink is active). Terminal status reports `pad_probe`,
+`pad_button`, normalized `pad_control`, physical `pad_midi_note`, `pad_velocity`, `pad_route`, core
+`mapping_desired`, stable-host `mapping_active`, authoritative `mapped_on`, `desired_rgb`,
+`resolved_light`, and `transmitted_light`. `mapped_on` is derived only from the subscribed API-31
+Boolean snapshot: `true` means Bitwig resolved the original learnable PAD action's no-output
+background light on, `false` means either unmapped or mapped-off, and `-` means the snapshot is not
+currently available. It never derives from desired or transmitted RGB and intentionally makes no
+mapping-presence claim. The separate route, desired-lease, applied-activation, mapped read-back, and
+output fields distinguish an inactive view or lane transition from a feedback/render/transmission
+failure. `mapping_active` likewise does not claim that a manual Bitwig mapping exists, fired, or
+changed host state. The transmission tap observes only the one armed pad and records only after the
+existing MIDI send returns successfully; it adds no MIDI callback or output owner.
+
+If the later applied result leaves an already-correct pad color unchanged, the ordinary renderer
+may suppress a redundant send. The first post-apply debug observation therefore resends that one
+pad exactly once through the existing output path. This is a real opt-in outbound update and may
+consume an already-pending firmware fade for that pad; later observations never resend.
+
+The debugger then submits UP through the same permanent arbitrator. It retains its input/core
+generation fence until the routed gesture is idle and a later complete core result has applied.
+Context, route, or generation changes, timeout, quarantine, close, and output failures all run the
+same bounded best-effort UP cleanup before releasing the debugger lifecycle. This proves the
+controller path through the transmitted palette state; it does not opt the pad into routing,
+choose its RGB policy, or repair a missing mapped-feedback subscription or observer.
+
+The DOWN/UP pair manually enters the original PAD button's permanent extension trigger/arbitrator
+seam. Controller API 21 does not expose a way to inject a raw controller MIDI packet back through
+Bitwig's hardware-action matcher, so this probe reports whether the original learned-action lane is
+admitting physical note-on presses but does not itself fire a Bitwig-learned action. A live physical
+press is still required to prove that a learned target changes and returns fresh mapped-light
+feedback; the probe closes the extension-side route, RGB, palette-resolution, and transmission loop
+around that authoritative feedback.
+
 For an explicitly state-changing playback test, use the permanent routed Play binding and verify
 its result from later authoritative framebuffer and host observations:
 
@@ -145,6 +216,33 @@ tools/push-debug-request play 'PLAY/submitted'
 Only Play and Master row buttons 5/7/8 (Audio Engine, Previous, and Next) currently admit this
 one-shot form. When another feature needs ingress or read-back, follow the close-the-loop policy
 above: extend the bounded debug seam instead of adding a stable-shell semantic shortcut.
+
+### Request-scoped runtime traces
+
+Arm a bounded trace before reproducing an interaction, then stop it to print the artifact path:
+
+```bash
+trace_id="$(tools/push-debug-trace start button-test 15)"
+tools/push-debug-request play 'PLAY/submitted'
+tools/push-debug-trace stop "$trace_id"
+```
+
+The optional duration is 1 through 60 seconds. A trace records the exact core event, authoritative
+snapshot, returned result, successful complete stable-result application, and sparse
+activation/failure lifecycle around each retained transaction. It does not sample semantic input,
+effects, or changed replayable output. A controller tick or snapshot-change event is telemetry only
+when it has no effects and its complete result is unchanged from the preceding retained result;
+only the newest completed transaction/application pair between meaningful transactions is retained
+as `TRANSACTION_APPLIED`, and the number coalesced is reported in the TSV header.
+
+Capture stops at 256 retained entries, 60 seconds, or two million serialized characters. The
+transport retains at most 16 trace files. The controller thread only appends references to bounded
+memory; structural object rendering, filesystem polling, serialization, and pruning run on the
+trace worker. Structural rendering writes into the character bound directly instead of first
+allocating an unbounded object string.
+Automatic timeout still leaves the last trace retrievable with `stop`. A successful `APPLIED` row
+means the complete stable result applied without throwing; completion of an asynchronous Bitwig
+transition still requires a later authoritative snapshot or output observation.
 
 Adding or expanding the generic debug bridge is a stable-shell change and needs one extension
 install and Bitwig restart. Frame capture and client-side navigation recipes can then be reused

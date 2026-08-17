@@ -17,7 +17,7 @@ import java.util.Objects;
  * @param colorGreen Normalized green component
  * @param colorBlue Normalized blue component
  * @param trackType Bitwig track type identifier
- * @param position Absolute track position
+ * @param position Bitwig track position, which is local to the immediate parent group
  * @param canHoldNotes True if the track can hold note data
  * @param canHoldAudio True if the track can hold audio data
  * @param group True if the target is a group track

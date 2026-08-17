@@ -30,6 +30,7 @@ final class RuntimeManager implements AutoCloseable
 
     private final CoreRuntimeEnvironment environment;
     private final RuntimeLog log;
+    private final RuntimeTraceSink trace;
     private Lifecycle lifecycle = Lifecycle.NEW;
     private Thread controllerThread;
     private ActiveCore active;
@@ -39,8 +40,15 @@ final class RuntimeManager implements AutoCloseable
 
     RuntimeManager (final CoreRuntimeEnvironment environment, final RuntimeLog log)
     {
+        this (environment, log, null);
+    }
+
+
+    RuntimeManager (final CoreRuntimeEnvironment environment, final RuntimeLog log, final RuntimeTraceSink trace)
+    {
         this.environment = Objects.requireNonNull (environment, "environment");
         this.log = Objects.requireNonNull (log, "log");
+        this.trace = trace;
     }
 
 
@@ -78,6 +86,7 @@ final class RuntimeManager implements AutoCloseable
             return new ActivationResult (ActivationResult.State.BLOCKED, expectedBuildId, this.activeBuildId (), "Waiting for the active semantic transaction");
         }
 
+        final long nextGeneration = Math.incrementExact (this.generation);
         ControllerCore candidateCore = null;
         CoreDescriptor descriptor;
         PreparedCoreResult preparedStartupResult;
@@ -98,8 +107,10 @@ final class RuntimeManager implements AutoCloseable
 
             final ControllerCore startedCore = candidateCore;
             final CoreResult startupResult = source.invokeWithContext ( () -> startedCore.start (snapshot, previousState));
-            preparedStartupResult = this.environment.prepare (Objects.requireNonNull (startupResult, "ControllerCore.start result"));
+            final CoreResult checkedStartupResult = Objects.requireNonNull (startupResult, "ControllerCore.start result");
+            preparedStartupResult = this.environment.prepare (checkedStartupResult);
             Objects.requireNonNull (preparedStartupResult, "CoreRuntimeEnvironment.prepare result");
+            this.traceStartup (nextGeneration, expectedBuildId, snapshot, checkedStartupResult);
 
             if (!isLatest.getAsBoolean ())
             {
@@ -111,13 +122,13 @@ final class RuntimeManager implements AutoCloseable
         catch (final Throwable failure)
         {
             rethrowFatal (failure);
+            this.traceFailure (nextGeneration, "STARTUP", failure);
             this.closeCandidate (source);
             final String message = sanitize (failure);
             this.warn ("Core " + expectedBuildId + " was rejected: " + message);
             return new ActivationResult (ActivationResult.State.FAILED, expectedBuildId, this.activeBuildId (), message);
         }
 
-        final long nextGeneration = Math.incrementExact (this.generation);
         final ActiveCore previous = this.active;
         try
         {
@@ -126,6 +137,7 @@ final class RuntimeManager implements AutoCloseable
         catch (final Throwable failure)
         {
             rethrowFatal (failure);
+            this.traceFailure (nextGeneration, "COMMIT", failure);
             this.closeCandidate (source);
             final String message = "Atomic shell state commit failed: " + sanitize (failure);
             this.warn ("Core " + expectedBuildId + " was rejected: " + message);
@@ -136,6 +148,7 @@ final class RuntimeManager implements AutoCloseable
         this.generation = nextGeneration;
         this.applyCommittedResult (nextGeneration);
         this.closeActive (previous);
+        this.traceLifecycle (nextGeneration, "CORE_ACTIVATED", descriptor.buildId ());
         this.info ("Activated reloadable core " + descriptor.buildId ());
         return new ActivationResult (ActivationResult.State.ACTIVE, expectedBuildId, descriptor.buildId (), "Activated");
     }
@@ -165,6 +178,7 @@ final class RuntimeManager implements AutoCloseable
         catch (final Throwable failure)
         {
             rethrowFatal (failure);
+            this.traceFailure (runtime.generation, "SNAPSHOT", failure);
             this.warn ("Controller snapshot failed; retained the last committed core result: " + sanitize (failure));
             this.reportSlowEvent (event, startedAt);
             return false;
@@ -178,6 +192,7 @@ final class RuntimeManager implements AutoCloseable
         catch (final Throwable failure)
         {
             rethrowFatal (failure);
+            this.traceFailure (runtime.generation, "HANDLE", failure);
             this.quarantineActive (runtime, sanitize (failure));
             this.reportSlowEvent (event, startedAt);
             return false;
@@ -187,11 +202,13 @@ final class RuntimeManager implements AutoCloseable
         try
         {
             preparedResult = Objects.requireNonNull (this.environment.prepare (result), "CoreRuntimeEnvironment.prepare result");
+            this.traceTransaction (runtime.generation, event, snapshot, result);
             this.environment.commit (runtime.generation, preparedResult);
         }
         catch (final Throwable failure)
         {
             rethrowFatal (failure);
+            this.traceFailure (runtime.generation, "PREPARE_OR_COMMIT", failure);
             this.quarantineActive (runtime, "Rejected result after child mutation: " + sanitize (failure));
             this.reportSlowEvent (event, startedAt);
             return false;
@@ -282,9 +299,11 @@ final class RuntimeManager implements AutoCloseable
         try
         {
             this.environment.invalidate (this.generation);
+            this.traceLifecycle (this.generation, "RUNTIME_CLOSED", "stable generation invalidated");
         }
         catch (final RuntimeException failure)
         {
+            this.traceFailure (this.generation, "INVALIDATE", failure);
             this.warn ("Core generation invalidation failed: " + sanitize (failure));
         }
         finally
@@ -358,6 +377,7 @@ final class RuntimeManager implements AutoCloseable
         if (this.active != runtime || runtime.quarantined)
             return;
         runtime.quarantined = true;
+        this.traceLifecycle (runtime.generation, "CORE_QUARANTINED", message);
         try
         {
             this.environment.quarantine (runtime.generation);
@@ -375,11 +395,88 @@ final class RuntimeManager implements AutoCloseable
         try
         {
             this.environment.apply (committedGeneration);
+            this.traceApplied (committedGeneration);
         }
         catch (final Throwable failure)
         {
             rethrowFatal (failure);
+            this.traceFailure (committedGeneration, "APPLY", failure);
             this.warn ("Committed core effects failed: " + sanitize (failure));
+        }
+    }
+
+
+    private void traceTransaction (final long traceGeneration, final CoreEvent event, final ControllerSnapshot snapshot, final CoreResult result)
+    {
+        if (this.trace == null)
+            return;
+        try
+        {
+            this.trace.transaction (traceGeneration, event, snapshot, result);
+        }
+        catch (final RuntimeException ignored)
+        {
+            // Optional diagnostics must not alter the runtime transaction.
+        }
+    }
+
+
+    private void traceStartup (final long traceGeneration, final String buildID, final ControllerSnapshot snapshot, final CoreResult result)
+    {
+        if (this.trace == null)
+            return;
+        try
+        {
+            this.trace.startup (traceGeneration, buildID, snapshot, result);
+        }
+        catch (final RuntimeException ignored)
+        {
+            // Optional diagnostics must not alter candidate activation.
+        }
+    }
+
+
+    private void traceApplied (final long traceGeneration)
+    {
+        if (this.trace == null)
+            return;
+        try
+        {
+            this.trace.applied (traceGeneration);
+        }
+        catch (final RuntimeException ignored)
+        {
+            // Optional diagnostics must not alter effect submission.
+        }
+    }
+
+
+    private void traceLifecycle (final long traceGeneration, final String state, final String detail)
+    {
+        if (this.trace == null)
+            return;
+        try
+        {
+            this.trace.lifecycle (traceGeneration, state, detail);
+        }
+        catch (final RuntimeException ignored)
+        {
+            // Optional diagnostics must not alter lifecycle state.
+        }
+    }
+
+
+    private void traceFailure (final long traceGeneration, final String stage, final Throwable failure)
+    {
+        if (this.trace == null)
+            return;
+        try
+        {
+            this.trace.failure (traceGeneration, stage, sanitize (failure));
+        }
+        catch (final RuntimeException ignored)
+        {
+            // Optional diagnostics must not replace the original failure.
         }
     }
 
