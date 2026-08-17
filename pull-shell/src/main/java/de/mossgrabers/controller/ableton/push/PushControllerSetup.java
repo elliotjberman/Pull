@@ -540,9 +540,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
 
     static int controllerLightColor (final ColorManager colors, final RgbColor color)
     {
-        if (color.red () == 0 && color.green () == 0 && color.blue () == 0)
-            return PushColorManager.PUSH2_COLOR2_BLACK;
-        return colors.getColorIndex (ColorEx.fromRGB (color.red (), color.green (), color.blue ()));
+        return PushColorManager.resolveCoreColor (colors, color);
     }
 
 

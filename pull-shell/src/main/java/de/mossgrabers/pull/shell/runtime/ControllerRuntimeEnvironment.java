@@ -16,6 +16,7 @@ import de.mossgrabers.pull.core.api.CoreExecutionRequirements;
 import de.mossgrabers.pull.core.api.CoreCapabilities;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.CoreResult;
+import de.mossgrabers.pull.core.api.MappedPadLightsSnapshot;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerActions;
 import de.mossgrabers.pull.core.api.DesiredControllerState;
@@ -128,6 +129,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     private long lastTime;
     private long revision;
     private long eventSequence;
+    private long appliedResultRevision;
 
 
     /** Get the complete replayable pad-grid overlay. */
@@ -455,6 +457,25 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
+    /** Observe whether a successfully applied complete core result explicitly owns one light. */
+    DebugLightObservation debugLightObservation (final ControlId owner)
+    {
+        final ControlId lightOwner = Objects.requireNonNull (owner, "light owner");
+        final RgbColor color = this.committedState.explicitLightOwners ().contains (lightOwner) ? this.committedState.output ().lights ().get (lightOwner) : null;
+        return new DebugLightObservation (this.committedState.generation (), this.appliedResultRevision, color, this.committedState.output ().activeMappings ().contains (lightOwner), this.debugMappedPadOn (lightOwner));
+    }
+
+
+    private Boolean debugMappedPadOn (final ControlId control)
+    {
+        final int slot = CoreControls.DRUM_CONTROL_PADS.indexOf (control);
+        if (slot < 0 || this.controllerBridge == null)
+            return null;
+        final MappedPadLightsSnapshot mappedPads = this.controllerBridge.snapshot ().mappedPadLights ();
+        return mappedPads.available () ? Boolean.valueOf (mappedPads.controlPad (slot)) : null;
+    }
+
+
     /** Get the complete replayable controller display. */
     ControllerDisplayScene controllerDisplay ()
     {
@@ -541,6 +562,16 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
+    /** Install cleanup which must run before core-owned routes are invalidated. */
+    void setInputLifecycleCleanup (final Runnable cleanup)
+    {
+        if (this.committedState.generation () != 0)
+            throw new IllegalStateException ("Input lifecycle cleanup must be installed before core activation");
+        if (this.controllerBridge != null)
+            this.controllerBridge.setInputLifecycleCleanup (Objects.requireNonNull (cleanup, "cleanup"));
+    }
+
+
     /** {@inheritDoc} */
     @Override
     public PreparedCoreResult prepare (final CoreResult result)
@@ -573,7 +604,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
             throw new IllegalArgumentException ("Core requested parameter state without a controller bridge");
         final Map<ParameterTargetRef, ControllerBridge.ParameterLease> preparedParameterLeases = this.controllerBridge == null ? Map.of () : this.controllerBridge.prepareParameterLeases (parameterInteraction, sampledParameterBanks);
         final List<PreparedAction> preparedActions = this.prepareEffects (result.effects (), preparedBindings, preparedParameterLeases);
-        return new PreparedResult (preparedOutput, result.desiredInputRoutes (), result.desiredBridgeSubscriptions (), preparedControllerState, preparedNoteRepeat, result.desiredControllerActions (), parameterBanks, parameterInteraction, executionRequirements, preparedParameterLeases, this.clipCatalog.generation (), preparedBindings, preparedActions);
+        return new PreparedResult (preparedOutput, result.desiredOutput ().lights ().keySet (), result.desiredInputRoutes (), result.desiredBridgeSubscriptions (), preparedControllerState, preparedNoteRepeat, result.desiredControllerActions (), parameterBanks, parameterInteraction, executionRequirements, preparedParameterLeases, this.clipCatalog.generation (), preparedBindings, preparedActions);
     }
 
 
@@ -625,6 +656,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
                 this.controllerBridge.apply (bridgeAction.action ());
         }
         this.recordSessionChange ();
+        this.appliedResultRevision++;
     }
 
 
@@ -768,6 +800,12 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         if (!requested.equals (DesiredControllerState.empty ()))
             throw new IllegalArgumentException ("Core requested controller state without a controller bridge");
         return requested;
+    }
+
+
+    ControllerBridge.NotePerformanceState notePerformanceState ()
+    {
+        return this.controllerBridge == null ? ControllerBridge.NotePerformanceState.unavailable () : this.controllerBridge.notePerformanceState ();
     }
 
 
@@ -1324,11 +1362,12 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
-    private record PreparedResult (DesiredHardwareOutput output, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, DesiredControllerState desiredControllerState, DesiredNoteRepeat desiredNoteRepeat, DesiredControllerActions desiredControllerActions, DesiredParameterBanks desiredParameterBanks, DesiredParameterInteraction desiredParameterInteraction, CoreExecutionRequirements executionRequirements, Map<ParameterTargetRef, ControllerBridge.ParameterLease> parameterLeases, long catalogGeneration, Map<ControlId, ClipTargetId> desiredClipBindings, List<PreparedAction> actions) implements PreparedCoreResult
+    private record PreparedResult (DesiredHardwareOutput output, Set<ControlId> explicitLightOwners, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, DesiredControllerState desiredControllerState, DesiredNoteRepeat desiredNoteRepeat, DesiredControllerActions desiredControllerActions, DesiredParameterBanks desiredParameterBanks, DesiredParameterInteraction desiredParameterInteraction, CoreExecutionRequirements executionRequirements, Map<ParameterTargetRef, ControllerBridge.ParameterLease> parameterLeases, long catalogGeneration, Map<ControlId, ClipTargetId> desiredClipBindings, List<PreparedAction> actions) implements PreparedCoreResult
     {
         private PreparedResult
         {
             output = Objects.requireNonNull (output, "output");
+            explicitLightOwners = Set.copyOf (explicitLightOwners);
             desiredInputRoutes = Objects.requireNonNull (desiredInputRoutes, "desiredInputRoutes");
             desiredBridgeSubscriptions = Objects.requireNonNull (desiredBridgeSubscriptions, "desiredBridgeSubscriptions");
             desiredControllerState = Objects.requireNonNull (desiredControllerState, "desiredControllerState");
@@ -1344,13 +1383,14 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
-    private record CommittedState (long generation, DesiredHardwareOutput output, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, DesiredControllerState desiredControllerState, DesiredControllerActions desiredControllerActions, DesiredParameterBanks desiredParameterBanks, DesiredParameterInteraction desiredParameterInteraction, CoreExecutionRequirements executionRequirements, PreparedResult pendingResult)
+    private record CommittedState (long generation, DesiredHardwareOutput output, Set<ControlId> explicitLightOwners, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, DesiredControllerState desiredControllerState, DesiredControllerActions desiredControllerActions, DesiredParameterBanks desiredParameterBanks, DesiredParameterInteraction desiredParameterInteraction, CoreExecutionRequirements executionRequirements, PreparedResult pendingResult)
     {
         private CommittedState
         {
             if (generation < 0)
                 throw new IllegalArgumentException ("generation must not be negative");
             output = Objects.requireNonNull (output, "output");
+            explicitLightOwners = Set.copyOf (explicitLightOwners);
             desiredInputRoutes = Objects.requireNonNull (desiredInputRoutes, "desiredInputRoutes");
             desiredBridgeSubscriptions = Objects.requireNonNull (desiredBridgeSubscriptions, "desiredBridgeSubscriptions");
             desiredControllerState = Objects.requireNonNull (desiredControllerState, "desiredControllerState");
@@ -1370,19 +1410,19 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         private static CommittedState pending (final long generation, final PreparedResult result)
         {
             final PreparedResult prepared = Objects.requireNonNull (result, "result");
-            return new CommittedState (generation, prepared.output (), prepared.desiredInputRoutes (), prepared.desiredBridgeSubscriptions (), prepared.desiredControllerState (), prepared.desiredControllerActions (), prepared.desiredParameterBanks (), prepared.desiredParameterInteraction (), prepared.executionRequirements (), prepared);
+            return new CommittedState (generation, prepared.output (), prepared.explicitLightOwners (), prepared.desiredInputRoutes (), prepared.desiredBridgeSubscriptions (), prepared.desiredControllerState (), prepared.desiredControllerActions (), prepared.desiredParameterBanks (), prepared.desiredParameterInteraction (), prepared.executionRequirements (), prepared);
         }
 
 
         private static CommittedState invalidated (final long generation)
         {
-            return new CommittedState (generation, new DesiredHardwareOutput (offLights ()), DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), DesiredControllerState.empty (), DesiredControllerActions.empty (), DesiredParameterBanks.empty (), DesiredParameterInteraction.empty (), CoreExecutionRequirements.empty (), null);
+            return new CommittedState (generation, new DesiredHardwareOutput (offLights ()), Set.of (), DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), DesiredControllerState.empty (), DesiredControllerActions.empty (), DesiredParameterBanks.empty (), DesiredParameterInteraction.empty (), CoreExecutionRequirements.empty (), null);
         }
 
 
         private CommittedState applied ()
         {
-            return new CommittedState (this.generation, this.output, this.desiredInputRoutes, this.desiredBridgeSubscriptions, this.desiredControllerState, this.desiredControllerActions, this.desiredParameterBanks, this.desiredParameterInteraction, this.executionRequirements, null);
+            return new CommittedState (this.generation, this.output, this.explicitLightOwners, this.desiredInputRoutes, this.desiredBridgeSubscriptions, this.desiredControllerState, this.desiredControllerActions, this.desiredParameterBanks, this.desiredParameterInteraction, this.executionRequirements, null);
         }
 
 
@@ -1394,7 +1434,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
             for (final ControlId controlPad: CoreControls.DRUM_CONTROL_PADS)
                 passiveLights.put (controlPad, OFF);
             final DesiredHardwareOutput passiveOutput = new DesiredHardwareOutput (passiveLights, this.output.display (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), Set.of ());
-            return new CommittedState (this.generation, passiveOutput, this.desiredInputRoutes, this.desiredBridgeSubscriptions, this.desiredControllerState, this.desiredControllerActions, DesiredParameterBanks.empty (), DesiredParameterInteraction.empty (), CoreExecutionRequirements.empty (), null);
+            return new CommittedState (this.generation, passiveOutput, Set.of (), this.desiredInputRoutes, this.desiredBridgeSubscriptions, this.desiredControllerState, this.desiredControllerActions, DesiredParameterBanks.empty (), DesiredParameterInteraction.empty (), CoreExecutionRequirements.empty (), null);
         }
     }
 
@@ -1402,6 +1442,15 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     private interface PreparedAction
     {
         // Closed stable-shell action set.
+    }
+
+
+    record DebugLightObservation (long coreGeneration, long appliedRevision, RgbColor color, boolean mappingDesired, Boolean mappedOn)
+    {
+        boolean present ()
+        {
+            return this.color != null;
+        }
     }
 
 

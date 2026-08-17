@@ -14,10 +14,8 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.Objects;
 import java.util.stream.Stream;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -40,7 +38,6 @@ final class PushDebugCaptureHost implements AutoCloseable
     private static final int  MAX_REQUEST_BYTES             = 96;
     private static final int  MAX_CAPTURE_FILES             = 16;
     private static final long POLL_INTERVAL_MILLIS          = 100;
-    private static final long SHUTDOWN_WAIT_MILLIS          = 250;
 
     private final Path                      directory;
     private final Path                      requestPath;
@@ -66,11 +63,7 @@ final class PushDebugCaptureHost implements AutoCloseable
         if (!PushDebugging.isEnabled ())
             return null;
 
-        final ScheduledExecutorService worker = Executors.newSingleThreadScheduledExecutor (task -> {
-            final Thread thread = new Thread (task, "Pull debug capture transport");
-            thread.setDaemon (true);
-            return thread;
-        });
+        final ScheduledExecutorService worker = PushDebugging.createWorker ("Pull debug capture transport");
         final PushDebugCaptureHost host = new PushDebugCaptureHost (PushDebugging.directory (), worker);
         worker.scheduleWithFixedDelay (host::pollFilesSafely, 0, POLL_INTERVAL_MILLIS, TimeUnit.MILLISECONDS);
         return host;
@@ -185,7 +178,7 @@ final class PushDebugCaptureHost implements AutoCloseable
         final String [] fields = requestText.split ("\\t", -1);
         final String requestID = fields.length == 0 ? "" : fields[0];
         final boolean nextFrame = fields.length == 2 && "NEXT_FRAME".equals (fields[1]);
-        final boolean valid = isRequestID (requestID) && (fields.length == 1 || nextFrame);
+        final boolean valid = PushDebugging.isIdentifier (requestID) && (fields.length == 1 || nextFrame);
         if (valid && !this.closed.get ())
         {
             final Frame frame = nextFrame ? null : this.latestFrame.get ();
@@ -214,7 +207,7 @@ final class PushDebugCaptureHost implements AutoCloseable
         final Path output = this.directory.resolve (filename);
         final Path temporary = this.directory.resolve (filename + ".tmp");
         writePng (capture.pixels (), capture.width (), capture.height (), temporary);
-        replaceAtomically (temporary, output);
+        PushDebugging.replaceAtomically (temporary, output);
         this.writeStatus (capture.requestID (), "READY", filename, "");
         this.pruneCaptures ();
     }
@@ -226,7 +219,7 @@ final class PushDebugCaptureHost implements AutoCloseable
         final Path imageTemporary = this.latestImagePath.resolveSibling (LATEST_IMAGE_FILE + ".tmp");
         final long started = System.nanoTime ();
         writePng (frame.pixels (), frame.width (), frame.height (), imageTemporary);
-        replaceAtomically (imageTemporary, this.latestImagePath);
+        PushDebugging.replaceAtomically (imageTemporary, this.latestImagePath);
         final long writeMicros = TimeUnit.NANOSECONDS.toMicros (System.nanoTime () - started);
 
         final String status = String.join ("\t",
@@ -240,7 +233,7 @@ final class PushDebugCaptureHost implements AutoCloseable
             Long.toString (writeMicros)) + "\n";
         final Path statusTemporary = this.latestStatusPath.resolveSibling (LATEST_STATUS_FILE + ".tmp");
         Files.writeString (statusTemporary, status);
-        replaceAtomically (statusTemporary, this.latestStatusPath);
+        PushDebugging.replaceAtomically (statusTemporary, this.latestStatusPath);
     }
 
 
@@ -302,23 +295,12 @@ final class PushDebugCaptureHost implements AutoCloseable
 
     private void writeStatus (final String requestID, final String state, final String filename, final String message) throws IOException
     {
-        final String content = String.join ("\t", requestID, state, filename, sanitize (message)) + "\n";
+        final String safeFilename = filename.isBlank () ? "-" : filename;
+        final String safeMessage = message.isBlank () ? "-" : PushDebugging.sanitize (message);
+        final String content = String.join ("\t", requestID, state, safeFilename, safeMessage) + "\n";
         final Path temporary = this.statusPath.resolveSibling (this.statusPath.getFileName () + ".tmp");
         Files.writeString (temporary, content);
-        replaceAtomically (temporary, this.statusPath);
-    }
-
-
-    private static void replaceAtomically (final Path temporary, final Path output) throws IOException
-    {
-        try
-        {
-            Files.move (temporary, output, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-        }
-        catch (final IOException ex)
-        {
-            Files.move (temporary, output, StandardCopyOption.REPLACE_EXISTING);
-        }
+        PushDebugging.replaceAtomically (temporary, this.statusPath);
     }
 
 
@@ -337,18 +319,7 @@ final class PushDebugCaptureHost implements AutoCloseable
             return;
         }
 
-        this.worker.execute (this::pollFilesSafely);
-        this.worker.shutdown ();
-        try
-        {
-            if (!this.worker.awaitTermination (SHUTDOWN_WAIT_MILLIS, TimeUnit.MILLISECONDS))
-                this.worker.shutdownNow ();
-        }
-        catch (final InterruptedException ex)
-        {
-            this.worker.shutdownNow ();
-            Thread.currentThread ().interrupt ();
-        }
+        PushDebugging.shutdownWorker (this.worker, this::pollFilesSafely);
     }
 
 
@@ -385,26 +356,6 @@ final class PushDebugCaptureHost implements AutoCloseable
     }
 
 
-    private static boolean isRequestID (final String value)
-    {
-        if (value == null || value.isEmpty () || value.length () > 80)
-            return false;
-        for (int index = 0; index < value.length (); index++)
-        {
-            final char character = value.charAt (index);
-            if (!Character.isLetterOrDigit (character) && character != '.' && character != '_' && character != '-')
-                return false;
-        }
-        return true;
-    }
-
-
-    private static String sanitize (final String value)
-    {
-        return value == null ? "" : value.replace ('\t', ' ').replace ('\r', ' ').replace ('\n', ' ');
-    }
-
-
     private record Capture (String requestID, byte [] pixels, int width, int height, String message)
     {
         private static Capture ready (final String requestID, final Frame frame)
@@ -415,7 +366,7 @@ final class PushDebugCaptureHost implements AutoCloseable
 
         private static Capture failed (final String requestID, final String message)
         {
-            return new Capture (requestID, null, 0, 0, sanitize (message));
+            return new Capture (requestID, null, 0, 0, PushDebugging.sanitize (message));
         }
     }
 

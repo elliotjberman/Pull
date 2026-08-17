@@ -46,6 +46,40 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class RuntimeManagerTest
 {
     @Test
+    void optionalTraceObservesExactRuntimeBoundariesWithoutOwningThem ()
+    {
+        final TestEnvironment environment = new TestEnvironment (ShellCapabilities.empty ());
+        final RecordingTrace trace = new RecordingTrace ();
+        final RuntimeManager manager = new RuntimeManager (environment, new RecordingLog (), trace);
+        final ButtonInputEvent event = new ButtonInputEvent (1, 2, new ControlId ("play"), true);
+
+        manager.start ();
+        assertEquals (ActivationResult.State.ACTIVE, manager.activate ("traced", source ("traced", new TestCore (1)), () -> true).state ());
+        assertTrue (manager.handle (1, event));
+
+        assertEquals (List.of ("STARTUP", "APPLIED", "CORE_ACTIVATED", "TRANSACTION", "APPLIED"), trace.stages);
+        assertEquals (event, trace.event);
+        assertEquals (CoreResult.empty (), trace.result);
+        assertEquals (List.of (1L, 1L), environment.appliedGenerations);
+        manager.close ();
+    }
+
+
+    @Test
+    void traceFailuresCannotChangeRuntimeBehavior ()
+    {
+        final TestEnvironment environment = new TestEnvironment (ShellCapabilities.empty ());
+        final RuntimeManager manager = new RuntimeManager (environment, new RecordingLog (), new RecordingTrace (true));
+
+        manager.start ();
+        assertEquals (ActivationResult.State.ACTIVE, manager.activate ("stable", source ("stable", new TestCore (1)), () -> true).state ());
+        assertTrue (manager.handle (1, new ButtonInputEvent (1, 1, new ControlId ("play"), true)));
+        assertEquals (List.of (1L, 1L), environment.appliedGenerations);
+        manager.close ();
+    }
+
+
+    @Test
     void activatesStructurallyIndependentCoresAndTransfersCompatibleState ()
     {
         final TestEnvironment environment = new TestEnvironment (ShellCapabilities.empty ());
@@ -556,6 +590,72 @@ class RuntimeManagerTest
         {
             this.createCount++;
             return this.core;
+        }
+    }
+
+
+    private static final class RecordingTrace implements RuntimeTraceSink
+    {
+        private final List<String> stages = new ArrayList<> ();
+        private final boolean fail;
+        private CoreEvent event;
+        private CoreResult result;
+
+
+        private RecordingTrace ()
+        {
+            this (false);
+        }
+
+
+        private RecordingTrace (final boolean fail)
+        {
+            this.fail = fail;
+        }
+
+
+        @Override
+        public void transaction (final long generation, final CoreEvent event, final ControllerSnapshot snapshot, final CoreResult result)
+        {
+            this.record ("TRANSACTION");
+            this.event = event;
+            this.result = result;
+        }
+
+
+        @Override
+        public void startup (final long generation, final String buildID, final ControllerSnapshot snapshot, final CoreResult result)
+        {
+            this.record ("STARTUP");
+        }
+
+
+        @Override
+        public void applied (final long generation)
+        {
+            this.record ("APPLIED");
+        }
+
+
+        @Override
+        public void lifecycle (final long generation, final String state, final String detail)
+        {
+            this.record (state);
+        }
+
+
+        @Override
+        public void failure (final long generation, final String stage, final String detail)
+        {
+            this.record ("FAILED_" + stage);
+        }
+
+
+        private void record (final String stage)
+        {
+            if (this.fail)
+                throw new IllegalStateException ("trace failed");
+            this.stages.add (stage);
         }
     }
 

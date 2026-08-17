@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+debug_dir="${HOME}/.drivenbymoss/pull/debug"
+request_path="${debug_dir}/trace-request.txt"
+status_path="${debug_dir}/trace-status.txt"
+enabled_path="${debug_dir}/enabled"
+lock_dir="${debug_dir}/trace-client.lock"
+
+usage()
+{
+    echo "Usage: $0 start LABEL [SECONDS] | stop TRACE_ID" >&2
+}
+
+if (( $# < 2 || $# > 3 ))
+then
+    usage
+    exit 2
+fi
+
+action="$1"
+argument="$2"
+duration_seconds="${3:-15}"
+if [[ "$action" != "start" && "$action" != "stop" ]] || [[ ! "$argument" =~ ^[[:alnum:]._-]{1,80}$ ]]
+then
+    usage
+    exit 2
+fi
+if [[ "$action" == "start" ]]
+then
+    if [[ ! "$duration_seconds" =~ ^[0-9]+$ ]] || (( duration_seconds < 1 || duration_seconds > 60 ))
+    then
+        echo "Trace duration must be an integer from 1 through 60 seconds." >&2
+        exit 2
+    fi
+elif (( $# != 2 ))
+then
+    usage
+    exit 2
+fi
+
+if [[ ! -f "$enabled_path" ]]
+then
+    echo "Push debugger is disabled. Run 'tools/capture-push2-display --enable', install the shell, and restart Bitwig." >&2
+    exit 4
+fi
+
+mkdir -p "$debug_dir"
+if ! mkdir "$lock_dir" 2>/dev/null
+then
+    echo "Another trace client is active (${lock_dir})." >&2
+    exit 3
+fi
+cleanup()
+{
+    rmdir "$lock_dir" 2>/dev/null || true
+}
+trap cleanup EXIT
+
+request_id="$(date +%s)-$$-${RANDOM}"
+request_temp="${request_path}.${request_id}.tmp"
+if [[ "$action" == "start" ]]
+then
+    printf '%s\tARM\t%s\t%s\n' "$request_id" "$argument" "$((duration_seconds * 1000))" > "$request_temp"
+else
+    printf '%s\tSTOP\t%s\n' "$request_id" "$argument" > "$request_temp"
+fi
+mv "$request_temp" "$request_path"
+
+for _ in {1..150}
+do
+    if [[ -f "$status_path" ]]
+    then
+        IFS=$'\t' read -r status_request_id state trace_id filename message < "$status_path" || true
+        if [[ "$status_request_id" == "$request_id" ]]
+        then
+            if [[ "$state" == "ARMED" ]]
+            then
+                echo "$trace_id"
+                exit 0
+            fi
+            if [[ "$state" == "READY" && -n "$filename" && -f "${debug_dir}/${filename}" ]]
+            then
+                echo "${debug_dir}/${filename}"
+                exit 0
+            fi
+            echo "Push trace request failed: ${message:-unknown error}" >&2
+            exit 1
+        fi
+    fi
+    sleep 0.1
+done
+
+echo "Timed out waiting for the Push trace transport." >&2
+exit 1

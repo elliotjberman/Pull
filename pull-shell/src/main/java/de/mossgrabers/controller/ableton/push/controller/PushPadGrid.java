@@ -36,6 +36,11 @@ final class PushPadGrid extends PadGridImpl
 
     private Supplier<ControllerPadGridOverlay> overlaySupplier = ControllerPadGridOverlay::inactive;
     private boolean overlayActive;
+    private int debugObservedNote = -1;
+    private boolean debugObservedSend;
+    private long debugTransmissionRevision;
+    private Transmission debugBaseTransmission = Transmission.NONE;
+    private Transmission debugBlinkTransmission = Transmission.NONE;
 
 
     /**
@@ -79,10 +84,58 @@ final class PushPadGrid extends PadGridImpl
         final LightInfo state = this.displayState (note);
         final int [] translated = this.translateToController (note);
         final int channel = translated[0] < 0 ? 0 : translated[0];
-        this.sendNoteState (channel, translated[1], state.getColor ());
-        final int blinkColor = state.getBlinkColor ();
-        if (blinkColor > 0 && blinkColor < 128)
-            this.sendBlinkState (channel, translated[1], blinkColor, state.isFast ());
+        this.debugObservedSend = note == this.debugObservedNote;
+        try
+        {
+            this.sendNoteState (channel, translated[1], state.getColor ());
+            final int blinkColor = state.getBlinkColor ();
+            if (blinkColor > 0 && blinkColor < 128)
+                this.sendBlinkState (channel, translated[1], blinkColor, state.isFast ());
+        }
+        finally
+        {
+            this.debugObservedSend = false;
+        }
+    }
+
+
+    /** Begin the single bounded debug transmission observation lane. */
+    void beginDebugObservation (final int note)
+    {
+        if (note < this.startNote || note > this.endNote)
+            throw new IllegalArgumentException ("Pad note is outside the Push grid.");
+        if (this.debugObservedNote >= 0)
+            throw new IllegalStateException ("A Push pad transmission observation is already active.");
+        this.debugObservedNote = note;
+        this.debugBaseTransmission = Transmission.NONE;
+        this.debugBlinkTransmission = Transmission.NONE;
+    }
+
+
+    /** Snapshot resolved light state and matching successful MIDI transmissions. */
+    DebugObservation debugObservation (final int note)
+    {
+        if (note != this.debugObservedNote)
+            throw new IllegalStateException ("The requested Push pad is not being observed.");
+        if (this.debugBaseTransmission.revision () == 0)
+            this.sendState (note);
+        final LightInfo light = this.displayState (note);
+        return new DebugObservation (
+            light.getColor (), light.getBlinkColor (), light.isFast (),
+            this.debugBaseTransmission, this.debugBlinkTransmission);
+    }
+
+
+    /** End the bounded debug transmission observation lane. */
+    void endDebugObservation (final int note)
+    {
+        if (note == this.debugObservedNote)
+        {
+            this.debugObservedNote = -1;
+            this.debugObservedSend = false;
+            this.debugBaseTransmission = Transmission.NONE;
+            this.debugBlinkTransmission = Transmission.NONE;
+        }
     }
 
 
@@ -182,6 +235,30 @@ final class PushPadGrid extends PadGridImpl
             fadeTarget = this.pendingFadeTargets[note];
             this.pendingFadeTargets[note] = NO_PENDING_FADE;
         }
-        super.sendNoteState (fadeTarget == color ? SIXTEENTH_FADE_CHANNEL : channel, note, color);
+        final int transmittedChannel = fadeTarget == color ? SIXTEENTH_FADE_CHANNEL : channel;
+        super.sendNoteState (transmittedChannel, note, color);
+        if (this.debugObservedSend)
+            this.debugBaseTransmission = new Transmission (++this.debugTransmissionRevision, transmittedChannel, note, color);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    protected void sendBlinkState (final int channel, final int note, final int blinkColor, final boolean fast)
+    {
+        super.sendBlinkState (channel, note, blinkColor, fast);
+        if (this.debugObservedSend)
+            this.debugBlinkTransmission = new Transmission (++this.debugTransmissionRevision, fast ? 14 : 10, note, blinkColor);
+    }
+
+
+    record DebugObservation (int color, int blinkColor, boolean fast, Transmission base, Transmission blink)
+    {
+    }
+
+
+    record Transmission (long revision, int channel, int note, int color)
+    {
+        private static final Transmission NONE = new Transmission (0, -1, -1, -1);
     }
 }

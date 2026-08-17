@@ -21,6 +21,7 @@ import de.mossgrabers.framework.view.AbstractSessionView;
 import de.mossgrabers.framework.view.sequencer.AbstractDrumView;
 import de.mossgrabers.framework.view.sequencer.AbstractSequencerView;
 import de.mossgrabers.framework.view.sequencer.ClipLengthView;
+import de.mossgrabers.pull.core.api.output.RgbColor;
 
 
 /**
@@ -454,6 +455,15 @@ public class PushColorManager extends ColorManager
             }
         }
         return closestIndex;
+    }
+
+
+    /** Resolve core RGB to the indexed Push output convention where black is hardware-off. */
+    public static int resolveCoreColor (final ColorManager colors, final RgbColor color)
+    {
+        if (color.red () == 0 && color.green () == 0 && color.blue () == 0)
+            return PUSH2_COLOR2_BLACK;
+        return colors.getColorIndex (ColorEx.fromRGB (color.red (), color.green (), color.blue ()));
     }
 
 

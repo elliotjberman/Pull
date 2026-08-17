@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 
 /** Tests the permanent generic overlay plane beneath reloadable pad animations. */
@@ -28,12 +29,7 @@ class PushPadGridTest
     void fadeAndRenderedPadUseTheSameRgbResolution ()
     {
         final List<MidiNote> sent = new ArrayList<> ();
-        final IMidiOutput output = proxy (IMidiOutput.class, (ignored, method, arguments) -> {
-            if ("sendNoteEx".equals (method.getName ()))
-                sent.add (new MidiNote (((Integer) arguments[0]).intValue (), ((Integer) arguments[1]).intValue (), ((Integer) arguments[2]).intValue ()));
-            return null;
-        });
-        final PushPadGrid grid = new PushPadGrid (new PushColorManager (), output);
+        final PushPadGrid grid = new PushPadGrid (new PushColorManager (), recordingOutput (sent));
         final PadColor paleYellow = PadColor.rgb (ColorEx.fromRGB (254, 254, 170));
 
         grid.light (36, paleYellow);
@@ -49,13 +45,8 @@ class PushPadGridTest
     void sparseOverlayFreezesTheVisibleFrameAndRestoresTheLatestStableFrame ()
     {
         final List<MidiNote> sent = new ArrayList<> ();
-        final IMidiOutput output = proxy (IMidiOutput.class, (ignored, method, arguments) -> {
-            if ("sendNoteEx".equals (method.getName ()))
-                sent.add (new MidiNote (((Integer) arguments[0]).intValue (), ((Integer) arguments[1]).intValue (), ((Integer) arguments[2]).intValue ()));
-            return null;
-        });
         final PushColorManager colors = new PushColorManager ();
-        final PushPadGrid grid = new PushPadGrid (colors, output);
+        final PushPadGrid grid = new PushPadGrid (colors, recordingOutput (sent));
         final AtomicReference<ControllerPadGridOverlay> overlay = new AtomicReference<> (ControllerPadGridOverlay.inactive ());
         grid.setOverlaySupplier (overlay::get);
 
@@ -101,12 +92,80 @@ class PushPadGridTest
     }
 
 
+    @Test
+    void boundedObservationResendsExactlyOnceAndRecordsOnlyMatchingSuccessfulTransmissions ()
+    {
+        final List<MidiNote> sent = new ArrayList<> ();
+        final PushPadGrid grid = new PushPadGrid (new PushColorManager (), recordingOutput (sent));
+        grid.light (36, 21, 44, true);
+        grid.light (37, 22);
+
+        grid.beginDebugObservation (36);
+        grid.sendState (37);
+        final PushPadGrid.DebugObservation observed = grid.debugObservation (36);
+        assertEquals (21, observed.color ());
+        assertEquals (44, observed.blinkColor ());
+        assertEquals (new PushPadGrid.Transmission (1, 0, 36, 21), observed.base ());
+        assertEquals (new PushPadGrid.Transmission (2, 14, 36, 44), observed.blink ());
+        assertEquals (List.of (new MidiNote (0, 37, 22), new MidiNote (0, 36, 21), new MidiNote (14, 36, 44)), sent);
+        grid.debugObservation (36);
+        assertEquals (3, sent.size (), "later observations do not resend");
+
+        grid.endDebugObservation (36);
+        assertThrows (IllegalStateException.class, () -> grid.debugObservation (36));
+    }
+
+
+    @Test
+    void debugResendConsumesPendingFadeThroughTheNormalOutputPath ()
+    {
+        final List<MidiNote> sent = new ArrayList<> ();
+        final PushPadGrid grid = new PushPadGrid (new PushColorManager (), recordingOutput (sent));
+        final PadColor paleYellow = PadColor.rgb (ColorEx.fromRGB (254, 254, 170));
+        grid.light (36, paleYellow);
+        grid.requestFade (36, paleYellow);
+        grid.beginDebugObservation (36);
+
+        final PushPadGrid.DebugObservation observed = grid.debugObservation (36);
+
+        assertEquals (43, observed.color ());
+        assertEquals (new PushPadGrid.Transmission (1, 2, 36, 43), observed.base ());
+        assertEquals (List.of (new MidiNote (2, 36, 43)), sent);
+    }
+
+
+    @Test
+    void failedMidiSendIsNeverReportedAsTransmitted ()
+    {
+        final IMidiOutput output = proxy (IMidiOutput.class, (ignored, method, arguments) -> {
+            if ("sendNoteEx".equals (method.getName ()))
+                throw new IllegalStateException ("synthetic output failure");
+            return null;
+        });
+        final PushPadGrid grid = new PushPadGrid (new PushColorManager (), output);
+        grid.light (36, 21);
+        grid.beginDebugObservation (36);
+
+        assertThrows (IllegalStateException.class, () -> grid.debugObservation (36));
+    }
+
+
     private static <T> T proxy (final Class<T> type, final java.lang.reflect.InvocationHandler handler)
     {
         return type.cast (Proxy.newProxyInstance (type.getClassLoader (), new Class<?> []
         {
             type
         }, handler));
+    }
+
+
+    private static IMidiOutput recordingOutput (final List<MidiNote> sent)
+    {
+        return proxy (IMidiOutput.class, (ignored, method, arguments) -> {
+            if ("sendNoteEx".equals (method.getName ()))
+                sent.add (new MidiNote (((Integer) arguments[0]).intValue (), ((Integer) arguments[1]).intValue (), ((Integer) arguments[2]).intValue ()));
+            return null;
+        });
     }
 
 

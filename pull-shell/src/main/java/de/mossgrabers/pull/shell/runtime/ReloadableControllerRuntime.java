@@ -66,6 +66,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
     private CoreReloadSupervisor supervisor;
     private PushControllerInputBridge inputBridge;
     private PushDebugNavigationHost debugNavigation;
+    private PushDebugTraceHost debugTrace;
     private Predicate<CoreEvent> eventHandler = event -> false;
     private final Set<ControlId> rawReleasedGestures = new HashSet<> ();
     private boolean started;
@@ -171,7 +172,8 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             this.log,
             this.mappedPadLights);
         this.environment = new ControllerRuntimeEnvironment (this.clipHost, controllerBridge, this.log, System::nanoTime);
-        this.supervisor = new CoreReloadSupervisor (this.environment, this.log);
+        this.debugTrace = PushDebugTraceHost.createIfEnabled ();
+        this.supervisor = new CoreReloadSupervisor (this.environment, this.log, this.debugTrace);
         this.eventHandler = this.supervisor::handle;
     }
 
@@ -225,7 +227,11 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         this.environment.setDeferredInputRelease (this.inputBridge::releaseDeferredStableDispatches);
         this.environment.setInputLifecycleIdle (this.inputBridge::isIdle);
         this.environment.setNoteInputLifecycleIdle (this.inputBridge::musicalInputLifecycleIdle);
-        this.debugNavigation = PushDebugNavigationHost.createIfEnabled (surface, this.inputBridge);
+        this.debugNavigation = PushDebugNavigationHost.createIfEnabled (surface, this.inputBridge, this.environment::notePerformanceState, this.environment::debugLightObservation);
+        this.environment.setInputLifecycleCleanup ( () -> {
+            if (this.debugNavigation != null)
+                this.debugNavigation.cancelActiveProbe ("core-owned input route is being invalidated");
+        });
     }
 
 
@@ -238,6 +244,8 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             return;
 
         final long startedAt = System.nanoTime ();
+        if (this.debugTrace != null && this.debugTrace.needsControllerTick ())
+            this.debugTrace.tick (this.supervisor == null ? 0 : this.supervisor.activeGeneration (), this.environment.snapshot ());
         if (this.debugNavigation != null)
             this.debugNavigation.tick ();
         final boolean snapshotChanged = this.environment.refresh ();
@@ -423,21 +431,36 @@ public final class ReloadableControllerRuntime implements AutoCloseable
 
         this.closed = true;
         this.rawReleasedGestures.clear ();
-        if (this.debugNavigation != null)
-            this.debugNavigation.close ();
-        this.debugNavigation = null;
-        this.inputBridge = null;
         try
         {
-            if (this.supervisor != null)
-                this.supervisor.close ();
+            if (this.debugNavigation != null)
+                this.debugNavigation.close ();
         }
         finally
         {
-            if (this.environment != null)
+            this.debugNavigation = null;
+            this.inputBridge = null;
+            try
             {
-                for (final ControlId control: FILL_CONTROLS)
-                    this.environment.safetyRelease (control);
+                if (this.supervisor != null)
+                    this.supervisor.close ();
+            }
+            finally
+            {
+                try
+                {
+                    if (this.environment != null)
+                    {
+                        for (final ControlId control: FILL_CONTROLS)
+                            this.environment.safetyRelease (control);
+                    }
+                }
+                finally
+                {
+                    if (this.debugTrace != null)
+                        this.debugTrace.close ();
+                    this.debugTrace = null;
+                }
             }
         }
     }

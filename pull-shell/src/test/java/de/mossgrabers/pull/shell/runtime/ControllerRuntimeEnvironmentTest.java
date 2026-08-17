@@ -7,6 +7,7 @@ import de.mossgrabers.pull.core.api.CatalogClip;
 import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
+import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.ControllerNoteView;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
@@ -26,6 +27,7 @@ import de.mossgrabers.pull.core.api.DesiredParameterBanks;
 import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
 import de.mossgrabers.pull.core.api.InputRoute;
 import de.mossgrabers.pull.core.api.InputRouteMode;
+import de.mossgrabers.pull.core.api.MappedPadLightsSnapshot;
 import de.mossgrabers.pull.core.api.NoteRepeatMode;
 import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.ParameterBankId;
@@ -69,6 +71,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -268,6 +271,37 @@ class ControllerRuntimeEnvironmentTest
 
 
     @Test
+    void debugLightRevisionAdvancesOnlyAfterTheCompleteResultApplies ()
+    {
+        final ControllerRuntimeEnvironment environment = environment (host (1));
+        final ControlId pad = CoreControls.DRUM_RATES.getFirst ();
+        final PreparedCoreResult prepared = environment.prepare (result (Map.of (pad, BRIGHT_RED), Map.of (), List.of ()));
+
+        environment.commit (9, prepared);
+        final ControllerRuntimeEnvironment.DebugLightObservation pending = environment.debugLightObservation (pad);
+        assertEquals (9, pending.coreGeneration ());
+        assertEquals (0, pending.appliedRevision ());
+        assertEquals (BRIGHT_RED, pending.color ());
+        assertFalse (pending.mappingDesired ());
+
+        environment.apply (8);
+        assertEquals (0, environment.debugLightObservation (pad).appliedRevision ());
+        environment.apply (9);
+
+        final ControllerRuntimeEnvironment.DebugLightObservation applied = environment.debugLightObservation (pad);
+        assertEquals (1, applied.appliedRevision ());
+        assertTrue (applied.present ());
+        assertEquals (BRIGHT_RED, applied.color ());
+        assertFalse (applied.mappingDesired ());
+
+        commitAndApply (environment, 9, result (Map.of (), Map.of (), List.of ()));
+        final ControllerRuntimeEnvironment.DebugLightObservation absent = environment.debugLightObservation (pad);
+        assertEquals (2, absent.appliedRevision ());
+        assertFalse (absent.present ());
+    }
+
+
+    @Test
     void admitsMappedActionsOnlyWithTheirExclusiveRouteAndOwnedFeedback ()
     {
         final ControllerRuntimeEnvironment environment = environment (host (1));
@@ -284,6 +318,7 @@ class ControllerRuntimeEnvironmentTest
 
         commitAndApply (environment, 9, result);
         assertEquals (Set.of (pad), environment.activeHardwareMappings ());
+        assertTrue (environment.debugLightObservation (pad).mappingDesired ());
 
         environment.quarantine (9);
         assertTrue (environment.activeHardwareMappings ().isEmpty ());
@@ -293,6 +328,23 @@ class ControllerRuntimeEnvironmentTest
         assertThrows (IllegalArgumentException.class, () -> environment.prepare (routedResult (
             new DesiredHardwareOutput (Map.of (), ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), Set.of (pad)),
             routes)));
+    }
+
+
+    @Test
+    void debugLightObservationUsesOnlyAvailableAuthoritativeMappedPadReadback ()
+    {
+        final PassthroughControllerBridge bridge = new PassthroughControllerBridge ();
+        final ControllerRuntimeEnvironment environment = new ControllerRuntimeEnvironment (host (1), bridge, new RecordingLog (), () -> 0);
+        final ControlId first = CoreControls.DRUM_CONTROL_PADS.get (0);
+        final ControlId second = CoreControls.DRUM_CONTROL_PADS.get (1);
+
+        assertNull (environment.debugLightObservation (first).mappedOn ());
+        bridge.setMappedPadLights (new MappedPadLightsSnapshot (true, List.of (false, true, false, false)));
+
+        assertEquals (Boolean.FALSE, environment.debugLightObservation (first).mappedOn ());
+        assertEquals (Boolean.TRUE, environment.debugLightObservation (second).mappedOn ());
+        assertNull (environment.debugLightObservation (CoreControls.DRUM_RATES.getFirst ()).mappedOn ());
     }
 
 
@@ -1126,6 +1178,7 @@ class ControllerRuntimeEnvironmentTest
         private DesiredNotePerformance appliedNotePerformance = DesiredNotePerformance.inactive ();
         private DesiredNoteRepeat preparedNoteRepeat = DesiredNoteRepeat.unowned ();
         private DesiredNoteRepeat appliedNoteRepeat = DesiredNoteRepeat.unowned ();
+        private ControllerBridgeSnapshot snapshot = ControllerBridgeSnapshot.empty ();
         private final List<String> applicationOrder = new ArrayList<> ();
         private boolean failAbandon;
 
@@ -1223,7 +1276,23 @@ class ControllerRuntimeEnvironmentTest
         @Override
         public de.mossgrabers.pull.core.api.ControllerBridgeSnapshot snapshot ()
         {
-            return de.mossgrabers.pull.core.api.ControllerBridgeSnapshot.empty ();
+            return this.snapshot;
+        }
+
+
+        private void setMappedPadLights (final MappedPadLightsSnapshot mappedPadLights)
+        {
+            this.snapshot = new ControllerBridgeSnapshot (
+                this.snapshot.transport (),
+                this.snapshot.selectedTrack (),
+                this.snapshot.layout (),
+                this.snapshot.noteView (),
+                this.snapshot.noteRepeat (),
+                this.snapshot.drum (),
+                this.snapshot.parameters (),
+                mappedPadLights,
+                this.snapshot.master (),
+                this.snapshot.project ());
         }
 
 
