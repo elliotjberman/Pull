@@ -97,8 +97,9 @@ Reloadable core owns:
 
 - which semantic mapping endpoint a view declares;
 - the complete physical-control-to-mapping-endpoint lease for the active workspace;
+- proof that the declaring view itself owns the physical control's exclusive PAD input and output;
 - conflict detection when two views claim the same physical input or mapping endpoint;
-- subscriptions to authoritative controller-mapping feedback;
+- the declaring view's subscription to authoritative controller-mapping feedback;
 - interpretation of Boolean feedback, including red/on and black/off policy;
 - all view, modifier, gesture, and mapping meaning.
 
@@ -140,6 +141,8 @@ bindings remain attached to the same permanent action identity.
 8. Missing, unavailable, mismatched, or faulted state fails closed.
 9. Stable endpoint IDs never change meaning across releases.
 10. The installed endpoint inventory and every matcher/proxy pool remain explicitly bounded.
+11. A view may emit a mapping only for a physical PAD input and output it owns itself.
+12. A mapping may activate only while authoritative controller-mapping feedback is subscribed.
 
 ## Implemented First Migration
 
@@ -166,7 +169,10 @@ The migration performs this sequence:
    routed `END`, and activate only the latest replayable desired projection.
 
 Because a new Bitwig action identity does not inherit bindings stored against the previous physical
-button action, users must recreate the four controller mappings once after installing API 32.
+button action, users must recreate the four controller mappings once after installing API 32. Old
+`1_PAD29` through `1_PAD32` mappings are intentionally not migrated and are inert after their
+physical matchers are removed. Bitwig may continue warning about those persisted entries until the
+user deletes them; remove them before learning the four new `Drum Controller Control` endpoints.
 
 ## Closed-Loop Proof
 

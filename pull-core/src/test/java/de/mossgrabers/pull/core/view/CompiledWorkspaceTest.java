@@ -15,6 +15,7 @@ import de.mossgrabers.pull.core.api.ControllerMappingId;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.ControllerStateScope;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
+import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.DesiredControllerMappings;
 import de.mossgrabers.pull.core.api.DesiredNotePerformance;
@@ -283,20 +284,22 @@ class CompiledWorkspaceTest
     @Test
     void controllerMappingCompositionRejectsPhysicalAndSemanticCollisions ()
     {
-        final ControlId firstPhysical = new ControlId ("physical.first");
-        final ControlId secondPhysical = new ControlId ("physical.second");
+        final ControlId firstPhysical = CoreControls.DRUM_CONTROL_PADS.getFirst ();
+        final ControlId secondPhysical = CoreControls.DRUM_RATES.getFirst ();
         final ControllerMappingId firstSemantic = new ControllerMappingId ("semantic.first");
         final ControllerMappingId secondSemantic = new ControllerMappingId ("semantic.second");
-        final ControllerView first = mappingView ("first", new ControllerMappingBinding (firstPhysical, firstSemantic));
+        final ControllerMappingBinding first = new ControllerMappingBinding (firstPhysical, firstSemantic);
 
-        final CompiledWorkspace physicalCollision = CompiledWorkspace.compile ("physical collision", List.of (
+        final CompiledWorkspace physicalCollision = CompiledWorkspace.compile ("physical collision", List.of (mappingView (
+            "same physical",
+            SurfaceArea.DRUM_CONTROL_PADS,
             first,
-            mappingView ("same physical", new ControllerMappingBinding (firstPhysical, secondSemantic))));
+            new ControllerMappingBinding (firstPhysical, secondSemantic))));
         final CompiledWorkspace semanticCollision = CompiledWorkspace.compile ("semantic collision", List.of (
-            first,
-            mappingView ("same semantic", new ControllerMappingBinding (secondPhysical, firstSemantic))));
+            mappingView ("first", SurfaceArea.DRUM_CONTROL_PADS, first),
+            mappingView ("same semantic", SurfaceArea.DRUM_RATE_PADS, new ControllerMappingBinding (secondPhysical, firstSemantic))));
 
-        assertThrows (IllegalStateException.class, () -> physicalCollision.start (snapshot ()));
+        assertThrows (IllegalArgumentException.class, () -> physicalCollision.start (snapshot ()));
         assertThrows (IllegalStateException.class, () -> semanticCollision.start (snapshot ()));
     }
 
@@ -304,14 +307,53 @@ class CompiledWorkspaceTest
     @Test
     void controllerMappingCompositionMergesDisjointVirtualEndpoints ()
     {
-        final ControllerMappingBinding first = new ControllerMappingBinding (new ControlId ("physical.first"), new ControllerMappingId ("semantic.first"));
-        final ControllerMappingBinding second = new ControllerMappingBinding (new ControlId ("physical.second"), new ControllerMappingId ("semantic.second"));
+        final ControllerMappingBinding first = new ControllerMappingBinding (CoreControls.DRUM_CONTROL_PADS.getFirst (), new ControllerMappingId ("semantic.first"));
+        final ControllerMappingBinding second = new ControllerMappingBinding (CoreControls.DRUM_RATES.getFirst (), new ControllerMappingId ("semantic.second"));
 
         final CoreResult result = CompiledWorkspace.compile ("virtual mappings", List.of (
-            mappingView ("first", first),
-            mappingView ("second", second))).start (snapshot ());
+            mappingView ("first", SurfaceArea.DRUM_CONTROL_PADS, first),
+            mappingView ("second", SurfaceArea.DRUM_RATE_PADS, second))).start (snapshot ());
 
         assertEquals (Set.of (first, second), result.desiredOutput ().controllerMappings ().bindings ());
+    }
+
+
+    @Test
+    void rejectsControllerMappingOutsideTheEmittingViewsClaims ()
+    {
+        final ControllerMappingBinding binding = new ControllerMappingBinding (CoreControls.DRUM_CONTROL_PADS.getFirst (), new ControllerMappingId ("semantic.first"));
+        final ControllerView owner = new TestView (
+            "owner",
+            Set.of (
+                claim (SurfaceArea.DRUM_CONTROL_PADS, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
+                claim (SurfaceArea.DRUM_CONTROL_PADS, SurfaceClaim.Kind.OUTPUT)),
+            Set.of (BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK));
+        final ControllerView parasitic = mappingView (
+            "parasitic",
+            Set.of (),
+            Set.of (BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK),
+            binding);
+        final CompiledWorkspace workspace = CompiledWorkspace.compile ("parasitic mapping", List.of (owner, parasitic));
+
+        assertThrows (IllegalStateException.class, () -> workspace.start (snapshot ()));
+    }
+
+
+    @Test
+    void rejectsControllerMappingWithoutTheEmittingViewsFeedbackSubscription ()
+    {
+        final ControllerMappingBinding binding = new ControllerMappingBinding (CoreControls.DRUM_CONTROL_PADS.getFirst (), new ControllerMappingId ("semantic.first"));
+        final ControllerView mapping = mappingView (
+            "unsubscribed mapping",
+            Set.of (
+                claim (SurfaceArea.DRUM_CONTROL_PADS, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
+                claim (SurfaceArea.DRUM_CONTROL_PADS, SurfaceClaim.Kind.OUTPUT)),
+            Set.of (),
+            binding);
+        final ControllerView unrelatedSubscriber = new TestView ("unrelated subscriber", Set.of (), Set.of (BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK));
+        final CompiledWorkspace workspace = CompiledWorkspace.compile ("unsubscribed mapping", List.of (mapping, unrelatedSubscriber));
+
+        assertThrows (IllegalStateException.class, () -> workspace.start (snapshot ()));
     }
 
 
@@ -370,7 +412,19 @@ class CompiledWorkspaceTest
     }
 
 
-    private static ControllerView mappingView (final String id, final ControllerMappingBinding binding)
+    private static ControllerView mappingView (final String id, final SurfaceArea area, final ControllerMappingBinding... bindings)
+    {
+        return mappingView (
+            id,
+            Set.of (
+                claim (area, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
+                claim (area, SurfaceClaim.Kind.OUTPUT)),
+            Set.of (BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK),
+            bindings);
+    }
+
+
+    private static ControllerView mappingView (final String id, final Set<SurfaceClaim> claims, final Set<BridgeSubscription> subscriptions, final ControllerMappingBinding... bindings)
     {
         return new ControllerView ()
         {
@@ -384,7 +438,14 @@ class CompiledWorkspaceTest
             @Override
             public ViewProfile profile ()
             {
-                return ViewProfile.fixed (id, Set.of (), Set.of ());
+                return ViewProfile.fixed (id, claims, Set.of ());
+            }
+
+
+            @Override
+            public Set<BridgeSubscription> bridgeSubscriptions ()
+            {
+                return subscriptions;
             }
 
 
@@ -399,7 +460,7 @@ class CompiledWorkspaceTest
                     ControllerDisplayOverlay.inactive (),
                     DesiredNotePerformance.inactive (),
                     DesiredNoteRepeat.unowned (),
-                    new DesiredControllerMappings (Set.of (binding)));
+                    new DesiredControllerMappings (Set.of (bindings)));
             }
         };
     }

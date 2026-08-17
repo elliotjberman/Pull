@@ -3,6 +3,7 @@
 
 package de.mossgrabers.pull.shell.runtime;
 
+import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.CatalogClip;
 import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
 import de.mossgrabers.pull.core.api.ClipTargetId;
@@ -88,6 +89,7 @@ class ControllerRuntimeEnvironmentTest
     private static final RgbColor OFF = new RgbColor (0, 0, 0);
     private static final RgbColor DIM_RED = new RgbColor (127, 0, 0);
     private static final RgbColor BRIGHT_RED = new RgbColor (255, 0, 0);
+    private static final DesiredBridgeSubscriptions CONTROLLER_MAPPING_SUBSCRIPTIONS = new DesiredBridgeSubscriptions (Set.of (BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK));
     private static final ControlId FIRST = CoreControls.DRUM_FILL_1;
     private static final ControlId SECOND = CoreControls.DRUM_FILL_2;
     private static final ControlId THIRD = CoreControls.DRUM_FILL_3;
@@ -307,7 +309,7 @@ class ControllerRuntimeEnvironmentTest
 
 
     @Test
-    void admitsSemanticMappingsOnlyWithTheirExclusivePhysicalRouteAndOwnedFeedback ()
+    void admitsSemanticMappingsOnlyWithTheirExclusivePhysicalRouteAndAuthoritativeFeedback ()
     {
         final ControllerRuntimeEnvironment environment = environment (host (1));
         final AtomicReference<DesiredControllerMappings> mappingsAtDeferredRelease = new AtomicReference<> ();
@@ -323,7 +325,7 @@ class ControllerRuntimeEnvironmentTest
             ControllerPadGridOverlay.inactive (),
             ControllerDisplayOverlay.inactive (),
             mappings);
-        final CoreResult result = routedResult (output, routes);
+        final CoreResult result = routedResult (output, routes, CONTROLLER_MAPPING_SUBSCRIPTIONS);
 
         commitAndApply (environment, 9, result);
         assertEquals (mappings, environment.activeControllerMappings ());
@@ -344,15 +346,18 @@ class ControllerRuntimeEnvironmentTest
         assertTrue (environment.desiredInputRoutes ().routes ().isEmpty ());
         assertEquals (OFF, environment.lightColor (pad));
 
-        assertThrows (IllegalArgumentException.class, () -> environment.prepare (routedResult (output, DesiredInputRoutes.empty ())));
+        assertThrows (IllegalArgumentException.class, () -> environment.prepare (routedResult (output, routes)));
+        assertThrows (IllegalArgumentException.class, () -> environment.prepare (routedResult (output, DesiredInputRoutes.empty (), CONTROLLER_MAPPING_SUBSCRIPTIONS)));
         assertThrows (IllegalArgumentException.class, () -> environment.prepare (routedResult (
             new DesiredHardwareOutput (Map.of (), ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), mappings),
-            routes)));
+            routes,
+            CONTROLLER_MAPPING_SUBSCRIPTIONS)));
         final DesiredControllerMappings unsupportedSemanticMapping = new DesiredControllerMappings (Set.of (
             new ControllerMappingBinding (pad, new ControllerMappingId ("not-installed"))));
         assertThrows (IllegalArgumentException.class, () -> environment.prepare (routedResult (
             new DesiredHardwareOutput (Map.of (pad, BRIGHT_RED), ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), unsupportedSemanticMapping),
-            routes)));
+            routes,
+            CONTROLLER_MAPPING_SUBSCRIPTIONS)));
         final ControlId unsupportedPhysical = new ControlId ("not-installed");
         final DesiredControllerMappings unsupportedPhysicalMapping = new DesiredControllerMappings (Set.of (
             new ControllerMappingBinding (unsupportedPhysical, CoreControllerMappings.DRUM_CONTROL_PADS.getFirst ())));
@@ -360,7 +365,8 @@ class ControllerRuntimeEnvironmentTest
             new InputRoute (unsupportedPhysical, InputKind.PAD, InputRouteMode.EXCLUSIVE)));
         assertThrows (IllegalArgumentException.class, () -> environment.prepare (routedResult (
             new DesiredHardwareOutput (Map.of (unsupportedPhysical, BRIGHT_RED), ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), unsupportedPhysicalMapping),
-            unsupportedPhysicalRoute)));
+            unsupportedPhysicalRoute,
+            CONTROLLER_MAPPING_SUBSCRIPTIONS)));
     }
 
 
@@ -386,7 +392,7 @@ class ControllerRuntimeEnvironmentTest
             ControllerPadGridOverlay.inactive (),
             ControllerDisplayOverlay.inactive (),
             mappings);
-        commitAndApply (environment, 9, routedResult (output, routes));
+        commitAndApply (environment, 9, routedResult (output, routes, CONTROLLER_MAPPING_SUBSCRIPTIONS));
 
         assertNull (environment.debugLightObservation (first).mappedOn ());
         bridge.setControllerMappingFeedback (new ControllerMappingFeedbackSnapshot (true, Map.of (firstMapping, Boolean.FALSE, secondMapping, Boolean.TRUE)));
@@ -1187,10 +1193,16 @@ class ControllerRuntimeEnvironmentTest
 
     private static CoreResult routedResult (final DesiredHardwareOutput output, final DesiredInputRoutes routes)
     {
+        return routedResult (output, routes, DesiredBridgeSubscriptions.empty ());
+    }
+
+
+    private static CoreResult routedResult (final DesiredHardwareOutput output, final DesiredInputRoutes routes, final DesiredBridgeSubscriptions subscriptions)
+    {
         return new CoreResult (
             output,
             routes,
-            DesiredBridgeSubscriptions.empty (),
+            subscriptions,
             Map.of (),
             de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
             de.mossgrabers.pull.core.api.DesiredParameterBanks.empty (),

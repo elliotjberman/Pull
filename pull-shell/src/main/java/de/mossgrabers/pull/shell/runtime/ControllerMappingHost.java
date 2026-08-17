@@ -66,7 +66,7 @@ final class ControllerMappingHost
 
     ControllerMappingFeedbackSnapshot snapshot ()
     {
-        return this.feedback.snapshot ();
+        return this.feedback.snapshot;
     }
 
 
@@ -127,12 +127,6 @@ final class ControllerMappingHost
     {
         private final Map<ControllerMappingId, Boolean> states = initialStates ();
         private volatile ControllerMappingFeedbackSnapshot snapshot = new ControllerMappingFeedbackSnapshot (true, this.states);
-
-
-        private ControllerMappingFeedbackSnapshot snapshot ()
-        {
-            return this.snapshot;
-        }
 
 
         private synchronized void accept (final ControllerMappingId mappingId, final Boolean on)

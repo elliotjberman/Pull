@@ -767,6 +767,8 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         final ControllerPadGridOverlay overlay = result.desiredOutput ().padGridOverlay ();
         final ControllerDisplayOverlay displayOverlay = result.desiredOutput ().displayOverlay ();
         final DesiredControllerMappings controllerMappings = result.desiredOutput ().controllerMappings ();
+        if (!controllerMappings.bindings ().isEmpty () && !result.desiredBridgeSubscriptions ().includes (BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK))
+            throw new IllegalArgumentException ("Active controller mappings require authoritative mapping feedback");
         for (final ControllerMappingBinding binding: controllerMappings.bindings ())
         {
             if (!CoreControls.DRUM_CONTROL_PADS.contains (binding.physicalControl ()))

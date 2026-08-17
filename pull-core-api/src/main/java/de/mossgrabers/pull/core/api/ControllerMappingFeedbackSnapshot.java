@@ -24,10 +24,6 @@ public record ControllerMappingFeedbackSnapshot (boolean available, Map<Controll
             throw new IllegalArgumentException ("controller mapping feedback exceeds the installed API capacity");
         if (!available && !states.isEmpty ())
             throw new IllegalArgumentException ("unavailable controller mapping feedback must be empty");
-        states.forEach ( (mappingId, state) -> {
-            Objects.requireNonNull (mappingId, "controller mapping feedback ID");
-            Objects.requireNonNull (state, "controller mapping feedback state");
-        });
     }
 
 

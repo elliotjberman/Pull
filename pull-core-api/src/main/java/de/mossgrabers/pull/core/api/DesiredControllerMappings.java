@@ -30,10 +30,9 @@ public record DesiredControllerMappings (Set<ControllerMappingBinding> bindings)
         final Set<ControllerMappingId> mappingIds = new LinkedHashSet<> (bindings.size ());
         for (final ControllerMappingBinding binding: bindings)
         {
-            final ControllerMappingBinding checkedBinding = Objects.requireNonNull (binding, "controller mapping binding");
-            if (byPhysicalControl.putIfAbsent (checkedBinding.physicalControl (), checkedBinding.mappingId ()) != null)
+            if (byPhysicalControl.putIfAbsent (binding.physicalControl (), binding.mappingId ()) != null)
                 throw new IllegalArgumentException ("multiple controller mappings use one physical control");
-            if (!mappingIds.add (checkedBinding.mappingId ()))
+            if (!mappingIds.add (binding.mappingId ()))
                 throw new IllegalArgumentException ("one controller mapping endpoint cannot drive multiple physical controls");
         }
     }
