@@ -36,6 +36,7 @@ import de.mossgrabers.pull.core.api.effect.ResetParameterEffect;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
+import de.mossgrabers.pull.core.api.effect.StopSessionBankEffect;
 import de.mossgrabers.pull.core.api.effect.SetTransportStateEffect;
 import de.mossgrabers.pull.core.api.effect.SetTransportValueEffect;
 import de.mossgrabers.pull.core.api.effect.SetParameterValueEffect;
@@ -75,26 +76,31 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
 {
     private static final RgbColor OFF = new RgbColor (0, 0, 0);
     private static final Set<ControlId> MASTER_ROW_LIGHTS = masterRowLights ();
-    private static final Set<ControlId> GLOBAL_TRANSPORT_LIGHTS = Set.of (
+    private static final Set<ControlId> CORE_BUTTON_LIGHTS = Set.of (
         PushControlIds.button ("PLAY"),
-        PushControlIds.button ("RECORD"));
+        PushControlIds.button ("RECORD"),
+        PushControlIds.button ("STOP_CLIP"),
+        PushControlIds.button ("MUTE"),
+        PushControlIds.button ("SOLO"));
     private static final ShellCapabilities CAPABILITIES = new ShellCapabilities (Map.ofEntries (
         Map.entry (CoreCapabilities.INPUT_DRUM_FILL, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.BINDING_CLIP_TARGET, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD, Integer.valueOf (4)),
-        Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (4)),
+        Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (5)),
         Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_MAPPING, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_STATE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_NOTE_VIEW_PREFERENCE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.OUTPUT_NOTE_REPEAT, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.INPUT_CONTROLLER, Integer.valueOf (1)),
-        Map.entry (CoreCapabilities.ROUTING_CONTROLLER_INPUT, Integer.valueOf (3)),
-        Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE, Integer.valueOf (7)),
+        Map.entry (CoreCapabilities.ROUTING_CONTROLLER_INPUT, Integer.valueOf (4)),
+        Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE, Integer.valueOf (8)),
         Map.entry (CoreCapabilities.SUBSCRIPTION_CONTROLLER_BRIDGE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_TRANSPORT, Integer.valueOf (1)),
-        Map.entry (CoreCapabilities.EFFECT_SELECTED_TRACK, Integer.valueOf (2)),
+        Map.entry (CoreCapabilities.EFFECT_SELECTED_TRACK, Integer.valueOf (3)),
+        Map.entry (CoreCapabilities.EFFECT_SESSION_BANK, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.EFFECT_CONTROLLER_BUTTON_CONSUMPTION, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_DRUM_PAD, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_NOTE_INPUT_MIDI, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.SNAPSHOT_PARAMETER_TARGETS, Integer.valueOf (2)),
@@ -602,6 +608,8 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
             throw new IllegalArgumentException ("A parameter interaction requires the parameter snapshot subscription");
         if (!parametersRequested && result.effects ().stream ().anyMatch (ControllerRuntimeEnvironment::isParameterEffect))
             throw new IllegalArgumentException ("A parameter effect requires the parameter snapshot subscription");
+        if (!result.desiredBridgeSubscriptions ().includes (BridgeSubscription.SESSION_BANK) && result.effects ().stream ().anyMatch (StopSessionBankEffect.class::isInstance))
+            throw new IllegalArgumentException ("A Session-bank effect requires the Session-bank snapshot subscription");
         if (this.controllerBridge == null && (!parameterBanks.banks ().isEmpty () || parameterInteraction.interactionId () != 0))
             throw new IllegalArgumentException ("Core requested parameter state without a controller bridge");
         final Map<ParameterTargetRef, ControllerBridge.ParameterLease> preparedParameterLeases = this.controllerBridge == null ? Map.of () : this.controllerBridge.prepareParameterLeases (parameterInteraction, sampledParameterBanks);
@@ -756,7 +764,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         for (final Map.Entry<ControlId, RgbColor> light: result.desiredOutput ().lights ().entrySet ())
         {
             final ControlId owner = Objects.requireNonNull (light.getKey (), "light owner");
-            if (!CoreControls.DRUM_FILLS.contains (owner) && !CoreControls.DRUM_RATES.contains (owner) && !CoreControls.DRUM_CONTROL_PADS.contains (owner) && !GLOBAL_TRANSPORT_LIGHTS.contains (owner) && !(masterControls && MASTER_ROW_LIGHTS.contains (owner)))
+            if (!CoreControls.DRUM_FILLS.contains (owner) && !CoreControls.DRUM_RATES.contains (owner) && !CoreControls.DRUM_CONTROL_PADS.contains (owner) && !CORE_BUTTON_LIGHTS.contains (owner) && !(masterControls && MASTER_ROW_LIGHTS.contains (owner)))
                 throw new IllegalArgumentException ("Unsupported controller light owner");
             final RgbColor requested = Objects.requireNonNull (light.getValue (), "light color");
             colors.put (owner, new RgbColor (requested.red (), requested.green (), requested.blue ()));
@@ -1061,7 +1069,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
             colors.put (owner, OFF);
         for (final ControlId owner: CoreControls.DRUM_CONTROL_PADS)
             colors.put (owner, OFF);
-        for (final ControlId owner: GLOBAL_TRANSPORT_LIGHTS)
+        for (final ControlId owner: CORE_BUTTON_LIGHTS)
             colors.put (owner, OFF);
         return Map.copyOf (colors);
     }

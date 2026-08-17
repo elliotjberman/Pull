@@ -247,12 +247,26 @@ public final class CompiledWorkspace
     /** Execute one previously resolved semantic action and render the complete workspace. */
     public CoreResult handleAction (final ResolvedControllerAction action, final ControllerSnapshot snapshot)
     {
+        return this.render (snapshot, this.dispatchAction (action, snapshot));
+    }
+
+
+    /**
+     * Execute one previously resolved semantic action without rendering the workspace. This lets
+     * the runtime select the composition produced by a navigation action before any view renders.
+     *
+     * @param action Resolved action
+     * @param snapshot Authoritative state at dispatch
+     * @return Effects emitted by the action
+     */
+    public List<CoreEffect> dispatchAction (final ResolvedControllerAction action, final ControllerSnapshot snapshot)
+    {
         this.requireStarted ();
         Objects.requireNonNull (action, "action");
         Objects.requireNonNull (snapshot, "snapshot");
         for (final CompiledView view: this.views)
             view.view ().reconcile (snapshot);
-        return this.render (snapshot, action.dispatch ());
+        return action.dispatch ();
     }
 
 

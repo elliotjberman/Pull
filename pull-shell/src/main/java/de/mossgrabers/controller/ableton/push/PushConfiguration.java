@@ -27,20 +27,6 @@ import de.mossgrabers.framework.view.Views;
  */
 public class PushConfiguration extends AbstractConfiguration implements IGraphicsConfiguration
 {
-    /** A lock state for the mode buttons. */
-    public enum LockState
-    {
-        /** No lock state. */
-        OFF,
-        /** Locked to mute. */
-        MUTE,
-        /** Locked to solo. */
-        SOLO,
-        /** Locked to clip stop. */
-        CLIP_STOP,
-    }
-
-
     /** Setting for the ribbon mode. */
     public static final Integer     RIBBON_MODE                                = Integer.valueOf (NEXT_SETTING_ID);
     /** Setting for the ribbon mode MIDI CC. */
@@ -117,7 +103,6 @@ public class PushConfiguration extends AbstractConfiguration implements IGraphic
         Views.POLY_SEQUENCER
     };
 
-    private LockState             lockState                    = LockState.OFF;
     /** What does the ribbon send? **/
     private int                   ribbonMode                   = RIBBON_MODE_PITCH;
     private int                   ribbonModeCCVal              = 1;
@@ -412,64 +397,6 @@ public class PushConfiguration extends AbstractConfiguration implements IGraphic
     public boolean isStopAutomationOnKnobRelease ()
     {
         return this.stopAutomationOnKnobRelease;
-    }
-
-
-    /**
-     * Returns true if the solo button is long pressed or solo mode is locked.
-     *
-     * @param isSoloLongPressed True if solo is long pressed
-     * @return As explained above
-     */
-    public boolean isSoloState (final boolean isSoloLongPressed)
-    {
-        return isSoloLongPressed || this.lockState == LockState.SOLO;
-    }
-
-
-    /**
-     * Returns true if the mute button is long pressed or mute mode is locked.
-     *
-     * @param isMuteLongPressed True if mute is long pressed
-     * @return As explained above
-     */
-    public boolean isMuteState (final boolean isMuteLongPressed)
-    {
-        return isMuteLongPressed || this.lockState == LockState.MUTE;
-    }
-
-
-    /**
-     * Returns true if the clip stop button is long pressed or clip stop mode is locked.
-     *
-     * @param isClipStopLongPressed True if clip stop is long pressed
-     * @return As explained above
-     */
-    public boolean isClipStopState (final boolean isClipStopLongPressed)
-    {
-        return isClipStopLongPressed || this.lockState == LockState.CLIP_STOP;
-    }
-
-
-    /**
-     * Is mute, solo or clip state locked (all mode buttons are used for solo or mute)?
-     *
-     * @return The state
-     */
-    public LockState getLockState ()
-    {
-        return this.lockState;
-    }
-
-
-    /**
-     * Set if mute, solo or clip stop is locked (all mode buttons are used for solo or mute).
-     *
-     * @param lockState The new lock state
-     */
-    public void setLockState (final LockState lockState)
-    {
-        this.lockState = lockState;
     }
 
 

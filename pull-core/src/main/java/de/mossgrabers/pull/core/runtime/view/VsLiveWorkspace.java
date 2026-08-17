@@ -6,6 +6,7 @@ package de.mossgrabers.pull.core.runtime.view;
 import de.mossgrabers.pull.core.api.SessionBankShape;
 import de.mossgrabers.pull.core.view.CompiledWorkspace;
 import de.mossgrabers.pull.core.view.ControllerView;
+import de.mossgrabers.pull.core.view.RetainedControllerView;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -34,16 +35,26 @@ public final class VsLiveWorkspace
      * @param selection Shared workspace selection
      * @return Compiled workspace
      */
-    public static CompiledWorkspace create (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator)
+    public static CompiledWorkspace create (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator, final List<? extends ControllerView> gridViews)
     {
         final List<ControllerView> views = new ArrayList<> ();
         views.add (new ProjectMacroControlsView ());
         views.add (new TrackSelectionStripView ());
-        views.addAll (gridViews ());
+        views.addAll (gridViews);
         return CompiledWorkspace.compile (
             NAME,
             SESSION_BANK,
             ControllerLevelViews.composeWithoutNoteController (selection, playbackCoordinator, views));
+    }
+
+
+    /** Compile the VS Live grid while an independently selected stable page owns the display. */
+    public static CompiledWorkspace createWithStablePage (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator, final List<? extends ControllerView> gridViews)
+    {
+        return CompiledWorkspace.compile (
+            NAME + " / stable page",
+            SESSION_BANK,
+            ControllerLevelViews.composeWithoutNoteController (selection, playbackCoordinator, gridViews));
     }
 
 
@@ -52,8 +63,13 @@ public final class VsLiveWorkspace
      *
      * @return Fresh grid views
      */
-    static List<ControllerView> gridViews ()
+    public static List<ControllerView> retainedGridViews ()
     {
-        return List.of (new SessionNavigationView (), new SessionClipGridView (true), new DrumControllerView (true), new DrumControlPadView (), new DrumRateView ());
+        return List.of (
+            new RetainedControllerView (new SessionNavigationView ()),
+            new RetainedControllerView (SessionView.upper (true)),
+            new RetainedControllerView (new DrumControllerView (true)),
+            new RetainedControllerView (new DrumControlPadView ()),
+            new RetainedControllerView (new DrumRateView ()));
     }
 }

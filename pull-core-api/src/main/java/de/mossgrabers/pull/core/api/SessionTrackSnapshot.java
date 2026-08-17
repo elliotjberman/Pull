@@ -1,0 +1,35 @@
+// (c) 2026
+// Licensed under LGPLv3 - http://www.gnu.org/licenses/lgpl-3.0.txt
+
+package de.mossgrabers.pull.core.api;
+
+import de.mossgrabers.pull.core.api.output.RgbColor;
+
+import java.util.Objects;
+
+
+/** Authoritative state for one track in the active bounded Session bank. */
+public record SessionTrackSnapshot (String channelId, int position, boolean exists, boolean selected, boolean activated, boolean recordArmed, boolean muted, boolean soloed, boolean clipPlaying, RgbColor color)
+{
+    /** Validate and normalize one visible track. */
+    public SessionTrackSnapshot
+    {
+        channelId = Objects.requireNonNull (channelId, "channelId");
+        color = Objects.requireNonNull (color, "color");
+        if (position < -1)
+            throw new IllegalArgumentException ("position must be -1 or greater");
+        if (exists && channelId.isBlank ())
+            throw new IllegalArgumentException ("an existing Session track must have a channel ID");
+        if (exists && position < 0)
+            throw new IllegalArgumentException ("an existing Session track must have a position");
+        if (!exists && (!channelId.isEmpty () || position != -1 || selected || activated || recordArmed || muted || soloed || clipPlaying))
+            throw new IllegalArgumentException ("an unavailable Session track cannot contain state");
+    }
+
+
+    /** Create one unavailable bank slot. */
+    public static SessionTrackSnapshot empty ()
+    {
+        return new SessionTrackSnapshot ("", -1, false, false, false, false, false, false, false, new RgbColor (0, 0, 0));
+    }
+}

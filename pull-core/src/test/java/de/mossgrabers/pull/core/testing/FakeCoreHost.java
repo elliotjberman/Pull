@@ -132,6 +132,13 @@ final class FakeCoreHost
     }
 
 
+    /** Set authoritative bridge state before starting the core. */
+    void initialBridge (final ControllerBridgeSnapshot bridge)
+    {
+        this.bridge = Objects.requireNonNull (bridge, "bridge");
+    }
+
+
     /**
      * Deliver a press or release after updating authoritative held state.
      *
@@ -325,6 +332,7 @@ final class FakeCoreHost
         this.bridge = new ControllerBridgeSnapshot (
             this.bridge.transport (),
             Objects.requireNonNull (selectedTrack, "selectedTrack"),
+            this.bridge.sessionBank (),
             this.bridge.layout (),
             this.bridge.noteView (),
             this.bridge.noteRepeat (),
@@ -347,6 +355,7 @@ final class FakeCoreHost
         this.bridge = new ControllerBridgeSnapshot (
             Objects.requireNonNull (transport, "transport"),
             this.bridge.selectedTrack (),
+            this.bridge.sessionBank (),
             this.bridge.layout (),
             this.bridge.noteView (),
             this.bridge.noteRepeat (),

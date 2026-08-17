@@ -1,7 +1,8 @@
 # Pull View Architecture
 
-Status: current through Core API 33, semantic controller-mapping identities, the shared mixer-control renderer, the Master-control
-migration, the post-demo `VS Live` composition, and core-owned note-view and drum-rate policy.
+Status: current through Core API 35, semantic controller-mapping identities, the shared
+mixer-control renderer, the Master-control migration, the post-demo `VS Live` composition, and
+core-owned Session Stop, selected-track Mute/Solo, note-view, and drum-rate policy.
 
 Read this file before changing controller views, modes, workspaces, input routing, or Session bank
 topology. The detailed design contract is in
@@ -244,7 +245,7 @@ for `"VS Live"`.
 Shift + Session selects the hardcoded VS Live composition. Plain Session and Note return through
 their ordinary destinations.
 
-VS Live contains:
+VS Live initially contains:
 
 - project macros on the eight top encoders and parameter display;
 - track names and selection on the bottom display strip and lower soft keys;
@@ -260,9 +261,15 @@ the lower scene keys. Per-pad pressure has a musical destination only on the pla
 is part of the same reloadable `DrumControllerView`, so pressure cannot be accidentally omitted
 from a composition that owns those pads.
 
+The project-macro/track-strip page is an independently replaceable view. After its initial
+`WORKSPACE` page has been observed, selecting Mix, Device, or Browse releases only that page view;
+the Session/Drum grid, scene keys, navigation, and Session-owned Stop Clip control remain selected.
+
 The normal Session view declares an 8x8 bank. VS Live declares 8x4. `SessionBankRegistry` eagerly
 holds exactly those installed shapes, preserves track/scene offsets when switching, and enables
-Bitwig clip-launcher feedback on only the active bank. An undeclared shape is rejected.
+Bitwig clip-launcher feedback on only the active bank. `SessionBankHost` publishes the active
+window's fenced track identity and authoritative state only while requested. An undeclared shape
+is rejected.
 
 ## Current Implementation Map
 
@@ -275,7 +282,10 @@ Reloadable core:
   parameter-display ownership.
 - `TrackSelectionStripView`: lower display strip and lower soft-key ownership.
 - `SessionNavigationView`: arrow and page navigation ownership.
-- `SessionClipGridView`: upper Session grid plus optional upper scene keys.
+- `SessionView`: full or upper Session grid profile, optional upper scene keys, and core-owned Stop
+  Clip input/feedback across independently selected page views.
+- `SelectedTrackMuteSoloView`: persistent Mute/Solo input and authoritative feedback downstream of
+  the private selection-following track, independent of every page and grid.
 - `NoteViewControllerView`: authoritative per-selected-track note-layout policy.
 - `DrumControllerView`: playable lower-grid mapping, pressure policy, and optional pitch bend.
 - `DrumRateView`: four exclusive rate-pad gestures, RGB output, and desired note-repeat state.
@@ -297,7 +307,8 @@ Stable shell:
 - `WorkspaceMode`: project macro touch/delete, inherited Project menu/track footer, and track-strip
   adapter; its parameter body is core-rendered.
 - `WorkspaceView`: upper Session grid plus reusable lower Drum Controller adapter.
-- `SessionBankRegistry`: bounded 8x8/8x4 Bitwig bank canopy.
+- `SessionBankRegistry` and `SessionBankHost`: bounded 8x8/8x4 Bitwig bank canopy, requested
+  authoritative state, and generation-fenced bank actions.
 - `PushControlSurface`: remaining stable pitch-bend and navigation integration.
 - `ControllerMappingHost`: eagerly creates the four permanent semantic Bitwig button identities,
   attaches their no-output Boolean feedback, and removes MIDI matchers from all 64 original grid
@@ -321,6 +332,18 @@ Implemented:
 - Behavior-preserving core views for drum fills and Record controls.
 - Core-owned Shift + Session workspace selection and reload checkpoint state.
 - Correct 8x4 Session navigation and Bitwig feedback via a declared bank.
+- One persistent `SessionView` owns the full/upper grid footprint plus Stop Clip input and RGB
+  feedback. Plain Stop immediately stops the authoritative selected track; Shift/Select Stop targets the
+  exact active Session bank, and Stop-plus-pad consumption remains part of the same view. The old
+  long/lock and page-row Stop overlays are deleted. Stop remains `OBSERVE` rather than `EXCLUSIVE`
+  only because the stable grid adapter still needs its held state for Stop-plus-pad; the direct
+  stable Stop command is inert.
+- Mute/Solo are one persistent selected-track view with exclusive edges and read-back-driven RGB
+  feedback. Project-wide clear, lock/long row overlays, Master/layer retargeting, and pad/note
+  modifier meanings are deleted rather than encoded into the new view model.
+- Session is retained independently from its default Track/Mix destination, and VS Live retains
+  the same started grid-view instances when Mix, Device, Browse, or Master replaces the page, so
+  active grid gestures are not restarted.
 - Drum pressure owned by the same fixed Drum Controller view as its playable pads.
 - Removal of the unused legacy aftertouch commands and ClipLauncherNavigator topology.
 - Transactional shell preparation before a candidate result is committed.
@@ -347,8 +370,9 @@ Partial or transitional:
 - General display and light output ownership is still partial. The eight drum-fill, four drum-rate,
   and four mappable-control RGB lights, authoritative semantic Bitwig Boolean feedback, and replayable physical-to-semantic mapping leases, global Play/Record lights, the Master page's two button rows and graphics
   display, a temporary sparse 8x8 grid overlay, and a complete temporary 960x160 display overlay
-  use core-owned output arbitration. The detailed design's API 33 installed-output inventory is
-  canonical.
+  use core-owned output arbitration. Session Stop Clip while a Session view is active and
+  persistent selected-track Mute/Solo are also general core-owned RGB buttons. The detailed
+  design's API 35 installed-output inventory is canonical.
 
 Deferred by design:
 

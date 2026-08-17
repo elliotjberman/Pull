@@ -103,9 +103,11 @@ The migration guide scopes Play as the safe first transport cut.
 - volume and pan;
 - stop, return to Arrangement, and create a new clip.
 
-Existing Mute, Solo, and Stop commands also contain all-tracks, master, layer, lock-mode, or
-view-dependent variants. Do not request exclusive ownership until those branches are migrated or
-explicitly removed as a product decision.
+API 35 now owns Mute/Solo as one persistent selected-track view and Stop as part of `SessionView`.
+Plain Stop preserves the inherited immediate actuator; page overlays retain the active grid-view
+instances so their physical gestures remain continuous.
+The former project-clear, master, layer, lock/long, page-row, pad, and note modifier variants were
+explicitly removed as a product decision rather than carried into the composable view API.
 
 ### Selected drum pad
 
@@ -145,15 +147,15 @@ This is the main body of remaining work. It is migration debt, but not a file-on
 ### 1. Complete remaining hardware output
 
 Current limitation: stable validation and arbitration accept the eight fill-pad lights, four
-mappable-control pad lights and their physical-to-semantic learned-action leases, global
-Play/Record lights, the Master page's two button rows and bounded declarative graphics scene, and a
-temporary sparse whole-grid overlay plus a complete 960x160 display overlay. Inherited output
-outside those lanes remains frozen stable migration debt; do not implement new output behavior
-there.
+drum-rate pad lights, four mappable-control pad lights and their physical-to-semantic learned-action
+leases, global Play/Record lights, selected-track Mute/Solo lights, the Session-owned Stop Clip
+light, the Master page's two button rows and bounded declarative graphics scene, and a temporary
+sparse whole-grid overlay plus a complete 960x160 display overlay. Inherited output outside those lanes remains
+frozen stable migration debt; do not implement new output behavior there.
 
 Add bounded complete ownership for the remaining surfaces:
 
-- Push button lights outside the migrated Master rows;
+- Push button lights outside the migrated global buttons and Master rows;
 - all 64 grid-pad lights;
 - scene lights and non-Master row-button lights;
 - touch-strip mode and LEDs;
@@ -170,8 +172,9 @@ rendering.
 
 ### 2. Visible track bank and mixer
 
-Install a bounded visible-track-bank snapshot with stable identities and generations for eight
-tracks, including the properties actually rendered by Pull. Add fenced effects for selection,
+API 35 now publishes stable identities, generation, offsets, and basic authoritative state for the
+eight tracks in the active bounded Session bank. It currently executes only a bank-wide Stop
+action. Extend that reusable window with the remaining state and fenced effects for selection,
 activation, arm, mute, solo, volume, pan, and bounded sends.
 
 Controller-level Play is now the reference transport migration: its stable command is inert, its
@@ -185,7 +188,7 @@ This unlocks:
 - VS Live track-selection strip;
 - ordinary track selection;
 - Track, Volume, Pan, Send, Crossfade, and related mixer modes;
-- multi-track variants of Mute, Solo, and Stop;
+- any future explicitly designed visible-track state controls;
 - authoritative track-strip lights and display output.
 
 Do not confuse this with the existing private selected-track snapshot. A selected target cannot
@@ -193,8 +196,10 @@ represent eight visible tracks.
 
 ### 3. Session grid
 
-Install a bounded visible Session bank with explicit track/scene offsets, stable slot identity, and
-slot state such as existence, content, name, color, selected, playing, recording, and queued.
+API 35 installs the bounded visible Session bank's track identities, track/scene offsets, basic
+track state, and a generation-fenced bank-wide Stop action. `SessionView` uses it for Shift/Select
+Stop while plain Stop uses the private authoritative selected target. Still add stable clip-slot
+identity and state such as existence, content, name, color, playing, recording, and queued.
 
 Add effects for:
 
@@ -204,10 +209,10 @@ Add effects for:
 - bounded bank navigation;
 - creating a clip if the product behavior requires it.
 
-This unlocks:
+Completing those slot capabilities unlocks:
 
 - VS Live's upper Session grid and scene keys;
-- ordinary `SessionView`;
+- migration of the remaining stable-adapter grid/scene portions of ordinary `SessionView`;
 - clip-slot rendering and launch behavior;
 - Session navigation and paging.
 

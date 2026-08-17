@@ -31,7 +31,7 @@ movable Bitwig proxy may already address a replacement target by then.
 
 ## Current Mitigation
 
-Core API 29 carries `ControllerActionIntent` separately from physical input. Core-owned views
+Core API 33 carries `ControllerActionIntent` separately from physical input. Core-owned views
 resolve complete executable intents at gesture `BEGIN`; deferred execution therefore cannot
 reinterpret a released modifier or a replacement workspace. Existing stable-only commands remain
 frozen migration debt, but `StableControllerActionResolver` examines the actual installed command
@@ -46,9 +46,9 @@ This removes the core-side physical navigation table. It does not yet satisfy th
 - The permanent Master binding remains temporarily necessary for its unbridged long-press Frame
   variant. While a composed core workspace is active, its short press is a page-only compatibility
   adapter: it activates Master without selecting Bitwig's master track. Exits no longer depend on
-  stable mode history: `TrackMixerPageView` and `FullSessionView` explicitly request the plain
-  Session destination and remain selected until controller-layout read-back acknowledges
-  `TRACK`/`SESSION`.
+  stable mode history: `TrackMixerPageView` and `SessionView.full()` explicitly request the plain
+  Session destination. After controller-layout read-back acknowledges `TRACK`/`SESSION`, only the
+  default page request retires; the semantic Session view remains selected.
 - Play is a core-exclusive edge with an inert stable command. Core retains the engine-owning
   project identity and emits one exact origin/target project-transport payload. Stable validates
   the live origin and owns the complete bounded tab visit, authoritative transport readback, and

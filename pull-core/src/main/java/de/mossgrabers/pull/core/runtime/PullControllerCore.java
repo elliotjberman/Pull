@@ -21,9 +21,12 @@ import de.mossgrabers.pull.core.runtime.view.VsLiveWorkspace;
 import de.mossgrabers.pull.core.runtime.view.MasterWorkspace;
 import de.mossgrabers.pull.core.runtime.view.MixerDisplayScene;
 import de.mossgrabers.pull.core.runtime.view.ProjectPlaybackCoordinator;
+import de.mossgrabers.pull.core.runtime.view.SessionView;
 import de.mossgrabers.pull.core.runtime.view.StableDestinationWorkspace;
 import de.mossgrabers.pull.core.runtime.view.WorkspaceSelection;
 import de.mossgrabers.pull.core.view.CompiledWorkspace;
+import de.mossgrabers.pull.core.view.ControllerView;
+import de.mossgrabers.pull.core.view.RetainedControllerView;
 import de.mossgrabers.pull.core.view.ResolvedControllerAction;
 
 import java.nio.ByteBuffer;
@@ -43,6 +46,8 @@ final class PullControllerCore implements ControllerCore
 {
     private Map<WorkspaceSelection.Id, CompiledWorkspace> workspaces = Map.of ();
     private CompiledWorkspace                              defaultDrumWorkspace;
+    private CompiledWorkspace                              defaultSessionWorkspace;
+    private CompiledWorkspace                              vsLiveStablePageWorkspace;
     private WorkspaceSelection                             selection;
     private CompiledWorkspace                              workspace;
     private Map<WorkspaceSelection.Id, CompiledWorkspace> masterWorkspaces = Map.of ();
@@ -50,6 +55,8 @@ final class PullControllerCore implements ControllerCore
     private ProjectPlaybackCoordinator                     playbackCoordinator;
     private boolean                                        masterLayoutObserved;
     private long                                           masterEntryWorkspaceRequest;
+    private boolean                                        vsLiveDefaultPageObserved;
+    private long                                           vsLiveEntryWorkspaceRequest = -1;
     private final SnapbackSession                          snapback = new SnapbackSession ();
     private Lifecycle                                      lifecycle = Lifecycle.NEW;
 
@@ -67,17 +74,21 @@ final class PullControllerCore implements ControllerCore
         this.selection = new WorkspaceSelection (restoredState.workspace (), restoredState.selectedDestination (), restoredState.pendingDestination ());
         this.playbackCoordinator = new ProjectPlaybackCoordinator ();
         this.playbackCoordinator.restoreEngineOwner (restoredState.engineOwnerIdentity (), restoredState.engineOwnerPlaying ());
+        final ControllerView retainedSessionView = new RetainedControllerView (SessionView.full ());
+        final List<ControllerView> retainedVsLiveGridViews = VsLiveWorkspace.retainedGridViews ();
         final Map<WorkspaceSelection.Id, CompiledWorkspace> compiled = new EnumMap<> (WorkspaceSelection.Id.class);
         compiled.put (WorkspaceSelection.Id.DEFAULT, DefaultWorkspace.create (this.selection, this.playbackCoordinator));
-        compiled.put (WorkspaceSelection.Id.VS_LIVE, VsLiveWorkspace.create (this.selection, this.playbackCoordinator));
+        compiled.put (WorkspaceSelection.Id.VS_LIVE, VsLiveWorkspace.create (this.selection, this.playbackCoordinator, retainedVsLiveGridViews));
         this.workspaces = Map.copyOf (compiled);
         this.defaultDrumWorkspace = DefaultWorkspace.createDrum (this.selection, this.playbackCoordinator);
+        this.defaultSessionWorkspace = StableDestinationWorkspace.selectedSession (this.selection, this.playbackCoordinator, retainedSessionView);
+        this.vsLiveStablePageWorkspace = VsLiveWorkspace.createWithStablePage (this.selection, this.playbackCoordinator, retainedVsLiveGridViews);
         final Map<WorkspaceSelection.Id, CompiledWorkspace> compiledMaster = new EnumMap<> (WorkspaceSelection.Id.class);
         for (final WorkspaceSelection.Id background: WorkspaceSelection.Id.values ())
-            compiledMaster.put (background, MasterWorkspace.create (this.selection, this.playbackCoordinator, background));
+            compiledMaster.put (background, MasterWorkspace.create (this.selection, this.playbackCoordinator, background, retainedVsLiveGridViews));
         this.masterWorkspaces = Map.copyOf (compiledMaster);
         this.destinationWorkspaces = Map.of (
-            WorkspaceSelection.Destination.SESSION, StableDestinationWorkspace.session (this.selection, this.playbackCoordinator),
+            WorkspaceSelection.Destination.SESSION, StableDestinationWorkspace.session (this.selection, this.playbackCoordinator, retainedSessionView),
             WorkspaceSelection.Destination.NOTE, StableDestinationWorkspace.note (this.selection, this.playbackCoordinator));
         this.workspace = this.desiredWorkspace (snapshot);
         this.lifecycle = Lifecycle.RUNNING;
@@ -211,7 +222,11 @@ final class PullControllerCore implements ControllerCore
 
     private CoreResult dispatchActionToWorkspace (final ResolvedControllerAction action, final ControllerSnapshot snapshot)
     {
-        return this.transitionToSelectedWorkspace (this.workspace.handleAction (action, snapshot), snapshot);
+        final List<CoreEffect> effects = this.workspace.dispatchAction (action, snapshot);
+        final CompiledWorkspace selectedWorkspace = this.desiredWorkspace (snapshot);
+        if (selectedWorkspace != this.workspace)
+            this.workspace = selectedWorkspace;
+        return transitionTo (effects, this.workspace.activate (snapshot));
     }
 
 
@@ -230,6 +245,7 @@ final class PullControllerCore implements ControllerCore
     {
         this.selection.observe (snapshot.bridge ().layout ());
         this.selection.observe (snapshot.bridge ().noteView ());
+        this.observeVsLivePage (snapshot.bridge ().layout ().modeId ());
         final CompiledWorkspace selectedWorkspace = this.selectedWorkspace (snapshot);
         final String mode = snapshot.bridge ().layout ().modeId ();
         final boolean masterLayout = "MASTER".equals (mode) || "MASTER_TEMP".equals (mode);
@@ -253,9 +269,31 @@ final class PullControllerCore implements ControllerCore
         final WorkspaceSelection.Destination destination = this.selection.pendingDestination ();
         if (destination != WorkspaceSelection.Destination.NONE)
             return this.destinationWorkspaces.get (destination);
+        if (this.selection.active () == WorkspaceSelection.Id.DEFAULT && this.selection.selectedDestination () == WorkspaceSelection.Destination.SESSION)
+            return this.defaultSessionWorkspace;
         if (this.selection.active () == WorkspaceSelection.Id.DEFAULT && snapshot.bridge ().layout ().drumLayoutActive ())
             return this.defaultDrumWorkspace;
+        if (this.selection.active () == WorkspaceSelection.Id.VS_LIVE && this.vsLiveDefaultPageObserved && !"WORKSPACE".equals (snapshot.bridge ().layout ().modeId ()))
+            return this.vsLiveStablePageWorkspace;
         return this.workspaces.get (this.selection.active ());
+    }
+
+
+    private void observeVsLivePage (final String mode)
+    {
+        if (this.selection.active () != WorkspaceSelection.Id.VS_LIVE)
+        {
+            this.vsLiveDefaultPageObserved = false;
+            this.vsLiveEntryWorkspaceRequest = -1;
+            return;
+        }
+        if (this.vsLiveEntryWorkspaceRequest != this.selection.requestSequence ())
+        {
+            this.vsLiveEntryWorkspaceRequest = this.selection.requestSequence ();
+            this.vsLiveDefaultPageObserved = false;
+        }
+        if ("WORKSPACE".equals (mode))
+            this.vsLiveDefaultPageObserved = true;
     }
 
 

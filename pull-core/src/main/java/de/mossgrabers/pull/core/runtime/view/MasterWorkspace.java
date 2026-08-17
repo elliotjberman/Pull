@@ -27,14 +27,14 @@ public final class MasterWorkspace
      * @param background Workspace whose grid ownership remains active behind Master
      * @return Compiled Master page over the selected workspace grid
      */
-    public static CompiledWorkspace create (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator, final WorkspaceSelection.Id background)
+    public static CompiledWorkspace create (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator, final WorkspaceSelection.Id background, final List<? extends ControllerView> retainedVsLiveGridViews)
     {
         final List<ControllerView> views = new ArrayList<> ();
         views.add (new MasterControlView ());
         final SessionBankShape sessionBank;
         if (background == WorkspaceSelection.Id.VS_LIVE)
         {
-            views.addAll (VsLiveWorkspace.gridViews ());
+            views.addAll (retainedVsLiveGridViews);
             sessionBank = VsLiveWorkspace.SESSION_BANK;
         }
         else

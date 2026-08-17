@@ -74,12 +74,6 @@ public class TrackMode extends AbstractTrackMode
     @Override
     public void onSecondRow (final int index, final ButtonEvent event)
     {
-        if (this.isTrackModifierActive ())
-        {
-            super.onSecondRow (index, event);
-            return;
-        }
-
         if (event != ButtonEvent.DOWN)
             return;
 
@@ -130,14 +124,6 @@ public class TrackMode extends AbstractTrackMode
             this.bindControls ();
         }
     }
-
-
-    private boolean isTrackModifierActive ()
-    {
-        return this.configuration.isMuteState (this.surface.isLongPressed (ButtonID.MUTE)) || this.configuration.isSoloState (this.surface.isLongPressed (ButtonID.SOLO)) || this.configuration.isClipStopState (this.surface.isLongPressed (ButtonID.STOP_CLIP));
-    }
-
-
     private boolean hasAdditionalTrackSends ()
     {
         final ISendBank sendBank = this.model.getCursorTrack ().getSendBank ();
@@ -163,9 +149,6 @@ public class TrackMode extends AbstractTrackMode
     @Override
     public int getButtonColor (final ButtonID buttonID)
     {
-        if (this.isTrackModifierActive ())
-            return super.getButtonColor (buttonID);
-
         int index = this.isButtonRow (0, buttonID);
         if (index >= 0)
         {

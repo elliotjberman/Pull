@@ -86,7 +86,13 @@ public enum SurfaceArea
     /** Push Note button. */
     NOTE_BUTTON (range (ElementType.BUTTON, 4, 1), Set.of (PushControlIds.button ("NOTE")), Set.of (InputKind.BUTTON)),
     /** Push Layout button. */
-    LAYOUT_BUTTON (range (ElementType.BUTTON, 6, 1), Set.of (PushControlIds.button ("LAYOUT")), Set.of (InputKind.BUTTON));
+    LAYOUT_BUTTON (range (ElementType.BUTTON, 6, 1), Set.of (PushControlIds.button ("LAYOUT")), Set.of (InputKind.BUTTON)),
+    /** Push Stop Clip button, semantically owned by an active Session view. */
+    STOP_CLIP_BUTTON (range (ElementType.BUTTON, 7, 1), Set.of (PushControlIds.button ("STOP_CLIP")), Set.of (InputKind.BUTTON)),
+    /** Push Mute button, targeting the authoritative selected track. */
+    MUTE_BUTTON (range (ElementType.BUTTON, 8, 1), Set.of (PushControlIds.button ("MUTE")), Set.of (InputKind.BUTTON)),
+    /** Push Solo button, targeting the authoritative selected track. */
+    SOLO_BUTTON (range (ElementType.BUTTON, 9, 1), Set.of (PushControlIds.button ("SOLO")), Set.of (InputKind.BUTTON));
 
     private final Set<HardwareElement> footprint;
     private final Set<ControlId>       controls;

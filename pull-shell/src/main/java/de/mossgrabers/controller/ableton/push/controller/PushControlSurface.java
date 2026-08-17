@@ -559,6 +559,32 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
 
 
     /**
+     * Hide migrated Mute/Solo state from inherited modifier and combination handlers. The
+     * permanent input router reads the hardware control directly, so the reloadable selected-track
+     * view still receives the complete gesture.
+     */
+    @Override
+    public boolean isPressed (final ButtonID buttonID)
+    {
+        return stableButtonStateVisible (buttonID) && super.isPressed (buttonID);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public boolean isLongPressed (final ButtonID buttonID)
+    {
+        return stableButtonStateVisible (buttonID) && super.isLongPressed (buttonID);
+    }
+
+
+    static boolean stableButtonStateVisible (final ButtonID buttonID)
+    {
+        return buttonID != ButtonID.MUTE && buttonID != ButtonID.SOLO;
+    }
+
+
+    /**
      * Supply authoritative ownership of the composite drum-pad layout. Fill interception follows
      * layout ownership rather than inferring it from a generic view identifier.
      *

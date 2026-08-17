@@ -49,6 +49,8 @@ import de.mossgrabers.pull.core.api.ParameterTargetKind;
 import de.mossgrabers.pull.core.api.ParameterTargetRef;
 import de.mossgrabers.pull.core.api.ParameterTargetSnapshot;
 import de.mossgrabers.pull.core.api.SessionBankShape;
+import de.mossgrabers.pull.core.api.SessionBankSnapshot;
+import de.mossgrabers.pull.core.api.SessionTrackSnapshot;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.StateEnvelope;
 import de.mossgrabers.pull.core.api.TimerId;
@@ -57,12 +59,14 @@ import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
 import de.mossgrabers.pull.core.api.effect.ClipReleaseTrigger;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
+import de.mossgrabers.pull.core.api.effect.ConsumeControllerButtonEffect;
 import de.mossgrabers.pull.core.api.effect.AdjustParameterValueEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
 import de.mossgrabers.pull.core.api.effect.ResetParameterEffect;
 import de.mossgrabers.pull.core.api.effect.ScheduleTimerEffect;
 import de.mossgrabers.pull.core.api.effect.SendNoteInputMidiEffect;
+import de.mossgrabers.pull.core.api.effect.StopSessionBankEffect;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.ControllerActionEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
@@ -197,7 +201,7 @@ class CoreApiValueTest
     @Test
     void publishesStableVersionCapabilityAndControlIdentifiers ()
     {
-        assertEquals (34, CoreApi.VERSION);
+        assertEquals (35, CoreApi.VERSION);
         assertEquals ("input.drum-fill", CoreCapabilities.INPUT_DRUM_FILL);
         assertEquals ("snapshot.selected-track-clips", CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS);
         assertEquals ("binding.clip-target", CoreCapabilities.BINDING_CLIP_TARGET);
@@ -214,6 +218,9 @@ class CoreApiValueTest
         assertEquals ("subscription.controller-bridge", CoreCapabilities.SUBSCRIPTION_CONTROLLER_BRIDGE);
         assertEquals ("effect.transport", CoreCapabilities.EFFECT_TRANSPORT);
         assertEquals ("effect.selected-track", CoreCapabilities.EFFECT_SELECTED_TRACK);
+        assertEquals ("effect.session-bank", CoreCapabilities.EFFECT_SESSION_BANK);
+        assertEquals ("effect.controller-button-consumption", CoreCapabilities.EFFECT_CONTROLLER_BUTTON_CONSUMPTION);
+        assertEquals (PushControlIds.button ("SELECT"), new ConsumeControllerButtonEffect (PushControlIds.button ("SELECT")).controlId ());
         assertEquals ("effect.drum-pad", CoreCapabilities.EFFECT_DRUM_PAD);
         assertEquals ("effect.note-input-midi", CoreCapabilities.EFFECT_NOTE_INPUT_MIDI);
         assertEquals ("snapshot.controller-mapping-feedback", CoreCapabilities.SNAPSHOT_CONTROLLER_MAPPING_FEEDBACK);
@@ -443,6 +450,26 @@ class CoreApiValueTest
             Set.of (ControllerViewFacet.SESSION_GRID_FULL, ControllerViewFacet.SESSION_NAVIGATION),
             new SessionBankShape (8, 8)));
         assertThrows (IllegalArgumentException.class, () -> new SessionBankShape (8, 0));
+    }
+
+
+    @Test
+    void sessionBankSnapshotsAndActionsAreBoundedAndIdentityFenced ()
+    {
+        final SessionBankShape shape = new SessionBankShape (2, 4);
+        final SessionTrackSnapshot track = new SessionTrackSnapshot ("track-1", 8, true, true, true, false, true, false, true, new RgbColor (1, 2, 3));
+        final List<SessionTrackSnapshot> tracks = new ArrayList<> (List.of (track, SessionTrackSnapshot.empty ()));
+        final SessionBankSnapshot snapshot = new SessionBankSnapshot (7, shape, 8, 12, tracks);
+        tracks.clear ();
+
+        assertEquals (List.of (track, SessionTrackSnapshot.empty ()), snapshot.tracks ());
+        assertTrue (new StopSessionBankEffect (7, shape, true).alternative ());
+        assertThrows (UnsupportedOperationException.class, () -> snapshot.tracks ().clear ());
+        assertThrows (IllegalArgumentException.class, () -> new SessionBankSnapshot (7, shape, 8, 12, List.of (track)));
+        assertThrows (IllegalArgumentException.class, () -> new SessionBankSnapshot (7, shape, 8, 12, List.of (track, track)));
+        assertThrows (IllegalArgumentException.class, () -> new SessionTrackSnapshot ("", 8, true, false, false, false, false, false, false, new RgbColor (0, 0, 0)));
+        assertThrows (IllegalArgumentException.class, () -> new SessionTrackSnapshot ("stale", -1, false, false, false, false, false, false, false, new RgbColor (0, 0, 0)));
+        assertThrows (IllegalArgumentException.class, () -> new StopSessionBankEffect (7, SessionBankShape.empty (), true));
     }
 
 

@@ -36,6 +36,9 @@ import de.mossgrabers.pull.core.api.ParameterTargetSnapshot;
 import de.mossgrabers.pull.core.api.ProjectSnapshot;
 import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
+import de.mossgrabers.pull.core.api.SessionBankShape;
+import de.mossgrabers.pull.core.api.SessionBankSnapshot;
+import de.mossgrabers.pull.core.api.SessionTrackSnapshot;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.TrackMonitorMode;
 import de.mossgrabers.pull.core.api.TransportSnapshot;
@@ -44,6 +47,7 @@ import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
 import de.mossgrabers.pull.core.api.effect.ClipReleaseTrigger;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
+import de.mossgrabers.pull.core.api.effect.ConsumeControllerButtonEffect;
 import de.mossgrabers.pull.core.api.effect.AdjustParameterValueEffect;
 import de.mossgrabers.pull.core.api.effect.NavigateProjectEffect;
 import de.mossgrabers.pull.core.api.effect.ProjectFileAction;
@@ -59,6 +63,7 @@ import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackAction;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackActionEffect;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackBoolean;
+import de.mossgrabers.pull.core.api.effect.StopSessionBankEffect;
 import de.mossgrabers.pull.core.api.effect.SendNoteInputMidiEffect;
 import de.mossgrabers.pull.core.api.effect.SetSelectedTrackBooleanEffect;
 import de.mossgrabers.pull.core.api.effect.SetTransportStateEffect;
@@ -108,6 +113,9 @@ class PullControllerCoreTest
     private static final ControlId LAYOUT_BUTTON = PushControlIds.button ("LAYOUT");
     private static final ControlId SHIFT_BUTTON = PushControlIds.button ("SHIFT");
     private static final ControlId SELECT_BUTTON = PushControlIds.button ("SELECT");
+    private static final ControlId STOP_CLIP_BUTTON = PushControlIds.button ("STOP_CLIP");
+    private static final ControlId MUTE_BUTTON = PushControlIds.button ("MUTE");
+    private static final ControlId SOLO_BUTTON = PushControlIds.button ("SOLO");
     private static final ClipLaunchPolicy FILL_POLICY = new ClipLaunchPolicy (
         ClipLaunchQuantization.IMMEDIATE,
         ClipLaunchMode.LEGATO_FROM_CLIP_OR_PROJECT,
@@ -130,9 +138,9 @@ class PullControllerCoreTest
         for (int index = 0; index < 8; index++)
             assertEquals (new ClipTargetId (index), bindings.get (CoreControls.DRUM_FILLS.get (index)));
         assertFalse (bindings.containsValue (new ClipTargetId (8)));
-        assertEquals (CoreControls.DRUM_FILLS.size () + 2, host.effects ().desiredOutput ().lights ().size ());
+        assertEquals (CoreControls.DRUM_FILLS.size () + 4, host.effects ().desiredOutput ().lights ().size ());
         assertTrue (host.effects ().desiredOutput ().lights ().keySet ().containsAll (CoreControls.DRUM_FILLS));
-        assertTrue (host.effects ().desiredOutput ().lights ().keySet ().containsAll (Set.of (PLAY_BUTTON, RECORD_BUTTON)));
+        assertTrue (host.effects ().desiredOutput ().lights ().keySet ().containsAll (Set.of (PLAY_BUTTON, RECORD_BUTTON, MUTE_BUTTON, SOLO_BUTTON)));
         assertTrue (host.effects ().desiredOutput ().lights ().values ().stream ().allMatch (OFF::equals));
     }
 
@@ -797,7 +805,157 @@ class PullControllerCoreTest
         host.bridge (layoutBridge (3, "SESSION", "TRACK"));
         assertStableSessionDestination (host.effects ().desiredControllerWorkspace ());
         host.controllerButton (SESSION_BUTTON, false);
-        assertEquals (DesiredControllerWorkspace.empty (), host.effects ().desiredControllerWorkspace ());
+        assertSelectedSession (host.effects ().desiredControllerWorkspace ());
+    }
+
+
+    @Test
+    void startupSessionWithoutAPageReadbackRequestsItsDefaultTrackPage ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.initialBridge (sessionBridge (4, "SESSION", "", StableDestinationWorkspace.SESSION_BANK));
+
+        host.start (Optional.empty ());
+
+        assertStableSessionDestination (host.effects ().desiredControllerWorkspace ());
+        assertEquals (Optional.of (InputRouteMode.OBSERVE), host.effects ().desiredInputRoutes ().mode (STOP_CLIP_BUTTON, InputKind.BUTTON));
+    }
+
+
+    @Test
+    void startupSessionPreservesAnAlreadySelectedIndependentPage ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.initialBridge (sessionBridge (4, "SESSION", "DEVICE_PARAMS", StableDestinationWorkspace.SESSION_BANK));
+
+        host.start (Optional.empty ());
+
+        assertSelectedSession (host.effects ().desiredControllerWorkspace ());
+        assertEquals (Optional.of (InputRouteMode.OBSERVE), host.effects ().desiredInputRoutes ().mode (STOP_CLIP_BUTTON, InputKind.BUTTON));
+    }
+
+
+    @Test
+    void sessionOwnsStopClipActionAndAuthoritativeButtonFeedback ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.initialBridge (sessionBridge (4, "SESSION", "TRACK", StableDestinationWorkspace.SESSION_BANK));
+        host.start (Optional.empty ());
+
+        assertSelectedSession (host.effects ().desiredControllerWorkspace ());
+        assertEquals (new RgbColor (25, 0, 0), light (host, STOP_CLIP_BUTTON));
+        assertEquals (Optional.of (InputRouteMode.OBSERVE), host.effects ().desiredInputRoutes ().mode (STOP_CLIP_BUTTON, InputKind.BUTTON));
+
+        host.controllerButton (STOP_CLIP_BUTTON, true);
+        assertEquals (RED, light (host, STOP_CLIP_BUTTON));
+        host.controllerButton (STOP_CLIP_BUTTON, false);
+
+        assertEquals (new SelectedTrackActionEffect (7, "track-7", SelectedTrackAction.STOP_IMMEDIATELY), host.effects ().executionOrder ().getLast ());
+        assertEquals (new RgbColor (25, 0, 0), light (host, STOP_CLIP_BUTTON));
+    }
+
+
+    @Test
+    void shiftedSessionStopTargetsTheFencedVisibleBank ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.initialBridge (sessionBridge (4, "SESSION", "TRACK", StableDestinationWorkspace.SESSION_BANK));
+        host.start (Optional.empty ());
+
+        host.controllerButton (SHIFT_BUTTON, true);
+        host.controllerButton (STOP_CLIP_BUTTON, true);
+        host.controllerButton (STOP_CLIP_BUTTON, false);
+
+        assertEquals (new StopSessionBankEffect (12, StableDestinationWorkspace.SESSION_BANK, true), host.effects ().executionOrder ().getLast ());
+    }
+
+
+    @Test
+    void selectSessionStopConsumesTheDeferredSelectRelease ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.initialBridge (sessionBridge (4, "SESSION", "TRACK", StableDestinationWorkspace.SESSION_BANK));
+        host.start (Optional.empty ());
+
+        host.controllerButton (SELECT_BUTTON, true);
+        host.controllerButton (STOP_CLIP_BUTTON, true);
+        host.controllerButton (STOP_CLIP_BUTTON, false);
+
+        assertEquals (List.of (
+            new ConsumeControllerButtonEffect (SELECT_BUTTON),
+            new StopSessionBankEffect (12, StableDestinationWorkspace.SESSION_BANK, true)), host.effects ().executionOrder ());
+    }
+
+
+    @Test
+    void longSessionStopHasNoLegacyPageModifierAndStopsTheSelectionOnRelease ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.initialBridge (sessionBridge (4, "SESSION", "TRACK", StableDestinationWorkspace.SESSION_BANK));
+        host.start (Optional.empty ());
+        host.controllerButton (STOP_CLIP_BUTTON, true);
+        host.controllerButtonLong (STOP_CLIP_BUTTON);
+        host.controllerButton (STOP_CLIP_BUTTON, false);
+
+        assertEquals (new SelectedTrackActionEffect (7, "track-7", SelectedTrackAction.STOP_IMMEDIATELY), host.effects ().executionOrder ().getLast ());
+    }
+
+
+    @Test
+    void sessionPadConsumesTheHeldStopGesture ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.initialBridge (sessionBridge (4, "SESSION", "TRACK", StableDestinationWorkspace.SESSION_BANK));
+        host.start (Optional.empty ());
+        final int effectsBeforeGesture = host.effects ().executionOrder ().size ();
+
+        host.controllerButton (STOP_CLIP_BUTTON, true);
+        host.controllerPad (PushControlIds.pad (33), true);
+        host.controllerPad (PushControlIds.pad (33), false);
+        host.controllerButton (STOP_CLIP_BUTTON, false);
+
+        assertEquals (effectsBeforeGesture, host.effects ().executionOrder ().size ());
+    }
+
+
+    @Test
+    void vsLiveKeepsItsGridAndStopControlWhenTheStablePageChanges ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        enterVsLive (host);
+        host.bridge (sessionBridge (2, "DRUM_PAD", "WORKSPACE", VsLiveWorkspace.SESSION_BANK));
+        assertVsLive (host.effects ().desiredControllerWorkspace ());
+
+        host.bridge (sessionBridge (3, "DRUM_PAD", "TRACK", VsLiveWorkspace.SESSION_BANK));
+
+        assertEquals (VsLiveWorkspace.NAME + " / stable page", host.effects ().desiredControllerWorkspace ().name ());
+        assertEquals (Set.of (
+            ControllerViewFacet.SESSION_NAVIGATION,
+            ControllerViewFacet.SESSION_CLIP_GRID_UPPER,
+            ControllerViewFacet.SESSION_SCENE_KEYS_UPPER,
+            ControllerViewFacet.DRUM_CONTROLLER_LOWER,
+            ControllerViewFacet.DRUM_PITCH_BEND), host.effects ().desiredControllerWorkspace ().facets ());
+        assertEquals (Optional.of (InputRouteMode.OBSERVE), host.effects ().desiredInputRoutes ().mode (STOP_CLIP_BUTTON, InputKind.BUTTON));
+    }
+
+
+    @Test
+    void sessionStopGestureConsumptionSurvivesACompositePageTransition ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        enterVsLive (host);
+        host.bridge (sessionBridge (2, "DRUM_PAD", "WORKSPACE", VsLiveWorkspace.SESSION_BANK));
+        final int effectsBeforeGesture = host.effects ().executionOrder ().size ();
+
+        host.controllerButton (STOP_CLIP_BUTTON, true);
+        host.controllerPad (PushControlIds.pad (33), true);
+        host.bridge (sessionBridge (3, "DRUM_PAD", "TRACK", VsLiveWorkspace.SESSION_BANK));
+        host.controllerPad (PushControlIds.pad (33), false);
+        host.controllerButton (STOP_CLIP_BUTTON, false);
+
+        assertEquals (effectsBeforeGesture, host.effects ().executionOrder ().size ());
     }
 
 
@@ -864,6 +1022,57 @@ class PullControllerCoreTest
 
 
     @Test
+    void muteAndSoloAlwaysTargetTheAuthoritativeSelectionAndWaitForReadback ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        host.selectedTrack (selectedTrack (false, false, false));
+
+        assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (MUTE_BUTTON, InputKind.BUTTON));
+        assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (SOLO_BUTTON, InputKind.BUTTON));
+        assertEquals (new RgbColor (30, 30, 30), light (host, MUTE_BUTTON));
+        assertEquals (new RgbColor (30, 30, 30), light (host, SOLO_BUTTON));
+
+        host.controllerButton (MUTE_BUTTON, true);
+        host.controllerButton (MUTE_BUTTON, false);
+
+        assertEquals (new SetSelectedTrackBooleanEffect (7, "track-7", SelectedTrackBoolean.MUTED, true), host.effects ().executionOrder ().getLast ());
+        assertEquals (new RgbColor (30, 30, 30), light (host, MUTE_BUTTON));
+
+        host.selectedTrack (selectedTrack (false, true, false));
+        assertEquals (new RgbColor (39, 27, 0), light (host, MUTE_BUTTON));
+
+        host.controllerButton (SHIFT_BUTTON, true);
+        host.controllerButton (SOLO_BUTTON, true);
+        host.controllerButtonLong (SOLO_BUTTON);
+        host.controllerButton (SOLO_BUTTON, false);
+
+        assertEquals (new SetSelectedTrackBooleanEffect (7, "track-7", SelectedTrackBoolean.SOLOED, true), host.effects ().executionOrder ().getLast ());
+        assertEquals (new RgbColor (30, 30, 30), light (host, SOLO_BUTTON));
+
+        host.selectedTrack (selectedTrack (false, true, true));
+        assertEquals (new RgbColor (89, 89, 0), light (host, SOLO_BUTTON));
+    }
+
+
+    @Test
+    void muteAndSoloFailClosedWithoutASelectedTrack ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+
+        host.controllerButton (MUTE_BUTTON, true);
+        host.controllerButton (MUTE_BUTTON, false);
+        host.controllerButton (SOLO_BUTTON, true);
+        host.controllerButton (SOLO_BUTTON, false);
+
+        assertTrue (host.effects ().executionOrder ().isEmpty ());
+        assertEquals (OFF, light (host, MUTE_BUTTON));
+        assertEquals (OFF, light (host, SOLO_BUTTON));
+    }
+
+
+    @Test
     void shiftRecordTogglesLauncherOverdubWithoutChangingOwnership ()
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
@@ -919,7 +1128,7 @@ class PullControllerCoreTest
         host.bridge (layoutBridge ("SESSION", "TRACK"));
         assertStableSessionDestination (host.effects ().desiredControllerWorkspace ());
         host.controllerButton (SESSION_BUTTON, false);
-        assertEquals (DesiredControllerWorkspace.empty (), host.effects ().desiredControllerWorkspace ());
+        assertSelectedSession (host.effects ().desiredControllerWorkspace ());
     }
 
 
@@ -935,13 +1144,13 @@ class PullControllerCoreTest
         host.bridge (layoutBridge ("SESSION", "TRACK"));
         assertStableSessionDestination (host.effects ().desiredControllerWorkspace ());
         host.controllerButton (SESSION_BUTTON, false);
-        assertEquals (DesiredControllerWorkspace.empty (), host.effects ().desiredControllerWorkspace ());
+        assertSelectedSession (host.effects ().desiredControllerWorkspace ());
 
         enterVsLive (host);
 
         assertVsLive (host.effects ().desiredControllerWorkspace ());
         assertEquals (Optional.of (InputRouteMode.OBSERVE), host.effects ().desiredInputRoutes ().mode (PushControlIds.pad (10), InputKind.POLY_PRESSURE));
-        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.NOTE_REPEAT, BridgeSubscription.PARAMETERS, BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
+        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.SESSION_BANK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.NOTE_REPEAT, BridgeSubscription.PARAMETERS, BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
         assertEquals (Set.of (ParameterBankId.PROJECT_REMOTE, ParameterBankId.GLOBAL), host.effects ().desiredParameterBanks ().banks ());
     }
 
@@ -976,7 +1185,7 @@ class PullControllerCoreTest
 
         assertStableSessionDestination (restored.effects ().desiredControllerWorkspace ());
         restored.bridge (layoutBridge ("SESSION", "TRACK"));
-        assertEquals (DesiredControllerWorkspace.empty (), restored.effects ().desiredControllerWorkspace ());
+        assertSelectedSession (restored.effects ().desiredControllerWorkspace ());
     }
 
 
@@ -1045,7 +1254,7 @@ class PullControllerCoreTest
         assertTrue (host.effects ().executionOrder ().isEmpty ());
 
         enterVsLive (host);
-        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.NOTE_REPEAT, BridgeSubscription.PARAMETERS, BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
+        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.SESSION_BANK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.NOTE_REPEAT, BridgeSubscription.PARAMETERS, BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
         assertEquals (Set.of (ParameterBankId.PROJECT_REMOTE, ParameterBankId.GLOBAL), host.effects ().desiredParameterBanks ().banks ());
         host.controllerMotion (PushControlIds.pad (10), InputKind.POLY_PRESSURE, 91);
 
@@ -1054,7 +1263,7 @@ class PullControllerCoreTest
         assertEquals (Optional.of (InputRouteMode.OBSERVE), host.effects ().desiredInputRoutes ().mode (PushControlIds.pad (10), InputKind.PAD));
 
         host.controllerButton (SESSION_BUTTON, true);
-        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
+        assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.SESSION_BANK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
         assertEquals (Optional.empty (), host.effects ().desiredInputRoutes ().mode (PushControlIds.pad (10), InputKind.POLY_PRESSURE));
     }
 
@@ -1470,6 +1679,46 @@ class PullControllerCoreTest
 
 
     @Test
+    void vsLivePageOverlayRetainsAHeldDrumRateGesture ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        enterVsLive (host);
+        final SelectedTrackSnapshot drums = selectedTrack (9, "drums", 0, true, false);
+        final NoteViewSnapshot preference = new NoteViewSnapshot (9, "drums", 0, ControllerNoteView.NONE, true);
+        final NoteRepeatSnapshot manual = new NoteRepeatSnapshot (true, true, false, NoteRepeatMode.RANDOM, 2, 1.0 / 3.0, 0.25, true, true, false, false);
+        host.bridge (noteBridge (2, "DRUM_PAD", "WORKSPACE", drums, preference, drum (drums), manual));
+
+        host.controllerPad (PushControlIds.pad (5), true);
+        assertEquals (2.0 / 3.0, host.effects ().desiredNoteRepeat ().period ());
+
+        host.bridge (noteBridge (3, "DRUM_PAD", "TRACK", drums, preference, drum (drums), manual));
+
+        assertEquals (VsLiveWorkspace.NAME + " / stable page", host.effects ().desiredControllerWorkspace ().name ());
+        assertEquals (2.0 / 3.0, host.effects ().desiredNoteRepeat ().period ());
+    }
+
+
+    @Test
+    void vsLiveMasterOverlayRetainsAHeldDrumRateGesture ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        enterVsLive (host);
+        final SelectedTrackSnapshot drums = selectedTrack (9, "drums", 0, true, false);
+        final NoteViewSnapshot preference = new NoteViewSnapshot (9, "drums", 0, ControllerNoteView.NONE, true);
+        final NoteRepeatSnapshot manual = new NoteRepeatSnapshot (true, true, false, NoteRepeatMode.RANDOM, 2, 1.0 / 3.0, 0.25, true, true, false, false);
+        host.bridge (noteBridge (2, "DRUM_PAD", "WORKSPACE", drums, preference, drum (drums), manual));
+
+        host.controllerPad (PushControlIds.pad (5), true);
+        host.bridge (noteBridge (3, "DRUM_PAD", "MASTER", drums, preference, drum (drums), manual));
+
+        assertMasterOverVsLive (host.effects ().desiredControllerWorkspace ());
+        assertEquals (2.0 / 3.0, host.effects ().desiredNoteRepeat ().period ());
+    }
+
+
+    @Test
     void staleDrumLayoutCannotRetainRollAfterTheSelectedTargetChanges ()
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
@@ -1514,6 +1763,12 @@ class PullControllerCoreTest
 
     private static SelectedTrackSnapshot selectedTrack (final boolean recordArmed)
     {
+        return selectedTrack (recordArmed, false, false);
+    }
+
+
+    private static SelectedTrackSnapshot selectedTrack (final boolean recordArmed, final boolean muted, final boolean soloed)
+    {
         return new SelectedTrackSnapshot (
             7,
             "track-7",
@@ -1528,8 +1783,8 @@ class PullControllerCoreTest
             true,
             recordArmed,
             TrackMonitorMode.AUTO,
-            false,
-            false,
+            muted,
+            soloed,
             false,
             true,
             0.75,
@@ -1714,6 +1969,27 @@ class PullControllerCoreTest
     }
 
 
+    private static ControllerBridgeSnapshot sessionBridge (final long layoutGeneration, final String view, final String mode, final SessionBankShape shape)
+    {
+        final SelectedTrackSnapshot selected = selectedTrack (false);
+        final List<SessionTrackSnapshot> tracks = new ArrayList<> ();
+        tracks.add (new SessionTrackSnapshot (selected.channelId (), selected.position (), true, true, selected.activated (), selected.recordArmed (), selected.muted (), selected.soloed (), selected.clipPlaying (), selected.color ()));
+        while (tracks.size () < shape.tracks ())
+            tracks.add (SessionTrackSnapshot.empty ());
+        return new ControllerBridgeSnapshot (
+            TransportSnapshot.empty (),
+            selected,
+            new SessionBankSnapshot (12, shape, 0, 0, tracks),
+            new ControllerLayoutSnapshot (layoutGeneration, view, mode, false, false, 0, GridPressureConfiguration.OFF),
+            NoteViewSnapshot.empty (),
+            NoteRepeatSnapshot.empty (),
+            DrumContextSnapshot.empty (),
+            ParameterBridgeSnapshot.empty (),
+            MasterSnapshot.empty (),
+            ProjectSnapshot.empty ());
+    }
+
+
     private static ControllerBridgeSnapshot masterBridge (final boolean canPrevious, final boolean canNext, final boolean pending)
     {
         return masterBridge (canPrevious, canNext, pending, true);
@@ -1787,6 +2063,14 @@ class PullControllerCoreTest
         assertEquals ("Session destination", workspace.name ());
         assertEquals (StableDestinationWorkspace.SESSION_BANK, workspace.sessionBankShape ());
         assertEquals (Set.of (ControllerViewFacet.TRACK_MIXER_PAGE, ControllerViewFacet.SESSION_GRID_FULL), workspace.facets ());
+    }
+
+
+    private static void assertSelectedSession (final DesiredControllerWorkspace workspace)
+    {
+        assertEquals ("Session", workspace.name ());
+        assertEquals (StableDestinationWorkspace.SESSION_BANK, workspace.sessionBankShape ());
+        assertEquals (Set.of (ControllerViewFacet.SESSION_GRID_FULL), workspace.facets ());
     }
 
 

@@ -191,20 +191,31 @@
 - A core-only change inside the installed API/canopy hot reloads. Changing a parent-loaded API
   contract, adding a Bitwig proxy/property/observer, changing a permanent binding or proxy capacity,
   or broadening hardware output ownership requires a shell build/install and Bitwig restart.
-- Core API 34 arbitrates general input, complete composed controller state, semantic action intent,
+- Core API 35 arbitrates general input, complete composed controller state, semantic action intent,
   named bounded parameter banks, and exact parameter-target leases. Each active view contributes
   its fixed facets, Note layout, selected-track musical route, and other owned output; composite
   workspaces merge disjoint contributions and reject physical overlap. Project-macro encoder turns
   are the reference parameter migration: core owns
   the mapping, relative effect, and snapback policy while stable owns Bitwig proxies, identity
   validation, read-back, and effect execution. The Play action, eight drum-fill RGB lights, four
-  Bitwig-manually-mappable drum-control pads with a replayable physical-to-semantic mapping lease
-  and authoritative Boolean mapped-state read-back from dedicated no-output background lights on
-  permanent semantic Bitwig button identities. All 64 original physical PAD actions are
-  raw-dispatch-only and never define learned mapping identity; raw MIDI supplies ordinary dispatch
-  outside a lease and the routed core gesture during one without becoming a second learned action. Play and
-  Record lights, both Master button rows, and the Master graphics display have migrated direct
-  output ownership. Play and Record light policy renders authoritative engine, transport, overdub,
+  drum-rate RGB lights, four Bitwig-manually-mappable drum-control pads and lights with a replayable
+  physical-to-semantic mapping lease and authoritative Boolean mapped-state read-back from
+  dedicated no-output background lights on permanent semantic Bitwig button identities. All 64
+  original physical PAD actions are raw-dispatch-only and never define learned mapping identity;
+  raw MIDI supplies ordinary dispatch outside a lease and the routed core gesture during one
+  without becoming a second learned action. Play,
+  Record, Mute, and Solo lights, both Master button rows, and the Master graphics display have
+  migrated direct output ownership. Session Stop Clip has migrated as one composed action/feedback slice: a
+  selected `SessionView` owns its observed edge and RGB light independently from the active
+  Mix/Device/Browse page; plain Stop uses the private selected track's immediate actuator, while Shift/Select Stop is
+  fenced to the active bounded 8x8 or 8x4 Session bank, and Select release is explicitly consumed.
+  Its permanent direct command is inert, but `OBSERVE` intentionally preserves held-button state
+  for the still-adapted Session grid's Stop-plus-pad chord; do not request `EXCLUSIVE` until that
+  grid behavior migrates. Legacy long/locked Stop row overlays are removed. A persistent `SelectedTrackMuteSoloView` owns
+  Mute/Solo edges and RGB feedback in every workspace, always targets the private authoritative
+  selected track, and has no project-clear, lock, row-overlay, Master, device-layer, pad, or note
+  modifier variants. Play and Record light policy renders
+  authoritative engine, transport, overdub,
   and selected-track arm read-back in every workspace. Play targets the remembered engine-owning
   project through a bounded navigate/acknowledge/toggle/acknowledge/return transaction. Its stable
   command is inert;

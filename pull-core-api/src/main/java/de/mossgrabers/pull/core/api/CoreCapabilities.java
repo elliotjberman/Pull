@@ -23,7 +23,7 @@ public final class CoreCapabilities
     /** Single-active momentary clip-session effects with a frozen launch policy per target. */
     public static final String EFFECT_CLIP_LAUNCH_HOLD = "effect.clip-launch-hold";
 
-    /** Hardware-independent RGB light output; v4 admits the four drum control pads. */
+    /** Hardware-independent RGB light output; v4 admits drum control pads and v5 bounded general buttons. */
     public static final String OUTPUT_RGB_LIGHT = "output.rgb-light";
 
     /** Replayable projection onto bounded semantic host-learnable controller endpoints. */
@@ -41,10 +41,10 @@ public final class CoreCapabilities
     /** Normalized bounded Push controller inputs. */
     public static final String INPUT_CONTROLLER = "input.controller";
 
-    /** Replayable core ownership of normalized controller inputs; v3 admits drum control pads. */
+    /** Replayable input ownership; v3 admits drum control pads and v4 Session and selected-track controls. */
     public static final String ROUTING_CONTROLLER_INPUT = "routing.controller-input";
 
-    /** Common bounded controller state; v7 keys mapping feedback by semantic endpoint. */
+    /** Common bounded controller state; v8 adds Session state alongside semantic mapping feedback. */
     public static final String SNAPSHOT_CONTROLLER_BRIDGE = "snapshot.controller-bridge";
 
     /** Replayable selection of bounded bridge-state domains to publish and sample. */
@@ -55,6 +55,11 @@ public final class CoreCapabilities
 
     /** Generation-fenced selected-track state, value, and action effects. */
     public static final String EFFECT_SELECTED_TRACK = "effect.selected-track";
+
+    /** Generation-fenced actions against the active bounded Session bank. */
+    public static final String EFFECT_SESSION_BANK = "effect.session-bank";
+    /** Mechanical consumption of a stable compatibility button release. */
+    public static final String EFFECT_CONTROLLER_BUTTON_CONSUMPTION = "effect.controller-button-consumption";
 
     /** Generation-fenced drum-pad state and selection effects. */
     public static final String EFFECT_DRUM_PAD = "effect.drum-pad";

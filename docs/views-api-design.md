@@ -1,6 +1,6 @@
 # Views API and Composite Workspaces
 
-Status: design contract. Checkpoints 1 and 2 are structurally implemented through Core API 34. The
+Status: design contract. Checkpoints 1 and 2 are structurally implemented through Core API 35. The
 remaining stable-adapter boundary is represented explicitly in claims and recorded in
 [`../ARCH.md`](../ARCH.md). The checkpoints remain below so code, offline tests, and Push hardware
 tests can be compared against the intended end state.
@@ -143,6 +143,9 @@ Examples:
 - **Project Macro Controls** requires `ENCODERS`, `DISPLAY.PARAMETERS`, and encoder touches. It does
   not implicitly own the lower track strip.
 - **Track Selection Strip** requires `DISPLAY.BOTTOM_STRIP` and `SOFT_KEYS.LOWER`.
+- **Selected-track Mute/Solo** requires the dedicated Mute and Solo buttons and consumes the
+  private authoritative selected-track snapshot. It is controller-level policy downstream of
+  selection, not part of the selector, Session grid, or active display page.
 - **Session Navigation** currently requires `NAVIGATION.ARROWS` and `NAVIGATION.PAGE` because the
   installed stable adapter realizes them together. Page navigation may become optional only after
   the shell exposes it as an independently selectable facet.
@@ -211,12 +214,28 @@ state in the checkpoint envelope. A rejected candidate leaves the prior generati
 The stable adapter realizes page and grid facets as independent leases. A page overlay such as
 Master may replace the encoder/display page while retaining the selected workspace's grid facets;
 it must not select a different Bitwig track merely to activate the inherited display mode.
-Transitions back to stable layouts are also views, not shell history: plain Session compiles
-`TrackMixerPageView` with `FullSessionView`, and Note compiles `TrackMixerPageView` around the
-core-owned target-fenced Note viewer. Core holds those destination facets until the authoritative
-layout snapshot reports the requested mode/view, then releases them without changing the realized
-stable layout. An empty workspace therefore means only "release every core facet"; it does not
-choose or restore a destination.
+Transitions back to stable layouts are also views, not shell history: the Session destination
+temporarily composes `TrackMixerPageView` with `SessionView.full()`, and Note compiles
+`TrackMixerPageView` around the core-owned target-fenced Note viewer. Core holds destination page
+facets until the authoritative layout snapshot reports the requested mode/view. It then releases
+only the acknowledged page while retaining `SessionView`, including its grid and Stop Clip
+ownership. Likewise, a composite may release its default parameter/display page after read-back
+while retaining disjoint grid/button views. An empty workspace therefore means only "release every
+core facet"; it does not choose or restore a destination.
+
+Page and Master overlays reuse retained instances of the underlying grid views. A compiled overlay
+may start independently, but it reconciles an already-started retained view instead of restarting
+it, so held-pad and other BEGIN-to-END state survives the page replacement.
+
+Hydration requests Session's default Track/Mix page only when page state is genuinely unavailable.
+If Mix, Device, or Browse is already authoritative, core retains that page and composes the
+persistent Session view around it.
+
+Controller-level selected-track Mute/Solo remains composed through every such page replacement.
+Its exclusive input and RGB output claims are unaffected by Session, Mix, Device, Browse, Master,
+or composite-grid selection. Legacy page-retarget and held-modifier meanings were removed; a view
+which needs a future target other than the selected track must declare a different target-specific
+control view rather than infer it from the visible page.
 
 ## Implementation Checkpoints
 

@@ -6,7 +6,6 @@ package de.mossgrabers.controller.ableton.push.mode.device;
 
 import java.util.Optional;
 
-import de.mossgrabers.controller.ableton.push.PushConfiguration;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.mode.BaseMode;
@@ -153,26 +152,6 @@ public class DeviceParamsMode extends BaseMode<IParameter>
             return;
         }
 
-        final PushConfiguration configuration = this.surface.getConfiguration ();
-        if (configuration.isMuteState (this.surface.isLongPressed (ButtonID.MUTE)))
-        {
-            this.surface.setTriggerConsumed (ButtonID.MUTE);
-            track.toggleMute ();
-            return;
-        }
-        if (configuration.isSoloState (this.surface.isLongPressed (ButtonID.SOLO)))
-        {
-            this.surface.setTriggerConsumed (ButtonID.SOLO);
-            track.toggleSolo ();
-            return;
-        }
-        if (configuration.isClipStopState (this.surface.isLongPressed (ButtonID.STOP_CLIP)))
-        {
-            this.surface.setTriggerConsumed (ButtonID.STOP_CLIP);
-            track.stop (true);
-            return;
-        }
-
         if (this.surface.isSelectPressed ())
         {
             this.surface.setTriggerConsumed (ButtonID.SELECT);
@@ -215,12 +194,6 @@ public class DeviceParamsMode extends BaseMode<IParameter>
             device.remove ();
             return;
         }
-        if (this.isButtonCombination (ButtonID.MUTE))
-        {
-            device.toggleEnabledState ();
-            return;
-        }
-
         if (cursorDevice.getIndex () != index)
         {
             device.select ();

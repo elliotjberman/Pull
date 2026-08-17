@@ -213,17 +213,6 @@ public class DeviceLayerMode extends BaseMode<ILayer>
         if (event != ButtonEvent.DOWN)
             return;
 
-        if (this.configuration.isMuteState (this.surface.isLongPressed (ButtonID.MUTE)))
-        {
-            this.bank.getItem (this.getDrumPadIndex () + index).toggleMute ();
-            return;
-        }
-        if (this.configuration.isSoloState (this.surface.isLongPressed (ButtonID.SOLO)))
-        {
-            this.bank.getItem (this.getDrumPadIndex () + index).toggleSolo ();
-            return;
-        }
-
         final ModeManager modeManager = this.surface.getModeManager ();
         switch (index)
         {
@@ -422,37 +411,6 @@ public class DeviceLayerMode extends BaseMode<ILayer>
 
     protected void updateMenuItems (final int selectedMenu)
     {
-        if (this.configuration.isMuteState (this.surface.isLongPressed (ButtonID.MUTE)))
-            this.updateMuteMenu ();
-        else if (this.configuration.isSoloState (this.surface.isLongPressed (ButtonID.SOLO)))
-            this.updateSoloMenu ();
-        else
-            this.updateLayerMenu (selectedMenu);
-    }
-
-
-    protected void updateSoloMenu ()
-    {
-        for (int i = 0; i < 8; i++)
-        {
-            final IChannel layer = this.bank.getItem (i);
-            this.menu.get (i).set (layer.doesExist () ? "Solo" : "", Boolean.valueOf (layer.isSolo ()));
-        }
-    }
-
-
-    protected void updateMuteMenu ()
-    {
-        for (int i = 0; i < 8; i++)
-        {
-            final IChannel layer = this.bank.getItem (i);
-            this.menu.get (i).set (layer.doesExist () ? "Mute" : "", Boolean.valueOf (layer.isMute ()));
-        }
-    }
-
-
-    protected void updateLayerMenu (final int selectedMenu)
-    {
         this.menu.get (0).set ("Volume", Boolean.valueOf (selectedMenu - 1 == 0));
         this.menu.get (1).set ("Pan", Boolean.valueOf (selectedMenu - 1 == 1));
         this.menu.get (2).set (" ", Boolean.FALSE);
@@ -499,23 +457,6 @@ public class DeviceLayerMode extends BaseMode<ILayer>
         index = this.isButtonRow (1, buttonID);
         if (index >= 0)
         {
-            final IChannel layer = this.bank.getItem (offset + index);
-            final boolean isMuteState = this.configuration.isMuteState (this.surface.isLongPressed (ButtonID.MUTE));
-            if (isMuteState || this.configuration.isSoloState (this.surface.isLongPressed (ButtonID.SOLO)))
-            {
-                if (layer.doesExist ())
-                {
-                    if (isMuteState)
-                    {
-                        if (layer.isMute ())
-                            return PushColorManager.PUSH2_COLOR2_AMBER_LO;
-                    }
-                    else if (layer.isSolo ())
-                        return PushColorManager.PUSH2_COLOR2_YELLOW_HI;
-                }
-                return PushColorManager.PUSH2_COLOR_BLACK;
-            }
-
             final ModeManager modeManager = this.surface.getModeManager ();
             switch (index)
             {

@@ -24,12 +24,22 @@ public final class StableDestinationWorkspace
 
 
     /** Create the explicit Track/Mix plus full Session destination. */
-    public static CompiledWorkspace session (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator)
+    public static CompiledWorkspace session (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator, final ControllerView sessionView)
     {
         return CompiledWorkspace.compile (
             "Session destination",
             SESSION_BANK,
-            ControllerLevelViews.composeWithoutNoteController (selection, playbackCoordinator, List.of (new SessionTemporarySelectionView (selection), new TrackMixerPageView (), new FullSessionView ())));
+            ControllerLevelViews.composeWithoutNoteController (selection, playbackCoordinator, List.of (new SessionTemporarySelectionView (selection), new TrackMixerPageView (), sessionView)));
+    }
+
+
+    /** Keep the semantic Session view selected after its default Track/Mix page is acknowledged. */
+    public static CompiledWorkspace selectedSession (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator, final ControllerView sessionView)
+    {
+        return CompiledWorkspace.compile (
+            "Session",
+            SESSION_BANK,
+            ControllerLevelViews.compose (selection, playbackCoordinator, List.of (sessionView)));
     }
 
 

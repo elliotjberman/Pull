@@ -6,7 +6,7 @@ package de.mossgrabers.pull.core.api.effect;
 /**
  * A validated, one-shot action requested from the stable shell.
  */
-public sealed interface CoreEffect permits AdjustParameterValueEffect, CancelTimerEffect, NavigateProjectEffect, PressClipTargetEffect, ProjectFileActionEffect, ReleaseClipTargetsEffect, ResetParameterEffect, ScheduleTimerEffect, SelectDrumPadEffect, SelectedTrackActionEffect, SendNoteInputMidiEffect, SetDrumPadBooleanEffect, SetDrumPadValueEffect, SetNoteViewPreferenceEffect, SetParameterValueEffect, SetProjectEngineEffect, SetProjectTransportStateEffect, SetSelectedTrackBooleanEffect, SetSelectedTrackMonitorEffect, SetSelectedTrackValueEffect, SetTransportStateEffect, SetTransportValueEffect
+public sealed interface CoreEffect permits AdjustParameterValueEffect, CancelTimerEffect, ConsumeControllerButtonEffect, NavigateProjectEffect, PressClipTargetEffect, ProjectFileActionEffect, ReleaseClipTargetsEffect, ResetParameterEffect, ScheduleTimerEffect, SelectDrumPadEffect, SelectedTrackActionEffect, SendNoteInputMidiEffect, SetDrumPadBooleanEffect, SetDrumPadValueEffect, SetNoteViewPreferenceEffect, SetParameterValueEffect, SetProjectEngineEffect, SetProjectTransportStateEffect, SetSelectedTrackBooleanEffect, SetSelectedTrackMonitorEffect, SetSelectedTrackValueEffect, SetTransportStateEffect, SetTransportValueEffect, StopSessionBankEffect
 {
     // Marker interface for API-owned effects
 }

@@ -201,7 +201,14 @@ public final class WorkspaceSelection
     {
         final ControllerLayoutSnapshot observed = Objects.requireNonNull (layout, "layout");
         if (this.selectedDestination == Destination.NONE && this.pendingDestination == Destination.NONE && this.active == Id.DEFAULT)
+        {
             this.selectedDestination = destinationOf (observed);
+            if (this.selectedDestination == Destination.SESSION && observed.modeId ().isBlank ())
+            {
+                this.pendingDestination = Destination.SESSION;
+                this.pendingAfterLayoutGeneration = observed.generation ();
+            }
+        }
         final boolean trackPage = "TRACK".equals (observed.modeId ());
         if (observed.generation () <= this.pendingAfterLayoutGeneration)
             return;
@@ -240,7 +247,7 @@ public final class WorkspaceSelection
 
     private static Destination destinationOf (final ControllerLayoutSnapshot layout)
     {
-        if ("TRACK".equals (layout.modeId ()) && "SESSION".equals (layout.viewId ()))
+        if ("SESSION".equals (layout.viewId ()))
             return Destination.SESSION;
         if (!ControllerNoteView.fromStableId (layout.viewId ()).isPresent ())
             return Destination.NONE;

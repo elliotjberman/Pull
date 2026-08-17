@@ -11,6 +11,9 @@ public enum SelectedTrackAction
     /** Stop clip playback on the selected track. */
     STOP,
 
+    /** Stop clip playback immediately, bypassing launch quantization. */
+    STOP_IMMEDIATELY,
+
     /** Return the selected track to Arrangement playback. */
     RETURN_TO_ARRANGEMENT,
 

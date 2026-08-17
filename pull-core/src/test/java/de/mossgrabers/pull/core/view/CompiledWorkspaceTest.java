@@ -41,7 +41,7 @@ import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
 import de.mossgrabers.pull.core.runtime.view.ProjectMacroControlsView;
-import de.mossgrabers.pull.core.runtime.view.SessionClipGridView;
+import de.mossgrabers.pull.core.runtime.view.SessionView;
 import de.mossgrabers.pull.core.runtime.view.WorkspaceSelection;
 import de.mossgrabers.pull.core.runtime.view.WorkspaceSelectionView;
 
@@ -192,12 +192,13 @@ class CompiledWorkspaceTest
     @Test
     void selectedFacetContributesFixedClaimsAndStableAdapters ()
     {
-        final SessionClipGridView session = new SessionClipGridView (true);
+        final SessionView session = SessionView.upper (true);
         final CompiledWorkspace workspace = CompiledWorkspace.compile ("session", new SessionBankShape (8, 4), List.of (session));
 
-        assertEquals (Set.of (SessionClipGridView.SCENE_LAUNCH), workspace.profiles ().get (session.id ()).enabledFacets ());
+        assertEquals (Set.of (SessionView.SCENE_LAUNCH), workspace.profiles ().get (session.id ()).enabledFacets ());
         assertEquals (Set.of (ControllerViewFacet.SESSION_CLIP_GRID_UPPER, ControllerViewFacet.SESSION_SCENE_KEYS_UPPER), workspace.desiredControllerWorkspace ().facets ());
-        assertEquals (4, session.claims ().size ());
+        assertTrue (session.claims ().contains (new SurfaceClaim (SurfaceArea.STOP_CLIP_BUTTON, SurfaceClaim.Kind.OBSERVE_INPUT)));
+        assertTrue (session.claims ().contains (new SurfaceClaim (SurfaceArea.STOP_CLIP_BUTTON, SurfaceClaim.Kind.OUTPUT)));
     }
 
 

@@ -45,12 +45,13 @@ final class ControllerLevelViews
     private static List<ControllerView> compose (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator, final List<? extends ControllerView> workspaceViews, final boolean noteController)
     {
         final List<? extends ControllerView> checkedWorkspaceViews = Objects.requireNonNull (workspaceViews, "workspaceViews");
-        final List<ControllerView> views = new ArrayList<> (checkedWorkspaceViews.size () + 4);
+        final List<ControllerView> views = new ArrayList<> (checkedWorkspaceViews.size () + 5);
         views.add (new WorkspaceSelectionView (Objects.requireNonNull (selection, "selection")));
         if (noteController)
             views.add (new NoteViewControllerView (selection));
         views.add (new GlobalParameterControlsView ());
         views.add (new TransportControlView (Objects.requireNonNull (playbackCoordinator, "playbackCoordinator")));
+        views.add (new SelectedTrackMuteSoloView ());
         for (final ControllerView view: checkedWorkspaceViews)
             views.add (Objects.requireNonNull (view, "workspaceView"));
         return List.copyOf (views);

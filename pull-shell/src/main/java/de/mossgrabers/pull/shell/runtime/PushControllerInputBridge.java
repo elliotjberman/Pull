@@ -410,11 +410,8 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
     private static Set<PhysicalInputAddress<ControlId>> coreOwnedInputs ()
     {
         final java.util.LinkedHashSet<PhysicalInputAddress<ControlId>> inputs = new java.util.LinkedHashSet<> ();
-        inputs.add (new PhysicalInputAddress<> (PushControlIds.button (ButtonID.PLAY.name ()), InputKind.BUTTON));
-        inputs.add (new PhysicalInputAddress<> (PushControlIds.button (ButtonID.RECORD.name ()), InputKind.BUTTON));
-        inputs.add (new PhysicalInputAddress<> (PushControlIds.button (ButtonID.NOTE.name ()), InputKind.BUTTON));
-        inputs.add (new PhysicalInputAddress<> (PushControlIds.button (ButtonID.SESSION.name ()), InputKind.BUTTON));
-        inputs.add (new PhysicalInputAddress<> (PushControlIds.button (ButtonID.LAYOUT.name ()), InputKind.BUTTON));
+        for (final ButtonID button: List.of (ButtonID.PLAY, ButtonID.RECORD, ButtonID.NOTE, ButtonID.SESSION, ButtonID.LAYOUT, ButtonID.MUTE, ButtonID.SOLO))
+            inputs.add (new PhysicalInputAddress<> (PushControlIds.button (button.name ()), InputKind.BUTTON));
         for (final ControlId control: CoreControls.DRUM_RATES)
         {
             inputs.add (new PhysicalInputAddress<> (control, InputKind.PAD));
