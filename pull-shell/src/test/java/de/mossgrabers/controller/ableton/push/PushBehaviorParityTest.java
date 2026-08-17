@@ -38,6 +38,7 @@ import de.mossgrabers.framework.featuregroup.IMode;
 import de.mossgrabers.framework.featuregroup.IView;
 import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.parameter.IParameter;
+import de.mossgrabers.framework.scale.Scales;
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.framework.view.Views;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
@@ -72,6 +73,20 @@ class PushBehaviorParityTest
         assertEquals (PushColorManager.PUSH2_COLOR2_BLACK, PushControllerSetup.controllerLightColor (colors, new RgbColor (0, 0, 0)));
         assertEquals (colors.getColorIndex (ColorEx.WHITE), PushControllerSetup.controllerLightColor (colors, new RgbColor (255, 255, 255)));
         assertEquals (colors.getColorIndex (ColorEx.GREEN), PushControllerSetup.controllerLightColor (colors, new RgbColor (0, 255, 0)));
+        assertEquals (colors.getColorIndex (ColorEx.RED), PushControllerSetup.controllerLightColor (colors, new RgbColor (255, 0, 0)));
+    }
+
+
+    @Test
+    void drumControlPadsRemainControllerOnlyInTheNoteTranslationTable ()
+    {
+        final Scales scales = new Scales (new TwosComplementValueChanger (128, 1), 36, 100, 8, 8);
+        final int [] drumMatrix = scales.getDrumMatrix ();
+
+        assertEquals (36, drumMatrix[36]);
+        assertEquals (51, drumMatrix[36 + 3 * 8 + 3]);
+        for (int slot = 0; slot < 4; slot++)
+            assertEquals (-1, drumMatrix[36 + 3 * 8 + 4 + slot]);
     }
 
 

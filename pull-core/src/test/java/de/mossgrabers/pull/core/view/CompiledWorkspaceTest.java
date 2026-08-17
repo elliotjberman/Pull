@@ -10,12 +10,18 @@ import de.mossgrabers.pull.core.api.ControllerActionBinding;
 import de.mossgrabers.pull.core.api.ControllerActionId;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ControllerLayoutSnapshot;
+import de.mossgrabers.pull.core.api.ControllerMappingBinding;
+import de.mossgrabers.pull.core.api.ControllerMappingId;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.ControllerStateScope;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
+import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.CoreResult;
-import de.mossgrabers.pull.core.api.InputRouteMode;
+import de.mossgrabers.pull.core.api.DesiredControllerMappings;
+import de.mossgrabers.pull.core.api.DesiredNotePerformance;
+import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
 import de.mossgrabers.pull.core.api.DrumContextSnapshot;
+import de.mossgrabers.pull.core.api.InputRouteMode;
 import de.mossgrabers.pull.core.api.ParameterBankId;
 import de.mossgrabers.pull.core.api.ParameterBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ParameterSlot;
@@ -31,6 +37,9 @@ import de.mossgrabers.pull.core.api.effect.AdjustParameterValueEffect;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
+import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
+import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
+import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
 import de.mossgrabers.pull.core.runtime.view.ProjectMacroControlsView;
 import de.mossgrabers.pull.core.runtime.view.SessionClipGridView;
 import de.mossgrabers.pull.core.runtime.view.WorkspaceSelection;
@@ -273,6 +282,82 @@ class CompiledWorkspaceTest
 
 
     @Test
+    void controllerMappingCompositionRejectsPhysicalAndSemanticCollisions ()
+    {
+        final ControlId firstPhysical = CoreControls.DRUM_CONTROL_PADS.getFirst ();
+        final ControlId secondPhysical = CoreControls.DRUM_RATES.getFirst ();
+        final ControllerMappingId firstSemantic = new ControllerMappingId ("semantic.first");
+        final ControllerMappingId secondSemantic = new ControllerMappingId ("semantic.second");
+        final ControllerMappingBinding first = new ControllerMappingBinding (firstPhysical, firstSemantic);
+
+        final CompiledWorkspace physicalCollision = CompiledWorkspace.compile ("physical collision", List.of (mappingView (
+            "same physical",
+            SurfaceArea.DRUM_CONTROL_PADS,
+            first,
+            new ControllerMappingBinding (firstPhysical, secondSemantic))));
+        final CompiledWorkspace semanticCollision = CompiledWorkspace.compile ("semantic collision", List.of (
+            mappingView ("first", SurfaceArea.DRUM_CONTROL_PADS, first),
+            mappingView ("same semantic", SurfaceArea.DRUM_RATE_PADS, new ControllerMappingBinding (secondPhysical, firstSemantic))));
+
+        assertThrows (IllegalArgumentException.class, () -> physicalCollision.start (snapshot ()));
+        assertThrows (IllegalStateException.class, () -> semanticCollision.start (snapshot ()));
+    }
+
+
+    @Test
+    void controllerMappingCompositionMergesDisjointVirtualEndpoints ()
+    {
+        final ControllerMappingBinding first = new ControllerMappingBinding (CoreControls.DRUM_CONTROL_PADS.getFirst (), new ControllerMappingId ("semantic.first"));
+        final ControllerMappingBinding second = new ControllerMappingBinding (CoreControls.DRUM_RATES.getFirst (), new ControllerMappingId ("semantic.second"));
+
+        final CoreResult result = CompiledWorkspace.compile ("virtual mappings", List.of (
+            mappingView ("first", SurfaceArea.DRUM_CONTROL_PADS, first),
+            mappingView ("second", SurfaceArea.DRUM_RATE_PADS, second))).start (snapshot ());
+
+        assertEquals (Set.of (first, second), result.desiredOutput ().controllerMappings ().bindings ());
+    }
+
+
+    @Test
+    void rejectsControllerMappingOutsideTheEmittingViewsClaims ()
+    {
+        final ControllerMappingBinding binding = new ControllerMappingBinding (CoreControls.DRUM_CONTROL_PADS.getFirst (), new ControllerMappingId ("semantic.first"));
+        final ControllerView owner = new TestView (
+            "owner",
+            Set.of (
+                claim (SurfaceArea.DRUM_CONTROL_PADS, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
+                claim (SurfaceArea.DRUM_CONTROL_PADS, SurfaceClaim.Kind.OUTPUT)),
+            Set.of (BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK));
+        final ControllerView parasitic = mappingView (
+            "parasitic",
+            Set.of (),
+            Set.of (BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK),
+            binding);
+        final CompiledWorkspace workspace = CompiledWorkspace.compile ("parasitic mapping", List.of (owner, parasitic));
+
+        assertThrows (IllegalStateException.class, () -> workspace.start (snapshot ()));
+    }
+
+
+    @Test
+    void rejectsControllerMappingWithoutTheEmittingViewsFeedbackSubscription ()
+    {
+        final ControllerMappingBinding binding = new ControllerMappingBinding (CoreControls.DRUM_CONTROL_PADS.getFirst (), new ControllerMappingId ("semantic.first"));
+        final ControllerView mapping = mappingView (
+            "unsubscribed mapping",
+            Set.of (
+                claim (SurfaceArea.DRUM_CONTROL_PADS, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
+                claim (SurfaceArea.DRUM_CONTROL_PADS, SurfaceClaim.Kind.OUTPUT)),
+            Set.of (),
+            binding);
+        final ControllerView unrelatedSubscriber = new TestView ("unrelated subscriber", Set.of (), Set.of (BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK));
+        final CompiledWorkspace workspace = CompiledWorkspace.compile ("unsubscribed mapping", List.of (mapping, unrelatedSubscriber));
+
+        assertThrows (IllegalStateException.class, () -> workspace.start (snapshot ()));
+    }
+
+
+    @Test
     void workspaceOwnsThePhysicalControlToParameterSlotMapping ()
     {
         final CompiledWorkspace workspace = CompiledWorkspace.compile ("macros", List.of (new ProjectMacroControlsView ()));
@@ -322,6 +407,60 @@ class CompiledWorkspaceTest
             public Map<ControlId, ParameterSlot> parameterBindings ()
             {
                 return Map.of (control, slot);
+            }
+        };
+    }
+
+
+    private static ControllerView mappingView (final String id, final SurfaceArea area, final ControllerMappingBinding... bindings)
+    {
+        return mappingView (
+            id,
+            Set.of (
+                claim (area, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
+                claim (area, SurfaceClaim.Kind.OUTPUT)),
+            Set.of (BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK),
+            bindings);
+    }
+
+
+    private static ControllerView mappingView (final String id, final Set<SurfaceClaim> claims, final Set<BridgeSubscription> subscriptions, final ControllerMappingBinding... bindings)
+    {
+        return new ControllerView ()
+        {
+            @Override
+            public String id ()
+            {
+                return id;
+            }
+
+
+            @Override
+            public ViewProfile profile ()
+            {
+                return ViewProfile.fixed (id, claims, Set.of ());
+            }
+
+
+            @Override
+            public Set<BridgeSubscription> bridgeSubscriptions ()
+            {
+                return subscriptions;
+            }
+
+
+            @Override
+            public ViewOutput render (final ControllerSnapshot ignored)
+            {
+                return new ViewOutput (
+                    Map.of (),
+                    Map.of (),
+                    ControllerDisplayScene.empty (),
+                    ControllerPadGridOverlay.inactive (),
+                    ControllerDisplayOverlay.inactive (),
+                    DesiredNotePerformance.inactive (),
+                    DesiredNoteRepeat.unowned (),
+                    new DesiredControllerMappings (Set.of (bindings)));
             }
         };
     }

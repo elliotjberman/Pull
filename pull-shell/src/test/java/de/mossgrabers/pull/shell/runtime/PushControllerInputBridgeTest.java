@@ -24,11 +24,15 @@ import de.mossgrabers.framework.daw.midi.IMidiOutput;
 import de.mossgrabers.framework.daw.midi.ISelectedTrackNoteTarget;
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.pull.core.api.ControlId;
+import de.mossgrabers.pull.core.api.ControllerMappingBinding;
+import de.mossgrabers.pull.core.api.ControllerMappingId;
+import de.mossgrabers.pull.core.api.DesiredControllerMappings;
 import de.mossgrabers.pull.core.api.DesiredInputRoutes;
 import de.mossgrabers.pull.core.api.InputRoute;
 import de.mossgrabers.pull.core.api.InputRouteMode;
 import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.CoreControls;
+import de.mossgrabers.pull.core.api.CoreControllerMappings;
 import de.mossgrabers.pull.shell.input.InputKind;
 import de.mossgrabers.pull.shell.input.InputPhase;
 import de.mossgrabers.pull.shell.input.PhysicalInputEvent;
@@ -41,6 +45,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -77,9 +82,10 @@ class PushControllerInputBridgeTest
         assertEquals (List.of (InputPhase.BEGIN), fixture.phases ());
 
         fixture.routes.set (DesiredInputRoutes.empty ());
-        fixture.mappings.set (Set.of ());
+        fixture.mappings.set (DesiredControllerMappings.empty ());
         fixture.bridge.flush ();
-        assertEquals (Set.of (), fixture.bridge.activeHardwareMappings ());
+        assertEquals (DesiredControllerMappings.empty (), fixture.bridge.activeControllerMappings ());
+        assertFalse (fixture.semanticButtons.get (fixture.mappingId).pressMatcher);
 
         // Raw release first closes the frozen routed gesture. The deliberately absent Bitwig
         // release matcher cannot duplicate END afterward.
@@ -93,22 +99,22 @@ class PushControllerInputBridgeTest
         assertEquals (List.of (InputPhase.BEGIN, InputPhase.END), fixture.phases ());
 
         fixture.routes.set (fixture.exclusiveRoute);
-        fixture.mappings.set (Set.of (fixture.control));
+        fixture.mappings.set (fixture.desiredMapping);
         fixture.bridge.flush ();
         fixture.pressMappingPad ();
         assertEquals (List.of (InputPhase.BEGIN, InputPhase.END, InputPhase.BEGIN), fixture.phases ());
 
         // Reverse the callback order while the desired lane changes twice. The old hardware
         // release is inert; raw release completes exactly once and activates only latest desire.
-        fixture.mappings.set (Set.of ());
+        fixture.mappings.set (DesiredControllerMappings.empty ());
         fixture.bridge.flush ();
-        fixture.mappings.set (Set.of (fixture.control));
+        fixture.mappings.set (fixture.desiredMapping);
         fixture.bridge.flush ();
         fixture.pad.physicalRelease ();
         assertEquals (List.of (InputPhase.BEGIN, InputPhase.END, InputPhase.BEGIN), fixture.phases ());
         fixture.rawRelease ();
         assertEquals (List.of (InputPhase.BEGIN, InputPhase.END, InputPhase.BEGIN, InputPhase.END), fixture.phases ());
-        assertEquals (Set.of (fixture.control), fixture.bridge.activeHardwareMappings ());
+        assertEquals (fixture.desiredMapping, fixture.bridge.activeControllerMappings ());
 
         fixture.pressMappingPad ();
         fixture.rawRelease ();
@@ -116,15 +122,99 @@ class PushControllerInputBridgeTest
     }
 
 
+    @Test
+    void routesAllFourVirtualPadsAndFreezesEachRawGestureGeneration ()
+    {
+        final Fixture fixture = new Fixture ();
+        fixture.routes.set (fixture.allExclusiveRoutes ());
+        fixture.mappings.set (fixture.allMappings ());
+        fixture.bridge.flush ();
+        fixture.bridge.flush ();
+
+        for (int slot = 0; slot < CoreControls.DRUM_CONTROL_PADS.size (); slot++)
+        {
+            final TestButton semanticButton = fixture.semanticButtons.get (CoreControllerMappings.DRUM_CONTROL_PADS.get (slot));
+            assertTrue (semanticButton.pressMatcher);
+            assertFalse (semanticButton.releaseMatcher);
+            assertEquals (0, semanticButton.boundChannel);
+            assertEquals (Fixture.PAD_NOTE + slot, semanticButton.boundControl);
+            assertEquals (1, semanticButton.bindCount);
+
+            fixture.generation.set (10 + slot);
+            fixture.rawPress (slot, 80 + slot);
+            fixture.generation.set (100 + slot);
+            fixture.rawRelease (slot);
+        }
+
+        assertEquals (8, fixture.events.size ());
+        for (int slot = 0; slot < CoreControls.DRUM_CONTROL_PADS.size (); slot++)
+        {
+            final PhysicalInputEvent<ControlId> begin = fixture.events.get (slot * 2);
+            final PhysicalInputEvent<ControlId> end = fixture.events.get (slot * 2 + 1);
+            assertEquals (CoreControls.DRUM_CONTROL_PADS.get (slot), begin.control ());
+            assertEquals (CoreControls.DRUM_CONTROL_PADS.get (slot), end.control ());
+            assertEquals (InputPhase.BEGIN, begin.phase ());
+            assertEquals (InputPhase.END, end.phase ());
+            assertEquals (80 + slot, begin.value ());
+            assertEquals (0, end.value ());
+            assertEquals (10 + slot, begin.ownerGeneration ());
+            assertEquals (10 + slot, end.ownerGeneration ());
+        }
+
+        final int eventCount = fixture.events.size ();
+        assertFalse (fixture.bridge.routeMidi (0x91, Fixture.PAD_NOTE, 100, () -> {}));
+        assertFalse (fixture.bridge.routeMidi (0x90, Fixture.GRID_START_NOTE - 1, 100, () -> {}));
+        assertFalse (fixture.bridge.routeMidi (0x90, Fixture.GRID_START_NOTE + 64, 100, () -> {}));
+        assertTrue (fixture.bridge.routeMidi (0x90, Fixture.PAD_NOTE, 0, () -> {}));
+        assertEquals (eventCount, fixture.events.size ());
+    }
+
+
+    @Test
+    void detachesEveryPhysicalPadMatcherAndPreservesOrdinaryRawDispatch ()
+    {
+        final Fixture fixture = new Fixture ();
+        fixture.routes.set (DesiredInputRoutes.empty ());
+        fixture.mappings.set (DesiredControllerMappings.empty ());
+        fixture.bridge.flush ();
+
+        final List<Integer> downs = new ArrayList<> ();
+        final List<Integer> ups = new ArrayList<> ();
+        for (int index = 0; index < 64; index++)
+        {
+            final int padNumber = index + 1;
+            final TestButton button = fixture.physicalPads.get (PushControlIds.pad (padNumber));
+            assertFalse (button.pressMatcher);
+            assertFalse (button.releaseMatcher);
+            button.addEventHandler (ButtonEvent.DOWN, ignored -> downs.add (padNumber));
+            button.addEventHandler (ButtonEvent.UP, ignored -> ups.add (padNumber));
+
+            assertTrue (fixture.bridge.routeMidi (0x90, Fixture.GRID_START_NOTE + index, 63, () -> {}));
+            assertEquals (63, button.getPressedVelocity ());
+            assertTrue (fixture.bridge.routeMidi (0x80, Fixture.GRID_START_NOTE + index, 0, () -> {}));
+        }
+
+        assertEquals (java.util.stream.IntStream.rangeClosed (1, 64).boxed ().toList (), downs);
+        assertEquals (downs, ups);
+        assertTrue (fixture.events.isEmpty ());
+    }
+
+
     private static final class Fixture
     {
+        private static final int GRID_START_NOTE = 36;
         private static final int PAD_NOTE = 64;
 
         private final ControlId control = CoreControls.DRUM_CONTROL_PADS.get (0);
+        private final ControllerMappingId mappingId = CoreControllerMappings.DRUM_CONTROL_PADS.get (0);
+        private final DesiredControllerMappings desiredMapping = new DesiredControllerMappings (Set.of (new ControllerMappingBinding (this.control, this.mappingId)));
         private final DesiredInputRoutes exclusiveRoute = new DesiredInputRoutes (Set.of (new InputRoute (this.control, de.mossgrabers.pull.core.api.event.InputKind.PAD, InputRouteMode.EXCLUSIVE)));
         private final AtomicReference<DesiredInputRoutes> routes = new AtomicReference<> (this.exclusiveRoute);
-        private final AtomicReference<Set<ControlId>> mappings = new AtomicReference<> (Set.of (this.control));
+        private final AtomicReference<DesiredControllerMappings> mappings = new AtomicReference<> (this.desiredMapping);
+        private final AtomicLong generation = new AtomicLong (1);
         private final List<PhysicalInputEvent<ControlId>> events = new ArrayList<> ();
+        private final Map<ControlId, TestButton> physicalPads = new LinkedHashMap<> ();
+        private final Map<ControllerMappingId, TestButton> semanticButtons = new LinkedHashMap<> ();
         private final PushControlSurface surface;
         private final TestButton pad;
         private final PushControllerInputBridge bridge;
@@ -153,44 +243,82 @@ class PushControllerInputBridgeTest
                 () -> false,
                 new ReloadableControllerRuntime (relaxedProxy (ControllerHost.class)));
             this.pad = (TestButton) this.surface.getButton (ButtonID.get (ButtonID.PAD1, 28));
-            final Map<ControlId, IHwButton> mappingButtons = new LinkedHashMap<> ();
-            for (int slot = 0; slot < CoreControls.DRUM_CONTROL_PADS.size (); slot++)
-                mappingButtons.put (CoreControls.DRUM_CONTROL_PADS.get (slot), this.surface.getButton (ButtonID.get (ButtonID.PAD1, 28 + slot)));
+            final Map<ControlId, IHwButton> physicalButtons = new LinkedHashMap<> ();
+            for (int index = 0; index < 64; index++)
+            {
+                final ControlId physicalControl = PushControlIds.pad (index + 1);
+                final TestButton physicalButton = (TestButton) this.surface.getButton (ButtonID.get (ButtonID.PAD1, index));
+                this.physicalPads.put (physicalControl, physicalButton);
+                physicalButtons.put (physicalControl, physicalButton);
+            }
+            physicalButtons.values ().forEach (IHwButton::unbind);
+            for (int slot = 0; slot < CoreControllerMappings.DRUM_CONTROL_PADS.size (); slot++)
+                this.semanticButtons.put (CoreControllerMappings.DRUM_CONTROL_PADS.get (slot), new TestButton (hostRef[0], "Drum Controller Control " + (slot + 1)));
             this.bridge = new PushControllerInputBridge (
                 this.surface,
                 valueChanger,
                 (ignoredID, ignoredControl, mutation) -> mutation.run (),
                 this.routes::get,
                 this.mappings::get,
-                mappingButtons,
+                physicalButtons,
+                new LinkedHashMap<> (this.semanticButtons),
                 (ignoredControl, ignoredKind, ignoredAction) -> false,
                 this.events::add,
-                () -> 1);
+                this.generation::get);
         }
 
 
         private void pressMappingPad ()
         {
             this.rawPress ();
-            this.pad.physicalPress (100);
         }
 
 
         private void rawPress ()
         {
-            assertTrue (this.bridge.routeMidi (0x90, PAD_NOTE, 100, () -> {}));
+            this.rawPress (0, 100);
         }
 
 
         private void rawRelease ()
         {
-            assertTrue (this.bridge.routeMidi (0x80, PAD_NOTE, 0, () -> {}));
+            this.rawRelease (0);
+        }
+
+
+        private void rawPress (final int slot, final int velocity)
+        {
+            assertTrue (this.bridge.routeMidi (0x90, PAD_NOTE + slot, velocity, () -> {}));
+        }
+
+
+        private void rawRelease (final int slot)
+        {
+            assertTrue (this.bridge.routeMidi (0x80, PAD_NOTE + slot, 0, () -> {}));
         }
 
 
         private List<InputPhase> phases ()
         {
             return this.events.stream ().map (PhysicalInputEvent::phase).toList ();
+        }
+
+
+        private DesiredControllerMappings allMappings ()
+        {
+            final Set<ControllerMappingBinding> bindings = new java.util.LinkedHashSet<> ();
+            for (int slot = 0; slot < CoreControls.DRUM_CONTROL_PADS.size (); slot++)
+                bindings.add (new ControllerMappingBinding (CoreControls.DRUM_CONTROL_PADS.get (slot), CoreControllerMappings.DRUM_CONTROL_PADS.get (slot)));
+            return new DesiredControllerMappings (bindings);
+        }
+
+
+        private DesiredInputRoutes allExclusiveRoutes ()
+        {
+            final Set<InputRoute> inputRoutes = new java.util.LinkedHashSet<> ();
+            for (final ControlId mappingPad: CoreControls.DRUM_CONTROL_PADS)
+                inputRoutes.add (new InputRoute (mappingPad, de.mossgrabers.pull.core.api.event.InputKind.PAD, InputRouteMode.EXCLUSIVE));
+            return new DesiredInputRoutes (inputRoutes);
         }
     }
 
@@ -199,6 +327,9 @@ class PushControllerInputBridgeTest
     {
         private boolean pressMatcher;
         private boolean releaseMatcher;
+        private int boundChannel = -1;
+        private int boundControl = -1;
+        private int bindCount;
 
 
         private TestButton (final IHost host, final String label)
@@ -220,6 +351,9 @@ class PushControllerInputBridgeTest
             this.input = input;
             this.type = type;
             this.channel = channel;
+            this.boundChannel = channel;
+            this.boundControl = control;
+            this.bindCount++;
             this.pressMatcher = true;
             this.releaseMatcher = true;
         }

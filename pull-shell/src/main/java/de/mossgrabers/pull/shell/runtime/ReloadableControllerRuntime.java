@@ -61,7 +61,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
     private final ControllerHost controllerHost;
 
     private SelectedTrackFillClipHost clipHost;
-    private MappedPadLightHost mappedPadLights;
+    private ControllerMappingHost controllerMappings;
     private ControllerRuntimeEnvironment environment;
     private CoreReloadSupervisor supervisor;
     private PushControllerInputBridge inputBridge;
@@ -162,7 +162,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
 
         this.clipHost = new SelectedTrackFillClipHost (this.controllerHost);
         this.clipHost.connect (Objects.requireNonNull (model, "model"));
-        this.mappedPadLights = new MappedPadLightHost (surface);
+        this.controllerMappings = new ControllerMappingHost (surface);
         final BoundedControllerBridge controllerBridge = new BoundedControllerBridge (
             model,
             Objects.requireNonNull (selectedTarget, "selectedTarget"),
@@ -170,7 +170,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             Objects.requireNonNull (surface, "surface"),
             Objects.requireNonNull (valueChanger, "valueChanger"),
             this.log,
-            this.mappedPadLights);
+            this.controllerMappings);
         this.environment = new ControllerRuntimeEnvironment (this.clipHost, controllerBridge, this.log, System::nanoTime);
         this.debugTrace = PushDebugTraceHost.createIfEnabled ();
         this.supervisor = new CoreReloadSupervisor (this.environment, this.log, this.debugTrace);
@@ -197,7 +197,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
 
     /**
      * Wrap the complete practical Push input set after normal command registration and attach the
-     * bounded view-scoped learned-action lane created during connection.
+     * bounded semantic controller-mapping inventory created during connection.
      *
      * @param surface Stable Push surface
      * @param valueChanger Relative-value decoder
@@ -217,8 +217,9 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             Objects.requireNonNull (valueChanger, "valueChanger"),
             this::handleParameterMutation,
             this.environment::desiredInputRoutes,
-            this.environment::activeHardwareMappings,
-            this.mappedPadLights.mappingButtons (),
+            this.environment::activeControllerMappings,
+            this.controllerMappings.physicalButtons (),
+            this.controllerMappings.mappingButtons (),
             (control, kind, stableAction) -> this.environment.blocksStableAction (control, de.mossgrabers.pull.core.api.event.InputKind.valueOf (kind.name ()), stableAction),
             this::handleControllerInput,
             () -> this.supervisor == null ? 0 : this.supervisor.activeGeneration ());

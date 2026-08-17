@@ -5,11 +5,14 @@ package de.mossgrabers.pull.core.runtime.view;
 
 import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ControlId;
+import de.mossgrabers.pull.core.api.ControllerMappingBinding;
+import de.mossgrabers.pull.core.api.ControllerMappingFeedbackSnapshot;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
+import de.mossgrabers.pull.core.api.CoreControllerMappings;
 import de.mossgrabers.pull.core.api.CoreControls;
+import de.mossgrabers.pull.core.api.DesiredControllerMappings;
 import de.mossgrabers.pull.core.api.DesiredNotePerformance;
 import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
-import de.mossgrabers.pull.core.api.MappedPadLightsSnapshot;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
@@ -30,7 +33,11 @@ public final class DrumControlPadView implements ControllerView
 {
     private static final RgbColor OFF = new RgbColor (0, 0, 0);
     private static final RgbColor ON = new RgbColor (255, 0, 0);
-    private static final Set<ControlId> ACTIVE_MAPPINGS = Set.copyOf (CoreControls.DRUM_CONTROL_PADS);
+    private static final DesiredControllerMappings CONTROLLER_MAPPINGS = new DesiredControllerMappings (Set.of (
+        new ControllerMappingBinding (CoreControls.DRUM_CONTROL_PADS.get (0), CoreControllerMappings.DRUM_CONTROL_PADS.get (0)),
+        new ControllerMappingBinding (CoreControls.DRUM_CONTROL_PADS.get (1), CoreControllerMappings.DRUM_CONTROL_PADS.get (1)),
+        new ControllerMappingBinding (CoreControls.DRUM_CONTROL_PADS.get (2), CoreControllerMappings.DRUM_CONTROL_PADS.get (2)),
+        new ControllerMappingBinding (CoreControls.DRUM_CONTROL_PADS.get (3), CoreControllerMappings.DRUM_CONTROL_PADS.get (3))));
     private static final ViewProfile PROFILE = ViewProfile.fixed (
         "control-pads",
         Set.of (
@@ -56,20 +63,17 @@ public final class DrumControlPadView implements ControllerView
     @Override
     public Set<BridgeSubscription> bridgeSubscriptions ()
     {
-        return Set.of (BridgeSubscription.MAPPED_PAD_LIGHTS);
+        return Set.of (BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK);
     }
 
 
     @Override
     public ViewOutput render (final ControllerSnapshot snapshot)
     {
-        final MappedPadLightsSnapshot feedback = snapshot.bridge ().mappedPadLights ();
+        final ControllerMappingFeedbackSnapshot feedback = snapshot.bridge ().controllerMappingFeedback ();
         final Map<ControlId, RgbColor> lights = new LinkedHashMap<> ();
         for (int slot = 0; slot < CoreControls.DRUM_CONTROL_PADS.size (); slot++)
-        {
-            final boolean on = feedback.available () && feedback.controlPad (slot);
-            lights.put (CoreControls.DRUM_CONTROL_PADS.get (slot), on ? ON : OFF);
-        }
+            lights.put (CoreControls.DRUM_CONTROL_PADS.get (slot), feedback.isOn (CoreControllerMappings.DRUM_CONTROL_PADS.get (slot)) ? ON : OFF);
         return new ViewOutput (
             lights,
             Map.of (),
@@ -78,6 +82,6 @@ public final class DrumControlPadView implements ControllerView
             ControllerDisplayOverlay.inactive (),
             DesiredNotePerformance.inactive (),
             DesiredNoteRepeat.unowned (),
-            ACTIVE_MAPPINGS);
+            CONTROLLER_MAPPINGS);
     }
 }

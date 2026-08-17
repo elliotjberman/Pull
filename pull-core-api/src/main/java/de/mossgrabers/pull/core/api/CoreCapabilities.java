@@ -26,8 +26,8 @@ public final class CoreCapabilities
     /** Hardware-independent RGB light output; v4 admits the four drum control pads. */
     public static final String OUTPUT_RGB_LIGHT = "output.rgb-light";
 
-    /** Replayable activation of bounded host-learnable hardware actions. */
-    public static final String OUTPUT_HARDWARE_MAPPING = "output.hardware-mapping";
+    /** Replayable projection onto bounded semantic host-learnable controller endpoints. */
+    public static final String OUTPUT_CONTROLLER_MAPPING = "output.controller-mapping";
 
     /** Atomic composition of fixed view facets, Note layout, and selected-track note routing. */
     public static final String OUTPUT_CONTROLLER_STATE = "output.controller-state";
@@ -44,7 +44,7 @@ public final class CoreCapabilities
     /** Replayable core ownership of normalized controller inputs; v3 admits drum control pads. */
     public static final String ROUTING_CONTROLLER_INPUT = "routing.controller-input";
 
-    /** Common bounded controller state; v6 adds mapped pad-light feedback. */
+    /** Common bounded controller state; v7 keys mapping feedback by semantic endpoint. */
     public static final String SNAPSHOT_CONTROLLER_BRIDGE = "snapshot.controller-bridge";
 
     /** Replayable selection of bounded bridge-state domains to publish and sample. */
@@ -68,8 +68,8 @@ public final class CoreCapabilities
     /** Replayable exact parameter leases and generation-fenced absolute effects. */
     public static final String EFFECT_PARAMETER_TARGET = "effect.parameter-target";
 
-    /** Authoritative Bitwig manual-mapping feedback for the four drum control pads. */
-    public static final String SNAPSHOT_MAPPED_PAD_LIGHTS = "snapshot.mapped-pad-lights";
+    /** Authoritative Bitwig Boolean feedback for bounded semantic controller mappings. */
+    public static final String SNAPSHOT_CONTROLLER_MAPPING_FEEDBACK = "snapshot.controller-mapping-feedback";
 
     /** Authoritative current-project and master-track snapshot. */
     public static final String SNAPSHOT_MASTER = "snapshot.master";

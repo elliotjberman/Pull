@@ -64,6 +64,11 @@ This removes the core-side physical navigation table. It does not yet satisfy th
   exact target-fenced preference effect. Track selection is observation-only and cannot invoke the
   inherited preferred-view actuator. Stable retains only bounded preference storage and mechanical
   view activation through the composed controller-state host.
+- Controller mappings now use permanent semantic `ControllerMappingId` endpoints independently of
+  physical `ControlId` values. Core returns the complete active physical-to-semantic projection;
+  stable only realizes matcher handoff and publishes Bitwig Boolean feedback by semantic endpoint.
+  All 64 original grid buttons remain ordinary-dispatch objects driven through permanent raw
+  ingress and no longer define learned mapping identity.
 
 - Several stable mode commands expose only coarse command-level meaning, not a payload identifying
   the exact selected track, page, device, or workspace.

@@ -6,6 +6,7 @@ package de.mossgrabers.bitwig.framework.midi;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 import java.lang.reflect.Proxy;
@@ -14,6 +15,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.bitwig.extension.controller.api.AbsoluteHardwareValueMatcher;
 import com.bitwig.extension.controller.api.ControllerHost;
 import com.bitwig.extension.controller.api.CursorTrack;
 import com.bitwig.extension.controller.api.Device;
@@ -22,6 +24,7 @@ import com.bitwig.extension.controller.api.DeviceLayer;
 import com.bitwig.extension.controller.api.DeviceLayerBank;
 import com.bitwig.extension.controller.api.DeviceSlot;
 import com.bitwig.extension.controller.api.HardwareAction;
+import com.bitwig.extension.controller.api.HardwareActionMatcher;
 import com.bitwig.extension.controller.api.HardwareButton;
 import com.bitwig.extension.controller.api.MidiIn;
 import com.bitwig.extension.controller.api.NoteInput;
@@ -30,6 +33,7 @@ import com.bitwig.extension.controller.api.SettableBooleanValue;
 
 import de.mossgrabers.bitwig.framework.daw.HostImpl;
 import de.mossgrabers.bitwig.framework.hardware.HwButtonImpl;
+import de.mossgrabers.framework.controller.hardware.BindType;
 import de.mossgrabers.framework.daw.midi.ISelectedTrackNoteTarget;
 
 import org.junit.jupiter.api.Test;
@@ -40,6 +44,88 @@ import org.junit.jupiter.api.Test;
  */
 class NoteInputImplTest
 {
+    @Test
+    void noteBindingProjectsAndRetiresIndependentBitwigActionMatchers ()
+    {
+        final AbsoluteHardwareValueMatcher firstPressedMatcher = relaxedProxy (AbsoluteHardwareValueMatcher.class);
+        final AbsoluteHardwareValueMatcher secondPressedMatcher = relaxedProxy (AbsoluteHardwareValueMatcher.class);
+        final HardwareActionMatcher firstReleasedMatcher = relaxedProxy (HardwareActionMatcher.class);
+        final HardwareActionMatcher secondReleasedMatcher = relaxedProxy (HardwareActionMatcher.class);
+        final List<Object []> noteOnMatchers = new ArrayList<> ();
+        final List<Object []> noteOffMatchers = new ArrayList<> ();
+        final AtomicReference<AbsoluteHardwareValueMatcher> installedPressedMatcher = new AtomicReference<> ();
+        final AtomicReference<HardwareActionMatcher> installedReleasedMatcher = new AtomicReference<> ();
+        final List<Boolean> pressedNoteInputAdmission = new ArrayList<> ();
+        final List<Boolean> releasedNoteInputAdmission = new ArrayList<> ();
+        final HardwareAction pressedAction = proxy (HardwareAction.class, (proxy, method, arguments) -> {
+            if ("setPressureActionMatcher".equals (method.getName ()))
+                installedPressedMatcher.set ((AbsoluteHardwareValueMatcher) arguments[0]);
+            else if ("setShouldFireEvenWhenUsedAsNoteInput".equals (method.getName ()))
+                pressedNoteInputAdmission.add ((Boolean) arguments[0]);
+            return relaxedValue (method.getReturnType ());
+        });
+        final HardwareAction releasedAction = proxy (HardwareAction.class, (proxy, method, arguments) -> {
+            if ("setActionMatcher".equals (method.getName ()))
+                installedReleasedMatcher.set ((HardwareActionMatcher) arguments[0]);
+            else if ("setShouldFireEvenWhenUsedAsNoteInput".equals (method.getName ()))
+                releasedNoteInputAdmission.add ((Boolean) arguments[0]);
+            return relaxedValue (method.getReturnType ());
+        });
+        final HardwareButton hardwareButton = proxy (HardwareButton.class, (proxy, method, arguments) -> switch (method.getName ())
+        {
+            case "pressedAction" -> pressedAction;
+            case "releasedAction" -> releasedAction;
+            default -> relaxedValue (method.getReturnType ());
+        });
+        final MidiIn midiIn = proxy (MidiIn.class, (proxy, method, arguments) -> switch (method.getName ())
+        {
+            case "createNoteOnVelocityValueMatcher" -> {
+                noteOnMatchers.add (arguments.clone ());
+                yield noteOnMatchers.size () == 1 ? firstPressedMatcher : secondPressedMatcher;
+            }
+            case "createNoteOffActionMatcher" -> {
+                noteOffMatchers.add (arguments.clone ());
+                yield noteOffMatchers.size () == 1 ? firstReleasedMatcher : secondReleasedMatcher;
+            }
+            default -> relaxedValue (method.getReturnType ());
+        });
+        final ControllerHost host = proxy (ControllerHost.class, (proxy, method, arguments) -> "getMidiInPort".equals (method.getName ()) ? midiIn : relaxedValue (method.getReturnType ()));
+        final MidiInputImpl input = new MidiInputImpl (0, host, null, null);
+        final HwButtonImpl button = new HwButtonImpl (new HostImpl (host), hardwareButton, "Semantic Control");
+
+        button.bind (input, BindType.NOTE, 2, 64);
+        assertSame (firstPressedMatcher, installedPressedMatcher.get ());
+        assertSame (firstReleasedMatcher, installedReleasedMatcher.get ());
+        assertEquals (List.of (Boolean.TRUE), pressedNoteInputAdmission);
+        assertEquals (List.of (Boolean.TRUE), releasedNoteInputAdmission);
+
+        button.unbindRelease ();
+        assertSame (firstPressedMatcher, installedPressedMatcher.get ());
+        assertNull (installedReleasedMatcher.get ());
+
+        button.bind (input, BindType.NOTE, 3, 65);
+        assertSame (secondPressedMatcher, installedPressedMatcher.get ());
+        assertSame (secondReleasedMatcher, installedReleasedMatcher.get ());
+        assertArrayEquals (new Object [] {Integer.valueOf (2), Integer.valueOf (64)}, noteOnMatchers.getFirst ());
+        assertArrayEquals (new Object [] {Integer.valueOf (3), Integer.valueOf (65)}, noteOnMatchers.get (1));
+        assertArrayEquals (new Object [] {Integer.valueOf (2), Integer.valueOf (64)}, noteOffMatchers.getFirst ());
+        assertArrayEquals (new Object [] {Integer.valueOf (3), Integer.valueOf (65)}, noteOffMatchers.get (1));
+
+        button.unbindPress ();
+        assertNull (installedPressedMatcher.get ());
+        assertSame (secondReleasedMatcher, installedReleasedMatcher.get ());
+        button.unbindRelease ();
+        assertNull (installedReleasedMatcher.get ());
+
+        button.bind (input, BindType.NOTE, 4, 66);
+        assertSame (secondPressedMatcher, installedPressedMatcher.get ());
+        assertSame (secondReleasedMatcher, installedReleasedMatcher.get ());
+        button.unbind ();
+        assertNull (installedPressedMatcher.get ());
+        assertNull (installedReleasedMatcher.get ());
+    }
+
+
     @Test
     void unbindReleaseClearsOnlyTheExistingHardwareButtonReleaseMatcher ()
     {

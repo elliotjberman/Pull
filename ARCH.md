@@ -1,6 +1,6 @@
 # Pull View Architecture
 
-Status: current through Core API 31, the shared mixer-control renderer, the Master-control
+Status: current through Core API 32, semantic controller-mapping identities, the shared mixer-control renderer, the Master-control
 migration, the post-demo `VS Live` composition, and core-owned note-view and drum-rate policy.
 
 Read this file before changing controller views, modes, workspaces, input routing, or Session bank
@@ -277,9 +277,9 @@ Reloadable core:
 - `DrumControllerView`: playable lower-grid mapping, pressure policy, and optional pitch bend.
 - `DrumRateView`: four exclusive rate-pad gestures, RGB output, and desired note-repeat state.
 - `DrumFillView`: fill selection, launch lifecycle, bindings, and eight RGB lights.
-- `DrumControlPadView`: four exclusive control-pad routes, a complete view-scoped learned-action
-  lease, and authoritative mapped-light red/off feedback; Bitwig's hardware mapping remains the
-  actuator.
+- `DrumControlPadView`: four exclusive physical control-pad routes, a complete
+  physical-to-semantic controller-mapping lease, and authoritative semantic-endpoint red/off
+  feedback; Bitwig's hardware mapping remains the actuator.
 - `TransportControlView`: persistent authoritative Play/Record lights and Record modifier policy.
 - `MasterControlView`: Master/Cue encoder policy, project/audio actions, both row-light banks, and
   a complete declarative graphics scene.
@@ -295,13 +295,15 @@ Stable shell:
 - `WorkspaceView`: upper Session grid plus reusable lower Drum Controller adapter.
 - `SessionBankRegistry`: bounded 8x8/8x4 Bitwig bank canopy.
 - `PushControlSurface`: remaining stable pitch-bend and navigation integration.
-- `HardwareMappingActivationHost`: mechanically gates the original Bitwig-learnable PAD action for
-  each of the four physical controls. Core retains the complete view lease. Per pad, a lane change
-  immediately revokes new mapped presses, retains only an in-flight mapped release through routed
-  END, and admits the latest lane only after that lifecycle is idle. The original PAD action is the
-  only Bitwig mapping identity and owns mapped-light read-back. Its release matcher is deliberately
-  absent: the permanent raw-MIDI ingress completes release and, while the press matcher is inactive,
-  triggers that same established button dispatch without registering a second `HardwareControl`.
+- `ControllerMappingHost`: eagerly creates the four permanent semantic Bitwig button identities,
+  attaches their no-output Boolean feedback, and removes MIDI matchers from all 64 original grid
+  buttons so physical pads remain ordinary-dispatch-only objects rather than learned identities.
+- `HardwareMappingActivationHost`: mechanically projects the complete core lease onto those
+  semantic buttons. A lane change immediately revokes new mapped presses, retains the exact routed
+  gesture through `END`, and admits only the latest desired projection after the lifecycle is idle.
+  Permanent raw MIDI supplies the normalized core gesture while a semantic matcher is active; when
+  no mapping is active it triggers the established original-button dispatch through the same raw
+  ingress for every grid pad. No duplicate learned action or second MIDI callback exists.
 
 ## Migration Status
 
@@ -338,9 +340,9 @@ Partial or transitional:
 - Capability and Session-shape validation happens during stable result preparation, not entirely in
   `CompiledWorkspace`.
 - General display and light output ownership is still partial. The eight drum-fill, four drum-rate,
-  and four mappable-control RGB lights, authoritative Bitwig Boolean feedback, and view-scoped learned-action leases, global Play/Record lights, the Master page's two button rows and graphics
+  and four mappable-control RGB lights, authoritative semantic Bitwig Boolean feedback, and replayable physical-to-semantic mapping leases, global Play/Record lights, the Master page's two button rows and graphics
   display, a temporary sparse 8x8 grid overlay, and a complete temporary 960x160 display overlay
-  use core-owned output arbitration. The detailed design's API 31 installed-output inventory is
+  use core-owned output arbitration. The detailed design's API 32 installed-output inventory is
   canonical.
 
 Deferred by design:

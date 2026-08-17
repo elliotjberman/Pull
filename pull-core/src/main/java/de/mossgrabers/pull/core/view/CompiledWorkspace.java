@@ -7,11 +7,14 @@ import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerActionBinding;
+import de.mossgrabers.pull.core.api.ControllerMappingBinding;
+import de.mossgrabers.pull.core.api.ControllerMappingId;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerActions;
+import de.mossgrabers.pull.core.api.DesiredControllerMappings;
 import de.mossgrabers.pull.core.api.DesiredControllerState;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredNotePerformance;
@@ -264,7 +267,9 @@ public final class CompiledWorkspace
     {
         final Map<ControlId, RgbColor> lights = new LinkedHashMap<> ();
         final Map<ControlId, ClipTargetId> clipBindings = new LinkedHashMap<> ();
-        final Set<ControlId> activeMappings = new LinkedHashSet<> ();
+        final Set<ControllerMappingBinding> controllerMappingBindings = new LinkedHashSet<> ();
+        final Set<ControlId> mappedPhysicalControls = new LinkedHashSet<> ();
+        final Set<ControllerMappingId> mappingIds = new LinkedHashSet<> ();
         ControllerDisplayScene display = ControllerDisplayScene.empty ();
         ControllerPadGridOverlay padGridOverlay = ControllerPadGridOverlay.inactive ();
         ControllerDisplayOverlay displayOverlay = ControllerDisplayOverlay.inactive ();
@@ -275,10 +280,14 @@ public final class CompiledWorkspace
             final ViewOutput output = Objects.requireNonNull (view.view ().render (snapshot), "view output");
             mergeUnique (lights, output.lights (), "light", view.id ());
             mergeUnique (clipBindings, output.clipBindings (), "clip binding", view.id ());
-            for (final ControlId control: output.activeMappings ())
+            for (final ControllerMappingBinding binding: output.controllerMappings ().bindings ())
             {
-                if (!activeMappings.add (control))
-                    throw new IllegalStateException ("multiple views activate hardware mapping " + control.value ());
+                validateControllerMapping (view, binding);
+                if (!mappedPhysicalControls.add (binding.physicalControl ()))
+                    throw new IllegalStateException ("multiple views map physical control " + binding.physicalControl ().value ());
+                if (!mappingIds.add (binding.mappingId ()))
+                    throw new IllegalStateException ("multiple views activate controller mapping " + binding.mappingId ().value ());
+                controllerMappingBindings.add (binding);
             }
             if (output.display ().isPresent ())
             {
@@ -313,7 +322,7 @@ public final class CompiledWorkspace
         }
 
         return new CoreResult (
-            new DesiredHardwareOutput (lights, display, padGridOverlay, displayOverlay, activeMappings),
+            new DesiredHardwareOutput (lights, display, padGridOverlay, displayOverlay, new DesiredControllerMappings (controllerMappingBindings)),
             this.desiredInputRoutes,
             this.desiredBridgeSubscriptions,
             clipBindings,
@@ -338,7 +347,25 @@ public final class CompiledWorkspace
         final String id = Objects.requireNonNull (checkedView.id (), "view id").strip ();
         if (id.isEmpty ())
             throw new IllegalArgumentException ("view id must not be blank");
-        return new CompiledView (id, checkedView, Objects.requireNonNull (checkedView.profile (), "view profile"));
+        final Set<BridgeSubscription> bridgeSubscriptions = Set.copyOf (Objects.requireNonNull (checkedView.bridgeSubscriptions (), "bridge subscriptions"));
+        return new CompiledView (id, checkedView, Objects.requireNonNull (checkedView.profile (), "view profile"), bridgeSubscriptions);
+    }
+
+
+    private static void validateControllerMapping (final CompiledView view, final ControllerMappingBinding binding)
+    {
+        final ControlId physicalControl = binding.physicalControl ();
+        final Set<SurfaceClaim> claims = view.profile ().claims ();
+        final boolean ownsInput = claims.stream ().anyMatch (claim ->
+            claim.kind () == SurfaceClaim.Kind.EXCLUSIVE_INPUT &&
+                claim.area ().controls ().contains (physicalControl) &&
+                claim.area ().inputKinds ().contains (InputKind.PAD));
+        final boolean ownsOutput = claims.stream ().anyMatch (claim ->
+            claim.kind () == SurfaceClaim.Kind.OUTPUT && claim.area ().controls ().contains (physicalControl));
+        if (!ownsInput || !ownsOutput)
+            throw new IllegalStateException ("view " + view.id () + " maps a controller endpoint outside its exclusive pad-input and output claims: " + physicalControl);
+        if (!view.bridgeSubscriptions ().contains (BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK))
+            throw new IllegalStateException ("view " + view.id () + " maps a controller endpoint without authoritative mapping feedback");
     }
 
 
@@ -497,7 +524,7 @@ public final class CompiledWorkspace
     private static DesiredBridgeSubscriptions compileBridgeSubscriptions (final List<CompiledView> views)
     {
         final Set<BridgeSubscription> subscriptions = new LinkedHashSet<> ();
-        views.forEach (view -> subscriptions.addAll (Set.copyOf (Objects.requireNonNull (view.view ().bridgeSubscriptions (), "bridge subscriptions"))));
+        views.forEach (view -> subscriptions.addAll (view.bridgeSubscriptions ()));
         return new DesiredBridgeSubscriptions (subscriptions);
     }
 
@@ -580,7 +607,7 @@ public final class CompiledWorkspace
     }
 
 
-    private record CompiledView (String id, ControllerView view, ViewProfile profile)
+    private record CompiledView (String id, ControllerView view, ViewProfile profile, Set<BridgeSubscription> bridgeSubscriptions)
     {
     }
 

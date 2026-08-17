@@ -42,7 +42,7 @@ import de.mossgrabers.pull.core.api.ProjectSnapshot;
 import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
 import de.mossgrabers.pull.core.api.TrackMonitorMode;
 import de.mossgrabers.pull.core.api.TransportSnapshot;
-import de.mossgrabers.pull.core.api.MappedPadLightsSnapshot;
+import de.mossgrabers.pull.core.api.ControllerMappingFeedbackSnapshot;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.AdjustParameterValueEffect;
 import de.mossgrabers.pull.core.api.effect.ResetParameterEffect;
@@ -101,7 +101,7 @@ final class BoundedControllerBridge implements ControllerBridge
     private final ParameterTargetHost parameterTargets;
     private final MasterCommandHost masterCommands;
     private final ControllerStateHost controllerState;
-    private final MappedPadLightHost mappedPadLights;
+    private final ControllerMappingHost controllerMappings;
     private final Map<MidiStateKey, MidiState> noteInputMidiState = new HashMap<> ();
 
     private ControllerBridgeSnapshot snapshot = ControllerBridgeSnapshot.empty ();
@@ -126,7 +126,7 @@ final class BoundedControllerBridge implements ControllerBridge
 
 
     /** Production and test seam for the fixed mapped-light observation host. */
-    BoundedControllerBridge (final IModel model, final ISelectedTrackNoteTarget selectedTarget, final MidiShortCallback noteInputMidiSender, final PushControlSurface surface, final IValueChanger valueChanger, final RuntimeLog log, final MappedPadLightHost mappedPadLights)
+    BoundedControllerBridge (final IModel model, final ISelectedTrackNoteTarget selectedTarget, final MidiShortCallback noteInputMidiSender, final PushControlSurface surface, final IValueChanger valueChanger, final RuntimeLog log, final ControllerMappingHost controllerMappings)
     {
         this.model = Objects.requireNonNull (model, "model");
         this.transport = Objects.requireNonNull (model.getTransport (), "transport");
@@ -139,7 +139,7 @@ final class BoundedControllerBridge implements ControllerBridge
         this.parameterTargets = new ParameterTargetHost (surface, model, this.log);
         this.masterCommands = new MasterCommandHost (model, log);
         this.controllerState = new ControllerStateHost (selectedTarget, surface.getControllerWorkspaceHost (), this::resetNoteInputMidiState);
-        this.mappedPadLights = mappedPadLights;
+        this.controllerMappings = controllerMappings;
     }
 
 
@@ -199,13 +199,13 @@ final class BoundedControllerBridge implements ControllerBridge
         final DesiredParameterBanks requestedParameterBanks = parametersRequested ? Objects.requireNonNull (parameterBanks, "parameterBanks") : DesiredParameterBanks.empty ();
         this.parameterTargets.refresh (requestedParameterBanks);
         final ParameterBridgeSnapshot parameters = parametersRequested ? this.parameterTargets.snapshot () : ParameterBridgeSnapshot.empty ();
-        final MappedPadLightsSnapshot mappedPadLightState = requested.includes (BridgeSubscription.MAPPED_PAD_LIGHTS) && this.mappedPadLights != null ? this.mappedPadLights.snapshot () : MappedPadLightsSnapshot.empty ();
+        final ControllerMappingFeedbackSnapshot controllerMappingFeedback = requested.includes (BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK) && this.controllerMappings != null ? this.controllerMappings.snapshot () : ControllerMappingFeedbackSnapshot.empty ();
         final boolean masterRequested = requested.includes (BridgeSubscription.MASTER);
         final boolean projectRequested = requested.includes (BridgeSubscription.PROJECT);
         this.masterCommands.refresh (masterRequested, projectRequested);
         final MasterSnapshot master = masterRequested ? this.masterCommands.snapshot () : MasterSnapshot.empty ();
         final ProjectSnapshot project = projectRequested ? this.masterCommands.projectSnapshot () : ProjectSnapshot.empty ();
-        final ControllerBridgeSnapshot refreshed = new ControllerBridgeSnapshot (transportState, selected, layout, noteView, noteRepeat, this.drumSnapshot, parameters, mappedPadLightState, master, project);
+        final ControllerBridgeSnapshot refreshed = new ControllerBridgeSnapshot (transportState, selected, layout, noteView, noteRepeat, this.drumSnapshot, parameters, controllerMappingFeedback, master, project);
         if (refreshed.equals (this.snapshot))
             return false;
 
@@ -323,7 +323,7 @@ final class BoundedControllerBridge implements ControllerBridge
             this.snapshot.noteRepeat (),
             this.snapshot.drum (),
             this.parameterTargets.snapshot (),
-            this.snapshot.mappedPadLights (),
+            this.snapshot.controllerMappingFeedback (),
             this.snapshot.master (),
             this.snapshot.project ());
         return true;

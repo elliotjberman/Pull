@@ -161,14 +161,15 @@ tools/push-debug-request drum-rate-pad \
 `PAD_OUTPUT_<one-based-pad>_<velocity>` accepts pads 1 through 64 and velocities 1 through 127.
 It requires one exact `view`, one exact `mode`, and an explicit `workspace=true|false` predicate.
 The exact pad must also be present in the installed physical registry and have an active
-core-owned `EXCLUSIVE` PAD route and an `activeMappings` lease. Absent and `OBSERVE` routes or an
-absent lease fail without emitting DOWN. Because stable matcher activation can lag the desired lease
-by one controller tick, the probe waits until the original Bitwig-learnable PAD action is actually
-accepting new note-on presses before emitting DOWN. `mapping_active=false` while the hidden ordinary
-dispatch lane owns the press matcher and throughout either release-only lane transition. The probe
-also waits for the subscribed authoritative `MappedPadLightsSnapshot` sample to become available.
-This is a generic debug mechanism, not pad policy: the production core/shell slice still owns which
-pads are routed, mapping-enabled, and light-owned.
+core-owned `EXCLUSIVE` PAD route and a physical-to-semantic `DesiredControllerMappings` binding.
+Absent and `OBSERVE` routes or an absent binding fail without emitting DOWN. Because stable matcher
+activation can lag the desired lease by one controller tick, the probe waits until the permanent
+semantic Bitwig action is actually accepting that physical note-on before emitting DOWN.
+`mapping_active=false` while ordinary raw dispatch owns the pad and throughout either release-only
+lane transition. The probe also waits for the subscribed authoritative
+`ControllerMappingFeedbackSnapshot` sample to become available. This is a generic debug mechanism,
+not pad policy: the production core/shell slice still owns which pads are routed, which semantic
+endpoint is projected onto each pad, and which physical light is owned.
 
 After DOWN, the probe requires a later successfully applied complete core result with an explicit
 RGB entry for that pad. It resolves that RGB through the Push palette, waits for two matching stable
@@ -176,15 +177,16 @@ samples of the resolved `LightInfo`, and requires a successful outbound base-col
 (plus the matching blink transmission when blink is active). Terminal status reports `pad_probe`,
 `pad_button`, normalized `pad_control`, physical `pad_midi_note`, `pad_velocity`, `pad_route`, core
 `mapping_desired`, stable-host `mapping_active`, authoritative `mapped_on`, `desired_rgb`,
-`resolved_light`, and `transmitted_light`. `mapped_on` is derived only from the subscribed API-31
-Boolean snapshot: `true` means Bitwig resolved the original learnable PAD action's no-output
-background light on, `false` means either unmapped or mapped-off, and `-` means the snapshot is not
-currently available. It never derives from desired or transmitted RGB and intentionally makes no
-mapping-presence claim. The separate route, desired-lease, applied-activation, mapped read-back, and
-output fields distinguish an inactive view or lane transition from a feedback/render/transmission
-failure. `mapping_active` likewise does not claim that a manual Bitwig mapping exists, fired, or
-changed host state. The transmission tap observes only the one armed pad and records only after the
-existing MIDI send returns successfully; it adds no MIDI callback or output owner.
+`resolved_light`, and `transmitted_light`. `mapped_on` is derived only from the subscribed API-32
+Boolean snapshot, keyed by the semantic endpoint in the committed binding: `true` means Bitwig
+resolved that virtual action's no-output background light on, `false` means either unmapped or
+mapped-off, and `-` means the snapshot is not currently available. It never derives from desired or
+transmitted RGB and intentionally makes no mapping-presence claim. The separate route, desired
+binding, applied semantic-matcher activation, mapped read-back, and output fields distinguish an
+inactive view or lane transition from a feedback/render/transmission failure. `mapping_active`
+likewise does not claim that a manual Bitwig mapping exists, fired, or changed host state. The
+transmission tap observes only the one armed pad and records only after the existing MIDI send
+returns successfully; it adds no MIDI callback or output owner.
 
 If the later applied result leaves an already-correct pad color unchanged, the ordinary renderer
 may suppress a redundant send. The first post-apply debug observation therefore resends that one
@@ -198,13 +200,14 @@ same bounded best-effort UP cleanup before releasing the debugger lifecycle. Thi
 controller path through the transmitted palette state; it does not opt the pad into routing,
 choose its RGB policy, or repair a missing mapped-feedback subscription or observer.
 
-The DOWN/UP pair manually enters the original PAD button's permanent extension trigger/arbitrator
-seam. Controller API 21 does not expose a way to inject a raw controller MIDI packet back through
-Bitwig's hardware-action matcher, so this probe reports whether the original learned-action lane is
-admitting physical note-on presses but does not itself fire a Bitwig-learned action. A live physical
-press is still required to prove that a learned target changes and returns fresh mapped-light
-feedback; the probe closes the extension-side route, RGB, palette-resolution, and transmission loop
-around that authoritative feedback.
+The DOWN/UP pair manually enters the original physical PAD button's permanent extension
+trigger/arbitrator seam. Those physical buttons have no MIDI matchers and are not learned mapping
+identities. Controller API 21 does not expose a way to inject a raw controller MIDI packet back
+through Bitwig's separate semantic hardware-action matcher, so the probe reports whether that
+virtual action is admitting the physical note-on but does not itself fire the Bitwig-learned action.
+A live physical press is still required to prove that Bitwig learned the semantic identity, changes
+the target, and returns fresh mapped-light feedback; the probe closes the extension-side route,
+semantic lease, RGB, palette-resolution, and transmission loop around that authoritative feedback.
 
 For an explicitly state-changing playback test, use the permanent routed Play binding and verify
 its result from later authoritative framebuffer and host observations:

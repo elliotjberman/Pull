@@ -26,6 +26,29 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class PushPadGridTest
 {
     @Test
+    void transmitsControlPadRedAndOffToTheExactPhysicalNote ()
+    {
+        final List<MidiNote> sent = new ArrayList<> ();
+        final IMidiOutput output = proxy (IMidiOutput.class, (ignored, method, arguments) -> {
+            if ("sendNoteEx".equals (method.getName ()))
+                sent.add (new MidiNote (((Integer) arguments[0]).intValue (), ((Integer) arguments[1]).intValue (), ((Integer) arguments[2]).intValue ()));
+            return null;
+        });
+        final PushColorManager colors = new PushColorManager ();
+        final PushPadGrid grid = new PushPadGrid (colors, output);
+        final int red = colors.getColorIndex (ColorEx.RED);
+
+        grid.light (64, PadColor.rgbOrOff (ColorEx.RED));
+        grid.sendState (64);
+        grid.light (64, PadColor.rgbOrOff (ColorEx.BLACK));
+        grid.sendState (64);
+
+        assertEquals (new MidiNote (0, 64, red), sent.get (sent.size () - 2));
+        assertEquals (new MidiNote (0, 64, 0), sent.getLast ());
+    }
+
+
+    @Test
     void fadeAndRenderedPadUseTheSameRgbResolution ()
     {
         final List<MidiNote> sent = new ArrayList<> ();
