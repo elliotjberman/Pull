@@ -123,7 +123,7 @@ class ControllerRuntimeEnvironmentTest
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.BINDING_CLIP_TARGET));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION));
         assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD));
-        assertEquals (Integer.valueOf (5), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_RGB_LIGHT));
+        assertEquals (Integer.valueOf (6), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_RGB_LIGHT));
         assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_MAPPING));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_STATE));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_NOTE_VIEW_PREFERENCE));
@@ -576,6 +576,28 @@ class ControllerRuntimeEnvironmentTest
         assertEquals (OFF, environment.lightColor (mute));
         assertEquals (OFF, environment.lightColor (solo));
         assertEquals (OFF, environment.lightColor (stopClip));
+    }
+
+
+    @Test
+    void genericPhysicalLightValidationOwnsOnlyTheExplicitCompleteResult ()
+    {
+        final ControllerRuntimeEnvironment environment = environment (host (1));
+        final ControlId browse = PushControlIds.button ("BROWSE");
+        final ControlId pad = PushControlIds.pad (1);
+        final ControlId unknown = new ControlId ("not-installed");
+        environment.setPhysicalLightOwnerValidator (Set.of (browse, pad)::contains);
+
+        commitAndApply (environment, 7, result (Map.of (browse, BRIGHT_RED, pad, DIM_RED), Map.of (), List.of ()));
+        assertTrue (environment.ownsLight (browse));
+        assertTrue (environment.ownsLight (pad));
+        assertEquals (BRIGHT_RED, environment.lightColor (browse));
+        assertEquals (DIM_RED, environment.lightColor (pad));
+        assertThrows (IllegalArgumentException.class, () -> environment.prepare (result (Map.of (unknown, BRIGHT_RED), Map.of (), List.of ())));
+
+        commitAndApply (environment, 8, result (Map.of (), Map.of (), List.of ()));
+        assertFalse (environment.ownsLight (browse));
+        assertFalse (environment.ownsLight (pad));
     }
 
 

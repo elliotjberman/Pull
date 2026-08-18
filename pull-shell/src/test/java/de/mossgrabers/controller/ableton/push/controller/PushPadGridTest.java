@@ -6,6 +6,8 @@ package de.mossgrabers.controller.ableton.push.controller;
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.grid.PadColor;
 import de.mossgrabers.framework.daw.midi.IMidiOutput;
+import de.mossgrabers.pull.core.api.ControlId;
+import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
 import de.mossgrabers.pull.core.api.output.PadGridPosition;
 import de.mossgrabers.pull.core.api.output.RgbColor;
@@ -16,6 +18,7 @@ import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -95,6 +98,48 @@ class PushPadGridTest
         assertEquals (21, grid.getLightInfo (37).getColor ());
         grid.sendState (36);
         assertEquals (new MidiNote (0, 36, 20), sent.getLast ());
+    }
+
+
+    @Test
+    void explicitCoreOwnershipOverridesAndThenRestoresTheStablePadState ()
+    {
+        final PushColorManager colors = new PushColorManager ();
+        final PushPadGrid grid = new PushPadGrid (colors, relaxedOutput ());
+        final ControlId firstPad = PushControlIds.pad (1);
+        final AtomicReference<Set<ControlId>> owners = new AtomicReference<> (Set.of (firstPad));
+        final RgbColor purple = new RgbColor (160, 48, 255);
+        grid.setCoreLightSupplier (control -> owners.get ().contains (control), ignored -> purple);
+        grid.light (36, 10);
+
+        assertEquals (colors.getColorIndex (ColorEx.fromRGB (purple.red (), purple.green (), purple.blue ())), grid.getLightInfo (36).getColor ());
+
+        owners.set (Set.of ());
+        assertEquals (10, grid.getLightInfo (36).getColor ());
+    }
+
+
+    @Test
+    void sparseOverlayFreezesTheCoreOwnedBaseUntilTheOverlayCloses ()
+    {
+        final PushColorManager colors = new PushColorManager ();
+        final PushPadGrid grid = new PushPadGrid (colors, relaxedOutput ());
+        final AtomicReference<RgbColor> coreColor = new AtomicReference<> (new RgbColor (160, 48, 255));
+        final AtomicReference<ControllerPadGridOverlay> overlay = new AtomicReference<> (ControllerPadGridOverlay.inactive ());
+        grid.setCoreLightSupplier (PushControlIds.pad (1)::equals, ignored -> coreColor.get ());
+        grid.setOverlaySupplier (overlay::get);
+
+        final int purple = colors.getColorIndex (ColorEx.fromRGB (160, 48, 255));
+        final int green = colors.getColorIndex (ColorEx.fromRGB (0, 255, 0));
+        assertEquals (purple, grid.getLightInfo (36).getColor ());
+
+        overlay.set (new ControllerPadGridOverlay (true, Map.of (new PadGridPosition (1, 0), new RgbColor (255, 0, 0))));
+        assertEquals (purple, grid.getLightInfo (36).getColor ());
+        coreColor.set (new RgbColor (0, 255, 0));
+        assertEquals (purple, grid.getLightInfo (36).getColor ());
+
+        overlay.set (ControllerPadGridOverlay.inactive ());
+        assertEquals (green, grid.getLightInfo (36).getColor ());
     }
 
 
@@ -206,6 +251,12 @@ class PushPadGridTest
                 sent.add (new MidiNote (((Integer) arguments[0]).intValue (), ((Integer) arguments[1]).intValue (), ((Integer) arguments[2]).intValue ()));
             return null;
         });
+    }
+
+
+    private static IMidiOutput relaxedOutput ()
+    {
+        return proxy (IMidiOutput.class, (ignored, method, arguments) -> null);
     }
 
 

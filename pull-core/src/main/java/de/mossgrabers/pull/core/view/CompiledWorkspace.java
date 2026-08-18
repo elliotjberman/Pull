@@ -292,6 +292,8 @@ public final class CompiledWorkspace
         for (final CompiledView view: this.views)
         {
             final ViewOutput output = Objects.requireNonNull (view.view ().render (snapshot), "view output");
+            for (final ControlId control: output.lights ().keySet ())
+                validateLightOwner (view, control);
             mergeUnique (lights, output.lights (), "light", view.id ());
             mergeUnique (clipBindings, output.clipBindings (), "clip binding", view.id ());
             for (final ControllerMappingBinding binding: output.controllerMappings ().bindings ())
@@ -380,6 +382,16 @@ public final class CompiledWorkspace
             throw new IllegalStateException ("view " + view.id () + " maps a controller endpoint outside its exclusive pad-input and output claims: " + physicalControl);
         if (!view.bridgeSubscriptions ().contains (BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK))
             throw new IllegalStateException ("view " + view.id () + " maps a controller endpoint without authoritative mapping feedback");
+    }
+
+
+    private static void validateLightOwner (final CompiledView view, final ControlId control)
+    {
+        final ControlId lightControl = Objects.requireNonNull (control, "light control");
+        final boolean claimed = view.profile ().claims ().stream ().anyMatch (claim ->
+            claim.kind () == SurfaceClaim.Kind.OUTPUT && claim.area ().controls ().contains (lightControl));
+        if (!claimed)
+            throw new IllegalStateException ("view " + view.id () + " emits a light outside its output claims: " + lightControl);
     }
 
 

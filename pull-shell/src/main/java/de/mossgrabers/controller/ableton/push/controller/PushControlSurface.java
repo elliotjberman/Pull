@@ -400,7 +400,10 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
         this.notifyViewChange = false;
         this.pushPadGrid = (PushPadGrid) this.padGrid;
         if (this.reloadableRuntime != null)
+        {
             this.pushPadGrid.setOverlaySupplier (this.reloadableRuntime::padGridOverlay);
+            this.pushPadGrid.setCoreLightSupplier (this.reloadableRuntime::ownsLight, this.reloadableRuntime::lightColor);
+        }
         this.colorPalette = new ColorPalette (this);
         this.debugSurfaceHost = PushDebugSurfaceHost.createIfEnabled ();
         if (this.debugSurfaceHost != null)

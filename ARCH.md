@@ -1,6 +1,7 @@
 # Pull View Architecture
 
-Status: current through Core API 35, semantic controller-mapping identities, the shared
+Status: current through Core API 36, semantic controller-mapping identities, generic registered
+button/grid light arbitration, the shared
 mixer-control renderer, the Master-control migration, the post-demo `VS Live` composition, and
 core-owned Session Stop, selected-track Mute/Solo, note-view, and drum-rate policy.
 
@@ -367,12 +368,15 @@ Partial or transitional:
 - `ControllerViewFacet` remains a closed cross-boundary adapter ID.
 - Capability and Session-shape validation happens during stable result preparation, not entirely in
   `CompiledWorkspace`.
-- General display and light output ownership is still partial. The eight drum-fill, four drum-rate,
-  and four mappable-control RGB lights, authoritative semantic Bitwig Boolean feedback, and replayable physical-to-semantic mapping leases, global Play/Record lights, the Master page's two button rows and graphics
-  display, a temporary sparse 8x8 grid overlay, and a complete temporary 960x160 display overlay
-  use core-owned output arbitration. Session Stop Clip while a Session view is active and
-  persistent selected-track Mute/Solo are also general core-owned RGB buttons. The detailed
-  design's API 35 installed-output inventory is canonical.
+- Every registered Push button light and every physical grid-pad light now has generic explicit
+  core-or-stable arbitration. A view may render only controls inside its declared output claims;
+  unclaimed lights preserve their frozen legacy supplier exactly. Current semantic core owners are
+  the eight drum-fill, four drum-rate, and four mappable-control lights, global Play/Record,
+  Session Stop Clip, persistent selected-track Mute/Solo, and both Master rows. Authoritative
+  semantic Bitwig Boolean feedback and replayable physical-to-semantic mapping leases support the
+  mappable controls. General display output is still partial: the Master graphics display, a
+  temporary sparse 8x8 grid overlay, and a complete temporary 960x160 display overlay are
+  arbitrated. The detailed design's API 36 installed-output inventory is canonical.
 
 Deferred by design:
 

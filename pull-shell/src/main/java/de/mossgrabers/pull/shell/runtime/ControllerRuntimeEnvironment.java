@@ -88,7 +88,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         Map.entry (CoreCapabilities.BINDING_CLIP_TARGET, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD, Integer.valueOf (4)),
-        Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (5)),
+        Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (6)),
         Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_MAPPING, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_STATE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_NOTE_VIEW_PREFERENCE, Integer.valueOf (1)),
@@ -128,6 +128,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     private CommittedState committedState = CommittedState.initial ();
     private Predicate<de.mossgrabers.pull.core.api.InputRoute> inputRouteValidator = route -> false;
     private Predicate<ControllerActionBinding> controllerActionValidator = action -> false;
+    private Predicate<ControlId> physicalLightOwnerValidator = ControllerRuntimeEnvironment::isPreviouslyInstalledLightOwner;
     private Runnable deferredInputRelease = () -> {
         // No controller bridge is installed in isolated environment tests.
     };
@@ -465,6 +466,13 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
+    /** Test whether the applied core result explicitly owns one hardware light. */
+    boolean ownsLight (final ControlId owner)
+    {
+        return this.committedState.explicitLightOwners ().contains (Objects.requireNonNull (owner, "light owner"));
+    }
+
+
     /** Observe whether a successfully applied complete core result explicitly owns one light. */
     DebugLightObservation debugLightObservation (final ControlId owner)
     {
@@ -539,6 +547,13 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         if (this.committedState.generation () != 0)
             throw new IllegalStateException ("Controller-action validation must be installed before core activation");
         this.controllerActionValidator = Objects.requireNonNull (validator, "validator");
+    }
+
+
+    /** Install validation against the permanent physical Push light registry. */
+    void setPhysicalLightOwnerValidator (final Predicate<ControlId> validator)
+    {
+        this.physicalLightOwnerValidator = Objects.requireNonNull (validator, "validator");
     }
 
 
@@ -757,14 +772,14 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
-    private static DesiredHardwareOutput prepareOutput (final CoreResult result, final DesiredControllerWorkspace workspace)
+    private DesiredHardwareOutput prepareOutput (final CoreResult result, final DesiredControllerWorkspace workspace)
     {
         final Map<ControlId, RgbColor> colors = new LinkedHashMap<> (offLights ());
         final boolean masterControls = workspace.facets ().contains (ControllerViewFacet.MASTER_CONTROLS);
         for (final Map.Entry<ControlId, RgbColor> light: result.desiredOutput ().lights ().entrySet ())
         {
             final ControlId owner = Objects.requireNonNull (light.getKey (), "light owner");
-            if (!CoreControls.DRUM_FILLS.contains (owner) && !CoreControls.DRUM_RATES.contains (owner) && !CoreControls.DRUM_CONTROL_PADS.contains (owner) && !CORE_BUTTON_LIGHTS.contains (owner) && !(masterControls && MASTER_ROW_LIGHTS.contains (owner)))
+            if (!CoreControls.DRUM_FILLS.contains (owner) && !this.physicalLightOwnerValidator.test (owner) && !(masterControls && MASTER_ROW_LIGHTS.contains (owner)))
                 throw new IllegalArgumentException ("Unsupported controller light owner");
             final RgbColor requested = Objects.requireNonNull (light.getValue (), "light color");
             colors.put (owner, new RgbColor (requested.red (), requested.green (), requested.blue ()));
@@ -1072,6 +1087,12 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         for (final ControlId owner: CORE_BUTTON_LIGHTS)
             colors.put (owner, OFF);
         return Map.copyOf (colors);
+    }
+
+
+    private static boolean isPreviouslyInstalledLightOwner (final ControlId owner)
+    {
+        return CoreControls.DRUM_RATES.contains (owner) || CoreControls.DRUM_CONTROL_PADS.contains (owner) || CORE_BUTTON_LIGHTS.contains (owner);
     }
 
 

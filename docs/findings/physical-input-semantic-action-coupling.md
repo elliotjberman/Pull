@@ -31,7 +31,7 @@ movable Bitwig proxy may already address a replacement target by then.
 
 ## Current Mitigation
 
-Core API 33 carries `ControllerActionIntent` separately from physical input. Core-owned views
+Core API 34 carries `ControllerActionIntent` separately from physical input. Core-owned views
 resolve complete executable intents at gesture `BEGIN`; deferred execution therefore cannot
 reinterpret a released modifier or a replacement workspace. Existing stable-only commands remain
 frozen migration debt, but `StableControllerActionResolver` examines the actual installed command

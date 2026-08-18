@@ -5,6 +5,7 @@
 package de.mossgrabers.controller.ableton.push;
 
 import java.util.Set;
+import java.util.function.IntSupplier;
 
 import de.mossgrabers.controller.ableton.push.command.continuous.ConfigurePitchbendCommand;
 import de.mossgrabers.controller.ableton.push.command.continuous.MastertrackTouchCommand;
@@ -133,6 +134,7 @@ import de.mossgrabers.framework.view.TransposeView;
 import de.mossgrabers.framework.view.Views;
 import de.mossgrabers.framework.view.sequencer.AbstractSequencerView;
 import de.mossgrabers.framework.view.sequencer.ClipLengthView;
+import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.SessionBankShape;
 import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.output.RgbColor;
@@ -533,6 +535,31 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
     static int controllerLightColor (final ColorManager colors, final RgbColor color)
     {
         return PushColorManager.resolveCoreColor (colors, color);
+    }
+
+
+    /** Install one permanent core-or-stable light arbiter beneath every Push button binding. */
+    @Override
+    protected void addButton (final PushControlSurface surface, final ButtonID buttonID, final String label, final TriggerCommand command, final int midiInputChannel, final int midiOutputChannel, final int midiControl, final int value, final boolean hasLight, final IntSupplier supplier, final String... colorIds)
+    {
+        if (!hasLight)
+        {
+            super.addButton (surface, buttonID, label, command, midiInputChannel, midiOutputChannel, midiControl, value, false, supplier, colorIds);
+            return;
+        }
+
+        final IntSupplier stableSupplier = supplier == null ? () -> surface.getButton (buttonID).isPressed () ? 1 : 0 : supplier;
+        final ControlId lightControl = PushControlIds.button (buttonID.name ());
+        final IntSupplier arbitratedSupplier = () -> {
+            if (this.reloadableRuntime.ownsLight (lightControl))
+                return controllerLightColor (this.colorManager, this.reloadableRuntime.lightColor (lightControl));
+
+            final int state = stableSupplier.getAsInt ();
+            if (colorIds == null || colorIds.length == 0)
+                return state;
+            return this.colorManager.getColorIndex (state < 0 ? ColorManager.BUTTON_STATE_OFF : colorIds[state]);
+        };
+        super.addButton (surface, buttonID, label, command, midiInputChannel, midiOutputChannel, midiControl, value, true, arbitratedSupplier);
     }
 
 

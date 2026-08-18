@@ -53,6 +53,8 @@ On current `master`:
   observers no longer recall a stable preferred view, so the composed controller-state host is the
   only Pull Note-layout actuator;
 - the practical existing Push input set is normalized by the stable input bridge;
+- every registered Push button light and every physical grid-pad light has a generic explicit
+  core-or-stable arbitration plane; unclaimed controls preserve their exact frozen stable output;
 - transport, selected-track, controller-layout, and bounded drum snapshots/effects exist;
 - Play and Record lights are core-owned through generic authoritative RGB output;
 - the Master page's two button rows and graphics scene are core-owned through complete output
@@ -62,8 +64,8 @@ On current `master`:
 - a generic complete 960x160 display overlay can temporarily replace and restore the inherited
   display page; overlay copy, geometry, color, and activation policy are core-owned;
 - the eight drum-fill and four mappable-control lights and the four control pads' semantic mapping
-  leases are also core-owned; underlying grid policy and other Push output
-  surfaces remain frozen migration debt;
+  leases are also core-owned; unclaimed button/grid policy and other Push output surfaces remain
+  frozen migration debt;
 - Shift snapback policy, view-owned physical-to-parameter-slot admission, semantic action
   invalidation, restoration acknowledgement, and navigation ordering are core-owned; stable owns
   named bounded Bitwig parameter banks, exact actuator leases, identity fencing, effect execution,
@@ -103,7 +105,7 @@ The migration guide scopes Play as the safe first transport cut.
 - volume and pan;
 - stop, return to Arrangement, and create a new clip.
 
-API 35 now owns Mute/Solo as one persistent selected-track view and Stop as part of `SessionView`.
+API 36 now owns Mute/Solo as one persistent selected-track view and Stop as part of `SessionView`.
 Plain Stop preserves the inherited immediate actuator; page overlays retain the active grid-view
 instances so their physical gestures remain continuous.
 The former project-clear, master, layer, lock/long, page-row, pad, and note modifier variants were
@@ -146,18 +148,15 @@ This is the main body of remaining work. It is migration debt, but not a file-on
 
 ### 1. Complete remaining hardware output
 
-Current limitation: stable validation and arbitration accept the eight fill-pad lights, four
-drum-rate pad lights, four mappable-control pad lights and their physical-to-semantic learned-action
-leases, global Play/Record lights, selected-track Mute/Solo lights, the Session-owned Stop Clip
-light, the Master page's two button rows and bounded declarative graphics scene, and a temporary
-sparse whole-grid overlay plus a complete 960x160 display overlay. Inherited output outside those lanes remains
-frozen stable migration debt; do not implement new output behavior there.
+API 34 completes reusable light arbitration for every registered Push button and all 64 physical
+grid pads. The shell validates output against the permanent physical registry; an explicit core
+owner replaces the frozen stable supplier, and an unclaimed control preserves that supplier
+exactly. Core compilation also rejects a view that renders a light outside its declared output
+claims. This installs the transport, but it does not silently migrate legacy meaning: each control's
+action, authoritative state, and feedback must still move together.
 
 Add bounded complete ownership for the remaining surfaces:
 
-- Push button lights outside the migrated global buttons and Master rows;
-- all 64 grid-pad lights;
-- scene lights and non-Master row-button lights;
 - touch-strip mode and LEDs;
 - the other USB display pages using the installed scene buffer or a deliberately expanded output
   canopy;
@@ -172,7 +171,7 @@ rendering.
 
 ### 2. Visible track bank and mixer
 
-API 35 now publishes stable identities, generation, offsets, and basic authoritative state for the
+API 36 now publishes stable identities, generation, offsets, and basic authoritative state for the
 eight tracks in the active bounded Session bank. It currently executes only a bank-wide Stop
 action. Extend that reusable window with the remaining state and fenced effects for selection,
 activation, arm, mute, solo, volume, pan, and bounded sends.
@@ -196,7 +195,7 @@ represent eight visible tracks.
 
 ### 3. Session grid
 
-API 35 installs the bounded visible Session bank's track identities, track/scene offsets, basic
+API 36 installs the bounded visible Session bank's track identities, track/scene offsets, basic
 track state, and a generation-fenced bank-wide Stop action. `SessionView` uses it for Shift/Select
 Stop while plain Stop uses the private authoritative selected target. Still add stable clip-slot
 identity and state such as existence, content, name, color, playing, recording, and queued.

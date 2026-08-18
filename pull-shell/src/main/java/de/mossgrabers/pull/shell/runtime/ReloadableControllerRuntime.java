@@ -83,6 +83,13 @@ public final class ReloadableControllerRuntime implements AutoCloseable
     }
 
 
+    /** Test whether the applied core result explicitly owns one hardware light. */
+    public boolean ownsLight (final ControlId control)
+    {
+        return this.environment != null && !this.closed && this.environment.ownsLight (Objects.requireNonNull (control, "control"));
+    }
+
+
     /** Get the complete replayable controller display override. */
     public ControllerDisplayScene controllerDisplay ()
     {
@@ -226,6 +233,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             () -> this.supervisor == null ? 0 : this.supervisor.activeGeneration ());
         this.environment.setInputRouteValidator (this.inputBridge::supports);
         this.environment.setControllerActionValidator (this.inputBridge::supports);
+        this.environment.setPhysicalLightOwnerValidator (this.inputBridge::supportsLight);
         this.environment.setDeferredInputRelease (this.inputBridge::releaseDeferredStableDispatches);
         this.environment.setInputLifecycleIdle (this.inputBridge::isIdle);
         this.environment.setNoteInputLifecycleIdle (this.inputBridge::musicalInputLifecycleIdle);

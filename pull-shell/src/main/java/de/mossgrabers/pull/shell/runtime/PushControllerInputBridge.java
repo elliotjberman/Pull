@@ -263,6 +263,14 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
     }
 
 
+    /** Validate one hardware-independent RGB owner against an installed Push button or grid pad. */
+    boolean supportsLight (final ControlId control)
+    {
+        final ControlId lightControl = Objects.requireNonNull (control, "control");
+        return this.registry.contains (lightControl, InputKind.BUTTON) || this.registry.contains (lightControl, InputKind.PAD);
+    }
+
+
     /**
      * Normalize mapping-pad edges, pressure, and sustain messages which do not have ordinary raw
      * callback dispatch.

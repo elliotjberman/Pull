@@ -40,6 +40,7 @@ import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
+import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.runtime.view.ProjectMacroControlsView;
 import de.mossgrabers.pull.core.runtime.view.SessionView;
 import de.mossgrabers.pull.core.runtime.view.WorkspaceSelection;
@@ -70,6 +71,38 @@ class CompiledWorkspaceTest
         final TestView second = view ("second", claim (SurfaceArea.DRUM_FILL_PADS, SurfaceClaim.Kind.OUTPUT));
 
         assertThrows (IllegalArgumentException.class, () -> CompiledWorkspace.compile ("conflict", List.of (first, second)));
+    }
+
+
+    @Test
+    void rejectsLightOutsideTheEmittingViewsOutputClaims ()
+    {
+        final ControllerView invalid = new ControllerView ()
+        {
+            @Override
+            public String id ()
+            {
+                return "invalid-light";
+            }
+
+
+            @Override
+            public ViewProfile profile ()
+            {
+                return ViewProfile.fixed ("invalid-light", Set.of (claim (SurfaceArea.PLAY_BUTTON, SurfaceClaim.Kind.OUTPUT)), Set.of ());
+            }
+
+
+            @Override
+            public ViewOutput render (final ControllerSnapshot ignored)
+            {
+                return new ViewOutput (Map.of (PushControlIds.button ("RECORD"), new RgbColor (255, 0, 0)), Map.of ());
+            }
+        };
+        final CompiledWorkspace workspace = CompiledWorkspace.compile ("invalid-light", List.of (invalid));
+
+        final IllegalStateException failure = assertThrows (IllegalStateException.class, () -> workspace.start (snapshot ()));
+        assertTrue (failure.getMessage ().contains ("outside its output claims"));
     }
 
 

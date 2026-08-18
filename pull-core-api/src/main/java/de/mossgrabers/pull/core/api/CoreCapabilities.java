@@ -23,7 +23,7 @@ public final class CoreCapabilities
     /** Single-active momentary clip-session effects with a frozen launch policy per target. */
     public static final String EFFECT_CLIP_LAUNCH_HOLD = "effect.clip-launch-hold";
 
-    /** Hardware-independent RGB light output; v4 admits drum control pads and v5 bounded general buttons. */
+    /** Hardware-independent RGB light output; v6 admits every registered Push button and grid pad. */
     public static final String OUTPUT_RGB_LIGHT = "output.rgb-light";
 
     /** Replayable projection onto bounded semantic host-learnable controller endpoints. */
