@@ -34,8 +34,9 @@ though the meanings time-share one physical MIDI source and one LED.
 The Drum Controller slice has one semantic owner for each mapped pad:
 
 - Core supplies a complete physical-control-to-semantic-endpoint lease.
-- The stable shell enables the detached semantic endpoint's Bitwig press matcher only while that
-  lease is active.
+- The stable shell enables the detached semantic endpoint's paired Bitwig press and release
+  matchers only while that lease is active. On retirement it revokes new presses immediately and
+  keeps the release matcher through the accepted gesture's physical release.
 - Permanent raw input always carries the normalized core gesture for an active semantic mapping;
   this fences core replacement and completes the exact `END` without creating another learned
   action.
@@ -137,7 +138,7 @@ bindings remain attached to the same permanent action identity.
 ## Required Invariants
 
 1. A semantic `ControllerMappingId` has one permanent Bitwig `HardwareAction` identity.
-2. A physical control admits at most one semantic mapping press matcher at a time.
+2. A physical control admits at most one complete semantic mapping button lifecycle at a time.
 3. An endpoint not leased by core cannot learn or fire a new controller mapping.
 4. A lane change immediately rejects new presses from the old endpoint.
 5. The exact accepted gesture completes through `END` before the latest desired endpoint activates.
@@ -188,6 +189,8 @@ The current migration's tests and live smoke must prove:
 - the generic projection host can switch one physical pad between two installed semantic endpoints
   without changing either endpoint's identity or churning an unchanged projection;
 - both release-callback orders and an immediate re-press preserve exact gesture ownership;
+- a learned continuous target observes the configured high range endpoint on press and the low
+  endpoint on release;
 - view changes while held activate only the latest desired semantic endpoint after `END`;
 - true and false Bitwig feedback address the semantic endpoint and render on the physical LED;
 - unmapped/off remains distinct from unavailable or unsupported inventory;

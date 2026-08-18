@@ -612,7 +612,9 @@ selection. The four mappable drum-control pads emit no core effect: Bitwig's sem
 hardware-button mapping is their actuator. Core supplies the complete physical-to-semantic lease
 only while the control-pad view owns them, and feedback follows later authoritative Boolean
 read-back from that semantic endpoint. A lane change revokes the old endpoint's new-press matcher
-immediately and admits the latest requested projection only after the exact routed `END` completes.
+immediately, retains its release matcher through the exact routed `END`, and admits the latest
+requested projection after release retirement on the next controller tick. This complete paired
+matcher lifecycle lets Bitwig manual mappings observe both sides of the hardware button.
 Permanent raw MIDI carries that normalized core gesture while mapped; outside the lease it forwards
 into the original physical button's state, command, and installed router. The same single raw lane
 drives ordinary dispatch for all 64 grid pads, none of which remains a learned identity. It is not a

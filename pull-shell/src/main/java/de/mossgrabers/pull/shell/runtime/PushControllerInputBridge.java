@@ -496,8 +496,6 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
             this.router.route (control, InputKind.PAD, phase, velocity, () -> {
                 // The permanent semantic HardwareButton matcher is the only Bitwig learned action.
             });
-            if (!press)
-                this.mappingActivation.request (this.activeMappings.get ());
         }
     }
 

@@ -163,13 +163,18 @@ class PushControllerInputBridgeTest
         assertEquals (DesiredControllerMappings.empty (), fixture.bridge.activeControllerMappings ());
         assertFalse (fixture.semanticButtons.get (fixture.mappingId).pressMatcher);
 
-        // Raw release first closes the frozen routed gesture. The deliberately absent Bitwig
-        // release matcher cannot duplicate END afterward.
+        // Raw release first closes the frozen routed gesture. The semantic Bitwig release action
+        // remains independent from the normalized core END.
         fixture.rawRelease ();
         fixture.pad.physicalRelease ();
         assertEquals (List.of (InputPhase.BEGIN, InputPhase.END), fixture.phases ());
+        assertTrue (fixture.semanticButtons.get (fixture.mappingId).releaseMatcher);
 
-        // The next gesture belongs to ordinary dispatch and therefore emits no core event.
+        // Matcher retirement is deferred to the next controller tick so Bitwig can observe the
+        // same MIDI release regardless of whether raw ingress or the HardwareButton callback ran
+        // first. The next gesture then belongs to ordinary dispatch and emits no core event.
+        fixture.bridge.flush ();
+        assertFalse (fixture.semanticButtons.get (fixture.mappingId).releaseMatcher);
         fixture.rawPress ();
         fixture.rawRelease ();
         assertEquals (List.of (InputPhase.BEGIN, InputPhase.END), fixture.phases ());
@@ -189,6 +194,7 @@ class PushControllerInputBridgeTest
         fixture.pad.physicalRelease ();
         assertEquals (List.of (InputPhase.BEGIN, InputPhase.END, InputPhase.BEGIN), fixture.phases ());
         fixture.rawRelease ();
+        fixture.bridge.flush ();
         assertEquals (List.of (InputPhase.BEGIN, InputPhase.END, InputPhase.BEGIN, InputPhase.END), fixture.phases ());
         assertEquals (fixture.desiredMapping, fixture.bridge.activeControllerMappings ());
 
@@ -211,7 +217,7 @@ class PushControllerInputBridgeTest
         {
             final TestButton semanticButton = fixture.semanticButtons.get (CoreControllerMappings.DRUM_CONTROL_PADS.get (slot));
             assertTrue (semanticButton.pressMatcher);
-            assertFalse (semanticButton.releaseMatcher);
+            assertTrue (semanticButton.releaseMatcher);
             assertEquals (0, semanticButton.boundChannel);
             assertEquals (Fixture.PAD_NOTE + slot, semanticButton.boundControl);
             assertEquals (1, semanticButton.bindCount);

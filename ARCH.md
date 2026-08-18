@@ -369,8 +369,10 @@ Stable shell:
   attaches their no-output Boolean feedback, and removes MIDI matchers from all 64 original grid
   buttons so physical pads remain ordinary-dispatch-only objects rather than learned identities.
 - `HardwareMappingActivationHost`: mechanically projects the complete core lease onto those
-  semantic buttons. A lane change immediately revokes new mapped presses, retains the exact routed
-  gesture through `END`, and admits only the latest desired projection after the lifecycle is idle.
+  semantic buttons. Each active endpoint exposes the paired Bitwig press and release actions. A
+  lane change immediately revokes new mapped presses, retains the old release action through the
+  exact routed `END`, retires it on the next controller tick, and then admits only the latest
+  desired projection.
   Permanent raw MIDI supplies the normalized core gesture while a semantic matcher is active; when
   no mapping is active it triggers the established original-button dispatch through the same raw
   ingress for every grid pad. No duplicate learned action or second MIDI callback exists.

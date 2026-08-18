@@ -100,17 +100,26 @@ final class HardwareMappingActivationHost
             if (entry.getValue ().equals (desired))
                 continue;
 
-            this.mappingButtons.get (entry.getValue ()).unbindPress ();
+            final IHwButton mappingButton = this.mappingButtons.get (entry.getValue ());
+            mappingButton.unbindPress ();
             this.active.remove (entry.getKey ());
             if (!this.lifecycleIdle.test (entry.getKey ()))
                 this.releasingMappings.put (entry.getKey (), entry.getValue ());
+            else
+                mappingButton.unbindRelease ();
         }
     }
 
 
     private void finishRetirements ()
     {
-        this.releasingMappings.keySet ().removeIf (this.lifecycleIdle::test);
+        for (final Map.Entry<ControlId, ControllerMappingId> entry: Set.copyOf (this.releasingMappings.entrySet ()))
+        {
+            if (!this.lifecycleIdle.test (entry.getKey ()))
+                continue;
+            this.mappingButtons.get (entry.getValue ()).unbindRelease ();
+            this.releasingMappings.remove (entry.getKey ());
+        }
         this.releasingDispatch.removeIf (this.lifecycleIdle::test);
     }
 
@@ -130,7 +139,6 @@ final class HardwareMappingActivationHost
 
             final IHwButton mappingButton = this.mappingButtons.get (mappingId);
             this.matcherBinder.bind (mappingButton, physicalControl);
-            mappingButton.unbindRelease ();
             this.active.put (physicalControl, mappingId);
             this.releasingDispatch.remove (physicalControl);
         }

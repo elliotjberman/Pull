@@ -42,11 +42,12 @@ class HardwareMappingActivationHostTest
         fixture.host.request (desired (PAD_29, DRUM_1));
         assertEquals (desired (PAD_29, DRUM_1), fixture.host.activeMappings ());
         assertEquals (PAD_29, fixture.bindings.get (DRUM_1));
-        assertEquals (1, fixture.semantic.get (DRUM_1).unbindReleases);
+        assertEquals (true, fixture.semantic.get (DRUM_1).releaseMatcher);
         assertEquals (HardwareMappingActivationHost.RawDisposition.MAPPED, fixture.host.dispatchRaw (PAD_29, ButtonEvent.DOWN, 0.5));
 
         fixture.host.request (DesiredControllerMappings.empty ());
         assertEquals (1, fixture.semantic.get (DRUM_1).unbindPresses);
+        assertEquals (1, fixture.semantic.get (DRUM_1).unbindReleases);
         assertEquals (DesiredControllerMappings.empty (), fixture.host.activeMappings ());
         assertEquals (HardwareMappingActivationHost.RawDisposition.DISPATCHED, fixture.host.dispatchRaw (PAD_29, ButtonEvent.DOWN, 0.5));
         fixture.idle.put (PAD_29, Boolean.FALSE);
@@ -55,7 +56,7 @@ class HardwareMappingActivationHostTest
 
         fixture.idle.put (PAD_29, Boolean.TRUE);
         fixture.host.request (desired (PAD_29, DRUM_1));
-        assertEquals (2, fixture.semantic.get (DRUM_1).unbindReleases);
+        assertEquals (true, fixture.semantic.get (DRUM_1).releaseMatcher);
         assertEquals (desired (PAD_29, DRUM_1), fixture.host.activeMappings ());
     }
 
@@ -71,8 +72,9 @@ class HardwareMappingActivationHostTest
         fixture.host.request (new DesiredControllerMappings (Set.of (new ControllerMappingBinding (PAD_29, DRUM_1))));
 
         assertEquals (1, fixture.bindingCalls);
-        assertEquals (1, fixture.semantic.get (DRUM_1).unbindReleases);
+        assertEquals (0, fixture.semantic.get (DRUM_1).unbindReleases);
         assertEquals (0, fixture.semantic.get (DRUM_1).unbindPresses);
+        assertEquals (true, fixture.semantic.get (DRUM_1).releaseMatcher);
         assertEquals (projection, fixture.host.activeMappings ());
     }
 
@@ -101,7 +103,7 @@ class HardwareMappingActivationHostTest
         assertEquals (1, fixture.semantic.get (DRUM_1).unbindPresses);
         assertEquals (1, fixture.semantic.get (DRUM_1).unbindReleases);
         assertEquals (0, fixture.semantic.get (DRUM_2).unbindPresses);
-        assertEquals (1, fixture.semantic.get (DRUM_2).unbindReleases);
+        assertEquals (0, fixture.semantic.get (DRUM_2).unbindReleases);
         assertEquals (PAD_29, fixture.bindings.get (DRUM_1));
         assertEquals (PAD_29, fixture.bindings.get (DRUM_2));
     }
@@ -116,12 +118,16 @@ class HardwareMappingActivationHostTest
 
         fixture.host.request (DesiredControllerMappings.empty ());
         assertEquals (1, fixture.semantic.get (DRUM_1).unbindPresses);
+        assertEquals (0, fixture.semantic.get (DRUM_1).unbindReleases);
+        assertEquals (true, fixture.semantic.get (DRUM_1).releaseMatcher);
         assertEquals (HardwareMappingActivationHost.RawDisposition.SUPPRESSED, fixture.host.dispatchRaw (PAD_29, ButtonEvent.DOWN, 0.5));
         assertEquals (HardwareMappingActivationHost.RawDisposition.MAPPED, fixture.host.dispatchRaw (PAD_29, ButtonEvent.UP, 0));
         assertEquals (DesiredControllerMappings.empty (), fixture.host.activeMappings ());
 
         fixture.idle.put (PAD_29, Boolean.TRUE);
         fixture.host.request (DesiredControllerMappings.empty ());
+        assertEquals (1, fixture.semantic.get (DRUM_1).unbindReleases);
+        assertEquals (false, fixture.semantic.get (DRUM_1).releaseMatcher);
         assertEquals (HardwareMappingActivationHost.RawDisposition.DISPATCHED, fixture.host.dispatchRaw (PAD_29, ButtonEvent.DOWN, 0.5));
     }
 
@@ -264,7 +270,10 @@ class HardwareMappingActivationHostTest
     private static void assertTrueMatchers (final Fixture fixture, final ControllerMappingId... mappingIds)
     {
         for (final ControllerMappingId mappingId: mappingIds)
+        {
             assertEquals (true, fixture.semantic.get (mappingId).pressMatcher);
+            assertEquals (true, fixture.semantic.get (mappingId).releaseMatcher);
+        }
     }
 
 
@@ -306,6 +315,7 @@ class HardwareMappingActivationHostTest
                     final ControllerMappingId mappingId = this.mappingId (button);
                     this.bindings.put (mappingId, control);
                     this.semantic.get (mappingId).pressMatcher = true;
+                    this.semantic.get (mappingId).releaseMatcher = true;
                 });
         }
 
@@ -337,10 +347,13 @@ class HardwareMappingActivationHostTest
             }
             if (method.getName ().equals ("unbindPress"))
                 this.pressMatcher = false;
+            if (method.getName ().equals ("unbindRelease"))
+                this.releaseMatcher = false;
             return null;
         });
 
         private boolean pressMatcher;
+        private boolean releaseMatcher;
 
 
         private IHwButton button ()
