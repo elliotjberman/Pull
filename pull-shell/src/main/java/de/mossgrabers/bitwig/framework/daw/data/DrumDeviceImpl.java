@@ -4,6 +4,8 @@
 
 package de.mossgrabers.bitwig.framework.daw.data;
 
+import java.util.Objects;
+
 import com.bitwig.extension.controller.api.Device;
 
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
@@ -18,12 +20,16 @@ import de.mossgrabers.framework.daw.data.IDrumDevice;
  */
 public class DrumDeviceImpl extends SpecificDeviceImpl implements IDrumDevice
 {
+    private final String identity;
+
+
     /**
      * Constructor.
      *
      * @param host The host
      * @param valueChanger The value changer
      * @param device The device to encapsulate
+     * @param identity Stable controller identity of the fixed candidate path
      * @param numSends The number of sends
      * @param numParamPages The number of parameter pages
      * @param numParams The number of parameters
@@ -31,8 +37,20 @@ public class DrumDeviceImpl extends SpecificDeviceImpl implements IDrumDevice
      * @param numDeviceLayers The number of layers
      * @param numDrumPadLayers The number of drum pad layers
      */
-    public DrumDeviceImpl (final IHost host, final IValueChanger valueChanger, final Device device, final int numSends, final int numParamPages, final int numParams, final int numDevicesInBank, final int numDeviceLayers, final int numDrumPadLayers)
+    public DrumDeviceImpl (final IHost host, final IValueChanger valueChanger, final Device device, final String identity, final int numSends, final int numParamPages, final int numParams, final int numDevicesInBank, final int numDeviceLayers, final int numDrumPadLayers)
     {
         super (host, valueChanger, device, numSends, numParamPages, numParams, numDevicesInBank, numDeviceLayers, numDrumPadLayers, 0);
+
+        this.identity = Objects.requireNonNull (identity, "identity");
+        if (this.identity.isBlank ())
+            throw new IllegalArgumentException ("identity must not be blank");
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public String getID ()
+    {
+        return this.identity;
     }
 }

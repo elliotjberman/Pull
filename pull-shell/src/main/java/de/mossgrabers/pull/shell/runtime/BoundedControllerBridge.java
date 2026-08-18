@@ -91,7 +91,7 @@ import java.util.function.BooleanSupplier;
  */
 final class BoundedControllerBridge implements ControllerBridge
 {
-    static final int DRUM_PAD_CAPACITY = 64;
+    static final int DRUM_PAD_CAPACITY = 16;
 
     private static final long TRANSPORT_POSITION_SAMPLE_NANOS = 50_000_000L;
     private static final long DRUM_SAMPLE_NANOS = 33_000_000L;
@@ -803,7 +803,7 @@ final class BoundedControllerBridge implements ControllerBridge
         final String targetID = selected.trackID ();
         final String modelTrackID = this.model.getCursorTrack ().getChannelID ();
         final boolean aligned = selected.exists () && !targetID.isBlank () && this.model.getCursorTrack ().doesExist () && targetID.equals (modelTrackID);
-        final IDrumDevice drum = this.model.getDrumDevice (DRUM_PAD_CAPACITY);
+        final IDrumDevice drum = this.model.getDrumDevice ();
         final boolean available = aligned && this.selectedTarget.hasDrumDevice () && drum.doesExist () && drum.hasDrumPads ();
         if (!available)
         {
@@ -891,7 +891,7 @@ final class BoundedControllerBridge implements ControllerBridge
         final DrumContextSnapshot drum = this.snapshot.drum ();
         if (!this.selectedTargetIsCurrent (drum.targetGeneration (), targetID) || !this.model.getCursorTrack ().doesExist () || !targetID.equals (this.model.getCursorTrack ().getChannelID ()) || !drum.available () || drum.generation () != generation || !targetID.equals (drum.targetChannelId ()) || padIndex < 0 || padIndex >= drum.pads ().size ())
             return null;
-        final IDrumDevice device = this.model.getDrumDevice (DRUM_PAD_CAPACITY);
+        final IDrumDevice device = this.model.getDrumDevice ();
         if (!device.doesExist () || !device.hasDrumPads () || !deviceID.equals (device.getID ()))
             return null;
         final IDrumPadBank bank = device.getDrumPadBank ();

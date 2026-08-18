@@ -162,8 +162,8 @@ independently.
   bounded controller-layout snapshot.
 - Treat pad edges and per-pad pressure as companion inputs of the fixed playable drum area, with
   aggregate channel pressure modeled separately.
-- Move VS Live's playable 4x4 pressure mapping into the reloadable `DrumControllerView` that owns
-  those pads; leave its stable workspace adapter inert so output cannot be duplicated.
+- Move VS Live's playable 4x4 pressure mapping into the reloadable `DrumPlayPadView` composed with
+  `DrumControllerView`; leave its stable workspace adapter inert so output cannot be duplicated.
 - Admit poly pressure to the permanent NoteInput MIDI effect and neutralize each outstanding note
   across core handoff, selected-target change, and shutdown.
 
@@ -560,9 +560,9 @@ The current domains are:
 | `SELECTED_TRACK` | stable channel ID and generation, name/type/position/color, data capabilities, group state, activation, arm, monitor, mute/solo, clip-playing, volume, and pan | One private selection-following cursor with zero send and scene capacity; no project track bank. |
 | `SESSION_BANK` | generation, exact 8x8 or 8x4 shape, track/scene offsets, and up to eight visible track identities, names, selection/activation/arm/mute/solo/playing state, and colors | Only the active declared Session bank is sampled. Bank Stop and track Select effects revalidate generation and shape; Select additionally revalidates the exact index/channel identity immediately before applying. |
 | `CONTROLLER_LAYOUT` | monotonic layout generation, current view ID, mode ID, drum-layout ownership, and reconciled drum-controller engagement | One current Push surface/layout. |
-| `NOTE_VIEW` | selected-target generation/channel/position, stored note-view preference, and aligned drum-controller applicability | One lightweight sample through the private selection-following target; no 64-pad drum snapshot work. |
+| `NOTE_VIEW` | selected-target generation/channel/position, stored note-view preference, and aligned drum-controller applicability | One lightweight sample through the private selection-following target; no playable-pad snapshot work. |
 | `NOTE_REPEAT` | installed Repeat-engine availability and live state plus the Automatic arp / roll setting | One permanent Push NoteInput Repeat engine; sampled only while a rate-owning view requests it or a stable restoration lease is draining. |
-| `DRUM_PADS` | selected target/device identity, window generation/base note, alignment, and up to 64 pads with identity, name/color, state, mixer values, and playing velocity | One 64-pad model window, sampled no faster than every 33 ms unless selected-target identity changes. |
+| `DRUM_PADS` | selected target/device identity, window generation/base note, alignment, and up to 16 pads with identity, name/color, state, mixer values, and playing velocity | The same canonical 16-pad model window used by Drum Controller applicability, layout scrolling, actions, and feedback, sampled no faster than every 33 ms unless selected-target identity changes. The separate legacy Drum64 adapter retains its additional 64-pad bank and is not a state source for core Drum Controller views. |
 | `PARAMETERS` | Selected named-bank slots with opaque target identity/generation, name, raw/modulated value, host-formatted display value, step count, tolerance, and retained baselines | Banks are `ACTIVE` compatibility, `PROJECT_REMOTE`, current `SELECTED_DEVICE_REMOTE`, eight visible `TRACK_VOLUME` and `TRACK_PAN` slots, four fixed `MASTER` slots, and `GLOBAL`; only the complete `DesiredParameterBanks` selection is sampled while subscribed. An interaction keeps its exact retained baselines until release, independently of bank sampling. |
 | `CONTROLLER_MAPPING_FEEDBACK` | Bitwig manual-mapping Boolean feedback keyed by permanent semantic endpoint | Four detached semantic `HardwareButton` objects own learning and no-output `OnOffHardwareLight` feedback. Their false fallback makes unmapped and mapped-off honestly off. All 64 original physical PAD buttons have no MIDI matchers and remain raw ordinary-dispatch objects. Core decides the endpoint lease and red/off policy; the physical-pad RGB lane owns transmission. |
 | `MASTER` | current project identity/name/dirty state, audio-engine read-back, learned previous/next availability, serialized-command state, Master track color/selection/activation, cursor pin, and VU values | One current project and Master track. Project navigation is submitted through one lane and acknowledged only after a later stable project-identity sample; an unchanged identity timeout learns that direction as unavailable. |
@@ -628,7 +628,7 @@ across child-core reload or quarantine and never participates in core replacemen
 
 Selected-track effects carry both the snapshot generation and stable channel ID. The shell validates
 them during result preparation and compares both with the live private cursor again during apply.
-Drum effects additionally freeze the drum-device ID, 64-pad bank base MIDI note, pad index, and pad
+Drum effects additionally freeze the drum-candidate identity, 16-pad bank base MIDI note, pad index, and pad
 channel ID. Apply rechecks the private selected target, model-cursor alignment, live device ID,
 current bank base, and live pad identity. Any mismatch fails closed instead of mutating whatever a
 cursor or bank now happens to address.
@@ -974,7 +974,7 @@ effects, rejections, and desired output. A real Bitwig failure can then become a
 | Add state/action or exceed capacity outside the installed canopy | API/shell build/install and Bitwig restart |
 | Register a new physical input kind/control or change permanent input arbitration | Shell build/install and Bitwig restart |
 | Register a new Push light, or move ribbon output or another display page into core ownership | API/shell build/install and Bitwig restart |
-| Expand beyond the 64-pad drum window or four fixed drum-device candidates | Shell build/install and Bitwig restart |
+| Expand the core Drum Controller beyond its canonical 16-pad window or four fixed drum-device candidates | Shell build/install and Bitwig restart |
 | Change permanent `NoteInput` creation, translation, `All Inputs`, or direct-route topology | Shell build/install and Bitwig restart |
 | Add or change Bend/MIDI-modulator mappings in a project | No extension restart |
 | New Bitwig state with no startup-created proxy/interested property | Shell build/install and Bitwig restart |

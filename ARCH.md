@@ -103,8 +103,12 @@ drum workspace owns repeat or leaves it untouched.
 the standalone Drum page and VS Live. Resting lights use authoritative selected-track color;
 playing lights use later bounded drum-window velocity read-back. Target generation/channel,
 note-view applicability, model alignment, and drum-window base note must all agree or the view
-renders off. Musical note edges still travel through the permanent target-fenced `NoteInput` route,
-independently from controller-command arbitration.
+renders off. Applicability, layout scrolling, RGB feedback, pressure policy, and drum-pad effects
+all resolve the same canonical 16-pad device candidate and window. The additional 64-pad proxy
+belongs only to the frozen legacy Drum64 adapter and is never a state source for the composed Drum
+Controller. Musical note edges still travel through the permanent target-fenced `NoteInput` route,
+independently from controller-command arbitration, so RGB or command handling cannot swallow MIDI;
+the route and controller views nevertheless share the same selected-target applicability gate.
 
 ### Parameter banks, effects, and snapback
 

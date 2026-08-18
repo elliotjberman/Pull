@@ -585,6 +585,24 @@ class BoundedControllerBridgeTest
 
 
     @Test
+    void publishesThePlayableMainDrumWindowInsteadOfTheLegacy64PadWindow ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.legacyDrum.deviceID = "legacy-device";
+        fixture.legacyDrum.baseMidiNote = 0;
+
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.DRUM_PADS), DesiredParameterBanks.empty ());
+
+        final DrumContextSnapshot drum = fixture.bridge.snapshot ().drum ();
+        assertTrue (drum.available ());
+        assertEquals ("device-a", drum.deviceId ());
+        assertEquals (36, drum.baseMidiNote ());
+        assertEquals (1, drum.pads ().size ());
+        assertEquals (0, fixture.legacyDrum.selectionCount);
+    }
+
+
+    @Test
     void neutralizesEveryStatefulMidiFamilyOnCoreHandoff ()
     {
         final BridgeFixture fixture = new BridgeFixture ();
@@ -663,6 +681,7 @@ class BoundedControllerBridgeTest
         private final MutableSelectedTarget selected = new MutableSelectedTarget ();
         private final MutableTransport transport = new MutableTransport ();
         private final MutableDrum drum = new MutableDrum (this.selected);
+        private final MutableDrum legacyDrum = new MutableDrum (this.selected);
         private final MutableProject project = new MutableProject ();
         private final MutableApplication application = new MutableApplication ();
         private final List<MidiMessage> noteInputMidiMessages = new ArrayList<> ();
@@ -688,12 +707,13 @@ class BoundedControllerBridgeTest
             final ITransport transportProxy = this.transport.proxy ();
             final ICursorTrack cursorTrack = this.drum.cursorTrack ();
             final IDrumDevice drumDevice = this.drum.device ();
+            final IDrumDevice legacyDrumDevice = this.legacyDrum.device ();
             final Scales scales = new Scales (this.valueChanger, 36, 100, 8, 8);
             final IModel model = proxy (IModel.class, (proxy, method, arguments) -> switch (method.getName ())
             {
                 case "getTransport" -> transportProxy;
                 case "getCursorTrack" -> cursorTrack;
-                case "getDrumDevice" -> drumDevice;
+                case "getDrumDevice" -> arguments == null || arguments.length == 0 ? drumDevice : legacyDrumDevice;
                 case "getScales" -> scales;
                 case "getValueChanger" -> this.valueChanger;
                 case "getProject" -> this.project.proxy ();
