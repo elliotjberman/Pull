@@ -29,6 +29,20 @@ public abstract class AbstractParameterWrapper implements IParameter
     }
 
 
+    /**
+     * Get the parameter behind this mechanical adapter.
+     *
+     * <p>This is intentionally structural rather than semantic: callers must still validate the
+     * unwrapped parameter against the live owner and role before treating it as a stable target.</p>
+     *
+     * @return The wrapped parameter
+     */
+    public IParameter getWrappedParameter ()
+    {
+        return this.parameter;
+    }
+
+
     /** {@inheritDoc} */
     @Override
     public void setValue (final int value)

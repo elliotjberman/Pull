@@ -277,15 +277,20 @@ declares its stable semantic actions and its eight physical RGB outputs over the
 only an authoritatively engaged Drum layout selects those actions and lights, so an ordinary Note
 grid retains all eight underlying pad lights.
 
-The parameter-body view is independently replaceable from the retained track strip and grid. After
-the initial `WORKSPACE` page has been observed, selecting Mix composes `TrackMixerControlsView`
-with the same `TrackSelectionStripView`: core owns the active eight-parameter rendering and encoder
+The parameter-body view is independently replaceable from the retained track strip and grid.
+Selecting Mix publishes a stable semantic parameter-context action and composes
+`TrackMixerControlsView` with the same `TrackSelectionStripView`: core owns the active
+eight-parameter rendering and encoder
 turns while the inherited upper-row page menu and encoder-touch mechanics remain explicit stable
 adapters. The selected Mix view never infers an Input & Output page from a temporarily empty
 parameter snapshot; it keeps Mix selected and leaves unavailable control slots blank until later
-authoritative read-back. Device and Browse still release the parameter body to their frozen stable pages. Every
-such replacement retains the Session/Drum grid, scene keys, navigation, track strip, and
-Session-owned Stop Clip control.
+authoritative read-back. Its physical Volume/Pan wrappers are mechanically unwrapped, validated
+against the selected current-bank track, and separately fenced to the private selection-following
+cursor by stable channel ID. A `TRACK` mode transition without the matching semantic page action is
+only controller-layout reconciliation and cannot select Mix. Device and Browse still release the
+parameter body to their frozen stable pages. Core-authored Project and Mix pages retain the track
+strip; every replacement retains the Session/Drum grid, scene keys, navigation, and Session-owned
+Stop Clip control.
 
 The normal Session view declares an 8x8 bank. VS Live declares 8x4. `SessionBankRegistry` eagerly
 holds exactly those installed shapes, preserves track/scene offsets when switching, and enables

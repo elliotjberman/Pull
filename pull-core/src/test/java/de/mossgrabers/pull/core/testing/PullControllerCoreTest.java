@@ -9,11 +9,14 @@ import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
+import de.mossgrabers.pull.core.api.ControllerActionId;
+import de.mossgrabers.pull.core.api.ControllerActionIntent;
 import de.mossgrabers.pull.core.api.ControllerLayoutSnapshot;
 import de.mossgrabers.pull.core.api.ControllerMappingBinding;
 import de.mossgrabers.pull.core.api.ControllerMappingFeedbackSnapshot;
 import de.mossgrabers.pull.core.api.ControllerNoteView;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
+import de.mossgrabers.pull.core.api.ControllerStateScope;
 import de.mossgrabers.pull.core.api.CoreControllerMappings;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
@@ -968,7 +971,7 @@ class PullControllerCoreTest
         host.bridge (sessionBridge (2, "DRUM_PAD", "WORKSPACE", VsLiveWorkspace.SESSION_BANK));
         assertVsLive (host.effects ().desiredControllerWorkspace ());
 
-        host.bridge (sessionBridge (3, "DRUM_PAD", "TRACK", VsLiveWorkspace.SESSION_BANK));
+        host.controllerAction (switchParameterContext (), sessionBridge (3, "DRUM_PAD", "TRACK", VsLiveWorkspace.SESSION_BANK));
 
         assertEquals (VsLiveWorkspace.NAME + " / Track Mix", host.effects ().desiredControllerWorkspace ().name ());
         assertEquals (Set.of (
@@ -987,6 +990,24 @@ class PullControllerCoreTest
 
 
     @Test
+    void vsLiveSelectedTrackRouteNeutralizationDoesNotSelectTheMixPage ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        enterVsLive (host);
+        host.bridge (sessionBridge (2, "DRUM_PAD", "WORKSPACE", VsLiveWorkspace.SESSION_BANK));
+
+        // Selected-track Note routing uses TRACK as a temporary stable safety layout. Without a
+        // physical page action, that implementation detail cannot replace the composite page.
+        host.bridge (sessionBridge (3, "DRUM_PAD", "TRACK", VsLiveWorkspace.SESSION_BANK));
+
+        assertEquals (VsLiveWorkspace.NAME, host.effects ().desiredControllerWorkspace ().name ());
+        assertTrue (host.effects ().desiredControllerWorkspace ().facets ().contains (ControllerViewFacet.PROJECT_MACRO_CONTROLS));
+        assertFalse (host.effects ().desiredControllerWorkspace ().facets ().contains (ControllerViewFacet.TRACK_MIXER_PAGE));
+    }
+
+
+    @Test
     void vsLiveTrackMixOwnsItsParameterReadbackRenderingAndEncoderEffects ()
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
@@ -994,7 +1015,7 @@ class PullControllerCoreTest
         enterVsLive (host);
         host.bridge (sessionBridge (2, "DRUM_PAD", "WORKSPACE", VsLiveWorkspace.SESSION_BANK));
         final ParameterTargetSnapshot send = parameter (ParameterSlot.active (2), "Reverb", 256, "25 %");
-        host.bridge (sessionMixBridge (Map.of (
+        host.controllerAction (switchParameterContext (), sessionMixBridge (Map.of (
             ParameterSlot.active (0), parameter (ParameterSlot.active (0), "Volume", 768, "-6.0 dB"),
             ParameterSlot.active (1), parameter (ParameterSlot.active (1), "Pan", 512, "C"),
             ParameterSlot.active (2), send)));
@@ -1051,7 +1072,7 @@ class PullControllerCoreTest
         host.start (Optional.empty ());
         enterVsLive (host);
         host.bridge (trackSelectionBridge (2, false, "WORKSPACE"));
-        host.bridge (trackSelectionBridge (3, false, "TRACK"));
+        host.controllerAction (switchParameterContext (), trackSelectionBridge (3, false, "TRACK"));
 
         assertEquals (VsLiveWorkspace.NAME + " / Track Mix", host.effects ().desiredControllerWorkspace ().name ());
         assertMixSelectedWithoutInputOutputFallback (host);
@@ -1076,7 +1097,7 @@ class PullControllerCoreTest
 
         host.controllerButton (STOP_CLIP_BUTTON, true);
         host.controllerPad (PushControlIds.pad (33), true);
-        host.bridge (sessionBridge (3, "DRUM_PAD", "TRACK", VsLiveWorkspace.SESSION_BANK));
+        host.controllerAction (switchParameterContext (), sessionBridge (3, "DRUM_PAD", "TRACK", VsLiveWorkspace.SESSION_BANK));
         host.controllerPad (PushControlIds.pad (33), false);
         host.controllerButton (STOP_CLIP_BUTTON, false);
 
@@ -1847,7 +1868,7 @@ class PullControllerCoreTest
         host.controllerPad (PushControlIds.pad (5), true);
         assertEquals (2.0 / 3.0, host.effects ().desiredNoteRepeat ().period ());
 
-        host.bridge (noteBridge (3, "DRUM_PAD", "TRACK", drums, preference, drum (drums), manual));
+        host.controllerAction (switchParameterContext (), noteBridge (3, "DRUM_PAD", "TRACK", drums, preference, drum (drums), manual));
 
         assertEquals (VsLiveWorkspace.NAME + " / Track Mix", host.effects ().desiredControllerWorkspace ().name ());
         assertEquals (2.0 / 3.0, host.effects ().desiredNoteRepeat ().period ());
@@ -2221,6 +2242,12 @@ class PullControllerCoreTest
             command instanceof final DisplayCommand.TextBox text && "Mix".equals (text.text ()) && OFF.equals (text.color ())));
         assertFalse (host.effects ().desiredOutput ().display ().commands ().stream ().anyMatch (command ->
             command instanceof final DisplayCommand.TextAt text && ("Track Type".equals (text.text ()) || "Monitor".equals (text.text ()))));
+    }
+
+
+    private static ControllerActionIntent switchParameterContext ()
+    {
+        return new ControllerActionIntent (ControllerActionId.SWITCH_PARAMETER_CONTEXT, Set.of (ControllerStateScope.ACTIVE_PARAMETERS));
     }
 
 

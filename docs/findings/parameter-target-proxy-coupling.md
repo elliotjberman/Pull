@@ -107,9 +107,12 @@ An unclassified Bitwig `ParameterImpl` is excluded from the lease window instead
 exact merely because its Java wrapper is unchanged.
 
 Selected-track Mix is additionally fail-closed against the exact selection-following cursor. Its
-volume, pan, and send encoders cannot fall back to a matching parameter elsewhere in the visible
-track bank; while Bitwig reconciles a project or selection change, an unresolved turn is suppressed
-instead of reaching the stale stable binding.
+volume, pan, and send encoders mechanically unwrap inherited Push response-curve adapters, validate
+the resulting parameter against the actually selected current-bank proxy and semantic role, and
+then require that owner's stable channel ID to agree with the private selection-following cursor.
+They cannot fall back to a matching parameter elsewhere in the visible track bank; while Bitwig
+reconciles a project or selection change, an unresolved turn is suppressed instead of reaching the
+stale stable binding.
 
 Core may retain a complete target-to-baseline lease set. Stable resolves each request to the exact
 current live actuator, rechecks that actuator at apply time, executes absolute restores only through

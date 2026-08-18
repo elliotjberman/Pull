@@ -73,6 +73,10 @@ This removes the core-side physical navigation table. It does not yet satisfy th
 
 - Several stable mode commands expose only coarse command-level meaning, not a payload identifying
   the exact selected track, page, device, or workspace.
+- VS Live now changes its retained page only when one of those semantic stable-command actions is
+  delivered. A bare `TRACK` mode read-back used to neutralize a selected-track Note route is no
+  longer misread as Mix selection. The action remains coarse, however, so the exact page still
+  comes from its post-command authoritative layout and the removal criteria remain unsatisfied.
 - `ButtonRowModeCommand` delegates into an active mode that has no semantic-intent contract, so the
   compatibility adapter must conservatively classify the command.
 - Stable compatibility intent is still inferred from command types. It should disappear as those

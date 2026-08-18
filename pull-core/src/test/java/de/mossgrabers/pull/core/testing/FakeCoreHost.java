@@ -7,6 +7,7 @@ import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
+import de.mossgrabers.pull.core.api.ControllerActionIntent;
 import de.mossgrabers.pull.core.api.ControllerCore;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.ParameterTargetSnapshot;
@@ -17,6 +18,7 @@ import de.mossgrabers.pull.core.api.TimerId;
 import de.mossgrabers.pull.core.api.TransportSnapshot;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
+import de.mossgrabers.pull.core.api.event.ControllerActionEvent;
 import de.mossgrabers.pull.core.api.event.ControllerTickEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
@@ -263,6 +265,19 @@ final class FakeCoreHost
         this.effectExecutor.apply (this.core.handle (new ControllerTickEvent (
             this.eventSequence,
             this.time.nowNanos ()), this.snapshot ()));
+    }
+
+
+    /** Deliver one stable semantic action with the authoritative post-command bridge state. */
+    void controllerAction (final ControllerActionIntent intent, final ControllerBridgeSnapshot bridge)
+    {
+        this.bridge = Objects.requireNonNull (bridge, "bridge");
+        this.revision++;
+        this.eventSequence++;
+        this.effectExecutor.apply (this.core.handle (new ControllerActionEvent (
+            this.eventSequence,
+            this.time.nowNanos (),
+            Objects.requireNonNull (intent, "intent")), this.snapshot ()));
     }
 
 

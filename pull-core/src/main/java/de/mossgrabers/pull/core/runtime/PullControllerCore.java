@@ -4,6 +4,7 @@
 package de.mossgrabers.pull.core.runtime;
 
 import de.mossgrabers.pull.core.api.ControllerCore;
+import de.mossgrabers.pull.core.api.ControllerActionId;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.ParameterSlot;
@@ -57,8 +58,8 @@ final class PullControllerCore implements ControllerCore
     private ProjectPlaybackCoordinator                     playbackCoordinator;
     private boolean                                        masterLayoutObserved;
     private long                                           masterEntryWorkspaceRequest;
-    private boolean                                        vsLiveDefaultPageObserved;
-    private long                                           vsLiveEntryWorkspaceRequest = -1;
+    private VsLivePage                                     vsLivePage = VsLivePage.DEFAULT;
+    private long                                           vsLivePendingPageAfterGeneration = -1;
     private final SnapbackSession                          snapback = new SnapbackSession ();
     private Lifecycle                                      lifecycle = Lifecycle.NEW;
 
@@ -135,7 +136,7 @@ final class PullControllerCore implements ControllerCore
         {
             final SnapbackSession.Update actionUpdate = this.snapback.handleAction (action, snapshot);
             update = mergeUpdates (update, actionUpdate);
-            currentResult = actionUpdate.intercepted () ? this.workspace.activate (snapshot) : this.dispatchActionToWorkspace (action, snapshot);
+            currentResult = actionUpdate.intercepted () ? this.workspace.activate (snapshot) : this.dispatchActionToWorkspace (action, snapshot, false);
         }
         else
             currentResult = update.intercepted () ? this.workspace.activate (snapshot) : this.workspace.handle (event, snapshot);
@@ -144,7 +145,7 @@ final class PullControllerCore implements ControllerCore
         final List<CoreEffect> effects = new ArrayList<> (currentResult.effects ());
         for (final ResolvedControllerAction released: update.releasedActions ())
         {
-            currentResult = this.dispatchActionToWorkspace (released, snapshot);
+            currentResult = this.dispatchActionToWorkspace (released, snapshot, true);
             effects.addAll (currentResult.effects ());
         }
         return this.withExecutionRequirements (this.snapback.decorate (withEffects (currentResult, effects), update.effects ()));
@@ -224,9 +225,10 @@ final class PullControllerCore implements ControllerCore
     }
 
 
-    private CoreResult dispatchActionToWorkspace (final ResolvedControllerAction action, final ControllerSnapshot snapshot)
+    private CoreResult dispatchActionToWorkspace (final ResolvedControllerAction action, final ControllerSnapshot snapshot, final boolean awaitStableReadback)
     {
         final List<CoreEffect> effects = this.workspace.dispatchAction (action, snapshot);
+        this.observeVsLivePageAction (action, snapshot, awaitStableReadback);
         final CompiledWorkspace selectedWorkspace = this.desiredWorkspace (snapshot);
         if (selectedWorkspace != this.workspace)
             this.workspace = selectedWorkspace;
@@ -249,7 +251,7 @@ final class PullControllerCore implements ControllerCore
     {
         this.selection.observe (snapshot.bridge ().layout ());
         this.selection.observe (snapshot.bridge ().noteView ());
-        this.observeVsLivePage (snapshot.bridge ().layout ().modeId ());
+        this.observeVsLivePageReadback (snapshot.bridge ().layout ());
         final CompiledWorkspace selectedWorkspace = this.selectedWorkspace (snapshot);
         final String mode = snapshot.bridge ().layout ().modeId ();
         final boolean masterLayout = "MASTER".equals (mode) || "MASTER_TEMP".equals (mode);
@@ -270,6 +272,11 @@ final class PullControllerCore implements ControllerCore
 
     private CompiledWorkspace selectedWorkspace (final ControllerSnapshot snapshot)
     {
+        if (this.selection.active () != WorkspaceSelection.Id.VS_LIVE)
+        {
+            this.vsLivePage = VsLivePage.DEFAULT;
+            this.vsLivePendingPageAfterGeneration = -1;
+        }
         final WorkspaceSelection.Destination destination = this.selection.pendingDestination ();
         if (destination != WorkspaceSelection.Destination.NONE)
             return this.destinationWorkspaces.get (destination);
@@ -277,33 +284,54 @@ final class PullControllerCore implements ControllerCore
             return this.defaultSessionWorkspace;
         if (this.selection.active () == WorkspaceSelection.Id.DEFAULT && snapshot.bridge ().layout ().drumLayoutActive ())
             return this.defaultDrumWorkspace;
-        if (this.selection.active () == WorkspaceSelection.Id.VS_LIVE && this.vsLiveDefaultPageObserved)
-        {
-            final String mode = snapshot.bridge ().layout ().modeId ();
-            if ("TRACK".equals (mode))
-                return this.vsLiveTrackMixerWorkspace;
-            if (!"WORKSPACE".equals (mode))
-                return this.vsLiveStablePageWorkspace;
-        }
+        if (this.selection.active () == WorkspaceSelection.Id.VS_LIVE && this.vsLivePage == VsLivePage.TRACK_MIXER)
+            return this.vsLiveTrackMixerWorkspace;
+        if (this.selection.active () == WorkspaceSelection.Id.VS_LIVE && this.vsLivePage == VsLivePage.STABLE)
+            return this.vsLiveStablePageWorkspace;
         return this.workspaces.get (this.selection.active ());
     }
 
 
-    private void observeVsLivePage (final String mode)
+    private void observeVsLivePageAction (final ResolvedControllerAction action, final ControllerSnapshot snapshot, final boolean awaitStableReadback)
     {
-        if (this.selection.active () != WorkspaceSelection.Id.VS_LIVE)
+        if (this.selection.active () != WorkspaceSelection.Id.VS_LIVE || action.intent ().action () != ControllerActionId.SWITCH_PARAMETER_CONTEXT)
+            return;
+
+        final de.mossgrabers.pull.core.api.ControllerLayoutSnapshot layout = snapshot.bridge ().layout ();
+        if (awaitStableReadback)
         {
-            this.vsLiveDefaultPageObserved = false;
-            this.vsLiveEntryWorkspaceRequest = -1;
+            // Snapback released the semantic action before the corresponding stable command. The
+            // shell runs that deferred command only after this result retires the action barrier.
+            this.vsLivePendingPageAfterGeneration = layout.generation ();
             return;
         }
-        if (this.vsLiveEntryWorkspaceRequest != this.selection.requestSequence ())
-        {
-            this.vsLiveEntryWorkspaceRequest = this.selection.requestSequence ();
-            this.vsLiveDefaultPageObserved = false;
-        }
-        if ("WORKSPACE".equals (mode))
-            this.vsLiveDefaultPageObserved = true;
+
+        // An ordinary stable command runs before its semantic observation is delivered, so this
+        // snapshot already contains the page it selected.
+        this.selectVsLivePage (layout.modeId ());
+    }
+
+
+    private void observeVsLivePageReadback (final de.mossgrabers.pull.core.api.ControllerLayoutSnapshot layout)
+    {
+        if (this.selection.active () != WorkspaceSelection.Id.VS_LIVE || this.vsLivePendingPageAfterGeneration < 0 || layout.generation () <= this.vsLivePendingPageAfterGeneration)
+            return;
+        this.vsLivePendingPageAfterGeneration = -1;
+        this.selectVsLivePage (layout.modeId ());
+    }
+
+
+    private void selectVsLivePage (final String mode)
+    {
+        // Incidental mode changes used to neutralize a selected-track Note route never call this
+        // method and therefore cannot be mistaken for page input.
+        this.vsLivePendingPageAfterGeneration = -1;
+        if ("TRACK".equals (mode))
+            this.vsLivePage = VsLivePage.TRACK_MIXER;
+        else if ("WORKSPACE".equals (mode))
+            this.vsLivePage = VsLivePage.DEFAULT;
+        else if (!"MASTER".equals (mode) && !"MASTER_TEMP".equals (mode))
+            this.vsLivePage = VsLivePage.STABLE;
     }
 
 
@@ -371,5 +399,13 @@ final class PullControllerCore implements ControllerCore
         {
             return new RestoredState (WorkspaceSelection.Id.DEFAULT, WorkspaceSelection.Destination.NONE, WorkspaceSelection.Destination.NONE, "", false);
         }
+    }
+
+
+    private enum VsLivePage
+    {
+        DEFAULT,
+        TRACK_MIXER,
+        STABLE
     }
 }

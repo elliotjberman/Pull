@@ -48,6 +48,8 @@ In the current baseline:
   actions remain raw ordinary-dispatch objects and never define learned mapping identity;
 - Record, Shift+Record, and Select+Record are core-owned;
 - VS Live selection and fixed-facet composition are core-owned;
+- VS Live page changes are admitted from semantic stable-command actions, not inferred from raw
+  controller-layout mode changes used during selected-track Note-route reconciliation;
 - stable adapters still realize VS Live's Session grid/scene, Drum octave/pitch-bend lifecycle,
   macro touch/Delete, Track/Mix touch and upper-row page-menu mechanics, and navigation mechanics;
 - drum-grid pressure interpretation and selected-target Note routing policy are core-owned in both
@@ -186,7 +188,9 @@ rendering.
 API 37 publishes stable identities, names, generation, offsets, and basic authoritative state for
 the eight tracks in the active bounded Session bank. It executes a bank-wide Stop action and exact
 generation/shape/index/channel-fenced track selection captured at gesture `BEGIN`. VS Live's lower row action, RGB feedback,
-and footer labels now consume that shared window. Extend it with the remaining state and fenced
+and footer labels now consume that shared window. Its selected-track Mix compatibility bank
+unwraps only mechanical parameter adapters, validates the actual current-bank binding, and fails
+closed unless that bank owner agrees with the private selected cursor by stable channel ID. Extend it with the remaining state and fenced
 effects for activation, arm, mute, solo, volume, pan, and bounded sends.
 
 Controller-level Play is now the reference transport migration: its stable command is inert, its
