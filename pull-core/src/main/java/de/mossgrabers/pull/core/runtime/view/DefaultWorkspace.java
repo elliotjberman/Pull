@@ -27,8 +27,7 @@ public final class DefaultWorkspace
     public static CompiledWorkspace create (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator)
     {
         return CompiledWorkspace.compile ("Pull", ControllerLevelViews.compose (selection, playbackCoordinator, List.of (
-            new StableParameterControlsView (),
-            new DrumFillView ())));
+            new StableParameterControlsView ())));
     }
 
 

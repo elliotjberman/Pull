@@ -63,7 +63,10 @@ GLOBAL_MODIFIERS.*         Shift, Select, Delete, and similar controls
 Smaller fixed subregions may be added when a real view proves the need. They must be named for a
 stable physical footprint, not created ad hoc by a workspace. For example, the current drum-fill
 view occupies the eight pads at columns 4..7 and rows 1..2 inside `GRID.LOWER`; four manually
-mappable control pads occupy columns 4..7 on row 3.
+mappable control pads occupy columns 4..7 on row 3. The fill view names its semantic action
+endpoints and physical RGB endpoints separately while assigning both areas the same atomic
+footprint. That lets direct fill routing keep stable semantic identities without hiding the actual
+pad-light ownership or weakening overlap detection.
 
 A claim declares both ownership and its current realization boundary. The Java API uses explicit
 kinds equivalent to:
@@ -267,7 +270,8 @@ currently migrated behavior through views:
   one it supplies the normalized core gesture independently of the one semantic learned action.
   Core owns red/off policy derived from later authoritative feedback keyed by semantic endpoint.
 - Record, Shift + Record, and Select + Record become one fixed Record control view.
-- A default workspace composes those views.
+- The selected Drum workspace composes those views; melodic Note workspaces do not retain a hidden
+  drum-fill owner.
 - Existing `CoreResult` output, input routes, bridge subscriptions, clip bindings, effects,
   reload semantics, and hardware behavior remain byte-for-byte or value-for-value equivalent.
 

@@ -17,7 +17,6 @@ import de.mossgrabers.pull.core.api.DesiredControllerState;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredInputRoutes;
 import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
-import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchMode;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
@@ -29,7 +28,6 @@ import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.event.ControllerTickEvent;
 import de.mossgrabers.pull.core.api.event.SnapshotChangedEvent;
 import de.mossgrabers.pull.core.api.output.DesiredHardwareOutput;
-import de.mossgrabers.pull.core.api.output.RgbColor;
 
 import org.junit.jupiter.api.Test;
 
@@ -81,43 +79,6 @@ class ReloadableControllerRuntimeTest
 
         notes[0] = 0;
         assertArrayEquals (EXPECTED_FILL_NOTES, ReloadableControllerRuntime.fillPadNotes ());
-    }
-
-
-    @Test
-    void projectsSemanticFillLightsOntoTheirEightPhysicalPads ()
-    {
-        final FakeClipHost clipHost = new FakeClipHost (9);
-        final ControllerRuntimeEnvironment environment = new ControllerRuntimeEnvironment (clipHost, NoOpLog.INSTANCE, () -> 0);
-        final List<ControlId> fills = CoreControls.DRUM_FILLS;
-        final Map<ControlId, RgbColor> semanticLights = new LinkedHashMap<> ();
-        for (int index = 0; index < fills.size (); index++)
-            semanticLights.put (fills.get (index), new RgbColor (167 + index, 107, 34));
-        final CoreResult output = new CoreResult (
-            new DesiredHardwareOutput (semanticLights),
-            DesiredInputRoutes.empty (),
-            DesiredBridgeSubscriptions.empty (),
-            Map.of (),
-            de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
-            de.mossgrabers.pull.core.api.DesiredParameterBanks.empty (),
-            de.mossgrabers.pull.core.api.DesiredParameterInteraction.empty (),
-            List.of ());
-        environment.commit (1, environment.prepare (output));
-        environment.apply (1);
-        final ReloadableControllerRuntime runtime = new ReloadableControllerRuntime (environment, NoOpLog.INSTANCE, ignored -> true);
-
-        final int [] physicalPads =
-        {
-            13, 14, 15, 16, 21, 22, 23, 24
-        };
-        for (int index = 0; index < physicalPads.length; index++)
-        {
-            assertTrue (runtime.ownsLight (PushControlIds.pad (physicalPads[index])));
-            assertEquals (semanticLights.get (fills.get (index)), runtime.lightColor (PushControlIds.pad (physicalPads[index])));
-        }
-        assertFalse (runtime.ownsLight (PushControlIds.pad (12)));
-
-        runtime.close ();
     }
 
 

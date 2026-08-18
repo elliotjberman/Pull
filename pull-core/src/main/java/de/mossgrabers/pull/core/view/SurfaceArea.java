@@ -51,8 +51,10 @@ public enum SurfaceArea
     DRUM_PLAY_PADS (gridRectangle (0, 0, 4, 4), gridControls (0, 0, 4, 4), Set.of (InputKind.PAD, InputKind.POLY_PRESSURE)),
     /** Four momentary drum-rate pads at columns 4-7 on the bottom row. */
     DRUM_RATE_PADS (gridRectangle (4, 0, 4, 1), gridControls (4, 0, 4, 1), Set.of (InputKind.PAD, InputKind.POLY_PRESSURE)),
-    /** Eight fill pads at columns 4-7 and rows 1-2 of the lower grid half. */
+    /** Eight semantic fill actions at columns 4-7 and rows 1-2 of the lower grid half. */
     DRUM_FILL_PADS (gridRectangle (4, 1, 4, 2), Set.copyOf (CoreControls.DRUM_FILLS), Set.of (InputKind.PAD, InputKind.POLY_PRESSURE)),
+    /** Physical RGB lights for the eight fill pads. */
+    DRUM_FILL_LIGHTS (gridRectangle (4, 1, 4, 2), gridControls (4, 1, 4, 2), Set.of ()),
     /** Four Bitwig-manually-mappable control pads at columns 4-7 on row 3. */
     DRUM_CONTROL_PADS (gridRectangle (4, 3, 4, 1), Set.copyOf (CoreControls.DRUM_CONTROL_PADS), Set.of (InputKind.PAD)),
     /** Four scene keys aligned to the upper Session grid. */

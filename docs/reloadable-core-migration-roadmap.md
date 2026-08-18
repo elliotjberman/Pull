@@ -37,7 +37,8 @@ correct migration extracts their policy while the stable shell continues owning 
 
 In the current baseline:
 
-- drum-fill matching, launch-session policy, gesture state, and eight fill lights are core-owned;
+- drum-fill matching, launch-session policy, gesture state, and eight physical fill lights are
+  core-owned by the selected Drum composition; melodic Note layouts do not claim that footprint;
 - the shared 4x4 drum-play view owns playable-pad pressure and sixteen RGB lights in both the
   standalone Drum page and VS Live; lights follow target-aligned drum-window playing-velocity
   read-back, and the old shell observers/fade policy are deleted;

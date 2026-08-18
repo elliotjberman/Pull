@@ -83,6 +83,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -118,6 +119,15 @@ class PullControllerCoreTest
     private static final ControlId STOP_CLIP_BUTTON = PushControlIds.button ("STOP_CLIP");
     private static final ControlId MUTE_BUTTON = PushControlIds.button ("MUTE");
     private static final ControlId SOLO_BUTTON = PushControlIds.button ("SOLO");
+    private static final List<ControlId> FILL_LIGHTS = List.of (
+        PushControlIds.pad (13),
+        PushControlIds.pad (14),
+        PushControlIds.pad (15),
+        PushControlIds.pad (16),
+        PushControlIds.pad (21),
+        PushControlIds.pad (22),
+        PushControlIds.pad (23),
+        PushControlIds.pad (24));
     private static final ClipLaunchPolicy FILL_POLICY = new ClipLaunchPolicy (
         ClipLaunchQuantization.IMMEDIATE,
         ClipLaunchMode.LEGATO_FROM_CLIP_OR_PROJECT,
@@ -133,15 +143,15 @@ class PullControllerCoreTest
             clips.add (clip (index, index % 2 == 0 ? "Fill " + index : "prefilled " + index));
         final FakeCoreHost host = host (new ClipCatalogSnapshot (5, clips));
 
-        host.start (Optional.empty ());
+        startFillCore (host);
 
         final Map<ControlId, ClipTargetId> bindings = host.effects ().desiredClipBindings ();
         assertEquals (8, bindings.size ());
         for (int index = 0; index < 8; index++)
             assertEquals (new ClipTargetId (index), bindings.get (CoreControls.DRUM_FILLS.get (index)));
         assertFalse (bindings.containsValue (new ClipTargetId (8)));
-        assertEquals (CoreControls.DRUM_FILLS.size () + 4, host.effects ().desiredOutput ().lights ().size ());
-        assertTrue (host.effects ().desiredOutput ().lights ().keySet ().containsAll (CoreControls.DRUM_FILLS));
+        assertTrue (host.effects ().desiredOutput ().lights ().keySet ().containsAll (FILL_LIGHTS));
+        assertTrue (host.effects ().desiredOutput ().lights ().keySet ().stream ().noneMatch (CoreControls.DRUM_FILLS::contains));
         assertTrue (host.effects ().desiredOutput ().lights ().keySet ().containsAll (Set.of (PLAY_BUTTON, RECORD_BUTTON, MUTE_BUTTON, SOLO_BUTTON)));
         assertTrue (host.effects ().desiredOutput ().lights ().values ().stream ().allMatch (OFF::equals));
     }
@@ -155,7 +165,7 @@ class PullControllerCoreTest
         final FakeCoreHost host = host (new ClipCatalogSnapshot (41, List.of (
             new CatalogClip (first, "Drum Fill"),
             new CatalogClip (second, "FILLER"))));
-        host.start (Optional.empty ());
+        startFillCore (host);
         host.armedClipTargets (host.effects ().desiredClipBindings ());
 
         assertEquals (AVAILABLE, light (host, CoreControls.DRUM_FILL_1));
@@ -191,7 +201,7 @@ class PullControllerCoreTest
         final FakeCoreHost host = host (new ClipCatalogSnapshot (42, List.of (
             new CatalogClip (first, "fill one"),
             new CatalogClip (second, "fill two"))));
-        host.start (Optional.empty ());
+        startFillCore (host);
         host.armedClipTargets (host.effects ().desiredClipBindings ());
 
         host.button (CoreControls.DRUM_FILL_1, true);
@@ -239,7 +249,7 @@ class PullControllerCoreTest
             CoreControls.DRUM_FILL_3, third);
         final PullCoreProvider provider = new PullCoreProvider ();
         final FakeCoreHost host = new FakeCoreHost (provider.create (), provider.descriptor ().requiredCapabilities (), catalog, armed, Set.of (CoreControls.DRUM_FILL_1, CoreControls.DRUM_FILL_2));
-        host.start (Optional.empty ());
+        startFillCore (host);
 
         host.button (CoreControls.DRUM_FILL_3, true);
 
@@ -267,7 +277,7 @@ class PullControllerCoreTest
             Optional.of (CoreControls.DRUM_FILL_2),
             armed.keySet ());
 
-        host.start (Optional.empty ());
+        startFillCore (host);
 
         assertTrue (host.effects ().executionOrder ().isEmpty ());
         assertTrue (host.effects ().clipLease (CoreControls.DRUM_FILL_1).isEmpty ());
@@ -290,7 +300,7 @@ class PullControllerCoreTest
             Map.of (CoreControls.DRUM_FILL_1, target),
             Optional.of (CoreControls.DRUM_FILL_1),
             Set.of (CoreControls.DRUM_FILL_1));
-        host.start (Optional.empty ());
+        startFillCore (host);
 
         host.armedClipTargets (Map.of ());
 
@@ -312,7 +322,7 @@ class PullControllerCoreTest
             Optional.of (CoreControls.DRUM_FILL_1),
             Set.of ());
 
-        host.start (Optional.empty ());
+        startFillCore (host);
 
         assertTrue (host.effects ().desiredClipBindings ().isEmpty ());
         assertEquals (HELD, light (host, CoreControls.DRUM_FILL_1));
@@ -328,7 +338,7 @@ class PullControllerCoreTest
         final FakeCoreHost host = host (new ClipCatalogSnapshot (1, List.of (
             new CatalogClip (first, "fill one"),
             new CatalogClip (second, "fill two"))));
-        host.start (Optional.empty ());
+        startFillCore (host);
         host.armedClipTargets (host.effects ().desiredClipBindings ());
 
         host.button (CoreControls.DRUM_FILL_1, true);
@@ -366,7 +376,7 @@ class PullControllerCoreTest
             armed,
             Optional.of (CoreControls.DRUM_FILL_1),
             Set.of ());
-        host.start (Optional.empty ());
+        startFillCore (host);
 
         host.button (CoreControls.DRUM_FILL_1, true);
 
@@ -382,7 +392,7 @@ class PullControllerCoreTest
         final FakeCoreHost host = host (new ClipCatalogSnapshot (1, List.of (
             new CatalogClip (original, "fill one"),
             new CatalogClip (second, "fill two"))));
-        host.start (Optional.empty ());
+        startFillCore (host);
         host.armedClipTargets (host.effects ().desiredClipBindings ());
         host.button (CoreControls.DRUM_FILL_1, true);
         host.activeClipLaunchOwner (Optional.of (CoreControls.DRUM_FILL_1));
@@ -419,7 +429,7 @@ class PullControllerCoreTest
         final ClipCatalogSnapshot catalog = new ClipCatalogSnapshot (3, List.of (new CatalogClip (desired, "fill")));
         final PullCoreProvider provider = new PullCoreProvider ();
         final FakeCoreHost host = new FakeCoreHost (provider.create (), provider.descriptor ().requiredCapabilities (), catalog, Map.of (CoreControls.DRUM_FILL_1, stale), Set.of ());
-        host.start (Optional.empty ());
+        startFillCore (host);
 
         assertEquals (OFF, light (host, CoreControls.DRUM_FILL_1));
         host.button (CoreControls.DRUM_FILL_1, true);
@@ -443,7 +453,7 @@ class PullControllerCoreTest
     void unrelatedInputsDoNotAcquireOrReleaseFillLeases ()
     {
         final FakeCoreHost host = host (new ClipCatalogSnapshot (1, List.of (clip (1, "fill"))));
-        host.start (Optional.empty ());
+        startFillCore (host);
         host.armedClipTargets (host.effects ().desiredClipBindings ());
 
         host.button (new ControlId ("other.button"), true);
@@ -451,6 +461,35 @@ class PullControllerCoreTest
 
         assertTrue (host.effects ().executionOrder ().isEmpty ());
         assertEquals (AVAILABLE, light (host, CoreControls.DRUM_FILL_1));
+    }
+
+
+    @Test
+    void melodicNoteRouteRetainsAllPadsWithoutClaimingThePhysicalFillLights ()
+    {
+        final FakeCoreHost host = host (new ClipCatalogSnapshot (1, List.of (clip (1, "fill"))));
+        final SelectedTrackSnapshot selected = selectedTrack (8, "drums", 5, true, false);
+        final NoteViewSnapshot preference = new NoteViewSnapshot (8, "drums", 5, ControllerNoteView.PLAY, false);
+        host.initialBridge (noteBridge (1, "PLAY", selected, preference, DrumContextSnapshot.empty (), NoteRepeatSnapshot.empty ()));
+        host.start (Optional.empty ());
+
+        assertEquals (DesiredNoteInputRoute.selectedTrack (8, "drums"), host.effects ().desiredNoteInputRoute ());
+        assertTrue (Collections.disjoint (FILL_LIGHTS, host.effects ().desiredOutput ().lights ().keySet ()));
+        assertTrue (Collections.disjoint (CoreControls.DRUM_FILLS, host.effects ().desiredOutput ().lights ().keySet ()));
+        assertTrue (host.effects ().desiredClipBindings ().isEmpty ());
+        host.button (CoreControls.DRUM_FILL_1, true);
+        host.button (CoreControls.DRUM_FILL_1, false);
+        assertTrue (host.effects ().executionOrder ().isEmpty ());
+
+        host.bridge (fillLayoutBridge (2, true));
+        assertTrue (host.effects ().desiredOutput ().lights ().keySet ().containsAll (FILL_LIGHTS));
+        assertTrue (Collections.disjoint (CoreControls.DRUM_FILLS, host.effects ().desiredOutput ().lights ().keySet ()));
+        assertEquals (new ClipTargetId (1), host.effects ().desiredClipBindings ().get (CoreControls.DRUM_FILL_1));
+
+        host.bridge (noteBridge (3, "PLAY", selected, preference, DrumContextSnapshot.empty (), NoteRepeatSnapshot.empty ()));
+        assertEquals (DesiredNoteInputRoute.selectedTrack (8, "drums"), host.effects ().desiredNoteInputRoute ());
+        assertTrue (Collections.disjoint (FILL_LIGHTS, host.effects ().desiredOutput ().lights ().keySet ()));
+        assertTrue (host.effects ().desiredClipBindings ().isEmpty ());
     }
 
 
@@ -2239,6 +2278,30 @@ class PullControllerCoreTest
     }
 
 
+    private static void startFillCore (final FakeCoreHost host)
+    {
+        host.initialBridge (fillLayoutBridge (true));
+        host.start (Optional.empty ());
+    }
+
+
+    private static ControllerBridgeSnapshot fillLayoutBridge (final boolean active)
+    {
+        return fillLayoutBridge (1, active);
+    }
+
+
+    private static ControllerBridgeSnapshot fillLayoutBridge (final long generation, final boolean active)
+    {
+        return new ControllerBridgeSnapshot (
+            TransportSnapshot.empty (),
+            SelectedTrackSnapshot.empty (),
+            new ControllerLayoutSnapshot (generation, active ? "DRUM_PAD" : "PLAY", "TRACK", active, active, 36, GridPressureConfiguration.OFF),
+            DrumContextSnapshot.empty (),
+            ParameterBridgeSnapshot.empty ());
+    }
+
+
     private static Map<PadGridPosition, RgbColor> nonBlackPads (final ControllerPadGridOverlay overlay)
     {
         final Map<PadGridPosition, RgbColor> colors = new LinkedHashMap<> ();
@@ -2253,6 +2316,8 @@ class PullControllerCoreTest
 
     private static RgbColor light (final FakeCoreHost host, final ControlId control)
     {
-        return host.effects ().desiredOutput ().lights ().get (control);
+        final int fillIndex = CoreControls.DRUM_FILLS.indexOf (control);
+        final ControlId physicalControl = fillIndex < 0 ? control : FILL_LIGHTS.get (fillIndex);
+        return host.effects ().desiredOutput ().lights ().get (physicalControl);
     }
 }

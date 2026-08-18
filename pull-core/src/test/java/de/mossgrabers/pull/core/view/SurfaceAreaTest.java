@@ -116,6 +116,27 @@ class SurfaceAreaTest
     }
 
 
+    @Test
+    void separatesSemanticFillActionsFromTheirPhysicalLights ()
+    {
+        final List<ControlId> physicalFillLights = List.of (
+            PushControlIds.pad (13),
+            PushControlIds.pad (14),
+            PushControlIds.pad (15),
+            PushControlIds.pad (16),
+            PushControlIds.pad (21),
+            PushControlIds.pad (22),
+            PushControlIds.pad (23),
+            PushControlIds.pad (24));
+
+        assertEquals (Set.copyOf (CoreControls.DRUM_FILLS), SurfaceArea.DRUM_FILL_PADS.controls ());
+        assertEquals (Set.of (InputKind.PAD, InputKind.POLY_PRESSURE), SurfaceArea.DRUM_FILL_PADS.inputKinds ());
+        assertEquals (Set.copyOf (physicalFillLights), SurfaceArea.DRUM_FILL_LIGHTS.controls ());
+        assertEquals (Set.of (), SurfaceArea.DRUM_FILL_LIGHTS.inputKinds ());
+        assertTrue (SurfaceArea.DRUM_FILL_PADS.overlaps (SurfaceArea.DRUM_FILL_LIGHTS));
+    }
+
+
     private static void assertArea (final SurfaceArea area, final ControlId control, final Set<InputKind> kinds)
     {
         assertEquals (Set.of (control), area.controls ());

@@ -268,7 +268,10 @@ The lower Drum Controller includes its 4x4 playable block, four core-owned rate 
 pads, four Bitwig-manually-mappable control pads, octave navigation, aggregate grid pressure, and
 its optional pitch-bend facet. It does not own the lower scene keys. `DrumPlayPadView` declares the
 playable block plus aggregate pressure as one fixed profile, so the standalone Drum page and VS
-Live compose the same pressure and authoritative feedback policy.
+Live compose the same pressure and authoritative feedback policy. The fill subview separately
+declares its stable semantic actions and its eight physical RGB outputs over the same footprint;
+only an authoritatively engaged Drum layout selects those actions and lights, so an ordinary Note
+grid retains all eight underlying pad lights.
 
 The parameter-body view is independently replaceable from the retained track strip and grid. After
 the initial `WORKSPACE` page has been observed, selecting Mix composes `TrackMixerControlsView`
@@ -399,7 +402,7 @@ Partial or transitional:
   `CompiledWorkspace`.
 - Every registered Push button light and every physical grid-pad light now has generic explicit
   core-or-stable arbitration. A view may render only controls inside its declared output claims;
-  unclaimed lights preserve their frozen legacy supplier exactly. Current semantic core owners are
+  unclaimed lights preserve their frozen legacy supplier exactly. Current core owners are
   the sixteen drum-play, eight drum-fill, four drum-rate, and four mappable-control lights, global
   Play/Record, Session Stop Clip, persistent selected-track Mute/Solo, and both Master rows. Authoritative
   semantic Bitwig Boolean feedback and replayable physical-to-semantic mapping leases support the
