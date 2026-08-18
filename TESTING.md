@@ -93,7 +93,9 @@ The live mirror is constructed only when debugging was enabled before extension 
 this shell change and restarting Bitwig once adds the output observer; later core reloads reuse it.
 The controller thread only copies the fixed Push footprint into one coalescing slot. JSON encoding,
 filesystem writes, HTTP serving, and browser polling stay off the controller thread. Continuous
-encoder deltas and touch-strip position are not yet part of browser input. Browser pad presses
+touch-strip position is not yet part of browser input. Encoders accept mouse-wheel motion,
+vertical pointer drags, and arrow keys (Shift changes the step to eight); their signed deltas run
+through the permanent continuous-control input arbitrator. Browser pad presses
 exercise the extension-side permanent controller binding and Bitwig's `NoteInput`, but Controller
 API 21 still cannot inject a raw packet back into Bitwig's hardware-action matcher; the four
 manually learned pad actions therefore retain the same live-physical-press limitation as the routed

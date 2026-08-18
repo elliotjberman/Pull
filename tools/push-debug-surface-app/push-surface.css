@@ -353,6 +353,10 @@ main {
     stroke-width: 0.4;
 }
 
+.encoder {
+    cursor: ns-resize;
+}
+
 .encoder .control-face {
     fill: #303536;
     stroke: #8b9191;
@@ -360,6 +364,7 @@ main {
 }
 
 .encoder.is-touched .encoder-ring,
+.encoder.is-turning .encoder-ring,
 .touchstrip.is-touched .touch-track {
     stroke: var(--accent);
     filter: url(#light-glow);

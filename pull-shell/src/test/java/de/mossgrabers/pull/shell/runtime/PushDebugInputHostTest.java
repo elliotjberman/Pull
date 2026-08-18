@@ -122,6 +122,31 @@ class PushDebugInputHostTest
 
 
     @Test
+    void relativeTurnsAreSummedInsideTheMatchingTouchLease () throws IOException
+    {
+        final AtomicLong time = new AtomicLong ();
+        final FakeSurface surface = new FakeSurface ();
+        final FakeAdmission admission = new FakeAdmission ();
+        final PushDebugInputHost host = this.host (surface, admission, time);
+
+        this.request (host, "touch-down", KNOB, InputKind.TOUCH, "BEGIN", 127);
+        host.tick ();
+        this.request (host, "relative-1", KNOB, InputKind.RELATIVE, "CHANGE", 4);
+        this.request (host, "relative-2", KNOB, InputKind.RELATIVE, "CHANGE", -3);
+        host.tick ();
+        this.request (host, "touch-up", KNOB, InputKind.TOUCH, "END", 0);
+        host.tick ();
+
+        assertEquals (List.of (
+            "push.continuous.knob1:TOUCH:BEGIN:127",
+            "push.continuous.knob1:RELATIVE:CHANGE:1",
+            "push.continuous.knob1:TOUCH:END:0"), surface.events);
+        assertTrue (surface.noteInputEvents.isEmpty ());
+        assertFalse (admission.debugActive);
+    }
+
+
+    @Test
     void detachedPressureExpiresToARealNoteInputNeutralization () throws IOException
     {
         final AtomicLong time = new AtomicLong ();
@@ -208,7 +233,7 @@ class PushDebugInputHostTest
         public boolean supports (final ControlId control, final InputKind kind)
         {
             return PLAY.equals (control) && kind == InputKind.BUTTON ||
-                KNOB.equals (control) && kind == InputKind.TOUCH ||
+                KNOB.equals (control) && (kind == InputKind.TOUCH || kind == InputKind.RELATIVE) ||
                 PAD.equals (control) && (kind == InputKind.PAD || kind == InputKind.POLY_PRESSURE);
         }
 

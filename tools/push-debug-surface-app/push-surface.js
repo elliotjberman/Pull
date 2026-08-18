@@ -12,6 +12,8 @@
     const pressureTarget = document.querySelector("#pressure-target");
     const activePointers = new Map();
     const activeInjectedEdges = new Map();
+    const activeEncoderDrags = new Map();
+    const pendingRelative = new Map();
     const touchedControls = new Set();
     const liveState = {
         pressed: new Set(),
@@ -32,6 +34,7 @@
     let selectedPressurePad = 1;
     let pressureTimer = null;
     let pendingPressure = 0;
+    let relativeFrame = null;
 
     const grid = Object.freeze({
         x: 33.25,
@@ -183,7 +186,10 @@
         }
         else if (inputKind === "TOUCH") {
             group.addEventListener("pointerenter", () => setTouched(address, true));
-            group.addEventListener("pointerleave", () => setTouched(address, false));
+            group.addEventListener("pointerleave", () => {
+                if (!group.classList.contains("is-turning"))
+                    setTouched(address, false);
+            });
         }
         controlsRoot.append(group);
     }
@@ -395,7 +401,88 @@
         });
         text.textContent = label;
         group.append(text);
-        registerControl(group, continuousAddress(symbolicName), symbolicName, label, "TOUCH");
+        const address = continuousAddress(symbolicName);
+        registerControl(group, address, symbolicName, label, "TOUCH");
+        registerEncoderTurn(group, address, symbolicName, centerX, centerY);
+    }
+
+    function registerEncoderTurn(group, address, debugName, centerX, centerY) {
+        group.addEventListener("wheel", event => {
+            event.preventDefault();
+            const magnitude = Math.max(1, Math.min(8, Math.round(Math.abs(event.deltaY) / 40)));
+            scheduleEncoderTurn(group, address, debugName, Math.sign(-event.deltaY) * magnitude, centerX, centerY);
+        }, {passive: false});
+        group.addEventListener("pointerdown", event => {
+            if (event.button !== 0)
+                return;
+            event.preventDefault();
+            group.setPointerCapture(event.pointerId);
+            group.classList.add("is-turning");
+            activeEncoderDrags.set(event.pointerId, {group, address, debugName, centerX, centerY, lastY: event.clientY, remainder: 0});
+        });
+        group.addEventListener("pointermove", event => {
+            const drag = activeEncoderDrags.get(event.pointerId);
+            if (!drag)
+                return;
+            const distance = drag.remainder + drag.lastY - event.clientY;
+            const delta = Math.trunc(distance / 3);
+            drag.lastY = event.clientY;
+            drag.remainder = distance - delta * 3;
+            if (delta !== 0)
+                scheduleEncoderTurn(drag.group, drag.address, drag.debugName, delta, drag.centerX, drag.centerY);
+        });
+        const endDrag = event => {
+            const drag = activeEncoderDrags.get(event.pointerId);
+            if (!drag)
+                return;
+            activeEncoderDrags.delete(event.pointerId);
+            drag.group.classList.remove("is-turning");
+            if (!drag.group.matches(":hover"))
+                setTouched(drag.address, false);
+        };
+        group.addEventListener("pointerup", endDrag);
+        group.addEventListener("pointercancel", endDrag);
+        group.addEventListener("keydown", event => {
+            const direction = event.key === "ArrowUp" || event.key === "ArrowRight"
+                ? 1
+                : event.key === "ArrowDown" || event.key === "ArrowLeft" ? -1 : 0;
+            if (direction === 0)
+                return;
+            event.preventDefault();
+            scheduleEncoderTurn(group, address, debugName, direction * (event.shiftKey ? 8 : 1), centerX, centerY);
+        });
+    }
+
+    function scheduleEncoderTurn(group, address, debugName, delta, centerX, centerY) {
+        if (!Number.isInteger(delta) || delta === 0)
+            return;
+        const pending = pendingRelative.get(address);
+        if (pending)
+            pending.delta += delta;
+        else
+            pendingRelative.set(address, {group, address, debugName, delta, centerX, centerY});
+        if (relativeFrame !== null)
+            return;
+        relativeFrame = window.requestAnimationFrame(() => {
+            relativeFrame = null;
+            for (const turn of pendingRelative.values()) {
+                if (turn.delta === 0)
+                    continue;
+                const angle = Number(turn.group.dataset.encoderAngle ?? 0) + turn.delta * 12;
+                turn.group.dataset.encoderAngle = String(angle);
+                turn.group.querySelector(".encoder-tick")?.setAttribute(
+                    "transform", `rotate(${angle} ${turn.centerX} ${turn.centerY})`);
+                status.textContent = `${turn.debugName} · RELATIVE ${turn.delta > 0 ? "+" : ""}${turn.delta} · ${turn.address}`;
+                liveState.lastInputAt = performance.now();
+                let remaining = turn.delta;
+                while (remaining !== 0) {
+                    const chunk = Math.max(-63, Math.min(63, remaining));
+                    queueDebugInput(turn.address, "RELATIVE", "CHANGE", chunk);
+                    remaining -= chunk;
+                }
+            }
+            pendingRelative.clear();
+        });
     }
 
     function createTouchStrip() {
@@ -520,6 +607,9 @@
             endEdge(address, kind);
         for (const address of [...touchedControls])
             setTouched(address, false);
+        for (const drag of activeEncoderDrags.values())
+            drag.group.classList.remove("is-turning");
+        activeEncoderDrags.clear();
     }
 
     function setPressed(reference, pressed, phase = pressed ? "DOWN" : "UP", announce = true) {
@@ -816,6 +906,7 @@
         applyDebugState,
         queueDebugInput,
         reset,
+        scheduleEncoderTurn,
         selectPressurePad,
         setDisplay,
         setLight,

@@ -121,6 +121,7 @@ final class PushDebugInputHost implements AutoCloseable
         this.expirePressure ();
         final List<Incoming> requests = new ArrayList<> (MAX_REQUESTS_PER_TICK);
         final Map<ControlId, Integer> pendingPressure = new LinkedHashMap<> ();
+        final Map<ControlId, Integer> pendingRelative = new LinkedHashMap<> ();
         for (int count = 0; count < MAX_REQUESTS_PER_TICK; count++)
         {
             final Incoming request = this.incoming.poll ();
@@ -129,15 +130,35 @@ final class PushDebugInputHost implements AutoCloseable
             this.queuedRequests.decrementAndGet ();
             if (request.kind () == InputKind.POLY_PRESSURE)
             {
+                pendingRelative.clear ();
                 final Integer existing = pendingPressure.putIfAbsent (request.control (), requests.size ());
                 if (existing == null)
                     requests.add (request);
                 else
                     requests.set (existing.intValue (), request);
             }
+            else if (request.kind () == InputKind.RELATIVE)
+            {
+                pendingPressure.clear ();
+                final Integer existing = pendingRelative.putIfAbsent (request.control (), requests.size ());
+                if (existing == null)
+                    requests.add (request);
+                else
+                {
+                    final Incoming previous = requests.get (existing.intValue ());
+                    requests.set (existing.intValue (), new Incoming (
+                        request.session (),
+                        request.requestID (),
+                        request.control (),
+                        request.kind (),
+                        request.phase (),
+                        previous.value () + request.value ()));
+                }
+            }
             else
             {
                 pendingPressure.clear ();
+                pendingRelative.clear ();
                 requests.add (request);
             }
         }
@@ -193,6 +214,11 @@ final class PushDebugInputHost implements AutoCloseable
         if (request.kind () == InputKind.POLY_PRESSURE)
         {
             this.handlePressure (request);
+            return;
+        }
+        if (request.kind () == InputKind.RELATIVE)
+        {
+            this.handleRelative (request);
             return;
         }
         if (request.phase () == DebugPhase.BEGIN)
@@ -284,6 +310,41 @@ final class PushDebugInputHost implements AutoCloseable
         catch (final RuntimeException ex)
         {
             this.fail (request, "could not apply pressure: " + PushDebugging.sanitize (ex.getMessage ()));
+        }
+    }
+
+
+    private void handleRelative (final Incoming request)
+    {
+        final ActiveEdge owned = this.active;
+        try
+        {
+            if (request.value () == 0)
+            {
+                this.succeed (request);
+                return;
+            }
+            if (owned != null)
+            {
+                if (owned.releasing || owned.kind != InputKind.TOUCH || !owned.control.equals (request.control ()))
+                {
+                    this.fail (request, "relative motion is fenced to the browser-touched control");
+                    return;
+                }
+                this.surface.trigger (request.control (), InputKind.RELATIVE, InputPhase.CHANGE, request.value ());
+                this.succeed (request);
+                return;
+            }
+            if (!this.admission.trySubmit ( () -> this.surface.trigger (request.control (), InputKind.RELATIVE, InputPhase.CHANGE, request.value ())))
+            {
+                this.fail (request, "controller input is busy");
+                return;
+            }
+            this.succeed (request);
+        }
+        catch (final RuntimeException ex)
+        {
+            this.fail (request, "could not turn control: " + PushDebugging.sanitize (ex.getMessage ()));
         }
     }
 
@@ -588,7 +649,9 @@ final class PushDebugInputHost implements AutoCloseable
             final InputKind kind = InputKind.valueOf (fields[3]);
             final DebugPhase phase = DebugPhase.valueOf (fields[4]);
             final int value = Integer.parseInt (fields[5]);
-            if (value < 0 || value > 127)
+            if (kind == InputKind.RELATIVE && (value == 0 || value < -63 || value > 63))
+                throw new IllegalArgumentException ("relative value must be -63..-1 or 1..63");
+            if (kind != InputKind.RELATIVE && (value < 0 || value > 127))
                 throw new IllegalArgumentException ("value must be 0..127");
             return new Incoming (fields[0], fields[1], new ControlId (fields[2]), kind, phase, value);
         }
@@ -682,7 +745,7 @@ final class PushDebugInputHost implements AutoCloseable
 
     private static boolean validShape (final Incoming request)
     {
-        if (request.kind () == InputKind.POLY_PRESSURE)
+        if (request.kind () == InputKind.POLY_PRESSURE || request.kind () == InputKind.RELATIVE)
             return request.phase () == DebugPhase.CHANGE;
         return (request.kind () == InputKind.BUTTON || request.kind () == InputKind.PAD || request.kind () == InputKind.TOUCH) &&
             (request.phase () == DebugPhase.BEGIN || request.phase () == DebugPhase.END);
@@ -721,6 +784,7 @@ final class PushDebugInputHost implements AutoCloseable
         private final PushControlSurface surface;
         private final Map<ControlId, EdgeControl> edges = new LinkedHashMap<> ();
         private final Map<ControlId, IHwContinuousControl> touches = new LinkedHashMap<> ();
+        private final Map<ControlId, IHwContinuousControl> relatives = new LinkedHashMap<> ();
 
 
         private PushInputSurface (final PushControlSurface surface)
@@ -740,6 +804,8 @@ final class PushDebugInputHost implements AutoCloseable
                 final IHwContinuousControl control = surface.getContinuous (id);
                 if (control != null && control.getTouchCommand () != null)
                     this.touches.put (PushControlIds.continuous (id.name ()), control);
+                if (control != null && control.getCommand () != null)
+                    this.relatives.put (PushControlIds.continuous (id.name ()), control);
             }
         }
 
@@ -752,6 +818,8 @@ final class PushDebugInputHost implements AutoCloseable
                 return edge != null && edge.kind == kind;
             if (kind == InputKind.TOUCH)
                 return this.touches.containsKey (control);
+            if (kind == InputKind.RELATIVE)
+                return this.relatives.containsKey (control);
             return kind == InputKind.POLY_PRESSURE && padIndex (control) > 0;
         }
 
@@ -771,6 +839,16 @@ final class PushDebugInputHost implements AutoCloseable
         {
             if (kind == InputKind.TOUCH)
                 this.touches.get (control).triggerTouch (phase == InputPhase.BEGIN);
+            else if (kind == InputKind.RELATIVE)
+            {
+                int remaining = value;
+                while (remaining != 0)
+                {
+                    final int chunk = Math.max (-63, Math.min (63, remaining));
+                    this.relatives.get (control).handleValue (chunk / 63.0);
+                    remaining -= chunk;
+                }
+            }
             else if (kind == InputKind.POLY_PRESSURE)
                 this.surface.triggerDebugPadPressure (padIndex (control), value);
             else

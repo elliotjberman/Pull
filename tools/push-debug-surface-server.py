@@ -209,14 +209,21 @@ class PushSurfaceHandler(SimpleHTTPRequestHandler):
             return "invalid debug input session"
         if not isinstance(request["control"], str) or not CONTROL_PATTERN.fullmatch(request["control"]):
             return "invalid control"
-        if request["kind"] not in {"BUTTON", "PAD", "TOUCH", "POLY_PRESSURE"}:
+        if request["kind"] not in {"BUTTON", "PAD", "TOUCH", "POLY_PRESSURE", "RELATIVE"}:
             return "invalid input kind"
         if request["phase"] not in {"BEGIN", "CHANGE", "END", "KEEPALIVE"}:
             return "invalid input phase"
-        if isinstance(request["value"], bool) or not isinstance(request["value"], int) or not 0 <= request["value"] <= 127:
+        if isinstance(request["value"], bool) or not isinstance(request["value"], int):
+            return "input value must be an integer"
+        if request["kind"] == "RELATIVE":
+            if request["value"] == 0 or not -63 <= request["value"] <= 63:
+                return "relative value must be from -63 through -1 or 1 through 63"
+        elif not 0 <= request["value"] <= 127:
             return "input value must be an integer from 0 through 127"
         if request["phase"] == "KEEPALIVE":
             return None
+        if request["kind"] == "RELATIVE":
+            return None if request["phase"] == "CHANGE" else "relative input requires CHANGE"
         if request["kind"] == "POLY_PRESSURE":
             return None if request["phase"] == "CHANGE" else "pressure requires CHANGE"
         return None if request["phase"] in {"BEGIN", "END"} else "edge input requires BEGIN or END"
