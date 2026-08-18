@@ -251,7 +251,9 @@ reveals it again, rather than sharing either region claim.
 When VS Live selects Track/Mix, `TrackMixerControlsView` replaces only the 960x143 producer. It
 declares the installed `ACTIVE` parameter bank, owns all eight relative encoder turns and their
 typed effects, and renders the selected track's Volume/Pan plus active send slots from authoritative
-read-back. The retained Track Selection footer remains the independent 960x17 producer. Encoder
+read-back. Missing parameter slots render blank inside the still-selected Mix view; data absence is
+never interpreted as selection of the inherited Input & Output page. The retained Track Selection
+footer remains the independent 960x17 producer. Encoder
 touches and the inherited upper-row page menu remain explicit frozen adapters; ordinary Track/Mix
 outside this composition is not implied to have migrated.
 

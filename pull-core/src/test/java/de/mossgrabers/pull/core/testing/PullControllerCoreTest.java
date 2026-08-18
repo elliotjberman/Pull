@@ -1044,6 +1044,28 @@ class PullControllerCoreTest
 
 
     @Test
+    void vsLiveTrackSelectionKeepsMixSelectedWhileNewParametersAreUnavailable ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        final ControlId secondTrackButton = PushControlIds.button ("ROW1_2");
+        host.start (Optional.empty ());
+        enterVsLive (host);
+        host.bridge (trackSelectionBridge (2, false, "WORKSPACE"));
+        host.bridge (trackSelectionBridge (3, false, "TRACK"));
+
+        assertEquals (VsLiveWorkspace.NAME + " / Track Mix", host.effects ().desiredControllerWorkspace ().name ());
+        assertMixSelectedWithoutInputOutputFallback (host);
+
+        host.controllerButton (secondTrackButton, true);
+        assertEquals (new SelectSessionTrackEffect (12, VsLiveWorkspace.SESSION_BANK, 1, "track-8"), host.effects ().executionOrder ().getLast ());
+        host.bridge (trackSelectionBridge (4, true, "TRACK"));
+
+        assertTrue (hasFooterSelection (host, 1, new RgbColor (25, 50, 100)));
+        assertMixSelectedWithoutInputOutputFallback (host);
+    }
+
+
+    @Test
     void sessionStopGestureConsumptionSurvivesACompositePageTransition ()
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
@@ -2157,6 +2179,12 @@ class PullControllerCoreTest
 
     private static ControllerBridgeSnapshot trackSelectionBridge (final long layoutGeneration, final boolean secondSelected)
     {
+        return trackSelectionBridge (layoutGeneration, secondSelected, "WORKSPACE");
+    }
+
+
+    private static ControllerBridgeSnapshot trackSelectionBridge (final long layoutGeneration, final boolean secondSelected, final String mode)
+    {
         final SessionBankShape shape = VsLiveWorkspace.SESSION_BANK;
         final List<SessionTrackSnapshot> tracks = new ArrayList<> ();
         tracks.add (new SessionTrackSnapshot ("track-7", 3, "Drums", true, !secondSelected, true, false, false, false, true, new RgbColor (100, 50, 25)));
@@ -2167,7 +2195,7 @@ class PullControllerCoreTest
             TransportSnapshot.empty (),
             secondSelected ? selectedTrack (8, "track-8", 4, true, false) : selectedTrack (false),
             new SessionBankSnapshot (12, shape, 0, 0, tracks),
-            new ControllerLayoutSnapshot (layoutGeneration, "DRUM_PAD", "WORKSPACE", false, false, 0, GridPressureConfiguration.OFF),
+            new ControllerLayoutSnapshot (layoutGeneration, "DRUM_PAD", mode, false, false, 0, GridPressureConfiguration.OFF),
             NoteViewSnapshot.empty (),
             NoteRepeatSnapshot.empty (),
             DrumContextSnapshot.empty (),
@@ -2184,6 +2212,15 @@ class PullControllerCoreTest
                 rectangle.x () == index * 120 && rectangle.y () == 143 &&
                 rectangle.width () == 120 && rectangle.height () == 17 &&
                 color.equals (rectangle.color ()));
+    }
+
+
+    private static void assertMixSelectedWithoutInputOutputFallback (final FakeCoreHost host)
+    {
+        assertTrue (host.effects ().desiredOutput ().display ().commands ().stream ().anyMatch (command ->
+            command instanceof final DisplayCommand.TextBox text && "Mix".equals (text.text ()) && OFF.equals (text.color ())));
+        assertFalse (host.effects ().desiredOutput ().display ().commands ().stream ().anyMatch (command ->
+            command instanceof final DisplayCommand.TextAt text && ("Track Type".equals (text.text ()) || "Monitor".equals (text.text ()))));
     }
 
 

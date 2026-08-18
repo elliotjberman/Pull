@@ -30,7 +30,6 @@ final class TrackMixerDisplayScene
     private static final RgbColor BLACK = new RgbColor (0, 0, 0);
     private static final RgbColor WHITE = new RgbColor (255, 255, 255);
     private static final RgbColor SELECTED_MENU = new RgbColor (190, 190, 190);
-    private static final RgbColor DIM_WHITE = new RgbColor (102, 102, 102);
 
 
     private TrackMixerDisplayScene ()
@@ -44,18 +43,11 @@ final class TrackMixerDisplayScene
     {
         final ArrayList<DisplayCommand> commands = new ArrayList<> (96);
         commands.add (new DisplayCommand.Rectangle (0, 0, WIDTH, HEIGHT, BLACK));
-        final boolean mix = !selected.exists () || parameters.containsKey (ParameterSlot.active (0));
-        drawMenu (commands, 0, "Mix", mix);
-        drawMenu (commands, 1, "Input & Output", !mix);
+        drawMenu (commands, 0, "Mix", true);
+        drawMenu (commands, 1, "Input & Output", false);
 
         if (!selected.exists ())
             return new ControllerDisplayScene (WIDTH, HEIGHT, commands);
-        if (!mix)
-        {
-            drawInfo (commands, 0, "Track Type", selected.trackType ());
-            drawInfo (commands, 1, "Monitor", monitor (selected));
-            return new ControllerDisplayScene (WIDTH, HEIGHT, commands);
-        }
 
         for (int index = 0; index < ParameterSlot.BANK_SIZE; index++)
         {
@@ -98,26 +90,6 @@ final class TrackMixerDisplayScene
             12,
             10,
             DisplayTextFit.SHRINK_ELLIPSIS));
-    }
-
-
-    private static void drawInfo (final ArrayList<DisplayCommand> commands, final int column, final String label, final String value)
-    {
-        final double left = column * COLUMN_WIDTH + 8;
-        commands.add (new DisplayCommand.TextAt (label, left, 34, DIM_WHITE, 12.5));
-        if (!value.isBlank ())
-            commands.add (new DisplayCommand.TextBox (value, left, 35, COLUMN_WIDTH - 16, 28, DisplayTextAlignment.LEFT, WHITE, 19, 12, DisplayTextFit.SHRINK_ELLIPSIS));
-    }
-
-
-    private static String monitor (final SelectedTrackSnapshot selected)
-    {
-        return switch (selected.monitorMode ())
-        {
-            case AUTO -> "Auto";
-            case ON -> "On";
-            case OFF -> "Off";
-        };
     }
 
 

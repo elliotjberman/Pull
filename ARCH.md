@@ -281,7 +281,9 @@ The parameter-body view is independently replaceable from the retained track str
 the initial `WORKSPACE` page has been observed, selecting Mix composes `TrackMixerControlsView`
 with the same `TrackSelectionStripView`: core owns the active eight-parameter rendering and encoder
 turns while the inherited upper-row page menu and encoder-touch mechanics remain explicit stable
-adapters. Device and Browse still release the parameter body to their frozen stable pages. Every
+adapters. The selected Mix view never infers an Input & Output page from a temporarily empty
+parameter snapshot; it keeps Mix selected and leaves unavailable control slots blank until later
+authoritative read-back. Device and Browse still release the parameter body to their frozen stable pages. Every
 such replacement retains the Session/Drum grid, scene keys, navigation, track strip, and
 Session-owned Stop Clip control.
 
