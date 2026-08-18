@@ -856,7 +856,7 @@ final class PushDebugInputHost implements AutoCloseable
             this.surface.observeDebugInput (
                 control,
                 de.mossgrabers.pull.core.api.event.InputKind.valueOf (kind.name ()),
-                de.mossgrabers.pull.core.api.event.InputPhase.valueOf (phase.name ()),
+                phase == InputPhase.CHANGE ? de.mossgrabers.pull.core.api.event.InputPhase.UPDATE : de.mossgrabers.pull.core.api.event.InputPhase.valueOf (phase.name ()),
                 value);
         }
 
