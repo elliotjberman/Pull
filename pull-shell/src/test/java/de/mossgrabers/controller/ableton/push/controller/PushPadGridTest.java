@@ -52,22 +52,6 @@ class PushPadGridTest
 
 
     @Test
-    void fadeAndRenderedPadUseTheSameRgbResolution ()
-    {
-        final List<MidiNote> sent = new ArrayList<> ();
-        final PushPadGrid grid = new PushPadGrid (new PushColorManager (), recordingOutput (sent));
-        final PadColor paleYellow = PadColor.rgb (ColorEx.fromRGB (254, 254, 170));
-
-        grid.light (36, paleYellow);
-        grid.requestFade (36, paleYellow);
-        grid.sendState (36);
-
-        assertEquals (2, sent.getLast ().channel ());
-        assertEquals (43, sent.getLast ().velocity ());
-    }
-
-
-    @Test
     void sparseOverlayFreezesTheVisibleFrameAndRestoresTheLatestStableFrame ()
     {
         final List<MidiNote> sent = new ArrayList<> ();
@@ -181,24 +165,6 @@ class PushPadGridTest
 
         grid.endDebugObservation (36);
         assertThrows (IllegalStateException.class, () -> grid.debugObservation (36));
-    }
-
-
-    @Test
-    void debugResendConsumesPendingFadeThroughTheNormalOutputPath ()
-    {
-        final List<MidiNote> sent = new ArrayList<> ();
-        final PushPadGrid grid = new PushPadGrid (new PushColorManager (), recordingOutput (sent));
-        final PadColor paleYellow = PadColor.rgb (ColorEx.fromRGB (254, 254, 170));
-        grid.light (36, paleYellow);
-        grid.requestFade (36, paleYellow);
-        grid.beginDebugObservation (36);
-
-        final PushPadGrid.DebugObservation observed = grid.debugObservation (36);
-
-        assertEquals (43, observed.color ());
-        assertEquals (new PushPadGrid.Transmission (1, 2, 36, 43), observed.base ());
-        assertEquals (List.of (new MidiNote (2, 36, 43)), sent);
     }
 
 

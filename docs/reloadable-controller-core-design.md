@@ -460,6 +460,12 @@ button edges; relative turns for `KNOB1` through `KNOB8`; button edges for `ROW1
 pressure for the four drum-rate pads. Their permanent stable commands are intentionally inert; a
 missing or faulted core does not revive a second implementation.
 
+Playable drum-pad edges and pressure remain observed so the permanent selected-track `NoteInput`
+can carry musical notes independently from controller-command arbitration. `DrumPlayPadView` owns
+all sixteen RGB lights plus Poly/Channel/CC pressure policy in standalone and composite layouts;
+the stable grid callbacks are inert, and the former note observers, palette policy, and firmware
+fade path are deleted.
+
 Stop Clip is intentionally `OBSERVE`, with an inert permanent direct command. Its core view owns
 plain and bank-wide Stop policy plus RGB feedback, while observation keeps the inherited held state
 available to the still-adapted Session grid's Stop-plus-pad chord. Stop Clip is not admitted for
@@ -648,7 +654,7 @@ Output remains narrower than input in API 37. This is the canonical installed-ou
 
 | Lane | Installed ownership |
 | --- | --- |
-| RGB lights | Any registered Push button or physical grid pad can be explicitly claimed by a core view. The shell validates the physical registry, gives an explicit owner precedence, and otherwise preserves the exact stable supplier. Current semantic owners are the eight drum-fill, four drum-rate, and four mappable-control lights, global Play/Record and selected-track Mute/Solo, Session Stop Clip while a Session view is active, and both Master rows while the Master-controls facet is active. |
+| RGB lights | Any registered Push button or physical grid pad can be explicitly claimed by a core view. The shell validates the physical registry, gives an explicit owner precedence, and otherwise preserves the exact stable supplier. Current semantic owners are the sixteen drum-play, eight drum-fill, four drum-rate, and four mappable-control lights, global Play/Record and selected-track Mute/Solo, Session Stop Clip while a Session view is active, and both Master rows while the Master-controls facet is active. |
 | Controller mappings | Four permanent semantic Bitwig buttons with dedicated Boolean feedback, projected onto physical PAD29–32 matchers only while the owning core view supplies the complete lease. All 64 original physical grid buttons are raw-dispatch-only. Permanent raw ingress carries mapped core gestures and otherwise triggers those original dispatch objects without another learned action. |
 | Controller state | One composed replayable state containing fixed view facets, any full-grid Note layout, and the target-fenced selected-track route; one stable lifecycle owner orders topology submission, musical-surface activation, musical-idle-gated removal, mismatch quarantine, and failure cleanup. |
 | Note repeat | One complete replayable lease over the permanent NoteInput Repeat engine, with later read-back, inactive release, and manual-parameter restoration. |

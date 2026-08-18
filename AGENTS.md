@@ -197,8 +197,9 @@
   workspaces merge disjoint contributions and reject physical overlap. Project-macro encoder turns
   are the reference parameter migration: core owns
   the mapping, relative effect, and snapback policy while stable owns Bitwig proxies, identity
-  validation, read-back, and effect execution. The Play action, eight drum-fill RGB lights, four
-  drum-rate RGB lights, four Bitwig-manually-mappable drum-control pads and lights with a replayable
+  validation, read-back, and effect execution. The Play action, sixteen authoritative
+  playing-velocity drum-play RGB lights, eight drum-fill RGB lights, four drum-rate RGB lights,
+  four Bitwig-manually-mappable drum-control pads and lights with a replayable
   physical-to-semantic mapping lease and authoritative Boolean mapped-state read-back from
   dedicated no-output background lights on permanent semantic Bitwig button identities. All 64
   original physical PAD actions are raw-dispatch-only and never define learned mapping identity;

@@ -95,10 +95,8 @@ pad has no musical pressure destination. Aggregate channel pressure has no pad i
 a distinct surface-wide input.
 
 The stable shell captures those events and publishes the current typed pressure configuration and
-drum base note. A reloadable view owns the mapping from its fixed playable footprint to MIDI effects.
-The stable adapter for a core-owned composite must be inert for pressure, while standalone views
-which have not migrated may preserve their existing generic stable view contract unchanged. They
-may not acquire new pressure or mapping semantics there.
+drum base note. `DrumPlayPadView` owns the mapping from its fixed playable footprint to MIDI effects
+in both standalone and composite Drum layouts. Both stable adapters are inert for pressure.
 
 ## Fixed Views
 
@@ -283,15 +281,15 @@ Add one hardcoded workspace named `VS Live`, entered with **Shift + Session** fo
 - Session Clip Grid owns the upper four pad rows. Clip launch behavior and scene order match Session
   view through its declared `8x4` Session bank rather than an `8x8` bank cropped at render time.
 - Drum Controller owns the bottom four pad rows, including its existing 4x4 playable block, rate
-  pads, and fill pads. Separate fixed views implement those subregions: `DrumControllerView` for
-  playable notes and pressure, `DrumRateView` for rate/roll policy, and `DrumFillView` for fills.
+  pads, and fill pads. Separate fixed views implement those subregions: `DrumPlayPadView` for
+  playable feedback and pressure, `DrumRateView` for rate/roll policy, and `DrumFillView` for fills.
 - Drum Controller's `pitch-bend` facet owns the touch strip.
 - Per-pad pressure on Drum Controller's playable 4x4 block follows that same lower-grid ownership;
   pressure on rate, fill, and Session pads has no musical destination.
-- `DrumControllerView` implements that policy with its other lower-grid behavior. It observes the
+- `DrumPlayPadView` implements that policy in both standalone and composite layouts. It observes the
   playable pad edges and pressure, honors Off/Poly/Channel/CC configuration, and sends mapped output
-  through the permanent NoteInput MIDI effect. `WorkspaceView` performs no parallel pressure
-  mutation.
+  through the permanent NoteInput MIDI effect. Neither stable view performs parallel pressure
+  mutation or playable-pad rendering.
 - No view claims the lower scene keys merely because they sit beside Drum Controller. Upper scene
   keys may launch the four visible Session scenes through the Session grid's named facet.
 

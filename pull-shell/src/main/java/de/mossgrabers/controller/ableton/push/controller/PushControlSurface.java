@@ -14,7 +14,6 @@ import de.mossgrabers.framework.controller.AbstractControlSurface;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.color.ColorManager;
 import de.mossgrabers.framework.controller.hardware.BindType;
-import de.mossgrabers.framework.controller.grid.PadColor;
 import de.mossgrabers.framework.daw.IHost;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.midi.DeviceInquiry;
@@ -841,29 +840,6 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
     static boolean shouldRouteRawPitchbend (final boolean currentPolicyActive, final boolean gestureLeaseActive)
     {
         return currentPolicyActive || gestureLeaseActive;
-    }
-
-
-    /**
-     * Fade a pad to the expected target color using the Push 2 firmware transition.
-     *
-     * @param note The physical Push pad note
-     * @param targetColor The unresolved expected target color
-     */
-    public void requestPadFade (final int note, final PadColor targetColor)
-    {
-        this.pushPadGrid.requestFade (note, targetColor);
-    }
-
-
-    /**
-     * Cancel a pending pad fade.
-     *
-     * @param note The physical Push pad note
-     */
-    public void cancelPadFade (final int note)
-    {
-        this.pushPadGrid.cancelFade (note);
     }
 
 

@@ -38,16 +38,19 @@ correct migration extracts their policy while the stable shell continues owning 
 In the current baseline:
 
 - drum-fill matching, launch-session policy, gesture state, and eight fill lights are core-owned;
+- the shared 4x4 drum-play view owns playable-pad pressure and sixteen RGB lights in both the
+  standalone Drum page and VS Live; lights follow target-aligned drum-window playing-velocity
+  read-back, and the old shell observers/fade policy are deleted;
 - four Bitwig-manually-mappable control pads, their replayable physical-to-semantic leases, and
   their mapped-light red/off policy are core-owned; four permanent semantic button identities own
   Bitwig learning and dedicated no-output Boolean feedback, while all 64 original physical PAD
   actions remain raw ordinary-dispatch objects and never define learned mapping identity;
 - Record, Shift+Record, and Select+Record are core-owned;
 - VS Live selection and fixed-facet composition are core-owned;
-- stable adapters still realize VS Live's Session grid/scene, Drum, macro touch/Delete, and
-  navigation mechanics;
-- drum-grid pressure interpretation and selected-target Note routing policy are core-owned in the
-  composite workspace, while the permanent `NoteInput`, direct-route actuator, and MIDI
+- stable adapters still realize VS Live's Session grid/scene, Drum octave/pitch-bend lifecycle,
+  macro touch/Delete, and navigation mechanics;
+- drum-grid pressure interpretation and selected-target Note routing policy are core-owned in both
+  standalone and composite Drum layouts, while the permanent `NoteInput`, direct-route actuator, and MIDI
   neutralization remain stable;
 - Note, Session, and Layout edges are core-exclusive with inert stable commands; selected-track
   observers no longer recall a stable preferred view, so the composed controller-state host is the
@@ -69,9 +72,9 @@ In the current baseline:
   output; animation geometry, color, cadence, and activation policy are core-owned;
 - a generic complete 960x160 display overlay can temporarily replace and restore the inherited
   display page; overlay copy, geometry, color, and activation policy are core-owned;
-- the eight drum-fill, four drum-rate, and four mappable-control lights and the four control pads'
-  semantic mapping leases are also core-owned; unclaimed button/grid policy and other Push output
-  semantics remain frozen migration debt;
+- the sixteen drum-play, eight drum-fill, four drum-rate, and four mappable-control lights and the
+  four control pads' semantic mapping leases are also core-owned; unclaimed button/grid policy and
+  other Push output semantics remain frozen migration debt;
 - Shift snapback policy, view-owned physical-to-parameter-slot admission, semantic action
   invalidation, restoration acknowledgement, and navigation ordering are core-owned; stable owns
   named bounded Bitwig parameter banks, exact actuator leases, identity fencing, effect execution,

@@ -62,8 +62,8 @@ public final class DrumPadView extends AbstractView<PushControlSurface, PushConf
     @Override
     public void onGridNote (final int note, final int velocity)
     {
-        if (this.controls.ownsGridNote (note))
-            this.controls.onGridNote (note, velocity);
+        // Inert permanent binding: reloadable views own controller semantics while the permanent
+        // NoteInput independently carries translated musical notes to Bitwig.
     }
 
 
@@ -71,12 +71,7 @@ public final class DrumPadView extends AbstractView<PushControlSurface, PushConf
     @Override
     public void onGridPressure (final int note, final int value)
     {
-        if (!this.surface.isDrumControllerActive ())
-            return;
-
-        if (note >= 0 && !this.controls.isPlayPad (note))
-            return;
-        super.onGridPressure (note, value);
+        // Reloadable DrumPlayPadView owns all playable-pad and aggregate pressure policy.
     }
 
 
@@ -90,7 +85,6 @@ public final class DrumPadView extends AbstractView<PushControlSurface, PushConf
             for (int x = 0; x < padGrid.getCols (); x++)
                 padGrid.lightEx (x, y, IPadGrid.GRID_OFF);
         }
-        this.controls.drawOwnedPads (padGrid);
     }
 
 
@@ -141,13 +135,10 @@ public final class DrumPadView extends AbstractView<PushControlSurface, PushConf
         if (!this.surface.isDrumControllerActive ())
             return;
 
-        final int previousOffset = this.scales.getDrumOffset ();
         this.keyManager.clearPressedKeys ();
         this.scales.resetDrumOctave ();
         this.updateNoteMapping ();
         this.model.getDrumDevice ().getDrumPadBank ().scrollTo (this.scales.getDrumOffset (), true);
-        if (previousOffset != this.scales.getDrumOffset ())
-            this.controls.onDrumOffsetChanged ();
     }
 
 
@@ -156,7 +147,6 @@ public final class DrumPadView extends AbstractView<PushControlSurface, PushConf
         if (event != ButtonEvent.DOWN || !this.surface.isDrumControllerActive ())
             return;
 
-        final int previousOffset = this.scales.getDrumOffset ();
         this.keyManager.clearPressedKeys ();
         if (isUp)
             this.scales.incDrumOffset (offset);
@@ -165,7 +155,5 @@ public final class DrumPadView extends AbstractView<PushControlSurface, PushConf
         this.updateNoteMapping ();
         this.surface.getDisplay ().notify (this.scales.getDrumRangeText ());
         this.model.getDrumDevice ().getDrumPadBank ().scrollTo (this.scales.getDrumOffset (), false);
-        if (previousOffset != this.scales.getDrumOffset ())
-            this.controls.onDrumOffsetChanged ();
     }
 }

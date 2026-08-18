@@ -322,8 +322,8 @@ returns successfully; it adds no MIDI callback or output owner.
 
 If the later applied result leaves an already-correct pad color unchanged, the ordinary renderer
 may suppress a redundant send. The first post-apply debug observation therefore resends that one
-pad exactly once through the existing output path. This is a real opt-in outbound update and may
-consume an already-pending firmware fade for that pad; later observations never resend.
+pad exactly once through the existing output path. This is a real opt-in outbound update; later
+observations never resend.
 
 The debugger then submits UP through the same permanent arbitrator. It retains its input/core
 generation fence until the routed gesture is idle and a later complete core result has applied.

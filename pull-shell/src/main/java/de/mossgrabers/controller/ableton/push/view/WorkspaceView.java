@@ -89,10 +89,7 @@ public final class WorkspaceView extends SessionView implements WorkspaceFacetAd
     public void onGridNote (final int note, final int velocity)
     {
         if (this.hasFacet (ControllerViewFacet.DRUM_CONTROLLER_LOWER) && this.controls.ownsGridNote (note))
-        {
-            this.controls.onGridNote (note, velocity);
             return;
-        }
         if (this.hasFacet (ControllerViewFacet.SESSION_CLIP_GRID_UPPER))
             super.onGridNote (note, velocity);
     }
@@ -119,8 +116,6 @@ public final class WorkspaceView extends SessionView implements WorkspaceFacetAd
 
         if (this.hasFacet (ControllerViewFacet.SESSION_CLIP_GRID_UPPER))
             super.drawGrid ();
-        if (this.hasFacet (ControllerViewFacet.DRUM_CONTROLLER_LOWER))
-            this.controls.drawOwnedPads (padGrid);
     }
 
 
@@ -193,13 +188,10 @@ public final class WorkspaceView extends SessionView implements WorkspaceFacetAd
         if (!this.surface.isDrumControllerActive ())
             return;
 
-        final int previousOffset = this.scales.getDrumOffset ();
         this.keyManager.clearPressedKeys ();
         this.scales.resetDrumOctave ();
         this.updateNoteMapping ();
         this.model.getDrumDevice ().getDrumPadBank ().scrollTo (this.scales.getDrumOffset (), true);
-        if (previousOffset != this.scales.getDrumOffset ())
-            this.controls.onDrumOffsetChanged ();
     }
 
 
@@ -208,7 +200,6 @@ public final class WorkspaceView extends SessionView implements WorkspaceFacetAd
         if (event != ButtonEvent.DOWN || !this.surface.isDrumControllerActive ())
             return;
 
-        final int previousOffset = this.scales.getDrumOffset ();
         final int offset = this.surface.isShiftPressed () ? 4 : this.scales.getDrumDefaultOffset ();
         this.keyManager.clearPressedKeys ();
         if (up)
@@ -218,8 +209,6 @@ public final class WorkspaceView extends SessionView implements WorkspaceFacetAd
         this.updateNoteMapping ();
         this.surface.getDisplay ().notify (this.scales.getDrumRangeText ());
         this.model.getDrumDevice ().getDrumPadBank ().scrollTo (this.scales.getDrumOffset (), false);
-        if (previousOffset != this.scales.getDrumOffset ())
-            this.controls.onDrumOffsetChanged ();
     }
 
 

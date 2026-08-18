@@ -99,6 +99,13 @@ retiring Repeat when the core releases ownership.
 The Bitwig **Automatic arp / roll** setting is published as state; core alone decides whether the
 drum workspace owns repeat or leaves it untouched.
 
+`DrumPlayPadView` owns the lower-left 4x4 RGB output and all playable-pad pressure policy in both
+the standalone Drum page and VS Live. Resting lights use authoritative selected-track color;
+playing lights use later bounded drum-window velocity read-back. Target generation/channel,
+note-view applicability, model alignment, and drum-window base note must all agree or the view
+renders off. Musical note edges still travel through the permanent target-fenced `NoteInput` route,
+independently from controller-command arbitration.
+
 ### Parameter banks, effects, and snapback
 
 Core API 24 exposes named, view-independent banks for the inherited active encoder window, project
@@ -258,10 +265,10 @@ VS Live initially contains:
 - drum pitch bend on the touch strip.
 
 The lower Drum Controller includes its 4x4 playable block, four core-owned rate pads, eight fill
-pads, four Bitwig-manually-mappable control pads, octave navigation, aggregate grid pressure, and its optional pitch-bend facet. It does not own
-the lower scene keys. Per-pad pressure has a musical destination only on the playable 4x4 block and
-is part of the same reloadable `DrumControllerView`, so pressure cannot be accidentally omitted
-from a composition that owns those pads.
+pads, four Bitwig-manually-mappable control pads, octave navigation, aggregate grid pressure, and
+its optional pitch-bend facet. It does not own the lower scene keys. `DrumPlayPadView` declares the
+playable block plus aggregate pressure as one fixed profile, so the standalone Drum page and VS
+Live compose the same pressure and authoritative feedback policy.
 
 The project-macro/track-strip page is an independently replaceable view. After its initial
 `WORKSPACE` page has been observed, selecting Mix, Device, or Browse releases only that page view;
@@ -289,7 +296,9 @@ Reloadable core:
 - `SelectedTrackMuteSoloView`: persistent Mute/Solo input and authoritative feedback downstream of
   the private selection-following track, independent of every page and grid.
 - `NoteViewControllerView`: authoritative per-selected-track note-layout policy.
-- `DrumControllerView`: playable lower-grid mapping, pressure policy, and optional pitch bend.
+- `DrumPlayPadView`: shared playable lower-grid RGB and pressure policy.
+- `DrumControllerView`: remaining composite lifecycle, octave adapter, selected-track Note route,
+  and optional pitch bend.
 - `DrumRateView`: four exclusive rate-pad gestures, RGB output, and desired note-repeat state.
 - `DrumFillView`: fill selection, launch lifecycle, bindings, and eight RGB lights.
 - `DrumControlPadView`: four exclusive physical control-pad routes, a complete
@@ -346,7 +355,9 @@ Implemented:
 - Session is retained independently from its default Track/Mix destination, and VS Live retains
   the same started grid-view instances when Mix, Device, Browse, or Master replaces the page, so
   active grid gestures are not restarted.
-- Drum pressure owned by the same fixed Drum Controller view as its playable pads.
+- Playable-pad feedback and pressure owned by the same fixed `DrumPlayPadView` in standalone and
+  composite Drum layouts; the deleted stable observers, palette policy, and firmware fade cannot
+  return as a fallback.
 - Removal of the unused legacy aftertouch commands and ClipLauncherNavigator topology.
 - Transactional shell preparation before a candidate result is committed.
 - Core-owned selected-track note-view policy with private-target identity fencing and delayed drum
@@ -370,8 +381,8 @@ Implemented:
 Partial or transitional:
 
 - Project macro relative encoder and display behavior run in core; only touch/Delete remain in
-  stable `WorkspaceMode`. Session grid/scene mechanics, navigation, Drum Controller play pads and
-  octave controls, and pitch-bend adapter-backed mechanics still run in stable
+  stable `WorkspaceMode`. Session grid/scene mechanics, navigation, Drum Controller octave
+  controls, and pitch-bend adapter-backed mechanics still run in stable
   `WorkspaceMode`/`WorkspaceView`.
 - `ControllerViewFacet` remains a closed cross-boundary adapter ID.
 - Capability and Session-shape validation happens during stable result preparation, not entirely in
@@ -379,8 +390,8 @@ Partial or transitional:
 - Every registered Push button light and every physical grid-pad light now has generic explicit
   core-or-stable arbitration. A view may render only controls inside its declared output claims;
   unclaimed lights preserve their frozen legacy supplier exactly. Current semantic core owners are
-  the eight drum-fill, four drum-rate, and four mappable-control lights, global Play/Record,
-  Session Stop Clip, persistent selected-track Mute/Solo, and both Master rows. Authoritative
+  the sixteen drum-play, eight drum-fill, four drum-rate, and four mappable-control lights, global
+  Play/Record, Session Stop Clip, persistent selected-track Mute/Solo, and both Master rows. Authoritative
   semantic Bitwig Boolean feedback and replayable physical-to-semantic mapping leases support the
   mappable controls. General display output is still semantically partial: Master and the composed
   VS Live Project/Track page are core-authored, while a generic complete base-scene plane, a

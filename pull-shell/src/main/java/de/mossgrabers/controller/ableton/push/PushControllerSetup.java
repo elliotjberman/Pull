@@ -378,7 +378,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
     {
         final PushControlSurface surface = this.getSurface ();
         final ViewManager viewManager = surface.getViewManager ();
-        this.drumPadControls = new DrumPadControls (surface, this.model, this.reloadableRuntime);
+        this.drumPadControls = new DrumPadControls (surface, this.model);
         surface.setDrumPadLayoutActive (this.drumPadControls::isActive);
         surface.setDrumControllerEngaged (this.drumPadControls::isControllerEngaged);
         viewManager.register (Views.PLAY, new PlayView (surface, this.model));

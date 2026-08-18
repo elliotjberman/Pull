@@ -68,6 +68,7 @@ public final class VsLiveWorkspace
         return List.of (
             new RetainedControllerView (new SessionNavigationView ()),
             new RetainedControllerView (SessionView.upper (true)),
+            new RetainedControllerView (new DrumPlayPadView ()),
             new RetainedControllerView (new DrumControllerView (true)),
             new RetainedControllerView (new DrumControlPadView ()),
             new RetainedControllerView (new DrumRateView ()));
