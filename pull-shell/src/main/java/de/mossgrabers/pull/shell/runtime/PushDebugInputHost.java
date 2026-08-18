@@ -68,11 +68,10 @@ final class PushDebugInputHost implements AutoCloseable
 
     private ActiveEdge active;
     private ControlId pressuredPad;
-    private int pressureValue;
     private long pressureExpiresAtNanos;
 
 
-    static PushDebugInputHost createIfEnabled (final PushControlSurface surface, final PushDebugNavigationHost.GestureAdmission admission)
+    static PushDebugInputHost createIfEnabled (final PushControlSurface surface, final PushDebugNavigationHost.GestureAdmission admission, final PadControllerInput padControllerInput)
     {
         if (!PushDebugging.isEnabled ())
             return null;
@@ -80,7 +79,7 @@ final class PushDebugInputHost implements AutoCloseable
         final ScheduledExecutorService worker = PushDebugging.createWorker ("Pull debug browser input transport");
         final PushDebugInputHost host = new PushDebugInputHost (
             PushDebugging.directory (),
-            new PushInputSurface (surface),
+            new PushInputSurface (surface, padControllerInput),
             admission,
             worker,
             System::nanoTime);
@@ -370,7 +369,12 @@ final class PushDebugInputHost implements AutoCloseable
 
     private void expirePressure ()
     {
-        if (this.pressuredPad == null || this.nanoTime.getAsLong () < this.pressureExpiresAtNanos)
+        if (this.pressuredPad == null)
+            return;
+        final ActiveEdge owned = this.active;
+        if (owned != null && !owned.releasing && owned.kind == InputKind.PAD && owned.control.equals (this.pressuredPad))
+            return;
+        if (this.nanoTime.getAsLong () < this.pressureExpiresAtNanos)
             return;
         if (this.active != null)
         {
@@ -405,7 +409,7 @@ final class PushDebugInputHost implements AutoCloseable
             this.admission.completeDebugInput ();
             this.active = null;
         }
-        this.publish (new Status (owned.requestID, state, owned.control.value (), owned.kind.name (), "END", 0, message));
+        this.outgoing.set (new Status (owned.requestID, state, owned.control.value (), owned.kind.name (), "END", 0, message));
     }
 
 
@@ -500,19 +504,17 @@ final class PushDebugInputHost implements AutoCloseable
         if (value == 0)
         {
             this.pressuredPad = null;
-            this.pressureValue = 0;
             this.pressureExpiresAtNanos = 0;
             return;
         }
         this.pressuredPad = control;
-        this.pressureValue = value;
         this.pressureExpiresAtNanos = Math.addExact (this.nanoTime.getAsLong (), ACTIVE_LEASE_NANOS);
     }
 
 
     private void neutralizePressure (final ControlId control)
     {
-        if (this.pressuredPad == null || !this.pressuredPad.equals (control) || this.pressureValue == 0)
+        if (this.pressuredPad == null || !this.pressuredPad.equals (control))
             return;
         try
         {
@@ -521,7 +523,6 @@ final class PushDebugInputHost implements AutoCloseable
         finally
         {
             this.pressuredPad = null;
-            this.pressureValue = 0;
             this.pressureExpiresAtNanos = 0;
         }
     }
@@ -545,19 +546,13 @@ final class PushDebugInputHost implements AutoCloseable
 
     private void succeed (final Incoming request)
     {
-        this.publish (Status.from (request, "APPLIED", ""));
+        this.outgoing.set (Status.from (request, "APPLIED", ""));
     }
 
 
     private void fail (final Incoming request, final String message)
     {
-        this.publish (Status.from (request, "FAILED", message));
-    }
-
-
-    private void publish (final Status status)
-    {
-        this.outgoing.set (status);
+        this.outgoing.set (Status.from (request, "FAILED", message));
     }
 
 
@@ -637,13 +632,13 @@ final class PushDebugInputHost implements AutoCloseable
         {
             if (Files.size (path) > MAX_REQUEST_BYTES)
             {
-                this.publish (Status.invalid ("request exceeds " + MAX_REQUEST_BYTES + " bytes"));
+                this.outgoing.set (Status.invalid ("request exceeds " + MAX_REQUEST_BYTES + " bytes"));
                 return null;
             }
             final String [] fields = Files.readString (path).strip ().split ("\\t", -1);
             if (fields.length != 6 || !PushDebugging.isIdentifier (fields[0]) || !PushDebugging.isIdentifier (fields[1]) || !validControl (fields[2]))
             {
-                this.publish (Status.invalid ("invalid browser input request"));
+                this.outgoing.set (Status.invalid ("invalid browser input request"));
                 return null;
             }
             final InputKind kind = InputKind.valueOf (fields[3]);
@@ -657,7 +652,7 @@ final class PushDebugInputHost implements AutoCloseable
         }
         catch (final IllegalArgumentException ex)
         {
-            this.publish (Status.invalid (PushDebugging.sanitize (ex.getMessage ())));
+            this.outgoing.set (Status.invalid (PushDebugging.sanitize (ex.getMessage ())));
             return null;
         }
         finally
@@ -779,17 +774,26 @@ final class PushDebugInputHost implements AutoCloseable
     }
 
 
+    @FunctionalInterface
+    interface PadControllerInput
+    {
+        void trigger (ControlId control, InputPhase phase, int value);
+    }
+
+
     private static final class PushInputSurface implements InputSurface
     {
         private final PushControlSurface surface;
+        private final PadControllerInput padControllerInput;
         private final Map<ControlId, EdgeControl> edges = new LinkedHashMap<> ();
         private final Map<ControlId, IHwContinuousControl> touches = new LinkedHashMap<> ();
         private final Map<ControlId, IHwContinuousControl> relatives = new LinkedHashMap<> ();
 
 
-        private PushInputSurface (final PushControlSurface surface)
+        private PushInputSurface (final PushControlSurface surface, final PadControllerInput padControllerInput)
         {
             this.surface = Objects.requireNonNull (surface, "surface");
+            this.padControllerInput = Objects.requireNonNull (padControllerInput, "padControllerInput");
             for (final Map.Entry<ButtonID, IHwButton> entry: surface.getButtons ().entrySet ())
             {
                 if (entry.getValue ().getCommand () == null)
@@ -839,6 +843,8 @@ final class PushDebugInputHost implements AutoCloseable
         {
             if (kind == InputKind.TOUCH)
                 this.touches.get (control).triggerTouch (phase == InputPhase.BEGIN);
+            else if (kind == InputKind.PAD)
+                this.padControllerInput.trigger (control, phase, value);
             else if (kind == InputKind.RELATIVE)
             {
                 int remaining = value;
@@ -856,7 +862,7 @@ final class PushDebugInputHost implements AutoCloseable
             this.surface.observeDebugInput (
                 control,
                 de.mossgrabers.pull.core.api.event.InputKind.valueOf (kind.name ()),
-                phase == InputPhase.CHANGE ? de.mossgrabers.pull.core.api.event.InputPhase.UPDATE : de.mossgrabers.pull.core.api.event.InputPhase.valueOf (phase.name ()),
+                PushControllerInputBridge.toCorePhase (phase),
                 value);
         }
 

@@ -6,6 +6,7 @@ package de.mossgrabers.controller.ableton.push.controller;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.hardware.IHwButton;
+import de.mossgrabers.framework.utils.StringUtils;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.event.InputKind;
@@ -78,7 +79,7 @@ final class PushDebugSurfaceHost implements AutoCloseable
         if (this.closed.get ())
             return;
         final String control = PushControlIds.button (Objects.requireNonNull (button, "button").name ()).value ();
-        final LightState state = LightState.steady (palette, color);
+        final LightState state = new LightState (palette, StringUtils.formatColor (Objects.requireNonNull (color, "color")), 0, null, false);
         if (!state.equals (this.lights.put (control, state)))
             this.publish (true);
     }
@@ -90,7 +91,12 @@ final class PushDebugSurfaceHost implements AutoCloseable
         if (this.closed.get ())
             return;
         final String control = PushControlIds.pad (oneBasedPad).value ();
-        final LightState state = new LightState (palette, rgbHex (color), blinkPalette, blinkPalette > 0 ? rgbHex (blinkColor) : null, fast);
+        final LightState state = new LightState (
+            palette,
+            StringUtils.formatColor (Objects.requireNonNull (color, "color")),
+            blinkPalette,
+            blinkPalette > 0 ? StringUtils.formatColor (Objects.requireNonNull (blinkColor, "blinkColor")) : null,
+            fast);
         if (!state.equals (this.lights.put (control, state)))
             this.publish (true);
     }
@@ -262,20 +268,6 @@ final class PushDebugSurfaceHost implements AutoCloseable
     }
 
 
-    private static String rgbHex (final ColorEx color)
-    {
-        final int [] rgb = Objects.requireNonNull (color, "color").toIntRGB255 ();
-        final char [] result = new char [6];
-        for (int index = 0; index < 3; index++)
-        {
-            final int value = Math.max (0, Math.min (255, rgb[index]));
-            result[index * 2] = Character.toUpperCase (Character.forDigit (value >>> 4, 16));
-            result[index * 2 + 1] = Character.toUpperCase (Character.forDigit (value & 0x0F, 16));
-        }
-        return new String (result);
-    }
-
-
     private static String controlId (final ButtonID button)
     {
         final int padIndex = button.ordinal () - ButtonID.PAD1.ordinal () + 1;
@@ -309,10 +301,6 @@ final class PushDebugSurfaceHost implements AutoCloseable
 
     private record LightState (int palette, String rgb, int blinkPalette, String blinkRgb, boolean fast)
     {
-        private static LightState steady (final int palette, final ColorEx color)
-        {
-            return new LightState (palette, rgbHex (color), 0, null, false);
-        }
     }
 
 

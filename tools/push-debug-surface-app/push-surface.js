@@ -901,17 +901,5 @@
             queueDebugInput(address, "TOUCH", "KEEPALIVE", 0);
     }, 1000);
 
-    window.pushSurface = Object.freeze({
-        findControl,
-        applyDebugState,
-        queueDebugInput,
-        reset,
-        scheduleEncoderTurn,
-        selectPressurePad,
-        setDisplay,
-        setLight,
-        setPressed,
-        showDemo
-    });
     startLiveUpdates();
 })();

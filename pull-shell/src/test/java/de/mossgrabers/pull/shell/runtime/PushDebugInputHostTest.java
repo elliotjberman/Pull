@@ -8,6 +8,7 @@ import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.shell.input.InputKind;
 import de.mossgrabers.pull.shell.input.InputPhase;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -36,56 +37,62 @@ class PushDebugInputHostTest
     @TempDir
     Path debugDirectory;
 
+    private AtomicLong time;
+    private FakeSurface surface;
+    private FakeAdmission admission;
+    private PushDebugInputHost host;
+
+
+    @BeforeEach
+    void setUp ()
+    {
+        this.time = new AtomicLong ();
+        this.surface = new FakeSurface ();
+        this.admission = new FakeAdmission ();
+        this.host = new PushDebugInputHost (this.debugDirectory, this.surface, this.admission, this.time::get);
+        this.host.tick ();
+    }
+
 
     @Test
     void buttonBeginAndEndShareOneAdmissionLease () throws IOException
     {
-        final AtomicLong time = new AtomicLong ();
-        final FakeSurface surface = new FakeSurface ();
-        final FakeAdmission admission = new FakeAdmission ();
-        final PushDebugInputHost host = this.host (surface, admission, time);
+        this.request (this.host, "begin", PLAY, InputKind.BUTTON, "BEGIN", 127);
+        this.host.tick ();
 
-        this.request (host, "begin", PLAY, InputKind.BUTTON, "BEGIN", 127);
-        host.tick ();
-
-        assertEquals (List.of ("push.button.play:BUTTON:BEGIN:127"), surface.events);
-        assertTrue (admission.debugActive);
+        assertEquals (List.of ("push.button.play:BUTTON:BEGIN:127"), this.surface.events);
+        assertTrue (this.admission.debugActive);
         assertTrue (this.status ().contains ("\"state\":\"APPLIED\""));
 
-        admission.routeIdle = false;
-        this.request (host, "end", PLAY, InputKind.BUTTON, "END", 0);
-        host.tick ();
+        this.admission.routeIdle = false;
+        this.request (this.host, "end", PLAY, InputKind.BUTTON, "END", 0);
+        this.host.tick ();
 
         assertEquals (List.of (
             "push.button.play:BUTTON:BEGIN:127",
-            "push.button.play:BUTTON:END:0"), surface.events);
-        assertTrue (admission.debugActive, "release waits for the routed lifecycle to become idle");
+            "push.button.play:BUTTON:END:0"), this.surface.events);
+        assertTrue (this.admission.debugActive, "release waits for the routed lifecycle to become idle");
 
-        admission.routeIdle = true;
-        host.tick ();
-        assertFalse (admission.debugActive);
+        this.admission.routeIdle = true;
+        this.host.tick ();
+        assertFalse (this.admission.debugActive);
     }
 
 
     @Test
     void touchAndPressureUseTheirInstalledInputKinds () throws IOException
     {
-        final AtomicLong time = new AtomicLong ();
-        final FakeSurface surface = new FakeSurface ();
-        final FakeAdmission admission = new FakeAdmission ();
-        final PushDebugInputHost host = this.host (surface, admission, time);
+        this.request (this.host, "touch-down", KNOB, InputKind.TOUCH, "BEGIN", 127);
+        this.host.tick ();
+        this.request (this.host, "touch-up", KNOB, InputKind.TOUCH, "END", 0);
+        this.host.tick ();
 
-        this.request (host, "touch-down", KNOB, InputKind.TOUCH, "BEGIN", 127);
-        host.tick ();
-        this.request (host, "touch-up", KNOB, InputKind.TOUCH, "END", 0);
-        host.tick ();
-
-        this.request (host, "pad-down", PAD, InputKind.PAD, "BEGIN", 100);
-        host.tick ();
-        this.request (host, "pressure", PAD, InputKind.POLY_PRESSURE, "CHANGE", 91);
-        host.tick ();
-        this.request (host, "pad-up", PAD, InputKind.PAD, "END", 0);
-        host.tick ();
+        this.request (this.host, "pad-down", PAD, InputKind.PAD, "BEGIN", 100);
+        this.host.tick ();
+        this.request (this.host, "pressure", PAD, InputKind.POLY_PRESSURE, "CHANGE", 91);
+        this.host.tick ();
+        this.request (this.host, "pad-up", PAD, InputKind.PAD, "END", 0);
+        this.host.tick ();
 
         assertEquals (List.of (
             "push.continuous.knob1:TOUCH:BEGIN:127",
@@ -93,111 +100,112 @@ class PushDebugInputHostTest
             "push.pad.5:PAD:BEGIN:100",
             "push.pad.5:POLY_PRESSURE:CHANGE:91",
             "push.pad.5:POLY_PRESSURE:CHANGE:0",
-            "push.pad.5:PAD:END:0"), surface.events);
+            "push.pad.5:PAD:END:0"), this.surface.events);
         assertEquals (List.of (
             "push.pad.5:PAD:BEGIN:100",
             "push.pad.5:POLY_PRESSURE:CHANGE:91",
             "push.pad.5:POLY_PRESSURE:CHANGE:0",
-            "push.pad.5:PAD:END:0"), surface.noteInputEvents);
-        assertFalse (admission.debugActive);
+            "push.pad.5:PAD:END:0"), this.surface.noteInputEvents);
+        assertFalse (this.admission.debugActive);
     }
 
 
     @Test
     void pressureUpdatesAreCoalescedToTheLatestValuePerTick () throws IOException
     {
-        final AtomicLong time = new AtomicLong ();
-        final FakeSurface surface = new FakeSurface ();
-        final FakeAdmission admission = new FakeAdmission ();
-        final PushDebugInputHost host = this.host (surface, admission, time);
+        this.request (this.host, "pressure-1", PAD, InputKind.POLY_PRESSURE, "CHANGE", 12);
+        this.request (this.host, "pressure-2", PAD, InputKind.POLY_PRESSURE, "CHANGE", 48);
+        this.request (this.host, "pressure-3", PAD, InputKind.POLY_PRESSURE, "CHANGE", 91);
+        this.host.tick ();
 
-        this.request (host, "pressure-1", PAD, InputKind.POLY_PRESSURE, "CHANGE", 12);
-        this.request (host, "pressure-2", PAD, InputKind.POLY_PRESSURE, "CHANGE", 48);
-        this.request (host, "pressure-3", PAD, InputKind.POLY_PRESSURE, "CHANGE", 91);
-        host.tick ();
-
-        assertEquals (List.of ("push.pad.5:POLY_PRESSURE:CHANGE:91"), surface.events);
-        assertEquals (List.of ("push.pad.5:POLY_PRESSURE:CHANGE:91"), surface.noteInputEvents);
+        assertEquals (List.of ("push.pad.5:POLY_PRESSURE:CHANGE:91"), this.surface.events);
+        assertEquals (List.of ("push.pad.5:POLY_PRESSURE:CHANGE:91"), this.surface.noteInputEvents);
     }
 
 
     @Test
     void relativeTurnsAreSummedInsideTheMatchingTouchLease () throws IOException
     {
-        final AtomicLong time = new AtomicLong ();
-        final FakeSurface surface = new FakeSurface ();
-        final FakeAdmission admission = new FakeAdmission ();
-        final PushDebugInputHost host = this.host (surface, admission, time);
-
-        this.request (host, "touch-down", KNOB, InputKind.TOUCH, "BEGIN", 127);
-        host.tick ();
-        this.request (host, "relative-1", KNOB, InputKind.RELATIVE, "CHANGE", 4);
-        this.request (host, "relative-2", KNOB, InputKind.RELATIVE, "CHANGE", -3);
-        host.tick ();
-        this.request (host, "touch-up", KNOB, InputKind.TOUCH, "END", 0);
-        host.tick ();
+        this.request (this.host, "touch-down", KNOB, InputKind.TOUCH, "BEGIN", 127);
+        this.host.tick ();
+        this.request (this.host, "relative-1", KNOB, InputKind.RELATIVE, "CHANGE", 4);
+        this.request (this.host, "relative-2", KNOB, InputKind.RELATIVE, "CHANGE", -3);
+        this.host.tick ();
+        this.request (this.host, "touch-up", KNOB, InputKind.TOUCH, "END", 0);
+        this.host.tick ();
 
         assertEquals (List.of (
             "push.continuous.knob1:TOUCH:BEGIN:127",
             "push.continuous.knob1:RELATIVE:CHANGE:1",
-            "push.continuous.knob1:TOUCH:END:0"), surface.events);
-        assertTrue (surface.noteInputEvents.isEmpty ());
-        assertFalse (admission.debugActive);
+            "push.continuous.knob1:TOUCH:END:0"), this.surface.events);
+        assertTrue (this.surface.noteInputEvents.isEmpty ());
+        assertFalse (this.admission.debugActive);
     }
 
 
     @Test
     void detachedPressureExpiresToARealNoteInputNeutralization () throws IOException
     {
-        final AtomicLong time = new AtomicLong ();
-        final FakeSurface surface = new FakeSurface ();
-        final FakeAdmission admission = new FakeAdmission ();
-        final PushDebugInputHost host = this.host (surface, admission, time);
-
-        this.request (host, "pressure", PAD, InputKind.POLY_PRESSURE, "CHANGE", 91);
-        host.tick ();
-        time.set (TimeUnit.SECONDS.toNanos (6));
-        host.tick ();
+        this.request (this.host, "pressure", PAD, InputKind.POLY_PRESSURE, "CHANGE", 91);
+        this.host.tick ();
+        this.time.set (TimeUnit.SECONDS.toNanos (6));
+        this.host.tick ();
 
         assertEquals (List.of (
             "push.pad.5:POLY_PRESSURE:CHANGE:91",
-            "push.pad.5:POLY_PRESSURE:CHANGE:0"), surface.events);
-        assertEquals (surface.events, surface.noteInputEvents);
+            "push.pad.5:POLY_PRESSURE:CHANGE:0"), this.surface.events);
+        assertEquals (this.surface.events, this.surface.noteInputEvents);
+    }
+
+
+    @Test
+    void heldPressureLivesForTheRenewedPadLease () throws IOException
+    {
+        this.request (this.host, "pad-down", PAD, InputKind.PAD, "BEGIN", 100);
+        this.host.tick ();
+        this.request (this.host, "pressure", PAD, InputKind.POLY_PRESSURE, "CHANGE", 91);
+        this.host.tick ();
+
+        this.time.set (TimeUnit.SECONDS.toNanos (4));
+        this.request (this.host, "keepalive", PAD, InputKind.PAD, "KEEPALIVE", 0);
+        this.host.tick ();
+        this.time.set (TimeUnit.SECONDS.toNanos (8));
+        this.host.tick ();
+
+        assertEquals (List.of (
+            "push.pad.5:PAD:BEGIN:100",
+            "push.pad.5:POLY_PRESSURE:CHANGE:91"), this.surface.events);
+
+        this.request (this.host, "pad-up", PAD, InputKind.PAD, "END", 0);
+        this.host.tick ();
+        assertEquals (List.of (
+            "push.pad.5:PAD:BEGIN:100",
+            "push.pad.5:POLY_PRESSURE:CHANGE:91",
+            "push.pad.5:POLY_PRESSURE:CHANGE:0",
+            "push.pad.5:PAD:END:0"), this.surface.events);
+        assertEquals (this.surface.events, this.surface.noteInputEvents);
     }
 
 
     @Test
     void staleSessionIsRejectedAndExpiredHoldIsReleased () throws IOException
     {
-        final AtomicLong time = new AtomicLong ();
-        final FakeSurface surface = new FakeSurface ();
-        final FakeAdmission admission = new FakeAdmission ();
-        final PushDebugInputHost host = this.host (surface, admission, time);
-
         this.request ("stale", "stale", PLAY, InputKind.BUTTON, "BEGIN", 127);
-        host.tick ();
-        assertTrue (surface.events.isEmpty ());
+        this.host.tick ();
+        assertTrue (this.surface.events.isEmpty ());
         assertTrue (this.status ().contains ("session is stale"));
 
-        this.request (host, "held", PAD, InputKind.PAD, "BEGIN", 127);
-        host.tick ();
-        time.set (TimeUnit.SECONDS.toNanos (6));
-        host.tick ();
+        this.request (this.host, "held", PAD, InputKind.PAD, "BEGIN", 127);
+        this.host.tick ();
+        this.time.set (TimeUnit.SECONDS.toNanos (6));
+        this.host.tick ();
 
         assertEquals (List.of (
             "push.pad.5:PAD:BEGIN:127",
-            "push.pad.5:PAD:END:0"), surface.events);
-        assertEquals (surface.events, surface.noteInputEvents);
-        assertFalse (admission.debugActive);
+            "push.pad.5:PAD:END:0"), this.surface.events);
+        assertEquals (this.surface.events, this.surface.noteInputEvents);
+        assertFalse (this.admission.debugActive);
         assertTrue (this.status ().contains ("browser input lease expired"));
-    }
-
-
-    private PushDebugInputHost host (final FakeSurface surface, final FakeAdmission admission, final AtomicLong time)
-    {
-        final PushDebugInputHost host = new PushDebugInputHost (this.debugDirectory, surface, admission, time::get);
-        host.tick ();
-        return host;
     }
 
 

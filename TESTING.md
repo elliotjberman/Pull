@@ -89,6 +89,62 @@ remains only as recovery if the event stream reconnects.
 RGB rendering without Bitwig. Set `PUSH_DEBUG_SURFACE_NO_OPEN=true` to run the server without opening
 a browser, or `PUSH_DEBUG_SURFACE_PORT` to select another local port.
 
+#### Agent handoff: build, bring up, and prove the browser path
+
+Do not use a different worktree for any step in this sequence. First verify the checkout and run the
+complete offline gate:
+
+```bash
+git rev-parse --show-toplevel
+git status --short
+python3 -m unittest tools/test_push_debug_surface_server.py
+mvn -o -Dmaven.compiler.showDeprecation=true package
+```
+
+The remaining steps take ownership of the installed extension and running reloadable core. Coordinate
+with anyone using Bitwig before doing them. With Bitwig closed, enable debugging, copy this exact
+worktree's `target/Pull.bwextension` to Bitwig's extension directory as described in `README.md`, and
+start Bitwig once:
+
+```bash
+tools/capture-push2-display --enable
+```
+
+If another worktree may have published a core after Bitwig started, run this worktree's
+`tools/reload-core --timeout-ms 20000` before testing. Then start the surface from this worktree:
+
+```bash
+tools/push-debug-surface
+```
+
+Use the exact printed `http://127.0.0.1:<port>/` URL; the server rejects other Host and Origin values.
+Wait for `input ready`, then validate these layers separately:
+
+- Turn encoder 1 with its mouse wheel, vertical drag, or arrow keys. The terminal input status must
+  reach `APPLIED`, and a later `surface-state.json` event must report that encoder as `RELATIVE`,
+  `UPDATE`, and the submitted signed delta.
+- On a selected, armed, note-capable Drum Machine track, press and release the bottom-left pad. The
+  terminal input status must reach `APPLIED` for both edges, and later surface events must contain the
+  matching PAD `BEGIN` and `END`. Hearing the note is the required live evidence that Bitwig accepted
+  the separate `NoteInput` packet; the installed canopy has no authoritative note-held read-back.
+- Confirm that Bitwig-driven pad and button colors appear on the matching browser controls. A queued
+  HTTP response proves only local ingress, and an `APPLIED` status proves only controller routing;
+  neither by itself proves audible note delivery or later controller output.
+
+The bounded files below make those distinctions inspectable without browser developer tools:
+
+```bash
+jq . ~/.drivenbymoss/pull/debug/surface-input-info.json
+jq . ~/.drivenbymoss/pull/debug/surface-input-status.json
+jq '{connected, latestEvent: .events[-1]}' ~/.drivenbymoss/pull/debug/surface-state.json
+```
+
+Browser pad edges exercise the same API-32 raw-dispatch/mapped/suppressed lane arbitration as
+physical pad MIDI. A learned Bitwig hardware-action mapping still requires a physical Push press;
+Controller API 21 cannot inject the browser's raw note back through Bitwig's hardware matcher.
+Disable the debugger with `tools/capture-push2-display --disable` and restart Bitwig only when the
+next operator no longer needs it.
+
 The live mirror is constructed only when debugging was enabled before extension startup. Installing
 this shell change and restarting Bitwig once adds the output observer; later core reloads reuse it.
 The controller thread only copies the fixed Push footprint into one coalescing slot. JSON encoding,

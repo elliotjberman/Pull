@@ -46,12 +46,17 @@ class PushSurfaceHandler(SimpleHTTPRequestHandler):
     input_sequence = 0
     event_slots = threading.BoundedSemaphore(4)
 
-    def __init__(self, *args, debug_dir: Path, font_dir: Path | None, **kwargs):
+    def __init__(self, *args, authority: str, debug_dir: Path, font_dir: Path | None, origin: str, **kwargs):
+        self.authority = authority
         self.debug_dir = debug_dir
         self.font_dir = font_dir
+        self.origin = origin
         super().__init__(*args, **kwargs)
 
     def do_GET(self) -> None:  # noqa: N802 - stdlib handler API
+        if not self._trusted_host():
+            self.send_error(HTTPStatus.MISDIRECTED_REQUEST)
+            return
         path = urlsplit(self.path).path
         if path == "/api/events":
             self._serve_events()
@@ -68,7 +73,13 @@ class PushSurfaceHandler(SimpleHTTPRequestHandler):
         super().do_GET()
 
     def do_POST(self) -> None:  # noqa: N802 - stdlib handler API
+        if not self._trusted_host():
+            self.send_error(HTTPStatus.MISDIRECTED_REQUEST)
+            return
         if urlsplit(self.path).path == "/api/input":
+            if self.headers.get("Origin") != self.origin:
+                self.send_error(HTTPStatus.FORBIDDEN)
+                return
             self._queue_input()
             return
         self.send_error(HTTPStatus.NOT_FOUND)
@@ -81,18 +92,16 @@ class PushSurfaceHandler(SimpleHTTPRequestHandler):
     def log_message(self, _format: str, *_args: object) -> None:
         """Keep the local state stream and frame fetches from flooding the terminal."""
 
+    def _trusted_host(self) -> bool:
+        return self.headers.get_all("Host", []) == [self.authority]
+
     def _serve_state(self) -> None:
         state = self._read_state()
         display = self._display_state()
         if display is not None:
             state["display"] = display
         state["input"] = self._input_state()
-        payload = json.dumps(state, separators=(",", ":")).encode("utf-8")
-        self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(payload)))
-        self.end_headers()
-        self.wfile.write(payload)
+        self._send_json(HTTPStatus.OK, state)
 
     def _serve_events(self) -> None:
         if not type(self).event_slots.acquire(blocking=False):
@@ -243,7 +252,6 @@ class PushSurfaceHandler(SimpleHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(payload)))
-        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(payload)
 
@@ -260,14 +268,8 @@ class PushSurfaceHandler(SimpleHTTPRequestHandler):
         self.wfile.write(payload)
 
     def _read_state(self) -> dict:
-        state_path = self.debug_dir / "surface-state.json"
-        if not self._is_bounded_file(state_path, MAX_STATE_BYTES):
-            return self._empty_state()
-        try:
-            state = json.loads(state_path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeError, json.JSONDecodeError):
-            return self._empty_state()
-        if not isinstance(state, dict):
+        state = self._read_json(self.debug_dir / "surface-state.json", MAX_STATE_BYTES)
+        if state is None:
             return self._empty_state()
         lights = state.get("lights")
         pressed = state.get("pressed")
@@ -353,7 +355,9 @@ def main() -> None:
     app_dir = args.app_dir.resolve(strict=True)
     configured_debug_dir = os.environ.get("PUSH_DEBUG_SURFACE_DEBUG_DIR")
     debug_dir = Path(configured_debug_dir).expanduser() if configured_debug_dir else Path.home() / ".drivenbymoss" / "pull" / "debug"
-    handler = partial(PushSurfaceHandler, directory=str(app_dir), debug_dir=debug_dir, font_dir=find_bitwig_font_dir())
+    authority = f"127.0.0.1:{args.port}"
+    origin = f"http://{authority}"
+    handler = partial(PushSurfaceHandler, directory=str(app_dir), authority=authority, debug_dir=debug_dir, font_dir=find_bitwig_font_dir(), origin=origin)
     server = ThreadingHTTPServer(("127.0.0.1", args.port), handler)
     print(f"Serving Push debugger surface on http://127.0.0.1:{args.port}/", flush=True)
     try:

@@ -230,7 +230,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         this.environment.setInputLifecycleIdle (this.inputBridge::isIdle);
         this.environment.setNoteInputLifecycleIdle (this.inputBridge::musicalInputLifecycleIdle);
         this.debugNavigation = PushDebugNavigationHost.createIfEnabled (surface, this.inputBridge, this.environment::notePerformanceState, this.environment::debugLightObservation);
-        this.debugInputs = PushDebugInputHost.createIfEnabled (surface, this.inputBridge);
+        this.debugInputs = PushDebugInputHost.createIfEnabled (surface, this.inputBridge, this.inputBridge::triggerDebugPad);
         this.environment.setInputLifecycleCleanup ( () -> {
             if (this.debugInputs != null)
                 this.debugInputs.cancelActive ("core-owned input route is being invalidated");
@@ -503,7 +503,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         final CoreEvent input = event.stableAction ().<CoreEvent>map (this.environment::controllerAction).orElseGet ( () -> this.environment.controllerInput (
             event.control (),
             de.mossgrabers.pull.core.api.event.InputKind.valueOf (event.kind ().name ()),
-            event.phase () == de.mossgrabers.pull.shell.input.InputPhase.CHANGE ? de.mossgrabers.pull.core.api.event.InputPhase.UPDATE : de.mossgrabers.pull.core.api.event.InputPhase.valueOf (event.phase ().name ()),
+            PushControllerInputBridge.toCorePhase (event.phase ()),
             event.value ()));
         if (!this.started)
             return;
