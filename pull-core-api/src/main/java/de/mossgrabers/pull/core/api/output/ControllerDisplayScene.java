@@ -30,12 +30,27 @@ public record ControllerDisplayScene (int width, int height, List<DisplayCommand
             throw new IllegalArgumentException ("Display scene exceeds its 2048-command capacity");
 
         long renderWork = 0;
+        int clipDepth = 0;
         for (final DisplayCommand command: commands)
         {
+            if (command instanceof DisplayCommand.PushClip)
+            {
+                if (clipDepth != 0)
+                    throw new IllegalArgumentException ("display clip scopes must not nest");
+                clipDepth = 1;
+            }
+            else if (command instanceof DisplayCommand.PopClip)
+            {
+                if (clipDepth == 0)
+                    throw new IllegalArgumentException ("display clip scope is unbalanced");
+                clipDepth = 0;
+            }
             renderWork += renderCost (command);
             if (renderWork > MAX_RENDER_WORK)
                 throw new IllegalArgumentException ("Display scene exceeds its bounded render-work capacity");
         }
+        if (clipDepth != 0)
+            throw new IllegalArgumentException ("display clip scope is unbalanced");
     }
 
 

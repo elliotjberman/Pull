@@ -7,9 +7,29 @@ import java.util.Objects;
 
 
 /** One hardware-independent primitive in a reloadable controller display scene. */
-public sealed interface DisplayCommand permits DisplayCommand.Rectangle, DisplayCommand.RoundedRectangle, DisplayCommand.Circle, DisplayCommand.DottedArc, DisplayCommand.TextAt, DisplayCommand.TextBox, DisplayCommand.Icon
+public sealed interface DisplayCommand permits DisplayCommand.PushClip, DisplayCommand.PopClip, DisplayCommand.Rectangle, DisplayCommand.RoundedRectangle, DisplayCommand.Circle, DisplayCommand.DottedArc, DisplayCommand.TextAt, DisplayCommand.TextBox, DisplayCommand.Icon
 {
     double MAX_ABSOLUTE_ANGLE = 360000.0;
+
+    /** Begin one non-nested rectangular clip scope. */
+    record PushClip (double x, double y, double width, double height) implements DisplayCommand
+    {
+        /** Validate the bounded clip. */
+        public PushClip
+        {
+            requirePosition (x, "x");
+            requirePosition (y, "y");
+            requireSize (width, "width");
+            requireSize (height, "height");
+        }
+    }
+
+
+    /** End the active rectangular clip scope. */
+    record PopClip () implements DisplayCommand
+    {
+    }
+
 
     /** Filled axis-aligned rectangle. */
     record Rectangle (double x, double y, double width, double height, RgbColor color) implements DisplayCommand

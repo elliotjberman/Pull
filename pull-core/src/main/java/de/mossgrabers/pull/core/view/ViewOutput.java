@@ -22,7 +22,8 @@ import java.util.Objects;
  *
  * @param lights Hardware lights owned by the view
  * @param clipBindings Clip targets owned by the view's shell interaction bridge
- * @param display Complete controller display owned by the view
+ * @param display Controller display scene owned by the view; its output claims determine whether
+ *            this is a complete page or one fixed region
  * @param padGridOverlay Temporary overlay composed above stable pad-grid output
  * @param displayOverlay Temporary overlay composed above the current display page
  * @param notePerformance Complete replayable Note layout and selected-track routing lifecycle

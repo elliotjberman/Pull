@@ -53,6 +53,7 @@ import de.mossgrabers.pull.core.api.effect.ResetParameterEffect;
 import de.mossgrabers.pull.core.api.effect.DrumPadBoolean;
 import de.mossgrabers.pull.core.api.effect.DrumPadValue;
 import de.mossgrabers.pull.core.api.effect.SelectDrumPadEffect;
+import de.mossgrabers.pull.core.api.effect.SelectSessionTrackEffect;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackAction;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackActionEffect;
 import de.mossgrabers.pull.core.api.effect.StopSessionBankEffect;
@@ -459,6 +460,8 @@ final class BoundedControllerBridge implements ControllerBridge
         }
         if (effect instanceof final StopSessionBankEffect action)
             return this.sessionBank.prepare (action);
+        if (effect instanceof final SelectSessionTrackEffect action)
+            return this.sessionBank.prepare (action);
         if (effect instanceof final ConsumeControllerButtonEffect consumption)
         {
             if (!PushControlIds.button (ButtonID.SELECT.name ()).equals (consumption.controlId ()))
@@ -545,6 +548,8 @@ final class BoundedControllerBridge implements ControllerBridge
             this.applySelectedAction (selectedAction);
         else if (action instanceof final SessionBankHost.PreparedStop sessionAction)
             this.sessionBank.apply (sessionAction);
+        else if (action instanceof final SessionBankHost.PreparedSelection sessionSelection)
+            this.sessionBank.apply (sessionSelection);
         else if (action instanceof final PreparedControllerButtonConsumption consumption)
             this.surface.setTriggerConsumed (consumption.button ());
         else if (action instanceof final PreparedNoteInputMidi midi)

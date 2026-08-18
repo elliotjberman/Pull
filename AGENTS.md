@@ -191,7 +191,7 @@
 - A core-only change inside the installed API/canopy hot reloads. Changing a parent-loaded API
   contract, adding a Bitwig proxy/property/observer, changing a permanent binding or proxy capacity,
   or broadening hardware output ownership requires a shell build/install and Bitwig restart.
-- Core API 36 arbitrates general input, complete composed controller state, semantic action intent,
+- Core API 37 arbitrates general input, complete composed controller state, semantic action intent,
   named bounded parameter banks, and exact parameter-target leases. Each active view contributes
   its fixed facets, Note layout, selected-track musical route, and other owned output; composite
   workspaces merge disjoint contributions and reject physical overlap. Project-macro encoder turns
@@ -220,13 +220,22 @@
   project through a bounded navigate/acknowledge/toggle/acknowledge/return transaction. Its stable
   command is inert;
   the stable bindings only preserve the physical seam and translate core RGB to the Push palette.
-  API 34 installs generic explicit ownership for every registered Push button light and all 64
+  API 36 installs generic explicit ownership for every registered Push button light and all 64
   physical grid-pad lights. A core view may render only inside its declared output claims; an
   explicit owner replaces the stable supplier, while an unclaimed light preserves that supplier
   exactly. This is transport, not semantic ownership: migrate a control's action, authoritative
   state, and feedback together before changing its meaning.
   The Master scene's copy, typography, geometry, color, clipping, and shape policy are core-owned;
-  stable only interprets bounded generic primitives. API 22 also installs a temporary sparse 8x8
+  stable only interprets bounded generic primitives. The VS Live Project Macro and Track Selection
+  views independently own the fixed 960x143 parameter region and 960x17 bottom strip. Compilation
+  requires complete coverage, confines every primitive with compiler-owned clip scopes to its
+  claimed local viewport, and emits one 960x160 base scene. Track Selection owns its eight
+  exclusive lower-row edges and authoritative lights; it resolves the exact visible target at
+  gesture `BEGIN`, and the bounded Session effect revalidates generation, bank shape, index, and
+  channel identity before selecting. The stable `WorkspaceMode` retains only project-macro touch/Delete adaptation,
+  and missing core output stays blank rather than reviving its deleted page/track-strip policy.
+  A generic display base plane projects complete core scenes on every Push page while retaining
+  ordinary overlays above them. API 22 also installs a temporary sparse 8x8
   pad-grid overlay and a complete 960x160 display overlay whose activation and visuals are
   core-owned, plus a bounded pure mixer-control render service:
   Master, Project Macro, and the stable Track Mix adapter must use the same core-owned
@@ -236,8 +245,9 @@
   stable-owned, and missing/faulted core output leaves all eight mixer-control slots blank rather
   than reviving a stable semantic fallback. Those stable menus,
   footers, and other workspace facets are frozen inherited migration debt, not valid extension
-  points. Do not claim ribbon or inherited display-page hot reload beyond the installed output
-  lanes. Logical timer DTOs have no production capability or executor and must not be emitted while
+  points. Do not claim ribbon or semantic ownership of inherited display pages beyond Master and
+  the composed VS Live page merely because the generic base-scene transport is installed. Logical
+  timer DTOs have no production capability or executor and must not be emitted while
   `docs/findings/logical-timer-production-gap.md` is active.
 
 ## Bitwig controller API compatibility

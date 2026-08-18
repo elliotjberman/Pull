@@ -1,9 +1,10 @@
 # Pull View Architecture
 
-Status: current through Core API 36, semantic controller-mapping identities, generic registered
+Status: current through Core API 37, semantic controller-mapping identities, generic registered
 button/grid light arbitration, the shared
 mixer-control renderer, the Master-control migration, the post-demo `VS Live` composition, and
-core-owned Session Stop, selected-track Mute/Solo, note-view, and drum-rate policy.
+core-owned Session Stop, selected-track Mute/Solo, VS Live Project/Track display composition and
+track selection, note-view, and drum-rate policy.
 
 Read this file before changing controller views, modes, workspaces, input routing, or Session bank
 topology. The detailed design contract is in
@@ -305,8 +306,8 @@ Stable shell:
 - `StableControllerActionResolver`: derives semantic intent from remaining stable commands at their
   dispatch boundary.
 - `ControllerRuntimeEnvironment`: owns bounded leases, action barriers, and committed bridge state.
-- `WorkspaceMode`: project macro touch/delete, inherited Project menu/track footer, and track-strip
-  adapter; its parameter body is core-rendered.
+- `WorkspaceMode`: project-macro touch/Delete adapter only; its old display, track-selection, and
+  row-light semantics are deleted.
 - `WorkspaceView`: upper Session grid plus reusable lower Drum Controller adapter.
 - `SessionBankRegistry` and `SessionBankHost`: bounded 8x8/8x4 Bitwig bank canopy, requested
   authoritative state, and generation-fenced bank actions.
@@ -357,13 +358,20 @@ Implemented:
   display primitives. Missing or execution-faulted core behavior is blank and inert. A stable
   preparation rejection preserves the active generation's last committed output rather than
   converting one invalid result into a controller-wide fault.
+- Fixed display-region composition for the VS Live page. Project Macro owns the 960x143 parameter
+  body; Track Selection owns the 960x17 footer plus all eight exclusive lower-row edges and lights.
+  The compiler requires both regions, validates local containment, wraps each region in a real
+  renderer-enforced clip, and produces one complete base
+  scene. The shell projects that scene generically on any page and keeps the temporary overlay as a
+  distinct higher plane. Track selection captures the exact visible target at gesture `BEGIN`, is
+  generation/shape/index/channel fenced at execution, and renders feedback only from later
+  Session-bank read-back.
 
 Partial or transitional:
 
-- Project macro relative encoder behavior and parameter-body display run in core; touch/delete and
-  its inherited menu/footer frame remain in stable `WorkspaceMode`. Track-strip, Session,
-  navigation, Drum Controller play pads and octave
-  controls, and pitch-bend adapter-backed mechanics still run in stable
+- Project macro relative encoder and display behavior run in core; only touch/Delete remain in
+  stable `WorkspaceMode`. Session grid/scene mechanics, navigation, Drum Controller play pads and
+  octave controls, and pitch-bend adapter-backed mechanics still run in stable
   `WorkspaceMode`/`WorkspaceView`.
 - `ControllerViewFacet` remains a closed cross-boundary adapter ID.
 - Capability and Session-shape validation happens during stable result preparation, not entirely in
@@ -374,9 +382,10 @@ Partial or transitional:
   the eight drum-fill, four drum-rate, and four mappable-control lights, global Play/Record,
   Session Stop Clip, persistent selected-track Mute/Solo, and both Master rows. Authoritative
   semantic Bitwig Boolean feedback and replayable physical-to-semantic mapping leases support the
-  mappable controls. General display output is still partial: the Master graphics display, a
+  mappable controls. General display output is still semantically partial: Master and the composed
+  VS Live Project/Track page are core-authored, while a generic complete base-scene plane, a
   temporary sparse 8x8 grid overlay, and a complete temporary 960x160 display overlay are
-  arbitrated. The detailed design's API 36 installed-output inventory is canonical.
+  arbitrated. The detailed design's API 37 installed-output inventory is canonical.
 
 Deferred by design:
 

@@ -53,6 +53,12 @@ public final class DisplaySceneComponent implements IComponent
         {
             switch (command)
             {
+                case final DisplayCommand.PushClip clip -> gc.pushClip (
+                    x (bounds, clip.x (), scaleX),
+                    y (bounds, clip.y (), scaleY),
+                    clip.width () * scaleX,
+                    clip.height () * scaleY);
+                case final DisplayCommand.PopClip ignored -> gc.popClip ();
                 case final DisplayCommand.Rectangle rectangle -> gc.fillRectangle (
                     x (bounds, rectangle.x (), scaleX),
                     y (bounds, rectangle.y (), scaleY),

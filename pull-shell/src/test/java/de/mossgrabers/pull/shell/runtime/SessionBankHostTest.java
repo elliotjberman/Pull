@@ -11,6 +11,7 @@ import de.mossgrabers.framework.daw.data.bank.ISceneBank;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
 import de.mossgrabers.pull.core.api.SessionBankShape;
 import de.mossgrabers.pull.core.api.SessionBankSnapshot;
+import de.mossgrabers.pull.core.api.effect.SelectSessionTrackEffect;
 import de.mossgrabers.pull.core.api.effect.StopSessionBankEffect;
 
 import org.junit.jupiter.api.Test;
@@ -36,6 +37,7 @@ class SessionBankHostTest
         final SessionBankSnapshot initial = fixture.host.snapshot ();
         assertEquals (1, initial.generation ());
         assertEquals ("track-1", initial.tracks ().getFirst ().channelId ());
+        assertEquals ("Track 1", initial.tracks ().getFirst ().name ());
         assertEquals (ColorEx.RED.getRed (), initial.tracks ().getFirst ().color ().red () / 255.0, 0.01);
 
         fixture.first.muted = true;
@@ -43,6 +45,27 @@ class SessionBankHostTest
 
         assertEquals (initial.generation (), fixture.host.snapshot ().generation ());
         assertTrue (fixture.host.snapshot ().tracks ().getFirst ().muted ());
+    }
+
+
+    @Test
+    void selectionAppliesOnlyToTheExactPreparedVisibleTrack ()
+    {
+        final Fixture fixture = new Fixture ();
+        fixture.host.refresh ();
+        final SessionBankSnapshot initial = fixture.host.snapshot ();
+        final SelectSessionTrackEffect effect = new SelectSessionTrackEffect (initial.generation (), initial.shape (), 0, "track-1");
+        final SessionBankHost.PreparedSelection prepared = fixture.host.prepare (effect);
+
+        fixture.host.apply (prepared);
+        assertEquals (1, fixture.first.selections);
+
+        fixture.first.channelId = "replacement";
+        fixture.host.apply (prepared);
+        assertEquals (1, fixture.first.selections);
+
+        fixture.host.refresh ();
+        assertThrows (IllegalArgumentException.class, () -> fixture.host.prepare (effect));
     }
 
 
@@ -108,6 +131,7 @@ class SessionBankHostTest
         private String channelId;
         private final int position;
         private boolean muted;
+        private int selections;
         private final ITrack track;
 
 
@@ -120,10 +144,15 @@ class SessionBankHostTest
                 case "doesExist" -> Boolean.valueOf (!this.channelId.isEmpty ());
                 case "getChannelID" -> this.channelId;
                 case "getPosition" -> Integer.valueOf (this.position);
+                case "getName" -> "Track " + (this.position + 1);
                 case "isSelected", "isActivated" -> Boolean.TRUE;
                 case "isMute" -> Boolean.valueOf (this.muted);
                 case "isRecArm", "isSolo", "isPlaying" -> Boolean.FALSE;
                 case "getColor" -> ColorEx.RED;
+                case "select" -> {
+                    this.selections++;
+                    yield null;
+                }
                 default -> defaultValue (method.getReturnType ());
             });
         }

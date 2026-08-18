@@ -66,6 +66,7 @@ import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
 import de.mossgrabers.pull.core.api.effect.ResetParameterEffect;
 import de.mossgrabers.pull.core.api.effect.ScheduleTimerEffect;
 import de.mossgrabers.pull.core.api.effect.SendNoteInputMidiEffect;
+import de.mossgrabers.pull.core.api.effect.SelectSessionTrackEffect;
 import de.mossgrabers.pull.core.api.effect.StopSessionBankEffect;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.ControllerActionEvent;
@@ -201,7 +202,7 @@ class CoreApiValueTest
     @Test
     void publishesStableVersionCapabilityAndControlIdentifiers ()
     {
-        assertEquals (36, CoreApi.VERSION);
+        assertEquals (37, CoreApi.VERSION);
         assertEquals ("input.drum-fill", CoreCapabilities.INPUT_DRUM_FILL);
         assertEquals ("snapshot.selected-track-clips", CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS);
         assertEquals ("binding.clip-target", CoreCapabilities.BINDING_CLIP_TARGET);
@@ -318,6 +319,17 @@ class CoreApiValueTest
         assertThrows (IllegalArgumentException.class, () -> new DisplayCommand.Circle (0, 0, Double.NaN, new RgbColor (0, 0, 0)));
         assertThrows (IllegalArgumentException.class, () -> new DisplayCommand.DottedArc (10, 10, 5, 0, 90, 513, 1, new RgbColor (0, 0, 0)));
         assertThrows (IllegalArgumentException.class, () -> new DisplayCommand.TextAt ("x".repeat (1025), 0, 10, new RgbColor (0, 0, 0), 12));
+        assertThrows (IllegalArgumentException.class, () -> new ControllerDisplayScene (960, 160, List.of (
+            new DisplayCommand.PopClip (),
+            new DisplayCommand.Rectangle (0, 0, 1, 1, new RgbColor (0, 0, 0)))));
+        assertThrows (IllegalArgumentException.class, () -> new ControllerDisplayScene (960, 160, List.of (
+            new DisplayCommand.PushClip (0, 0, 960, 160),
+            new DisplayCommand.Rectangle (0, 0, 1, 1, new RgbColor (0, 0, 0)))));
+        assertThrows (IllegalArgumentException.class, () -> new ControllerDisplayScene (960, 160, List.of (
+            new DisplayCommand.PushClip (0, 0, 960, 160),
+            new DisplayCommand.PushClip (0, 0, 1, 1),
+            new DisplayCommand.PopClip (),
+            new DisplayCommand.PopClip ())));
 
         final RgbColor black = new RgbColor (0, 0, 0);
         final List<DisplayCommand> boundedArcs = new ArrayList<> ();
@@ -457,19 +469,22 @@ class CoreApiValueTest
     void sessionBankSnapshotsAndActionsAreBoundedAndIdentityFenced ()
     {
         final SessionBankShape shape = new SessionBankShape (2, 4);
-        final SessionTrackSnapshot track = new SessionTrackSnapshot ("track-1", 8, true, true, true, false, true, false, true, new RgbColor (1, 2, 3));
+        final SessionTrackSnapshot track = new SessionTrackSnapshot ("track-1", 8, "Drums", true, true, true, false, true, false, true, new RgbColor (1, 2, 3));
         final List<SessionTrackSnapshot> tracks = new ArrayList<> (List.of (track, SessionTrackSnapshot.empty ()));
         final SessionBankSnapshot snapshot = new SessionBankSnapshot (7, shape, 8, 12, tracks);
         tracks.clear ();
 
         assertEquals (List.of (track, SessionTrackSnapshot.empty ()), snapshot.tracks ());
         assertTrue (new StopSessionBankEffect (7, shape, true).alternative ());
+        assertEquals ("track-1", new SelectSessionTrackEffect (7, shape, 0, "track-1").channelId ());
         assertThrows (UnsupportedOperationException.class, () -> snapshot.tracks ().clear ());
         assertThrows (IllegalArgumentException.class, () -> new SessionBankSnapshot (7, shape, 8, 12, List.of (track)));
         assertThrows (IllegalArgumentException.class, () -> new SessionBankSnapshot (7, shape, 8, 12, List.of (track, track)));
         assertThrows (IllegalArgumentException.class, () -> new SessionTrackSnapshot ("", 8, true, false, false, false, false, false, false, new RgbColor (0, 0, 0)));
         assertThrows (IllegalArgumentException.class, () -> new SessionTrackSnapshot ("stale", -1, false, false, false, false, false, false, false, new RgbColor (0, 0, 0)));
+        assertThrows (IllegalArgumentException.class, () -> new SessionTrackSnapshot ("track-1", 8, "x".repeat (129), true, false, true, false, false, false, false, new RgbColor (0, 0, 0)));
         assertThrows (IllegalArgumentException.class, () -> new StopSessionBankEffect (7, SessionBankShape.empty (), true));
+        assertThrows (IllegalArgumentException.class, () -> new SelectSessionTrackEffect (7, shape, 2, "track-1"));
     }
 
 

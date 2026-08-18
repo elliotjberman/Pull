@@ -36,6 +36,7 @@ import de.mossgrabers.pull.core.api.effect.ResetParameterEffect;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
+import de.mossgrabers.pull.core.api.effect.SelectSessionTrackEffect;
 import de.mossgrabers.pull.core.api.effect.StopSessionBankEffect;
 import de.mossgrabers.pull.core.api.effect.SetTransportStateEffect;
 import de.mossgrabers.pull.core.api.effect.SetTransportValueEffect;
@@ -95,11 +96,11 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         Map.entry (CoreCapabilities.OUTPUT_NOTE_REPEAT, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.INPUT_CONTROLLER, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.ROUTING_CONTROLLER_INPUT, Integer.valueOf (4)),
-        Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE, Integer.valueOf (8)),
+        Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE, Integer.valueOf (9)),
         Map.entry (CoreCapabilities.SUBSCRIPTION_CONTROLLER_BRIDGE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_TRANSPORT, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_SELECTED_TRACK, Integer.valueOf (3)),
-        Map.entry (CoreCapabilities.EFFECT_SESSION_BANK, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.EFFECT_SESSION_BANK, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.EFFECT_CONTROLLER_BUTTON_CONSUMPTION, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_DRUM_PAD, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_NOTE_INPUT_MIDI, Integer.valueOf (2)),
@@ -108,7 +109,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_MAPPING_FEEDBACK, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.SNAPSHOT_MASTER, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_MASTER, Integer.valueOf (2)),
-        Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_DISPLAY, Integer.valueOf (2)),
+        Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_DISPLAY, Integer.valueOf (3)),
         Map.entry (CoreCapabilities.OUTPUT_PAD_GRID_OVERLAY, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.OUTPUT_DISPLAY_OVERLAY, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.RENDER_MIXER_CONTROLS, Integer.valueOf (1))));
@@ -623,7 +624,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
             throw new IllegalArgumentException ("A parameter interaction requires the parameter snapshot subscription");
         if (!parametersRequested && result.effects ().stream ().anyMatch (ControllerRuntimeEnvironment::isParameterEffect))
             throw new IllegalArgumentException ("A parameter effect requires the parameter snapshot subscription");
-        if (!result.desiredBridgeSubscriptions ().includes (BridgeSubscription.SESSION_BANK) && result.effects ().stream ().anyMatch (StopSessionBankEffect.class::isInstance))
+        if (!result.desiredBridgeSubscriptions ().includes (BridgeSubscription.SESSION_BANK) && result.effects ().stream ().anyMatch (ControllerRuntimeEnvironment::isSessionBankEffect))
             throw new IllegalArgumentException ("A Session-bank effect requires the Session-bank snapshot subscription");
         if (this.controllerBridge == null && (!parameterBanks.banks ().isEmpty () || parameterInteraction.interactionId () != 0))
             throw new IllegalArgumentException ("Core requested parameter state without a controller bridge");
@@ -785,8 +786,8 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
             colors.put (owner, new RgbColor (requested.red (), requested.green (), requested.blue ()));
         }
         final ControllerDisplayScene display = result.desiredOutput ().display ();
-        if (display.isPresent () && !masterControls)
-            throw new IllegalArgumentException ("Controller display output requires the Master-controls facet");
+        if (display.isPresent () && (display.width () != 960 || display.height () != 160))
+            throw new IllegalArgumentException ("Controller display output must use the 960x160 Push viewport");
         final ControllerPadGridOverlay overlay = result.desiredOutput ().padGridOverlay ();
         final ControllerDisplayOverlay displayOverlay = result.desiredOutput ().displayOverlay ();
         final DesiredControllerMappings controllerMappings = result.desiredOutput ().controllerMappings ();
@@ -933,6 +934,12 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     private static boolean isParameterEffect (final CoreEffect effect)
     {
         return effect instanceof SetParameterValueEffect || effect instanceof AdjustParameterValueEffect || effect instanceof ResetParameterEffect;
+    }
+
+
+    private static boolean isSessionBankEffect (final CoreEffect effect)
+    {
+        return effect instanceof StopSessionBankEffect || effect instanceof SelectSessionTrackEffect;
     }
 
 

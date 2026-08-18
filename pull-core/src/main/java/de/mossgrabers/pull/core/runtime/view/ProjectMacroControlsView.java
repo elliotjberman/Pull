@@ -18,6 +18,7 @@ import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.view.ControllerView;
 import de.mossgrabers.pull.core.view.SurfaceArea;
 import de.mossgrabers.pull.core.view.SurfaceClaim;
+import de.mossgrabers.pull.core.view.ViewOutput;
 import de.mossgrabers.pull.core.view.ViewProfile;
 
 import java.util.LinkedHashMap;
@@ -38,7 +39,7 @@ public final class ProjectMacroControlsView implements ControllerView
         Set.of (
             new SurfaceClaim (SurfaceArea.ENCODER_TURNS, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
             new SurfaceClaim (SurfaceArea.ENCODER_TOUCHES, SurfaceClaim.Kind.STABLE_ADAPTER_INPUT),
-            new SurfaceClaim (SurfaceArea.DISPLAY_PARAMETERS, SurfaceClaim.Kind.STABLE_ADAPTER_OUTPUT)),
+            new SurfaceClaim (SurfaceArea.DISPLAY_PARAMETERS, SurfaceClaim.Kind.OUTPUT)),
         Set.of (ControllerViewFacet.PROJECT_MACRO_CONTROLS));
 
 
@@ -85,6 +86,17 @@ public final class ProjectMacroControlsView implements ControllerView
             return List.of ();
         final ParameterTargetSnapshot target = snapshot.bridge ().parameters ().slots ().get (slot);
         return target == null ? List.of () : List.of (new AdjustParameterValueEffect (target.target (), input.value () * PARAMETER_STEP_SIZE));
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public ViewOutput render (final ControllerSnapshot snapshot)
+    {
+        return new ViewOutput (
+            Map.of (),
+            Map.of (),
+            ProjectMacroDisplayScene.render (snapshot.bridge ().parameters ().slots ()));
     }
 
 

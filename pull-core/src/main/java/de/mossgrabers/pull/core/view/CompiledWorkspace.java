@@ -285,6 +285,7 @@ public final class CompiledWorkspace
         final Set<ControlId> mappedPhysicalControls = new LinkedHashSet<> ();
         final Set<ControllerMappingId> mappingIds = new LinkedHashSet<> ();
         ControllerDisplayScene display = ControllerDisplayScene.empty ();
+        final Map<SurfaceArea, ControllerDisplayScene> displayRegions = new LinkedHashMap<> ();
         ControllerPadGridOverlay padGridOverlay = ControllerPadGridOverlay.inactive ();
         ControllerDisplayOverlay displayOverlay = ControllerDisplayOverlay.inactive ();
         DesiredNotePerformance notePerformance = DesiredNotePerformance.inactive ();
@@ -307,9 +308,23 @@ public final class CompiledWorkspace
             }
             if (output.display ().isPresent ())
             {
-                if (display.isPresent ())
-                    throw new IllegalStateException ("multiple views own the controller display");
-                display = output.display ();
+                final Set<SurfaceArea> regions = displayOutputClaims (view);
+                if (regions.isEmpty ())
+                    throw new IllegalStateException ("view " + view.id () + " emits a display outside its output claims");
+                if (regions.size () == 2)
+                {
+                    if (display.isPresent () || !displayRegions.isEmpty ())
+                        throw new IllegalStateException ("multiple views own the controller display");
+                    display = output.display ();
+                }
+                else
+                {
+                    if (display.isPresent ())
+                        throw new IllegalStateException ("a complete display owner cannot overlap composed display regions");
+                    final SurfaceArea region = regions.iterator ().next ();
+                    if (displayRegions.putIfAbsent (region, output.display ()) != null)
+                        throw new IllegalStateException ("multiple views own display region " + region);
+                }
             }
             if (output.padGridOverlay ().active ())
             {
@@ -336,6 +351,11 @@ public final class CompiledWorkspace
                 noteRepeat = output.noteRepeat ();
             }
         }
+
+        if (display.isPresent () && !displayRegions.isEmpty ())
+            throw new IllegalStateException ("a complete display owner cannot overlap composed display regions");
+        if (!display.isPresent () && !displayRegions.isEmpty ())
+            display = DisplayRegionComposition.compose (displayRegions);
 
         return new CoreResult (
             new DesiredHardwareOutput (lights, display, padGridOverlay, displayOverlay, new DesiredControllerMappings (controllerMappingBindings)),
@@ -392,6 +412,18 @@ public final class CompiledWorkspace
             claim.kind () == SurfaceClaim.Kind.OUTPUT && claim.area ().controls ().contains (lightControl));
         if (!claimed)
             throw new IllegalStateException ("view " + view.id () + " emits a light outside its output claims: " + lightControl);
+    }
+
+
+    private static Set<SurfaceArea> displayOutputClaims (final CompiledView view)
+    {
+        final Set<SurfaceArea> claims = new LinkedHashSet<> ();
+        for (final SurfaceArea area: List.of (SurfaceArea.DISPLAY_PARAMETERS, SurfaceArea.DISPLAY_BOTTOM_STRIP))
+        {
+            if (view.profile ().claims ().contains (new SurfaceClaim (area, SurfaceClaim.Kind.OUTPUT)))
+                claims.add (area);
+        }
+        return Set.copyOf (claims);
     }
 
 

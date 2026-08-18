@@ -44,7 +44,7 @@ public final class CoreCapabilities
     /** Replayable input ownership; v3 admits drum control pads and v4 Session and selected-track controls. */
     public static final String ROUTING_CONTROLLER_INPUT = "routing.controller-input";
 
-    /** Common bounded controller state; v8 adds Session state alongside semantic mapping feedback. */
+    /** Common bounded controller state; v9 adds visible Session-track names. */
     public static final String SNAPSHOT_CONTROLLER_BRIDGE = "snapshot.controller-bridge";
 
     /** Replayable selection of bounded bridge-state domains to publish and sample. */
@@ -56,7 +56,7 @@ public final class CoreCapabilities
     /** Generation-fenced selected-track state, value, and action effects. */
     public static final String EFFECT_SELECTED_TRACK = "effect.selected-track";
 
-    /** Generation-fenced actions against the active bounded Session bank. */
+    /** Generation-fenced actions against the active bounded Session bank; v2 adds track selection. */
     public static final String EFFECT_SESSION_BANK = "effect.session-bank";
     /** Mechanical consumption of a stable compatibility button release. */
     public static final String EFFECT_CONTROLLER_BUTTON_CONSUMPTION = "effect.controller-button-consumption";
@@ -82,7 +82,7 @@ public final class CoreCapabilities
     /** Serialized project/file/engine commands and stable-owned exact cross-project transport. */
     public static final String EFFECT_MASTER = "effect.master";
 
-    /** Complete replayable controller display; v2 adds bounded declarative vector scenes. */
+    /** Complete replayable controller display; v3 projects composed scenes on every Push page. */
     public static final String OUTPUT_CONTROLLER_DISPLAY = "output.controller-display";
 
     /** Temporary sparse overlay over a frozen Push pad-grid frame. */

@@ -35,7 +35,7 @@ correct migration extracts their policy while the stable shell continues owning 
 
 ## Current baseline
 
-On current `master`:
+In the current baseline:
 
 - drum-fill matching, launch-session policy, gesture state, and eight fill lights are core-owned;
 - four Bitwig-manually-mappable control pads, their replayable physical-to-semantic leases, and
@@ -44,8 +44,8 @@ On current `master`:
   actions remain raw ordinary-dispatch objects and never define learned mapping identity;
 - Record, Shift+Record, and Select+Record are core-owned;
 - VS Live selection and fixed-facet composition are core-owned;
-- stable adapters still realize VS Live's Session, Drum, macro, track-strip, display, and navigation
-  mechanics;
+- stable adapters still realize VS Live's Session grid/scene, Drum, macro touch/Delete, and
+  navigation mechanics;
 - drum-grid pressure interpretation and selected-target Note routing policy are core-owned in the
   composite workspace, while the permanent `NoteInput`, direct-route actuator, and MIDI
   neutralization remain stable;
@@ -55,24 +55,29 @@ On current `master`:
 - the practical existing Push input set is normalized by the stable input bridge;
 - every registered Push button light and every physical grid-pad light has a generic explicit
   core-or-stable arbitration plane; unclaimed controls preserve their exact frozen stable output;
-- transport, selected-track, controller-layout, and bounded drum snapshots/effects exist;
+- transport, selected-track, controller-layout, bounded Session-bank, and bounded drum
+  snapshots/effects exist; the Session bank includes visible track names and exact fenced track
+  selection as well as bank Stop;
 - Play and Record lights are core-owned through generic authoritative RGB output;
 - the Master page's two button rows and graphics scene are core-owned through complete output
   arbitration; its generic stable scene interpreter contains no Master layout policy;
+- one generic complete 960x160 base-scene plane projects core output on every Push page. The VS
+  Live Project Macro and Track Selection views compose its fixed 960x143 and 960x17 regions;
+  Track Selection also owns its lower-row actions and authoritative RGB feedback. The deleted
+  stable page/selection/light paths do not return on missing core output;
 - a generic sparse 8x8 pad-grid overlay can freeze, temporarily replace, and restore stable pad
   output; animation geometry, color, cadence, and activation policy are core-owned;
 - a generic complete 960x160 display overlay can temporarily replace and restore the inherited
   display page; overlay copy, geometry, color, and activation policy are core-owned;
-- the eight drum-fill and four mappable-control lights and the four control pads' semantic mapping
-  leases are also core-owned; unclaimed button/grid policy and other Push output surfaces remain
-  frozen migration debt;
+- the eight drum-fill, four drum-rate, and four mappable-control lights and the four control pads'
+  semantic mapping leases are also core-owned; unclaimed button/grid policy and other Push output
+  semantics remain frozen migration debt;
 - Shift snapback policy, view-owned physical-to-parameter-slot admission, semantic action
   invalidation, restoration acknowledgement, and navigation ordering are core-owned; stable owns
   named bounded Bitwig parameter banks, exact actuator leases, identity fencing, effect execution,
   command-driven compatibility-intent adaptation, and compatibility-action dispatch;
-- VS Live project-macro encoder mapping, relative mutation policy, and snapback admission are
-  core-owned. Its parameter-body display uses the core-owned mixer-control renderer; stable
-  `WorkspaceMode` remains only its touch/delete and inherited Project menu/track-footer adapter.
+- VS Live project-macro encoder mapping, relative mutation policy, display rendering, and snapback
+  admission are core-owned. Stable `WorkspaceMode` remains only its touch/Delete adapter.
 
 Before taking an item, inspect the active branch and in-flight work. This inventory describes
 architectural ownership, not a promise that no adjacent PR has changed the exact files.
@@ -105,7 +110,7 @@ The migration guide scopes Play as the safe first transport cut.
 - volume and pan;
 - stop, return to Arrangement, and create a new clip.
 
-API 36 now owns Mute/Solo as one persistent selected-track view and Stop as part of `SessionView`.
+API 37 owns Mute/Solo as one persistent selected-track view and Stop as part of `SessionView`.
 Plain Stop preserves the inherited immediate actuator; page overlays retain the active grid-view
 instances so their physical gestures remain continuous.
 The former project-clear, master, layer, lock/long, page-row, pad, and note modifier variants were
@@ -148,18 +153,19 @@ This is the main body of remaining work. It is migration debt, but not a file-on
 
 ### 1. Complete remaining hardware output
 
-API 34 completes reusable light arbitration for every registered Push button and all 64 physical
+API 36 completes reusable light arbitration for every registered Push button and all 64 physical
 grid pads. The shell validates output against the permanent physical registry; an explicit core
 owner replaces the frozen stable supplier, and an unclaimed control preserves that supplier
 exactly. Core compilation also rejects a view that renders a light outside its declared output
 claims. This installs the transport, but it does not silently migrate legacy meaning: each control's
 action, authoritative state, and feedback must still move together.
 
-Add bounded complete ownership for the remaining surfaces:
+The generic complete 960x160 base-scene projection is now installed. Master owns one complete scene,
+and the VS Live Project Macro and Track Selection views compose disjoint, containment-checked
+960x143 and 960x17 regions. Add bounded complete semantic ownership for the remaining surfaces:
 
 - touch-strip mode and LEDs;
-- the other USB display pages using the installed scene buffer or a deliberately expanded output
-  canopy;
+- the other USB display pages using the installed scene buffer;
 - transient notifications with explicit lifetime and replacement rules.
 
 After this expansion, color choice, light meaning, display layout, and notification policy move to
@@ -171,10 +177,11 @@ rendering.
 
 ### 2. Visible track bank and mixer
 
-API 36 now publishes stable identities, generation, offsets, and basic authoritative state for the
-eight tracks in the active bounded Session bank. It currently executes only a bank-wide Stop
-action. Extend that reusable window with the remaining state and fenced effects for selection,
-activation, arm, mute, solo, volume, pan, and bounded sends.
+API 37 publishes stable identities, names, generation, offsets, and basic authoritative state for
+the eight tracks in the active bounded Session bank. It executes a bank-wide Stop action and exact
+generation/shape/index/channel-fenced track selection captured at gesture `BEGIN`. VS Live's lower row action, RGB feedback,
+and footer labels now consume that shared window. Extend it with the remaining state and fenced
+effects for activation, arm, mute, solo, volume, pan, and bounded sends.
 
 Controller-level Play is now the reference transport migration: its stable command is inert, its
 edge is core-exclusive, and core targets the remembered engine-owning project with one exact
@@ -184,19 +191,18 @@ so a child-core reload or quarantine cannot split or strand the transaction. The
 
 This unlocks:
 
-- VS Live track-selection strip;
 - ordinary track selection;
 - Track, Volume, Pan, Send, Crossfade, and related mixer modes;
 - any future explicitly designed visible-track state controls;
-- authoritative track-strip lights and display output.
+- authoritative track-strip lights and display output on other pages.
 
 Do not confuse this with the existing private selected-track snapshot. A selected target cannot
 represent eight visible tracks.
 
 ### 3. Session grid
 
-API 36 installs the bounded visible Session bank's track identities, track/scene offsets, basic
-track state, and a generation-fenced bank-wide Stop action. `SessionView` uses it for Shift/Select
+API 37 installs the bounded visible Session bank's track identities/names, track/scene offsets,
+basic track state, generation-fenced bank-wide Stop, and exact visible-track Select. `SessionView` uses it for Shift/Select
 Stop while plain Stop uses the private authoritative selected target. Still add stable clip-slot
 identity and state such as existence, content, name, color, playing, recording, and queued.
 
@@ -415,9 +421,9 @@ Add, in order:
 3. remaining parameter-bank contexts beyond the API 24 named canopy.
 
 Then migrate `WorkspaceMode` and `WorkspaceView` completely. Project-macro relative turns and
-parameter-body display have already moved; automation touch, inherited menu/footer framing, track
-strips, Session, and Drum adapters remain good acceptance targets because their product behavior is
-specified and exercised in VS Live.
+display output plus VS Live track selection/feedback have moved; automation touch, other track
+strips, Session grid/scene behavior, navigation, and Drum adapters remain good acceptance targets
+because their product behavior is specified and exercised in VS Live.
 
 ### Phase 3: Complete vertical migrations
 

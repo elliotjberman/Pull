@@ -10,6 +10,7 @@ import de.mossgrabers.framework.daw.data.bank.ITrackBank;
 import de.mossgrabers.pull.core.api.SessionBankShape;
 import de.mossgrabers.pull.core.api.SessionBankSnapshot;
 import de.mossgrabers.pull.core.api.SessionTrackSnapshot;
+import de.mossgrabers.pull.core.api.effect.SelectSessionTrackEffect;
 import de.mossgrabers.pull.core.api.effect.StopSessionBankEffect;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 
@@ -67,6 +68,18 @@ final class SessionBankHost
     }
 
 
+    PreparedSelection prepare (final SelectSessionTrackEffect effect)
+    {
+        final SelectSessionTrackEffect request = Objects.requireNonNull (effect, "effect");
+        if (request.targetGeneration () != this.snapshot.generation () || !request.shape ().equals (this.snapshot.shape ()))
+            throw new IllegalArgumentException ("Session-bank action target is stale");
+        final SessionTrackSnapshot track = this.snapshot.tracks ().get (request.trackIndex ());
+        if (!track.exists () || !track.channelId ().equals (request.channelId ()))
+            throw new IllegalArgumentException ("Session track selection target is stale");
+        return new PreparedSelection (request.targetGeneration (), request.shape (), request.trackIndex (), request.channelId ());
+    }
+
+
     void apply (final PreparedStop action)
     {
         final PreparedStop request = Objects.requireNonNull (action, "action");
@@ -74,6 +87,18 @@ final class SessionBankHost
         if (request.generation () != this.generation || !request.shape ().equals (live.shape ()) || !live.equals (this.identity))
             return;
         this.registry.getActiveBank ().stop (request.alternative ());
+    }
+
+
+    void apply (final PreparedSelection action)
+    {
+        final PreparedSelection request = Objects.requireNonNull (action, "action");
+        final TargetIdentity live = this.captureIdentity ();
+        if (request.generation () != this.generation || !request.shape ().equals (live.shape ()) || !live.equals (this.identity))
+            return;
+        final ITrack track = this.registry.getActiveBank ().getItem (request.trackIndex ());
+        if (track.doesExist () && request.channelId ().equals (track.getChannelID ()))
+            track.select ();
     }
 
 
@@ -92,6 +117,7 @@ final class SessionBankHost
             tracks.add (new SessionTrackSnapshot (
                 track.getChannelID (),
                 track.getPosition (),
+                track.getName (16),
                 true,
                 track.isSelected (),
                 track.isActivated (),
@@ -131,6 +157,16 @@ final class SessionBankHost
         PreparedStop
         {
             shape = Objects.requireNonNull (shape, "shape");
+        }
+    }
+
+
+    record PreparedSelection (long generation, SessionBankShape shape, int trackIndex, String channelId) implements ControllerBridge.PreparedAction
+    {
+        PreparedSelection
+        {
+            shape = Objects.requireNonNull (shape, "shape");
+            channelId = Objects.requireNonNull (channelId, "channelId");
         }
     }
 

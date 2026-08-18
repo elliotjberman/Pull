@@ -30,19 +30,24 @@ import de.mossgrabers.pull.core.api.ParameterTargetRef;
 import de.mossgrabers.pull.core.api.ParameterTargetSnapshot;
 import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
+import de.mossgrabers.pull.core.api.SessionBankSnapshot;
 import de.mossgrabers.pull.core.api.SessionBankShape;
+import de.mossgrabers.pull.core.api.SessionTrackSnapshot;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.TransportSnapshot;
 import de.mossgrabers.pull.core.api.effect.AdjustParameterValueEffect;
+import de.mossgrabers.pull.core.api.effect.SelectSessionTrackEffect;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
+import de.mossgrabers.pull.core.api.output.DisplayCommand;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.runtime.view.ProjectMacroControlsView;
 import de.mossgrabers.pull.core.runtime.view.SessionView;
+import de.mossgrabers.pull.core.runtime.view.TrackSelectionStripView;
 import de.mossgrabers.pull.core.runtime.view.WorkspaceSelection;
 import de.mossgrabers.pull.core.runtime.view.WorkspaceSelectionView;
 
@@ -236,9 +241,13 @@ class CompiledWorkspaceTest
 
 
     @Test
-    void projectMacrosOwnEncoderTurnsWhileStableAdaptsTouchAndDisplay ()
+    void projectMacrosOwnEncoderTurnsAndTheirDisplayRegionWhileStableAdaptsTouch ()
     {
-        final CompiledWorkspace workspace = CompiledWorkspace.compile ("macros", List.of (new ProjectMacroControlsView ()));
+        final ControllerView footer = displayRegionView (
+            "test footer",
+            SurfaceArea.DISPLAY_BOTTOM_STRIP,
+            new ControllerDisplayScene (960, 17, List.of (new DisplayCommand.Rectangle (0, 0, 960, 17, new RgbColor (0, 0, 0)))));
+        final CompiledWorkspace workspace = CompiledWorkspace.compile ("macros", List.of (new ProjectMacroControlsView (), footer));
         final CoreResult result = workspace.start (parameterSnapshot ());
         final ControlId firstKnob = PushControlIds.continuous ("KNOB1");
 
@@ -247,6 +256,7 @@ class CompiledWorkspaceTest
         assertEquals (InputRouteMode.EXCLUSIVE, result.desiredInputRoutes ().mode (firstKnob, InputKind.RELATIVE).orElseThrow ());
         assertEquals (Set.of (ParameterBankId.PROJECT_REMOTE), result.desiredParameterBanks ().banks ());
         assertTrue (result.desiredBridgeSubscriptions ().includes (BridgeSubscription.PARAMETERS));
+        assertTrue (result.desiredOutput ().display ().isPresent ());
 
         final CoreResult adjusted = workspace.handle (
             new ControllerInputEvent (1, 1, firstKnob, InputKind.RELATIVE, InputPhase.UPDATE, 3),
@@ -257,6 +267,87 @@ class CompiledWorkspaceTest
             new ControllerInputEvent (2, 2, firstKnob, InputKind.RELATIVE, InputPhase.UPDATE, -2),
             parameterSnapshot ());
         assertEquals (List.of (new AdjustParameterValueEffect (PROJECT_TARGET, -20)), decreased.effects ());
+    }
+
+
+    @Test
+    void composesDisjointViewDisplayRegionsIntoOneCompleteViewport ()
+    {
+        final RgbColor upperColor = new RgbColor (10, 20, 30);
+        final RgbColor footerColor = new RgbColor (40, 50, 60);
+        final ControllerView upper = displayRegionView (
+            "upper",
+            SurfaceArea.DISPLAY_PARAMETERS,
+            new ControllerDisplayScene (960, 143, List.of (
+                new DisplayCommand.Rectangle (0, 0, 960, 143, upperColor),
+                new DisplayCommand.TextAt ("clipped", 0, 143, upperColor, 512))));
+        final ControllerView footer = displayRegionView (
+            "footer",
+            SurfaceArea.DISPLAY_BOTTOM_STRIP,
+            new ControllerDisplayScene (960, 17, List.of (new DisplayCommand.Rectangle (0, 0, 960, 17, footerColor))));
+
+        final ControllerDisplayScene composed = CompiledWorkspace.compile ("display regions", List.of (upper, footer)).start (snapshot ()).desiredOutput ().display ();
+
+        assertEquals (960, composed.width ());
+        assertEquals (160, composed.height ());
+        assertEquals (List.of (
+            new DisplayCommand.PushClip (0, 0, 960, 143),
+            new DisplayCommand.Rectangle (0, 0, 960, 143, upperColor),
+            new DisplayCommand.TextAt ("clipped", 0, 143, upperColor, 512),
+            new DisplayCommand.PopClip (),
+            new DisplayCommand.PushClip (0, 143, 960, 17),
+            new DisplayCommand.Rectangle (0, 143, 960, 17, footerColor),
+            new DisplayCommand.PopClip ()), composed.commands ());
+    }
+
+
+    @Test
+    void rejectsPartialOrOverflowingDisplayRegionComposition ()
+    {
+        final ControllerView partial = displayRegionView (
+            "partial",
+            SurfaceArea.DISPLAY_PARAMETERS,
+            new ControllerDisplayScene (960, 143, List.of (new DisplayCommand.Rectangle (0, 0, 960, 143, new RgbColor (1, 2, 3)))));
+        final ControllerView overflow = displayRegionView (
+            "overflow",
+            SurfaceArea.DISPLAY_BOTTOM_STRIP,
+            new ControllerDisplayScene (960, 17, List.of (new DisplayCommand.Rectangle (0, 0, 961, 17, new RgbColor (4, 5, 6)))));
+
+        assertThrows (IllegalStateException.class, () -> CompiledWorkspace.compile ("partial", List.of (partial)).start (snapshot ()));
+        assertThrows (IllegalStateException.class, () -> CompiledWorkspace.compile ("overflow", List.of (partial, overflow)).start (snapshot ()));
+    }
+
+
+    @Test
+    void rejectsDisplayRegionOutsideTheEmittingViewsClaim ()
+    {
+        final ControllerView parasitic = new ControllerView ()
+        {
+            @Override
+            public String id ()
+            {
+                return "parasitic display";
+            }
+
+
+            @Override
+            public ViewProfile profile ()
+            {
+                return ViewProfile.fixed ("parasitic display", Set.of (), Set.of ());
+            }
+
+
+            @Override
+            public ViewOutput render (final ControllerSnapshot ignored)
+            {
+                return new ViewOutput (
+                    Map.of (),
+                    Map.of (),
+                    new ControllerDisplayScene (960, 17, List.of (new DisplayCommand.Rectangle (0, 0, 960, 17, new RgbColor (1, 2, 3)))));
+            }
+        };
+
+        assertThrows (IllegalStateException.class, () -> CompiledWorkspace.compile ("parasitic display", List.of (parasitic)).start (snapshot ()));
     }
 
 
@@ -301,6 +392,26 @@ class CompiledWorkspaceTest
         workspace.handleAction (action, snapshot ());
 
         assertEquals (WorkspaceSelection.Id.VS_LIVE, selection.active ());
+    }
+
+
+    @Test
+    void resolvedTrackSelectionRetainsItsBeginTimeBankIdentity ()
+    {
+        final ControllerView upper = displayRegionView (
+            "upper",
+            SurfaceArea.DISPLAY_PARAMETERS,
+            new ControllerDisplayScene (960, 143, List.of (new DisplayCommand.Rectangle (0, 0, 960, 143, new RgbColor (0, 0, 0)))));
+        final CompiledWorkspace workspace = CompiledWorkspace.compile ("tracks", List.of (upper, new TrackSelectionStripView ()));
+        final ControllerSnapshot begin = sessionSnapshot (7, "track-a");
+        workspace.start (begin);
+
+        final ResolvedControllerAction action = workspace.resolveAction (
+            new ControllerInputEvent (1, 0, PushControlIds.button ("ROW1_1"), InputKind.BUTTON, InputPhase.BEGIN, 127),
+            begin);
+        final CoreResult result = workspace.handleAction (action, sessionSnapshot (8, "track-b"));
+
+        assertEquals (List.of (new SelectSessionTrackEffect (7, new SessionBankShape (8, 4), 0, "track-a")), result.effects ());
     }
 
 
@@ -446,6 +557,33 @@ class CompiledWorkspaceTest
     }
 
 
+    private static ControllerView displayRegionView (final String id, final SurfaceArea area, final ControllerDisplayScene scene)
+    {
+        return new ControllerView ()
+        {
+            @Override
+            public String id ()
+            {
+                return id;
+            }
+
+
+            @Override
+            public ViewProfile profile ()
+            {
+                return ViewProfile.fixed (id, Set.of (claim (area, SurfaceClaim.Kind.OUTPUT)), Set.of ());
+            }
+
+
+            @Override
+            public ViewOutput render (final ControllerSnapshot ignored)
+            {
+                return new ViewOutput (Map.of (), Map.of (), scene);
+            }
+        };
+    }
+
+
     private static ControllerView mappingView (final String id, final SurfaceArea area, final ControllerMappingBinding... bindings)
     {
         return mappingView (
@@ -533,6 +671,28 @@ class CompiledWorkspaceTest
             ControllerLayoutSnapshot.empty (),
             DrumContextSnapshot.empty (),
             parameters);
+        return new ControllerSnapshot (0, 0, ShellCapabilities.empty (), bridge, ClipCatalogSnapshot.empty (), Map.of (), Map.of (), java.util.Optional.empty (), Set.of (), Set.of ());
+    }
+
+
+    private static ControllerSnapshot sessionSnapshot (final long generation, final String firstChannel)
+    {
+        final SessionBankShape shape = new SessionBankShape (8, 4);
+        final java.util.ArrayList<SessionTrackSnapshot> tracks = new java.util.ArrayList<> ();
+        tracks.add (new SessionTrackSnapshot (firstChannel, 0, firstChannel, true, false, true, false, false, false, false, new RgbColor (10, 20, 30)));
+        while (tracks.size () < shape.tracks ())
+            tracks.add (SessionTrackSnapshot.empty ());
+        final ControllerBridgeSnapshot bridge = new ControllerBridgeSnapshot (
+            TransportSnapshot.empty (),
+            SelectedTrackSnapshot.empty (),
+            new SessionBankSnapshot (generation, shape, 0, 0, tracks),
+            ControllerLayoutSnapshot.empty (),
+            de.mossgrabers.pull.core.api.NoteViewSnapshot.empty (),
+            de.mossgrabers.pull.core.api.NoteRepeatSnapshot.empty (),
+            DrumContextSnapshot.empty (),
+            ParameterBridgeSnapshot.empty (),
+            de.mossgrabers.pull.core.api.MasterSnapshot.empty (),
+            de.mossgrabers.pull.core.api.ProjectSnapshot.empty ());
         return new ControllerSnapshot (0, 0, ShellCapabilities.empty (), bridge, ClipCatalogSnapshot.empty (), Map.of (), Map.of (), java.util.Optional.empty (), Set.of (), Set.of ());
     }
 

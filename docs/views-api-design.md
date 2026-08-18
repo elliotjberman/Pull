@@ -1,6 +1,6 @@
 # Views API and Composite Workspaces
 
-Status: design contract. Checkpoints 1 and 2 are structurally implemented through Core API 36. The
+Status: design contract. Checkpoints 1 and 2 are structurally implemented through Core API 37. The
 remaining stable-adapter boundary is represented explicitly in claims and recorded in
 [`../ARCH.md`](../ARCH.md). The checkpoints remain below so code, offline tests, and Push hardware
 tests can be compared against the intended end state.
@@ -236,6 +236,16 @@ Its exclusive input and RGB output claims are unaffected by Session, Mix, Device
 or composite-grid selection. Legacy page-retarget and held-modifier meanings were removed; a view
 which needs a future target other than the selected track must declare a different target-specific
 control view rather than infer it from the visible page.
+
+Display fragments now follow the same ownership rule for the installed VS Live page. Project Macro
+emits only a local 960x143 `DISPLAY.PARAMETERS` scene, while Track Selection emits only a local
+960x17 `DISPLAY.BOTTOM_STRIP` scene. The compiler rejects a partial page, an unclaimed fragment, an
+overlap with a complete-scene owner, or a primitive outside its local viewport; successful
+composition wraps each fragment in a compiler-owned, renderer-enforced clip and yields one 960x160
+base scene. The shell's generic base plane replaces inherited page
+columns without suppressing ordinary overlays. A temporary display overlay is different: for
+example, a short-lived full-screen status/animation scene sits above the composed base and then
+reveals it again, rather than sharing either region claim.
 
 ## Implementation Checkpoints
 

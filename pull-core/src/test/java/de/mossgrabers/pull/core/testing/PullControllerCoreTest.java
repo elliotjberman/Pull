@@ -63,6 +63,7 @@ import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackAction;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackActionEffect;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackBoolean;
+import de.mossgrabers.pull.core.api.effect.SelectSessionTrackEffect;
 import de.mossgrabers.pull.core.api.effect.StopSessionBankEffect;
 import de.mossgrabers.pull.core.api.effect.SendNoteInputMidiEffect;
 import de.mossgrabers.pull.core.api.effect.SetSelectedTrackBooleanEffect;
@@ -937,6 +938,40 @@ class PullControllerCoreTest
             ControllerViewFacet.DRUM_CONTROLLER_LOWER,
             ControllerViewFacet.DRUM_PITCH_BEND), host.effects ().desiredControllerWorkspace ().facets ());
         assertEquals (Optional.of (InputRouteMode.OBSERVE), host.effects ().desiredInputRoutes ().mode (STOP_CLIP_BUTTON, InputKind.BUTTON));
+    }
+
+
+    @Test
+    void vsLiveComposesProjectAndTrackViewsWithAuthoritativeTrackSelectionFeedback ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        final ControlId secondTrackButton = PushControlIds.button ("ROW1_2");
+        final RgbColor secondTrackColor = new RgbColor (25, 50, 100);
+        host.start (Optional.empty ());
+        enterVsLive (host);
+        host.bridge (trackSelectionBridge (2, false));
+
+        assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (secondTrackButton, InputKind.BUTTON));
+        assertEquals (secondTrackColor, light (host, secondTrackButton));
+        assertEquals (960, host.effects ().desiredOutput ().display ().width ());
+        assertEquals (160, host.effects ().desiredOutput ().display ().height ());
+        assertTrue (host.effects ().desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "Drums".equals (text.text ())));
+        assertTrue (host.effects ().desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "Bass".equals (text.text ())));
+        assertFalse (hasFooterSelection (host, 1, secondTrackColor));
+
+        final int submittedEffects = host.effects ().executionOrder ().size ();
+        host.controllerButton (secondTrackButton, true);
+
+        assertEquals (submittedEffects + 1, host.effects ().executionOrder ().size ());
+        assertEquals (new SelectSessionTrackEffect (12, VsLiveWorkspace.SESSION_BANK, 1, "track-8"), host.effects ().executionOrder ().getLast ());
+        assertFalse (hasFooterSelection (host, 1, secondTrackColor));
+
+        host.bridge (trackSelectionBridge (3, true));
+        assertTrue (hasFooterSelection (host, 1, secondTrackColor));
+
+        final int afterReadback = host.effects ().executionOrder ().size ();
+        host.controllerButton (secondTrackButton, false);
+        assertEquals (afterReadback, host.effects ().executionOrder ().size ());
     }
 
 
@@ -1973,7 +2008,7 @@ class PullControllerCoreTest
     {
         final SelectedTrackSnapshot selected = selectedTrack (false);
         final List<SessionTrackSnapshot> tracks = new ArrayList<> ();
-        tracks.add (new SessionTrackSnapshot (selected.channelId (), selected.position (), true, true, selected.activated (), selected.recordArmed (), selected.muted (), selected.soloed (), selected.clipPlaying (), selected.color ()));
+        tracks.add (new SessionTrackSnapshot (selected.channelId (), selected.position (), selected.name (), true, true, selected.activated (), selected.recordArmed (), selected.muted (), selected.soloed (), selected.clipPlaying (), selected.color ()));
         while (tracks.size () < shape.tracks ())
             tracks.add (SessionTrackSnapshot.empty ());
         return new ControllerBridgeSnapshot (
@@ -1987,6 +2022,38 @@ class PullControllerCoreTest
             ParameterBridgeSnapshot.empty (),
             MasterSnapshot.empty (),
             ProjectSnapshot.empty ());
+    }
+
+
+    private static ControllerBridgeSnapshot trackSelectionBridge (final long layoutGeneration, final boolean secondSelected)
+    {
+        final SessionBankShape shape = VsLiveWorkspace.SESSION_BANK;
+        final List<SessionTrackSnapshot> tracks = new ArrayList<> ();
+        tracks.add (new SessionTrackSnapshot ("track-7", 3, "Drums", true, !secondSelected, true, false, false, false, true, new RgbColor (100, 50, 25)));
+        tracks.add (new SessionTrackSnapshot ("track-8", 4, "Bass", true, secondSelected, true, false, false, false, false, new RgbColor (25, 50, 100)));
+        while (tracks.size () < shape.tracks ())
+            tracks.add (SessionTrackSnapshot.empty ());
+        return new ControllerBridgeSnapshot (
+            TransportSnapshot.empty (),
+            secondSelected ? selectedTrack (8, "track-8", 4, true, false) : selectedTrack (false),
+            new SessionBankSnapshot (12, shape, 0, 0, tracks),
+            new ControllerLayoutSnapshot (layoutGeneration, "DRUM_PAD", "WORKSPACE", false, false, 0, GridPressureConfiguration.OFF),
+            NoteViewSnapshot.empty (),
+            NoteRepeatSnapshot.empty (),
+            DrumContextSnapshot.empty (),
+            ParameterBridgeSnapshot.empty (),
+            MasterSnapshot.empty (),
+            ProjectSnapshot.empty ());
+    }
+
+
+    private static boolean hasFooterSelection (final FakeCoreHost host, final int index, final RgbColor color)
+    {
+        return host.effects ().desiredOutput ().display ().commands ().stream ().anyMatch (command ->
+            command instanceof final DisplayCommand.Rectangle rectangle &&
+                rectangle.x () == index * 120 && rectangle.y () == 143 &&
+                rectangle.width () == 120 && rectangle.height () == 17 &&
+                color.equals (rectangle.color ()));
     }
 
 
@@ -2049,7 +2116,6 @@ class PullControllerCoreTest
         assertEquals (VsLiveWorkspace.SESSION_BANK, workspace.sessionBankShape ());
         assertEquals (Set.of (
             ControllerViewFacet.PROJECT_MACRO_CONTROLS,
-            ControllerViewFacet.TRACK_SELECTION_STRIP,
             ControllerViewFacet.SESSION_NAVIGATION,
             ControllerViewFacet.SESSION_CLIP_GRID_UPPER,
             ControllerViewFacet.SESSION_SCENE_KEYS_UPPER,
