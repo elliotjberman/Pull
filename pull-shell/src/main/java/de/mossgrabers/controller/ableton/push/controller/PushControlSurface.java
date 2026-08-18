@@ -11,7 +11,9 @@ import de.mossgrabers.controller.ableton.push.PushConfiguration;
 import de.mossgrabers.controller.ableton.push.workspace.ControllerWorkspaceHost;
 import de.mossgrabers.controller.ableton.push.workspace.SessionBankRegistry;
 import de.mossgrabers.framework.controller.AbstractControlSurface;
+import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.color.ColorManager;
+import de.mossgrabers.framework.controller.hardware.BindType;
 import de.mossgrabers.framework.controller.grid.PadColor;
 import de.mossgrabers.framework.daw.IHost;
 import de.mossgrabers.framework.daw.data.ITrack;
@@ -24,7 +26,11 @@ import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.framework.utils.StringUtils;
 import de.mossgrabers.framework.view.Views;
 import de.mossgrabers.pull.shell.runtime.ReloadableControllerRuntime;
+import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
+import de.mossgrabers.pull.core.api.PushControlIds;
+import de.mossgrabers.pull.core.api.event.InputKind;
+import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 
 
@@ -344,6 +350,7 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
     private final PushPadGrid                 pushPadGrid;
     private final ReloadableControllerRuntime reloadableRuntime;
     private final ControllerWorkspaceHost      controllerWorkspaceHost;
+    private final PushDebugSurfaceHost         debugSurfaceHost;
     private SessionBankRegistry                 sessionBankRegistry;
     private final ISelectedTrackNoteTarget    selectedTrackNoteTarget;
     private final ITrack                      drumModelTrack;
@@ -395,8 +402,137 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
         if (this.reloadableRuntime != null)
             this.pushPadGrid.setOverlaySupplier (this.reloadableRuntime::padGridOverlay);
         this.colorPalette = new ColorPalette (this);
+        this.debugSurfaceHost = PushDebugSurfaceHost.createIfEnabled ();
+        if (this.debugSurfaceHost != null)
+        {
+            this.pushPadGrid.setDebugSurfaceObserver ( (oneBasedPad, color, blinkColor, fast) -> {
+                final ButtonID button = ButtonID.get (ButtonID.PAD1, oneBasedPad - 1);
+                this.debugSurfaceHost.observePad (
+                    oneBasedPad,
+                    color,
+                    this.colorManager.getColor (color, button),
+                    blinkColor,
+                    this.colorManager.getColor (blinkColor, button),
+                    fast);
+            });
+        }
 
         this.input.setSysexCallback (this::handleSysEx);
+    }
+
+
+    /** Mirror successful button-light transmissions into the opt-in local debugger. */
+    @Override
+    public void setTrigger (final BindType bindType, final int channel, final int cc, final int value)
+    {
+        super.setTrigger (bindType, channel, cc, value);
+        if (this.debugSurfaceHost == null)
+            return;
+        final ButtonID button = debugButtonForMidiControl (cc);
+        if (button != null)
+            this.debugSurfaceHost.observeButton (button, value, this.colorManager.getColor (value, button));
+    }
+
+
+    /** Sample physical pressed state after the established view, grid, and output flush. */
+    @Override
+    protected void internalFlushHandler ()
+    {
+        super.internalFlushHandler ();
+        if (this.debugSurfaceHost != null)
+            this.debugSurfaceHost.observePressed (this.getButtons ());
+    }
+
+
+    /** Record one successfully submitted debugger edge for the local virtual surface. */
+    public void observeDebugInput (final ButtonID button, final ButtonEvent event)
+    {
+        final int padIndex = button.ordinal () - ButtonID.PAD1.ordinal () + 1;
+        final ControlId control = padIndex >= 1 && padIndex <= 64 ? PushControlIds.pad (padIndex) : PushControlIds.button (button.name ());
+        final InputKind kind = padIndex >= 1 && padIndex <= 64 ? InputKind.PAD : InputKind.BUTTON;
+        final InputPhase phase = switch (event)
+        {
+            case DOWN -> InputPhase.BEGIN;
+            case LONG -> InputPhase.LONG;
+            case UP -> InputPhase.END;
+        };
+        this.observeDebugInput (control, kind, phase, event == ButtonEvent.UP ? 0 : 127);
+    }
+
+
+    /** Record one successfully submitted generic debugger input for the local virtual surface. */
+    public void observeDebugInput (final ControlId control, final InputKind kind, final InputPhase phase, final long value)
+    {
+        if (this.debugSurfaceHost != null)
+            this.debugSurfaceHost.observeDebugInput (control, kind, phase, value);
+    }
+
+
+    /** Inject one bounded poly-pressure sample through the same raw MIDI path as Push hardware. */
+    public void triggerDebugPadPressure (final int oneBasedPad, final int pressure)
+    {
+        if (this.debugSurfaceHost == null)
+            throw new IllegalStateException ("Push debugging is not enabled");
+        if (oneBasedPad < 1 || oneBasedPad > 64 || pressure < 0 || pressure > 127)
+            throw new IllegalArgumentException ("Pad pressure requires pad 1..64 and value 0..127");
+        this.handleMidi (0xA0, this.pushPadGrid.getStartNote () + oneBasedPad - 1, pressure);
+    }
+
+
+    static ButtonID debugButtonForMidiControl (final int control)
+    {
+        if (control >= PUSH_BUTTON_ROW1_1 && control <= PUSH_BUTTON_ROW1_8)
+            return ButtonID.get (ButtonID.ROW1_1, control - PUSH_BUTTON_ROW1_1);
+        if (control >= PUSH_BUTTON_SCENE1 && control <= PUSH_BUTTON_SCENE8)
+            return ButtonID.get (ButtonID.SCENE1, PUSH_BUTTON_SCENE8 - control);
+        if (control >= PUSH_BUTTON_ROW2_1 && control <= PUSH_BUTTON_ROW2_8)
+            return ButtonID.get (ButtonID.ROW2_1, control - PUSH_BUTTON_ROW2_1);
+
+        return switch (control)
+        {
+            case PUSH_BUTTON_TAP -> ButtonID.TAP_TEMPO;
+            case PUSH_BUTTON_METRONOME -> ButtonID.METRONOME;
+            case PUSH_BUTTON_MASTER -> ButtonID.MASTERTRACK;
+            case PUSH_BUTTON_STOP_CLIP -> ButtonID.STOP_CLIP;
+            case PUSH_BUTTON_SETUP -> ButtonID.SETUP;
+            case PUSH_BUTTON_LAYOUT -> ButtonID.LAYOUT;
+            case PUSH_BUTTON_CONVERT -> ButtonID.CONVERT;
+            case PUSH_BUTTON_LEFT -> ButtonID.ARROW_LEFT;
+            case PUSH_BUTTON_RIGHT -> ButtonID.ARROW_RIGHT;
+            case PUSH_BUTTON_UP -> ButtonID.ARROW_UP;
+            case PUSH_BUTTON_DOWN -> ButtonID.ARROW_DOWN;
+            case PUSH_BUTTON_SELECT -> ButtonID.SELECT;
+            case PUSH_BUTTON_SHIFT -> ButtonID.SHIFT;
+            case PUSH_BUTTON_NOTE -> ButtonID.NOTE;
+            case PUSH_BUTTON_SESSION -> ButtonID.SESSION;
+            case PUSH_BUTTON_ADD_EFFECT -> ButtonID.ADD_EFFECT;
+            case PUSH_BUTTON_ADD_TRACK -> ButtonID.ADD_TRACK;
+            case PUSH_BUTTON_OCTAVE_DOWN -> ButtonID.OCTAVE_DOWN;
+            case PUSH_BUTTON_OCTAVE_UP -> ButtonID.OCTAVE_UP;
+            case PUSH_BUTTON_REPEAT -> ButtonID.REPEAT;
+            case PUSH_BUTTON_ACCENT -> ButtonID.ACCENT;
+            case PUSH_BUTTON_SCALES -> ButtonID.SCALES;
+            case PUSH_BUTTON_USER_MODE -> ButtonID.USER;
+            case PUSH_BUTTON_MUTE -> ButtonID.MUTE;
+            case PUSH_BUTTON_SOLO -> ButtonID.SOLO;
+            case PUSH_BUTTON_DEVICE_LEFT -> ButtonID.PAGE_LEFT;
+            case PUSH_BUTTON_DEVICE_RIGHT -> ButtonID.PAGE_RIGHT;
+            case PUSH_BUTTON_PLAY -> ButtonID.PLAY;
+            case PUSH_BUTTON_RECORD -> ButtonID.RECORD;
+            case PUSH_BUTTON_NEW -> ButtonID.NEW;
+            case PUSH_BUTTON_DUPLICATE -> ButtonID.DUPLICATE;
+            case PUSH_BUTTON_AUTOMATION -> ButtonID.AUTOMATION;
+            case PUSH_BUTTON_FIXED_LENGTH -> ButtonID.FIXED_LENGTH;
+            case PUSH_BUTTON_DEVICE -> ButtonID.DEVICE;
+            case PUSH_BUTTON_BROWSE -> ButtonID.BROWSE;
+            case PUSH_BUTTON_TRACK -> ButtonID.TRACK;
+            case PUSH_BUTTON_CLIP -> ButtonID.CLIP;
+            case PUSH_BUTTON_QUANTIZE -> ButtonID.QUANTIZE;
+            case PUSH_BUTTON_DOUBLE -> ButtonID.DOUBLE;
+            case PUSH_BUTTON_DELETE -> ButtonID.DELETE;
+            case PUSH_BUTTON_UNDO -> ButtonID.UNDO;
+            default -> null;
+        };
     }
 
 
@@ -757,6 +893,8 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
         this.setRibbonValue (0);
 
         super.internalShutdown ();
+        if (this.debugSurfaceHost != null)
+            this.debugSurfaceHost.close ();
     }
 
 

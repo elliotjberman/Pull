@@ -52,6 +52,48 @@ the extension constructs its local transports:
 tools/capture-push2-display --enable
 ```
 
+### Push debugger surface preview
+
+Run the dependency-free local Push 2 visualizer with:
+
+```bash
+tools/push-debug-surface
+```
+
+It opens a local SVG surface derived from the measured control bounds in `PushControllerSetup`.
+All 64 pads, physical buttons, continuous controls, and the display have the same canonical
+`push.*` identifiers used by the input bridge. The local server polls the opt-in debugger's bounded
+`surface-state.json`: every successful button-light send and complete successful pad-light send is
+shown with its resolved Push palette RGB, pad blink color, and blink rate. Debugger-generated
+button and pad edges pulse even when their DOWN/UP pair completes inside one controller tick;
+longer physical holds remain visibly pressed. The existing `latest.png` stream fills the display.
+
+When the page reports `input ready`, clicking a button or pad submits its DOWN/UP pair through the
+same permanent hardware object and input arbitrator as Push. Holding the mouse retains the normal
+long-press lifecycle. Hovering any touch-bound continuous control submits its touch BEGIN/END, and
+the deliberately plain slider below the controller submits 0..127 poly-pressure for the last pad
+clicked. One browser edge may be held at a time; pressure may accompany that exact held pad. A
+five-second controller-owned lease, renewed by the page, releases a control if the tab disappears.
+The local server accepts bounded same-origin JSON only with the active random extension-session
+token, atomically queues at most 64 requests, and never invokes controller code itself.
+Debugger output reaches the browser through a bounded Server-Sent Events stream. The event carries
+only a change notification; state fetches and PNG decoding coalesce to the newest revision, so a
+slow browser skips intermediate frames instead of accumulating display latency. A one-second poll
+remains only as recovery if the event stream reconnects.
+
+`file://` remains a static preview because it has no local process bridge. **Demo lights** exercises
+RGB rendering without Bitwig. Set `PUSH_DEBUG_SURFACE_NO_OPEN=true` to run the server without opening
+a browser, or `PUSH_DEBUG_SURFACE_PORT` to select another local port.
+
+The live mirror is constructed only when debugging was enabled before extension startup. Installing
+this shell change and restarting Bitwig once adds the output observer; later core reloads reuse it.
+The controller thread only copies the fixed Push footprint into one coalescing slot. JSON encoding,
+filesystem writes, HTTP serving, and browser polling stay off the controller thread. Continuous
+encoder deltas and touch-strip position are not yet part of browser input. Browser pad presses
+exercise the extension-side permanent controller binding, but Controller API 21 still cannot inject
+a raw packet back into Bitwig's hardware-action matcher; the four manually learned pad actions
+therefore retain the same live-physical-press limitation as the routed pad-output probe below.
+
 An agent can then select a bounded Push surface and capture the resulting Push 2 framebuffer in one
 command:
 

@@ -166,10 +166,27 @@ class PushPadGridTest
             return null;
         });
         final PushPadGrid grid = new PushPadGrid (new PushColorManager (), output);
+        final AtomicReference<PushPadOutput> surfaceOutput = new AtomicReference<> ();
+        grid.setDebugSurfaceObserver ( (pad, color, blinkColor, fast) -> surfaceOutput.set (new PushPadOutput (pad, color, blinkColor, fast)));
         grid.light (36, 21);
         grid.beginDebugObservation (36);
 
         assertThrows (IllegalStateException.class, () -> grid.debugObservation (36));
+        assertEquals (null, surfaceOutput.get ());
+    }
+
+
+    @Test
+    void surfaceObserverReceivesOnlyCompleteSuccessfulPadOutput ()
+    {
+        final PushPadGrid grid = new PushPadGrid (new PushColorManager (), recordingOutput (new ArrayList<> ()));
+        final AtomicReference<PushPadOutput> surfaceOutput = new AtomicReference<> ();
+        grid.setDebugSurfaceObserver ( (pad, color, blinkColor, fast) -> surfaceOutput.set (new PushPadOutput (pad, color, blinkColor, fast)));
+        grid.light (64, 31, 54, true);
+
+        grid.sendState (64);
+
+        assertEquals (new PushPadOutput (29, 31, 54, true), surfaceOutput.get ());
     }
 
 
@@ -193,6 +210,11 @@ class PushPadGridTest
 
 
     private record MidiNote (int channel, int note, int velocity)
+    {
+    }
+
+
+    private record PushPadOutput (int pad, int color, int blinkColor, boolean fast)
     {
     }
 

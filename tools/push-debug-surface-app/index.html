@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Pull · Push 2 Debug Surface</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="push-surface.css?v=aligned-right-panel">
+</head>
+<body>
+    <header class="toolbar">
+        <div class="identity">
+            <span class="mark" aria-hidden="true"></span>
+            <div>
+                <h1>Pull</h1>
+            </div>
+        </div>
+        <div class="status" aria-live="polite">
+            <span class="status-dot"></span>
+            <span id="event-status">Preview · ready</span>
+        </div>
+        <div class="toolbar-actions">
+            <button id="demo-button" type="button">Demo lights</button>
+            <button id="reset-button" type="button">Reset</button>
+        </div>
+    </header>
+
+    <main>
+        <section class="surface-frame" aria-label="Virtual Ableton Push 2 controller">
+            <svg id="push-surface" viewBox="0 0 200 157" role="img" aria-labelledby="surface-title surface-description">
+                <title id="surface-title">Interactive Push 2 debug surface</title>
+                <desc id="surface-description">A mapped Push 2 controller with 64 pads, display, buttons, encoders, and touch strip.</desc>
+                <defs>
+                    <linearGradient id="display-gradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0" stop-color="#131b1d"/>
+                        <stop offset="1" stop-color="#071012"/>
+                    </linearGradient>
+                    <filter id="panel-shadow" x="-10%" y="-10%" width="120%" height="130%">
+                        <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#000" flood-opacity="0.55"/>
+                    </filter>
+                    <filter id="light-glow" x="-80%" y="-80%" width="260%" height="260%">
+                        <feGaussianBlur stdDeviation="1.2" result="blur"/>
+                        <feMerge>
+                            <feMergeNode in="blur"/>
+                            <feMergeNode in="SourceGraphic"/>
+                        </feMerge>
+                    </filter>
+                    <clipPath id="display-clip">
+                        <rect x="33.25" y="28" width="121.25" height="21"/>
+                    </clipPath>
+                </defs>
+
+                <rect class="panel" x="1" y="1" width="198" height="155" filter="url(#panel-shadow)"/>
+                <g id="surface-controls"></g>
+
+                <g id="display" aria-label="Push display">
+                    <rect class="display-bezel" x="33.25" y="26.9" width="121.25" height="23.2"/>
+                    <rect class="display-screen" x="33.25" y="28" width="121.25" height="21"/>
+                    <g id="display-placeholder" clip-path="url(#display-clip)">
+                        <path class="display-grid" d="M33.25 35h121.25M33.25 42h121.25M48.40625 28v21M63.5625 28v21M78.71875 28v21M93.875 28v21M109.03125 28v21M124.1875 28v21M139.34375 28v21"/>
+                        <text class="display-kicker" x="35.5" y="32.3">PULL</text>
+                        <text class="display-title" x="93.875" y="39.2" text-anchor="middle">DISPLAY · 960 × 160</text>
+                        <text class="display-subtitle" x="93.875" y="44.1" text-anchor="middle">waiting for controller output</text>
+                    </g>
+                    <image id="display-image" x="33.25" y="28" width="121.25" height="21" preserveAspectRatio="none" clip-path="url(#display-clip)"/>
+                </g>
+
+            </svg>
+        </section>
+        <aside class="pressure-control" aria-label="Pad pressure input">
+            <div>
+                <strong>Pad pressure</strong>
+                <span id="pressure-target">Pad 1</span>
+            </div>
+            <input id="pressure-slider" type="range" min="0" max="127" value="0" step="1" aria-label="Pad pressure from 0 through 127">
+            <output id="pressure-value" for="pressure-slider">0</output>
+        </aside>
+    </main>
+
+    <script src="push-surface.js?v=event-stream-aligned-right-panel"></script>
+</body>
+</html>

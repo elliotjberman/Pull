@@ -41,6 +41,7 @@ final class PushPadGrid extends PadGridImpl
     private long debugTransmissionRevision;
     private Transmission debugBaseTransmission = Transmission.NONE;
     private Transmission debugBlinkTransmission = Transmission.NONE;
+    private DebugSurfaceObserver debugSurfaceObserver;
 
 
     /**
@@ -66,6 +67,13 @@ final class PushPadGrid extends PadGridImpl
     void setOverlaySupplier (final Supplier<ControllerPadGridOverlay> overlaySupplier)
     {
         this.overlaySupplier = Objects.requireNonNull (overlaySupplier, "overlaySupplier");
+    }
+
+
+    /** Install the opt-in observer for complete successful pad transmissions. */
+    void setDebugSurfaceObserver (final DebugSurfaceObserver debugSurfaceObserver)
+    {
+        this.debugSurfaceObserver = Objects.requireNonNull (debugSurfaceObserver, "debugSurfaceObserver");
     }
 
 
@@ -96,6 +104,8 @@ final class PushPadGrid extends PadGridImpl
         {
             this.debugObservedSend = false;
         }
+        if (this.debugSurfaceObserver != null)
+            this.debugSurfaceObserver.observe (note - this.startNote + 1, state.getColor (), state.getBlinkColor (), state.isFast ());
     }
 
 
@@ -260,5 +270,12 @@ final class PushPadGrid extends PadGridImpl
     record Transmission (long revision, int channel, int note, int color)
     {
         private static final Transmission NONE = new Transmission (0, -1, -1, -1);
+    }
+
+
+    @FunctionalInterface
+    interface DebugSurfaceObserver
+    {
+        void observe (int oneBasedPad, int color, int blinkColor, boolean fast);
     }
 }

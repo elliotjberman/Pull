@@ -1363,6 +1363,7 @@ final class PushDebugNavigationHost implements AutoCloseable
         public void trigger (final ButtonID button, final ButtonEvent event)
         {
             this.requireButton (button).trigger (event);
+            this.surface.observeDebugInput (button, event);
         }
 
 
@@ -1370,6 +1371,7 @@ final class PushDebugNavigationHost implements AutoCloseable
         public void trigger (final ButtonID button, final ButtonEvent event, final double velocity)
         {
             this.requireButton (button).trigger (event, velocity);
+            this.surface.observeDebugInput (button, event);
         }
 
 
