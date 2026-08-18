@@ -69,11 +69,15 @@ button and pad edges pulse even when their DOWN/UP pair completes inside one con
 longer physical holds remain visibly pressed. The existing `latest.png` stream fills the display.
 
 When the page reports `input ready`, clicking a button or pad submits its DOWN/UP pair through the
-same permanent hardware object and input arbitrator as Push. Holding the mouse retains the normal
-long-press lifecycle. Hovering any touch-bound continuous control submits its touch BEGIN/END, and
-the deliberately plain slider below the controller submits 0..127 poly-pressure for the last pad
-clicked. One browser edge may be held at a time; pressure may accompany that exact held pad. A
-five-second controller-owned lease, renewed by the page, releases a control if the tab disappears.
+same permanent hardware object and input arbitrator as Push. A pad also submits the matching raw
+note-on/off packet through the permanent Push `NoteInput`; the active translation table and
+selected-track route therefore decide whether it becomes a musical note just as they do for the
+hardware. Holding the mouse retains the normal long-press lifecycle. Hovering any touch-bound
+continuous control submits its touch BEGIN/END, and the deliberately plain slider below the
+controller submits 0..127 poly-pressure for the last pad clicked through both the controller and
+`NoteInput` paths. One browser edge may be held at a time; pressure may accompany that exact held
+pad. A five-second controller-owned lease, renewed by the page, releases a control if the tab
+disappears and neutralizes detached nonzero pressure.
 The local server accepts bounded same-origin JSON only with the active random extension-session
 token, atomically queues at most 64 requests, and never invokes controller code itself.
 Debugger output reaches the browser through a bounded Server-Sent Events stream. The event carries
@@ -90,9 +94,10 @@ this shell change and restarting Bitwig once adds the output observer; later cor
 The controller thread only copies the fixed Push footprint into one coalescing slot. JSON encoding,
 filesystem writes, HTTP serving, and browser polling stay off the controller thread. Continuous
 encoder deltas and touch-strip position are not yet part of browser input. Browser pad presses
-exercise the extension-side permanent controller binding, but Controller API 21 still cannot inject
-a raw packet back into Bitwig's hardware-action matcher; the four manually learned pad actions
-therefore retain the same live-physical-press limitation as the routed pad-output probe below.
+exercise the extension-side permanent controller binding and Bitwig's `NoteInput`, but Controller
+API 21 still cannot inject a raw packet back into Bitwig's hardware-action matcher; the four
+manually learned pad actions therefore retain the same live-physical-press limitation as the routed
+pad-output probe below.
 
 An agent can then select a bounded Push surface and capture the resulting Push 2 framebuffer in one
 command:

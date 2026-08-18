@@ -92,7 +92,13 @@ class PushDebugInputHostTest
             "push.continuous.knob1:TOUCH:END:0",
             "push.pad.5:PAD:BEGIN:100",
             "push.pad.5:POLY_PRESSURE:CHANGE:91",
+            "push.pad.5:POLY_PRESSURE:CHANGE:0",
             "push.pad.5:PAD:END:0"), surface.events);
+        assertEquals (List.of (
+            "push.pad.5:PAD:BEGIN:100",
+            "push.pad.5:POLY_PRESSURE:CHANGE:91",
+            "push.pad.5:POLY_PRESSURE:CHANGE:0",
+            "push.pad.5:PAD:END:0"), surface.noteInputEvents);
         assertFalse (admission.debugActive);
     }
 
@@ -111,6 +117,27 @@ class PushDebugInputHostTest
         host.tick ();
 
         assertEquals (List.of ("push.pad.5:POLY_PRESSURE:CHANGE:91"), surface.events);
+        assertEquals (List.of ("push.pad.5:POLY_PRESSURE:CHANGE:91"), surface.noteInputEvents);
+    }
+
+
+    @Test
+    void detachedPressureExpiresToARealNoteInputNeutralization () throws IOException
+    {
+        final AtomicLong time = new AtomicLong ();
+        final FakeSurface surface = new FakeSurface ();
+        final FakeAdmission admission = new FakeAdmission ();
+        final PushDebugInputHost host = this.host (surface, admission, time);
+
+        this.request (host, "pressure", PAD, InputKind.POLY_PRESSURE, "CHANGE", 91);
+        host.tick ();
+        time.set (TimeUnit.SECONDS.toNanos (6));
+        host.tick ();
+
+        assertEquals (List.of (
+            "push.pad.5:POLY_PRESSURE:CHANGE:91",
+            "push.pad.5:POLY_PRESSURE:CHANGE:0"), surface.events);
+        assertEquals (surface.events, surface.noteInputEvents);
     }
 
 
@@ -135,6 +162,7 @@ class PushDebugInputHostTest
         assertEquals (List.of (
             "push.pad.5:PAD:BEGIN:127",
             "push.pad.5:PAD:END:0"), surface.events);
+        assertEquals (surface.events, surface.noteInputEvents);
         assertFalse (admission.debugActive);
         assertTrue (this.status ().contains ("browser input lease expired"));
     }
@@ -172,6 +200,7 @@ class PushDebugInputHostTest
     private static final class FakeSurface implements PushDebugInputHost.InputSurface
     {
         private final List<String> events = new ArrayList<> ();
+        private final List<String> noteInputEvents = new ArrayList<> ();
         private final Set<String> active = new HashSet<> ();
 
 
@@ -200,6 +229,13 @@ class PushDebugInputHostTest
             else if (phase == InputPhase.END)
                 this.active.remove (address);
             this.events.add (address + ":" + phase.name () + ":" + value);
+        }
+
+
+        @Override
+        public void triggerNoteInput (final ControlId control, final InputKind kind, final InputPhase phase, final int value)
+        {
+            this.noteInputEvents.add (control.value () + ":" + kind.name () + ":" + phase.name () + ":" + value);
         }
     }
 

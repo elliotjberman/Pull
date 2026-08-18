@@ -67,6 +67,9 @@ final class PushDebugInputHost implements AutoCloseable
     private final AtomicBoolean closedInfoWritten = new AtomicBoolean ();
 
     private ActiveEdge active;
+    private ControlId pressuredPad;
+    private int pressureValue;
+    private long pressureExpiresAtNanos;
 
 
     static PushDebugInputHost createIfEnabled (final PushControlSurface surface, final PushDebugNavigationHost.GestureAdmission admission)
@@ -115,6 +118,7 @@ final class PushDebugInputHost implements AutoCloseable
             this.pollFilesSafely ();
 
         this.expireOrCompleteActive ();
+        this.expirePressure ();
         final List<Incoming> requests = new ArrayList<> (MAX_REQUESTS_PER_TICK);
         final Map<ControlId, Integer> pendingPressure = new LinkedHashMap<> ();
         for (int count = 0; count < MAX_REQUESTS_PER_TICK; count++)
@@ -149,9 +153,10 @@ final class PushDebugInputHost implements AutoCloseable
     void cancelActive (final String reason)
     {
         final ActiveEdge owned = this.active;
-        if (owned == null)
-            return;
-        this.releaseActive (owned, "RELEASED", Objects.requireNonNull (reason, "reason"));
+        if (owned != null)
+            this.releaseActive (owned, "RELEASED", Objects.requireNonNull (reason, "reason"));
+        else
+            this.neutralizePressureBestEffort ();
     }
 
 
@@ -210,7 +215,7 @@ final class PushDebugInputHost implements AutoCloseable
         final ActiveEdge candidate = new ActiveEdge (request.requestID (), request.control (), request.kind (), Math.addExact (this.nanoTime.getAsLong (), ACTIVE_LEASE_NANOS));
         try
         {
-            if (!this.admission.tryBeginDebugInput ( () -> this.surface.trigger (request.control (), request.kind (), InputPhase.BEGIN, request.value ())))
+            if (!this.admission.tryBeginDebugInput ( () -> this.triggerEdge (request.control (), request.kind (), InputPhase.BEGIN, request.value ())))
             {
                 this.fail (request, "controller input is busy");
                 return;
@@ -236,7 +241,8 @@ final class PushDebugInputHost implements AutoCloseable
 
         try
         {
-            this.admission.endDebugInput ( () -> this.surface.trigger (request.control (), request.kind (), InputPhase.END, 0));
+            this.neutralizePressure (request.control ());
+            this.admission.endDebugInput ( () -> this.triggerEdge (request.control (), request.kind (), InputPhase.END, 0));
             owned.releasing = true;
             this.succeed (request);
             this.expireOrCompleteActive ();
@@ -253,6 +259,8 @@ final class PushDebugInputHost implements AutoCloseable
         final ActiveEdge owned = this.active;
         try
         {
+            if (this.pressuredPad != null && !this.pressuredPad.equals (request.control ()))
+                this.neutralizePressure (this.pressuredPad);
             if (owned != null)
             {
                 if (owned.releasing || owned.kind != InputKind.PAD || !owned.control.equals (request.control ()))
@@ -260,15 +268,17 @@ final class PushDebugInputHost implements AutoCloseable
                     this.fail (request, "pressure is fenced to the browser-held pad");
                     return;
                 }
-                this.surface.trigger (request.control (), request.kind (), InputPhase.CHANGE, request.value ());
+                this.triggerPressure (request.control (), request.value ());
+                this.rememberPressure (request.control (), request.value ());
                 this.succeed (request);
                 return;
             }
-            if (!this.admission.trySubmit ( () -> this.surface.trigger (request.control (), request.kind (), InputPhase.CHANGE, request.value ())))
+            if (!this.admission.trySubmit ( () -> this.triggerPressure (request.control (), request.value ())))
             {
                 this.fail (request, "controller input is busy");
                 return;
             }
+            this.rememberPressure (request.control (), request.value ());
             this.succeed (request);
         }
         catch (final RuntimeException ex)
@@ -297,12 +307,33 @@ final class PushDebugInputHost implements AutoCloseable
     }
 
 
+    private void expirePressure ()
+    {
+        if (this.pressuredPad == null || this.nanoTime.getAsLong () < this.pressureExpiresAtNanos)
+            return;
+        if (this.active != null)
+        {
+            this.neutralizePressureBestEffort ();
+            return;
+        }
+        try
+        {
+            this.admission.trySubmit (this::neutralizePressureBestEffort);
+        }
+        catch (final RuntimeException ignored)
+        {
+            // A failed debug-only neutralization must never escape onto Bitwig's controller tick.
+        }
+    }
+
+
     private void releaseActive (final ActiveEdge owned, final String state, final String message)
     {
         try
         {
+            this.neutralizePressureBestEffort ();
             if (!owned.releasing)
-                this.admission.endDebugInput ( () -> this.surface.trigger (owned.control, owned.kind, InputPhase.END, 0));
+                this.admission.endDebugInput ( () -> this.triggerEdge (owned.control, owned.kind, InputPhase.END, 0));
         }
         catch (final RuntimeException ignored)
         {
@@ -314,6 +345,140 @@ final class PushDebugInputHost implements AutoCloseable
             this.active = null;
         }
         this.publish (new Status (owned.requestID, state, owned.control.value (), owned.kind.name (), "END", 0, message));
+    }
+
+
+    private void triggerEdge (final ControlId control, final InputKind kind, final InputPhase phase, final int value)
+    {
+        if (kind != InputKind.PAD)
+        {
+            this.surface.trigger (control, kind, phase, value);
+            return;
+        }
+
+        if (phase == InputPhase.BEGIN)
+        {
+            this.surface.trigger (control, kind, phase, value);
+            try
+            {
+                this.surface.triggerNoteInput (control, kind, phase, value);
+            }
+            catch (final RuntimeException failure)
+            {
+                try
+                {
+                    this.surface.trigger (control, kind, InputPhase.END, 0);
+                }
+                catch (final RuntimeException cleanupFailure)
+                {
+                    failure.addSuppressed (cleanupFailure);
+                }
+                try
+                {
+                    this.surface.triggerNoteInput (control, kind, InputPhase.END, 0);
+                }
+                catch (final RuntimeException cleanupFailure)
+                {
+                    failure.addSuppressed (cleanupFailure);
+                }
+                throw failure;
+            }
+            return;
+        }
+
+        RuntimeException failure = null;
+        try
+        {
+            this.surface.trigger (control, kind, phase, value);
+        }
+        catch (final RuntimeException ex)
+        {
+            failure = ex;
+        }
+        try
+        {
+            this.surface.triggerNoteInput (control, kind, phase, value);
+        }
+        catch (final RuntimeException ex)
+        {
+            if (failure == null)
+                failure = ex;
+            else
+                failure.addSuppressed (ex);
+        }
+        if (failure != null)
+            throw failure;
+    }
+
+
+    private void triggerPressure (final ControlId control, final int value)
+    {
+        this.surface.trigger (control, InputKind.POLY_PRESSURE, InputPhase.CHANGE, value);
+        try
+        {
+            this.surface.triggerNoteInput (control, InputKind.POLY_PRESSURE, InputPhase.CHANGE, value);
+        }
+        catch (final RuntimeException failure)
+        {
+            try
+            {
+                this.surface.trigger (control, InputKind.POLY_PRESSURE, InputPhase.CHANGE, 0);
+                this.surface.triggerNoteInput (control, InputKind.POLY_PRESSURE, InputPhase.CHANGE, 0);
+            }
+            catch (final RuntimeException cleanupFailure)
+            {
+                failure.addSuppressed (cleanupFailure);
+            }
+            throw failure;
+        }
+    }
+
+
+    private void rememberPressure (final ControlId control, final int value)
+    {
+        if (value == 0)
+        {
+            this.pressuredPad = null;
+            this.pressureValue = 0;
+            this.pressureExpiresAtNanos = 0;
+            return;
+        }
+        this.pressuredPad = control;
+        this.pressureValue = value;
+        this.pressureExpiresAtNanos = Math.addExact (this.nanoTime.getAsLong (), ACTIVE_LEASE_NANOS);
+    }
+
+
+    private void neutralizePressure (final ControlId control)
+    {
+        if (this.pressuredPad == null || !this.pressuredPad.equals (control) || this.pressureValue == 0)
+            return;
+        try
+        {
+            this.triggerPressure (control, 0);
+        }
+        finally
+        {
+            this.pressuredPad = null;
+            this.pressureValue = 0;
+            this.pressureExpiresAtNanos = 0;
+        }
+    }
+
+
+    private void neutralizePressureBestEffort ()
+    {
+        final ControlId control = this.pressuredPad;
+        if (control == null)
+            return;
+        try
+        {
+            this.neutralizePressure (control);
+        }
+        catch (final RuntimeException ignored)
+        {
+            // The exact debug-owned pressure state has been retired; terminal cleanup is best-effort.
+        }
     }
 
 
@@ -546,6 +711,8 @@ final class PushDebugInputHost implements AutoCloseable
         boolean isActive (ControlId control, InputKind kind);
 
         void trigger (ControlId control, InputKind kind, InputPhase phase, int value);
+
+        void triggerNoteInput (ControlId control, InputKind kind, InputPhase phase, int value);
     }
 
 
@@ -613,6 +780,14 @@ final class PushDebugInputHost implements AutoCloseable
                 de.mossgrabers.pull.core.api.event.InputKind.valueOf (kind.name ()),
                 de.mossgrabers.pull.core.api.event.InputPhase.valueOf (phase.name ()),
                 value);
+        }
+
+
+        @Override
+        public void triggerNoteInput (final ControlId control, final InputKind kind, final InputPhase phase, final int value)
+        {
+            final int status = kind == InputKind.POLY_PRESSURE ? 0xA0 : phase == InputPhase.BEGIN ? 0x90 : 0x80;
+            this.surface.triggerDebugPadNoteInput (status, padIndex (control), value);
         }
 
 

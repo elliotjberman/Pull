@@ -479,6 +479,17 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
     }
 
 
+    /** Inject one bounded pad message into Bitwig's permanent Push NoteInput. */
+    public void triggerDebugPadNoteInput (final int status, final int oneBasedPad, final int value)
+    {
+        if (this.debugSurfaceHost == null)
+            throw new IllegalStateException ("Push debugging is not enabled");
+        if ((status != 0x80 && status != 0x90 && status != 0xA0) || oneBasedPad < 1 || oneBasedPad > 64 || value < 0 || value > 127)
+            throw new IllegalArgumentException ("Pad NoteInput MIDI requires status 0x80, 0x90, or 0xA0; pad 1..64; and value 0..127");
+        this.input.sendRawMidiEvent (status, this.pushPadGrid.getStartNote () + oneBasedPad - 1, value);
+    }
+
+
     static ButtonID debugButtonForMidiControl (final int control)
     {
         if (control >= PUSH_BUTTON_ROW1_1 && control <= PUSH_BUTTON_ROW1_8)
