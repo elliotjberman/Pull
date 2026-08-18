@@ -35,14 +35,28 @@ public final class VsLiveWorkspace
      * @param selection Shared workspace selection
      * @return Compiled workspace
      */
-    public static CompiledWorkspace create (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator, final List<? extends ControllerView> gridViews)
+    public static CompiledWorkspace create (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator, final ControllerView trackSelection, final List<? extends ControllerView> gridViews)
     {
         final List<ControllerView> views = new ArrayList<> ();
         views.add (new ProjectMacroControlsView ());
-        views.add (new TrackSelectionStripView ());
+        views.add (trackSelection);
         views.addAll (gridViews);
         return CompiledWorkspace.compile (
             NAME,
+            SESSION_BANK,
+            ControllerLevelViews.composeWithoutNoteController (selection, playbackCoordinator, views));
+    }
+
+
+    /** Compile the retained VS Live grid with the core-owned Track/Mix page. */
+    public static CompiledWorkspace createWithTrackMixerPage (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator, final ControllerView trackSelection, final List<? extends ControllerView> gridViews)
+    {
+        final List<ControllerView> views = new ArrayList<> ();
+        views.add (new TrackMixerControlsView ());
+        views.add (trackSelection);
+        views.addAll (gridViews);
+        return CompiledWorkspace.compile (
+            NAME + " / Track Mix",
             SESSION_BANK,
             ControllerLevelViews.composeWithoutNoteController (selection, playbackCoordinator, views));
     }

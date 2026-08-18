@@ -23,6 +23,7 @@ import de.mossgrabers.pull.core.runtime.view.MixerDisplayScene;
 import de.mossgrabers.pull.core.runtime.view.ProjectPlaybackCoordinator;
 import de.mossgrabers.pull.core.runtime.view.SessionView;
 import de.mossgrabers.pull.core.runtime.view.StableDestinationWorkspace;
+import de.mossgrabers.pull.core.runtime.view.TrackSelectionStripView;
 import de.mossgrabers.pull.core.runtime.view.WorkspaceSelection;
 import de.mossgrabers.pull.core.view.CompiledWorkspace;
 import de.mossgrabers.pull.core.view.ControllerView;
@@ -48,6 +49,7 @@ final class PullControllerCore implements ControllerCore
     private CompiledWorkspace                              defaultDrumWorkspace;
     private CompiledWorkspace                              defaultSessionWorkspace;
     private CompiledWorkspace                              vsLiveStablePageWorkspace;
+    private CompiledWorkspace                              vsLiveTrackMixerWorkspace;
     private WorkspaceSelection                             selection;
     private CompiledWorkspace                              workspace;
     private Map<WorkspaceSelection.Id, CompiledWorkspace> masterWorkspaces = Map.of ();
@@ -76,13 +78,15 @@ final class PullControllerCore implements ControllerCore
         this.playbackCoordinator.restoreEngineOwner (restoredState.engineOwnerIdentity (), restoredState.engineOwnerPlaying ());
         final ControllerView retainedSessionView = new RetainedControllerView (SessionView.full ());
         final List<ControllerView> retainedVsLiveGridViews = VsLiveWorkspace.retainedGridViews ();
+        final ControllerView retainedVsLiveTrackSelection = new RetainedControllerView (new TrackSelectionStripView ());
         final Map<WorkspaceSelection.Id, CompiledWorkspace> compiled = new EnumMap<> (WorkspaceSelection.Id.class);
         compiled.put (WorkspaceSelection.Id.DEFAULT, DefaultWorkspace.create (this.selection, this.playbackCoordinator));
-        compiled.put (WorkspaceSelection.Id.VS_LIVE, VsLiveWorkspace.create (this.selection, this.playbackCoordinator, retainedVsLiveGridViews));
+        compiled.put (WorkspaceSelection.Id.VS_LIVE, VsLiveWorkspace.create (this.selection, this.playbackCoordinator, retainedVsLiveTrackSelection, retainedVsLiveGridViews));
         this.workspaces = Map.copyOf (compiled);
         this.defaultDrumWorkspace = DefaultWorkspace.createDrum (this.selection, this.playbackCoordinator);
         this.defaultSessionWorkspace = StableDestinationWorkspace.selectedSession (this.selection, this.playbackCoordinator, retainedSessionView);
         this.vsLiveStablePageWorkspace = VsLiveWorkspace.createWithStablePage (this.selection, this.playbackCoordinator, retainedVsLiveGridViews);
+        this.vsLiveTrackMixerWorkspace = VsLiveWorkspace.createWithTrackMixerPage (this.selection, this.playbackCoordinator, retainedVsLiveTrackSelection, retainedVsLiveGridViews);
         final Map<WorkspaceSelection.Id, CompiledWorkspace> compiledMaster = new EnumMap<> (WorkspaceSelection.Id.class);
         for (final WorkspaceSelection.Id background: WorkspaceSelection.Id.values ())
             compiledMaster.put (background, MasterWorkspace.create (this.selection, this.playbackCoordinator, background, retainedVsLiveGridViews));
@@ -273,8 +277,14 @@ final class PullControllerCore implements ControllerCore
             return this.defaultSessionWorkspace;
         if (this.selection.active () == WorkspaceSelection.Id.DEFAULT && snapshot.bridge ().layout ().drumLayoutActive ())
             return this.defaultDrumWorkspace;
-        if (this.selection.active () == WorkspaceSelection.Id.VS_LIVE && this.vsLiveDefaultPageObserved && !"WORKSPACE".equals (snapshot.bridge ().layout ().modeId ()))
-            return this.vsLiveStablePageWorkspace;
+        if (this.selection.active () == WorkspaceSelection.Id.VS_LIVE && this.vsLiveDefaultPageObserved)
+        {
+            final String mode = snapshot.bridge ().layout ().modeId ();
+            if ("TRACK".equals (mode))
+                return this.vsLiveTrackMixerWorkspace;
+            if (!"WORKSPACE".equals (mode))
+                return this.vsLiveStablePageWorkspace;
+        }
         return this.workspaces.get (this.selection.active ());
     }
 

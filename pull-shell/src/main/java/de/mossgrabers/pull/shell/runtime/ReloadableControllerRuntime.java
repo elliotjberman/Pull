@@ -30,7 +30,9 @@ import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
 import de.mossgrabers.pull.core.api.output.MixerControlsDisplay;
 
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -54,7 +56,9 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         58,
         59
     };
+    private static final int PUSH_PAD_START_NOTE = 36;
     private static final List<ControlId> FILL_CONTROLS = CoreControls.drumFills ();
+    private static final Map<ControlId, ControlId> PHYSICAL_FILL_LIGHTS = physicalFillLights ();
     private static final RgbColor OFF = new RgbColor (0, 0, 0);
 
     private final RuntimeLog log;
@@ -79,14 +83,39 @@ public final class ReloadableControllerRuntime implements AutoCloseable
     /** Get a replayable core-owned controller light. */
     public RgbColor lightColor (final ControlId control)
     {
-        return this.environment == null || this.closed ? OFF : this.environment.lightColor (Objects.requireNonNull (control, "control"));
+        if (this.environment == null || this.closed)
+            return OFF;
+        final ControlId owner = this.lightOwner (Objects.requireNonNull (control, "control"));
+        return this.environment.lightColor (owner);
     }
 
 
     /** Test whether the applied core result explicitly owns one hardware light. */
     public boolean ownsLight (final ControlId control)
     {
-        return this.environment != null && !this.closed && this.environment.ownsLight (Objects.requireNonNull (control, "control"));
+        if (this.environment == null || this.closed)
+            return false;
+        return this.environment.ownsLight (this.lightOwner (Objects.requireNonNull (control, "control")));
+    }
+
+
+    private ControlId lightOwner (final ControlId physicalOwner)
+    {
+        // DrumFillView owns stable semantic fill identities while the generic Push grid renderer
+        // asks by physical pad. Preserve any explicit physical claim, then project that one legacy
+        // semantic lane mechanically onto its fixed eight pads.
+        if (this.environment.ownsLight (physicalOwner))
+            return physicalOwner;
+        return PHYSICAL_FILL_LIGHTS.getOrDefault (physicalOwner, physicalOwner);
+    }
+
+
+    private static Map<ControlId, ControlId> physicalFillLights ()
+    {
+        final Map<ControlId, ControlId> aliases = new LinkedHashMap<> (FILL_PAD_NOTES.length);
+        for (int index = 0; index < FILL_PAD_NOTES.length; index++)
+            aliases.put (PushControlIds.pad (FILL_PAD_NOTES[index] - PUSH_PAD_START_NOTE + 1), FILL_CONTROLS.get (index));
+        return Map.copyOf (aliases);
     }
 
 

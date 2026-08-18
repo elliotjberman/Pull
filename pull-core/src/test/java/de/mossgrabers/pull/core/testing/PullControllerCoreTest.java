@@ -931,14 +931,42 @@ class PullControllerCoreTest
 
         host.bridge (sessionBridge (3, "DRUM_PAD", "TRACK", VsLiveWorkspace.SESSION_BANK));
 
-        assertEquals (VsLiveWorkspace.NAME + " / stable page", host.effects ().desiredControllerWorkspace ().name ());
+        assertEquals (VsLiveWorkspace.NAME + " / Track Mix", host.effects ().desiredControllerWorkspace ().name ());
         assertEquals (Set.of (
+            ControllerViewFacet.TRACK_MIXER_PAGE,
             ControllerViewFacet.SESSION_NAVIGATION,
             ControllerViewFacet.SESSION_CLIP_GRID_UPPER,
             ControllerViewFacet.SESSION_SCENE_KEYS_UPPER,
             ControllerViewFacet.DRUM_CONTROLLER_LOWER,
             ControllerViewFacet.DRUM_PITCH_BEND), host.effects ().desiredControllerWorkspace ().facets ());
+        assertEquals (960, host.effects ().desiredOutput ().display ().width ());
+        assertEquals (160, host.effects ().desiredOutput ().display ().height ());
+        assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (PushControlIds.button ("ROW1_1"), InputKind.BUTTON));
+        assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (PushControlIds.continuous ("KNOB1"), InputKind.RELATIVE));
         assertEquals (Optional.of (InputRouteMode.OBSERVE), host.effects ().desiredInputRoutes ().mode (STOP_CLIP_BUTTON, InputKind.BUTTON));
+    }
+
+
+    @Test
+    void vsLiveTrackMixOwnsItsParameterReadbackRenderingAndEncoderEffects ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        enterVsLive (host);
+        host.bridge (sessionBridge (2, "DRUM_PAD", "WORKSPACE", VsLiveWorkspace.SESSION_BANK));
+        final ParameterTargetSnapshot send = parameter (ParameterSlot.active (2), "Reverb", 256, "25 %");
+        host.bridge (sessionMixBridge (Map.of (
+            ParameterSlot.active (0), parameter (ParameterSlot.active (0), "Volume", 768, "-6.0 dB"),
+            ParameterSlot.active (1), parameter (ParameterSlot.active (1), "Pan", 512, "C"),
+            ParameterSlot.active (2), send)));
+
+        assertTrue (host.effects ().desiredParameterBanks ().banks ().contains (ParameterBankId.ACTIVE));
+        assertTrue (host.effects ().desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextAt text && "Volume".equals (text.text ())));
+        assertTrue (host.effects ().desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextAt text && "Reverb".equals (text.text ())));
+
+        host.controllerMotion (PushControlIds.continuous ("KNOB3"), InputKind.RELATIVE, 2);
+
+        assertEquals (new AdjustParameterValueEffect (send.target (), 20), host.effects ().executionOrder ().getLast ());
     }
 
 
@@ -1760,7 +1788,7 @@ class PullControllerCoreTest
 
         host.bridge (noteBridge (3, "DRUM_PAD", "TRACK", drums, preference, drum (drums), manual));
 
-        assertEquals (VsLiveWorkspace.NAME + " / stable page", host.effects ().desiredControllerWorkspace ().name ());
+        assertEquals (VsLiveWorkspace.NAME + " / Track Mix", host.effects ().desiredControllerWorkspace ().name ());
         assertEquals (2.0 / 3.0, host.effects ().desiredNoteRepeat ().period ());
     }
 
@@ -2068,6 +2096,23 @@ class PullControllerCoreTest
             ParameterBridgeSnapshot.empty (),
             MasterSnapshot.empty (),
             ProjectSnapshot.empty ());
+    }
+
+
+    private static ControllerBridgeSnapshot sessionMixBridge (final Map<ParameterSlot, ParameterTargetSnapshot> parameters)
+    {
+        final ControllerBridgeSnapshot base = sessionBridge (3, "DRUM_PAD", "TRACK", VsLiveWorkspace.SESSION_BANK);
+        return new ControllerBridgeSnapshot (
+            base.transport (),
+            base.selectedTrack (),
+            base.sessionBank (),
+            base.layout (),
+            base.noteView (),
+            base.noteRepeat (),
+            base.drum (),
+            new ParameterBridgeSnapshot (parameters, Map.of ()),
+            base.master (),
+            base.project ());
     }
 
 

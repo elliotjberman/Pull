@@ -239,12 +239,12 @@ client-side:
 tools/push-debug-request session \
     'NOTE/workspace=false' \
     'TRACK/mode=TRACK,workspace=false' \
-    'SESSION/view=SESSION,mode!=WORKSPACE|MASTER|MASTER_TEMP,workspace=false'
+    'SESSION/view=SESSION,mode!=WORKSPACE|MASTER|MASTER_TEMP,workspace=true'
 ```
 
 The eight upper display buttons are admitted while ordinary Track mode owns them. Every terminal
 status reports the private selection-following target's `track_position`, stable `track_id`,
-identity `track_generation`, `armed` state, and `monitor` mode. It also reports authoritative
+identity `track_generation`, `armed`, `muted`, `soloed`, `clip_playing`, and `monitor` state. It also reports authoritative
 `repeat` and `latch` state plus parent-owned Note-route command state. Bitwig track positions are
 local to the immediate parent group, so a
 `track=N` predicate is accepted only alongside the exact `track-id=ID` fence. Position remains
@@ -254,6 +254,11 @@ to discover the currently selected identity:
 ```bash
 tools/push-debug-request identify 'TRACK/mode=TRACK,workspace=false'
 ```
+
+Mute, Solo, and Stop Clip are admitted through their permanent routed buttons. Use `muted`,
+`soloed`, and `clip-playing` predicates so completion comes from later selected-track host read-back,
+not command submission. A Stop request with `clip-playing=false` is intentionally already satisfied
+when no selected-track launcher clip is playing and therefore does not press the button.
 
 A `repeat=true|false` postcondition waits for authoritative read-back from the permanent Push
 NoteInput repeat engine. With the project-specific identities discovered from terminal statuses,

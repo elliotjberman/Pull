@@ -43,7 +43,7 @@ assert_status()
 
 write_navigation_status()
 {
-    printf '%s\tREADY\t%s\tSESSION\tTRACK\tfalse\tfalse\tfalse\t5\ttrack-a\t2\tfalse\tOFF\ttrue\tfalse\tfalse\t-\t-\tfalse\t-\t-\tNONE\tOUTPUT\tPAD29\tpush.pad.29\t64\t100\tEXCLUSIVE\ttrue\ttrue\ttrue\t0C2238\t43:0:false\tbase=0:64:43;blink=-\t\n' "$1" "$2" > "$test_debug/navigate-status.txt"
+    printf '%s\tREADY\t%s\tSESSION\tTRACK\tfalse\tfalse\tfalse\t5\ttrack-a\t2\tfalse\tOFF\ttrue\tfalse\tfalse\t-\t-\tfalse\t-\t-\tNONE\tOUTPUT\tPAD29\tpush.pad.29\t64\t100\tEXCLUSIVE\ttrue\ttrue\ttrue\t0C2238\t43:0:false\tbase=0:64:43;blink=-\tfalse\tfalse\ttrue\t\n' "$1" "$2" > "$test_debug/navigate-status.txt"
 }
 
 new_debug_home
@@ -122,7 +122,7 @@ new_debug_home
 (
     wait_for_file "$test_debug/navigate-request.txt"
     IFS=$'\t' read -r failed_id failed_label _ < "$test_debug/navigate-request.txt"
-    printf '%s\tFAILED\t%s\tSESSION\tTRACK\tfalse\tfalse\tfalse\t-1\t-\t0\tfalse\tOFF\tfalse\tfalse\tfalse\t-\t-\tfalse\t-\t-\tNONE\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\tpad route is unavailable\n' "$failed_id" "$failed_label" > "$test_debug/navigate-status.txt"
+    printf '%s\tFAILED\t%s\tSESSION\tTRACK\tfalse\tfalse\tfalse\t-1\t-\t0\tfalse\tOFF\tfalse\tfalse\tfalse\t-\t-\tfalse\t-\t-\tNONE\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\tfalse\tfalse\tfalse\tpad route is unavailable\n' "$failed_id" "$failed_label" > "$test_debug/navigate-status.txt"
 ) &
 set +e
 failure_output="$(env HOME="$test_home" "${script_dir}/push-debug-request" failed-navigation 'NOTE/workspace=false' 2>&1)"

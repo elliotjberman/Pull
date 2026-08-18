@@ -236,7 +236,7 @@ which needs a future target other than the selected track must declare a differe
 control view rather than infer it from the visible page.
 
 Display fragments now follow the same ownership rule for the installed VS Live page. Project Macro
-emits only a local 960x143 `DISPLAY.PARAMETERS` scene, while Track Selection emits only a local
+or Track Mixer emits only a local 960x143 `DISPLAY.PARAMETERS` scene, while Track Selection emits only a local
 960x17 `DISPLAY.BOTTOM_STRIP` scene. The compiler rejects a partial page, an unclaimed fragment, an
 overlap with a complete-scene owner, or a primitive outside its local viewport; successful
 composition wraps each fragment in a compiler-owned, renderer-enforced clip and yields one 960x160
@@ -244,6 +244,13 @@ base scene. The shell's generic base plane replaces inherited page
 columns without suppressing ordinary overlays. A temporary display overlay is different: for
 example, a short-lived full-screen status/animation scene sits above the composed base and then
 reveals it again, rather than sharing either region claim.
+
+When VS Live selects Track/Mix, `TrackMixerControlsView` replaces only the 960x143 producer. It
+declares the installed `ACTIVE` parameter bank, owns all eight relative encoder turns and their
+typed effects, and renders the selected track's Volume/Pan plus active send slots from authoritative
+read-back. The retained Track Selection footer remains the independent 960x17 producer. Encoder
+touches and the inherited upper-row page menu remain explicit frozen adapters; ordinary Track/Mix
+outside this composition is not implied to have migrated.
 
 ## Implementation Checkpoints
 

@@ -48,7 +48,7 @@ In the current baseline:
 - Record, Shift+Record, and Select+Record are core-owned;
 - VS Live selection and fixed-facet composition are core-owned;
 - stable adapters still realize VS Live's Session grid/scene, Drum octave/pitch-bend lifecycle,
-  macro touch/Delete, and navigation mechanics;
+  macro touch/Delete, Track/Mix touch and upper-row page-menu mechanics, and navigation mechanics;
 - drum-grid pressure interpretation and selected-target Note routing policy are core-owned in both
   standalone and composite Drum layouts, while the permanent `NoteInput`, direct-route actuator, and MIDI
   neutralization remain stable;
@@ -65,7 +65,8 @@ In the current baseline:
 - the Master page's two button rows and graphics scene are core-owned through complete output
   arbitration; its generic stable scene interpreter contains no Master layout policy;
 - one generic complete 960x160 base-scene plane projects core output on every Push page. The VS
-  Live Project Macro and Track Selection views compose its fixed 960x143 and 960x17 regions;
+  Live Project Macro or Track Mixer body and retained Track Selection view compose its fixed
+  960x143 and 960x17 regions; Track/Mix owns active-parameter rendering and relative encoder turns;
   Track Selection also owns its lower-row actions and authoritative RGB feedback. The deleted
   stable page/selection/light paths do not return on missing core output;
 - a generic sparse 8x8 pad-grid overlay can freeze, temporarily replace, and restore stable pad
@@ -80,7 +81,8 @@ In the current baseline:
   named bounded Bitwig parameter banks, exact actuator leases, identity fencing, effect execution,
   command-driven compatibility-intent adaptation, and compatibility-action dispatch;
 - VS Live project-macro encoder mapping, relative mutation policy, display rendering, and snapback
-  admission are core-owned. Stable `WorkspaceMode` remains only its touch/Delete adapter.
+  admission are core-owned. Its Track/Mix replacement likewise owns active-parameter rendering and
+  relative turns. Stable retains only the declared touch/Delete and upper-row page-menu adapters.
 
 Before taking an item, inspect the active branch and in-flight work. This inventory describes
 architectural ownership, not a promise that no adjacent PR has changed the exact files.
@@ -423,8 +425,8 @@ Add, in order:
 2. Session grid;
 3. remaining parameter-bank contexts beyond the API 24 named canopy.
 
-Then migrate `WorkspaceMode` and `WorkspaceView` completely. Project-macro relative turns and
-display output plus VS Live track selection/feedback have moved; automation touch, other track
+Then migrate `WorkspaceMode` and `WorkspaceView` completely. Project-macro and VS Live Track/Mix
+relative turns and display output plus VS Live track selection/feedback have moved; automation touch, ordinary track
 strips, Session grid/scene behavior, navigation, and Drum adapters remain good acceptance targets
 because their product behavior is specified and exercised in VS Live.
 

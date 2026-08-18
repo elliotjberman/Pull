@@ -3,8 +3,8 @@
 Status: current through Core API 37, semantic controller-mapping identities, generic registered
 button/grid light arbitration, the shared
 mixer-control renderer, the Master-control migration, the post-demo `VS Live` composition, and
-core-owned Session Stop, selected-track Mute/Solo, VS Live Project/Track display composition and
-track selection, note-view, and drum-rate policy.
+core-owned Session Stop, selected-track Mute/Solo, VS Live Project/Track and Track/Mix display
+composition, track selection, note-view, and drum-rate policy.
 
 Read this file before changing controller views, modes, workspaces, input routing, or Session bank
 topology. The detailed design contract is in
@@ -270,9 +270,13 @@ its optional pitch-bend facet. It does not own the lower scene keys. `DrumPlayPa
 playable block plus aggregate pressure as one fixed profile, so the standalone Drum page and VS
 Live compose the same pressure and authoritative feedback policy.
 
-The project-macro/track-strip page is an independently replaceable view. After its initial
-`WORKSPACE` page has been observed, selecting Mix, Device, or Browse releases only that page view;
-the Session/Drum grid, scene keys, navigation, and Session-owned Stop Clip control remain selected.
+The parameter-body view is independently replaceable from the retained track strip and grid. After
+the initial `WORKSPACE` page has been observed, selecting Mix composes `TrackMixerControlsView`
+with the same `TrackSelectionStripView`: core owns the active eight-parameter rendering and encoder
+turns while the inherited upper-row page menu and encoder-touch mechanics remain explicit stable
+adapters. Device and Browse still release the parameter body to their frozen stable pages. Every
+such replacement retains the Session/Drum grid, scene keys, navigation, track strip, and
+Session-owned Stop Clip control.
 
 The normal Session view declares an 8x8 bank. VS Live declares 8x4. `SessionBankRegistry` eagerly
 holds exactly those installed shapes, preserves track/scene offsets when switching, and enables
@@ -289,6 +293,9 @@ Reloadable core:
 - `VsLiveWorkspace`: Java-defined composition and declared 8x4 Session bank.
 - `ProjectMacroControlsView`: core-owned relative encoder behavior plus adapter-backed touch and
   parameter-display ownership.
+- `TrackMixerControlsView`: VS Live's core-owned active Track/Mix parameter body and encoder turns,
+  composed with the retained track-selection strip; upper-row menu actions and encoder touches are
+  explicit stable adapters.
 - `TrackSelectionStripView`: lower display strip and lower soft-key ownership.
 - `SessionNavigationView`: arrow and page navigation ownership.
 - `SessionView`: full or upper Session grid profile, optional upper scene keys, and core-owned Stop
@@ -369,8 +376,10 @@ Implemented:
   display primitives. Missing or execution-faulted core behavior is blank and inert. A stable
   preparation rejection preserves the active generation's last committed output rather than
   converting one invalid result into a controller-wide fault.
-- Fixed display-region composition for the VS Live page. Project Macro owns the 960x143 parameter
-  body; Track Selection owns the 960x17 footer plus all eight exclusive lower-row edges and lights.
+- Fixed display-region composition for the VS Live page. Project Macro or Track Mixer owns the
+  replaceable 960x143 parameter body; Track Selection owns the retained 960x17 footer plus all
+  eight exclusive lower-row edges and lights. The Track Mixer body renders authoritative active
+  parameter and selected-track state and owns all eight relative encoder effects.
   The compiler requires both regions, validates local containment, wraps each region in a real
   renderer-enforced clip, and produces one complete base
   scene. The shell projects that scene generically on any page and keeps the temporary overlay as a
@@ -380,8 +389,9 @@ Implemented:
 
 Partial or transitional:
 
-- Project macro relative encoder and display behavior run in core; only touch/Delete remain in
-  stable `WorkspaceMode`. Session grid/scene mechanics, navigation, Drum Controller octave
+- Project macro and VS Live Track/Mix relative encoder and display behavior run in core; touch and
+  upper-row Track/Mix page-menu mechanics remain explicit stable adapters. Session grid/scene
+  mechanics, navigation, Drum Controller octave
   controls, and pitch-bend adapter-backed mechanics still run in stable
   `WorkspaceMode`/`WorkspaceView`.
 - `ControllerViewFacet` remains a closed cross-boundary adapter ID.
@@ -394,7 +404,7 @@ Partial or transitional:
   Play/Record, Session Stop Clip, persistent selected-track Mute/Solo, and both Master rows. Authoritative
   semantic Bitwig Boolean feedback and replayable physical-to-semantic mapping leases support the
   mappable controls. General display output is still semantically partial: Master and the composed
-  VS Live Project/Track page are core-authored, while a generic complete base-scene plane, a
+  VS Live Project/Track and Track/Mix pages are core-authored, while a generic complete base-scene plane, a
   temporary sparse 8x8 grid overlay, and a complete temporary 960x160 display overlay are
   arbitrated. The detailed design's API 37 installed-output inventory is canonical.
 

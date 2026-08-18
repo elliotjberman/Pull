@@ -227,8 +227,10 @@
   exactly. This is transport, not semantic ownership: migrate a control's action, authoritative
   state, and feedback together before changing its meaning.
   The Master scene's copy, typography, geometry, color, clipping, and shape policy are core-owned;
-  stable only interprets bounded generic primitives. The VS Live Project Macro and Track Selection
-  views independently own the fixed 960x143 parameter region and 960x17 bottom strip. Compilation
+  stable only interprets bounded generic primitives. The VS Live Project Macro or Track Mixer body
+  and retained Track Selection view independently own the fixed 960x143 parameter region and
+  960x17 bottom strip. Track Mixer owns its active-parameter rendering and relative encoder turns;
+  its upper-row page menu and encoder touches remain explicit frozen adapters. Compilation
   requires complete coverage, confines every primitive with compiler-owned clip scopes to its
   claimed local viewport, and emits one 960x160 base scene. Track Selection owns its eight
   exclusive lower-row edges and authoritative lights; it resolves the exact visible target at
@@ -239,12 +241,13 @@
   ordinary overlays above them. API 22 also installs a temporary sparse 8x8
   pad-grid overlay and a complete 960x160 display overlay whose activation and visuals are
   core-owned, plus a bounded pure mixer-control render service:
-  Master, Project Macro, and the stable Track Mix adapter must use the same core-owned
-  Volume/Pan/Knob renderer. Cue parameters, Project Macros, and Track Mix sends are the same Knob
-  component, not parallel lookalikes. Track Mix and Project Macro accept only column-local scenes
-  structurally confined to the installed parameter-body region; their menus and footers remain
-  stable-owned, and missing/faulted core output leaves all eight mixer-control slots blank rather
-  than reviving a stable semantic fallback. Those stable menus,
+  Master, Project Macro, the ordinary stable Track Mix adapter, and the core-owned VS Live Track
+  Mixer body use the same core-owned Volume/Pan/Knob renderer.
+  Cue parameters and Track Mix sends are the same Knob component, not parallel lookalikes. Track
+  Mix and Project Macro accept only column-local scenes structurally confined to the installed
+  parameter-body region; remaining stable menus and footers stay frozen, and missing/faulted core
+  output leaves all eight mixer-control slots blank rather than reviving a stable semantic fallback.
+  Those stable menus,
   footers, and other workspace facets are frozen inherited migration debt, not valid extension
   points. Do not claim ribbon or semantic ownership of inherited display pages beyond Master and
   the composed VS Live page merely because the generic base-scene transport is installed. Logical

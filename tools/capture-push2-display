@@ -152,7 +152,7 @@ then
                 navigation_steps=(
                     'NOTE/workspace=false'
                     'TRACK/mode=TRACK,workspace=false'
-                    'SESSION/view=SESSION,mode!=WORKSPACE|MASTER|MASTER_TEMP,workspace=false')
+                    'SESSION/view=SESSION,mode!=WORKSPACE|MASTER|MASTER_TEMP,workspace=true')
                 ;;
         esac
     fi
@@ -193,7 +193,7 @@ then
     do
         if [[ -f "$navigation_status_path" ]]
         then
-            IFS=$'\t' read -r status_request_id status target_name view_id mode_id workspace_active repeat_active latch_active track_position track_id track_generation track_armed track_monitor can_hold_notes route_available route_desired route_desired_id route_desired_generation route_active route_active_id route_active_generation route_layout pad_probe pad_button pad_control pad_midi_note pad_velocity pad_route mapping_desired mapping_active mapped_on desired_rgb resolved_light transmitted_light message < "$navigation_status_path" || true
+            IFS=$'\t' read -r status_request_id status target_name view_id mode_id workspace_active repeat_active latch_active track_position track_id track_generation track_armed track_monitor can_hold_notes route_available route_desired route_desired_id route_desired_generation route_active route_active_id route_active_generation route_layout pad_probe pad_button pad_control pad_midi_note pad_velocity pad_route mapping_desired mapping_active mapped_on desired_rgb resolved_light transmitted_light track_muted track_soloed track_clip_playing message < "$navigation_status_path" || true
             if [[ "$status_request_id" == "$request_id" ]]
             then
                 navigation_pending=false
@@ -203,10 +203,10 @@ then
                 fi
                 if [[ "$status" == "READY" ]]
                 then
-                    echo "Push navigation ready: target=${target_name} view=${view_id} mode=${mode_id} workspace=${workspace_active} repeat=${repeat_active} latch=${latch_active} track_position=${track_position} track_id=${track_id} track_generation=${track_generation} armed=${track_armed} monitor=${track_monitor} can_hold_notes=${can_hold_notes} route_available=${route_available} route_desired=${route_desired}:${route_desired_id}:${route_desired_generation} route_active=${route_active}:${route_active_id}:${route_active_generation} route_layout=${route_layout} pad_probe=${pad_probe} pad_button=${pad_button} pad_control=${pad_control} pad_midi_note=${pad_midi_note} pad_velocity=${pad_velocity} pad_route=${pad_route} mapping_desired=${mapping_desired} mapping_active=${mapping_active} mapped_on=${mapped_on} desired_rgb=${desired_rgb} resolved_light=${resolved_light} transmitted_light=${transmitted_light}" >&2
+                    echo "Push navigation ready: target=${target_name} view=${view_id} mode=${mode_id} workspace=${workspace_active} repeat=${repeat_active} latch=${latch_active} track_position=${track_position} track_id=${track_id} track_generation=${track_generation} armed=${track_armed} monitor=${track_monitor} muted=${track_muted} soloed=${track_soloed} clip_playing=${track_clip_playing} can_hold_notes=${can_hold_notes} route_available=${route_available} route_desired=${route_desired}:${route_desired_id}:${route_desired_generation} route_active=${route_active}:${route_active_id}:${route_active_generation} route_layout=${route_layout} pad_probe=${pad_probe} pad_button=${pad_button} pad_control=${pad_control} pad_midi_note=${pad_midi_note} pad_velocity=${pad_velocity} pad_route=${pad_route} mapping_desired=${mapping_desired} mapping_active=${mapping_active} mapped_on=${mapped_on} desired_rgb=${desired_rgb} resolved_light=${resolved_light} transmitted_light=${transmitted_light}" >&2
                     break
                 fi
-                echo "Push navigation failed: ${message:-unknown error} (view=${view_id} mode=${mode_id} repeat=${repeat_active} latch=${latch_active} track_position=${track_position} track_id=${track_id} track_generation=${track_generation} armed=${track_armed} monitor=${track_monitor} pad_probe=${pad_probe} pad_button=${pad_button} pad_control=${pad_control} pad_route=${pad_route} mapping_desired=${mapping_desired} mapping_active=${mapping_active} mapped_on=${mapped_on})" >&2
+                echo "Push navigation failed: ${message:-unknown error} (view=${view_id} mode=${mode_id} repeat=${repeat_active} latch=${latch_active} track_position=${track_position} track_id=${track_id} track_generation=${track_generation} armed=${track_armed} monitor=${track_monitor} muted=${track_muted} soloed=${track_soloed} clip_playing=${track_clip_playing} pad_probe=${pad_probe} pad_button=${pad_button} pad_control=${pad_control} pad_route=${pad_route} mapping_desired=${mapping_desired} mapping_active=${mapping_active} mapped_on=${mapped_on})" >&2
                 exit 1
             fi
         fi

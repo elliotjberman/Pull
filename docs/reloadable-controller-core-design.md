@@ -1,6 +1,6 @@
 # Reloadable Controller Core
 
-Status: Milestones 1 through 9, the Master-control migration, the VS Live display/track-selection
+Status: Milestones 1 through 9, the Master-control migration, the VS Live display/track-selection/Track-Mix
 migration, and the note-view/drum-rate migration are implemented. The current working tree installs
 the bounded Core API 37 controller bridge
 described below: normalized Push command input, explicitly requested
@@ -9,7 +9,7 @@ effects against exact retained parameter targets as well as transport, selected-
 Session-bank, drum, and current-project targets.
 The drum-fill shell uses a single-active replacement barrier, while one stable composed-controller
 lifecycle realizes every active view's fixed facets, Note layout, and selected-track musical route.
-The Master page and the composed VS Live Project/Track page have complete semantic display
+The Master page and the composed VS Live Project/Track and Track/Mix pages have complete semantic display
 ownership. Every
 registered Push button and physical grid-pad light has generic explicit core-or-stable arbitration;
 touch-strip output and other inherited display-page semantics do not.
@@ -660,12 +660,12 @@ Output remains narrower than input in API 37. This is the canonical installed-ou
 | Note repeat | One complete replayable lease over the permanent NoteInput Repeat engine, with later read-back, inactive release, and manual-parameter restoration. |
 | Master scene | The bounded eight-column Master display scene while the Master-controls facet is active. |
 | Mixer-control cells | Up to eight column-local 120x126 Volume/Pan/Knob scenes used by Master, Project Macro, and the stable-data Track Mix adapter. API 34 carries raw control role, enablement, touch, and optional host color; it also admits contained fitted text boxes so core can own Project Macro accent/touch policy and keep long labels and authoritative values inside the cell. Stable only clips/rasterizes the bounded primitive. |
-| Complete display base | One generic complete 960x160 base-scene projection on every Push page. Master owns a complete scene; the VS Live Project Macro and Track Selection views own disjoint 960x143 and 960x17 local regions which compile only as one completely covered, containment-checked page with renderer-enforced clip scopes. Other inherited page semantics remain stable debt. |
+| Complete display base | One generic complete 960x160 base-scene projection on every Push page. Master owns a complete scene; VS Live composes either Project Macro or Track Mixer in the 960x143 region with the retained Track Selection 960x17 region. Both variants compile only as a completely covered, containment-checked page with renderer-enforced clip scopes. Other inherited page semantics remain stable debt. |
 | Pad-grid overlay | A complete temporary sparse 8x8 replacement overlay with stable restore. |
 | Display overlay | A complete temporary 960x160 replacement overlay with stable restore. |
 
 Unclaimed Push grid and button-light policy, ribbon output, and inherited display-page semantics
-outside Master and the composed VS Live page remain frozen stable migration debt. Registered button
+outside Master and the composed VS Live pages remain frozen stable migration debt. Registered button
 and grid lights can now
 migrate by core reload, but their action, authoritative state, and feedback must still move as one
 semantic slice. The generic display base transport is installed, but each inherited page still
