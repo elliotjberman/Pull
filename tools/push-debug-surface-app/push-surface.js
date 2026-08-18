@@ -12,7 +12,6 @@
     const pressureTarget = document.querySelector("#pressure-target");
     const activePointers = new Map();
     const activeInjectedEdges = new Map();
-    const activeEncoderDrags = new Map();
     const pendingRelative = new Map();
     const touchedControls = new Set();
     const liveState = {
@@ -30,6 +29,7 @@
         stateFetchActive: false,
         stateFetchPending: false
     };
+    let activeEncoderDrag = null;
     let inputRequestChain = Promise.resolve();
     let selectedPressurePad = 1;
     let pressureTimer = null;
@@ -407,23 +407,24 @@
     }
 
     function registerEncoderTurn(group, address, debugName, centerX, centerY) {
-        group.addEventListener("wheel", event => {
-            event.preventDefault();
-            const magnitude = Math.max(1, Math.min(8, Math.round(Math.abs(event.deltaY) / 40)));
-            scheduleEncoderTurn(group, address, debugName, Math.sign(-event.deltaY) * magnitude, centerX, centerY);
-        }, {passive: false});
         group.addEventListener("pointerdown", event => {
             if (event.button !== 0)
                 return;
             event.preventDefault();
+            if (activeEncoderDrag)
+                finishEncoderDrag(activeEncoderDrag.pointerId);
             group.setPointerCapture(event.pointerId);
             group.classList.add("is-turning");
-            activeEncoderDrags.set(event.pointerId, {group, address, debugName, centerX, centerY, lastY: event.clientY, remainder: 0});
+            activeEncoderDrag = {pointerId: event.pointerId, group, address, debugName, centerX, centerY, lastY: event.clientY, remainder: 0};
         });
         group.addEventListener("pointermove", event => {
-            const drag = activeEncoderDrags.get(event.pointerId);
-            if (!drag)
+            const drag = activeEncoderDrag;
+            if (!drag || drag.pointerId !== event.pointerId)
                 return;
+            if ((event.buttons & 1) === 0) {
+                finishEncoderDrag(event.pointerId);
+                return;
+            }
             const distance = drag.remainder + drag.lastY - event.clientY;
             const delta = Math.trunc(distance / 3);
             drag.lastY = event.clientY;
@@ -431,26 +432,20 @@
             if (delta !== 0)
                 scheduleEncoderTurn(drag.group, drag.address, drag.debugName, delta, drag.centerX, drag.centerY);
         });
-        const endDrag = event => {
-            const drag = activeEncoderDrags.get(event.pointerId);
-            if (!drag)
-                return;
-            activeEncoderDrags.delete(event.pointerId);
-            drag.group.classList.remove("is-turning");
-            if (!drag.group.matches(":hover"))
-                setTouched(drag.address, false);
-        };
+        const endDrag = event => finishEncoderDrag(event.pointerId);
         group.addEventListener("pointerup", endDrag);
         group.addEventListener("pointercancel", endDrag);
-        group.addEventListener("keydown", event => {
-            const direction = event.key === "ArrowUp" || event.key === "ArrowRight"
-                ? 1
-                : event.key === "ArrowDown" || event.key === "ArrowLeft" ? -1 : 0;
-            if (direction === 0)
-                return;
-            event.preventDefault();
-            scheduleEncoderTurn(group, address, debugName, direction * (event.shiftKey ? 8 : 1), centerX, centerY);
-        });
+        group.addEventListener("lostpointercapture", endDrag);
+    }
+
+    function finishEncoderDrag(pointerId) {
+        const drag = activeEncoderDrag;
+        if (!drag || drag.pointerId !== pointerId)
+            return;
+        activeEncoderDrag = null;
+        drag.group.classList.remove("is-turning");
+        if (!drag.group.matches(":hover"))
+            setTouched(drag.address, false);
     }
 
     function scheduleEncoderTurn(group, address, debugName, delta, centerX, centerY) {
@@ -607,9 +602,8 @@
             endEdge(address, kind);
         for (const address of [...touchedControls])
             setTouched(address, false);
-        for (const drag of activeEncoderDrags.values())
-            drag.group.classList.remove("is-turning");
-        activeEncoderDrags.clear();
+        if (activeEncoderDrag)
+            finishEncoderDrag(activeEncoderDrag.pointerId);
     }
 
     function setPressed(reference, pressed, phase = pressed ? "DOWN" : "UP", announce = true) {

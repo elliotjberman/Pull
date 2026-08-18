@@ -120,7 +120,7 @@ tools/push-debug-surface
 Use the exact printed `http://127.0.0.1:<port>/` URL; the server rejects other Host and Origin values.
 Wait for `input ready`, then validate these layers separately:
 
-- Turn encoder 1 with its mouse wheel, vertical drag, or arrow keys. The terminal input status must
+- Hold and vertically drag encoder 1. The terminal input status must
   reach `APPLIED`, and a later `surface-state.json` event must report that encoder as `RELATIVE`,
   `UPDATE`, and the submitted signed delta.
 - On a selected, armed, note-capable Drum Machine track, press and release the bottom-left pad. The
@@ -149,9 +149,9 @@ The live mirror is constructed only when debugging was enabled before extension 
 this shell change and restarting Bitwig once adds the output observer; later core reloads reuse it.
 The controller thread only copies the fixed Push footprint into one coalescing slot. JSON encoding,
 filesystem writes, HTTP serving, and browser polling stay off the controller thread. Continuous
-touch-strip position is not yet part of browser input. Encoders accept mouse-wheel motion,
-vertical pointer drags, and arrow keys (Shift changes the step to eight); their signed deltas run
-through the permanent continuous-control input arbitrator. Browser pad presses
+touch-strip position is not yet part of browser input. Encoders turn only during a held vertical
+pointer drag; their signed deltas run through the permanent continuous-control input arbitrator.
+Browser pad presses
 exercise the extension-side permanent controller binding and Bitwig's `NoteInput`, but Controller
 API 21 still cannot inject a raw packet back into Bitwig's hardware-action matcher; the four
 manually learned pad actions therefore retain the same live-physical-press limitation as the routed
