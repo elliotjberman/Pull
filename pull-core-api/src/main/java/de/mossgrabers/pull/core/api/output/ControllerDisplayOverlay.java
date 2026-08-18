@@ -6,7 +6,13 @@ package de.mossgrabers.pull.core.api.output;
 import java.util.Objects;
 
 
-/** Temporary complete scene composed above the current stable Push display page. */
+/**
+ * Temporary complete scene composed above the current Push display page.
+ *
+ * <p>This is an exceptional full-surface transition plane, currently used by the cross-project
+ * Play wave. Ordinary view content must claim the complete display or fixed display regions and
+ * compose through the normal base scene.</p>
+ */
 public record ControllerDisplayOverlay (boolean active, ControllerDisplayScene scene)
 {
     private static final ControllerDisplayOverlay INACTIVE = new ControllerDisplayOverlay (false, ControllerDisplayScene.empty ());

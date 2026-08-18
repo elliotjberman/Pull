@@ -326,6 +326,9 @@ public final class CompiledWorkspace
                         throw new IllegalStateException ("multiple views own display region " + region);
                 }
             }
+            // Overlays are the deliberate full-surface transition carveout (currently the
+            // cross-project Play wave), not ordinary claimed view regions. They therefore merge
+            // only by exclusive overlay-plane ownership here.
             if (output.padGridOverlay ().active ())
             {
                 if (padGridOverlay.active ())
