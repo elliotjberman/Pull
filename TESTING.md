@@ -118,7 +118,23 @@ tools/push-debug-surface
 ```
 
 Use the exact printed `http://127.0.0.1:<port>/` URL; the server rejects other Host and Origin values.
-Wait for `input ready`, then validate these layers separately:
+
+##### Hard boundary: Bitwig-learned mappings are physical-only
+
+The browser surface is not a virtual MIDI source. Physical controller MIDI enters Bitwig's
+`MidiIn`, where Bitwig can fire a learned `HardwareAction`, and also reaches Pull's raw-input
+arbitrator. Browser input enters at `PushDebugInputHost`, after the `MidiIn` matcher, so it reaches
+the Pull arbitrator but cannot fire the parallel learned action. Controller API 21 exposes neither
+a controller-input injection method nor a way to invoke a `HardwareAction` source.
+
+This specifically means browser presses on the four Drum Controller mapping pads (PAD29–32) can
+reach `APPLIED`, produce core `BEGIN`/`END` events, and send musical `NoteInput`, while the action a
+user manually mapped in Bitwig still does not run. Their red/off lights are authoritative Bitwig
+read-back, not proof that browser actuation is available. Do not add a stable semantic fallback or
+describe `APPLIED` as physical-controller equivalence. Test the learned mapping with the physical
+Push, or inject through an external virtual-MIDI path before Bitwig's `MidiIn`.
+
+Wait for `input ready`, then validate the supported layers separately:
 
 - Hold and vertically drag encoder 1. The terminal input status must
   reach `APPLIED`, and a later `surface-state.json` event must report that encoder as `RELATIVE`,
@@ -139,9 +155,6 @@ jq . ~/.drivenbymoss/pull/debug/surface-input-status.json
 jq '{connected, latestEvent: .events[-1]}' ~/.drivenbymoss/pull/debug/surface-state.json
 ```
 
-Browser pad edges exercise the same API-32 raw-dispatch/mapped/suppressed lane arbitration as
-physical pad MIDI. A learned Bitwig hardware-action mapping still requires a physical Push press;
-Controller API 21 cannot inject the browser's raw note back through Bitwig's hardware matcher.
 Disable the debugger with `tools/capture-push2-display --disable` and restart Bitwig only when the
 next operator no longer needs it.
 
@@ -151,11 +164,8 @@ The controller thread only copies the fixed Push footprint into one coalescing s
 filesystem writes, HTTP serving, and browser polling stay off the controller thread. Continuous
 touch-strip position is not yet part of browser input. Encoders turn only during a held vertical
 pointer drag; their signed deltas run through the permanent continuous-control input arbitrator.
-Browser pad presses
-exercise the extension-side permanent controller binding and Bitwig's `NoteInput`, but Controller
-API 21 still cannot inject a raw packet back into Bitwig's hardware-action matcher; the four
-manually learned pad actions therefore retain the same live-physical-press limitation as the routed
-pad-output probe below.
+Browser pad presses exercise the extension-side permanent controller binding and Bitwig's
+`NoteInput`, subject to the learned-mapping boundary above.
 
 An agent can then select a bounded Push surface and capture the resulting Push 2 framebuffer in one
 command:
