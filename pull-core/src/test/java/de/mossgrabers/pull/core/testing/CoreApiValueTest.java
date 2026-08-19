@@ -196,7 +196,7 @@ class CoreApiValueTest
     @Test
     void publishesStableVersionCapabilityAndControlIdentifiers ()
     {
-        assertEquals (32, CoreApi.VERSION);
+        assertEquals (33, CoreApi.VERSION);
         assertEquals ("input.drum-fill", CoreCapabilities.INPUT_DRUM_FILL);
         assertEquals ("snapshot.selected-track-clips", CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS);
         assertEquals ("binding.clip-target", CoreCapabilities.BINDING_CLIP_TARGET);
@@ -366,14 +366,17 @@ class CoreApiValueTest
         final ControllerDisplayScene containedScene = new ControllerDisplayScene (MixerControlDisplay.WIDTH, MixerControlDisplay.HEIGHT, List.of (new DisplayCommand.Rectangle (0, 0, MixerControlDisplay.WIDTH, MixerControlDisplay.HEIGHT, color)));
         final MixerControlDisplay contained = new MixerControlDisplay (0, MixerControlKind.VOLUME, containedScene);
         final MixerControlDisplay containedKnob = new MixerControlDisplay (2, MixerControlKind.KNOB, new ControllerDisplayScene (MixerControlDisplay.WIDTH, MixerControlDisplay.HEIGHT, List.of (new DisplayCommand.DottedArc (33, 89, 25, 220, -130, 100, 1.1, color))));
+        final MixerControlDisplay containedText = new MixerControlDisplay (1, MixerControlKind.PAN, new ControllerDisplayScene (MixerControlDisplay.WIDTH, MixerControlDisplay.HEIGHT, List.of (new DisplayCommand.TextBox ("-123.456", 8, 21, 64, 30, DisplayTextAlignment.LEFT, color, 30, 12, DisplayTextFit.SHRINK))));
 
         assertEquals (List.of (contained), new MixerControlsDisplay (List.of (contained)).controls ());
         assertEquals (List.of (containedKnob), new MixerControlsDisplay (List.of (containedKnob)).controls ());
+        assertEquals (List.of (containedText), new MixerControlsDisplay (List.of (containedText)).controls ());
         assertThrows (IllegalArgumentException.class, () -> new MixerControlDisplay (0, MixerControlKind.VOLUME, new ControllerDisplayScene (960, 160, List.of (new DisplayCommand.Rectangle (0, 0, 960, 160, color)))));
         assertThrows (IllegalArgumentException.class, () -> new MixerControlDisplay (0, MixerControlKind.VOLUME, new ControllerDisplayScene (MixerControlDisplay.WIDTH, MixerControlDisplay.HEIGHT, List.of (new DisplayCommand.Rectangle (0, 0, MixerControlDisplay.WIDTH + 1, 1, color)))));
         assertThrows (IllegalArgumentException.class, () -> new MixerControlDisplay (0, MixerControlKind.VOLUME, new ControllerDisplayScene (MixerControlDisplay.WIDTH, MixerControlDisplay.HEIGHT, List.of (new DisplayCommand.Circle (10, 10, 1, color)))));
         assertThrows (IllegalArgumentException.class, () -> new MixerControlDisplay (2, MixerControlKind.KNOB, new ControllerDisplayScene (MixerControlDisplay.WIDTH, MixerControlDisplay.HEIGHT, List.of (new DisplayCommand.DottedArc (10, 10, 25, 220, -130, 100, 1.1, color)))));
         assertThrows (IllegalArgumentException.class, () -> new MixerControlDisplay (0, MixerControlKind.VOLUME, new ControllerDisplayScene (MixerControlDisplay.WIDTH, MixerControlDisplay.HEIGHT, List.of (new DisplayCommand.TextAt ("x", -1, 17, color, 12.5)))));
+        assertThrows (IllegalArgumentException.class, () -> new MixerControlDisplay (0, MixerControlKind.VOLUME, new ControllerDisplayScene (MixerControlDisplay.WIDTH, MixerControlDisplay.HEIGHT, List.of (new DisplayCommand.TextBox ("x", 8, 21, MixerControlDisplay.WIDTH, 30, DisplayTextAlignment.LEFT, color, 30, 12, DisplayTextFit.SHRINK)))));
     }
 
 

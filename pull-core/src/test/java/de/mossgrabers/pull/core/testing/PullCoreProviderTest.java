@@ -17,6 +17,7 @@ import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.StateEnvelope;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
 import de.mossgrabers.pull.core.api.output.DisplayCommand;
+import de.mossgrabers.pull.core.api.output.DisplayTextFit;
 import de.mossgrabers.pull.core.api.output.MixerControlsDisplay;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.runtime.PullCoreProvider;
@@ -34,6 +35,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -106,21 +108,22 @@ class PullCoreProviderTest
         final ControllerCore core = new PullCoreProvider ().create ();
         final RgbColor accent = new RgbColor (10, 80, 140);
         final MixerControlsDisplay display = core.renderMixerControls (new MixerControlsSnapshot (List.of (
-            new MixerControlSnapshot (0, MixerControlKind.VOLUME, "", 0.5, -1, "-3.0 dB", true, accent, 0.25, 0.5),
+            new MixerControlSnapshot (0, MixerControlKind.VOLUME, "", 0.5, -1, "+3.0 dB", true, accent, 0.25, 0.5),
             new MixerControlSnapshot (1, MixerControlKind.PAN, "", 0.75, -1, "23 R", true, accent, 0, 0),
-            new MixerControlSnapshot (2, MixerControlKind.KNOB, "A-Reverb", 0.6, -1, "-12.0 dB", true, accent, 0, 0))));
+            new MixerControlSnapshot (2, MixerControlKind.KNOB, "Very Long Reverb Send Name", 0.6, -1, "-123.456 dB", true, accent, 0, 0))));
         final List<DisplayCommand> commands = display.controls ().stream ().flatMap (control -> control.scene ().commands ().stream ()).toList ();
 
         assertTrue (commands.contains (new DisplayCommand.Rectangle (63, 83, 6, 2, accent)));
         assertTrue (commands.contains (new DisplayCommand.Rectangle (69, 83, 2, 40, accent)));
         assertTrue (commands.stream ().anyMatch (command -> command instanceof final DisplayCommand.Rectangle rectangle && rectangle.width () == 3 && rectangle.height () == 16 && rectangle.color ().equals (accent)));
-        assertTrue (commands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextAt text && "Volume".equals (text.text ())));
-        assertTrue (commands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextAt text && "-3.0".equals (text.text ()) && text.fontSize () == 19));
-        assertTrue (commands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextAt text && "Pan".equals (text.text ())));
-        assertTrue (commands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextAt text && "23".equals (text.text ())));
+        assertTrue (commands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "Volume".equals (text.text ())));
+        assertTrue (commands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "3.0".equals (text.text ()) && text.maximumFontSize () == 19 && text.fit () == DisplayTextFit.SHRINK));
+        assertTrue (commands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "Pan".equals (text.text ())));
+        assertTrue (commands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "23".equals (text.text ())));
         assertTrue (commands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextAt text && "R".equals (text.text ())));
-        assertTrue (commands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextAt text && "A-Reverb".equals (text.text ()) && text.fontSize () == 15));
-        assertTrue (commands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextAt text && "-12.0".equals (text.text ()) && text.fontSize () == 30));
+        assertTrue (commands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "Very Long Reverb Send Name".equals (text.text ()) && text.maximumFontSize () == 15 && text.minimumFontSize () == 9 && text.fit () == DisplayTextFit.SHRINK));
+        assertTrue (commands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "-123.456".equals (text.text ()) && text.width () == 64 && text.maximumFontSize () == 30 && text.minimumFontSize () == 12));
+        assertFalse (commands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && text.text ().startsWith ("+")));
         assertTrue (commands.stream ().anyMatch (command -> command instanceof DisplayCommand.DottedArc));
     }
 

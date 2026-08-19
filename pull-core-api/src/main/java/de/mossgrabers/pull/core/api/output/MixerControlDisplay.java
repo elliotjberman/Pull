@@ -40,6 +40,7 @@ public record MixerControlDisplay (int column, MixerControlKind kind, Controller
         {
             case final DisplayCommand.Rectangle rectangle -> requireBox (rectangle.x (), rectangle.y (), rectangle.width (), rectangle.height ());
             case final DisplayCommand.TextAt text -> requirePoint (text.x (), text.baselineY ());
+            case final DisplayCommand.TextBox text -> requireBox (text.x (), text.y (), text.width (), text.height ());
             case final DisplayCommand.DottedArc arc -> requireBox (arc.centerX () - arc.radius () - arc.dotRadius (), arc.centerY () - arc.radius () - arc.dotRadius (), 2 * (arc.radius () + arc.dotRadius ()), 2 * (arc.radius () + arc.dotRadius ()));
             default -> throw new IllegalArgumentException ("mixer control scenes support only contained mixer-control primitives");
         }
