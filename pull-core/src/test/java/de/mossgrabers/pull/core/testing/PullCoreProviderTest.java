@@ -110,7 +110,7 @@ class PullCoreProviderTest
         final MixerControlsDisplay display = core.renderMixerControls (new MixerControlsSnapshot (List.of (
             new MixerControlSnapshot (0, MixerControlKind.VOLUME, "", 0.5, -1, "+3.0 dB", true, accent, 0.25, 0.5),
             new MixerControlSnapshot (1, MixerControlKind.PAN, "", 0.75, -1, "23 R", true, accent, 0, 0),
-            new MixerControlSnapshot (2, MixerControlKind.KNOB, "Very Long Reverb Send Name", 0.6, -1, "-123.456 dB", true, accent, 0, 0))));
+            new MixerControlSnapshot (2, MixerControlKind.KNOB, "Very Long Project Macro Name", 0.6, -1, "-123.456 dB", true, accent, 0, 0))));
         final List<DisplayCommand> commands = display.controls ().stream ().flatMap (control -> control.scene ().commands ().stream ()).toList ();
         final List<DisplayCommand> volumeCommands = display.controls ().get (0).scene ().commands ();
         final List<DisplayCommand> wideKnobCommands = display.controls ().get (2).scene ().commands ();
@@ -124,7 +124,7 @@ class PullCoreProviderTest
         assertTrue (commands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "Pan".equals (text.text ())));
         assertTrue (commands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "23".equals (text.text ())));
         assertTrue (commands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextAt text && "R".equals (text.text ())));
-        assertTrue (commands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "Very Long Reverb Send Name".equals (text.text ()) && text.maximumFontSize () == 15 && text.minimumFontSize () == 9 && text.fit () == DisplayTextFit.SHRINK));
+        assertTrue (commands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "Very Long Project Macro Name".equals (text.text ()) && text.maximumFontSize () == 15 && text.minimumFontSize () == 9 && text.fit () == DisplayTextFit.SHRINK));
         assertTrue (wideKnobCommands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "-123.456".equals (text.text ()) && text.width () == 64 && text.maximumFontSize () == 30 && text.minimumFontSize () == 12 && text.fit () == DisplayTextFit.SHRINK));
         assertTrue (wideKnobCommands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextAt text && "dB".equals (text.text ())));
         assertFalse (commands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && text.text ().startsWith ("+")));

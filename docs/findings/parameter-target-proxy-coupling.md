@@ -95,8 +95,9 @@ old live target and publishes a new generation before accepting another mutation
 
 `ProjectMacroControlsView` proves the intended mutation direction: it owns the eight relative
 encoder routes in core and emits typed relative effects against `PROJECT_REMOTE` targets. Stable's
-`WorkspaceMode` no longer mutates or binds those encoders; it remains a display and touch/delete
-adapter. The inherited `ACTIVE` bank remains explicit compatibility scaffolding for unmigrated
+`WorkspaceMode` no longer mutates or binds those encoders and no longer owns parameter-body display
+policy; it retains touch/delete and the inherited Project menu/track footer. The inherited `ACTIVE`
+bank remains explicit compatibility scaffolding for unmigrated
 stable parameter modes, not the model new views should copy.
 
 Stable re-resolves every movable parameter wrapper to a bounded `domain + owner + page + slot/role`

@@ -506,8 +506,10 @@ subscribed. A Push knob is never used as target identity.
 The snapback capture limit remains 10 because one gesture can manipulate eight top encoders, tempo,
 and master volume. This interaction capacity is independent of the larger bank canopy. VS Live's
 project-macro turns are the reference core-owned path: `ProjectMacroControlsView` maps eight
-exclusive relative routes to `PROJECT_REMOTE` slots and emits typed relative effects. Stable
-`WorkspaceMode` retains touch/delete and display adaptation but performs no relative mutation.
+exclusive relative routes to `PROJECT_REMOTE` slots and emits typed relative effects. Its
+parameter-body display uses the core-owned mixer-control renderer. Stable `WorkspaceMode` retains
+touch/delete and the inherited Project menu/track-footer frame but performs no relative mutation or
+parameter-body display policy.
 
 Stable re-resolves each movable `IParameter` wrapper to its live domain, selected owner, selected
 page, and slot or channel role. Cursor remote-control wrappers can remain the same Java object while
@@ -634,7 +636,7 @@ Output remains narrower than input in API 33. This is the canonical installed-ou
 | Controller state | One composed replayable state containing fixed view facets, any full-grid Note layout, and the target-fenced selected-track route; one stable lifecycle owner orders topology submission, musical-surface activation, musical-idle-gated removal, mismatch quarantine, and failure cleanup. |
 | Note repeat | One complete replayable lease over the permanent NoteInput Repeat engine, with later read-back, inactive release, and manual-parameter restoration. |
 | Master scene | The bounded eight-column Master display scene while the Master-controls facet is active. |
-| Mixer-control cells | Up to eight column-local 120x126 Volume/Pan/Knob scenes used by Master and the stable-data Track Mix adapter. API 33 admits contained fitted text boxes so core can keep long labels and authoritative values inside the cell; stable only clips/rasterizes the bounded primitive. |
+| Mixer-control cells | Up to eight column-local 120x126 Volume/Pan/Knob scenes used by Master, Project Macro, and the stable-data Track Mix adapter. API 33 admits contained fitted text boxes so core can keep long labels and authoritative values inside the cell; stable only clips/rasterizes the bounded primitive. |
 | Pad-grid overlay | A complete temporary sparse 8x8 replacement overlay with stable restore. |
 | Display overlay | A complete temporary 960x160 replacement overlay with stable restore. |
 
