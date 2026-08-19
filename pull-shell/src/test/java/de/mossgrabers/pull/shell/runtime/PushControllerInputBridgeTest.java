@@ -74,7 +74,17 @@ class PushControllerInputBridgeTest
 
 
     @Test
-    void releaseAndImmediateRepressStayOnTheInstalledSingleButtonPath ()
+    void translatesEveryShellInputPhaseAtOneBoundary ()
+    {
+        assertEquals (de.mossgrabers.pull.core.api.event.InputPhase.BEGIN, PushControllerInputBridge.toCorePhase (InputPhase.BEGIN));
+        assertEquals (de.mossgrabers.pull.core.api.event.InputPhase.UPDATE, PushControllerInputBridge.toCorePhase (InputPhase.CHANGE));
+        assertEquals (de.mossgrabers.pull.core.api.event.InputPhase.LONG, PushControllerInputBridge.toCorePhase (InputPhase.LONG));
+        assertEquals (de.mossgrabers.pull.core.api.event.InputPhase.END, PushControllerInputBridge.toCorePhase (InputPhase.END));
+    }
+
+
+    @Test
+    void browserPadIngressSharesMappedAndOrdinaryLaneTransitions ()
     {
         final Fixture fixture = new Fixture ();
 
@@ -89,13 +99,13 @@ class PushControllerInputBridgeTest
 
         // Raw release first closes the frozen routed gesture. The deliberately absent Bitwig
         // release matcher cannot duplicate END afterward.
-        fixture.rawRelease ();
+        fixture.debugRelease ();
         fixture.pad.physicalRelease ();
         assertEquals (List.of (InputPhase.BEGIN, InputPhase.END), fixture.phases ());
 
         // The next gesture belongs to ordinary dispatch and therefore emits no core event.
-        fixture.rawPress ();
-        fixture.rawRelease ();
+        fixture.debugPress ();
+        fixture.debugRelease ();
         assertEquals (List.of (InputPhase.BEGIN, InputPhase.END), fixture.phases ());
 
         fixture.routes.set (fixture.exclusiveRoute);
@@ -112,12 +122,12 @@ class PushControllerInputBridgeTest
         fixture.bridge.flush ();
         fixture.pad.physicalRelease ();
         assertEquals (List.of (InputPhase.BEGIN, InputPhase.END, InputPhase.BEGIN), fixture.phases ());
-        fixture.rawRelease ();
+        fixture.debugRelease ();
         assertEquals (List.of (InputPhase.BEGIN, InputPhase.END, InputPhase.BEGIN, InputPhase.END), fixture.phases ());
         assertEquals (fixture.desiredMapping, fixture.bridge.activeControllerMappings ());
 
         fixture.pressMappingPad ();
-        fixture.rawRelease ();
+        fixture.debugRelease ();
         assertEquals (List.of (InputPhase.BEGIN, InputPhase.END, InputPhase.BEGIN, InputPhase.END, InputPhase.BEGIN, InputPhase.END), fixture.phases ());
     }
 
@@ -270,7 +280,19 @@ class PushControllerInputBridgeTest
 
         private void pressMappingPad ()
         {
-            this.rawPress ();
+            this.debugPress ();
+        }
+
+
+        private void debugPress ()
+        {
+            this.bridge.triggerDebugPad (this.control, InputPhase.BEGIN, 100);
+        }
+
+
+        private void debugRelease ()
+        {
+            this.bridge.triggerDebugPad (this.control, InputPhase.END, 0);
         }
 
 

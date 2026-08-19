@@ -66,6 +66,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
     private CoreReloadSupervisor supervisor;
     private PushControllerInputBridge inputBridge;
     private PushDebugNavigationHost debugNavigation;
+    private PushDebugInputHost      debugInputs;
     private PushDebugTraceHost debugTrace;
     private Predicate<CoreEvent> eventHandler = event -> false;
     private final Set<ControlId> rawReleasedGestures = new HashSet<> ();
@@ -229,7 +230,10 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         this.environment.setInputLifecycleIdle (this.inputBridge::isIdle);
         this.environment.setNoteInputLifecycleIdle (this.inputBridge::musicalInputLifecycleIdle);
         this.debugNavigation = PushDebugNavigationHost.createIfEnabled (surface, this.inputBridge, this.environment::notePerformanceState, this.environment::debugLightObservation);
+        this.debugInputs = PushDebugInputHost.createIfEnabled (surface, this.inputBridge, this.inputBridge::triggerDebugPad);
         this.environment.setInputLifecycleCleanup ( () -> {
+            if (this.debugInputs != null)
+                this.debugInputs.cancelActive ("core-owned input route is being invalidated");
             if (this.debugNavigation != null)
                 this.debugNavigation.cancelActiveProbe ("core-owned input route is being invalidated");
         });
@@ -247,6 +251,8 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         final long startedAt = System.nanoTime ();
         if (this.debugTrace != null && this.debugTrace.needsControllerTick ())
             this.debugTrace.tick (this.supervisor == null ? 0 : this.supervisor.activeGeneration (), this.environment.snapshot ());
+        if (this.debugInputs != null)
+            this.debugInputs.tick ();
         if (this.debugNavigation != null)
             this.debugNavigation.tick ();
         final boolean snapshotChanged = this.environment.refresh ();
@@ -434,11 +440,20 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         this.rawReleasedGestures.clear ();
         try
         {
-            if (this.debugNavigation != null)
-                this.debugNavigation.close ();
+            try
+            {
+                if (this.debugInputs != null)
+                    this.debugInputs.close ();
+            }
+            finally
+            {
+                if (this.debugNavigation != null)
+                    this.debugNavigation.close ();
+            }
         }
         finally
         {
+            this.debugInputs = null;
             this.debugNavigation = null;
             this.inputBridge = null;
             try
@@ -488,7 +503,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         final CoreEvent input = event.stableAction ().<CoreEvent>map (this.environment::controllerAction).orElseGet ( () -> this.environment.controllerInput (
             event.control (),
             de.mossgrabers.pull.core.api.event.InputKind.valueOf (event.kind ().name ()),
-            event.phase () == de.mossgrabers.pull.shell.input.InputPhase.CHANGE ? de.mossgrabers.pull.core.api.event.InputPhase.UPDATE : de.mossgrabers.pull.core.api.event.InputPhase.valueOf (event.phase ().name ()),
+            PushControllerInputBridge.toCorePhase (event.phase ()),
             event.value ()));
         if (!this.started)
             return;

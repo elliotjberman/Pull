@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+app_dir="${script_dir}/push-debug-surface-app"
+server="${script_dir}/push-debug-surface-server.py"
+port="${PUSH_DEBUG_SURFACE_PORT:-8765}"
+url="http://127.0.0.1:${port}/"
+
+if [[ "${PUSH_DEBUG_SURFACE_NO_OPEN:-false}" != "true" && "$(uname -s)" == "Darwin" ]]
+then
+    (sleep 0.4 && open "$url") &
+fi
+
+echo "Push debugger surface: ${url}"
+echo "Press Ctrl-C to stop."
+exec python3 "$server" --app-dir "$app_dir" --port "$port"

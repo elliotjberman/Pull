@@ -52,6 +52,121 @@ the extension constructs its local transports:
 tools/capture-push2-display --enable
 ```
 
+### Push debugger surface preview
+
+Run the dependency-free local Push 2 visualizer with:
+
+```bash
+tools/push-debug-surface
+```
+
+It opens a local SVG surface derived from the measured control bounds in `PushControllerSetup`.
+All 64 pads, physical buttons, continuous controls, and the display have the same canonical
+`push.*` identifiers used by the input bridge. The local server polls the opt-in debugger's bounded
+`surface-state.json`: every successful button-light send and complete successful pad-light send is
+shown with its resolved Push palette RGB, pad blink color, and blink rate. Debugger-generated
+button and pad edges pulse even when their DOWN/UP pair completes inside one controller tick;
+longer physical holds remain visibly pressed. The existing `latest.png` stream fills the display.
+
+When the page reports `input ready`, clicking a button or pad submits its DOWN/UP pair through the
+same permanent hardware object and input arbitrator as Push. A pad also submits the matching raw
+note-on/off packet through the permanent Push `NoteInput`; the active translation table and
+selected-track route therefore decide whether it becomes a musical note just as they do for the
+hardware. Holding the mouse retains the normal long-press lifecycle. Hovering any touch-bound
+continuous control submits its touch BEGIN/END, and the deliberately plain slider below the
+controller submits 0..127 poly-pressure for the last pad clicked through both the controller and
+`NoteInput` paths. One browser edge may be held at a time; pressure may accompany that exact held
+pad. A five-second controller-owned lease, renewed by the page, releases a control if the tab
+disappears and neutralizes detached nonzero pressure.
+The local server accepts bounded same-origin JSON only with the active random extension-session
+token, atomically queues at most 64 requests, and never invokes controller code itself.
+Debugger output reaches the browser through a bounded Server-Sent Events stream. The event carries
+only a change notification; state fetches and PNG decoding coalesce to the newest revision, so a
+slow browser skips intermediate frames instead of accumulating display latency. A one-second poll
+remains only as recovery if the event stream reconnects.
+
+`file://` remains a static preview because it has no local process bridge. **Demo lights** exercises
+RGB rendering without Bitwig. Set `PUSH_DEBUG_SURFACE_NO_OPEN=true` to run the server without opening
+a browser, or `PUSH_DEBUG_SURFACE_PORT` to select another local port.
+
+#### Agent handoff: build, bring up, and prove the browser path
+
+Do not use a different worktree for any step in this sequence. First verify the checkout and run the
+complete offline gate:
+
+```bash
+git rev-parse --show-toplevel
+git status --short
+python3 -m unittest tools/test_push_debug_surface_server.py
+mvn -o -Dmaven.compiler.showDeprecation=true package
+```
+
+The remaining steps take ownership of the installed extension and running reloadable core. Coordinate
+with anyone using Bitwig before doing them. With Bitwig closed, enable debugging, copy this exact
+worktree's `target/Pull.bwextension` to Bitwig's extension directory as described in `README.md`, and
+start Bitwig once:
+
+```bash
+tools/capture-push2-display --enable
+```
+
+If another worktree may have published a core after Bitwig started, run this worktree's
+`tools/reload-core --timeout-ms 20000` before testing. Then start the surface from this worktree:
+
+```bash
+tools/push-debug-surface
+```
+
+Use the exact printed `http://127.0.0.1:<port>/` URL; the server rejects other Host and Origin values.
+
+##### Hard boundary: Bitwig-learned mappings are physical-only
+
+The browser surface is not a virtual MIDI source. Physical controller MIDI enters Bitwig's
+`MidiIn`, where Bitwig can fire a learned `HardwareAction`, and also reaches Pull's raw-input
+arbitrator. Browser input enters at `PushDebugInputHost`, after the `MidiIn` matcher, so it reaches
+the Pull arbitrator but cannot fire the parallel learned action. Controller API 21 exposes neither
+a controller-input injection method nor a way to invoke a `HardwareAction` source.
+
+This specifically means browser presses on the four Drum Controller mapping pads (PAD29–32) can
+reach `APPLIED`, produce core `BEGIN`/`END` events, and send musical `NoteInput`, while the action a
+user manually mapped in Bitwig still does not run. Their red/off lights are authoritative Bitwig
+read-back, not proof that browser actuation is available. Do not add a stable semantic fallback or
+describe `APPLIED` as physical-controller equivalence. Test the learned mapping with the physical
+Push, or inject through an external virtual-MIDI path before Bitwig's `MidiIn`.
+
+Wait for `input ready`, then validate the supported layers separately:
+
+- Hold and vertically drag encoder 1. The terminal input status must
+  reach `APPLIED`, and a later `surface-state.json` event must report that encoder as `RELATIVE`,
+  `UPDATE`, and the submitted signed delta.
+- On a selected, armed, note-capable Drum Machine track, press and release the bottom-left pad. The
+  terminal input status must reach `APPLIED` for both edges, and later surface events must contain the
+  matching PAD `BEGIN` and `END`. Hearing the note is the required live evidence that Bitwig accepted
+  the separate `NoteInput` packet; the installed canopy has no authoritative note-held read-back.
+- Confirm that Bitwig-driven pad and button colors appear on the matching browser controls. A queued
+  HTTP response proves only local ingress, and an `APPLIED` status proves only controller routing;
+  neither by itself proves audible note delivery or later controller output.
+
+The bounded files below make those distinctions inspectable without browser developer tools:
+
+```bash
+jq . ~/.drivenbymoss/pull/debug/surface-input-info.json
+jq . ~/.drivenbymoss/pull/debug/surface-input-status.json
+jq '{connected, latestEvent: .events[-1]}' ~/.drivenbymoss/pull/debug/surface-state.json
+```
+
+Disable the debugger with `tools/capture-push2-display --disable` and restart Bitwig only when the
+next operator no longer needs it.
+
+The live mirror is constructed only when debugging was enabled before extension startup. Installing
+this shell change and restarting Bitwig once adds the output observer; later core reloads reuse it.
+The controller thread only copies the fixed Push footprint into one coalescing slot. JSON encoding,
+filesystem writes, HTTP serving, and browser polling stay off the controller thread. Continuous
+touch-strip position is not yet part of browser input. Encoders turn only during a held vertical
+pointer drag; their signed deltas run through the permanent continuous-control input arbitrator.
+Browser pad presses exercise the extension-side permanent controller binding and Bitwig's
+`NoteInput`, subject to the learned-mapping boundary above.
+
 An agent can then select a bounded Push surface and capture the resulting Push 2 framebuffer in one
 command:
 

@@ -23,6 +23,9 @@ jobs:
       - name: Test Push debugger clients
         run: tools/test-push-debug-clients
 
+      - name: Test Push debugger surface server
+        run: python3 -m unittest tools/test_push_debug_surface_server.py
+
       - name: Set up Java 21
         uses: actions/setup-java@v5
         with:

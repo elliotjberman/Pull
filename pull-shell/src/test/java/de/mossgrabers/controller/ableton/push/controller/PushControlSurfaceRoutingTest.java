@@ -3,6 +3,9 @@
 
 package de.mossgrabers.controller.ableton.push.controller;
 
+import de.mossgrabers.framework.controller.ButtonID;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -62,5 +65,17 @@ class PushControlSurfaceRoutingTest
         assertTrue (PushControlSurface.shouldRouteRawPitchbend (true, false));
         assertTrue (PushControlSurface.shouldRouteRawPitchbend (false, true));
         assertTrue (PushControlSurface.shouldRouteRawPitchbend (true, true));
+    }
+
+
+    @Test
+    void debugOutputMapUsesTheInstalledPushMidiIdentity ()
+    {
+        assertEquals (ButtonID.PLAY, PushControlSurface.debugButtonForMidiControl (PushControlSurface.PUSH_BUTTON_PLAY));
+        assertEquals (ButtonID.ROW1_4, PushControlSurface.debugButtonForMidiControl (PushControlSurface.PUSH_BUTTON_ROW1_4));
+        assertEquals (ButtonID.ROW2_7, PushControlSurface.debugButtonForMidiControl (PushControlSurface.PUSH_BUTTON_ROW2_7));
+        assertEquals (ButtonID.SCENE1, PushControlSurface.debugButtonForMidiControl (PushControlSurface.PUSH_BUTTON_SCENE8));
+        assertEquals (ButtonID.SCENE8, PushControlSurface.debugButtonForMidiControl (PushControlSurface.PUSH_BUTTON_SCENE1));
+        assertEquals (null, PushControlSurface.debugButtonForMidiControl (127));
     }
 }

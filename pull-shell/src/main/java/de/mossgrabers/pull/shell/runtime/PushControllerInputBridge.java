@@ -452,6 +452,22 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
             return false;
 
         final boolean press = (status & 0xF0) == MIDI_NOTE_ON && velocity > 0;
+        this.routePhysicalPad (control, press, velocity);
+        return true;
+    }
+
+
+    /** Inject one debugger pad edge through the same raw-pad lane arbitration as hardware MIDI. */
+    void triggerDebugPad (final ControlId control, final InputPhase phase, final int velocity)
+    {
+        if (phase != InputPhase.BEGIN && phase != InputPhase.END)
+            throw new IllegalArgumentException ("Debug pad input requires BEGIN or END");
+        this.routePhysicalPad (Objects.requireNonNull (control, "control"), phase == InputPhase.BEGIN, velocity);
+    }
+
+
+    private void routePhysicalPad (final ControlId control, final boolean press, final int velocity)
+    {
         if (press)
             this.heldPhysicalPads.add (control);
         else
@@ -467,7 +483,6 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
             if (!press)
                 this.mappingActivation.request (this.activeMappings.get ());
         }
-        return true;
     }
 
 
@@ -541,6 +556,18 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
             case DOWN -> InputPhase.BEGIN;
             case LONG -> InputPhase.LONG;
             case UP -> InputPhase.END;
+        };
+    }
+
+
+    static de.mossgrabers.pull.core.api.event.InputPhase toCorePhase (final InputPhase phase)
+    {
+        return switch (Objects.requireNonNull (phase, "phase"))
+        {
+            case BEGIN -> de.mossgrabers.pull.core.api.event.InputPhase.BEGIN;
+            case CHANGE -> de.mossgrabers.pull.core.api.event.InputPhase.UPDATE;
+            case LONG -> de.mossgrabers.pull.core.api.event.InputPhase.LONG;
+            case END -> de.mossgrabers.pull.core.api.event.InputPhase.END;
         };
     }
 
