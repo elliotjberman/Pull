@@ -179,7 +179,7 @@
 - A core-only change inside the installed API/canopy hot reloads. Changing a parent-loaded API
   contract, adding a Bitwig proxy/property/observer, changing a permanent binding or proxy capacity,
   or broadening hardware output ownership requires a shell build/install and Bitwig restart.
-- Core API 33 arbitrates general input, complete composed controller state, semantic action intent,
+- Core API 34 arbitrates general input, complete composed controller state, semantic action intent,
   named bounded parameter banks, and exact parameter-target leases. Each active view contributes
   its fixed facets, Note layout, selected-track musical route, and other owned output; composite
   workspaces merge disjoint contributions and reject physical overlap. Project-macro encoder turns

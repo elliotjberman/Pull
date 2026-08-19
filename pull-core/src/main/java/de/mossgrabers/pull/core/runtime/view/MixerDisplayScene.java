@@ -4,6 +4,7 @@
 package de.mossgrabers.pull.core.runtime.view;
 
 import de.mossgrabers.pull.core.api.MixerControlKind;
+import de.mossgrabers.pull.core.api.MixerControlRole;
 import de.mossgrabers.pull.core.api.MixerControlSnapshot;
 import de.mossgrabers.pull.core.api.MixerControlsSnapshot;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
@@ -70,6 +71,7 @@ public final class MixerDisplayScene
     private static final RgbColor GREEN       = new RgbColor (0, 255, 0);
     private static final RgbColor ORANGE      = new RgbColor (255, 80, 0);
     private static final RgbColor RED         = new RgbColor (255, 0, 0);
+    private static final RgbColor PROJECT_MACRO = new RgbColor (132, 214, 255);
 
     private static final Pattern VALUE_UNIT_PATTERN = Pattern.compile ("^(.+?)(?:\\s*)(%|dB|kHz|Hz|ms|sec|s|st|ct|BPM|x|L|R)$");
     private static final Pattern PAN_VALUE = Pattern.compile ("[-+]?\\d+(?:[.,]\\d+)?");
@@ -109,8 +111,10 @@ public final class MixerDisplayScene
 
     private static void appendLocal (final List<DisplayCommand> commands, final MixerControlSnapshot control)
     {
-        final RgbColor textColor = control.active () ? WHITE : DIM_WHITE;
-        final RgbColor accent = control.active () ? control.accentColor () : dimToGray (control.accentColor ());
+        final boolean active = control.enabled () && (control.role () != MixerControlRole.PROJECT_MACRO || control.touched ());
+        final RgbColor baseAccent = control.role () == MixerControlRole.PROJECT_MACRO ? PROJECT_MACRO : control.hostAccentColor ().orElseThrow ();
+        final RgbColor textColor = active ? WHITE : DIM_WHITE;
+        final RgbColor accent = active ? baseAccent : dimToGray (baseAccent);
         final String label = switch (control.kind ())
         {
             case VOLUME -> "Volume";
@@ -121,19 +125,19 @@ public final class MixerDisplayScene
         if (control.kind () == MixerControlKind.VOLUME)
         {
             drawValueAt (commands, 0, -MixerControlDisplay.TOP, control.displayedValue (), false, textColor);
-            drawVolumeAt (commands, 0, -MixerControlDisplay.TOP, currentValue (control), accent, control.vuLeft (), control.vuRight (), control.active ());
+            drawVolumeAt (commands, 0, -MixerControlDisplay.TOP, currentValue (control), accent, control.vuLeft (), control.vuRight (), active);
             return;
         }
 
         if (control.kind () == MixerControlKind.PAN)
         {
             drawValueAt (commands, 0, -MixerControlDisplay.TOP, formatPan (control.displayedValue (), currentValue (control)), true, textColor);
-            drawPanAt (commands, 0, -MixerControlDisplay.TOP, currentValue (control), accent, control.active ());
+            drawPanAt (commands, 0, -MixerControlDisplay.TOP, currentValue (control), accent, active);
             return;
         }
 
         drawValueAt (commands, 0, -MixerControlDisplay.TOP, control.displayedValue (), true, textColor);
-        drawKnobAt (commands, 0, -MixerControlDisplay.TOP, currentValue (control), accent, control.active ());
+        drawKnobAt (commands, 0, -MixerControlDisplay.TOP, currentValue (control), accent, active);
     }
 
 

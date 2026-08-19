@@ -12,6 +12,7 @@ import de.mossgrabers.pull.core.api.CoreDescriptor;
 import de.mossgrabers.pull.core.api.CoreProvider;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.MixerControlKind;
+import de.mossgrabers.pull.core.api.MixerControlRole;
 import de.mossgrabers.pull.core.api.MixerControlSnapshot;
 import de.mossgrabers.pull.core.api.MixerControlsSnapshot;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
@@ -474,7 +475,7 @@ class RuntimeManagerTest
         final TestCore core = new TestCore (1);
         final TestSource source = source ("stable", core);
         final MixerControlsDisplay expected = new MixerControlsDisplay (List.of (new MixerControlDisplay (0, MixerControlKind.VOLUME, new ControllerDisplayScene (MixerControlDisplay.WIDTH, MixerControlDisplay.HEIGHT, List.of (new DisplayCommand.Rectangle (0, 0, 1, 1, new RgbColor (1, 2, 3)))))));
-        final MixerControlsSnapshot snapshot = new MixerControlsSnapshot (List.of (new MixerControlSnapshot (0, MixerControlKind.VOLUME, "", 0.5, -1, "-3 dB", true, new RgbColor (4, 5, 6), 0.25, 0.5)));
+        final MixerControlsSnapshot snapshot = mixerSnapshot ();
         core.mixerScene = expected;
 
         manager.start ();
@@ -501,7 +502,7 @@ class RuntimeManagerTest
         final TestCore core = new TestCore (1);
         final TestSource source = source ("stable", core);
         core.mixerScene = new MixerControlsDisplay (List.of (new MixerControlDisplay (1, MixerControlKind.PAN, new ControllerDisplayScene (MixerControlDisplay.WIDTH, MixerControlDisplay.HEIGHT, List.of (new DisplayCommand.Rectangle (0, 0, 1, 1, new RgbColor (1, 2, 3)))))));
-        final MixerControlsSnapshot requested = new MixerControlsSnapshot (List.of (new MixerControlSnapshot (0, MixerControlKind.VOLUME, "", 0.5, -1, "-3 dB", true, new RgbColor (4, 5, 6), 0.25, 0.5)));
+        final MixerControlsSnapshot requested = mixerSnapshot ();
 
         manager.start ();
         manager.activate ("stable", source, () -> true);
@@ -517,6 +518,12 @@ class RuntimeManagerTest
     private static TestSource source (final String buildId, final TestCore core)
     {
         return new TestSource (new TestProvider (descriptor (buildId), core));
+    }
+
+
+    private static MixerControlsSnapshot mixerSnapshot ()
+    {
+        return new MixerControlsSnapshot (List.of (new MixerControlSnapshot (0, MixerControlKind.VOLUME, "", 0.5, -1, "-3 dB", MixerControlRole.HOST_COLORED, true, false, Optional.of (new RgbColor (4, 5, 6)), 0.25, 0.5)));
     }
 
 

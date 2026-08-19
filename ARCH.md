@@ -129,7 +129,8 @@ are exclusive core inputs mapped to `PROJECT_REMOTE`, and core emits typed relat
 the authoritative slot target. Its parameter body also uses the core-owned mixer-control renderer;
 stable supplies authoritative parameter snapshots and retains only touch/delete plus the inherited
 Project menu and track footer. `WorkspaceMode` no longer owns parameter copy, typography, geometry,
-units, colors, or shapes.
+units, colors, or shapes. Its snapshot carries the raw Project Macro role, availability, touch state,
+and host values; core alone maps those facts to accent and touch-emphasis policy.
 
 For movable Bitwig parameters, stable re-resolves the exact identity from the live parameter
 domain, selected owner, selected page, and slot or channel role. The same Java `IParameter` wrapper

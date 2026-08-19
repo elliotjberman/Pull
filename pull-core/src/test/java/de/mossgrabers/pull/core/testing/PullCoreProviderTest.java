@@ -11,6 +11,7 @@ import de.mossgrabers.pull.core.api.CoreApi;
 import de.mossgrabers.pull.core.api.CoreCapabilities;
 import de.mossgrabers.pull.core.api.CoreProvider;
 import de.mossgrabers.pull.core.api.MixerControlKind;
+import de.mossgrabers.pull.core.api.MixerControlRole;
 import de.mossgrabers.pull.core.api.MixerControlSnapshot;
 import de.mossgrabers.pull.core.api.MixerControlsSnapshot;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
@@ -111,14 +112,14 @@ class PullCoreProviderTest
         final ControllerCore core = new PullCoreProvider ().create ();
         final RgbColor accent = new RgbColor (10, 80, 140);
         final MixerControlsDisplay display = core.renderMixerControls (new MixerControlsSnapshot (List.of (
-            new MixerControlSnapshot (0, MixerControlKind.VOLUME, "", 0.5, -1, "+3.0 dB", true, accent, 0.25, 0.5),
-            new MixerControlSnapshot (1, MixerControlKind.PAN, "", 0.75, -1, "23 R", true, accent, 0, 0),
-            new MixerControlSnapshot (2, MixerControlKind.KNOB, "Very Long Project Macro Name", 0.6, -1, "-123.456 dB", true, accent, 0, 0),
-            new MixerControlSnapshot (3, MixerControlKind.KNOB, "Positive Decimal Decibels", 0.4, -1, "+123.456 dB", true, accent, 0, 0),
-            new MixerControlSnapshot (4, MixerControlKind.KNOB, "Very Long Frequency Parameter", 0.7, -1, "+12345.678 kHz", true, accent, 0, 0),
-            new MixerControlSnapshot (5, MixerControlKind.KNOB, "Very Long Millisecond Value", 0.3, -1, "-9876.543 ms", true, accent, 0, 0),
-            new MixerControlSnapshot (6, MixerControlKind.KNOB, "Fine Tune Hundredths", 0.8, -1, "+100.000 ct", true, accent, 0, 0),
-            new MixerControlSnapshot (7, MixerControlKind.KNOB, "Boolean Macro With Long Name", 1, -1, "On", true, accent, 0, 0))));
+            hostControl (0, MixerControlKind.VOLUME, "", 0.5, "+3.0 dB", accent, 0.25, 0.5),
+            hostControl (1, MixerControlKind.PAN, "", 0.75, "23 R", accent, 0, 0),
+            projectMacro (2, "Very Long Project Macro Name", 0.6, "-123.456 dB"),
+            projectMacro (3, "Positive Decimal Decibels", 0.4, "+123.456 dB"),
+            projectMacro (4, "Very Long Frequency Parameter", 0.7, "+12345.678 kHz"),
+            projectMacro (5, "Very Long Millisecond Value", 0.3, "-9876.543 ms"),
+            projectMacro (6, "Fine Tune Hundredths", 0.8, "+100.000 ct"),
+            projectMacro (7, "Boolean Macro With Long Name", 1, "On"))));
         final List<DisplayCommand> commands = display.controls ().stream ().flatMap (control -> control.scene ().commands ().stream ()).toList ();
         final List<DisplayCommand> volumeCommands = display.controls ().get (0).scene ().commands ();
         final List<DisplayCommand> wideKnobCommands = display.controls ().get (2).scene ().commands ();
@@ -145,6 +146,36 @@ class PullCoreProviderTest
         final BufferedImage proof = MixerDisplayStressImage.write (display, Path.of ("target", "display-text-fit-stress.png"));
         assertEquals (960, proof.getWidth ());
         assertEquals (160, proof.getHeight ());
+    }
+
+
+    @Test
+    void coreOwnsProjectMacroAccentAndTouchEmphasis ()
+    {
+        final ControllerCore core = new PullCoreProvider ().create ();
+        final MixerControlsDisplay touched = core.renderMixerControls (new MixerControlsSnapshot (List.of (projectMacro (0, "Macro", 0.5, "On", true))));
+        final MixerControlsDisplay untouched = core.renderMixerControls (new MixerControlsSnapshot (List.of (projectMacro (0, "Macro", 0.5, "On", false))));
+
+        assertTrue (touched.controls ().getFirst ().scene ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.DottedArc arc && arc.color ().equals (new RgbColor (132, 214, 255))));
+        assertTrue (untouched.controls ().getFirst ().scene ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.DottedArc arc && arc.color ().equals (new RgbColor (80, 80, 80))));
+    }
+
+
+    private static MixerControlSnapshot hostControl (final int column, final MixerControlKind kind, final String label, final double value, final String displayedValue, final RgbColor accent, final double vuLeft, final double vuRight)
+    {
+        return new MixerControlSnapshot (column, kind, label, value, -1, displayedValue, MixerControlRole.HOST_COLORED, true, false, Optional.of (accent), vuLeft, vuRight);
+    }
+
+
+    private static MixerControlSnapshot projectMacro (final int column, final String label, final double value, final String displayedValue)
+    {
+        return projectMacro (column, label, value, displayedValue, true);
+    }
+
+
+    private static MixerControlSnapshot projectMacro (final int column, final String label, final double value, final String displayedValue, final boolean touched)
+    {
+        return new MixerControlSnapshot (column, MixerControlKind.KNOB, label, value, -1, displayedValue, MixerControlRole.PROJECT_MACRO, true, touched, Optional.empty (), 0, 0);
     }
 
 

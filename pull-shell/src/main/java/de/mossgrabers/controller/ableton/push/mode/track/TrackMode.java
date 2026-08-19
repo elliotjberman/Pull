@@ -7,6 +7,7 @@ package de.mossgrabers.controller.ableton.push.mode.track;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
@@ -31,6 +32,7 @@ import de.mossgrabers.framework.parameterprovider.special.EmptyParameterProvider
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.framework.utils.Pair;
 import de.mossgrabers.pull.core.api.MixerControlKind;
+import de.mossgrabers.pull.core.api.MixerControlRole;
 import de.mossgrabers.pull.core.api.MixerControlSnapshot;
 import de.mossgrabers.pull.core.api.MixerControlsSnapshot;
 import de.mossgrabers.pull.core.api.output.RgbColor;
@@ -243,8 +245,8 @@ public class TrackMode extends AbstractTrackMode
             {
                 final RgbColor accent = toRgb (track.getColor ());
                 final MixerMeterLevels meterLevels = MixerMeterLevels.capture (track);
-                mixerControls.add (new MixerControlSnapshot (0, MixerControlKind.VOLUME, "", valueChanger.toNormalizedValue (track.getVolume ()), normalizedModulated (valueChanger, track.getModulatedVolume ()), track.getVolumeStr (8), isActive, accent, meterLevels.normalizedLeft (valueChanger), meterLevels.normalizedRight (valueChanger)));
-                mixerControls.add (new MixerControlSnapshot (1, MixerControlKind.PAN, "", valueChanger.toNormalizedValue (track.getPan ()), normalizedModulated (valueChanger, track.getModulatedPan ()), this.formatPanValue (track.getPan ()), isActive, accent, 0, 0));
+                mixerControls.add (new MixerControlSnapshot (0, MixerControlKind.VOLUME, "", valueChanger.toNormalizedValue (track.getVolume ()), normalizedModulated (valueChanger, track.getModulatedVolume ()), track.getVolumeStr (8), MixerControlRole.HOST_COLORED, isActive, false, Optional.of (accent), meterLevels.normalizedLeft (valueChanger), meterLevels.normalizedRight (valueChanger)));
+                mixerControls.add (new MixerControlSnapshot (1, MixerControlKind.PAN, "", valueChanger.toNormalizedValue (track.getPan ()), normalizedModulated (valueChanger, track.getModulatedPan ()), this.formatPanValue (track.getPan ()), MixerControlRole.HOST_COLORED, isActive, false, Optional.of (accent), 0, 0));
 
                 final ISendBank sendBank = track.getSendBank ();
                 final int sendOffset = this.configuration.getTrackMixSendOffset ();
@@ -256,7 +258,7 @@ public class TrackMode extends AbstractTrackMode
 
                     final ISend send = sendBank.getItem (sendIndex);
                     if (send.doesExist ())
-                        mixerControls.add (new MixerControlSnapshot (i + 2, MixerControlKind.KNOB, send.getName (), valueChanger.toNormalizedValue (send.getValue ()), normalizedModulated (valueChanger, send.getModulatedValue ()), send.getDisplayedValue (8), isActive && send.isEnabled (), accent, 0, 0));
+                        mixerControls.add (new MixerControlSnapshot (i + 2, MixerControlKind.KNOB, send.getName (), valueChanger.toNormalizedValue (send.getValue ()), normalizedModulated (valueChanger, send.getModulatedValue ()), send.getDisplayedValue (8), MixerControlRole.HOST_COLORED, isActive && send.isEnabled (), false, Optional.of (accent), 0, 0));
                 }
 
             }

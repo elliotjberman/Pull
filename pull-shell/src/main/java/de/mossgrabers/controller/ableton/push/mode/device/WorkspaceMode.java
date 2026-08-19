@@ -6,6 +6,7 @@ package de.mossgrabers.controller.ableton.push.mode.device;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.IntPredicate;
 
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
@@ -20,19 +21,17 @@ import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.IBank;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
-import de.mossgrabers.framework.graphics.canvas.component.IComponent;
 import de.mossgrabers.framework.graphics.canvas.component.MixerControlsComponent;
 import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent;
 import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.MenuData;
-import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.ParameterData;
 import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.TrackData;
 import de.mossgrabers.framework.parameter.IParameter;
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.MixerControlKind;
+import de.mossgrabers.pull.core.api.MixerControlRole;
 import de.mossgrabers.pull.core.api.MixerControlSnapshot;
 import de.mossgrabers.pull.core.api.MixerControlsSnapshot;
-import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.shell.runtime.ReloadableControllerRuntime;
 
 
@@ -41,8 +40,6 @@ import de.mossgrabers.pull.shell.runtime.ReloadableControllerRuntime;
  */
 public final class WorkspaceMode extends BaseMode<IParameter> implements WorkspaceFacetAdapter
 {
-    private static final RgbColor PROJECT_CONTROL_COLOR = new RgbColor (132, 214, 255);
-
     private final ReloadableControllerRuntime reloadableRuntime;
 
 
@@ -74,8 +71,8 @@ public final class WorkspaceMode extends BaseMode<IParameter> implements Workspa
     @Override
     public void reconcileWorkspaceFacets ()
     {
-        // Parameter rendering and touch remain stable adapters. Relative mutation is core-owned,
-        // so this mode deliberately never binds its project bank to the hardware encoders.
+        // Touch read-back remains a mechanical stable fact. Rendering and relative mutation are
+        // core-owned, so this mode deliberately never binds its project bank to the encoders.
     }
 
 
@@ -138,7 +135,6 @@ public final class WorkspaceMode extends BaseMode<IParameter> implements Workspa
         final IValueChanger valueChanger = this.model.getValueChanger ();
         final ITrackBank trackBank = this.model.getCurrentTrackBank ();
         final List<MenuData> menus = new ArrayList<> (8);
-        final List<ParameterData> blankParameters = new ArrayList<> (8);
         final List<TrackData> tracks = new ArrayList<> (8);
 
         for (int index = 0; index < this.bank.getPageSize (); index++)
@@ -146,11 +142,10 @@ public final class WorkspaceMode extends BaseMode<IParameter> implements Workspa
             final ITrack track = trackBank.getItem (index);
             final boolean trackExists = showTracks && track.doesExist ();
             menus.add (new MenuData (showParameters && index == 0 ? "Project" : "", showParameters && index == 0));
-            blankParameters.add (new ParameterData ("", -1, -1, "", false));
             tracks.add (new TrackData (trackExists ? track.getName (16) : "", track.getType (), track.getColor (), trackExists && track.isSelected (), trackExists && track.isActivated (), false));
         }
 
-        final IComponent stableFrame = new TrackMixerComponent (menus, blankParameters, tracks, 0, 0);
+        final TrackMixerComponent stableFrame = new TrackMixerComponent (menus, List.of (), tracks, 0, 0);
         final MixerControlsSnapshot projectControls = projectControls (this.bank, valueChanger, showParameters, this::isKnobTouched);
         final MixerControlsComponent reloadableControls = new MixerControlsComponent (this.reloadableRuntime.renderMixerControls (projectControls));
         display.addElement (info -> {
@@ -181,8 +176,10 @@ public final class WorkspaceMode extends BaseMode<IParameter> implements Workspa
                 valueChanger.toNormalizedValue (parameter.getValue ()),
                 modulatedValue < 0 ? -1 : valueChanger.toNormalizedValue (modulatedValue),
                 parameter.getDisplayedValue (),
+                MixerControlRole.PROJECT_MACRO,
+                true,
                 touched.test (index),
-                PROJECT_CONTROL_COLOR,
+                Optional.empty (),
                 0,
                 0));
         }

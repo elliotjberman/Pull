@@ -39,6 +39,7 @@ import de.mossgrabers.pull.core.api.GridPressureConfiguration;
 import de.mossgrabers.pull.core.api.InputRoute;
 import de.mossgrabers.pull.core.api.InputRouteMode;
 import de.mossgrabers.pull.core.api.MixerControlKind;
+import de.mossgrabers.pull.core.api.MixerControlRole;
 import de.mossgrabers.pull.core.api.MixerControlSnapshot;
 import de.mossgrabers.pull.core.api.MixerControlsSnapshot;
 import de.mossgrabers.pull.core.api.PushControlIds;
@@ -196,7 +197,7 @@ class CoreApiValueTest
     @Test
     void publishesStableVersionCapabilityAndControlIdentifiers ()
     {
-        assertEquals (33, CoreApi.VERSION);
+        assertEquals (34, CoreApi.VERSION);
         assertEquals ("input.drum-fill", CoreCapabilities.INPUT_DRUM_FILL);
         assertEquals ("snapshot.selected-track-clips", CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS);
         assertEquals ("binding.clip-target", CoreCapabilities.BINDING_CLIP_TARGET);
@@ -353,9 +354,10 @@ class CoreApiValueTest
         assertThrows (UnsupportedOperationException.class, () -> snapshot.controls ().clear ());
         assertThrows (IllegalArgumentException.class, () -> new MixerControlsSnapshot (List.of (volume, volume)));
         assertThrows (IllegalArgumentException.class, () -> new MixerControlsSnapshot (java.util.Collections.nCopies (9, volume)));
-        assertThrows (IllegalArgumentException.class, () -> new MixerControlSnapshot (0, MixerControlKind.PAN, "", 1.01, -1, "R", true, new RgbColor (1, 2, 3), 0, 0));
-        assertThrows (IllegalArgumentException.class, () -> new MixerControlSnapshot (8, MixerControlKind.PAN, "", 0.5, -1, "C", true, new RgbColor (1, 2, 3), 0, 0));
-        assertThrows (IllegalArgumentException.class, () -> new MixerControlSnapshot (2, MixerControlKind.KNOB, "", 0.5, -1, "-12 dB", true, new RgbColor (1, 2, 3), 0, 0));
+        assertThrows (IllegalArgumentException.class, () -> new MixerControlSnapshot (0, MixerControlKind.PAN, "", 1.01, -1, "R", MixerControlRole.HOST_COLORED, true, false, Optional.of (new RgbColor (1, 2, 3)), 0, 0));
+        assertThrows (IllegalArgumentException.class, () -> new MixerControlSnapshot (8, MixerControlKind.PAN, "", 0.5, -1, "C", MixerControlRole.HOST_COLORED, true, false, Optional.of (new RgbColor (1, 2, 3)), 0, 0));
+        assertThrows (IllegalArgumentException.class, () -> new MixerControlSnapshot (2, MixerControlKind.KNOB, "", 0.5, -1, "-12 dB", MixerControlRole.HOST_COLORED, true, false, Optional.of (new RgbColor (1, 2, 3)), 0, 0));
+        assertThrows (IllegalArgumentException.class, () -> new MixerControlSnapshot (2, MixerControlKind.KNOB, "Macro", 0.5, -1, "On", MixerControlRole.PROJECT_MACRO, true, false, Optional.of (new RgbColor (1, 2, 3)), 0, 0));
     }
 
 
@@ -388,7 +390,7 @@ class CoreApiValueTest
             case VOLUME, KNOB -> "-3.0 dB";
             case PAN -> "C";
         };
-        return new MixerControlSnapshot (column, kind, label, 0.5, -1, displayedValue, true, new RgbColor (1, 2, 3), 0.25, 0.5);
+        return new MixerControlSnapshot (column, kind, label, 0.5, -1, displayedValue, MixerControlRole.HOST_COLORED, true, false, Optional.of (new RgbColor (1, 2, 3)), 0.25, 0.5);
     }
 
 

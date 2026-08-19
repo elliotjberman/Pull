@@ -6,10 +6,11 @@ package de.mossgrabers.pull.core.api;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 
 import java.util.Objects;
+import java.util.Optional;
 
 
 /** Authoritative host read-back for one reusable mixer control. */
-public record MixerControlSnapshot (int column, MixerControlKind kind, String label, double value, double modulatedValue, String displayedValue, boolean active, RgbColor accentColor, double vuLeft, double vuRight)
+public record MixerControlSnapshot (int column, MixerControlKind kind, String label, double value, double modulatedValue, String displayedValue, MixerControlRole role, boolean enabled, boolean touched, Optional<RgbColor> hostAccentColor, double vuLeft, double vuRight)
 {
     /** Validate one bounded control snapshot. */
     public MixerControlSnapshot
@@ -24,7 +25,12 @@ public record MixerControlSnapshot (int column, MixerControlKind kind, String la
         requireNormalized (value, "value");
         if (modulatedValue != -1)
             requireNormalized (modulatedValue, "modulatedValue");
-        accentColor = Objects.requireNonNull (accentColor, "accentColor");
+        role = Objects.requireNonNull (role, "role");
+        hostAccentColor = Objects.requireNonNull (hostAccentColor, "hostAccentColor");
+        if (role == MixerControlRole.HOST_COLORED && hostAccentColor.isEmpty ())
+            throw new IllegalArgumentException ("host-colored controls require an accent color");
+        if (role == MixerControlRole.PROJECT_MACRO && hostAccentColor.isPresent ())
+            throw new IllegalArgumentException ("project macros must leave visual color policy to the core");
         requireNormalized (vuLeft, "vuLeft");
         requireNormalized (vuRight, "vuRight");
     }
