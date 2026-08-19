@@ -43,6 +43,7 @@ import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
 import de.mossgrabers.pull.core.api.SessionBankShape;
 import de.mossgrabers.pull.core.api.SessionBankSnapshot;
 import de.mossgrabers.pull.core.api.SessionTrackSnapshot;
+import de.mossgrabers.pull.core.api.SessionTrackType;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.TrackMonitorMode;
 import de.mossgrabers.pull.core.api.TransportSnapshot;
@@ -78,6 +79,7 @@ import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
 import de.mossgrabers.pull.core.api.output.PadGridPosition;
 import de.mossgrabers.pull.core.api.output.DisplayCommand;
+import de.mossgrabers.pull.core.api.output.DisplayIcon;
 import de.mossgrabers.pull.core.runtime.PullCoreProvider;
 import de.mossgrabers.pull.core.runtime.view.StableDestinationWorkspace;
 import de.mossgrabers.pull.core.runtime.view.VsLiveWorkspace;
@@ -760,6 +762,29 @@ class PullControllerCoreTest
 
 
     @Test
+    void masterProjectNavigationRetainsItsPageAcrossTheProjectLayoutReset ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        final ControlId next = PushControlIds.button ("ROW2_8");
+        host.start (Optional.empty ());
+        host.bridge (masterBridge ("project-a", "first", 1, "MASTER", true, false));
+
+        host.controllerButton (next, true);
+        assertEquals (new NavigateProjectEffect ("project-a", ProjectNavigationDirection.NEXT), host.effects ().executionOrder ().getLast ());
+
+        host.bridge (masterBridge ("project-a", "first", 2, "WORKSPACE", true, true));
+        assertEquals (Set.of (ControllerViewFacet.MASTER_CONTROLS), host.effects ().desiredControllerWorkspace ().facets ());
+
+        host.bridge (masterBridge ("project-b", "second", 3, "WORKSPACE", false, false));
+        assertEquals (Set.of (ControllerViewFacet.MASTER_CONTROLS), host.effects ().desiredControllerWorkspace ().facets ());
+        assertTrue (host.effects ().desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "second".equals (text.text ())));
+
+        host.bridge (masterBridge ("project-b", "second", 4, "MASTER", false, false));
+        assertEquals (Set.of (ControllerViewFacet.MASTER_CONTROLS), host.effects ().desiredControllerWorkspace ().facets ());
+    }
+
+
+    @Test
     void shiftedMasterEncoderTurnRemainsRoutedToTheCore ()
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
@@ -1046,6 +1071,10 @@ class PullControllerCoreTest
         assertEquals (160, host.effects ().desiredOutput ().display ().height ());
         assertTrue (host.effects ().desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "Drums".equals (text.text ())));
         assertTrue (host.effects ().desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "Bass".equals (text.text ())));
+        assertTrue (host.effects ().desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "Drums".equals (text.text ()) && OFF.equals (text.color ())));
+        assertTrue (host.effects ().desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "Bass".equals (text.text ()) && secondTrackColor.equals (text.color ())));
+        assertTrue (host.effects ().desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.Icon icon && icon.icon () == DisplayIcon.INSTRUMENT_TRACK));
+        assertTrue (host.effects ().desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.Icon icon && icon.icon () == DisplayIcon.AUDIO_TRACK));
         assertFalse (hasFooterSelection (host, 1, secondTrackColor));
 
         final int submittedEffects = host.effects ().executionOrder ().size ();
@@ -2208,8 +2237,8 @@ class PullControllerCoreTest
     {
         final SessionBankShape shape = VsLiveWorkspace.SESSION_BANK;
         final List<SessionTrackSnapshot> tracks = new ArrayList<> ();
-        tracks.add (new SessionTrackSnapshot ("track-7", 3, "Drums", true, !secondSelected, true, false, false, false, true, new RgbColor (100, 50, 25)));
-        tracks.add (new SessionTrackSnapshot ("track-8", 4, "Bass", true, secondSelected, true, false, false, false, false, new RgbColor (25, 50, 100)));
+        tracks.add (new SessionTrackSnapshot ("track-7", 3, "Drums", true, !secondSelected, true, false, false, false, true, SessionTrackType.INSTRUMENT, new RgbColor (100, 50, 25)));
+        tracks.add (new SessionTrackSnapshot ("track-8", 4, "Bass", true, secondSelected, true, false, false, false, false, SessionTrackType.AUDIO, new RgbColor (25, 50, 100)));
         while (tracks.size () < shape.tracks ())
             tracks.add (SessionTrackSnapshot.empty ());
         return new ControllerBridgeSnapshot (
@@ -2231,7 +2260,7 @@ class PullControllerCoreTest
         return host.effects ().desiredOutput ().display ().commands ().stream ().anyMatch (command ->
             command instanceof final DisplayCommand.Rectangle rectangle &&
                 rectangle.x () == index * 120 && rectangle.y () == 143 &&
-                rectangle.width () == 120 && rectangle.height () == 17 &&
+                rectangle.width () == 118 && rectangle.height () == 17 &&
                 color.equals (rectangle.color ()));
     }
 
@@ -2280,6 +2309,28 @@ class PullControllerCoreTest
             new ParameterBridgeSnapshot (slots, Map.of ()),
             new MasterSnapshot (true, "project-a", "second_test", engineActive, canPrevious, canNext, pending, true, "Master", new RgbColor (10, 80, 140), true, true, false, 64, 48),
             new ProjectSnapshot (true, "project-a", "second_test", engineActive, canPrevious, canNext, pending));
+    }
+
+
+    private static ControllerBridgeSnapshot masterBridge (final String identity, final String name, final long layoutGeneration, final String mode, final boolean canNext, final boolean pending)
+    {
+        final Map<ParameterSlot, ParameterTargetSnapshot> slots = Map.of (
+            ParameterSlot.MASTER_MIX_VOLUME, parameter (ParameterSlot.MASTER_MIX_VOLUME, "Master Volume", 96, "-3.0 dB"),
+            ParameterSlot.MASTER_MIX_PAN, parameter (ParameterSlot.MASTER_MIX_PAN, "Pan", 64, "-8.2 %"),
+            ParameterSlot.CUE_VOLUME, parameter (ParameterSlot.CUE_VOLUME, "Cue Level", 80, "-9.0 dB"),
+            ParameterSlot.CUE_MIX, parameter (ParameterSlot.CUE_MIX, "Cue Mix", 42, "33 %"));
+        return new ControllerBridgeSnapshot (
+            transport (true, false, false),
+            SelectedTrackSnapshot.empty (),
+            SessionBankSnapshot.empty (),
+            new ControllerLayoutSnapshot (layoutGeneration, "PLAY", mode, false, false, 0, GridPressureConfiguration.OFF),
+            NoteViewSnapshot.empty (),
+            NoteRepeatSnapshot.empty (),
+            DrumContextSnapshot.empty (),
+            new ParameterBridgeSnapshot (slots, Map.of ()),
+            ControllerMappingFeedbackSnapshot.empty (),
+            new MasterSnapshot (true, identity, name, true, true, canNext, pending, true, "Master", new RgbColor (10, 80, 140), true, true, false, 64, 48),
+            new ProjectSnapshot (true, identity, name, true, true, canNext, pending));
     }
 
 

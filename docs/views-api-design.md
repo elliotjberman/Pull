@@ -1,6 +1,6 @@
 # Views API and Composite Workspaces
 
-Status: design contract. Checkpoints 1 and 2 are structurally implemented through Core API 37. The
+Status: design contract. Checkpoints 1 and 2 are structurally implemented through Core API 38. The
 remaining stable-adapter boundary is represented explicitly in claims and recorded in
 [`../ARCH.md`](../ARCH.md). The checkpoints remain below so code, offline tests, and Push hardware
 tests can be compared against the intended end state.
@@ -248,6 +248,13 @@ columns without suppressing ordinary overlays. A temporary display overlay is di
 example, a short-lived full-screen status/animation scene sits above the composed base and then
 reveals it again, rather than sharing either region claim.
 
+The retained Track Selection footer consumes the bounded Session bank's semantic track type as
+well as its name, color, activation, and selection state. Its colors, selection contrast, inactive
+dimming, two-pixel column gap, and channel icon are core-owned parity policy. Project Macro likewise
+owns the legacy parameter visual semantics in its region: subdued teal parameters brighten on
+touch, Boolean values use toggle pills, and the old adapter's non-rendered `Project` menu text is
+not invented as a visible title.
+
 When VS Live selects Track/Mix, `TrackMixerControlsView` replaces only the 960x143 producer. It
 declares the installed `ACTIVE` parameter bank, owns all eight relative encoder turns and their
 typed effects, and renders the selected track's Volume/Pan plus active send slots from authoritative
@@ -266,6 +273,11 @@ Mix compatibility window, stable
 unwraps Volume/Pan's mechanical response-curve adapters, validates the real bound parameters
 against the selected current-bank track, and then requires its channel ID to agree with the private
 selection-following cursor before publishing any slot.
+
+Master's own previous/next project action creates a bounded page-retention lease. The lease is tied
+to the exact source project and workspace-request sequence, survives only the command's intermediate
+stable layout reset, and retires after later target-project read-back and Master-page
+reconciliation. Any explicit workspace request cancels it.
 
 ## Implementation Checkpoints
 

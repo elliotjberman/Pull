@@ -118,7 +118,7 @@ The migration guide scopes Play as the safe first transport cut.
 - volume and pan;
 - stop, return to Arrangement, and create a new clip.
 
-API 37 owns Mute/Solo as one persistent selected-track view and Stop as part of `SessionView`.
+API 38 owns Mute/Solo as one persistent selected-track view and Stop as part of `SessionView`.
 Plain Stop preserves the inherited immediate actuator; page overlays retain the active grid-view
 instances so their physical gestures remain continuous.
 The former project-clear, master, layer, lock/long, page-row, pad, and note modifier variants were
@@ -185,10 +185,10 @@ rendering.
 
 ### 2. Visible track bank and mixer
 
-API 37 publishes stable identities, names, generation, offsets, and basic authoritative state for
+API 38 publishes stable identities, names, semantic channel types, generation, offsets, and basic authoritative state for
 the eight tracks in the active bounded Session bank. It executes a bank-wide Stop action and exact
 generation/shape/index/channel-fenced track selection captured at gesture `BEGIN`. VS Live's lower row action, RGB feedback,
-and footer labels now consume that shared window. Its selected-track Mix compatibility bank
+and footer labels/icons now consume that shared window. Its selected-track Mix compatibility bank
 unwraps only mechanical parameter adapters, validates the actual current-bank binding, and fails
 closed unless that bank owner agrees with the private selected cursor by stable channel ID. Extend it with the remaining state and fenced
 effects for activation, arm, mute, solo, volume, pan, and bounded sends.
@@ -211,7 +211,7 @@ represent eight visible tracks.
 
 ### 3. Session grid
 
-API 37 installs the bounded visible Session bank's track identities/names, track/scene offsets,
+API 38 installs the bounded visible Session bank's track identities/names/types, track/scene offsets,
 basic track state, generation-fenced bank-wide Stop, and exact visible-track Select. `SessionView` uses it for Shift/Select
 Stop while plain Stop uses the private authoritative selected target. Still add stable clip-slot
 identity and state such as existence, content, name, color, playing, recording, and queued.

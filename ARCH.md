@@ -1,6 +1,6 @@
 # Pull View Architecture
 
-Status: current through Core API 37, semantic controller-mapping identities, generic registered
+Status: current through Core API 38, semantic controller-mapping identities, generic registered
 button/grid light arbitration, the shared
 mixer-control renderer, the Master-control migration, the post-demo `VS Live` composition, and
 core-owned Session Stop, selected-track Mute/Solo, VS Live Project/Track and Track/Mix display
@@ -389,7 +389,9 @@ Implemented:
   colors, clipping, shapes, and composition; the stable shell only interprets bounded generic
   display primitives. Missing or execution-faulted core behavior is blank and inert. A stable
   preparation rejection preserves the active generation's last committed output rather than
-  converting one invalid result into a controller-wide fault.
+  converting one invalid result into a controller-wide fault. A Master-owned project navigation
+  retains the page through Bitwig's intermediate layout reset and releases that lease after the
+  target project is acknowledged and Master is reasserted.
 - Fixed display-region composition for the VS Live page. Project Macro or Track Mixer owns the
   replaceable 960x143 parameter body; Track Selection owns the retained 960x17 footer plus all
   eight exclusive lower-row edges and lights. The Track Mixer body renders authoritative active
@@ -399,7 +401,8 @@ Implemented:
   scene. The shell projects that scene generically on any page and keeps the temporary overlay as a
   distinct higher plane. Track selection captures the exact visible target at gesture `BEGIN`, is
   generation/shape/index/channel fenced at execution, and renders feedback only from later
-  Session-bank read-back.
+  Session-bank read-back. Its footer reproduces authoritative track colors, inactive dimming,
+  selection contrast, and bounded channel-type icons from the same Session-bank snapshot.
 
 Partial or transitional:
 
@@ -420,7 +423,7 @@ Partial or transitional:
   mappable controls. General display output is still semantically partial: Master and the composed
   VS Live Project/Track and Track/Mix pages are core-authored, while a generic complete base-scene plane, a
   temporary sparse 8x8 grid overlay, and a complete temporary 960x160 display overlay are
-  arbitrated. The detailed design's API 37 installed-output inventory is canonical.
+  arbitrated. The detailed design's API 38 installed-output inventory is canonical.
 
 Deferred by design:
 

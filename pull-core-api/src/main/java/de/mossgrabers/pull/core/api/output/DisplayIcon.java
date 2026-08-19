@@ -7,6 +7,13 @@ package de.mossgrabers.pull.core.api.output;
 /** Stable, bounded icon assets available to reloadable display scenes. */
 public enum DisplayIcon
 {
+    AUDIO_TRACK,
+    INSTRUMENT_TRACK,
+    HYBRID_TRACK,
+    GROUP_TRACK,
+    GROUP_TRACK_OPEN,
+    RETURN_TRACK,
     MASTER,
+    MULTI_LAYER,
     PIN
 }

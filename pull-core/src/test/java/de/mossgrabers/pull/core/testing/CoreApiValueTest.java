@@ -51,6 +51,7 @@ import de.mossgrabers.pull.core.api.ParameterTargetSnapshot;
 import de.mossgrabers.pull.core.api.SessionBankShape;
 import de.mossgrabers.pull.core.api.SessionBankSnapshot;
 import de.mossgrabers.pull.core.api.SessionTrackSnapshot;
+import de.mossgrabers.pull.core.api.SessionTrackType;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.StateEnvelope;
 import de.mossgrabers.pull.core.api.TimerId;
@@ -202,7 +203,7 @@ class CoreApiValueTest
     @Test
     void publishesStableVersionCapabilityAndControlIdentifiers ()
     {
-        assertEquals (37, CoreApi.VERSION);
+        assertEquals (38, CoreApi.VERSION);
         assertEquals ("input.drum-fill", CoreCapabilities.INPUT_DRUM_FILL);
         assertEquals ("snapshot.selected-track-clips", CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS);
         assertEquals ("binding.clip-target", CoreCapabilities.BINDING_CLIP_TARGET);
@@ -469,12 +470,13 @@ class CoreApiValueTest
     void sessionBankSnapshotsAndActionsAreBoundedAndIdentityFenced ()
     {
         final SessionBankShape shape = new SessionBankShape (2, 4);
-        final SessionTrackSnapshot track = new SessionTrackSnapshot ("track-1", 8, "Drums", true, true, true, false, true, false, true, new RgbColor (1, 2, 3));
+        final SessionTrackSnapshot track = new SessionTrackSnapshot ("track-1", 8, "Drums", true, true, true, false, true, false, true, SessionTrackType.INSTRUMENT, new RgbColor (1, 2, 3));
         final List<SessionTrackSnapshot> tracks = new ArrayList<> (List.of (track, SessionTrackSnapshot.empty ()));
         final SessionBankSnapshot snapshot = new SessionBankSnapshot (7, shape, 8, 12, tracks);
         tracks.clear ();
 
         assertEquals (List.of (track, SessionTrackSnapshot.empty ()), snapshot.tracks ());
+        assertEquals (SessionTrackType.INSTRUMENT, snapshot.tracks ().getFirst ().type ());
         assertTrue (new StopSessionBankEffect (7, shape, true).alternative ());
         assertEquals ("track-1", new SelectSessionTrackEffect (7, shape, 0, "track-1").channelId ());
         assertThrows (UnsupportedOperationException.class, () -> snapshot.tracks ().clear ());
@@ -483,6 +485,7 @@ class CoreApiValueTest
         assertThrows (IllegalArgumentException.class, () -> new SessionTrackSnapshot ("", 8, true, false, false, false, false, false, false, new RgbColor (0, 0, 0)));
         assertThrows (IllegalArgumentException.class, () -> new SessionTrackSnapshot ("stale", -1, false, false, false, false, false, false, false, new RgbColor (0, 0, 0)));
         assertThrows (IllegalArgumentException.class, () -> new SessionTrackSnapshot ("track-1", 8, "x".repeat (129), true, false, true, false, false, false, false, new RgbColor (0, 0, 0)));
+        assertThrows (IllegalArgumentException.class, () -> new SessionTrackSnapshot ("", -1, "", false, false, false, false, false, false, false, SessionTrackType.AUDIO, new RgbColor (0, 0, 0)));
         assertThrows (IllegalArgumentException.class, () -> new StopSessionBankEffect (7, SessionBankShape.empty (), true));
         assertThrows (IllegalArgumentException.class, () -> new SelectSessionTrackEffect (7, shape, 2, "track-1"));
     }

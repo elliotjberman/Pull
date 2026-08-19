@@ -191,7 +191,7 @@
 - A core-only change inside the installed API/canopy hot reloads. Changing a parent-loaded API
   contract, adding a Bitwig proxy/property/observer, changing a permanent binding or proxy capacity,
   or broadening hardware output ownership requires a shell build/install and Bitwig restart.
-- Core API 37 arbitrates general input, complete composed controller state, semantic action intent,
+- Core API 38 arbitrates general input, complete composed controller state, semantic action intent,
   named bounded parameter banks, and exact parameter-target leases. Each active view contributes
   its fixed facets, Note layout, selected-track musical route, and other owned output; composite
   workspaces merge disjoint contributions and reject physical overlap. Project-macro encoder turns
@@ -233,7 +233,8 @@
   its upper-row page menu and encoder touches remain explicit frozen adapters. Compilation
   requires complete coverage, confines every primitive with compiler-owned clip scopes to its
   claimed local viewport, and emits one 960x160 base scene. Track Selection owns its eight
-  exclusive lower-row edges and authoritative lights; it resolves the exact visible target at
+  exclusive lower-row edges and authoritative lights; its footer renders authoritative visible-track
+  colors and semantic channel-type icons. It resolves the exact visible target at
   gesture `BEGIN`, and the bounded Session effect revalidates generation, bank shape, index, and
   channel identity before selecting. The stable `WorkspaceMode` retains only project-macro touch/Delete adaptation,
   and missing core output stays blank rather than reviving its deleted page/track-strip policy.

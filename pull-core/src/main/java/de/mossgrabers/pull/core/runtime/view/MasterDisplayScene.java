@@ -43,9 +43,6 @@ final class MasterDisplayScene
     private static final double  TOGGLE_THUMB_GAP        = 5.0;
     private static final double  TOGGLE_INSET            = 1.4;
     private static final double  FOOTER_TOP              = 143.0;
-    private static final double  FOOTER_HEIGHT           = 17.0;
-    private static final double  FOOTER_INSET            = 7.7;
-    private static final double  FOOTER_ICON_WIDTH       = 13.0;
     private static final double  PARAMETER_UPPER_BOUND   = 1024.0;
 
     private static final RgbColor BLACK       = new RgbColor (0, 0, 0);
@@ -141,19 +138,7 @@ final class MasterDisplayScene
 
     private static void drawFooter (final ArrayList<DisplayCommand> commands, final int column, final String text, final DisplayIcon icon, final RgbColor color, final boolean selected, final boolean active)
     {
-        if (text == null || text.isEmpty ())
-            return;
-        final double left = left (column);
-        final RgbColor footerColor = active ? color : dimToGray (color);
-        final RgbColor contentColor = selected ? contrast (footerColor) : footerColor;
-        commands.add (new DisplayCommand.Rectangle (left, FOOTER_TOP, COLUMN_WIDTH - 2, FOOTER_HEIGHT, selected ? footerColor : BLACK));
-        double textLeft = left + FOOTER_INSET;
-        if (icon != null)
-        {
-            commands.add (new DisplayCommand.Icon (icon, textLeft, FOOTER_TOP, FOOTER_ICON_WIDTH, FOOTER_HEIGHT, contentColor));
-            textLeft += FOOTER_ICON_WIDTH + FOOTER_INSET;
-        }
-        commands.add (new DisplayCommand.TextBox (text, textLeft, FOOTER_TOP, left + COLUMN_WIDTH - textLeft - FOOTER_INSET, FOOTER_HEIGHT, DisplayTextAlignment.LEFT, contentColor, HEIGHT / 12.0, HEIGHT / 12.0, DisplayTextFit.CLIP));
+        TrackFooterDisplayScene.append (commands, column, FOOTER_TOP, text, icon, color, selected, active);
     }
 
 
@@ -187,17 +172,4 @@ final class MasterDisplayScene
     }
 
 
-    private static RgbColor dimToGray (final RgbColor color)
-    {
-        final int average = (color.red () + color.green () + color.blue ()) / 3;
-        final int dimmed = (int) Math.round (average * 0.4);
-        return new RgbColor (dimmed, dimmed, dimmed);
-    }
-
-
-    private static RgbColor contrast (final RgbColor color)
-    {
-        final double luminance = 0.2126 * color.red () + 0.7152 * color.green () + 0.0722 * color.blue ();
-        return luminance > 140 ? BLACK : WHITE;
-    }
 }

@@ -9,8 +9,10 @@ import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.ISceneBank;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
+import de.mossgrabers.framework.daw.resource.ChannelType;
 import de.mossgrabers.pull.core.api.SessionBankShape;
 import de.mossgrabers.pull.core.api.SessionBankSnapshot;
+import de.mossgrabers.pull.core.api.SessionTrackType;
 import de.mossgrabers.pull.core.api.effect.SelectSessionTrackEffect;
 import de.mossgrabers.pull.core.api.effect.StopSessionBankEffect;
 
@@ -38,6 +40,7 @@ class SessionBankHostTest
         assertEquals (1, initial.generation ());
         assertEquals ("track-1", initial.tracks ().getFirst ().channelId ());
         assertEquals ("Track 1", initial.tracks ().getFirst ().name ());
+        assertEquals (SessionTrackType.INSTRUMENT, initial.tracks ().getFirst ().type ());
         assertEquals (ColorEx.RED.getRed (), initial.tracks ().getFirst ().color ().red () / 255.0, 0.01);
 
         fixture.first.muted = true;
@@ -145,6 +148,7 @@ class SessionBankHostTest
                 case "getChannelID" -> this.channelId;
                 case "getPosition" -> Integer.valueOf (this.position);
                 case "getName" -> "Track " + (this.position + 1);
+                case "getType" -> ChannelType.INSTRUMENT;
                 case "isSelected", "isActivated" -> Boolean.TRUE;
                 case "isMute" -> Boolean.valueOf (this.muted);
                 case "isRecArm", "isSolo", "isPlaying" -> Boolean.FALSE;

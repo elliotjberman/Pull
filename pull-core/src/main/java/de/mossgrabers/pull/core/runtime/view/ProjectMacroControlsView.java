@@ -96,7 +96,7 @@ public final class ProjectMacroControlsView implements ControllerView
         return new ViewOutput (
             Map.of (),
             Map.of (),
-            ProjectMacroDisplayScene.render (snapshot.bridge ().parameters ().slots ()));
+            ProjectMacroDisplayScene.render (snapshot.bridge ().parameters ().slots (), snapshot.touchedControls ()));
     }
 
 

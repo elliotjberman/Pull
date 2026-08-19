@@ -44,7 +44,7 @@ public final class CoreCapabilities
     /** Replayable input ownership; v3 admits drum control pads and v4 Session and selected-track controls. */
     public static final String ROUTING_CONTROLLER_INPUT = "routing.controller-input";
 
-    /** Common bounded controller state; v9 adds visible Session-track names. */
+    /** Common bounded controller state; v9 adds visible Session-track names and v10 their types. */
     public static final String SNAPSHOT_CONTROLLER_BRIDGE = "snapshot.controller-bridge";
 
     /** Replayable selection of bounded bridge-state domains to publish and sample. */
@@ -82,7 +82,7 @@ public final class CoreCapabilities
     /** Serialized project/file/engine commands and stable-owned exact cross-project transport. */
     public static final String EFFECT_MASTER = "effect.master";
 
-    /** Complete replayable controller display; v3 projects composed scenes on every Push page. */
+    /** Complete replayable controller display; v3 projects composed scenes and v4 adds channel icons. */
     public static final String OUTPUT_CONTROLLER_DISPLAY = "output.controller-display";
 
     /** Temporary sparse overlay over a frozen Push pad-grid frame. */

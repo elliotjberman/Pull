@@ -11,6 +11,7 @@ import de.mossgrabers.pull.core.api.ParameterSlot;
 import de.mossgrabers.pull.core.api.MixerControlsSnapshot;
 import de.mossgrabers.pull.core.api.StateEnvelope;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
+import de.mossgrabers.pull.core.api.effect.NavigateProjectEffect;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.ControllerActionEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
@@ -58,6 +59,7 @@ final class PullControllerCore implements ControllerCore
     private ProjectPlaybackCoordinator                     playbackCoordinator;
     private boolean                                        masterLayoutObserved;
     private long                                           masterEntryWorkspaceRequest;
+    private MasterNavigationLease                          masterNavigationLease;
     private VsLivePage                                     vsLivePage = VsLivePage.DEFAULT;
     private long                                           vsLivePendingPageAfterGeneration = -1;
     private final SnapbackSession                          snapback = new SnapbackSession ();
@@ -228,6 +230,7 @@ final class PullControllerCore implements ControllerCore
     private CoreResult dispatchActionToWorkspace (final ResolvedControllerAction action, final ControllerSnapshot snapshot, final boolean awaitStableReadback)
     {
         final List<CoreEffect> effects = this.workspace.dispatchAction (action, snapshot);
+        this.observeMasterNavigationAction (effects);
         this.observeVsLivePageAction (action, snapshot, awaitStableReadback);
         final CompiledWorkspace selectedWorkspace = this.desiredWorkspace (snapshot);
         if (selectedWorkspace != this.workspace)
@@ -258,15 +261,49 @@ final class PullControllerCore implements ControllerCore
         if (!masterLayout)
         {
             this.masterLayoutObserved = false;
+            if (this.masterNavigationLease != null)
+            {
+                final MasterNavigationLease lease = this.masterNavigationLease;
+                final de.mossgrabers.pull.core.api.MasterSnapshot master = snapshot.bridge ().master ();
+                if (this.selection.requestSequence () != lease.workspaceRequest ())
+                    this.masterNavigationLease = null;
+                else if (master.commandPending () || master.available () && !lease.sourceProjectIdentity ().equals (master.projectIdentity ()))
+                {
+                    this.masterNavigationLease = lease.withLayoutResetObserved ();
+                    return this.masterWorkspaces.get (this.selection.active ());
+                }
+                else
+                    this.masterNavigationLease = null;
+            }
             return selectedWorkspace;
         }
 
+        if (this.masterNavigationLease != null)
+        {
+            final de.mossgrabers.pull.core.api.MasterSnapshot master = snapshot.bridge ().master ();
+            final boolean targetObserved = master.available () && !this.masterNavigationLease.sourceProjectIdentity ().equals (master.projectIdentity ());
+            if (this.selection.requestSequence () != this.masterNavigationLease.workspaceRequest () || !master.commandPending () && (this.masterNavigationLease.layoutResetObserved () || targetObserved))
+                this.masterNavigationLease = null;
+        }
         if (!this.masterLayoutObserved)
         {
             this.masterLayoutObserved = true;
             this.masterEntryWorkspaceRequest = this.selection.requestSequence ();
         }
         return this.selection.requestSequence () == this.masterEntryWorkspaceRequest ? this.masterWorkspaces.get (this.selection.active ()) : selectedWorkspace;
+    }
+
+
+    private void observeMasterNavigationAction (final List<CoreEffect> effects)
+    {
+        for (final CoreEffect effect: effects)
+        {
+            if (effect instanceof final NavigateProjectEffect navigation)
+            {
+                this.masterNavigationLease = new MasterNavigationLease (navigation.expectedProjectIdentity (), this.selection.requestSequence (), false);
+                return;
+            }
+        }
     }
 
 
@@ -407,5 +444,15 @@ final class PullControllerCore implements ControllerCore
         DEFAULT,
         TRACK_MIXER,
         STABLE
+    }
+
+
+    /** Keeps the Master page selected while its own project-tab transaction changes stable layout. */
+    private record MasterNavigationLease (String sourceProjectIdentity, long workspaceRequest, boolean layoutResetObserved)
+    {
+        private MasterNavigationLease withLayoutResetObserved ()
+        {
+            return this.layoutResetObserved ? this : new MasterNavigationLease (this.sourceProjectIdentity, this.workspaceRequest, true);
+        }
     }
 }

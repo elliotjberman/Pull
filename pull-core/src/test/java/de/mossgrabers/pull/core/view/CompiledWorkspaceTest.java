@@ -59,6 +59,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -257,11 +258,16 @@ class CompiledWorkspaceTest
         assertEquals (Set.of (ParameterBankId.PROJECT_REMOTE), result.desiredParameterBanks ().banks ());
         assertTrue (result.desiredBridgeSubscriptions ().includes (BridgeSubscription.PARAMETERS));
         assertTrue (result.desiredOutput ().display ().isPresent ());
+        assertFalse (result.desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "Project".equals (text.text ())));
+        assertTrue (result.desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextAt text && "Macro 1".equals (text.text ()) && new RgbColor (95, 118, 124).equals (text.color ())));
+        assertTrue (result.desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.RoundedRectangle rectangle && new RgbColor (66, 107, 128).equals (rectangle.color ())));
+        assertFalse (result.desiredOutput ().display ().commands ().stream ().anyMatch (DisplayCommand.DottedArc.class::isInstance));
 
         final CoreResult adjusted = workspace.handle (
             new ControllerInputEvent (1, 1, firstKnob, InputKind.RELATIVE, InputPhase.UPDATE, 3),
-            parameterSnapshot ());
+            parameterSnapshot (Set.of (firstKnob)));
         assertEquals (List.of (new AdjustParameterValueEffect (PROJECT_TARGET, 30)), adjusted.effects ());
+        assertTrue (adjusted.desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextAt text && "Macro 1".equals (text.text ()) && new RgbColor (190, 235, 247).equals (text.color ())));
 
         final CoreResult decreased = workspace.handle (
             new ControllerInputEvent (2, 2, firstKnob, InputKind.RELATIVE, InputPhase.UPDATE, -2),
@@ -662,8 +668,14 @@ class CompiledWorkspaceTest
 
     private static ControllerSnapshot parameterSnapshot ()
     {
+        return parameterSnapshot (Set.of ());
+    }
+
+
+    private static ControllerSnapshot parameterSnapshot (final Set<ControlId> touchedControls)
+    {
         final ParameterBridgeSnapshot parameters = new ParameterBridgeSnapshot (
-            Map.of (ParameterSlot.projectRemote (0), new ParameterTargetSnapshot (PROJECT_TARGET, 64, 0.5)),
+            Map.of (ParameterSlot.projectRemote (0), new ParameterTargetSnapshot (PROJECT_TARGET, "Macro 1", 64, 64, "On", -1, 0.5)),
             Map.of ());
         final ControllerBridgeSnapshot bridge = new ControllerBridgeSnapshot (
             TransportSnapshot.empty (),
@@ -671,7 +683,7 @@ class CompiledWorkspaceTest
             ControllerLayoutSnapshot.empty (),
             DrumContextSnapshot.empty (),
             parameters);
-        return new ControllerSnapshot (0, 0, ShellCapabilities.empty (), bridge, ClipCatalogSnapshot.empty (), Map.of (), Map.of (), java.util.Optional.empty (), Set.of (), Set.of ());
+        return new ControllerSnapshot (0, 0, ShellCapabilities.empty (), bridge, ClipCatalogSnapshot.empty (), Map.of (), Map.of (), java.util.Optional.empty (), Set.of (), touchedControls);
     }
 
 

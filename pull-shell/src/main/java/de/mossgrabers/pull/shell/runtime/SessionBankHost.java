@@ -10,6 +10,7 @@ import de.mossgrabers.framework.daw.data.bank.ITrackBank;
 import de.mossgrabers.pull.core.api.SessionBankShape;
 import de.mossgrabers.pull.core.api.SessionBankSnapshot;
 import de.mossgrabers.pull.core.api.SessionTrackSnapshot;
+import de.mossgrabers.pull.core.api.SessionTrackType;
 import de.mossgrabers.pull.core.api.effect.SelectSessionTrackEffect;
 import de.mossgrabers.pull.core.api.effect.StopSessionBankEffect;
 import de.mossgrabers.pull.core.api.output.RgbColor;
@@ -125,6 +126,7 @@ final class SessionBankHost
                 track.isMute (),
                 track.isSolo (),
                 track.isPlaying (),
+                toTrackType (track.getType ()),
                 toRgb (track.getColor ())));
         }
         return new SessionBankSnapshot (this.generation, currentIdentity.shape (), currentIdentity.trackOffset (), currentIdentity.sceneOffset (), tracks);
@@ -149,6 +151,24 @@ final class SessionBankHost
     {
         final ColorEx checked = Objects.requireNonNullElse (color, ColorEx.BLACK);
         return new RgbColor ((int) Math.round (255 * checked.getRed ()), (int) Math.round (255 * checked.getGreen ()), (int) Math.round (255 * checked.getBlue ()));
+    }
+
+
+    private static SessionTrackType toTrackType (final de.mossgrabers.framework.daw.resource.ChannelType type)
+    {
+        return switch (Objects.requireNonNullElse (type, de.mossgrabers.framework.daw.resource.ChannelType.UNKNOWN))
+        {
+            case UNKNOWN -> SessionTrackType.UNKNOWN;
+            case AUDIO -> SessionTrackType.AUDIO;
+            case INSTRUMENT -> SessionTrackType.INSTRUMENT;
+            case HYBRID -> SessionTrackType.HYBRID;
+            case GROUP -> SessionTrackType.GROUP;
+            case GROUP_OPEN -> SessionTrackType.GROUP_OPEN;
+            case EFFECT -> SessionTrackType.EFFECT;
+            case MASTER -> SessionTrackType.MASTER;
+            case LAYER -> SessionTrackType.LAYER;
+            case CUE -> SessionTrackType.CUE;
+        };
     }
 
 
