@@ -268,7 +268,9 @@ VS Live page selection advances only from the semantic action emitted by a stabl
 The controller-state host may temporarily report `TRACK` while it neutralizes and reattaches a
 selected-track Note route; that mechanical layout read-back carries no page-selection intent and
 cannot replace Project Macro with Track/Mix. If snapback defers the stable command, core retains
-the old page until a later layout generation acknowledges the released action. For the inherited
+the old page until a later layout generation acknowledges the released action. Shift+Session is
+an idempotent selection of the declared composite and therefore always reselects Project Macro,
+even when VS Live was already active on Track/Mix or another replaceable page. For the inherited
 Mix compatibility window, stable
 unwraps Volume/Pan's mechanical response-curve adapters, validates the real bound parameters
 against the selected current-bank track, and then requires its channel ID to agree with the private

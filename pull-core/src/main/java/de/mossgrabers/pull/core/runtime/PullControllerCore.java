@@ -61,6 +61,7 @@ final class PullControllerCore implements ControllerCore
     private long                                           masterEntryWorkspaceRequest;
     private MasterNavigationLease                          masterNavigationLease;
     private VsLivePage                                     vsLivePage = VsLivePage.DEFAULT;
+    private long                                           vsLiveWorkspaceRequest = -1;
     private long                                           vsLivePendingPageAfterGeneration = -1;
     private final SnapbackSession                          snapback = new SnapbackSession ();
     private Lifecycle                                      lifecycle = Lifecycle.NEW;
@@ -313,6 +314,15 @@ final class PullControllerCore implements ControllerCore
         {
             this.vsLivePage = VsLivePage.DEFAULT;
             this.vsLivePendingPageAfterGeneration = -1;
+            this.vsLiveWorkspaceRequest = this.selection.requestSequence ();
+        }
+        else if (this.vsLiveWorkspaceRequest != this.selection.requestSequence ())
+        {
+            // Shift+Session selects the declared composite, including its default Project Macro
+            // page. It is an idempotent workspace selection, not a request to retain a stale page.
+            this.vsLivePage = VsLivePage.DEFAULT;
+            this.vsLivePendingPageAfterGeneration = -1;
+            this.vsLiveWorkspaceRequest = this.selection.requestSequence ();
         }
         final WorkspaceSelection.Destination destination = this.selection.pendingDestination ();
         if (destination != WorkspaceSelection.Destination.NONE)

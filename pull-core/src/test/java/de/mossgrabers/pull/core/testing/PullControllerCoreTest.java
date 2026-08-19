@@ -1019,6 +1019,24 @@ class PullControllerCoreTest
 
 
     @Test
+    void shiftSessionReselectsTheDeclaredVsLiveCompositeFromTrackMix ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        enterVsLive (host);
+        host.bridge (sessionBridge (2, "DRUM_PAD", "WORKSPACE", VsLiveWorkspace.SESSION_BANK));
+        host.controllerAction (switchParameterContext (), sessionBridge (3, "DRUM_PAD", "TRACK", VsLiveWorkspace.SESSION_BANK));
+        assertEquals (VsLiveWorkspace.NAME + " / Track Mix", host.effects ().desiredControllerWorkspace ().name ());
+
+        enterVsLive (host);
+
+        assertVsLive (host.effects ().desiredControllerWorkspace ());
+        assertTrue (host.effects ().desiredControllerWorkspace ().facets ().contains (ControllerViewFacet.PROJECT_MACRO_CONTROLS));
+        assertFalse (host.effects ().desiredControllerWorkspace ().facets ().contains (ControllerViewFacet.TRACK_MIXER_PAGE));
+    }
+
+
+    @Test
     void vsLiveSelectedTrackRouteNeutralizationDoesNotSelectTheMixPage ()
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());

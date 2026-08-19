@@ -377,7 +377,9 @@ Implemented:
   modifier meanings are deleted rather than encoded into the new view model.
 - Session is retained independently from its default Track/Mix destination, and VS Live retains
   the same started grid-view instances when Mix, Device, Browse, or Master replaces the page, so
-  active grid gestures are not restarted.
+  active grid gestures are not restarted. Every Shift+Session request reselects the declared VS
+  Live composite and its Project Macro page; stale replaceable page state is not part of workspace
+  selection.
 - Playable-pad feedback and pressure owned by the same fixed `DrumPlayPadView` in standalone and
   composite Drum layouts; the deleted stable observers, palette policy, and firmware fade cannot
   return as a fallback.
