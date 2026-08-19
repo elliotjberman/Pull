@@ -80,6 +80,11 @@ public record ControllerMappingFeedbackSnapshot(
 These values are implemented as immutable, fixed-capacity Core API types. The production
 `DesiredControllerMappings` and `ControllerMappingFeedbackSnapshot` are bounded to 64 entries at
 the API boundary; the installed shell inventory currently contains exactly four endpoints.
+The number 64 is a Pull-defined bound, not a Bitwig limit. It is the principled maximum for
+simultaneously active physical-pad leases—one per control in the 64-pad grid—but the shared
+constant also currently caps the complete installed semantic-endpoint feedback inventory. That
+second use is convenient rather than fundamental and may need its own larger bound if future views
+install multiple permanent semantic identities for the same physical pad.
 
 The composed view model should resolve mappings like this:
 
