@@ -2,7 +2,7 @@
 
 Status: Milestones 1 through 9, the Master-control migration, the VS Live display/track-selection/Track-Mix
 migration, and the note-view/drum-rate migration are implemented. The current working tree installs
-the bounded Core API 38 controller bridge
+the bounded Core API 39 controller bridge
 described below: normalized Push command input, explicitly requested
 transport/selected-track/Session-bank/layout/note-view/note-repeat/drum/parameter/semantic-mapping/Master read-back, and typed
 effects against exact retained parameter targets as well as transport, selected-track, bounded
@@ -13,7 +13,7 @@ The Master page and the composed VS Live Project/Track and Track/Mix pages have 
 ownership. Every
 registered Push button and physical grid-pad light has generic explicit core-or-stable arbitration;
 touch-strip output and other inherited display-page semantics do not.
-Because API 38 and its bridge are parent-loaded, installing this
+Because API 39 and its bridge are parent-loaded, installing this
 expansion itself requires one shell build/install and Bitwig restart; behavior composed from it can
 then hot reload.
 
@@ -418,9 +418,9 @@ The shell owns anything coupled to Bitwig or physical hardware:
 The shell may reuse the existing `ModelImpl` and Bitwig wrapper graph internally. That graph must
 not cross into the core.
 
-## Installed API 38 bounded capability canopy
+## Installed API 39 bounded capability canopy
 
-Core API 38 installs a broad input seam and a deliberately finite Bitwig state/effect bridge during
+Core API 39 installs a broad input seam and a deliberately finite Bitwig state/effect bridge during
 extension initialization. The existence of a shell capability means that the domain is available;
 it does not mean every state domain is copied into every snapshot.
 
@@ -471,6 +471,9 @@ plain and bank-wide Stop policy plus white-available/red-held RGB feedback, whil
 the inherited held state available to the still-adapted Session grid's Stop-plus-pad chord. Stop Clip is not admitted for
 exclusive routing until that grid chord migrates with the rest of the grid action surface. Plain
 Stop uses the private selected target's immediate actuator and does not inherit launch quantization.
+Exact Stop-plus-track is not installed. Full Session uses bounded controller-button consumption to
+suppress the stable lower-row release, and the composed core track strip resolves the same chord
+inertly; neither path selects a track or allows release to become a trailing plain Stop.
 
 Input ownership and action ordering are separate. `DesiredControllerActions` is complete replayable
 state compiled from the active views. Each binding maps one physical edge to a semantic action and
@@ -592,7 +595,7 @@ the Bitwig controller log. An unused installed domain should first be removed fr
 
 ### Typed effects and live identity fences
 
-API 38 can request absolute transport state and values; selected-track activation, group expansion,
+API 39 can request absolute transport state and values; selected-track activation, group expansion,
 arm, monitor, mute, solo, volume, pan, stop, Return to Arrangement, and new-clip creation;
 target-neutral note-input
 MIDI poly pressure, CC, channel pressure, and pitch bend; and drum-pad activation, mute, solo, volume, pan, or
@@ -642,16 +645,22 @@ controller-state cleanup through the same permanent input, not a target-specific
 
 ### Deliberate exclusions
 
-This remains a capability canopy, not a mirror of an unbounded Bitwig project. API 38 does not add
+This remains a capability canopy, not a mirror of an unbounded Bitwig project. API 39 does not add
 arbitrary project track/scene banks, arbitrary device-tree recursion, additional drum layers or
 branches, arbitrary parameter windows, automation-touch ownership, or a pinned actuator pool.
 `SELECTED_DEVICE_REMOTE` follows the current installed page rather than retaining every page.
 Visible-track sends are intentionally deferred until the visible-track bank can fence the same
-track-window identity; API 38 does not advertise parameter-only send slots without that alignment.
+track-window identity; API 39 does not advertise parameter-only send slots without that alignment.
 Extending one of those shapes or adding a new Bitwig property/action requires a parent-loaded
 API/shell change, extension installation, and Bitwig restart.
 
-Output remains narrower than input in API 38. This is the canonical installed-output inventory:
+The installed selected-track `NoteInput` route likewise supports the closed built-in note layouts
+and the current lower Drum Controller geometry. Core views cannot yet declare an arbitrary
+physical-pad-to-note map. RGB, command, and pressure ownership must not be misrepresented as
+ownership of musical note translation; see
+`docs/findings/custom-musical-surface-geometry.md`.
+
+Output remains narrower than input in API 39. This is the canonical installed-output inventory:
 
 | Lane | Installed ownership |
 | --- | --- |
@@ -672,9 +681,14 @@ migrate by core reload, but their action, authoritative state, and feedback must
 semantic slice. The generic display base transport is installed, but each inherited page still
 requires a complete core view migration before its policy can hot reload.
 
-Once API 38 is installed, new mappings, modes, gestures, and effects composed only from these exact
+Once API 39 is installed, new mappings, modes, gestures, and effects composed only from these exact
 inputs, subscriptions, and executors can ship by core reload. Capability breadth is bounded, and
 subscription choice controls active publication cost inside that bound.
+
+Master is a page replacement over the exact selected composition. It retains the started
+standalone Drum, full Session, selected Note route, or VS Live grid views actually underneath it;
+it is not reconstructed from only a coarse workspace ID. Controller-level boolean toggles retain
+bounded press parity and submit dependent writes only after later authoritative acknowledgement.
 
 ## Reloadable core responsibilities
 
@@ -741,7 +755,7 @@ snapshot.
 
 ## Snapshot and effects
 
-The API 38 snapshot contains revision, monotonic time, shell capabilities, the explicitly subscribed
+The API 39 snapshot contains revision, monotonic time, shell capabilities, the explicitly subscribed
 `ControllerBridgeSnapshot`, the complete selected-track clip catalog, verified per-control armed
 clip bindings, the clip-launch session's optional acquired owner-to-target lease and authoritative
 active owner, and pressed/touched controls. A pending fill intent is shell-private and never appears
@@ -772,7 +786,7 @@ that bank's generation and marks it pending. Location-targeted effects from the 
 are immediately rejected. The new window is published only after Bitwig's observed membership
 stabilizes.
 
-Core API 38's type hierarchy retains logical timer effects for the proposed contract, but they are
+Core API 39's type hierarchy retains logical timer effects for the proposed contract, but they are
 not an installed production capability. Installed production capabilities include persistent
 desired clip bindings, verified armed bindings, the version-1 authoritative single-lease
 clip-launch-session snapshot,
@@ -965,9 +979,9 @@ effects, rejections, and desired output. A real Bitwig failure can then become a
 | Safe pure-Java core dependency | Package and core reload |
 | Core-owned/migrated mapping, mode, gesture, layout policy, or fill matching | Core reload |
 | Route a currently registered input between `NONE`, `OBSERVE`, and `EXCLUSIVE` | Core reload |
-| Request or stop requesting an existing API 38 bridge subscription | Core reload |
-| Select a different installed API 38 parameter bank or remap an installed bank's encoder turns | Core reload |
-| Output policy or physical projection inside the canonical API 38 installed inventory | Core reload |
+| Request or stop requesting an existing API 39 bridge subscription | Core reload |
+| Select a different installed API 39 parameter bank or remap an installed bank's encoder turns | Core reload |
+| Output policy or physical projection inside the canonical API 39 installed inventory | Core reload |
 | Behavior using existing snapshots and installed, capability-advertised effects | Core reload |
 | Behavior within the installed capability canopy | Core reload |
 | Clip launch quantization, mode, or Main-vs-ALT release lane | Core reload |
@@ -995,7 +1009,7 @@ effects, rejections, and desired output. A real Bitwig failure can then become a
 - A route-map change or core reload during an edge gesture preserves its begin-time ownership
   through release; core replacement waits for the complete input lifecycle to drain, and continuous
   rebinding cannot bypass arbitration.
-- Unrequested API 38 bridge domains publish typed empty values without domain snapshot construction
+- Unrequested API 39 bridge domains publish typed empty values without domain snapshot construction
   or high-rate sampling/DTO churn.
 - Core handoff, route detach, selection change, and shutdown neutralize outstanding target-neutral
   note-input poly-pressure, CC, channel-pressure, and pitch-bend state on a best-effort basis.

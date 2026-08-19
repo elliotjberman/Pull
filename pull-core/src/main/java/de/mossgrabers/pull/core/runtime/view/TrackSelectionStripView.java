@@ -37,6 +37,7 @@ public final class TrackSelectionStripView implements ControllerView
 {
     private static final RgbColor OFF = new RgbColor (0, 0, 0);
     private static final RgbColor RECORD_ARMED = new RgbColor (255, 0, 0);
+    private static final ControlId STOP_CLIP = PushControlIds.button ("STOP_CLIP");
     private static final List<ControlId> TRACK_BUTTONS = trackButtons ();
     private static final Set<ControllerActionBinding> ACTION_BINDINGS = trackActionBindings ();
     private static final ViewProfile PROFILE = ViewProfile.fixed (
@@ -46,6 +47,22 @@ public final class TrackSelectionStripView implements ControllerView
             new SurfaceClaim (SurfaceArea.SOFT_KEYS_LOWER, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
             new SurfaceClaim (SurfaceArea.SOFT_KEYS_LOWER, SurfaceClaim.Kind.OUTPUT)),
         Set.of ());
+
+    private final SessionStopGesture stopGesture;
+
+
+    /** Construct a standalone track strip. */
+    public TrackSelectionStripView ()
+    {
+        this (new SessionStopGesture ());
+    }
+
+
+    /** Construct a track strip sharing the active Session view's Stop gesture. */
+    public TrackSelectionStripView (final SessionStopGesture stopGesture)
+    {
+        this.stopGesture = java.util.Objects.requireNonNull (stopGesture, "stopGesture");
+    }
 
 
     /** {@inheritDoc} */
@@ -84,6 +101,13 @@ public final class TrackSelectionStripView implements ControllerView
     @Override
     public ResolvedControllerAction resolveAction (final ControllerActionBinding binding, final ControllerInputEvent input, final ControllerSnapshot snapshot)
     {
+        if (snapshot.pressedControls ().contains (STOP_CLIP))
+        {
+            // Exact Stop-plus-track targeting is deliberately not installed yet. Consume the
+            // chord so it cannot select a track or turn into a trailing selected-track Stop.
+            this.stopGesture.consume ();
+            return ResolvedControllerAction.of (binding.intent (), List::of);
+        }
         final int index = TRACK_BUTTONS.indexOf (input.controlId ());
         final SessionBankSnapshot bank = snapshot.bridge ().sessionBank ();
         if (index < 0 || !bank.shape ().isPresent () || index >= bank.tracks ().size ())
@@ -110,7 +134,7 @@ public final class TrackSelectionStripView implements ControllerView
         return new ViewOutput (
             lights,
             Map.of (),
-            TrackSelectionDisplayScene.render (tracks));
+            TrackFooterDisplayScene.render (tracks));
     }
 
 

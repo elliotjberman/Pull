@@ -58,7 +58,7 @@ public final class CoreCapabilities
 
     /** Generation-fenced actions against the active bounded Session bank; v2 adds track selection. */
     public static final String EFFECT_SESSION_BANK = "effect.session-bank";
-    /** Mechanical consumption of a stable compatibility button release. */
+    /** Mechanical consumption of a stable compatibility button release; v2 admits the lower row. */
     public static final String EFFECT_CONTROLLER_BUTTON_CONSUMPTION = "effect.controller-button-consumption";
 
     /** Generation-fenced drum-pad state and selection effects. */

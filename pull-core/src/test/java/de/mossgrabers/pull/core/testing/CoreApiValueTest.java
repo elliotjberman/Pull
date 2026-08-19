@@ -203,7 +203,7 @@ class CoreApiValueTest
     @Test
     void publishesStableVersionCapabilityAndControlIdentifiers ()
     {
-        assertEquals (38, CoreApi.VERSION);
+        assertEquals (39, CoreApi.VERSION);
         assertEquals ("input.drum-fill", CoreCapabilities.INPUT_DRUM_FILL);
         assertEquals ("snapshot.selected-track-clips", CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS);
         assertEquals ("binding.clip-target", CoreCapabilities.BINDING_CLIP_TARGET);
@@ -482,9 +482,9 @@ class CoreApiValueTest
         assertThrows (UnsupportedOperationException.class, () -> snapshot.tracks ().clear ());
         assertThrows (IllegalArgumentException.class, () -> new SessionBankSnapshot (7, shape, 8, 12, List.of (track)));
         assertThrows (IllegalArgumentException.class, () -> new SessionBankSnapshot (7, shape, 8, 12, List.of (track, track)));
-        assertThrows (IllegalArgumentException.class, () -> new SessionTrackSnapshot ("", 8, true, false, false, false, false, false, false, new RgbColor (0, 0, 0)));
-        assertThrows (IllegalArgumentException.class, () -> new SessionTrackSnapshot ("stale", -1, false, false, false, false, false, false, false, new RgbColor (0, 0, 0)));
-        assertThrows (IllegalArgumentException.class, () -> new SessionTrackSnapshot ("track-1", 8, "x".repeat (129), true, false, true, false, false, false, false, new RgbColor (0, 0, 0)));
+        assertThrows (IllegalArgumentException.class, () -> new SessionTrackSnapshot ("", 8, "", true, false, false, false, false, false, false, SessionTrackType.UNKNOWN, new RgbColor (0, 0, 0)));
+        assertThrows (IllegalArgumentException.class, () -> new SessionTrackSnapshot ("stale", -1, "", false, false, false, false, false, false, false, SessionTrackType.UNKNOWN, new RgbColor (0, 0, 0)));
+        assertThrows (IllegalArgumentException.class, () -> new SessionTrackSnapshot ("track-1", 8, "x".repeat (129), true, false, true, false, false, false, false, SessionTrackType.UNKNOWN, new RgbColor (0, 0, 0)));
         assertThrows (IllegalArgumentException.class, () -> new SessionTrackSnapshot ("", -1, "", false, false, false, false, false, false, false, SessionTrackType.AUDIO, new RgbColor (0, 0, 0)));
         assertThrows (IllegalArgumentException.class, () -> new StopSessionBankEffect (7, SessionBankShape.empty (), true));
         assertThrows (IllegalArgumentException.class, () -> new SelectSessionTrackEffect (7, shape, 2, "track-1"));

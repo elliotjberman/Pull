@@ -32,10 +32,12 @@ public final class VsLiveWorkspace
     /**
      * Compile a fresh VS Live workspace for one core generation.
      *
-     * @param selection Shared workspace selection
+     * @param controllerViews Retained controller-level policy
+     * @param trackSelection Retained lower-row track-selection view
+     * @param gridViews Retained composite grid views
      * @return Compiled workspace
      */
-    public static CompiledWorkspace create (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator, final ControllerView trackSelection, final List<? extends ControllerView> gridViews)
+    public static CompiledWorkspace create (final ControllerLevelViews controllerViews, final ControllerView trackSelection, final List<? extends ControllerView> gridViews)
     {
         final List<ControllerView> views = new ArrayList<> ();
         views.add (new ProjectMacroControlsView ());
@@ -44,12 +46,12 @@ public final class VsLiveWorkspace
         return CompiledWorkspace.compile (
             NAME,
             SESSION_BANK,
-            ControllerLevelViews.composeWithoutNoteController (selection, playbackCoordinator, views));
+            controllerViews.composeWithoutNoteController (views));
     }
 
 
     /** Compile the retained VS Live grid with the core-owned Track/Mix page. */
-    public static CompiledWorkspace createWithTrackMixerPage (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator, final ControllerView trackSelection, final List<? extends ControllerView> gridViews)
+    public static CompiledWorkspace createWithTrackMixerPage (final ControllerLevelViews controllerViews, final ControllerView trackSelection, final List<? extends ControllerView> gridViews)
     {
         final List<ControllerView> views = new ArrayList<> ();
         views.add (new TrackMixerControlsView ());
@@ -58,17 +60,17 @@ public final class VsLiveWorkspace
         return CompiledWorkspace.compile (
             NAME + " / Track Mix",
             SESSION_BANK,
-            ControllerLevelViews.composeWithoutNoteController (selection, playbackCoordinator, views));
+            controllerViews.composeWithoutNoteController (views));
     }
 
 
     /** Compile the VS Live grid while an independently selected stable page owns the display. */
-    public static CompiledWorkspace createWithStablePage (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator, final List<? extends ControllerView> gridViews)
+    public static CompiledWorkspace createWithStablePage (final ControllerLevelViews controllerViews, final List<? extends ControllerView> gridViews)
     {
         return CompiledWorkspace.compile (
             NAME + " / stable page",
             SESSION_BANK,
-            ControllerLevelViews.composeWithoutNoteController (selection, playbackCoordinator, gridViews));
+            controllerViews.composeWithoutNoteController (gridViews));
     }
 
 
@@ -77,11 +79,11 @@ public final class VsLiveWorkspace
      *
      * @return Fresh grid views
      */
-    public static List<ControllerView> retainedGridViews ()
+    public static List<ControllerView> retainedGridViews (final SessionStopGesture stopGesture)
     {
         return List.of (
             new RetainedControllerView (new SessionNavigationView ()),
-            new RetainedControllerView (SessionView.upper (true)),
+            new RetainedControllerView (SessionView.upper (true, stopGesture)),
             new RetainedControllerView (new DrumPlayPadView ()),
             new RetainedControllerView (new DrumControllerView (true)),
             new RetainedControllerView (new DrumControlPadView ()),

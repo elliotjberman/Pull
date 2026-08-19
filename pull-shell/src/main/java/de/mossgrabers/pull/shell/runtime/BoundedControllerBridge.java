@@ -22,6 +22,7 @@ import de.mossgrabers.framework.daw.midi.MidiShortCallback;
 import de.mossgrabers.framework.daw.midi.SelectedTrackMonitorMode;
 import de.mossgrabers.framework.daw.midi.SelectedTrackNoteTargetSnapshot;
 import de.mossgrabers.pull.core.api.BridgeSubscription;
+import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ControllerLayoutSnapshot;
 import de.mossgrabers.pull.core.api.ControllerNoteView;
@@ -95,6 +96,7 @@ final class BoundedControllerBridge implements ControllerBridge
 
     private static final long TRANSPORT_POSITION_SAMPLE_NANOS = 50_000_000L;
     private static final long DRUM_SAMPLE_NANOS = 33_000_000L;
+    private static final Map<ControlId, ButtonID> CONSUMABLE_BUTTONS = consumableButtons ();
 
     private final IModel model;
     private final ITransport transport;
@@ -464,9 +466,10 @@ final class BoundedControllerBridge implements ControllerBridge
             return this.sessionBank.prepare (action);
         if (effect instanceof final ConsumeControllerButtonEffect consumption)
         {
-            if (!PushControlIds.button (ButtonID.SELECT.name ()).equals (consumption.controlId ()))
+            final ButtonID button = CONSUMABLE_BUTTONS.get (consumption.controlId ());
+            if (button == null)
                 throw new IllegalArgumentException ("Controller-button consumption is not installed for " + consumption.controlId ().value ());
-            return new PreparedControllerButtonConsumption (ButtonID.SELECT);
+            return new PreparedControllerButtonConsumption (button);
         }
         if (effect instanceof final SendNoteInputMidiEffect midi)
             return new PreparedNoteInputMidi (midi.status (), midi.data1 (), midi.data2 ());
@@ -1228,6 +1231,19 @@ final class BoundedControllerBridge implements ControllerBridge
 
     private record PreparedControllerButtonConsumption (ButtonID button) implements ControllerBridge.PreparedAction
     {
+    }
+
+
+    private static Map<ControlId, ButtonID> consumableButtons ()
+    {
+        final Map<ControlId, ButtonID> buttons = new LinkedHashMap<> ();
+        buttons.put (PushControlIds.button (ButtonID.SELECT.name ()), ButtonID.SELECT);
+        for (int index = 0; index < 8; index++)
+        {
+            final ButtonID button = ButtonID.get (ButtonID.ROW1_1, index);
+            buttons.put (PushControlIds.button (button.name ()), button);
+        }
+        return Map.copyOf (buttons);
     }
 
 

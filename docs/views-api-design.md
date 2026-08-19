@@ -1,6 +1,6 @@
 # Views API and Composite Workspaces
 
-Status: design contract. Checkpoints 1 and 2 are structurally implemented through Core API 38. The
+Status: design contract. Checkpoints 1 and 2 are structurally implemented through Core API 39. The
 remaining stable-adapter boundary is represented explicitly in claims and recorded in
 [`../ARCH.md`](../ARCH.md). The checkpoints remain below so code, offline tests, and Push hardware
 tests can be compared against the intended end state.
@@ -98,8 +98,10 @@ pad has no musical pressure destination. Aggregate channel pressure has no pad i
 a distinct surface-wide input.
 
 The stable shell captures those events and publishes the current typed pressure configuration and
-drum base note. `DrumPlayPadView` owns the mapping from its fixed playable footprint to MIDI effects
-in both standalone and composite Drum layouts. Both stable adapters are inert for pressure.
+drum base note. `DrumPlayPadView` owns RGB and pressure-to-MIDI policy for its fixed playable
+footprint in both standalone and composite Drum layouts. Musical note edges still use the installed
+built-in `NoteInput` translation; a view cannot yet declare arbitrary playable geometry. Both
+stable adapters are inert for pressure.
 
 ## Fixed Views
 
@@ -224,9 +226,19 @@ ownership. Likewise, a composite may release its default parameter/display page 
 while retaining disjoint grid/button views. An empty workspace therefore means only "release every
 core facet"; it does not choose or restore a destination.
 
+Exact Stop-plus-track is not in the installed Session effect canopy. In full Session, the view
+mechanically consumes the bounded stable lower-row release; with a core track strip, the resolved
+action is inert. Neither path selects the track or allows Stop release to become a plain
+selected-track Stop. It may gain exact bank-generation/index/channel targeting later; it must
+never infer the target after release.
+
 Page and Master overlays reuse retained instances of the underlying grid views. A compiled overlay
 may start independently, but it reconciles an already-started retained view instead of restarting
 it, so held-pad and other BEGIN-to-END state survives the page replacement.
+
+Master is resolved from the exact selected composition, not only its top-level workspace ID. Its
+page therefore retains standalone Drum views and mapping leases, full Session and Stop ownership,
+selected Note routing, or the VS Live grid views actually active when Master was entered.
 
 Hydration requests Session's default Track/Mix page only when page state is genuinely unavailable.
 If Mix, Device, or Browse is already authoritative, core retains that page and composes the
@@ -237,6 +249,11 @@ Its exclusive input and RGB output claims are unaffected by Session, Mix, Device
 or composite-grid selection. Legacy page-retarget and held-modifier meanings were removed; a view
 which needs a future target other than the selected track must declare a different target-specific
 control view rather than infer it from the visible page.
+
+Mute, Solo, Record-arm, and launcher-overdub toggles retain one bounded pending lane per semantic
+property. Repeated presses collapse to parity while an absolute request awaits host read-back; a
+dependent request is emitted only after a later authoritative snapshot acknowledges the previous
+expected state. A target/project change retires the lane.
 
 Display fragments now follow the same ownership rule for the installed VS Live page. Project Macro
 or Track Mixer emits only a local 960x143 `DISPLAY.PARAMETERS` scene, while Track Selection emits only a local
@@ -392,3 +409,7 @@ migration or the `VS Live` shell integration.
 - Migrating every inherited DrivenByMoss mode/view family.
 - User-authored overlays beyond named, statically validated replacements.
 - Persisting richer per-view navigation state across reload.
+- Arbitrary core-authored musical pad geometry; see
+  [`findings/custom-musical-surface-geometry.md`](findings/custom-musical-surface-geometry.md).
+- A bidirectional compiler contract between every stable facet and its exact stable claims; see
+  [`findings/stable-facet-claim-coupling.md`](findings/stable-facet-claim-coupling.md).

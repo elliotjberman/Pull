@@ -433,6 +433,16 @@ class CompiledWorkspaceTest
 
 
     @Test
+    void rejectsParameterMappingOutsideTheDeclaringViewsRelativeInputClaim ()
+    {
+        final ControlId knob = PushControlIds.continuous ("KNOB1");
+        final ControllerView invalid = parameterView ("invalid", knob, ParameterSlot.active (0), Set.of ());
+
+        assertThrows (IllegalArgumentException.class, () -> CompiledWorkspace.compile ("invalid parameter", List.of (invalid)));
+    }
+
+
+    @Test
     void controllerMappingCompositionRejectsPhysicalAndSemanticCollisions ()
     {
         final ControlId firstPhysical = CoreControls.DRUM_CONTROL_PADS.getFirst ();
@@ -538,6 +548,12 @@ class CompiledWorkspaceTest
 
     private static ControllerView parameterView (final String id, final ControlId control, final ParameterSlot slot)
     {
+        return parameterView (id, control, slot, Set.of (claim (SurfaceArea.ENCODER_TURNS, SurfaceClaim.Kind.EXCLUSIVE_INPUT)));
+    }
+
+
+    private static ControllerView parameterView (final String id, final ControlId control, final ParameterSlot slot, final Set<SurfaceClaim> claims)
+    {
         return new ControllerView ()
         {
             @Override
@@ -550,7 +566,7 @@ class CompiledWorkspaceTest
             @Override
             public ViewProfile profile ()
             {
-                return ViewProfile.fixed (id, Set.of (), Set.of ());
+                return ViewProfile.fixed (id, claims, Set.of ());
             }
 
 
@@ -691,7 +707,7 @@ class CompiledWorkspaceTest
     {
         final SessionBankShape shape = new SessionBankShape (8, 4);
         final java.util.ArrayList<SessionTrackSnapshot> tracks = new java.util.ArrayList<> ();
-        tracks.add (new SessionTrackSnapshot (firstChannel, 0, firstChannel, true, false, true, false, false, false, false, new RgbColor (10, 20, 30)));
+        tracks.add (new SessionTrackSnapshot (firstChannel, 0, firstChannel, true, false, true, false, false, false, false, de.mossgrabers.pull.core.api.SessionTrackType.UNKNOWN, new RgbColor (10, 20, 30)));
         while (tracks.size () < shape.tracks ())
             tracks.add (SessionTrackSnapshot.empty ());
         final ControllerBridgeSnapshot bridge = new ControllerBridgeSnapshot (

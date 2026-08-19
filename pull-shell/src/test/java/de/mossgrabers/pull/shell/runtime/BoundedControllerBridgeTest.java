@@ -93,13 +93,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class BoundedControllerBridgeTest
 {
     @Test
-    void admitsOnlyTheInstalledStableButtonConsumptionTarget ()
+    void admitsOnlyTheInstalledStableButtonConsumptionTargets ()
     {
         final BridgeFixture fixture = new BridgeFixture ();
 
         fixture.bridge.apply (fixture.bridge.prepare (new ConsumeControllerButtonEffect (PushControlIds.button ("SELECT"))));
+        for (int index = 1; index <= 8; index++)
+            fixture.bridge.apply (fixture.bridge.prepare (new ConsumeControllerButtonEffect (PushControlIds.button ("ROW1_" + index))));
 
         assertThrows (IllegalArgumentException.class, () -> fixture.bridge.prepare (new ConsumeControllerButtonEffect (PushControlIds.button ("BROWSE"))));
+        assertThrows (IllegalArgumentException.class, () -> fixture.bridge.prepare (new ConsumeControllerButtonEffect (PushControlIds.button ("ROW2_1"))));
     }
 
 

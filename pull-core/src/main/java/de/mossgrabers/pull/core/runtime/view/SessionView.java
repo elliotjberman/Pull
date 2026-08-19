@@ -44,29 +44,38 @@ public final class SessionView implements ControllerView
     private static final ControlId STOP_CLIP = PushControlIds.button ("STOP_CLIP");
     private static final ControlId SHIFT = PushControlIds.button ("SHIFT");
     private static final ControlId SELECT = PushControlIds.button ("SELECT");
+    private static final Set<ControlId> TRACK_BUTTONS = trackButtons ();
     private static final Set<BridgeSubscription> SUBSCRIPTIONS = Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.SESSION_BANK);
 
     private final ViewProfile profile;
-    private boolean stopGestureConsumed;
+    private final SessionStopGesture stopGesture;
 
 
-    private SessionView (final ViewProfile profile)
+    private SessionView (final ViewProfile profile, final SessionStopGesture stopGesture)
     {
         this.profile = profile;
+        this.stopGesture = java.util.Objects.requireNonNull (stopGesture, "stopGesture");
     }
 
 
     /** Create the inherited complete eight-by-eight Session view. */
     public static SessionView full ()
     {
-        return new SessionView (fullProfile ());
+        return new SessionView (fullProfile (), new SessionStopGesture ());
     }
 
 
     /** Create the upper four-row Session view used in a composite. */
     public static SessionView upper (final boolean sceneLaunchEnabled)
     {
-        return new SessionView (upperProfile (sceneLaunchEnabled));
+        return upper (sceneLaunchEnabled, new SessionStopGesture ());
+    }
+
+
+    /** Create an upper Session view sharing Stop-gesture state with its track strip. */
+    public static SessionView upper (final boolean sceneLaunchEnabled, final SessionStopGesture stopGesture)
+    {
+        return new SessionView (upperProfile (sceneLaunchEnabled), stopGesture);
     }
 
 
@@ -92,15 +101,6 @@ public final class SessionView implements ControllerView
 
 
     @Override
-    public void reconcile (final ControllerSnapshot snapshot)
-    {
-        // The release snapshot no longer contains Stop Clip, so clearing here would erase a
-        // Stop-plus-pad consumption immediately before the END edge is handled. Every new BEGIN
-        // resets the gesture explicitly.
-    }
-
-
-    @Override
     public ViewOutput render (final ControllerSnapshot snapshot)
     {
         final RgbColor color = snapshot.pressedControls ().contains (STOP_CLIP) ? STOP_HELD : STOP_AVAILABLE;
@@ -117,10 +117,9 @@ public final class SessionView implements ControllerView
             return this.handleStopButton (input, snapshot);
         if (input.phase () == InputPhase.BEGIN && snapshot.pressedControls ().contains (STOP_CLIP) && !SHIFT.equals (input.controlId ()) && !SELECT.equals (input.controlId ()))
         {
-            // TODO: When a track-selection strip is composed, Stop-plus-track must stop that exact
-            // Session-bank track instead of selecting it. The retained grid still handles
-            // Stop-plus-pad; core currently only prevents the trailing plain Stop action.
-            this.stopGestureConsumed = true;
+            this.stopGesture.consume ();
+            if (input.kind () == InputKind.BUTTON && TRACK_BUTTONS.contains (input.controlId ()))
+                return List.of (new ConsumeControllerButtonEffect (input.controlId ()));
         }
         return List.of ();
     }
@@ -130,16 +129,13 @@ public final class SessionView implements ControllerView
     {
         if (input.phase () == InputPhase.BEGIN)
         {
-            this.stopGestureConsumed = false;
+            this.stopGesture.begin ();
             return List.of ();
         }
         if (input.phase () != InputPhase.END)
             return List.of ();
-        if (this.stopGestureConsumed)
-        {
-            this.stopGestureConsumed = false;
+        if (this.stopGesture.takeConsumed ())
             return List.of ();
-        }
 
         if (snapshot.pressedControls ().contains (SHIFT) || snapshot.pressedControls ().contains (SELECT))
         {
@@ -209,5 +205,14 @@ public final class SessionView implements ControllerView
     {
         claims.add (new SurfaceClaim (area, SurfaceClaim.Kind.STABLE_ADAPTER_INPUT));
         claims.add (new SurfaceClaim (area, SurfaceClaim.Kind.STABLE_ADAPTER_OUTPUT));
+    }
+
+
+    private static Set<ControlId> trackButtons ()
+    {
+        final Set<ControlId> controls = new LinkedHashSet<> ();
+        for (int index = 1; index <= 8; index++)
+            controls.add (PushControlIds.button ("ROW1_" + index));
+        return Set.copyOf (controls);
     }
 }

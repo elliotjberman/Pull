@@ -5,12 +5,15 @@ package de.mossgrabers.pull.core.runtime.view;
 
 import de.mossgrabers.pull.core.api.SessionTrackSnapshot;
 import de.mossgrabers.pull.core.api.SessionTrackType;
+import de.mossgrabers.pull.core.api.ParameterSlot;
+import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
 import de.mossgrabers.pull.core.api.output.DisplayCommand;
 import de.mossgrabers.pull.core.api.output.DisplayIcon;
 import de.mossgrabers.pull.core.api.output.DisplayTextAlignment;
 import de.mossgrabers.pull.core.api.output.DisplayTextFit;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 
+import java.util.ArrayList;
 import java.util.List;
 
 
@@ -19,6 +22,7 @@ final class TrackFooterDisplayScene
 {
     static final double HEIGHT = 17.0;
 
+    private static final int WIDTH = 960;
     private static final double COLUMN_WIDTH = 120.0;
     private static final double INSET = 7.7;
     private static final RgbColor BLACK = new RgbColor (0, 0, 0);
@@ -28,6 +32,21 @@ final class TrackFooterDisplayScene
     private TrackFooterDisplayScene ()
     {
         // Utility class.
+    }
+
+
+    /** Render the complete bounded track-selection footer. */
+    static ControllerDisplayScene render (final List<SessionTrackSnapshot> tracks)
+    {
+        final ArrayList<DisplayCommand> commands = new ArrayList<> (24);
+        commands.add (new DisplayCommand.Rectangle (0, 0, WIDTH, HEIGHT, BLACK));
+        for (int index = 0; index < Math.min (ParameterSlot.BANK_SIZE, tracks.size ()); index++)
+        {
+            final SessionTrackSnapshot track = tracks.get (index);
+            if (track.exists ())
+                append (commands, index, 0, track);
+        }
+        return new ControllerDisplayScene (WIDTH, (int) HEIGHT, commands);
     }
 
 

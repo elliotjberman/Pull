@@ -1,6 +1,6 @@
 # Pull View Architecture
 
-Status: current through Core API 38, semantic controller-mapping identities, generic registered
+Status: current through Core API 39, semantic controller-mapping identities, generic registered
 button/grid light arbitration, the shared
 mixer-control renderer, the Master-control migration, the post-demo `VS Live` composition, and
 core-owned Session Stop, selected-track Mute/Solo, VS Live Project/Track and Track/Mix display
@@ -109,6 +109,8 @@ belongs only to the frozen legacy Drum64 adapter and is never a state source for
 Controller. Musical note edges still travel through the permanent target-fenced `NoteInput` route,
 independently from controller-command arbitration, so RGB or command handling cannot swallow MIDI;
 the route and controller views nevertheless share the same selected-target applicability gate.
+The note translation itself remains the installed built-in Drum Controller map; arbitrary musical
+pad geometry is not yet a core-authored view capability.
 
 ### Parameter banks, effects, and snapback
 
@@ -204,7 +206,8 @@ A `SurfaceClaim` declares one view's use of an area:
 Multiple observers may coexist. Two owning input claims conflict. Two output claims conflict,
 regardless of whether core or a stable adapter realizes them. Adapter-backed claims are invalid
 without the matching declared `ControllerViewFacet`. A compiled result must be independent of view
-declaration order.
+declaration order. Semantic action bindings and physical-to-parameter bindings must be covered by
+the same declaring view's matching input claim.
 
 ### Views
 
@@ -242,6 +245,22 @@ views:
 
 `VsLiveWorkspace.create(...)` constructs this configuration directly in Java. YAML/JSON is not
 implemented and must not become a raw control-mapping language.
+
+### Current authoring boundary
+
+This is a source-level Java view system, not a runtime plug-in SDK. A contributor can add a
+`ControllerView`, select named `SurfaceArea` claims, compose it with installed views, consume the
+existing authoritative snapshots/effects/output lanes, and hot reload policy that stays inside the
+installed canopy. The compiler rejects ordinary physical overlap and output outside claims.
+
+That does **not** currently permit dynamic class or YAML registration, new Bitwig proxies/effects,
+new Session bank shapes, additional permanent semantic mapping endpoints, or an arbitrary new
+physical-pad-to-note map without a parent-loaded API/shell change and Bitwig restart. The four
+mapping identities are installed capacity, not a general endpoint registry. Stable adapter facets
+are closed migration scaffolding, not author-facing extension points; their remaining claim gap is
+tracked in [`docs/findings/stable-facet-claim-coupling.md`](docs/findings/stable-facet-claim-coupling.md).
+General musical geometry is tracked in
+[`docs/findings/custom-musical-surface-geometry.md`](docs/findings/custom-musical-surface-geometry.md).
 
 ### Stable facets
 
@@ -303,6 +322,8 @@ is rejected.
 Reloadable core:
 
 - `CompiledWorkspace`: claim validation, routing, deterministic composition.
+- `ControllerLevelViews`: one retained global selection, transport, parameter, and selected-track
+  policy set shared across every page replacement.
 - `DefaultWorkspace`: ordinary migrated behavior plus shared workspace selection.
 - `VsLiveWorkspace`: Java-defined composition and declared 8x4 Session bank.
 - `ProjectMacroControlsView`: core-owned relative encoder behavior plus adapter-backed touch and
@@ -367,7 +388,9 @@ Implemented:
 - One persistent `SessionView` owns the full/upper grid footprint plus Stop Clip input and RGB
   feedback: available is white and a held Stop is red. Plain Stop immediately stops the
   authoritative selected track; Shift/Select Stop targets the exact active Session bank, and
-  Stop-plus-pad consumption remains part of the same view. The old
+  Stop-plus-pad consumption remains part of the same view. Exact Stop-plus-track is not installed;
+  the Session view consumes the bounded lower-row stable release, while a composed core track
+  strip resolves the same chord inertly, so neither path selects a track or emits a trailing plain Stop. The old
   long/lock and page-row Stop overlays are deleted. Stop remains `OBSERVE` rather than `EXCLUSIVE`
   only because the stable grid adapter still needs its held state for Stop-plus-pad; the direct
   stable Stop command is inert.
@@ -375,6 +398,10 @@ Implemented:
   feedback: available is white, authoritative Mute is orange, and authoritative Solo uses the
   Tetra yellow. Project-wide clear, lock/long row overlays, Master/layer retargeting, and pad/note
   modifier meanings are deleted rather than encoded into the new view model.
+- Mute, Solo, Record-arm, and launcher-overdub toggles use bounded retained intent lanes. A second
+  press before acknowledgement queues parity; no dependent absolute write is submitted until a
+  later authoritative snapshot reports the previous expected state. Target or project changes
+  retire the pending lane rather than applying it to a replacement.
 - Session is retained independently from its default Track/Mix destination, and VS Live retains
   the same started grid-view instances when Mix, Device, Browse, or Master replaces the page, so
   active grid gestures are not restarted. Every Shift+Session request reselects the declared VS
@@ -396,7 +423,10 @@ Implemented:
   converting one invalid result into a controller-wide fault. A Master-owned project navigation
   retains the page through Bitwig's intermediate and late layout resets. Project acknowledgement
   updates the retained Master scene but does not invent a page change; only a later explicit page
-  or workspace request releases that lease.
+  or workspace request releases that lease. Master replaces only the page over the exact selected
+  composition: standalone Drum, full Session, Note routing, and each VS Live page retain their
+  actual started views and owned grid/routing state rather than being reconstructed from a coarse
+  workspace ID.
 - Fixed display-region composition for the VS Live page. Project Macro or Track Mixer owns the
   replaceable 960x143 parameter body; Track Selection owns the retained 960x17 footer plus all
   eight exclusive lower-row edges and lights. The Track Mixer body renders authoritative active
@@ -417,6 +447,9 @@ Partial or transitional:
   controls, and pitch-bend adapter-backed mechanics still run in stable
   `WorkspaceMode`/`WorkspaceView`.
 - `ControllerViewFacet` remains a closed cross-boundary adapter ID.
+- Stable facets are not yet bidirectionally proven against every exact stable claim their shell
+  adapters activate; the built-in profiles are reviewed, and the remaining compiler gap is tracked
+  in `docs/findings/stable-facet-claim-coupling.md`.
 - Capability and Session-shape validation happens during stable result preparation, not entirely in
   `CompiledWorkspace`.
 - Every registered Push button light and every physical grid-pad light now has generic explicit
@@ -428,7 +461,7 @@ Partial or transitional:
   mappable controls. General display output is still semantically partial: Master and the composed
   VS Live Project/Track and Track/Mix pages are core-authored, while a generic complete base-scene plane, a
   temporary sparse 8x8 grid overlay, and a complete temporary 960x160 display overlay are
-  arbitrated. The detailed design's API 38 installed-output inventory is canonical.
+  arbitrated. The detailed design's API 39 installed-output inventory is canonical.
 
 Deferred by design:
 

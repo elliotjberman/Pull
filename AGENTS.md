@@ -191,69 +191,27 @@
 - A core-only change inside the installed API/canopy hot reloads. Changing a parent-loaded API
   contract, adding a Bitwig proxy/property/observer, changing a permanent binding or proxy capacity,
   or broadening hardware output ownership requires a shell build/install and Bitwig restart.
-- Core API 38 arbitrates general input, complete composed controller state, semantic action intent,
-  named bounded parameter banks, and exact parameter-target leases. Each active view contributes
-  its fixed facets, Note layout, selected-track musical route, and other owned output; composite
-  workspaces merge disjoint contributions and reject physical overlap. Project-macro encoder turns
-  are the reference parameter migration: core owns
-  the mapping, relative effect, and snapback policy while stable owns Bitwig proxies, identity
-  validation, read-back, and effect execution. The Play action, sixteen authoritative
-  playing-velocity drum-play RGB lights, eight drum-fill RGB lights, four drum-rate RGB lights,
-  four Bitwig-manually-mappable drum-control pads and lights with a replayable
-  physical-to-semantic mapping lease and authoritative Boolean mapped-state read-back from
-  dedicated no-output background lights on permanent semantic Bitwig button identities. All 64
-  original physical PAD actions are raw-dispatch-only and never define learned mapping identity;
-  raw MIDI supplies ordinary dispatch outside a lease and the routed core gesture during one
-  without becoming a second learned action. Play,
-  Record, Mute, and Solo lights, both Master button rows, and the Master graphics display have
-  migrated direct output ownership. Session Stop Clip has migrated as one composed action/feedback slice: a
-  selected `SessionView` owns its observed edge and RGB light independently from the active
-  Mix/Device/Browse page; plain Stop uses the private selected track's immediate actuator, while Shift/Select Stop is
-  fenced to the active bounded 8x8 or 8x4 Session bank, and Select release is explicitly consumed.
-  Its permanent direct command is inert, but `OBSERVE` intentionally preserves held-button state
-  for the still-adapted Session grid's Stop-plus-pad chord; do not request `EXCLUSIVE` until that
-  grid behavior migrates. Legacy long/locked Stop row overlays are removed. A persistent `SelectedTrackMuteSoloView` owns
-  Mute/Solo edges and RGB feedback in every workspace, always targets the private authoritative
-  selected track, and has no project-clear, lock, row-overlay, Master, device-layer, pad, or note
-  modifier variants. Play and Record light policy renders
-  authoritative engine, transport, overdub,
-  and selected-track arm read-back in every workspace. Play targets the remembered engine-owning
-  project through a bounded navigate/acknowledge/toggle/acknowledge/return transaction. Its stable
-  command is inert;
-  the stable bindings only preserve the physical seam and translate core RGB to the Push palette.
-  API 36 installs generic explicit ownership for every registered Push button light and all 64
-  physical grid-pad lights. A core view may render only inside its declared output claims; an
-  explicit owner replaces the stable supplier, while an unclaimed light preserves that supplier
-  exactly. This is transport, not semantic ownership: migrate a control's action, authoritative
-  state, and feedback together before changing its meaning.
-  The Master scene's copy, typography, geometry, color, clipping, and shape policy are core-owned;
-  stable only interprets bounded generic primitives. The VS Live Project Macro or Track Mixer body
-  and retained Track Selection view independently own the fixed 960x143 parameter region and
-  960x17 bottom strip. Track Mixer owns its active-parameter rendering and relative encoder turns;
-  its upper-row page menu and encoder touches remain explicit frozen adapters. Compilation
-  requires complete coverage, confines every primitive with compiler-owned clip scopes to its
-  claimed local viewport, and emits one 960x160 base scene. Track Selection owns its eight
-  exclusive lower-row edges and authoritative lights; its footer renders authoritative visible-track
-  colors and semantic channel-type icons. It resolves the exact visible target at
-  gesture `BEGIN`, and the bounded Session effect revalidates generation, bank shape, index, and
-  channel identity before selecting. The stable `WorkspaceMode` retains only project-macro touch/Delete adaptation,
-  and missing core output stays blank rather than reviving its deleted page/track-strip policy.
-  A generic display base plane projects complete core scenes on every Push page while retaining
-  ordinary overlays above them. API 22 also installs a temporary sparse 8x8
-  pad-grid overlay and a complete 960x160 display overlay whose activation and visuals are
-  core-owned, plus a bounded pure mixer-control render service:
-  Master, Project Macro, the ordinary stable Track Mix adapter, and the core-owned VS Live Track
-  Mixer body use the same core-owned Volume/Pan/Knob renderer.
-  Cue parameters and Track Mix sends are the same Knob component, not parallel lookalikes. Track
-  Mix and Project Macro accept only column-local scenes structurally confined to the installed
-  parameter-body region; remaining stable menus and footers stay frozen, and missing/faulted core
-  output leaves all eight mixer-control slots blank rather than reviving a stable semantic fallback.
-  Those stable menus,
-  footers, and other workspace facets are frozen inherited migration debt, not valid extension
-  points. Do not claim ribbon or semantic ownership of inherited display pages beyond Master and
-  the composed VS Live page merely because the generic base-scene transport is installed. Logical
-  timer DTOs have no production capability or executor and must not be emitted while
-  `docs/findings/logical-timer-production-gap.md` is active.
+- Core API 39 is the current installed composition contract. Each view contributes fixed claims,
+  facets, state subscriptions, semantic actions, musical routing, and owned output; workspaces may
+  merge only disjoint contributions. `ARCH.md` is the canonical current inventory and
+  `docs/views-api-design.md` is the detailed contract—do not duplicate or extend product policy in
+  this instruction file.
+- Preserve these migration boundaries: physical controller mappings use permanent semantic
+  identities while all 64 raw PAD actions remain ordinary-dispatch-only; generic button/grid light
+  arbitration grants no semantic ownership by itself; display producers stay within compiler-owned
+  clip scopes; and unclaimed light/display behavior remains frozen legacy policy.
+- Session Stop stays `OBSERVE` until the adapted Stop-plus-pad chord migrates. Plain Stop targets the
+  private selected track, Shift/Select Stop targets the exact bounded Session bank, and unsupported
+  Stop-plus-track is consumed without selecting or stopping a replacement target. Mute/Solo and
+  Record/overdub toggles must serialize dependent writes across later authoritative read-back.
+- Master is a page replacement over the exact selected composition, not a workspace-ID-specific
+  screen. It must retain the active Session/Drum/Note routes and view lifecycles. The temporary
+  full-grid/full-display overlay plane remains an explicit whole-surface carveout; ordinary base
+  display regions compose through claims.
+- Stable adapter facets, inherited Track Mix menus/touches, Session grid mechanics, Drum octave and
+  pitch-bend mechanics, and other listed debt are not extension points. Missing/faulted core output
+  stays blank or inert instead of reviving deleted policy. Logical timer DTOs have no production
+  executor and must not be emitted while `docs/findings/logical-timer-production-gap.md` is active.
 
 ## Bitwig controller API compatibility
 

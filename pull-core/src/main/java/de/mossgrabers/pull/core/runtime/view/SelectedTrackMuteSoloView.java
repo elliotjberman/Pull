@@ -10,7 +10,6 @@ import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackBoolean;
-import de.mossgrabers.pull.core.api.effect.SetSelectedTrackBooleanEffect;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
@@ -24,6 +23,7 @@ import de.mossgrabers.pull.core.view.ViewProfile;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 
@@ -36,6 +36,7 @@ public final class SelectedTrackMuteSoloView implements ControllerView
     private static final RgbColor SOLOED = new RgbColor (228, 183, 76);
     private static final ControlId MUTE = PushControlIds.button ("MUTE");
     private static final ControlId SOLO = PushControlIds.button ("SOLO");
+    private static final Set<SelectedTrackBoolean> PROPERTIES = Set.of (SelectedTrackBoolean.MUTED, SelectedTrackBoolean.SOLOED);
     private static final ViewProfile PROFILE = ViewProfile.fixed (
         "default",
         Set.of (
@@ -44,6 +45,21 @@ public final class SelectedTrackMuteSoloView implements ControllerView
             new SurfaceClaim (SurfaceArea.SOLO_BUTTON, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
             new SurfaceClaim (SurfaceArea.SOLO_BUTTON, SurfaceClaim.Kind.OUTPUT)),
         Set.of ());
+
+    private final SelectedTrackBooleanToggles toggles;
+
+
+    /** Construct a standalone selected-track toggle view. */
+    public SelectedTrackMuteSoloView ()
+    {
+        this (new SelectedTrackBooleanToggles ());
+    }
+
+
+    SelectedTrackMuteSoloView (final SelectedTrackBooleanToggles toggles)
+    {
+        this.toggles = java.util.Objects.requireNonNull (toggles, "toggles");
+    }
 
 
     /** {@inheritDoc} */
@@ -87,21 +103,14 @@ public final class SelectedTrackMuteSoloView implements ControllerView
     @Override
     public List<CoreEffect> handle (final CoreEvent event, final ControllerSnapshot snapshot)
     {
-        if (!(event instanceof final ControllerInputEvent input) || input.kind () != InputKind.BUTTON || input.phase () != InputPhase.END)
-            return List.of ();
-
-        final SelectedTrackBoolean property;
-        if (MUTE.equals (input.controlId ()))
-            property = SelectedTrackBoolean.MUTED;
-        else if (SOLO.equals (input.controlId ()))
-            property = SelectedTrackBoolean.SOLOED;
-        else
-            return List.of ();
-
-        final SelectedTrackSnapshot selected = snapshot.bridge ().selectedTrack ();
-        if (!selected.exists ())
-            return List.of ();
-        final boolean enabled = property == SelectedTrackBoolean.MUTED ? !selected.muted () : !selected.soloed ();
-        return List.of (new SetSelectedTrackBooleanEffect (selected.generation (), selected.channelId (), property, enabled));
+        Optional<SelectedTrackBoolean> pressed = Optional.empty ();
+        if (event instanceof final ControllerInputEvent input && input.kind () == InputKind.BUTTON && input.phase () == InputPhase.END)
+        {
+            if (MUTE.equals (input.controlId ()))
+                pressed = Optional.of (SelectedTrackBoolean.MUTED);
+            else if (SOLO.equals (input.controlId ()))
+                pressed = Optional.of (SelectedTrackBoolean.SOLOED);
+        }
+        return this.toggles.update (PROPERTIES, pressed, snapshot);
     }
 }

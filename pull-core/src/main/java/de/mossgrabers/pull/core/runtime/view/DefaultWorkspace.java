@@ -4,7 +4,10 @@
 package de.mossgrabers.pull.core.runtime.view;
 
 import de.mossgrabers.pull.core.view.CompiledWorkspace;
+import de.mossgrabers.pull.core.view.ControllerView;
+import de.mossgrabers.pull.core.view.RetainedControllerView;
 
+import java.util.ArrayList;
 import java.util.List;
 
 
@@ -24,21 +27,30 @@ public final class DefaultWorkspace
      *
      * @return Compiled workspace
      */
-    public static CompiledWorkspace create (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator)
+    public static CompiledWorkspace create (final ControllerLevelViews controllerViews)
     {
-        return CompiledWorkspace.compile ("Pull", ControllerLevelViews.compose (selection, playbackCoordinator, List.of (
+        return CompiledWorkspace.compile ("Pull", controllerViews.compose (List.of (
             new StableParameterControlsView ())));
     }
 
 
     /** Create the default workspace while the authoritative drum layout owns its rate pads. */
-    public static CompiledWorkspace createDrum (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator)
+    public static CompiledWorkspace createDrum (final ControllerLevelViews controllerViews, final List<? extends ControllerView> drumViews)
     {
-        return CompiledWorkspace.compile ("Pull Drum", ControllerLevelViews.compose (selection, playbackCoordinator, List.of (
-            new StableParameterControlsView (),
-            new DrumPlayPadView (),
-            new DrumFillView (),
-            new DrumControlPadView (),
-            new DrumRateView ())));
+        final List<ControllerView> views = new ArrayList<> ();
+        views.add (new StableParameterControlsView ());
+        views.addAll (drumViews);
+        return CompiledWorkspace.compile ("Pull Drum", controllerViews.compose (views));
+    }
+
+
+    /** Create the retained Drum slice shared with Master. */
+    public static List<ControllerView> retainedDrumViews ()
+    {
+        return List.of (
+            new RetainedControllerView (new DrumPlayPadView ()),
+            new RetainedControllerView (new DrumFillView ()),
+            new RetainedControllerView (new DrumControlPadView ()),
+            new RetainedControllerView (new DrumRateView ()));
     }
 }

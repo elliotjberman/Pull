@@ -566,6 +566,8 @@ public final class CompiledWorkspace
             {
                 final ControlId control = Objects.requireNonNull (binding.getKey (), "parameter control");
                 final ParameterSlot slot = Objects.requireNonNull (binding.getValue (), "parameter slot");
+                if (!claimsInput (view.profile (), new RouteKey (control, InputKind.RELATIVE)))
+                    throw new IllegalArgumentException ("view " + view.id () + " maps a parameter outside its relative-input claims: " + control);
                 if (bindings.putIfAbsent (control, slot) != null)
                     throw new IllegalArgumentException ("multiple views map parameter control " + control);
             }

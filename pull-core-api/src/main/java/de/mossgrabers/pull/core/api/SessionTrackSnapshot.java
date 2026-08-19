@@ -31,20 +31,6 @@ public record SessionTrackSnapshot (String channelId, int position, String name,
     }
 
 
-    /** Compatibility constructor for snapshots without a semantic track type. */
-    public SessionTrackSnapshot (final String channelId, final int position, final String name, final boolean exists, final boolean selected, final boolean activated, final boolean recordArmed, final boolean muted, final boolean soloed, final boolean clipPlaying, final RgbColor color)
-    {
-        this (channelId, position, name, exists, selected, activated, recordArmed, muted, soloed, clipPlaying, SessionTrackType.UNKNOWN, color);
-    }
-
-
-    /** Compatibility constructor for snapshots without a track name. */
-    public SessionTrackSnapshot (final String channelId, final int position, final boolean exists, final boolean selected, final boolean activated, final boolean recordArmed, final boolean muted, final boolean soloed, final boolean clipPlaying, final RgbColor color)
-    {
-        this (channelId, position, "", exists, selected, activated, recordArmed, muted, soloed, clipPlaying, SessionTrackType.UNKNOWN, color);
-    }
-
-
     /** Create one unavailable bank slot. */
     public static SessionTrackSnapshot empty ()
     {

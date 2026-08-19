@@ -24,34 +24,28 @@ public final class StableDestinationWorkspace
 
 
     /** Create the explicit Track/Mix plus full Session destination. */
-    public static CompiledWorkspace session (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator, final ControllerView sessionView)
+    public static CompiledWorkspace session (final WorkspaceSelection selection, final ControllerLevelViews controllerViews, final ControllerView sessionView)
     {
         return CompiledWorkspace.compile (
             "Session destination",
             SESSION_BANK,
-            ControllerLevelViews.composeWithoutNoteController (selection, playbackCoordinator, List.of (new SessionTemporarySelectionView (selection), new TrackMixerPageView (), sessionView)));
+            controllerViews.composeWithoutNoteController (List.of (new SessionTemporarySelectionView (selection), new TrackMixerPageView (), sessionView)));
     }
 
 
     /** Keep the semantic Session view selected after its default Track/Mix page is acknowledged. */
-    public static CompiledWorkspace selectedSession (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator, final ControllerView sessionView)
+    public static CompiledWorkspace selectedSession (final ControllerLevelViews controllerViews, final ControllerView sessionView)
     {
         return CompiledWorkspace.compile (
             "Session",
             SESSION_BANK,
-            ControllerLevelViews.compose (selection, playbackCoordinator, List.of (sessionView)));
+            controllerViews.compose (List.of (sessionView)));
     }
 
 
     /** Create the explicit Track/Mix page destination used around the stable Note view command. */
-    public static CompiledWorkspace note (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator)
+    public static CompiledWorkspace note (final ControllerLevelViews controllerViews)
     {
-        return create ("Note destination", SessionBankShape.empty (), selection, playbackCoordinator, List.of (new TrackMixerPageView ()));
-    }
-
-
-    private static CompiledWorkspace create (final String name, final SessionBankShape sessionBank, final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator, final List<? extends ControllerView> destinationViews)
-    {
-        return CompiledWorkspace.compile (name, sessionBank, ControllerLevelViews.compose (selection, playbackCoordinator, destinationViews));
+        return CompiledWorkspace.compile ("Note destination", controllerViews.compose (List.of (new TrackMixerPageView ())));
     }
 }

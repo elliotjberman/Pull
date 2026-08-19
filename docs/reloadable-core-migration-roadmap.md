@@ -118,9 +118,11 @@ The migration guide scopes Play as the safe first transport cut.
 - volume and pan;
 - stop, return to Arrangement, and create a new clip.
 
-API 38 owns Mute/Solo as one persistent selected-track view and Stop as part of `SessionView`.
+API 39 owns Mute/Solo as one persistent selected-track view and Stop as part of `SessionView`.
 Plain Stop preserves the inherited immediate actuator; page overlays retain the active grid-view
-instances so their physical gestures remain continuous.
+instances so their physical gestures remain continuous. Mute, Solo, Record-arm, and
+launcher-overdub toggles queue bounded parity and wait for later authoritative acknowledgement
+before submitting a dependent absolute write.
 The former project-clear, master, layer, lock/long, page-row, pad, and note modifier variants were
 explicitly removed as a product decision rather than carried into the composable view API.
 
@@ -161,7 +163,7 @@ This is the main body of remaining work. It is migration debt, but not a file-on
 
 ### 1. Complete remaining hardware output
 
-API 36 completes reusable light arbitration for every registered Push button and all 64 physical
+API 37 completes reusable light arbitration for every registered Push button and all 64 physical
 grid pads. The shell validates output against the permanent physical registry; an explicit core
 owner replaces the frozen stable supplier, and an unclaimed control preserves that supplier
 exactly. Core compilation also rejects a view that renders a light outside its declared output
@@ -185,7 +187,7 @@ rendering.
 
 ### 2. Visible track bank and mixer
 
-API 38 publishes stable identities, names, semantic channel types, generation, offsets, and basic authoritative state for
+API 39 publishes stable identities, names, semantic channel types, generation, offsets, and basic authoritative state for
 the eight tracks in the active bounded Session bank. It executes a bank-wide Stop action and exact
 generation/shape/index/channel-fenced track selection captured at gesture `BEGIN`. VS Live's lower row action, RGB feedback,
 and footer labels/icons now consume that shared window. Its selected-track Mix compatibility bank
@@ -211,9 +213,12 @@ represent eight visible tracks.
 
 ### 3. Session grid
 
-API 38 installs the bounded visible Session bank's track identities/names/types, track/scene offsets,
+API 39 installs the bounded visible Session bank's track identities/names/types, track/scene offsets,
 basic track state, generation-fenced bank-wide Stop, and exact visible-track Select. `SessionView` uses it for Shift/Select
-Stop while plain Stop uses the private authoritative selected target. Still add stable clip-slot
+Stop while plain Stop uses the private authoritative selected target. Stop-plus-track currently
+consumes either the bounded stable lower-row release or the composed core row action so it cannot
+select or stop a replacement target; an exact
+generation/shape/index/channel-fenced track Stop remains future work. Still add stable clip-slot
 identity and state such as existence, content, name, color, playing, recording, and queued.
 
 Add effects for:
