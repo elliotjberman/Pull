@@ -2,6 +2,12 @@
 
 set -euo pipefail
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ "${1:-}" != "--stats" ]]
+then
+    "${script_dir}/require-pull-live"
+fi
+
 debug_dir="${HOME}/.drivenbymoss/pull/debug"
 navigation_request_path="${debug_dir}/navigate-request.txt"
 navigation_status_path="${debug_dir}/navigate-status.txt"
@@ -43,6 +49,7 @@ else
         mkdir -p "$debug_dir"
         sample_rate_temp="${sample_rate_path}.$$-${RANDOM}.tmp"
         printf '%s\n' "$2" > "$sample_rate_temp"
+        "${script_dir}/require-pull-live"
         mv "$sample_rate_temp" "$sample_rate_path"
         echo "Push debug framebuffer sampling set to every $2 frame(s)." >&2
         exit 0
@@ -73,11 +80,13 @@ else
             ;;
         --enable)
             mkdir -p "$debug_dir"
+            "${script_dir}/require-pull-live"
             touch "$enabled_path"
             echo "Push debugger enabled. Install this shell build and restart Bitwig to start its transports." >&2
             exit 0
             ;;
         --disable)
+            "${script_dir}/require-pull-live"
             rm -f "$enabled_path"
             echo "Push debugger disabled. Restart Bitwig to stop any running transports." >&2
             exit 0
@@ -174,6 +183,7 @@ then
     navigation_request_temp="${navigation_request_path}.${request_id}.tmp"
     printf '%s\n' "$navigation_request" > "$navigation_request_temp"
     trap '' INT TERM
+    "${script_dir}/require-pull-live"
     mv "$navigation_request_temp" "$navigation_request_path"
     navigation_pending=true
     trap interrupt INT TERM
@@ -221,6 +231,7 @@ then
 else
     printf '%s\n' "$request_id" > "$capture_request_temp"
 fi
+"${script_dir}/require-pull-live"
 mv "$capture_request_temp" "$capture_request_path"
 
 for _ in {1..100}

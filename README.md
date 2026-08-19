@@ -153,7 +153,10 @@ After installing and starting a reloadable shell, build, publish, and activate a
 restarting Bitwig:
 
 ```bash
+tools/with-pull-live --owner my-feature
 tools/reload-core
+# Run the complete live smoke test, then exit the lease shell.
+exit
 ```
 
 The command runs Maven offline by default. Use `tools/reload-core --online` once if Maven still

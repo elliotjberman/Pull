@@ -10,10 +10,12 @@ from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
 import importlib.util
 import json
+import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import threading
 import unittest
+from unittest.mock import patch
 
 
 SERVER_PATH = Path(__file__).with_name("push-debug-surface-server.py")
@@ -37,6 +39,7 @@ class PushSurfaceServerTest(unittest.TestCase):
         (self.debug_dir / "surface-state.json").write_text(
             json.dumps({"connected": True, "revision": 1, "lights": {}, "pressed": [], "events": []}),
             encoding="utf-8")
+        self.lease_active = True
 
         placeholder = partial(
             SERVER_MODULE.PushSurfaceHandler,
@@ -44,6 +47,7 @@ class PushSurfaceServerTest(unittest.TestCase):
             authority="",
             debug_dir=self.debug_dir,
             font_dir=None,
+            lease_active=lambda: self.lease_active,
             origin="")
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), placeholder)
         self.authority = f"127.0.0.1:{self.server.server_port}"
@@ -54,6 +58,7 @@ class PushSurfaceServerTest(unittest.TestCase):
             authority=self.authority,
             debug_dir=self.debug_dir,
             font_dir=None,
+            lease_active=lambda: self.lease_active,
             origin=self.origin)
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
@@ -113,6 +118,27 @@ class PushSurfaceServerTest(unittest.TestCase):
         self.assertEqual(HTTPStatus.ACCEPTED, status)
         queued = list((self.debug_dir / SERVER_MODULE.INPUT_REQUEST_DIRECTORY).glob("input-*.txt"))
         self.assertEqual(1, len(queued))
+
+    def test_expired_live_lease_cannot_enqueue_input(self) -> None:
+        self.lease_active = False
+        status, _body = self.request("POST", "/api/input", {
+            "Host": self.authority,
+            "Origin": self.origin,
+            "Content-Type": "application/json",
+        }, self.input_body())
+
+        self.assertEqual(HTTPStatus.SERVICE_UNAVAILABLE, status)
+        self.assertFalse((self.debug_dir / SERVER_MODULE.INPUT_REQUEST_DIRECTORY).exists())
+
+    def test_live_lease_requires_matching_live_supervisor(self) -> None:
+        owner_file = Path(self.temporary.name) / "live.owner"
+        owner_file.write_text(f"pid={os.getpid()}\ntoken=test-token\n", encoding="utf-8")
+        with patch.dict(os.environ, {
+                "PULL_LIVE_LOCK_OWNER_FILE": str(owner_file),
+                "PULL_LIVE_LOCK_TOKEN": "test-token"}):
+            self.assertTrue(SERVER_MODULE.live_lease_active())
+            owner_file.unlink()
+            self.assertFalse(SERVER_MODULE.live_lease_active())
 
 
 if __name__ == "__main__":
