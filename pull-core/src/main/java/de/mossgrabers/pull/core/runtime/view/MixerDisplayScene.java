@@ -4,10 +4,13 @@
 package de.mossgrabers.pull.core.runtime.view;
 
 import de.mossgrabers.pull.core.api.MixerControlKind;
+import de.mossgrabers.pull.core.api.MixerControlRole;
 import de.mossgrabers.pull.core.api.MixerControlSnapshot;
 import de.mossgrabers.pull.core.api.MixerControlsSnapshot;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
 import de.mossgrabers.pull.core.api.output.DisplayCommand;
+import de.mossgrabers.pull.core.api.output.DisplayTextAlignment;
+import de.mossgrabers.pull.core.api.output.DisplayTextFit;
 import de.mossgrabers.pull.core.api.output.MixerControlDisplay;
 import de.mossgrabers.pull.core.api.output.MixerControlsDisplay;
 import de.mossgrabers.pull.core.api.output.RgbColor;
@@ -23,17 +26,25 @@ public final class MixerDisplayScene
 {
     private static final double  COLUMN_WIDTH           = MixerControlDisplay.WIDTH;
     private static final double  CONTENT_LEFT           = 8.0;
-    private static final double  LABEL_BASELINE         = 34.0;
+    private static final double  LABEL_TOP              = 18.0;
+    private static final double  LABEL_HEIGHT           = 20.0;
     private static final double  LABEL_FONT_SIZE        = 15.0;
+    private static final double  LABEL_MIN_FONT_SIZE    = 9.0;
+    private static final double  VALUE_TOP              = 36.0;
+    private static final double  VALUE_HEIGHT           = 24.0;
     private static final double  VALUE_BASELINE         = 55.0;
     private static final double  VALUE_FONT_SIZE        = 19.0;
+    private static final double  VALUE_MIN_FONT_SIZE    = 11.0;
     private static final double  UNIT_FONT_SIZE         = 8.5;
     private static final double  VALUE_FIELD_WIDTH      = 58.0;
     private static final double  VALUE_UNIT_GAP         = 3.0;
-    private static final double  PAN_VALUE_BASELINE     = 64.0;
-    private static final double  PAN_VALUE_FONT_SIZE    = 30.0;
-    private static final double  PAN_UNIT_FONT_SIZE     = 14.0;
-    private static final double  PAN_VALUE_FIELD_WIDTH  = 64.0;
+    private static final double  PAN_VALUE_TOP           = 38.0;
+    private static final double  PAN_VALUE_HEIGHT        = 30.0;
+    private static final double  PAN_VALUE_BASELINE      = 64.0;
+    private static final double  PAN_VALUE_FONT_SIZE     = 30.0;
+    private static final double  PAN_VALUE_MIN_FONT_SIZE = 12.0;
+    private static final double  PAN_UNIT_FONT_SIZE      = 14.0;
+    private static final double  PAN_VALUE_FIELD_WIDTH   = 64.0;
     private static final double  CONTROL_CENTER_Y       = 106.0;
     private static final double  PAN_SLIDER_WIDTH       = 82.0;
     private static final double  PAN_RAIL_HEIGHT        = 4.0;
@@ -60,6 +71,7 @@ public final class MixerDisplayScene
     private static final RgbColor GREEN       = new RgbColor (0, 255, 0);
     private static final RgbColor ORANGE      = new RgbColor (255, 80, 0);
     private static final RgbColor RED         = new RgbColor (255, 0, 0);
+    private static final RgbColor PROJECT_MACRO = new RgbColor (132, 214, 255);
 
     private static final Pattern VALUE_UNIT_PATTERN = Pattern.compile ("^(.+?)(?:\\s*)(%|dB|kHz|Hz|ms|sec|s|st|ct|BPM|x|L|R)$");
     private static final Pattern PAN_VALUE = Pattern.compile ("[-+]?\\d+(?:[.,]\\d+)?");
@@ -99,8 +111,10 @@ public final class MixerDisplayScene
 
     private static void appendLocal (final List<DisplayCommand> commands, final MixerControlSnapshot control)
     {
-        final RgbColor textColor = control.active () ? WHITE : DIM_WHITE;
-        final RgbColor accent = control.active () ? control.accentColor () : dimToGray (control.accentColor ());
+        final boolean active = control.enabled () && (control.role () != MixerControlRole.PROJECT_MACRO || control.touched ());
+        final RgbColor baseAccent = control.role () == MixerControlRole.PROJECT_MACRO ? PROJECT_MACRO : control.hostAccentColor ().orElseThrow ();
+        final RgbColor textColor = active ? WHITE : DIM_WHITE;
+        final RgbColor accent = active ? baseAccent : dimToGray (baseAccent);
         final String label = switch (control.kind ())
         {
             case VOLUME -> "Volume";
@@ -111,25 +125,27 @@ public final class MixerDisplayScene
         if (control.kind () == MixerControlKind.VOLUME)
         {
             drawValueAt (commands, 0, -MixerControlDisplay.TOP, control.displayedValue (), false, textColor);
-            drawVolumeAt (commands, 0, -MixerControlDisplay.TOP, currentValue (control), accent, control.vuLeft (), control.vuRight (), control.active ());
+            drawVolumeAt (commands, 0, -MixerControlDisplay.TOP, currentValue (control), accent, control.vuLeft (), control.vuRight (), active);
             return;
         }
 
         if (control.kind () == MixerControlKind.PAN)
         {
             drawValueAt (commands, 0, -MixerControlDisplay.TOP, formatPan (control.displayedValue (), currentValue (control)), true, textColor);
-            drawPanAt (commands, 0, -MixerControlDisplay.TOP, currentValue (control), accent, control.active ());
+            drawPanAt (commands, 0, -MixerControlDisplay.TOP, currentValue (control), accent, active);
             return;
         }
 
         drawValueAt (commands, 0, -MixerControlDisplay.TOP, control.displayedValue (), true, textColor);
-        drawKnobAt (commands, 0, -MixerControlDisplay.TOP, currentValue (control), accent, control.active ());
+        drawKnobAt (commands, 0, -MixerControlDisplay.TOP, currentValue (control), accent, active);
     }
 
 
     private static void drawLabelAt (final List<DisplayCommand> commands, final double left, final double top, final String text, final RgbColor color)
     {
-        commands.add (new DisplayCommand.TextAt (text, left + CONTENT_LEFT, top + LABEL_BASELINE, color, LABEL_FONT_SIZE));
+        if (text == null || text.isBlank ())
+            return;
+        commands.add (new DisplayCommand.TextBox (text.trim (), left + CONTENT_LEFT, top + LABEL_TOP, COLUMN_WIDTH - 2 * CONTENT_LEFT, LABEL_HEIGHT, DisplayTextAlignment.LEFT, color, LABEL_FONT_SIZE, LABEL_MIN_FONT_SIZE, DisplayTextFit.SHRINK_ELLIPSIS));
     }
 
 
@@ -140,11 +156,40 @@ public final class MixerDisplayScene
         final Matcher matcher = VALUE_UNIT_PATTERN.matcher (text.trim ());
         if (matcher.matches ())
         {
-            commands.add (new DisplayCommand.TextAt (matcher.group (1).trim (), left + CONTENT_LEFT, top + (large ? PAN_VALUE_BASELINE : VALUE_BASELINE), color, large ? PAN_VALUE_FONT_SIZE : VALUE_FONT_SIZE));
+            drawFittedValue (commands, left, top, normalizePositiveSign (matcher.group (1)), large, large ? PAN_VALUE_FIELD_WIDTH : VALUE_FIELD_WIDTH, color);
             commands.add (new DisplayCommand.TextAt (matcher.group (2), left + CONTENT_LEFT + (large ? PAN_VALUE_FIELD_WIDTH : VALUE_FIELD_WIDTH) + VALUE_UNIT_GAP, top + (large ? PAN_VALUE_BASELINE : VALUE_BASELINE), color, large ? PAN_UNIT_FONT_SIZE : UNIT_FONT_SIZE));
             return;
         }
-        commands.add (new DisplayCommand.TextAt (text, left + CONTENT_LEFT, top + (large ? PAN_VALUE_BASELINE : VALUE_BASELINE), color, large ? PAN_VALUE_FONT_SIZE : VALUE_FONT_SIZE));
+        drawFittedValue (commands, left, top, normalizePositiveSign (text), large, COLUMN_WIDTH - 2 * CONTENT_LEFT, color);
+    }
+
+
+    private static void drawFittedValue (final List<DisplayCommand> commands, final double left, final double top, final String text, final boolean large, final double width, final RgbColor color)
+    {
+        commands.add (new DisplayCommand.TextBox (
+            text,
+            left + CONTENT_LEFT,
+            top + (large ? PAN_VALUE_TOP : VALUE_TOP),
+            width,
+            large ? PAN_VALUE_HEIGHT : VALUE_HEIGHT,
+            DisplayTextAlignment.LEFT,
+            color,
+            large ? PAN_VALUE_FONT_SIZE : VALUE_FONT_SIZE,
+            large ? PAN_VALUE_MIN_FONT_SIZE : VALUE_MIN_FONT_SIZE,
+            DisplayTextFit.SHRINK));
+    }
+
+
+    private static String normalizePositiveSign (final String text)
+    {
+        final String value = text.trim ();
+        if (value.length () < 2 || value.charAt (0) != '+')
+            return value;
+        final char firstValueCharacter = value.charAt (1);
+        final String unsigned = value.substring (1);
+        if (Character.isDigit (firstValueCharacter) || firstValueCharacter == '.' || firstValueCharacter == ',' || "Inf".equalsIgnoreCase (unsigned) || "Infinity".equalsIgnoreCase (unsigned))
+            return value.substring (1);
+        return value;
     }
 
 
@@ -216,6 +261,7 @@ public final class MixerDisplayScene
         {
             case final DisplayCommand.Rectangle rectangle -> new DisplayCommand.Rectangle (rectangle.x () + x, rectangle.y () + y, rectangle.width (), rectangle.height (), rectangle.color ());
             case final DisplayCommand.TextAt text -> new DisplayCommand.TextAt (text.text (), text.x () + x, text.baselineY () + y, text.color (), text.fontSize ());
+            case final DisplayCommand.TextBox text -> new DisplayCommand.TextBox (text.text (), text.x () + x, text.y () + y, text.width (), text.height (), text.alignment (), text.color (), text.maximumFontSize (), text.minimumFontSize (), text.fit ());
             case final DisplayCommand.DottedArc arc -> new DisplayCommand.DottedArc (arc.centerX () + x, arc.centerY () + y, arc.radius (), arc.startDegrees (), arc.sweepDegrees (), arc.steps (), arc.dotRadius (), arc.color ());
             default -> throw new IllegalStateException ("Validated mixer scenes contain only mixer-control primitives");
         };

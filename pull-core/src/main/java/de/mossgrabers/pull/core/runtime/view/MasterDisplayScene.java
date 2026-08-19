@@ -5,6 +5,7 @@ package de.mossgrabers.pull.core.runtime.view;
 
 import de.mossgrabers.pull.core.api.MasterSnapshot;
 import de.mossgrabers.pull.core.api.MixerControlKind;
+import de.mossgrabers.pull.core.api.MixerControlRole;
 import de.mossgrabers.pull.core.api.MixerControlSnapshot;
 import de.mossgrabers.pull.core.api.ParameterSlot;
 import de.mossgrabers.pull.core.api.ParameterTargetSnapshot;
@@ -18,6 +19,7 @@ import de.mossgrabers.pull.core.api.output.RgbColor;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 
 /** Reloadable composition of the complete Push 2 Master display. */
@@ -164,8 +166,10 @@ final class MasterDisplayScene
             ratio (parameter.value ()),
             parameter.modulatedValue () == -1 ? -1 : ratio (parameter.modulatedValue ()),
             parameter.displayedValue (),
+            MixerControlRole.HOST_COLORED,
             active,
-            accent,
+            false,
+            Optional.of (accent),
             ratio (vuLeft),
             ratio (vuRight));
     }

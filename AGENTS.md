@@ -179,7 +179,7 @@
 - A core-only change inside the installed API/canopy hot reloads. Changing a parent-loaded API
   contract, adding a Bitwig proxy/property/observer, changing a permanent binding or proxy capacity,
   or broadening hardware output ownership requires a shell build/install and Bitwig restart.
-- Core API 32 arbitrates general input, complete composed controller state, semantic action intent,
+- Core API 34 arbitrates general input, complete composed controller state, semantic action intent,
   named bounded parameter banks, and exact parameter-target leases. Each active view contributes
   its fixed facets, Note layout, selected-track musical route, and other owned output; composite
   workspaces merge disjoint contributions and reject physical overlap. Project-macro encoder turns
@@ -201,11 +201,12 @@
   stable only interprets bounded generic primitives. API 22 also installs a temporary sparse 8x8
   pad-grid overlay and a complete 960x160 display overlay whose activation and visuals are
   core-owned, plus a bounded pure mixer-control render service:
-  Master and the stable Track Mix adapter must use the same core-owned Volume/Pan/Knob renderer.
-  Cue parameters and Track Mix sends are the same Knob component, not parallel lookalikes. Track
-  Mix accepts only column-local scenes structurally confined to the installed parameter-body
-  region; its menus and footer remain stable-owned, and missing/faulted core output leaves all eight
-  mixer-control slots blank rather than reviving a stable semantic fallback. Those stable menus,
+  Master, Project Macro, and the stable Track Mix adapter must use the same core-owned
+  Volume/Pan/Knob renderer. Cue parameters, Project Macros, and Track Mix sends are the same Knob
+  component, not parallel lookalikes. Track Mix and Project Macro accept only column-local scenes
+  structurally confined to the installed parameter-body region; their menus and footers remain
+  stable-owned, and missing/faulted core output leaves all eight mixer-control slots blank rather
+  than reviving a stable semantic fallback. Those stable menus,
   footers, and other workspace facets are frozen inherited migration debt, not valid extension
   points. Do not claim arbitrary inherited Push light or display-page hot reload beyond these
   installed output lanes. Logical timer DTOs have no production capability or executor and must not

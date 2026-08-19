@@ -69,7 +69,8 @@ On current `master`:
   named bounded Bitwig parameter banks, exact actuator leases, identity fencing, effect execution,
   command-driven compatibility-intent adaptation, and compatibility-action dispatch;
 - VS Live project-macro encoder mapping, relative mutation policy, and snapback admission are
-  core-owned. Stable `WorkspaceMode` remains only its touch/delete and display adapter.
+  core-owned. Its parameter-body display uses the core-owned mixer-control renderer; stable
+  `WorkspaceMode` remains only its touch/delete and inherited Project menu/track-footer adapter.
 
 Before taking an item, inspect the active branch and in-flight work. This inventory describes
 architectural ownership, not a promise that no adjacent PR has changed the exact files.
@@ -409,9 +410,10 @@ Add, in order:
 2. Session grid;
 3. remaining parameter-bank contexts beyond the API 24 named canopy.
 
-Then migrate `WorkspaceMode` and `WorkspaceView` completely. Project-macro relative turns have
-already moved; automation touch, display output, track strips, Session, and Drum adapters remain
-good acceptance targets because their product behavior is specified and exercised in VS Live.
+Then migrate `WorkspaceMode` and `WorkspaceView` completely. Project-macro relative turns and
+parameter-body display have already moved; automation touch, inherited menu/footer framing, track
+strips, Session, and Drum adapters remain good acceptance targets because their product behavior is
+specified and exercised in VS Live.
 
 ### Phase 3: Complete vertical migrations
 

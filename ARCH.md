@@ -1,6 +1,6 @@
 # Pull View Architecture
 
-Status: current through Core API 32, semantic controller-mapping identities, the shared mixer-control renderer, the Master-control
+Status: current through Core API 33, semantic controller-mapping identities, the shared mixer-control renderer, the Master-control
 migration, the post-demo `VS Live` composition, and core-owned note-view and drum-rate policy.
 
 Read this file before changing controller views, modes, workspaces, input routing, or Session bank
@@ -126,8 +126,11 @@ visible-track bank so the rendered track window and send actuators share one gen
 
 `ProjectMacroControlsView` is the first complete parameter-input migration: its eight encoder turns
 are exclusive core inputs mapped to `PROJECT_REMOTE`, and core emits typed relative effects against
-the authoritative slot target. `WorkspaceMode` no longer binds or mutates those encoders; it remains
-a frozen stable touch/delete and display adapter pending complete migration.
+the authoritative slot target. Its parameter body also uses the core-owned mixer-control renderer;
+stable supplies authoritative parameter snapshots and retains only touch/delete plus the inherited
+Project menu and track footer. `WorkspaceMode` no longer owns parameter copy, typography, geometry,
+units, colors, or shapes. Its snapshot carries the raw Project Macro role, availability, touch state,
+and host values; core alone maps those facts to accent and touch-emphasis policy.
 
 For movable Bitwig parameters, stable re-resolves the exact identity from the live parameter
 domain, selected owner, selected page, and slot or channel role. The same Java `IParameter` wrapper
@@ -291,7 +294,8 @@ Stable shell:
 - `StableControllerActionResolver`: derives semantic intent from remaining stable commands at their
   dispatch boundary.
 - `ControllerRuntimeEnvironment`: owns bounded leases, action barriers, and committed bridge state.
-- `WorkspaceMode`: project macro touch/delete and display plus track-strip adapter.
+- `WorkspaceMode`: project macro touch/delete, inherited Project menu/track footer, and track-strip
+  adapter; its parameter body is core-rendered.
 - `WorkspaceView`: upper Session grid plus reusable lower Drum Controller adapter.
 - `SessionBankRegistry`: bounded 8x8/8x4 Bitwig bank canopy.
 - `PushControlSurface`: remaining stable pitch-bend and navigation integration.
@@ -332,8 +336,9 @@ Implemented:
 
 Partial or transitional:
 
-- Project macro relative encoder behavior runs in core; its touch/delete and display remain in
-  stable `WorkspaceMode`. Track-strip, Session, navigation, Drum Controller play pads and octave
+- Project macro relative encoder behavior and parameter-body display run in core; touch/delete and
+  its inherited menu/footer frame remain in stable `WorkspaceMode`. Track-strip, Session,
+  navigation, Drum Controller play pads and octave
   controls, and pitch-bend adapter-backed mechanics still run in stable
   `WorkspaceMode`/`WorkspaceView`.
 - `ControllerViewFacet` remains a closed cross-boundary adapter ID.
@@ -342,7 +347,7 @@ Partial or transitional:
 - General display and light output ownership is still partial. The eight drum-fill, four drum-rate,
   and four mappable-control RGB lights, authoritative semantic Bitwig Boolean feedback, and replayable physical-to-semantic mapping leases, global Play/Record lights, the Master page's two button rows and graphics
   display, a temporary sparse 8x8 grid overlay, and a complete temporary 960x160 display overlay
-  use core-owned output arbitration. The detailed design's API 32 installed-output inventory is
+  use core-owned output arbitration. The detailed design's API 33 installed-output inventory is
   canonical.
 
 Deferred by design:
