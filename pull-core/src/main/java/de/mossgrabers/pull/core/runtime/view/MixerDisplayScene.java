@@ -141,7 +141,7 @@ public final class MixerDisplayScene
     {
         if (text == null || text.isBlank ())
             return;
-        commands.add (new DisplayCommand.TextBox (text.trim (), left + CONTENT_LEFT, top + LABEL_TOP, COLUMN_WIDTH - 2 * CONTENT_LEFT, LABEL_HEIGHT, DisplayTextAlignment.LEFT, color, LABEL_FONT_SIZE, LABEL_MIN_FONT_SIZE, DisplayTextFit.SHRINK));
+        commands.add (new DisplayCommand.TextBox (text.trim (), left + CONTENT_LEFT, top + LABEL_TOP, COLUMN_WIDTH - 2 * CONTENT_LEFT, LABEL_HEIGHT, DisplayTextAlignment.LEFT, color, LABEL_FONT_SIZE, LABEL_MIN_FONT_SIZE, DisplayTextFit.SHRINK_ELLIPSIS));
     }
 
 
