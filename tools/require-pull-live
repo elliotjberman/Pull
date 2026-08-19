@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+deny ()
+{
+    echo "This command changes the shared Bitwig/Push environment." >&2
+    echo "Enter 'tools/with-pull-live' and keep that session open through live verification." >&2
+    exit 75
+}
+
+owner_file="${PULL_LIVE_LOCK_OWNER_FILE:-}"
+expected_token="${PULL_LIVE_LOCK_TOKEN:-}"
+[[ -n "$owner_file" && -n "$expected_token" && -f "$owner_file" ]] || deny
+
+supervisor_pid="$(sed -n 's/^pid=//p' "$owner_file")"
+actual_token="$(sed -n 's/^token=//p' "$owner_file")"
+[[ "$supervisor_pid" =~ ^[0-9]+$ && "$supervisor_pid" -gt 1 && "$actual_token" == "$expected_token" ]] || deny
+kill -0 "$supervisor_pid" 2>/dev/null || deny

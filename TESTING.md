@@ -55,10 +55,12 @@ tools/with-pull-live --owner my-feature
 exit
 ```
 
-Acquisition fails immediately when another agent owns the environment; pass `--wait SECONDS` only
-when waiting is preferable to continuing offline work. The OS releases the lease if its holder
-exits or crashes. `tools/capture-push2-display --stats` remains available without the lease because
-it is read-only.
+Acquisition fails immediately when another agent owns the environment. Continue offline work and
+retry when the current owner finishes. The wrapper is the sole OS-lock owner; commands and detached
+descendants cannot keep the lock alive after their supervising wrapper exits, and a per-acquisition
+token prevents those descendants from retaining live authorization. The OS releases the lease if
+the wrapper exits or crashes. `tools/capture-push2-display --stats` remains available without the
+lease because it is read-only.
 
 The debugger is off by default. Enable it before installing the shell, then restart Bitwig once so
 the extension constructs its local transports:

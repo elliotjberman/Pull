@@ -23,17 +23,18 @@ wait_for_file ()
 }
 
 lock_dir="${test_root}/locks"
+export PULL_LIVE_LOCK_DIR="$lock_dir"
 ready="${test_root}/ready"
 release="${test_root}/release"
 busy_error="${test_root}/busy-error"
 
-PULL_LIVE_LOCK_DIR="$lock_dir" "${script_dir}/with-pull-live" --owner first -- \
+"${script_dir}/with-pull-live" --owner first -- \
     sh -c 'touch "$1"; while [ ! -f "$2" ]; do sleep 0.01; done' sh "$ready" "$release" &
 holder_pid=$!
 wait_for_file "$ready"
 
 set +e
-PULL_LIVE_LOCK_DIR="$lock_dir" "${script_dir}/with-pull-live" --owner second -- true 2> "$busy_error"
+"${script_dir}/with-pull-live" --owner second -- true 2> "$busy_error"
 busy_status=$?
 set -e
 [[ "$busy_status" == 75 ]] || fail "busy acquisition returned ${busy_status}, expected 75"
@@ -43,10 +44,48 @@ touch "$release"
 wait "$holder_pid"
 [[ ! -f "${lock_dir}/live.owner" ]] || fail "owner metadata remained after release"
 
-PULL_LIVE_LOCK_DIR="$lock_dir" "${script_dir}/with-pull-live" --owner second -- true
+"${script_dir}/with-pull-live" --owner second -- true
+"${script_dir}/with-pull-live" --owner authorized -- \
+    "${script_dir}/require-pull-live"
+
+descendant_ready="${test_root}/descendant-ready"
+descendant_release="${test_root}/descendant-release"
+descendant_status="${test_root}/descendant-status"
+"${script_dir}/with-pull-live" --owner descendant -- \
+    sh -c '("$3" >/dev/null 2>&1 || exit; touch "$1"; while [ ! -f "$2" ]; do sleep 0.01; done; "$3" >/dev/null 2>&1; printf "%s\n" "$?" > "$4") & while [ ! -f "$1" ]; do sleep 0.01; done' \
+    sh "$descendant_ready" "$descendant_release" "${script_dir}/require-pull-live" "$descendant_status"
+wait_for_file "$descendant_ready"
+
+# A detached descendant must neither retain the OS lock nor retain authorization after its
+# supervising wrapper exits, including while a replacement owner holds the live environment.
+replacement_ready="${test_root}/replacement-ready"
+replacement_release="${test_root}/replacement-release"
+"${script_dir}/with-pull-live" --owner after-descendant -- \
+    sh -c 'touch "$1"; while [ ! -f "$2" ]; do sleep 0.01; done' \
+    sh "$replacement_ready" "$replacement_release" &
+replacement_pid=$!
+wait_for_file "$replacement_ready"
+touch "$descendant_release"
+wait_for_file "$descendant_status"
+[[ "$(cat "$descendant_status")" == 75 ]] || fail "detached descendant retained live authorization"
+touch "$replacement_release"
+wait "$replacement_pid"
+
+signal_ready="${test_root}/signal-ready"
+"${script_dir}/with-pull-live" --owner signaled -- \
+    sh -c 'touch "$1"; while :; do sleep 1; done' sh "$signal_ready" &
+supervisor_pid=$!
+wait_for_file "$signal_ready"
+kill -TERM "$supervisor_pid"
+set +e
+wait "$supervisor_pid"
+signal_status=$?
+set -e
+[[ "$signal_status" == 143 ]] || fail "signaled supervisor returned ${signal_status}, expected 143"
+"${script_dir}/with-pull-live" --owner after-signal -- true
 
 set +e
-PULL_LIVE_LOCK_DIR="$lock_dir" "${script_dir}/with-pull-live" --owner status -- sh -c 'exit 23'
+"${script_dir}/with-pull-live" --owner status -- sh -c 'exit 23'
 command_status=$?
 set -e
 [[ "$command_status" == 23 ]] || fail "wrapped command status was not preserved"

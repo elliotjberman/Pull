@@ -4,7 +4,7 @@ set -euo pipefail
 
 usage ()
 {
-    echo "Usage: tools/with-pull-live [--owner LABEL] [--wait SECONDS] [-- COMMAND [ARG ...]]" >&2
+    echo "Usage: tools/with-pull-live [--owner LABEL] [-- COMMAND [ARG ...]]" >&2
 }
 
 repository_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -12,7 +12,6 @@ lock_dir="${PULL_LIVE_LOCK_DIR:-${HOME}/.drivenbymoss/pull/locks}"
 lock_file="${lock_dir}/live.lock"
 owner_file="${lock_dir}/live.owner"
 owner="${PULL_LIVE_OWNER:-}"
-wait_seconds="${PULL_LIVE_WAIT_SECONDS:-0}"
 
 while (( $# > 0 ))
 do
@@ -20,11 +19,6 @@ do
         --owner)
             (( $# >= 2 )) || { usage; exit 64; }
             owner="$2"
-            shift 2
-            ;;
-        --wait)
-            (( $# >= 2 )) || { usage; exit 64; }
-            wait_seconds="$2"
             shift 2
             ;;
         --)
@@ -45,15 +39,9 @@ do
     esac
 done
 
-case "$wait_seconds" in
-    ''|*[!0-9]*)
-        echo "--wait must be a non-negative integer" >&2
-        exit 64
-        ;;
-esac
-
-if [[ -n "${PULL_LIVE_LOCK_HELD:-}" ]]
+if [[ -n "${PULL_LIVE_LOCK_TOKEN:-}" ]]
 then
+    "${repository_dir}/tools/require-pull-live"
     if (( $# > 0 ))
     then
         exec "$@"
@@ -72,17 +60,29 @@ fi
 
 mkdir -p "$lock_dir"
 exec 9>"$lock_file"
-if ! lockf -s -t "$wait_seconds" 9
+lock_status=0
+if [[ "$(uname -s)" == "Darwin" ]]
+then
+    lockf -s -t 0 9 || lock_status=$?
+elif command -v flock >/dev/null 2>&1
+then
+    flock -n 9 || lock_status=$?
+else
+    echo "Pull live locking requires lockf on macOS or flock on this platform." >&2
+    exit 69
+fi
+if (( lock_status != 0 ))
 then
     echo "The Pull live environment is already in use." >&2
     if [[ -f "$owner_file" ]]
     then
         sed 's/^/  /' "$owner_file" >&2
     fi
-    echo "Continue with offline work, or retry with --wait SECONDS." >&2
+    echo "Continue with offline work and retry after that owner finishes." >&2
     exit 75
 fi
 
+lock_token="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
 owner_temp="${owner_file}.$$"
 cleanup ()
 {
@@ -95,18 +95,45 @@ trap cleanup EXIT
     printf 'branch=%s\n' "$(git -C "$repository_dir" branch --show-current 2>/dev/null || true)"
     printf 'worktree=%s\n' "$repository_dir"
     printf 'pid=%s\n' "$$"
+    printf 'token=%s\n' "$lock_token"
     printf 'started=%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 } > "$owner_temp"
 mv "$owner_temp" "$owner_file"
 
-export PULL_LIVE_LOCK_HELD="$lock_file"
+export PULL_LIVE_LOCK_OWNER_FILE="$owner_file"
+export PULL_LIVE_LOCK_TOKEN="$lock_token"
 export PULL_LIVE_OWNER="$owner"
 
+child_pid=""
+stop_child ()
+{
+    signal="$1"
+    status="$2"
+    trap - INT TERM HUP
+    cleanup
+    if [[ -n "$child_pid" ]] && kill -0 "$child_pid" 2>/dev/null
+    then
+        kill -s "$signal" "$child_pid" 2>/dev/null || true
+        wait "$child_pid" 2>/dev/null || true
+    fi
+    exit "$status"
+}
+trap 'stop_child INT 130' INT
+trap 'stop_child TERM 143' TERM
+trap 'stop_child HUP 129' HUP
+
 echo "Pull live environment acquired by ${owner}." >&2
+set +e
 if (( $# > 0 ))
 then
-    "$@"
+    "$@" 9>&- <&0 &
 else
     echo "Run the reload/install/live-test sequence here; exit releases the lease." >&2
-    "${SHELL:-/bin/zsh}" -i
+    "${SHELL:-/bin/zsh}" -i 9>&- <&0 &
 fi
+child_pid=$!
+wait "$child_pid"
+command_status=$?
+child_pid=""
+set -e
+exit "$command_status"

@@ -2,6 +2,9 @@
 
 set -euo pipefail
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+"${script_dir}/require-pull-live"
+
 debug_dir="${HOME}/.drivenbymoss/pull/debug"
 request_path="${debug_dir}/trace-request.txt"
 status_path="${debug_dir}/trace-status.txt"
@@ -66,6 +69,7 @@ then
 else
     printf '%s\tSTOP\t%s\n' "$request_id" "$argument" > "$request_temp"
 fi
+"${script_dir}/require-pull-live"
 mv "$request_temp" "$request_path"
 
 for _ in {1..150}

@@ -3,6 +3,8 @@
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "$0")" && pwd)"
+"${script_dir}/require-pull-live"
+
 app_dir="${script_dir}/push-debug-surface-app"
 server="${script_dir}/push-debug-surface-server.py"
 port="${PUSH_DEBUG_SURFACE_PORT:-8765}"

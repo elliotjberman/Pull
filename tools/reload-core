@@ -2,11 +2,10 @@
 
 set -euo pipefail
 
-if [[ "${1:-}" != "--help" && "${1:-}" != "-h" && -z "${PULL_LIVE_LOCK_HELD:-}" ]]
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ "${1:-}" != "--help" && "${1:-}" != "-h" ]]
 then
-    echo "Core reload changes the shared Bitwig/Push environment." >&2
-    echo "Enter 'tools/with-pull-live' and keep that session open through live verification." >&2
-    exit 75
+    "${script_dir}/require-pull-live"
 fi
 
 usage ()
@@ -14,7 +13,7 @@ usage ()
     echo "Usage: tools/reload-core [--directory PATH] [--timeout-ms MILLISECONDS] [--online]" >&2
 }
 
-repository_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+repository_dir="$(cd "${script_dir}/.." && pwd)"
 publication_dir="${PULL_CORE_RELOAD_DIR:-${HOME}/.drivenbymoss/pull/reload}"
 timeout_ms="${PULL_CORE_RELOAD_TIMEOUT_MS:-10000}"
 maven_offline=true
@@ -105,5 +104,6 @@ fi
 publisher_jar="$repository_dir/pull-core-publisher/target/pull-core-publisher.jar"
 core_jar="$repository_dir/pull-core/target/pull-core.jar"
 
+"${script_dir}/require-pull-live"
 "$java_command" -jar "$publisher_jar" publish "$core_jar" "$publication_dir" "$build_id" "$shell_fingerprint"
 "$java_command" -jar "$publisher_jar" await "$publication_dir" "$build_id" "$timeout_ms"

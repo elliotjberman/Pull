@@ -47,8 +47,16 @@ write_navigation_status()
 }
 
 new_debug_home
-assert_status 75 env -u PULL_LIVE_LOCK_HELD HOME="$test_home" "${script_dir}/push-debug-request" valid 'NOTE/workspace=false'
-export PULL_LIVE_LOCK_HELD=test
+assert_status 75 env -u PULL_LIVE_LOCK_TOKEN HOME="$test_home" "${script_dir}/push-debug-request" valid 'NOTE/workspace=false'
+assert_status 75 env -u PULL_LIVE_LOCK_TOKEN HOME="$test_home" "${script_dir}/push-debug-trace" start valid
+assert_status 75 env -u PULL_LIVE_LOCK_TOKEN HOME="$test_home" "${script_dir}/push-debug-trace" stop valid
+assert_status 75 env -u PULL_LIVE_LOCK_TOKEN PUSH_DEBUG_SURFACE_NO_OPEN=true HOME="$test_home" "${script_dir}/push-debug-surface"
+
+test_owner_file="${test_root}/live.owner"
+test_token="push-debug-client-test"
+printf 'pid=%s\ntoken=%s\n' "$$" "$test_token" > "$test_owner_file"
+export PULL_LIVE_LOCK_OWNER_FILE="$test_owner_file"
+export PULL_LIVE_LOCK_TOKEN="$test_token"
 assert_status 2 env HOME="$test_home" "${script_dir}/push-debug-request" 'bad label' 'NOTE/workspace=false'
 printf -v oversized_step '%0600d' 0
 assert_status 2 env HOME="$test_home" "${script_dir}/push-debug-request" valid "$oversized_step"

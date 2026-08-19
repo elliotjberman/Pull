@@ -15,6 +15,7 @@ import re
 import secrets
 import threading
 import time
+from typing import Callable
 from urllib.parse import urlsplit
 
 
@@ -46,10 +47,12 @@ class PushSurfaceHandler(SimpleHTTPRequestHandler):
     input_sequence = 0
     event_slots = threading.BoundedSemaphore(4)
 
-    def __init__(self, *args, authority: str, debug_dir: Path, font_dir: Path | None, origin: str, **kwargs):
+    def __init__(self, *args, authority: str, debug_dir: Path, font_dir: Path | None,
+                 lease_active: Callable[[], bool], origin: str, **kwargs):
         self.authority = authority
         self.debug_dir = debug_dir
         self.font_dir = font_dir
+        self.lease_active = lease_active
         self.origin = origin
         super().__init__(*args, **kwargs)
 
@@ -180,6 +183,9 @@ class PushSurfaceHandler(SimpleHTTPRequestHandler):
         info = self._read_json(self.debug_dir / INPUT_INFO_FILE, MAX_INPUT_INFO_BYTES)
         if not info or not info.get("connected") or request["session"] != info.get("session"):
             self._send_json(HTTPStatus.CONFLICT, {"error": "Bitwig debug input is unavailable or stale"})
+            return
+        if not self.lease_active():
+            self._send_json(HTTPStatus.SERVICE_UNAVAILABLE, {"error": "Pull live lease is no longer active"})
             return
 
         request_id = secrets.token_hex(8)
@@ -348,6 +354,25 @@ def find_bitwig_font_dir() -> Path | None:
     return next((candidate for candidate in candidates if all((candidate / name).is_file() for name in required)), None)
 
 
+def live_lease_active() -> bool:
+    owner_path = os.environ.get("PULL_LIVE_LOCK_OWNER_FILE")
+    expected_token = os.environ.get("PULL_LIVE_LOCK_TOKEN")
+    if not owner_path or not expected_token:
+        return False
+    try:
+        owner_file = Path(owner_path)
+        if owner_file.is_symlink() or not owner_file.is_file() or owner_file.stat().st_size > 4096:
+            return False
+        metadata = dict(line.split("=", 1) for line in owner_file.read_text(encoding="utf-8").splitlines() if "=" in line)
+        supervisor_pid = int(metadata.get("pid", ""))
+        if supervisor_pid <= 1 or metadata.get("token") != expected_token:
+            return False
+        os.kill(supervisor_pid, 0)
+        return True
+    except (OSError, ValueError):
+        return False
+
+
 def main() -> None:
     args = parse_args()
     if args.port < 1 or args.port > 65535:
@@ -357,7 +382,9 @@ def main() -> None:
     debug_dir = Path(configured_debug_dir).expanduser() if configured_debug_dir else Path.home() / ".drivenbymoss" / "pull" / "debug"
     authority = f"127.0.0.1:{args.port}"
     origin = f"http://{authority}"
-    handler = partial(PushSurfaceHandler, directory=str(app_dir), authority=authority, debug_dir=debug_dir, font_dir=find_bitwig_font_dir(), origin=origin)
+    handler = partial(PushSurfaceHandler, directory=str(app_dir), authority=authority,
+                      debug_dir=debug_dir, font_dir=find_bitwig_font_dir(),
+                      lease_active=live_lease_active, origin=origin)
     server = ThreadingHTTPServer(("127.0.0.1", args.port), handler)
     print(f"Serving Push debugger surface on http://127.0.0.1:{args.port}/", flush=True)
     try:

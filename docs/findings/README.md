@@ -27,3 +27,4 @@ any document their work resolves.
 - [Parameter Targets Are Coupled to Proxy Slots](parameter-target-proxy-coupling.md)
 - [Physical Inputs Are Coupled To Semantic Consequences](physical-input-semantic-action-coupling.md)
 - [Logical Timer DTOs Have No Production Executor](logical-timer-production-gap.md)
+- [Live Test Provenance Is Not Authoritative](live-test-provenance-gap.md)
