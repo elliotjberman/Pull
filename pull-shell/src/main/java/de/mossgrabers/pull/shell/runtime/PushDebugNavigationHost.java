@@ -686,6 +686,11 @@ final class PushDebugNavigationHost implements AutoCloseable
             return this.trySubmit (press);
         }
 
+        default boolean tryExtendDebugInput (final Runnable press)
+        {
+            return false;
+        }
+
         default void endDebugInput (final Runnable release)
         {
             Objects.requireNonNull (release, "release").run ();

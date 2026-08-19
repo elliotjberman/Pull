@@ -231,6 +231,7 @@ final class PullControllerCore implements ControllerCore
     {
         final List<CoreEffect> effects = this.workspace.dispatchAction (action, snapshot);
         this.observeMasterNavigationAction (effects);
+        this.observeMasterPageExitAction (action);
         this.observeVsLivePageAction (action, snapshot, awaitStableReadback);
         final CompiledWorkspace selectedWorkspace = this.desiredWorkspace (snapshot);
         if (selectedWorkspace != this.workspace)
@@ -258,32 +259,17 @@ final class PullControllerCore implements ControllerCore
         final CompiledWorkspace selectedWorkspace = this.selectedWorkspace (snapshot);
         final String mode = snapshot.bridge ().layout ().modeId ();
         final boolean masterLayout = "MASTER".equals (mode) || "MASTER_TEMP".equals (mode);
+        if (this.masterNavigationLease != null)
+        {
+            if (this.selection.requestSequence () != this.masterNavigationLease.workspaceRequest ())
+                this.masterNavigationLease = null;
+            else
+                return this.masterWorkspaces.get (this.selection.active ());
+        }
         if (!masterLayout)
         {
             this.masterLayoutObserved = false;
-            if (this.masterNavigationLease != null)
-            {
-                final MasterNavigationLease lease = this.masterNavigationLease;
-                final de.mossgrabers.pull.core.api.MasterSnapshot master = snapshot.bridge ().master ();
-                if (this.selection.requestSequence () != lease.workspaceRequest ())
-                    this.masterNavigationLease = null;
-                else if (master.commandPending () || master.available () && !lease.sourceProjectIdentity ().equals (master.projectIdentity ()))
-                {
-                    this.masterNavigationLease = lease.withLayoutResetObserved ();
-                    return this.masterWorkspaces.get (this.selection.active ());
-                }
-                else
-                    this.masterNavigationLease = null;
-            }
             return selectedWorkspace;
-        }
-
-        if (this.masterNavigationLease != null)
-        {
-            final de.mossgrabers.pull.core.api.MasterSnapshot master = snapshot.bridge ().master ();
-            final boolean targetObserved = master.available () && !this.masterNavigationLease.sourceProjectIdentity ().equals (master.projectIdentity ());
-            if (this.selection.requestSequence () != this.masterNavigationLease.workspaceRequest () || !master.commandPending () && (this.masterNavigationLease.layoutResetObserved () || targetObserved))
-                this.masterNavigationLease = null;
         }
         if (!this.masterLayoutObserved)
         {
@@ -298,10 +284,24 @@ final class PullControllerCore implements ControllerCore
     {
         for (final CoreEffect effect: effects)
         {
-            if (effect instanceof final NavigateProjectEffect navigation)
+            if (effect instanceof NavigateProjectEffect)
             {
-                this.masterNavigationLease = new MasterNavigationLease (navigation.expectedProjectIdentity (), this.selection.requestSequence (), false);
+                this.masterNavigationLease = new MasterNavigationLease (this.selection.requestSequence ());
                 return;
+            }
+        }
+    }
+
+
+    private void observeMasterPageExitAction (final ResolvedControllerAction action)
+    {
+        if (this.masterNavigationLease == null)
+            return;
+        switch (action.intent ().action ())
+        {
+            case SELECT_PARAMETER_CONTEXT, SELECT_PARAMETER_PAGE, SWITCH_PARAMETER_CONTEXT, SWITCH_WORKSPACE, SELECT_NOTE_LAYOUT -> this.masterNavigationLease = null;
+            default -> {
+                // Target navigation and Master-owned actions retain the explicitly selected page.
             }
         }
     }
@@ -447,12 +447,8 @@ final class PullControllerCore implements ControllerCore
     }
 
 
-    /** Keeps the Master page selected while its own project-tab transaction changes stable layout. */
-    private record MasterNavigationLease (String sourceProjectIdentity, long workspaceRequest, boolean layoutResetObserved)
+    /** Keeps Master selected after its own project navigation until an explicit page request. */
+    private record MasterNavigationLease (long workspaceRequest)
     {
-        private MasterNavigationLease withLayoutResetObserved ()
-        {
-            return this.layoutResetObserved ? this : new MasterNavigationLease (this.sourceProjectIdentity, this.workspaceRequest, true);
-        }
     }
 }

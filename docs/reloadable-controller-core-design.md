@@ -467,8 +467,8 @@ the stable grid callbacks are inert, and the former note observers, palette poli
 fade path are deleted.
 
 Stop Clip is intentionally `OBSERVE`, with an inert permanent direct command. Its core view owns
-plain and bank-wide Stop policy plus RGB feedback, while observation keeps the inherited held state
-available to the still-adapted Session grid's Stop-plus-pad chord. Stop Clip is not admitted for
+plain and bank-wide Stop policy plus white-available/red-held RGB feedback, while observation keeps
+the inherited held state available to the still-adapted Session grid's Stop-plus-pad chord. Stop Clip is not admitted for
 exclusive routing until that grid chord migrates with the rest of the grid action surface. Plain
 Stop uses the private selected target's immediate actuator and does not inherit launch quantization.
 
@@ -565,7 +565,7 @@ The current domains are:
 | `DRUM_PADS` | selected target/device identity, window generation/base note, alignment, and up to 16 pads with identity, name/color, state, mixer values, and playing velocity | The same canonical 16-pad model window used by Drum Controller applicability, layout scrolling, actions, and feedback, sampled no faster than every 33 ms unless selected-target identity changes. The separate legacy Drum64 adapter retains its additional 64-pad bank and is not a state source for core Drum Controller views. |
 | `PARAMETERS` | Selected named-bank slots with opaque target identity/generation, name, raw/modulated value, host-formatted display value, step count, tolerance, and retained baselines | Banks are `ACTIVE` compatibility, `PROJECT_REMOTE`, current `SELECTED_DEVICE_REMOTE`, eight visible `TRACK_VOLUME` and `TRACK_PAN` slots, four fixed `MASTER` slots, and `GLOBAL`; only the complete `DesiredParameterBanks` selection is sampled while subscribed. An interaction keeps its exact retained baselines until release, independently of bank sampling. |
 | `CONTROLLER_MAPPING_FEEDBACK` | Bitwig manual-mapping Boolean feedback keyed by permanent semantic endpoint | Four detached semantic `HardwareButton` objects own learning and no-output `OnOffHardwareLight` feedback. Their false fallback makes unmapped and mapped-off honestly off. All 64 original physical PAD buttons have no MIDI matchers and remain raw ordinary-dispatch objects. Core decides the endpoint lease and red/off policy; the physical-pad RGB lane owns transmission. |
-| `MASTER` | current project identity/name/dirty state, audio-engine read-back, learned previous/next availability, serialized-command state, Master track color/selection/activation, cursor pin, and VU values | One current project and Master track. Project navigation is submitted through one lane and acknowledged only after a later stable project-identity sample; an unchanged identity timeout learns that direction as unavailable. Core retains the Master page across that command's intermediate stable layout reset, fenced to the exact source project and unchanged workspace-request sequence, then retires the lease after target read-back and Master reconciliation. |
+| `MASTER` | current project identity/name/dirty state, audio-engine read-back, learned previous/next availability, serialized-command state, Master track color/selection/activation, cursor pin, and VU values | One current project and Master track. Project navigation is submitted through one lane and acknowledged only after a later stable project-identity sample; an unchanged identity timeout learns that direction as unavailable. Core retains the Master page across intermediate and late stable layout resets, fenced to the unchanged workspace-request sequence, and retires that page lease only after an explicit page or workspace request. |
 
 The selected-track cursor and drum capability detection are the private observation/action target
 described above, not the user-pinnable model cursor. Drum compatibility uses exactly four
@@ -606,7 +606,8 @@ into the original physical button's state, command, and installed router. The sa
 drives ordinary dispatch for all 64 grid pads, none of which remains a learned identity. It is not a
 second learned action or parallel semantic implementation.
 The persistent selected-track Mute/Solo view uses those existing fenced selected-track
-effects and renders only later authoritative read-back; its former project, Master, layer, lock,
+effects and renders only later authoritative read-back: available is white, Mute is orange, and
+Solo uses the Tetra yellow. Its former project, Master, layer, lock,
 row-overlay, pad, and note variants are deliberately absent. The active Session-bank window
 supports a generation-fenced bank-wide Stop request and an exact generation/shape/index/channel
 track-selection request captured at gesture `BEGIN`; VS Live track labels, button colors, and selected state render only from

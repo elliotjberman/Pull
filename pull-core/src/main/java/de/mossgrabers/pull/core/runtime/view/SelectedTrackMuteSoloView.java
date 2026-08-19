@@ -31,9 +31,9 @@ import java.util.Set;
 public final class SelectedTrackMuteSoloView implements ControllerView
 {
     private static final RgbColor OFF = new RgbColor (0, 0, 0);
-    private static final RgbColor AVAILABLE = new RgbColor (30, 30, 30);
-    private static final RgbColor MUTED = new RgbColor (39, 27, 0);
-    private static final RgbColor SOLOED = new RgbColor (89, 89, 0);
+    private static final RgbColor AVAILABLE = new RgbColor (255, 255, 255);
+    private static final RgbColor MUTED = new RgbColor (255, 84, 0);
+    private static final RgbColor SOLOED = new RgbColor (228, 183, 76);
     private static final ControlId MUTE = PushControlIds.button ("MUTE");
     private static final ControlId SOLO = PushControlIds.button ("SOLO");
     private static final ViewProfile PROFILE = ViewProfile.fixed (

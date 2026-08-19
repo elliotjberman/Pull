@@ -365,13 +365,15 @@ Implemented:
 - Core-owned Shift + Session workspace selection and reload checkpoint state.
 - Correct 8x4 Session navigation and Bitwig feedback via a declared bank.
 - One persistent `SessionView` owns the full/upper grid footprint plus Stop Clip input and RGB
-  feedback. Plain Stop immediately stops the authoritative selected track; Shift/Select Stop targets the
-  exact active Session bank, and Stop-plus-pad consumption remains part of the same view. The old
+  feedback: available is white and a held Stop is red. Plain Stop immediately stops the
+  authoritative selected track; Shift/Select Stop targets the exact active Session bank, and
+  Stop-plus-pad consumption remains part of the same view. The old
   long/lock and page-row Stop overlays are deleted. Stop remains `OBSERVE` rather than `EXCLUSIVE`
   only because the stable grid adapter still needs its held state for Stop-plus-pad; the direct
   stable Stop command is inert.
 - Mute/Solo are one persistent selected-track view with exclusive edges and read-back-driven RGB
-  feedback. Project-wide clear, lock/long row overlays, Master/layer retargeting, and pad/note
+  feedback: available is white, authoritative Mute is orange, and authoritative Solo uses the
+  Tetra yellow. Project-wide clear, lock/long row overlays, Master/layer retargeting, and pad/note
   modifier meanings are deleted rather than encoded into the new view model.
 - Session is retained independently from its default Track/Mix destination, and VS Live retains
   the same started grid-view instances when Mix, Device, Browse, or Master replaces the page, so
@@ -390,8 +392,9 @@ Implemented:
   display primitives. Missing or execution-faulted core behavior is blank and inert. A stable
   preparation rejection preserves the active generation's last committed output rather than
   converting one invalid result into a controller-wide fault. A Master-owned project navigation
-  retains the page through Bitwig's intermediate layout reset and releases that lease after the
-  target project is acknowledged and Master is reasserted.
+  retains the page through Bitwig's intermediate and late layout resets. Project acknowledgement
+  updates the retained Master scene but does not invent a page change; only a later explicit page
+  or workspace request releases that lease.
 - Fixed display-region composition for the VS Live page. Project Macro or Track Mixer owns the
   replaceable 960x143 parameter body; Track Selection owns the retained 960x17 footer plus all
   eight exclusive lower-row edges and lights. The Track Mixer body renders authoritative active

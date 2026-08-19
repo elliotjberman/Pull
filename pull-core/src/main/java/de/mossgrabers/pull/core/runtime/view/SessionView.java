@@ -39,7 +39,7 @@ public final class SessionView implements ControllerView
     /** Upper scene-launch facet identifier. */
     public static final String SCENE_LAUNCH = "scene-launch";
 
-    private static final RgbColor STOP_AVAILABLE = new RgbColor (25, 0, 0);
+    private static final RgbColor STOP_AVAILABLE = new RgbColor (255, 255, 255);
     private static final RgbColor STOP_HELD = new RgbColor (255, 0, 0);
     private static final ControlId STOP_CLIP = PushControlIds.button ("STOP_CLIP");
     private static final ControlId SHIFT = PushControlIds.button ("SHIFT");
@@ -116,7 +116,12 @@ public final class SessionView implements ControllerView
         if (STOP_CLIP.equals (input.controlId ()))
             return this.handleStopButton (input, snapshot);
         if (input.phase () == InputPhase.BEGIN && snapshot.pressedControls ().contains (STOP_CLIP) && !SHIFT.equals (input.controlId ()) && !SELECT.equals (input.controlId ()))
+        {
+            // TODO: When a track-selection strip is composed, Stop-plus-track must stop that exact
+            // Session-bank track instead of selecting it. The retained grid still handles
+            // Stop-plus-pad; core currently only prevents the trailing plain Stop action.
             this.stopGestureConsumed = true;
+        }
         return List.of ();
     }
 

@@ -92,9 +92,11 @@ selected-track route therefore decide whether it becomes a musical note just as 
 hardware. Holding the mouse retains the normal long-press lifecycle. Hovering any touch-bound
 continuous control submits its touch BEGIN/END, and the deliberately plain slider below the
 controller submits 0..127 poly-pressure for the last pad clicked through both the controller and
-`NoteInput` paths. One browser edge may be held at a time; pressure may accompany that exact held
-pad. A five-second controller-owned lease, renewed by the page, releases a control if the tab
-disappears and neutralizes detached nonzero pressure.
+`NoteInput` paths. Up to eight browser edges may share one debug-input session, so independent
+`/api/input` BEGIN requests can hold modifiers and buttons concurrently before matching END
+requests release them. Pressure may accompany an exact held pad. Each edge has a five-second
+controller-owned lease, renewed independently by the page; disappearing clients release their
+controls and neutralize detached nonzero pressure.
 The local server accepts bounded same-origin JSON only with the active random extension-session
 token, atomically queues at most 64 requests, and never invokes controller code itself.
 Debugger output reaches the browser through a bounded Server-Sent Events stream. The event carries

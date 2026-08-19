@@ -772,15 +772,19 @@ class PullControllerCoreTest
         host.controllerButton (next, true);
         assertEquals (new NavigateProjectEffect ("project-a", ProjectNavigationDirection.NEXT), host.effects ().executionOrder ().getLast ());
 
-        host.bridge (masterBridge ("project-a", "first", 2, "WORKSPACE", true, true));
+        host.bridge (masterBridge ("project-a", "first", 2, "TRACK", true, true));
         assertEquals (Set.of (ControllerViewFacet.MASTER_CONTROLS), host.effects ().desiredControllerWorkspace ().facets ());
 
-        host.bridge (masterBridge ("project-b", "second", 3, "WORKSPACE", false, false));
+        host.bridge (masterBridge ("project-b", "second", 3, "MASTER", false, false));
         assertEquals (Set.of (ControllerViewFacet.MASTER_CONTROLS), host.effects ().desiredControllerWorkspace ().facets ());
         assertTrue (host.effects ().desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "second".equals (text.text ())));
 
-        host.bridge (masterBridge ("project-b", "second", 4, "MASTER", false, false));
+        // Bitwig can publish one later mechanical page reset after project acknowledgement.
+        host.bridge (masterBridge ("project-b", "second", 4, "TRACK", false, false));
         assertEquals (Set.of (ControllerViewFacet.MASTER_CONTROLS), host.effects ().desiredControllerWorkspace ().facets ());
+
+        host.controllerAction (switchParameterContext (), masterBridge ("project-b", "second", 5, "TRACK", false, false));
+        assertFalse (host.effects ().desiredControllerWorkspace ().facets ().contains (ControllerViewFacet.MASTER_CONTROLS));
     }
 
 
@@ -912,7 +916,7 @@ class PullControllerCoreTest
         host.start (Optional.empty ());
 
         assertSelectedSession (host.effects ().desiredControllerWorkspace ());
-        assertEquals (new RgbColor (25, 0, 0), light (host, STOP_CLIP_BUTTON));
+        assertEquals (WHITE, light (host, STOP_CLIP_BUTTON));
         assertEquals (Optional.of (InputRouteMode.OBSERVE), host.effects ().desiredInputRoutes ().mode (STOP_CLIP_BUTTON, InputKind.BUTTON));
 
         host.controllerButton (STOP_CLIP_BUTTON, true);
@@ -920,7 +924,7 @@ class PullControllerCoreTest
         host.controllerButton (STOP_CLIP_BUTTON, false);
 
         assertEquals (new SelectedTrackActionEffect (7, "track-7", SelectedTrackAction.STOP_IMMEDIATELY), host.effects ().executionOrder ().getLast ());
-        assertEquals (new RgbColor (25, 0, 0), light (host, STOP_CLIP_BUTTON));
+        assertEquals (WHITE, light (host, STOP_CLIP_BUTTON));
     }
 
 
@@ -1205,17 +1209,17 @@ class PullControllerCoreTest
 
         assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (MUTE_BUTTON, InputKind.BUTTON));
         assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (SOLO_BUTTON, InputKind.BUTTON));
-        assertEquals (new RgbColor (30, 30, 30), light (host, MUTE_BUTTON));
-        assertEquals (new RgbColor (30, 30, 30), light (host, SOLO_BUTTON));
+        assertEquals (WHITE, light (host, MUTE_BUTTON));
+        assertEquals (WHITE, light (host, SOLO_BUTTON));
 
         host.controllerButton (MUTE_BUTTON, true);
         host.controllerButton (MUTE_BUTTON, false);
 
         assertEquals (new SetSelectedTrackBooleanEffect (7, "track-7", SelectedTrackBoolean.MUTED, true), host.effects ().executionOrder ().getLast ());
-        assertEquals (new RgbColor (30, 30, 30), light (host, MUTE_BUTTON));
+        assertEquals (WHITE, light (host, MUTE_BUTTON));
 
         host.selectedTrack (selectedTrack (false, true, false));
-        assertEquals (new RgbColor (39, 27, 0), light (host, MUTE_BUTTON));
+        assertEquals (new RgbColor (255, 84, 0), light (host, MUTE_BUTTON));
 
         host.controllerButton (SHIFT_BUTTON, true);
         host.controllerButton (SOLO_BUTTON, true);
@@ -1223,10 +1227,10 @@ class PullControllerCoreTest
         host.controllerButton (SOLO_BUTTON, false);
 
         assertEquals (new SetSelectedTrackBooleanEffect (7, "track-7", SelectedTrackBoolean.SOLOED, true), host.effects ().executionOrder ().getLast ());
-        assertEquals (new RgbColor (30, 30, 30), light (host, SOLO_BUTTON));
+        assertEquals (WHITE, light (host, SOLO_BUTTON));
 
         host.selectedTrack (selectedTrack (false, true, true));
-        assertEquals (new RgbColor (89, 89, 0), light (host, SOLO_BUTTON));
+        assertEquals (new RgbColor (228, 183, 76), light (host, SOLO_BUTTON));
     }
 
 

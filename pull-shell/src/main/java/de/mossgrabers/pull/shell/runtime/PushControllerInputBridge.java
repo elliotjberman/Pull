@@ -196,6 +196,17 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
 
     /** {@inheritDoc} */
     @Override
+    public boolean tryExtendDebugInput (final Runnable press)
+    {
+        if (!this.debugInputActive)
+            return false;
+        Objects.requireNonNull (press, "press").run ();
+        return true;
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
     public void endDebugInput (final Runnable release)
     {
         if (!this.debugInputActive)

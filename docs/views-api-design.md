@@ -275,9 +275,9 @@ against the selected current-bank track, and then requires its channel ID to agr
 selection-following cursor before publishing any slot.
 
 Master's own previous/next project action creates a bounded page-retention lease. The lease is tied
-to the exact source project and workspace-request sequence, survives only the command's intermediate
-stable layout reset, and retires after later target-project read-back and Master-page
-reconciliation. Any explicit workspace request cancels it.
+to the workspace-request sequence and survives both intermediate and late stable layout resets.
+Later target-project read-back updates the retained scene without silently changing pages; an
+explicit page or workspace request retires the lease.
 
 ## Implementation Checkpoints
 
