@@ -24,7 +24,6 @@ class ColorPaletteTest
 
         assertEquals (128, host.countMessages (0x03));
         assertEquals (List.of ("05"), host.commands);
-        assertEquals (List.of ("Push colors syncing"), host.notifications);
 
         host.runScheduled (0);
         assertEquals (1, host.countMessages (0x04));
@@ -40,7 +39,6 @@ class ColorPaletteTest
                 host.runScheduled (0);
             palette.handleColorPaletteMessage (responseForUpdate (host.messages.get (index)));
         }
-        assertEquals (List.of ("Push colors syncing", "Push colors ready"), host.notifications);
     }
 
 
@@ -113,7 +111,6 @@ class ColorPaletteTest
         private final List<int []>       messages      = new ArrayList<> ();
         private final List<String>       commands      = new ArrayList<> ();
         private final List<ScheduledTask> tasks         = new ArrayList<> ();
-        private final List<String>       notifications = new ArrayList<> ();
 
 
         @Override
@@ -149,14 +146,6 @@ class ColorPaletteTest
         {
             // Not relevant to these protocol tests
         }
-
-
-        @Override
-        public void notifyPaletteStatus (final String message)
-        {
-            this.notifications.add (message);
-        }
-
 
         private long countMessages (final int command)
         {

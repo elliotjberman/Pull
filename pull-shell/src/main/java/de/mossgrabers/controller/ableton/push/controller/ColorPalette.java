@@ -23,8 +23,6 @@ public class ColorPalette
         void println (String message);
 
         void errorln (String message);
-
-        void notifyPaletteStatus (String message);
     }
 
 
@@ -89,7 +87,6 @@ public class ColorPalette
 
         final long uploadMilliseconds = elapsedMilliseconds (uploadStartedAt);
         this.host.println ("Push RGBW color palette queued in " + uploadMilliseconds + " ms; verifying in background.");
-        this.host.notifyPaletteStatus ("Push colors syncing");
         this.host.scheduleTask (this::requestVerification, 0);
     }
 
@@ -215,7 +212,6 @@ public class ColorPalette
 
         final String result = failed == 0 ? "verified" : "finished with " + failed + " failed entries";
         this.host.println ("Push RGBW color palette " + result + " in " + elapsedMilliseconds (startedAt) + " ms (" + corrected + " corrective writes).");
-        this.host.notifyPaletteStatus (failed == 0 ? "Push colors ready" : "Push color verification incomplete");
     }
 
 
