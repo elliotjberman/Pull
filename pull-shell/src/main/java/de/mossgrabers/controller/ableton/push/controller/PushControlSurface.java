@@ -1346,13 +1346,4 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
         this.colorPalette.updatePalette ();
     }
 
-
-    /** {@inheritDoc} */
-    @Override
-    public void notifyPaletteStatus (final String message)
-    {
-        this.getDisplay ().notify (message);
-    }
-
-
 }
