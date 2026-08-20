@@ -378,13 +378,14 @@ Its desired lights use the generic `ControllerLight` value. A shared core beat-p
 the visible half-beat phase from authoritative transport position, rather than assigning a fresh
 firmware blink whose local animation can restart whenever the current-step pad changes.
 The permanent cursor retains low-rate launcher playback edges across workspace changes without
-sampling an unrequested timeline snapshot. An observed stopped-to-playing transition anchors a clip
-position that advances from the shell's monotonic controller clock and subscribed tempo, reconciles
-later transport-position changes, and wraps through the observed loop. Core divides
+sampling an unrequested timeline snapshot. An observed selected-track stopped edge survives the
+cursor's same-track scene retarget at launch and is consumed by the first exact playing target. That
+anchors a clip position which advances from transport read-back and wraps through the observed loop.
+Core divides
 that position by the active timeline resolution and pulses only the resulting selected pad between
 its clip color and Session playing green. Selectable unselected pads and the rest of the selected
-range remain steady, while padding remains
-off. A target change or transport discontinuity clears the phase and therefore the blink until a
+range remain steady, while padding remains off. A track, target, or transport discontinuity clears
+the phase and therefore the blink until a
 later observable launch.
 
 The stable API addition for this checkpoint is limited to one complete

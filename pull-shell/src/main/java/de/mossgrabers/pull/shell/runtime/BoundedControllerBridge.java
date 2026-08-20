@@ -213,7 +213,7 @@ final class BoundedControllerBridge implements ControllerBridge
         final ControllerLayoutSnapshot layout = requested.includes (BridgeSubscription.CONTROLLER_LAYOUT) ? this.captureLayout () : ControllerLayoutSnapshot.empty ();
         final ClipTimelineSnapshot clipTimeline;
         if (clipTimelineRequested)
-            clipTimeline = this.captureClipTimeline (selectedState, transportState, monotonicTimeNanos);
+            clipTimeline = this.captureClipTimeline (selectedState, transportState);
         else
         {
             clipTimeline = ClipTimelineSnapshot.empty ();
@@ -671,7 +671,7 @@ final class BoundedControllerBridge implements ControllerBridge
     }
 
 
-    private ClipTimelineSnapshot captureClipTimeline (final SelectedTrackNoteTargetSnapshot selected, final TransportSnapshot transportState, final long now)
+    private ClipTimelineSnapshot captureClipTimeline (final SelectedTrackNoteTargetSnapshot selected, final TransportSnapshot transportState)
     {
         final INoteClip clip = this.clipTimelineClip;
         final String trackID = valueOrEmpty (clip.getTrackId ());
@@ -695,12 +695,11 @@ final class BoundedControllerBridge implements ControllerBridge
         this.clipTimelineSelectableEnd = Math.max (this.clipTimelineSelectableEnd, observedEnd);
         final ClipTimelineTarget target = new ClipTimelineTarget (this.clipTimelineGeneration, selected.generation (), trackID, sceneIndex);
         final OptionalDouble playbackPosition = this.clipPlaybackPosition.observe (
+            trackID,
             clipTimelinePlaybackIdentity (trackID, sceneIndex),
             clip.isPlaying (),
             transportState.playing (),
             transportState.positionBeats (),
-            transportState.tempo (),
-            now,
             playStart,
             loopStart,
             loopLength,
@@ -1255,6 +1254,7 @@ final class BoundedControllerBridge implements ControllerBridge
             return;
         }
         this.clipPlaybackPosition.observePlayback (
+            trackID,
             clipTimelinePlaybackIdentity (trackID, sceneIndex),
             playing.booleanValue (),
             Math.max (0, this.transport.getPosition ()),

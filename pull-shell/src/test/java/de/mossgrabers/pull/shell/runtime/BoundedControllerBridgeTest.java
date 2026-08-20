@@ -177,7 +177,7 @@ class BoundedControllerBridgeTest
 
 
     @Test
-    void clipTimelinePublishesPositionOnlyAfterObservedLaunchAndReconcilesTransportReadback ()
+    void clipTimelinePublishesPositionOnlyAfterObservedLaunchAndAdvancesFromTransportReadback ()
     {
         final BridgeFixture fixture = new BridgeFixture ();
         fixture.selected.canHoldAudio = true;
@@ -198,28 +198,8 @@ class BoundedControllerBridgeTest
         assertEquals (4, fixture.bridge.snapshot ().clipTimeline ().playbackPosition ().orElseThrow ());
     }
 
-
     @Test
-    void clipTimelineAdvancesWhenInterestedTransportPositionStaysStatic ()
-    {
-        final BridgeFixture fixture = new BridgeFixture ();
-        fixture.selected.canHoldAudio = true;
-        fixture.transport.playing = true;
-        fixture.transport.position = 16;
-        fixture.clip.publishPlaying (false);
-        fixture.clip.publishPlaying (true);
-        final DesiredBridgeSubscriptions requested = subscriptions (BridgeSubscription.CLIP_TIMELINE, BridgeSubscription.TRANSPORT);
-
-        fixture.bridge.refresh (1, requested, DesiredParameterBanks.empty ());
-        assertEquals (0, fixture.bridge.snapshot ().clipTimeline ().playbackPosition ().orElseThrow ());
-
-        fixture.bridge.refresh (250_000_001, requested, DesiredParameterBanks.empty ());
-        assertEquals (0.5, fixture.bridge.snapshot ().clipTimeline ().playbackPosition ().orElseThrow ());
-    }
-
-
-    @Test
-    void clipTimelinePlaybackEdgeSurvivesWhileTimelineSnapshotsAreUnrequested ()
+    void clipTimelinePlaybackEdgeSurvivesSameTrackSceneRetargetWhileTimelineIsUnrequested ()
     {
         final BridgeFixture fixture = new BridgeFixture ();
         fixture.selected.canHoldAudio = true;
@@ -229,10 +209,12 @@ class BoundedControllerBridgeTest
 
         fixture.bridge.refresh (1, DesiredBridgeSubscriptions.empty (), DesiredParameterBanks.empty ());
         fixture.transport.position = 16;
+        fixture.clip.sceneIndex = 6;
         fixture.clip.publishPlaying (true);
         fixture.transport.position = 20;
         fixture.bridge.refresh (50_000_001, subscriptions (BridgeSubscription.CLIP_TIMELINE, BridgeSubscription.TRANSPORT), DesiredParameterBanks.empty ());
 
+        assertEquals (6, fixture.bridge.snapshot ().clipTimeline ().target ().orElseThrow ().sceneIndex ());
         assertEquals (4, fixture.bridge.snapshot ().clipTimeline ().playbackPosition ().orElseThrow ());
     }
 
