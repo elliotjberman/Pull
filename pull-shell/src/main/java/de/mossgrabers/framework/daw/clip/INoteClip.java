@@ -42,7 +42,11 @@ public interface INoteClip extends IClip, IPinnable
 
 
     /**
-     * Add an observer for authoritative launcher-slot playback transitions.
+     * Add an observer for authoritative launcher-slot playback state. The observer is refreshed
+     * when the exact launcher target resolves or changes as well as when playback changes. The
+     * implementation retains those low-rate identity, playback, and play-start subscriptions
+     * independently of the clip's general observer lifecycle so transitions remain observable
+     * while a view is hidden.
      *
      * @param observer Playback-state observer
      */

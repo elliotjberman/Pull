@@ -570,7 +570,7 @@ public class TransportImpl implements ITransport
     @Override
     public double getPosition ()
     {
-        return this.transport.playStartPosition ().get ();
+        return this.transport.getPosition ().get ();
     }
 
 

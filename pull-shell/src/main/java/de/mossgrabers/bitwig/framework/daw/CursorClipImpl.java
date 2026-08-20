@@ -54,7 +54,8 @@ public class CursorClipImpl implements INoteClip
     private final BooleanValue        launcherPlaying;
     private final StringValue         launcherTrackId;
     private final IntegerValue        launcherSceneIndex;
-    private int                      editPage        = 0;
+    private boolean                   playbackObservationRetained;
+    private int                       editPage        = 0;
     private double                   stepLength;
     private final List<NotePosition> editSteps       = new ArrayList<> ();
 
@@ -113,10 +114,11 @@ public class CursorClipImpl implements INoteClip
     @Override
     public void enableObservers (final boolean enable)
     {
+        final boolean playbackValuesEnabled = enable || this.playbackObservationRetained;
         Util.setIsSubscribed (this.launcherClip.exists (), enable);
-        Util.setIsSubscribed (this.launcherPlaying, enable);
+        Util.setIsSubscribed (this.launcherPlaying, playbackValuesEnabled);
         Util.setIsSubscribed (this.launcherClip.playingStep (), enable);
-        Util.setIsSubscribed (this.launcherClip.getPlayStart (), enable);
+        Util.setIsSubscribed (this.launcherClip.getPlayStart (), playbackValuesEnabled);
         Util.setIsSubscribed (this.launcherClip.getPlayStop (), enable);
         Util.setIsSubscribed (this.launcherClip.getLoopStart (), enable);
         Util.setIsSubscribed (this.launcherClip.getLoopLength (), enable);
@@ -127,8 +129,8 @@ public class CursorClipImpl implements INoteClip
         Util.setIsSubscribed (this.launcherClip.canScrollStepsForwards (), enable);
         Util.setIsSubscribed (this.launcherClip.color (), enable);
         Util.setIsSubscribed (this.launcherClip.isPinned (), enable);
-        Util.setIsSubscribed (this.launcherTrackId, enable);
-        Util.setIsSubscribed (this.launcherSceneIndex, enable);
+        Util.setIsSubscribed (this.launcherTrackId, playbackValuesEnabled);
+        Util.setIsSubscribed (this.launcherSceneIndex, playbackValuesEnabled);
         Util.setIsSubscribed (this.launcherClip.getTrack ().canHoldNoteData (), enable);
     }
 
@@ -161,7 +163,14 @@ public class CursorClipImpl implements INoteClip
     @Override
     public void addPlaybackObserver (final Consumer<Boolean> observer)
     {
+        this.playbackObservationRetained = true;
+        this.launcherPlaying.markInterested ();
+        this.launcherTrackId.markInterested ();
+        this.launcherSceneIndex.markInterested ();
+        this.launcherClip.getPlayStart ().markInterested ();
         this.launcherPlaying.addValueObserver (value -> observer.accept (Boolean.valueOf (value)));
+        this.launcherTrackId.addValueObserver (ignored -> observer.accept (Boolean.valueOf (this.launcherPlaying.get ())));
+        this.launcherSceneIndex.addValueObserver (ignored -> observer.accept (Boolean.valueOf (this.launcherPlaying.get ())));
     }
 
 
