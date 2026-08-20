@@ -177,7 +177,7 @@ class BoundedControllerBridgeTest
 
 
     @Test
-    void clipTimelinePublishesPositionOnlyAfterObservedLaunchAndAdvancesFromTransportReadback ()
+    void clipTimelinePublishesPositionOnlyAfterObservedLaunchAndReconcilesTransportReadback ()
     {
         final BridgeFixture fixture = new BridgeFixture ();
         fixture.selected.canHoldAudio = true;
@@ -196,6 +196,25 @@ class BoundedControllerBridgeTest
         fixture.transport.position = 20;
         fixture.bridge.refresh (100_000_002, requested, DesiredParameterBanks.empty ());
         assertEquals (4, fixture.bridge.snapshot ().clipTimeline ().playbackPosition ().orElseThrow ());
+    }
+
+
+    @Test
+    void clipTimelineAdvancesWhenInterestedTransportPositionStaysStatic ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.selected.canHoldAudio = true;
+        fixture.transport.playing = true;
+        fixture.transport.position = 16;
+        fixture.clip.publishPlaying (false);
+        fixture.clip.publishPlaying (true);
+        final DesiredBridgeSubscriptions requested = subscriptions (BridgeSubscription.CLIP_TIMELINE, BridgeSubscription.TRANSPORT);
+
+        fixture.bridge.refresh (1, requested, DesiredParameterBanks.empty ());
+        assertEquals (0, fixture.bridge.snapshot ().clipTimeline ().playbackPosition ().orElseThrow ());
+
+        fixture.bridge.refresh (250_000_001, requested, DesiredParameterBanks.empty ());
+        assertEquals (0.5, fixture.bridge.snapshot ().clipTimeline ().playbackPosition ().orElseThrow ());
     }
 
 

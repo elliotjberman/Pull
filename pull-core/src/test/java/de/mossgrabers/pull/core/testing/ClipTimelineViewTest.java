@@ -101,11 +101,13 @@ class ClipTimelineViewTest
 
 
     @Test
-    void currentStepPulseFollowsAuthoritativeTransportBeatPhase ()
+    void currentStepPulseFollowsReconstructedClipBeatPhase ()
     {
         final CompiledWorkspace workspace = workspace (new ClipTimelineState (0));
-        final ControllerLight firstHalf = workspace.start (snapshot (timeline (BLUE), 1.25)).desiredOutput ().lights ().get (PushControlIds.pad (57));
-        final ControllerLight secondHalf = workspace.handle (new SnapshotChangedEvent (2, 2), snapshot (timeline (BLUE), 1.75)).desiredOutput ().lights ().get (PushControlIds.pad (57));
+        final ClipTimelineSnapshot firstPhase = new ClipTimelineSnapshot (Optional.of (TARGET), 0, 8, 16, OptionalDouble.of (0.25), BLUE);
+        final ClipTimelineSnapshot secondPhase = new ClipTimelineSnapshot (Optional.of (TARGET), 0, 8, 16, OptionalDouble.of (0.75), BLUE);
+        final ControllerLight firstHalf = workspace.start (snapshot (firstPhase)).desiredOutput ().lights ().get (PushControlIds.pad (57));
+        final ControllerLight secondHalf = workspace.handle (new SnapshotChangedEvent (2, 2), snapshot (secondPhase)).desiredOutput ().lights ().get (PushControlIds.pad (57));
 
         assertEquals (SESSION_PLAYING_GREEN, firstHalf.color ());
         assertEquals (BLUE, secondHalf.color ());

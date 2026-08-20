@@ -213,7 +213,7 @@ final class BoundedControllerBridge implements ControllerBridge
         final ControllerLayoutSnapshot layout = requested.includes (BridgeSubscription.CONTROLLER_LAYOUT) ? this.captureLayout () : ControllerLayoutSnapshot.empty ();
         final ClipTimelineSnapshot clipTimeline;
         if (clipTimelineRequested)
-            clipTimeline = this.captureClipTimeline (selectedState, transportState);
+            clipTimeline = this.captureClipTimeline (selectedState, transportState, monotonicTimeNanos);
         else
         {
             clipTimeline = ClipTimelineSnapshot.empty ();
@@ -671,7 +671,7 @@ final class BoundedControllerBridge implements ControllerBridge
     }
 
 
-    private ClipTimelineSnapshot captureClipTimeline (final SelectedTrackNoteTargetSnapshot selected, final TransportSnapshot transportState)
+    private ClipTimelineSnapshot captureClipTimeline (final SelectedTrackNoteTargetSnapshot selected, final TransportSnapshot transportState, final long now)
     {
         final INoteClip clip = this.clipTimelineClip;
         final String trackID = valueOrEmpty (clip.getTrackId ());
@@ -699,6 +699,8 @@ final class BoundedControllerBridge implements ControllerBridge
             clip.isPlaying (),
             transportState.playing (),
             transportState.positionBeats (),
+            transportState.tempo (),
+            now,
             playStart,
             loopStart,
             loopLength,

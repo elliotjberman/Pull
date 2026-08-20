@@ -23,24 +23,25 @@ final class TransportBeatPulse
 
 
     /**
-     * Select a steady light for the current half-beat. Deriving the phase from authoritative
-     * transport position keeps the pulse continuous when ownership moves to a different pad;
-     * assigning a fresh firmware blink to each pad would restart its visible animation.
+     * Select a steady light for the current half-beat. Deriving the phase from one continuous beat
+     * position keeps the pulse continuous when ownership moves to a different pad; assigning a
+     * fresh firmware blink to each pad would restart its visible animation.
      *
      * @param transport Authoritative transport snapshot
+     * @param beatPosition Authoritative or boundedly reconstructed beat position
      * @param resting Resting color
      * @param pulse Pulse color
      * @return Steady light for the current beat phase
      */
-    static ControllerLight light (final TransportSnapshot transport, final RgbColor resting, final RgbColor pulse)
+    static ControllerLight light (final TransportSnapshot transport, final double beatPosition, final RgbColor resting, final RgbColor pulse)
     {
         Objects.requireNonNull (transport, "transport");
         final RgbColor restingColor = Objects.requireNonNull (resting, "resting");
         final RgbColor pulseColor = Objects.requireNonNull (pulse, "pulse");
-        if (!transport.available () || !transport.playing ())
+        if (!transport.available () || !transport.playing () || !Double.isFinite (beatPosition) || beatPosition < 0)
             return ControllerLight.steady (restingColor);
 
-        final double beatPhase = transport.positionBeats () - Math.floor (transport.positionBeats ());
+        final double beatPhase = beatPosition - Math.floor (beatPosition);
         return ControllerLight.steady (beatPhase < HALF_BEAT ? pulseColor : restingColor);
     }
 }

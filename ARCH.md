@@ -105,10 +105,11 @@ renders selected, selectable, padding, and playing states from later host read-b
 unselected pads are white unless the clip color is near-white; padding is always off. API 21 has no
 audio-clip play-position value, and the installed API 25 reference adds none. The eagerly created
 cursor therefore retains only its low-rate playback edges while timeline snapshots are unrequested.
-The shell publishes phase only after it observes the exact clip stopped and then playing; it
-advances that anchor from transport read-back and fails closed on a
-target or transport discontinuity. Core divides the resulting clip position by its current grid
-resolution and gives only that selected pad a shared transport-position-derived half-beat pulse
+The shell publishes phase only after it observes the exact clip stopped and then playing. It
+advances that anchor from its monotonic controller clock and subscribed tempo, reconciles later
+transport-position changes, and fails closed on a target, transport, or clock discontinuity. Core
+divides the resulting clip position by its current grid resolution and gives only that selected pad
+a shared beat-phase half-beat pulse
 between the clip color and Session playing green. Deriving the phase from authoritative transport
 position keeps the visible pulse continuous when the current-step owner changes; assigning the
 firmware blink afresh to every step can reset before its alternate phase becomes visible. The
