@@ -10,12 +10,9 @@ import de.mossgrabers.pull.core.api.output.RgbColor;
 import java.util.Objects;
 
 
-/** Shared beat-phase pulse for lights whose physical owner can move during playback. */
+/** Shared Session-style playback pulse for a transport-following light. */
 final class TransportBeatPulse
 {
-    private static final double HALF_BEAT = 0.5;
-
-
     private TransportBeatPulse ()
     {
         // Utility class.
@@ -23,9 +20,9 @@ final class TransportBeatPulse
 
 
     /**
-     * Select a steady light for the current half-beat. Deriving the phase from one continuous beat
-     * position keeps the pulse continuous when ownership moves to a different pad; assigning a
-     * fresh firmware blink to each pad would restart its visible animation.
+     * Use the same slow tempo-clocked alternate-color output as a playing Session clip. Keeping
+     * the blink semantic in the light output lets the hardware and debugger expose and animate the
+     * pulse instead of receiving an opaque succession of steady colors.
      *
      * @param transport Authoritative transport snapshot
      * @param beatPosition Authoritative or boundedly reconstructed beat position
@@ -41,7 +38,6 @@ final class TransportBeatPulse
         if (!transport.available () || !transport.playing () || !Double.isFinite (beatPosition) || beatPosition < 0)
             return ControllerLight.steady (restingColor);
 
-        final double beatPhase = beatPosition - Math.floor (beatPosition);
-        return ControllerLight.steady (beatPhase < HALF_BEAT ? pulseColor : restingColor);
+        return ControllerLight.playing (restingColor, pulseColor);
     }
 }

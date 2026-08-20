@@ -68,8 +68,9 @@ class ClipTimelineViewTest
         assertEquals (64, result.desiredOutput ().lights ().keySet ().stream ().filter (control -> control.value ().startsWith ("push.pad.")).count ());
 
         final ControllerLight playing = result.desiredOutput ().lights ().get (PushControlIds.pad (57));
-        assertEquals (SESSION_PLAYING_GREEN, playing.color ());
-        assertEquals (LightBlinkRate.NONE, playing.blinkRate ());
+        assertEquals (BLUE, playing.color ());
+        assertEquals (SESSION_PLAYING_GREEN, playing.blinkColor ());
+        assertEquals (LightBlinkRate.SLOW, playing.blinkRate ());
         final ControllerLight selectedEnd = result.desiredOutput ().lights ().get (PushControlIds.pad (58));
         assertEquals (BLUE, selectedEnd.color ());
         assertEquals (LightBlinkRate.NONE, selectedEnd.blinkRate ());
@@ -96,12 +97,15 @@ class ClipTimelineViewTest
         final Map<ControlId, ControllerLight> lights = workspace (new ClipTimelineState (0)).start (snapshot (secondStep)).desiredOutput ().lights ();
 
         assertEquals (BLUE, lights.get (PushControlIds.pad (57)).color ());
-        assertEquals (SESSION_PLAYING_GREEN, lights.get (PushControlIds.pad (58)).color ());
+        assertEquals (LightBlinkRate.NONE, lights.get (PushControlIds.pad (57)).blinkRate ());
+        assertEquals (BLUE, lights.get (PushControlIds.pad (58)).color ());
+        assertEquals (SESSION_PLAYING_GREEN, lights.get (PushControlIds.pad (58)).blinkColor ());
+        assertEquals (LightBlinkRate.SLOW, lights.get (PushControlIds.pad (58)).blinkRate ());
     }
 
 
     @Test
-    void currentStepPulseFollowsReconstructedClipBeatPhase ()
+    void currentStepUsesOneStableSessionStyleBlinkAcrossClipBeatUpdates ()
     {
         final CompiledWorkspace workspace = workspace (new ClipTimelineState (0));
         final ClipTimelineSnapshot firstPhase = new ClipTimelineSnapshot (Optional.of (TARGET), 0, 8, 16, OptionalDouble.of (0.25), BLUE);
@@ -109,10 +113,10 @@ class ClipTimelineViewTest
         final ControllerLight firstHalf = workspace.start (snapshot (firstPhase)).desiredOutput ().lights ().get (PushControlIds.pad (57));
         final ControllerLight secondHalf = workspace.handle (new SnapshotChangedEvent (2, 2), snapshot (secondPhase)).desiredOutput ().lights ().get (PushControlIds.pad (57));
 
-        assertEquals (SESSION_PLAYING_GREEN, firstHalf.color ());
-        assertEquals (BLUE, secondHalf.color ());
-        assertEquals (LightBlinkRate.NONE, firstHalf.blinkRate ());
-        assertEquals (LightBlinkRate.NONE, secondHalf.blinkRate ());
+        assertEquals (BLUE, firstHalf.color ());
+        assertEquals (SESSION_PLAYING_GREEN, firstHalf.blinkColor ());
+        assertEquals (LightBlinkRate.SLOW, firstHalf.blinkRate ());
+        assertEquals (firstHalf, secondHalf);
     }
 
 
