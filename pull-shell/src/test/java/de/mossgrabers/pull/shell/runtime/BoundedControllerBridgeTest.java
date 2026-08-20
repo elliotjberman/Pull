@@ -220,6 +220,24 @@ class BoundedControllerBridgeTest
 
 
     @Test
+    void clipTimelineSamplesTransportPositionOnEveryControllerTick ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.selected.canHoldAudio = true;
+        fixture.transport.playing = true;
+        fixture.transport.position = 16;
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.TRANSPORT), DesiredParameterBanks.empty ());
+
+        fixture.transport.position = 17;
+        fixture.bridge.refresh (2, subscriptions (BridgeSubscription.TRANSPORT), DesiredParameterBanks.empty ());
+        assertEquals (16, fixture.bridge.snapshot ().transport ().positionBeats (), "ordinary transport snapshots retain the bounded 50 ms rate");
+
+        fixture.bridge.refresh (3, subscriptions (BridgeSubscription.CLIP_TIMELINE, BridgeSubscription.TRANSPORT), DesiredParameterBanks.empty ());
+        assertEquals (17, fixture.bridge.snapshot ().transport ().positionBeats (), "the visible playhead must not inherit another tick of transport latency");
+    }
+
+
+    @Test
     void selectedTrackStoppedReadbackArmsTimelineWithoutACursorPlaybackCallback ()
     {
         final BridgeFixture fixture = new BridgeFixture ();

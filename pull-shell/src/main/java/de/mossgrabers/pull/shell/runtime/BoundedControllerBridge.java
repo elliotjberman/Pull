@@ -203,7 +203,7 @@ final class BoundedControllerBridge implements ControllerBridge
 
         final TransportSnapshot transportState;
         if (requested.includes (BridgeSubscription.TRANSPORT))
-            transportState = this.captureTransport (monotonicTimeNanos);
+            transportState = this.captureTransport (monotonicTimeNanos, clipTimelineRequested);
         else
         {
             transportState = TransportSnapshot.empty ();
@@ -611,9 +611,9 @@ final class BoundedControllerBridge implements ControllerBridge
     }
 
 
-    private TransportSnapshot captureTransport (final long now)
+    private TransportSnapshot captureTransport (final long now, final boolean highRatePosition)
     {
-        final boolean samplePosition = !this.transport.isPlaying () || elapsedAtLeast (now, this.lastTransportPositionSampleNanos, TRANSPORT_POSITION_SAMPLE_NANOS);
+        final boolean samplePosition = highRatePosition || !this.transport.isPlaying () || elapsedAtLeast (now, this.lastTransportPositionSampleNanos, TRANSPORT_POSITION_SAMPLE_NANOS);
         if (samplePosition)
         {
             this.sampledTransportPosition = Math.max (0, this.transport.getPosition ());
