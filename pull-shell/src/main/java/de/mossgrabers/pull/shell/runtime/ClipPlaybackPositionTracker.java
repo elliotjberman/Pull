@@ -21,6 +21,11 @@ import java.util.OptionalDouble;
 final class ClipPlaybackPositionTracker
 {
     private static final double POSITION_EPSILON = 1.0e-6;
+    private static final double MAX_LOOP_WRAP_SAMPLE_DISTANCE = 1.0;
+
+    record TransportClock (boolean playing, double position, boolean loopEnabled, double loopStart, double loopEnd)
+    {
+    }
 
     private String trackIdentity = "";
     private String targetIdentity = "";
@@ -50,28 +55,27 @@ final class ClipPlaybackPositionTracker
      * @param trackIdentity Stable selected-track identity
      * @param targetIdentity Exact selected launcher-clip identity
      * @param clipPlaying Authoritative launcher-slot playback state
-     * @param transportPlaying Authoritative transport playback state
-     * @param transportPosition Current transport position in quarter-note beats
+     * @param transport Authoritative transport clock and arranger-loop state
      * @param playStart Clip play start in quarter-note beats
      * @param loopStart Clip loop start in quarter-note beats
      * @param loopLength Clip loop length in quarter-note beats
      * @param loopEnabled Whether clip looping is enabled
      * @return Tracked clip position, or empty until an observable launch establishes its phase
      */
-    OptionalDouble observe (final String trackIdentity, final String targetIdentity, final boolean clipPlaying, final boolean transportPlaying, final double transportPosition, final double playStart, final double loopStart, final double loopLength, final boolean loopEnabled)
+    OptionalDouble observe (final String trackIdentity, final String targetIdentity, final boolean clipPlaying, final TransportClock transport, final double playStart, final double loopStart, final double loopLength, final boolean loopEnabled)
     {
         if (!trackIdentity.equals (this.trackIdentity) || !targetIdentity.equals (this.targetIdentity) || clipPlaying != this.playing)
-            this.observePlayback (trackIdentity, targetIdentity, clipPlaying, transportPosition, playStart);
+            this.observePlayback (trackIdentity, targetIdentity, clipPlaying, transport.position (), playStart);
 
-        if (this.anchored && clipPlaying && transportPlaying)
+        if (this.anchored && clipPlaying && transport.playing ())
         {
-            final double elapsed = transportPosition - this.lastTransportPosition;
-            if (elapsed < -POSITION_EPSILON)
+            final OptionalDouble elapsed = elapsedBeats (this.lastTransportPosition, transport);
+            if (elapsed.isEmpty ())
                 this.anchored = false;
-            else if (elapsed > 0)
-                this.clipPosition = advance (this.clipPosition, elapsed, loopStart, loopLength, loopEnabled);
+            else if (elapsed.getAsDouble () > 0)
+                this.clipPosition = advance (this.clipPosition, elapsed.getAsDouble (), loopStart, loopLength, loopEnabled);
         }
-        this.lastTransportPosition = transportPosition;
+        this.lastTransportPosition = transport.position ();
 
         return this.anchored ? OptionalDouble.of (this.clipPosition) : OptionalDouble.empty ();
     }
@@ -143,6 +147,21 @@ final class ClipPlaybackPositionTracker
         if (!loopEnabled || advanced < loopEnd)
             return advanced;
         return loopStart + positiveRemainder (advanced - loopStart, loopLength);
+    }
+
+
+    private static OptionalDouble elapsedBeats (final double previousPosition, final TransportClock transport)
+    {
+        final double elapsed = transport.position () - previousPosition;
+        if (elapsed >= -POSITION_EPSILON)
+            return OptionalDouble.of (Math.max (0, elapsed));
+
+        final double loopStart = transport.loopStart ();
+        final double loopEnd = transport.loopEnd ();
+        if (!transport.loopEnabled () || !Double.isFinite (loopStart) || !Double.isFinite (loopEnd) || loopEnd <= loopStart || previousPosition < loopEnd - MAX_LOOP_WRAP_SAMPLE_DISTANCE || previousPosition > loopEnd + POSITION_EPSILON || transport.position () < loopStart - POSITION_EPSILON || transport.position () > loopStart + MAX_LOOP_WRAP_SAMPLE_DISTANCE)
+            return OptionalDouble.empty ();
+
+        return OptionalDouble.of ((loopEnd - previousPosition) + (transport.position () - loopStart));
     }
 
 
