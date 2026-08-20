@@ -15,6 +15,7 @@ import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.color.ColorManager;
 import de.mossgrabers.framework.controller.hardware.BindType;
 import de.mossgrabers.framework.daw.IHost;
+import de.mossgrabers.framework.daw.ITransport;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.midi.DeviceInquiry;
 import de.mossgrabers.framework.daw.midi.IMidiInput;
@@ -351,6 +352,7 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
     private final ControllerWorkspaceHost      controllerWorkspaceHost;
     private final PushDebugSurfaceHost         debugSurfaceHost;
     private SessionBankRegistry                 sessionBankRegistry;
+    private ITransport                          debugTransport;
     private final ISelectedTrackNoteTarget    selectedTrackNoteTarget;
     private final ITrack                      drumModelTrack;
     private final BooleanSupplier             drumModelDeviceReady;
@@ -442,7 +444,11 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
     {
         super.internalFlushHandler ();
         if (this.debugSurfaceHost != null)
+        {
             this.debugSurfaceHost.observePressed (this.getButtons ());
+            if (this.debugTransport != null)
+                this.debugSurfaceHost.observeClock (this.debugTransport.isPlaying (), this.debugTransport.getTempo (), this.debugTransport.getPosition (), System.currentTimeMillis ());
+        }
     }
 
 
@@ -630,6 +636,19 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
         if (this.sessionBankRegistry != null)
             throw new IllegalStateException ("Session-bank registry is already installed");
         this.sessionBankRegistry = Objects.requireNonNull (sessionBankRegistry, "sessionBankRegistry");
+    }
+
+
+    /**
+     * Supply the existing Bitwig transport to the opt-in visual debugger clock.
+     *
+     * @param transport Transport model
+     */
+    public void setDebugTransport (final ITransport transport)
+    {
+        if (this.debugTransport != null)
+            throw new IllegalStateException ("Debug transport is already installed");
+        this.debugTransport = Objects.requireNonNull (transport, "transport");
     }
 
 

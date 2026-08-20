@@ -47,4 +47,30 @@ class PushDebugSurfaceHostTest
         host.close ();
         assertTrue (Files.readString (statePath).contains ("\"connected\":false"));
     }
+
+
+    @Test
+    void publishesTheTransportClockAtBeatBoundariesAndCoalescesItsLatestSample (@TempDir final Path directory) throws IOException
+    {
+        final Path statePath = directory.resolve (PushDebugSurfaceHost.STATE_FILE);
+        final PushDebugSurfaceHost host = new PushDebugSurfaceHost (directory, null);
+        host.pollForTest ();
+
+        host.observeClock (true, 140, 12.125, 1_000);
+        host.pollForTest ();
+        assertTrue (Files.readString (statePath).contains ("\"clock\":{\"available\":true,\"playing\":true,\"tempo\":140.0,\"positionBeats\":12.125,\"sampledAtMillis\":1000}"));
+
+        host.observeClock (true, 140, 12.75, 1_250);
+        host.pollForTest ();
+        assertTrue (Files.readString (statePath).contains ("\"positionBeats\":12.125"), "sub-beat samples do not create standalone filesystem writes");
+
+        host.observeButton (ButtonID.PLAY, 21, ColorEx.fromRGB (0, 255, 96));
+        host.pollForTest ();
+        assertTrue (Files.readString (statePath).contains ("\"positionBeats\":12.75"), "another output publication carries the freshest clock sample");
+
+        host.observeClock (true, 140, 13, 1_500);
+        host.pollForTest ();
+        assertTrue (Files.readString (statePath).contains ("\"positionBeats\":13.0"));
+        host.close ();
+    }
 }

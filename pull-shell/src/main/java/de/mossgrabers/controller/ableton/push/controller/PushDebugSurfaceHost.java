@@ -50,8 +50,10 @@ final class PushDebugSurfaceHost implements AutoCloseable
     private final AtomicBoolean                 drainScheduled = new AtomicBoolean ();
     private final AtomicBoolean                 closed = new AtomicBoolean ();
 
+    private ClockState clock = ClockState.unavailable ();
     private long revision;
     private long inputEventSequence;
+    private long publishedClockBeat = Long.MIN_VALUE;
 
 
     static PushDebugSurfaceHost createIfEnabled ()
@@ -119,6 +121,23 @@ final class PushDebugSurfaceHost implements AutoCloseable
     }
 
 
+    /** Observe Bitwig's transport clock without publishing more than once per beat. */
+    void observeClock (final boolean playing, final double tempo, final double positionBeats, final long sampledAtMillis)
+    {
+        if (this.closed.get () || !Double.isFinite (tempo) || tempo <= 0 || !Double.isFinite (positionBeats) || positionBeats < 0 || sampledAtMillis < 0)
+            return;
+
+        final ClockState previous = this.clock;
+        final ClockState next = new ClockState (true, playing, tempo, positionBeats, sampledAtMillis);
+        final long beat = (long) Math.floor (positionBeats);
+        this.clock = next;
+        if (previous.available () && previous.playing () == playing && Double.compare (previous.tempo (), tempo) == 0 && beat == this.publishedClockBeat)
+            return;
+        this.publishedClockBeat = beat;
+        this.publish (true);
+    }
+
+
     /** Retain one successful debugger injection even when adjacent samples share one tick. */
     void observeDebugInput (final ControlId control, final InputKind kind, final InputPhase phase, final long value)
     {
@@ -164,6 +183,7 @@ final class PushDebugSurfaceHost implements AutoCloseable
         this.pending.set (new Snapshot (
             ++this.revision,
             connected,
+            this.clock,
             new TreeMap<> (this.lights),
             Set.copyOf (this.pressed),
             new ArrayList<> (this.inputEvents)));
@@ -214,6 +234,12 @@ final class PushDebugSurfaceHost implements AutoCloseable
         final StringBuilder json = new StringBuilder (16_384);
         json.append ("{\"connected\":").append (snapshot.connected ());
         json.append (",\"revision\":").append (snapshot.revision ());
+        final ClockState clock = snapshot.clock ();
+        json.append (",\"clock\":{\"available\":").append (clock.available ());
+        json.append (",\"playing\":").append (clock.playing ());
+        json.append (",\"tempo\":").append (clock.tempo ());
+        json.append (",\"positionBeats\":").append (clock.positionBeats ());
+        json.append (",\"sampledAtMillis\":").append (clock.sampledAtMillis ()).append ('}');
         json.append (",\"lights\":{");
         boolean first = true;
         for (final Map.Entry<String, LightState> entry: snapshot.lights ().entrySet ())
@@ -293,6 +319,7 @@ final class PushDebugSurfaceHost implements AutoCloseable
         this.pending.set (new Snapshot (
             ++this.revision,
             false,
+            this.clock,
             new TreeMap<> (this.lights),
             Set.of (),
             new ArrayList<> (this.inputEvents)));
@@ -309,7 +336,16 @@ final class PushDebugSurfaceHost implements AutoCloseable
     }
 
 
-    private record Snapshot (long revision, boolean connected, Map<String, LightState> lights, Set<String> pressed, Collection<InputEvent> inputEvents)
+    private record ClockState (boolean available, boolean playing, double tempo, double positionBeats, long sampledAtMillis)
+    {
+        private static ClockState unavailable ()
+        {
+            return new ClockState (false, false, 0, 0, 0);
+        }
+    }
+
+
+    private record Snapshot (long revision, boolean connected, ClockState clock, Map<String, LightState> lights, Set<String> pressed, Collection<InputEvent> inputEvents)
     {
     }
 }

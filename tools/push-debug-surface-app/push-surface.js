@@ -10,6 +10,7 @@
     const pressureSlider = document.querySelector("#pressure-slider");
     const pressureValue = document.querySelector("#pressure-value");
     const pressureTarget = document.querySelector("#pressure-target");
+    const DEFAULT_BLINK_TEMPO = 120;
     const activePointers = new Map();
     const activeInjectedEdges = new Map();
     const pendingRelative = new Map();
@@ -27,7 +28,14 @@
         displayObjectUrl: "",
         pendingDisplay: null,
         stateFetchActive: false,
-        stateFetchPending: false
+        stateFetchPending: false,
+        blinkClock: {
+            available: false,
+            playing: false,
+            tempo: DEFAULT_BLINK_TEMPO,
+            positionBeats: 0,
+            sampledAtMillis: Date.now()
+        }
     };
     let activeEncoderDrag = null;
     let inputRequestChain = Promise.resolve();
@@ -750,9 +758,40 @@
         return typeof rgb === "string" && /^[0-9A-Fa-f]{6}$/.test(rgb) ? `#${rgb}` : null;
     }
 
+    function applyBlinkClock(clock) {
+        if (!clock || !clock.available)
+            return;
+        const tempo = Number(clock.tempo);
+        const positionBeats = Number(clock.positionBeats);
+        const sampledAtMillis = Number(clock.sampledAtMillis);
+        if (!Number.isFinite(tempo) || tempo <= 0 || !Number.isFinite(positionBeats) || positionBeats < 0 || !Number.isFinite(sampledAtMillis) || sampledAtMillis < 0)
+            return;
+        liveState.blinkClock = {
+            available: true,
+            playing: Boolean(clock.playing),
+            tempo,
+            positionBeats,
+            sampledAtMillis
+        };
+        document.documentElement.dataset.blinkTempo = String(tempo);
+        document.documentElement.dataset.clockPlaying = String(Boolean(clock.playing));
+    }
+
+    function renderBlinkClock() {
+        const clock = liveState.blinkClock;
+        const elapsedMillis = Math.max(0, Date.now() - clock.sampledAtMillis);
+        const positionBeats = clock.positionBeats + elapsedMillis * clock.tempo / 60_000;
+        const root = document.documentElement;
+        root.dataset.slowBlinkPhase = positionBeats % 2 >= 1 ? "alternate" : "primary";
+        root.dataset.fastBlinkPhase = positionBeats % 1 >= 0.5 ? "alternate" : "primary";
+        window.requestAnimationFrame(renderBlinkClock);
+    }
+
     function applyDebugState(state) {
         if (!state || typeof state !== "object")
             return;
+
+        applyBlinkClock(state.clock);
 
         const input = state.input && typeof state.input === "object" ? state.input : {};
         liveState.inputSession = input.connected && typeof input.session === "string" ? input.session : "";
@@ -822,8 +861,9 @@
         liveState.revision = Number(state.revision ?? liveState.revision);
         if (performance.now() - liveState.lastInputAt > 1200) {
             const lightCount = Object.keys(lights).length;
+            const tempo = liveState.blinkClock.available ? ` · ${Math.round(liveState.blinkClock.tempo)} BPM` : "";
             status.textContent = state.connected
-                ? `Live · output ${liveState.revision} · ${lightCount} lights · input ${liveState.inputSession ? "ready" : "off"}`
+                ? `Live · output ${liveState.revision} · ${lightCount} lights${tempo} · input ${liveState.inputSession ? "ready" : "off"}`
                 : displayRevision >= 0
                     ? "Live display · lights and input unavailable"
                     : "Waiting for Bitwig debug output";
@@ -895,5 +935,6 @@
             queueDebugInput(address, "TOUCH", "KEEPALIVE", 0);
     }, 1000);
 
+    renderBlinkClock();
     startLiveUpdates();
 })();

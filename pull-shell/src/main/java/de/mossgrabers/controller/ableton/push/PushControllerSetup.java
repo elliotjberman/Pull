@@ -272,6 +272,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         }, this.reloadableRuntime);
         this.surface = surface;
         surface.setSessionBankRegistry (this.sessionBankRegistry);
+        surface.setDebugTransport (this.model.getTransport ());
         this.reloadableRuntime.connect (this.model, selectedTrackNoteTarget, input::sendRawMidiEvent, surface, this.valueChanger);
 
         surface.addGraphicsDisplay (new Push2Display (this.host, this.valueChanger.getUpperBound (), this.configuration, this.reloadableRuntime::controllerDisplay, this.reloadableRuntime::displayOverlay));

@@ -84,6 +84,10 @@ All 64 pads, physical buttons, continuous controls, and the display have the sam
 shown with its resolved Push palette RGB, pad blink color, and blink rate. Debugger-generated
 button and pad edges pulse even when their DOWN/UP pair completes inside one controller tick;
 longer physical holds remain visibly pressed. The existing `latest.png` stream fills the display.
+While debugging is enabled, the surface also publishes the existing Bitwig transport tempo and a
+beat-position sample at most once per beat. The browser extrapolates that bounded clock locally so
+slow and fast pad blinks remain BPM-linked without adding MIDI-clock injection or controller-thread
+browser work.
 
 When the page reports `input ready`, clicking a button or pad submits its DOWN/UP pair through the
 same permanent hardware object and input arbitrator as Push. A pad also submits the matching raw
