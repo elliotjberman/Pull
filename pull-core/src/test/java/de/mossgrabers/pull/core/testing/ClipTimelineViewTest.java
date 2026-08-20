@@ -37,6 +37,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalDouble;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -54,7 +55,7 @@ class ClipTimelineViewTest
 
 
     @Test
-    void ownsTheCompleteSurfaceAndRendersAuthoritativeRangeWithSharedPlayingBlink ()
+    void ownsTheCompleteSurfaceAndBlinksOnlyTheCurrentTimelineStep ()
     {
         final CompiledWorkspace workspace = workspace (new ClipTimelineState (0));
         final var result = workspace.start (snapshot (timeline (BLUE)));
@@ -69,10 +70,9 @@ class ClipTimelineViewTest
         assertEquals (BLUE, playing.color ());
         assertEquals (GREEN, playing.blinkColor ());
         assertEquals (LightBlinkRate.SLOW, playing.blinkRate ());
-        final ControllerLight playingEnd = result.desiredOutput ().lights ().get (PushControlIds.pad (58));
-        assertEquals (BLUE, playingEnd.color ());
-        assertEquals (GREEN, playingEnd.blinkColor ());
-        assertEquals (LightBlinkRate.SLOW, playingEnd.blinkRate ());
+        final ControllerLight selectedEnd = result.desiredOutput ().lights ().get (PushControlIds.pad (58));
+        assertEquals (BLUE, selectedEnd.color ());
+        assertEquals (LightBlinkRate.NONE, selectedEnd.blinkRate ());
         assertEquals (WHITE, result.desiredOutput ().lights ().get (PushControlIds.pad (59)).color ());
         assertEquals (BLACK, result.desiredOutput ().lights ().get (PushControlIds.pad (61)).color ());
     }
@@ -86,6 +86,17 @@ class ClipTimelineViewTest
 
         assertEquals (bitwigLightGray, result.desiredOutput ().lights ().get (PushControlIds.pad (58)).color ());
         assertEquals (BLACK, result.desiredOutput ().lights ().get (PushControlIds.pad (59)).color ());
+    }
+
+
+    @Test
+    void playbackPositionMovesTheSingleBlinkingPad ()
+    {
+        final ClipTimelineSnapshot secondStep = new ClipTimelineSnapshot (Optional.of (TARGET), 0, 8, 16, OptionalDouble.of (4), BLUE);
+        final Map<ControlId, ControllerLight> lights = workspace (new ClipTimelineState (0)).start (snapshot (secondStep)).desiredOutput ().lights ();
+
+        assertEquals (LightBlinkRate.NONE, lights.get (PushControlIds.pad (57)).blinkRate ());
+        assertEquals (LightBlinkRate.SLOW, lights.get (PushControlIds.pad (58)).blinkRate ());
     }
 
 
@@ -122,7 +133,7 @@ class ClipTimelineViewTest
     void stoppedRangeAndPaddingStaySteady ()
     {
         final CompiledWorkspace workspace = workspace (new ClipTimelineState (0));
-        final ClipTimelineSnapshot stopped = new ClipTimelineSnapshot (Optional.of (TARGET), 0, 8, 16, false, BLUE);
+        final ClipTimelineSnapshot stopped = new ClipTimelineSnapshot (Optional.of (TARGET), 0, 8, 16, OptionalDouble.empty (), BLUE);
         final Map<ControlId, ControllerLight> lights = workspace.start (snapshot (stopped)).desiredOutput ().lights ();
 
         assertEquals (LightBlinkRate.NONE, lights.get (PushControlIds.pad (57)).blinkRate ());
@@ -158,7 +169,7 @@ class ClipTimelineViewTest
         workspace.start (first);
         workspace.handle (pad (1, PushControlIds.pad (57), InputPhase.BEGIN), first);
 
-        final ClipTimelineSnapshot replacement = new ClipTimelineSnapshot (Optional.of (new ClipTimelineTarget (5, 8, "track-b", 1)), 0, 8, 16, false, BLUE);
+        final ClipTimelineSnapshot replacement = new ClipTimelineSnapshot (Optional.of (new ClipTimelineTarget (5, 8, "track-b", 1)), 0, 8, 16, OptionalDouble.empty (), BLUE);
         final var result = workspace.handle (pad (2, PushControlIds.pad (57), InputPhase.END), snapshot (replacement));
 
         assertTrue (result.effects ().isEmpty ());
@@ -173,7 +184,7 @@ class ClipTimelineViewTest
 
     private static ClipTimelineSnapshot timeline (final RgbColor color)
     {
-        return new ClipTimelineSnapshot (Optional.of (TARGET), 0, 8, 16, true, color);
+        return new ClipTimelineSnapshot (Optional.of (TARGET), 0, 8, 16, OptionalDouble.of (0), color);
     }
 
 

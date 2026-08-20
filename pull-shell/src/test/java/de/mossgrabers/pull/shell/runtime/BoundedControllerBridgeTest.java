@@ -165,7 +165,7 @@ class BoundedControllerBridgeTest
         assertEquals ("track-a", fixture.bridge.snapshot ().clipTimeline ().target ().orElseThrow ().trackId ());
         assertEquals (2, fixture.bridge.snapshot ().clipTimeline ().target ().orElseThrow ().sceneIndex ());
         assertEquals (16, fixture.bridge.snapshot ().clipTimeline ().selectableEnd ());
-        assertTrue (fixture.bridge.snapshot ().clipTimeline ().playing ());
+        assertTrue (fixture.bridge.snapshot ().clipTimeline ().playbackPosition ().isEmpty ());
 
         fixture.clip.trackID = "pinned-track";
         fixture.bridge.refresh (2, subscriptions (BridgeSubscription.CLIP_TIMELINE), DesiredParameterBanks.empty ());
@@ -173,6 +173,29 @@ class BoundedControllerBridgeTest
 
         fixture.bridge.refresh (3, DesiredBridgeSubscriptions.empty (), DesiredParameterBanks.empty ());
         assertEquals (de.mossgrabers.pull.core.api.ClipTimelineSnapshot.empty (), fixture.bridge.snapshot ().clipTimeline ());
+    }
+
+
+    @Test
+    void clipTimelinePublishesPositionOnlyAfterObservedLaunchAndAdvancesFromTransportReadback ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.selected.canHoldAudio = true;
+        fixture.clip.playing = false;
+        fixture.transport.playing = true;
+        fixture.transport.position = 16;
+        final DesiredBridgeSubscriptions requested = subscriptions (BridgeSubscription.CLIP_TIMELINE, BridgeSubscription.TRANSPORT);
+
+        fixture.bridge.refresh (1, requested, DesiredParameterBanks.empty ());
+        assertTrue (fixture.bridge.snapshot ().clipTimeline ().playbackPosition ().isEmpty ());
+
+        fixture.clip.playing = true;
+        fixture.bridge.refresh (50_000_001, requested, DesiredParameterBanks.empty ());
+        assertEquals (0, fixture.bridge.snapshot ().clipTimeline ().playbackPosition ().orElseThrow ());
+
+        fixture.transport.position = 20;
+        fixture.bridge.refresh (100_000_002, requested, DesiredParameterBanks.empty ());
+        assertEquals (4, fixture.bridge.snapshot ().clipTimeline ().playbackPosition ().orElseThrow ());
     }
 
 
@@ -955,6 +978,7 @@ class BoundedControllerBridgeTest
         private boolean arrangerOverdub;
         private boolean playing;
         private double tempo = 120;
+        private double position = 16;
         private int snapshotReadCount;
         private int playCount;
         private int stopCount;
@@ -985,7 +1009,7 @@ class BoundedControllerBridgeTest
                         return Double.valueOf (this.tempo);
                     case "getPosition":
                         this.snapshotReadCount++;
-                        return Double.valueOf (16.0);
+                        return Double.valueOf (this.position);
                     case "getNumerator":
                         this.snapshotReadCount++;
                         return Integer.valueOf (4);
@@ -1112,6 +1136,8 @@ class BoundedControllerBridgeTest
         private int sceneIndex = 2;
         private boolean exists = true;
         private boolean playing = true;
+        private double playStart;
+        private boolean loopEnabled = true;
         private int requestedSteps;
         private int requestedRows;
         private double loopLength = 8;
@@ -1130,7 +1156,9 @@ class BoundedControllerBridgeTest
                 case "isPlaying" -> Boolean.valueOf (this.playing);
                 case "getLoopStart" -> Double.valueOf (0);
                 case "getLoopLength" -> Double.valueOf (this.loopLength);
+                case "getPlayStart" -> Double.valueOf (this.playStart);
                 case "getPlayEnd" -> Double.valueOf (this.playEnd);
+                case "isLoopEnabled" -> Boolean.valueOf (this.loopEnabled);
                 case "getStepLength" -> Double.valueOf (this.stepLength);
                 case "getColor" -> ColorEx.BLUE;
                 case "setStepLength" -> {

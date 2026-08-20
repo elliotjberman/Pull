@@ -7,6 +7,7 @@ import de.mossgrabers.pull.core.api.output.RgbColor;
 
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalDouble;
 
 
 /**
@@ -16,18 +17,19 @@ import java.util.Optional;
  * @param loopStart Loop start in quarter-note beats
  * @param loopLength Loop length in quarter-note beats
  * @param selectableEnd Exclusive end of the observed selectable clip extent in quarter-note beats
- * @param playing True while the represented launcher clip is authoritatively playing
+ * @param playbackPosition Tracked clip position in quarter-note beats while playback phase is known
  * @param color Bitwig clip color
  */
-public record ClipTimelineSnapshot (Optional<ClipTimelineTarget> target, double loopStart, double loopLength, double selectableEnd, boolean playing, RgbColor color)
+public record ClipTimelineSnapshot (Optional<ClipTimelineTarget> target, double loopStart, double loopLength, double selectableEnd, OptionalDouble playbackPosition, RgbColor color)
 {
-    private static final ClipTimelineSnapshot EMPTY = new ClipTimelineSnapshot (Optional.empty (), 0, 0, 0, false, new RgbColor (0, 0, 0));
+    private static final ClipTimelineSnapshot EMPTY = new ClipTimelineSnapshot (Optional.empty (), 0, 0, 0, OptionalDouble.empty (), new RgbColor (0, 0, 0));
 
 
     /** Validate immutable clip state. */
     public ClipTimelineSnapshot
     {
         target = Objects.requireNonNull (target, "target");
+        playbackPosition = Objects.requireNonNull (playbackPosition, "playbackPosition");
         if (!Double.isFinite (loopStart))
             throw new IllegalArgumentException ("loopStart must be finite");
         requireFiniteNonNegative (loopLength, "loopLength");
@@ -41,8 +43,10 @@ public record ClipTimelineSnapshot (Optional<ClipTimelineTarget> target, double 
             if (!Double.isFinite (loopEnd) || selectableEnd < loopEnd)
                 throw new IllegalArgumentException ("selectableEnd must contain the loop range");
         }
-        else if (playing)
-            throw new IllegalArgumentException ("unavailable clip timeline cannot be playing");
+        else if (playbackPosition.isPresent ())
+            throw new IllegalArgumentException ("unavailable clip timeline cannot have playback position");
+        if (playbackPosition.isPresent () && !Double.isFinite (playbackPosition.getAsDouble ()))
+            throw new IllegalArgumentException ("playbackPosition must be finite");
     }
 
 

@@ -85,6 +85,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalDouble;
 import java.util.function.BooleanSupplier;
 
 
@@ -120,6 +121,7 @@ final class BoundedControllerBridge implements ControllerBridge
     private final ControllerStateHost controllerState;
     private final ControllerMappingHost controllerMappings;
     private final SessionBankHost sessionBank;
+    private final ClipPlaybackPositionTracker clipPlaybackPosition = new ClipPlaybackPositionTracker ();
     private final Map<MidiStateKey, MidiState> noteInputMidiState = new HashMap<> ();
 
     private ControllerBridgeSnapshot snapshot = ControllerBridgeSnapshot.empty ();
@@ -210,7 +212,7 @@ final class BoundedControllerBridge implements ControllerBridge
         final ControllerLayoutSnapshot layout = requested.includes (BridgeSubscription.CONTROLLER_LAYOUT) ? this.captureLayout () : ControllerLayoutSnapshot.empty ();
         final ClipTimelineSnapshot clipTimeline;
         if (clipTimelineRequested)
-            clipTimeline = this.captureClipTimeline (selectedState);
+            clipTimeline = this.captureClipTimeline (selectedState, transportState);
         else
         {
             clipTimeline = ClipTimelineSnapshot.empty ();
@@ -668,7 +670,7 @@ final class BoundedControllerBridge implements ControllerBridge
     }
 
 
-    private ClipTimelineSnapshot captureClipTimeline (final SelectedTrackNoteTargetSnapshot selected)
+    private ClipTimelineSnapshot captureClipTimeline (final SelectedTrackNoteTargetSnapshot selected, final TransportSnapshot transportState)
     {
         final INoteClip clip = this.clipTimelineClip;
         final String trackID = valueOrEmpty (clip.getTrackId ());
@@ -682,15 +684,25 @@ final class BoundedControllerBridge implements ControllerBridge
 
         final double loopStart = clip.getLoopStart ();
         final double loopLength = clip.getLoopLength ();
+        final double playStart = clip.getPlayStart ();
         final double observedEnd = Math.max (clip.getPlayEnd (), loopStart + loopLength);
-        if (!Double.isFinite (loopStart) || !Double.isFinite (loopLength) || loopLength <= 0 || !Double.isFinite (observedEnd) || observedEnd <= 0)
+        if (!Double.isFinite (playStart) || !Double.isFinite (loopStart) || !Double.isFinite (loopLength) || loopLength <= 0 || !Double.isFinite (observedEnd) || observedEnd <= 0)
         {
             this.invalidateClipTimelineTarget ();
             return ClipTimelineSnapshot.empty ();
         }
         this.clipTimelineSelectableEnd = Math.max (this.clipTimelineSelectableEnd, observedEnd);
         final ClipTimelineTarget target = new ClipTimelineTarget (this.clipTimelineGeneration, selected.generation (), trackID, sceneIndex);
-        return new ClipTimelineSnapshot (java.util.Optional.of (target), loopStart, loopLength, this.clipTimelineSelectableEnd, clip.isPlaying (), toRgb (clip.getColor ()));
+        final OptionalDouble playbackPosition = this.clipPlaybackPosition.observe (
+            selected.generation () + "|" + trackID + "|" + sceneIndex,
+            clip.isPlaying (),
+            transportState.playing (),
+            transportState.positionBeats (),
+            playStart,
+            loopStart,
+            loopLength,
+            clip.isLoopEnabled ());
+        return new ClipTimelineSnapshot (java.util.Optional.of (target), loopStart, loopLength, this.clipTimelineSelectableEnd, playbackPosition, toRgb (clip.getColor ()));
     }
 
 
@@ -698,6 +710,7 @@ final class BoundedControllerBridge implements ControllerBridge
     {
         if (identity.equals (this.clipTimelineTargetIdentity))
             return;
+        this.clipPlaybackPosition.reset ();
         this.clipTimelineTargetIdentity = identity;
         this.clipTimelineGeneration = Math.incrementExact (this.clipTimelineGeneration);
     }
@@ -1223,6 +1236,7 @@ final class BoundedControllerBridge implements ControllerBridge
 
     private void invalidateClipTimelineTarget ()
     {
+        this.clipPlaybackPosition.reset ();
         if (this.clipTimelineTargetIdentity.isEmpty ())
             return;
         this.clipTimelineTargetIdentity = "";

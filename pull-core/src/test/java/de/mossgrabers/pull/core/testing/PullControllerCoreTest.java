@@ -96,6 +96,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalDouble;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -2451,7 +2452,7 @@ class PullControllerCoreTest
             transport (true, true, false),
             selectedTrack (false),
             new ControllerLayoutSnapshot (1, "CLIP_LENGTH", "TRACK", false, false, 0, GridPressureConfiguration.OFF),
-            new ClipTimelineSnapshot (Optional.of (target), 0, 8, 16, true, color),
+            new ClipTimelineSnapshot (Optional.of (target), 0, 8, 16, OptionalDouble.of (0), color),
             DrumContextSnapshot.empty (),
             ParameterBridgeSnapshot.empty (),
             MasterSnapshot.empty (),
