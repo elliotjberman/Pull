@@ -25,6 +25,7 @@ public final class SessionBankRegistry
     private final SessionBankShape defaultShape;
 
     private ITrackBank activeBank;
+    private SessionBankShape activeShape;
 
 
     /**
@@ -50,6 +51,7 @@ public final class SessionBankRegistry
         }
         this.banks = Map.copyOf (resolved);
         this.activeBank = this.requireBank (defaultShape);
+        this.activeShape = defaultShape;
         this.model.setCurrentMainTrackBank (this.activeBank);
         this.activeBank.setIndication (true);
     }
@@ -65,6 +67,7 @@ public final class SessionBankRegistry
         final ITrackBank nextBank = this.requireBank (shape);
         if (nextBank == this.activeBank)
         {
+            this.activeShape = shape;
             this.model.setCurrentMainTrackBank (nextBank);
             return;
         }
@@ -80,6 +83,7 @@ public final class SessionBankRegistry
         this.activeBank.setIndication (false);
         nextBank.setIndication (true);
         this.activeBank = nextBank;
+        this.activeShape = shape;
         this.model.setCurrentMainTrackBank (nextBank);
     }
 
@@ -112,6 +116,20 @@ public final class SessionBankRegistry
     public Collection<ITrackBank> getBanks ()
     {
         return this.banks.values ();
+    }
+
+
+    /** Get the currently selected bounded Session bank. */
+    public ITrackBank getActiveBank ()
+    {
+        return this.activeBank;
+    }
+
+
+    /** Get the shape identifying the active bounded Session bank. */
+    public SessionBankShape getActiveShape ()
+    {
+        return this.activeShape;
     }
 
 

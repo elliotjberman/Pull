@@ -18,6 +18,16 @@ import org.junit.jupiter.api.Test;
 class PushControlSurfaceRoutingTest
 {
     @Test
+    void migratedTrackStateButtonsAreInvisibleToStableModifierHandlers ()
+    {
+        assertFalse (PushControlSurface.stableButtonStateVisible (ButtonID.MUTE));
+        assertFalse (PushControlSurface.stableButtonStateVisible (ButtonID.SOLO));
+        assertTrue (PushControlSurface.stableButtonStateVisible (ButtonID.STOP_CLIP));
+        assertTrue (PushControlSurface.stableButtonStateVisible (ButtonID.SELECT));
+    }
+
+
+    @Test
     void targetApplicabilityRequiresAllAuthoritativeCapabilities ()
     {
         assertFalse (PushControlSurface.isDrumTargetCapable (false, false, false));

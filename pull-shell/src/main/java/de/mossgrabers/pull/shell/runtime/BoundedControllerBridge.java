@@ -7,6 +7,7 @@ package de.mossgrabers.pull.shell.runtime;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.command.trigger.clip.NewClipAction;
 import de.mossgrabers.framework.configuration.AbstractConfiguration;
+import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.IModel;
@@ -21,6 +22,7 @@ import de.mossgrabers.framework.daw.midi.MidiShortCallback;
 import de.mossgrabers.framework.daw.midi.SelectedTrackMonitorMode;
 import de.mossgrabers.framework.daw.midi.SelectedTrackNoteTargetSnapshot;
 import de.mossgrabers.pull.core.api.BridgeSubscription;
+import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ControllerLayoutSnapshot;
 import de.mossgrabers.pull.core.api.ControllerNoteView;
@@ -39,18 +41,24 @@ import de.mossgrabers.pull.core.api.NoteViewSnapshot;
 import de.mossgrabers.pull.core.api.ParameterBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ParameterTargetRef;
 import de.mossgrabers.pull.core.api.ProjectSnapshot;
+import de.mossgrabers.pull.core.api.PushControlIds;
+import de.mossgrabers.pull.core.api.SessionBankSnapshot;
 import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
 import de.mossgrabers.pull.core.api.TrackMonitorMode;
 import de.mossgrabers.pull.core.api.TransportSnapshot;
 import de.mossgrabers.pull.core.api.ControllerMappingFeedbackSnapshot;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
+import de.mossgrabers.pull.core.api.effect.ConsumeControllerButtonEffect;
 import de.mossgrabers.pull.core.api.effect.AdjustParameterValueEffect;
 import de.mossgrabers.pull.core.api.effect.ResetParameterEffect;
 import de.mossgrabers.pull.core.api.effect.DrumPadBoolean;
 import de.mossgrabers.pull.core.api.effect.DrumPadValue;
 import de.mossgrabers.pull.core.api.effect.SelectDrumPadEffect;
+import de.mossgrabers.pull.core.api.effect.SelectSessionTrackEffect;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackAction;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackActionEffect;
+import de.mossgrabers.pull.core.api.effect.StopSessionBankEffect;
+import de.mossgrabers.pull.core.api.effect.StopSessionTrackEffect;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackBoolean;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackValue;
 import de.mossgrabers.pull.core.api.effect.SendNoteInputMidiEffect;
@@ -85,10 +93,11 @@ import java.util.function.BooleanSupplier;
  */
 final class BoundedControllerBridge implements ControllerBridge
 {
-    static final int DRUM_PAD_CAPACITY = 64;
+    static final int DRUM_PAD_CAPACITY = 16;
 
     private static final long TRANSPORT_POSITION_SAMPLE_NANOS = 50_000_000L;
     private static final long DRUM_SAMPLE_NANOS = 33_000_000L;
+    private static final Map<ControlId, ButtonID> CONSUMABLE_BUTTONS = consumableButtons ();
 
     private final IModel model;
     private final ITransport transport;
@@ -102,6 +111,7 @@ final class BoundedControllerBridge implements ControllerBridge
     private final MasterCommandHost masterCommands;
     private final ControllerStateHost controllerState;
     private final ControllerMappingHost controllerMappings;
+    private final SessionBankHost sessionBank;
     private final Map<MidiStateKey, MidiState> noteInputMidiState = new HashMap<> ();
 
     private ControllerBridgeSnapshot snapshot = ControllerBridgeSnapshot.empty ();
@@ -140,6 +150,7 @@ final class BoundedControllerBridge implements ControllerBridge
         this.masterCommands = new MasterCommandHost (model, log);
         this.controllerState = new ControllerStateHost (selectedTarget, surface.getControllerWorkspaceHost (), this::resetNoteInputMidiState);
         this.controllerMappings = controllerMappings;
+        this.sessionBank = new SessionBankHost (surface.getSessionBankRegistry ());
     }
 
 
@@ -167,6 +178,10 @@ final class BoundedControllerBridge implements ControllerBridge
         final boolean noteViewRequested = requested.includes (BridgeSubscription.NOTE_VIEW);
         final SelectedTrackNoteTargetSnapshot selectedState = selectedRequested || drumRequested || noteViewRequested ? this.selectedTarget.snapshot () : null;
         final SelectedTrackSnapshot selected = selectedRequested ? toApiSnapshot (selectedState) : SelectedTrackSnapshot.empty ();
+        final boolean sessionBankRequested = requested.includes (BridgeSubscription.SESSION_BANK);
+        if (sessionBankRequested)
+            this.sessionBank.refresh ();
+        final SessionBankSnapshot sessionBankState = sessionBankRequested ? this.sessionBank.snapshot () : SessionBankSnapshot.empty ();
 
         final TransportSnapshot transportState;
         if (requested.includes (BridgeSubscription.TRANSPORT))
@@ -205,7 +220,7 @@ final class BoundedControllerBridge implements ControllerBridge
         this.masterCommands.refresh (masterRequested, projectRequested);
         final MasterSnapshot master = masterRequested ? this.masterCommands.snapshot () : MasterSnapshot.empty ();
         final ProjectSnapshot project = projectRequested ? this.masterCommands.projectSnapshot () : ProjectSnapshot.empty ();
-        final ControllerBridgeSnapshot refreshed = new ControllerBridgeSnapshot (transportState, selected, layout, noteView, noteRepeat, this.drumSnapshot, parameters, controllerMappingFeedback, master, project);
+        final ControllerBridgeSnapshot refreshed = new ControllerBridgeSnapshot (transportState, selected, sessionBankState, layout, noteView, noteRepeat, this.drumSnapshot, parameters, controllerMappingFeedback, master, project);
         if (refreshed.equals (this.snapshot))
             return false;
 
@@ -318,6 +333,7 @@ final class BoundedControllerBridge implements ControllerBridge
         this.snapshot = new ControllerBridgeSnapshot (
             this.snapshot.transport (),
             this.snapshot.selectedTrack (),
+            this.snapshot.sessionBank (),
             this.snapshot.layout (),
             this.snapshot.noteView (),
             this.snapshot.noteRepeat (),
@@ -445,6 +461,19 @@ final class BoundedControllerBridge implements ControllerBridge
             this.requireSelectedTarget (action.targetGeneration (), action.channelId ());
             return new PreparedSelectedAction (action.targetGeneration (), action.channelId (), action.action ());
         }
+        if (effect instanceof final StopSessionBankEffect action)
+            return this.sessionBank.prepare (action);
+        if (effect instanceof final SelectSessionTrackEffect action)
+            return this.sessionBank.prepare (action);
+        if (effect instanceof final StopSessionTrackEffect action)
+            return this.sessionBank.prepare (action);
+        if (effect instanceof final ConsumeControllerButtonEffect consumption)
+        {
+            final ButtonID button = CONSUMABLE_BUTTONS.get (consumption.controlId ());
+            if (button == null)
+                throw new IllegalArgumentException ("Controller-button consumption is not installed for " + consumption.controlId ().value ());
+            return new PreparedControllerButtonConsumption (button);
+        }
         if (effect instanceof final SendNoteInputMidiEffect midi)
             return new PreparedNoteInputMidi (midi.status (), midi.data1 (), midi.data2 ());
         if (effect instanceof final SetNoteViewPreferenceEffect preference)
@@ -523,6 +552,14 @@ final class BoundedControllerBridge implements ControllerBridge
             this.applySelectedValue (value);
         else if (action instanceof final PreparedSelectedAction selectedAction)
             this.applySelectedAction (selectedAction);
+        else if (action instanceof final SessionBankHost.PreparedStop sessionAction)
+            this.sessionBank.apply (sessionAction);
+        else if (action instanceof final SessionBankHost.PreparedSelection sessionSelection)
+            this.sessionBank.apply (sessionSelection);
+        else if (action instanceof final SessionBankHost.PreparedTrackStop sessionTrackStop)
+            this.sessionBank.apply (sessionTrackStop);
+        else if (action instanceof final PreparedControllerButtonConsumption consumption)
+            this.surface.setTriggerConsumed (consumption.button ());
         else if (action instanceof final PreparedNoteInputMidi midi)
             this.applyNoteInputMidi (midi);
         else if (action instanceof final PreparedNoteViewPreference preference)
@@ -774,7 +811,7 @@ final class BoundedControllerBridge implements ControllerBridge
         final String targetID = selected.trackID ();
         final String modelTrackID = this.model.getCursorTrack ().getChannelID ();
         final boolean aligned = selected.exists () && !targetID.isBlank () && this.model.getCursorTrack ().doesExist () && targetID.equals (modelTrackID);
-        final IDrumDevice drum = this.model.getDrumDevice (DRUM_PAD_CAPACITY);
+        final IDrumDevice drum = this.model.getDrumDevice ();
         final boolean available = aligned && this.selectedTarget.hasDrumDevice () && drum.doesExist () && drum.hasDrumPads ();
         if (!available)
         {
@@ -862,7 +899,7 @@ final class BoundedControllerBridge implements ControllerBridge
         final DrumContextSnapshot drum = this.snapshot.drum ();
         if (!this.selectedTargetIsCurrent (drum.targetGeneration (), targetID) || !this.model.getCursorTrack ().doesExist () || !targetID.equals (this.model.getCursorTrack ().getChannelID ()) || !drum.available () || drum.generation () != generation || !targetID.equals (drum.targetChannelId ()) || padIndex < 0 || padIndex >= drum.pads ().size ())
             return null;
-        final IDrumDevice device = this.model.getDrumDevice (DRUM_PAD_CAPACITY);
+        final IDrumDevice device = this.model.getDrumDevice ();
         if (!device.doesExist () || !device.hasDrumPads () || !deviceID.equals (device.getID ()))
             return null;
         final IDrumPadBank bank = device.getDrumPadBank ();
@@ -922,6 +959,7 @@ final class BoundedControllerBridge implements ControllerBridge
         switch (request.action ())
         {
             case STOP -> this.selectedTarget.stop ();
+            case STOP_IMMEDIATELY -> this.selectedTarget.stopImmediately ();
             case RETURN_TO_ARRANGEMENT -> this.selectedTarget.returnToArrangement ();
             case CREATE_NEW_CLIP ->
             {
@@ -1193,6 +1231,24 @@ final class BoundedControllerBridge implements ControllerBridge
 
     private record PreparedSelectedAction (long generation, String channelID, SelectedTrackAction action) implements ControllerBridge.PreparedAction
     {
+    }
+
+
+    private record PreparedControllerButtonConsumption (ButtonID button) implements ControllerBridge.PreparedAction
+    {
+    }
+
+
+    private static Map<ControlId, ButtonID> consumableButtons ()
+    {
+        final Map<ControlId, ButtonID> buttons = new LinkedHashMap<> ();
+        buttons.put (PushControlIds.button (ButtonID.SELECT.name ()), ButtonID.SELECT);
+        for (int index = 0; index < 8; index++)
+        {
+            final ButtonID button = ButtonID.get (ButtonID.ROW1_1, index);
+            buttons.put (PushControlIds.button (button.name ()), button);
+        }
+        return Map.copyOf (buttons);
     }
 
 

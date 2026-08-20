@@ -23,22 +23,17 @@ public final class MasterWorkspace
     /**
      * Create a fresh Master workspace for one core generation.
      *
-     * @param selection Shared workspace selection
-     * @param background Workspace whose grid ownership remains active behind Master
+     * @param controllerViews Retained controller-level policy
+     * @param sessionBank Exact retained Session-bank shape
+     * @param backgroundViews Exact retained grid/note composition behind Master
+     * @param noteController Whether the selected Note controller remains active
      * @return Compiled Master page over the selected workspace grid
      */
-    public static CompiledWorkspace create (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator, final WorkspaceSelection.Id background)
+    public static CompiledWorkspace create (final ControllerLevelViews controllerViews, final SessionBankShape sessionBank, final List<? extends ControllerView> backgroundViews, final boolean noteController)
     {
         final List<ControllerView> views = new ArrayList<> ();
         views.add (new MasterControlView ());
-        final SessionBankShape sessionBank;
-        if (background == WorkspaceSelection.Id.VS_LIVE)
-        {
-            views.addAll (VsLiveWorkspace.gridViews ());
-            sessionBank = VsLiveWorkspace.SESSION_BANK;
-        }
-        else
-            sessionBank = SessionBankShape.empty ();
-        return CompiledWorkspace.compile ("Master", sessionBank, ControllerLevelViews.composeWithoutNoteController (selection, playbackCoordinator, views));
+        views.addAll (backgroundViews);
+        return CompiledWorkspace.compile ("Master", sessionBank, noteController ? controllerViews.compose (views) : controllerViews.composeWithoutNoteController (views));
     }
 }

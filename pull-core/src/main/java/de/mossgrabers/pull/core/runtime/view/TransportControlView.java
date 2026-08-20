@@ -6,6 +6,7 @@ package de.mossgrabers.pull.core.runtime.view;
 import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
+import de.mossgrabers.pull.core.api.ProjectSnapshot;
 import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
 import de.mossgrabers.pull.core.api.TransportSnapshot;
@@ -13,22 +14,24 @@ import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackAction;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackActionEffect;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackBoolean;
-import de.mossgrabers.pull.core.api.effect.SetSelectedTrackBooleanEffect;
-import de.mossgrabers.pull.core.api.effect.SetTransportStateEffect;
+import de.mossgrabers.pull.core.api.effect.SetProjectTransportStateEffect;
 import de.mossgrabers.pull.core.api.effect.TransportState;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
+import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.view.ControllerView;
 import de.mossgrabers.pull.core.view.SurfaceArea;
 import de.mossgrabers.pull.core.view.SurfaceClaim;
 import de.mossgrabers.pull.core.view.ViewProfile;
 import de.mossgrabers.pull.core.view.ViewOutput;
-import de.mossgrabers.pull.core.api.output.RgbColor;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 
@@ -59,11 +62,14 @@ public final class TransportControlView implements ControllerView
         BridgeSubscription.PROJECT);
 
     private final ProjectPlaybackCoordinator playbackCoordinator;
+    private final SelectedTrackBooleanToggles selectedTrackToggles;
+    private final AuthoritativeBooleanToggle<String> launcherOverdub = new AuthoritativeBooleanToggle<> ();
 
 
-    TransportControlView (final ProjectPlaybackCoordinator playbackCoordinator)
+    TransportControlView (final ProjectPlaybackCoordinator playbackCoordinator, final SelectedTrackBooleanToggles selectedTrackToggles)
     {
-        this.playbackCoordinator = java.util.Objects.requireNonNull (playbackCoordinator, "playbackCoordinator");
+        this.playbackCoordinator = Objects.requireNonNull (playbackCoordinator, "playbackCoordinator");
+        this.selectedTrackToggles = Objects.requireNonNull (selectedTrackToggles, "selectedTrackToggles");
     }
 
 
@@ -121,48 +127,52 @@ public final class TransportControlView implements ControllerView
     @Override
     public List<CoreEffect> handle (final CoreEvent event, final ControllerSnapshot snapshot)
     {
+        final List<CoreEffect> effects = new ArrayList<> ();
+        final boolean recordRelease = event instanceof final ControllerInputEvent input && isRecordRelease (input);
+        final boolean shiftedRecord = recordRelease && snapshot.pressedControls ().contains (SHIFT_BUTTON);
+        final boolean selectedRecord = recordRelease && snapshot.pressedControls ().contains (SELECT_BUTTON);
+        effects.addAll (this.selectedTrackToggles.update (
+            Set.of (SelectedTrackBoolean.RECORD_ARMED),
+            recordRelease && !shiftedRecord && !selectedRecord ? Optional.of (SelectedTrackBoolean.RECORD_ARMED) : Optional.empty (),
+            snapshot));
+        effects.addAll (this.updateLauncherOverdub (shiftedRecord, snapshot));
+
         if (event instanceof final ControllerInputEvent input)
         {
             if (isPlayPress (input))
-                return this.playbackCoordinator.playPressed (snapshot);
-            if (!isRecordRelease (input))
-                return List.of ();
-
-            return this.recordReleased (snapshot);
+                effects.addAll (this.playbackCoordinator.playPressed (snapshot));
+            else if (recordRelease && selectedRecord)
+            {
+                final SelectedTrackSnapshot selectedTrack = snapshot.bridge ().selectedTrack ();
+                if (selectedTrack.exists ())
+                    effects.add (new SelectedTrackActionEffect (selectedTrack.generation (), selectedTrack.channelId (), SelectedTrackAction.CREATE_NEW_CLIP));
+            }
         }
-
-        return List.of ();
-    }
-
-
-    private List<CoreEffect> recordReleased (final ControllerSnapshot snapshot)
-    {
-
-        if (snapshot.pressedControls ().contains (SHIFT_BUTTON))
-        {
-            if (!snapshot.bridge ().transport ().available ())
-                return List.of ();
-            return List.of (new SetTransportStateEffect (TransportState.LAUNCHER_OVERDUB, !snapshot.bridge ().transport ().launcherOverdub ()));
-        }
-
-        final SelectedTrackSnapshot selectedTrack = snapshot.bridge ().selectedTrack ();
-        if (!selectedTrack.exists ())
-            return List.of ();
-
-        if (snapshot.pressedControls ().contains (SELECT_BUTTON))
-            return List.of (new SelectedTrackActionEffect (selectedTrack.generation (), selectedTrack.channelId (), SelectedTrackAction.CREATE_NEW_CLIP));
-
-        return List.of (new SetSelectedTrackBooleanEffect (
-            selectedTrack.generation (),
-            selectedTrack.channelId (),
-            SelectedTrackBoolean.RECORD_ARMED,
-            !selectedTrack.recordArmed ()));
+        return List.copyOf (effects);
     }
 
 
     private static boolean isPlayPress (final ControllerInputEvent input)
     {
         return PLAY_BUTTON.equals (input.controlId ()) && input.kind () == InputKind.BUTTON && input.phase () == InputPhase.BEGIN;
+    }
+
+
+    private List<CoreEffect> updateLauncherOverdub (final boolean pressed, final ControllerSnapshot snapshot)
+    {
+        final ProjectSnapshot project = snapshot.bridge ().project ();
+        final TransportSnapshot transport = snapshot.bridge ().transport ();
+        if (!project.available () || project.commandPending () || !transport.available ())
+        {
+            this.launcherOverdub.clear ();
+            return List.of ();
+        }
+        return this.launcherOverdub.update (
+            project.projectIdentity (),
+            transport.launcherOverdub (),
+            snapshot.monotonicTimeNanos (),
+            pressed,
+            (identity, enabled) -> new SetProjectTransportStateEffect (identity, identity, TransportState.LAUNCHER_OVERDUB, enabled.booleanValue ()));
     }
 
 

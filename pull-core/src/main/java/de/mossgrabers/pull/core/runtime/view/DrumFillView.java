@@ -4,10 +4,12 @@
 package de.mossgrabers.pull.core.runtime.view;
 
 import de.mossgrabers.pull.core.api.CatalogClip;
+import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.CoreControls;
+import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchMode;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
@@ -45,9 +47,18 @@ public final class DrumFillView implements ControllerView
         ClipLaunchQuantization.IMMEDIATE,
         ClipLaunchMode.LEGATO_FROM_CLIP_OR_PROJECT,
         ClipReleaseTrigger.ALTERNATE);
+    private static final List<ControlId> FILL_LIGHTS = List.of (
+        PushControlIds.pad (13),
+        PushControlIds.pad (14),
+        PushControlIds.pad (15),
+        PushControlIds.pad (16),
+        PushControlIds.pad (21),
+        PushControlIds.pad (22),
+        PushControlIds.pad (23),
+        PushControlIds.pad (24));
     private static final Set<SurfaceClaim> CLAIMS = Set.of (
         new SurfaceClaim (SurfaceArea.DRUM_FILL_PADS, SurfaceClaim.Kind.DIRECT_INPUT),
-        new SurfaceClaim (SurfaceArea.DRUM_FILL_PADS, SurfaceClaim.Kind.OUTPUT));
+        new SurfaceClaim (SurfaceArea.DRUM_FILL_LIGHTS, SurfaceClaim.Kind.OUTPUT));
     private static final ViewProfile PROFILE = ViewProfile.fixed ("default", CLAIMS, Set.of ());
 
     private Set<ControlId>               previousPressedControls = Set.of ();
@@ -67,6 +78,14 @@ public final class DrumFillView implements ControllerView
     public ViewProfile profile ()
     {
         return PROFILE;
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public Set<BridgeSubscription> bridgeSubscriptions ()
+    {
+        return Set.of (BridgeSubscription.CONTROLLER_LAYOUT);
     }
 
 
@@ -98,7 +117,11 @@ public final class DrumFillView implements ControllerView
             return List.of ();
 
         if (button.pressed ())
+        {
+            if (!ownsFillPads (snapshot))
+                return List.of ();
             return pressEffects (snapshot, this.desiredBindings, button.controlId ());
+        }
         return List.of (new ReleaseClipTargetsEffect (button.controlId ()));
     }
 
@@ -107,9 +130,13 @@ public final class DrumFillView implements ControllerView
     @Override
     public ViewOutput render (final ControllerSnapshot snapshot)
     {
+        if (!ownsFillPads (snapshot))
+            return new ViewOutput (Map.of (), this.desiredBindings);
+
         final Map<ControlId, RgbColor> lights = new LinkedHashMap<> ();
-        for (final ControlId control: CoreControls.DRUM_FILLS)
+        for (int index = 0; index < CoreControls.DRUM_FILLS.size (); index++)
         {
+            final ControlId control = CoreControls.DRUM_FILLS.get (index);
             final RgbColor color;
             if (snapshot.activeClipLaunchOwner ().filter (control::equals).isPresent ())
                 color = FILL_ACTIVE;
@@ -119,9 +146,15 @@ public final class DrumFillView implements ControllerView
                 color = FILL_OFF;
             else
                 color = FILL_AVAILABLE;
-            lights.put (control, color);
+            lights.put (FILL_LIGHTS.get (index), color);
         }
         return new ViewOutput (lights, this.desiredBindings);
+    }
+
+
+    private static boolean ownsFillPads (final ControllerSnapshot snapshot)
+    {
+        return snapshot.bridge ().layout ().drumLayoutActive () && snapshot.bridge ().layout ().drumControllerEngaged ();
     }
 
 

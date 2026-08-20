@@ -6,6 +6,7 @@ package de.mossgrabers.pull.shell.runtime;
 import de.mossgrabers.controller.ableton.push.PushConfiguration;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
+import de.mossgrabers.controller.ableton.push.parameterprovider.PushVolumeParameter;
 import de.mossgrabers.framework.controller.ContinuousID;
 import de.mossgrabers.framework.controller.hardware.IHwButton;
 import de.mossgrabers.framework.controller.hardware.IHwLight;
@@ -45,6 +46,7 @@ import org.junit.jupiter.api.Test;
 import java.lang.reflect.Proxy;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -217,8 +219,10 @@ class ParameterTargetHostTest
     @Test
     void selectedTrackMixKnobFailsClosedUntilItsBindingMatchesTheDisplayedTrack ()
     {
+        final MutableParameter cursorVolume = new MutableParameter (64);
         final MutableParameter selectedVolume = new MutableParameter (64);
         final MutableParameter staleVolume = new MutableParameter (32);
+        final IParameter cursorParameter = cursorVolume.proxy ();
         final IParameter selectedParameter = selectedVolume.proxy ();
         final IParameter staleParameter = staleVolume.proxy ();
         final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
@@ -230,6 +234,13 @@ class ParameterTargetHostTest
         surface.getModeManager ().setActive (Modes.TRACK);
 
         final ICursorTrack selectedTrack = proxy (ICursorTrack.class, (proxy, method, arguments) -> switch (method.getName ())
+        {
+            case "doesExist" -> Boolean.TRUE;
+            case "getChannelID" -> "selected-track";
+            case "getVolumeParameter" -> cursorParameter;
+            default -> relaxedValue (method.getReturnType ());
+        });
+        final ITrack selectedBankTrack = proxy (ITrack.class, (proxy, method, arguments) -> switch (method.getName ())
         {
             case "doesExist" -> Boolean.TRUE;
             case "getChannelID" -> "selected-track";
@@ -246,7 +257,8 @@ class ParameterTargetHostTest
         final ITrackBank tracks = proxy (ITrackBank.class, (proxy, method, arguments) -> switch (method.getName ())
         {
             case "getPageSize" -> Integer.valueOf (2);
-            case "getItem" -> ((Integer) arguments[0]).intValue () == 0 ? selectedTrack : staleTrack;
+            case "getItem" -> ((Integer) arguments[0]).intValue () == 0 ? selectedBankTrack : staleTrack;
+            case "getSelectedItem" -> Optional.of (selectedBankTrack);
             default -> relaxedValue (method.getReturnType ());
         });
         final IModel model = proxy (IModel.class, (proxy, method, arguments) -> switch (method.getName ())
@@ -265,9 +277,10 @@ class ParameterTargetHostTest
         assertNull (host.resolveMutation (knob));
         assertTrue (host.requiresResolvedMutation (knob));
 
-        knob.bind (selectedParameter);
+        knob.bind (new PushVolumeParameter (selectedParameter, valueChanger));
         host.refresh (banks);
         assertNotNull (host.resolveMutation (knob));
+        assertNotNull (host.snapshot ().slots ().get (ParameterSlot.active (0)));
         assertTrue (host.requiresResolvedMutation (knob));
     }
 

@@ -8,6 +8,7 @@ import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.CoreExecutionRequirements;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
+import de.mossgrabers.pull.core.api.DesiredControllerActions;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredControllerLayout;
 import de.mossgrabers.pull.core.api.DesiredNoteInputRoute;
@@ -45,6 +46,7 @@ final class RecordingEffectExecutor
     private DesiredInputRoutes desiredInputRoutes = DesiredInputRoutes.empty ();
     private DesiredBridgeSubscriptions desiredBridgeSubscriptions = DesiredBridgeSubscriptions.empty ();
     private Map<ControlId, ClipTargetId> desiredClipBindings = Map.of ();
+    private DesiredControllerActions desiredControllerActions = DesiredControllerActions.empty ();
     private DesiredControllerWorkspace desiredControllerWorkspace = DesiredControllerWorkspace.empty ();
     private DesiredNotePerformance desiredNotePerformance = DesiredNotePerformance.inactive ();
     private DesiredNoteRepeat desiredNoteRepeat = DesiredNoteRepeat.unowned ();
@@ -65,6 +67,7 @@ final class RecordingEffectExecutor
         this.desiredInputRoutes = result.desiredInputRoutes ();
         this.desiredBridgeSubscriptions = result.desiredBridgeSubscriptions ();
         this.desiredClipBindings = result.desiredClipBindings ();
+        this.desiredControllerActions = result.desiredControllerActions ();
         this.desiredControllerWorkspace = result.desiredControllerState ().workspace ();
         this.desiredNotePerformance = result.desiredControllerState ().notePerformance ();
         this.desiredNoteRepeat = result.desiredNoteRepeat ();
@@ -169,6 +172,13 @@ final class RecordingEffectExecutor
     List<CoreEffect> executionOrder ()
     {
         return List.copyOf (this.executionOrder);
+    }
+
+
+    /** Get the latest complete semantic-action projection. */
+    DesiredControllerActions desiredControllerActions ()
+    {
+        return this.desiredControllerActions;
     }
 
 

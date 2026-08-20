@@ -196,6 +196,17 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
 
     /** {@inheritDoc} */
     @Override
+    public boolean tryExtendDebugInput (final Runnable press)
+    {
+        if (!this.debugInputActive)
+            return false;
+        Objects.requireNonNull (press, "press").run ();
+        return true;
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
     public void endDebugInput (final Runnable release)
     {
         if (!this.debugInputActive)
@@ -260,6 +271,14 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
     {
         Objects.requireNonNull (action, "action");
         return this.registry.contains (action.controlId (), toShellKind (action.inputKind ())) && action.inputKind ().isEdge ();
+    }
+
+
+    /** Validate one hardware-independent RGB owner against an installed Push button or grid pad. */
+    boolean supportsLight (final ControlId control)
+    {
+        final ControlId lightControl = Objects.requireNonNull (control, "control");
+        return this.registry.contains (lightControl, InputKind.BUTTON) || this.registry.contains (lightControl, InputKind.PAD);
     }
 
 
@@ -410,11 +429,8 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
     private static Set<PhysicalInputAddress<ControlId>> coreOwnedInputs ()
     {
         final java.util.LinkedHashSet<PhysicalInputAddress<ControlId>> inputs = new java.util.LinkedHashSet<> ();
-        inputs.add (new PhysicalInputAddress<> (PushControlIds.button (ButtonID.PLAY.name ()), InputKind.BUTTON));
-        inputs.add (new PhysicalInputAddress<> (PushControlIds.button (ButtonID.RECORD.name ()), InputKind.BUTTON));
-        inputs.add (new PhysicalInputAddress<> (PushControlIds.button (ButtonID.NOTE.name ()), InputKind.BUTTON));
-        inputs.add (new PhysicalInputAddress<> (PushControlIds.button (ButtonID.SESSION.name ()), InputKind.BUTTON));
-        inputs.add (new PhysicalInputAddress<> (PushControlIds.button (ButtonID.LAYOUT.name ()), InputKind.BUTTON));
+        for (final ButtonID button: List.of (ButtonID.PLAY, ButtonID.RECORD, ButtonID.NOTE, ButtonID.SESSION, ButtonID.LAYOUT, ButtonID.MUTE, ButtonID.SOLO))
+            inputs.add (new PhysicalInputAddress<> (PushControlIds.button (button.name ()), InputKind.BUTTON));
         for (final ControlId control: CoreControls.DRUM_RATES)
         {
             inputs.add (new PhysicalInputAddress<> (control, InputKind.PAD));

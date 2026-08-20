@@ -51,8 +51,10 @@ public enum SurfaceArea
     DRUM_PLAY_PADS (gridRectangle (0, 0, 4, 4), gridControls (0, 0, 4, 4), Set.of (InputKind.PAD, InputKind.POLY_PRESSURE)),
     /** Four momentary drum-rate pads at columns 4-7 on the bottom row. */
     DRUM_RATE_PADS (gridRectangle (4, 0, 4, 1), gridControls (4, 0, 4, 1), Set.of (InputKind.PAD, InputKind.POLY_PRESSURE)),
-    /** Eight fill pads at columns 4-7 and rows 1-2 of the lower grid half. */
+    /** Eight semantic fill actions at columns 4-7 and rows 1-2 of the lower grid half. */
     DRUM_FILL_PADS (gridRectangle (4, 1, 4, 2), Set.copyOf (CoreControls.DRUM_FILLS), Set.of (InputKind.PAD, InputKind.POLY_PRESSURE)),
+    /** Physical RGB lights for the eight fill pads. */
+    DRUM_FILL_LIGHTS (gridRectangle (4, 1, 4, 2), gridControls (4, 1, 4, 2), Set.of ()),
     /** Four Bitwig-manually-mappable control pads at columns 4-7 on row 3. */
     DRUM_CONTROL_PADS (gridRectangle (4, 3, 4, 1), Set.copyOf (CoreControls.DRUM_CONTROL_PADS), Set.of (InputKind.PAD)),
     /** Four scene keys aligned to the upper Session grid. */
@@ -71,8 +73,14 @@ public enum SurfaceArea
     TEMPO_ENCODER (range (ElementType.CONTINUOUS, 1, 1), Set.of (PushControlIds.continuous ("TEMPO")), Set.of (InputKind.RELATIVE, InputKind.TOUCH)),
     /** Dedicated master encoder while it addresses master volume. */
     MASTER_ENCODER (range (ElementType.CONTINUOUS, 2, 1), Set.of (PushControlIds.continuous ("MASTER_KNOB")), Set.of (InputKind.RELATIVE, InputKind.TOUCH)),
+    /** Dedicated play-position encoder. */
+    PLAY_POSITION_ENCODER (range (ElementType.CONTINUOUS, 3, 1), Set.of (PushControlIds.continuous ("PLAY_POSITION")), Set.of (InputKind.RELATIVE, InputKind.TOUCH)),
     /** Aggregate pressure shared by the complete pad grid. */
     GRID_CHANNEL_PRESSURE (range (ElementType.GRID_PRESSURE, 0, 1), Set.of (PushControlIds.CHANNEL_PRESSURE), Set.of (InputKind.CHANNEL_PRESSURE)),
+    /** Sustain pedal connected to Push's first footswitch input. */
+    SUSTAIN_PEDAL (range (ElementType.PEDAL, 0, 1), Set.of (PushControlIds.SUSTAIN_PEDAL), Set.of (InputKind.PEDAL)),
+    /** Configurable foot controller connected to Push's second footswitch input. */
+    FOOTSWITCH_2 (range (ElementType.PEDAL, 1, 1), Set.of (PushControlIds.button ("FOOTSWITCH2")), Set.of (InputKind.PEDAL)),
     /** Push Record button. */
     RECORD_BUTTON (range (ElementType.BUTTON, 0, 1), Set.of (PushControlIds.button ("RECORD")), Set.of (InputKind.BUTTON)),
     /** Push Play button. */
@@ -86,7 +94,59 @@ public enum SurfaceArea
     /** Push Note button. */
     NOTE_BUTTON (range (ElementType.BUTTON, 4, 1), Set.of (PushControlIds.button ("NOTE")), Set.of (InputKind.BUTTON)),
     /** Push Layout button. */
-    LAYOUT_BUTTON (range (ElementType.BUTTON, 6, 1), Set.of (PushControlIds.button ("LAYOUT")), Set.of (InputKind.BUTTON));
+    LAYOUT_BUTTON (range (ElementType.BUTTON, 6, 1), Set.of (PushControlIds.button ("LAYOUT")), Set.of (InputKind.BUTTON)),
+    /** Push Stop Clip button, semantically owned by an active Session view. */
+    STOP_CLIP_BUTTON (range (ElementType.BUTTON, 7, 1), Set.of (PushControlIds.button ("STOP_CLIP")), Set.of (InputKind.BUTTON)),
+    /** Push Mute button, targeting the authoritative selected track. */
+    MUTE_BUTTON (range (ElementType.BUTTON, 8, 1), Set.of (PushControlIds.button ("MUTE")), Set.of (InputKind.BUTTON)),
+    /** Push Solo button, targeting the authoritative selected track. */
+    SOLO_BUTTON (range (ElementType.BUTTON, 9, 1), Set.of (PushControlIds.button ("SOLO")), Set.of (InputKind.BUTTON)),
+    /** Push New button. */
+    NEW_BUTTON (range (ElementType.BUTTON, 10, 1), Set.of (PushControlIds.button ("NEW")), Set.of (InputKind.BUTTON)),
+    /** Push Fixed Length button. */
+    FIXED_LENGTH_BUTTON (range (ElementType.BUTTON, 11, 1), Set.of (PushControlIds.button ("FIXED_LENGTH")), Set.of (InputKind.BUTTON)),
+    /** Push Duplicate button. */
+    DUPLICATE_BUTTON (range (ElementType.BUTTON, 12, 1), Set.of (PushControlIds.button ("DUPLICATE")), Set.of (InputKind.BUTTON)),
+    /** Push Quantize button. */
+    QUANTIZE_BUTTON (range (ElementType.BUTTON, 13, 1), Set.of (PushControlIds.button ("QUANTIZE")), Set.of (InputKind.BUTTON)),
+    /** Push Delete modifier. */
+    DELETE_MODIFIER (range (ElementType.BUTTON, 14, 1), Set.of (PushControlIds.button ("DELETE")), Set.of (InputKind.BUTTON)),
+    /** Push Double button. */
+    DOUBLE_BUTTON (range (ElementType.BUTTON, 15, 1), Set.of (PushControlIds.button ("DOUBLE")), Set.of (InputKind.BUTTON)),
+    /** Push Undo button. */
+    UNDO_BUTTON (range (ElementType.BUTTON, 16, 1), Set.of (PushControlIds.button ("UNDO")), Set.of (InputKind.BUTTON)),
+    /** Push Automation button. */
+    AUTOMATION_BUTTON (range (ElementType.BUTTON, 17, 1), Set.of (PushControlIds.button ("AUTOMATION")), Set.of (InputKind.BUTTON)),
+    /** Push Mix button, whose framework identifier is TRACK. */
+    MIX_BUTTON (range (ElementType.BUTTON, 18, 1), Set.of (PushControlIds.button ("TRACK")), Set.of (InputKind.BUTTON)),
+    /** Push Device button. */
+    DEVICE_BUTTON (range (ElementType.BUTTON, 19, 1), Set.of (PushControlIds.button ("DEVICE")), Set.of (InputKind.BUTTON)),
+    /** Push Clip button. */
+    CLIP_BUTTON (range (ElementType.BUTTON, 20, 1), Set.of (PushControlIds.button ("CLIP")), Set.of (InputKind.BUTTON)),
+    /** Push Tap Tempo button. */
+    TAP_TEMPO_BUTTON (range (ElementType.BUTTON, 21, 1), Set.of (PushControlIds.button ("TAP_TEMPO")), Set.of (InputKind.BUTTON)),
+    /** Push Metronome button. */
+    METRONOME_BUTTON (range (ElementType.BUTTON, 22, 1), Set.of (PushControlIds.button ("METRONOME")), Set.of (InputKind.BUTTON)),
+    /** Push Master button, whose framework identifier is MASTERTRACK. */
+    MASTER_BUTTON (range (ElementType.BUTTON, 23, 1), Set.of (PushControlIds.button ("MASTERTRACK")), Set.of (InputKind.BUTTON)),
+    /** Push Scales button. */
+    SCALES_BUTTON (range (ElementType.BUTTON, 24, 1), Set.of (PushControlIds.button ("SCALES")), Set.of (InputKind.BUTTON)),
+    /** Push Accent button. */
+    ACCENT_BUTTON (range (ElementType.BUTTON, 25, 1), Set.of (PushControlIds.button ("ACCENT")), Set.of (InputKind.BUTTON)),
+    /** Push Add Device button, whose framework identifier is ADD_EFFECT. */
+    ADD_DEVICE_BUTTON (range (ElementType.BUTTON, 26, 1), Set.of (PushControlIds.button ("ADD_EFFECT")), Set.of (InputKind.BUTTON)),
+    /** Push Add Track button. */
+    ADD_TRACK_BUTTON (range (ElementType.BUTTON, 27, 1), Set.of (PushControlIds.button ("ADD_TRACK")), Set.of (InputKind.BUTTON)),
+    /** Push Repeat button. */
+    REPEAT_BUTTON (range (ElementType.BUTTON, 28, 1), Set.of (PushControlIds.button ("REPEAT")), Set.of (InputKind.BUTTON)),
+    /** Push Setup button. */
+    SETUP_BUTTON (range (ElementType.BUTTON, 29, 1), Set.of (PushControlIds.button ("SETUP")), Set.of (InputKind.BUTTON)),
+    /** Push Convert button. */
+    CONVERT_BUTTON (range (ElementType.BUTTON, 30, 1), Set.of (PushControlIds.button ("CONVERT")), Set.of (InputKind.BUTTON)),
+    /** Push User button. */
+    USER_BUTTON (range (ElementType.BUTTON, 31, 1), Set.of (PushControlIds.button ("USER")), Set.of (InputKind.BUTTON)),
+    /** Push Browse button. */
+    BROWSE_BUTTON (range (ElementType.BUTTON, 32, 1), Set.of (PushControlIds.button ("BROWSE")), Set.of (InputKind.BUTTON));
 
     private final Set<HardwareElement> footprint;
     private final Set<ControlId>       controls;
@@ -157,6 +217,20 @@ public enum SurfaceArea
     public Set<InputKind> inputKinds ()
     {
         return this.inputKinds;
+    }
+
+
+    /** Test whether the installed physical input address can be named by this vocabulary. */
+    static boolean coversInput (final ControlId control, final InputKind inputKind)
+    {
+        Objects.requireNonNull (control, "control");
+        Objects.requireNonNull (inputKind, "inputKind");
+        for (final SurfaceArea area: values ())
+        {
+            if (area.controls.contains (control) && area.inputKinds.contains (inputKind))
+                return true;
+        }
+        return false;
     }
 
 
@@ -234,6 +308,7 @@ public enum SurfaceArea
     {
         BUTTON,
         CONTINUOUS,
+        PEDAL,
         ENCODER_TURN,
         ENCODER_TOUCH,
         GRID_PAD,

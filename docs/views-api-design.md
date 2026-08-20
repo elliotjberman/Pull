@@ -1,6 +1,6 @@
 # Views API and Composite Workspaces
 
-Status: design contract. Checkpoints 1 and 2 are structurally implemented through Core API 34. The
+Status: design contract. Checkpoints 1 and 2 are structurally implemented through Core API 41. The
 remaining stable-adapter boundary is represented explicitly in claims and recorded in
 [`../ARCH.md`](../ARCH.md). The checkpoints remain below so code, offline tests, and Push hardware
 tests can be compared against the intended end state.
@@ -63,7 +63,10 @@ GLOBAL_MODIFIERS.*         Shift, Select, Delete, and similar controls
 Smaller fixed subregions may be added when a real view proves the need. They must be named for a
 stable physical footprint, not created ad hoc by a workspace. For example, the current drum-fill
 view occupies the eight pads at columns 4..7 and rows 1..2 inside `GRID.LOWER`; four manually
-mappable control pads occupy columns 4..7 on row 3.
+mappable control pads occupy columns 4..7 on row 3. The fill view names its semantic action
+endpoints and physical RGB endpoints separately while assigning both areas the same atomic
+footprint. That lets direct fill routing keep stable semantic identities without hiding the actual
+pad-light ownership or weakening overlap detection.
 
 A claim declares both ownership and its current realization boundary. The Java API uses explicit
 kinds equivalent to:
@@ -95,10 +98,10 @@ pad has no musical pressure destination. Aggregate channel pressure has no pad i
 a distinct surface-wide input.
 
 The stable shell captures those events and publishes the current typed pressure configuration and
-drum base note. A reloadable view owns the mapping from its fixed playable footprint to MIDI effects.
-The stable adapter for a core-owned composite must be inert for pressure, while standalone views
-which have not migrated may preserve their existing generic stable view contract unchanged. They
-may not acquire new pressure or mapping semantics there.
+drum base note. `DrumPlayPadView` owns RGB and pressure-to-MIDI policy for its fixed playable
+footprint in both standalone and composite Drum layouts. Musical note edges still use the installed
+built-in `NoteInput` translation; a view cannot yet declare arbitrary playable geometry. Both
+stable adapters are inert for pressure.
 
 ## Fixed Views
 
@@ -143,6 +146,9 @@ Examples:
 - **Project Macro Controls** requires `ENCODERS`, `DISPLAY.PARAMETERS`, and encoder touches. It does
   not implicitly own the lower track strip.
 - **Track Selection Strip** requires `DISPLAY.BOTTOM_STRIP` and `SOFT_KEYS.LOWER`.
+- **Selected-track Mute/Solo** requires the dedicated Mute and Solo buttons and consumes the
+  private authoritative selected-track snapshot. It is controller-level policy downstream of
+  selection, not part of the selector, Session grid, or active display page.
 - **Session Navigation** currently requires `NAVIGATION.ARROWS` and `NAVIGATION.PAGE` because the
   installed stable adapter realizes them together. Page navigation may become optional only after
   the shell exposes it as an independently selectable facet.
@@ -211,12 +217,86 @@ state in the checkpoint envelope. A rejected candidate leaves the prior generati
 The stable adapter realizes page and grid facets as independent leases. A page overlay such as
 Master may replace the encoder/display page while retaining the selected workspace's grid facets;
 it must not select a different Bitwig track merely to activate the inherited display mode.
-Transitions back to stable layouts are also views, not shell history: plain Session compiles
-`TrackMixerPageView` with `FullSessionView`, and Note compiles `TrackMixerPageView` around the
-core-owned target-fenced Note viewer. Core holds those destination facets until the authoritative
-layout snapshot reports the requested mode/view, then releases them without changing the realized
-stable layout. An empty workspace therefore means only "release every core facet"; it does not
-choose or restore a destination.
+Transitions back to stable layouts are also views, not shell history: the Session destination
+temporarily composes `TrackMixerPageView` with `SessionView.full()`, and Note compiles
+`TrackMixerPageView` around the core-owned target-fenced Note viewer. Core holds destination page
+facets until the authoritative layout snapshot reports the requested mode/view. It then releases
+only the acknowledged page while retaining `SessionView`, including its grid and Stop Clip
+ownership. Likewise, a composite may release its default parameter/display page after read-back
+while retaining disjoint grid/button views. An empty workspace therefore means only "release every
+core facet"; it does not choose or restore a destination.
+
+Stop-plus-track is an installed Session-bank action. The row owner captures the exact bank
+generation, shape, index, and channel identity at `BEGIN`; stable revalidates that identity at apply
+time and stops the track without selecting it. Full Session also mechanically consumes the bounded
+stable lower-row release. Both paths consume the shared Stop gesture so release cannot become a
+plain selected-track Stop.
+
+Page and Master overlays reuse retained instances of the underlying grid views. A compiled overlay
+may start independently, but it reconciles an already-started retained view instead of restarting
+it, so held-pad and other BEGIN-to-END state survives the page replacement.
+
+Master is resolved from the exact selected composition, not only its top-level workspace ID. Its
+page therefore retains standalone Drum views and mapping leases, full Session and Stop ownership,
+selected Note routing, or the VS Live grid views actually active when Master was entered.
+
+Hydration requests Session's default Track/Mix page only when page state is genuinely unavailable.
+If Mix, Device, or Browse is already authoritative, core retains that page and composes the
+persistent Session view around it.
+
+Controller-level selected-track Mute/Solo remains composed through every such page replacement.
+Its exclusive input and RGB output claims are unaffected by Session, Mix, Device, Browse, Master,
+or composite-grid selection. Legacy page-retarget and held-modifier meanings were removed; a view
+which needs a future target other than the selected track must declare a different target-specific
+control view rather than infer it from the visible page.
+
+Mute, Solo, Record-arm, and launcher-overdub toggles retain one bounded pending lane per semantic
+property. Repeated presses collapse to parity while an absolute request awaits host read-back; a
+dependent request is emitted only after a later authoritative snapshot acknowledges the previous
+expected state. A target/project change retires the lane.
+
+Display fragments now follow the same ownership rule for the installed VS Live page. Project Macro
+or Track Mixer emits only a local 960x143 `DISPLAY.PARAMETERS` scene, while Track Selection emits only a local
+960x17 `DISPLAY.BOTTOM_STRIP` scene. The compiler rejects a partial page, an unclaimed fragment, an
+overlap with a complete-scene owner, or a primitive outside its local viewport; successful
+composition wraps each fragment in a compiler-owned, renderer-enforced clip and yields one 960x160
+base scene. The shell's generic base plane replaces inherited page
+columns without suppressing ordinary overlays. A temporary display overlay is different: for
+example, a short-lived full-screen status/animation scene sits above the composed base and then
+reveals it again, rather than sharing either region claim.
+
+The retained Track Selection footer consumes the bounded Session bank's semantic track type as
+well as its name, color, activation, and selection state. Its colors, selection contrast, inactive
+dimming, two-pixel column gap, and channel icon are core-owned parity policy. Project Macro likewise
+owns the legacy parameter visual semantics in its region: subdued teal parameters brighten on
+touch, Boolean values use toggle pills, and the old adapter's non-rendered `Project` menu text is
+not invented as a visible title.
+
+When VS Live selects Track/Mix, `TrackMixerControlsView` replaces only the 960x143 producer. It
+declares the installed `ACTIVE` parameter bank, owns all eight relative encoder turns and their
+typed effects, and renders the selected track's Volume/Pan plus active send slots from authoritative
+read-back. Missing parameter slots render blank inside the still-selected Mix view; data absence is
+never interpreted as selection of the inherited Input & Output page. The retained Track Selection
+footer remains the independent 960x17 producer. Encoder
+touches and the inherited upper-row page menu remain explicit frozen adapters; ordinary Track/Mix
+outside this composition is not implied to have migrated.
+
+VS Live page selection advances only from the semantic action emitted by a stable page command.
+The controller-state host may temporarily report `TRACK` while it neutralizes and reattaches a
+selected-track Note route; that mechanical layout read-back carries no page-selection intent and
+cannot replace Project Macro with Track/Mix. If snapback defers the stable command, core retains
+the old page until a later layout generation acknowledges the released action. Shift+Session is
+an idempotent selection of the declared composite and therefore always reselects Project Macro,
+even when VS Live was already active on Track/Mix or another replaceable page. For the inherited
+Mix compatibility window, stable
+unwraps Volume/Pan's mechanical response-curve adapters, validates the real bound parameters
+against the selected current-bank track, and then requires its channel ID to agree with the private
+selection-following cursor before publishing any slot.
+
+Master's own previous/next project action creates a bounded page-retention lease. The lease is tied
+to the workspace-request sequence and survives both intermediate and late stable layout resets.
+Later target-project read-back updates the retained scene without silently changing pages; an
+explicit page or workspace request retires the lease.
 
 ## Implementation Checkpoints
 
@@ -233,7 +313,8 @@ currently migrated behavior through views:
   one it supplies the normalized core gesture independently of the one semantic learned action.
   Core owns red/off policy derived from later authoritative feedback keyed by semantic endpoint.
 - Record, Shift + Record, and Select + Record become one fixed Record control view.
-- A default workspace composes those views.
+- The selected Drum workspace composes those views; melodic Note workspaces do not retain a hidden
+  drum-fill owner.
 - Existing `CoreResult` output, input routes, bridge subscriptions, clip bindings, effects,
   reload semantics, and hardware behavior remain byte-for-byte or value-for-value equivalent.
 
@@ -254,15 +335,15 @@ Add one hardcoded workspace named `VS Live`, entered with **Shift + Session** fo
 - Session Clip Grid owns the upper four pad rows. Clip launch behavior and scene order match Session
   view through its declared `8x4` Session bank rather than an `8x8` bank cropped at render time.
 - Drum Controller owns the bottom four pad rows, including its existing 4x4 playable block, rate
-  pads, and fill pads. Separate fixed views implement those subregions: `DrumControllerView` for
-  playable notes and pressure, `DrumRateView` for rate/roll policy, and `DrumFillView` for fills.
+  pads, and fill pads. Separate fixed views implement those subregions: `DrumPlayPadView` for
+  playable feedback and pressure, `DrumRateView` for rate/roll policy, and `DrumFillView` for fills.
 - Drum Controller's `pitch-bend` facet owns the touch strip.
 - Per-pad pressure on Drum Controller's playable 4x4 block follows that same lower-grid ownership;
   pressure on rate, fill, and Session pads has no musical destination.
-- `DrumControllerView` implements that policy with its other lower-grid behavior. It observes the
+- `DrumPlayPadView` implements that policy in both standalone and composite layouts. It observes the
   playable pad edges and pressure, honors Off/Poly/Channel/CC configuration, and sends mapped output
-  through the permanent NoteInput MIDI effect. `WorkspaceView` performs no parallel pressure
-  mutation.
+  through the permanent NoteInput MIDI effect. Neither stable view performs parallel pressure
+  mutation or playable-pad rendering.
 - No view claims the lower scene keys merely because they sit beside Drum Controller. Upper scene
   keys may launch the four visible Session scenes through the Session grid's named facet.
 
@@ -328,3 +409,7 @@ migration or the `VS Live` shell integration.
 - Migrating every inherited DrivenByMoss mode/view family.
 - User-authored overlays beyond named, statically validated replacements.
 - Persisting richer per-view navigation state across reload.
+- Arbitrary core-authored musical pad geometry; see
+  [`findings/custom-musical-surface-geometry.md`](findings/custom-musical-surface-geometry.md).
+- A bidirectional compiler contract between every stable facet and its exact stable claims; see
+  [`findings/stable-facet-claim-coupling.md`](findings/stable-facet-claim-coupling.md).

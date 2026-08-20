@@ -6,6 +6,7 @@ package de.mossgrabers.pull.shell.runtime;
 import de.mossgrabers.controller.ableton.push.PushConfiguration;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
+import de.mossgrabers.controller.ableton.push.workspace.SessionBankRegistry;
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.hardware.IHwButton;
 import de.mossgrabers.framework.controller.hardware.IHwLight;
@@ -52,7 +53,10 @@ import de.mossgrabers.pull.core.api.DrumContextSnapshot;
 import de.mossgrabers.pull.core.api.ParameterSlot;
 import de.mossgrabers.pull.core.api.ParameterBankId;
 import de.mossgrabers.pull.core.api.ParameterTargetRef;
+import de.mossgrabers.pull.core.api.PushControlIds;
+import de.mossgrabers.pull.core.api.SessionBankShape;
 import de.mossgrabers.pull.core.api.effect.SelectDrumPadEffect;
+import de.mossgrabers.pull.core.api.effect.ConsumeControllerButtonEffect;
 import de.mossgrabers.pull.core.api.effect.NavigateProjectEffect;
 import de.mossgrabers.pull.core.api.effect.ProjectNavigationDirection;
 import de.mossgrabers.pull.core.api.effect.SetProjectEngineEffect;
@@ -79,6 +83,7 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
@@ -87,6 +92,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class BoundedControllerBridgeTest
 {
+    @Test
+    void admitsOnlyTheInstalledStableButtonConsumptionTargets ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+
+        fixture.bridge.apply (fixture.bridge.prepare (new ConsumeControllerButtonEffect (PushControlIds.button ("SELECT"))));
+        for (int index = 1; index <= 8; index++)
+            fixture.bridge.apply (fixture.bridge.prepare (new ConsumeControllerButtonEffect (PushControlIds.button ("ROW1_" + index))));
+
+        assertThrows (IllegalArgumentException.class, () -> fixture.bridge.prepare (new ConsumeControllerButtonEffect (PushControlIds.button ("BROWSE"))));
+        assertThrows (IllegalArgumentException.class, () -> fixture.bridge.prepare (new ConsumeControllerButtonEffect (PushControlIds.button ("ROW2_1"))));
+    }
+
+
     @Test
     void layoutGenerationAdvancesOnlyWithAuthoritativeLayoutChanges ()
     {
@@ -528,6 +547,22 @@ class BoundedControllerBridgeTest
 
 
     @Test
+    void keepsQuantizedAndImmediateSelectedTrackStopActuatorsDistinct ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.SELECTED_TRACK), DesiredParameterBanks.empty ());
+
+        fixture.bridge.apply (fixture.bridge.prepare (
+            new SelectedTrackActionEffect (1, "track-a", SelectedTrackAction.STOP)));
+        fixture.bridge.apply (fixture.bridge.prepare (
+            new SelectedTrackActionEffect (1, "track-a", SelectedTrackAction.STOP_IMMEDIATELY)));
+
+        assertEquals (1, fixture.selected.stopCount);
+        assertEquals (1, fixture.selected.immediateStopCount);
+    }
+
+
+    @Test
     void rechecksDrumDeviceBankAndPadIdentityAtApplyTime ()
     {
         final BridgeFixture fixture = new BridgeFixture ();
@@ -549,6 +584,24 @@ class BoundedControllerBridgeTest
         fixture.drum.padChannelID = "pad-a";
         fixture.bridge.apply (prepared);
         assertEquals (1, fixture.drum.selectionCount);
+    }
+
+
+    @Test
+    void publishesThePlayableMainDrumWindowInsteadOfTheLegacy64PadWindow ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.legacyDrum.deviceID = "legacy-device";
+        fixture.legacyDrum.baseMidiNote = 0;
+
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.DRUM_PADS), DesiredParameterBanks.empty ());
+
+        final DrumContextSnapshot drum = fixture.bridge.snapshot ().drum ();
+        assertTrue (drum.available ());
+        assertEquals ("device-a", drum.deviceId ());
+        assertEquals (36, drum.baseMidiNote ());
+        assertEquals (1, drum.pads ().size ());
+        assertEquals (0, fixture.legacyDrum.selectionCount);
     }
 
 
@@ -631,6 +684,7 @@ class BoundedControllerBridgeTest
         private final MutableSelectedTarget selected = new MutableSelectedTarget ();
         private final MutableTransport transport = new MutableTransport ();
         private final MutableDrum drum = new MutableDrum (this.selected);
+        private final MutableDrum legacyDrum = new MutableDrum (this.selected);
         private final MutableProject project = new MutableProject ();
         private final MutableApplication application = new MutableApplication ();
         private final List<MidiMessage> noteInputMidiMessages = new ArrayList<> ();
@@ -656,12 +710,13 @@ class BoundedControllerBridgeTest
             final ITransport transportProxy = this.transport.proxy ();
             final ICursorTrack cursorTrack = this.drum.cursorTrack ();
             final IDrumDevice drumDevice = this.drum.device ();
+            final IDrumDevice legacyDrumDevice = this.legacyDrum.device ();
             final Scales scales = new Scales (this.valueChanger, 36, 100, 8, 8);
             final IModel model = proxy (IModel.class, (proxy, method, arguments) -> switch (method.getName ())
             {
                 case "getTransport" -> transportProxy;
                 case "getCursorTrack" -> cursorTrack;
-                case "getDrumDevice" -> drumDevice;
+                case "getDrumDevice" -> arguments == null || arguments.length == 0 ? drumDevice : legacyDrumDevice;
                 case "getScales" -> scales;
                 case "getValueChanger" -> this.valueChanger;
                 case "getProject" -> this.project.proxy ();
@@ -674,6 +729,8 @@ class BoundedControllerBridgeTest
                 default -> relaxedValue (method.getReturnType ());
             });
             this.surface = createSurface (this.selected, cursorTrack, this.valueChanger, this.noteRepeat, manualRepeatActive);
+            final SessionBankShape fullSession = new SessionBankShape (8, 8);
+            this.surface.setSessionBankRegistry (new SessionBankRegistry (model, Set.of (fullSession, new SessionBankShape (8, 4)), fullSession));
             this.configuration = (ManualRepeatConfiguration) this.surface.getConfiguration ();
             this.bridge = new BoundedControllerBridge (
                 model,
@@ -870,6 +927,8 @@ class BoundedControllerBridgeTest
         private boolean noteInputRouteActive;
         private int snapshotCount;
         private int armedWriteCount;
+        private int stopCount;
+        private int immediateStopCount;
 
 
         @Override
@@ -922,6 +981,20 @@ class BoundedControllerBridgeTest
         {
             this.armedWriteCount++;
             this.armed = newArmed;
+        }
+
+
+        @Override
+        public void stop ()
+        {
+            this.stopCount++;
+        }
+
+
+        @Override
+        public void stopImmediately ()
+        {
+            this.immediateStopCount++;
         }
 
 

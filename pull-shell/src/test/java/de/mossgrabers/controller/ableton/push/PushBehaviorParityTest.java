@@ -9,7 +9,9 @@ import de.mossgrabers.controller.ableton.push.command.trigger.PushCursorCommand;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.mode.device.UserMode;
+import de.mossgrabers.controller.ableton.push.mode.device.WorkspaceMode;
 import de.mossgrabers.controller.ableton.push.workspace.SessionBankRegistry;
+import de.mossgrabers.framework.command.trigger.mode.ButtonRowModeCommand;
 import de.mossgrabers.framework.command.trigger.Direction;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.ISetupFactory;
@@ -324,6 +326,39 @@ class PushBehaviorParityTest
         assertEquals ("Track 4", bottomMenus.get (3));
         assertEquals (List.of (Integer.valueOf (3)), selectedTrackIndices);
         assertEquals (List.of (), selectedParameterPages);
+    }
+
+
+    @Test
+    void stableRowReleaseCannotSelectASecondTrackAfterWorkspaceActivation ()
+    {
+        final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
+        final IParameterBank parameters = relaxedProxy (IParameterBank.class);
+        final List<Integer> selections = new ArrayList<> ();
+        final ITrack track = proxy (ITrack.class, (proxy, method, arguments) -> {
+            if ("select".equals (method.getName ()))
+                selections.add (Integer.valueOf (1));
+            return relaxedValue (method.getReturnType ());
+        });
+        final ITrackBank tracks = proxy (ITrackBank.class, (proxy, method, arguments) -> "getItem".equals (method.getName ()) ? track : relaxedValue (method.getReturnType ()));
+        final IProject project = proxy (IProject.class, (proxy, method, arguments) -> "getParameterBank".equals (method.getName ()) ? parameters : relaxedValue (method.getReturnType ()));
+        final IModel model = proxy (IModel.class, (proxy, method, arguments) -> switch (method.getName ())
+        {
+            case "getCurrentTrackBank" -> tracks;
+            case "getProject" -> project;
+            default -> relaxedValue (method.getReturnType ());
+        });
+        final PushControlSurface surface = createSurface (valueChanger, relaxedProxy (ISelectedTrackNoteTarget.class), relaxedProxy (ICursorTrack.class));
+        surface.getModeManager ().register (Modes.USER, relaxedProxy (IMode.class));
+        surface.getModeManager ().register (Modes.WORKSPACE, new WorkspaceMode (surface, model));
+        surface.getModeManager ().setActive (Modes.USER);
+        final ButtonRowModeCommand<PushControlSurface, PushConfiguration> command = new ButtonRowModeCommand<> (0, 1, model, surface);
+
+        command.execute (ButtonEvent.DOWN, 127);
+        surface.getModeManager ().setActive (Modes.WORKSPACE);
+        command.execute (ButtonEvent.UP, 0);
+
+        assertEquals (List.of (), selections);
     }
 
 

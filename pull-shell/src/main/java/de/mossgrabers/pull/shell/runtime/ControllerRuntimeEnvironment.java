@@ -36,6 +36,9 @@ import de.mossgrabers.pull.core.api.effect.ResetParameterEffect;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
+import de.mossgrabers.pull.core.api.effect.SelectSessionTrackEffect;
+import de.mossgrabers.pull.core.api.effect.StopSessionBankEffect;
+import de.mossgrabers.pull.core.api.effect.StopSessionTrackEffect;
 import de.mossgrabers.pull.core.api.effect.SetTransportStateEffect;
 import de.mossgrabers.pull.core.api.effect.SetTransportValueEffect;
 import de.mossgrabers.pull.core.api.effect.SetParameterValueEffect;
@@ -75,26 +78,31 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
 {
     private static final RgbColor OFF = new RgbColor (0, 0, 0);
     private static final Set<ControlId> MASTER_ROW_LIGHTS = masterRowLights ();
-    private static final Set<ControlId> GLOBAL_TRANSPORT_LIGHTS = Set.of (
+    private static final Set<ControlId> CORE_BUTTON_LIGHTS = Set.of (
         PushControlIds.button ("PLAY"),
-        PushControlIds.button ("RECORD"));
+        PushControlIds.button ("RECORD"),
+        PushControlIds.button ("STOP_CLIP"),
+        PushControlIds.button ("MUTE"),
+        PushControlIds.button ("SOLO"));
     private static final ShellCapabilities CAPABILITIES = new ShellCapabilities (Map.ofEntries (
         Map.entry (CoreCapabilities.INPUT_DRUM_FILL, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.BINDING_CLIP_TARGET, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD, Integer.valueOf (4)),
-        Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (4)),
+        Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (6)),
         Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_MAPPING, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_STATE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_NOTE_VIEW_PREFERENCE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.OUTPUT_NOTE_REPEAT, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.INPUT_CONTROLLER, Integer.valueOf (1)),
-        Map.entry (CoreCapabilities.ROUTING_CONTROLLER_INPUT, Integer.valueOf (3)),
-        Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE, Integer.valueOf (7)),
+        Map.entry (CoreCapabilities.ROUTING_CONTROLLER_INPUT, Integer.valueOf (5)),
+        Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE, Integer.valueOf (10)),
         Map.entry (CoreCapabilities.SUBSCRIPTION_CONTROLLER_BRIDGE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_TRANSPORT, Integer.valueOf (1)),
-        Map.entry (CoreCapabilities.EFFECT_SELECTED_TRACK, Integer.valueOf (2)),
+        Map.entry (CoreCapabilities.EFFECT_SELECTED_TRACK, Integer.valueOf (3)),
+        Map.entry (CoreCapabilities.EFFECT_SESSION_BANK, Integer.valueOf (3)),
+        Map.entry (CoreCapabilities.EFFECT_CONTROLLER_BUTTON_CONSUMPTION, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.EFFECT_DRUM_PAD, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_NOTE_INPUT_MIDI, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.SNAPSHOT_PARAMETER_TARGETS, Integer.valueOf (2)),
@@ -102,7 +110,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_MAPPING_FEEDBACK, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.SNAPSHOT_MASTER, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_MASTER, Integer.valueOf (2)),
-        Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_DISPLAY, Integer.valueOf (2)),
+        Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_DISPLAY, Integer.valueOf (4)),
         Map.entry (CoreCapabilities.OUTPUT_PAD_GRID_OVERLAY, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.OUTPUT_DISPLAY_OVERLAY, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.RENDER_MIXER_CONTROLS, Integer.valueOf (1))));
@@ -122,6 +130,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     private CommittedState committedState = CommittedState.initial ();
     private Predicate<de.mossgrabers.pull.core.api.InputRoute> inputRouteValidator = route -> false;
     private Predicate<ControllerActionBinding> controllerActionValidator = action -> false;
+    private Predicate<ControlId> physicalLightOwnerValidator = ControllerRuntimeEnvironment::isPreviouslyInstalledLightOwner;
     private Runnable deferredInputRelease = () -> {
         // No controller bridge is installed in isolated environment tests.
     };
@@ -389,15 +398,11 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     {
         Objects.requireNonNull (control, "control");
         Objects.requireNonNull (inputKind, "inputKind");
-        final ControllerActionIntent intent;
         if (stableAction != null)
-            intent = stableAction;
-        else
-        {
-            final ControllerActionBinding binding = this.committedState.desiredControllerActions ().bindingOrNull (control, inputKind);
-            intent = binding == null ? null : binding.intent ();
-        }
-        return intent != null && this.committedState.desiredParameterInteraction ().blocksAction (intent);
+            return this.committedState.desiredParameterInteraction ().blocksAction (stableAction);
+
+        final ControllerActionBinding binding = this.committedState.desiredControllerActions ().bindingOrNull (control, inputKind);
+        return binding != null && this.committedState.desiredParameterInteraction ().blocksAction (binding);
     }
 
 
@@ -456,6 +461,13 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     RgbColor lightColor (final ControlId owner)
     {
         return this.committedState.output ().lights ().getOrDefault (Objects.requireNonNull (owner, "light owner"), OFF);
+    }
+
+
+    /** Test whether the applied core result explicitly owns one hardware light. */
+    boolean ownsLight (final ControlId owner)
+    {
+        return this.committedState.explicitLightOwners ().contains (Objects.requireNonNull (owner, "light owner"));
     }
 
 
@@ -536,6 +548,13 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
+    /** Install validation against the permanent physical Push light registry. */
+    void setPhysicalLightOwnerValidator (final Predicate<ControlId> validator)
+    {
+        this.physicalLightOwnerValidator = Objects.requireNonNull (validator, "validator");
+    }
+
+
     /** Install the stable-input release barrier before runtime startup. */
     void setDeferredInputRelease (final Runnable release)
     {
@@ -602,6 +621,8 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
             throw new IllegalArgumentException ("A parameter interaction requires the parameter snapshot subscription");
         if (!parametersRequested && result.effects ().stream ().anyMatch (ControllerRuntimeEnvironment::isParameterEffect))
             throw new IllegalArgumentException ("A parameter effect requires the parameter snapshot subscription");
+        if (!result.desiredBridgeSubscriptions ().includes (BridgeSubscription.SESSION_BANK) && result.effects ().stream ().anyMatch (ControllerRuntimeEnvironment::isSessionBankEffect))
+            throw new IllegalArgumentException ("A Session-bank effect requires the Session-bank snapshot subscription");
         if (this.controllerBridge == null && (!parameterBanks.banks ().isEmpty () || parameterInteraction.interactionId () != 0))
             throw new IllegalArgumentException ("Core requested parameter state without a controller bridge");
         final Map<ParameterTargetRef, ControllerBridge.ParameterLease> preparedParameterLeases = this.controllerBridge == null ? Map.of () : this.controllerBridge.prepareParameterLeases (parameterInteraction, sampledParameterBanks);
@@ -749,21 +770,21 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
-    private static DesiredHardwareOutput prepareOutput (final CoreResult result, final DesiredControllerWorkspace workspace)
+    private DesiredHardwareOutput prepareOutput (final CoreResult result, final DesiredControllerWorkspace workspace)
     {
         final Map<ControlId, RgbColor> colors = new LinkedHashMap<> (offLights ());
         final boolean masterControls = workspace.facets ().contains (ControllerViewFacet.MASTER_CONTROLS);
         for (final Map.Entry<ControlId, RgbColor> light: result.desiredOutput ().lights ().entrySet ())
         {
             final ControlId owner = Objects.requireNonNull (light.getKey (), "light owner");
-            if (!CoreControls.DRUM_FILLS.contains (owner) && !CoreControls.DRUM_RATES.contains (owner) && !CoreControls.DRUM_CONTROL_PADS.contains (owner) && !GLOBAL_TRANSPORT_LIGHTS.contains (owner) && !(masterControls && MASTER_ROW_LIGHTS.contains (owner)))
+            if (!CoreControls.DRUM_FILLS.contains (owner) && !this.physicalLightOwnerValidator.test (owner) && !(masterControls && MASTER_ROW_LIGHTS.contains (owner)))
                 throw new IllegalArgumentException ("Unsupported controller light owner");
             final RgbColor requested = Objects.requireNonNull (light.getValue (), "light color");
             colors.put (owner, new RgbColor (requested.red (), requested.green (), requested.blue ()));
         }
         final ControllerDisplayScene display = result.desiredOutput ().display ();
-        if (display.isPresent () && !masterControls)
-            throw new IllegalArgumentException ("Controller display output requires the Master-controls facet");
+        if (display.isPresent () && (display.width () != 960 || display.height () != 160))
+            throw new IllegalArgumentException ("Controller display output must use the 960x160 Push viewport");
         final ControllerPadGridOverlay overlay = result.desiredOutput ().padGridOverlay ();
         final ControllerDisplayOverlay displayOverlay = result.desiredOutput ().displayOverlay ();
         final DesiredControllerMappings controllerMappings = result.desiredOutput ().controllerMappings ();
@@ -910,6 +931,12 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     private static boolean isParameterEffect (final CoreEffect effect)
     {
         return effect instanceof SetParameterValueEffect || effect instanceof AdjustParameterValueEffect || effect instanceof ResetParameterEffect;
+    }
+
+
+    private static boolean isSessionBankEffect (final CoreEffect effect)
+    {
+        return effect instanceof StopSessionBankEffect || effect instanceof SelectSessionTrackEffect || effect instanceof StopSessionTrackEffect;
     }
 
 
@@ -1061,9 +1088,15 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
             colors.put (owner, OFF);
         for (final ControlId owner: CoreControls.DRUM_CONTROL_PADS)
             colors.put (owner, OFF);
-        for (final ControlId owner: GLOBAL_TRANSPORT_LIGHTS)
+        for (final ControlId owner: CORE_BUTTON_LIGHTS)
             colors.put (owner, OFF);
         return Map.copyOf (colors);
+    }
+
+
+    private static boolean isPreviouslyInstalledLightOwner (final ControlId owner)
+    {
+        return CoreControls.DRUM_RATES.contains (owner) || CoreControls.DRUM_CONTROL_PADS.contains (owner) || CORE_BUTTON_LIGHTS.contains (owner);
     }
 
 

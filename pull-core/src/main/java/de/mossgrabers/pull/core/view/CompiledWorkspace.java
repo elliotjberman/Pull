@@ -240,19 +240,40 @@ public final class CompiledWorkspace
         if (input.phase () != InputPhase.BEGIN)
             return null;
         final ActionOwner owner = this.actionOwners.get (new RouteKey (input.controlId (), input.kind ()));
-        return owner == null ? null : owner.view ().resolveAction (owner.binding (), input, snapshot);
+        if (owner == null)
+            return null;
+        final ResolvedControllerAction resolved = Objects.requireNonNull (
+            owner.view ().resolveAction (owner.binding (), input, snapshot),
+            "resolved controller action");
+        if (!owner.binding ().intents ().contains (resolved.intent ()))
+            throw new IllegalStateException ("view resolved an undeclared semantic action from " + input.controlId ().value ());
+        return resolved;
     }
 
 
     /** Execute one previously resolved semantic action and render the complete workspace. */
     public CoreResult handleAction (final ResolvedControllerAction action, final ControllerSnapshot snapshot)
     {
+        return this.render (snapshot, this.dispatchAction (action, snapshot));
+    }
+
+
+    /**
+     * Execute one previously resolved semantic action without rendering the workspace. This lets
+     * the runtime select the composition produced by a navigation action before any view renders.
+     *
+     * @param action Resolved action
+     * @param snapshot Authoritative state at dispatch
+     * @return Effects emitted by the action
+     */
+    public List<CoreEffect> dispatchAction (final ResolvedControllerAction action, final ControllerSnapshot snapshot)
+    {
         this.requireStarted ();
         Objects.requireNonNull (action, "action");
         Objects.requireNonNull (snapshot, "snapshot");
         for (final CompiledView view: this.views)
             view.view ().reconcile (snapshot);
-        return this.render (snapshot, action.dispatch ());
+        return action.dispatch ();
     }
 
 
@@ -271,6 +292,7 @@ public final class CompiledWorkspace
         final Set<ControlId> mappedPhysicalControls = new LinkedHashSet<> ();
         final Set<ControllerMappingId> mappingIds = new LinkedHashSet<> ();
         ControllerDisplayScene display = ControllerDisplayScene.empty ();
+        final Map<SurfaceArea, ControllerDisplayScene> displayRegions = new LinkedHashMap<> ();
         ControllerPadGridOverlay padGridOverlay = ControllerPadGridOverlay.inactive ();
         ControllerDisplayOverlay displayOverlay = ControllerDisplayOverlay.inactive ();
         DesiredNotePerformance notePerformance = DesiredNotePerformance.inactive ();
@@ -278,6 +300,8 @@ public final class CompiledWorkspace
         for (final CompiledView view: this.views)
         {
             final ViewOutput output = Objects.requireNonNull (view.view ().render (snapshot), "view output");
+            for (final ControlId control: output.lights ().keySet ())
+                validateLightOwner (view, control);
             mergeUnique (lights, output.lights (), "light", view.id ());
             mergeUnique (clipBindings, output.clipBindings (), "clip binding", view.id ());
             for (final ControllerMappingBinding binding: output.controllerMappings ().bindings ())
@@ -291,10 +315,27 @@ public final class CompiledWorkspace
             }
             if (output.display ().isPresent ())
             {
-                if (display.isPresent ())
-                    throw new IllegalStateException ("multiple views own the controller display");
-                display = output.display ();
+                final Set<SurfaceArea> regions = displayOutputClaims (view);
+                if (regions.isEmpty ())
+                    throw new IllegalStateException ("view " + view.id () + " emits a display outside its output claims");
+                if (regions.size () == 2)
+                {
+                    if (display.isPresent () || !displayRegions.isEmpty ())
+                        throw new IllegalStateException ("multiple views own the controller display");
+                    display = output.display ();
+                }
+                else
+                {
+                    if (display.isPresent ())
+                        throw new IllegalStateException ("a complete display owner cannot overlap composed display regions");
+                    final SurfaceArea region = regions.iterator ().next ();
+                    if (displayRegions.putIfAbsent (region, output.display ()) != null)
+                        throw new IllegalStateException ("multiple views own display region " + region);
+                }
             }
+            // Overlays are the deliberate full-surface transition carveout (currently the
+            // cross-project Play wave), not ordinary claimed view regions. They therefore merge
+            // only by exclusive overlay-plane ownership here.
             if (output.padGridOverlay ().active ())
             {
                 if (padGridOverlay.active ())
@@ -320,6 +361,11 @@ public final class CompiledWorkspace
                 noteRepeat = output.noteRepeat ();
             }
         }
+
+        if (display.isPresent () && !displayRegions.isEmpty ())
+            throw new IllegalStateException ("a complete display owner cannot overlap composed display regions");
+        if (!display.isPresent () && !displayRegions.isEmpty ())
+            display = DisplayRegionComposition.compose (displayRegions);
 
         return new CoreResult (
             new DesiredHardwareOutput (lights, display, padGridOverlay, displayOverlay, new DesiredControllerMappings (controllerMappingBindings)),
@@ -366,6 +412,28 @@ public final class CompiledWorkspace
             throw new IllegalStateException ("view " + view.id () + " maps a controller endpoint outside its exclusive pad-input and output claims: " + physicalControl);
         if (!view.bridgeSubscriptions ().contains (BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK))
             throw new IllegalStateException ("view " + view.id () + " maps a controller endpoint without authoritative mapping feedback");
+    }
+
+
+    private static void validateLightOwner (final CompiledView view, final ControlId control)
+    {
+        final ControlId lightControl = Objects.requireNonNull (control, "light control");
+        final boolean claimed = view.profile ().claims ().stream ().anyMatch (claim ->
+            claim.kind () == SurfaceClaim.Kind.OUTPUT && claim.area ().controls ().contains (lightControl));
+        if (!claimed)
+            throw new IllegalStateException ("view " + view.id () + " emits a light outside its output claims: " + lightControl);
+    }
+
+
+    private static Set<SurfaceArea> displayOutputClaims (final CompiledView view)
+    {
+        final Set<SurfaceArea> claims = new LinkedHashSet<> ();
+        for (final SurfaceArea area: List.of (SurfaceArea.DISPLAY_PARAMETERS, SurfaceArea.DISPLAY_BOTTOM_STRIP))
+        {
+            if (view.profile ().claims ().contains (new SurfaceClaim (area, SurfaceClaim.Kind.OUTPUT)))
+                claims.add (area);
+        }
+        return Set.copyOf (claims);
     }
 
 
@@ -505,6 +573,8 @@ public final class CompiledWorkspace
             {
                 final ControlId control = Objects.requireNonNull (binding.getKey (), "parameter control");
                 final ParameterSlot slot = Objects.requireNonNull (binding.getValue (), "parameter slot");
+                if (!claimsInput (view.profile (), new RouteKey (control, InputKind.RELATIVE)))
+                    throw new IllegalArgumentException ("view " + view.id () + " maps a parameter outside its relative-input claims: " + control);
                 if (bindings.putIfAbsent (control, slot) != null)
                     throw new IllegalArgumentException ("multiple views map parameter control " + control);
             }

@@ -620,6 +620,9 @@ final class PushDebugNavigationHost implements AutoCloseable
             padEvidence == null ? "-" : rgb (padEvidence.desiredColor ()),
             padEvidence == null ? "-" : padEvidence.resolvedColor () + ":" + padEvidence.resolvedBlinkColor () + ":" + padEvidence.fast (),
             padEvidence == null ? "-" : transmissions (padEvidence),
+            Boolean.toString (observed.selectedTrackMuted ()),
+            Boolean.toString (observed.selectedTrackSoloed ()),
+            Boolean.toString (observed.selectedTrackClipPlaying ()),
             PushDebugging.sanitize (status.message ())) + "\n";
         final Path temporaryStatus = this.statusPath.resolveSibling (this.statusPath.getFileName () + ".tmp");
         Files.writeString (temporaryStatus, content);
@@ -681,6 +684,11 @@ final class PushDebugNavigationHost implements AutoCloseable
         default boolean tryBeginDebugInput (final Runnable press)
         {
             return this.trySubmit (press);
+        }
+
+        default boolean tryExtendDebugInput (final Runnable press)
+        {
+            return false;
         }
 
         default void endDebugInput (final Runnable release)
@@ -784,17 +792,17 @@ final class PushDebugNavigationHost implements AutoCloseable
     }
 
 
-    record ObservedNavigation (String viewID, String modeID, boolean workspaceActive, int selectedTrackPosition, String selectedTrackID, long selectedTrackGeneration, boolean selectedTrackCanHoldNotes, boolean noteRepeatActive, boolean noteLatchActive, boolean selectedTrackArmed, SelectedTrackMonitorMode selectedTrackMonitorMode, ControllerBridge.NotePerformanceState notePerformance)
+    record ObservedNavigation (String viewID, String modeID, boolean workspaceActive, int selectedTrackPosition, String selectedTrackID, long selectedTrackGeneration, boolean selectedTrackCanHoldNotes, boolean noteRepeatActive, boolean noteLatchActive, boolean selectedTrackArmed, SelectedTrackMonitorMode selectedTrackMonitorMode, ControllerBridge.NotePerformanceState notePerformance, boolean selectedTrackMuted, boolean selectedTrackSoloed, boolean selectedTrackClipPlaying)
     {
         private static ObservedNavigation unavailable ()
         {
-            return new ObservedNavigation ("", "", false, -1, "", 0, false, false, false, false, SelectedTrackMonitorMode.OFF, ControllerBridge.NotePerformanceState.unavailable ());
+            return new ObservedNavigation ("", "", false, -1, "", 0, false, false, false, false, SelectedTrackMonitorMode.OFF, ControllerBridge.NotePerformanceState.unavailable (), false, false, false);
         }
 
 
         ObservedNavigation (final String viewID, final String modeID, final boolean workspaceActive, final int selectedTrackPosition, final String selectedTrackID, final long selectedTrackGeneration, final boolean noteRepeatActive)
         {
-            this (viewID, modeID, workspaceActive, selectedTrackPosition, selectedTrackID, selectedTrackGeneration, true, noteRepeatActive, false, false, SelectedTrackMonitorMode.OFF, ControllerBridge.NotePerformanceState.unavailable ());
+            this (viewID, modeID, workspaceActive, selectedTrackPosition, selectedTrackID, selectedTrackGeneration, true, noteRepeatActive, false, false, SelectedTrackMonitorMode.OFF, ControllerBridge.NotePerformanceState.unavailable (), false, false, false);
         }
 
         ObservedNavigation
@@ -827,6 +835,9 @@ final class PushDebugNavigationHost implements AutoCloseable
         SESSION (ButtonID.SESSION),
         LAYOUT (ButtonID.LAYOUT),
         PLAY (ButtonID.PLAY),
+        MUTE (ButtonID.MUTE),
+        SOLO (ButtonID.SOLO),
+        STOP_CLIP (ButtonID.STOP_CLIP),
         ROW1_1 (ButtonID.ROW1_1, NavigationContext.TRACK),
         ROW1_2 (ButtonID.ROW1_2, NavigationContext.TRACK),
         ROW1_3 (ButtonID.ROW1_3, NavigationContext.TRACK),
@@ -956,11 +967,14 @@ final class PushDebugNavigationHost implements AutoCloseable
         Boolean noteLatchActive,
         Boolean selectedTrackArmed,
         SelectedTrackMonitorMode selectedTrackMonitorMode,
+        Boolean selectedTrackMuted,
+        Boolean selectedTrackSoloed,
+        Boolean selectedTrackClipPlaying,
         NoteRouteExpectation noteRoute,
         boolean submissionOnly)
     {
-        private static final NavigationPredicate ANY = new NavigationPredicate (Set.of (), Set.of (), Set.of (), Set.of (), null, null, null, null, null, null, null, null, false);
-        private static final NavigationPredicate SUBMITTED = new NavigationPredicate (Set.of (), Set.of (), Set.of (), Set.of (), null, null, null, null, null, null, null, null, true);
+        private static final NavigationPredicate ANY = new NavigationPredicate (Set.of (), Set.of (), Set.of (), Set.of (), null, null, null, null, null, null, null, null, null, null, null, false);
+        private static final NavigationPredicate SUBMITTED = new NavigationPredicate (Set.of (), Set.of (), Set.of (), Set.of (), null, null, null, null, null, null, null, null, null, null, null, true);
 
 
         static NavigationPredicate parse (final String value)
@@ -981,6 +995,9 @@ final class PushDebugNavigationHost implements AutoCloseable
             Boolean latch = null;
             Boolean armed = null;
             SelectedTrackMonitorMode monitor = null;
+            Boolean muted = null;
+            Boolean soloed = null;
+            Boolean clipPlaying = null;
             NoteRouteExpectation route = null;
             for (final String term: value.split (","))
             {
@@ -1026,13 +1043,16 @@ final class PushDebugNavigationHost implements AutoCloseable
                     case "latch" -> latch = parseBoolean ("latch", term, parts[1], denied, latch);
                     case "armed" -> armed = parseBoolean ("armed", term, parts[1], denied, armed);
                     case "monitor" -> monitor = parseEnum ("monitor", term, parts[1], denied, monitor, SelectedTrackMonitorMode.class);
+                    case "muted" -> muted = parseBoolean ("muted", term, parts[1], denied, muted);
+                    case "soloed" -> soloed = parseBoolean ("soloed", term, parts[1], denied, soloed);
+                    case "clip-playing" -> clipPlaying = parseBoolean ("clip-playing", term, parts[1], denied, clipPlaying);
                     case "route" -> route = parseEnum ("route", term, parts[1], denied, route, NoteRouteExpectation.class);
                     default -> throw new IllegalArgumentException ("unsupported navigation predicate field '" + PushDebugging.sanitize (parts[0]) + "'");
                 }
             }
             if (trackPosition != null && trackID == null)
                 throw new IllegalArgumentException ("track position requires an exact track-id predicate");
-            return new NavigationPredicate (allowedViews, deniedViews, allowedModes, deniedModes, workspace, trackPosition, trackID, repeat, latch, armed, monitor, route, false);
+            return new NavigationPredicate (allowedViews, deniedViews, allowedModes, deniedModes, workspace, trackPosition, trackID, repeat, latch, armed, monitor, muted, soloed, clipPlaying, route, false);
         }
 
 
@@ -1051,6 +1071,9 @@ final class PushDebugNavigationHost implements AutoCloseable
                 (this.noteLatchActive == null || this.noteLatchActive.booleanValue () == observed.noteLatchActive ()) &&
                 (this.selectedTrackArmed == null || this.selectedTrackArmed.booleanValue () == observed.selectedTrackArmed ()) &&
                 (this.selectedTrackMonitorMode == null || this.selectedTrackMonitorMode == observed.selectedTrackMonitorMode ()) &&
+                (this.selectedTrackMuted == null || this.selectedTrackMuted.booleanValue () == observed.selectedTrackMuted ()) &&
+                (this.selectedTrackSoloed == null || this.selectedTrackSoloed.booleanValue () == observed.selectedTrackSoloed ()) &&
+                (this.selectedTrackClipPlaying == null || this.selectedTrackClipPlaying.booleanValue () == observed.selectedTrackClipPlaying ()) &&
                 (this.noteRoute == null || routeMatches (this.noteRoute, observed));
         }
 
@@ -1348,7 +1371,10 @@ final class PushDebugNavigationHost implements AutoCloseable
                 noteRepeat.isLatchActive (),
                 selectedTrack.armed (),
                 selectedTrack.monitorMode (),
-                this.notePerformanceState.get ());
+                this.notePerformanceState.get (),
+                selectedTrack.muted (),
+                selectedTrack.soloed (),
+                selectedTrack.clipPlaying ());
         }
 
 

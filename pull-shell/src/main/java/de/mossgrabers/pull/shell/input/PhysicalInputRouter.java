@@ -259,14 +259,20 @@ public final class PhysicalInputRouter<C>
         if (phase == InputPhase.BEGIN)
         {
             final GestureBinding existing = this.gestureBindings.get (input);
-            final InputRoute route = existing == null ? this.resolveRoute (input) : existing.route ();
-            // An exclusive route owns the physical gesture itself. Carrying the stable command's
-            // semantic label would discard that physical identity when the event crosses into the
-            // core, which makes distinct row buttons look like the same legacy action.
-            final ControllerActionIntent routedStableAction = route == InputRoute.EXCLUSIVE ? null : stableAction;
-            binding = existing == null ? new GestureBinding (route, this.ownerGeneration.getAsLong (), routedStableAction, this.stableDispatchBarrier.test (input.control (), input.kind (), routedStableAction)) : existing;
             if (existing == null)
+            {
+                final InputRoute route = this.resolveRoute (input);
+                // An exclusive route owns the physical gesture itself. Carrying the stable
+                // command's semantic label would discard that physical identity when the event
+                // crosses into core, which makes distinct row buttons look identical.
+                final ControllerActionIntent routedStableAction = route == InputRoute.EXCLUSIVE ? null : stableAction;
+                final StableDispatch stableDispatch = route == InputRoute.EXCLUSIVE ? StableDispatch.SUPPRESS :
+                    this.stableDispatchBarrier.test (input.control (), input.kind (), routedStableAction) ? StableDispatch.DEFER : StableDispatch.RUN;
+                binding = new GestureBinding (route, this.ownerGeneration.getAsLong (), routedStableAction, stableDispatch);
                 this.gestureBindings.put (input, binding);
+            }
+            else
+                binding = existing;
         }
         else
             binding = this.gestureBindings.getOrDefault (input, GestureBinding.NONE);
@@ -298,10 +304,14 @@ public final class PhysicalInputRouter<C>
 
     private void deliverEdge (final GestureBinding binding, final PhysicalInputEvent<C> event, final Runnable stableCommand)
     {
-        if (binding.stableDispatchDeferred ())
-            this.deferStableDispatch (new PhysicalInputAddress<> (event.control (), event.kind ()), binding.stableAction (), stableCommand);
-        else if (binding.route () != InputRoute.EXCLUSIVE)
-            stableCommand.run ();
+        switch (binding.stableDispatch ())
+        {
+            case RUN -> stableCommand.run ();
+            case DEFER -> this.deferStableDispatch (new PhysicalInputAddress<> (event.control (), event.kind ()), binding.stableAction (), stableCommand);
+            case SUPPRESS -> {
+                // EXCLUSIVE ownership freezes suppression before any stable barrier is consulted.
+            }
+        }
         if (binding.route () != InputRoute.NONE || event.stableAction ().isPresent ())
             this.eventSink.accept (event);
     }
@@ -346,14 +356,15 @@ public final class PhysicalInputRouter<C>
     }
 
 
-    private record GestureBinding (InputRoute route, long generation, ControllerActionIntent stableAction, boolean stableDispatchDeferred)
+    private record GestureBinding (InputRoute route, long generation, ControllerActionIntent stableAction, StableDispatch stableDispatch)
     {
-        private static final GestureBinding NONE = new GestureBinding (InputRoute.NONE, 0, null, false);
+        private static final GestureBinding NONE = new GestureBinding (InputRoute.NONE, 0, null, StableDispatch.RUN);
 
 
         private GestureBinding
         {
             Objects.requireNonNull (route, "route");
+            Objects.requireNonNull (stableDispatch, "stableDispatch");
             if (generation < 0)
                 throw new IllegalArgumentException ("generation must not be negative");
         }
@@ -361,8 +372,16 @@ public final class PhysicalInputRouter<C>
 
         private boolean crossesCoreGeneration ()
         {
-            return this.route != InputRoute.NONE || this.stableAction != null || this.stableDispatchDeferred;
+            return this.route != InputRoute.NONE || this.stableAction != null || this.stableDispatch == StableDispatch.DEFER;
         }
+    }
+
+
+    private enum StableDispatch
+    {
+        RUN,
+        DEFER,
+        SUPPRESS
     }
 
 

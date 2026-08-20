@@ -56,6 +56,7 @@ public abstract class AbstractGraphicDisplay implements IGraphicDisplay
     private final AtomicReference<String>  notificationMessage             = new AtomicReference<> ();
     private ModelInfo                      info                            = new ModelInfo (null, Collections.emptyList (), Collections.emptyList ());
     private Supplier<IComponent>           fullScreenOverlaySupplier       = () -> null;
+    private Supplier<IComponent>           fullScreenBaseSupplier          = () -> null;
 
     protected final IHost                  host;
     protected final IGraphicsConfiguration configuration;
@@ -141,6 +142,8 @@ public abstract class AbstractGraphicDisplay implements IGraphicDisplay
                 notification = this.notificationMessage.get ();
             }
 
+            final IComponent fullScreenBase = this.fullScreenBaseSupplier.get ();
+            final List<IComponent> renderedColumns = fullScreenBase == null ? this.columns : List.of (fullScreenBase);
             final IComponent fullScreenOverlay = this.fullScreenOverlaySupplier.get ();
             final List<IComponent> renderedOverlays;
             if (fullScreenOverlay == null)
@@ -150,7 +153,7 @@ public abstract class AbstractGraphicDisplay implements IGraphicDisplay
                 renderedOverlays = new ArrayList<> (this.overlays);
                 renderedOverlays.add (fullScreenOverlay);
             }
-            final ModelInfo newInfo = new ModelInfo (fullScreenOverlay == null ? notification : null, this.columns, renderedOverlays);
+            final ModelInfo newInfo = new ModelInfo (fullScreenOverlay == null ? notification : null, renderedColumns, renderedOverlays);
 
             // Only render image if there is a change in the data
             if (!this.info.equals (newInfo))
@@ -179,6 +182,13 @@ public abstract class AbstractGraphicDisplay implements IGraphicDisplay
     protected void setFullScreenOverlaySupplier (final Supplier<IComponent> supplier)
     {
         this.fullScreenOverlaySupplier = java.util.Objects.requireNonNull (supplier, "supplier");
+    }
+
+
+    /** Install a generic complete base scene which replaces page elements but preserves overlays. */
+    protected void setFullScreenBaseSupplier (final Supplier<IComponent> supplier)
+    {
+        this.fullScreenBaseSupplier = java.util.Objects.requireNonNull (supplier, "supplier");
     }
 
 

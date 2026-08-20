@@ -3,9 +3,10 @@
 
 package de.mossgrabers.controller.ableton.push.controller;
 
-import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import de.mossgrabers.framework.controller.color.ColorManager;
@@ -14,27 +15,29 @@ import de.mossgrabers.framework.controller.grid.LightInfo;
 import de.mossgrabers.framework.controller.grid.PadColor;
 import de.mossgrabers.framework.controller.grid.PadGridImpl;
 import de.mossgrabers.framework.daw.midi.IMidiOutput;
+import de.mossgrabers.pull.core.api.ControlId;
+import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
 import de.mossgrabers.pull.core.api.output.PadGridPosition;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 
 
 /**
- * Push 2 pad grid with support for its firmware-rendered pad fade.
+ * Push 2 pad grid with explicit core-light and temporary-overlay planes.
  */
 final class PushPadGrid extends PadGridImpl
 {
-    private static final int NO_PENDING_FADE         = -1;
-    /** Push's clocked 1/16 one-shot transition channel. */
-    private static final int SIXTEENTH_FADE_CHANNEL  = 2;
-
-    private final int [] pendingFadeTargets = new int [NUM_NOTES];
     private final LightInfo [] frozenPadStates = new LightInfo [NUM_NOTES];
     private final LightInfo [] overlayPadStates = new LightInfo [NUM_NOTES];
     private final PadColor [] requestedOverlayColors = new PadColor [NUM_NOTES];
     private final int [] resolvedOverlayColors = new int [NUM_NOTES];
+    private final LightInfo [] corePadStates = new LightInfo [NUM_NOTES];
+    private final PadColor [] requestedCoreColors = new PadColor [NUM_NOTES];
+    private final int [] resolvedCoreColors = new int [NUM_NOTES];
 
     private Supplier<ControllerPadGridOverlay> overlaySupplier = ControllerPadGridOverlay::inactive;
+    private Predicate<ControlId> coreLightOwner = ignored -> false;
+    private Function<ControlId, RgbColor> coreLightColor = ignored -> new RgbColor (0, 0, 0);
     private boolean overlayActive;
     private int debugObservedNote = -1;
     private boolean debugObservedSend;
@@ -54,11 +57,11 @@ final class PushPadGrid extends PadGridImpl
     {
         super (colorManager, output);
 
-        Arrays.fill (this.pendingFadeTargets, NO_PENDING_FADE);
         for (int note = 0; note < NUM_NOTES; note++)
         {
             this.frozenPadStates[note] = new LightInfo ();
             this.overlayPadStates[note] = new LightInfo ();
+            this.corePadStates[note] = new LightInfo ();
         }
     }
 
@@ -74,6 +77,14 @@ final class PushPadGrid extends PadGridImpl
     void setDebugSurfaceObserver (final DebugSurfaceObserver debugSurfaceObserver)
     {
         this.debugSurfaceObserver = Objects.requireNonNull (debugSurfaceObserver, "debugSurfaceObserver");
+    }
+
+
+    /** Install the permanent explicit core-light ownership plane beneath temporary overlays. */
+    void setCoreLightSupplier (final Predicate<ControlId> owner, final Function<ControlId, RgbColor> color)
+    {
+        this.coreLightOwner = Objects.requireNonNull (owner, "owner");
+        this.coreLightColor = Objects.requireNonNull (color, "color");
     }
 
 
@@ -149,31 +160,13 @@ final class PushPadGrid extends PadGridImpl
     }
 
 
-    /**
-     * Fade the pad to the expected target color the next time that color is sent.
-     *
-     * @param note The physical Push pad note
-     * @param targetColor The expected target color
-     */
-    void requestFade (final int note, final PadColor targetColor)
-    {
-        if (note < this.startNote || note > this.endNote)
-            throw new IllegalArgumentException ("Pad note is outside the Push grid.");
-
-        synchronized (this.pendingFadeTargets)
-        {
-            this.pendingFadeTargets[note] = this.resolveColor (targetColor);
-        }
-    }
-
-
     private LightInfo displayState (final int note)
     {
         final ControllerPadGridOverlay overlay = Objects.requireNonNull (this.overlaySupplier.get (), "pad-grid overlay");
         if (!overlay.active ())
         {
             this.overlayActive = false;
-            return super.getLightInfo (note);
+            return this.baseState (note);
         }
 
         if (!this.overlayActive)
@@ -196,6 +189,26 @@ final class PushPadGrid extends PadGridImpl
     }
 
 
+    private LightInfo baseState (final int note)
+    {
+        final int index = note - this.startNote;
+        final ControlId control = PushControlIds.pad (index + 1);
+        if (!this.coreLightOwner.test (control))
+            return super.getLightInfo (note);
+
+        final RgbColor rgb = Objects.requireNonNull (this.coreLightColor.apply (control), "core light color");
+        final PadColor color = PadColor.rgbOrOff (ColorEx.fromRGB (rgb.red (), rgb.green (), rgb.blue ()));
+        if (!color.equals (this.requestedCoreColors[note]))
+        {
+            this.requestedCoreColors[note] = color;
+            this.resolvedCoreColors[note] = this.resolveColor (color);
+        }
+        final LightInfo coreState = this.corePadStates[note];
+        coreState.setColors (this.resolvedCoreColors[note], 0, false);
+        return coreState;
+    }
+
+
     private int resolveOverlayColor (final int note, final PadColor color)
     {
         if (!color.equals (this.requestedOverlayColors[note]))
@@ -212,25 +225,8 @@ final class PushPadGrid extends PadGridImpl
     {
         for (int note = this.startNote; note <= this.endNote; note++)
         {
-            final LightInfo base = super.getLightInfo (note);
+            final LightInfo base = this.baseState (note);
             this.frozenPadStates[note].setColors (base.getColor (), base.getBlinkColor (), base.isFast ());
-        }
-    }
-
-
-    /**
-     * Cancel a pending fade which has not yet reached the hardware.
-     *
-     * @param note The physical Push pad note
-     */
-    void cancelFade (final int note)
-    {
-        if (note < this.startNote || note > this.endNote)
-            return;
-
-        synchronized (this.pendingFadeTargets)
-        {
-            this.pendingFadeTargets[note] = NO_PENDING_FADE;
         }
     }
 
@@ -239,16 +235,9 @@ final class PushPadGrid extends PadGridImpl
     @Override
     protected void sendNoteState (final int channel, final int note, final int color)
     {
-        final int fadeTarget;
-        synchronized (this.pendingFadeTargets)
-        {
-            fadeTarget = this.pendingFadeTargets[note];
-            this.pendingFadeTargets[note] = NO_PENDING_FADE;
-        }
-        final int transmittedChannel = fadeTarget == color ? SIXTEENTH_FADE_CHANNEL : channel;
-        super.sendNoteState (transmittedChannel, note, color);
+        super.sendNoteState (channel, note, color);
         if (this.debugObservedSend)
-            this.debugBaseTransmission = new Transmission (++this.debugTransmissionRevision, transmittedChannel, note, color);
+            this.debugBaseTransmission = new Transmission (++this.debugTransmissionRevision, channel, note, color);
     }
 
 

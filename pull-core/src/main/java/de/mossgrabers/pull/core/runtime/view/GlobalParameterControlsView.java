@@ -7,6 +7,8 @@ import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ParameterSlot;
 import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.view.ControllerView;
+import de.mossgrabers.pull.core.view.SurfaceArea;
+import de.mossgrabers.pull.core.view.SurfaceClaim;
 import de.mossgrabers.pull.core.view.ViewProfile;
 
 import java.util.Map;
@@ -18,7 +20,12 @@ import java.util.Set;
  */
 public final class GlobalParameterControlsView implements ControllerView
 {
-    private static final ViewProfile PROFILE = ViewProfile.fixed ("global-parameters", Set.of (), Set.of ());
+    private static final ViewProfile PROFILE = ViewProfile.fixed (
+        "global-parameters",
+        Set.of (
+            new SurfaceClaim (SurfaceArea.TEMPO_ENCODER, SurfaceClaim.Kind.DIRECT_INPUT),
+            new SurfaceClaim (SurfaceArea.MASTER_ENCODER, SurfaceClaim.Kind.DIRECT_INPUT)),
+        Set.of ());
     private static final Map<ControlId, ParameterSlot> PARAMETER_BINDINGS = Map.of (
         PushControlIds.continuous ("TEMPO"), ParameterSlot.TEMPO,
         PushControlIds.continuous ("MASTER_KNOB"), ParameterSlot.MASTER_VOLUME);

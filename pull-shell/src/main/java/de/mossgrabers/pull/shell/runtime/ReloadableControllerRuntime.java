@@ -79,7 +79,18 @@ public final class ReloadableControllerRuntime implements AutoCloseable
     /** Get a replayable core-owned controller light. */
     public RgbColor lightColor (final ControlId control)
     {
-        return this.environment == null || this.closed ? OFF : this.environment.lightColor (Objects.requireNonNull (control, "control"));
+        if (this.environment == null || this.closed)
+            return OFF;
+        return this.environment.lightColor (Objects.requireNonNull (control, "control"));
+    }
+
+
+    /** Test whether the applied core result explicitly owns one hardware light. */
+    public boolean ownsLight (final ControlId control)
+    {
+        if (this.environment == null || this.closed)
+            return false;
+        return this.environment.ownsLight (Objects.requireNonNull (control, "control"));
     }
 
 
@@ -226,6 +237,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             () -> this.supervisor == null ? 0 : this.supervisor.activeGeneration ());
         this.environment.setInputRouteValidator (this.inputBridge::supports);
         this.environment.setControllerActionValidator (this.inputBridge::supports);
+        this.environment.setPhysicalLightOwnerValidator (this.inputBridge::supportsLight);
         this.environment.setDeferredInputRelease (this.inputBridge::releaseDeferredStableDispatches);
         this.environment.setInputLifecycleIdle (this.inputBridge::isIdle);
         this.environment.setNoteInputLifecycleIdle (this.inputBridge::musicalInputLifecycleIdle);

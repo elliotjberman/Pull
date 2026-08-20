@@ -152,6 +152,12 @@ public interface ISelectedTrackNoteTarget
 
 
     /**
+     * Stop launcher playback immediately, bypassing launch quantization.
+     */
+    void stopImmediately ();
+
+
+    /**
      * Return the selected target to arranger playback.
      */
     void returnToArrangement ();

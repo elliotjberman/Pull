@@ -215,7 +215,7 @@ public final class ControllerWorkspaceHost
 
     private static boolean usesWorkspaceModeAdapter (final DesiredControllerWorkspace workspace)
     {
-        return workspace.facets ().contains (ControllerViewFacet.PROJECT_MACRO_CONTROLS) || workspace.facets ().contains (ControllerViewFacet.TRACK_SELECTION_STRIP);
+        return workspace.facets ().contains (ControllerViewFacet.PROJECT_MACRO_CONTROLS);
     }
 
 

@@ -1,7 +1,10 @@
 # Pull View Architecture
 
-Status: current through Core API 33, semantic controller-mapping identities, the shared mixer-control renderer, the Master-control
-migration, the post-demo `VS Live` composition, and core-owned note-view and drum-rate policy.
+Status: current through Core API 41, semantic controller-mapping identities, generic registered
+button/grid light arbitration, the shared
+mixer-control renderer, the Master-control migration, the post-demo `VS Live` composition, and
+core-owned Session Stop, selected-track Mute/Solo, VS Live Project/Track and Track/Mix display
+composition, track selection, note-view, and drum-rate policy.
 
 Read this file before changing controller views, modes, workspaces, input routing, or Session bank
 topology. The detailed design contract is in
@@ -96,6 +99,19 @@ retiring Repeat when the core releases ownership.
 The Bitwig **Automatic arp / roll** setting is published as state; core alone decides whether the
 drum workspace owns repeat or leaves it untouched.
 
+`DrumPlayPadView` owns the lower-left 4x4 RGB output and all playable-pad pressure policy in both
+the standalone Drum page and VS Live. Resting lights use authoritative selected-track color;
+playing lights use later bounded drum-window velocity read-back. Target generation/channel,
+note-view applicability, model alignment, and drum-window base note must all agree or the view
+renders off. Applicability, layout scrolling, RGB feedback, pressure policy, and drum-pad effects
+all resolve the same canonical 16-pad device candidate and window. The additional 64-pad proxy
+belongs only to the frozen legacy Drum64 adapter and is never a state source for the composed Drum
+Controller. Musical note edges still travel through the permanent target-fenced `NoteInput` route,
+independently from controller-command arbitration, so RGB or command handling cannot swallow MIDI;
+the route and controller views nevertheless share the same selected-target applicability gate.
+The note translation itself remains the installed built-in Drum Controller map; arbitrary musical
+pad geometry is not yet a core-authored view capability.
+
 ### Parameter banks, effects, and snapback
 
 Core API 24 exposes named, view-independent banks for the inherited active encoder window, project
@@ -143,7 +159,9 @@ motion to settle, requests an absolute restore, and waits for later authoritativ
 A core-owned view resolves a complete semantic action payload at gesture `BEGIN`. A frozen legacy
 stable command remains unchanged until migrated, but its compatibility adapter publishes semantic
 intent derived from the actual command and current mode path before the dispatch waits behind the
-same restoration barrier. Touch edges do not define the session lifetime. Stable restores retained
+same restoration barrier. A workspace must resolve one of the variants declared by that physical
+binding. `EXCLUSIVE` freezes the stable disposition as suppressed before this barrier is consulted,
+so a barrier cannot queue legacy behavior that the route excludes. Touch edges do not define the session lifetime. Stable restores retained
 targets best-effort if the core faults.
 
 Core replacement waits until the physical input router has no core-relevant active gesture, queued
@@ -190,7 +208,8 @@ A `SurfaceClaim` declares one view's use of an area:
 Multiple observers may coexist. Two owning input claims conflict. Two output claims conflict,
 regardless of whether core or a stable adapter realizes them. Adapter-backed claims are invalid
 without the matching declared `ControllerViewFacet`. A compiled result must be independent of view
-declaration order.
+declaration order. Semantic action bindings and physical-to-parameter bindings must be covered by
+the same declaring view's matching input claim.
 
 ### Views
 
@@ -229,6 +248,22 @@ views:
 `VsLiveWorkspace.create(...)` constructs this configuration directly in Java. YAML/JSON is not
 implemented and must not become a raw control-mapping language.
 
+### Current authoring boundary
+
+This is a source-level Java view system, not a runtime plug-in SDK. A contributor can add a
+`ControllerView`, select named `SurfaceArea` claims, compose it with installed views, consume the
+existing authoritative snapshots/effects/output lanes, and hot reload policy that stays inside the
+installed canopy. The compiler rejects ordinary physical overlap and output outside claims.
+
+That does **not** currently permit dynamic class or YAML registration, new Bitwig proxies/effects,
+new Session bank shapes, additional permanent semantic mapping endpoints, or an arbitrary new
+physical-pad-to-note map without a parent-loaded API/shell change and Bitwig restart. The four
+mapping identities are installed capacity, not a general endpoint registry. Stable adapter facets
+are closed migration scaffolding, not author-facing extension points; their remaining claim gap is
+tracked in [`docs/findings/stable-facet-claim-coupling.md`](docs/findings/stable-facet-claim-coupling.md).
+General musical geometry is tracked in
+[`docs/findings/custom-musical-surface-geometry.md`](docs/findings/custom-musical-surface-geometry.md).
+
 ### Stable facets
 
 `ControllerViewFacet` and `DesiredControllerWorkspace` are a migration bridge. Each real core view
@@ -244,7 +279,7 @@ for `"VS Live"`.
 Shift + Session selects the hardcoded VS Live composition. Plain Session and Note return through
 their ordinary destinations.
 
-VS Live contains:
+VS Live initially contains:
 
 - project macros on the eight top encoders and parameter display;
 - track names and selection on the bottom display strip and lower soft keys;
@@ -255,29 +290,59 @@ VS Live contains:
 - drum pitch bend on the touch strip.
 
 The lower Drum Controller includes its 4x4 playable block, four core-owned rate pads, eight fill
-pads, four Bitwig-manually-mappable control pads, octave navigation, aggregate grid pressure, and its optional pitch-bend facet. It does not own
-the lower scene keys. Per-pad pressure has a musical destination only on the playable 4x4 block and
-is part of the same reloadable `DrumControllerView`, so pressure cannot be accidentally omitted
-from a composition that owns those pads.
+pads, four Bitwig-manually-mappable control pads, octave navigation, aggregate grid pressure, and
+its optional pitch-bend facet. It does not own the lower scene keys. `DrumPlayPadView` declares the
+playable block plus aggregate pressure as one fixed profile, so the standalone Drum page and VS
+Live compose the same pressure and authoritative feedback policy. The fill subview separately
+declares its stable semantic actions and its eight physical RGB outputs over the same footprint;
+only an authoritatively engaged Drum layout selects those actions and lights, so an ordinary Note
+grid retains all eight underlying pad lights.
+
+The parameter-body view is independently replaceable from the retained track strip and grid.
+Selecting Mix publishes a stable semantic parameter-context action and composes
+`TrackMixerControlsView` with the same `TrackSelectionStripView`: core owns the active
+eight-parameter rendering and encoder
+turns while the inherited upper-row page menu and encoder-touch mechanics remain explicit stable
+adapters. The selected Mix view never infers an Input & Output page from a temporarily empty
+parameter snapshot; it keeps Mix selected and leaves unavailable control slots blank until later
+authoritative read-back. Its physical Volume/Pan wrappers are mechanically unwrapped, validated
+against the selected current-bank track, and separately fenced to the private selection-following
+cursor by stable channel ID. A `TRACK` mode transition without the matching semantic page action is
+only controller-layout reconciliation and cannot select Mix. Device and Browse still release the
+parameter body to their frozen stable pages. Core-authored Project and Mix pages retain the track
+strip; every replacement retains the Session/Drum grid, scene keys, navigation, and Session-owned
+Stop Clip control.
 
 The normal Session view declares an 8x8 bank. VS Live declares 8x4. `SessionBankRegistry` eagerly
 holds exactly those installed shapes, preserves track/scene offsets when switching, and enables
-Bitwig clip-launcher feedback on only the active bank. An undeclared shape is rejected.
+Bitwig clip-launcher feedback on only the active bank. `SessionBankHost` publishes the active
+window's fenced track identity and authoritative state only while requested. An undeclared shape
+is rejected.
 
 ## Current Implementation Map
 
 Reloadable core:
 
 - `CompiledWorkspace`: claim validation, routing, deterministic composition.
+- `ControllerLevelViews`: one retained global selection, transport, parameter, and selected-track
+  policy set shared across every page replacement.
 - `DefaultWorkspace`: ordinary migrated behavior plus shared workspace selection.
 - `VsLiveWorkspace`: Java-defined composition and declared 8x4 Session bank.
 - `ProjectMacroControlsView`: core-owned relative encoder behavior plus adapter-backed touch and
   parameter-display ownership.
+- `TrackMixerControlsView`: VS Live's core-owned active Track/Mix parameter body and encoder turns,
+  composed with the retained track-selection strip; upper-row menu actions and encoder touches are
+  explicit stable adapters.
 - `TrackSelectionStripView`: lower display strip and lower soft-key ownership.
 - `SessionNavigationView`: arrow and page navigation ownership.
-- `SessionClipGridView`: upper Session grid plus optional upper scene keys.
+- `SessionView`: full or upper Session grid profile, optional upper scene keys, and core-owned Stop
+  Clip input/feedback across independently selected page views.
+- `SelectedTrackMuteSoloView`: persistent Mute/Solo input and authoritative feedback downstream of
+  the private selection-following track, independent of every page and grid.
 - `NoteViewControllerView`: authoritative per-selected-track note-layout policy.
-- `DrumControllerView`: playable lower-grid mapping, pressure policy, and optional pitch bend.
+- `DrumPlayPadView`: shared playable lower-grid RGB and pressure policy.
+- `DrumControllerView`: remaining composite lifecycle, octave adapter, selected-track Note route,
+  and optional pitch bend.
 - `DrumRateView`: four exclusive rate-pad gestures, RGB output, and desired note-repeat state.
 - `DrumFillView`: fill selection, launch lifecycle, bindings, and eight RGB lights.
 - `DrumControlPadView`: four exclusive physical control-pad routes, a complete
@@ -294,10 +359,11 @@ Stable shell:
 - `StableControllerActionResolver`: derives semantic intent from remaining stable commands at their
   dispatch boundary.
 - `ControllerRuntimeEnvironment`: owns bounded leases, action barriers, and committed bridge state.
-- `WorkspaceMode`: project macro touch/delete, inherited Project menu/track footer, and track-strip
-  adapter; its parameter body is core-rendered.
+- `WorkspaceMode`: project-macro touch/Delete adapter only; its old display, track-selection, and
+  row-light semantics are deleted.
 - `WorkspaceView`: upper Session grid plus reusable lower Drum Controller adapter.
-- `SessionBankRegistry`: bounded 8x8/8x4 Bitwig bank canopy.
+- `SessionBankRegistry` and `SessionBankHost`: bounded 8x8/8x4 Bitwig bank canopy, requested
+  authoritative state, and generation-fenced bank actions.
 - `PushControlSurface`: remaining stable pitch-bend and navigation integration.
 - `ControllerMappingHost`: eagerly creates the four permanent semantic Bitwig button identities,
   attaches their no-output Boolean feedback, and removes MIDI matchers from all 64 original grid
@@ -321,7 +387,34 @@ Implemented:
 - Behavior-preserving core views for drum fills and Record controls.
 - Core-owned Shift + Session workspace selection and reload checkpoint state.
 - Correct 8x4 Session navigation and Bitwig feedback via a declared bank.
-- Drum pressure owned by the same fixed Drum Controller view as its playable pads.
+- One persistent `SessionView` owns the full/upper grid footprint plus Stop Clip input and RGB
+  feedback: available is white and a held Stop is red. Plain Stop immediately stops the
+  authoritative selected track; Shift/Select Stop targets the exact active Session bank, and
+  Stop-plus-pad consumption remains part of the same view. Stop-plus-track captures the exact
+  generation/shape/index/channel identity at row `BEGIN` and stops that visible track without
+  selecting it. Its lower-row binding declares selection and held-Stop variants separately, so the
+  `SESSION_PLAYBACK` Stop intent never waits behind the `ACTIVE_PARAMETERS` snapback barrier; full
+  Session also consumes the bounded stable row release. Neither path can retarget
+  after a bank replacement or emit a trailing plain Stop. The old
+  long/lock and page-row Stop overlays are deleted. Stop remains `OBSERVE` rather than `EXCLUSIVE`
+  only because the stable grid adapter still needs its held state for Stop-plus-pad; the direct
+  stable Stop command is inert.
+- Mute/Solo are one persistent selected-track view with exclusive edges and read-back-driven RGB
+  feedback: available is white, authoritative Mute is orange, and authoritative Solo uses the
+  Tetra yellow. Project-wide clear, lock/long row overlays, Master/layer retargeting, and pad/note
+  modifier meanings are deleted rather than encoded into the new view model.
+- Mute, Solo, Record-arm, and launcher-overdub toggles use bounded retained intent lanes. A second
+  press before acknowledgement queues parity; no dependent absolute write is submitted until a
+  later authoritative snapshot reports the previous expected state. Target or project changes
+  retire the pending lane rather than applying it to a replacement.
+- Session is retained independently from its default Track/Mix destination, and VS Live retains
+  the same started grid-view instances when Mix, Device, Browse, or Master replaces the page, so
+  active grid gestures are not restarted. Every Shift+Session request reselects the declared VS
+  Live composite and its Project Macro page; stale replaceable page state is not part of workspace
+  selection.
+- Playable-pad feedback and pressure owned by the same fixed `DrumPlayPadView` in standalone and
+  composite Drum layouts; the deleted stable observers, palette policy, and firmware fade cannot
+  return as a fallback.
 - Removal of the unused legacy aftertouch commands and ClipLauncherNavigator topology.
 - Transactional shell preparation before a candidate result is committed.
 - Core-owned selected-track note-view policy with private-target identity fencing and delayed drum
@@ -332,23 +425,48 @@ Implemented:
   colors, clipping, shapes, and composition; the stable shell only interprets bounded generic
   display primitives. Missing or execution-faulted core behavior is blank and inert. A stable
   preparation rejection preserves the active generation's last committed output rather than
-  converting one invalid result into a controller-wide fault.
+  converting one invalid result into a controller-wide fault. A Master-owned project navigation
+  retains the page through Bitwig's intermediate and late layout resets. Project acknowledgement
+  updates the retained Master scene but does not invent a page change; only a later explicit page
+  or workspace request releases that lease. Master replaces only the page over the exact selected
+  composition: standalone Drum, full Session, Note routing, and each VS Live page retain their
+  actual started views and owned grid/routing state rather than being reconstructed from a coarse
+  workspace ID.
+- Fixed display-region composition for the VS Live page. Project Macro or Track Mixer owns the
+  replaceable 960x143 parameter body; Track Selection owns the retained 960x17 footer plus all
+  eight exclusive lower-row edges and lights. The Track Mixer body renders authoritative active
+  parameter and selected-track state and owns all eight relative encoder effects.
+  The compiler requires both regions, validates local containment, wraps each region in a real
+  renderer-enforced clip, and produces one complete base
+  scene. The shell projects that scene generically on any page and keeps the temporary overlay as a
+  distinct higher plane. Track selection captures the exact visible target at gesture `BEGIN`, is
+  generation/shape/index/channel fenced at execution, and renders feedback only from later
+  Session-bank read-back. Its footer reproduces authoritative track colors, inactive dimming,
+  selection contrast, and bounded channel-type icons from the same Session-bank snapshot.
 
 Partial or transitional:
 
-- Project macro relative encoder behavior and parameter-body display run in core; touch/delete and
-  its inherited menu/footer frame remain in stable `WorkspaceMode`. Track-strip, Session,
-  navigation, Drum Controller play pads and octave
+- Project macro and VS Live Track/Mix relative encoder and display behavior run in core; touch and
+  upper-row Track/Mix page-menu mechanics remain explicit stable adapters. Session grid/scene
+  mechanics, navigation, Drum Controller octave
   controls, and pitch-bend adapter-backed mechanics still run in stable
   `WorkspaceMode`/`WorkspaceView`.
 - `ControllerViewFacet` remains a closed cross-boundary adapter ID.
+- Stable facets are not yet bidirectionally proven against every exact stable claim their shell
+  adapters activate; the built-in profiles are reviewed, and the remaining compiler gap is tracked
+  in `docs/findings/stable-facet-claim-coupling.md`.
 - Capability and Session-shape validation happens during stable result preparation, not entirely in
   `CompiledWorkspace`.
-- General display and light output ownership is still partial. The eight drum-fill, four drum-rate,
-  and four mappable-control RGB lights, authoritative semantic Bitwig Boolean feedback, and replayable physical-to-semantic mapping leases, global Play/Record lights, the Master page's two button rows and graphics
-  display, a temporary sparse 8x8 grid overlay, and a complete temporary 960x160 display overlay
-  use core-owned output arbitration. The detailed design's API 33 installed-output inventory is
-  canonical.
+- Every registered Push button light and every physical grid-pad light now has generic explicit
+  core-or-stable arbitration. A view may render only controls inside its declared output claims;
+  unclaimed lights preserve their frozen legacy supplier exactly. Current core owners are
+  the sixteen drum-play, eight drum-fill, four drum-rate, and four mappable-control lights, global
+  Play/Record, Session Stop Clip, persistent selected-track Mute/Solo, and both Master rows. Authoritative
+  semantic Bitwig Boolean feedback and replayable physical-to-semantic mapping leases support the
+  mappable controls. General display output is still semantically partial: Master and the composed
+  VS Live Project/Track and Track/Mix pages are core-authored, while a generic complete base-scene plane, a
+  temporary sparse 8x8 grid overlay, and a complete temporary 960x160 display overlay are
+  arbitrated. The detailed design's API 41 installed-output inventory is canonical.
 
 Deferred by design:
 

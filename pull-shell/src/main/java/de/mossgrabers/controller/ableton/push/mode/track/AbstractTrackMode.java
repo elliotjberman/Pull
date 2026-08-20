@@ -103,13 +103,6 @@ public abstract class AbstractTrackMode extends BaseMode<ITrack>
                 return;
             }
 
-            if (this.surface.isPressed (ButtonID.STOP_CLIP))
-            {
-                this.surface.setTriggerConsumed (ButtonID.STOP_CLIP);
-                track.stop (true);
-                return;
-            }
-
             if (this.surface.isPressed (ButtonID.RECORD))
             {
                 this.surface.setTriggerConsumed (ButtonID.RECORD);
@@ -161,25 +154,6 @@ public abstract class AbstractTrackMode extends BaseMode<ITrack>
 
         final ITrackBank tb = this.model.getCurrentTrackBank ();
         final ITrack track = tb.getItem (index);
-
-        if (this.configuration.isMuteState (this.surface.isLongPressed (ButtonID.MUTE)))
-        {
-            this.surface.setTriggerConsumed (ButtonID.MUTE);
-            track.toggleMute ();
-            return;
-        }
-        if (this.configuration.isSoloState (this.surface.isLongPressed (ButtonID.SOLO)))
-        {
-            this.surface.setTriggerConsumed (ButtonID.SOLO);
-            track.toggleSolo ();
-            return;
-        }
-        if (this.configuration.isClipStopState (this.surface.isLongPressed (ButtonID.STOP_CLIP)))
-        {
-            this.surface.setTriggerConsumed (ButtonID.STOP_CLIP);
-            track.stop (this.surface.isShiftPressed ());
-            return;
-        }
 
         final ModeManager modeManager = this.surface.getModeManager ();
         switch (index)
@@ -264,7 +238,6 @@ public abstract class AbstractTrackMode extends BaseMode<ITrack>
     @Override
     public int getButtonColor (final ButtonID buttonID)
     {
-        final PushConfiguration config = this.surface.getConfiguration ();
         final ITrackBank tb = this.model.getCurrentTrackBank ();
 
         int index = this.isButtonRow (0, buttonID);
@@ -283,17 +256,8 @@ public abstract class AbstractTrackMode extends BaseMode<ITrack>
         index = this.isButtonRow (1, buttonID);
         if (index >= 0)
         {
-            final ITrack track = tb.getItem (index);
-
-            if (config.isSoloState (this.surface.isLongPressed (ButtonID.SOLO)))
-                return track.doesExist () && track.isSolo () ? PushColorManager.PUSH2_COLOR2_YELLOW_HI : PushColorManager.PUSH2_COLOR_BLACK;
-            if (config.isMuteState (this.surface.isLongPressed (ButtonID.MUTE)))
-                return track.doesExist () && track.isMute () ? PushColorManager.PUSH2_COLOR2_AMBER_LO : PushColorManager.PUSH2_COLOR_BLACK;
-            if (config.isClipStopState (this.surface.isLongPressed (ButtonID.STOP_CLIP)))
-                return track.doesExist () && track.isPlaying () ? PushColorManager.PUSH2_COLOR_RED_HI : PushColorManager.PUSH2_COLOR_BLACK;
-
             final ModeManager modeManager = this.surface.getModeManager ();
-            this.updateTrackMenu (this.getGlobalControlIndex (modeManager.getActiveID ()));
+            this.updateMenuItems (this.getGlobalControlIndex (modeManager.getActiveID ()));
             final Pair<String, Boolean> menuItem = this.menu.get (index);
             return menuItem.getValue ().booleanValue () || "<".equals (menuItem.getKey ()) || ">".equals (menuItem.getKey ()) ? PushColorManager.PUSH2_COLOR2_WHITE : PushColorManager.PUSH2_COLOR_BLACK;
         }
@@ -303,53 +267,6 @@ public abstract class AbstractTrackMode extends BaseMode<ITrack>
 
 
     protected void updateMenuItems (final int selectedMenu)
-    {
-        final PushConfiguration config = this.surface.getConfiguration ();
-        if (config.isMuteState (this.surface.isLongPressed (ButtonID.MUTE)))
-            this.updateMuteMenu ();
-        else if (config.isSoloState (this.surface.isLongPressed (ButtonID.SOLO)))
-            this.updateSoloMenu ();
-        else if (config.isClipStopState (this.surface.isLongPressed (ButtonID.STOP_CLIP)))
-            this.updateStopMenu ();
-        else
-            this.updateTrackMenu (selectedMenu);
-    }
-
-
-    protected void updateStopMenu ()
-    {
-        final ITrackBank tb = this.model.getCurrentTrackBank ();
-        for (int i = 0; i < 8; i++)
-        {
-            final ITrack t = tb.getItem (i);
-            this.menu.get (i).set (t.doesExist () ? "Stop Clip" : "", Boolean.valueOf (t.isPlaying ()));
-        }
-    }
-
-
-    protected void updateMuteMenu ()
-    {
-        final ITrackBank tb = this.model.getCurrentTrackBank ();
-        for (int i = 0; i < 8; i++)
-        {
-            final ITrack t = tb.getItem (i);
-            this.menu.get (i).set (t.doesExist () ? "Mute" : "", Boolean.valueOf (t.isMute ()));
-        }
-    }
-
-
-    protected void updateSoloMenu ()
-    {
-        final ITrackBank tb = this.model.getCurrentTrackBank ();
-        for (int i = 0; i < 8; i++)
-        {
-            final ITrack t = tb.getItem (i);
-            this.menu.get (i).set (t.doesExist () ? "Solo" : "", Boolean.valueOf (t.isSolo ()));
-        }
-    }
-
-
-    protected void updateTrackMenu (final int selectedMenu)
     {
         for (int i = 0; i < 8; i++)
             this.menu.get (i).set (" ", Boolean.FALSE);

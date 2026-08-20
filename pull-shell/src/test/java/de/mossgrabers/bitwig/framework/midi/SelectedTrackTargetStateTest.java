@@ -82,6 +82,7 @@ class SelectedTrackTargetStateTest
         });
         final AtomicReference<ObjectValueChangedCallback<PlayingNote []>> notesObserver = new AtomicReference<> ();
         final AtomicInteger stopCalls = new AtomicInteger ();
+        final AtomicInteger immediateStopCalls = new AtomicInteger ();
         final AtomicInteger returnCalls = new AtomicInteger ();
 
         final PlayingNoteArrayValue playingNotes = proxy (PlayingNoteArrayValue.class, (proxy, method, arguments) -> {
@@ -145,6 +146,10 @@ class SelectedTrackTargetStateTest
                     stopCalls.incrementAndGet ();
                     yield null;
                 }
+                case "stopAlt" -> {
+                    immediateStopCalls.incrementAndGet ();
+                    yield null;
+                }
                 case "returnToArrangement" -> {
                     returnCalls.incrementAndGet ();
                     yield null;
@@ -192,6 +197,7 @@ class SelectedTrackTargetStateTest
         state.setVolume (0.5);
         state.setPan (0.6);
         state.stop ();
+        state.stopImmediately ();
         state.returnToArrangement ();
         assertFalse (expanded.get ());
         assertFalse (activated.get ());
@@ -202,6 +208,7 @@ class SelectedTrackTargetStateTest
         assertEquals (0.5, volume.get ().doubleValue ());
         assertEquals (0.6, pan.get ().doubleValue ());
         assertEquals (1, stopCalls.get ());
+        assertEquals (1, immediateStopCalls.get ());
         assertEquals (1, returnCalls.get ());
 
         notes.set (new PlayingNote []

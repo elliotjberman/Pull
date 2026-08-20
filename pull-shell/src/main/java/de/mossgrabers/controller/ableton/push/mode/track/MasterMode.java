@@ -4,7 +4,6 @@
 
 package de.mossgrabers.controller.ableton.push.mode.track;
 
-import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.mode.BaseMode;
 import de.mossgrabers.framework.controller.ButtonID;
@@ -15,13 +14,10 @@ import de.mossgrabers.framework.daw.IProject;
 import de.mossgrabers.framework.daw.data.IMasterTrack;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.empty.EmptyParameter;
-import de.mossgrabers.framework.graphics.canvas.component.DisplaySceneComponent;
 import de.mossgrabers.framework.graphics.canvas.component.IComponent;
 import de.mossgrabers.framework.parameterprovider.special.FixedParameterProvider;
 import de.mossgrabers.framework.utils.ButtonEvent;
-import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.PushControlIds;
-import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.shell.runtime.ReloadableControllerRuntime;
 
@@ -137,11 +133,8 @@ public class MasterMode extends BaseMode<ITrack>
     @Override
     public void updateDisplay2 (final IGraphicDisplay display)
     {
-        final ControllerDisplayScene scene = this.reloadableRuntime.controllerDisplay ();
-        if (this.surface.getControllerWorkspaceHost ().hasFacet (ControllerViewFacet.MASTER_CONTROLS) && scene.isPresent ())
-            display.addElement (new DisplaySceneComponent (scene));
-        else
-            display.addElement (BLANK_DISPLAY);
+        // The generic display base plane projects the core scene. Missing core output stays blank.
+        display.addElement (BLANK_DISPLAY);
     }
 
 
@@ -158,7 +151,7 @@ public class MasterMode extends BaseMode<ITrack>
     public int getButtonColor (final ButtonID buttonID)
     {
         if (this.isButtonRow (0, buttonID) >= 0 || this.isButtonRow (1, buttonID) >= 0)
-            return this.surface.getControllerWorkspaceHost ().hasFacet (ControllerViewFacet.MASTER_CONTROLS) ? this.closestPaletteColor (this.reloadableRuntime.lightColor (PushControlIds.button (buttonID.name ()))) : PushColorManager.PUSH2_COLOR_BLACK;
+            return this.closestPaletteColor (this.reloadableRuntime.lightColor (PushControlIds.button (buttonID.name ())));
 
         return super.getButtonColor (buttonID);
     }

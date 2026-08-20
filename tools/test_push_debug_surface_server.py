@@ -77,13 +77,13 @@ class PushSurfaceServerTest(unittest.TestCase):
         connection.close()
         return result
 
-    def input_body(self) -> bytes:
+    def input_body(self, control: str = "push.button.play", phase: str = "BEGIN", value: int = 127) -> bytes:
         return json.dumps({
             "session": "test-session",
-            "control": "push.button.play",
+            "control": control,
             "kind": "BUTTON",
-            "phase": "BEGIN",
-            "value": 127,
+            "phase": phase,
+            "value": value,
         }).encode("utf-8")
 
     def test_foreign_host_cannot_read_session(self) -> None:
@@ -139,6 +139,26 @@ class PushSurfaceServerTest(unittest.TestCase):
             self.assertTrue(SERVER_MODULE.live_lease_active())
             owner_file.unlink()
             self.assertFalse(SERVER_MODULE.live_lease_active())
+
+    def test_port_can_queue_multiple_button_edges(self) -> None:
+        headers = {
+            "Host": self.authority,
+            "Origin": self.origin,
+            "Content-Type": "application/json",
+        }
+        requests = (
+            self.input_body("push.button.shift"),
+            self.input_body("push.button.play"),
+            self.input_body("push.button.play", "END", 0),
+            self.input_body("push.button.shift", "END", 0),
+        )
+
+        for body in requests:
+            status, _response = self.request("POST", "/api/input", headers, body)
+            self.assertEqual(HTTPStatus.ACCEPTED, status)
+
+        queued = list((self.debug_dir / SERVER_MODULE.INPUT_REQUEST_DIRECTORY).glob("input-*.txt"))
+        self.assertEqual(4, len(queued))
 
 
 if __name__ == "__main__":

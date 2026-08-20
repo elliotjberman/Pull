@@ -31,7 +31,7 @@ movable Bitwig proxy may already address a replacement target by then.
 
 ## Current Mitigation
 
-Core API 29 carries `ControllerActionIntent` separately from physical input. Core-owned views
+Core API 37 carries `ControllerActionIntent` separately from physical input. Core-owned views
 resolve complete executable intents at gesture `BEGIN`; deferred execution therefore cannot
 reinterpret a released modifier or a replacement workspace. Existing stable-only commands remain
 frozen migration debt, but `StableControllerActionResolver` examines the actual installed command
@@ -46,9 +46,9 @@ This removes the core-side physical navigation table. It does not yet satisfy th
 - The permanent Master binding remains temporarily necessary for its unbridged long-press Frame
   variant. While a composed core workspace is active, its short press is a page-only compatibility
   adapter: it activates Master without selecting Bitwig's master track. Exits no longer depend on
-  stable mode history: `TrackMixerPageView` and `FullSessionView` explicitly request the plain
-  Session destination and remain selected until controller-layout read-back acknowledges
-  `TRACK`/`SESSION`.
+  stable mode history: `TrackMixerPageView` and `SessionView.full()` explicitly request the plain
+  Session destination. After controller-layout read-back acknowledges `TRACK`/`SESSION`, only the
+  default page request retires; the semantic Session view remains selected.
 - Play is a core-exclusive edge with an inert stable command. Core retains the engine-owning
   project identity and emits one exact origin/target project-transport payload. Stable validates
   the live origin and owns the complete bounded tab visit, authoritative transport readback, and
@@ -61,9 +61,10 @@ This removes the core-side physical navigation table. It does not yet satisfy th
   those contributions rather than reimplementing routing beside them. This prevents the inherited
   stable command from activating a musical surface before its selected-target route is validated.
 - Layout is also core-exclusive and resolved by the Note controller as `SELECT_NOTE_LAYOUT` with an
-  exact target-fenced preference effect. Track selection is observation-only and cannot invoke the
-  inherited preferred-view actuator. Stable retains only bounded preference storage and mechanical
-  view activation through the composed controller-state host.
+  exact target-fenced preference effect. Track selection is a separate `SELECT_VISIBLE_TRACK`
+  action which captures its Session-bank identity at `BEGIN`; it cannot invoke the inherited
+  preferred-view actuator. Stable retains only bounded preference storage and mechanical view
+  activation through the composed controller-state host.
 - Controller mappings now use permanent semantic `ControllerMappingId` endpoints independently of
   physical `ControlId` values. Core returns the complete active physical-to-semantic projection;
   stable only realizes matcher handoff and publishes Bitwig Boolean feedback by semantic endpoint.
@@ -72,6 +73,10 @@ This removes the core-side physical navigation table. It does not yet satisfy th
 
 - Several stable mode commands expose only coarse command-level meaning, not a payload identifying
   the exact selected track, page, device, or workspace.
+- VS Live now changes its retained page only when one of those semantic stable-command actions is
+  delivered. A bare `TRACK` mode read-back used to neutralize a selected-track Note route is no
+  longer misread as Mix selection. The action remains coarse, however, so the exact page still
+  comes from its post-command authoritative layout and the removal criteria remain unsatisfied.
 - `ButtonRowModeCommand` delegates into an active mode that has no semantic-intent contract, so the
   compatibility adapter must conservatively classify the command.
 - Stable compatibility intent is still inferred from command types. It should disappear as those

@@ -64,6 +64,9 @@ class PushControllerInputBridgeTest
         assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("SESSION"), InputKind.BUTTON));
         assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("NOTE"), InputKind.BUTTON));
         assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("LAYOUT"), InputKind.BUTTON));
+        assertFalse (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("STOP_CLIP"), InputKind.BUTTON));
+        assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("MUTE"), InputKind.BUTTON));
+        assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("SOLO"), InputKind.BUTTON));
         assertFalse (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("SCALES"), InputKind.BUTTON));
         for (final var control: CoreControls.DRUM_CONTROL_PADS)
         {
@@ -80,6 +83,20 @@ class PushControllerInputBridgeTest
         assertEquals (de.mossgrabers.pull.core.api.event.InputPhase.UPDATE, PushControllerInputBridge.toCorePhase (InputPhase.CHANGE));
         assertEquals (de.mossgrabers.pull.core.api.event.InputPhase.LONG, PushControllerInputBridge.toCorePhase (InputPhase.LONG));
         assertEquals (de.mossgrabers.pull.core.api.event.InputPhase.END, PushControllerInputBridge.toCorePhase (InputPhase.END));
+    }
+
+
+    @Test
+    void admitsLightsOnlyForRegisteredButtonsAndGridPads ()
+    {
+        final Fixture fixture = new Fixture ();
+
+        assertTrue (fixture.bridge.supportsLight (PushControlIds.button ("BROWSE")));
+        assertTrue (fixture.bridge.supportsLight (PushControlIds.pad (1)));
+        assertFalse (fixture.bridge.supportsLight (PushControlIds.button ("FOOTSWITCH2")));
+        assertFalse (fixture.bridge.supportsLight (PushControlIds.SUSTAIN_PEDAL));
+        assertFalse (fixture.bridge.supportsLight (PushControlIds.continuous ("PLAY_POSITION")));
+        assertFalse (fixture.bridge.supportsLight (new ControlId ("not-installed")));
     }
 
 
@@ -128,6 +145,55 @@ class PushControllerInputBridgeTest
 
         fixture.pressMappingPad ();
         fixture.debugRelease ();
+        assertEquals (List.of (InputPhase.BEGIN, InputPhase.END, InputPhase.BEGIN, InputPhase.END, InputPhase.BEGIN, InputPhase.END), fixture.phases ());
+    }
+
+
+    @Test
+    void releaseAndImmediateRepressStayOnTheInstalledSingleButtonPath ()
+    {
+        final Fixture fixture = new Fixture ();
+
+        fixture.pressMappingPad ();
+        assertEquals (List.of (InputPhase.BEGIN), fixture.phases ());
+
+        fixture.routes.set (DesiredInputRoutes.empty ());
+        fixture.mappings.set (DesiredControllerMappings.empty ());
+        fixture.bridge.flush ();
+        assertEquals (DesiredControllerMappings.empty (), fixture.bridge.activeControllerMappings ());
+        assertFalse (fixture.semanticButtons.get (fixture.mappingId).pressMatcher);
+
+        // Raw release first closes the frozen routed gesture. The deliberately absent Bitwig
+        // release matcher cannot duplicate END afterward.
+        fixture.rawRelease ();
+        fixture.pad.physicalRelease ();
+        assertEquals (List.of (InputPhase.BEGIN, InputPhase.END), fixture.phases ());
+
+        // The next gesture belongs to ordinary dispatch and therefore emits no core event.
+        fixture.rawPress ();
+        fixture.rawRelease ();
+        assertEquals (List.of (InputPhase.BEGIN, InputPhase.END), fixture.phases ());
+
+        fixture.routes.set (fixture.exclusiveRoute);
+        fixture.mappings.set (fixture.desiredMapping);
+        fixture.bridge.flush ();
+        fixture.pressMappingPad ();
+        assertEquals (List.of (InputPhase.BEGIN, InputPhase.END, InputPhase.BEGIN), fixture.phases ());
+
+        // Reverse the callback order while the desired lane changes twice. The old hardware
+        // release is inert; raw release completes exactly once and activates only latest desire.
+        fixture.mappings.set (DesiredControllerMappings.empty ());
+        fixture.bridge.flush ();
+        fixture.mappings.set (fixture.desiredMapping);
+        fixture.bridge.flush ();
+        fixture.pad.physicalRelease ();
+        assertEquals (List.of (InputPhase.BEGIN, InputPhase.END, InputPhase.BEGIN), fixture.phases ());
+        fixture.rawRelease ();
+        assertEquals (List.of (InputPhase.BEGIN, InputPhase.END, InputPhase.BEGIN, InputPhase.END), fixture.phases ());
+        assertEquals (fixture.desiredMapping, fixture.bridge.activeControllerMappings ());
+
+        fixture.pressMappingPad ();
+        fixture.rawRelease ();
         assertEquals (List.of (InputPhase.BEGIN, InputPhase.END, InputPhase.BEGIN, InputPhase.END, InputPhase.BEGIN, InputPhase.END), fixture.phases ());
     }
 
@@ -252,6 +318,8 @@ class PushControllerInputBridgeTest
                 relaxedProxy (ITrack.class),
                 () -> false,
                 new ReloadableControllerRuntime (relaxedProxy (ControllerHost.class)));
+            this.surface.createButton (ButtonID.BROWSE, "Browse").bind ((event, velocity) -> {});
+            this.surface.createButton (ButtonID.FOOTSWITCH2, "Footswitch 2").bind ((event, velocity) -> {});
             this.pad = (TestButton) this.surface.getButton (ButtonID.get (ButtonID.PAD1, 28));
             final Map<ControlId, IHwButton> physicalButtons = new LinkedHashMap<> ();
             for (int index = 0; index < 64; index++)

@@ -36,12 +36,14 @@ class DisplaySceneComponentTest
     {
         final RgbColor white = new RgbColor (255, 255, 255);
         final ControllerDisplayScene scene = new ControllerDisplayScene (960, 160, List.of (
+            new DisplayCommand.PushClip (0, 0, 960, 143),
             new DisplayCommand.Rectangle (0, 0, 960, 160, new RgbColor (0, 0, 0)),
             new DisplayCommand.RoundedRectangle (10, 10, 66, 32, 16, white),
             new DisplayCommand.Circle (20, 20, 5, white),
             new DisplayCommand.DottedArc (50, 50, 10, 0, 90, 2, 1, white),
             new DisplayCommand.TextAt ("Pan", 128, 34, white, 12.5),
-            new DisplayCommand.TextBox ("second_test", 608, 35, 104, 25, DisplayTextAlignment.LEFT, white, 19, 12, DisplayTextFit.CLIP)));
+            new DisplayCommand.TextBox ("second_test", 608, 35, 104, 25, DisplayTextAlignment.LEFT, white, 19, 12, DisplayTextFit.CLIP),
+            new DisplayCommand.PopClip ()));
         final List<Call> calls = new ArrayList<> ();
         final IGraphicsContext context = recordingContext (calls);
 
@@ -49,6 +51,8 @@ class DisplaySceneComponentTest
 
         assertTrue (calls.contains (new Call ("drawTextAt", "Pan")));
         assertTrue (calls.contains (new Call ("drawTextInBounds", "second_test")));
+        assertEquals (1, calls.stream ().filter (call -> "pushClip".equals (call.method ())).count ());
+        assertEquals (1, calls.stream ().filter (call -> "popClip".equals (call.method ())).count ());
         assertEquals (4, calls.stream ().filter (call -> "fillCircle".equals (call.method ())).count ());
         assertEquals (new DisplaySceneComponent (scene), new DisplaySceneComponent (scene));
     }

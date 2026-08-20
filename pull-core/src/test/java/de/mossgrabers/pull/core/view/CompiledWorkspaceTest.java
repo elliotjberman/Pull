@@ -30,18 +30,26 @@ import de.mossgrabers.pull.core.api.ParameterTargetRef;
 import de.mossgrabers.pull.core.api.ParameterTargetSnapshot;
 import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
+import de.mossgrabers.pull.core.api.SessionBankSnapshot;
 import de.mossgrabers.pull.core.api.SessionBankShape;
+import de.mossgrabers.pull.core.api.SessionTrackSnapshot;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.TransportSnapshot;
 import de.mossgrabers.pull.core.api.effect.AdjustParameterValueEffect;
+import de.mossgrabers.pull.core.api.effect.SelectSessionTrackEffect;
+import de.mossgrabers.pull.core.api.effect.StopSessionTrackEffect;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
+import de.mossgrabers.pull.core.api.output.DisplayCommand;
+import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.runtime.view.ProjectMacroControlsView;
-import de.mossgrabers.pull.core.runtime.view.SessionClipGridView;
+import de.mossgrabers.pull.core.runtime.view.SessionView;
+import de.mossgrabers.pull.core.runtime.view.SessionStopGesture;
+import de.mossgrabers.pull.core.runtime.view.TrackSelectionStripView;
 import de.mossgrabers.pull.core.runtime.view.WorkspaceSelection;
 import de.mossgrabers.pull.core.runtime.view.WorkspaceSelectionView;
 
@@ -53,6 +61,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -70,6 +79,38 @@ class CompiledWorkspaceTest
         final TestView second = view ("second", claim (SurfaceArea.DRUM_FILL_PADS, SurfaceClaim.Kind.OUTPUT));
 
         assertThrows (IllegalArgumentException.class, () -> CompiledWorkspace.compile ("conflict", List.of (first, second)));
+    }
+
+
+    @Test
+    void rejectsLightOutsideTheEmittingViewsOutputClaims ()
+    {
+        final ControllerView invalid = new ControllerView ()
+        {
+            @Override
+            public String id ()
+            {
+                return "invalid-light";
+            }
+
+
+            @Override
+            public ViewProfile profile ()
+            {
+                return ViewProfile.fixed ("invalid-light", Set.of (claim (SurfaceArea.PLAY_BUTTON, SurfaceClaim.Kind.OUTPUT)), Set.of ());
+            }
+
+
+            @Override
+            public ViewOutput render (final ControllerSnapshot ignored)
+            {
+                return new ViewOutput (Map.of (PushControlIds.button ("RECORD"), new RgbColor (255, 0, 0)), Map.of ());
+            }
+        };
+        final CompiledWorkspace workspace = CompiledWorkspace.compile ("invalid-light", List.of (invalid));
+
+        final IllegalStateException failure = assertThrows (IllegalStateException.class, () -> workspace.start (snapshot ()));
+        assertTrue (failure.getMessage ().contains ("outside its output claims"));
     }
 
 
@@ -192,19 +233,24 @@ class CompiledWorkspaceTest
     @Test
     void selectedFacetContributesFixedClaimsAndStableAdapters ()
     {
-        final SessionClipGridView session = new SessionClipGridView (true);
+        final SessionView session = SessionView.upper (true);
         final CompiledWorkspace workspace = CompiledWorkspace.compile ("session", new SessionBankShape (8, 4), List.of (session));
 
-        assertEquals (Set.of (SessionClipGridView.SCENE_LAUNCH), workspace.profiles ().get (session.id ()).enabledFacets ());
+        assertEquals (Set.of (SessionView.SCENE_LAUNCH), workspace.profiles ().get (session.id ()).enabledFacets ());
         assertEquals (Set.of (ControllerViewFacet.SESSION_CLIP_GRID_UPPER, ControllerViewFacet.SESSION_SCENE_KEYS_UPPER), workspace.desiredControllerWorkspace ().facets ());
-        assertEquals (4, session.claims ().size ());
+        assertTrue (session.claims ().contains (new SurfaceClaim (SurfaceArea.STOP_CLIP_BUTTON, SurfaceClaim.Kind.OBSERVE_INPUT)));
+        assertTrue (session.claims ().contains (new SurfaceClaim (SurfaceArea.STOP_CLIP_BUTTON, SurfaceClaim.Kind.OUTPUT)));
     }
 
 
     @Test
-    void projectMacrosOwnEncoderTurnsWhileStableAdaptsTouchAndDisplay ()
+    void projectMacrosOwnEncoderTurnsAndTheirDisplayRegionWhileStableAdaptsTouch ()
     {
-        final CompiledWorkspace workspace = CompiledWorkspace.compile ("macros", List.of (new ProjectMacroControlsView ()));
+        final ControllerView footer = displayRegionView (
+            "test footer",
+            SurfaceArea.DISPLAY_BOTTOM_STRIP,
+            new ControllerDisplayScene (960, 17, List.of (new DisplayCommand.Rectangle (0, 0, 960, 17, new RgbColor (0, 0, 0)))));
+        final CompiledWorkspace workspace = CompiledWorkspace.compile ("macros", List.of (new ProjectMacroControlsView (), footer));
         final CoreResult result = workspace.start (parameterSnapshot ());
         final ControlId firstKnob = PushControlIds.continuous ("KNOB1");
 
@@ -213,16 +259,103 @@ class CompiledWorkspaceTest
         assertEquals (InputRouteMode.EXCLUSIVE, result.desiredInputRoutes ().mode (firstKnob, InputKind.RELATIVE).orElseThrow ());
         assertEquals (Set.of (ParameterBankId.PROJECT_REMOTE), result.desiredParameterBanks ().banks ());
         assertTrue (result.desiredBridgeSubscriptions ().includes (BridgeSubscription.PARAMETERS));
+        assertTrue (result.desiredOutput ().display ().isPresent ());
+        assertFalse (result.desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "Project".equals (text.text ())));
+        assertTrue (result.desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextAt text && "Macro 1".equals (text.text ()) && new RgbColor (95, 118, 124).equals (text.color ())));
+        assertTrue (result.desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.RoundedRectangle rectangle && new RgbColor (66, 107, 128).equals (rectangle.color ())));
+        assertFalse (result.desiredOutput ().display ().commands ().stream ().anyMatch (DisplayCommand.DottedArc.class::isInstance));
 
         final CoreResult adjusted = workspace.handle (
             new ControllerInputEvent (1, 1, firstKnob, InputKind.RELATIVE, InputPhase.UPDATE, 3),
-            parameterSnapshot ());
+            parameterSnapshot (Set.of (firstKnob)));
         assertEquals (List.of (new AdjustParameterValueEffect (PROJECT_TARGET, 30)), adjusted.effects ());
+        assertTrue (adjusted.desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextAt text && "Macro 1".equals (text.text ()) && new RgbColor (190, 235, 247).equals (text.color ())));
 
         final CoreResult decreased = workspace.handle (
             new ControllerInputEvent (2, 2, firstKnob, InputKind.RELATIVE, InputPhase.UPDATE, -2),
             parameterSnapshot ());
         assertEquals (List.of (new AdjustParameterValueEffect (PROJECT_TARGET, -20)), decreased.effects ());
+    }
+
+
+    @Test
+    void composesDisjointViewDisplayRegionsIntoOneCompleteViewport ()
+    {
+        final RgbColor upperColor = new RgbColor (10, 20, 30);
+        final RgbColor footerColor = new RgbColor (40, 50, 60);
+        final ControllerView upper = displayRegionView (
+            "upper",
+            SurfaceArea.DISPLAY_PARAMETERS,
+            new ControllerDisplayScene (960, 143, List.of (
+                new DisplayCommand.Rectangle (0, 0, 960, 143, upperColor),
+                new DisplayCommand.TextAt ("clipped", 0, 143, upperColor, 512))));
+        final ControllerView footer = displayRegionView (
+            "footer",
+            SurfaceArea.DISPLAY_BOTTOM_STRIP,
+            new ControllerDisplayScene (960, 17, List.of (new DisplayCommand.Rectangle (0, 0, 960, 17, footerColor))));
+
+        final ControllerDisplayScene composed = CompiledWorkspace.compile ("display regions", List.of (upper, footer)).start (snapshot ()).desiredOutput ().display ();
+
+        assertEquals (960, composed.width ());
+        assertEquals (160, composed.height ());
+        assertEquals (List.of (
+            new DisplayCommand.PushClip (0, 0, 960, 143),
+            new DisplayCommand.Rectangle (0, 0, 960, 143, upperColor),
+            new DisplayCommand.TextAt ("clipped", 0, 143, upperColor, 512),
+            new DisplayCommand.PopClip (),
+            new DisplayCommand.PushClip (0, 143, 960, 17),
+            new DisplayCommand.Rectangle (0, 143, 960, 17, footerColor),
+            new DisplayCommand.PopClip ()), composed.commands ());
+    }
+
+
+    @Test
+    void rejectsPartialOrOverflowingDisplayRegionComposition ()
+    {
+        final ControllerView partial = displayRegionView (
+            "partial",
+            SurfaceArea.DISPLAY_PARAMETERS,
+            new ControllerDisplayScene (960, 143, List.of (new DisplayCommand.Rectangle (0, 0, 960, 143, new RgbColor (1, 2, 3)))));
+        final ControllerView overflow = displayRegionView (
+            "overflow",
+            SurfaceArea.DISPLAY_BOTTOM_STRIP,
+            new ControllerDisplayScene (960, 17, List.of (new DisplayCommand.Rectangle (0, 0, 961, 17, new RgbColor (4, 5, 6)))));
+
+        assertThrows (IllegalStateException.class, () -> CompiledWorkspace.compile ("partial", List.of (partial)).start (snapshot ()));
+        assertThrows (IllegalStateException.class, () -> CompiledWorkspace.compile ("overflow", List.of (partial, overflow)).start (snapshot ()));
+    }
+
+
+    @Test
+    void rejectsDisplayRegionOutsideTheEmittingViewsClaim ()
+    {
+        final ControllerView parasitic = new ControllerView ()
+        {
+            @Override
+            public String id ()
+            {
+                return "parasitic display";
+            }
+
+
+            @Override
+            public ViewProfile profile ()
+            {
+                return ViewProfile.fixed ("parasitic display", Set.of (), Set.of ());
+            }
+
+
+            @Override
+            public ViewOutput render (final ControllerSnapshot ignored)
+            {
+                return new ViewOutput (
+                    Map.of (),
+                    Map.of (),
+                    new ControllerDisplayScene (960, 17, List.of (new DisplayCommand.Rectangle (0, 0, 960, 17, new RgbColor (1, 2, 3)))));
+            }
+        };
+
+        assertThrows (IllegalStateException.class, () -> CompiledWorkspace.compile ("parasitic display", List.of (parasitic)).start (snapshot ()));
     }
 
 
@@ -235,9 +368,57 @@ class CompiledWorkspaceTest
         final CoreResult result = workspace.start (snapshot ());
 
         assertEquals (2, result.desiredControllerActions ().bindings ().size ());
-        assertEquals (ControllerActionId.SELECT_PARAMETER_PAGE, result.desiredControllerActions ().bindingOrNull (left, InputKind.BUTTON).action ());
+        assertEquals (ControllerActionId.SELECT_PARAMETER_PAGE, result.desiredControllerActions ().bindingOrNull (left, InputKind.BUTTON).intent ().action ());
         assertEquals (InputRouteMode.OBSERVE, result.desiredInputRoutes ().mode (left, InputKind.BUTTON).orElseThrow ());
-        assertNotNull (workspace.resolveAction (new de.mossgrabers.pull.core.api.event.ControllerInputEvent (1, 0, right, InputKind.BUTTON, de.mossgrabers.pull.core.api.event.InputPhase.BEGIN, 127), snapshot ()));
+        assertNotNull (workspace.resolveAction (new ControllerInputEvent (1, 0, right, InputKind.BUTTON, InputPhase.BEGIN, 127), snapshot ()));
+    }
+
+
+    @Test
+    void rejectsAResolvedSemanticVariantMissingFromTheReplayableBinding ()
+    {
+        final ControlId button = PushControlIds.button ("PAGE_RIGHT");
+        final ControllerView misdeclared = new ControllerView ()
+        {
+            @Override
+            public String id ()
+            {
+                return "misdeclared-action";
+            }
+
+
+            @Override
+            public ViewProfile profile ()
+            {
+                return ViewProfile.fixed ("misdeclared", Set.of (claim (SurfaceArea.NAVIGATION_PAGE, SurfaceClaim.Kind.OBSERVE_INPUT)), Set.of ());
+            }
+
+
+            @Override
+            public Set<ControllerActionBinding> actionBindings ()
+            {
+                return Set.of (new ControllerActionBinding (
+                    button,
+                    InputKind.BUTTON,
+                    ControllerActionId.SELECT_PARAMETER_PAGE,
+                    Set.of (ControllerStateScope.ACTIVE_PARAMETERS)));
+            }
+
+
+            @Override
+            public ResolvedControllerAction resolveAction (final ControllerActionBinding binding, final ControllerInputEvent input, final ControllerSnapshot snapshot)
+            {
+                return ResolvedControllerAction.stable (new de.mossgrabers.pull.core.api.ControllerActionIntent (
+                    ControllerActionId.STOP_VISIBLE_SESSION_TRACK,
+                    Set.of (ControllerStateScope.SESSION_PLAYBACK)));
+            }
+        };
+        final CompiledWorkspace workspace = CompiledWorkspace.compile ("misdeclared action", List.of (misdeclared));
+        workspace.start (snapshot ());
+
+        assertThrows (IllegalStateException.class, () -> workspace.resolveAction (
+            new ControllerInputEvent (1, 0, button, InputKind.BUTTON, InputPhase.BEGIN, 127),
+            snapshot ()));
     }
 
 
@@ -271,6 +452,48 @@ class CompiledWorkspaceTest
 
 
     @Test
+    void resolvedTrackSelectionRetainsItsBeginTimeBankIdentity ()
+    {
+        final ControllerView upper = displayRegionView (
+            "upper",
+            SurfaceArea.DISPLAY_PARAMETERS,
+            new ControllerDisplayScene (960, 143, List.of (new DisplayCommand.Rectangle (0, 0, 960, 143, new RgbColor (0, 0, 0)))));
+        final CompiledWorkspace workspace = CompiledWorkspace.compile ("tracks", List.of (upper, new TrackSelectionStripView ()));
+        final ControllerSnapshot begin = sessionSnapshot (7, "track-a");
+        workspace.start (begin);
+
+        final ResolvedControllerAction action = workspace.resolveAction (
+            new ControllerInputEvent (1, 0, PushControlIds.button ("ROW1_1"), InputKind.BUTTON, InputPhase.BEGIN, 127),
+            begin);
+        final CoreResult result = workspace.handleAction (action, sessionSnapshot (8, "track-b"));
+
+        assertEquals (List.of (new SelectSessionTrackEffect (7, new SessionBankShape (8, 4), 0, "track-a")), result.effects ());
+    }
+
+
+    @Test
+    void resolvedTrackStopRetainsItsBeginTimeBankIdentity ()
+    {
+        final ControllerView upper = displayRegionView (
+            "upper",
+            SurfaceArea.DISPLAY_PARAMETERS,
+            new ControllerDisplayScene (960, 143, List.of (new DisplayCommand.Rectangle (0, 0, 960, 143, new RgbColor (0, 0, 0)))));
+        final SessionStopGesture stopGesture = new SessionStopGesture ();
+        final CompiledWorkspace workspace = CompiledWorkspace.compile ("tracks", new SessionBankShape (8, 4), List.of (upper, SessionView.upper (true, stopGesture), new TrackSelectionStripView (stopGesture)));
+        final ControlId stop = PushControlIds.button ("STOP_CLIP");
+        final ControllerSnapshot begin = sessionSnapshot (7, "track-a", Set.of (stop));
+        workspace.start (begin);
+
+        final ResolvedControllerAction action = workspace.resolveAction (
+            new ControllerInputEvent (1, 0, PushControlIds.button ("ROW1_1"), InputKind.BUTTON, InputPhase.BEGIN, 127),
+            begin);
+        final CoreResult result = workspace.handleAction (action, sessionSnapshot (8, "track-b"));
+
+        assertEquals (List.of (new StopSessionTrackEffect (7, new SessionBankShape (8, 4), 0, "track-a", true)), result.effects ());
+    }
+
+
+    @Test
     void rejectsConflictingPhysicalParameterMappings ()
     {
         final ControlId knob = PushControlIds.continuous ("KNOB1");
@@ -278,6 +501,16 @@ class CompiledWorkspaceTest
         final ControllerView second = parameterView ("second", knob, ParameterSlot.active (1));
 
         assertThrows (IllegalArgumentException.class, () -> CompiledWorkspace.compile ("conflict", List.of (first, second)));
+    }
+
+
+    @Test
+    void rejectsParameterMappingOutsideTheDeclaringViewsRelativeInputClaim ()
+    {
+        final ControlId knob = PushControlIds.continuous ("KNOB1");
+        final ControllerView invalid = parameterView ("invalid", knob, ParameterSlot.active (0), Set.of ());
+
+        assertThrows (IllegalArgumentException.class, () -> CompiledWorkspace.compile ("invalid parameter", List.of (invalid)));
     }
 
 
@@ -387,6 +620,12 @@ class CompiledWorkspaceTest
 
     private static ControllerView parameterView (final String id, final ControlId control, final ParameterSlot slot)
     {
+        return parameterView (id, control, slot, Set.of (claim (SurfaceArea.ENCODER_TURNS, SurfaceClaim.Kind.EXCLUSIVE_INPUT)));
+    }
+
+
+    private static ControllerView parameterView (final String id, final ControlId control, final ParameterSlot slot, final Set<SurfaceClaim> claims)
+    {
         return new ControllerView ()
         {
             @Override
@@ -399,7 +638,7 @@ class CompiledWorkspaceTest
             @Override
             public ViewProfile profile ()
             {
-                return ViewProfile.fixed (id, Set.of (), Set.of ());
+                return ViewProfile.fixed (id, claims, Set.of ());
             }
 
 
@@ -407,6 +646,33 @@ class CompiledWorkspaceTest
             public Map<ControlId, ParameterSlot> parameterBindings ()
             {
                 return Map.of (control, slot);
+            }
+        };
+    }
+
+
+    private static ControllerView displayRegionView (final String id, final SurfaceArea area, final ControllerDisplayScene scene)
+    {
+        return new ControllerView ()
+        {
+            @Override
+            public String id ()
+            {
+                return id;
+            }
+
+
+            @Override
+            public ViewProfile profile ()
+            {
+                return ViewProfile.fixed (id, Set.of (claim (area, SurfaceClaim.Kind.OUTPUT)), Set.of ());
+            }
+
+
+            @Override
+            public ViewOutput render (final ControllerSnapshot ignored)
+            {
+                return new ViewOutput (Map.of (), Map.of (), scene);
             }
         };
     }
@@ -490,8 +756,14 @@ class CompiledWorkspaceTest
 
     private static ControllerSnapshot parameterSnapshot ()
     {
+        return parameterSnapshot (Set.of ());
+    }
+
+
+    private static ControllerSnapshot parameterSnapshot (final Set<ControlId> touchedControls)
+    {
         final ParameterBridgeSnapshot parameters = new ParameterBridgeSnapshot (
-            Map.of (ParameterSlot.projectRemote (0), new ParameterTargetSnapshot (PROJECT_TARGET, 64, 0.5)),
+            Map.of (ParameterSlot.projectRemote (0), new ParameterTargetSnapshot (PROJECT_TARGET, "Macro 1", 64, 64, "On", -1, 0.5)),
             Map.of ());
         final ControllerBridgeSnapshot bridge = new ControllerBridgeSnapshot (
             TransportSnapshot.empty (),
@@ -499,7 +771,35 @@ class CompiledWorkspaceTest
             ControllerLayoutSnapshot.empty (),
             DrumContextSnapshot.empty (),
             parameters);
-        return new ControllerSnapshot (0, 0, ShellCapabilities.empty (), bridge, ClipCatalogSnapshot.empty (), Map.of (), Map.of (), java.util.Optional.empty (), Set.of (), Set.of ());
+        return new ControllerSnapshot (0, 0, ShellCapabilities.empty (), bridge, ClipCatalogSnapshot.empty (), Map.of (), Map.of (), java.util.Optional.empty (), Set.of (), touchedControls);
+    }
+
+
+    private static ControllerSnapshot sessionSnapshot (final long generation, final String firstChannel)
+    {
+        return sessionSnapshot (generation, firstChannel, Set.of ());
+    }
+
+
+    private static ControllerSnapshot sessionSnapshot (final long generation, final String firstChannel, final Set<ControlId> pressedControls)
+    {
+        final SessionBankShape shape = new SessionBankShape (8, 4);
+        final java.util.ArrayList<SessionTrackSnapshot> tracks = new java.util.ArrayList<> ();
+        tracks.add (new SessionTrackSnapshot (firstChannel, 0, firstChannel, true, false, true, false, false, false, false, de.mossgrabers.pull.core.api.SessionTrackType.UNKNOWN, new RgbColor (10, 20, 30)));
+        while (tracks.size () < shape.tracks ())
+            tracks.add (SessionTrackSnapshot.empty ());
+        final ControllerBridgeSnapshot bridge = new ControllerBridgeSnapshot (
+            TransportSnapshot.empty (),
+            SelectedTrackSnapshot.empty (),
+            new SessionBankSnapshot (generation, shape, 0, 0, tracks),
+            ControllerLayoutSnapshot.empty (),
+            de.mossgrabers.pull.core.api.NoteViewSnapshot.empty (),
+            de.mossgrabers.pull.core.api.NoteRepeatSnapshot.empty (),
+            DrumContextSnapshot.empty (),
+            ParameterBridgeSnapshot.empty (),
+            de.mossgrabers.pull.core.api.MasterSnapshot.empty (),
+            de.mossgrabers.pull.core.api.ProjectSnapshot.empty ());
+        return new ControllerSnapshot (0, 0, ShellCapabilities.empty (), bridge, ClipCatalogSnapshot.empty (), Map.of (), Map.of (), java.util.Optional.empty (), pressedControls, Set.of ());
     }
 
 

@@ -14,7 +14,6 @@ import de.mossgrabers.framework.controller.AbstractControlSurface;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.color.ColorManager;
 import de.mossgrabers.framework.controller.hardware.BindType;
-import de.mossgrabers.framework.controller.grid.PadColor;
 import de.mossgrabers.framework.daw.IHost;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.midi.DeviceInquiry;
@@ -400,7 +399,10 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
         this.notifyViewChange = false;
         this.pushPadGrid = (PushPadGrid) this.padGrid;
         if (this.reloadableRuntime != null)
+        {
             this.pushPadGrid.setOverlaySupplier (this.reloadableRuntime::padGridOverlay);
+            this.pushPadGrid.setCoreLightSupplier (this.reloadableRuntime::ownsLight, this.reloadableRuntime::lightColor);
+        }
         this.colorPalette = new ColorPalette (this);
         this.debugSurfaceHost = PushDebugSurfaceHost.createIfEnabled ();
         if (this.debugSurfaceHost != null)
@@ -555,6 +557,32 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
             return;
 
         super.handleGridNote (event, note, velocity);
+    }
+
+
+    /**
+     * Hide migrated Mute/Solo state from inherited modifier and combination handlers. The
+     * permanent input router reads the hardware control directly, so the reloadable selected-track
+     * view still receives the complete gesture.
+     */
+    @Override
+    public boolean isPressed (final ButtonID buttonID)
+    {
+        return stableButtonStateVisible (buttonID) && super.isPressed (buttonID);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public boolean isLongPressed (final ButtonID buttonID)
+    {
+        return stableButtonStateVisible (buttonID) && super.isLongPressed (buttonID);
+    }
+
+
+    static boolean stableButtonStateVisible (final ButtonID buttonID)
+    {
+        return buttonID != ButtonID.MUTE && buttonID != ButtonID.SOLO;
     }
 
 
@@ -812,29 +840,6 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
     static boolean shouldRouteRawPitchbend (final boolean currentPolicyActive, final boolean gestureLeaseActive)
     {
         return currentPolicyActive || gestureLeaseActive;
-    }
-
-
-    /**
-     * Fade a pad to the expected target color using the Push 2 firmware transition.
-     *
-     * @param note The physical Push pad note
-     * @param targetColor The unresolved expected target color
-     */
-    public void requestPadFade (final int note, final PadColor targetColor)
-    {
-        this.pushPadGrid.requestFade (note, targetColor);
-    }
-
-
-    /**
-     * Cancel a pending pad fade.
-     *
-     * @param note The physical Push pad note
-     */
-    public void cancelPadFade (final int note)
-    {
-        this.pushPadGrid.cancelFade (note);
     }
 
 

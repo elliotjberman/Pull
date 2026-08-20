@@ -11,6 +11,7 @@ import de.mossgrabers.framework.graphics.DefaultGraphicsDimensions;
 import de.mossgrabers.framework.graphics.IBitmap;
 import de.mossgrabers.framework.graphics.canvas.component.DisplaySceneComponent;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
+import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
 
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
@@ -38,12 +39,18 @@ public class Push2Display extends AbstractGraphicDisplay
      * @param host The host
      * @param maxParameterValue The maximum parameter value (upper bound)
      * @param configuration The Push configuration
-     * @param displayOverlaySupplier Reloadable complete display-overlay state
+     * @param displaySupplier Reloadable complete base display state
+     * @param displayOverlaySupplier Reloadable temporary complete display-overlay state
      */
-    public Push2Display (final IHost host, final int maxParameterValue, final PushConfiguration configuration, final Supplier<ControllerDisplayOverlay> displayOverlaySupplier)
+    public Push2Display (final IHost host, final int maxParameterValue, final PushConfiguration configuration, final Supplier<ControllerDisplayScene> displaySupplier, final Supplier<ControllerDisplayOverlay> displayOverlaySupplier)
     {
         super (host, configuration, new DefaultGraphicsDimensions (960, 160, maxParameterValue));
 
+        final Supplier<ControllerDisplayScene> checkedDisplaySupplier = Objects.requireNonNull (displaySupplier, "displaySupplier");
+        this.setFullScreenBaseSupplier ( () -> {
+            final ControllerDisplayScene scene = Objects.requireNonNull (checkedDisplaySupplier.get (), "controller display");
+            return scene.isPresent () ? new DisplaySceneComponent (scene) : null;
+        });
         final Supplier<ControllerDisplayOverlay> checkedSupplier = Objects.requireNonNull (displayOverlaySupplier, "displayOverlaySupplier");
         this.setFullScreenOverlaySupplier ( () -> {
             final ControllerDisplayOverlay overlay = Objects.requireNonNull (checkedSupplier.get (), "display overlay");

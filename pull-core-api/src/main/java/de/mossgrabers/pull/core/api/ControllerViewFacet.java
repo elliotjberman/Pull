@@ -11,12 +11,10 @@ package de.mossgrabers.pull.core.api;
  */
 public enum ControllerViewFacet
 {
-    /** Eight project-remote encoders, touches, and parameter display cells. */
+    /** Project-remote encoder-touch/Delete adapter and inherited page lease. */
     PROJECT_MACRO_CONTROLS,
     /** Inherited per-track Mix page across encoders, display, and soft keys. */
     TRACK_MIXER_PAGE,
-    /** Track names and selection on the lower display/button strip. */
-    TRACK_SELECTION_STRIP,
     /** Session-oriented arrow and page navigation. */
     SESSION_NAVIGATION,
     /** Eight tracks by four scenes on the upper pad-grid half. */

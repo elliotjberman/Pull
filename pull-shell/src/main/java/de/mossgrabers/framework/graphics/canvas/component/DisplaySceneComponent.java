@@ -53,6 +53,12 @@ public final class DisplaySceneComponent implements IComponent
         {
             switch (command)
             {
+                case final DisplayCommand.PushClip clip -> gc.pushClip (
+                    x (bounds, clip.x (), scaleX),
+                    y (bounds, clip.y (), scaleY),
+                    clip.width () * scaleX,
+                    clip.height () * scaleY);
+                case final DisplayCommand.PopClip ignored -> gc.popClip ();
                 case final DisplayCommand.Rectangle rectangle -> gc.fillRectangle (
                     x (bounds, rectangle.x (), scaleX),
                     y (bounds, rectangle.y (), scaleY),
@@ -147,7 +153,19 @@ public final class DisplaySceneComponent implements IComponent
 
     private static void drawIcon (final IGraphicsContext gc, final IBounds bounds, final double scaleX, final double scaleY, final DisplayCommand.Icon icon)
     {
-        final IImage image = ResourceHandler.getSVGImage (icon.icon () == DisplayIcon.MASTER ? "track/master_track.svg" : "pin.svg");
+        final String resource = switch (icon.icon ())
+        {
+            case AUDIO_TRACK -> "track/audio_track.svg";
+            case INSTRUMENT_TRACK -> "track/instrument_track.svg";
+            case HYBRID_TRACK -> "track/hybrid_track.svg";
+            case GROUP_TRACK -> "track/group_track.svg";
+            case GROUP_TRACK_OPEN -> "track/group_track_open.svg";
+            case RETURN_TRACK -> "track/return_track.svg";
+            case MASTER -> "track/master_track.svg";
+            case MULTI_LAYER -> "track/multi_layer.svg";
+            case PIN -> "pin.svg";
+        };
+        final IImage image = ResourceHandler.getSVGImage (resource);
         final double boxX = x (bounds, icon.x (), scaleX);
         final double boxY = y (bounds, icon.y (), scaleY);
         final double boxWidth = icon.width () * scaleX;

@@ -66,6 +66,35 @@ class CommandReplacementTest
 
 
     @Test
+    void observedCoreConsumptionAfterStableDownSuppressesTheStableRowRelease ()
+    {
+        final FakeButton button = new FakeButton ();
+        final List<ButtonEvent> commandEvents = new ArrayList<> ();
+        final List<PhysicalInputEvent<String>> coreEvents = new ArrayList<> ();
+        final PhysicalControlRegistry<String> registry = PhysicalControlRegistry.<String>builder (1)
+            .register (BUTTON, InputKind.BUTTON)
+            .build ();
+        final PhysicalInputRouter<String> router = new PhysicalInputRouter<> (
+            registry,
+            (ignoredControl, ignoredKind) -> InputRoute.OBSERVE,
+            event -> {
+                coreEvents.add (event);
+                if (event.phase () == InputPhase.BEGIN)
+                    button.setConsumed ();
+            });
+        button.bind ( (event, velocity) -> commandEvents.add (event));
+        installArbitrator (button, router);
+
+        button.trigger (ButtonEvent.DOWN, 1.0);
+        button.trigger (ButtonEvent.UP, 0.0);
+
+        assertEquals (List.of (ButtonEvent.DOWN), commandEvents);
+        assertEquals (List.of (InputPhase.BEGIN, InputPhase.END), phases (coreEvents));
+        assertFalse (button.isPressed ());
+    }
+
+
+    @Test
     void consumedLegacyGestureClearsItsLeaseBeforeNextExclusiveGesture ()
     {
         final FakeButton button = new FakeButton ();

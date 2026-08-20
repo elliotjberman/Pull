@@ -92,9 +92,11 @@ selected-track route therefore decide whether it becomes a musical note just as 
 hardware. Holding the mouse retains the normal long-press lifecycle. Hovering any touch-bound
 continuous control submits its touch BEGIN/END, and the deliberately plain slider below the
 controller submits 0..127 poly-pressure for the last pad clicked through both the controller and
-`NoteInput` paths. One browser edge may be held at a time; pressure may accompany that exact held
-pad. A five-second controller-owned lease, renewed by the page, releases a control if the tab
-disappears and neutralizes detached nonzero pressure.
+`NoteInput` paths. Up to eight browser edges may share one debug-input session, so independent
+`/api/input` BEGIN requests can hold modifiers and buttons concurrently before matching END
+requests release them. Pressure may accompany an exact held pad. Each edge has a five-second
+controller-owned lease, renewed independently by the page; disappearing clients release their
+controls and neutralize detached nonzero pressure.
 The local server accepts bounded same-origin JSON only with the active random extension-session
 token, atomically queues at most 64 requests, and never invokes controller code itself.
 Debugger output reaches the browser through a bounded Server-Sent Events stream. The event carries
@@ -239,12 +241,12 @@ client-side:
 tools/push-debug-request session \
     'NOTE/workspace=false' \
     'TRACK/mode=TRACK,workspace=false' \
-    'SESSION/view=SESSION,mode!=WORKSPACE|MASTER|MASTER_TEMP,workspace=false'
+    'SESSION/view=SESSION,mode!=WORKSPACE|MASTER|MASTER_TEMP,workspace=true'
 ```
 
 The eight upper display buttons are admitted while ordinary Track mode owns them. Every terminal
 status reports the private selection-following target's `track_position`, stable `track_id`,
-identity `track_generation`, `armed` state, and `monitor` mode. It also reports authoritative
+identity `track_generation`, `armed`, `muted`, `soloed`, `clip_playing`, and `monitor` state. It also reports authoritative
 `repeat` and `latch` state plus parent-owned Note-route command state. Bitwig track positions are
 local to the immediate parent group, so a
 `track=N` predicate is accepted only alongside the exact `track-id=ID` fence. Position remains
@@ -254,6 +256,11 @@ to discover the currently selected identity:
 ```bash
 tools/push-debug-request identify 'TRACK/mode=TRACK,workspace=false'
 ```
+
+Mute, Solo, and Stop Clip are admitted through their permanent routed buttons. Use `muted`,
+`soloed`, and `clip-playing` predicates so completion comes from later selected-track host read-back,
+not command submission. A Stop request with `clip-playing=false` is intentionally already satisfied
+when no selected-track launcher clip is playing and therefore does not press the button.
 
 A `repeat=true|false` postcondition waits for authoritative read-back from the permanent Push
 NoteInput repeat engine. With the project-specific identities discovered from terminal statuses,
@@ -322,8 +329,8 @@ returns successfully; it adds no MIDI callback or output owner.
 
 If the later applied result leaves an already-correct pad color unchanged, the ordinary renderer
 may suppress a redundant send. The first post-apply debug observation therefore resends that one
-pad exactly once through the existing output path. This is a real opt-in outbound update and may
-consume an already-pending firmware fade for that pad; later observations never resend.
+pad exactly once through the existing output path. This is a real opt-in outbound update; later
+observations never resend.
 
 The debugger then submits UP through the same permanent arbitrator. It retains its input/core
 generation fence until the routed gesture is idle and a later complete core result has applied.

@@ -62,7 +62,12 @@ public record DesiredParameterInteraction (long interactionId, boolean acceptsMu
     /** Test whether one semantic action intersects this interaction's barrier. */
     public boolean blocksAction (final ControllerActionBinding action)
     {
-        return this.blocksAction (Objects.requireNonNull (action, "action").intent ());
+        for (final ControllerActionIntent intent: Objects.requireNonNull (action, "action").intents ())
+        {
+            if (this.blocksAction (intent))
+                return true;
+        }
+        return false;
     }
 
 

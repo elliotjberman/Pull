@@ -123,19 +123,21 @@ class ControllerRuntimeEnvironmentTest
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.BINDING_CLIP_TARGET));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION));
         assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD));
-        assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_RGB_LIGHT));
+        assertEquals (Integer.valueOf (6), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_RGB_LIGHT));
         assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_MAPPING));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_STATE));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_NOTE_VIEW_PREFERENCE));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_NOTE_REPEAT));
-        assertEquals (Integer.valueOf (3), initial.capabilities ().versions ().get (CoreCapabilities.ROUTING_CONTROLLER_INPUT));
-        assertEquals (Integer.valueOf (7), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE));
+        assertEquals (Integer.valueOf (5), initial.capabilities ().versions ().get (CoreCapabilities.ROUTING_CONTROLLER_INPUT));
+        assertEquals (Integer.valueOf (10), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE));
+        assertEquals (Integer.valueOf (3), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_SESSION_BANK));
+        assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_CONTROLLER_BUTTON_CONSUMPTION));
         assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_PARAMETER_TARGETS));
         assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_PARAMETER_TARGET));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_CONTROLLER_MAPPING_FEEDBACK));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_MASTER));
         assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_MASTER));
-        assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_DISPLAY));
+        assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_DISPLAY));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_PAD_GRID_OVERLAY));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_DISPLAY_OVERLAY));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.RENDER_MIXER_CONTROLS));
@@ -543,28 +545,59 @@ class ControllerRuntimeEnvironmentTest
 
 
     @Test
-    void admitsOnlyTheBoundedGlobalTransportLightsOutsideMaster ()
+    void admitsOnlyTheBoundedGlobalAndSessionButtonLightsOutsideMaster ()
     {
         final ControllerRuntimeEnvironment environment = environment (host (1));
         final ControlId play = PushControlIds.button ("PLAY");
         final ControlId record = PushControlIds.button ("RECORD");
-        final ControlId stop = PushControlIds.button ("STOP");
+        final ControlId mute = PushControlIds.button ("MUTE");
+        final ControlId solo = PushControlIds.button ("SOLO");
+        final ControlId stopClip = PushControlIds.button ("STOP_CLIP");
+        final ControlId unsupported = PushControlIds.button ("STOP");
 
         environment.commit (7, environment.prepare (result (
-            Map.of (play, BRIGHT_RED, record, DIM_RED),
+            Map.of (play, BRIGHT_RED, record, DIM_RED, mute, DIM_RED, solo, BRIGHT_RED, stopClip, DIM_RED),
             Map.of (),
             List.of ())));
 
         assertEquals (BRIGHT_RED, environment.lightColor (play));
         assertEquals (DIM_RED, environment.lightColor (record));
+        assertEquals (DIM_RED, environment.lightColor (mute));
+        assertEquals (BRIGHT_RED, environment.lightColor (solo));
+        assertEquals (DIM_RED, environment.lightColor (stopClip));
         assertThrows (IllegalArgumentException.class, () -> environment.prepare (result (
-            Map.of (stop, BRIGHT_RED),
+            Map.of (unsupported, BRIGHT_RED),
             Map.of (),
             List.of ())));
 
         environment.invalidate (8);
         assertEquals (OFF, environment.lightColor (play));
         assertEquals (OFF, environment.lightColor (record));
+        assertEquals (OFF, environment.lightColor (mute));
+        assertEquals (OFF, environment.lightColor (solo));
+        assertEquals (OFF, environment.lightColor (stopClip));
+    }
+
+
+    @Test
+    void genericPhysicalLightValidationOwnsOnlyTheExplicitCompleteResult ()
+    {
+        final ControllerRuntimeEnvironment environment = environment (host (1));
+        final ControlId browse = PushControlIds.button ("BROWSE");
+        final ControlId pad = PushControlIds.pad (1);
+        final ControlId unknown = new ControlId ("not-installed");
+        environment.setPhysicalLightOwnerValidator (Set.of (browse, pad)::contains);
+
+        commitAndApply (environment, 7, result (Map.of (browse, BRIGHT_RED, pad, DIM_RED), Map.of (), List.of ()));
+        assertTrue (environment.ownsLight (browse));
+        assertTrue (environment.ownsLight (pad));
+        assertEquals (BRIGHT_RED, environment.lightColor (browse));
+        assertEquals (DIM_RED, environment.lightColor (pad));
+        assertThrows (IllegalArgumentException.class, () -> environment.prepare (result (Map.of (unknown, BRIGHT_RED), Map.of (), List.of ())));
+
+        commitAndApply (environment, 8, result (Map.of (), Map.of (), List.of ()));
+        assertFalse (environment.ownsLight (browse));
+        assertFalse (environment.ownsLight (pad));
     }
 
 

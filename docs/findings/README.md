@@ -28,3 +28,5 @@ any document their work resolves.
 - [Physical Inputs Are Coupled To Semantic Consequences](physical-input-semantic-action-coupling.md)
 - [Logical Timer DTOs Have No Production Executor](logical-timer-production-gap.md)
 - [Live Test Provenance Is Not Authoritative](live-test-provenance-gap.md)
+- [Custom Musical Surface Geometry Is Not Installed](custom-musical-surface-geometry.md)
+- [Stable Facets Are Not Yet Bidirectionally Coupled To Claims](stable-facet-claim-coupling.md)

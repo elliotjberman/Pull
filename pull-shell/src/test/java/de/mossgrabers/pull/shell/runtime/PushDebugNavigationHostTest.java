@@ -39,7 +39,7 @@ class PushDebugNavigationHostTest
     private static final String MIX                = "TRACK/mode=TRACK,workspace=false";
     private static final String MASTER             = "MASTERTRACK/mode=MASTER|MASTER_TEMP";
     private static final String PROJECT_MACROS     = "SHIFT+SESSION/view=WORKSPACE,mode=WORKSPACE,workspace=true";
-    private static final String SESSION            = "SESSION/view=SESSION,mode!=WORKSPACE|MASTER|MASTER_TEMP,workspace=false";
+    private static final String SESSION            = "SESSION/view=SESSION,mode!=WORKSPACE|MASTER|MASTER_TEMP,workspace=true";
 
     @TempDir
     Path debugDirectory;
@@ -381,11 +381,40 @@ class PushDebugNavigationHostTest
         host.tick ();
         assertEquals (List.of ("NOTE:DOWN", "NOTE:UP", "TRACK:DOWN", "TRACK:UP", "SESSION:DOWN", "SESSION:UP"), surface.events);
 
-        surface.observe ("SESSION", "TRACK", false);
+        surface.observe ("SESSION", "TRACK", true);
         host.tick ();
         host.tick ();
 
-        assertEquals (List.of ("session-request", "READY", "session", "SESSION", "TRACK", "false", "false", "false", "-1", "-", "0", "false", "OFF", "true", "false", "false", "-", "-", "false", "-", "-", "NONE", ""), this.status ());
+        assertEquals (List.of ("session-request", "READY", "session", "SESSION", "TRACK", "true", "false", "false", "-1", "-", "0", "false", "OFF", "true", "false", "false", "-", "-", "false", "-", "-", "NONE", ""), this.status ());
+    }
+
+
+    @Test
+    void selectedTrackControlsWaitForAuthoritativeMuteSoloAndClipState () throws IOException
+    {
+        final FakeNavigationSurface surface = new FakeNavigationSurface ("SESSION", "TRACK", true);
+        surface.observe ("SESSION", "TRACK", true, 2, "track-2", 3, false, false, false, SelectedTrackMonitorMode.OFF);
+        surface.selectedTrackState (false, false, true);
+        final PushDebugNavigationHost host = this.host (surface);
+        this.request ("track-controls", "session-controls", "MUTE/muted=true", "SOLO/soloed=true", "STOP_CLIP/clip-playing=false");
+
+        host.tick ();
+        assertEquals (List.of ("MUTE:DOWN", "MUTE:UP"), surface.events);
+        host.tick ();
+        assertEquals (List.of ("MUTE:DOWN", "MUTE:UP"), surface.events, "submission is not authoritative read-back");
+
+        surface.selectedTrackState (true, false, true);
+        host.tick ();
+        surface.selectedTrackState (true, true, true);
+        host.tick ();
+        surface.selectedTrackState (true, true, false);
+        host.tick ();
+        host.tick ();
+
+        assertEquals (List.of ("MUTE:DOWN", "MUTE:UP", "SOLO:DOWN", "SOLO:UP", "STOP_CLIP:DOWN", "STOP_CLIP:UP"), surface.events);
+        final List<String> status = this.fullStatus ();
+        assertEquals ("READY", status.get (1));
+        assertEquals (List.of ("true", "true", "false"), status.subList (34, 37));
     }
 
 
@@ -879,7 +908,7 @@ class PushDebugNavigationHostTest
             this.observed = new PushDebugNavigationHost.ObservedNavigation (
                 viewID, modeID, workspaceActive, selectedTrackPosition, selectedTrackID,
                 selectedTrackGeneration, true, noteRepeatActive, noteLatchActive, selectedTrackArmed,
-                selectedTrackMonitorMode, notePerformance);
+                selectedTrackMonitorMode, notePerformance, false, false, false);
         }
 
 
@@ -912,7 +941,19 @@ class PushDebugNavigationHostTest
                 current.viewID (), current.modeID (), current.workspaceActive (), current.selectedTrackPosition (),
                 current.selectedTrackID (), current.selectedTrackGeneration (), current.selectedTrackCanHoldNotes (),
                 current.noteRepeatActive (), current.noteLatchActive (), current.selectedTrackArmed (),
-                current.selectedTrackMonitorMode (), notePerformance);
+                current.selectedTrackMonitorMode (), notePerformance, current.selectedTrackMuted (),
+                current.selectedTrackSoloed (), current.selectedTrackClipPlaying ());
+        }
+
+
+        private void selectedTrackState (final boolean muted, final boolean soloed, final boolean clipPlaying)
+        {
+            final PushDebugNavigationHost.ObservedNavigation current = this.observed;
+            this.observed = new PushDebugNavigationHost.ObservedNavigation (
+                current.viewID (), current.modeID (), current.workspaceActive (), current.selectedTrackPosition (),
+                current.selectedTrackID (), current.selectedTrackGeneration (), current.selectedTrackCanHoldNotes (),
+                current.noteRepeatActive (), current.noteLatchActive (), current.selectedTrackArmed (),
+                current.selectedTrackMonitorMode (), current.notePerformance (), muted, soloed, clipPlaying);
         }
 
 

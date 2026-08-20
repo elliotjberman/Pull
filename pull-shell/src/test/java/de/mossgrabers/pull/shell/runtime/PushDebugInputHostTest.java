@@ -31,6 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PushDebugInputHostTest
 {
     private static final ControlId PLAY = PushControlIds.button ("PLAY");
+    private static final ControlId SHIFT = PushControlIds.button ("SHIFT");
     private static final ControlId KNOB = PushControlIds.continuous ("KNOB1");
     private static final ControlId PAD = PushControlIds.pad (5);
 
@@ -72,6 +73,38 @@ class PushDebugInputHostTest
             "push.button.play:BUTTON:BEGIN:127",
             "push.button.play:BUTTON:END:0"), this.surface.events);
         assertTrue (this.admission.debugActive, "release waits for the routed lifecycle to become idle");
+
+        this.admission.routeIdle = true;
+        this.host.tick ();
+        assertFalse (this.admission.debugActive);
+    }
+
+
+    @Test
+    void multipleButtonsShareOneBoundedAdmissionLease () throws IOException
+    {
+        this.request (this.host, "shift-down", SHIFT, InputKind.BUTTON, "BEGIN", 127);
+        this.host.tick ();
+        this.request (this.host, "play-down", PLAY, InputKind.BUTTON, "BEGIN", 127);
+        this.host.tick ();
+
+        assertEquals (List.of (
+            "push.button.shift:BUTTON:BEGIN:127",
+            "push.button.play:BUTTON:BEGIN:127"), this.surface.events);
+        assertTrue (this.admission.debugActive);
+
+        this.admission.routeIdle = false;
+        this.request (this.host, "play-up", PLAY, InputKind.BUTTON, "END", 0);
+        this.host.tick ();
+        this.request (this.host, "shift-up", SHIFT, InputKind.BUTTON, "END", 0);
+        this.host.tick ();
+
+        assertEquals (List.of (
+            "push.button.shift:BUTTON:BEGIN:127",
+            "push.button.play:BUTTON:BEGIN:127",
+            "push.button.play:BUTTON:END:0",
+            "push.button.shift:BUTTON:END:0"), this.surface.events);
+        assertTrue (this.admission.debugActive);
 
         this.admission.routeIdle = true;
         this.host.tick ();
@@ -240,7 +273,7 @@ class PushDebugInputHostTest
         @Override
         public boolean supports (final ControlId control, final InputKind kind)
         {
-            return PLAY.equals (control) && kind == InputKind.BUTTON ||
+            return (PLAY.equals (control) || SHIFT.equals (control)) && kind == InputKind.BUTTON ||
                 KNOB.equals (control) && (kind == InputKind.TOUCH || kind == InputKind.RELATIVE) ||
                 PAD.equals (control) && (kind == InputKind.PAD || kind == InputKind.POLY_PRESSURE);
         }
@@ -302,6 +335,16 @@ class PushDebugInputHostTest
             if (!this.isIdle ())
                 return false;
             this.debugActive = true;
+            press.run ();
+            return true;
+        }
+
+
+        @Override
+        public boolean tryExtendDebugInput (final Runnable press)
+        {
+            if (!this.debugActive)
+                return false;
             press.run ();
             return true;
         }

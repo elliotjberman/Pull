@@ -318,6 +318,15 @@ final class SelectedTrackTargetState implements ISelectedTrackNoteTarget
 
     /** {@inheritDoc} */
     @Override
+    public void stopImmediately ()
+    {
+        if (this.doesExist ())
+            this.target.stopAlt ();
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
     public void returnToArrangement ()
     {
         if (this.doesExist ())

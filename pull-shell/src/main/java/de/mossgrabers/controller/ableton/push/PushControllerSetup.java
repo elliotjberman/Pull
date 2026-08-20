@@ -4,21 +4,18 @@
 
 package de.mossgrabers.controller.ableton.push;
 
-import java.util.Optional;
 import java.util.Set;
+import java.util.function.IntSupplier;
 
-import de.mossgrabers.controller.ableton.push.PushConfiguration.LockState;
 import de.mossgrabers.controller.ableton.push.command.continuous.ConfigurePitchbendCommand;
 import de.mossgrabers.controller.ableton.push.command.continuous.MastertrackTouchCommand;
 import de.mossgrabers.controller.ableton.push.command.continuous.PushMasterVolumeCommand;
 import de.mossgrabers.controller.ableton.push.command.pitchbend.TouchstripCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.AccentCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.ClipCommand;
-import de.mossgrabers.controller.ableton.push.command.trigger.ClipStopCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.DeviceCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.FixedLengthCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.MastertrackCommand;
-import de.mossgrabers.controller.ableton.push.command.trigger.MuteCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.OctaveCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.PageLeftCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.PageRightCommand;
@@ -33,7 +30,6 @@ import de.mossgrabers.controller.ableton.push.command.trigger.ScalesCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.SelectCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.SetupCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.ShiftCommand;
-import de.mossgrabers.controller.ableton.push.command.trigger.SoloCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.TrackCommand;
 import de.mossgrabers.controller.ableton.push.controller.Push2Display;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
@@ -121,10 +117,7 @@ import de.mossgrabers.framework.daw.IHost;
 import de.mossgrabers.framework.daw.ITransport;
 import de.mossgrabers.framework.daw.ModelSetup;
 import de.mossgrabers.framework.daw.clip.INoteClip;
-import de.mossgrabers.framework.daw.data.ICursorDevice;
 import de.mossgrabers.framework.daw.data.IDrumDevice;
-import de.mossgrabers.framework.daw.data.ILayer;
-import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
 import de.mossgrabers.framework.daw.midi.DeviceInquiry;
 import de.mossgrabers.framework.daw.midi.IMidiAccess;
@@ -141,6 +134,7 @@ import de.mossgrabers.framework.view.TransposeView;
 import de.mossgrabers.framework.view.Views;
 import de.mossgrabers.framework.view.sequencer.AbstractSequencerView;
 import de.mossgrabers.framework.view.sequencer.ClipLengthView;
+import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.SessionBankShape;
 import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.output.RgbColor;
@@ -278,7 +272,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         surface.setSessionBankRegistry (this.sessionBankRegistry);
         this.reloadableRuntime.connect (this.model, selectedTrackNoteTarget, input::sendRawMidiEvent, surface, this.valueChanger);
 
-        surface.addGraphicsDisplay (new Push2Display (this.host, this.valueChanger.getUpperBound (), this.configuration, this.reloadableRuntime::displayOverlay));
+        surface.addGraphicsDisplay (new Push2Display (this.host, this.valueChanger.getUpperBound (), this.configuration, this.reloadableRuntime::controllerDisplay, this.reloadableRuntime::displayOverlay));
 
         surface.getModeManager ().setDefaultID (Modes.TRACK);
 
@@ -333,7 +327,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         modeManager.register (Modes.AUTOMATION, new AutomationSelectionMode (surface, this.model));
         modeManager.register (Modes.TRANSPORT, new MetronomeMode (surface, this.model));
         modeManager.register (Modes.USER, new UserMode (surface, this.model));
-        modeManager.register (Modes.WORKSPACE, new WorkspaceMode (surface, this.model, this.reloadableRuntime));
+        modeManager.register (Modes.WORKSPACE, new WorkspaceMode (surface, this.model));
 
         modeManager.register (Modes.INFO, new InfoMode (surface, this.model));
         modeManager.register (Modes.SETUP, new SetupMode (surface, this.model));
@@ -384,7 +378,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
     {
         final PushControlSurface surface = this.getSurface ();
         final ViewManager viewManager = surface.getViewManager ();
-        this.drumPadControls = new DrumPadControls (surface, this.model, this.reloadableRuntime);
+        this.drumPadControls = new DrumPadControls (surface, this.model);
         surface.setDrumPadLayoutActive (this.drumPadControls::isActive);
         surface.setDrumControllerEngaged (this.drumPadControls::isControllerEngaged);
         viewManager.register (Views.PLAY, new PlayView (surface, this.model));
@@ -494,8 +488,8 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
 
         }, ColorManager.BUTTON_STATE_OFF, ColorManager.BUTTON_STATE_ON);
 
-        this.addButton (ButtonID.MUTE, "Mute", new MuteCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_MUTE, this::getMuteState, PushColorManager.PUSH_BUTTON_STATE_MUTE_ON, PushColorManager.PUSH_BUTTON_STATE_MUTE_HI);
-        this.addButton (ButtonID.SOLO, "Solo", new SoloCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_SOLO, this::getSoloState, PushColorManager.PUSH_BUTTON_STATE_SOLO_ON, PushColorManager.PUSH_BUTTON_STATE_SOLO_HI);
+        this.addButton (ButtonID.MUTE, "Mute", CORE_OWNED_BUTTON_COMMAND, PushControlSurface.PUSH_BUTTON_MUTE, () -> controllerLightColor (this.colorManager, this.reloadableRuntime.lightColor (PushControlIds.button ("MUTE"))));
+        this.addButton (ButtonID.SOLO, "Solo", CORE_OWNED_BUTTON_COMMAND, PushControlSurface.PUSH_BUTTON_SOLO, () -> controllerLightColor (this.colorManager, this.reloadableRuntime.lightColor (PushControlIds.button ("SOLO"))));
         this.addButton (ButtonID.SCALES, "Scale", new ScalesCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_SCALES, () -> modeManager.isActive (Modes.SCALES));
         this.addButton (ButtonID.ACCENT, "Accent", new AccentCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_ACCENT, this.configuration::isAccentActive);
         this.addButton (ButtonID.ADD_EFFECT, "Add Device", new PushAddEffectCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_ADD_EFFECT);
@@ -520,7 +514,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
             return activeView instanceof final TransposeView transposeView && transposeView.isOctaveUpButtonOn ();
         }, ColorManager.BUTTON_STATE_OFF, ColorManager.BUTTON_STATE_ON);
 
-        this.addButton (ButtonID.STOP_CLIP, "Stop Clip", new ClipStopCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_STOP_CLIP, () -> surface.isPressed (ButtonID.STOP_CLIP), PushColorManager.PUSH_BUTTON_STATE_STOP_ON, PushColorManager.PUSH_BUTTON_STATE_STOP_HI);
+        this.addButton (ButtonID.STOP_CLIP, "Stop Clip", CORE_OWNED_BUTTON_COMMAND, PushControlSurface.PUSH_BUTTON_STOP_CLIP, () -> controllerLightColor (this.colorManager, this.reloadableRuntime.lightColor (PushControlIds.button ("STOP_CLIP"))));
         this.addButton (ButtonID.SESSION, "Session", CORE_OWNED_BUTTON_COMMAND, PushControlSurface.PUSH_BUTTON_SESSION, surface::isSessionLayoutActive);
         this.addButton (ButtonID.REPEAT, "Repeat", new FillModeNoteRepeatCommand<> (this.model, surface, true), PushControlSurface.PUSH_BUTTON_REPEAT, this.configuration::isNoteRepeatActive);
         this.addButton (ButtonID.FOOTSWITCH2, "Foot Controller", new FootswitchCommand<> (this.model, surface, 0), PushControlSurface.PUSH_FOOTSWITCH2);
@@ -541,6 +535,31 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
     static int controllerLightColor (final ColorManager colors, final RgbColor color)
     {
         return PushColorManager.resolveCoreColor (colors, color);
+    }
+
+
+    /** Install one permanent core-or-stable light arbiter beneath every Push button binding. */
+    @Override
+    protected void addButton (final PushControlSurface surface, final ButtonID buttonID, final String label, final TriggerCommand command, final int midiInputChannel, final int midiOutputChannel, final int midiControl, final int value, final boolean hasLight, final IntSupplier supplier, final String... colorIds)
+    {
+        if (!hasLight)
+        {
+            super.addButton (surface, buttonID, label, command, midiInputChannel, midiOutputChannel, midiControl, value, false, supplier, colorIds);
+            return;
+        }
+
+        final IntSupplier stableSupplier = supplier == null ? () -> surface.getButton (buttonID).isPressed () ? 1 : 0 : supplier;
+        final ControlId lightControl = PushControlIds.button (buttonID.name ());
+        final IntSupplier arbitratedSupplier = () -> {
+            if (this.reloadableRuntime.ownsLight (lightControl))
+                return controllerLightColor (this.colorManager, this.reloadableRuntime.lightColor (lightControl));
+
+            final int state = stableSupplier.getAsInt ();
+            if (colorIds == null || colorIds.length == 0)
+                return state;
+            return this.colorManager.getColorIndex (state < 0 ? ColorManager.BUTTON_STATE_OFF : colorIds[state]);
+        };
+        super.addButton (surface, buttonID, label, command, midiInputChannel, midiOutputChannel, midiControl, value, true, arbitratedSupplier);
     }
 
 
@@ -833,39 +852,5 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
             surface.setRibbonMode (PushControlSurface.PUSH_RIBBON_VOLUME);
         else
             surface.setRibbonMode (PushControlSurface.PUSH_RIBBON_PITCHBEND);
-    }
-
-
-    private boolean getMuteState ()
-    {
-        if (this.configuration.getLockState () == LockState.MUTE)
-            return false;
-
-        final ModeManager modeManager = this.getSurface ().getModeManager ();
-        if (modeManager.isActive (Modes.DEVICE_LAYER))
-        {
-            final ICursorDevice cd = this.model.getCursorDevice ();
-            final Optional<ILayer> layer = cd.getLayerBank ().getSelectedItem ();
-            return layer.isPresent () && layer.get ().isMute ();
-        }
-        final ITrack selTrack = modeManager.isActive (Modes.MASTER) ? this.model.getMasterTrack () : this.model.getCursorTrack ();
-        return selTrack.isMute ();
-    }
-
-
-    private boolean getSoloState ()
-    {
-        if (this.configuration.getLockState () == LockState.SOLO)
-            return false;
-
-        final ModeManager modeManager = this.getSurface ().getModeManager ();
-        if (modeManager.isActive (Modes.DEVICE_LAYER))
-        {
-            final ICursorDevice cd = this.model.getCursorDevice ();
-            final Optional<ILayer> layer = cd.getLayerBank ().getSelectedItem ();
-            return layer.isPresent () && layer.get ().isSolo ();
-        }
-        final ITrack selTrack = modeManager.isActive (Modes.MASTER) ? this.model.getMasterTrack () : this.model.getCursorTrack ();
-        return selTrack.isSolo ();
     }
 }

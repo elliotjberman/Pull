@@ -158,7 +158,7 @@ public class ModelImpl extends AbstractModel
         // primary-instrument container level. See PrimaryDrumDeviceCanopy for the topology limit.
         final List<Candidate> drumMachineCandidates = PrimaryDrumDeviceCanopy.create (controllerHost, this.bwCursorTrack, DRUM_DEVICE_CURSOR_ID, DRUM_DEVICE_CURSOR_NAME, numSends);
         for (final Candidate candidate: drumMachineCandidates)
-            this.drumDevices.add (new DrumDeviceImpl (this.host, this.valueChanger, candidate.device (), candidate.numLayerSends (), numParamPages, numParams, numDevicesInBank, numDeviceLayers, numDrumPadLayers));
+            this.drumDevices.add (new DrumDeviceImpl (this.host, this.valueChanger, candidate.device (), candidate.path ().name (), candidate.numLayerSends (), numParamPages, numParams, numDevicesInBank, numDeviceLayers, numDrumPadLayers));
         this.drumDevice = this.drumDevices.get (0);
 
         // Additional devices exist only to expose an alternate-sized drum-pad bank.
@@ -166,7 +166,7 @@ public class ModelImpl extends AbstractModel
         for (final int pageSize: additionalDrumDevicePageSizes)
         {
             final List<IDrumDevice> candidates = drumMachineCandidates.stream ()
-                .map (candidate -> (IDrumDevice) new DrumDeviceImpl (this.host, this.valueChanger, candidate.device (), 0, 0, 0, 1, 0, pageSize))
+                .map (candidate -> (IDrumDevice) new DrumDeviceImpl (this.host, this.valueChanger, candidate.device (), candidate.path ().name (), 0, 0, 0, 1, 0, pageSize))
                 .toList ();
             this.additionalDrumDevices.put (Integer.valueOf (pageSize), candidates);
         }

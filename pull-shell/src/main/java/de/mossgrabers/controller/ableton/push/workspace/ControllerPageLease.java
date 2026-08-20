@@ -69,7 +69,7 @@ final class ControllerPageLease
         final DesiredControllerWorkspace checked = Objects.requireNonNull (workspace, "workspace");
         final boolean master = checked.facets ().contains (ControllerViewFacet.MASTER_CONTROLS);
         final boolean trackMixer = checked.facets ().contains (ControllerViewFacet.TRACK_MIXER_PAGE);
-        final boolean workspaceMode = checked.facets ().contains (ControllerViewFacet.PROJECT_MACRO_CONTROLS) || checked.facets ().contains (ControllerViewFacet.TRACK_SELECTION_STRIP);
+        final boolean workspaceMode = checked.facets ().contains (ControllerViewFacet.PROJECT_MACRO_CONTROLS);
         final int pageCount = (master ? 1 : 0) + (trackMixer ? 1 : 0) + (workspaceMode ? 1 : 0);
         if (pageCount > 1)
             throw new IllegalArgumentException ("Only one controller page view can be active");

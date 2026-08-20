@@ -18,6 +18,9 @@ public enum BridgeSubscription
     /** State of the private selection-following track target. */
     SELECTED_TRACK,
 
+    /** The active bounded Session bank and its visible track identities. */
+    SESSION_BANK,
+
     /** Current visible view/mode and reconciled drum-layout state. */
     CONTROLLER_LAYOUT,
 

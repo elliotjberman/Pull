@@ -23,7 +23,7 @@ public final class CoreCapabilities
     /** Single-active momentary clip-session effects with a frozen launch policy per target. */
     public static final String EFFECT_CLIP_LAUNCH_HOLD = "effect.clip-launch-hold";
 
-    /** Hardware-independent RGB light output; v4 admits the four drum control pads. */
+    /** Hardware-independent RGB light output; v6 admits every registered Push button and grid pad. */
     public static final String OUTPUT_RGB_LIGHT = "output.rgb-light";
 
     /** Replayable projection onto bounded semantic host-learnable controller endpoints. */
@@ -41,10 +41,10 @@ public final class CoreCapabilities
     /** Normalized bounded Push controller inputs. */
     public static final String INPUT_CONTROLLER = "input.controller";
 
-    /** Replayable core ownership of normalized controller inputs; v3 admits drum control pads. */
+    /** Replayable input ownership; v5 adds declared semantic variants for one physical edge. */
     public static final String ROUTING_CONTROLLER_INPUT = "routing.controller-input";
 
-    /** Common bounded controller state; v7 keys mapping feedback by semantic endpoint. */
+    /** Common bounded controller state; v9 adds visible Session-track names and v10 their types. */
     public static final String SNAPSHOT_CONTROLLER_BRIDGE = "snapshot.controller-bridge";
 
     /** Replayable selection of bounded bridge-state domains to publish and sample. */
@@ -55,6 +55,11 @@ public final class CoreCapabilities
 
     /** Generation-fenced selected-track state, value, and action effects. */
     public static final String EFFECT_SELECTED_TRACK = "effect.selected-track";
+
+    /** Generation-fenced actions against the active bounded Session bank; v2 adds selection and v3 exact-track Stop. */
+    public static final String EFFECT_SESSION_BANK = "effect.session-bank";
+    /** Mechanical consumption of a stable compatibility button release; v2 admits the lower row. */
+    public static final String EFFECT_CONTROLLER_BUTTON_CONSUMPTION = "effect.controller-button-consumption";
 
     /** Generation-fenced drum-pad state and selection effects. */
     public static final String EFFECT_DRUM_PAD = "effect.drum-pad";
@@ -77,7 +82,7 @@ public final class CoreCapabilities
     /** Serialized project/file/engine commands and stable-owned exact cross-project transport. */
     public static final String EFFECT_MASTER = "effect.master";
 
-    /** Complete replayable controller display; v2 adds bounded declarative vector scenes. */
+    /** Complete replayable controller display; v3 projects composed scenes and v4 adds channel icons. */
     public static final String OUTPUT_CONTROLLER_DISPLAY = "output.controller-display";
 
     /** Temporary sparse overlay over a frozen Push pad-grid frame. */

@@ -127,6 +127,13 @@ abstract class SelectedTrackNoteTargetAdapter implements ISelectedTrackNoteTarge
 
 
     @Override
+    public void stopImmediately ()
+    {
+        // Inert by default.
+    }
+
+
+    @Override
     public void returnToArrangement ()
     {
         // Inert by default.
