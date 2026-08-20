@@ -25,6 +25,7 @@ import de.mossgrabers.pull.core.api.effect.SetClipTimelineRangeEffect;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
+import de.mossgrabers.pull.core.api.event.SnapshotChangedEvent;
 import de.mossgrabers.pull.core.api.output.LightBlinkRate;
 import de.mossgrabers.pull.core.api.output.ControllerLight;
 import de.mossgrabers.pull.core.api.output.RgbColor;
@@ -49,13 +50,13 @@ class ClipTimelineViewTest
 {
     private static final RgbColor BLACK = new RgbColor (0, 0, 0);
     private static final RgbColor WHITE = new RgbColor (255, 255, 255);
-    private static final RgbColor GREEN = new RgbColor (0, 255, 0);
+    private static final RgbColor SESSION_PLAYING_GREEN = new RgbColor (0, 89, 0);
     private static final RgbColor BLUE = new RgbColor (30, 80, 220);
     private static final ClipTimelineTarget TARGET = new ClipTimelineTarget (4, 7, "track-a", 3);
 
 
     @Test
-    void ownsTheCompleteSurfaceAndBlinksOnlyTheCurrentTimelineStep ()
+    void ownsTheCompleteSurfaceAndPulsesOnlyTheCurrentTimelineStep ()
     {
         final CompiledWorkspace workspace = workspace (new ClipTimelineState (0));
         final var result = workspace.start (snapshot (timeline (BLUE)));
@@ -67,9 +68,8 @@ class ClipTimelineViewTest
         assertEquals (64, result.desiredOutput ().lights ().keySet ().stream ().filter (control -> control.value ().startsWith ("push.pad.")).count ());
 
         final ControllerLight playing = result.desiredOutput ().lights ().get (PushControlIds.pad (57));
-        assertEquals (BLUE, playing.color ());
-        assertEquals (GREEN, playing.blinkColor ());
-        assertEquals (LightBlinkRate.SLOW, playing.blinkRate ());
+        assertEquals (SESSION_PLAYING_GREEN, playing.color ());
+        assertEquals (LightBlinkRate.NONE, playing.blinkRate ());
         final ControllerLight selectedEnd = result.desiredOutput ().lights ().get (PushControlIds.pad (58));
         assertEquals (BLUE, selectedEnd.color ());
         assertEquals (LightBlinkRate.NONE, selectedEnd.blinkRate ());
@@ -90,13 +90,27 @@ class ClipTimelineViewTest
 
 
     @Test
-    void playbackPositionMovesTheSingleBlinkingPad ()
+    void playbackPositionMovesTheSinglePulsingPad ()
     {
         final ClipTimelineSnapshot secondStep = new ClipTimelineSnapshot (Optional.of (TARGET), 0, 8, 16, OptionalDouble.of (4), BLUE);
         final Map<ControlId, ControllerLight> lights = workspace (new ClipTimelineState (0)).start (snapshot (secondStep)).desiredOutput ().lights ();
 
-        assertEquals (LightBlinkRate.NONE, lights.get (PushControlIds.pad (57)).blinkRate ());
-        assertEquals (LightBlinkRate.SLOW, lights.get (PushControlIds.pad (58)).blinkRate ());
+        assertEquals (BLUE, lights.get (PushControlIds.pad (57)).color ());
+        assertEquals (SESSION_PLAYING_GREEN, lights.get (PushControlIds.pad (58)).color ());
+    }
+
+
+    @Test
+    void currentStepPulseFollowsAuthoritativeTransportBeatPhase ()
+    {
+        final CompiledWorkspace workspace = workspace (new ClipTimelineState (0));
+        final ControllerLight firstHalf = workspace.start (snapshot (timeline (BLUE), 1.25)).desiredOutput ().lights ().get (PushControlIds.pad (57));
+        final ControllerLight secondHalf = workspace.handle (new SnapshotChangedEvent (2, 2), snapshot (timeline (BLUE), 1.75)).desiredOutput ().lights ().get (PushControlIds.pad (57));
+
+        assertEquals (SESSION_PLAYING_GREEN, firstHalf.color ());
+        assertEquals (BLUE, secondHalf.color ());
+        assertEquals (LightBlinkRate.NONE, firstHalf.blinkRate ());
+        assertEquals (LightBlinkRate.NONE, secondHalf.blinkRate ());
     }
 
 
@@ -190,8 +204,14 @@ class ClipTimelineViewTest
 
     private static ControllerSnapshot snapshot (final ClipTimelineSnapshot timeline)
     {
+        return snapshot (timeline, 1);
+    }
+
+
+    private static ControllerSnapshot snapshot (final ClipTimelineSnapshot timeline, final double transportPosition)
+    {
         final ControllerBridgeSnapshot bridge = new ControllerBridgeSnapshot (
-            new TransportSnapshot (true, true, true, false, false, false, false, false, false, 120, 1, 4, 4),
+            new TransportSnapshot (true, true, true, false, false, false, false, false, false, 120, transportPosition, 4, 4),
             SelectedTrackSnapshot.empty (),
             new ControllerLayoutSnapshot (1, "CLIP_LENGTH", "TRACK", false, false, 0, GridPressureConfiguration.OFF),
             timeline,

@@ -108,10 +108,12 @@ cursor therefore retains only its low-rate playback edges while timeline snapsho
 The shell publishes phase only after it observes the exact clip stopped and then playing; it
 advances that anchor from transport read-back and fails closed on a
 target or transport discontinuity. Core divides the resulting clip position by its current grid
-resolution and gives only that selected pad the common `ControllerLight` playing state and the same
-Push slow-blink MIDI transport used by Session playback. The stable adapter is inert; stable only
-owns the bounded selection-following cursor clip, phase observation, target fencing, effect
-execution, palette translation, and MIDI transmission.
+resolution and gives only that selected pad a shared transport-position-derived half-beat pulse
+between the clip color and Session playing green. Deriving the phase from authoritative transport
+position keeps the visible pulse continuous when the current-step owner changes; assigning the
+firmware blink afresh to every step can reset before its alternate phase becomes visible. The
+stable adapter is inert; stable only owns the bounded selection-following cursor clip, phase
+observation, target fencing, effect execution, palette translation, and MIDI transmission.
 
 `DrumPlayPadView` owns the lower-left 4x4 RGB output and all playable-pad pressure policy in both
 the standalone Drum page and VS Live. Resting lights use authoritative selected-track color;

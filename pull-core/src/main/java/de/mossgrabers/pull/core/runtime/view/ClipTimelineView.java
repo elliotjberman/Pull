@@ -34,7 +34,7 @@ public final class ClipTimelineView implements ControllerView
 {
     private static final RgbColor BLACK = new RgbColor (0, 0, 0);
     private static final RgbColor WHITE = new RgbColor (255, 255, 255);
-    private static final RgbColor GREEN = new RgbColor (0, 255, 0);
+    private static final RgbColor SESSION_PLAYING_GREEN = new RgbColor (0, 89, 0);
     private static final RgbColor RESOLUTION = new RgbColor (110, 44, 0);
     private static final RgbColor RESOLUTION_SELECTED = new RgbColor (255, 84, 0);
     private static final Set<BridgeSubscription> SUBSCRIPTIONS = Set.of (BridgeSubscription.CLIP_TIMELINE, BridgeSubscription.TRANSPORT);
@@ -149,7 +149,7 @@ public final class ClipTimelineView implements ControllerView
             final int physicalRow = 7 - timelinePad / 8;
             final boolean selected = timelinePad >= start && timelinePad < end;
             final RgbColor color = timelinePad >= selectableEnd ? BLACK : selected ? timeline.color () : outside;
-            final ControllerLight light = timelinePad == playingPad && selected ? ControllerLight.playing (color, GREEN) : ControllerLight.steady (color);
+            final ControllerLight light = timelinePad == playingPad && selected ? TransportBeatPulse.light (snapshot.bridge ().transport (), color, SESSION_PLAYING_GREEN) : ControllerLight.steady (color);
             lights.put (PushControlIds.pad (physicalRow * 8 + column + 1), light);
         }
 

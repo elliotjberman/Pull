@@ -374,13 +374,15 @@ releases that lease and blanks the rate pads without changing note-view policy.
 Clip Timeline is a fixed full-grid view, not a stable mode with a feature-specific rendering
 bridge. It owns all pad/pressure and scene-button routes plus their lights, composes with the Track
 page or Master page, and shares one retained range/resolution state across those page replacements.
-Its desired lights use the generic `ControllerLight` base/alternate/rate value; only the Push
-hardware adapter turns that value into the firmware's slow tempo-clocked blink channel.
+Its desired lights use the generic `ControllerLight` value. A shared core beat-pulse helper derives
+the visible half-beat phase from authoritative transport position, rather than assigning a fresh
+firmware blink whose local animation can restart whenever the current-step pad changes.
 The permanent cursor retains low-rate launcher playback edges across workspace changes without
 sampling an unrequested timeline snapshot. An observed stopped-to-playing transition anchors a clip
 position that advances from transport read-back and wraps through the observed loop. Core divides
-that position by the active timeline resolution and makes only the resulting selected pad blink;
-selectable unselected pads and the rest of the selected range remain steady, while padding remains
+that position by the active timeline resolution and pulses only the resulting selected pad between
+its clip color and Session playing green. Selectable unselected pads and the rest of the selected
+range remain steady, while padding remains
 off. A target change or transport discontinuity clears the phase and therefore the blink until a
 later observable launch.
 
