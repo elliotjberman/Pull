@@ -296,10 +296,12 @@ main {
 @keyframes transmitted-light-blink {
     0%, 49% {
         fill: var(--light);
+        stroke: color-mix(in srgb, var(--light), white 28%);
     }
 
     50%, 100% {
         fill: var(--blink-light);
+        stroke: color-mix(in srgb, var(--blink-light), white 28%);
     }
 }
 
