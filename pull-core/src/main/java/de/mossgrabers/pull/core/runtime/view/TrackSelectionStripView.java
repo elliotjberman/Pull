@@ -13,6 +13,7 @@ import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.SessionBankSnapshot;
 import de.mossgrabers.pull.core.api.SessionTrackSnapshot;
 import de.mossgrabers.pull.core.api.effect.SelectSessionTrackEffect;
+import de.mossgrabers.pull.core.api.effect.StopSessionTrackEffect;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.output.RgbColor;
@@ -101,15 +102,22 @@ public final class TrackSelectionStripView implements ControllerView
     @Override
     public ResolvedControllerAction resolveAction (final ControllerActionBinding binding, final ControllerInputEvent input, final ControllerSnapshot snapshot)
     {
-        if (snapshot.pressedControls ().contains (STOP_CLIP))
-        {
-            // Exact Stop-plus-track targeting is deliberately not installed yet. Consume the
-            // chord so it cannot select a track or turn into a trailing selected-track Stop.
-            this.stopGesture.consume ();
-            return ResolvedControllerAction.of (binding.intent (), List::of);
-        }
         final int index = TRACK_BUTTONS.indexOf (input.controlId ());
         final SessionBankSnapshot bank = snapshot.bridge ().sessionBank ();
+        if (snapshot.pressedControls ().contains (STOP_CLIP))
+        {
+            // This strip owns the row edge in VS Live while SessionView owns the held Stop
+            // modifier and shared gesture lifetime. Capture the exact row target instead of
+            // selecting it or letting Stop fall through to the selected track.
+            this.stopGesture.consume ();
+            if (index < 0 || !bank.shape ().isPresent () || index >= bank.tracks ().size ())
+                return ResolvedControllerAction.of (binding.intent (), List::of);
+            final SessionTrackSnapshot track = bank.tracks ().get (index);
+            if (!track.exists ())
+                return ResolvedControllerAction.of (binding.intent (), List::of);
+            final StopSessionTrackEffect effect = new StopSessionTrackEffect (bank.generation (), bank.shape (), index, track.channelId (), true);
+            return ResolvedControllerAction.of (binding.intent (), () -> List.of (effect));
+        }
         if (index < 0 || !bank.shape ().isPresent () || index >= bank.tracks ().size ())
             return ResolvedControllerAction.of (binding.intent (), List::of);
         final SessionTrackSnapshot track = bank.tracks ().get (index);

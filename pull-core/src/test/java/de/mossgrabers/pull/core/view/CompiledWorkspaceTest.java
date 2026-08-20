@@ -37,6 +37,7 @@ import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.TransportSnapshot;
 import de.mossgrabers.pull.core.api.effect.AdjustParameterValueEffect;
 import de.mossgrabers.pull.core.api.effect.SelectSessionTrackEffect;
+import de.mossgrabers.pull.core.api.effect.StopSessionTrackEffect;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
@@ -47,6 +48,7 @@ import de.mossgrabers.pull.core.api.output.DisplayCommand;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.runtime.view.ProjectMacroControlsView;
 import de.mossgrabers.pull.core.runtime.view.SessionView;
+import de.mossgrabers.pull.core.runtime.view.SessionStopGesture;
 import de.mossgrabers.pull.core.runtime.view.TrackSelectionStripView;
 import de.mossgrabers.pull.core.runtime.view.WorkspaceSelection;
 import de.mossgrabers.pull.core.runtime.view.WorkspaceSelectionView;
@@ -422,6 +424,28 @@ class CompiledWorkspaceTest
 
 
     @Test
+    void resolvedTrackStopRetainsItsBeginTimeBankIdentity ()
+    {
+        final ControllerView upper = displayRegionView (
+            "upper",
+            SurfaceArea.DISPLAY_PARAMETERS,
+            new ControllerDisplayScene (960, 143, List.of (new DisplayCommand.Rectangle (0, 0, 960, 143, new RgbColor (0, 0, 0)))));
+        final SessionStopGesture stopGesture = new SessionStopGesture ();
+        final CompiledWorkspace workspace = CompiledWorkspace.compile ("tracks", new SessionBankShape (8, 4), List.of (upper, SessionView.upper (true, stopGesture), new TrackSelectionStripView (stopGesture)));
+        final ControlId stop = PushControlIds.button ("STOP_CLIP");
+        final ControllerSnapshot begin = sessionSnapshot (7, "track-a", Set.of (stop));
+        workspace.start (begin);
+
+        final ResolvedControllerAction action = workspace.resolveAction (
+            new ControllerInputEvent (1, 0, PushControlIds.button ("ROW1_1"), InputKind.BUTTON, InputPhase.BEGIN, 127),
+            begin);
+        final CoreResult result = workspace.handleAction (action, sessionSnapshot (8, "track-b"));
+
+        assertEquals (List.of (new StopSessionTrackEffect (7, new SessionBankShape (8, 4), 0, "track-a", true)), result.effects ());
+    }
+
+
+    @Test
     void rejectsConflictingPhysicalParameterMappings ()
     {
         final ControlId knob = PushControlIds.continuous ("KNOB1");
@@ -705,6 +729,12 @@ class CompiledWorkspaceTest
 
     private static ControllerSnapshot sessionSnapshot (final long generation, final String firstChannel)
     {
+        return sessionSnapshot (generation, firstChannel, Set.of ());
+    }
+
+
+    private static ControllerSnapshot sessionSnapshot (final long generation, final String firstChannel, final Set<ControlId> pressedControls)
+    {
         final SessionBankShape shape = new SessionBankShape (8, 4);
         final java.util.ArrayList<SessionTrackSnapshot> tracks = new java.util.ArrayList<> ();
         tracks.add (new SessionTrackSnapshot (firstChannel, 0, firstChannel, true, false, true, false, false, false, false, de.mossgrabers.pull.core.api.SessionTrackType.UNKNOWN, new RgbColor (10, 20, 30)));
@@ -721,7 +751,7 @@ class CompiledWorkspaceTest
             ParameterBridgeSnapshot.empty (),
             de.mossgrabers.pull.core.api.MasterSnapshot.empty (),
             de.mossgrabers.pull.core.api.ProjectSnapshot.empty ());
-        return new ControllerSnapshot (0, 0, ShellCapabilities.empty (), bridge, ClipCatalogSnapshot.empty (), Map.of (), Map.of (), java.util.Optional.empty (), Set.of (), Set.of ());
+        return new ControllerSnapshot (0, 0, ShellCapabilities.empty (), bridge, ClipCatalogSnapshot.empty (), Map.of (), Map.of (), java.util.Optional.empty (), pressedControls, Set.of ());
     }
 
 

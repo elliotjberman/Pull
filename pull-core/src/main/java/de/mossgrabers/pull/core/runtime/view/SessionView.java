@@ -10,11 +10,13 @@ import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
 import de.mossgrabers.pull.core.api.SessionBankSnapshot;
+import de.mossgrabers.pull.core.api.SessionTrackSnapshot;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.ConsumeControllerButtonEffect;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackAction;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackActionEffect;
 import de.mossgrabers.pull.core.api.effect.StopSessionBankEffect;
+import de.mossgrabers.pull.core.api.effect.StopSessionTrackEffect;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
@@ -27,6 +29,7 @@ import de.mossgrabers.pull.core.view.ViewFacet;
 import de.mossgrabers.pull.core.view.ViewOutput;
 import de.mossgrabers.pull.core.view.ViewProfile;
 
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -44,7 +47,7 @@ public final class SessionView implements ControllerView
     private static final ControlId STOP_CLIP = PushControlIds.button ("STOP_CLIP");
     private static final ControlId SHIFT = PushControlIds.button ("SHIFT");
     private static final ControlId SELECT = PushControlIds.button ("SELECT");
-    private static final Set<ControlId> TRACK_BUTTONS = trackButtons ();
+    private static final List<ControlId> TRACK_BUTTONS = trackButtons ();
     private static final Set<BridgeSubscription> SUBSCRIPTIONS = Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.SESSION_BANK);
 
     private final ViewProfile profile;
@@ -119,9 +122,23 @@ public final class SessionView implements ControllerView
         {
             this.stopGesture.consume ();
             if (input.kind () == InputKind.BUTTON && TRACK_BUTTONS.contains (input.controlId ()))
-                return List.of (new ConsumeControllerButtonEffect (input.controlId ()));
+                return this.stopVisibleTrack (input.controlId (), snapshot);
         }
         return List.of ();
+    }
+
+
+    private List<CoreEffect> stopVisibleTrack (final ControlId control, final ControllerSnapshot snapshot)
+    {
+        final ConsumeControllerButtonEffect consume = new ConsumeControllerButtonEffect (control);
+        final int index = TRACK_BUTTONS.indexOf (control);
+        final SessionBankSnapshot bank = snapshot.bridge ().sessionBank ();
+        if (index < 0 || !bank.shape ().isPresent () || index >= bank.tracks ().size ())
+            return List.of (consume);
+        final SessionTrackSnapshot track = bank.tracks ().get (index);
+        if (!track.exists ())
+            return List.of (consume);
+        return List.of (consume, new StopSessionTrackEffect (bank.generation (), bank.shape (), index, track.channelId (), true));
     }
 
 
@@ -208,11 +225,11 @@ public final class SessionView implements ControllerView
     }
 
 
-    private static Set<ControlId> trackButtons ()
+    private static List<ControlId> trackButtons ()
     {
-        final Set<ControlId> controls = new LinkedHashSet<> ();
+        final List<ControlId> controls = new ArrayList<> (8);
         for (int index = 1; index <= 8; index++)
             controls.add (PushControlIds.button ("ROW1_" + index));
-        return Set.copyOf (controls);
+        return List.copyOf (controls);
     }
 }

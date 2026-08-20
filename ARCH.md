@@ -1,6 +1,6 @@
 # Pull View Architecture
 
-Status: current through Core API 39, semantic controller-mapping identities, generic registered
+Status: current through Core API 40, semantic controller-mapping identities, generic registered
 button/grid light arbitration, the shared
 mixer-control renderer, the Master-control migration, the post-demo `VS Live` composition, and
 core-owned Session Stop, selected-track Mute/Solo, VS Live Project/Track and Track/Mix display
@@ -388,9 +388,10 @@ Implemented:
 - One persistent `SessionView` owns the full/upper grid footprint plus Stop Clip input and RGB
   feedback: available is white and a held Stop is red. Plain Stop immediately stops the
   authoritative selected track; Shift/Select Stop targets the exact active Session bank, and
-  Stop-plus-pad consumption remains part of the same view. Exact Stop-plus-track is not installed;
-  the Session view consumes the bounded lower-row stable release, while a composed core track
-  strip resolves the same chord inertly, so neither path selects a track or emits a trailing plain Stop. The old
+  Stop-plus-pad consumption remains part of the same view. Stop-plus-track captures the exact
+  generation/shape/index/channel identity at row `BEGIN` and stops that visible track without
+  selecting it; full Session also consumes the bounded stable row release. Neither path can retarget
+  after a bank replacement or emit a trailing plain Stop. The old
   long/lock and page-row Stop overlays are deleted. Stop remains `OBSERVE` rather than `EXCLUSIVE`
   only because the stable grid adapter still needs its held state for Stop-plus-pad; the direct
   stable Stop command is inert.
@@ -461,7 +462,7 @@ Partial or transitional:
   mappable controls. General display output is still semantically partial: Master and the composed
   VS Live Project/Track and Track/Mix pages are core-authored, while a generic complete base-scene plane, a
   temporary sparse 8x8 grid overlay, and a complete temporary 960x160 display overlay are
-  arbitrated. The detailed design's API 39 installed-output inventory is canonical.
+  arbitrated. The detailed design's API 40 installed-output inventory is canonical.
 
 Deferred by design:
 

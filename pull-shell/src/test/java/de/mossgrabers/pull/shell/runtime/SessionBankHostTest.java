@@ -15,6 +15,7 @@ import de.mossgrabers.pull.core.api.SessionBankSnapshot;
 import de.mossgrabers.pull.core.api.SessionTrackType;
 import de.mossgrabers.pull.core.api.effect.SelectSessionTrackEffect;
 import de.mossgrabers.pull.core.api.effect.StopSessionBankEffect;
+import de.mossgrabers.pull.core.api.effect.StopSessionTrackEffect;
 
 import org.junit.jupiter.api.Test;
 
@@ -95,6 +96,27 @@ class SessionBankHostTest
     }
 
 
+    @Test
+    void trackStopAppliesOnlyToTheExactPreparedVisibleTrack ()
+    {
+        final Fixture fixture = new Fixture ();
+        fixture.host.refresh ();
+        final SessionBankSnapshot initial = fixture.host.snapshot ();
+        final StopSessionTrackEffect effect = new StopSessionTrackEffect (initial.generation (), initial.shape (), 0, "track-1", true);
+        final SessionBankHost.PreparedTrackStop prepared = fixture.host.prepare (effect);
+
+        fixture.host.apply (prepared);
+        assertEquals (List.of (Boolean.TRUE), fixture.first.stopAlternatives);
+
+        fixture.first.channelId = "replacement";
+        fixture.host.apply (prepared);
+        assertEquals (List.of (Boolean.TRUE), fixture.first.stopAlternatives);
+
+        fixture.host.refresh ();
+        assertThrows (IllegalArgumentException.class, () -> fixture.host.prepare (effect));
+    }
+
+
     private static final class Fixture
     {
         private static final SessionBankShape SHAPE = new SessionBankShape (8, 8);
@@ -135,6 +157,7 @@ class SessionBankHostTest
         private final int position;
         private boolean muted;
         private int selections;
+        private final List<Boolean> stopAlternatives = new ArrayList<> ();
         private final ITrack track;
 
 
@@ -155,6 +178,10 @@ class SessionBankHostTest
                 case "getColor" -> ColorEx.RED;
                 case "select" -> {
                     this.selections++;
+                    yield null;
+                }
+                case "stop" -> {
+                    this.stopAlternatives.add ((Boolean) arguments[0]);
                     yield null;
                 }
                 default -> defaultValue (method.getReturnType ());

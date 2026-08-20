@@ -56,7 +56,7 @@ public final class CoreCapabilities
     /** Generation-fenced selected-track state, value, and action effects. */
     public static final String EFFECT_SELECTED_TRACK = "effect.selected-track";
 
-    /** Generation-fenced actions against the active bounded Session bank; v2 adds track selection. */
+    /** Generation-fenced actions against the active bounded Session bank; v2 adds selection and v3 exact-track Stop. */
     public static final String EFFECT_SESSION_BANK = "effect.session-bank";
     /** Mechanical consumption of a stable compatibility button release; v2 admits the lower row. */
     public static final String EFFECT_CONTROLLER_BUTTON_CONSUMPTION = "effect.controller-button-consumption";

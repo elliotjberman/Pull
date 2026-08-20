@@ -1,6 +1,6 @@
 # Views API and Composite Workspaces
 
-Status: design contract. Checkpoints 1 and 2 are structurally implemented through Core API 39. The
+Status: design contract. Checkpoints 1 and 2 are structurally implemented through Core API 40. The
 remaining stable-adapter boundary is represented explicitly in claims and recorded in
 [`../ARCH.md`](../ARCH.md). The checkpoints remain below so code, offline tests, and Push hardware
 tests can be compared against the intended end state.
@@ -226,11 +226,11 @@ ownership. Likewise, a composite may release its default parameter/display page 
 while retaining disjoint grid/button views. An empty workspace therefore means only "release every
 core facet"; it does not choose or restore a destination.
 
-Exact Stop-plus-track is not in the installed Session effect canopy. In full Session, the view
-mechanically consumes the bounded stable lower-row release; with a core track strip, the resolved
-action is inert. Neither path selects the track or allows Stop release to become a plain
-selected-track Stop. It may gain exact bank-generation/index/channel targeting later; it must
-never infer the target after release.
+Stop-plus-track is an installed Session-bank action. The row owner captures the exact bank
+generation, shape, index, and channel identity at `BEGIN`; stable revalidates that identity at apply
+time and stops the track without selecting it. Full Session also mechanically consumes the bounded
+stable lower-row release. Both paths consume the shared Stop gesture so release cannot become a
+plain selected-track Stop.
 
 Page and Master overlays reuse retained instances of the underlying grid views. A compiled overlay
 may start independently, but it reconciles an already-started retained view instead of restarting

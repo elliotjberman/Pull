@@ -70,6 +70,7 @@ import de.mossgrabers.pull.core.api.effect.SelectedTrackActionEffect;
 import de.mossgrabers.pull.core.api.effect.SelectedTrackBoolean;
 import de.mossgrabers.pull.core.api.effect.SelectSessionTrackEffect;
 import de.mossgrabers.pull.core.api.effect.StopSessionBankEffect;
+import de.mossgrabers.pull.core.api.effect.StopSessionTrackEffect;
 import de.mossgrabers.pull.core.api.effect.SendNoteInputMidiEffect;
 import de.mossgrabers.pull.core.api.effect.SetSelectedTrackBooleanEffect;
 import de.mossgrabers.pull.core.api.effect.TransportState;
@@ -960,20 +961,24 @@ class PullControllerCoreTest
 
 
     @Test
-    void fullSessionStopPlusTrackConsumesTheStableRowReleaseAndTrailingStop ()
+    void fullSessionStopPlusTrackConsumesTheStableRowReleaseAndStopsTheExactTrack ()
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
         host.initialBridge (sessionBridge (4, "SESSION", "TRACK", StableDestinationWorkspace.SESSION_BANK));
         host.start (Optional.empty ());
-        final ControlId trackButton = PushControlIds.button ("ROW1_2");
+        final ControlId trackButton = PushControlIds.button ("ROW1_1");
 
         host.controllerButton (STOP_CLIP_BUTTON, true);
         host.controllerButton (trackButton, true);
-        assertEquals (List.of (new ConsumeControllerButtonEffect (trackButton)), host.effects ().executionOrder ());
+        assertEquals (List.of (
+            new ConsumeControllerButtonEffect (trackButton),
+            new StopSessionTrackEffect (12, StableDestinationWorkspace.SESSION_BANK, 0, "track-7", true)), host.effects ().executionOrder ());
 
         host.controllerButton (trackButton, false);
         host.controllerButton (STOP_CLIP_BUTTON, false);
-        assertEquals (List.of (new ConsumeControllerButtonEffect (trackButton)), host.effects ().executionOrder ());
+        assertEquals (List.of (
+            new ConsumeControllerButtonEffect (trackButton),
+            new StopSessionTrackEffect (12, StableDestinationWorkspace.SESSION_BANK, 0, "track-7", true)), host.effects ().executionOrder ());
     }
 
 
@@ -1085,8 +1090,8 @@ class PullControllerCoreTest
             ParameterSlot.active (2), send)));
 
         assertTrue (host.effects ().desiredParameterBanks ().banks ().contains (ParameterBankId.ACTIVE));
-        assertTrue (host.effects ().desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextAt text && "Volume".equals (text.text ())));
-        assertTrue (host.effects ().desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextAt text && "Reverb".equals (text.text ())));
+        assertTrue (host.effects ().desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "Volume".equals (text.text ())));
+        assertTrue (host.effects ().desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "Reverb".equals (text.text ())));
 
         host.controllerMotion (PushControlIds.continuous ("KNOB3"), InputKind.RELATIVE, 2);
 
@@ -1174,7 +1179,7 @@ class PullControllerCoreTest
 
 
     @Test
-    void unsupportedStopPlusTrackChordIsSafelyInert ()
+    void stopPlusTrackStopsTheExactVisibleTrackWithoutSelectingIt ()
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
         host.start (Optional.empty ());
@@ -1187,7 +1192,9 @@ class PullControllerCoreTest
         host.controllerButton (PushControlIds.button ("ROW1_2"), false);
         host.controllerButton (STOP_CLIP_BUTTON, false);
 
-        assertEquals (effectsBeforeGesture, host.effects ().executionOrder ().size ());
+        assertEquals (effectsBeforeGesture + 1, host.effects ().executionOrder ().size ());
+        assertEquals (new StopSessionTrackEffect (12, VsLiveWorkspace.SESSION_BANK, 1, "track-8", true), host.effects ().executionOrder ().getLast ());
+        assertTrue (host.effects ().executionOrder ().stream ().noneMatch (SelectSessionTrackEffect.class::isInstance));
     }
 
 

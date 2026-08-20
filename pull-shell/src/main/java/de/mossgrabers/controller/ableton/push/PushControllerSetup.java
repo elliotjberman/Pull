@@ -327,7 +327,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         modeManager.register (Modes.AUTOMATION, new AutomationSelectionMode (surface, this.model));
         modeManager.register (Modes.TRANSPORT, new MetronomeMode (surface, this.model));
         modeManager.register (Modes.USER, new UserMode (surface, this.model));
-        modeManager.register (Modes.WORKSPACE, new WorkspaceMode (surface, this.model, this.reloadableRuntime));
+        modeManager.register (Modes.WORKSPACE, new WorkspaceMode (surface, this.model));
 
         modeManager.register (Modes.INFO, new InfoMode (surface, this.model));
         modeManager.register (Modes.SETUP, new SetupMode (surface, this.model));

@@ -4,6 +4,7 @@
 package de.mossgrabers.pull.core.runtime.view;
 
 import de.mossgrabers.pull.core.api.MixerControlKind;
+import de.mossgrabers.pull.core.api.MixerControlRole;
 import de.mossgrabers.pull.core.api.MixerControlSnapshot;
 import de.mossgrabers.pull.core.api.ParameterSlot;
 import de.mossgrabers.pull.core.api.ParameterTargetSnapshot;
@@ -16,6 +17,7 @@ import de.mossgrabers.pull.core.api.output.RgbColor;
 
 import java.util.ArrayList;
 import java.util.Map;
+import java.util.Optional;
 
 
 /** Core-owned 960x143 selected-track Mix region. */
@@ -65,8 +67,10 @@ final class TrackMixerDisplayScene
                 value,
                 modulated,
                 parameter.displayedValue (),
+                MixerControlRole.HOST_COLORED,
                 selected.activated (),
-                selected.color (),
+                false,
+                Optional.of (selected.color ()),
                 0,
                 0));
         }

@@ -13,6 +13,7 @@ import de.mossgrabers.pull.core.api.SessionTrackSnapshot;
 import de.mossgrabers.pull.core.api.SessionTrackType;
 import de.mossgrabers.pull.core.api.effect.SelectSessionTrackEffect;
 import de.mossgrabers.pull.core.api.effect.StopSessionBankEffect;
+import de.mossgrabers.pull.core.api.effect.StopSessionTrackEffect;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 
 import java.util.ArrayList;
@@ -81,6 +82,14 @@ final class SessionBankHost
     }
 
 
+    PreparedTrackStop prepare (final StopSessionTrackEffect effect)
+    {
+        final StopSessionTrackEffect request = Objects.requireNonNull (effect, "effect");
+        this.requireTrack (request.targetGeneration (), request.shape (), request.trackIndex (), request.channelId (), "Session track stop target is stale");
+        return new PreparedTrackStop (request.targetGeneration (), request.shape (), request.trackIndex (), request.channelId (), request.alternative ());
+    }
+
+
     void apply (final PreparedStop action)
     {
         final PreparedStop request = Objects.requireNonNull (action, "action");
@@ -100,6 +109,29 @@ final class SessionBankHost
         final ITrack track = this.registry.getActiveBank ().getItem (request.trackIndex ());
         if (track.doesExist () && request.channelId ().equals (track.getChannelID ()))
             track.select ();
+    }
+
+
+    void apply (final PreparedTrackStop action)
+    {
+        final PreparedTrackStop request = Objects.requireNonNull (action, "action");
+        final TargetIdentity live = this.captureIdentity ();
+        if (request.generation () != this.generation || !request.shape ().equals (live.shape ()) || !live.equals (this.identity))
+            return;
+        final ITrack track = this.registry.getActiveBank ().getItem (request.trackIndex ());
+        if (track.doesExist () && request.channelId ().equals (track.getChannelID ()))
+            track.stop (request.alternative ());
+    }
+
+
+    private SessionTrackSnapshot requireTrack (final long generation, final SessionBankShape shape, final int trackIndex, final String channelId, final String staleMessage)
+    {
+        if (generation != this.snapshot.generation () || !shape.equals (this.snapshot.shape ()))
+            throw new IllegalArgumentException ("Session-bank action target is stale");
+        final SessionTrackSnapshot track = this.snapshot.tracks ().get (trackIndex);
+        if (!track.exists () || !track.channelId ().equals (channelId))
+            throw new IllegalArgumentException (staleMessage);
+        return track;
     }
 
 
@@ -184,6 +216,16 @@ final class SessionBankHost
     record PreparedSelection (long generation, SessionBankShape shape, int trackIndex, String channelId) implements ControllerBridge.PreparedAction
     {
         PreparedSelection
+        {
+            shape = Objects.requireNonNull (shape, "shape");
+            channelId = Objects.requireNonNull (channelId, "channelId");
+        }
+    }
+
+
+    record PreparedTrackStop (long generation, SessionBankShape shape, int trackIndex, String channelId, boolean alternative) implements ControllerBridge.PreparedAction
+    {
+        PreparedTrackStop
         {
             shape = Objects.requireNonNull (shape, "shape");
             channelId = Objects.requireNonNull (channelId, "channelId");

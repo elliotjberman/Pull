@@ -191,7 +191,7 @@
 - A core-only change inside the installed API/canopy hot reloads. Changing a parent-loaded API
   contract, adding a Bitwig proxy/property/observer, changing a permanent binding or proxy capacity,
   or broadening hardware output ownership requires a shell build/install and Bitwig restart.
-- Core API 39 is the current installed composition contract. Each view contributes fixed claims,
+- Core API 40 is the current installed composition contract. Each view contributes fixed claims,
   facets, state subscriptions, semantic actions, musical routing, and owned output; workspaces may
   merge only disjoint contributions. `ARCH.md` is the canonical current inventory and
   `docs/views-api-design.md` is the detailed contract—do not duplicate or extend product policy in
@@ -201,8 +201,8 @@
   arbitration grants no semantic ownership by itself; display producers stay within compiler-owned
   clip scopes; and unclaimed light/display behavior remains frozen legacy policy.
 - Session Stop stays `OBSERVE` until the adapted Stop-plus-pad chord migrates. Plain Stop targets the
-  private selected track, Shift/Select Stop targets the exact bounded Session bank, and unsupported
-  Stop-plus-track is consumed without selecting or stopping a replacement target. Mute/Solo and
+  private selected track, Shift/Select Stop targets the exact bounded Session bank, and
+  Stop-plus-track captures and stops the exact visible bank track without changing selection. Mute/Solo and
   Record/overdub toggles must serialize dependent writes across later authoritative read-back.
 - Master is a page replacement over the exact selected composition, not a workspace-ID-specific
   screen. It must retain the active Session/Drum/Note routes and view lifecycles. The temporary
