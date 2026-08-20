@@ -2451,7 +2451,7 @@ class PullControllerCoreTest
             transport (true, true, false),
             selectedTrack (false),
             new ControllerLayoutSnapshot (1, "CLIP_LENGTH", "TRACK", false, false, 0, GridPressureConfiguration.OFF),
-            new ClipTimelineSnapshot (Optional.of (target), 0, 8, 16, 4, 0.25, color),
+            new ClipTimelineSnapshot (Optional.of (target), 0, 8, 16, true, color),
             DrumContextSnapshot.empty (),
             ParameterBridgeSnapshot.empty (),
             MasterSnapshot.empty (),

@@ -8,7 +8,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import com.bitwig.extension.controller.api.BooleanValue;
 import com.bitwig.extension.controller.api.Clip;
+import com.bitwig.extension.controller.api.ClipLauncherSlot;
 import com.bitwig.extension.controller.api.CursorTrack;
 import com.bitwig.extension.controller.api.IntegerValue;
 import com.bitwig.extension.controller.api.NoteOccurrence;
@@ -48,6 +50,7 @@ public class CursorClipImpl implements INoteClip
 
     private final IStepInfo [] [] [] launcherData;
     private final PinnableCursorClip launcherClip;
+    private final BooleanValue        launcherPlaying;
     private final StringValue         launcherTrackId;
     private final IntegerValue        launcherSceneIndex;
     private int                      editPage        = 0;
@@ -77,12 +80,15 @@ public class CursorClipImpl implements INoteClip
 
         // TODO Bugfix required: https://github.com/teotigraphix/Framework4Bitwig/issues/140
         this.launcherClip = cursorTrack.createLauncherCursorClip (this.numSteps, this.numRows);
+        final ClipLauncherSlot launcherSlot = this.launcherClip.clipLauncherSlot ();
+        this.launcherPlaying = launcherSlot.isPlaying ();
         this.launcherTrackId = this.launcherClip.getTrack ().channelId ();
-        this.launcherSceneIndex = this.launcherClip.clipLauncherSlot ().sceneIndex ();
+        this.launcherSceneIndex = launcherSlot.sceneIndex ();
 
         this.launcherClip.addNoteStepObserver (this::handleStepData);
 
         this.launcherClip.exists ().markInterested ();
+        this.launcherPlaying.markInterested ();
         this.launcherClip.playingStep ().markInterested ();
         this.launcherClip.getPlayStart ().markInterested ();
         this.launcherClip.getPlayStop ().markInterested ();
@@ -107,6 +113,7 @@ public class CursorClipImpl implements INoteClip
     public void enableObservers (final boolean enable)
     {
         Util.setIsSubscribed (this.launcherClip.exists (), enable);
+        Util.setIsSubscribed (this.launcherPlaying, enable);
         Util.setIsSubscribed (this.launcherClip.playingStep (), enable);
         Util.setIsSubscribed (this.launcherClip.getPlayStart (), enable);
         Util.setIsSubscribed (this.launcherClip.getPlayStop (), enable);
@@ -138,6 +145,14 @@ public class CursorClipImpl implements INoteClip
     public int getSceneIndex ()
     {
         return this.launcherSceneIndex.get ();
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public boolean isPlaying ()
+    {
+        return this.launcherPlaying.get ();
     }
 
 

@@ -683,15 +683,14 @@ final class BoundedControllerBridge implements ControllerBridge
         final double loopStart = clip.getLoopStart ();
         final double loopLength = clip.getLoopLength ();
         final double observedEnd = Math.max (clip.getPlayEnd (), loopStart + loopLength);
-        final double stepLength = clip.getStepLength ();
-        if (!Double.isFinite (loopStart) || !Double.isFinite (loopLength) || loopLength <= 0 || !Double.isFinite (observedEnd) || observedEnd <= 0 || !Double.isFinite (stepLength) || stepLength <= 0)
+        if (!Double.isFinite (loopStart) || !Double.isFinite (loopLength) || loopLength <= 0 || !Double.isFinite (observedEnd) || observedEnd <= 0)
         {
             this.invalidateClipTimelineTarget ();
             return ClipTimelineSnapshot.empty ();
         }
         this.clipTimelineSelectableEnd = Math.max (this.clipTimelineSelectableEnd, observedEnd);
         final ClipTimelineTarget target = new ClipTimelineTarget (this.clipTimelineGeneration, selected.generation (), trackID, sceneIndex);
-        return new ClipTimelineSnapshot (java.util.Optional.of (target), loopStart, loopLength, this.clipTimelineSelectableEnd, Math.max (-1, clip.getCurrentStep ()), stepLength, toRgb (clip.getColor ()));
+        return new ClipTimelineSnapshot (java.util.Optional.of (target), loopStart, loopLength, this.clipTimelineSelectableEnd, clip.isPlaying (), toRgb (clip.getColor ()));
     }
 
 

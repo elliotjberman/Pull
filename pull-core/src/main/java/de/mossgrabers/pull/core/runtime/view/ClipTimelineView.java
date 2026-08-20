@@ -126,7 +126,7 @@ public final class ClipTimelineView implements ControllerView
         int start = 0;
         int end = 0;
         int selectableEnd = 0;
-        int playingPad = -1;
+        boolean playing = false;
         RgbColor outside = BLACK;
         if (timeline.available () && quartersPerPad > 0)
         {
@@ -135,16 +135,16 @@ public final class ClipTimelineView implements ControllerView
             end = clamp ((int) Math.ceil (Math.min (maximum, timeline.loopStart () + timeline.loopLength ()) / quartersPerPad), 0, 64);
             selectableEnd = clamp ((int) Math.ceil (Math.min (maximum, timeline.selectableEnd ()) / quartersPerPad), 0, 64);
             outside = isNearWhite (timeline.color ()) ? BLACK : WHITE;
-            if (timeline.currentStep () >= 0)
-                playingPad = (int) Math.floor (timeline.currentStep () * timeline.stepLength () / quartersPerPad);
+            playing = timeline.playing ();
         }
 
         for (int timelinePad = 0; timelinePad < 64; timelinePad++)
         {
             final int column = timelinePad % 8;
             final int physicalRow = 7 - timelinePad / 8;
-            final RgbColor color = timelinePad >= selectableEnd ? BLACK : timelinePad >= start && timelinePad < end ? timeline.color () : outside;
-            final ControllerLight light = timelinePad == playingPad && timelinePad < selectableEnd ? ControllerLight.playing (color, GREEN) : ControllerLight.steady (color);
+            final boolean selected = timelinePad >= start && timelinePad < end;
+            final RgbColor color = timelinePad >= selectableEnd ? BLACK : selected ? timeline.color () : outside;
+            final ControllerLight light = playing && selected ? ControllerLight.playing (color, GREEN) : ControllerLight.steady (color);
             lights.put (PushControlIds.pad (physicalRow * 8 + column + 1), light);
         }
 

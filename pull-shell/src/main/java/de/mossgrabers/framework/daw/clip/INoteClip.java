@@ -33,6 +33,14 @@ public interface INoteClip extends IClip, IPinnable
 
 
     /**
+     * Test whether the represented launcher clip is authoritatively playing.
+     *
+     * @return True while the launcher slot reports playback
+     */
+    boolean isPlaying ();
+
+
+    /**
      * Get the row of notes.
      *
      * @return The row of notes

@@ -6,6 +6,7 @@ package de.mossgrabers.pull.core.testing;
 import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
 import de.mossgrabers.pull.core.api.ClipTimelineSnapshot;
 import de.mossgrabers.pull.core.api.ClipTimelineTarget;
+import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ControllerLayoutSnapshot;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
@@ -68,7 +69,10 @@ class ClipTimelineViewTest
         assertEquals (BLUE, playing.color ());
         assertEquals (GREEN, playing.blinkColor ());
         assertEquals (LightBlinkRate.SLOW, playing.blinkRate ());
-        assertEquals (BLUE, result.desiredOutput ().lights ().get (PushControlIds.pad (58)).color ());
+        final ControllerLight playingEnd = result.desiredOutput ().lights ().get (PushControlIds.pad (58));
+        assertEquals (BLUE, playingEnd.color ());
+        assertEquals (GREEN, playingEnd.blinkColor ());
+        assertEquals (LightBlinkRate.SLOW, playingEnd.blinkRate ());
         assertEquals (WHITE, result.desiredOutput ().lights ().get (PushControlIds.pad (59)).color ());
         assertEquals (BLACK, result.desiredOutput ().lights ().get (PushControlIds.pad (61)).color ());
     }
@@ -115,12 +119,14 @@ class ClipTimelineViewTest
 
 
     @Test
-    void paddingNeverBlinksForAnOutOfExtentPlayingStep ()
+    void stoppedRangeAndPaddingStaySteady ()
     {
         final CompiledWorkspace workspace = workspace (new ClipTimelineState (0));
-        final ClipTimelineSnapshot incoherent = new ClipTimelineSnapshot (Optional.of (TARGET), 0, 8, 16, 80, 0.25, BLUE);
-        final ControllerLight padding = workspace.start (snapshot (incoherent)).desiredOutput ().lights ().get (PushControlIds.pad (62));
+        final ClipTimelineSnapshot stopped = new ClipTimelineSnapshot (Optional.of (TARGET), 0, 8, 16, false, BLUE);
+        final Map<ControlId, ControllerLight> lights = workspace.start (snapshot (stopped)).desiredOutput ().lights ();
 
+        assertEquals (LightBlinkRate.NONE, lights.get (PushControlIds.pad (57)).blinkRate ());
+        final ControllerLight padding = lights.get (PushControlIds.pad (62));
         assertEquals (BLACK, padding.color ());
         assertEquals (LightBlinkRate.NONE, padding.blinkRate ());
     }
@@ -152,7 +158,7 @@ class ClipTimelineViewTest
         workspace.start (first);
         workspace.handle (pad (1, PushControlIds.pad (57), InputPhase.BEGIN), first);
 
-        final ClipTimelineSnapshot replacement = new ClipTimelineSnapshot (Optional.of (new ClipTimelineTarget (5, 8, "track-b", 1)), 0, 8, 16, -1, 0.25, BLUE);
+        final ClipTimelineSnapshot replacement = new ClipTimelineSnapshot (Optional.of (new ClipTimelineTarget (5, 8, "track-b", 1)), 0, 8, 16, false, BLUE);
         final var result = workspace.handle (pad (2, PushControlIds.pad (57), InputPhase.END), snapshot (replacement));
 
         assertTrue (result.effects ().isEmpty ());
@@ -167,7 +173,7 @@ class ClipTimelineViewTest
 
     private static ClipTimelineSnapshot timeline (final RgbColor color)
     {
-        return new ClipTimelineSnapshot (Optional.of (TARGET), 0, 8, 16, 4, 0.25, color);
+        return new ClipTimelineSnapshot (Optional.of (TARGET), 0, 8, 16, true, color);
     }
 
 

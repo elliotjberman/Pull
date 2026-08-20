@@ -376,6 +376,8 @@ bridge. It owns all pad/pressure and scene-button routes plus their lights, comp
 page or Master page, and shares one retained range/resolution state across those page replacements.
 Its desired lights use the generic `ControllerLight` base/alternate/rate value; only the Push
 hardware adapter turns that value into the firmware's slow tempo-clocked blink channel.
+Authoritative launcher-slot playback makes the complete selected range blink; selectable
+unselected pads remain steady and padding remains off.
 
 The stable API addition for this checkpoint is limited to one complete
 `DesiredControllerWorkspace`: a name plus a set of known fixed-facet IDs. `VS Live`, its selected

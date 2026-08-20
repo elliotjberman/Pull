@@ -165,6 +165,7 @@ class BoundedControllerBridgeTest
         assertEquals ("track-a", fixture.bridge.snapshot ().clipTimeline ().target ().orElseThrow ().trackId ());
         assertEquals (2, fixture.bridge.snapshot ().clipTimeline ().target ().orElseThrow ().sceneIndex ());
         assertEquals (16, fixture.bridge.snapshot ().clipTimeline ().selectableEnd ());
+        assertTrue (fixture.bridge.snapshot ().clipTimeline ().playing ());
 
         fixture.clip.trackID = "pinned-track";
         fixture.bridge.refresh (2, subscriptions (BridgeSubscription.CLIP_TIMELINE), DesiredParameterBanks.empty ());
@@ -1110,12 +1111,12 @@ class BoundedControllerBridgeTest
         private String trackID = "track-a";
         private int sceneIndex = 2;
         private boolean exists = true;
+        private boolean playing = true;
         private int requestedSteps;
         private int requestedRows;
         private double loopLength = 8;
         private double playEnd = 16;
         private double stepLength;
-        private int currentStep = 4;
         private final List<String> writes = new ArrayList<> ();
 
 
@@ -1126,10 +1127,10 @@ class BoundedControllerBridgeTest
                 case "getTrackId" -> this.trackID;
                 case "getSceneIndex" -> Integer.valueOf (this.sceneIndex);
                 case "doesExist" -> Boolean.valueOf (this.exists);
+                case "isPlaying" -> Boolean.valueOf (this.playing);
                 case "getLoopStart" -> Double.valueOf (0);
                 case "getLoopLength" -> Double.valueOf (this.loopLength);
                 case "getPlayEnd" -> Double.valueOf (this.playEnd);
-                case "getCurrentStep" -> Integer.valueOf (this.currentStep);
                 case "getStepLength" -> Double.valueOf (this.stepLength);
                 case "getColor" -> ColorEx.BLUE;
                 case "setStepLength" -> {

@@ -103,8 +103,9 @@ Clip Timeline is likewise a complete core-owned semantic slice. Its fixed view o
 pads and eight scene keys, selects range resolution, emits exact selected-clip range effects, and
 renders selected, selectable, padding, and playing states from later authoritative cursor-clip
 read-back. Selectable unselected pads are white unless the clip color is near-white; padding is
-always off. The playing pad uses the common `ControllerLight` tempo-alternation contract and the
-same Push slow-blink MIDI transport used by Session playback. The stable adapter is inert; stable
+always off. While the clip is playing, its complete selected range uses the common
+`ControllerLight` tempo-alternation contract and the same Push slow-blink MIDI transport used by
+Session playback. The stable adapter is inert; stable
 only owns the bounded selection-following cursor clip, target fencing, effect execution, palette
 translation, and MIDI transmission.
 
