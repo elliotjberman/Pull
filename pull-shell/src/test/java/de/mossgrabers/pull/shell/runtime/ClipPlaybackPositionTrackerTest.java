@@ -83,4 +83,14 @@ class ClipPlaybackPositionTrackerTest
         assertEquals (OptionalDouble.of (5), tracker.observe ("track-a", "track-a|6", true, true, 17, 4, 0, 8, true));
         assertTrue (tracker.observe ("track-a", "track-a|7", true, true, 18, 0, 0, 8, true).isEmpty (), "the stopped edge is consumed by the first exact playing target");
     }
+
+
+    @Test
+    void selectedTrackStoppedReadbackArmsTheNextExactClipSample ()
+    {
+        final ClipPlaybackPositionTracker tracker = new ClipPlaybackPositionTracker ();
+        tracker.observeTrackStopped ("track-a");
+
+        assertEquals (OptionalDouble.of (2), tracker.observe ("track-a", "track-a|6", true, true, 20, 2, 2, 8, true));
+    }
 }

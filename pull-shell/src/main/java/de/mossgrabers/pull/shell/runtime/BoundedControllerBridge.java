@@ -209,6 +209,8 @@ final class BoundedControllerBridge implements ControllerBridge
             transportState = TransportSnapshot.empty ();
             this.lastTransportPositionSampleNanos = Long.MIN_VALUE;
         }
+        if (!clipTimelineRequested && selectedState != null && selectedState.exists () && selectedState.stopped ())
+            this.clipPlaybackPosition.observeTrackStopped (selectedState.trackID ());
 
         final ControllerLayoutSnapshot layout = requested.includes (BridgeSubscription.CONTROLLER_LAYOUT) ? this.captureLayout () : ControllerLayoutSnapshot.empty ();
         final ClipTimelineSnapshot clipTimeline;

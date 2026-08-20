@@ -220,6 +220,24 @@ class BoundedControllerBridgeTest
 
 
     @Test
+    void selectedTrackStoppedReadbackArmsTimelineWithoutACursorPlaybackCallback ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.selected.canHoldAudio = true;
+        fixture.transport.playing = true;
+        fixture.transport.position = 12;
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT), DesiredParameterBanks.empty ());
+
+        fixture.selected.clipPlaying = true;
+        fixture.clip.playing = true;
+        fixture.transport.position = 16;
+        fixture.bridge.refresh (50_000_001, subscriptions (BridgeSubscription.CLIP_TIMELINE, BridgeSubscription.TRANSPORT), DesiredParameterBanks.empty ());
+
+        assertEquals (0, fixture.bridge.snapshot ().clipTimeline ().playbackPosition ().orElseThrow ());
+    }
+
+
+    @Test
     void clipTimelineSelectableExtentNeverShrinksForTheSameAuthoritativeTarget ()
     {
         final BridgeFixture fixture = new BridgeFixture ();
@@ -1073,6 +1091,7 @@ class BoundedControllerBridgeTest
     {
         private boolean armed;
         private boolean canHoldAudio;
+        private boolean clipPlaying;
         private boolean noteInputRouteActive;
         private int snapshotCount;
         private int armedWriteCount;
@@ -1111,8 +1130,8 @@ class BoundedControllerBridgeTest
                 false,
                 false,
                 false,
-                false,
-                true,
+                this.clipPlaying,
+                !this.clipPlaying,
                 0.75,
                 0.5);
         }

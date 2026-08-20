@@ -11,10 +11,12 @@ import java.util.OptionalDouble;
  *
  * <p>Bitwig API 21 exposes a playing note-grid step but no audio-clip play position; the installed
  * API 25 reference still adds no such value. This tracker therefore publishes a position only after
- * observing the selected track stopped and then an exact clip playing. The cursor may retarget to a
- * different scene as that clip starts, so a stopped edge survives only a same-track retarget and is
- * consumed by the first exact playing target. The anchored position advances from later transport
- * samples and fails closed when the track, target, or transport timeline becomes discontinuous.</p>
+ * observing the selected track stopped and then an exact clip playing. The stopped state may arrive
+ * from either the cursor clip or the private selection-following target. The cursor may retarget to
+ * a different scene as that clip starts, so a stopped edge survives only a same-track retarget and
+ * is consumed by the first exact playing target. The anchored position advances from later
+ * transport samples and fails closed when the track, target, or transport timeline becomes
+ * discontinuous.</p>
  */
 final class ClipPlaybackPositionTracker
 {
@@ -116,6 +118,21 @@ final class ClipPlaybackPositionTracker
         }
         this.playing = true;
         this.lastTransportPosition = transportPosition;
+    }
+
+
+    /** Arm the next exact clip start from authoritative selected-track launcher read-back. */
+    void observeTrackStopped (final String trackIdentity)
+    {
+        if (!trackIdentity.equals (this.trackIdentity))
+        {
+            this.reset ();
+            this.trackIdentity = trackIdentity;
+        }
+        this.targetIdentity = "";
+        this.armed = true;
+        this.playing = false;
+        this.anchored = false;
     }
 
 
