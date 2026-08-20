@@ -368,9 +368,57 @@ class CompiledWorkspaceTest
         final CoreResult result = workspace.start (snapshot ());
 
         assertEquals (2, result.desiredControllerActions ().bindings ().size ());
-        assertEquals (ControllerActionId.SELECT_PARAMETER_PAGE, result.desiredControllerActions ().bindingOrNull (left, InputKind.BUTTON).action ());
+        assertEquals (ControllerActionId.SELECT_PARAMETER_PAGE, result.desiredControllerActions ().bindingOrNull (left, InputKind.BUTTON).intent ().action ());
         assertEquals (InputRouteMode.OBSERVE, result.desiredInputRoutes ().mode (left, InputKind.BUTTON).orElseThrow ());
-        assertNotNull (workspace.resolveAction (new de.mossgrabers.pull.core.api.event.ControllerInputEvent (1, 0, right, InputKind.BUTTON, de.mossgrabers.pull.core.api.event.InputPhase.BEGIN, 127), snapshot ()));
+        assertNotNull (workspace.resolveAction (new ControllerInputEvent (1, 0, right, InputKind.BUTTON, InputPhase.BEGIN, 127), snapshot ()));
+    }
+
+
+    @Test
+    void rejectsAResolvedSemanticVariantMissingFromTheReplayableBinding ()
+    {
+        final ControlId button = PushControlIds.button ("PAGE_RIGHT");
+        final ControllerView misdeclared = new ControllerView ()
+        {
+            @Override
+            public String id ()
+            {
+                return "misdeclared-action";
+            }
+
+
+            @Override
+            public ViewProfile profile ()
+            {
+                return ViewProfile.fixed ("misdeclared", Set.of (claim (SurfaceArea.NAVIGATION_PAGE, SurfaceClaim.Kind.OBSERVE_INPUT)), Set.of ());
+            }
+
+
+            @Override
+            public Set<ControllerActionBinding> actionBindings ()
+            {
+                return Set.of (new ControllerActionBinding (
+                    button,
+                    InputKind.BUTTON,
+                    ControllerActionId.SELECT_PARAMETER_PAGE,
+                    Set.of (ControllerStateScope.ACTIVE_PARAMETERS)));
+            }
+
+
+            @Override
+            public ResolvedControllerAction resolveAction (final ControllerActionBinding binding, final ControllerInputEvent input, final ControllerSnapshot snapshot)
+            {
+                return ResolvedControllerAction.stable (new de.mossgrabers.pull.core.api.ControllerActionIntent (
+                    ControllerActionId.STOP_VISIBLE_SESSION_TRACK,
+                    Set.of (ControllerStateScope.SESSION_PLAYBACK)));
+            }
+        };
+        final CompiledWorkspace workspace = CompiledWorkspace.compile ("misdeclared action", List.of (misdeclared));
+        workspace.start (snapshot ());
+
+        assertThrows (IllegalStateException.class, () -> workspace.resolveAction (
+            new ControllerInputEvent (1, 0, button, InputKind.BUTTON, InputPhase.BEGIN, 127),
+            snapshot ()));
     }
 
 

@@ -96,7 +96,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         Map.entry (CoreCapabilities.EFFECT_NOTE_VIEW_PREFERENCE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.OUTPUT_NOTE_REPEAT, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.INPUT_CONTROLLER, Integer.valueOf (1)),
-        Map.entry (CoreCapabilities.ROUTING_CONTROLLER_INPUT, Integer.valueOf (4)),
+        Map.entry (CoreCapabilities.ROUTING_CONTROLLER_INPUT, Integer.valueOf (5)),
         Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE, Integer.valueOf (10)),
         Map.entry (CoreCapabilities.SUBSCRIPTION_CONTROLLER_BRIDGE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_TRANSPORT, Integer.valueOf (1)),
@@ -398,15 +398,11 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     {
         Objects.requireNonNull (control, "control");
         Objects.requireNonNull (inputKind, "inputKind");
-        final ControllerActionIntent intent;
         if (stableAction != null)
-            intent = stableAction;
-        else
-        {
-            final ControllerActionBinding binding = this.committedState.desiredControllerActions ().bindingOrNull (control, inputKind);
-            intent = binding == null ? null : binding.intent ();
-        }
-        return intent != null && this.committedState.desiredParameterInteraction ().blocksAction (intent);
+            return this.committedState.desiredParameterInteraction ().blocksAction (stableAction);
+
+        final ControllerActionBinding binding = this.committedState.desiredControllerActions ().bindingOrNull (control, inputKind);
+        return binding != null && this.committedState.desiredParameterInteraction ().blocksAction (binding);
     }
 
 

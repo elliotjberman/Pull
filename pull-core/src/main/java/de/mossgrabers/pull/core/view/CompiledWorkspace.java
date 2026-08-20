@@ -240,7 +240,14 @@ public final class CompiledWorkspace
         if (input.phase () != InputPhase.BEGIN)
             return null;
         final ActionOwner owner = this.actionOwners.get (new RouteKey (input.controlId (), input.kind ()));
-        return owner == null ? null : owner.view ().resolveAction (owner.binding (), input, snapshot);
+        if (owner == null)
+            return null;
+        final ResolvedControllerAction resolved = Objects.requireNonNull (
+            owner.view ().resolveAction (owner.binding (), input, snapshot),
+            "resolved controller action");
+        if (!owner.binding ().intents ().contains (resolved.intent ()))
+            throw new IllegalStateException ("view resolved an undeclared semantic action from " + input.controlId ().value ());
+        return resolved;
     }
 
 

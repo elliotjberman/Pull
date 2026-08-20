@@ -10,5 +10,7 @@ package de.mossgrabers.pull.core.api;
 public enum ControllerStateScope
 {
     /** Parameter bindings selected by the active controller context. */
-    ACTIVE_PARAMETERS
+    ACTIVE_PARAMETERS,
+    /** Playback state in the active bounded Session window. */
+    SESSION_PLAYBACK
 }

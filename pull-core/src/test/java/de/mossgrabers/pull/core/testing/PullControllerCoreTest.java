@@ -1199,6 +1199,44 @@ class PullControllerCoreTest
 
 
     @Test
+    void stopPlusTrackBypassesParameterSnapbackAndCannotLeakAcrossABankReplacement ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        final ParameterSlot slot = ParameterSlot.projectRemote (0);
+        final ParameterTargetSnapshot baseline = parameter (slot, "Project Macro", 100, "100");
+        host.start (Optional.empty ());
+        enterVsLive (host);
+        host.bridge (withParameters (trackSelectionBridge (2, false), baseline));
+        assertEquals (
+            Set.of (ControllerActionId.SELECT_VISIBLE_TRACK, ControllerActionId.STOP_VISIBLE_SESSION_TRACK),
+            host.effects ().desiredControllerActions ().bindingOrNull (PushControlIds.button ("ROW1_2"), InputKind.BUTTON).intents ().stream ()
+                .map (ControllerActionIntent::action)
+                .collect (java.util.stream.Collectors.toUnmodifiableSet ()));
+
+        host.controllerButton (SHIFT_BUTTON, true);
+        host.parameterMutation (PushControlIds.continuous ("KNOB1"), baseline);
+        host.bridge (withParameters (trackSelectionBridge (3, false), parameter (slot, "Project Macro", 40, "40")));
+        host.controllerButton (SHIFT_BUTTON, false);
+        assertFalse (host.effects ().desiredParameterInteraction ().baselines ().isEmpty ());
+
+        host.controllerButton (STOP_CLIP_BUTTON, true);
+        host.controllerButton (PushControlIds.button ("ROW1_2"), true);
+
+        assertEquals (new StopSessionTrackEffect (12, VsLiveWorkspace.SESSION_BANK, 1, "track-8", true), host.effects ().executionOrder ().getLast ());
+        assertEquals (0, host.effects ().desiredParameterInteraction ().pendingActionCount ());
+
+        host.bridge (withSessionGeneration (
+            withParameters (trackSelectionBridge (4, false), parameter (slot, "Project Macro", 40, "40")),
+            13));
+        host.controllerTick ();
+        host.controllerTick ();
+
+        assertEquals (1, host.effects ().executionOrder ().stream ().filter (StopSessionTrackEffect.class::isInstance).count ());
+        assertEquals (0, host.effects ().desiredParameterInteraction ().pendingActionCount ());
+    }
+
+
+    @Test
     void enteringMasterFromVsLivePreservesOnlyTheVsLiveGridOwnership ()
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
@@ -2425,6 +2463,41 @@ class PullControllerCoreTest
             ParameterBridgeSnapshot.empty (),
             MasterSnapshot.empty (),
             ProjectSnapshot.empty ());
+    }
+
+
+    private static ControllerBridgeSnapshot withParameters (final ControllerBridgeSnapshot base, final ParameterTargetSnapshot parameter)
+    {
+        return new ControllerBridgeSnapshot (
+            base.transport (),
+            base.selectedTrack (),
+            base.sessionBank (),
+            base.layout (),
+            base.noteView (),
+            base.noteRepeat (),
+            base.drum (),
+            new ParameterBridgeSnapshot (Map.of (ParameterSlot.projectRemote (0), parameter), Map.of ()),
+            base.controllerMappingFeedback (),
+            base.master (),
+            base.project ());
+    }
+
+
+    private static ControllerBridgeSnapshot withSessionGeneration (final ControllerBridgeSnapshot base, final long generation)
+    {
+        final SessionBankSnapshot bank = base.sessionBank ();
+        return new ControllerBridgeSnapshot (
+            base.transport (),
+            base.selectedTrack (),
+            new SessionBankSnapshot (generation, bank.shape (), bank.trackOffset (), bank.sceneOffset (), bank.tracks ()),
+            base.layout (),
+            base.noteView (),
+            base.noteRepeat (),
+            base.drum (),
+            base.parameters (),
+            base.controllerMappingFeedback (),
+            base.master (),
+            base.project ());
     }
 
 

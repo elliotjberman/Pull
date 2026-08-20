@@ -13,6 +13,8 @@ public enum ControllerActionId
     SELECT_PARAMETER_CONTEXT,
     /** Select one exact track in a bounded visible bank. */
     SELECT_VISIBLE_TRACK,
+    /** Stop one exact track in a bounded visible Session bank. */
+    STOP_VISIBLE_SESSION_TRACK,
     /** Select another active parameter page. */
     SELECT_PARAMETER_PAGE,
     /** Navigate the selected track, device, or other active target. */

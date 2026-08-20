@@ -124,6 +124,34 @@ class PhysicalInputRouterTest
 
 
     @Test
+    void exclusiveRouteSuppressesLegacyDispatchBeforeConsultingTheStableBarrier ()
+    {
+        final AtomicInteger barrierCalls = new AtomicInteger ();
+        final AtomicInteger legacyCalls = new AtomicInteger ();
+        final List<PhysicalInputEvent<String>> events = new ArrayList<> ();
+        final PhysicalInputRouter<String> router = new PhysicalInputRouter<> (
+            registry (),
+            (ignoredControl, ignoredKind) -> InputRoute.EXCLUSIVE,
+            events::add,
+            (ignoredControl, ignoredKind, ignoredAction) -> {
+                barrierCalls.incrementAndGet ();
+                return true;
+            },
+            new IncrementingClock (),
+            () -> 7);
+
+        router.route (BUTTON, InputKind.BUTTON, InputPhase.BEGIN, 127, legacyCalls::incrementAndGet);
+        router.route (BUTTON, InputKind.BUTTON, InputPhase.END, 0, legacyCalls::incrementAndGet);
+        router.releaseDeferredStableDispatches ();
+
+        assertEquals (0, barrierCalls.get ());
+        assertEquals (0, legacyCalls.get ());
+        assertEquals (0, router.deferredStableDispatchCount ());
+        assertEquals (List.of (InputPhase.BEGIN, InputPhase.END), events.stream ().map (PhysicalInputEvent::phase).toList ());
+    }
+
+
+    @Test
     void semanticActionBarrierDefersTheWholeStableGestureUntilItReleases ()
     {
         final AtomicBoolean blocked = new AtomicBoolean (true);

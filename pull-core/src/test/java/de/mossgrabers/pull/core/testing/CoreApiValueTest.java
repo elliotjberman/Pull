@@ -204,7 +204,7 @@ class CoreApiValueTest
     @Test
     void publishesStableVersionCapabilityAndControlIdentifiers ()
     {
-        assertEquals (40, CoreApi.VERSION);
+        assertEquals (41, CoreApi.VERSION);
         assertEquals ("input.drum-fill", CoreCapabilities.INPUT_DRUM_FILL);
         assertEquals ("snapshot.selected-track-clips", CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS);
         assertEquals ("binding.clip-target", CoreCapabilities.BINDING_CLIP_TARGET);
@@ -538,6 +538,17 @@ class CoreApiValueTest
         final ControllerActionIntent intent = binding.intent ();
         assertTrue (interaction.blocksAction (intent));
         assertEquals (intent, new ControllerActionEvent (4, 5, intent).intent ());
+        final ControllerActionIntent stop = new ControllerActionIntent (
+            ControllerActionId.STOP_VISIBLE_SESSION_TRACK,
+            Set.of (ControllerStateScope.SESSION_PLAYBACK));
+        final ControllerActionBinding variants = new ControllerActionBinding (page, InputKind.BUTTON, Set.of (intent, stop));
+        assertTrue (interaction.blocksAction (variants));
+        assertFalse (interaction.blocksAction (stop));
+        assertEquals (stop, variants.intent (ControllerActionId.STOP_VISIBLE_SESSION_TRACK));
+        assertThrows (IllegalStateException.class, variants::intent);
+        assertThrows (IllegalArgumentException.class, () -> new ControllerActionBinding (page, InputKind.BUTTON, Set.of (
+            intent,
+            new ControllerActionIntent (ControllerActionId.SELECT_PARAMETER_PAGE, Set.of (ControllerStateScope.SESSION_PLAYBACK)))));
         assertTrue (interaction.blocksMutation (target));
         assertThrows (IllegalArgumentException.class, () -> new ControllerActionBinding (
             PushControlIds.continuous ("KNOB1"),

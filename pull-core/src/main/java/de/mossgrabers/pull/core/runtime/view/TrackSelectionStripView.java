@@ -7,6 +7,7 @@ import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerActionBinding;
 import de.mossgrabers.pull.core.api.ControllerActionId;
+import de.mossgrabers.pull.core.api.ControllerActionIntent;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.ControllerStateScope;
 import de.mossgrabers.pull.core.api.PushControlIds;
@@ -39,6 +40,12 @@ public final class TrackSelectionStripView implements ControllerView
     private static final RgbColor OFF = new RgbColor (0, 0, 0);
     private static final RgbColor RECORD_ARMED = new RgbColor (255, 0, 0);
     private static final ControlId STOP_CLIP = PushControlIds.button ("STOP_CLIP");
+    private static final ControllerActionIntent SELECT_TRACK = new ControllerActionIntent (
+        ControllerActionId.SELECT_VISIBLE_TRACK,
+        Set.of (ControllerStateScope.ACTIVE_PARAMETERS));
+    private static final ControllerActionIntent STOP_TRACK = new ControllerActionIntent (
+        ControllerActionId.STOP_VISIBLE_SESSION_TRACK,
+        Set.of (ControllerStateScope.SESSION_PLAYBACK));
     private static final List<ControlId> TRACK_BUTTONS = trackButtons ();
     private static final Set<ControllerActionBinding> ACTION_BINDINGS = trackActionBindings ();
     private static final ViewProfile PROFILE = ViewProfile.fixed (
@@ -111,20 +118,20 @@ public final class TrackSelectionStripView implements ControllerView
             // selecting it or letting Stop fall through to the selected track.
             this.stopGesture.consume ();
             if (index < 0 || !bank.shape ().isPresent () || index >= bank.tracks ().size ())
-                return ResolvedControllerAction.of (binding.intent (), List::of);
+                return ResolvedControllerAction.of (binding.intent (ControllerActionId.STOP_VISIBLE_SESSION_TRACK), List::of);
             final SessionTrackSnapshot track = bank.tracks ().get (index);
             if (!track.exists ())
-                return ResolvedControllerAction.of (binding.intent (), List::of);
+                return ResolvedControllerAction.of (binding.intent (ControllerActionId.STOP_VISIBLE_SESSION_TRACK), List::of);
             final StopSessionTrackEffect effect = new StopSessionTrackEffect (bank.generation (), bank.shape (), index, track.channelId (), true);
-            return ResolvedControllerAction.of (binding.intent (), () -> List.of (effect));
+            return ResolvedControllerAction.of (binding.intent (ControllerActionId.STOP_VISIBLE_SESSION_TRACK), () -> List.of (effect));
         }
         if (index < 0 || !bank.shape ().isPresent () || index >= bank.tracks ().size ())
-            return ResolvedControllerAction.of (binding.intent (), List::of);
+            return ResolvedControllerAction.of (binding.intent (ControllerActionId.SELECT_VISIBLE_TRACK), List::of);
         final SessionTrackSnapshot track = bank.tracks ().get (index);
         if (!track.exists ())
-            return ResolvedControllerAction.of (binding.intent (), List::of);
+            return ResolvedControllerAction.of (binding.intent (ControllerActionId.SELECT_VISIBLE_TRACK), List::of);
         final SelectSessionTrackEffect effect = new SelectSessionTrackEffect (bank.generation (), bank.shape (), index, track.channelId ());
-        return ResolvedControllerAction.of (binding.intent (), () -> List.of (effect));
+        return ResolvedControllerAction.of (binding.intent (ControllerActionId.SELECT_VISIBLE_TRACK), () -> List.of (effect));
     }
 
 
@@ -157,9 +164,8 @@ public final class TrackSelectionStripView implements ControllerView
 
     private static Set<ControllerActionBinding> trackActionBindings ()
     {
-        final Set<ControllerStateScope> invalidates = Set.of (ControllerStateScope.ACTIVE_PARAMETERS);
         return TRACK_BUTTONS.stream ()
-            .map (control -> new ControllerActionBinding (control, InputKind.BUTTON, ControllerActionId.SELECT_VISIBLE_TRACK, invalidates))
+            .map (control -> new ControllerActionBinding (control, InputKind.BUTTON, Set.of (SELECT_TRACK, STOP_TRACK)))
             .collect (java.util.stream.Collectors.toUnmodifiableSet ());
     }
 }

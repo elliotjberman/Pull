@@ -41,7 +41,7 @@ public final class CoreCapabilities
     /** Normalized bounded Push controller inputs. */
     public static final String INPUT_CONTROLLER = "input.controller";
 
-    /** Replayable input ownership; v3 admits drum control pads and v4 Session and selected-track controls. */
+    /** Replayable input ownership; v5 adds declared semantic variants for one physical edge. */
     public static final String ROUTING_CONTROLLER_INPUT = "routing.controller-input";
 
     /** Common bounded controller state; v9 adds visible Session-track names and v10 their types. */

@@ -35,7 +35,7 @@ public final class PullCoreProvider implements CoreProvider
         Map.entry (CoreCapabilities.EFFECT_NOTE_VIEW_PREFERENCE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.OUTPUT_NOTE_REPEAT, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.INPUT_CONTROLLER, Integer.valueOf (1)),
-        Map.entry (CoreCapabilities.ROUTING_CONTROLLER_INPUT, Integer.valueOf (4)),
+        Map.entry (CoreCapabilities.ROUTING_CONTROLLER_INPUT, Integer.valueOf (5)),
         Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE, Integer.valueOf (10)),
         Map.entry (CoreCapabilities.SUBSCRIPTION_CONTROLLER_BRIDGE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_TRANSPORT, Integer.valueOf (1)),

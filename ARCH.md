@@ -1,6 +1,6 @@
 # Pull View Architecture
 
-Status: current through Core API 40, semantic controller-mapping identities, generic registered
+Status: current through Core API 41, semantic controller-mapping identities, generic registered
 button/grid light arbitration, the shared
 mixer-control renderer, the Master-control migration, the post-demo `VS Live` composition, and
 core-owned Session Stop, selected-track Mute/Solo, VS Live Project/Track and Track/Mix display
@@ -159,7 +159,9 @@ motion to settle, requests an absolute restore, and waits for later authoritativ
 A core-owned view resolves a complete semantic action payload at gesture `BEGIN`. A frozen legacy
 stable command remains unchanged until migrated, but its compatibility adapter publishes semantic
 intent derived from the actual command and current mode path before the dispatch waits behind the
-same restoration barrier. Touch edges do not define the session lifetime. Stable restores retained
+same restoration barrier. A workspace must resolve one of the variants declared by that physical
+binding. `EXCLUSIVE` freezes the stable disposition as suppressed before this barrier is consulted,
+so a barrier cannot queue legacy behavior that the route excludes. Touch edges do not define the session lifetime. Stable restores retained
 targets best-effort if the core faults.
 
 Core replacement waits until the physical input router has no core-relevant active gesture, queued
@@ -390,7 +392,9 @@ Implemented:
   authoritative selected track; Shift/Select Stop targets the exact active Session bank, and
   Stop-plus-pad consumption remains part of the same view. Stop-plus-track captures the exact
   generation/shape/index/channel identity at row `BEGIN` and stops that visible track without
-  selecting it; full Session also consumes the bounded stable row release. Neither path can retarget
+  selecting it. Its lower-row binding declares selection and held-Stop variants separately, so the
+  `SESSION_PLAYBACK` Stop intent never waits behind the `ACTIVE_PARAMETERS` snapback barrier; full
+  Session also consumes the bounded stable row release. Neither path can retarget
   after a bank replacement or emit a trailing plain Stop. The old
   long/lock and page-row Stop overlays are deleted. Stop remains `OBSERVE` rather than `EXCLUSIVE`
   only because the stable grid adapter still needs its held state for Stop-plus-pad; the direct
@@ -462,7 +466,7 @@ Partial or transitional:
   mappable controls. General display output is still semantically partial: Master and the composed
   VS Live Project/Track and Track/Mix pages are core-authored, while a generic complete base-scene plane, a
   temporary sparse 8x8 grid overlay, and a complete temporary 960x160 display overlay are
-  arbitrated. The detailed design's API 40 installed-output inventory is canonical.
+  arbitrated. The detailed design's API 41 installed-output inventory is canonical.
 
 Deferred by design:
 
