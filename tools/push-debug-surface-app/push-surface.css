@@ -291,6 +291,11 @@ main {
     stroke: color-mix(in srgb, var(--blink-light), white 28%);
 }
 
+.control[data-blink="slow"] .control-face,
+.control[data-blink="fast"] .control-face {
+    transition: transform 80ms ease, filter 80ms ease;
+}
+
 @keyframes debug-input-pulse {
     0% {
         stroke: white;
