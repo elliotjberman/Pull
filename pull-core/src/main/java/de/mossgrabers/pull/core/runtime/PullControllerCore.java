@@ -294,8 +294,9 @@ final class PullControllerCore implements ControllerCore
         this.selection.observe (snapshot.bridge ().layout ());
         this.selection.observe (snapshot.bridge ().noteView ());
         this.observeVsLivePageReadback (snapshot.bridge ().layout ());
+        final CompiledWorkspace selectionWorkspace = this.selectedWorkspace (snapshot);
         final boolean clipTimelineLayout = "CLIP_LENGTH".equals (snapshot.bridge ().layout ().viewId ());
-        final CompiledWorkspace selectedWorkspace = clipTimelineLayout ? this.clipTimelineWorkspace : this.selectedWorkspace (snapshot);
+        final CompiledWorkspace selectedWorkspace = clipTimelineLayout && selectionWorkspace == this.workspaces.get (WorkspaceSelection.Id.DEFAULT) ? this.clipTimelineWorkspace : selectionWorkspace;
         final String mode = snapshot.bridge ().layout ().modeId ();
         final boolean masterLayout = "MASTER".equals (mode) || "MASTER_TEMP".equals (mode);
         if (this.masterNavigationLease != null)

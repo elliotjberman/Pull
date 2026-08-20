@@ -1655,6 +1655,22 @@ class PullControllerCoreTest
 
 
     @Test
+    void sessionSelectionCanLeaveTheClipTimelineBeforeStableLayoutReadback ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        host.bridge (clipTimelineBridge (new ClipTimelineTarget (11, 7, "track-7", 2), new RgbColor (20, 80, 220)));
+
+        host.controllerButton (SESSION_BUTTON, true);
+
+        assertStableSessionDestination (host.effects ().desiredControllerWorkspace ());
+        host.controllerButton (SESSION_BUTTON, false);
+        host.bridge (sessionBridge (2, "SESSION", "TRACK", StableDestinationWorkspace.SESSION_BANK));
+        assertSelectedSession (host.effects ().desiredControllerWorkspace ());
+    }
+
+
+    @Test
     void checkpointRestoresClipTimelineResolution ()
     {
         final ClipTimelineTarget target = new ClipTimelineTarget (11, 7, "track-7", 2);
