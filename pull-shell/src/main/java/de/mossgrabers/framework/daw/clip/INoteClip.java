@@ -5,6 +5,7 @@
 package de.mossgrabers.framework.daw.clip;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 import de.mossgrabers.framework.daw.data.IPinnable;
 
@@ -38,6 +39,14 @@ public interface INoteClip extends IClip, IPinnable
      * @return True while the launcher slot reports playback
      */
     boolean isPlaying ();
+
+
+    /**
+     * Add an observer for authoritative launcher-slot playback transitions.
+     *
+     * @param observer Playback-state observer
+     */
+    void addPlaybackObserver (Consumer<Boolean> observer);
 
 
     /**

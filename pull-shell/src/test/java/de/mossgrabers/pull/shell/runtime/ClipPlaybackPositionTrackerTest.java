@@ -60,4 +60,15 @@ class ClipPlaybackPositionTrackerTest
         assertTrue (tracker.observe ("clip-a", true, true, 3, 0, 0, 8, true).isEmpty ());
         assertTrue (tracker.observe ("clip-b", true, true, 5, 0, 0, 8, true).isEmpty ());
     }
+
+
+    @Test
+    void observedPlaybackEdgeCanAnchorBeforePositionSamplingBegins ()
+    {
+        final ClipPlaybackPositionTracker tracker = new ClipPlaybackPositionTracker ();
+        tracker.observePlayback ("clip-a", false, 12, 0);
+        tracker.observePlayback ("clip-a", true, 16, 0);
+
+        assertEquals (OptionalDouble.of (4), tracker.observe ("clip-a", true, true, 20, 0, 0, 8, true));
+    }
 }

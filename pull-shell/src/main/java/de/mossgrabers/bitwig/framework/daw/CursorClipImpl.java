@@ -7,6 +7,7 @@ package de.mossgrabers.bitwig.framework.daw;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Consumer;
 
 import com.bitwig.extension.controller.api.BooleanValue;
 import com.bitwig.extension.controller.api.Clip;
@@ -153,6 +154,14 @@ public class CursorClipImpl implements INoteClip
     public boolean isPlaying ()
     {
         return this.launcherPlaying.get ();
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void addPlaybackObserver (final Consumer<Boolean> observer)
+    {
+        this.launcherPlaying.addValueObserver (value -> observer.accept (Boolean.valueOf (value)));
     }
 
 

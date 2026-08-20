@@ -200,6 +200,25 @@ class BoundedControllerBridgeTest
 
 
     @Test
+    void clipTimelinePlaybackEdgeSurvivesWhileTimelineSnapshotsAreUnrequested ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.selected.canHoldAudio = true;
+        fixture.transport.playing = true;
+        fixture.transport.position = 12;
+        fixture.clip.publishPlaying (false);
+
+        fixture.bridge.refresh (1, DesiredBridgeSubscriptions.empty (), DesiredParameterBanks.empty ());
+        fixture.transport.position = 16;
+        fixture.clip.publishPlaying (true);
+        fixture.transport.position = 20;
+        fixture.bridge.refresh (50_000_001, subscriptions (BridgeSubscription.CLIP_TIMELINE, BridgeSubscription.TRANSPORT), DesiredParameterBanks.empty ());
+
+        assertEquals (4, fixture.bridge.snapshot ().clipTimeline ().playbackPosition ().orElseThrow ());
+    }
+
+
+    @Test
     void clipTimelineSelectableExtentNeverShrinksForTheSameAuthoritativeTarget ()
     {
         final BridgeFixture fixture = new BridgeFixture ();
@@ -1144,6 +1163,9 @@ class BoundedControllerBridgeTest
         private double playEnd = 16;
         private double stepLength;
         private final List<String> writes = new ArrayList<> ();
+        private Consumer<Boolean> playbackObserver = playing -> {
+            // No observer until the bridge installs one.
+        };
 
 
         private INoteClip proxy ()
@@ -1154,6 +1176,10 @@ class BoundedControllerBridgeTest
                 case "getSceneIndex" -> Integer.valueOf (this.sceneIndex);
                 case "doesExist" -> Boolean.valueOf (this.exists);
                 case "isPlaying" -> Boolean.valueOf (this.playing);
+                case "addPlaybackObserver" -> {
+                    this.playbackObserver = (Consumer<Boolean>) arguments[0];
+                    yield null;
+                }
                 case "getLoopStart" -> Double.valueOf (0);
                 case "getLoopLength" -> Double.valueOf (this.loopLength);
                 case "getPlayStart" -> Double.valueOf (this.playStart);
@@ -1179,6 +1205,13 @@ class BoundedControllerBridgeTest
                 }
                 default -> relaxedValue (method.getReturnType ());
             });
+        }
+
+
+        private void publishPlaying (final boolean playing)
+        {
+            this.playing = playing;
+            this.playbackObserver.accept (Boolean.valueOf (playing));
         }
     }
 

@@ -54,6 +54,33 @@ final class ClipPlaybackPositionTracker
      */
     OptionalDouble observe (final String identity, final boolean clipPlaying, final boolean transportPlaying, final double transportPosition, final double playStart, final double loopStart, final double loopLength, final boolean loopEnabled)
     {
+        if (!identity.equals (this.targetIdentity) || clipPlaying != this.playing)
+            this.observePlayback (identity, clipPlaying, transportPosition, playStart);
+
+        if (this.anchored && clipPlaying && transportPlaying)
+        {
+            final double elapsed = transportPosition - this.lastTransportPosition;
+            if (elapsed < -POSITION_EPSILON)
+                this.anchored = false;
+            else if (elapsed > 0)
+                this.clipPosition = advance (this.clipPosition, elapsed, loopStart, loopLength, loopEnabled);
+        }
+        this.lastTransportPosition = transportPosition;
+
+        return this.anchored ? OptionalDouble.of (this.clipPosition) : OptionalDouble.empty ();
+    }
+
+
+    /**
+     * Capture a low-rate launcher playback edge even while timeline snapshots are not requested.
+     *
+     * @param identity Exact launcher clip identity
+     * @param clipPlaying New authoritative launcher state
+     * @param transportPosition Transport position observed with the edge
+     * @param playStart Clip play start observed with the edge
+     */
+    void observePlayback (final String identity, final boolean clipPlaying, final double transportPosition, final double playStart)
+    {
         if (!identity.equals (this.targetIdentity))
         {
             this.reset ();
@@ -66,30 +93,16 @@ final class ClipPlaybackPositionTracker
             this.playing = false;
             this.anchored = false;
             this.lastTransportPosition = transportPosition;
-            return OptionalDouble.empty ();
+            return;
         }
 
-        if (!this.playing)
+        if (!this.playing && this.armed)
         {
-            this.playing = true;
-            this.lastTransportPosition = transportPosition;
-            if (this.armed)
-            {
-                this.clipPosition = playStart;
-                this.anchored = true;
-            }
+            this.clipPosition = playStart;
+            this.anchored = true;
         }
-        else if (this.anchored && transportPlaying)
-        {
-            final double elapsed = transportPosition - this.lastTransportPosition;
-            if (elapsed < -POSITION_EPSILON)
-                this.anchored = false;
-            else if (elapsed > 0)
-                this.clipPosition = advance (this.clipPosition, elapsed, loopStart, loopLength, loopEnabled);
-        }
+        this.playing = true;
         this.lastTransportPosition = transportPosition;
-
-        return this.anchored ? OptionalDouble.of (this.clipPosition) : OptionalDouble.empty ();
     }
 
 

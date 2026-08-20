@@ -167,6 +167,7 @@ final class BoundedControllerBridge implements ControllerBridge
         this.controllerState = new ControllerStateHost (selectedTarget, surface.getControllerWorkspaceHost (), this::resetNoteInputMidiState);
         this.controllerMappings = controllerMappings;
         this.sessionBank = new SessionBankHost (surface.getSessionBankRegistry ());
+        this.clipTimelineClip.addPlaybackObserver (this::observeClipTimelinePlayback);
     }
 
 
@@ -694,7 +695,7 @@ final class BoundedControllerBridge implements ControllerBridge
         this.clipTimelineSelectableEnd = Math.max (this.clipTimelineSelectableEnd, observedEnd);
         final ClipTimelineTarget target = new ClipTimelineTarget (this.clipTimelineGeneration, selected.generation (), trackID, sceneIndex);
         final OptionalDouble playbackPosition = this.clipPlaybackPosition.observe (
-            selected.generation () + "|" + trackID + "|" + sceneIndex,
+            clipTimelinePlaybackIdentity (trackID, sceneIndex),
             clip.isPlaying (),
             transportState.playing (),
             transportState.positionBeats (),
@@ -710,7 +711,6 @@ final class BoundedControllerBridge implements ControllerBridge
     {
         if (identity.equals (this.clipTimelineTargetIdentity))
             return;
-        this.clipPlaybackPosition.reset ();
         this.clipTimelineTargetIdentity = identity;
         this.clipTimelineGeneration = Math.incrementExact (this.clipTimelineGeneration);
     }
@@ -1236,11 +1236,33 @@ final class BoundedControllerBridge implements ControllerBridge
 
     private void invalidateClipTimelineTarget ()
     {
-        this.clipPlaybackPosition.reset ();
         if (this.clipTimelineTargetIdentity.isEmpty ())
             return;
         this.clipTimelineTargetIdentity = "";
         this.clipTimelineGeneration = Math.incrementExact (this.clipTimelineGeneration);
+    }
+
+
+    private void observeClipTimelinePlayback (final Boolean playing)
+    {
+        final String trackID = valueOrEmpty (this.clipTimelineClip.getTrackId ());
+        final int sceneIndex = this.clipTimelineClip.getSceneIndex ();
+        if (trackID.isBlank () || sceneIndex < 0)
+        {
+            this.clipPlaybackPosition.reset ();
+            return;
+        }
+        this.clipPlaybackPosition.observePlayback (
+            clipTimelinePlaybackIdentity (trackID, sceneIndex),
+            playing.booleanValue (),
+            Math.max (0, this.transport.getPosition ()),
+            this.clipTimelineClip.getPlayStart ());
+    }
+
+
+    private static String clipTimelinePlaybackIdentity (final String trackID, final int sceneIndex)
+    {
+        return trackID + "|" + sceneIndex;
     }
 
 
