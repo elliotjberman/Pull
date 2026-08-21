@@ -149,7 +149,7 @@ public final class ClipTimelineView implements ControllerView
             final int physicalRow = 7 - timelinePad / 8;
             final boolean selected = timelinePad >= start && timelinePad < end;
             final RgbColor color = timelinePad >= selectableEnd ? BLACK : selected ? timeline.color () : outside;
-            final ControllerLight light = timelinePad == playingPad && selected ? TransportBeatPulse.light (snapshot.bridge ().transport (), timeline.playbackPosition ().getAsDouble (), color, SESSION_PLAYING_GREEN) : ControllerLight.steady (color);
+            final ControllerLight light = timelinePad == playingPad && selected ? TransportBeatPulse.light (snapshot.bridge ().transport (), timeline.playbackPosition ().getAsDouble (), quartersPerPad, color, SESSION_PLAYING_GREEN) : ControllerLight.steady (color);
             lights.put (PushControlIds.pad (physicalRow * 8 + column + 1), light);
         }
 

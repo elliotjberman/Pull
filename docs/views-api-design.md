@@ -1,6 +1,6 @@
 # Views API and Composite Workspaces
 
-Status: design contract. Checkpoints 1 and 2 are structurally implemented through Core API 42. The
+Status: design contract. Checkpoints 1 and 2 are structurally implemented through Core API 43. The
 remaining stable-adapter boundary is represented explicitly in claims and recorded in
 [`../ARCH.md`](../ARCH.md). The checkpoints remain below so code, offline tests, and Push hardware
 tests can be compared against the intended end state.
@@ -375,8 +375,12 @@ Clip Timeline is a fixed full-grid view, not a stable mode with a feature-specif
 bridge. It owns all pad/pressure and scene-button routes plus their lights, composes with the Track
 page or Master page, and shares one retained range/resolution state across those page replacements.
 Its desired lights use the generic `ControllerLight` value. A shared core beat-pulse helper derives
-the visible half-beat phase from authoritative transport position, rather than assigning a fresh
-firmware blink whose local animation can restart whenever the current-step pad changes.
+one complete pulse per visible grid slice from authoritative clip and transport position. Core API
+43 represents that exact musical cadence, alternate-phase boundary, transport offset, and current
+phase because Push's two firmware blink rates cannot distinguish all three grid resolutions.
+Stable mechanically transmits the current core phase, while the visual debugger receives the
+semantic independently of palette-cache transmissions and extrapolates it from its bounded Bitwig
+clock.
 The permanent cursor retains low-rate launcher playback edges across workspace changes without
 sampling an unrequested timeline snapshot. An observed selected-track stopped edge survives the
 cursor's same-track scene retarget at launch and is consumed by the first exact playing target. That

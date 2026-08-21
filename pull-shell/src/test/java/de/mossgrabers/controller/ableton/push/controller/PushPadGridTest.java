@@ -10,6 +10,7 @@ import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
 import de.mossgrabers.pull.core.api.output.ControllerLight;
+import de.mossgrabers.pull.core.api.output.MusicalLightPulse;
 import de.mossgrabers.pull.core.api.output.PadGridPosition;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 
@@ -127,6 +128,58 @@ class PushPadGridTest
 
 
     @Test
+    void exactMusicalPulseTransmitsOnlyItsCorePhasedVisibleColor ()
+    {
+        final List<MidiNote> sent = new ArrayList<> ();
+        final PushColorManager colors = new PushColorManager ();
+        final PushPadGrid grid = new PushPadGrid (colors, recordingOutput (sent));
+        final RgbColor blue = new RgbColor (0, 80, 255);
+        final RgbColor green = new RgbColor (0, 89, 0);
+        final AtomicReference<ControllerLight> light = new AtomicReference<> (ControllerLight.musical (blue, green, new MusicalLightPulse (0.25, 0.125, 8, false)));
+        grid.setCoreLightSupplier (PushControlIds.pad (1)::equals, ignored -> light.get ());
+
+        final int blueIndex = colors.getColorIndex (ColorEx.fromRGB (blue.red (), blue.green (), blue.blue ()));
+        final int greenIndex = colors.getColorIndex (ColorEx.fromRGB (green.red (), green.green (), green.blue ()));
+        assertEquals (blueIndex, grid.getLightInfo (36).getColor ());
+        assertEquals (0, grid.getLightInfo (36).getBlinkColor ());
+        grid.sendState (36);
+
+        light.set (ControllerLight.musical (blue, green, new MusicalLightPulse (0.25, 0.125, 8, true)));
+        assertEquals (greenIndex, grid.getLightInfo (36).getColor ());
+        assertEquals (0, grid.getLightInfo (36).getBlinkColor ());
+        grid.sendState (36);
+
+        assertEquals (List.of (new MidiNote (0, 36, blueIndex), new MidiNote (0, 36, greenIndex)), sent);
+    }
+
+
+    @Test
+    void publishesMusicalSemanticsWhenThePhysicalPrimaryColorDoesNotChange ()
+    {
+        final List<MidiNote> sent = new ArrayList<> ();
+        final PushPadGrid grid = new PushPadGrid (new PushColorManager (), recordingOutput (sent));
+        final RgbColor blue = new RgbColor (0, 80, 255);
+        final RgbColor green = new RgbColor (0, 89, 0);
+        final AtomicReference<ControllerLight> light = new AtomicReference<> (ControllerLight.steady (blue));
+        final AtomicReference<ControllerLight> semantic = new AtomicReference<> ();
+        grid.setCoreLightSupplier (PushControlIds.pad (1)::equals, ignored -> light.get ());
+        grid.setDebugLightObserver ( (pad, coreLight) -> {
+            if (pad == 1)
+                semantic.set (coreLight);
+        });
+
+        grid.getLightInfo (36);
+        grid.sendState (36);
+        light.set (ControllerLight.musical (blue, green, new MusicalLightPulse (0.25, 0.125, 8, false)));
+        grid.getLightInfo (36);
+        grid.publishDebugLightSemantics ();
+
+        assertEquals (1, sent.size (), "the unchanged primary palette can be suppressed by the hardware cache");
+        assertEquals (light.get (), semantic.get (), "semantic publication does not depend on another MIDI send");
+    }
+
+
+    @Test
     void sparseOverlayFreezesTheCoreOwnedBaseUntilTheOverlayCloses ()
     {
         final PushColorManager colors = new PushColorManager ();
@@ -201,7 +254,7 @@ class PushPadGridTest
         });
         final PushPadGrid grid = new PushPadGrid (new PushColorManager (), output);
         final AtomicReference<PushPadOutput> surfaceOutput = new AtomicReference<> ();
-        grid.setDebugSurfaceObserver ( (pad, color, blinkColor, fast) -> surfaceOutput.set (new PushPadOutput (pad, color, blinkColor, fast)));
+        grid.setDebugTransmissionObserver ( (pad, color, blinkColor, fast) -> surfaceOutput.set (new PushPadOutput (pad, color, blinkColor, fast)));
         grid.light (36, 21);
         grid.beginDebugObservation (36);
 
@@ -215,7 +268,7 @@ class PushPadGridTest
     {
         final PushPadGrid grid = new PushPadGrid (new PushColorManager (), recordingOutput (new ArrayList<> ()));
         final AtomicReference<PushPadOutput> surfaceOutput = new AtomicReference<> ();
-        grid.setDebugSurfaceObserver ( (pad, color, blinkColor, fast) -> surfaceOutput.set (new PushPadOutput (pad, color, blinkColor, fast)));
+        grid.setDebugTransmissionObserver ( (pad, color, blinkColor, fast) -> surfaceOutput.set (new PushPadOutput (pad, color, blinkColor, fast)));
         grid.light (64, 31, 54, true);
 
         grid.sendState (64);

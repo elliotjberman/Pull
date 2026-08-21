@@ -31,6 +31,7 @@ import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
+import de.mossgrabers.pull.core.api.output.ControllerLight;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 
 
@@ -409,9 +410,9 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
         this.debugSurfaceHost = PushDebugSurfaceHost.createIfEnabled ();
         if (this.debugSurfaceHost != null)
         {
-            this.pushPadGrid.setDebugSurfaceObserver ( (oneBasedPad, color, blinkColor, fast) -> {
+            this.pushPadGrid.setDebugTransmissionObserver ( (oneBasedPad, color, blinkColor, fast) -> {
                 final ButtonID button = ButtonID.get (ButtonID.PAD1, oneBasedPad - 1);
-                this.debugSurfaceHost.observePad (
+                this.debugSurfaceHost.observePadTransmission (
                     oneBasedPad,
                     color,
                     this.colorManager.getColor (color, button),
@@ -419,6 +420,9 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
                     this.colorManager.getColor (blinkColor, button),
                     fast);
             });
+            this.pushPadGrid.setDebugLightObserver ( (oneBasedPad, light) -> this.debugSurfaceHost.observePadSemantic (
+                oneBasedPad,
+                this.debugMusicalPulse (ButtonID.get (ButtonID.PAD1, oneBasedPad - 1), light)));
         }
 
         this.input.setSysexCallback (this::handleSysEx);
@@ -445,6 +449,7 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
         super.internalFlushHandler ();
         if (this.debugSurfaceHost != null)
         {
+            this.pushPadGrid.publishDebugLightSemantics ();
             this.debugSurfaceHost.observePressed (this.getButtons ());
             if (this.debugTransport != null)
                 this.debugSurfaceHost.observeClock (this.debugTransport.isPlaying (), this.debugTransport.getTempo (), this.debugTransport.getPosition (), System.currentTimeMillis ());
@@ -884,6 +889,24 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
     public int resolveDebugPadColor (final RgbColor color)
     {
         return PushColorManager.resolveCoreColor (this.colorManager, Objects.requireNonNull (color, "color"));
+    }
+
+
+    private PushDebugSurfaceHost.DebugMusicalPulse debugMusicalPulse (final ButtonID button, final ControllerLight light)
+    {
+        if (light == null || light.musicalPulse ().isEmpty ())
+            return null;
+        final int base = this.resolveDebugPadColor (light.color ());
+        final int alternate = this.resolveDebugPadColor (light.blinkColor ());
+        final var pulse = light.musicalPulse ().orElseThrow ();
+        return new PushDebugSurfaceHost.DebugMusicalPulse (
+            base,
+            this.colorManager.getColor (base, button),
+            alternate,
+            this.colorManager.getColor (alternate, button),
+            pulse.cycleBeats (),
+            pulse.alternatePhaseStartBeats (),
+            pulse.transportOffsetBeats ());
     }
 
 

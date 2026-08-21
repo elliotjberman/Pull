@@ -58,6 +58,7 @@ import de.mossgrabers.pull.core.api.output.DesiredHardwareOutput;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
 import de.mossgrabers.pull.core.api.output.ControllerLight;
 import de.mossgrabers.pull.core.api.output.LightBlinkRate;
+import de.mossgrabers.pull.core.api.output.MusicalLightPulse;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
 import de.mossgrabers.pull.core.api.output.DisplayCommand;
@@ -125,7 +126,7 @@ class ControllerRuntimeEnvironmentTest
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.BINDING_CLIP_TARGET));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION));
         assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD));
-        assertEquals (Integer.valueOf (7), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_RGB_LIGHT));
+        assertEquals (Integer.valueOf (8), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_RGB_LIGHT));
         assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_MAPPING));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_STATE));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_NOTE_VIEW_PREFERENCE));
@@ -290,7 +291,7 @@ class ControllerRuntimeEnvironmentTest
         final ControlId pad = PushControlIds.pad (1);
         final ControlId button = PushControlIds.button ("SCENE1");
         environment.setPhysicalLightOwnerValidator (Set.of (pad, button)::contains);
-        final ControllerLight playing = ControllerLight.playing (BRIGHT_RED, new RgbColor (0, 255, 0));
+        final ControllerLight playing = ControllerLight.musical (BRIGHT_RED, new RgbColor (0, 255, 0), new MusicalLightPulse (0.25, 0.125, 12.5, true));
         final CoreResult animatedPad = new CoreResult (
             new DesiredHardwareOutput (Map.of (pad, playing)),
             DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), Map.of (),
@@ -299,9 +300,11 @@ class ControllerRuntimeEnvironmentTest
         commitAndApply (environment, 9, animatedPad);
 
         assertEquals (playing, environment.light (pad));
-        assertEquals (LightBlinkRate.SLOW, environment.light (pad).blinkRate ());
+        assertEquals (LightBlinkRate.MUSICAL, environment.light (pad).blinkRate ());
+        assertEquals (playing.musicalPulse (), environment.light (pad).musicalPulse ());
+        final ControllerLight nativeBlink = ControllerLight.playing (BRIGHT_RED, new RgbColor (0, 255, 0));
         final CoreResult animatedButton = new CoreResult (
-            new DesiredHardwareOutput (Map.of (button, playing)),
+            new DesiredHardwareOutput (Map.of (button, nativeBlink)),
             DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), Map.of (),
             de.mossgrabers.pull.core.api.DesiredControllerActions.empty (), DesiredParameterBanks.empty (), DesiredParameterInteraction.empty (), List.of ());
         assertThrows (IllegalArgumentException.class, () -> environment.prepare (animatedButton));

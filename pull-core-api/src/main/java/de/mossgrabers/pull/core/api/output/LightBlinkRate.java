@@ -12,5 +12,7 @@ public enum LightBlinkRate
     /** Slow tempo-clocked alternation, used by playing Session clips. */
     SLOW,
     /** Fast tempo-clocked alternation, used by queued Session actions. */
-    FAST
+    FAST,
+    /** Exact core-phased musical alternation for cadences unavailable in Push firmware. */
+    MUSICAL
 }

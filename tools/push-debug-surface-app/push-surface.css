@@ -286,13 +286,15 @@ main {
 }
 
 :root[data-slow-blink-phase="alternate"] .control[data-blink="slow"] .control-face,
-:root[data-fast-blink-phase="alternate"] .control[data-blink="fast"] .control-face {
+:root[data-fast-blink-phase="alternate"] .control[data-blink="fast"] .control-face,
+.control[data-blink="musical"][data-musical-blink-phase="alternate"] .control-face {
     fill: var(--blink-light);
     stroke: color-mix(in srgb, var(--blink-light), white 28%);
 }
 
 .control[data-blink="slow"] .control-face,
-.control[data-blink="fast"] .control-face {
+.control[data-blink="fast"] .control-face,
+.control[data-blink="musical"] .control-face {
     transition: transform 80ms ease, filter 80ms ease;
 }
 

@@ -94,7 +94,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         Map.entry (CoreCapabilities.BINDING_CLIP_TARGET, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD, Integer.valueOf (4)),
-        Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (7)),
+        Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (8)),
         Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_MAPPING, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_STATE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_NOTE_VIEW_PREFERENCE, Integer.valueOf (1)),
@@ -797,7 +797,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
             final ControllerLight requested = Objects.requireNonNull (entry.getValue (), "controller light");
             if (requested.blinkRate () != LightBlinkRate.NONE && !owner.value ().startsWith ("push.pad."))
                 throw new IllegalArgumentException ("Tempo-clocked light output is installed only for grid pads");
-            lights.put (owner, new ControllerLight (copyColor (requested.color ()), copyColor (requested.blinkColor ()), requested.blinkRate ()));
+            lights.put (owner, new ControllerLight (copyColor (requested.color ()), copyColor (requested.blinkColor ()), requested.blinkRate (), requested.musicalPulse ()));
         }
         final ControllerDisplayScene display = result.desiredOutput ().display ();
         if (display.isPresent () && (display.width () != 960 || display.height () != 160))

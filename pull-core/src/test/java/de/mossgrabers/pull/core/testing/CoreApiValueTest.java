@@ -85,6 +85,8 @@ import de.mossgrabers.pull.core.api.output.DisplayTextAlignment;
 import de.mossgrabers.pull.core.api.output.DisplayTextFit;
 import de.mossgrabers.pull.core.api.output.MixerControlDisplay;
 import de.mossgrabers.pull.core.api.output.MixerControlsDisplay;
+import de.mossgrabers.pull.core.api.output.LightBlinkRate;
+import de.mossgrabers.pull.core.api.output.MusicalLightPulse;
 import de.mossgrabers.pull.core.api.output.PadGridPosition;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 
@@ -205,7 +207,7 @@ class CoreApiValueTest
     @Test
     void publishesStableVersionCapabilityAndControlIdentifiers ()
     {
-        assertEquals (42, CoreApi.VERSION);
+        assertEquals (43, CoreApi.VERSION);
         assertEquals ("input.drum-fill", CoreCapabilities.INPUT_DRUM_FILL);
         assertEquals ("snapshot.selected-track-clips", CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS);
         assertEquals ("binding.clip-target", CoreCapabilities.BINDING_CLIP_TARGET);
@@ -249,6 +251,21 @@ class CoreApiValueTest
             new ControllerMappingId ("drum-controller.control.3"),
             new ControllerMappingId ("drum-controller.control.4")), CoreControllerMappings.DRUM_CONTROL_PADS);
         assertThrows (UnsupportedOperationException.class, () -> CoreControllerMappings.DRUM_CONTROL_PADS.clear ());
+    }
+
+
+    @Test
+    void musicalControllerLightsRequireAValidatedExactPhase ()
+    {
+        final RgbColor blue = new RgbColor (0, 80, 255);
+        final RgbColor green = new RgbColor (0, 89, 0);
+        final MusicalLightPulse pulse = new MusicalLightPulse (0.25, 0.125, 12.5, true);
+
+        assertEquals (pulse, ControllerLight.musical (blue, green, pulse).musicalPulse ().orElseThrow ());
+        assertThrows (IllegalArgumentException.class, () -> new MusicalLightPulse (0, 0.125, 0, false));
+        assertThrows (IllegalArgumentException.class, () -> new MusicalLightPulse (0.25, 0.25, 0, false));
+        assertThrows (IllegalArgumentException.class, () -> new ControllerLight (blue, green, LightBlinkRate.MUSICAL));
+        assertThrows (IllegalArgumentException.class, () -> new ControllerLight (blue, green, LightBlinkRate.FAST, Optional.of (pulse)));
     }
 
 

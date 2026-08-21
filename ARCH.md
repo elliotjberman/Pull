@@ -1,6 +1,6 @@
 # Pull View Architecture
 
-Status: current through Core API 42, semantic controller-mapping identities, generic registered
+Status: current through Core API 43, semantic controller-mapping identities, generic registered
 button/grid light arbitration, the shared
 mixer-control renderer, the Master-control migration, the post-demo `VS Live` composition, and
 core-owned Session Stop, selected-track Mute/Solo, VS Live Project/Track and Track/Mix display
@@ -109,12 +109,17 @@ The shell publishes phase only after it observes the selected track stopped and 
 playing. A stopped edge survives the cursor's same-track scene retarget at launch and is consumed by
 the first exact playing target. The shell advances that anchor from transport read-back and fails
 closed on a track, target, or transport discontinuity. Core divides the resulting clip position by
-its current grid resolution and gives only that selected pad a shared beat-phase half-beat pulse
-between the clip color and Session playing green. Deriving the phase from that continuous position
-keeps the visible pulse continuous when the current-step owner changes; assigning the
-firmware blink afresh to every step can reset before its alternate phase becomes visible. The
-stable adapter is inert; stable only owns the bounded selection-following cursor clip, phase
-observation, target fencing, effect execution, palette translation, and MIDI transmission.
+its current grid resolution and gives only that selected pad one complete pulse per visible slice
+between the clip color and Session playing green. In 4/4 the three resolutions therefore pulse once
+per measure, beat, or sixteenth. Push firmware offers only two fixed blink channels, so Core API 43
+carries an exact musical cycle, alternate-phase boundary, transport offset, and current phase. Core
+owns the cadence and waveform; stable only resolves the two colors and transmits the currently
+visible one. At each committed output boundary the debugger receives that semantic independently
+of whether Push's palette cache needed another MIDI send, then extrapolates it from the bounded
+Bitwig clock. The
+stable adapter remains inert; stable otherwise owns only the bounded selection-following cursor
+clip, phase observation, target fencing, effect execution, palette translation, and MIDI
+transmission.
 
 `DrumPlayPadView` owns the lower-left 4x4 RGB output and all playable-pad pressure policy in both
 the standalone Drum page and VS Live. Resting lights use authoritative selected-track color;
@@ -484,7 +489,7 @@ Partial or transitional:
   mappable controls. General display output is still semantically partial: Master and the composed
   VS Live Project/Track and Track/Mix pages are core-authored, while a generic complete base-scene plane, a
   temporary sparse 8x8 grid overlay, and a complete temporary 960x160 display overlay are
-  arbitrated. The detailed design's API 42 installed-output inventory is canonical.
+  arbitrated. The detailed design's API 43 installed-output inventory is canonical.
 
 Deferred by design:
 

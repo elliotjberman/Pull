@@ -38,6 +38,7 @@ final class PushPadGrid extends PadGridImpl
     private final PadColor [] requestedCoreBlinkColors = new PadColor [NUM_NOTES];
     private final int [] resolvedCoreColors = new int [NUM_NOTES];
     private final int [] resolvedCoreBlinkColors = new int [NUM_NOTES];
+    private final ControllerLight [] resolvedCoreLights = new ControllerLight [NUM_NOTES];
 
     private Supplier<ControllerPadGridOverlay> overlaySupplier = ControllerPadGridOverlay::inactive;
     private Predicate<ControlId> coreLightOwner = ignored -> false;
@@ -48,7 +49,8 @@ final class PushPadGrid extends PadGridImpl
     private long debugTransmissionRevision;
     private Transmission debugBaseTransmission = Transmission.NONE;
     private Transmission debugBlinkTransmission = Transmission.NONE;
-    private DebugSurfaceObserver debugSurfaceObserver;
+    private DebugTransmissionObserver debugTransmissionObserver;
+    private DebugLightObserver debugLightObserver;
 
 
     /**
@@ -78,9 +80,16 @@ final class PushPadGrid extends PadGridImpl
 
 
     /** Install the opt-in observer for complete successful pad transmissions. */
-    void setDebugSurfaceObserver (final DebugSurfaceObserver debugSurfaceObserver)
+    void setDebugTransmissionObserver (final DebugTransmissionObserver debugTransmissionObserver)
     {
-        this.debugSurfaceObserver = Objects.requireNonNull (debugSurfaceObserver, "debugSurfaceObserver");
+        this.debugTransmissionObserver = Objects.requireNonNull (debugTransmissionObserver, "debugTransmissionObserver");
+    }
+
+
+    /** Install the opt-in observer for semantic core lights at the committed output boundary. */
+    void setDebugLightObserver (final DebugLightObserver debugLightObserver)
+    {
+        this.debugLightObserver = Objects.requireNonNull (debugLightObserver, "debugLightObserver");
     }
 
 
@@ -119,8 +128,18 @@ final class PushPadGrid extends PadGridImpl
         {
             this.debugObservedSend = false;
         }
-        if (this.debugSurfaceObserver != null)
-            this.debugSurfaceObserver.observe (note - this.startNote + 1, state.getColor (), state.getBlinkColor (), state.isFast ());
+        if (this.debugTransmissionObserver != null)
+            this.debugTransmissionObserver.observe (note - this.startNote + 1, state.getColor (), state.getBlinkColor (), state.isFast ());
+    }
+
+
+    /** Publish the bounded core-light semantic independently of cached physical transmissions. */
+    void publishDebugLightSemantics ()
+    {
+        if (this.debugLightObserver == null)
+            return;
+        for (int note = this.startNote; note <= this.endNote; note++)
+            this.debugLightObserver.observe (note - this.startNote + 1, this.debugCoreLight (note));
     }
 
 
@@ -201,11 +220,23 @@ final class PushPadGrid extends PadGridImpl
             return super.getLightInfo (note);
 
         final ControllerLight light = Objects.requireNonNull (this.coreLight.apply (control), "core light");
-        final int color = this.resolveCachedColor (note, toPadColor (light.color ()), this.requestedCoreColors, this.resolvedCoreColors);
-        final int blinkColor = light.blinkRate () == LightBlinkRate.NONE ? 0 : this.resolveCachedColor (note, toPadColor (light.blinkColor ()), this.requestedCoreBlinkColors, this.resolvedCoreBlinkColors);
+        this.resolvedCoreLights[note] = light;
+        final RgbColor visibleColor = light.musicalPulse ().filter (pulse -> pulse.alternatePhase ()).isPresent () ? light.blinkColor () : light.color ();
+        final int color = this.resolveCachedColor (note, toPadColor (visibleColor), this.requestedCoreColors, this.resolvedCoreColors);
+        final boolean firmwareBlink = light.blinkRate () == LightBlinkRate.SLOW || light.blinkRate () == LightBlinkRate.FAST;
+        final int blinkColor = firmwareBlink ? this.resolveCachedColor (note, toPadColor (light.blinkColor ()), this.requestedCoreBlinkColors, this.resolvedCoreBlinkColors) : 0;
         final LightInfo coreState = this.corePadStates[note];
         coreState.setColors (color, blinkColor, light.blinkRate () == LightBlinkRate.FAST);
         return coreState;
+    }
+
+
+    private ControllerLight debugCoreLight (final int note)
+    {
+        if (this.overlayActive)
+            return null;
+        final ControlId control = PushControlIds.pad (note - this.startNote + 1);
+        return this.coreLightOwner.test (control) ? this.resolvedCoreLights[note] : null;
     }
 
 
@@ -269,8 +300,15 @@ final class PushPadGrid extends PadGridImpl
 
 
     @FunctionalInterface
-    interface DebugSurfaceObserver
+    interface DebugTransmissionObserver
     {
         void observe (int oneBasedPad, int color, int blinkColor, boolean fast);
+    }
+
+
+    @FunctionalInterface
+    interface DebugLightObserver
+    {
+        void observe (int oneBasedPad, ControllerLight coreLight);
     }
 }

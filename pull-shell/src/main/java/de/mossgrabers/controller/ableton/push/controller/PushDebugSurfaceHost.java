@@ -81,24 +81,39 @@ final class PushDebugSurfaceHost implements AutoCloseable
         if (this.closed.get ())
             return;
         final String control = PushControlIds.button (Objects.requireNonNull (button, "button").name ()).value ();
-        final LightState state = new LightState (palette, StringUtils.formatColor (Objects.requireNonNull (color, "color")), 0, null, false);
+        final LightState state = new LightState (palette, StringUtils.formatColor (Objects.requireNonNull (color, "color")), 0, null, false, null);
         if (!state.equals (this.lights.put (control, state)))
             this.publish (true);
     }
 
 
     /** Remember one complete, successfully transmitted Push pad state. */
-    void observePad (final int oneBasedPad, final int palette, final ColorEx color, final int blinkPalette, final ColorEx blinkColor, final boolean fast)
+    void observePadTransmission (final int oneBasedPad, final int palette, final ColorEx color, final int blinkPalette, final ColorEx blinkColor, final boolean fast)
     {
         if (this.closed.get ())
             return;
         final String control = PushControlIds.pad (oneBasedPad).value ();
+        final DebugMusicalPulse pulse = this.lights.getOrDefault (control, LightState.off ()).pulse ();
         final LightState state = new LightState (
             palette,
             StringUtils.formatColor (Objects.requireNonNull (color, "color")),
             blinkPalette,
             blinkPalette > 0 ? StringUtils.formatColor (Objects.requireNonNull (blinkColor, "blinkColor")) : null,
-            fast);
+            fast,
+            pulse);
+        if (!state.equals (this.lights.put (control, state)))
+            this.publish (true);
+    }
+
+
+    /** Remember the semantic pulse independently of physical output-cache transmissions. */
+    void observePadSemantic (final int oneBasedPad, final DebugMusicalPulse musicalPulse)
+    {
+        if (this.closed.get ())
+            return;
+        final String control = PushControlIds.pad (oneBasedPad).value ();
+        final LightState current = this.lights.getOrDefault (control, LightState.off ());
+        final LightState state = new LightState (current.palette (), current.rgb (), current.blinkPalette (), current.blinkRgb (), current.fast (), musicalPulse);
         if (!state.equals (this.lights.put (control, state)))
             this.publish (true);
     }
@@ -258,7 +273,24 @@ final class PushDebugSurfaceHost implements AutoCloseable
             else
                 appendString (json, light.blinkRgb ());
             json.append (",\"blinkPalette\":").append (light.blinkPalette ());
-            json.append (",\"fast\":").append (light.fast ()).append ('}');
+            json.append (",\"fast\":").append (light.fast ());
+            json.append (",\"pulse\":");
+            final DebugMusicalPulse pulse = light.pulse ();
+            if (pulse == null)
+                json.append ("null");
+            else
+            {
+                json.append ("{\"baseRgb\":");
+                appendString (json, StringUtils.formatColor (pulse.baseColor ()));
+                json.append (",\"basePalette\":").append (pulse.basePalette ());
+                json.append (",\"alternateRgb\":");
+                appendString (json, StringUtils.formatColor (pulse.alternateColor ()));
+                json.append (",\"alternatePalette\":").append (pulse.alternatePalette ());
+                json.append (",\"cycleBeats\":").append (pulse.cycleBeats ());
+                json.append (",\"alternatePhaseStartBeats\":").append (pulse.alternatePhaseStartBeats ());
+                json.append (",\"transportOffsetBeats\":").append (pulse.transportOffsetBeats ()).append ('}');
+            }
+            json.append ('}');
         }
         json.append ("},\"pressed\":[");
         first = true;
@@ -326,8 +358,24 @@ final class PushDebugSurfaceHost implements AutoCloseable
     }
 
 
-    private record LightState (int palette, String rgb, int blinkPalette, String blinkRgb, boolean fast)
+    record DebugMusicalPulse (int basePalette, ColorEx baseColor, int alternatePalette, ColorEx alternateColor, double cycleBeats, double alternatePhaseStartBeats, double transportOffsetBeats)
     {
+        DebugMusicalPulse
+        {
+            Objects.requireNonNull (baseColor, "baseColor");
+            Objects.requireNonNull (alternateColor, "alternateColor");
+            if (!Double.isFinite (cycleBeats) || cycleBeats <= 0 || !Double.isFinite (alternatePhaseStartBeats) || alternatePhaseStartBeats <= 0 || alternatePhaseStartBeats >= cycleBeats || !Double.isFinite (transportOffsetBeats))
+                throw new IllegalArgumentException ("Debug musical pulse must have a finite cycle, alternate boundary, and offset");
+        }
+    }
+
+
+    private record LightState (int palette, String rgb, int blinkPalette, String blinkRgb, boolean fast, DebugMusicalPulse pulse)
+    {
+        private static LightState off ()
+        {
+            return new LightState (0, "000000", 0, null, false, null);
+        }
     }
 
 

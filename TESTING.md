@@ -86,8 +86,10 @@ button and pad edges pulse even when their DOWN/UP pair completes inside one con
 longer physical holds remain visibly pressed. The existing `latest.png` stream fills the display.
 While debugging is enabled, the surface also publishes the existing Bitwig transport tempo and a
 beat-position sample at most once per beat. The browser extrapolates that bounded clock locally so
-slow and fast pad blinks remain BPM-linked without adding MIDI-clock injection or controller-thread
-browser work.
+slow and fast firmware blinks plus exact musical grid pulses remain BPM-linked without adding
+MIDI-clock injection or controller-thread browser work. Exact pulse semantics publish at the
+committed output boundary independently of physical palette sends, so an unchanged primary color
+cannot suppress the browser animation.
 
 When the page reports `input ready`, clicking a button or pad submits its DOWN/UP pair through the
 same permanent hardware object and input arbitrator as Push. A pad also submits the matching raw

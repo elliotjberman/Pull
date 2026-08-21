@@ -639,17 +639,31 @@
         const control = findControl(reference);
         if (!control)
             return false;
-        const lit = Boolean(color) && color !== "transparent";
+        const pulse = options.pulse && typeof options.pulse === "object" ? options.pulse : null;
+        const primaryColor = pulse ? cssColor(pulse.baseRgb) : color;
+        const alternateColor = pulse ? cssColor(pulse.alternateRgb) : options.blinkColor;
+        const lit = Boolean(primaryColor) && primaryColor !== "transparent";
         control.dataset.lit = String(lit);
-        control.dataset.blink = options.blinkColor ? options.fast ? "fast" : "slow" : "none";
+        control.dataset.blink = pulse ? "musical" : options.blinkColor ? options.fast ? "fast" : "slow" : "none";
         if (lit)
-            control.style.setProperty("--light", color);
+            control.style.setProperty("--light", primaryColor);
         else
             control.style.removeProperty("--light");
-        if (options.blinkColor)
-            control.style.setProperty("--blink-light", options.blinkColor);
+        if (alternateColor)
+            control.style.setProperty("--blink-light", alternateColor);
         else
             control.style.removeProperty("--blink-light");
+        if (pulse) {
+            control.dataset.pulseCycleBeats = String(pulse.cycleBeats);
+            control.dataset.pulseAlternatePhaseStartBeats = String(pulse.alternatePhaseStartBeats);
+            control.dataset.pulseTransportOffsetBeats = String(pulse.transportOffsetBeats);
+        }
+        else {
+            delete control.dataset.pulseCycleBeats;
+            delete control.dataset.pulseAlternatePhaseStartBeats;
+            delete control.dataset.pulseTransportOffsetBeats;
+            delete control.dataset.musicalBlinkPhase;
+        }
         return true;
     }
 
@@ -730,6 +744,10 @@
             control.classList.remove("is-pressed");
             control.dataset.lit = "false";
             control.dataset.blink = "none";
+            delete control.dataset.pulseCycleBeats;
+            delete control.dataset.pulseAlternatePhaseStartBeats;
+            delete control.dataset.pulseTransportOffsetBeats;
+            delete control.dataset.musicalBlinkPhase;
             control.style.removeProperty("--light");
             control.style.removeProperty("--blink-light");
             control.setAttribute("aria-pressed", "false");
@@ -779,11 +797,20 @@
 
     function renderBlinkClock() {
         const clock = liveState.blinkClock;
-        const elapsedMillis = Math.max(0, Date.now() - clock.sampledAtMillis);
+        const elapsedMillis = clock.playing ? Math.max(0, Date.now() - clock.sampledAtMillis) : 0;
         const positionBeats = clock.positionBeats + elapsedMillis * clock.tempo / 60_000;
         const root = document.documentElement;
         root.dataset.slowBlinkPhase = positionBeats % 2 >= 1 ? "alternate" : "primary";
         root.dataset.fastBlinkPhase = positionBeats % 1 >= 0.5 ? "alternate" : "primary";
+        controlsRoot.querySelectorAll('.control[data-blink="musical"]').forEach(control => {
+            const cycleBeats = Number(control.dataset.pulseCycleBeats);
+            const alternatePhaseStartBeats = Number(control.dataset.pulseAlternatePhaseStartBeats);
+            const transportOffsetBeats = Number(control.dataset.pulseTransportOffsetBeats);
+            if (!Number.isFinite(cycleBeats) || cycleBeats <= 0 || !Number.isFinite(alternatePhaseStartBeats) || alternatePhaseStartBeats <= 0 || alternatePhaseStartBeats >= cycleBeats || !Number.isFinite(transportOffsetBeats))
+                return;
+            const phase = ((positionBeats - transportOffsetBeats) % cycleBeats + cycleBeats) % cycleBeats;
+            control.dataset.musicalBlinkPhase = phase >= alternatePhaseStartBeats ? "alternate" : "primary";
+        });
         window.requestAnimationFrame(renderBlinkClock);
     }
 
@@ -809,7 +836,8 @@
             const light = lights[control.dataset.controlId];
             setLight(control.dataset.controlId, light ? cssColor(light.rgb) : null, light ? {
                 blinkColor: cssColor(light.blinkRgb),
-                fast: Boolean(light.fast)
+                fast: Boolean(light.fast),
+                pulse: light.pulse
             } : {});
         });
 

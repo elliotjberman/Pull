@@ -28,6 +28,7 @@ import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.event.SnapshotChangedEvent;
 import de.mossgrabers.pull.core.api.output.LightBlinkRate;
 import de.mossgrabers.pull.core.api.output.ControllerLight;
+import de.mossgrabers.pull.core.api.output.MusicalLightPulse;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.runtime.view.ClipTimelineState;
 import de.mossgrabers.pull.core.runtime.view.ClipTimelineView;
@@ -70,7 +71,8 @@ class ClipTimelineViewTest
         final ControllerLight playing = result.desiredOutput ().lights ().get (PushControlIds.pad (57));
         assertEquals (BLUE, playing.color ());
         assertEquals (SESSION_PLAYING_GREEN, playing.blinkColor ());
-        assertEquals (LightBlinkRate.SLOW, playing.blinkRate ());
+        assertEquals (LightBlinkRate.MUSICAL, playing.blinkRate ());
+        assertEquals (Optional.of (new MusicalLightPulse (4, 2, 1, false)), playing.musicalPulse ());
         final ControllerLight selectedEnd = result.desiredOutput ().lights ().get (PushControlIds.pad (58));
         assertEquals (BLUE, selectedEnd.color ());
         assertEquals (LightBlinkRate.NONE, selectedEnd.blinkRate ());
@@ -100,23 +102,33 @@ class ClipTimelineViewTest
         assertEquals (LightBlinkRate.NONE, lights.get (PushControlIds.pad (57)).blinkRate ());
         assertEquals (BLUE, lights.get (PushControlIds.pad (58)).color ());
         assertEquals (SESSION_PLAYING_GREEN, lights.get (PushControlIds.pad (58)).blinkColor ());
-        assertEquals (LightBlinkRate.SLOW, lights.get (PushControlIds.pad (58)).blinkRate ());
+        assertEquals (LightBlinkRate.MUSICAL, lights.get (PushControlIds.pad (58)).blinkRate ());
     }
 
 
     @Test
-    void currentStepUsesOneStableSessionStyleBlinkAcrossClipBeatUpdates ()
+    void currentStepPulseFollowsTheSelectedGridDurationAndClipPhase ()
     {
-        final CompiledWorkspace workspace = workspace (new ClipTimelineState (0));
+        final CompiledWorkspace workspace = workspace (new ClipTimelineState (1));
         final ClipTimelineSnapshot firstPhase = new ClipTimelineSnapshot (Optional.of (TARGET), 0, 8, 16, OptionalDouble.of (0.25), BLUE);
         final ClipTimelineSnapshot secondPhase = new ClipTimelineSnapshot (Optional.of (TARGET), 0, 8, 16, OptionalDouble.of (0.75), BLUE);
-        final ControllerLight firstHalf = workspace.start (snapshot (firstPhase)).desiredOutput ().lights ().get (PushControlIds.pad (57));
-        final ControllerLight secondHalf = workspace.handle (new SnapshotChangedEvent (2, 2), snapshot (secondPhase)).desiredOutput ().lights ().get (PushControlIds.pad (57));
+        final ControllerLight firstHalf = workspace.start (snapshot (firstPhase, 8.25)).desiredOutput ().lights ().get (PushControlIds.pad (57));
+        final ControllerLight secondHalf = workspace.handle (new SnapshotChangedEvent (2, 2), snapshot (secondPhase, 8.75)).desiredOutput ().lights ().get (PushControlIds.pad (57));
 
         assertEquals (BLUE, firstHalf.color ());
         assertEquals (SESSION_PLAYING_GREEN, firstHalf.blinkColor ());
-        assertEquals (LightBlinkRate.SLOW, firstHalf.blinkRate ());
-        assertEquals (firstHalf, secondHalf);
+        assertEquals (LightBlinkRate.MUSICAL, firstHalf.blinkRate ());
+        assertEquals (new MusicalLightPulse (1, 0.5, 8, false), firstHalf.musicalPulse ().orElseThrow ());
+        assertEquals (new MusicalLightPulse (1, 0.5, 8, true), secondHalf.musicalPulse ().orElseThrow ());
+    }
+
+
+    @Test
+    void eachGridResolutionDefinesOnePulseCyclePerVisibleSlice ()
+    {
+        assertEquals (4, playingLight (0).musicalPulse ().orElseThrow ().cycleBeats ());
+        assertEquals (1, playingLight (1).musicalPulse ().orElseThrow ().cycleBeats ());
+        assertEquals (0.25, playingLight (2).musicalPulse ().orElseThrow ().cycleBeats ());
     }
 
 
@@ -199,6 +211,12 @@ class ClipTimelineViewTest
     private static CompiledWorkspace workspace (final ClipTimelineState state)
     {
         return CompiledWorkspace.compile ("Clip Timeline test", List.of (new ClipTimelineView (state)));
+    }
+
+
+    private static ControllerLight playingLight (final int resolution)
+    {
+        return workspace (new ClipTimelineState (resolution)).start (snapshot (timeline (BLUE))).desiredOutput ().lights ().get (PushControlIds.pad (57));
     }
 
 

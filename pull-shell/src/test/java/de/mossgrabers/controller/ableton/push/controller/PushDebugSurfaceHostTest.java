@@ -32,7 +32,7 @@ class PushDebugSurfaceHostTest
         assertTrue (Files.readString (statePath).contains ("\"connected\":true"));
 
         host.observeButton (ButtonID.PLAY, 21, ColorEx.fromRGB (0, 255, 96));
-        host.observePad (29, 43, ColorEx.fromRGB (12, 34, 56), 5, ColorEx.fromRGB (255, 0, 0), true);
+        host.observePadTransmission (29, 43, ColorEx.fromRGB (12, 34, 56), 5, ColorEx.fromRGB (255, 0, 0), true);
         host.observePressedControls (List.of ("push.button.play", "push.pad.29"));
         host.observeDebugInput (PushControlIds.button ("PLAY"), InputKind.BUTTON, InputPhase.BEGIN, 127);
         host.observeDebugInput (PushControlIds.button ("PLAY"), InputKind.BUTTON, InputPhase.END, 0);
@@ -40,12 +40,30 @@ class PushDebugSurfaceHostTest
 
         final String live = Files.readString (statePath);
         assertTrue (live.contains ("\"push.button.play\":{\"rgb\":\"00FF60\",\"palette\":21"));
-        assertTrue (live.contains ("\"push.pad.29\":{\"rgb\":\"0C2238\",\"palette\":43,\"blinkRgb\":\"FF0000\",\"blinkPalette\":5,\"fast\":true}"));
+        assertTrue (live.contains ("\"push.pad.29\":{\"rgb\":\"0C2238\",\"palette\":43,\"blinkRgb\":\"FF0000\",\"blinkPalette\":5,\"fast\":true,\"pulse\":null}"));
         assertTrue (live.contains ("\"pressed\":[\"push.button.play\",\"push.pad.29\"]"));
         assertTrue (live.contains ("\"events\":[{\"sequence\":1,\"control\":\"push.button.play\",\"kind\":\"BUTTON\",\"phase\":\"BEGIN\",\"value\":127},{\"sequence\":2,\"control\":\"push.button.play\",\"kind\":\"BUTTON\",\"phase\":\"END\",\"value\":0}]"));
 
         host.close ();
         assertTrue (Files.readString (statePath).contains ("\"connected\":false"));
+    }
+
+
+    @Test
+    void publishesExactMusicalPulseCadenceForTheBrowser (@TempDir final Path directory) throws IOException
+    {
+        final Path statePath = directory.resolve (PushDebugSurfaceHost.STATE_FILE);
+        final PushDebugSurfaceHost host = new PushDebugSurfaceHost (directory, null);
+        host.observePadTransmission (57, 43, ColorEx.fromRGB (67, 210, 185), 0, ColorEx.BLACK, false);
+        host.observePadSemantic (
+            57,
+            new PushDebugSurfaceHost.DebugMusicalPulse (43, ColorEx.fromRGB (67, 210, 185), 44, ColorEx.fromRGB (0, 89, 0), 0.25, 0.125, 12.5));
+        host.observePadTransmission (57, 43, ColorEx.fromRGB (67, 210, 185), 0, ColorEx.BLACK, false);
+        host.pollForTest ();
+
+        final String live = Files.readString (statePath);
+        assertTrue (live.contains ("\"push.pad.57\":{\"rgb\":\"43D2B9\",\"palette\":43,\"blinkRgb\":null,\"blinkPalette\":0,\"fast\":false,\"pulse\":{\"baseRgb\":\"43D2B9\",\"basePalette\":43,\"alternateRgb\":\"005900\",\"alternatePalette\":44,\"cycleBeats\":0.25,\"alternatePhaseStartBeats\":0.125,\"transportOffsetBeats\":12.5}}"));
+        host.close ();
     }
 
 
