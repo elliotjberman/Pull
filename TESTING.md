@@ -89,7 +89,8 @@ beat-position sample at most once per beat. The browser extrapolates that bounde
 slow and fast firmware blinks plus exact musical grid pulses remain BPM-linked without adding
 MIDI-clock injection or controller-thread browser work. Exact pulse semantics publish at the
 committed output boundary independently of physical palette sends, so an unchanged primary color
-cannot suppress the browser animation.
+cannot suppress the browser animation. Current-pad movement publishes as one complete grid frame,
+so a fast cadence cannot expose an intermediate frame with no musical pulse.
 
 When the page reports `input ready`, clicking a button or pad submits its DOWN/UP pair through the
 same permanent hardware object and input arbitrator as Push. A pad also submits the matching raw

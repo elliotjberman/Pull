@@ -68,6 +68,30 @@ class PushDebugSurfaceHostTest
 
 
     @Test
+    void publishesCurrentPadMovementAsOneCompleteSemanticFrame (@TempDir final Path directory) throws IOException
+    {
+        final Path statePath = directory.resolve (PushDebugSurfaceHost.STATE_FILE);
+        final PushDebugSurfaceHost host = new PushDebugSurfaceHost (directory, null);
+        final PushDebugSurfaceHost.DebugMusicalPulse pulse = new PushDebugSurfaceHost.DebugMusicalPulse (
+            43, ColorEx.fromRGB (67, 210, 185), 44, ColorEx.fromRGB (0, 89, 0), 0.25, 0.125, 12.5);
+        host.observePadSemantic (57, pulse);
+        host.pollForTest ();
+
+        host.observePadSemanticFrame ( () -> {
+            host.observePadSemantic (57, null);
+            host.observePadSemantic (58, pulse);
+        });
+        host.pollForTest ();
+
+        final String live = Files.readString (statePath);
+        assertTrue (live.contains ("\"revision\":3"), "both pad changes publish one revision");
+        assertTrue (live.contains ("\"push.pad.57\":{\"rgb\":\"000000\",\"palette\":0,\"blinkRgb\":null,\"blinkPalette\":0,\"fast\":false,\"pulse\":null}"));
+        assertTrue (live.contains ("\"push.pad.58\":{\"rgb\":\"000000\",\"palette\":0,\"blinkRgb\":null,\"blinkPalette\":0,\"fast\":false,\"pulse\":{"));
+        host.close ();
+    }
+
+
+    @Test
     void publishesTheTransportClockAtBeatBoundariesAndCoalescesItsLatestSample (@TempDir final Path directory) throws IOException
     {
         final Path statePath = directory.resolve (PushDebugSurfaceHost.STATE_FILE);

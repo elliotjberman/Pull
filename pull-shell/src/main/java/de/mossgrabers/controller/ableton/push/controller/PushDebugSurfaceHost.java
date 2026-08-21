@@ -54,6 +54,8 @@ final class PushDebugSurfaceHost implements AutoCloseable
     private long revision;
     private long inputEventSequence;
     private long publishedClockBeat = Long.MIN_VALUE;
+    private boolean semanticFrameActive;
+    private boolean semanticFrameChanged;
 
 
     static PushDebugSurfaceHost createIfEnabled ()
@@ -115,6 +117,33 @@ final class PushDebugSurfaceHost implements AutoCloseable
         final LightState current = this.lights.getOrDefault (control, LightState.off ());
         final LightState state = new LightState (current.palette (), current.rgb (), current.blinkPalette (), current.blinkRgb (), current.fast (), musicalPulse);
         if (!state.equals (this.lights.put (control, state)))
+        {
+            if (this.semanticFrameActive)
+                this.semanticFrameChanged = true;
+            else
+                this.publish (true);
+        }
+    }
+
+
+    /** Publish one complete grid semantic frame without exposing an old-pad/new-pad gap. */
+    void observePadSemanticFrame (final Runnable observations)
+    {
+        if (this.semanticFrameActive)
+            throw new IllegalStateException ("A pad semantic frame is already active");
+        this.semanticFrameActive = true;
+        this.semanticFrameChanged = false;
+        boolean complete = false;
+        try
+        {
+            Objects.requireNonNull (observations, "observations").run ();
+            complete = true;
+        }
+        finally
+        {
+            this.semanticFrameActive = false;
+        }
+        if (complete && this.semanticFrameChanged)
             this.publish (true);
     }
 

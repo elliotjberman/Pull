@@ -449,7 +449,7 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
         super.internalFlushHandler ();
         if (this.debugSurfaceHost != null)
         {
-            this.pushPadGrid.publishDebugLightSemantics ();
+            this.debugSurfaceHost.observePadSemanticFrame (this.pushPadGrid::publishDebugLightSemantics);
             this.debugSurfaceHost.observePressed (this.getButtons ());
             if (this.debugTransport != null)
                 this.debugSurfaceHost.observeClock (this.debugTransport.isPlaying (), this.debugTransport.getTempo (), this.debugTransport.getPosition (), System.currentTimeMillis ());

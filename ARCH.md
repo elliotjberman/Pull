@@ -114,9 +114,9 @@ between the clip color and Session playing green. In 4/4 the three resolutions t
 per measure, beat, or sixteenth. Push firmware offers only two fixed blink channels, so Core API 43
 carries an exact musical cycle, alternate-phase boundary, transport offset, and current phase. Core
 owns the cadence and waveform; stable only resolves the two colors and transmits the currently
-visible one. At each committed output boundary the debugger receives that semantic independently
-of whether Push's palette cache needed another MIDI send, then extrapolates it from the bounded
-Bitwig clock. The
+visible one. At each committed output boundary the debugger receives one atomic full-grid semantic
+frame independently of whether Push's palette cache needed another MIDI send, then extrapolates it
+from the bounded Bitwig clock. The
 stable adapter remains inert; stable otherwise owns only the bounded selection-following cursor
 clip, phase observation, target fencing, effect execution, palette translation, and MIDI
 transmission.

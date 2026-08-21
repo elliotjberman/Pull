@@ -379,8 +379,8 @@ one complete pulse per visible grid slice from authoritative clip and transport 
 43 represents that exact musical cadence, alternate-phase boundary, transport offset, and current
 phase because Push's two firmware blink rates cannot distinguish all three grid resolutions.
 Stable mechanically transmits the current core phase, while the visual debugger receives the
-semantic independently of palette-cache transmissions and extrapolates it from its bounded Bitwig
-clock.
+complete grid semantic atomically and independently of palette-cache transmissions, then
+extrapolates it from its bounded Bitwig clock.
 The permanent cursor retains low-rate launcher playback edges across workspace changes without
 sampling an unrequested timeline snapshot. An observed selected-track stopped edge survives the
 cursor's same-track scene retarget at launch and is consumed by the first exact playing target. That
