@@ -86,6 +86,19 @@ class ClipPlaybackPositionTrackerTest
 
 
     @Test
+    void stalePlayingIdentityRetainsTheLaunchEdgeForTheExactRetargetedClip ()
+    {
+        final ClipPlaybackPositionTracker tracker = new ClipPlaybackPositionTracker ();
+        tracker.observeTrackStopped ("track-a");
+        tracker.observePlayback ("track-a", "track-a|2", true, 63.9, 0);
+
+        assertEquals (0.1, tracker.observe ("track-a", "track-a|2", true, loopingTransport (32, 32, 64), 0, 0, 8, true).orElseThrow (), 1.0e-9);
+        assertEquals (4.2, tracker.observe ("track-a", "track-a|6", true, loopingTransport (32.1, 32, 64), 4, 0, 8, true).orElseThrow (), 1.0e-9);
+        assertEquals (4.3, tracker.observe ("track-a", "track-a|6", true, loopingTransport (32.2, 32, 64), 4, 0, 8, true).orElseThrow (), 1.0e-9);
+    }
+
+
+    @Test
     void selectedTrackStoppedReadbackArmsTheNextExactClipSample ()
     {
         final ClipPlaybackPositionTracker tracker = new ClipPlaybackPositionTracker ();

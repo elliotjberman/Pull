@@ -383,7 +383,8 @@ complete grid semantic atomically and independently of palette-cache transmissio
 extrapolates it from its bounded Bitwig clock.
 The permanent cursor retains low-rate launcher playback edges across workspace changes without
 sampling an unrequested timeline snapshot. An observed selected-track stopped edge survives the
-cursor's same-track scene retarget at launch and is consumed by the first exact playing target. That
+cursor's same-track scene retarget at launch; a playing edge carrying the stale scene identity
+retains its transport sample until the exact aligned retarget confirms that launch. That
 anchors a clip position which advances from transport read-back and wraps through the observed loop.
 Core divides
 that position by the active timeline resolution and pulses only the resulting selected pad between

@@ -22,6 +22,7 @@ final class ClipPlaybackPositionTracker
 {
     private static final double POSITION_EPSILON = 1.0e-6;
     private static final double MAX_LOOP_WRAP_SAMPLE_DISTANCE = 1.0;
+    private static final double MAX_LAUNCH_RETARGET_DISTANCE = 1.0;
 
     record TransportClock (boolean playing, double position, boolean loopEnabled, double loopStart, double loopEnd)
     {
@@ -32,8 +33,10 @@ final class ClipPlaybackPositionTracker
     private boolean armed;
     private boolean playing;
     private boolean anchored;
+    private boolean pendingLaunchConfirmation;
     private double clipPosition;
     private double lastTransportPosition;
+    private double pendingLaunchTransportPosition;
 
 
     /** Reset all playback history. */
@@ -44,8 +47,10 @@ final class ClipPlaybackPositionTracker
         this.armed = false;
         this.playing = false;
         this.anchored = false;
+        this.pendingLaunchConfirmation = false;
         this.clipPosition = 0;
         this.lastTransportPosition = 0;
+        this.pendingLaunchTransportPosition = 0;
     }
 
 
@@ -64,14 +69,23 @@ final class ClipPlaybackPositionTracker
      */
     OptionalDouble observe (final String trackIdentity, final String targetIdentity, final boolean clipPlaying, final TransportClock transport, final double playStart, final double loopStart, final double loopLength, final boolean loopEnabled)
     {
-        if (!trackIdentity.equals (this.trackIdentity) || !targetIdentity.equals (this.targetIdentity) || clipPlaying != this.playing)
+        final boolean sameTrack = trackIdentity.equals (this.trackIdentity);
+        final boolean sameTarget = targetIdentity.equals (this.targetIdentity);
+        if (sameTrack && !sameTarget && clipPlaying && this.pendingLaunchConfirmation)
+            this.confirmRetargetedLaunch (targetIdentity, transport, playStart, loopStart, loopLength, loopEnabled);
+        else if (!sameTrack || !sameTarget || clipPlaying != this.playing)
             this.observePlayback (trackIdentity, targetIdentity, clipPlaying, transport.position (), playStart);
+        else if (this.pendingLaunchConfirmation)
+            this.expireLaunchConfirmation (transport);
 
         if (this.anchored && clipPlaying && transport.playing ())
         {
             final OptionalDouble elapsed = elapsedBeats (this.lastTransportPosition, transport);
             if (elapsed.isEmpty ())
+            {
                 this.anchored = false;
+                this.pendingLaunchConfirmation = false;
+            }
             else if (elapsed.getAsDouble () > 0)
                 this.clipPosition = advance (this.clipPosition, elapsed.getAsDouble (), loopStart, loopLength, loopEnabled);
         }
@@ -110,6 +124,7 @@ final class ClipPlaybackPositionTracker
             this.armed = true;
             this.playing = false;
             this.anchored = false;
+            this.pendingLaunchConfirmation = false;
             this.lastTransportPosition = transportPosition;
             return;
         }
@@ -119,9 +134,33 @@ final class ClipPlaybackPositionTracker
             this.clipPosition = playStart;
             this.anchored = true;
             this.armed = false;
+            this.pendingLaunchConfirmation = true;
+            this.pendingLaunchTransportPosition = transportPosition;
         }
         this.playing = true;
         this.lastTransportPosition = transportPosition;
+    }
+
+
+    private void confirmRetargetedLaunch (final String targetIdentity, final TransportClock transport, final double playStart, final double loopStart, final double loopLength, final boolean loopEnabled)
+    {
+        this.targetIdentity = targetIdentity;
+        this.playing = true;
+        this.armed = false;
+        this.pendingLaunchConfirmation = false;
+        final OptionalDouble elapsed = elapsedBeats (this.pendingLaunchTransportPosition, transport);
+        this.anchored = elapsed.isPresent () && elapsed.getAsDouble () <= MAX_LAUNCH_RETARGET_DISTANCE;
+        if (this.anchored)
+            this.clipPosition = advance (playStart, elapsed.getAsDouble (), loopStart, loopLength, loopEnabled);
+        this.lastTransportPosition = transport.position ();
+    }
+
+
+    private void expireLaunchConfirmation (final TransportClock transport)
+    {
+        final OptionalDouble elapsed = elapsedBeats (this.pendingLaunchTransportPosition, transport);
+        if (elapsed.isEmpty () || elapsed.getAsDouble () > MAX_LAUNCH_RETARGET_DISTANCE)
+            this.pendingLaunchConfirmation = false;
     }
 
 
@@ -137,6 +176,7 @@ final class ClipPlaybackPositionTracker
         this.armed = true;
         this.playing = false;
         this.anchored = false;
+        this.pendingLaunchConfirmation = false;
     }
 
 

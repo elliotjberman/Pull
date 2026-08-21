@@ -106,8 +106,9 @@ unselected pads are white unless the clip color is near-white; padding is always
 audio-clip play-position value, and the installed API 25 reference adds none. The eagerly created
 cursor therefore retains only its low-rate playback edges while timeline snapshots are unrequested.
 The shell publishes phase only after it observes the selected track stopped and then an exact clip
-playing. A stopped edge survives the cursor's same-track scene retarget at launch and is consumed by
-the first exact playing target. The shell advances that anchor from transport read-back and fails
+playing. A stopped edge survives the cursor's same-track scene retarget at launch; if Bitwig emits
+the playing edge under the stale scene identity first, the exact retarget confirms the same launch
+from its retained transport sample. The shell advances that anchor from transport read-back and fails
 closed on a track, target, or transport discontinuity. Core divides the resulting clip position by
 its current grid resolution and gives only that selected pad one complete pulse per visible slice
 between the clip color and Session playing green. In 4/4 the three resolutions therefore pulse once
