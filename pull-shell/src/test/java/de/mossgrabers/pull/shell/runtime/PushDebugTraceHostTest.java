@@ -21,6 +21,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.OptionalDouble;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -192,6 +193,17 @@ class PushDebugTraceHostTest
 
         assertTrue (text.truncated ());
         assertEquals (1_024, text.toString ().length ());
+    }
+
+
+    @Test
+    void structuralTextExposesOptionalDoubleValues ()
+    {
+        final BoundedTraceText text = new BoundedTraceText (1_024);
+
+        text.appendValue (OptionalDouble.empty ()).append (',').appendValue (OptionalDouble.of (3.25));
+
+        assertEquals ("OptionalDouble[],OptionalDouble[3.25]", text.toString ());
     }
 
 

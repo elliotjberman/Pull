@@ -9,6 +9,7 @@ import java.lang.reflect.Array;
 import java.lang.reflect.RecordComponent;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalDouble;
 
 
 /** Worker-side structural text which never allocates an unbounded value string. */
@@ -112,6 +113,14 @@ final class BoundedTraceText
         {
             this.append ("Optional[");
             optional.ifPresent (item -> this.appendValue (item, depth + 1));
+            this.append (']');
+            return;
+        }
+        if (value instanceof final OptionalDouble optional)
+        {
+            this.append ("OptionalDouble[");
+            if (optional.isPresent ())
+                this.append (Double.toString (optional.getAsDouble ()));
             this.append (']');
             return;
         }
