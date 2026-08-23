@@ -92,16 +92,25 @@ final class ClipPlaybackPositionTracker
         else if (this.pendingLaunchConfirmation)
             this.expireLaunchConfirmation (transport);
 
-        final OptionalDouble availablePosition = observedStepPosition.isPresent () ? observedStepPosition : retainedPosition;
-        if (!this.anchored && clipPlaying && transport.playing () && availablePosition.isPresent ())
+        boolean retainedPhaseApplied = false;
+        if (clipPlaying && transport.playing () && retainedPosition.isPresent ())
         {
-            this.clipPosition = availablePosition.getAsDouble ();
+            this.clipPosition = retainedPosition.getAsDouble ();
+            this.anchored = true;
+            this.armed = false;
+            this.pendingLaunchConfirmation = false;
+            this.lastTransportPosition = transport.position ();
+            retainedPhaseApplied = true;
+        }
+        else if (!this.anchored && clipPlaying && transport.playing () && observedStepPosition.isPresent ())
+        {
+            this.clipPosition = observedStepPosition.getAsDouble ();
             this.anchored = true;
             this.armed = false;
             this.pendingLaunchConfirmation = false;
         }
 
-        if (this.anchored && clipPlaying && transport.playing ())
+        if (!retainedPhaseApplied && this.anchored && clipPlaying && transport.playing ())
         {
             final OptionalDouble elapsed = elapsedBeats (this.lastTransportPosition, transport);
             if (elapsed.isEmpty ())

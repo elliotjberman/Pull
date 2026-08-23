@@ -92,6 +92,32 @@ class ClipPlaybackPhaseStoreTest
 
 
     @Test
+    void arrangerLoopWrapKeepsRetainedClipPhaseCoherentWhileTargetIsHidden ()
+    {
+        final ClipPlaybackPhaseStore store = new ClipPlaybackPhaseStore ();
+        store.remember ("project-a", "track-a|6", 63.8, 31.8, 0, 0, 32, true);
+        store.observeTransport ("project-a", true, 63.8, true, 32, 64);
+        store.observeTransport ("project-a", true, 32.2, true, 32, 64);
+
+        assertEquals (0.2, store.restore ("project-a", "track-a|6", 32.2, 0, 0, 32, true).orElseThrow (), 1.0e-9);
+    }
+
+
+    @Test
+    void nonLoopingBackwardTransportDiscontinuityInvalidatesCurrentProjectOnly ()
+    {
+        final ClipPlaybackPhaseStore store = new ClipPlaybackPhaseStore ();
+        store.remember ("project-a", "track-a|6", 20, 16, 0, 0, 32, true);
+        store.remember ("project-b", "track-b|2", 20, 16, 0, 0, 32, true);
+        store.observeTransport ("project-a", true, 20, false, 0, 0);
+        store.observeTransport ("project-a", true, 10, false, 0, 0);
+
+        assertTrue (store.restore ("project-a", "track-a|6", 10, 0, 0, 32, true).isEmpty ());
+        assertEquals (OptionalDouble.of (16), store.restore ("project-b", "track-b|2", 20, 0, 0, 32, true));
+    }
+
+
+    @Test
     void malformedPersistenceFailsClosed ()
     {
         final ClipPlaybackPhaseStore store = new ClipPlaybackPhaseStore ();

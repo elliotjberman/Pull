@@ -299,6 +299,29 @@ class BoundedControllerBridgeTest
         assertTrue (fixture.bridge.snapshot ().clipTimeline ().playbackPosition ().isEmpty ());
     }
 
+
+    @Test
+    void retainedClipPhaseAdvancesAcrossArrangerLoopWhileTimelineIsHidden ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.selected.canHoldAudio = true;
+        fixture.clip.playing = true;
+        fixture.clip.loopLength = 32;
+        fixture.transport.playing = true;
+        fixture.transport.loopEnabled = true;
+        fixture.transport.loopStart = 32;
+        fixture.transport.loopEnd = 64;
+        fixture.transport.position = 63.8;
+        fixture.clipPlaybackPhases.remember ("project-a", "track-a|2", 63.8, 31.8, 0, 0, 32, true);
+
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.TRANSPORT), DesiredParameterBanks.empty ());
+        fixture.transport.position = 32.2;
+        fixture.bridge.refresh (50_000_002, subscriptions (BridgeSubscription.TRANSPORT), DesiredParameterBanks.empty ());
+        fixture.bridge.refresh (50_000_003, subscriptions (BridgeSubscription.CLIP_TIMELINE, BridgeSubscription.TRANSPORT), DesiredParameterBanks.empty ());
+
+        assertEquals (0.2, fixture.bridge.snapshot ().clipTimeline ().playbackPosition ().orElseThrow (), 1.0e-9);
+    }
+
     @Test
     void clipTimelinePlaybackEdgeSurvivesSameTrackSceneRetargetWhileTimelineIsUnrequested ()
     {
@@ -1136,8 +1159,11 @@ class BoundedControllerBridgeTest
         private boolean recording;
         private boolean arrangerOverdub;
         private boolean playing;
+        private boolean loopEnabled;
         private double tempo = 120;
         private double position = 16;
+        private double loopStart;
+        private double loopEnd;
         private int snapshotReadCount;
         private int playCount;
         private int stopCount;
@@ -1152,11 +1178,13 @@ class BoundedControllerBridgeTest
                         this.snapshotReadCount++;
                         return Boolean.valueOf (this.playing);
                     case "isLauncherOverdub":
-                    case "isLoop":
                     case "isMetronomeOn":
                     case "isFillModeActive":
                         this.snapshotReadCount++;
                         return Boolean.FALSE;
+                    case "isLoop":
+                        this.snapshotReadCount++;
+                        return Boolean.valueOf (this.loopEnabled);
                     case "isRecording":
                         this.snapshotReadCount++;
                         return Boolean.valueOf (this.recording);
@@ -1169,6 +1197,10 @@ class BoundedControllerBridgeTest
                     case "getPosition":
                         this.snapshotReadCount++;
                         return Double.valueOf (this.position);
+                    case "getLoopStart":
+                        return Double.valueOf (this.loopStart);
+                    case "getLoopEnd":
+                        return Double.valueOf (this.loopEnd);
                     case "getNumerator":
                         this.snapshotReadCount++;
                         return Integer.valueOf (4);

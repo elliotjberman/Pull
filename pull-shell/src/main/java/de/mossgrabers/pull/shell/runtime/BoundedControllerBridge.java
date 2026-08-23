@@ -214,7 +214,16 @@ final class BoundedControllerBridge implements ControllerBridge
 
         final TransportSnapshot transportState;
         if (requested.includes (BridgeSubscription.TRANSPORT))
+        {
             transportState = this.captureTransport (monotonicTimeNanos, clipTimelineRequested);
+            this.clipPlaybackPhases.observeTransport (
+                this.masterCommands.currentProjectIdentity (),
+                transportState.playing (),
+                transportState.positionBeats (),
+                transportState.loopEnabled (),
+                this.transport.getLoopStart (),
+                this.transport.getLoopEnd ());
+        }
         else
         {
             transportState = TransportSnapshot.empty ();

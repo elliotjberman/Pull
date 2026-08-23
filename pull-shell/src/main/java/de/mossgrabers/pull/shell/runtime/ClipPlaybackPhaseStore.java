@@ -39,6 +39,10 @@ final class ClipPlaybackPhaseStore
         // Unit tests and disconnected runtimes keep the same bounded in-memory behavior.
     };
     private boolean persistenceInstalled;
+    private String transportProjectIdentity = "";
+    private boolean hasTransportSample;
+    private boolean transportPlaying;
+    private double transportPosition;
 
 
     /** Attach the preference resource during Bitwig's driver-initialization callback. */
@@ -96,6 +100,31 @@ final class ClipPlaybackPhaseStore
     {
         if (this.phases.remove (new Key (projectIdentity, targetIdentity)) != null)
             this.persistence.accept (this.serialized ());
+    }
+
+
+    /** Keep retained offsets coherent across authoritative arranger-loop wraps. */
+    void observeTransport (final String projectIdentity, final boolean playing, final double position, final boolean loopEnabled, final double loopStart, final double loopEnd)
+    {
+        if (projectIdentity == null || projectIdentity.isBlank () || !Double.isFinite (position))
+            return;
+        if (!projectIdentity.equals (this.transportProjectIdentity))
+        {
+            this.transportProjectIdentity = projectIdentity;
+            this.hasTransportSample = false;
+        }
+
+        if (this.hasTransportSample && playing && this.transportPlaying && position < this.transportPosition - EPSILON)
+        {
+            final boolean loopWrap = loopEnabled && Double.isFinite (loopStart) && Double.isFinite (loopEnd) && loopEnd > loopStart && this.transportPosition >= loopEnd - 1 && this.transportPosition <= loopEnd + EPSILON && position >= loopStart - EPSILON && position <= loopStart + 1;
+            if (loopWrap)
+                this.shiftProjectOffsets (projectIdentity, -(loopEnd - loopStart));
+            else
+                this.invalidateProject (projectIdentity);
+        }
+        this.hasTransportSample = true;
+        this.transportPlaying = playing;
+        this.transportPosition = position;
     }
 
 
@@ -170,6 +199,29 @@ final class ClipPlaybackPhaseStore
     }
 
 
+    private void shiftProjectOffsets (final String projectIdentity, final double delta)
+    {
+        boolean changed = false;
+        for (final Map.Entry<Key, Phase> entry: this.phases.entrySet ())
+        {
+            if (!entry.getKey ().projectIdentity ().equals (projectIdentity))
+                continue;
+            entry.setValue (entry.getValue ().shiftTransportOffset (delta));
+            changed = true;
+        }
+        if (changed)
+            this.persistence.accept (this.serialized ());
+    }
+
+
+    private void invalidateProject (final String projectIdentity)
+    {
+        final boolean changed = this.phases.keySet ().removeIf (key -> key.projectIdentity ().equals (projectIdentity));
+        if (changed)
+            this.persistence.accept (this.serialized ());
+    }
+
+
     private static String encode (final String value)
     {
         return Base64.getUrlEncoder ().withoutPadding ().encodeToString (value.getBytes (StandardCharsets.UTF_8));
@@ -216,6 +268,12 @@ final class ClipPlaybackPhaseStore
         private boolean nearlyEquals (final Phase other)
         {
             return other != null && this.sameGeometry (other.playStart, other.loopStart, other.loopLength, other.loopEnabled) && near (this.transportOffset, other.transportOffset);
+        }
+
+
+        private Phase shiftTransportOffset (final double delta)
+        {
+            return new Phase (this.playStart, this.loopStart, this.loopLength, this.loopEnabled, this.transportOffset + delta);
         }
 
 

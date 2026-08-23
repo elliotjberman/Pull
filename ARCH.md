@@ -113,7 +113,9 @@ retained transport sample. The shell advances that anchor from transport read-ba
 most 16 exact project/track/scene plus clip-geometry transport offsets in an initialization-created
 hidden global preference,
 so selection changes, core reloads, and later shell restarts can resume the same authoritative phase.
-An observed clip stop or transport discontinuity invalidates the exact entry. A preexisting playing
+The existing transport subscription advances retained offsets across authoritative arranger-loop
+wraps even while Clip Timeline is hidden. An observed clip stop or other transport discontinuity
+invalidates the exact entry. A preexisting playing
 clip that has never produced an exact anchor remains unavailable instead of receiving an invented
 position. Core divides the resulting clip position by
 its current grid resolution and gives only that selected pad one complete pulse per visible slice

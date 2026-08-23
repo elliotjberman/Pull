@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import java.util.OptionalDouble;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
@@ -149,6 +150,17 @@ class ClipPlaybackPositionTrackerTest
 
         assertEquals (OptionalDouble.of (16), tracker.observe ("track-a", "clip-a", true, transport (true, 20), noStep (), step (16), 0, 0, 32, true));
         assertEquals (OptionalDouble.of (16.5), tracker.observe ("track-a", "clip-a", true, transport (true, 20.5), noStep (), step (16.5), 0, 0, 32, true));
+    }
+
+
+    @Test
+    void refreshedRetainedPhaseReanchorsAfterHiddenTransportLoop ()
+    {
+        final ClipPlaybackPositionTracker tracker = new ClipPlaybackPositionTracker ();
+        assertEquals (OptionalDouble.of (31.8), tracker.observe ("track-a", "clip-a", true, transport (true, 63.8), noStep (), step (31.8), 0, 0, 32, true));
+
+        assertEquals (OptionalDouble.of (0.2), tracker.observe ("track-a", "clip-a", true, transport (true, 32.2), noStep (), step (0.2), 0, 0, 32, true));
+        assertFalse (tracker.phaseInvalidated ());
     }
 
 
