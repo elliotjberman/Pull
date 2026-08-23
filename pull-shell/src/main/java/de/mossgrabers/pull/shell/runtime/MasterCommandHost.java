@@ -107,6 +107,13 @@ final class MasterCommandHost
     }
 
 
+    /** Current stable project identity for target-fenced internal capabilities. */
+    String currentProjectIdentity ()
+    {
+        return this.currentIdentity ();
+    }
+
+
     boolean canTargetProject (final String expectedIdentity)
     {
         return this.pending == null && this.remoteTransport == null && this.identityMatches (expectedIdentity);

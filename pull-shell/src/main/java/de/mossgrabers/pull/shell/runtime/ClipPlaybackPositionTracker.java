@@ -11,8 +11,9 @@ import java.util.OptionalDouble;
  *
  * <p>Bitwig API 21 exposes a quantized playing-grid step but no continuous audio-clip play
  * position; the installed API 25 reference still adds no such value. A valid playing step can
- * establish phase when Bitwig restores an already-playing launcher clip, while an observed
- * stopped-to-playing edge supplies the more precise ordinary launch anchor. The stopped state may
+ * establish phase when Bitwig restores an already-playing launcher clip. An exact retained
+ * project/target phase can do the same for audio. An observed stopped-to-playing edge supplies the
+ * ordinary launch anchor. The stopped state may
  * arrive from either the cursor clip or the private selection-following target. The cursor may
  * retarget to a different scene as that clip starts, so a stopped edge survives only a same-track
  * retarget and is consumed by the first exact playing target. The anchored position advances from
@@ -38,6 +39,7 @@ final class ClipPlaybackPositionTracker
     private double clipPosition;
     private double lastTransportPosition;
     private double pendingLaunchTransportPosition;
+    private boolean phaseInvalidated;
 
 
     /** Reset all playback history. */
@@ -52,6 +54,7 @@ final class ClipPlaybackPositionTracker
         this.clipPosition = 0;
         this.lastTransportPosition = 0;
         this.pendingLaunchTransportPosition = 0;
+        this.phaseInvalidated = false;
     }
 
 
@@ -72,6 +75,14 @@ final class ClipPlaybackPositionTracker
      */
     OptionalDouble observe (final String trackIdentity, final String targetIdentity, final boolean clipPlaying, final TransportClock transport, final OptionalDouble observedStepPosition, final double playStart, final double loopStart, final double loopLength, final boolean loopEnabled)
     {
+        return this.observe (trackIdentity, targetIdentity, clipPlaying, transport, observedStepPosition, OptionalDouble.empty (), playStart, loopStart, loopLength, loopEnabled);
+    }
+
+
+    /** Observe with an exact retained phase from the same project and launcher target. */
+    OptionalDouble observe (final String trackIdentity, final String targetIdentity, final boolean clipPlaying, final TransportClock transport, final OptionalDouble observedStepPosition, final OptionalDouble retainedPosition, final double playStart, final double loopStart, final double loopLength, final boolean loopEnabled)
+    {
+        this.phaseInvalidated = false;
         final boolean sameTrack = trackIdentity.equals (this.trackIdentity);
         final boolean sameTarget = targetIdentity.equals (this.targetIdentity);
         if (sameTrack && !sameTarget && clipPlaying && this.pendingLaunchConfirmation)
@@ -81,9 +92,10 @@ final class ClipPlaybackPositionTracker
         else if (this.pendingLaunchConfirmation)
             this.expireLaunchConfirmation (transport);
 
-        if (!this.anchored && clipPlaying && transport.playing () && observedStepPosition.isPresent ())
+        final OptionalDouble availablePosition = observedStepPosition.isPresent () ? observedStepPosition : retainedPosition;
+        if (!this.anchored && clipPlaying && transport.playing () && availablePosition.isPresent ())
         {
-            this.clipPosition = observedStepPosition.getAsDouble ();
+            this.clipPosition = availablePosition.getAsDouble ();
             this.anchored = true;
             this.armed = false;
             this.pendingLaunchConfirmation = false;
@@ -96,6 +108,7 @@ final class ClipPlaybackPositionTracker
             {
                 this.anchored = false;
                 this.pendingLaunchConfirmation = false;
+                this.phaseInvalidated = true;
             }
             else if (elapsed.getAsDouble () > 0)
                 this.clipPosition = advance (this.clipPosition, elapsed.getAsDouble (), loopStart, loopLength, loopEnabled);
@@ -103,6 +116,13 @@ final class ClipPlaybackPositionTracker
         this.lastTransportPosition = transport.position ();
 
         return this.anchored ? OptionalDouble.of (this.clipPosition) : OptionalDouble.empty ();
+    }
+
+
+    /** Whether the latest sample lost an exact phase because the transport clock was discontinuous. */
+    boolean phaseInvalidated ()
+    {
+        return this.phaseInvalidated;
     }
 
 

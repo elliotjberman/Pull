@@ -58,6 +58,7 @@ class ClipPlaybackPositionTrackerTest
         tracker.observe ("track-a", "clip-a", true, transport (true, 4), noStep (), 0, 0, 8, true);
 
         assertTrue (tracker.observe ("track-a", "clip-a", true, transport (true, 3), noStep (), 0, 0, 8, true).isEmpty ());
+        assertTrue (tracker.phaseInvalidated ());
         assertTrue (tracker.observe ("track-b", "clip-b", true, transport (true, 5), noStep (), 0, 0, 8, true).isEmpty ());
     }
 
@@ -138,6 +139,16 @@ class ClipPlaybackPositionTrackerTest
         assertTrue (tracker.observe ("track-a", "clip-a", true, transport (false, 20), step (16), 0, 0, 32, true).isEmpty ());
         assertEquals (OptionalDouble.of (16), tracker.observe ("track-a", "clip-a", true, transport (true, 20), step (16), 0, 0, 32, true));
         assertEquals (OptionalDouble.of (16.5), tracker.observe ("track-a", "clip-a", true, transport (true, 20.5), step (16.5), 0, 0, 32, true));
+    }
+
+
+    @Test
+    void retainedExactPhaseAnchorsWhenAudioPlayingStepIsUnavailable ()
+    {
+        final ClipPlaybackPositionTracker tracker = new ClipPlaybackPositionTracker ();
+
+        assertEquals (OptionalDouble.of (16), tracker.observe ("track-a", "clip-a", true, transport (true, 20), noStep (), step (16), 0, 0, 32, true));
+        assertEquals (OptionalDouble.of (16.5), tracker.observe ("track-a", "clip-a", true, transport (true, 20.5), noStep (), step (16.5), 0, 0, 32, true));
     }
 
 

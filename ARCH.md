@@ -103,13 +103,18 @@ Clip Timeline is likewise a complete core-owned semantic slice. Its fixed view o
 pads and eight scene keys, selects range resolution, emits exact selected-clip range effects, and
 renders selected, selectable, padding, and playing states from later host read-back. Selectable
 unselected pads are white unless the clip color is near-white; padding is always off. API 21 has no
-audio-clip play-position value, and the installed API 25 reference adds none. The eagerly created
-cursor therefore retains only its low-rate playback edges while timeline snapshots are unrequested.
-The shell publishes phase only after it observes the selected track stopped and then an exact clip
-playing. A stopped edge survives the cursor's same-track scene retarget at launch; if Bitwig emits
-the playing edge under the stale scene identity first, the exact retarget confirms the same launch
-from its retained transport sample. The shell advances that anchor from transport read-back and fails
-closed on a track, target, or transport discontinuity. Core divides the resulting clip position by
+audio-clip play-position value, the generic `playingStep` remains unavailable for audio in live
+Bitwig, and the installed API 25 reference adds no position property. The eagerly created cursor
+therefore retains its low-rate playback edges while timeline snapshots are unrequested. The shell
+establishes phase after it observes the selected track stopped and then an exact clip playing. A
+stopped edge survives the cursor's same-track scene retarget at launch; if Bitwig emits the playing
+edge under the stale scene identity first, the exact retarget confirms the same launch from its
+retained transport sample. The shell advances that anchor from transport read-back and retains at
+most 16 exact project/track/scene plus clip-geometry transport offsets in a hidden global preference,
+so selection changes, core reloads, and later shell restarts can resume the same authoritative phase.
+An observed clip stop or transport discontinuity invalidates the exact entry. A preexisting playing
+clip that has never produced an exact anchor remains unavailable instead of receiving an invented
+position. Core divides the resulting clip position by
 its current grid resolution and gives only that selected pad one complete pulse per visible slice
 between the clip color and Session playing green. In 4/4 the three resolutions therefore pulse once
 per measure, beat, or sixteenth. Push firmware offers only two fixed blink channels, so Core API 43
@@ -119,7 +124,7 @@ visible one. At each committed output boundary the debugger receives one atomic 
 frame independently of whether Push's palette cache needed another MIDI send, then extrapolates it
 from the bounded Bitwig clock. The
 stable adapter remains inert; stable otherwise owns only the bounded selection-following cursor
-clip, phase observation, target fencing, effect execution, palette translation, and MIDI
+clip, bounded exact-phase retention, phase observation, target fencing, effect execution, palette translation, and MIDI
 transmission.
 
 `DrumPlayPadView` owns the lower-left 4x4 RGB output and all playable-pad pressure policy in both

@@ -60,6 +60,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
 
     private final RuntimeLog log;
     private final ControllerHost controllerHost;
+    private final ClipPlaybackPhaseStore clipPlaybackPhases;
 
     private SelectedTrackFillClipHost clipHost;
     private ControllerMappingHost controllerMappings;
@@ -142,6 +143,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         final ControllerHost checkedHost = Objects.requireNonNull (host, "host");
         this.controllerHost = checkedHost;
         this.log = new HostRuntimeLog (checkedHost);
+        this.clipPlaybackPhases = ClipPlaybackPhaseStore.create (checkedHost);
     }
 
 
@@ -156,6 +158,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
     {
         this.controllerHost = null;
         this.clipHost = null;
+        this.clipPlaybackPhases = new ClipPlaybackPhaseStore ();
         this.environment = Objects.requireNonNull (environment, "environment");
         this.log = Objects.requireNonNull (log, "log");
         this.eventHandler = Objects.requireNonNull (eventHandler, "eventHandler");
@@ -192,7 +195,8 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             Objects.requireNonNull (surface, "surface"),
             Objects.requireNonNull (valueChanger, "valueChanger"),
             this.log,
-            this.controllerMappings);
+            this.controllerMappings,
+            this.clipPlaybackPhases);
         this.environment = new ControllerRuntimeEnvironment (this.clipHost, controllerBridge, this.log, System::nanoTime);
         this.debugTrace = PushDebugTraceHost.createIfEnabled ();
         this.supervisor = new CoreReloadSupervisor (this.environment, this.log, this.debugTrace);

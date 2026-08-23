@@ -121,8 +121,11 @@ final class BoundedControllerBridge implements ControllerBridge
     private final ControllerStateHost controllerState;
     private final ControllerMappingHost controllerMappings;
     private final SessionBankHost sessionBank;
+    private final ClipPlaybackPhaseStore clipPlaybackPhases;
     private final ClipPlaybackPositionTracker clipPlaybackPosition = new ClipPlaybackPositionTracker ();
     private final Map<MidiStateKey, MidiState> noteInputMidiState = new HashMap<> ();
+    private String observedClipPlaybackTarget = "";
+    private boolean observedClipPlaybackPlaying;
 
     private ControllerBridgeSnapshot snapshot = ControllerBridgeSnapshot.empty ();
     private String clipTimelineTargetIdentity = "";
@@ -152,6 +155,13 @@ final class BoundedControllerBridge implements ControllerBridge
     /** Production and test seam for the fixed mapped-light observation host. */
     BoundedControllerBridge (final IModel model, final ISelectedTrackNoteTarget selectedTarget, final MidiShortCallback noteInputMidiSender, final PushControlSurface surface, final IValueChanger valueChanger, final RuntimeLog log, final ControllerMappingHost controllerMappings)
     {
+        this (model, selectedTarget, noteInputMidiSender, surface, valueChanger, log, controllerMappings, new ClipPlaybackPhaseStore ());
+    }
+
+
+    /** Production constructor with restart-durable phase storage. */
+    BoundedControllerBridge (final IModel model, final ISelectedTrackNoteTarget selectedTarget, final MidiShortCallback noteInputMidiSender, final PushControlSurface surface, final IValueChanger valueChanger, final RuntimeLog log, final ControllerMappingHost controllerMappings, final ClipPlaybackPhaseStore clipPlaybackPhases)
+    {
         this.model = Objects.requireNonNull (model, "model");
         this.transport = Objects.requireNonNull (model.getTransport (), "transport");
         this.clipTimelineClip = Objects.requireNonNull (model.getNoteClip (CLIP_TIMELINE_STEP_CAPACITY, CLIP_TIMELINE_ROW_CAPACITY), "clipTimelineClip");
@@ -167,6 +177,7 @@ final class BoundedControllerBridge implements ControllerBridge
         this.controllerState = new ControllerStateHost (selectedTarget, surface.getControllerWorkspaceHost (), this::resetNoteInputMidiState);
         this.controllerMappings = controllerMappings;
         this.sessionBank = new SessionBankHost (surface.getSessionBankRegistry ());
+        this.clipPlaybackPhases = Objects.requireNonNull (clipPlaybackPhases, "clipPlaybackPhases");
         this.clipTimelineClip.addPlaybackObserver (this::observeClipTimelinePlayback);
     }
 
@@ -696,18 +707,28 @@ final class BoundedControllerBridge implements ControllerBridge
         }
         this.clipTimelineSelectableEnd = Math.max (this.clipTimelineSelectableEnd, observedEnd);
         final ClipTimelineTarget target = new ClipTimelineTarget (this.clipTimelineGeneration, selected.generation (), trackID, sceneIndex);
+        final String playbackIdentity = clipTimelinePlaybackIdentity (trackID, sceneIndex);
+        final String projectIdentity = this.masterCommands.currentProjectIdentity ();
+        final boolean clipPlaying = clip.isPlaying ();
+        final boolean clipLoopEnabled = clip.isLoopEnabled ();
         final int playingStep = clip.getCurrentStep ();
         final OptionalDouble observedStepPosition = playingStep < 0 ? OptionalDouble.empty () : OptionalDouble.of (playingStep * CLIP_TIMELINE_STEP_LENGTH);
+        final OptionalDouble retainedPosition = clipPlaying && transportState.playing () ? this.clipPlaybackPhases.restore (projectIdentity, playbackIdentity, transportState.positionBeats (), playStart, loopStart, loopLength, clipLoopEnabled) : OptionalDouble.empty ();
         final OptionalDouble playbackPosition = this.clipPlaybackPosition.observe (
             trackID,
-            clipTimelinePlaybackIdentity (trackID, sceneIndex),
-            clip.isPlaying (),
+            playbackIdentity,
+            clipPlaying,
             new ClipPlaybackPositionTracker.TransportClock (transportState.playing (), transportState.positionBeats (), transportState.loopEnabled (), this.transport.getLoopStart (), this.transport.getLoopEnd ()),
             observedStepPosition,
+            retainedPosition,
             playStart,
             loopStart,
             loopLength,
-            clip.isLoopEnabled ());
+            clipLoopEnabled);
+        if (this.clipPlaybackPosition.phaseInvalidated ())
+            this.clipPlaybackPhases.invalidate (projectIdentity, playbackIdentity);
+        else if (playbackPosition.isPresent ())
+            this.clipPlaybackPhases.remember (projectIdentity, playbackIdentity, transportState.positionBeats (), playbackPosition.getAsDouble (), playStart, loopStart, loopLength, clipLoopEnabled);
         return new ClipTimelineSnapshot (java.util.Optional.of (target), loopStart, loopLength, this.clipTimelineSelectableEnd, playbackPosition, toRgb (clip.getColor ()));
     }
 
@@ -1257,12 +1278,21 @@ final class BoundedControllerBridge implements ControllerBridge
             this.clipPlaybackPosition.reset ();
             return;
         }
-        this.clipPlaybackPosition.observePlayback (
-            trackID,
-            clipTimelinePlaybackIdentity (trackID, sceneIndex),
-            playing.booleanValue (),
-            Math.max (0, this.transport.getPosition ()),
-            this.clipTimelineClip.getPlayStart ());
+        final String playbackIdentity = clipTimelinePlaybackIdentity (trackID, sceneIndex);
+        final String observedTarget = this.masterCommands.currentProjectIdentity () + '\u001f' + playbackIdentity;
+        final boolean firstObservedTarget = this.observedClipPlaybackTarget.isEmpty ();
+        final boolean sameObservedTarget = observedTarget.equals (this.observedClipPlaybackTarget);
+        if (!playing.booleanValue () && sameObservedTarget && this.observedClipPlaybackPlaying)
+            this.clipPlaybackPhases.invalidate (this.masterCommands.currentProjectIdentity (), playbackIdentity);
+        if (playing.booleanValue () || firstObservedTarget || sameObservedTarget)
+            this.clipPlaybackPosition.observePlayback (
+                trackID,
+                playbackIdentity,
+                playing.booleanValue (),
+                Math.max (0, this.transport.getPosition ()),
+                this.clipTimelineClip.getPlayStart ());
+        this.observedClipPlaybackTarget = observedTarget;
+        this.observedClipPlaybackPlaying = playing.booleanValue ();
     }
 
 

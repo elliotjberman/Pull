@@ -218,6 +218,87 @@ class BoundedControllerBridgeTest
         assertEquals (16, fixture.bridge.snapshot ().clipTimeline ().playbackPosition ().orElseThrow ());
     }
 
+
+    @Test
+    void clipTimelineRestoresAnExactPersistedPhaseWhenAudioPlayingStepIsUnavailable ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.selected.canHoldAudio = true;
+        fixture.clip.playing = true;
+        fixture.clip.currentStep = -1;
+        fixture.clip.loopLength = 32;
+        fixture.transport.position = 20;
+        fixture.transport.playing = false;
+        fixture.clipPlaybackPhases.remember ("project-a", "track-a|2", 20, 16, 0, 0, 32, true);
+        final DesiredBridgeSubscriptions requested = subscriptions (BridgeSubscription.CLIP_TIMELINE, BridgeSubscription.TRANSPORT);
+
+        fixture.bridge.refresh (1, requested, DesiredParameterBanks.empty ());
+        assertTrue (fixture.bridge.snapshot ().clipTimeline ().playbackPosition ().isEmpty ());
+
+        fixture.transport.playing = true;
+        fixture.bridge.refresh (2, requested, DesiredParameterBanks.empty ());
+        assertEquals (16, fixture.bridge.snapshot ().clipTimeline ().playbackPosition ().orElseThrow ());
+    }
+
+
+    @Test
+    void cursorRetargetFalseDoesNotInvalidateAnExactPersistedPhase ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.selected.canHoldAudio = true;
+        fixture.transport.position = 20;
+        fixture.transport.playing = true;
+        fixture.clip.loopLength = 32;
+        fixture.clipPlaybackPhases.remember ("project-a", "track-a|2", 20, 16, 0, 0, 32, true);
+
+        fixture.clip.trackID = "track-b";
+        fixture.clip.publishPlaying (false);
+        fixture.clip.trackID = "track-a";
+        fixture.clip.publishPlaying (false);
+        fixture.clip.publishPlaying (true);
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.CLIP_TIMELINE, BridgeSubscription.TRANSPORT), DesiredParameterBanks.empty ());
+
+        assertEquals (16, fixture.bridge.snapshot ().clipTimeline ().playbackPosition ().orElseThrow ());
+    }
+
+
+    @Test
+    void authoritativeStopInvalidatesAnExactPersistedPhase ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.clipPlaybackPhases.remember ("project-a", "track-a|2", 20, 16, 0, 0, 32, true);
+
+        fixture.clip.publishPlaying (true);
+        fixture.clip.publishPlaying (false);
+
+        assertTrue (fixture.clipPlaybackPhases.restore ("project-a", "track-a|2", 20, 0, 0, 32, true).isEmpty ());
+    }
+
+
+    @Test
+    void transportDiscontinuityInvalidatesAnExactPersistedPhase ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.selected.canHoldAudio = true;
+        fixture.clip.playing = true;
+        fixture.clip.loopLength = 32;
+        fixture.transport.playing = true;
+        fixture.transport.position = 20;
+        fixture.clipPlaybackPhases.remember ("project-a", "track-a|2", 20, 16, 0, 0, 32, true);
+        final DesiredBridgeSubscriptions requested = subscriptions (BridgeSubscription.CLIP_TIMELINE, BridgeSubscription.TRANSPORT);
+
+        fixture.bridge.refresh (1, requested, DesiredParameterBanks.empty ());
+        assertEquals (16, fixture.bridge.snapshot ().clipTimeline ().playbackPosition ().orElseThrow ());
+
+        fixture.transport.position = 15;
+        fixture.bridge.refresh (2, requested, DesiredParameterBanks.empty ());
+        assertTrue (fixture.bridge.snapshot ().clipTimeline ().playbackPosition ().isEmpty ());
+
+        fixture.transport.position = 16;
+        fixture.bridge.refresh (3, requested, DesiredParameterBanks.empty ());
+        assertTrue (fixture.bridge.snapshot ().clipTimeline ().playbackPosition ().isEmpty ());
+    }
+
     @Test
     void clipTimelinePlaybackEdgeSurvivesSameTrackSceneRetargetWhileTimelineIsUnrequested ()
     {
@@ -883,6 +964,7 @@ class BoundedControllerBridgeTest
         private final MutableDrum legacyDrum = new MutableDrum (this.selected);
         private final MutableClip clip = new MutableClip ();
         private final MutableProject project = new MutableProject ();
+        private final ClipPlaybackPhaseStore clipPlaybackPhases = new ClipPlaybackPhaseStore ();
         private final MutableApplication application = new MutableApplication ();
         private final List<MidiMessage> noteInputMidiMessages = new ArrayList<> ();
         private final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
@@ -956,7 +1038,8 @@ class BoundedControllerBridgeTest
                         // No test diagnostics.
                     }
                 },
-                new ControllerMappingHost (this.surface));
+                new ControllerMappingHost (this.surface),
+                this.clipPlaybackPhases);
         }
 
 
