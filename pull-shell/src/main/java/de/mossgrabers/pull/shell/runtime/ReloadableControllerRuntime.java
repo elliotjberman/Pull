@@ -143,7 +143,16 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         final ControllerHost checkedHost = Objects.requireNonNull (host, "host");
         this.controllerHost = checkedHost;
         this.log = new HostRuntimeLog (checkedHost);
-        this.clipPlaybackPhases = ClipPlaybackPhaseStore.create (checkedHost);
+        this.clipPlaybackPhases = new ClipPlaybackPhaseStore ();
+    }
+
+
+    /** Create initialization-only Bitwig resources for the bounded stable capability canopy. */
+    public void installPersistenceCanopy ()
+    {
+        if (this.controllerHost == null)
+            throw new IllegalStateException ("Reloadable controller runtime has no Bitwig host");
+        this.clipPlaybackPhases.installPersistence (this.controllerHost);
     }
 
 

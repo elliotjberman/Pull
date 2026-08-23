@@ -196,6 +196,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
     @Override
     public void init ()
     {
+        this.reloadableRuntime.installPersistenceCanopy ();
         super.init ();
         this.reloadableRuntime.installControllerInputBridge (this.getSurface (), this.valueChanger);
     }

@@ -38,20 +38,22 @@ final class ClipPlaybackPhaseStore
     private Consumer<String> persistence = ignored -> {
         // Unit tests and disconnected runtimes keep the same bounded in-memory behavior.
     };
+    private boolean persistenceInstalled;
 
 
-    /** Create the production preference-backed store during extension initialization. */
-    static ClipPlaybackPhaseStore create (final ControllerHost host)
+    /** Attach the preference resource during Bitwig's driver-initialization callback. */
+    void installPersistence (final ControllerHost host)
     {
+        if (this.persistenceInstalled)
+            throw new IllegalStateException ("Clip playback phase persistence is already installed");
         final SettableStringValue setting = Objects.requireNonNull (host, "host").getPreferences ().getStringSetting (SETTING_LABEL, SETTING_CATEGORY, MAX_SERIALIZED_CHARACTERS, FORMAT);
         setting.markInterested ();
         if (setting instanceof final Setting hiddenSetting)
             hiddenSetting.hide ();
 
-        final ClipPlaybackPhaseStore store = new ClipPlaybackPhaseStore ();
-        store.persistence = setting::set;
-        setting.addValueObserver (store::replaceFromSerialized);
-        return store;
+        this.persistence = setting::set;
+        setting.addValueObserver (this::replaceFromSerialized);
+        this.persistenceInstalled = true;
     }
 
 

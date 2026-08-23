@@ -3,17 +3,66 @@
 
 package de.mossgrabers.pull.shell.runtime;
 
+import com.bitwig.extension.controller.api.ControllerHost;
+import com.bitwig.extension.controller.api.Preferences;
+import com.bitwig.extension.controller.api.SettableStringValue;
+import com.bitwig.extension.controller.api.Setting;
+import com.bitwig.extension.callback.StringValueChangedCallback;
+
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Proxy;
 import java.util.OptionalDouble;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
 /** Tests for bounded restart-durable exact clip phase anchors. */
 class ClipPlaybackPhaseStoreTest
 {
+    @Test
+    void persistenceResourceIsInstalledExplicitlyAndOnlyOnce ()
+    {
+        final AtomicInteger settingsCreated = new AtomicInteger ();
+        final AtomicInteger writes = new AtomicInteger ();
+        final SettableStringValue setting = (SettableStringValue) Proxy.newProxyInstance (
+            SettableStringValue.class.getClassLoader (),
+            new Class []
+            {
+                SettableStringValue.class,
+                Setting.class
+            },
+            (proxy, method, arguments) -> {
+                if ("addValueObserver".equals (method.getName ()))
+                    ((StringValueChangedCallback) arguments[0]).valueChanged ("v1");
+                else if ("set".equals (method.getName ()))
+                    writes.incrementAndGet ();
+                return defaultValue (method.getReturnType ());
+            });
+        final Preferences preferences = proxy (Preferences.class, (proxy, method, arguments) -> {
+            if ("getStringSetting".equals (method.getName ()))
+            {
+                settingsCreated.incrementAndGet ();
+                return setting;
+            }
+            return defaultValue (method.getReturnType ());
+        });
+        final ControllerHost host = proxy (ControllerHost.class, (proxy, method, arguments) -> "getPreferences".equals (method.getName ()) ? preferences : defaultValue (method.getReturnType ()));
+        final ClipPlaybackPhaseStore store = new ClipPlaybackPhaseStore ();
+
+        assertEquals (0, settingsCreated.get ());
+        store.installPersistence (host);
+        store.remember ("project-a", "track-a|6", 20, 16, 0, 0, 32, true);
+
+        assertEquals (1, settingsCreated.get ());
+        assertEquals (1, writes.get ());
+        assertThrows (IllegalStateException.class, () -> store.installPersistence (host));
+    }
+
+
     @Test
     void serializedPhaseRestoresOnlyForTheExactProjectTargetAndGeometry ()
     {
@@ -49,5 +98,26 @@ class ClipPlaybackPhaseStoreTest
         store.replaceFromSerialized ("v1\nnot-base64\tbad\tbad\tbad\tbad\t1\tbad");
 
         assertTrue (store.restore ("project-a", "track-a|6", 20, 0, 0, 32, true).isEmpty ());
+    }
+
+
+    private static <T> T proxy (final Class<T> type, final java.lang.reflect.InvocationHandler handler)
+    {
+        return type.cast (Proxy.newProxyInstance (type.getClassLoader (), new Class []
+        {
+            type
+        }, handler));
+    }
+
+
+    private static Object defaultValue (final Class<?> type)
+    {
+        if (!type.isPrimitive () || type == void.class)
+            return null;
+        if (type == boolean.class)
+            return Boolean.FALSE;
+        if (type == char.class)
+            return Character.valueOf ('\0');
+        return Integer.valueOf (0);
     }
 }

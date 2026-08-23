@@ -110,7 +110,8 @@ establishes phase after it observes the selected track stopped and then an exact
 stopped edge survives the cursor's same-track scene retarget at launch; if Bitwig emits the playing
 edge under the stale scene identity first, the exact retarget confirms the same launch from its
 retained transport sample. The shell advances that anchor from transport read-back and retains at
-most 16 exact project/track/scene plus clip-geometry transport offsets in a hidden global preference,
+most 16 exact project/track/scene plus clip-geometry transport offsets in an initialization-created
+hidden global preference,
 so selection changes, core reloads, and later shell restarts can resume the same authoritative phase.
 An observed clip stop or transport discontinuity invalidates the exact entry. A preexisting playing
 clip that has never produced an exact anchor remains unavailable instead of receiving an invented
