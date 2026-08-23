@@ -19,10 +19,10 @@ class ClipPlaybackPositionTrackerTest
     {
         final ClipPlaybackPositionTracker tracker = new ClipPlaybackPositionTracker ();
 
-        assertTrue (tracker.observe ("track-a", "clip-a", true, transport (true, 16), 2, 2, 8, true).isEmpty ());
-        assertTrue (tracker.observe ("track-a", "clip-a", false, transport (true, 18), 2, 2, 8, true).isEmpty ());
-        assertEquals (OptionalDouble.of (2), tracker.observe ("track-a", "clip-a", true, transport (true, 20), 2, 2, 8, true));
-        assertEquals (OptionalDouble.of (3.5), tracker.observe ("track-a", "clip-a", true, transport (true, 21.5), 2, 2, 8, true));
+        assertTrue (tracker.observe ("track-a", "clip-a", true, transport (true, 16), noStep (), 2, 2, 8, true).isEmpty ());
+        assertTrue (tracker.observe ("track-a", "clip-a", false, transport (true, 18), noStep (), 2, 2, 8, true).isEmpty ());
+        assertEquals (OptionalDouble.of (2), tracker.observe ("track-a", "clip-a", true, transport (true, 20), noStep (), 2, 2, 8, true));
+        assertEquals (OptionalDouble.of (3.5), tracker.observe ("track-a", "clip-a", true, transport (true, 21.5), noStep (), 2, 2, 8, true));
     }
 
 
@@ -30,10 +30,10 @@ class ClipPlaybackPositionTrackerTest
     void wrapsTheTrackedPositionThroughTheAuthoritativeLoop ()
     {
         final ClipPlaybackPositionTracker tracker = new ClipPlaybackPositionTracker ();
-        tracker.observe ("track-a", "clip-a", false, transport (true, 0), 0, 0, 8, true);
-        tracker.observe ("track-a", "clip-a", true, transport (true, 16), 0, 0, 8, true);
+        tracker.observe ("track-a", "clip-a", false, transport (true, 0), noStep (), 0, 0, 8, true);
+        tracker.observe ("track-a", "clip-a", true, transport (true, 16), noStep (), 0, 0, 8, true);
 
-        assertEquals (OptionalDouble.of (0.5), tracker.observe ("track-a", "clip-a", true, transport (true, 24.5), 0, 0, 8, true));
+        assertEquals (OptionalDouble.of (0.5), tracker.observe ("track-a", "clip-a", true, transport (true, 24.5), noStep (), 0, 0, 8, true));
     }
 
 
@@ -41,12 +41,12 @@ class ClipPlaybackPositionTrackerTest
     void holdsPositionWhileTransportIsPaused ()
     {
         final ClipPlaybackPositionTracker tracker = new ClipPlaybackPositionTracker ();
-        tracker.observe ("track-a", "clip-a", false, transport (false, 4), 0, 0, 8, true);
-        tracker.observe ("track-a", "clip-a", true, transport (true, 8), 0, 0, 8, true);
+        tracker.observe ("track-a", "clip-a", false, transport (false, 4), noStep (), 0, 0, 8, true);
+        tracker.observe ("track-a", "clip-a", true, transport (true, 8), noStep (), 0, 0, 8, true);
 
-        assertEquals (OptionalDouble.of (1), tracker.observe ("track-a", "clip-a", true, transport (true, 9), 0, 0, 8, true));
-        assertEquals (OptionalDouble.of (1), tracker.observe ("track-a", "clip-a", true, transport (false, 9), 0, 0, 8, true));
-        assertEquals (OptionalDouble.of (2), tracker.observe ("track-a", "clip-a", true, transport (true, 10), 0, 0, 8, true));
+        assertEquals (OptionalDouble.of (1), tracker.observe ("track-a", "clip-a", true, transport (true, 9), noStep (), 0, 0, 8, true));
+        assertEquals (OptionalDouble.of (1), tracker.observe ("track-a", "clip-a", true, transport (false, 9), noStep (), 0, 0, 8, true));
+        assertEquals (OptionalDouble.of (2), tracker.observe ("track-a", "clip-a", true, transport (true, 10), noStep (), 0, 0, 8, true));
     }
 
 
@@ -54,11 +54,11 @@ class ClipPlaybackPositionTrackerTest
     void trackChangeAndBackwardTransportDiscontinuityFailClosed ()
     {
         final ClipPlaybackPositionTracker tracker = new ClipPlaybackPositionTracker ();
-        tracker.observe ("track-a", "clip-a", false, transport (true, 0), 0, 0, 8, true);
-        tracker.observe ("track-a", "clip-a", true, transport (true, 4), 0, 0, 8, true);
+        tracker.observe ("track-a", "clip-a", false, transport (true, 0), noStep (), 0, 0, 8, true);
+        tracker.observe ("track-a", "clip-a", true, transport (true, 4), noStep (), 0, 0, 8, true);
 
-        assertTrue (tracker.observe ("track-a", "clip-a", true, transport (true, 3), 0, 0, 8, true).isEmpty ());
-        assertTrue (tracker.observe ("track-b", "clip-b", true, transport (true, 5), 0, 0, 8, true).isEmpty ());
+        assertTrue (tracker.observe ("track-a", "clip-a", true, transport (true, 3), noStep (), 0, 0, 8, true).isEmpty ());
+        assertTrue (tracker.observe ("track-b", "clip-b", true, transport (true, 5), noStep (), 0, 0, 8, true).isEmpty ());
     }
 
 
@@ -69,7 +69,7 @@ class ClipPlaybackPositionTrackerTest
         tracker.observePlayback ("track-a", "clip-a", false, 12, 0);
         tracker.observePlayback ("track-a", "clip-a", true, 16, 0);
 
-        assertEquals (OptionalDouble.of (4), tracker.observe ("track-a", "clip-a", true, transport (true, 20), 0, 0, 8, true));
+        assertEquals (OptionalDouble.of (4), tracker.observe ("track-a", "clip-a", true, transport (true, 20), noStep (), 0, 0, 8, true));
     }
 
 
@@ -80,8 +80,8 @@ class ClipPlaybackPositionTrackerTest
         tracker.observePlayback ("track-a", "track-a|2", false, 12, 0);
         tracker.observePlayback ("track-a", "track-a|6", true, 16, 4);
 
-        assertEquals (OptionalDouble.of (5), tracker.observe ("track-a", "track-a|6", true, transport (true, 17), 4, 0, 8, true));
-        assertTrue (tracker.observe ("track-a", "track-a|7", true, transport (true, 18), 0, 0, 8, true).isEmpty (), "the stopped edge is consumed by the first exact playing target");
+        assertEquals (OptionalDouble.of (5), tracker.observe ("track-a", "track-a|6", true, transport (true, 17), noStep (), 4, 0, 8, true));
+        assertTrue (tracker.observe ("track-a", "track-a|7", true, transport (true, 18), noStep (), 0, 0, 8, true).isEmpty (), "the stopped edge is consumed by the first exact playing target");
     }
 
 
@@ -92,9 +92,9 @@ class ClipPlaybackPositionTrackerTest
         tracker.observeTrackStopped ("track-a");
         tracker.observePlayback ("track-a", "track-a|2", true, 63.9, 0);
 
-        assertEquals (0.1, tracker.observe ("track-a", "track-a|2", true, loopingTransport (32, 32, 64), 0, 0, 8, true).orElseThrow (), 1.0e-9);
-        assertEquals (4.2, tracker.observe ("track-a", "track-a|6", true, loopingTransport (32.1, 32, 64), 4, 0, 8, true).orElseThrow (), 1.0e-9);
-        assertEquals (4.3, tracker.observe ("track-a", "track-a|6", true, loopingTransport (32.2, 32, 64), 4, 0, 8, true).orElseThrow (), 1.0e-9);
+        assertEquals (0.1, tracker.observe ("track-a", "track-a|2", true, loopingTransport (32, 32, 64), noStep (), 0, 0, 8, true).orElseThrow (), 1.0e-9);
+        assertEquals (4.2, tracker.observe ("track-a", "track-a|6", true, loopingTransport (32.1, 32, 64), noStep (), 4, 0, 8, true).orElseThrow (), 1.0e-9);
+        assertEquals (4.3, tracker.observe ("track-a", "track-a|6", true, loopingTransport (32.2, 32, 64), noStep (), 4, 0, 8, true).orElseThrow (), 1.0e-9);
     }
 
 
@@ -104,7 +104,7 @@ class ClipPlaybackPositionTrackerTest
         final ClipPlaybackPositionTracker tracker = new ClipPlaybackPositionTracker ();
         tracker.observeTrackStopped ("track-a");
 
-        assertEquals (OptionalDouble.of (2), tracker.observe ("track-a", "track-a|6", true, transport (true, 20), 2, 2, 8, true));
+        assertEquals (OptionalDouble.of (2), tracker.observe ("track-a", "track-a|6", true, transport (true, 20), noStep (), 2, 2, 8, true));
     }
 
 
@@ -113,9 +113,9 @@ class ClipPlaybackPositionTrackerTest
     {
         final ClipPlaybackPositionTracker tracker = new ClipPlaybackPositionTracker ();
         tracker.observeTrackStopped ("track-a");
-        tracker.observe ("track-a", "clip-a", true, loopingTransport (63.9, 32, 64), 2, 0, 8, true);
+        tracker.observe ("track-a", "clip-a", true, loopingTransport (63.9, 32, 64), noStep (), 2, 0, 8, true);
 
-        assertEquals (2.2, tracker.observe ("track-a", "clip-a", true, loopingTransport (32.1, 32, 64), 2, 0, 8, true).orElseThrow (), 1.0e-9);
+        assertEquals (2.2, tracker.observe ("track-a", "clip-a", true, loopingTransport (32.1, 32, 64), noStep (), 2, 0, 8, true).orElseThrow (), 1.0e-9);
     }
 
 
@@ -124,9 +124,32 @@ class ClipPlaybackPositionTrackerTest
     {
         final ClipPlaybackPositionTracker tracker = new ClipPlaybackPositionTracker ();
         tracker.observeTrackStopped ("track-a");
-        tracker.observe ("track-a", "clip-a", true, loopingTransport (48, 32, 64), 2, 0, 8, true);
+        tracker.observe ("track-a", "clip-a", true, loopingTransport (48, 32, 64), noStep (), 2, 0, 8, true);
 
-        assertTrue (tracker.observe ("track-a", "clip-a", true, loopingTransport (40, 32, 64), 2, 0, 8, true).isEmpty ());
+        assertTrue (tracker.observe ("track-a", "clip-a", true, loopingTransport (40, 32, 64), noStep (), 2, 0, 8, true).isEmpty ());
+    }
+
+
+    @Test
+    void validPlayingStepAnchorsAnAlreadyPlayingClipAfterTransportResumes ()
+    {
+        final ClipPlaybackPositionTracker tracker = new ClipPlaybackPositionTracker ();
+
+        assertTrue (tracker.observe ("track-a", "clip-a", true, transport (false, 20), step (16), 0, 0, 32, true).isEmpty ());
+        assertEquals (OptionalDouble.of (16), tracker.observe ("track-a", "clip-a", true, transport (true, 20), step (16), 0, 0, 32, true));
+        assertEquals (OptionalDouble.of (16.5), tracker.observe ("track-a", "clip-a", true, transport (true, 20.5), step (16.5), 0, 0, 32, true));
+    }
+
+
+    private static OptionalDouble noStep ()
+    {
+        return OptionalDouble.empty ();
+    }
+
+
+    private static OptionalDouble step (final double position)
+    {
+        return OptionalDouble.of (position);
     }
 
 

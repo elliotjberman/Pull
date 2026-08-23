@@ -696,11 +696,14 @@ final class BoundedControllerBridge implements ControllerBridge
         }
         this.clipTimelineSelectableEnd = Math.max (this.clipTimelineSelectableEnd, observedEnd);
         final ClipTimelineTarget target = new ClipTimelineTarget (this.clipTimelineGeneration, selected.generation (), trackID, sceneIndex);
+        final int playingStep = clip.getCurrentStep ();
+        final OptionalDouble observedStepPosition = playingStep < 0 ? OptionalDouble.empty () : OptionalDouble.of (playingStep * CLIP_TIMELINE_STEP_LENGTH);
         final OptionalDouble playbackPosition = this.clipPlaybackPosition.observe (
             trackID,
             clipTimelinePlaybackIdentity (trackID, sceneIndex),
             clip.isPlaying (),
             new ClipPlaybackPositionTracker.TransportClock (transportState.playing (), transportState.positionBeats (), transportState.loopEnabled (), this.transport.getLoopStart (), this.transport.getLoopEnd ()),
+            observedStepPosition,
             playStart,
             loopStart,
             loopLength,

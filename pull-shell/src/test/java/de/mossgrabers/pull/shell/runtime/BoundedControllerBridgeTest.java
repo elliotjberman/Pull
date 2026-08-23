@@ -198,6 +198,26 @@ class BoundedControllerBridgeTest
         assertEquals (4, fixture.bridge.snapshot ().clipTimeline ().playbackPosition ().orElseThrow ());
     }
 
+
+    @Test
+    void clipTimelineUsesThePlayingStepWhenAnAlreadyPlayingClipResumesWithTransport ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.selected.canHoldAudio = true;
+        fixture.clip.playing = true;
+        fixture.clip.currentStep = 64;
+        fixture.transport.position = 20;
+        fixture.transport.playing = false;
+        final DesiredBridgeSubscriptions requested = subscriptions (BridgeSubscription.CLIP_TIMELINE, BridgeSubscription.TRANSPORT);
+
+        fixture.bridge.refresh (1, requested, DesiredParameterBanks.empty ());
+        assertTrue (fixture.bridge.snapshot ().clipTimeline ().playbackPosition ().isEmpty ());
+
+        fixture.transport.playing = true;
+        fixture.bridge.refresh (2, requested, DesiredParameterBanks.empty ());
+        assertEquals (16, fixture.bridge.snapshot ().clipTimeline ().playbackPosition ().orElseThrow ());
+    }
+
     @Test
     void clipTimelinePlaybackEdgeSurvivesSameTrackSceneRetargetWhileTimelineIsUnrequested ()
     {
@@ -1195,6 +1215,7 @@ class BoundedControllerBridgeTest
         private boolean playing = true;
         private double playStart;
         private boolean loopEnabled = true;
+        private int currentStep = -1;
         private int requestedSteps;
         private int requestedRows;
         private double loopLength = 8;
@@ -1223,6 +1244,7 @@ class BoundedControllerBridgeTest
                 case "getPlayStart" -> Double.valueOf (this.playStart);
                 case "getPlayEnd" -> Double.valueOf (this.playEnd);
                 case "isLoopEnabled" -> Boolean.valueOf (this.loopEnabled);
+                case "getCurrentStep" -> Integer.valueOf (this.currentStep);
                 case "getStepLength" -> Double.valueOf (this.stepLength);
                 case "getColor" -> ColorEx.BLUE;
                 case "setStepLength" -> {

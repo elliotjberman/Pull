@@ -9,13 +9,14 @@ import java.util.OptionalDouble;
 /**
  * Reconstructs launcher-clip beat position from authoritative launcher and transport read-back.
  *
- * <p>Bitwig API 21 exposes a playing note-grid step but no audio-clip play position; the installed
- * API 25 reference still adds no such value. This tracker therefore publishes a position only after
- * observing the selected track stopped and then an exact clip playing. The stopped state may arrive
- * from either the cursor clip or the private selection-following target. The cursor may retarget to
- * a different scene as that clip starts, so a stopped edge survives only a same-track retarget and
- * is consumed by the first exact playing target. The anchored position advances from later
- * transport samples and fails closed when the track, target, or transport timeline becomes
+ * <p>Bitwig API 21 exposes a quantized playing-grid step but no continuous audio-clip play
+ * position; the installed API 25 reference still adds no such value. A valid playing step can
+ * establish phase when Bitwig restores an already-playing launcher clip, while an observed
+ * stopped-to-playing edge supplies the more precise ordinary launch anchor. The stopped state may
+ * arrive from either the cursor clip or the private selection-following target. The cursor may
+ * retarget to a different scene as that clip starts, so a stopped edge survives only a same-track
+ * retarget and is consumed by the first exact playing target. The anchored position advances from
+ * later transport samples and fails closed when the track, target, or transport timeline becomes
  * discontinuous.</p>
  */
 final class ClipPlaybackPositionTracker
@@ -61,13 +62,15 @@ final class ClipPlaybackPositionTracker
      * @param targetIdentity Exact selected launcher-clip identity
      * @param clipPlaying Authoritative launcher-slot playback state
      * @param transport Authoritative transport clock and arranger-loop state
+     * @param observedStepPosition Authoritative quantized playing-step position, if Bitwig exposes
+     * it for this clip
      * @param playStart Clip play start in quarter-note beats
      * @param loopStart Clip loop start in quarter-note beats
      * @param loopLength Clip loop length in quarter-note beats
      * @param loopEnabled Whether clip looping is enabled
      * @return Tracked clip position, or empty until an observable launch establishes its phase
      */
-    OptionalDouble observe (final String trackIdentity, final String targetIdentity, final boolean clipPlaying, final TransportClock transport, final double playStart, final double loopStart, final double loopLength, final boolean loopEnabled)
+    OptionalDouble observe (final String trackIdentity, final String targetIdentity, final boolean clipPlaying, final TransportClock transport, final OptionalDouble observedStepPosition, final double playStart, final double loopStart, final double loopLength, final boolean loopEnabled)
     {
         final boolean sameTrack = trackIdentity.equals (this.trackIdentity);
         final boolean sameTarget = targetIdentity.equals (this.targetIdentity);
@@ -77,6 +80,14 @@ final class ClipPlaybackPositionTracker
             this.observePlayback (trackIdentity, targetIdentity, clipPlaying, transport.position (), playStart);
         else if (this.pendingLaunchConfirmation)
             this.expireLaunchConfirmation (transport);
+
+        if (!this.anchored && clipPlaying && transport.playing () && observedStepPosition.isPresent ())
+        {
+            this.clipPosition = observedStepPosition.getAsDouble ();
+            this.anchored = true;
+            this.armed = false;
+            this.pendingLaunchConfirmation = false;
+        }
 
         if (this.anchored && clipPlaying && transport.playing ())
         {
