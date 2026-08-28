@@ -120,7 +120,7 @@
   Return, observe it later non-busy, retire its exact actuator, wait one later host sample, and only
   then prepare and launch the latest still-valid pending intent.
 - Do not use `scheduleTask()` or blocking waits to fake asynchronous cleanup after controller
-  `exit()`; API 21 provides no post-exit grace/completion contract. Keep terminal cleanup explicitly
+  `exit()`; API 25 provides no post-exit grace/completion contract. Keep terminal cleanup explicitly
   best-effort, and require a directly addressable restore target if shutdown restoration must be
   guaranteed.
 
@@ -215,7 +215,7 @@
 
 ## Bitwig controller API compatibility
 
-- This repository currently targets Bitwig controller API 21. Keep the
+- This repository currently targets Bitwig controller API 25. Keep the
   `com.bitwig:extension-api` version in `pom.xml` and
   `AbstractControllerExtensionDefinition.getRequiredAPIVersion()` exactly synchronized.
   Do not confuse this Bitwig API version with the separate reloadable-core API version.

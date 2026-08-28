@@ -25,7 +25,7 @@ undo-like gestures, and cross-view composition difficult to retain after navigat
 
 ## Bitwig API Constraint
 
-Bitwig controller API 21 is proxy-oriented. Extensions create bounded `TrackBank`, `CursorTrack`,
+Bitwig controller API 25 is proxy-oriented. Extensions create bounded `TrackBank`, `CursorTrack`,
 `CursorDevice`, and `CursorRemoteControlsPage` objects. Banks scroll and cursors follow selection,
 so one proxy slot can address different host objects over time.
 
@@ -182,7 +182,7 @@ Before implementing a general target/lease architecture:
 1. Inventory controller-originated mutation paths and classify their target type.
 2. Identify where physical indices or proxy positions are currently treated as identities.
 3. Build a capability table for fixed, banked, cursor-following, directly addressable, and pinnable
-   targets in Bitwig API 21.
+   targets in Bitwig API 25.
 4. Define target identity for selected tracks, device instances, parameter pages, and remote-control
    slots using only API-supported observations.
 5. Define bounded lease capacities, acquisition, acknowledgement, release, and exhaustion behavior.

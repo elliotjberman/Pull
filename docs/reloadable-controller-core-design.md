@@ -318,7 +318,7 @@ Capability `effect.clip-launch-hold` version 4 defines the single-active session
 handoff; `snapshot.clip-launch-session` version 1 reports a map containing at most the one acquired
 owner-to-target lease plus its authoritative active owner. There are no hidden fills or held-pad
 fallback. The shell freezes the launch policy into the acquired lease and maps it to Bitwig
-API 21. The current fill policy launches with quantization `Immediate` and mode `Legato from Clip
+API 25. The current fill policy launches with quantization `Immediate` and mode `Legato from Clip
 (or Project)`, then invokes the fill clip's ALT release lane. Entry therefore ignores the source and
 fill clips' configured launch quantization and mode. Bitwig's API cannot name a release action
 directly, so the effective ALT release action on each fill must resolve to `Return`; with the clip
@@ -337,7 +337,7 @@ retired, base-barrier, and pending are distinct states.
 Structural scene insertion/reordering during a hold remains an inherent limitation of Bitwig's
 paged slot proxies, which expose no durable clip ID, but the pinned track and frozen scene proxy are
 the narrowest supported identity. Whole-extension disable/exit is also different from hot core
-reload: API 21 gives `exit()` no asynchronous grace/completion contract, so shutdown can submit one
+reload: API 25 gives `exit()` no asynchronous grace/completion contract, so shutdown can submit one
 best-effort Return for the single acquired fill but cannot wait for confirmation. `scheduleTask()`
 is not a safe substitute after exit.
 

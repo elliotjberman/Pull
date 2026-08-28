@@ -9,7 +9,7 @@ import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
 import java.util.Objects;
 
 /**
- * Maps the stable launch-policy vocabulary to Bitwig controller API 21 option strings.
+ * Maps the stable launch-policy vocabulary to Bitwig controller API 25 option strings.
  */
 final class BitwigClipLaunchMapper
 {

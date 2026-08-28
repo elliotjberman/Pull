@@ -120,9 +120,9 @@ Stable shell owns only:
 The shell must never select a mapping endpoint from the active view itself. It realizes only the
 complete lease returned by core.
 
-## Bitwig API 21 Constraint
+## Bitwig API 25 Constraint
 
-API 21 exposes permanent `HardwareButton` objects with `pressedAction()` and `releasedAction()`
+API 25 exposes permanent `HardwareButton` objects with `pressedAction()` and `releasedAction()`
 binding sources. It does not expose a native view-sensitive mapping context, mapping page, or
 virtual-controller bank.
 
