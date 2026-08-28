@@ -117,7 +117,8 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
             Objects.requireNonNull (physicalPadButtons, "physicalPadButtons"),
             Objects.requireNonNull (semanticMappingControls, "semanticMappingControls"),
             control -> !this.heldPhysicalPads.contains (control) && this.router.gesturesIdle (input -> isPadGesture (input, control)),
-            this::bindMappingMatcher);
+            this::bindMappingMatcher,
+            this.surface.getMidiInput ()::unbind);
         this.mappingActivation.request (this.activeMappings.get ());
     }
 

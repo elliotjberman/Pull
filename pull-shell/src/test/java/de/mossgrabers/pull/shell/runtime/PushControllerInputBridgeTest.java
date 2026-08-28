@@ -320,6 +320,11 @@ class PushControllerInputBridgeTest
                     this.recordBinding ((IHwAbsoluteControl) arguments[0], (Integer) arguments[1], (Integer) arguments[2], (Boolean) arguments[3]);
                     return null;
                 }
+                if (method.getName ().equals ("unbind") && arguments[0] instanceof final IHwAbsoluteControl control)
+                {
+                    this.recordUnbinding (control);
+                    return null;
+                }
                 return relaxedValue (method.getReturnType ());
             });
             this.surface = new PushControlSurface (
@@ -377,6 +382,19 @@ class PushControllerInputBridgeTest
                 harness.boundControl = note;
                 harness.maximum = maximum;
                 harness.bindCount++;
+                return;
+            }
+            throw new IllegalArgumentException ("unknown semantic mapping control");
+        }
+
+
+        private void recordUnbinding (final IHwAbsoluteControl control)
+        {
+            for (final AbsoluteHarness harness: this.semanticControls.values ())
+            {
+                if (harness.control != control)
+                    continue;
+                harness.active = false;
                 return;
             }
             throw new IllegalArgumentException ("unknown semantic mapping control");

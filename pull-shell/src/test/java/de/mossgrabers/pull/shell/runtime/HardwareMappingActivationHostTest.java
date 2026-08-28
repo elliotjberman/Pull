@@ -218,6 +218,11 @@ class HardwareMappingActivationHostTest
                 (control, physical, value) -> {
                     this.bindingCalls++;
                     this.bindings.put (this.mappingId (control), new BoundMatcher (physical, value));
+                },
+                control -> {
+                    final ControllerMappingId mappingId = this.mappingId (control);
+                    this.semantic.get (mappingId).unbinds++;
+                    this.bindings.remove (mappingId);
                 });
         }
 
@@ -246,11 +251,7 @@ class HardwareMappingActivationHostTest
     private static final class AbsoluteHarness
     {
         private int unbinds;
-        private final IHwAbsoluteControl control = (IHwAbsoluteControl) Proxy.newProxyInstance (IHwAbsoluteControl.class.getClassLoader (), new Class<?> [] {IHwAbsoluteControl.class}, (proxy, method, arguments) -> {
-            if (method.getName ().equals ("unbind"))
-                this.unbinds++;
-            return null;
-        });
+        private final IHwAbsoluteControl control = (IHwAbsoluteControl) Proxy.newProxyInstance (IHwAbsoluteControl.class.getClassLoader (), new Class<?> [] {IHwAbsoluteControl.class}, (proxy, method, arguments) -> null);
     }
 
 

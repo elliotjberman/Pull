@@ -17,6 +17,7 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 
@@ -27,17 +28,19 @@ final class HardwareMappingActivationHost
     private final Map<ControllerMappingId, IHwAbsoluteControl> mappingControls;
     private final Predicate<ControlId> lifecycleIdle;
     private final MatcherBinder matcherBinder;
+    private final Consumer<IHwAbsoluteControl> matcherUnbinder;
     private final Map<ControlId, ControllerMappingBinding> active = new LinkedHashMap<> ();
     private final Map<ControlId, ControllerMappingId> releasingMappings = new LinkedHashMap<> ();
     private final Set<ControlId> releasingDispatch = new LinkedHashSet<> ();
 
 
-    HardwareMappingActivationHost (final Map<ControlId, IHwButton> physicalButtons, final Map<ControllerMappingId, IHwAbsoluteControl> mappingControls, final Predicate<ControlId> lifecycleIdle, final MatcherBinder matcherBinder)
+    HardwareMappingActivationHost (final Map<ControlId, IHwButton> physicalButtons, final Map<ControllerMappingId, IHwAbsoluteControl> mappingControls, final Predicate<ControlId> lifecycleIdle, final MatcherBinder matcherBinder, final Consumer<IHwAbsoluteControl> matcherUnbinder)
     {
         this.physicalButtons = Map.copyOf (Objects.requireNonNull (physicalButtons, "physicalButtons"));
         this.mappingControls = Map.copyOf (Objects.requireNonNull (mappingControls, "mappingControls"));
         this.lifecycleIdle = Objects.requireNonNull (lifecycleIdle, "lifecycleIdle");
         this.matcherBinder = Objects.requireNonNull (matcherBinder, "matcherBinder");
+        this.matcherUnbinder = Objects.requireNonNull (matcherUnbinder, "matcherUnbinder");
         if (this.physicalButtons.isEmpty () || this.mappingControls.isEmpty ())
             throw new IllegalArgumentException ("controller mapping topology must not be empty");
     }
@@ -101,7 +104,7 @@ final class HardwareMappingActivationHost
                 continue;
 
             final ControllerMappingId mappingId = entry.getValue ().mappingId ();
-            this.mappingControls.get (mappingId).unbind ();
+            this.matcherUnbinder.accept (this.mappingControls.get (mappingId));
             this.active.remove (entry.getKey ());
             if (!this.lifecycleIdle.test (entry.getKey ()))
                 this.releasingMappings.put (entry.getKey (), mappingId);
