@@ -12,6 +12,7 @@ import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
 import com.bitwig.extension.api.Color;
+import com.bitwig.extension.controller.api.AbsoluteHardwareControl;
 import com.bitwig.extension.controller.api.BooleanHardwareProperty;
 import com.bitwig.extension.controller.api.HardwareButton;
 import com.bitwig.extension.controller.api.HardwareLightVisualState;
@@ -27,6 +28,7 @@ import de.mossgrabers.framework.controller.ContinuousID;
 import de.mossgrabers.framework.controller.OutputID;
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.hardware.IHwAbsoluteKnob;
+import de.mossgrabers.framework.controller.hardware.IHwAbsoluteControl;
 import de.mossgrabers.framework.controller.hardware.IHwButton;
 import de.mossgrabers.framework.controller.hardware.IHwFader;
 import de.mossgrabers.framework.controller.hardware.IHwGraphicsDisplay;
@@ -145,6 +147,26 @@ public class HwSurfaceFactoryImpl implements IHwSurfaceFactory
     }
 
 
+    /** {@inheritDoc} */
+    @Override
+    public void installMappedAbsoluteFeedback (final IHwAbsoluteControl control, final Consumer<Boolean> observer)
+    {
+        if (!(Objects.requireNonNull (control, "control") instanceof final AbstractHwAbsoluteControl<?> absoluteControl))
+            throw new IllegalArgumentException ("mapped absolute feedback requires a Bitwig absolute hardware control");
+        installMappedAbsoluteFeedback (absoluteControl.getHardwareControl (), observer);
+    }
+
+
+    static void installMappedAbsoluteFeedback (final AbsoluteHardwareControl control, final Consumer<Boolean> observer)
+    {
+        final AbsoluteHardwareControl checkedControl = Objects.requireNonNull (control, "control");
+        final Consumer<Boolean> checkedObserver = Objects.requireNonNull (observer, "observer");
+        checkedControl.hasTargetValue ().markInterested ();
+        checkedControl.targetValue ().addValueObserver (value -> checkedObserver.accept (Boolean.valueOf (checkedControl.hasTargetValue ().get () && value >= 0.5)));
+        checkedControl.hasTargetValue ().addValueObserver (hasTarget -> checkedObserver.accept (Boolean.valueOf (hasTarget && checkedControl.targetValue ().get () >= 0.5)));
+    }
+
+
     private HwLightImpl createMultiStateHardwareLight (final int surfaceID, final OutputID outputID, final Supplier<InternalHardwareLightState> valueSupplier, final Consumer<InternalHardwareLightState> hardwareUpdater)
     {
         this.lightCounter++;
@@ -168,6 +190,15 @@ public class HwSurfaceFactoryImpl implements IHwSurfaceFactory
     public IHwAbsoluteKnob createAbsoluteKnob (final int surfaceID, final ContinuousID knobID, final String label)
     {
         final String id = createID (surfaceID, knobID.name ());
+        return new HwAbsoluteKnobImpl (this.host, this.hardwareSurface.createAbsoluteHardwareKnob (id), label);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public IHwAbsoluteKnob createAbsoluteKnob (final int surfaceID, final String hardwareID, final String label)
+    {
+        final String id = createID (surfaceID, Objects.requireNonNull (hardwareID, "hardwareID"));
         return new HwAbsoluteKnobImpl (this.host, this.hardwareSurface.createAbsoluteHardwareKnob (id), label);
     }
 

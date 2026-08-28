@@ -6,7 +6,7 @@ package de.mossgrabers.pull.shell.runtime;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.ContinuousID;
-import de.mossgrabers.framework.controller.hardware.BindType;
+import de.mossgrabers.framework.controller.hardware.IHwAbsoluteControl;
 import de.mossgrabers.framework.controller.hardware.IHwButton;
 import de.mossgrabers.framework.controller.hardware.IHwContinuousControl;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
@@ -15,6 +15,7 @@ import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerActionIntent;
 import de.mossgrabers.pull.core.api.ControllerActionBinding;
 import de.mossgrabers.pull.core.api.ControllerMappingId;
+import de.mossgrabers.pull.core.api.ControllerMappingValue;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.DesiredInputRoutes;
 import de.mossgrabers.pull.core.api.DesiredControllerMappings;
@@ -94,12 +95,12 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
      * @param routes Complete committed route supplier
      * @param activeMappings Complete committed physical-to-semantic mapping lease
      * @param physicalPadButtons Original grid-pad actions used only for ordinary raw dispatch
-     * @param semanticMappingButtons Permanent semantic Bitwig mapping endpoints
+     * @param semanticMappingControls Permanent semantic Bitwig mapping endpoints
      * @param stableActionBarrier Semantic stable-action barrier
      * @param eventSink Normalized event sink
      * @param activeGeneration Current active reloadable-core generation
      */
-    PushControllerInputBridge (final PushControlSurface surface, final IValueChanger valueChanger, final ParameterMutationDispatcher parameterMutations, final Supplier<DesiredInputRoutes> routes, final Supplier<DesiredControllerMappings> activeMappings, final Map<ControlId, IHwButton> physicalPadButtons, final Map<ControllerMappingId, IHwButton> semanticMappingButtons, final PhysicalInputRouter.StableActionBarrier<ControlId> stableActionBarrier, final Consumer<PhysicalInputEvent<ControlId>> eventSink, final LongSupplier activeGeneration)
+    PushControllerInputBridge (final PushControlSurface surface, final IValueChanger valueChanger, final ParameterMutationDispatcher parameterMutations, final Supplier<DesiredInputRoutes> routes, final Supplier<DesiredControllerMappings> activeMappings, final Map<ControlId, IHwButton> physicalPadButtons, final Map<ControllerMappingId, IHwAbsoluteControl> semanticMappingControls, final PhysicalInputRouter.StableActionBarrier<ControlId> stableActionBarrier, final Consumer<PhysicalInputEvent<ControlId>> eventSink, final LongSupplier activeGeneration)
     {
         this.surface = Objects.requireNonNull (surface, "surface");
         this.valueChanger = Objects.requireNonNull (valueChanger, "valueChanger");
@@ -114,7 +115,7 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
         this.installWrappers ();
         this.mappingActivation = new HardwareMappingActivationHost (
             Objects.requireNonNull (physicalPadButtons, "physicalPadButtons"),
-            Objects.requireNonNull (semanticMappingButtons, "semanticMappingButtons"),
+            Objects.requireNonNull (semanticMappingControls, "semanticMappingControls"),
             control -> !this.heldPhysicalPads.contains (control) && this.router.gesturesIdle (input -> isPadGesture (input, control)),
             this::bindMappingMatcher);
         this.mappingActivation.request (this.activeMappings.get ());
@@ -494,8 +495,10 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
         if (disposition == HardwareMappingActivationHost.RawDisposition.MAPPED)
         {
             this.router.route (control, InputKind.PAD, phase, velocity, () -> {
-                // The permanent semantic HardwareButton matcher is the only Bitwig learned action.
+                // The permanent semantic absolute matcher is the only Bitwig learned action.
             });
+            if (!press)
+                this.mappingActivation.request (this.activeMappings.get ());
         }
     }
 
@@ -522,13 +525,13 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
     }
 
 
-    private void bindMappingMatcher (final IHwButton mappingButton, final ControlId physicalControl)
+    private void bindMappingMatcher (final IHwAbsoluteControl mappingControl, final ControlId physicalControl, final ControllerMappingValue value)
     {
         for (final PhysicalPadAddress pad: this.physicalPads)
         {
             if (!pad.control ().equals (physicalControl))
                 continue;
-            mappingButton.bind (this.surface.getMidiInput (), BindType.NOTE, pad.channel (), pad.note ());
+            this.surface.getMidiInput ().bindNoteValue (mappingControl, pad.channel (), pad.note (), value == ControllerMappingValue.MAXIMUM);
             return;
         }
         throw new IllegalArgumentException ("Physical controller mapping input has no MIDI address");

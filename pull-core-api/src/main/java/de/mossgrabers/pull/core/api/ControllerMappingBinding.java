@@ -12,13 +12,22 @@ import java.util.Objects;
  *
  * @param physicalControl Physical input that currently drives the endpoint
  * @param mappingId Stable semantic endpoint identity
+ * @param value Absolute value emitted by the next matching physical press
  */
-public record ControllerMappingBinding (ControlId physicalControl, ControllerMappingId mappingId)
+public record ControllerMappingBinding (ControlId physicalControl, ControllerMappingId mappingId, ControllerMappingValue value)
 {
+    /** Create a maximum-value binding. */
+    public ControllerMappingBinding (final ControlId physicalControl, final ControllerMappingId mappingId)
+    {
+        this (physicalControl, mappingId, ControllerMappingValue.MAXIMUM);
+    }
+
+
     /** Validate the complete projection. */
     public ControllerMappingBinding
     {
         physicalControl = Objects.requireNonNull (physicalControl, "physicalControl");
         mappingId = Objects.requireNonNull (mappingId, "mappingId");
+        value = Objects.requireNonNull (value, "value");
     }
 }

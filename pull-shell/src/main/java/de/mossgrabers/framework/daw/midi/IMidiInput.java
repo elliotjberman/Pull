@@ -148,6 +148,18 @@ public interface IMidiInput
 
 
     /**
+     * Bind only positive-velocity note-on messages to one constant absolute endpoint value.
+     * Note-off messages and zero-velocity note-on messages are deliberately ignored.
+     *
+     * @param absoluteControl The absolute control to bind
+     * @param channel MIDI channel, or -1 for any channel
+     * @param note MIDI note number
+     * @param maximum True to emit maximum, false to emit minimum
+     */
+    void bindNoteValue (IHwAbsoluteControl absoluteControl, int channel, int note, boolean maximum);
+
+
+    /**
      * Bind the given absolute control to a MIDI CC 14-bit command received on this MIDI input.
      *
      * @param absoluteControl The absolute control to bind

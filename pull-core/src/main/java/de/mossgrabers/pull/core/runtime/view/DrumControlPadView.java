@@ -7,6 +7,7 @@ import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerMappingBinding;
 import de.mossgrabers.pull.core.api.ControllerMappingFeedbackSnapshot;
+import de.mossgrabers.pull.core.api.ControllerMappingValue;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.CoreControllerMappings;
 import de.mossgrabers.pull.core.api.CoreControls;
@@ -22,7 +23,13 @@ import de.mossgrabers.pull.core.view.SurfaceArea;
 import de.mossgrabers.pull.core.view.SurfaceClaim;
 import de.mossgrabers.pull.core.view.ViewOutput;
 import de.mossgrabers.pull.core.view.ViewProfile;
+import de.mossgrabers.pull.core.api.effect.CoreEffect;
+import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
+import de.mossgrabers.pull.core.api.event.CoreEvent;
+import de.mossgrabers.pull.core.api.event.InputKind;
+import de.mossgrabers.pull.core.api.event.InputPhase;
 
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -33,17 +40,27 @@ public final class DrumControlPadView implements ControllerView
 {
     private static final RgbColor OFF = new RgbColor (0, 0, 0);
     private static final RgbColor ON = new RgbColor (255, 0, 0);
-    private static final DesiredControllerMappings CONTROLLER_MAPPINGS = new DesiredControllerMappings (Set.of (
-        new ControllerMappingBinding (CoreControls.DRUM_CONTROL_PADS.get (0), CoreControllerMappings.DRUM_CONTROL_PADS.get (0)),
-        new ControllerMappingBinding (CoreControls.DRUM_CONTROL_PADS.get (1), CoreControllerMappings.DRUM_CONTROL_PADS.get (1)),
-        new ControllerMappingBinding (CoreControls.DRUM_CONTROL_PADS.get (2), CoreControllerMappings.DRUM_CONTROL_PADS.get (2)),
-        new ControllerMappingBinding (CoreControls.DRUM_CONTROL_PADS.get (3), CoreControllerMappings.DRUM_CONTROL_PADS.get (3))));
     private static final ViewProfile PROFILE = ViewProfile.fixed (
         "control-pads",
         Set.of (
             new SurfaceClaim (SurfaceArea.DRUM_CONTROL_PADS, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
             new SurfaceClaim (SurfaceArea.DRUM_CONTROL_PADS, SurfaceClaim.Kind.OUTPUT)),
         Set.of ());
+    private int minimumNextMask;
+
+
+    public DrumControlPadView ()
+    {
+        this (0);
+    }
+
+
+    public DrumControlPadView (final int minimumNextMask)
+    {
+        if ((minimumNextMask & ~0x0F) != 0)
+            throw new IllegalArgumentException ("control-pad mapping mask must fit four bits");
+        this.minimumNextMask = minimumNextMask;
+    }
 
 
     @Override
@@ -68,6 +85,25 @@ public final class DrumControlPadView implements ControllerView
 
 
     @Override
+    public List<CoreEffect> handle (final CoreEvent event, final ControllerSnapshot snapshot)
+    {
+        if (!(event instanceof final ControllerInputEvent input) || input.kind () != InputKind.PAD || input.phase () != InputPhase.BEGIN)
+            return List.of ();
+        final int slot = CoreControls.DRUM_CONTROL_PADS.indexOf (input.controlId ());
+        if (slot >= 0)
+            this.minimumNextMask ^= 1 << slot;
+        return List.of ();
+    }
+
+
+    /** Get the replayable four-bit mask whose set lanes emit minimum on their next press. */
+    public int minimumNextMask ()
+    {
+        return this.minimumNextMask;
+    }
+
+
+    @Override
     public ViewOutput render (final ControllerSnapshot snapshot)
     {
         final ControllerMappingFeedbackSnapshot feedback = snapshot.bridge ().controllerMappingFeedback ();
@@ -82,6 +118,18 @@ public final class DrumControlPadView implements ControllerView
             ControllerDisplayOverlay.inactive (),
             DesiredNotePerformance.inactive (),
             DesiredNoteRepeat.unowned (),
-            CONTROLLER_MAPPINGS);
+            this.controllerMappings ());
+    }
+
+
+    private DesiredControllerMappings controllerMappings ()
+    {
+        final java.util.LinkedHashSet<ControllerMappingBinding> bindings = new java.util.LinkedHashSet<> (CoreControls.DRUM_CONTROL_PADS.size ());
+        for (int slot = 0; slot < CoreControls.DRUM_CONTROL_PADS.size (); slot++)
+        {
+            final ControllerMappingValue value = (this.minimumNextMask & 1 << slot) == 0 ? ControllerMappingValue.MAXIMUM : ControllerMappingValue.MINIMUM;
+            bindings.add (new ControllerMappingBinding (CoreControls.DRUM_CONTROL_PADS.get (slot), CoreControllerMappings.DRUM_CONTROL_PADS.get (slot), value));
+        }
+        return new DesiredControllerMappings (bindings);
     }
 }

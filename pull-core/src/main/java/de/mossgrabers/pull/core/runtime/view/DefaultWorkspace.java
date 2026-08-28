@@ -45,12 +45,12 @@ public final class DefaultWorkspace
 
 
     /** Create the retained Drum slice shared with Master. */
-    public static List<ControllerView> retainedDrumViews ()
+    public static List<ControllerView> retainedDrumViews (final ControllerView drumControlPadView)
     {
         return List.of (
             new RetainedControllerView (new DrumPlayPadView ()),
             new RetainedControllerView (new DrumFillView ()),
-            new RetainedControllerView (new DrumControlPadView ()),
+            drumControlPadView,
             new RetainedControllerView (new DrumRateView ()));
     }
 }

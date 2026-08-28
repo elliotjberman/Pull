@@ -14,6 +14,7 @@ import de.mossgrabers.pull.core.api.ControllerActionIntent;
 import de.mossgrabers.pull.core.api.ControllerLayoutSnapshot;
 import de.mossgrabers.pull.core.api.ControllerMappingBinding;
 import de.mossgrabers.pull.core.api.ControllerMappingFeedbackSnapshot;
+import de.mossgrabers.pull.core.api.ControllerMappingValue;
 import de.mossgrabers.pull.core.api.ControllerNoteView;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.ControllerStateScope;
@@ -1703,13 +1704,17 @@ class PullControllerCoreTest
             new ControllerMappingBinding (CoreControls.DRUM_CONTROL_PADS.get (1), CoreControllerMappings.DRUM_CONTROL_PADS.get (1)),
             new ControllerMappingBinding (CoreControls.DRUM_CONTROL_PADS.get (2), CoreControllerMappings.DRUM_CONTROL_PADS.get (2)),
             new ControllerMappingBinding (CoreControls.DRUM_CONTROL_PADS.get (3), CoreControllerMappings.DRUM_CONTROL_PADS.get (3))), host.effects ().desiredOutput ().controllerMappings ().bindings ());
+        assertEquals (ControllerMappingValue.MAXIMUM, mappingValue (host, first));
         assertEquals (OFF, light (host, first));
 
         final int beforePress = host.effects ().executionOrder ().size ();
         host.controllerPad (first, true);
+        assertEquals (ControllerMappingValue.MINIMUM, mappingValue (host, first));
         assertEquals (beforePress, host.effects ().executionOrder ().size ());
         assertEquals (OFF, light (host, first));
         host.controllerPad (first, false);
+        assertEquals (ControllerMappingValue.MINIMUM, mappingValue (host, first));
+        assertEquals (ControllerMappingValue.MAXIMUM, mappingValue (host, second));
         assertEquals (beforePress, host.effects ().executionOrder ().size ());
 
         host.bridge (controllerMappingFeedbackBridge (false));
@@ -1718,9 +1723,11 @@ class PullControllerCoreTest
         assertEquals (RED, light (host, first));
         assertEquals (OFF, light (host, second));
         host.controllerPad (first, true);
+        assertEquals (ControllerMappingValue.MAXIMUM, mappingValue (host, first));
         assertEquals (beforePress, host.effects ().executionOrder ().size ());
         assertEquals (RED, light (host, first));
         host.controllerPad (first, false);
+        assertEquals (ControllerMappingValue.MAXIMUM, mappingValue (host, first));
 
         host.bridge (controllerMappingFeedbackBridge (false));
         assertEquals (OFF, light (host, first));
@@ -1733,6 +1740,26 @@ class PullControllerCoreTest
         host.bridge (layoutBridge ("SESSION", "TRACK"));
         host.controllerButton (SESSION_BUTTON, false);
         assertTrue (host.effects ().desiredOutput ().controllerMappings ().bindings ().isEmpty ());
+    }
+
+
+    @Test
+    void checkpointRetainsEachControlPadsNextAlternatingValue ()
+    {
+        final FakeCoreHost first = host (ClipCatalogSnapshot.empty ());
+        first.start (Optional.empty ());
+        first.bridge (controllerMappingFeedbackBridge (false));
+        final ControlId firstPad = CoreControls.DRUM_CONTROL_PADS.getFirst ();
+        first.controllerPad (firstPad, true);
+        first.controllerPad (firstPad, false);
+        assertEquals (ControllerMappingValue.MINIMUM, mappingValue (first, firstPad));
+
+        final FakeCoreHost restored = new FakeCoreHost (new PullCoreProvider ().create (), new PullCoreProvider ().descriptor ().requiredCapabilities ());
+        restored.start (Optional.of (first.checkpoint ()));
+        restored.bridge (controllerMappingFeedbackBridge (false));
+
+        assertEquals (ControllerMappingValue.MINIMUM, mappingValue (restored, firstPad));
+        assertEquals (ControllerMappingValue.MAXIMUM, mappingValue (restored, CoreControls.DRUM_CONTROL_PADS.get (1)));
     }
 
 
@@ -2705,5 +2732,15 @@ class PullControllerCoreTest
         final int fillIndex = CoreControls.DRUM_FILLS.indexOf (control);
         final ControlId physicalControl = fillIndex < 0 ? control : FILL_LIGHTS.get (fillIndex);
         return host.effects ().desiredOutput ().lights ().get (physicalControl);
+    }
+
+
+    private static ControllerMappingValue mappingValue (final FakeCoreHost host, final ControlId control)
+    {
+        return host.effects ().desiredOutput ().controllerMappings ().bindings ().stream ()
+            .filter (binding -> binding.physicalControl ().equals (control))
+            .findFirst ()
+            .orElseThrow ()
+            .value ();
     }
 }

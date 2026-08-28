@@ -12,6 +12,7 @@ import de.mossgrabers.framework.command.core.TriggerCommand;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.hardware.AbstractHwButton;
 import de.mossgrabers.framework.controller.hardware.BindType;
+import de.mossgrabers.framework.controller.hardware.IHwAbsoluteControl;
 import de.mossgrabers.framework.controller.hardware.IHwButton;
 import de.mossgrabers.framework.controller.hardware.IHwLight;
 import de.mossgrabers.framework.controller.hardware.IHwSurfaceFactory;
@@ -112,7 +113,7 @@ class PushControllerInputBridgeTest
         fixture.mappings.set (DesiredControllerMappings.empty ());
         fixture.bridge.flush ();
         assertEquals (DesiredControllerMappings.empty (), fixture.bridge.activeControllerMappings ());
-        assertFalse (fixture.semanticButtons.get (fixture.mappingId).pressMatcher);
+        assertFalse (fixture.semanticControls.get (fixture.mappingId).active);
 
         // Raw release first closes the frozen routed gesture. The deliberately absent Bitwig
         // release matcher cannot duplicate END afterward.
@@ -161,20 +162,20 @@ class PushControllerInputBridgeTest
         fixture.mappings.set (DesiredControllerMappings.empty ());
         fixture.bridge.flush ();
         assertEquals (DesiredControllerMappings.empty (), fixture.bridge.activeControllerMappings ());
-        assertFalse (fixture.semanticButtons.get (fixture.mappingId).pressMatcher);
+        assertFalse (fixture.semanticControls.get (fixture.mappingId).active);
 
         // Raw release first closes the frozen routed gesture. The semantic Bitwig release action
         // remains independent from the normalized core END.
         fixture.rawRelease ();
         fixture.pad.physicalRelease ();
         assertEquals (List.of (InputPhase.BEGIN, InputPhase.END), fixture.phases ());
-        assertTrue (fixture.semanticButtons.get (fixture.mappingId).releaseMatcher);
+        assertFalse (fixture.semanticControls.get (fixture.mappingId).active);
 
         // Matcher retirement is deferred to the next controller tick so Bitwig can observe the
         // same MIDI release regardless of whether raw ingress or the HardwareButton callback ran
         // first. The next gesture then belongs to ordinary dispatch and emits no core event.
         fixture.bridge.flush ();
-        assertFalse (fixture.semanticButtons.get (fixture.mappingId).releaseMatcher);
+        assertFalse (fixture.semanticControls.get (fixture.mappingId).active);
         fixture.rawPress ();
         fixture.rawRelease ();
         assertEquals (List.of (InputPhase.BEGIN, InputPhase.END), fixture.phases ());
@@ -215,12 +216,12 @@ class PushControllerInputBridgeTest
 
         for (int slot = 0; slot < CoreControls.DRUM_CONTROL_PADS.size (); slot++)
         {
-            final TestButton semanticButton = fixture.semanticButtons.get (CoreControllerMappings.DRUM_CONTROL_PADS.get (slot));
-            assertTrue (semanticButton.pressMatcher);
-            assertTrue (semanticButton.releaseMatcher);
-            assertEquals (0, semanticButton.boundChannel);
-            assertEquals (Fixture.PAD_NOTE + slot, semanticButton.boundControl);
-            assertEquals (1, semanticButton.bindCount);
+            final AbsoluteHarness semanticControl = fixture.semanticControls.get (CoreControllerMappings.DRUM_CONTROL_PADS.get (slot));
+            assertTrue (semanticControl.active);
+            assertEquals (0, semanticControl.boundChannel);
+            assertEquals (Fixture.PAD_NOTE + slot, semanticControl.boundControl);
+            assertTrue (semanticControl.maximum);
+            assertEquals (1, semanticControl.bindCount);
 
             fixture.generation.set (10 + slot);
             fixture.rawPress (slot, 80 + slot);
@@ -296,7 +297,7 @@ class PushControllerInputBridgeTest
         private final AtomicLong generation = new AtomicLong (1);
         private final List<PhysicalInputEvent<ControlId>> events = new ArrayList<> ();
         private final Map<ControlId, TestButton> physicalPads = new LinkedHashMap<> ();
-        private final Map<ControllerMappingId, TestButton> semanticButtons = new LinkedHashMap<> ();
+        private final Map<ControllerMappingId, AbsoluteHarness> semanticControls = new LinkedHashMap<> ();
         private final PushControlSurface surface;
         private final TestButton pad;
         private final PushControllerInputBridge bridge;
@@ -313,7 +314,14 @@ class PushControllerInputBridgeTest
                 default -> relaxedValue (method.getReturnType ());
             });
             hostRef[0] = proxy (IHost.class, (proxy, method, arguments) -> "createSurfaceFactory".equals (method.getName ()) ? factory : relaxedValue (method.getReturnType ()));
-            final IMidiInput input = relaxedProxy (IMidiInput.class);
+            final IMidiInput input = proxy (IMidiInput.class, (proxy, method, arguments) -> {
+                if (method.getName ().equals ("bindNoteValue"))
+                {
+                    this.recordBinding ((IHwAbsoluteControl) arguments[0], (Integer) arguments[1], (Integer) arguments[2], (Boolean) arguments[3]);
+                    return null;
+                }
+                return relaxedValue (method.getReturnType ());
+            });
             this.surface = new PushControlSurface (
                 hostRef[0],
                 new PushColorManager (),
@@ -336,8 +344,14 @@ class PushControllerInputBridgeTest
                 physicalButtons.put (physicalControl, physicalButton);
             }
             physicalButtons.values ().forEach (IHwButton::unbind);
+            final Map<ControllerMappingId, IHwAbsoluteControl> mappingControls = new LinkedHashMap<> ();
             for (int slot = 0; slot < CoreControllerMappings.DRUM_CONTROL_PADS.size (); slot++)
-                this.semanticButtons.put (CoreControllerMappings.DRUM_CONTROL_PADS.get (slot), new TestButton (hostRef[0], "Drum Controller Control " + (slot + 1)));
+            {
+                final ControllerMappingId mappingId = CoreControllerMappings.DRUM_CONTROL_PADS.get (slot);
+                final AbsoluteHarness harness = new AbsoluteHarness ();
+                this.semanticControls.put (mappingId, harness);
+                mappingControls.put (mappingId, harness.control);
+            }
             this.bridge = new PushControllerInputBridge (
                 this.surface,
                 valueChanger,
@@ -345,10 +359,27 @@ class PushControllerInputBridgeTest
                 this.routes::get,
                 this.mappings::get,
                 physicalButtons,
-                new LinkedHashMap<> (this.semanticButtons),
+                mappingControls,
                 (ignoredControl, ignoredKind, ignoredAction) -> false,
                 this.events::add,
                 this.generation::get);
+        }
+
+
+        private void recordBinding (final IHwAbsoluteControl control, final int channel, final int note, final boolean maximum)
+        {
+            for (final AbsoluteHarness harness: this.semanticControls.values ())
+            {
+                if (harness.control != control)
+                    continue;
+                harness.active = true;
+                harness.boundChannel = channel;
+                harness.boundControl = note;
+                harness.maximum = maximum;
+                harness.bindCount++;
+                return;
+            }
+            throw new IllegalArgumentException ("unknown semantic mapping control");
         }
 
 
@@ -511,6 +542,21 @@ class PushControllerInputBridgeTest
             if (this.releaseMatcher)
                 this.trigger (ButtonEvent.UP, 0);
         }
+    }
+
+
+    private static final class AbsoluteHarness
+    {
+        private boolean active;
+        private boolean maximum;
+        private int boundChannel = -1;
+        private int boundControl = -1;
+        private int bindCount;
+        private final IHwAbsoluteControl control = proxy (IHwAbsoluteControl.class, (proxy, method, arguments) -> {
+            if (method.getName ().equals ("unbind"))
+                this.active = false;
+            return relaxedValue (method.getReturnType ());
+        });
     }
 
 

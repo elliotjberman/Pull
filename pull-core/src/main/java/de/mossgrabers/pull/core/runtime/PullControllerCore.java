@@ -19,6 +19,7 @@ import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.ParameterMutationEvent;
 import de.mossgrabers.pull.core.api.output.MixerControlsDisplay;
 import de.mossgrabers.pull.core.runtime.view.DefaultWorkspace;
+import de.mossgrabers.pull.core.runtime.view.DrumControlPadView;
 import de.mossgrabers.pull.core.runtime.view.ControllerLevelViews;
 import de.mossgrabers.pull.core.runtime.view.VsLiveWorkspace;
 import de.mossgrabers.pull.core.runtime.view.MasterWorkspace;
@@ -68,6 +69,7 @@ final class PullControllerCore implements ControllerCore
     private long                                           vsLiveWorkspaceRequest = -1;
     private long                                           vsLivePendingPageAfterGeneration = -1;
     private final SnapbackSession                          snapback = new SnapbackSession ();
+    private DrumControlPadView                             drumControlPadView;
     private Lifecycle                                      lifecycle = Lifecycle.NEW;
 
 
@@ -84,12 +86,14 @@ final class PullControllerCore implements ControllerCore
         this.selection = new WorkspaceSelection (restoredState.workspace (), restoredState.selectedDestination (), restoredState.pendingDestination ());
         this.playbackCoordinator = new ProjectPlaybackCoordinator ();
         this.playbackCoordinator.restoreEngineOwner (restoredState.engineOwnerIdentity (), restoredState.engineOwnerPlaying ());
+        this.drumControlPadView = new DrumControlPadView (restoredState.minimumNextMappingMask ());
+        final ControllerView retainedDrumControlPadView = new RetainedControllerView (this.drumControlPadView);
         final ControllerLevelViews controllerViews = new ControllerLevelViews (this.selection, this.playbackCoordinator);
         final ControllerView retainedSessionView = new RetainedControllerView (SessionView.full ());
         final SessionStopGesture vsLiveStopGesture = new SessionStopGesture ();
-        final List<ControllerView> retainedVsLiveGridViews = VsLiveWorkspace.retainedGridViews (vsLiveStopGesture);
+        final List<ControllerView> retainedVsLiveGridViews = VsLiveWorkspace.retainedGridViews (vsLiveStopGesture, retainedDrumControlPadView);
         final ControllerView retainedVsLiveTrackSelection = new RetainedControllerView (new TrackSelectionStripView (vsLiveStopGesture));
-        final List<ControllerView> retainedDefaultDrumViews = DefaultWorkspace.retainedDrumViews ();
+        final List<ControllerView> retainedDefaultDrumViews = DefaultWorkspace.retainedDrumViews (retainedDrumControlPadView);
         final Map<WorkspaceSelection.Id, CompiledWorkspace> compiled = new EnumMap<> (WorkspaceSelection.Id.class);
         compiled.put (WorkspaceSelection.Id.DEFAULT, DefaultWorkspace.create (controllerViews));
         compiled.put (WorkspaceSelection.Id.VS_LIVE, VsLiveWorkspace.create (controllerViews, retainedVsLiveTrackSelection, retainedVsLiveGridViews));
@@ -176,11 +180,12 @@ final class PullControllerCore implements ControllerCore
     {
         this.requireRunning ();
         final byte [] owner = this.playbackCoordinator.engineOwnerIdentity ().getBytes (StandardCharsets.UTF_8);
-        final ByteBuffer payload = ByteBuffer.allocate (Integer.BYTES + 4 + owner.length);
+        final ByteBuffer payload = ByteBuffer.allocate (Integer.BYTES + 5 + owner.length);
         payload.put ((byte) (this.selection.active () == WorkspaceSelection.Id.VS_LIVE ? 1 : 0));
         payload.put ((byte) (this.playbackCoordinator.engineOwnerPlaying () ? 1 : 0));
         payload.put ((byte) this.selection.selectedDestination ().ordinal ());
         payload.put ((byte) this.selection.pendingDestination ().ordinal ());
+        payload.put ((byte) this.drumControlPadView.minimumNextMask ());
         payload.putInt (owner.length);
         payload.put (owner);
         return new StateEnvelope (PullCoreProvider.STATE_SCHEMA, PullCoreProvider.STATE_SCHEMA_VERSION, payload.array ());
@@ -199,15 +204,21 @@ final class PullControllerCore implements ControllerCore
     {
         if (previousState.isEmpty ())
             return RestoredState.empty ();
-        final byte [] payload = previousState.get ().payload ();
-        if (payload.length < Integer.BYTES + 4)
+        final StateEnvelope state = previousState.get ();
+        if (!PullCoreProvider.STATE_SCHEMA.equals (state.schema ()) || state.version () != PullCoreProvider.STATE_SCHEMA_VERSION)
+            return RestoredState.empty ();
+        final byte [] payload = state.payload ();
+        if (payload.length < Integer.BYTES + 5)
             return RestoredState.empty ();
         final ByteBuffer buffer = ByteBuffer.wrap (payload);
         final WorkspaceSelection.Id workspace = buffer.get () == 1 ? WorkspaceSelection.Id.VS_LIVE : WorkspaceSelection.Id.DEFAULT;
         final boolean playing = buffer.get () == 1;
         final int selectedDestinationOrdinal = Byte.toUnsignedInt (buffer.get ());
         final int pendingDestinationOrdinal = Byte.toUnsignedInt (buffer.get ());
+        final int minimumNextMappingMask = Byte.toUnsignedInt (buffer.get ());
         if (selectedDestinationOrdinal >= WorkspaceSelection.Destination.values ().length || pendingDestinationOrdinal >= WorkspaceSelection.Destination.values ().length)
+            return RestoredState.empty ();
+        if ((minimumNextMappingMask & ~0x0F) != 0)
             return RestoredState.empty ();
         final WorkspaceSelection.Destination selectedDestination = WorkspaceSelection.Destination.values ()[selectedDestinationOrdinal];
         final WorkspaceSelection.Destination pendingDestination = WorkspaceSelection.Destination.values ()[pendingDestinationOrdinal];
@@ -215,10 +226,10 @@ final class PullControllerCore implements ControllerCore
             return RestoredState.empty ();
         final int ownerLength = buffer.getInt ();
         if (ownerLength < 0 || ownerLength > 1024 || ownerLength != buffer.remaining ())
-            return new RestoredState (workspace, selectedDestination, pendingDestination, "", false);
+            return new RestoredState (workspace, selectedDestination, pendingDestination, "", false, minimumNextMappingMask);
         final byte [] owner = new byte [ownerLength];
         buffer.get (owner);
-        return new RestoredState (workspace, selectedDestination, pendingDestination, new String (owner, StandardCharsets.UTF_8), playing);
+        return new RestoredState (workspace, selectedDestination, pendingDestination, new String (owner, StandardCharsets.UTF_8), playing, minimumNextMappingMask);
     }
 
 
@@ -456,11 +467,11 @@ final class PullControllerCore implements ControllerCore
     }
 
 
-    private record RestoredState (WorkspaceSelection.Id workspace, WorkspaceSelection.Destination selectedDestination, WorkspaceSelection.Destination pendingDestination, String engineOwnerIdentity, boolean engineOwnerPlaying)
+    private record RestoredState (WorkspaceSelection.Id workspace, WorkspaceSelection.Destination selectedDestination, WorkspaceSelection.Destination pendingDestination, String engineOwnerIdentity, boolean engineOwnerPlaying, int minimumNextMappingMask)
     {
         private static RestoredState empty ()
         {
-            return new RestoredState (WorkspaceSelection.Id.DEFAULT, WorkspaceSelection.Destination.NONE, WorkspaceSelection.Destination.NONE, "", false);
+            return new RestoredState (WorkspaceSelection.Id.DEFAULT, WorkspaceSelection.Destination.NONE, WorkspaceSelection.Destination.NONE, "", false, 0);
         }
     }
 

@@ -1,6 +1,6 @@
 # Pull View Architecture
 
-Status: current through Core API 41, semantic controller-mapping identities, generic registered
+Status: current through Core API 42, semantic controller-mapping identities, generic registered
 button/grid light arbitration, the shared
 mixer-control renderer, the Master-control migration, the post-demo `VS Live` composition, and
 core-owned Session Stop, selected-track Mute/Solo, VS Live Project/Track and Track/Mix display
@@ -365,14 +365,13 @@ Stable shell:
 - `SessionBankRegistry` and `SessionBankHost`: bounded 8x8/8x4 Bitwig bank canopy, requested
   authoritative state, and generation-fenced bank actions.
 - `PushControlSurface`: remaining stable pitch-bend and navigation integration.
-- `ControllerMappingHost`: eagerly creates the four permanent semantic Bitwig button identities,
-  attaches their no-output Boolean feedback, and removes MIDI matchers from all 64 original grid
+- `ControllerMappingHost`: eagerly creates the four permanent semantic Bitwig absolute-control identities,
+  observes their mapped target feedback, and removes MIDI matchers from all 64 original grid
   buttons so physical pads remain ordinary-dispatch-only objects rather than learned identities.
 - `HardwareMappingActivationHost`: mechanically projects the complete core lease onto those
-  semantic buttons. Each active endpoint exposes the paired Bitwig press and release actions. A
-  lane change immediately revokes new mapped presses, retains the old release action through the
-  exact routed `END`, retires it on the next controller tick, and then admits only the latest
-  desired projection.
+  semantic absolute controls. Each active endpoint matches positive Note On only and emits the
+  requested literal maximum or minimum. Core advances that lane's next value after accepted `BEGIN`;
+  the matcher replacement waits until the gesture is idle.
   Permanent raw MIDI supplies the normalized core gesture while a semantic matcher is active; when
   no mapping is active it triggers the established original-button dispatch through the same raw
   ingress for every grid pad. No duplicate learned action or second MIDI callback exists.
@@ -468,7 +467,7 @@ Partial or transitional:
   mappable controls. General display output is still semantically partial: Master and the composed
   VS Live Project/Track and Track/Mix pages are core-authored, while a generic complete base-scene plane, a
   temporary sparse 8x8 grid overlay, and a complete temporary 960x160 display overlay are
-  arbitrated. The detailed design's API 41 installed-output inventory is canonical.
+  arbitrated. The detailed design's API 42 installed-output inventory is canonical.
 
 Deferred by design:
 

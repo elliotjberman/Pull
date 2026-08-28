@@ -88,6 +88,16 @@ public interface IHwSurfaceFactory
 
 
     /**
+     * Observe whether an absolute hardware control's authoritative mapped target is in its upper
+     * half. Unmapped targets report off.
+     *
+     * @param control Absolute hardware control carrying the learned mapping
+     * @param observer Receives later authoritative target-state changes
+     */
+    void installMappedAbsoluteFeedback (IHwAbsoluteControl control, Consumer<Boolean> observer);
+
+
+    /**
      * Create a proxy to a hardware fader.
      *
      * @param surfaceID The ID of the surface
@@ -108,6 +118,17 @@ public interface IHwSurfaceFactory
      * @return The created knob
      */
     IHwAbsoluteKnob createAbsoluteKnob (int surfaceID, ContinuousID knobID, String label);
+
+
+    /**
+     * Create a detached absolute knob with a fixed host-facing identifier.
+     *
+     * @param surfaceID The ID of the surface
+     * @param hardwareID The stable host-facing hardware identifier
+     * @param label The label of the knob
+     * @return The created knob
+     */
+    IHwAbsoluteKnob createAbsoluteKnob (int surfaceID, String hardwareID, String label);
 
 
     /**

@@ -5,6 +5,7 @@ package de.mossgrabers.pull.shell.runtime;
 
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.controller.ButtonID;
+import de.mossgrabers.framework.controller.hardware.IHwAbsoluteControl;
 import de.mossgrabers.framework.controller.hardware.IHwButton;
 import de.mossgrabers.framework.controller.hardware.IHwSurfaceFactory;
 import de.mossgrabers.pull.core.api.ControlId;
@@ -20,14 +21,14 @@ import java.util.Objects;
 import java.util.Set;
 
 
-/** Permanent semantic Bitwig mapping endpoints and their authoritative Boolean feedback. */
+/** Permanent semantic absolute-value mapping endpoints and their authoritative target feedback. */
 final class ControllerMappingHost
 {
     private static final int PAD_COUNT = 64;
     private static final Set<ControlId> PHYSICAL_PAD_CONTROLS = physicalPadControls ();
 
     private final Map<ControlId, IHwButton> physicalButtons;
-    private final Map<ControllerMappingId, IHwButton> mappingButtons;
+    private final Map<ControllerMappingId, IHwAbsoluteControl> mappingControls;
     private final FeedbackState feedback;
 
 
@@ -47,7 +48,7 @@ final class ControllerMappingHost
     private ControllerMappingHost (final Topology topology)
     {
         this.physicalButtons = topology.physicalButtons ();
-        this.mappingButtons = topology.mappingButtons ();
+        this.mappingControls = topology.mappingControls ();
         this.feedback = topology.feedback ();
     }
 
@@ -58,9 +59,9 @@ final class ControllerMappingHost
     }
 
 
-    Map<ControllerMappingId, IHwButton> mappingButtons ()
+    Map<ControllerMappingId, IHwAbsoluteControl> mappingControls ()
     {
-        return this.mappingButtons;
+        return this.mappingControls;
     }
 
 
@@ -90,27 +91,26 @@ final class ControllerMappingHost
             throw new IllegalArgumentException ("controller mapping host requires the complete 64-pad physical grid");
 
         final FeedbackState feedback = new FeedbackState ();
-        final Map<ControllerMappingId, IHwButton> mappingButtons = new LinkedHashMap<> ();
+        final Map<ControllerMappingId, IHwAbsoluteControl> mappingControls = new LinkedHashMap<> ();
         for (int slot = 0; slot < CoreControllerMappings.DRUM_CONTROL_PADS.size (); slot++)
         {
             final int number = slot + 1;
             final ControllerMappingId mappingId = CoreControllerMappings.DRUM_CONTROL_PADS.get (slot);
-            final IHwButton mappingButton = Objects.requireNonNull (checkedFactory.createButton (
+            final IHwAbsoluteControl mappingControl = Objects.requireNonNull (checkedFactory.createAbsoluteKnob (
                 surfaceID,
-                "CONTROLLER_MAPPING_DRUM_CONTROL_" + number,
-                "Drum Controller Control " + number), "semantic mapping button");
-            checkedFactory.installMappedBooleanFeedback (
-                surfaceID,
-                "CONTROLLER_MAPPING_DRUM_CONTROL_STATE_" + number,
-                mappingButton,
+                "CONTROLLER_MAPPING_DRUM_CONTROL_VALUE_" + number,
+                "Drum Controller Toggle " + number), "semantic mapping control");
+            mappingControl.disableTakeOver ();
+            checkedFactory.installMappedAbsoluteFeedback (
+                mappingControl,
                 on -> feedback.accept (mappingId, on));
-            mappingButtons.put (mappingId, mappingButton);
+            mappingControls.put (mappingId, mappingControl);
         }
 
         // Physical pads remain the sole ordinary-command dispatch objects, but none expose native
         // MIDI matchers or Bitwig-learnable identities. The permanent raw ingress drives them.
         checkedPhysicalButtons.values ().forEach (IHwButton::unbind);
-        return new Topology (checkedPhysicalButtons, Map.copyOf (mappingButtons), feedback);
+        return new Topology (checkedPhysicalButtons, Map.copyOf (mappingControls), feedback);
     }
 
 
@@ -150,6 +150,6 @@ final class ControllerMappingHost
     }
 
 
-    private record Topology (Map<ControlId, IHwButton> physicalButtons, Map<ControllerMappingId, IHwButton> mappingButtons, FeedbackState feedback)
+    private record Topology (Map<ControlId, IHwButton> physicalButtons, Map<ControllerMappingId, IHwAbsoluteControl> mappingControls, FeedbackState feedback)
     {}
 }
