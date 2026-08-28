@@ -11,12 +11,5 @@ public enum ControllerMappingValue
     MINIMUM,
 
     /** Emit the maximum normalized value. */
-    MAXIMUM;
-
-
-    /** Get the opposite endpoint value. */
-    public ControllerMappingValue toggled ()
-    {
-        return this == MAXIMUM ? MINIMUM : MAXIMUM;
-    }
+    MAXIMUM
 }

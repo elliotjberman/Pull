@@ -293,11 +293,12 @@ public class MidiInputImpl implements IMidiInput
 
     static void bindNoteValue (final MidiIn port, final AbsoluteHardwareControl hardwareControl, final int channel, final int note, final boolean maximum)
     {
-        final int checkedNote = requireMidiData (note, "note");
         if (channel < -1 || channel > 15)
             throw new IllegalArgumentException ("channel must be between -1 and 15");
+        if (note < 0 || note > 127)
+            throw new IllegalArgumentException ("note must be between 0 and 127");
         final String statusExpression = channel < 0 ? "status >= 0x90 && status <= 0x9F" : "status == " + (0x90 | channel);
-        final String eventExpression = statusExpression + " && data1 == " + checkedNote + " && data2 > 0";
+        final String eventExpression = statusExpression + " && data1 == " + note + " && data2 > 0";
         final AbsoluteHardwareValueMatcher matcher = Objects.requireNonNull (port, "port").createAbsoluteValueMatcher (eventExpression, maximum ? "127" : "0", 7);
         Objects.requireNonNull (hardwareControl, "hardwareControl").setAdjustValueMatcher (matcher);
     }
@@ -340,16 +341,6 @@ public class MidiInputImpl implements IMidiInput
 
         hardwareControl.setAdjustValueMatcher (matcher);
     }
-
-
-    private static int requireMidiData (final int value, final String name)
-    {
-        if (value < 0 || value > 127)
-            throw new IllegalArgumentException (name + " must be between 0 and 127");
-        return value;
-    }
-
-
     /** {@inheritDoc} */
     @Override
     public void bindTouch (final IHwContinuousControl continuousControl, final BindType type, final int channel, final int control)

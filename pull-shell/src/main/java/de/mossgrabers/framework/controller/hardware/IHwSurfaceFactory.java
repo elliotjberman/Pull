@@ -89,7 +89,8 @@ public interface IHwSurfaceFactory
 
     /**
      * Observe whether an absolute hardware control's authoritative mapped target is in its upper
-     * half. Unmapped targets report off.
+     * half. The first update waits for both target-presence and target-value readback; unmapped
+     * targets then report off.
      *
      * @param control Absolute hardware control carrying the learned mapping
      * @param observer Receives later authoritative target-state changes

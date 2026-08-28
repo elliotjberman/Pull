@@ -16,7 +16,6 @@ import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -66,20 +65,14 @@ class HwSurfaceFactoryImplTest
     @Test
     void observesOnlyAuthoritativeMappedAbsoluteTargetState ()
     {
-        final AtomicBoolean hasTarget = new AtomicBoolean (false);
-        final AtomicReference<Double> target = new AtomicReference<> (Double.valueOf (0));
         final AtomicReference<BooleanValueChangedCallback> hasTargetObserver = new AtomicReference<> ();
         final AtomicReference<DoubleValueChangedCallback> targetObserver = new AtomicReference<> ();
         final BooleanValue hasTargetValue = proxy (BooleanValue.class, (ignored, method, arguments) -> {
-            if (method.getName ().equals ("get"))
-                return Boolean.valueOf (hasTarget.get ());
             if (method.getName ().equals ("addValueObserver"))
                 hasTargetObserver.set ((BooleanValueChangedCallback) arguments[0]);
             return null;
         });
         final DoubleValue targetValue = proxy (DoubleValue.class, (ignored, method, arguments) -> {
-            if (method.getName ().equals ("get"))
-                return target.get ();
             if (method.getName ().equals ("addValueObserver"))
                 targetObserver.set ((DoubleValueChangedCallback) arguments[0]);
             return null;
@@ -93,14 +86,13 @@ class HwSurfaceFactoryImplTest
         final List<Boolean> observed = new ArrayList<> ();
 
         HwSurfaceFactoryImpl.installMappedAbsoluteFeedback (control, observed::add);
-        target.set (Double.valueOf (0.8));
-        targetObserver.get ().valueChanged (0.8);
-        hasTarget.set (true);
         hasTargetObserver.get ().valueChanged (true);
-        target.set (Double.valueOf (0.2));
+        assertEquals (List.of (), observed, "target presence alone is not a coherent authoritative sample");
+        targetObserver.get ().valueChanged (0.8);
         targetObserver.get ().valueChanged (0.2);
+        hasTargetObserver.get ().valueChanged (false);
 
-        assertEquals (List.of (false, true, false), observed);
+        assertEquals (List.of (true, false, false), observed);
     }
 
 

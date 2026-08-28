@@ -69,7 +69,6 @@ final class PullControllerCore implements ControllerCore
     private long                                           vsLiveWorkspaceRequest = -1;
     private long                                           vsLivePendingPageAfterGeneration = -1;
     private final SnapbackSession                          snapback = new SnapbackSession ();
-    private DrumControlPadView                             drumControlPadView;
     private Lifecycle                                      lifecycle = Lifecycle.NEW;
 
 
@@ -86,14 +85,13 @@ final class PullControllerCore implements ControllerCore
         this.selection = new WorkspaceSelection (restoredState.workspace (), restoredState.selectedDestination (), restoredState.pendingDestination ());
         this.playbackCoordinator = new ProjectPlaybackCoordinator ();
         this.playbackCoordinator.restoreEngineOwner (restoredState.engineOwnerIdentity (), restoredState.engineOwnerPlaying ());
-        this.drumControlPadView = new DrumControlPadView ();
-        final ControllerView retainedDrumControlPadView = new RetainedControllerView (this.drumControlPadView);
+        final ControllerView drumControlPadView = new DrumControlPadView ();
         final ControllerLevelViews controllerViews = new ControllerLevelViews (this.selection, this.playbackCoordinator);
         final ControllerView retainedSessionView = new RetainedControllerView (SessionView.full ());
         final SessionStopGesture vsLiveStopGesture = new SessionStopGesture ();
-        final List<ControllerView> retainedVsLiveGridViews = VsLiveWorkspace.retainedGridViews (vsLiveStopGesture, retainedDrumControlPadView);
+        final List<ControllerView> retainedVsLiveGridViews = VsLiveWorkspace.retainedGridViews (vsLiveStopGesture, drumControlPadView);
         final ControllerView retainedVsLiveTrackSelection = new RetainedControllerView (new TrackSelectionStripView (vsLiveStopGesture));
-        final List<ControllerView> retainedDefaultDrumViews = DefaultWorkspace.retainedDrumViews (retainedDrumControlPadView);
+        final List<ControllerView> retainedDefaultDrumViews = DefaultWorkspace.retainedDrumViews (drumControlPadView);
         final Map<WorkspaceSelection.Id, CompiledWorkspace> compiled = new EnumMap<> (WorkspaceSelection.Id.class);
         compiled.put (WorkspaceSelection.Id.DEFAULT, DefaultWorkspace.create (controllerViews));
         compiled.put (WorkspaceSelection.Id.VS_LIVE, VsLiveWorkspace.create (controllerViews, retainedVsLiveTrackSelection, retainedVsLiveGridViews));

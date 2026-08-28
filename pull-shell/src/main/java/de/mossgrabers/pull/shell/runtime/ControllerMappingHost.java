@@ -34,22 +34,39 @@ final class ControllerMappingHost
 
     ControllerMappingHost (final PushControlSurface surface)
     {
-        this (createTopology (Objects.requireNonNull (surface, "surface")));
+        this (Objects.requireNonNull (surface, "surface").getSurfaceFactory (), surface.getSurfaceID (), physicalButtons (surface));
     }
 
 
     /** Test seam for installing the bounded endpoint inventory. */
     ControllerMappingHost (final IHwSurfaceFactory factory, final int surfaceID, final Map<ControlId, IHwButton> physicalButtons)
     {
-        this (createTopology (factory, surfaceID, physicalButtons));
-    }
+        final IHwSurfaceFactory checkedFactory = Objects.requireNonNull (factory, "factory");
+        this.physicalButtons = Map.copyOf (Objects.requireNonNull (physicalButtons, "physicalButtons"));
+        if (!this.physicalButtons.keySet ().equals (PHYSICAL_PAD_CONTROLS))
+            throw new IllegalArgumentException ("controller mapping host requires the complete 64-pad physical grid");
 
+        this.feedback = new FeedbackState ();
+        final Map<ControllerMappingId, IHwAbsoluteControl> controls = new LinkedHashMap<> ();
+        for (int slot = 0; slot < CoreControllerMappings.DRUM_CONTROL_PADS.size (); slot++)
+        {
+            final int number = slot + 1;
+            final ControllerMappingId mappingId = CoreControllerMappings.DRUM_CONTROL_PADS.get (slot);
+            final IHwAbsoluteControl mappingControl = Objects.requireNonNull (checkedFactory.createAbsoluteKnob (
+                surfaceID,
+                "CONTROLLER_MAPPING_DRUM_CONTROL_VALUE_" + number,
+                "Drum Controller Toggle " + number), "semantic mapping control");
+            mappingControl.disableTakeOver ();
+            checkedFactory.installMappedAbsoluteFeedback (
+                mappingControl,
+                on -> this.feedback.accept (mappingId, on));
+            controls.put (mappingId, mappingControl);
+        }
+        this.mappingControls = Map.copyOf (controls);
 
-    private ControllerMappingHost (final Topology topology)
-    {
-        this.physicalButtons = topology.physicalButtons ();
-        this.mappingControls = topology.mappingControls ();
-        this.feedback = topology.feedback ();
+        // Physical pads remain the sole ordinary-command dispatch objects, but none expose native
+        // MIDI matchers or Bitwig-learnable identities. The permanent raw ingress drives them.
+        this.physicalButtons.values ().forEach (IHwButton::unbind);
     }
 
 
@@ -71,7 +88,7 @@ final class ControllerMappingHost
     }
 
 
-    private static Topology createTopology (final PushControlSurface surface)
+    private static Map<ControlId, IHwButton> physicalButtons (final PushControlSurface surface)
     {
         final Map<ControlId, IHwButton> physicalButtons = new LinkedHashMap<> ();
         for (int index = 0; index < PAD_COUNT; index++)
@@ -79,38 +96,7 @@ final class ControllerMappingHost
             final IHwButton button = Objects.requireNonNull (surface.getButton (ButtonID.get (ButtonID.PAD1, index)), "physical pad");
             physicalButtons.put (PushControlIds.pad (index + 1), button);
         }
-        return createTopology (surface.getSurfaceFactory (), surface.getSurfaceID (), physicalButtons);
-    }
-
-
-    private static Topology createTopology (final IHwSurfaceFactory factory, final int surfaceID, final Map<ControlId, IHwButton> physicalButtons)
-    {
-        final IHwSurfaceFactory checkedFactory = Objects.requireNonNull (factory, "factory");
-        final Map<ControlId, IHwButton> checkedPhysicalButtons = Map.copyOf (Objects.requireNonNull (physicalButtons, "physicalButtons"));
-        if (!checkedPhysicalButtons.keySet ().equals (PHYSICAL_PAD_CONTROLS))
-            throw new IllegalArgumentException ("controller mapping host requires the complete 64-pad physical grid");
-
-        final FeedbackState feedback = new FeedbackState ();
-        final Map<ControllerMappingId, IHwAbsoluteControl> mappingControls = new LinkedHashMap<> ();
-        for (int slot = 0; slot < CoreControllerMappings.DRUM_CONTROL_PADS.size (); slot++)
-        {
-            final int number = slot + 1;
-            final ControllerMappingId mappingId = CoreControllerMappings.DRUM_CONTROL_PADS.get (slot);
-            final IHwAbsoluteControl mappingControl = Objects.requireNonNull (checkedFactory.createAbsoluteKnob (
-                surfaceID,
-                "CONTROLLER_MAPPING_DRUM_CONTROL_VALUE_" + number,
-                "Drum Controller Toggle " + number), "semantic mapping control");
-            mappingControl.disableTakeOver ();
-            checkedFactory.installMappedAbsoluteFeedback (
-                mappingControl,
-                on -> feedback.accept (mappingId, on));
-            mappingControls.put (mappingId, mappingControl);
-        }
-
-        // Physical pads remain the sole ordinary-command dispatch objects, but none expose native
-        // MIDI matchers or Bitwig-learnable identities. The permanent raw ingress drives them.
-        checkedPhysicalButtons.values ().forEach (IHwButton::unbind);
-        return new Topology (checkedPhysicalButtons, Map.copyOf (mappingControls), feedback);
+        return physicalButtons;
     }
 
 
@@ -125,31 +111,20 @@ final class ControllerMappingHost
 
     private static final class FeedbackState
     {
-        private final Map<ControllerMappingId, Boolean> states = initialStates ();
-        private volatile ControllerMappingFeedbackSnapshot snapshot = new ControllerMappingFeedbackSnapshot (true, this.states);
+        private final Map<ControllerMappingId, Boolean> states = new LinkedHashMap<> ();
+        private volatile ControllerMappingFeedbackSnapshot snapshot = ControllerMappingFeedbackSnapshot.empty ();
 
 
         private synchronized void accept (final ControllerMappingId mappingId, final Boolean on)
         {
+            if (!CoreControllerMappings.DRUM_CONTROL_PADS.contains (mappingId))
+                throw new IllegalArgumentException ("controller mapping feedback is not installed");
             final Boolean next = Boolean.valueOf (Boolean.TRUE.equals (on));
             if (next.equals (this.states.get (mappingId)))
                 return;
-            if (!this.states.containsKey (mappingId))
-                throw new IllegalArgumentException ("controller mapping feedback is not installed");
             this.states.put (mappingId, next);
-            this.snapshot = new ControllerMappingFeedbackSnapshot (true, this.states);
-        }
-
-
-        private static Map<ControllerMappingId, Boolean> initialStates ()
-        {
-            final Map<ControllerMappingId, Boolean> states = new LinkedHashMap<> ();
-            CoreControllerMappings.DRUM_CONTROL_PADS.forEach (mappingId -> states.put (mappingId, Boolean.FALSE));
-            return states;
+            if (this.states.size () == CoreControllerMappings.DRUM_CONTROL_PADS.size ())
+                this.snapshot = new ControllerMappingFeedbackSnapshot (true, this.states);
         }
     }
-
-
-    private record Topology (Map<ControlId, IHwButton> physicalButtons, Map<ControllerMappingId, IHwAbsoluteControl> mappingControls, FeedbackState feedback)
-    {}
 }

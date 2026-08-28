@@ -1696,9 +1696,16 @@ class PullControllerCoreTest
         host.bridge (controllerMappingUnavailableBridge ());
         assertEquals (OFF, light (host, first));
         assertEquals (OFF, light (host, second));
+        assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (first, InputKind.PAD));
+        assertTrue (host.effects ().desiredOutput ().controllerMappings ().bindings ().isEmpty (), "unavailable feedback keeps the committed exclusive raw route inert");
+
+        host.bridge (controllerMappingFeedbackBridge (true));
+        assertEquals (RED, light (host, first));
+        assertEquals (ControllerMappingValue.MINIMUM, mappingValue (host, first), "initially-on authoritative readback selects the minimum first");
+        assertEquals (ControllerMappingValue.MAXIMUM, mappingValue (host, second));
+
         host.bridge (controllerMappingFeedbackBridge (false));
 
-        assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (first, InputKind.PAD));
         assertEquals (Set.of (
             new ControllerMappingBinding (CoreControls.DRUM_CONTROL_PADS.get (0), CoreControllerMappings.DRUM_CONTROL_PADS.get (0)),
             new ControllerMappingBinding (CoreControls.DRUM_CONTROL_PADS.get (1), CoreControllerMappings.DRUM_CONTROL_PADS.get (1)),
@@ -1760,6 +1767,9 @@ class PullControllerCoreTest
 
         final FakeCoreHost restored = new FakeCoreHost (new PullCoreProvider ().create (), new PullCoreProvider ().descriptor ().requiredCapabilities ());
         restored.start (Optional.of (first.checkpoint ()));
+        restored.bridge (controllerMappingUnavailableBridge ());
+        assertTrue (restored.effects ().desiredOutput ().controllerMappings ().bindings ().isEmpty ());
+        assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), restored.effects ().desiredInputRoutes ().mode (firstPad, InputKind.PAD));
         restored.bridge (controllerMappingFeedbackBridge (true));
 
         assertEquals (ControllerMappingValue.MINIMUM, mappingValue (restored, firstPad));

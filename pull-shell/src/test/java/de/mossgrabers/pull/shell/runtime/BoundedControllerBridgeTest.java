@@ -79,6 +79,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -1082,6 +1083,7 @@ class BoundedControllerBridgeTest
     }
 
 
+    @SuppressWarnings("unchecked")
     private static PushControlSurface createSurface (final ISelectedTrackNoteTarget selectedTarget, final ITrack drumModelTrack, final IValueChanger valueChanger, final MutableNoteRepeat noteRepeat, final boolean manualRepeatActive)
     {
         final IHwButton button = relaxedProxy (IHwButton.class);
@@ -1090,6 +1092,10 @@ class BoundedControllerBridgeTest
         {
             case "createButton" -> button;
             case "createLight" -> light;
+            case "installMappedAbsoluteFeedback" -> {
+                ((Consumer<Boolean>) arguments[1]).accept (Boolean.FALSE);
+                yield null;
+            }
             default -> relaxedValue (method.getReturnType ());
         });
         final IHost host = proxy (IHost.class, (proxy, method, arguments) -> "createSurfaceFactory".equals (method.getName ()) ? surfaceFactory : relaxedValue (method.getReturnType ()));

@@ -24,6 +24,7 @@ import de.mossgrabers.pull.core.view.SurfaceClaim;
 import de.mossgrabers.pull.core.view.ViewOutput;
 import de.mossgrabers.pull.core.view.ViewProfile;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -65,8 +66,17 @@ public final class DrumControlPadView implements ControllerView
     {
         final ControllerMappingFeedbackSnapshot feedback = snapshot.bridge ().controllerMappingFeedback ();
         final Map<ControlId, RgbColor> lights = new LinkedHashMap<> ();
+        final Set<ControllerMappingBinding> bindings = new LinkedHashSet<> (CoreControls.DRUM_CONTROL_PADS.size ());
+        final boolean ready = CoreControllerMappings.DRUM_CONTROL_PADS.stream ().allMatch (feedback::supports);
         for (int slot = 0; slot < CoreControls.DRUM_CONTROL_PADS.size (); slot++)
-            lights.put (CoreControls.DRUM_CONTROL_PADS.get (slot), feedback.isOn (CoreControllerMappings.DRUM_CONTROL_PADS.get (slot)) ? ON : OFF);
+        {
+            final ControlId control = CoreControls.DRUM_CONTROL_PADS.get (slot);
+            final var mappingId = CoreControllerMappings.DRUM_CONTROL_PADS.get (slot);
+            final boolean on = ready && feedback.isOn (mappingId);
+            lights.put (control, on ? ON : OFF);
+            if (ready)
+                bindings.add (new ControllerMappingBinding (control, mappingId, on ? ControllerMappingValue.MINIMUM : ControllerMappingValue.MAXIMUM));
+        }
         return new ViewOutput (
             lights,
             Map.of (),
@@ -75,19 +85,6 @@ public final class DrumControlPadView implements ControllerView
             ControllerDisplayOverlay.inactive (),
             DesiredNotePerformance.inactive (),
             DesiredNoteRepeat.unowned (),
-            controllerMappings (feedback));
-    }
-
-
-    private static DesiredControllerMappings controllerMappings (final ControllerMappingFeedbackSnapshot feedback)
-    {
-        final java.util.LinkedHashSet<ControllerMappingBinding> bindings = new java.util.LinkedHashSet<> (CoreControls.DRUM_CONTROL_PADS.size ());
-        for (int slot = 0; slot < CoreControls.DRUM_CONTROL_PADS.size (); slot++)
-        {
-            final var mappingId = CoreControllerMappings.DRUM_CONTROL_PADS.get (slot);
-            final ControllerMappingValue nextValue = feedback.isOn (mappingId) ? ControllerMappingValue.MINIMUM : ControllerMappingValue.MAXIMUM;
-            bindings.add (new ControllerMappingBinding (CoreControls.DRUM_CONTROL_PADS.get (slot), mappingId, nextValue));
-        }
-        return new DesiredControllerMappings (bindings);
+            ready ? new DesiredControllerMappings (bindings) : DesiredControllerMappings.empty ());
     }
 }

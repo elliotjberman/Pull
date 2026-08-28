@@ -59,8 +59,8 @@ class ControllerMappingHostTest
         physicalHarnesses.values ().forEach (harness -> assertEquals (1, harness.unbinds));
         physicalButtons.forEach ( (control, button) -> assertSame (button, host.physicalButtons ().get (control)));
         assertEquals (Set.copyOf (CoreControllerMappings.DRUM_CONTROL_PADS), host.mappingControls ().keySet ());
-        assertTrue (host.snapshot ().available ());
-        assertTrue (host.snapshot ().supports (CoreControllerMappings.DRUM_CONTROL_PADS.getFirst ()));
+        assertFalse (host.snapshot ().available ());
+        assertTrue (host.snapshot ().states ().isEmpty ());
         assertFalse (host.snapshot ().isOn (CoreControllerMappings.DRUM_CONTROL_PADS.getFirst ()));
         assertThrows (UnsupportedOperationException.class, host.physicalButtons ()::clear);
         assertThrows (UnsupportedOperationException.class, host.mappingControls ()::clear);
@@ -68,7 +68,14 @@ class ControllerMappingHostTest
 
         final var beforeUpdate = host.snapshot ();
         factory.feedbackObservers.getFirst ().accept (true);
+        factory.feedbackObservers.get (1).accept (false);
+        factory.feedbackObservers.get (2).accept (false);
+        assertFalse (host.snapshot ().available (), "partial endpoint readback must remain unavailable");
+        factory.feedbackObservers.get (3).accept (false);
         assertFalse (beforeUpdate.isOn (CoreControllerMappings.DRUM_CONTROL_PADS.getFirst ()));
+        assertFalse (beforeUpdate.available ());
+        assertTrue (host.snapshot ().available ());
+        assertTrue (host.snapshot ().supports (CoreControllerMappings.DRUM_CONTROL_PADS.getFirst ()));
         assertTrue (host.snapshot ().isOn (CoreControllerMappings.DRUM_CONTROL_PADS.getFirst ()));
         assertFalse (host.snapshot ().isOn (CoreControllerMappings.DRUM_CONTROL_PADS.get (1)));
         final var afterFirstUpdate = host.snapshot ();

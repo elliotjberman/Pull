@@ -160,10 +160,49 @@ public class HwSurfaceFactoryImpl implements IHwSurfaceFactory
     static void installMappedAbsoluteFeedback (final AbsoluteHardwareControl control, final Consumer<Boolean> observer)
     {
         final AbsoluteHardwareControl checkedControl = Objects.requireNonNull (control, "control");
-        final Consumer<Boolean> checkedObserver = Objects.requireNonNull (observer, "observer");
+        final MappedAbsoluteFeedback feedback = new MappedAbsoluteFeedback (observer);
         checkedControl.hasTargetValue ().markInterested ();
-        checkedControl.targetValue ().addValueObserver (value -> checkedObserver.accept (Boolean.valueOf (checkedControl.hasTargetValue ().get () && value >= 0.5)));
-        checkedControl.hasTargetValue ().addValueObserver (hasTarget -> checkedObserver.accept (Boolean.valueOf (hasTarget && checkedControl.targetValue ().get () >= 0.5)));
+        checkedControl.targetValue ().addValueObserver (feedback::acceptTargetValue);
+        checkedControl.hasTargetValue ().addValueObserver (feedback::acceptHasTarget);
+    }
+
+
+    private static final class MappedAbsoluteFeedback
+    {
+        private final Consumer<Boolean> observer;
+        private boolean hasTargetObserved;
+        private boolean targetValueObserved;
+        private boolean hasTarget;
+        private double targetValue;
+
+
+        private MappedAbsoluteFeedback (final Consumer<Boolean> observer)
+        {
+            this.observer = Objects.requireNonNull (observer, "observer");
+        }
+
+
+        private synchronized void acceptHasTarget (final boolean value)
+        {
+            this.hasTarget = value;
+            this.hasTargetObserved = true;
+            this.publishIfReady ();
+        }
+
+
+        private synchronized void acceptTargetValue (final double value)
+        {
+            this.targetValue = value;
+            this.targetValueObserved = true;
+            this.publishIfReady ();
+        }
+
+
+        private void publishIfReady ()
+        {
+            if (this.hasTargetObserved && this.targetValueObserved)
+                this.observer.accept (Boolean.valueOf (this.hasTarget && this.targetValue >= 0.5));
+        }
     }
 
 

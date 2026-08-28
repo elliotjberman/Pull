@@ -185,6 +185,14 @@ button action, users must recreate the four controller mappings once after insta
 physical matchers are removed. Bitwig may continue warning about those persisted entries until the
 user deletes them; remove them before learning the four new `Drum Controller Toggle` endpoints.
 
+API 42 intentionally replaces the API 41 semantic actions
+`CONTROLLER_MAPPING_DRUM_CONTROL_1` through `CONTROLLER_MAPPING_DRUM_CONTROL_4`, displayed as
+`Drum Controller Control 1` through `Drum Controller Control 4`, with the absolute-value actions
+`CONTROLLER_MAPPING_DRUM_CONTROL_VALUE_1` through `CONTROLLER_MAPPING_DRUM_CONTROL_VALUE_4`,
+displayed as `Drum Controller Toggle 1` through `Drum Controller Toggle 4`. Delete and relearn all
+four API 41 mappings after installing API 42; their persisted bindings cannot migrate to the new
+absolute-value identities.
+
 ## Closed-Loop Proof
 
 The current migration's tests and live smoke must prove:

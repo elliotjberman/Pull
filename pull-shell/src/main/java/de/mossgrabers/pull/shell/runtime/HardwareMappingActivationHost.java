@@ -114,12 +114,7 @@ final class HardwareMappingActivationHost
 
     private void finishRetirements ()
     {
-        for (final Map.Entry<ControlId, ControllerMappingId> entry: Set.copyOf (this.releasingMappings.entrySet ()))
-        {
-            if (!this.lifecycleIdle.test (entry.getKey ()))
-                continue;
-            this.releasingMappings.remove (entry.getKey ());
-        }
+        this.releasingMappings.keySet ().removeIf (this.lifecycleIdle::test);
         this.releasingDispatch.removeIf (this.lifecycleIdle::test);
     }
 
