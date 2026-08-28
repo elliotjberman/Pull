@@ -103,7 +103,7 @@ public abstract class AbstractControllerExtensionDefinition extends ControllerEx
     @Override
     public int getRequiredAPIVersion ()
     {
-        return 21;
+        return 25;
     }
 
 

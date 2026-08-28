@@ -705,7 +705,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         }
 
         // During a core fault the stable runtime keeps advancing this return. At terminal extension
-        // shutdown API 21 offers no post-exit observation window, so the same request is necessarily
+        // shutdown API 25 offers no post-exit observation window, so the same request is necessarily
         // best effort.
         this.fillSession.invalidate (this.hostSampleRevision);
         this.recordSessionChange ();

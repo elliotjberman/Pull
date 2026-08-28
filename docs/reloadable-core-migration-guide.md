@@ -48,7 +48,7 @@ Read `AGENTS.md` before changing code. In particular:
 10. A new parent-loaded DTO, effect, subscription, Bitwig proxy/property, exclusive-control
    admission, or output lane requires a shell build/install and Bitwig restart.
 11. A behavior change composed only from installed capabilities requires only a core reload.
-12. Direct Bitwig API changes must use controller API 21, avoid deprecated calls, and pass the full
+12. Direct Bitwig API changes must use controller API 25, avoid deprecated calls, and pass the full
     package build with deprecation reporting.
 
 ## The migration decision

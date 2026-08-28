@@ -13,7 +13,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Exact Bitwig API 21 string-mapping tests for stable launch policies.
+ * Exact Bitwig API 25 string-mapping tests for stable launch policies.
  */
 class BitwigClipLaunchMapperTest
 {

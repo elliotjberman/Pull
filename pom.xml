@@ -45,7 +45,7 @@
             <dependency>
                 <groupId>com.bitwig</groupId>
                 <artifactId>extension-api</artifactId>
-                <version>21</version>
+                <version>25</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

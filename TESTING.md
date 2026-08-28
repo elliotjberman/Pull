@@ -143,7 +143,7 @@ Use the exact printed `http://127.0.0.1:<port>/` URL; the server rejects other H
 The browser surface is not a virtual MIDI source. Physical controller MIDI enters Bitwig's
 `MidiIn`, where Bitwig can fire a learned `HardwareAction`, and also reaches Pull's raw-input
 arbitrator. Browser input enters at `PushDebugInputHost`, after the `MidiIn` matcher, so it reaches
-the Pull arbitrator but cannot fire the parallel learned action. Controller API 21 exposes neither
+the Pull arbitrator but cannot fire the parallel learned action. Controller API 25 exposes neither
 a controller-input injection method nor a way to invoke a `HardwareAction` source.
 
 This specifically means browser presses on the four Drum Controller mapping pads (PAD29–32) can
@@ -341,7 +341,7 @@ choose its RGB policy, or repair a missing mapped-feedback subscription or obser
 
 The DOWN/UP pair manually enters the original physical PAD button's permanent extension
 trigger/arbitrator seam. Those physical buttons have no MIDI matchers and are not learned mapping
-identities. Controller API 21 does not expose a way to inject a raw controller MIDI packet back
+identities. Controller API 25 does not expose a way to inject a raw controller MIDI packet back
 through Bitwig's separate semantic hardware-action matcher, so the probe reports whether that
 virtual action is admitting the physical note-on but does not itself fire the Bitwig-learned action.
 A live physical press is still required to prove that Bitwig learned the semantic identity, changes
