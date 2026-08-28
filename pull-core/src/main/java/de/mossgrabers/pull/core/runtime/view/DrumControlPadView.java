@@ -23,19 +23,12 @@ import de.mossgrabers.pull.core.view.SurfaceArea;
 import de.mossgrabers.pull.core.view.SurfaceClaim;
 import de.mossgrabers.pull.core.view.ViewOutput;
 import de.mossgrabers.pull.core.view.ViewProfile;
-import de.mossgrabers.pull.core.api.effect.CoreEffect;
-import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
-import de.mossgrabers.pull.core.api.event.CoreEvent;
-import de.mossgrabers.pull.core.api.event.InputKind;
-import de.mossgrabers.pull.core.api.event.InputPhase;
-
-import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
 
-/** Four Bitwig-mappable control pads with authoritative mapped-state red/off feedback. */
+/** Four Bitwig-mappable control pads with authoritative mapped-state toggle behavior and feedback. */
 public final class DrumControlPadView implements ControllerView
 {
     private static final RgbColor OFF = new RgbColor (0, 0, 0);
@@ -46,23 +39,6 @@ public final class DrumControlPadView implements ControllerView
             new SurfaceClaim (SurfaceArea.DRUM_CONTROL_PADS, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
             new SurfaceClaim (SurfaceArea.DRUM_CONTROL_PADS, SurfaceClaim.Kind.OUTPUT)),
         Set.of ());
-    private int minimumNextMask;
-
-
-    public DrumControlPadView ()
-    {
-        this (0);
-    }
-
-
-    public DrumControlPadView (final int minimumNextMask)
-    {
-        if ((minimumNextMask & ~0x0F) != 0)
-            throw new IllegalArgumentException ("control-pad mapping mask must fit four bits");
-        this.minimumNextMask = minimumNextMask;
-    }
-
-
     @Override
     public String id ()
     {
@@ -85,25 +61,6 @@ public final class DrumControlPadView implements ControllerView
 
 
     @Override
-    public List<CoreEffect> handle (final CoreEvent event, final ControllerSnapshot snapshot)
-    {
-        if (!(event instanceof final ControllerInputEvent input) || input.kind () != InputKind.PAD || input.phase () != InputPhase.BEGIN)
-            return List.of ();
-        final int slot = CoreControls.DRUM_CONTROL_PADS.indexOf (input.controlId ());
-        if (slot >= 0)
-            this.minimumNextMask ^= 1 << slot;
-        return List.of ();
-    }
-
-
-    /** Get the replayable four-bit mask whose set lanes emit minimum on their next press. */
-    public int minimumNextMask ()
-    {
-        return this.minimumNextMask;
-    }
-
-
-    @Override
     public ViewOutput render (final ControllerSnapshot snapshot)
     {
         final ControllerMappingFeedbackSnapshot feedback = snapshot.bridge ().controllerMappingFeedback ();
@@ -118,17 +75,18 @@ public final class DrumControlPadView implements ControllerView
             ControllerDisplayOverlay.inactive (),
             DesiredNotePerformance.inactive (),
             DesiredNoteRepeat.unowned (),
-            this.controllerMappings ());
+            controllerMappings (feedback));
     }
 
 
-    private DesiredControllerMappings controllerMappings ()
+    private static DesiredControllerMappings controllerMappings (final ControllerMappingFeedbackSnapshot feedback)
     {
         final java.util.LinkedHashSet<ControllerMappingBinding> bindings = new java.util.LinkedHashSet<> (CoreControls.DRUM_CONTROL_PADS.size ());
         for (int slot = 0; slot < CoreControls.DRUM_CONTROL_PADS.size (); slot++)
         {
-            final ControllerMappingValue value = (this.minimumNextMask & 1 << slot) == 0 ? ControllerMappingValue.MAXIMUM : ControllerMappingValue.MINIMUM;
-            bindings.add (new ControllerMappingBinding (CoreControls.DRUM_CONTROL_PADS.get (slot), CoreControllerMappings.DRUM_CONTROL_PADS.get (slot), value));
+            final var mappingId = CoreControllerMappings.DRUM_CONTROL_PADS.get (slot);
+            final ControllerMappingValue nextValue = feedback.isOn (mappingId) ? ControllerMappingValue.MINIMUM : ControllerMappingValue.MAXIMUM;
+            bindings.add (new ControllerMappingBinding (CoreControls.DRUM_CONTROL_PADS.get (slot), mappingId, nextValue));
         }
         return new DesiredControllerMappings (bindings);
     }

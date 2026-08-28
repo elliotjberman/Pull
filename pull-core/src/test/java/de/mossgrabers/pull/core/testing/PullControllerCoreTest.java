@@ -1709,11 +1709,11 @@ class PullControllerCoreTest
 
         final int beforePress = host.effects ().executionOrder ().size ();
         host.controllerPad (first, true);
-        assertEquals (ControllerMappingValue.MINIMUM, mappingValue (host, first));
+        assertEquals (ControllerMappingValue.MAXIMUM, mappingValue (host, first));
         assertEquals (beforePress, host.effects ().executionOrder ().size ());
         assertEquals (OFF, light (host, first));
         host.controllerPad (first, false);
-        assertEquals (ControllerMappingValue.MINIMUM, mappingValue (host, first));
+        assertEquals (ControllerMappingValue.MAXIMUM, mappingValue (host, first));
         assertEquals (ControllerMappingValue.MAXIMUM, mappingValue (host, second));
         assertEquals (beforePress, host.effects ().executionOrder ().size ());
 
@@ -1722,19 +1722,23 @@ class PullControllerCoreTest
         host.bridge (controllerMappingFeedbackBridge (true));
         assertEquals (RED, light (host, first));
         assertEquals (OFF, light (host, second));
+        assertEquals (ControllerMappingValue.MINIMUM, mappingValue (host, first));
         host.controllerPad (first, true);
-        assertEquals (ControllerMappingValue.MAXIMUM, mappingValue (host, first));
+        assertEquals (ControllerMappingValue.MINIMUM, mappingValue (host, first));
         assertEquals (beforePress, host.effects ().executionOrder ().size ());
         assertEquals (RED, light (host, first));
         host.controllerPad (first, false);
-        assertEquals (ControllerMappingValue.MAXIMUM, mappingValue (host, first));
+        assertEquals (ControllerMappingValue.MINIMUM, mappingValue (host, first));
 
         host.bridge (controllerMappingFeedbackBridge (false));
         assertEquals (OFF, light (host, first));
+        assertEquals (ControllerMappingValue.MAXIMUM, mappingValue (host, first));
 
         host.bridge (controllerMappingFeedbackBridge (1));
         assertEquals (OFF, light (host, first));
         assertEquals (RED, light (host, second));
+        assertEquals (ControllerMappingValue.MAXIMUM, mappingValue (host, first));
+        assertEquals (ControllerMappingValue.MINIMUM, mappingValue (host, second));
 
         host.controllerButton (SESSION_BUTTON, true);
         host.bridge (layoutBridge ("SESSION", "TRACK"));
@@ -1744,7 +1748,7 @@ class PullControllerCoreTest
 
 
     @Test
-    void checkpointRetainsEachControlPadsNextAlternatingValue ()
+    void checkpointDoesNotOwnControlPadToggleState ()
     {
         final FakeCoreHost first = host (ClipCatalogSnapshot.empty ());
         first.start (Optional.empty ());
@@ -1752,11 +1756,11 @@ class PullControllerCoreTest
         final ControlId firstPad = CoreControls.DRUM_CONTROL_PADS.getFirst ();
         first.controllerPad (firstPad, true);
         first.controllerPad (firstPad, false);
-        assertEquals (ControllerMappingValue.MINIMUM, mappingValue (first, firstPad));
+        assertEquals (ControllerMappingValue.MAXIMUM, mappingValue (first, firstPad));
 
         final FakeCoreHost restored = new FakeCoreHost (new PullCoreProvider ().create (), new PullCoreProvider ().descriptor ().requiredCapabilities ());
         restored.start (Optional.of (first.checkpoint ()));
-        restored.bridge (controllerMappingFeedbackBridge (false));
+        restored.bridge (controllerMappingFeedbackBridge (true));
 
         assertEquals (ControllerMappingValue.MINIMUM, mappingValue (restored, firstPad));
         assertEquals (ControllerMappingValue.MAXIMUM, mappingValue (restored, CoreControls.DRUM_CONTROL_PADS.get (1)));

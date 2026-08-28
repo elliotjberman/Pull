@@ -370,11 +370,12 @@ Stable shell:
   buttons so physical pads remain ordinary-dispatch-only objects rather than learned identities.
 - `HardwareMappingActivationHost`: mechanically projects the complete core lease onto those
   semantic absolute controls. Each active endpoint matches positive Note On only and emits the
-  requested literal maximum or minimum. Core advances that lane's next value after accepted `BEGIN`;
-  the matcher replacement waits until the gesture is idle.
-  Permanent raw MIDI supplies the normalized core gesture while a semantic matcher is active; when
-  no mapping is active it triggers the established original-button dispatch through the same raw
-  ingress for every grid pad. No duplicate learned action or second MIDI callback exists.
+  requested literal maximum or minimum. Core derives that lane's next value as the opposite of
+  later authoritative mapped-target feedback; matcher replacement waits for any observed raw
+  gesture to become idle. Permanent raw MIDI supplies the normalized core gesture when Bitwig also
+  publishes a matched packet to Pull; when no mapping is active it triggers the established
+  original-button dispatch through the same raw ingress for every grid pad. No duplicate learned
+  action or second MIDI callback exists.
 
 ## Migration Status
 

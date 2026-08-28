@@ -38,9 +38,9 @@ The Drum Controller slice has one semantic owner for each mapped pad:
 - The stable shell enables the detached absolute endpoint's positive-velocity Note On matcher only
   while that lease is active. The matcher emits the core-selected literal maximum or minimum;
   Note Off is never part of the learned mapping.
-- Permanent raw input always carries the normalized core gesture for an active semantic mapping;
-  this fences core replacement and completes the exact `END` without creating another learned
-  action.
+- Permanent raw input carries the normalized core gesture when Bitwig also publishes the matched
+  MIDI packet to Pull. Toggle phase does not depend on that parallel callback: later authoritative
+  mapped-target feedback selects the opposite literal value for the next press.
 - Outside Drum Controller, raw input invokes the original physical button's ordinary Pull dispatch
   without firing any semantic Bitwig mapping action. This is the same raw-only ingress used by all
   64 grid pads; no physical grid button remains a learned identity.
@@ -105,7 +105,8 @@ Reloadable core owns:
 
 - which semantic mapping endpoint a view declares;
 - the complete physical-control-to-mapping-endpoint lease for the active workspace;
-- the absolute value emitted by the next physical press and its retained alternating phase;
+- the policy that derives the next absolute value from the opposite of authoritative mapped-target
+  feedback;
 - proof that the declaring view itself owns the physical control's exclusive PAD input and output;
 - conflict detection when two views claim the same physical input or mapping endpoint;
 - the declaring view's subscription to authoritative controller-mapping feedback;
@@ -144,7 +145,8 @@ bindings remain attached to the same permanent action identity.
 2. A physical control admits at most one semantic absolute matcher at a time.
 3. An endpoint not leased by core cannot learn or fire a new controller mapping.
 4. A lane change immediately rejects new presses from the old endpoint.
-5. The exact accepted core gesture completes through `END` before its next alternating value activates.
+5. Later authoritative target feedback selects the opposite value for the next press; a parallel
+   raw lifecycle, when present, still fences matcher replacement until `END`.
 6. Raw ordinary dispatch must not fire any Bitwig controller-mapping action.
 7. Feedback is authoritative Bitwig read-back, never inferred from a press or submitted action.
 8. Missing, unavailable, mismatched, or faulted state fails closed.
@@ -174,8 +176,8 @@ The migration performs this sequence:
 4. All 64 original physical pad actions have no MIDI matcher and remain raw-dispatch-only.
 5. `DrumControlPadView` leases semantic endpoints and renders feedback by mapping ID.
 6. Existing physical exclusive routes and RGB output controls remain physical.
-7. Each accepted `BEGIN` advances only that lane's replayable next value; the replacement matcher
-   activates only after the accepted gesture is idle.
+7. Each later mapped-target feedback update selects only that lane's opposite next value; matcher
+   replacement waits for any observed raw gesture to become idle.
 
 Because a new Bitwig action identity does not inherit bindings stored against the previous physical
 button action, users must recreate the four controller mappings once after installing API 32. Old
@@ -194,6 +196,8 @@ The current migration's tests and live smoke must prove:
 - a learned continuous target observes maximum on the first press and minimum on the second press;
 - physical release produces no learned-mapping value;
 - a learned Boolean target and continuous target both alternate on successive presses;
+- a physical learned action alternates even when Bitwig does not also publish its MIDI packet to
+  Pull's raw callback;
 - view changes while held activate only the latest desired semantic endpoint after `END`;
 - true and false Bitwig feedback address the semantic endpoint and render on the physical LED;
 - unmapped/off remains distinct from unavailable or unsupported inventory;

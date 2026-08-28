@@ -43,9 +43,10 @@ In the current baseline:
   standalone Drum page and VS Live; lights follow target-aligned drum-window playing-velocity
   read-back, and the old shell observers/fade policy are deleted;
 - four Bitwig-manually-mappable control pads, their replayable physical-to-semantic leases, and
-  their mapped-light red/off policy are core-owned; four permanent semantic button identities own
-  Bitwig learning and dedicated no-output Boolean feedback, while all 64 original physical PAD
-  actions remain raw ordinary-dispatch objects and never define learned mapping identity;
+  their authoritative mapped-state toggle and red/off policy are core-owned; four permanent
+  semantic absolute-control identities own Bitwig learning and target feedback, while all 64
+  original physical PAD actions remain raw ordinary-dispatch objects and never define learned
+  mapping identity;
 - Record, Shift+Record, and Select+Record are core-owned;
 - VS Live selection and fixed-facet composition are core-owned;
 - VS Live page changes are admitted from semantic stable-command actions, not inferred from raw
