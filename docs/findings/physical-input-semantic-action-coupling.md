@@ -67,7 +67,8 @@ This removes the core-side physical navigation table. It does not yet satisfy th
   activation through the composed controller-state host.
 - Controller mappings now use permanent semantic `ControllerMappingId` endpoints independently of
   physical `ControlId` values. Core returns the complete active physical-to-semantic projection;
-  stable only realizes matcher handoff and publishes Bitwig Boolean feedback by semantic endpoint.
+  stable only realizes matcher handoff and publishes Bitwig target presence and raw normalized
+  values by semantic endpoint.
   All 64 original grid buttons remain ordinary-dispatch objects driven through permanent raw
   ingress and no longer define learned mapping identity.
 

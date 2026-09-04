@@ -99,8 +99,7 @@ final class HardwareMappingActivationHost
     {
         for (final Map.Entry<ControlId, ControllerMappingBinding> entry: Set.copyOf (this.active.entrySet ()))
         {
-            final ControllerMappingBinding desired = bindingOrNull (requested, entry.getKey ());
-            if (entry.getValue ().equals (desired))
+            if (requested.bindings ().contains (entry.getValue ()))
                 continue;
 
             final ControllerMappingId mappingId = entry.getValue ().mappingId ();
@@ -143,15 +142,6 @@ final class HardwareMappingActivationHost
     private boolean mappingInUse (final ControllerMappingId mappingId)
     {
         return this.active.values ().stream ().anyMatch (binding -> binding.mappingId ().equals (mappingId)) || this.releasingMappings.containsValue (mappingId);
-    }
-
-
-    private static ControllerMappingBinding bindingOrNull (final DesiredControllerMappings mappings, final ControlId physicalControl)
-    {
-        for (final ControllerMappingBinding binding: mappings.bindings ())
-            if (binding.physicalControl ().equals (physicalControl))
-                return binding;
-        return null;
     }
 
 

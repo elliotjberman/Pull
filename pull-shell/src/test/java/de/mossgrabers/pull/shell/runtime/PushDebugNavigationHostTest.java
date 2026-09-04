@@ -9,6 +9,7 @@ import de.mossgrabers.framework.daw.midi.SelectedTrackMonitorMode;
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.pull.core.api.ControllerNoteView;
 import de.mossgrabers.pull.core.api.ControlId;
+import de.mossgrabers.pull.core.api.ControllerMappingTarget;
 import de.mossgrabers.pull.core.api.DesiredControllerLayout;
 import de.mossgrabers.pull.core.api.DesiredNoteInputRoute;
 import de.mossgrabers.pull.core.api.DesiredNotePerformance;
@@ -414,7 +415,7 @@ class PushDebugNavigationHostTest
         assertEquals (List.of ("MUTE:DOWN", "MUTE:UP", "SOLO:DOWN", "SOLO:UP", "STOP_CLIP:DOWN", "STOP_CLIP:UP"), surface.events);
         final List<String> status = this.fullStatus ();
         assertEquals ("READY", status.get (1));
-        assertEquals (List.of ("true", "true", "false"), status.subList (34, 37));
+        assertEquals (List.of ("true", "true", "false"), status.subList (35, 38));
     }
 
 
@@ -564,9 +565,10 @@ class PushDebugNavigationHostTest
         assertEquals ("true", status.get (28));
         assertEquals ("true", status.get (29));
         assertEquals ("true", status.get (30));
-        assertEquals ("0C2238", status.get (31));
-        assertEquals ("43:44:true", status.get (32));
-        assertEquals ("base=0:64:43;blink=14:64:44", status.get (33));
+        assertEquals ("0.75", status.get (31));
+        assertEquals ("0C2238", status.get (32));
+        assertEquals ("43:44:true", status.get (33));
+        assertEquals ("base=0:64:43;blink=14:64:44", status.get (34));
         assertFalse (admission.debugInputActive);
         assertFalse (surface.padObservationActive);
     }
@@ -610,6 +612,7 @@ class PushDebugNavigationHostTest
         assertEquals ("false", status.get (28));
         assertEquals ("false", status.get (29));
         assertEquals ("true", status.get (30));
+        assertEquals ("0.75", status.get (31));
         assertTrue (status.getLast ().contains ("mapping lease"));
     }
 
@@ -639,15 +642,16 @@ class PushDebugNavigationHostTest
         assertEquals ("true", status.get (28));
         assertEquals ("false", status.get (29));
         assertEquals ("true", status.get (30));
+        assertEquals ("0.75", status.get (31));
         assertTrue (status.getLast ().contains ("activation changed"));
     }
 
 
     @Test
-    void padProbeWaitsForSubscribedMappedFeedbackAndAcceptsFalse () throws IOException
+    void padProbeWaitsForSubscribedMappedFeedbackAndAcceptsAbsentTarget () throws IOException
     {
         final FakeNavigationSurface surface = new FakeNavigationSurface ("DRUM_PAD", "TRACK", false);
-        surface.mappedOn = null;
+        surface.mappedTarget = null;
         final FakeAdmission admission = new FakeAdmission (true);
         final PushDebugNavigationHost host = new PushDebugNavigationHost (this.debugDirectory, surface, admission);
         this.request ("mapped-feedback", "pad-29", "PAD_OUTPUT_29_100/view=DRUM_PAD,mode=TRACK,workspace=false");
@@ -656,11 +660,12 @@ class PushDebugNavigationHostTest
         assertTrue (surface.events.isEmpty ());
         assertFalse (Files.exists (this.statusPath ()), "an unavailable subscribed snapshot is not false read-back");
 
-        surface.mappedOn = Boolean.FALSE;
+        surface.mappedTarget = new ControllerMappingTarget (false, 0.25);
         host.tick ();
         assertEquals (List.of ("PAD29:DOWN:100"), surface.events);
         host.close ();
         assertEquals ("false", this.fullStatus ().get (30));
+        assertEquals ("0.25", this.fullStatus ().get (31));
     }
 
 
@@ -673,13 +678,14 @@ class PushDebugNavigationHostTest
         this.request ("lost-mapped-feedback", "pad-29", "PAD_OUTPUT_29_100/view=DRUM_PAD,mode=TRACK,workspace=false");
 
         host.tick ();
-        surface.mappedOn = null;
+        surface.mappedTarget = null;
         host.tick ();
 
         final List<String> status = this.fullStatus ();
         assertEquals (List.of ("PAD29:DOWN:100", "PAD29:UP:0"), surface.events);
         assertEquals ("FAILED", status.get (1));
         assertEquals ("-", status.get (30));
+        assertEquals ("-", status.get (31));
         assertTrue (status.getLast ().contains ("mapped feedback became unavailable"));
     }
 
@@ -838,7 +844,7 @@ class PushDebugNavigationHostTest
         private long coreGeneration = 3;
         private long appliedRevision = 1;
         private boolean mappingDesired = true;
-        private Boolean mappedOn = Boolean.TRUE;
+        private ControllerMappingTarget mappedTarget = new ControllerMappingTarget (true, 0.75);
         private ControlId padControl;
         private RgbColor padDesiredColor;
         private PushControlSurface.DebugPadOutput padOutput;
@@ -993,7 +999,7 @@ class PushDebugNavigationHostTest
                 this.coreGeneration, this.appliedRevision,
                 control.equals (this.padControl) ? this.padDesiredColor : null,
                 this.mappingDesired,
-                this.mappedOn);
+                this.mappedTarget);
         }
 
 

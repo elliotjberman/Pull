@@ -79,7 +79,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -240,16 +240,16 @@ class BoundedControllerBridgeTest
 
         fixture.bridge.refresh (1, DesiredBridgeSubscriptions.empty (), DesiredParameterBanks.empty ());
         assertFalse (fixture.bridge.snapshot ().controllerMappingFeedback ().available ());
-        assertTrue (fixture.bridge.snapshot ().controllerMappingFeedback ().states ().isEmpty ());
+        assertTrue (fixture.bridge.snapshot ().controllerMappingFeedback ().targets ().isEmpty ());
 
         assertTrue (fixture.bridge.refresh (2, subscriptions (BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK), DesiredParameterBanks.empty ()));
         assertTrue (fixture.bridge.snapshot ().controllerMappingFeedback ().available ());
-        assertEquals (Set.copyOf (CoreControllerMappings.DRUM_CONTROL_PADS), fixture.bridge.snapshot ().controllerMappingFeedback ().states ().keySet ());
-        assertTrue (fixture.bridge.snapshot ().controllerMappingFeedback ().states ().values ().stream ().noneMatch (Boolean::booleanValue));
+        assertEquals (Set.copyOf (CoreControllerMappings.DRUM_CONTROL_PADS), fixture.bridge.snapshot ().controllerMappingFeedback ().targets ().keySet ());
+        assertTrue (fixture.bridge.snapshot ().controllerMappingFeedback ().targets ().values ().stream ().allMatch (target -> !target.hasTarget () && target.value () == 0.8));
 
         assertTrue (fixture.bridge.refresh (3, DesiredBridgeSubscriptions.empty (), DesiredParameterBanks.empty ()));
         assertFalse (fixture.bridge.snapshot ().controllerMappingFeedback ().available ());
-        assertTrue (fixture.bridge.snapshot ().controllerMappingFeedback ().states ().isEmpty ());
+        assertTrue (fixture.bridge.snapshot ().controllerMappingFeedback ().targets ().isEmpty ());
     }
 
 
@@ -1093,7 +1093,7 @@ class BoundedControllerBridgeTest
             case "createButton" -> button;
             case "createLight" -> light;
             case "installMappedAbsoluteFeedback" -> {
-                ((Consumer<Boolean>) arguments[1]).accept (Boolean.FALSE);
+                ((BiConsumer<Boolean, Double>) arguments[1]).accept (Boolean.FALSE, Double.valueOf (0.8));
                 yield null;
             }
             default -> relaxedValue (method.getReturnType ());

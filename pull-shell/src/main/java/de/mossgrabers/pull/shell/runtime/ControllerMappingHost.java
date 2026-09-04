@@ -11,6 +11,7 @@ import de.mossgrabers.framework.controller.hardware.IHwSurfaceFactory;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerMappingFeedbackSnapshot;
 import de.mossgrabers.pull.core.api.ControllerMappingId;
+import de.mossgrabers.pull.core.api.ControllerMappingTarget;
 import de.mossgrabers.pull.core.api.CoreControllerMappings;
 import de.mossgrabers.pull.core.api.PushControlIds;
 
@@ -59,7 +60,7 @@ final class ControllerMappingHost
             mappingControl.disableTakeOver ();
             checkedFactory.installMappedAbsoluteFeedback (
                 mappingControl,
-                on -> this.feedback.accept (mappingId, on));
+                (hasTarget, value) -> this.feedback.accept (mappingId, new ControllerMappingTarget (hasTarget.booleanValue (), value.doubleValue ())));
             controls.put (mappingId, mappingControl);
         }
         this.mappingControls = Map.copyOf (controls);
@@ -111,20 +112,19 @@ final class ControllerMappingHost
 
     private static final class FeedbackState
     {
-        private final Map<ControllerMappingId, Boolean> states = new LinkedHashMap<> ();
+        private final Map<ControllerMappingId, ControllerMappingTarget> targets = new LinkedHashMap<> ();
         private volatile ControllerMappingFeedbackSnapshot snapshot = ControllerMappingFeedbackSnapshot.empty ();
 
 
-        private synchronized void accept (final ControllerMappingId mappingId, final Boolean on)
+        private synchronized void accept (final ControllerMappingId mappingId, final ControllerMappingTarget target)
         {
             if (!CoreControllerMappings.DRUM_CONTROL_PADS.contains (mappingId))
                 throw new IllegalArgumentException ("controller mapping feedback is not installed");
-            final Boolean next = Boolean.valueOf (Boolean.TRUE.equals (on));
-            if (next.equals (this.states.get (mappingId)))
+            if (target.equals (this.targets.get (mappingId)))
                 return;
-            this.states.put (mappingId, next);
-            if (this.states.size () == CoreControllerMappings.DRUM_CONTROL_PADS.size ())
-                this.snapshot = new ControllerMappingFeedbackSnapshot (true, this.states);
+            this.targets.put (mappingId, target);
+            if (this.targets.size () == CoreControllerMappings.DRUM_CONTROL_PADS.size ())
+                this.snapshot = new ControllerMappingFeedbackSnapshot (true, this.targets);
         }
     }
 }

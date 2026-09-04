@@ -14,6 +14,7 @@ import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.ControllerNoteView;
 import de.mossgrabers.pull.core.api.ControllerMappingBinding;
 import de.mossgrabers.pull.core.api.ControllerMappingId;
+import de.mossgrabers.pull.core.api.ControllerMappingTarget;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.CoreCapabilities;
 import de.mossgrabers.pull.core.api.CoreControllerMappings;
@@ -134,7 +135,7 @@ class ControllerRuntimeEnvironmentTest
         assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_CONTROLLER_BUTTON_CONSUMPTION));
         assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_PARAMETER_TARGETS));
         assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_PARAMETER_TARGET));
-        assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_CONTROLLER_MAPPING_FEEDBACK));
+        assertEquals (Integer.valueOf (3), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_CONTROLLER_MAPPING_FEEDBACK));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_MASTER));
         assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_MASTER));
         assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_DISPLAY));
@@ -396,12 +397,19 @@ class ControllerRuntimeEnvironmentTest
             mappings);
         commitAndApply (environment, 9, routedResult (output, routes, CONTROLLER_MAPPING_SUBSCRIPTIONS));
 
-        assertNull (environment.debugLightObservation (first).mappedOn ());
-        bridge.setControllerMappingFeedback (new ControllerMappingFeedbackSnapshot (true, Map.of (firstMapping, Boolean.FALSE, secondMapping, Boolean.TRUE)));
+        assertNull (environment.debugLightObservation (first).mappedTarget ());
+        final ControllerMappingTarget belowMidpoint = new ControllerMappingTarget (true, 0.25);
+        final ControllerMappingTarget aboveMidpoint = new ControllerMappingTarget (true, 0.75);
+        bridge.setControllerMappingFeedback (new ControllerMappingFeedbackSnapshot (true, Map.of (firstMapping, belowMidpoint, secondMapping, aboveMidpoint)));
 
-        assertEquals (Boolean.FALSE, environment.debugLightObservation (first).mappedOn ());
-        assertEquals (Boolean.TRUE, environment.debugLightObservation (second).mappedOn ());
-        assertNull (environment.debugLightObservation (CoreControls.DRUM_RATES.getFirst ()).mappedOn ());
+        assertEquals (belowMidpoint, environment.debugLightObservation (first).mappedTarget ());
+        assertEquals (aboveMidpoint, environment.debugLightObservation (second).mappedTarget ());
+        assertNull (environment.debugLightObservation (CoreControls.DRUM_RATES.getFirst ()).mappedTarget ());
+
+        final ControllerMappingTarget absentTarget = new ControllerMappingTarget (false, 0.75);
+        bridge.setControllerMappingFeedback (new ControllerMappingFeedbackSnapshot (true, Map.of (firstMapping, absentTarget)));
+        assertEquals (absentTarget, environment.debugLightObservation (first).mappedTarget ());
+        assertNull (environment.debugLightObservation (second).mappedTarget (), "unsupported inventory has no target observation");
     }
 
 

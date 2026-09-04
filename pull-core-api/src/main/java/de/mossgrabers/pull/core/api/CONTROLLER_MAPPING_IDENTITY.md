@@ -3,7 +3,8 @@
 ## Status
 
 Implemented in Core API 32 for the four Drum Controller control pads and changed to alternating
-absolute endpoints in Core API 42. The installed inventory is
+absolute endpoints in Core API 42. Core API 43 publishes raw mapped-target presence and value
+so midpoint, next-endpoint, and LED interpretation are wholly reloadable. The installed inventory is
 intentionally limited to one semantic Drum Controller endpoint per physical pad. Additional views
 must add their own permanent semantic endpoint inventory; they must not reuse physical `ControlId`
 values as mapping identities.
@@ -45,7 +46,8 @@ The Drum Controller slice has one semantic owner for each mapped pad:
   without firing any semantic Bitwig mapping action. This is the same raw-only ingress used by all
   64 grid pads; no physical grid button remains a learned identity.
 - Authoritative Bitwig mapped-target feedback is keyed by semantic endpoint and rendered by core as
-  red above the target midpoint or black below it on the leased physical LED.
+  red at or above the target midpoint or black below it on the leased physical LED. The shell
+  publishes target presence and the normalized value without applying that threshold.
 
 Therefore a Drum Controller mapping must not fire in Session or another view. Bitwig stores the
 mapping against `drum-controller.control.N`, not against `push.pad.29..32`; changing the core's
@@ -74,9 +76,11 @@ public record DesiredControllerMappings(
     Set<ControllerMappingBinding> bindings
 ) {}
 
+public record ControllerMappingTarget(boolean hasTarget, double value) {}
+
 public record ControllerMappingFeedbackSnapshot(
     boolean available,
-    Map<ControllerMappingId, Boolean> states
+    Map<ControllerMappingId, ControllerMappingTarget> targets
 ) {}
 ```
 
@@ -97,7 +101,9 @@ push.pad.29 -- another installed view --> another-view.control.1
 ```
 
 Feedback is keyed by `ControllerMappingId`. Input routing and RGB transmission remain keyed by the
-physical `ControlId` because input and LED ownership are physical surfaces.
+physical `ControlId` because input and LED ownership are physical surfaces. Every target value is
+finite and normalized to `[0,1]`. An absent target is available read-back and is distinct from
+an endpoint omitted while its target-presence or value observer is not yet ready.
 
 ## Ownership Boundary
 
@@ -119,7 +125,8 @@ Stable shell owns only:
 - stable host-facing IDs and labels for semantic mapping endpoints;
 - exact physical MIDI matcher installation and translation;
 - literal-value matcher handoff, held-input fencing, reload safety, and shutdown cleanup;
-- observation of each absolute control's mapped target value;
+- observation of each absolute control's mapped target presence and raw normalized value,
+  including readiness gating;
 - immutable snapshot publication and hardware RGB transmission.
 
 The shell must never select a mapping endpoint from the active view itself. It realizes only the
@@ -191,7 +198,27 @@ API 42 intentionally replaces the API 41 semantic actions
 `CONTROLLER_MAPPING_DRUM_CONTROL_VALUE_1` through `CONTROLLER_MAPPING_DRUM_CONTROL_VALUE_4`,
 displayed as `Drum Controller Toggle 1` through `Drum Controller Toggle 4`. Delete and relearn all
 four API 41 mappings after installing API 42; their persisted bindings cannot migrate to the new
-absolute-value identities.
+absolute-value identities. API 43 retains those exact absolute-control IDs and labels, so existing
+`Drum Controller Toggle 1` through `Drum Controller Toggle 4` mappings survive the API 43 install.
+It still requires a shell install and restart because the parent-loaded feedback DTO changes.
+
+## API 43 Capability Audit
+
+- Feature: move mapped-target interpretation fully into the reloadable Drum control-pad view.
+- Physical inputs and kinds: PAD29–32 / PAD, using the existing exclusive routes and matchers.
+- Semantic variants: positive presses send the endpoint opposite the later host value; release and
+  zero-velocity Note On are ignored by learning. All modifier variants remain unchanged.
+- Authoritative state: semantic endpoint inventory readiness, target presence, and raw normalized
+  target value; no value may be inferred from a press, sent endpoint, or rendered color.
+- Effects: none; Bitwig's existing semantic absolute mapping is the actuator.
+- Output: existing RGB ownership and complete physical-to-semantic matcher leases. Core alone
+  applies `value >= 0.5` with target presence to choose red/off and the opposite next endpoint.
+- Retained state: no toggle phase survives or needs a core handoff; later host read-back decides.
+- Existing canopy: four absolute endpoints, exclusive pad routes, subscriptions, matcher lifecycle
+  fencing, and physical RGB output.
+- Missing canopy: raw target presence/value in the parent-loaded snapshot. This is one bounded
+  Class B expansion in API 43 and requires a shell install and Bitwig restart.
+- Out of scope: new inputs, semantic endpoints, parameter ranges, or additional mapping features.
 
 ## Closed-Loop Proof
 
@@ -207,7 +234,8 @@ The current migration's tests and live smoke must prove:
 - a physical learned action alternates even when Bitwig does not also publish its MIDI packet to
   Pull's raw callback;
 - view changes while held activate only the latest desired semantic endpoint after `END`;
-- true and false Bitwig feedback address the semantic endpoint and render on the physical LED;
+- raw target presence and fractional Bitwig values address the semantic endpoint; core applies
+  the midpoint and renders on the physical LED without losing those values in stable code;
 - unmapped/off remains distinct from unavailable or unsupported inventory;
 - core reload, rejected candidate, fault, shutdown, and restart never leave multiple matchers live;
 - the Bitwig mapping browser exposes no ordinary-dispatch or duplicate physical-pad mapping source.

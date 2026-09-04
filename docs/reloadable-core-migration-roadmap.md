@@ -43,7 +43,8 @@ In the current baseline:
   standalone Drum page and VS Live; lights follow target-aligned drum-window playing-velocity
   read-back, and the old shell observers/fade policy are deleted;
 - four Bitwig-manually-mappable control pads, their replayable physical-to-semantic leases, and
-  their authoritative mapped-state toggle and red/off policy are core-owned; four permanent
+  their authoritative mapped-state toggle and red/off policy are core-owned; API 43 publishes raw
+  target presence and normalized values, leaving the midpoint decision in core. Four permanent
   semantic absolute-control identities own Bitwig learning and target feedback, while all 64
   original physical PAD actions remain raw ordinary-dispatch objects and never define learned
   mapping identity;

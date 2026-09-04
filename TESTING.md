@@ -315,12 +315,15 @@ RGB entry for that pad. It resolves that RGB through the Push palette, waits for
 samples of the resolved `LightInfo`, and requires a successful outbound base-color transmission
 (plus the matching blink transmission when blink is active). Terminal status reports `pad_probe`,
 `pad_button`, normalized `pad_control`, physical `pad_midi_note`, `pad_velocity`, `pad_route`, core
-`mapping_desired`, stable-host `mapping_active`, authoritative `mapped_on`, `desired_rgb`,
-`resolved_light`, and `transmitted_light`. `mapped_on` is derived only from the subscribed API-32
-Boolean snapshot, keyed by the semantic endpoint in the committed binding: `true` means Bitwig
-resolved that virtual action's no-output background light on, `false` means either unmapped or
-mapped-off, and `-` means the snapshot is not currently available. It never derives from desired or
-transmitted RGB and intentionally makes no mapping-presence claim. The separate route, desired
+`mapping_desired`, stable-host `mapping_active`, authoritative `mapped_has_target` and
+`mapped_value`, `desired_rgb`, `resolved_light`, and `transmitted_light`. The mapped fields come
+only from the subscribed API-43 snapshot, keyed by the semantic endpoint in the committed binding.
+`mapped_has_target` reports Bitwig's mapped-target presence and `mapped_value` retains its raw
+normalized value, including fractional values. An observed absent target reports `false` while
+retaining the independently observed raw value; unavailable or unsupported endpoint read-back
+reports `-` in both fields. Neither field derives
+from desired or transmitted RGB. The debugger applies no on/off threshold: the core alone
+interprets the authoritative value for its next endpoint and LED policy. The separate route, desired
 binding, applied semantic-matcher activation, mapped read-back, and output fields distinguish an
 inactive view or lane transition from a feedback/render/transmission failure. `mapping_active`
 likewise does not claim that a manual Bitwig mapping exists, fired, or changed host state. The

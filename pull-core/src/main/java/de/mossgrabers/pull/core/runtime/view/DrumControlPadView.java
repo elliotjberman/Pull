@@ -7,6 +7,7 @@ import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerMappingBinding;
 import de.mossgrabers.pull.core.api.ControllerMappingFeedbackSnapshot;
+import de.mossgrabers.pull.core.api.ControllerMappingTarget;
 import de.mossgrabers.pull.core.api.ControllerMappingValue;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.CoreControllerMappings;
@@ -72,7 +73,8 @@ public final class DrumControlPadView implements ControllerView
         {
             final ControlId control = CoreControls.DRUM_CONTROL_PADS.get (slot);
             final var mappingId = CoreControllerMappings.DRUM_CONTROL_PADS.get (slot);
-            final boolean on = ready && feedback.isOn (mappingId);
+            final ControllerMappingTarget target = feedback.targets ().get (mappingId);
+            final boolean on = ready && target.hasTarget () && target.value () >= 0.5;
             lights.put (control, on ? ON : OFF);
             if (ready)
                 bindings.add (new ControllerMappingBinding (control, mappingId, on ? ControllerMappingValue.MINIMUM : ControllerMappingValue.MAXIMUM));

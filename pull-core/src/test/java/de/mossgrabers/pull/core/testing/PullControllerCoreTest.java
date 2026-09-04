@@ -14,6 +14,8 @@ import de.mossgrabers.pull.core.api.ControllerActionIntent;
 import de.mossgrabers.pull.core.api.ControllerLayoutSnapshot;
 import de.mossgrabers.pull.core.api.ControllerMappingBinding;
 import de.mossgrabers.pull.core.api.ControllerMappingFeedbackSnapshot;
+import de.mossgrabers.pull.core.api.ControllerMappingId;
+import de.mossgrabers.pull.core.api.ControllerMappingTarget;
 import de.mossgrabers.pull.core.api.ControllerMappingValue;
 import de.mossgrabers.pull.core.api.ControllerNoteView;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
@@ -1755,6 +1757,75 @@ class PullControllerCoreTest
 
 
     @Test
+    void drumControlPadsInterpretMappedValuesOnlyAfterAuthoritativeReadback ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        final Map<ControllerMappingId, ControllerMappingTarget> targets = Map.of (
+            CoreControllerMappings.DRUM_CONTROL_PADS.get (0), new ControllerMappingTarget (true, 0.2),
+            CoreControllerMappings.DRUM_CONTROL_PADS.get (1), new ControllerMappingTarget (true, 0.4),
+            CoreControllerMappings.DRUM_CONTROL_PADS.get (2), new ControllerMappingTarget (true, 0.5),
+            CoreControllerMappings.DRUM_CONTROL_PADS.get (3), new ControllerMappingTarget (true, 0.8));
+        final ControllerBridgeSnapshot readback = controllerMappingFeedbackBridge (targets);
+        host.bridge (readback);
+
+        for (int slot = 0; slot < CoreControls.DRUM_CONTROL_PADS.size (); slot++)
+        {
+            final ControlId control = CoreControls.DRUM_CONTROL_PADS.get (slot);
+            final RgbColor expectedLight = slot < 2 ? OFF : RED;
+            final ControllerMappingValue expectedValue = slot < 2 ? ControllerMappingValue.MAXIMUM : ControllerMappingValue.MINIMUM;
+            assertEquals (expectedLight, light (host, control));
+            assertEquals (expectedValue, mappingValue (host, control));
+            host.controllerPad (control, true);
+            assertEquals (expectedLight, light (host, control), "input cannot supply mapped-target readback");
+            assertEquals (expectedValue, mappingValue (host, control));
+            host.controllerPad (control, false);
+            assertEquals (expectedLight, light (host, control));
+            assertEquals (expectedValue, mappingValue (host, control));
+        }
+        assertEquals (targets, readback.controllerMappingFeedback ().targets (), "distinct host values survive input and core interpretation");
+
+        final Map<ControllerMappingId, ControllerMappingTarget> unmappedTargets = new java.util.LinkedHashMap<> (targets);
+        unmappedTargets.put (CoreControllerMappings.DRUM_CONTROL_PADS.get (3), new ControllerMappingTarget (false, 0.8));
+        host.bridge (controllerMappingFeedbackBridge (unmappedTargets));
+        assertEquals (OFF, light (host, CoreControls.DRUM_CONTROL_PADS.get (3)), "an unmapped endpoint remains off even with nonzero host value");
+        assertEquals (ControllerMappingValue.MAXIMUM, mappingValue (host, CoreControls.DRUM_CONTROL_PADS.get (3)));
+    }
+
+
+    @Test
+    void drumControlPadsWaitForEveryFeedbackLaneBeforeExposingMappings ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        final Map<ControllerMappingId, ControllerMappingTarget> targets = new java.util.LinkedHashMap<> ();
+        for (int slot = 0; slot < CoreControllerMappings.DRUM_CONTROL_PADS.size (); slot++)
+        {
+            host.bridge (controllerMappingFeedbackBridge (targets));
+            assertTrue (host.effects ().desiredOutput ().controllerMappings ().bindings ().isEmpty (), "partial feedback must keep every mapping lane inert");
+            for (final ControlId control : CoreControls.DRUM_CONTROL_PADS)
+            {
+                assertEquals (OFF, light (host, control));
+                assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (control, InputKind.PAD));
+            }
+            targets.put (CoreControllerMappings.DRUM_CONTROL_PADS.get (slot), new ControllerMappingTarget (slot < 3, 0.8));
+        }
+
+        host.bridge (controllerMappingFeedbackBridge (targets));
+        assertEquals (CoreControls.DRUM_CONTROL_PADS.size (), host.effects ().desiredOutput ().controllerMappings ().bindings ().size ());
+        assertEquals (RED, light (host, CoreControls.DRUM_CONTROL_PADS.getFirst ()));
+        assertEquals (ControllerMappingValue.MINIMUM, mappingValue (host, CoreControls.DRUM_CONTROL_PADS.getFirst ()));
+        assertEquals (OFF, light (host, CoreControls.DRUM_CONTROL_PADS.get (3)), "ready unmapped feedback completes startup without asserting mapped-on");
+        assertEquals (ControllerMappingValue.MAXIMUM, mappingValue (host, CoreControls.DRUM_CONTROL_PADS.get (3)));
+
+        targets.remove (CoreControllerMappings.DRUM_CONTROL_PADS.getFirst ());
+        host.bridge (controllerMappingFeedbackBridge (targets));
+        assertTrue (host.effects ().desiredOutput ().controllerMappings ().bindings ().isEmpty ());
+        CoreControls.DRUM_CONTROL_PADS.forEach (control -> assertEquals (OFF, light (host, control)));
+    }
+
+
+    @Test
     void checkpointDoesNotOwnControlPadToggleState ()
     {
         final FakeCoreHost first = host (ClipCatalogSnapshot.empty ());
@@ -2406,10 +2477,16 @@ class PullControllerCoreTest
 
     private static ControllerBridgeSnapshot controllerMappingFeedbackBridge (final int onSlot)
     {
-        final Map<de.mossgrabers.pull.core.api.ControllerMappingId, Boolean> states = new java.util.LinkedHashMap<> ();
-        CoreControllerMappings.DRUM_CONTROL_PADS.forEach (mappingId -> states.put (mappingId, Boolean.FALSE));
+        final Map<ControllerMappingId, ControllerMappingTarget> targets = new java.util.LinkedHashMap<> ();
+        CoreControllerMappings.DRUM_CONTROL_PADS.forEach (mappingId -> targets.put (mappingId, new ControllerMappingTarget (true, 0)));
         if (onSlot >= 0)
-            states.put (CoreControllerMappings.DRUM_CONTROL_PADS.get (onSlot), Boolean.TRUE);
+            targets.put (CoreControllerMappings.DRUM_CONTROL_PADS.get (onSlot), new ControllerMappingTarget (true, 1));
+        return controllerMappingFeedbackBridge (targets);
+    }
+
+
+    private static ControllerBridgeSnapshot controllerMappingFeedbackBridge (final Map<ControllerMappingId, ControllerMappingTarget> targets)
+    {
         return new ControllerBridgeSnapshot (
             TransportSnapshot.empty (),
             SelectedTrackSnapshot.empty (),
@@ -2418,7 +2495,7 @@ class PullControllerCoreTest
             NoteRepeatSnapshot.empty (),
             DrumContextSnapshot.empty (),
             ParameterBridgeSnapshot.empty (),
-            new ControllerMappingFeedbackSnapshot (true, states),
+            new ControllerMappingFeedbackSnapshot (true, targets),
             MasterSnapshot.empty (),
             ProjectSnapshot.empty ());
     }

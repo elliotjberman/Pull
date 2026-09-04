@@ -1,6 +1,6 @@
 # Pull View Architecture
 
-Status: current through Core API 42, semantic controller-mapping identities, generic registered
+Status: current through Core API 43, semantic controller-mapping identities, generic registered
 button/grid light arbitration, the shared
 mixer-control renderer, the Master-control migration, the post-demo `VS Live` composition, and
 core-owned Session Stop, selected-track Mute/Solo, VS Live Project/Track and Track/Mix display
@@ -366,8 +366,8 @@ Stable shell:
   authoritative state, and generation-fenced bank actions.
 - `PushControlSurface`: remaining stable pitch-bend and navigation integration.
 - `ControllerMappingHost`: eagerly creates the four permanent semantic Bitwig absolute-control identities,
-  observes their mapped target feedback, and removes MIDI matchers from all 64 original grid
-  buttons so physical pads remain ordinary-dispatch-only objects rather than learned identities.
+  observes their mapped target presence and raw normalized values, and removes MIDI matchers from
+  all 64 original grid buttons so physical pads remain ordinary-dispatch-only objects rather than learned identities.
 - `HardwareMappingActivationHost`: mechanically projects the complete core lease onto those
   semantic absolute controls. Each active endpoint matches positive Note On only and emits the
   requested literal maximum or minimum. Core derives that lane's next value as the opposite of
@@ -464,11 +464,11 @@ Partial or transitional:
   unclaimed lights preserve their frozen legacy supplier exactly. Current core owners are
   the sixteen drum-play, eight drum-fill, four drum-rate, and four mappable-control lights, global
   Play/Record, Session Stop Clip, persistent selected-track Mute/Solo, and both Master rows. Authoritative
-  semantic Bitwig Boolean feedback and replayable physical-to-semantic mapping leases support the
-  mappable controls. General display output is still semantically partial: Master and the composed
+  semantic Bitwig target presence/value feedback and replayable physical-to-semantic mapping leases
+  support the mappable controls. General display output is still semantically partial: Master and the composed
   VS Live Project/Track and Track/Mix pages are core-authored, while a generic complete base-scene plane, a
   temporary sparse 8x8 grid overlay, and a complete temporary 960x160 display overlay are
-  arbitrated. The detailed design's API 42 installed-output inventory is canonical.
+  arbitrated. The detailed design's API 43 installed-output inventory is canonical.
 
 Deferred by design:
 

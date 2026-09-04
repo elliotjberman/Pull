@@ -12,6 +12,7 @@ import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.ControllerActionBinding;
 import de.mossgrabers.pull.core.api.ControllerActionIntent;
 import de.mossgrabers.pull.core.api.ControllerMappingBinding;
+import de.mossgrabers.pull.core.api.ControllerMappingTarget;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.CoreExecutionRequirements;
 import de.mossgrabers.pull.core.api.CoreCapabilities;
@@ -107,7 +108,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         Map.entry (CoreCapabilities.EFFECT_NOTE_INPUT_MIDI, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.SNAPSHOT_PARAMETER_TARGETS, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.EFFECT_PARAMETER_TARGET, Integer.valueOf (2)),
-        Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_MAPPING_FEEDBACK, Integer.valueOf (2)),
+        Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_MAPPING_FEEDBACK, Integer.valueOf (3)),
         Map.entry (CoreCapabilities.SNAPSHOT_MASTER, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_MASTER, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_DISPLAY, Integer.valueOf (4)),
@@ -477,16 +478,16 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         final ControlId lightOwner = Objects.requireNonNull (owner, "light owner");
         final RgbColor color = this.committedState.explicitLightOwners ().contains (lightOwner) ? this.committedState.output ().lights ().get (lightOwner) : null;
         final var mappingId = this.committedState.output ().controllerMappings ().mappingIdOrNull (lightOwner);
-        return new DebugLightObservation (this.committedState.generation (), this.appliedResultRevision, color, mappingId != null, this.debugControllerMappingOn (mappingId));
+        return new DebugLightObservation (this.committedState.generation (), this.appliedResultRevision, color, mappingId != null, this.debugControllerMappingTarget (mappingId));
     }
 
 
-    private Boolean debugControllerMappingOn (final de.mossgrabers.pull.core.api.ControllerMappingId mappingId)
+    private ControllerMappingTarget debugControllerMappingTarget (final de.mossgrabers.pull.core.api.ControllerMappingId mappingId)
     {
         if (mappingId == null || this.controllerBridge == null)
             return null;
         final var feedback = this.controllerBridge.snapshot ().controllerMappingFeedback ();
-        return feedback.available () && feedback.supports (mappingId) ? Boolean.valueOf (feedback.isOn (mappingId)) : null;
+        return feedback.available () && feedback.supports (mappingId) ? feedback.targets ().get (mappingId) : null;
     }
 
 
@@ -1484,7 +1485,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
-    record DebugLightObservation (long coreGeneration, long appliedRevision, RgbColor color, boolean mappingDesired, Boolean mappedOn)
+    record DebugLightObservation (long coreGeneration, long appliedRevision, RgbColor color, boolean mappingDesired, ControllerMappingTarget mappedTarget)
     {
         boolean present ()
         {

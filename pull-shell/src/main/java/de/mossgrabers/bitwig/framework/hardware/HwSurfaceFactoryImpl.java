@@ -5,6 +5,7 @@
 package de.mossgrabers.bitwig.framework.hardware;
 
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.IntFunction;
@@ -13,13 +14,11 @@ import java.util.function.Supplier;
 
 import com.bitwig.extension.api.Color;
 import com.bitwig.extension.controller.api.AbsoluteHardwareControl;
-import com.bitwig.extension.controller.api.BooleanHardwareProperty;
 import com.bitwig.extension.controller.api.HardwareButton;
 import com.bitwig.extension.controller.api.HardwareLightVisualState;
 import com.bitwig.extension.controller.api.HardwareSurface;
 import com.bitwig.extension.controller.api.InternalHardwareLightState;
 import com.bitwig.extension.controller.api.MultiStateHardwareLight;
-import com.bitwig.extension.controller.api.OnOffHardwareLight;
 
 import de.mossgrabers.bitwig.framework.daw.HostImpl;
 import de.mossgrabers.bitwig.framework.graphics.BitmapImpl;
@@ -80,15 +79,7 @@ public class HwSurfaceFactoryImpl implements IHwSurfaceFactory
     @Override
     public IHwButton createButton (final int surfaceID, final ButtonID buttonID, final String label)
     {
-        return this.createButton (surfaceID, buttonID.name (), label);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public IHwButton createButton (final int surfaceID, final String hardwareID, final String label)
-    {
-        final String id = createID (surfaceID, hardwareID);
+        final String id = createID (surfaceID, buttonID.name ());
         final HardwareButton hwButton = this.hardwareSurface.createHardwareButton (id);
         return new HwButtonImpl (this.host, hwButton, label, this.buttonTimeoutOptimizer);
     }
@@ -127,29 +118,7 @@ public class HwSurfaceFactoryImpl implements IHwSurfaceFactory
 
     /** {@inheritDoc} */
     @Override
-    public void installMappedBooleanFeedback (final int surfaceID, final String hardwareID, final IHwButton button, final Consumer<Boolean> observer)
-    {
-        final String id = createID (surfaceID, hardwareID);
-        final OnOffHardwareLight feedbackLight = this.hardwareSurface.createOnOffHardwareLight (id);
-        if (!(Objects.requireNonNull (button, "button") instanceof final HwButtonImpl hwButton))
-            throw new IllegalArgumentException ("mapped Boolean feedback requires a Bitwig hardware button");
-        installMappedBooleanFeedback (hwButton.getHardwareButton (), feedbackLight, observer);
-    }
-
-
-    static void installMappedBooleanFeedback (final HardwareButton button, final OnOffHardwareLight feedbackLight, final Consumer<Boolean> observer)
-    {
-        final HardwareButton checkedButton = Objects.requireNonNull (button, "button");
-        final BooleanHardwareProperty state = Objects.requireNonNull (feedbackLight, "feedbackLight").isOn ();
-        state.setValue (false);
-        state.onUpdateHardware (Objects.requireNonNull (observer, "observer"));
-        checkedButton.setBackgroundLight (feedbackLight);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void installMappedAbsoluteFeedback (final IHwAbsoluteControl control, final Consumer<Boolean> observer)
+    public void installMappedAbsoluteFeedback (final IHwAbsoluteControl control, final BiConsumer<Boolean, Double> observer)
     {
         if (!(Objects.requireNonNull (control, "control") instanceof final AbstractHwAbsoluteControl<?> absoluteControl))
             throw new IllegalArgumentException ("mapped absolute feedback requires a Bitwig absolute hardware control");
@@ -157,7 +126,7 @@ public class HwSurfaceFactoryImpl implements IHwSurfaceFactory
     }
 
 
-    static void installMappedAbsoluteFeedback (final AbsoluteHardwareControl control, final Consumer<Boolean> observer)
+    static void installMappedAbsoluteFeedback (final AbsoluteHardwareControl control, final BiConsumer<Boolean, Double> observer)
     {
         final AbsoluteHardwareControl checkedControl = Objects.requireNonNull (control, "control");
         final MappedAbsoluteFeedback feedback = new MappedAbsoluteFeedback (observer);
@@ -169,14 +138,14 @@ public class HwSurfaceFactoryImpl implements IHwSurfaceFactory
 
     private static final class MappedAbsoluteFeedback
     {
-        private final Consumer<Boolean> observer;
+        private final BiConsumer<Boolean, Double> observer;
         private boolean hasTargetObserved;
         private boolean targetValueObserved;
         private boolean hasTarget;
         private double targetValue;
 
 
-        private MappedAbsoluteFeedback (final Consumer<Boolean> observer)
+        private MappedAbsoluteFeedback (final BiConsumer<Boolean, Double> observer)
         {
             this.observer = Objects.requireNonNull (observer, "observer");
         }
@@ -201,7 +170,7 @@ public class HwSurfaceFactoryImpl implements IHwSurfaceFactory
         private void publishIfReady ()
         {
             if (this.hasTargetObserved && this.targetValueObserved)
-                this.observer.accept (Boolean.valueOf (this.hasTarget && this.targetValue >= 0.5));
+                this.observer.accept (Boolean.valueOf (this.hasTarget), Double.valueOf (this.targetValue));
         }
     }
 
