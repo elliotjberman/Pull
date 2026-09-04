@@ -78,6 +78,18 @@ Info scenes were visually checked. Routed tests include deferred tab release acr
 read-back, stale page/bank cancellation, Stop chords and saved legacy-page promotion. Live verification
 remains pending.
 
+## Light-refresh regression
+
+A forced refresh must resend unchanged light and continuous-control output on the next hardware
+update, use current supplier values, and preserve a later switch-off. The offline regressions
+advance hardware output separately from the refresh request.
+
+For live verification, hold the live lease below, install the exact built shell, and start Bitwig
+with Push connected. The device-inquiry response triggers palette synchronization and the normal
+forced refresh. Verify successful button/pad output and the current display before the separate
+ten-second macOS resend, then check that shutdown leaves the lights off. Record the artifact and
+active core identities; an offline pass alone does not prove physical startup replay.
+
 ## Live Push display loop
 
 Bitwig, its loaded Pull shell/core, and the physical Push form one shared live environment. Acquire
