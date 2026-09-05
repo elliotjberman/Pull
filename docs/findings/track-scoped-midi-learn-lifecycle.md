@@ -31,11 +31,28 @@ The scratch project was then closed, the original project restored, and the leas
 observations cover that scratch project only. Reorder/group movement, duplication of actual native
 learned mappings, and a persistent allocation registry were not verified.
 
-API 45 adds core-owned mapping-browser names using the existing selected-track name observation.
-Names are separate from matcher identity, retained only within the active core/document, and reset
-to generic bank labels when unavailable. Inactive tracks refresh on selection; this adds no global
-track scanner and does not resolve the lifecycle questions below. The user confirmed the API 44
-physical two-track mapping smoke; final API 45 rename/browser persistence testing is separate.
+## Observed Mapping-Name Runtime Restriction
+
+The user confirmed that the API 44 physical two-track native mappings worked, then requested
+track-name labels and explicitly allowed deferral if the API could not support them. An API 45
+naming experiment kept permanent IDs/matchers separate from `HardwareControl.setName(String)`;
+517 offline tests passed, but the exact live build rejected the setter.
+
+At 2026-09-05 17:18:23 local time, BitwigStudio.log reported `This can only be called during driver
+initialization`, with `jaS.setName` → `AbstractHwAbsoluteControl.setName` →
+`ControllerMappingNamesHost.refresh`. The failing core build was
+`20260905T211419Z-18d085e09eaac9481c26008146a9c811` and extension SHA-256 was
+`3d8ad883ce6c321c8595d3094584334104d0ed3db74ea75724387edbd9051a0b`.
+Inspection of the installed Bitwig implementation confirmed that both `setName(String)` and
+`setLabel(String)` call `checkIsInitializingDriver()` before accepting a value. The locally resolved
+API 25 source declares both without deprecation or an initialization-only warning; its existence
+alone therefore does not establish runtime mutability.
+
+The naming experiment was removed. V1 remains on core API 44 and uses permanent
+`Bank N Drum Controller Toggle M` labels, making allocation slots distinct from track positions.
+A future naming design must demonstrate a supported runtime presentation mechanism in the actual
+host before adding a cache or API transport. Do not revive the runtime setters or recreate controls
+under new identities on rename; either would break the current bounded contract.
 
 ## Contract Gaps And Open Questions
 

@@ -6,7 +6,6 @@ package de.mossgrabers.pull.shell.runtime;
 import de.mossgrabers.framework.controller.hardware.IHwContinuousControl;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ControllerMappingContext;
-import de.mossgrabers.pull.core.api.ControllerMappingNames;
 import de.mossgrabers.pull.core.api.DesiredControllerLayout;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerState;
@@ -105,14 +104,6 @@ interface ControllerBridge
     default boolean controllerMappingContextMatches (final ControllerMappingContext context)
     {
         return false;
-    }
-
-
-    /** Apply complete presentation metadata without changing native input matchers. */
-    default void applyControllerMappingNames (final ControllerMappingNames names)
-    {
-        if (!Objects.requireNonNull (names, "names").isEmpty ())
-            throw new IllegalArgumentException ("Controller bridge does not support mapping names");
     }
 
     PreparedAction prepare (CoreEffect effect, Map<ParameterTargetRef, ParameterLease> parameterLeases);

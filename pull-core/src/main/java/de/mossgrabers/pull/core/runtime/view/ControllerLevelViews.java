@@ -21,7 +21,6 @@ public final class ControllerLevelViews
     private final ControllerView globalParameters;
     private final ControllerView transport;
     private final ControllerView selectedTrackMuteSolo;
-    private final ControllerView controllerMappingNames;
 
 
     /** Construct one retained controller-level policy set for a core generation. */
@@ -36,7 +35,6 @@ public final class ControllerLevelViews
             Objects.requireNonNull (playbackCoordinator, "playbackCoordinator"),
             selectedTrackToggles));
         this.selectedTrackMuteSolo = retained (new SelectedTrackMuteSoloView (selectedTrackToggles));
-        this.controllerMappingNames = retained (new ControllerMappingNameView ());
     }
 
 
@@ -62,14 +60,13 @@ public final class ControllerLevelViews
     private List<ControllerView> compose (final List<? extends ControllerView> workspaceViews, final boolean noteController)
     {
         final List<? extends ControllerView> checkedWorkspaceViews = Objects.requireNonNull (workspaceViews, "workspaceViews");
-        final List<ControllerView> views = new ArrayList<> (checkedWorkspaceViews.size () + 6);
+        final List<ControllerView> views = new ArrayList<> (checkedWorkspaceViews.size () + 5);
         views.add (this.workspaceSelection);
         if (noteController)
             views.add (this.noteViewController);
         views.add (this.globalParameters);
         views.add (this.transport);
         views.add (this.selectedTrackMuteSolo);
-        views.add (this.controllerMappingNames);
         for (final ControllerView view: checkedWorkspaceViews)
             views.add (Objects.requireNonNull (view, "workspaceView"));
         return List.copyOf (views);

@@ -11,7 +11,7 @@ import java.util.Set;
 
 
 /** Complete replayable projection of physical inputs onto installed semantic mapping endpoints. */
-public record DesiredControllerMappings (Set<ControllerMappingBinding> bindings, ControllerMappingNames names)
+public record DesiredControllerMappings (Set<ControllerMappingBinding> bindings)
 {
     /** Maximum mapping projections accepted across the parent-loaded API. */
     public static final int CAPACITY = 64;
@@ -19,18 +19,10 @@ public record DesiredControllerMappings (Set<ControllerMappingBinding> bindings,
     private static final DesiredControllerMappings EMPTY = new DesiredControllerMappings (Set.of ());
 
 
-    /** Create native matcher bindings without mapping display-name ownership. */
-    public DesiredControllerMappings (final Set<ControllerMappingBinding> bindings)
-    {
-        this (bindings, ControllerMappingNames.empty ());
-    }
-
-
     /** Validate uniqueness and copy the complete projection set. */
     public DesiredControllerMappings
     {
         bindings = Set.copyOf (Objects.requireNonNull (bindings, "bindings"));
-        names = Objects.requireNonNull (names, "names");
         if (bindings.size () > CAPACITY)
             throw new IllegalArgumentException ("controller mappings exceed the installed API capacity");
 

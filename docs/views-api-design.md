@@ -1,6 +1,6 @@
 # Views API and Composite Workspaces
 
-Status: design contract. Checkpoints 1 and 2 are structurally implemented through Core API 45. The
+Status: design contract. Checkpoints 1 and 2 are structurally implemented through Core API 44. The
 remaining stable-adapter boundary is represented explicitly in claims and recorded in
 [`../ARCH.md`](../ARCH.md). The checkpoints remain below so code, offline tests, and Push hardware
 tests can be compared against the intended end state.
@@ -316,10 +316,6 @@ currently migrated behavior through views:
   one it supplies the normalized core gesture independently of the one semantic learned action.
   Core owns the midpoint, next-endpoint, and red/off policy derived from later authoritative
   presence/value feedback keyed by semantic endpoint; stable code does not interpret the value.
-- API 45 adds complete document-fenced mapping names independently of physical matcher leases.
-  A retained metadata-only controller view derives names from the current registry and last
-  selected-track name observations. Metadata merges reject duplicate endpoints and disagreeing
-  document/revision contexts; names alone confer no physical input ownership.
 - Record, Shift + Record, and Select + Record become one fixed Record control view.
 - The selected Drum workspace composes those views; melodic Note workspaces do not retain a hidden
   drum-fill owner.

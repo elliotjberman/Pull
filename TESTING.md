@@ -318,7 +318,7 @@ samples of the resolved `LightInfo`, and requires a successful outbound base-col
 `mapping_desired`, stable-host `mapping_active`, committed semantic `mapping_id`, and authoritative
 `mapped_has_target` and
 `mapped_value`, `desired_rgb`, `resolved_light`, and `transmitted_light`. The mapped fields come
-only from the subscribed API-45 snapshot, keyed by the semantic endpoint in the committed binding.
+only from the subscribed API-44 snapshot, keyed by the semantic endpoint in the committed binding.
 `mapping_id` identifies that committed endpoint (for example `drum-controller.track.2.control.1`),
 or `-` when no lease is committed; it does not identify or validate Bitwig's learned target.
 `mapped_has_target` reports Bitwig's mapped-target presence and `mapped_value` retains its raw
@@ -356,11 +356,14 @@ semantic lease, RGB, palette-resolution, and transmission loop around that autho
 
 ### Track-scoped native mapping V1 smoke
 
-API 45 adds independent mapping-name metadata to the 128 permanent four-endpoint banks. Build
+API 44 changes the parent-loaded contract and creates 128 permanent banks of four endpoints. Build
 with `mvn -o -Dmaven.compiler.showDeprecation=true package`, create a recoverable Git checkpoint,
 and hold `tools/with-pull-live --owner LABEL` through installation, restart, exact-build activation,
 and this smoke. The earlier API 43 identity probe does not validate the new registry or mappings.
 Record final-build test results separately; this sequence is an acceptance procedure, not a result.
+The source labels are fixed `Bank N Drum Controller Toggle M` names, where bank numbers are
+allocation slots. Runtime track-name labels are deferred: the installed host rejects `setName`
+and `setLabel` outside initialization, even though the API 25 declarations omit that restriction.
 
 1. Use a saved scratch project with two drum tracks. Select the first and wait for its mapping
    context and registry write to be read back. Record the pad probe's `mapping_id` and selected-track
@@ -380,13 +383,7 @@ Record final-build test results separately; this sequence is an acceptance proce
 5. Confirm the old shared `Drum Controller Toggle` mappings are inert after this install. Delete
    those entries and relearn against the new selected-track bank; existing shared targets cannot
    be migrated automatically. Leave Drum Controller and verify its endpoints stop accepting input.
-6. In the native mapping browser, verify `<track name> — Drum Controller Toggle N`. Rename the
-   selected track and confirm that source text changes on its existing learned row, while the
-   probe reports the same track UUID and `mapping_id`. Physically toggle again and verify the target
-   and lights. Repeat after save/reopen. Unselected names refresh when selected; after reload,
-   unvisited banks may show generic `Bank N` labels. Metadata-only updates must not retire a held
-   matcher. Switching projects or invalidating the core must clear the previous document’s names.
-7. Reload core, including once with a pad held, and verify leases retire/reactivate safely and
+6. Reload core, including once with a pad held, and verify leases retire/reactivate safely and
    registry read-back, rather than checkpointed toggle phase, determines the next endpoint.
 
 Offline tests must separate write submission from later storage acknowledgement; cover corrupt or

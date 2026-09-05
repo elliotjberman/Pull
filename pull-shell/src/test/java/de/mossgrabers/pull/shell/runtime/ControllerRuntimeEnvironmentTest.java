@@ -11,7 +11,6 @@ import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ControllerMappingFeedbackSnapshot;
 import de.mossgrabers.pull.core.api.ControllerMappingContext;
-import de.mossgrabers.pull.core.api.ControllerMappingNames;
 import de.mossgrabers.pull.core.api.ControllerMappingValue;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.ControllerNoteView;
@@ -129,7 +128,7 @@ class ControllerRuntimeEnvironmentTest
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION));
         assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD));
         assertEquals (Integer.valueOf (6), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_RGB_LIGHT));
-        assertEquals (Integer.valueOf (5), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_MAPPING));
+        assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_MAPPING));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_STATE));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_NOTE_VIEW_PREFERENCE));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_NOTE_REPEAT));
@@ -312,36 +311,6 @@ class ControllerRuntimeEnvironmentTest
         final ControllerRuntimeEnvironment.DebugLightObservation absent = environment.debugLightObservation (pad);
         assertEquals (2, absent.appliedRevision ());
         assertFalse (absent.present ());
-    }
-
-
-    @Test
-    void appliesMappingNamesOnlyAfterCommitWithoutGrantingInputOwnership ()
-    {
-        final PassthroughControllerBridge bridge = new PassthroughControllerBridge ();
-        final ControllerRuntimeEnvironment environment = new ControllerRuntimeEnvironment (host (1), bridge, new RecordingLog (), () -> 0);
-        final ControllerMappingNames names = new ControllerMappingNames ("document", 2,
-            Map.of (CoreControllerMappings.trackBank (0).getFirst (), "Kick — Drum Controller Toggle 1"));
-        final DesiredHardwareOutput output = new DesiredHardwareOutput (Map.of (), ControllerDisplayScene.empty (),
-            ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), new DesiredControllerMappings (Set.of (), names));
-        final CoreResult named = routedResult (output, DesiredInputRoutes.empty (), CONTROLLER_MAPPING_SUBSCRIPTIONS);
-        final var prepared = environment.prepare (named);
-        assertEquals (ControllerMappingNames.empty (), bridge.appliedMappingNames);
-        environment.commit (9, prepared);
-        assertEquals (ControllerMappingNames.empty (), bridge.appliedMappingNames);
-        environment.apply (9);
-        assertEquals (names, bridge.appliedMappingNames);
-        assertTrue (environment.activeControllerMappings ().bindings ().isEmpty ());
-        assertTrue (environment.desiredInputRoutes ().routes ().isEmpty ());
-
-        assertThrows (IllegalArgumentException.class, () -> environment.prepare (routedResult (output, DesiredInputRoutes.empty ())));
-        final ControllerMappingNames unsupported = new ControllerMappingNames ("document", 2,
-            Map.of (CoreControllerMappings.DRUM_CONTROL_PADS.getFirst (), "legacy"));
-        final DesiredHardwareOutput unsupportedOutput = new DesiredHardwareOutput (Map.of (), ControllerDisplayScene.empty (),
-            ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), new DesiredControllerMappings (Set.of (), unsupported));
-        assertThrows (IllegalArgumentException.class, () -> environment.prepare (routedResult (unsupportedOutput, DesiredInputRoutes.empty (), CONTROLLER_MAPPING_SUBSCRIPTIONS)));
-        commitAndApply (environment, 9, routedResult (DesiredHardwareOutput.empty (), DesiredInputRoutes.empty ()));
-        assertEquals (ControllerMappingNames.empty (), bridge.appliedMappingNames);
     }
 
 
@@ -1321,14 +1290,6 @@ class ControllerRuntimeEnvironmentTest
     private static final class PassthroughControllerBridge implements ControllerBridge
     {
         private ControllerMappingContext mappingContext = MAPPING_CONTEXT;
-        private ControllerMappingNames appliedMappingNames = ControllerMappingNames.empty ();
-
-
-        @Override
-        public void applyControllerMappingNames (final ControllerMappingNames names)
-        {
-            this.appliedMappingNames = names;
-        }
 
 
         @Override

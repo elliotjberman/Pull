@@ -16,7 +16,6 @@ import de.mossgrabers.pull.core.api.ControllerMappingContext;
 import de.mossgrabers.pull.core.api.ControllerMappingStorageSnapshot;
 import de.mossgrabers.pull.core.api.ControllerMappingFeedbackSnapshot;
 import de.mossgrabers.pull.core.api.ControllerMappingId;
-import de.mossgrabers.pull.core.api.ControllerMappingNames;
 import de.mossgrabers.pull.core.api.ControllerMappingTarget;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.ControllerStateScope;
@@ -113,30 +112,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class CoreApiValueTest
 {
-    @Test
-    void controllerMappingNamesAreBoundedImmutableAndIndependentOfMatcherBindings ()
-    {
-        final ControllerMappingId id = CoreControllerMappings.trackBank (0).getFirst ();
-        final Map<ControllerMappingId, String> input = new LinkedHashMap<> (Map.of (id, "Drums — Drum Controller Toggle 1"));
-        final ControllerMappingNames names = new ControllerMappingNames ("document", 2, input);
-        input.clear ();
-        assertEquals (1, names.names ().size ());
-        assertThrows (UnsupportedOperationException.class, () -> names.names ().clear ());
-        assertTrue (DesiredControllerMappings.empty ().names ().isEmpty ());
-        assertTrue (new DesiredControllerMappings (Set.of (), names).bindings ().isEmpty ());
-        assertEquals (names, new DesiredControllerMappings (Set.of (), names).names ());
-        assertThrows (IllegalArgumentException.class, () -> new ControllerMappingNames ("", 2, Map.of (id, "name")));
-        assertThrows (IllegalArgumentException.class, () -> new ControllerMappingNames ("document", -1, Map.of (id, "name")));
-        assertThrows (IllegalArgumentException.class, () -> new ControllerMappingNames ("document", 2, Map.of (id, " ")));
-        assertThrows (IllegalArgumentException.class, () -> new ControllerMappingNames ("document", 2, Map.of (id, "x".repeat (ControllerMappingNames.MAX_NAME_LENGTH + 1))));
-        final Map<ControllerMappingId, String> capacity = new LinkedHashMap<> ();
-        CoreControllerMappings.TRACK_CONTROL_PADS.forEach (endpoint -> capacity.put (endpoint, "x".repeat (ControllerMappingNames.MAX_NAME_LENGTH)));
-        assertEquals (ControllerMappingNames.CAPACITY, new ControllerMappingNames ("document", 2, capacity).names ().size ());
-        capacity.put (new ControllerMappingId ("overflow"), "extra");
-        assertThrows (IllegalArgumentException.class, () -> new ControllerMappingNames ("document", 2, capacity));
-    }
-
-
     private static final ClipLaunchPolicy LAUNCH_POLICY = new ClipLaunchPolicy (
         ClipLaunchQuantization.IMMEDIATE,
         ClipLaunchMode.LEGATO_FROM_CLIP_OR_PROJECT,
@@ -232,7 +207,7 @@ class CoreApiValueTest
     @Test
     void publishesStableVersionCapabilityAndControlIdentifiers ()
     {
-        assertEquals (45, CoreApi.VERSION);
+        assertEquals (44, CoreApi.VERSION);
         assertEquals ("input.drum-fill", CoreCapabilities.INPUT_DRUM_FILL);
         assertEquals ("snapshot.selected-track-clips", CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS);
         assertEquals ("binding.clip-target", CoreCapabilities.BINDING_CLIP_TARGET);

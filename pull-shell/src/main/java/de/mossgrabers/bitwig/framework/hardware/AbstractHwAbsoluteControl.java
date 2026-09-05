@@ -66,14 +66,6 @@ public abstract class AbstractHwAbsoluteControl<T extends AbsoluteHardwareContro
 
     /** {@inheritDoc} */
     @Override
-    public void setName (final String name)
-    {
-        this.hardwareControl.setName (name);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
     public void setIndexInGroup (final int index)
     {
         this.hardwareControl.setIndexInGroup (index);
