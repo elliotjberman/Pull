@@ -12,8 +12,11 @@ import de.mossgrabers.pull.core.api.ControllerActionBinding;
 import de.mossgrabers.pull.core.api.ControllerActionId;
 import de.mossgrabers.pull.core.api.ControllerActionIntent;
 import de.mossgrabers.pull.core.api.ControllerMappingBinding;
+import de.mossgrabers.pull.core.api.ControllerMappingContext;
+import de.mossgrabers.pull.core.api.ControllerMappingStorageSnapshot;
 import de.mossgrabers.pull.core.api.ControllerMappingFeedbackSnapshot;
 import de.mossgrabers.pull.core.api.ControllerMappingId;
+import de.mossgrabers.pull.core.api.ControllerMappingTarget;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.ControllerStateScope;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
@@ -204,7 +207,7 @@ class CoreApiValueTest
     @Test
     void publishesStableVersionCapabilityAndControlIdentifiers ()
     {
-        assertEquals (41, CoreApi.VERSION);
+        assertEquals (44, CoreApi.VERSION);
         assertEquals ("input.drum-fill", CoreCapabilities.INPUT_DRUM_FILL);
         assertEquals ("snapshot.selected-track-clips", CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS);
         assertEquals ("binding.clip-target", CoreCapabilities.BINDING_CLIP_TARGET);
@@ -258,20 +261,23 @@ class CoreApiValueTest
         final ControllerMappingId secondMapping = CoreControllerMappings.DRUM_CONTROL_PADS.get (1);
         final ControllerMappingBinding binding = new ControllerMappingBinding (firstPhysical, firstMapping);
         final DesiredControllerMappings desired = new DesiredControllerMappings (Set.of (binding));
-        final Map<ControllerMappingId, Boolean> states = new HashMap<> (Map.of (firstMapping, Boolean.TRUE, secondMapping, Boolean.FALSE));
-        final ControllerMappingFeedbackSnapshot snapshot = new ControllerMappingFeedbackSnapshot (true, states);
-        states.clear ();
+        final Map<ControllerMappingId, ControllerMappingTarget> targets = new HashMap<> (Map.of (
+            firstMapping, new ControllerMappingTarget (true, 0.2),
+            secondMapping, new ControllerMappingTarget (false, 0.8)));
+        final ControllerMappingFeedbackSnapshot snapshot = new ControllerMappingFeedbackSnapshot (true, targets);
+        targets.clear ();
 
         assertEquals (firstMapping, desired.mappingIdOrNull (firstPhysical));
         assertTrue (snapshot.supports (firstMapping));
-        assertTrue (snapshot.isOn (firstMapping));
-        assertFalse (snapshot.isOn (secondMapping));
+        assertEquals (new ControllerMappingTarget (true, 0.2), snapshot.targets ().get (firstMapping));
+        assertTrue (snapshot.supports (secondMapping), "a ready unmapped endpoint is supported");
+        assertEquals (new ControllerMappingTarget (false, 0.8), snapshot.targets ().get (secondMapping));
         assertFalse (snapshot.supports (new ControllerMappingId ("not-installed")));
         assertThrows (IllegalArgumentException.class, () -> new DesiredControllerMappings (Set.of (binding, new ControllerMappingBinding (firstPhysical, secondMapping))));
         assertThrows (IllegalArgumentException.class, () -> new DesiredControllerMappings (Set.of (binding, new ControllerMappingBinding (secondPhysical, firstMapping))));
-        assertThrows (IllegalArgumentException.class, () -> new ControllerMappingFeedbackSnapshot (false, Map.of (firstMapping, Boolean.FALSE)));
+        assertThrows (IllegalArgumentException.class, () -> new ControllerMappingFeedbackSnapshot (false, Map.of (firstMapping, new ControllerMappingTarget (false, 0))));
         assertThrows (UnsupportedOperationException.class, () -> desired.bindings ().clear ());
-        assertThrows (UnsupportedOperationException.class, () -> snapshot.states ().clear ());
+        assertThrows (UnsupportedOperationException.class, () -> snapshot.targets ().clear ());
     }
 
 
@@ -279,27 +285,68 @@ class CoreApiValueTest
     void controllerMappingApiEnforcesExactCapacityAndNormalizedIdentity ()
     {
         final Set<ControllerMappingBinding> bindings = new LinkedHashSet<> ();
-        final Map<ControllerMappingId, Boolean> states = new LinkedHashMap<> ();
-        for (int index = 0; index < DesiredControllerMappings.CAPACITY; index++)
+        final Map<ControllerMappingId, ControllerMappingTarget> targets = new LinkedHashMap<> ();
+        for (int index = 0; index < ControllerMappingFeedbackSnapshot.CAPACITY; index++)
         {
             final ControllerMappingId mappingId = new ControllerMappingId ("mapping." + index);
-            bindings.add (new ControllerMappingBinding (new ControlId ("physical." + index), mappingId));
-            states.put (mappingId, Boolean.valueOf ((index & 1) == 0));
+            if (index < DesiredControllerMappings.CAPACITY)
+                bindings.add (new ControllerMappingBinding (new ControlId ("physical." + index), mappingId));
+            targets.put (mappingId, new ControllerMappingTarget ((index & 1) == 0, 0.4));
         }
 
         assertEquals (DesiredControllerMappings.CAPACITY, new DesiredControllerMappings (bindings).bindings ().size ());
-        assertEquals (ControllerMappingFeedbackSnapshot.CAPACITY, new ControllerMappingFeedbackSnapshot (true, states).states ().size ());
+        assertEquals (ControllerMappingFeedbackSnapshot.CAPACITY, new ControllerMappingFeedbackSnapshot (true, targets).targets ().size ());
 
         final ControllerMappingId overflowId = new ControllerMappingId ("mapping.overflow");
         bindings.add (new ControllerMappingBinding (new ControlId ("physical.overflow"), overflowId));
-        states.put (overflowId, Boolean.TRUE);
+        targets.put (overflowId, new ControllerMappingTarget (true, 1));
         assertThrows (IllegalArgumentException.class, () -> new DesiredControllerMappings (bindings));
-        assertThrows (IllegalArgumentException.class, () -> new ControllerMappingFeedbackSnapshot (true, states));
+        assertThrows (IllegalArgumentException.class, () -> new ControllerMappingFeedbackSnapshot (true, targets));
         assertEquals (new ControllerMappingId ("trimmed"), new ControllerMappingId ("  trimmed  "));
         assertThrows (IllegalArgumentException.class, () -> new ControllerMappingId ("   "));
         assertThrows (IllegalArgumentException.class, () -> new ControllerMappingId ("x".repeat (129)));
         assertFalse (ControllerMappingFeedbackSnapshot.empty ().supports (CoreControllerMappings.DRUM_CONTROL_PADS.getFirst ()));
-        assertFalse (ControllerMappingFeedbackSnapshot.empty ().isOn (CoreControllerMappings.DRUM_CONTROL_PADS.getFirst ()));
+        assertTrue (ControllerMappingFeedbackSnapshot.empty ().targets ().isEmpty ());
+    }
+
+
+    @Test
+    void controllerMappingTargetsPreserveFiniteNormalizedValuesRegardlessOfPresence ()
+    {
+        for (final boolean hasTarget : List.of (Boolean.FALSE, Boolean.TRUE))
+        {
+            for (final double value : new double [] { 0, 0.2, 0.4, 0.5, 0.8, 1 })
+            {
+                final ControllerMappingTarget target = new ControllerMappingTarget (hasTarget, value);
+                assertEquals (hasTarget, target.hasTarget ());
+                assertEquals (value, target.value ());
+            }
+            for (final double value : new double [] { -0.01, 1.01, Double.NaN, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY })
+                assertThrows (IllegalArgumentException.class, () -> new ControllerMappingTarget (hasTarget, value));
+        }
+    }
+
+
+    @Test
+    void controllerMappingInventoryAndStoragePreserveTheirIndependentBounds ()
+    {
+        assertEquals (512, CoreControllerMappings.TRACK_CONTROL_PADS.size ());
+        assertEquals (516, ControllerMappingFeedbackSnapshot.CAPACITY);
+        assertEquals (64, DesiredControllerMappings.CAPACITY);
+        assertEquals (new ControllerMappingId ("drum-controller.track.128.control.4"), CoreControllerMappings.trackBank (127).getLast ());
+        assertThrows (IllegalArgumentException.class, () -> CoreControllerMappings.trackBank (128));
+        assertThrows (IllegalArgumentException.class, () -> CoreControllerMappings.trackBank (-1));
+        assertThrows (UnsupportedOperationException.class, () -> CoreControllerMappings.trackBank (0).clear ());
+        assertFalse (ControllerMappingContext.empty ().active ());
+        final ControllerMappingContext owner = new ControllerMappingContext (7, "track", 2, "document");
+        assertTrue (owner.active ());
+        assertThrows (IllegalArgumentException.class, () -> new ControllerMappingContext (7, "track", 2, ""));
+        final String raw = "x".repeat (ControllerMappingStorageSnapshot.MAX_LENGTH);
+        final ControllerMappingStorageSnapshot storage = new ControllerMappingStorageSnapshot (true, 2, "document", raw);
+        assertEquals (raw, storage.value ());
+        assertThrows (IllegalArgumentException.class, () -> new ControllerMappingStorageSnapshot (true, 2, "document", raw + "x"));
+        assertThrows (IllegalArgumentException.class, () -> new ControllerMappingStorageSnapshot (false, 2, "document", ""));
+        assertEquals (storage, new ControllerMappingFeedbackSnapshot (true, Map.of (), storage).storage (), "registry readback does not wait for all endpoint observers");
     }
 
 

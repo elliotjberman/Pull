@@ -79,14 +79,14 @@ public final class VsLiveWorkspace
      *
      * @return Fresh grid views
      */
-    public static List<ControllerView> retainedGridViews (final SessionStopGesture stopGesture)
+    public static List<ControllerView> retainedGridViews (final SessionStopGesture stopGesture, final ControllerView drumControlPadView)
     {
         return List.of (
             new RetainedControllerView (new SessionNavigationView ()),
             new RetainedControllerView (SessionView.upper (true, stopGesture)),
             new RetainedControllerView (new DrumPlayPadView ()),
             new RetainedControllerView (new DrumControllerView (true)),
-            new RetainedControllerView (new DrumControlPadView ()),
+            drumControlPadView,
             new RetainedControllerView (new DrumRateView ()));
     }
 }

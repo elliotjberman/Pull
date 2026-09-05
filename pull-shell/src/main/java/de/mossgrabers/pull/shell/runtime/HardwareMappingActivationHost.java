@@ -3,11 +3,13 @@
 
 package de.mossgrabers.pull.shell.runtime;
 
+import de.mossgrabers.framework.controller.hardware.IHwAbsoluteControl;
 import de.mossgrabers.framework.controller.hardware.IHwButton;
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerMappingBinding;
 import de.mossgrabers.pull.core.api.ControllerMappingId;
+import de.mossgrabers.pull.core.api.ControllerMappingValue;
 import de.mossgrabers.pull.core.api.DesiredControllerMappings;
 
 import java.util.LinkedHashMap;
@@ -15,28 +17,31 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 
-/** Projects replayable semantic mapping leases onto permanent Bitwig hardware actions. */
+/** Projects replayable semantic mapping leases onto permanent Bitwig absolute controls. */
 final class HardwareMappingActivationHost
 {
     private final Map<ControlId, IHwButton> physicalButtons;
-    private final Map<ControllerMappingId, IHwButton> mappingButtons;
+    private final Map<ControllerMappingId, IHwAbsoluteControl> mappingControls;
     private final Predicate<ControlId> lifecycleIdle;
     private final MatcherBinder matcherBinder;
-    private final Map<ControlId, ControllerMappingId> active = new LinkedHashMap<> ();
+    private final Consumer<IHwAbsoluteControl> matcherUnbinder;
+    private final Map<ControlId, ControllerMappingBinding> active = new LinkedHashMap<> ();
     private final Map<ControlId, ControllerMappingId> releasingMappings = new LinkedHashMap<> ();
     private final Set<ControlId> releasingDispatch = new LinkedHashSet<> ();
 
 
-    HardwareMappingActivationHost (final Map<ControlId, IHwButton> physicalButtons, final Map<ControllerMappingId, IHwButton> mappingButtons, final Predicate<ControlId> lifecycleIdle, final MatcherBinder matcherBinder)
+    HardwareMappingActivationHost (final Map<ControlId, IHwButton> physicalButtons, final Map<ControllerMappingId, IHwAbsoluteControl> mappingControls, final Predicate<ControlId> lifecycleIdle, final MatcherBinder matcherBinder, final Consumer<IHwAbsoluteControl> matcherUnbinder)
     {
         this.physicalButtons = Map.copyOf (Objects.requireNonNull (physicalButtons, "physicalButtons"));
-        this.mappingButtons = Map.copyOf (Objects.requireNonNull (mappingButtons, "mappingButtons"));
+        this.mappingControls = Map.copyOf (Objects.requireNonNull (mappingControls, "mappingControls"));
         this.lifecycleIdle = Objects.requireNonNull (lifecycleIdle, "lifecycleIdle");
         this.matcherBinder = Objects.requireNonNull (matcherBinder, "matcherBinder");
-        if (this.physicalButtons.isEmpty () || this.mappingButtons.isEmpty ())
+        this.matcherUnbinder = Objects.requireNonNull (matcherUnbinder, "matcherUnbinder");
+        if (this.physicalButtons.isEmpty () || this.mappingControls.isEmpty ())
             throw new IllegalArgumentException ("controller mapping topology must not be empty");
     }
 
@@ -49,7 +54,7 @@ final class HardwareMappingActivationHost
         {
             if (!this.physicalButtons.containsKey (binding.physicalControl ()))
                 throw new IllegalArgumentException ("Requested physical controller mapping input is not installed");
-            if (!this.mappingButtons.containsKey (binding.mappingId ()))
+            if (!this.mappingControls.containsKey (binding.mappingId ()))
                 throw new IllegalArgumentException ("Requested semantic controller mapping endpoint is not installed");
         }
 
@@ -62,9 +67,7 @@ final class HardwareMappingActivationHost
     /** Get semantic mapping matchers currently admitting new physical presses. */
     DesiredControllerMappings activeMappings ()
     {
-        final Set<ControllerMappingBinding> bindings = new LinkedHashSet<> (this.active.size ());
-        this.active.forEach ( (physicalControl, mappingId) -> bindings.add (new ControllerMappingBinding (physicalControl, mappingId)));
-        return new DesiredControllerMappings (bindings);
+        return new DesiredControllerMappings (Set.copyOf (this.active.values ()));
     }
 
 
@@ -94,16 +97,16 @@ final class HardwareMappingActivationHost
 
     private void retireChangedMappings (final DesiredControllerMappings requested)
     {
-        for (final Map.Entry<ControlId, ControllerMappingId> entry: Set.copyOf (this.active.entrySet ()))
+        for (final Map.Entry<ControlId, ControllerMappingBinding> entry: Set.copyOf (this.active.entrySet ()))
         {
-            final ControllerMappingId desired = requested.mappingIdOrNull (entry.getKey ());
-            if (entry.getValue ().equals (desired))
+            if (requested.bindings ().contains (entry.getValue ()))
                 continue;
 
-            this.mappingButtons.get (entry.getValue ()).unbindPress ();
+            final ControllerMappingId mappingId = entry.getValue ().mappingId ();
+            this.matcherUnbinder.accept (this.mappingControls.get (mappingId));
             this.active.remove (entry.getKey ());
             if (!this.lifecycleIdle.test (entry.getKey ()))
-                this.releasingMappings.put (entry.getKey (), entry.getValue ());
+                this.releasingMappings.put (entry.getKey (), mappingId);
         }
     }
 
@@ -121,17 +124,16 @@ final class HardwareMappingActivationHost
         {
             final ControlId physicalControl = binding.physicalControl ();
             final ControllerMappingId mappingId = binding.mappingId ();
-            if (mappingId.equals (this.active.get (physicalControl)))
+            if (binding.equals (this.active.get (physicalControl)))
                 continue;
 
             this.releasingDispatch.add (physicalControl);
             if (!this.lifecycleIdle.test (physicalControl) || this.releasingMappings.containsKey (physicalControl) || this.mappingInUse (mappingId))
                 continue;
 
-            final IHwButton mappingButton = this.mappingButtons.get (mappingId);
-            this.matcherBinder.bind (mappingButton, physicalControl);
-            mappingButton.unbindRelease ();
-            this.active.put (physicalControl, mappingId);
+            final IHwAbsoluteControl mappingControl = this.mappingControls.get (mappingId);
+            this.matcherBinder.bind (mappingControl, physicalControl, binding.value ());
+            this.active.put (physicalControl, binding);
             this.releasingDispatch.remove (physicalControl);
         }
     }
@@ -139,14 +141,14 @@ final class HardwareMappingActivationHost
 
     private boolean mappingInUse (final ControllerMappingId mappingId)
     {
-        return this.active.containsValue (mappingId) || this.releasingMappings.containsValue (mappingId);
+        return this.active.values ().stream ().anyMatch (binding -> binding.mappingId ().equals (mappingId)) || this.releasingMappings.containsValue (mappingId);
     }
 
 
     @FunctionalInterface
     interface MatcherBinder
     {
-        void bind (IHwButton mappingButton, ControlId physicalControl);
+        void bind (IHwAbsoluteControl mappingControl, ControlId physicalControl, ControllerMappingValue value);
     }
 
 

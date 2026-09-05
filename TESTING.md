@@ -315,12 +315,18 @@ RGB entry for that pad. It resolves that RGB through the Push palette, waits for
 samples of the resolved `LightInfo`, and requires a successful outbound base-color transmission
 (plus the matching blink transmission when blink is active). Terminal status reports `pad_probe`,
 `pad_button`, normalized `pad_control`, physical `pad_midi_note`, `pad_velocity`, `pad_route`, core
-`mapping_desired`, stable-host `mapping_active`, authoritative `mapped_on`, `desired_rgb`,
-`resolved_light`, and `transmitted_light`. `mapped_on` is derived only from the subscribed API-32
-Boolean snapshot, keyed by the semantic endpoint in the committed binding: `true` means Bitwig
-resolved that virtual action's no-output background light on, `false` means either unmapped or
-mapped-off, and `-` means the snapshot is not currently available. It never derives from desired or
-transmitted RGB and intentionally makes no mapping-presence claim. The separate route, desired
+`mapping_desired`, stable-host `mapping_active`, committed semantic `mapping_id`, and authoritative
+`mapped_has_target` and
+`mapped_value`, `desired_rgb`, `resolved_light`, and `transmitted_light`. The mapped fields come
+only from the subscribed API-44 snapshot, keyed by the semantic endpoint in the committed binding.
+`mapping_id` identifies that committed endpoint (for example `drum-controller.track.2.control.1`),
+or `-` when no lease is committed; it does not identify or validate Bitwig's learned target.
+`mapped_has_target` reports Bitwig's mapped-target presence and `mapped_value` retains its raw
+normalized value, including fractional values. An observed absent target reports `false` while
+retaining the independently observed raw value; unavailable or unsupported endpoint read-back
+reports `-` in both fields. Neither field derives
+from desired or transmitted RGB. The debugger applies no on/off threshold: the core alone
+interprets the authoritative value for its next endpoint and LED policy. The separate route, desired
 binding, applied semantic-matcher activation, mapped read-back, and output fields distinguish an
 inactive view or lane transition from a feedback/render/transmission failure. `mapping_active`
 likewise does not claim that a manual Bitwig mapping exists, fired, or changed host state. The
@@ -347,6 +353,49 @@ virtual action is admitting the physical note-on but does not itself fire the Bi
 A live physical press is still required to prove that Bitwig learned the semantic identity, changes
 the target, and returns fresh mapped-light feedback; the probe closes the extension-side route,
 semantic lease, RGB, palette-resolution, and transmission loop around that authoritative feedback.
+
+### Track-scoped native mapping V1 smoke
+
+API 44 changes the parent-loaded contract and creates 128 permanent banks of four endpoints. Build
+with `mvn -o -Dmaven.compiler.showDeprecation=true package`, create a recoverable Git checkpoint,
+and hold `tools/with-pull-live --owner LABEL` through installation, restart, exact-build activation,
+and this smoke. The earlier API 43 identity probe does not validate the new registry or mappings.
+Record final-build test results separately; this sequence is an acceptance procedure, not a result.
+The source labels are fixed `Bank N Drum Controller Toggle M` names, where bank numbers are
+allocation slots. Runtime track-name labels are deferred: the installed host rejects `setName`
+and `setLabel` outside initialization, even though the API 25 declarations omit that restriction.
+
+1. Use a saved scratch project with two drum tracks. Select the first and wait for its mapping
+   context and registry write to be read back. Record the pad probe's `mapping_id` and selected-track
+   UUID. Physically learn one pad to a target on that track.
+   Verify off → on → off through later host value and red/off pad output; release must not write.
+2. Select the second track and wait for acknowledged context. Learn the same physical pad to a
+   different target. Switch between tracks and verify each bank retains its own binding and only
+   the active bank responds. Include a continuous target: set values below and above `0.5` from
+   Bitwig and confirm later raw `mapped_value`, LED state, and the opposite next endpoint.
+3. Reorder and rename a track, then move it into/out of a group. After each operation, verify its
+   allocation and learned target remain associated with its UUID. Delete it, undo, and repeat the
+   physical toggle. Duplicate a learned track and record both its fresh allocation and Bitwig's
+   native binding-copy behavior; a fresh bank alone does not prove copied bindings are harmless.
+4. Save, close, and reopen the scratch project; verify both allocations and learned actions.
+   Exercise another project tab and a same-name copy without assuming the names identify documents.
+   Record context propagation latency; native learned actions have no instantaneous selection fence.
+5. Confirm the old shared `Drum Controller Toggle` mappings are inert after this install. Delete
+   those entries and relearn against the new selected-track bank; existing shared targets cannot
+   be migrated automatically. Leave Drum Controller and verify its endpoints stop accepting input.
+6. Reload core, including once with a pad held, and verify leases retire/reactivate safely and
+   registry read-back, rather than checkpointed toggle phase, determines the next endpoint.
+
+Offline tests must separate write submission from later storage acknowledgement; cover corrupt or
+foreign-document payloads, duplicate track IDs, delayed or stale writes, selection/document/storage
+revision fences, tombstone retention, and the 128-bank limit. Corrupt or exhausted allocation must
+emit amber pad output and no active mapping. Also cover unchanged replay without redundant writes,
+raw fractional feedback, ignored release, and inert legacy endpoints. Do not corrupt a user's
+project or allocate 128 live tracks merely to exercise deterministic validation branches.
+
+General native mapping ownership, duplication, clearing/recycling, stronger document identity, and
+DocumentState undo/atomicity remain tracked in
+[`track-scoped-midi-learn-lifecycle.md`](docs/findings/track-scoped-midi-learn-lifecycle.md).
 
 For an explicitly state-changing playback test, use the permanent routed Play binding and verify
 its result from later authoritative framebuffer and host observations:

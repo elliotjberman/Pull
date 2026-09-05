@@ -1,203 +1,162 @@
 # Semantic Controller-Mapping Identity
 
-## Status
+## Status And Scope
 
-Implemented in Core API 32 for the four Drum Controller control pads. The installed inventory is
-intentionally limited to one semantic Drum Controller endpoint per physical pad. Additional views
-must add their own permanent semantic endpoint inventory; they must not reuse physical `ControlId`
-values as mapping identities.
+Core API 44 installs bounded track-scoped Drum Controller mappings: 128 permanent banks of four
+absolute endpoints, projected onto physical PAD29–32 only while the owning core view supplies an
+acknowledged, fenced lease. The four former shared endpoints remain constructed but inert. All 64
+original physical PAD buttons remain ordinary-dispatch-only; none is a learned mapping identity.
 
-This document lives beside the parent-loaded API value types because semantic mapping IDs, desired
-mapping leases, and authoritative feedback snapshots cross the stable-shell/core class-loader
-boundary.
+This is the user-accepted bounded V1. General native binding ownership, copying, clearing/recycling,
+stronger document identity, and host persistence lifecycle remain explicit TODOs in
+[`track-scoped-midi-learn-lifecycle.md`](../../../../../../../../../docs/findings/track-scoped-midi-learn-lifecycle.md).
+The first API 44 install requires a shell rebuild and Bitwig restart. A core-only policy change
+inside this installed inventory can subsequently hot reload.
 
-## Problem
+## Three Independent Identities
 
-Bitwig does not know about Pull views. It knows about permanent `HardwareButton` objects and their
-`HardwareAction` binding sources. Before Core API 32, Pull identified a controller mapping using
-the same `ControlId` as its physical source, for example `push.pad.29`.
-
-That is sufficient while exactly one view owns controller mapping for that pad, but it conflates
-three independent identities:
+Bitwig learns a permanent hardware-control source, not a Pull view or selected-track intention:
 
 ```text
-physical input             semantic mapping endpoint           physical output
-push.pad.29                drum-controller.control.1           push.pad.29 LED
+physical input       selected track's allocated semantic endpoint     physical output
+push.pad.29          drum-controller.track.1.control.1                push.pad.29 LED
 ```
 
-A physical pad may have different meanings in different views. If more than one of those meanings
-becomes controller-mappable, each meaning needs a distinct permanent Bitwig mapping identity even
-though the meanings time-share one physical MIDI source and one LED.
+Core selects the semantic bank from the observed document and selected-track UUID. Moving its
+physical projection does not recreate that permanent Bitwig identity. Endpoint names encode bank
+and control slot, not a mutable track name or position. Banks are numbered 1–128 and controls 1–4;
+`CoreControllerMappings.trackBank()` accepts a zero-based bank index. The corresponding hardware
+ID is `CONTROLLER_MAPPING_TRACK_<bank>_CONTROL_VALUE_<slot>`, displayed as
+`Bank <bank> Drum Controller Toggle <slot>`; the displayed number is the allocation bank, not
+track-list position. These source labels remain fixed. Live testing showed that Bitwig restricts
+both `HardwareControl.setName(String)` and `HardwareElement.setLabel(String)` to extension
+initialization, despite the API 25 declarations omitting that restriction. Runtime track-name
+labels are therefore deferred; no name cache, naming output API, or runtime setter is installed.
 
-## How the First Slice Is Virtualized
+Only the leased endpoint receives a positive-velocity Note On matcher. Core supplies the literal
+minimum or maximum for that matcher; Note Off and zero-velocity Note On do not write a learned
+value. Later target-presence/value read-back determines the opposite next endpoint and red/off
+output. The shell applies no midpoint, color, modifier, or allocation policy. An observed raw
+gesture still fences matcher handoff through release, but next-value policy does not depend on
+Bitwig also forwarding the learned MIDI packet to Pull's ordinary callback.
 
-The Drum Controller slice has one semantic owner for each mapped pad:
+## Bounded Registry And Acknowledgement
 
-- Core supplies a complete physical-control-to-semantic-endpoint lease.
-- The stable shell enables the detached semantic endpoint's Bitwig press matcher only while that
-  lease is active.
-- Permanent raw input always carries the normalized core gesture for an active semantic mapping;
-  this fences core replacement and completes the exact `END` without creating another learned
-  action.
-- Outside Drum Controller, raw input invokes the original physical button's ordinary Pull dispatch
-  without firing any semantic Bitwig mapping action. This is the same raw-only ingress used by all
-  64 grid pads; no physical grid button remains a learned identity.
-- Authoritative Bitwig Boolean feedback is keyed by semantic endpoint and rendered by core as
-  red/on or black/off on the leased physical LED.
+The core-authored registry is an opaque hidden `DocumentState` string to stable code. Its V1 format
+is `v1`, the observed document master UUID, then allocated track UUIDs, separated by newlines with
+no trailing newline. At most 128 distinct track UUIDs are allowed. The list position permanently
+selects the track's bank within that document. A blank observed store starts a new registry for the
+observed document; malformed, duplicate-owner, or foreign-document contents fail closed.
 
-Therefore a Drum Controller mapping must not fire in Session or another view. Bitwig stores the
-mapping against `drum-controller.control.N`, not against `push.pad.29..32`; changing the core's
-physical projection does not change or recreate that learned identity.
+Allocation is append-only. A track first needing a mapping bank receives the next unused slot.
+Rename and reorder do not intentionally alter allocation because names and positions are not keys.
+Deleted owners remain in the registry as tombstones; undo can reuse that owner's slot if its UUID
+returns. A newly duplicated track with a new UUID gets a fresh bank. This does not copy or validate
+Bitwig's learned bindings. Capacity counts historical allocations, including deleted tracks, and
+exhaustion does not permit recycling a slot onto a new owner.
 
-The remaining limitation is bounded installed inventory, not coupled identity. API 32 installs
-only the four Drum Controller endpoints because no second view currently needs independent
-mappings on those pads. A future endpoint requires one shell install and restart to create its
-permanent Bitwig identity. Once installed, switching the physical projection between endpoints is
-a replayable core result and hot reloads without relearning either mapping.
+A storage write is a request, not acknowledgement. Core emits an opaque storage effect and leaves
+mapping inactive until a later authoritative snapshot returns the expected value. The registry is
+then reparsed from that read-back; it is not replaced by an optimistic local copy or a checkpoint.
+Corrupt or exhausted registry state renders all four control pads amber with no mapping leases.
+Unavailable context, pending storage acknowledgement, and unready target feedback remain inert.
 
-## Target Model
+V1 embeds the observed master-channel UUID as its document key. Its stronger lifetime and
+uniqueness across copied projects are not established by the API contract. Hidden DocumentState
+storage has no documented atomicity/undo or document-addressed compare-and-set guarantee. Stable
+validation and later read-back bound V1 operation; they do not establish those stronger promises.
 
-Introduce a semantic identity distinct from physical `ControlId`:
+## Parent-Loaded Values And Bounds
 
-```java
-public record ControllerMappingId(String value) {}
+- `ControllerMappingId` identifies one permanent endpoint. The installed inventory contains 512
+  track endpoints plus four inert legacy shared endpoints.
+- `ControllerMappingBinding` contains physical control, semantic endpoint, requested literal value,
+  and `ControllerMappingContext`. Complete desired bindings remain bounded to 64 physical controls.
+- `ControllerMappingContext` carries selected-target generation and channel UUID, storage revision,
+  and document UUID. It fences the selected bank against the authoritative context used to choose it.
+- `ControllerMappingTarget` preserves observed target presence and a finite normalized value in
+  `[0,1]`. Absent-target presence does not erase the independently observed value.
+- `ControllerMappingFeedbackSnapshot` carries available endpoint targets and storage context. Its
+  bound is 516 entries, independent of the 64 simultaneous physical-binding limit. Omitted endpoint
+  feedback means unsupported/unready inventory, not an observed unmapped target.
+- `ControllerMappingStorageSnapshot` carries availability, observed revision, document UUID, and
+  opaque value. Its string bound is 8192 characters. Stable observes/stores the value; core parses it.
 
-public record ControllerMappingBinding(
-    ControlId physicalControl,
-    ControllerMappingId mappingId
-) {}
+API 44 advertises controller-mapping output version 4, mapping-feedback version 4, and
+`effect.controller-mapping-storage` version 1. Adding more banks, a new parent-loaded contract, or a
+new Bitwig observer still requires a shell install and restart.
 
-public record DesiredControllerMappings(
-    Set<ControllerMappingBinding> bindings
-) {}
+## Ownership And Fencing
 
-public record ControllerMappingFeedbackSnapshot(
-    boolean available,
-    Map<ControllerMappingId, Boolean> states
-) {}
-```
+Reloadable core owns registry format and validation, append-only allocation, active bank selection,
+read-back acknowledgement policy, and the complete physical-to-semantic lease. It also owns every
+modifier/gesture variant, target midpoint (`hasTarget && value >= 0.5`), next endpoint, red/off
+feedback, and amber failure indication. No toggle phase needs to survive a core handoff.
 
-These values are implemented as immutable, fixed-capacity Core API types. The production
-`DesiredControllerMappings` and `ControllerMappingFeedbackSnapshot` are bounded to 64 entries at
-the API boundary; the installed shell inventory currently contains exactly four endpoints.
-The number 64 is a Pull-defined bound, not a Bitwig limit. It is the principled maximum for
-simultaneously active physical-pad leases—one per control in the 64-pad grid—but the shared
-constant also currently caps the complete installed semantic-endpoint feedback inventory. That
-second use is convenient rather than fundamental and may need its own larger bound if future views
-install multiple permanent semantic identities for the same physical pad.
+Stable owns eager absolute-control creation, permanent IDs/labels, raw target/storage observation,
+opaque storage execution, physical matcher translation, lifecycle fencing, and RGB transmission.
+It validates selected-track UUID/generation, document UUID, and observed storage revision when
+accepting/applying a lease. It does not parse the registry or choose which bank means a track.
 
-The composed view model should resolve mappings like this:
+Required invariants:
 
-```text
-push.pad.29 -- active Drum Controller --> drum-controller.control.1
-push.pad.29 -- another installed view --> another-view.control.1
-```
+1. Each physical pad admits at most one semantic absolute matcher at a time.
+2. No legacy shared endpoint or unleased bank accepts learned input.
+3. Active leases require owned exclusive PAD input, owned RGB output, and authoritative feedback.
+4. New or changed ownership cannot activate on storage-write submission alone.
+5. Selection/document/storage disagreement invalidates the old lease; held-input cleanup remains
+   with the established lifecycle owner rather than being delivered to a replacement core.
+6. Unchanged complete output does not churn matchers or resubmit registry writes.
+7. Feedback comes from later host read-back, never inferred from a press or emitted request.
+8. Fault, missing context, invalid registry, and exhausted capacity do not revive shared mappings.
 
-Feedback is keyed by `ControllerMappingId`. Input routing and RGB transmission remain keyed by the
-physical `ControlId` because input and LED ownership are physical surfaces.
+Native learned actions execute in Bitwig's matcher path, outside Pull's effect executor. Once a
+selection change is observed, stable fencing can reject the stale context. It cannot perform an
+instantaneous apply-time selection check inside a previously installed native matcher. V1 therefore
+acknowledges context propagation latency; it does not claim a strict instantaneous selection fence.
 
-## Ownership Boundary
+## Migration Compatibility
 
-Reloadable core owns:
+API 32 separated the original `1_PAD29`–`1_PAD32` identities from semantic Drum Controller controls.
+API 42 replaced `CONTROLLER_MAPPING_DRUM_CONTROL_1`–`4` (Drum Controller Control 1–4) with absolute
+`CONTROLLER_MAPPING_DRUM_CONTROL_VALUE_1`–`4` (Drum Controller Toggle 1–4). API 43 retained those exact
+absolute IDs and labels while moving raw target interpretation into core.
 
-- which semantic mapping endpoint a view declares;
-- the complete physical-control-to-mapping-endpoint lease for the active workspace;
-- proof that the declaring view itself owns the physical control's exclusive PAD input and output;
-- conflict detection when two views claim the same physical input or mapping endpoint;
-- the declaring view's subscription to authoritative controller-mapping feedback;
-- interpretation of Boolean feedback, including red/on and black/off policy;
-- all view, modifier, gesture, and mapping meaning.
+API 44 retains construction of those four shared absolute identities for compatibility, but never
+activates them. Their old learned mappings are inert. Delete the old shared mappings and relearn
+the four controls for each desired track through that track's allocated bank. Native API 25 does
+not expose learned-binding enumeration, target-owner validation, or copying, so Pull cannot safely
+migrate the shared assignments automatically. New per-track bank IDs remain permanent.
 
-Stable shell owns only:
+## API 44 Capability Audit
 
-- eager creation of the bounded permanent Bitwig `HardwareButton` inventory;
-- stable host-facing IDs and labels for semantic mapping endpoints;
-- exact physical MIDI matcher installation and translation;
-- matcher handoff, held-input fencing, release completion, reload safety, and shutdown cleanup;
-- creation and observation of no-output `OnOffHardwareLight` feedback;
-- immutable snapshot publication and hardware RGB transmission.
+- Feature: independent native Drum Controller mappings for the selected track, with bounded V1
+  persistence and explicit general lifecycle TODOs.
+- Inputs/variants: existing PAD29–32/PAD, positive press endpoint requests, ignored learned release
+  and zero-velocity Note On, and unchanged modifier variants; no additional MIDI callback.
+- State: private selected-track UUID/generation, observed document master UUID, opaque storage value
+  and revision, and raw endpoint target presence/value with observer readiness.
+- Effects: one bounded opaque document-storage write. Native absolute mappings remain the target
+  actuators; core does not introduce parameter-target writes for these pads.
+- Output: existing exclusive routes/RGB transport plus context-fenced semantic mapping leases.
+- Retained state: document-backed registry allocation; no retained toggle phase. Matching waits for
+  later registry acknowledgement and is recomputed after reload.
+- Existing canopy: physical routes, generic RGB, absolute-control matcher lifecycle, and raw target
+  feedback. Expansion: fixed 128×4 endpoint pool, document/storage observation and effect, and lease
+  context fences. This is Class B and requires API/shell install and Bitwig restart.
+- Out of scope/TODO: arbitrary endpoint creation; learned-target ownership/enumeration; native copy
+  semantics; clearing/recycling tombstones; stronger document identity and atomic persistence; and
+  an instantaneous native selection fence.
 
-The shell must never select a mapping endpoint from the active view itself. It realizes only the
-complete lease returned by core.
+## Verification Contract
 
-## Bitwig API 25 Constraint
+Offline regressions must distinguish requests, later host/storage acknowledgement, leased matcher
+activation, and rendered output. Cover raw fractional values, every release/modifier variant,
+unavailable state, rejected context, corrupt/foreign registry, duplicate owners, full capacity,
+tombstones, unchanged replay, reload/fault cleanup, and inert legacy identities.
 
-API 25 exposes permanent `HardwareButton` objects with `pressedAction()` and `releasedAction()`
-binding sources. It does not expose a native view-sensitive mapping context, mapping page, or
-virtual-controller bank.
-
-Virtualization must therefore be simulated with a bounded set of permanent semantic
-`HardwareButton` identities whose physical matchers are activated one at a time. Arbitrary mapping
-endpoints cannot be created by a hot-reloaded core. Adding an endpoint outside the installed
-inventory requires a shell install and Bitwig restart.
-
-Renaming one physical `HardwareButton` as views change is not virtualization: its stored Bitwig
-bindings remain attached to the same permanent action identity.
-
-## Required Invariants
-
-1. A semantic `ControllerMappingId` has one permanent Bitwig `HardwareAction` identity.
-2. A physical control admits at most one semantic mapping press matcher at a time.
-3. An endpoint not leased by core cannot learn or fire a new controller mapping.
-4. A lane change immediately rejects new presses from the old endpoint.
-5. The exact accepted gesture completes through `END` before the latest desired endpoint activates.
-6. Raw ordinary dispatch must not fire any Bitwig controller-mapping action.
-7. Feedback is authoritative Bitwig read-back, never inferred from a press or submitted action.
-8. Missing, unavailable, mismatched, or faulted state fails closed.
-9. Stable endpoint IDs never change meaning across releases.
-10. The installed endpoint inventory and every matcher/proxy pool remain explicitly bounded.
-11. A view may emit a mapping only for a physical PAD input and output it owns itself.
-12. A mapping may activate only while authoritative controller-mapping feedback is subscribed.
-
-## Implemented First Migration
-
-Do not begin with universal per-view virtualization. The smallest proving migration is the four
-Drum Controller endpoints:
-
-```text
-drum-controller.control.1 <-> push.pad.29
-drum-controller.control.2 <-> push.pad.30
-drum-controller.control.3 <-> push.pad.31
-drum-controller.control.4 <-> push.pad.32
-```
-
-The migration performs this sequence:
-
-1. `ControllerMappingId`, `ControllerMappingBinding`, `DesiredControllerMappings`, and
-   `ControllerMappingFeedbackSnapshot` cross the parent/child boundary.
-2. `CONTROLLER_MAPPING_FEEDBACK` replaces the feature-shaped mapped-pad subscription.
-3. Four detached permanent semantic Bitwig buttons are created during extension initialization.
-4. All 64 original physical pad actions have no MIDI matcher and remain raw-dispatch-only.
-5. `DrumControlPadView` leases semantic endpoints and renders feedback by mapping ID.
-6. Existing physical exclusive routes and RGB output controls remain physical.
-7. Lane transitions reject new input immediately, retain exact held-gesture ownership through
-   routed `END`, and activate only the latest replayable desired projection.
-
-Because a new Bitwig action identity does not inherit bindings stored against the previous physical
-button action, users must recreate the four controller mappings once after installing API 32. Old
-`1_PAD29` through `1_PAD32` mappings are intentionally not migrated and are inert after their
-physical matchers are removed. Bitwig may continue warning about those persisted entries until the
-user deletes them; remove them before learning the four new `Drum Controller Control` endpoints.
-
-## Closed-Loop Proof
-
-The current migration's tests and live smoke must prove:
-
-- learning in Drum Controller attaches to `drum-controller.control.1`, not `push.pad.29`;
-- the learned action fires exactly once in Drum Controller and never in Session or Note views;
-- the generic projection host can switch one physical pad between two installed semantic endpoints
-  without changing either endpoint's identity or churning an unchanged projection;
-- both release-callback orders and an immediate re-press preserve exact gesture ownership;
-- view changes while held activate only the latest desired semantic endpoint after `END`;
-- true and false Bitwig feedback address the semantic endpoint and render on the physical LED;
-- unmapped/off remains distinct from unavailable or unsupported inventory;
-- core reload, rejected candidate, fault, shutdown, and restart never leave multiple matchers live;
-- the Bitwig mapping browser exposes no ordinary-dispatch or duplicate physical-pad mapping source.
-
-## Non-Goals
-
-- Arbitrary endpoint creation by reloadable code.
-- Treating raw MIDI notes as user-facing mapping identities.
-- Moving matcher or Bitwig proxy ownership into core.
-- Optimistic feedback derived from the latest press.
-- Installing speculative endpoint identities before a second real view requires them.
+The exact API 44 shell/core build still requires a physical learning smoke test. Learn separate
+bindings on two tracks, verify later off → on → off read-back/output, then exercise rename/reorder,
+delete/undo, save/reopen, native duplication, project boundaries, and held-input reload. A debug
+PAD_OUTPUT request proves the routed extension/output path but cannot inject a native learned MIDI
+action. Follow `TESTING.md`; record actual results separately from these acceptance requirements.

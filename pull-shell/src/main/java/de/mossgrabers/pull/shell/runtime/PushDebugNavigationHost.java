@@ -10,6 +10,7 @@ import de.mossgrabers.framework.daw.midi.SelectedTrackNoteTargetSnapshot;
 import de.mossgrabers.framework.daw.midi.SelectedTrackMonitorMode;
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.pull.core.api.ControlId;
+import de.mossgrabers.pull.core.api.ControllerMappingTarget;
 import de.mossgrabers.pull.core.api.DesiredNoteInputRoute;
 import de.mossgrabers.pull.core.api.InputRouteMode;
 import de.mossgrabers.pull.core.api.PushControlIds;
@@ -365,7 +366,7 @@ final class PushDebugNavigationHost implements AutoCloseable
 
     private PadStatus observePadStatus (final PadProbe probe, final ObservedCoreLight light)
     {
-        return new PadStatus (this.admission.debugPadRoute (probe.control ()), light.mappingDesired (), this.admission.debugPadMappingActive (probe.control ()), light.mappedOn ());
+        return new PadStatus (this.admission.debugPadRoute (probe.control ()), light.mappingDesired (), this.admission.debugPadMappingActive (probe.control ()), light.mappingId (), light.mappedTarget ());
     }
 
 
@@ -616,7 +617,9 @@ final class PushDebugNavigationHost implements AutoCloseable
             padProbe == null ? "-" : padStatus == null ? "NONE" : padStatus.routeName (),
             padProbe == null ? "-" : Boolean.toString (padStatus != null && padStatus.mappingDesired ()),
             padProbe == null ? "-" : Boolean.toString (padStatus != null && padStatus.mappingActive ()),
-            padProbe == null || padStatus == null || !padStatus.mappedAvailable () ? "-" : Boolean.toString (padStatus.mappedOn ().booleanValue ()),
+            padProbe == null || padStatus == null || padStatus.mappingId () == null ? "-" : PushDebugging.sanitize (padStatus.mappingId ()),
+            padProbe == null || padStatus == null || !padStatus.mappedAvailable () ? "-" : Boolean.toString (padStatus.mappedTarget ().hasTarget ()),
+            padProbe == null || padStatus == null || !padStatus.mappedAvailable () ? "-" : Double.toString (padStatus.mappedTarget ().value ()),
             padEvidence == null ? "-" : rgb (padEvidence.desiredColor ()),
             padEvidence == null ? "-" : padEvidence.resolvedColor () + ":" + padEvidence.resolvedBlinkColor () + ":" + padEvidence.fast (),
             padEvidence == null ? "-" : transmissions (padEvidence),
@@ -754,7 +757,7 @@ final class PushDebugNavigationHost implements AutoCloseable
 
         default ObservedCoreLight coreLight (final ControlId control)
         {
-            return new ObservedCoreLight (0, 0, null, false, null);
+            return new ObservedCoreLight (0, 0, null, false, null, null);
         }
 
         default void beginPadOutputObservation (final int oneBasedPad)
@@ -818,7 +821,7 @@ final class PushDebugNavigationHost implements AutoCloseable
     }
 
 
-    record ObservedCoreLight (long coreGeneration, long appliedRevision, RgbColor color, boolean mappingDesired, Boolean mappedOn)
+    record ObservedCoreLight (long coreGeneration, long appliedRevision, RgbColor color, boolean mappingDesired, String mappingId, ControllerMappingTarget mappedTarget)
     {
         private boolean present ()
         {
@@ -1220,7 +1223,7 @@ final class PushDebugNavigationHost implements AutoCloseable
     }
 
 
-    private record PadStatus (InputRouteMode route, boolean mappingDesired, boolean mappingActive, Boolean mappedOn)
+    private record PadStatus (InputRouteMode route, boolean mappingDesired, boolean mappingActive, String mappingId, ControllerMappingTarget mappedTarget)
     {
         private boolean exclusiveRoute ()
         {
@@ -1236,7 +1239,7 @@ final class PushDebugNavigationHost implements AutoCloseable
 
         private boolean mappedAvailable ()
         {
-            return this.mappedOn != null;
+            return this.mappedTarget != null;
         }
 
 
@@ -1405,7 +1408,7 @@ final class PushDebugNavigationHost implements AutoCloseable
         public ObservedCoreLight coreLight (final ControlId control)
         {
             final ControllerRuntimeEnvironment.DebugLightObservation observed = this.lightObservation.apply (control);
-            return new ObservedCoreLight (observed.coreGeneration (), observed.appliedRevision (), observed.color (), observed.mappingDesired (), observed.mappedOn ());
+            return new ObservedCoreLight (observed.coreGeneration (), observed.appliedRevision (), observed.color (), observed.mappingDesired (), observed.mappingId (), observed.mappedTarget ());
         }
 
 

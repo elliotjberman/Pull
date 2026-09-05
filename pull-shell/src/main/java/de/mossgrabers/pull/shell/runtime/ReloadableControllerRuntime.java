@@ -174,7 +174,8 @@ public final class ReloadableControllerRuntime implements AutoCloseable
 
         this.clipHost = new SelectedTrackFillClipHost (this.controllerHost);
         this.clipHost.connect (Objects.requireNonNull (model, "model"));
-        this.controllerMappings = new ControllerMappingHost (surface);
+        this.controllerMappings = new ControllerMappingHost (surface, new ControllerMappingStorageHost (
+            this.controllerHost.getDocumentState (), () -> model.getMasterTrack ().getChannelID ()));
         final BoundedControllerBridge controllerBridge = new BoundedControllerBridge (
             model,
             Objects.requireNonNull (selectedTarget, "selectedTarget"),
@@ -231,7 +232,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             this.environment::desiredInputRoutes,
             this.environment::activeControllerMappings,
             this.controllerMappings.physicalButtons (),
-            this.controllerMappings.mappingButtons (),
+            this.controllerMappings.mappingControls (),
             (control, kind, stableAction) -> this.environment.blocksStableAction (control, de.mossgrabers.pull.core.api.event.InputKind.valueOf (kind.name ()), stableAction),
             this::handleControllerInput,
             () -> this.supervisor == null ? 0 : this.supervisor.activeGeneration ());

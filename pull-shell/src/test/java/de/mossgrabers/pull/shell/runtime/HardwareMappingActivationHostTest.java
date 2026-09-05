@@ -3,11 +3,13 @@
 
 package de.mossgrabers.pull.shell.runtime;
 
+import de.mossgrabers.framework.controller.hardware.IHwAbsoluteControl;
 import de.mossgrabers.framework.controller.hardware.IHwButton;
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerMappingBinding;
 import de.mossgrabers.pull.core.api.ControllerMappingId;
+import de.mossgrabers.pull.core.api.ControllerMappingValue;
 import de.mossgrabers.pull.core.api.DesiredControllerMappings;
 
 import org.junit.jupiter.api.Test;
@@ -21,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 
-/** Lifecycle tests for semantic mapping projection and raw ordinary dispatch. */
+/** Lifecycle tests for absolute semantic mapping projection and raw ordinary dispatch. */
 class HardwareMappingActivationHostTest
 {
     private static final ControlId PAD_29 = new ControlId ("push.pad.29");
@@ -35,28 +37,23 @@ class HardwareMappingActivationHostTest
 
 
     @Test
-    void switchesIdleControlBetweenSemanticMatcherAndRawDispatch ()
+    void switchesIdleControlBetweenAbsoluteMatcherAndRawDispatch ()
     {
         final Fixture fixture = new Fixture (Set.of (PAD_29), Set.of (DRUM_1));
+        final DesiredControllerMappings desired = desired (PAD_29, DRUM_1, ControllerMappingValue.MAXIMUM);
 
-        fixture.host.request (desired (PAD_29, DRUM_1));
-        assertEquals (desired (PAD_29, DRUM_1), fixture.host.activeMappings ());
-        assertEquals (PAD_29, fixture.bindings.get (DRUM_1));
-        assertEquals (1, fixture.semantic.get (DRUM_1).unbindReleases);
+        fixture.host.request (desired);
+        assertEquals (desired, fixture.host.activeMappings ());
+        assertEquals (new BoundMatcher (PAD_29, ControllerMappingValue.MAXIMUM), fixture.bindings.get (DRUM_1));
         assertEquals (HardwareMappingActivationHost.RawDisposition.MAPPED, fixture.host.dispatchRaw (PAD_29, ButtonEvent.DOWN, 0.5));
 
         fixture.host.request (DesiredControllerMappings.empty ());
-        assertEquals (1, fixture.semantic.get (DRUM_1).unbindPresses);
+        assertEquals (1, fixture.semantic.get (DRUM_1).unbinds);
         assertEquals (DesiredControllerMappings.empty (), fixture.host.activeMappings ());
         assertEquals (HardwareMappingActivationHost.RawDisposition.DISPATCHED, fixture.host.dispatchRaw (PAD_29, ButtonEvent.DOWN, 0.5));
         fixture.idle.put (PAD_29, Boolean.FALSE);
         assertEquals (HardwareMappingActivationHost.RawDisposition.DISPATCHED, fixture.host.dispatchRaw (PAD_29, ButtonEvent.UP, 0));
         assertEquals (2, fixture.physical.get (PAD_29).manualEvents);
-
-        fixture.idle.put (PAD_29, Boolean.TRUE);
-        fixture.host.request (desired (PAD_29, DRUM_1));
-        assertEquals (2, fixture.semantic.get (DRUM_1).unbindReleases);
-        assertEquals (desired (PAD_29, DRUM_1), fixture.host.activeMappings ());
     }
 
 
@@ -64,86 +61,50 @@ class HardwareMappingActivationHostTest
     void replayingUnchangedProjectionDoesNotChurnMatcher ()
     {
         final Fixture fixture = new Fixture (Set.of (PAD_29), Set.of (DRUM_1));
-        final DesiredControllerMappings projection = desired (PAD_29, DRUM_1);
+        final DesiredControllerMappings projection = desired (PAD_29, DRUM_1, ControllerMappingValue.MAXIMUM);
 
         fixture.host.request (projection);
         fixture.host.request (projection);
-        fixture.host.request (new DesiredControllerMappings (Set.of (new ControllerMappingBinding (PAD_29, DRUM_1))));
 
         assertEquals (1, fixture.bindingCalls);
-        assertEquals (1, fixture.semantic.get (DRUM_1).unbindReleases);
-        assertEquals (0, fixture.semantic.get (DRUM_1).unbindPresses);
+        assertEquals (0, fixture.semantic.get (DRUM_1).unbinds);
         assertEquals (projection, fixture.host.activeMappings ());
     }
 
 
     @Test
-    void mappedReleaseWithoutAnAcceptedPressCannotLeakIntoOrdinaryDispatch ()
+    void changingOnlyTheNextValueRebindsTheSameEndpointWhenIdle ()
     {
         final Fixture fixture = new Fixture (Set.of (PAD_29), Set.of (DRUM_1));
-        fixture.host.request (desired (PAD_29, DRUM_1));
+        fixture.host.request (desired (PAD_29, DRUM_1, ControllerMappingValue.MAXIMUM));
 
-        assertEquals (HardwareMappingActivationHost.RawDisposition.SUPPRESSED, fixture.host.dispatchRaw (PAD_29, ButtonEvent.UP, 0));
-        assertEquals (0, fixture.physical.get (PAD_29).manualEvents);
-        assertEquals (desired (PAD_29, DRUM_1), fixture.host.activeMappings ());
+        final DesiredControllerMappings minimum = desired (PAD_29, DRUM_1, ControllerMappingValue.MINIMUM);
+        fixture.host.request (minimum);
+
+        assertEquals (minimum, fixture.host.activeMappings ());
+        assertEquals (2, fixture.bindingCalls);
+        assertEquals (1, fixture.semantic.get (DRUM_1).unbinds);
+        assertEquals (new BoundMatcher (PAD_29, ControllerMappingValue.MINIMUM), fixture.bindings.get (DRUM_1));
     }
 
 
     @Test
-    void switchesOnePhysicalControlBetweenIndependentSemanticEndpoints ()
-    {
-        final Fixture fixture = new Fixture (Set.of (PAD_29), Set.of (DRUM_1, DRUM_2));
-
-        fixture.host.request (desired (PAD_29, DRUM_1));
-        fixture.host.request (desired (PAD_29, DRUM_2));
-
-        assertEquals (desired (PAD_29, DRUM_2), fixture.host.activeMappings ());
-        assertEquals (1, fixture.semantic.get (DRUM_1).unbindPresses);
-        assertEquals (1, fixture.semantic.get (DRUM_1).unbindReleases);
-        assertEquals (0, fixture.semantic.get (DRUM_2).unbindPresses);
-        assertEquals (1, fixture.semantic.get (DRUM_2).unbindReleases);
-        assertEquals (PAD_29, fixture.bindings.get (DRUM_1));
-        assertEquals (PAD_29, fixture.bindings.get (DRUM_2));
-    }
-
-
-    @Test
-    void retiringMappedGestureSuppressesRawInputUntilItsExactRelease ()
+    void changingTheNextValueWaitsForTheCurrentPhysicalRelease ()
     {
         final Fixture fixture = new Fixture (Set.of (PAD_29), Set.of (DRUM_1));
-        fixture.host.request (desired (PAD_29, DRUM_1));
+        fixture.host.request (desired (PAD_29, DRUM_1, ControllerMappingValue.MAXIMUM));
         fixture.idle.put (PAD_29, Boolean.FALSE);
 
-        fixture.host.request (DesiredControllerMappings.empty ());
-        assertEquals (1, fixture.semantic.get (DRUM_1).unbindPresses);
-        assertEquals (HardwareMappingActivationHost.RawDisposition.SUPPRESSED, fixture.host.dispatchRaw (PAD_29, ButtonEvent.DOWN, 0.5));
+        final DesiredControllerMappings minimum = desired (PAD_29, DRUM_1, ControllerMappingValue.MINIMUM);
+        fixture.host.request (minimum);
+        assertEquals (DesiredControllerMappings.empty (), fixture.host.activeMappings ());
+        assertEquals (1, fixture.semantic.get (DRUM_1).unbinds);
         assertEquals (HardwareMappingActivationHost.RawDisposition.MAPPED, fixture.host.dispatchRaw (PAD_29, ButtonEvent.UP, 0));
-        assertEquals (DesiredControllerMappings.empty (), fixture.host.activeMappings ());
 
         fixture.idle.put (PAD_29, Boolean.TRUE);
-        fixture.host.request (DesiredControllerMappings.empty ());
-        assertEquals (HardwareMappingActivationHost.RawDisposition.DISPATCHED, fixture.host.dispatchRaw (PAD_29, ButtonEvent.DOWN, 0.5));
-    }
-
-
-    @Test
-    void rawReleaseFinishesOldDispatchBeforeLatestDesiredMatcherActivates ()
-    {
-        final Fixture fixture = new Fixture (Set.of (PAD_29), Set.of (DRUM_1));
-        assertEquals (HardwareMappingActivationHost.RawDisposition.DISPATCHED, fixture.host.dispatchRaw (PAD_29, ButtonEvent.DOWN, 0.5));
-        fixture.idle.put (PAD_29, Boolean.FALSE);
-
-        fixture.host.request (desired (PAD_29, DRUM_1));
-        fixture.host.request (DesiredControllerMappings.empty ());
-        fixture.host.request (desired (PAD_29, DRUM_1));
-        assertEquals (HardwareMappingActivationHost.RawDisposition.SUPPRESSED, fixture.host.dispatchRaw (PAD_29, ButtonEvent.DOWN, 0.5));
-        assertEquals (DesiredControllerMappings.empty (), fixture.host.activeMappings ());
-
-        assertEquals (HardwareMappingActivationHost.RawDisposition.DISPATCHED, fixture.host.dispatchRaw (PAD_29, ButtonEvent.UP, 0));
-        fixture.idle.put (PAD_29, Boolean.TRUE);
-        fixture.host.request (desired (PAD_29, DRUM_1));
-        assertEquals (2, fixture.physical.get (PAD_29).manualEvents);
-        assertEquals (desired (PAD_29, DRUM_1), fixture.host.activeMappings ());
+        fixture.host.request (minimum);
+        assertEquals (minimum, fixture.host.activeMappings ());
+        assertEquals (new BoundMatcher (PAD_29, ControllerMappingValue.MINIMUM), fixture.bindings.get (DRUM_1));
     }
 
 
@@ -151,78 +112,44 @@ class HardwareMappingActivationHostTest
     void semanticEndpointCannotMoveUntilItsOldPhysicalGestureIsIdle ()
     {
         final Fixture fixture = new Fixture (Set.of (PAD_29, PAD_30), Set.of (DRUM_1));
-        fixture.host.request (desired (PAD_29, DRUM_1));
+        fixture.host.request (desired (PAD_29, DRUM_1, ControllerMappingValue.MAXIMUM));
         fixture.idle.put (PAD_29, Boolean.FALSE);
 
-        fixture.host.request (desired (PAD_30, DRUM_1));
+        final DesiredControllerMappings moved = desired (PAD_30, DRUM_1, ControllerMappingValue.MAXIMUM);
+        fixture.host.request (moved);
         assertEquals (DesiredControllerMappings.empty (), fixture.host.activeMappings ());
-        assertEquals (HardwareMappingActivationHost.RawDisposition.SUPPRESSED, fixture.host.dispatchRaw (PAD_30, ButtonEvent.DOWN, 1));
 
         fixture.idle.put (PAD_29, Boolean.TRUE);
-        fixture.host.request (desired (PAD_30, DRUM_1));
-        assertEquals (desired (PAD_30, DRUM_1), fixture.host.activeMappings ());
-        assertEquals (PAD_30, fixture.bindings.get (DRUM_1));
+        fixture.host.request (moved);
+        assertEquals (moved, fixture.host.activeMappings ());
+        assertEquals (new BoundMatcher (PAD_30, ControllerMappingValue.MAXIMUM), fixture.bindings.get (DRUM_1));
     }
 
 
     @Test
-    void fourLanesActivateIndependentlyAndOneHeldRetirementDoesNotChurnTheOthers ()
+    void fourLanesActivateAndChangeIndependently ()
     {
-        final Set<ControlId> physicalControls = Set.of (PAD_29, PAD_30, PAD_31, PAD_32);
-        final Set<ControllerMappingId> mappingIds = Set.of (DRUM_1, DRUM_2, DRUM_3, DRUM_4);
-        final Fixture fixture = new Fixture (physicalControls, mappingIds);
-        final DesiredControllerMappings all = new DesiredControllerMappings (Set.of (
-            new ControllerMappingBinding (PAD_29, DRUM_1),
-            new ControllerMappingBinding (PAD_30, DRUM_2),
-            new ControllerMappingBinding (PAD_31, DRUM_3),
-            new ControllerMappingBinding (PAD_32, DRUM_4)));
-        final DesiredControllerMappings remaining = new DesiredControllerMappings (Set.of (
-            new ControllerMappingBinding (PAD_30, DRUM_2),
-            new ControllerMappingBinding (PAD_31, DRUM_3),
-            new ControllerMappingBinding (PAD_32, DRUM_4)));
+        final Fixture fixture = new Fixture (Set.of (PAD_29, PAD_30, PAD_31, PAD_32), Set.of (DRUM_1, DRUM_2, DRUM_3, DRUM_4));
+        final DesiredControllerMappings allHigh = new DesiredControllerMappings (Set.of (
+            binding (PAD_29, DRUM_1, ControllerMappingValue.MAXIMUM),
+            binding (PAD_30, DRUM_2, ControllerMappingValue.MAXIMUM),
+            binding (PAD_31, DRUM_3, ControllerMappingValue.MAXIMUM),
+            binding (PAD_32, DRUM_4, ControllerMappingValue.MAXIMUM)));
+        fixture.host.request (allHigh);
 
-        fixture.host.request (all);
-        assertEquals (all, fixture.host.activeMappings ());
-        assertEquals (4, fixture.bindingCalls);
-        assertTrueMatchers (fixture, DRUM_1, DRUM_2, DRUM_3, DRUM_4);
+        final DesiredControllerMappings firstLow = new DesiredControllerMappings (Set.of (
+            binding (PAD_29, DRUM_1, ControllerMappingValue.MINIMUM),
+            binding (PAD_30, DRUM_2, ControllerMappingValue.MAXIMUM),
+            binding (PAD_31, DRUM_3, ControllerMappingValue.MAXIMUM),
+            binding (PAD_32, DRUM_4, ControllerMappingValue.MAXIMUM)));
+        fixture.host.request (firstLow);
 
-        fixture.idle.put (PAD_29, Boolean.FALSE);
-        fixture.host.request (remaining);
-        assertEquals (remaining, fixture.host.activeMappings ());
-        assertEquals (4, fixture.bindingCalls);
-        assertEquals (false, fixture.semantic.get (DRUM_1).pressMatcher);
-        assertTrueMatchers (fixture, DRUM_2, DRUM_3, DRUM_4);
-        assertEquals (HardwareMappingActivationHost.RawDisposition.SUPPRESSED, fixture.host.dispatchRaw (PAD_29, ButtonEvent.DOWN, 1));
-        assertEquals (HardwareMappingActivationHost.RawDisposition.MAPPED, fixture.host.dispatchRaw (PAD_29, ButtonEvent.UP, 0));
-        assertEquals (HardwareMappingActivationHost.RawDisposition.MAPPED, fixture.host.dispatchRaw (PAD_30, ButtonEvent.DOWN, 1));
-
-        fixture.idle.put (PAD_29, Boolean.TRUE);
-        fixture.host.request (remaining);
-        assertEquals (4, fixture.bindingCalls);
-        assertTrueMatchers (fixture, DRUM_2, DRUM_3, DRUM_4);
-    }
-
-
-    @Test
-    void swapsTwoInstalledSemanticEndpointsWithoutLosingEitherIdentity ()
-    {
-        final Fixture fixture = new Fixture (Set.of (PAD_29, PAD_30), Set.of (DRUM_1, DRUM_2));
-        fixture.host.request (new DesiredControllerMappings (Set.of (
-            new ControllerMappingBinding (PAD_29, DRUM_1),
-            new ControllerMappingBinding (PAD_30, DRUM_2))));
-
-        final DesiredControllerMappings swapped = new DesiredControllerMappings (Set.of (
-            new ControllerMappingBinding (PAD_29, DRUM_2),
-            new ControllerMappingBinding (PAD_30, DRUM_1)));
-        fixture.host.request (swapped);
-
-        assertEquals (swapped, fixture.host.activeMappings ());
-        assertEquals (4, fixture.bindingCalls);
-        assertEquals (PAD_30, fixture.bindings.get (DRUM_1));
-        assertEquals (PAD_29, fixture.bindings.get (DRUM_2));
-        assertEquals (1, fixture.semantic.get (DRUM_1).unbindPresses);
-        assertEquals (1, fixture.semantic.get (DRUM_2).unbindPresses);
-        assertTrueMatchers (fixture, DRUM_1, DRUM_2);
+        assertEquals (firstLow, fixture.host.activeMappings ());
+        assertEquals (5, fixture.bindingCalls);
+        assertEquals (1, fixture.semantic.get (DRUM_1).unbinds);
+        assertEquals (0, fixture.semantic.get (DRUM_2).unbinds);
+        assertEquals (0, fixture.semantic.get (DRUM_3).unbinds);
+        assertEquals (0, fixture.semantic.get (DRUM_4).unbinds);
     }
 
 
@@ -230,50 +157,37 @@ class HardwareMappingActivationHostTest
     void invalidReplacementLeavesThePreviouslyActiveProjectionUntouched ()
     {
         final Fixture fixture = new Fixture (Set.of (PAD_29, PAD_30), Set.of (DRUM_1));
-        final DesiredControllerMappings original = desired (PAD_29, DRUM_1);
+        final DesiredControllerMappings original = desired (PAD_29, DRUM_1, ControllerMappingValue.MAXIMUM);
         fixture.host.request (original);
         final DesiredControllerMappings invalid = new DesiredControllerMappings (Set.of (
-            new ControllerMappingBinding (PAD_29, DRUM_1),
-            new ControllerMappingBinding (PAD_30, DRUM_2)));
+            binding (PAD_29, DRUM_1, ControllerMappingValue.MAXIMUM),
+            binding (PAD_30, DRUM_2, ControllerMappingValue.MAXIMUM)));
 
         assertThrows (IllegalArgumentException.class, () -> fixture.host.request (invalid));
         assertEquals (original, fixture.host.activeMappings ());
         assertEquals (1, fixture.bindingCalls);
-        assertEquals (0, fixture.semantic.get (DRUM_1).unbindPresses);
-        assertTrueMatchers (fixture, DRUM_1);
+        assertEquals (0, fixture.semantic.get (DRUM_1).unbinds);
     }
 
 
-    @Test
-    void rejectsUnknownPhysicalControlsAndSemanticEndpoints ()
+    private static DesiredControllerMappings desired (final ControlId physicalControl, final ControllerMappingId mappingId, final ControllerMappingValue value)
     {
-        final Fixture fixture = new Fixture (Set.of (PAD_29), Set.of (DRUM_1));
-
-        assertThrows (IllegalArgumentException.class, () -> fixture.host.request (desired (PAD_30, DRUM_1)));
-        assertThrows (IllegalArgumentException.class, () -> fixture.host.request (desired (PAD_29, DRUM_2)));
-        assertThrows (IllegalArgumentException.class, () -> fixture.host.dispatchRaw (PAD_30, ButtonEvent.DOWN, 1));
+        return new DesiredControllerMappings (Set.of (binding (physicalControl, mappingId, value)));
     }
 
 
-    private static DesiredControllerMappings desired (final ControlId physicalControl, final ControllerMappingId mappingId)
+    private static ControllerMappingBinding binding (final ControlId physicalControl, final ControllerMappingId mappingId, final ControllerMappingValue value)
     {
-        return new DesiredControllerMappings (Set.of (new ControllerMappingBinding (physicalControl, mappingId)));
-    }
-
-
-    private static void assertTrueMatchers (final Fixture fixture, final ControllerMappingId... mappingIds)
-    {
-        for (final ControllerMappingId mappingId: mappingIds)
-            assertEquals (true, fixture.semantic.get (mappingId).pressMatcher);
+        return new ControllerMappingBinding (physicalControl, mappingId, value);
     }
 
 
     private static final class Fixture
     {
         private final Map<ControlId, ButtonHarness> physical = new LinkedHashMap<> ();
-        private final Map<ControllerMappingId, ButtonHarness> semantic = new LinkedHashMap<> ();
+        private final Map<ControllerMappingId, AbsoluteHarness> semantic = new LinkedHashMap<> ();
         private final Map<ControlId, Boolean> idle = new LinkedHashMap<> ();
-        private final Map<ControllerMappingId, ControlId> bindings = new LinkedHashMap<> ();
+        private final Map<ControllerMappingId, BoundMatcher> bindings = new LinkedHashMap<> ();
         private int bindingCalls;
         private final HardwareMappingActivationHost host;
 
@@ -286,66 +200,61 @@ class HardwareMappingActivationHostTest
                 final ButtonHarness harness = new ButtonHarness ();
                 this.physical.put (control, harness);
                 this.idle.put (control, Boolean.TRUE);
-                physicalButtons.put (control, harness.button ());
+                physicalButtons.put (control, harness.button);
             }
 
-            final Map<ControllerMappingId, IHwButton> semanticButtons = new LinkedHashMap<> ();
+            final Map<ControllerMappingId, IHwAbsoluteControl> semanticControls = new LinkedHashMap<> ();
             for (final ControllerMappingId mappingId: mappingIds)
             {
-                final ButtonHarness harness = new ButtonHarness ();
+                final AbsoluteHarness harness = new AbsoluteHarness ();
                 this.semantic.put (mappingId, harness);
-                semanticButtons.put (mappingId, harness.button ());
+                semanticControls.put (mappingId, harness.control);
             }
 
             this.host = new HardwareMappingActivationHost (
                 physicalButtons,
-                semanticButtons,
+                semanticControls,
                 control -> Boolean.TRUE.equals (this.idle.get (control)),
-                (button, control) -> {
+                (control, physical, value) -> {
                     this.bindingCalls++;
-                    final ControllerMappingId mappingId = this.mappingId (button);
-                    this.bindings.put (mappingId, control);
-                    this.semantic.get (mappingId).pressMatcher = true;
+                    this.bindings.put (this.mappingId (control), new BoundMatcher (physical, value));
+                },
+                control -> {
+                    final ControllerMappingId mappingId = this.mappingId (control);
+                    this.semantic.get (mappingId).unbinds++;
+                    this.bindings.remove (mappingId);
                 });
         }
 
 
-        private ControllerMappingId mappingId (final IHwButton button)
+        private ControllerMappingId mappingId (final IHwAbsoluteControl control)
         {
-            for (final Map.Entry<ControllerMappingId, ButtonHarness> entry: this.semantic.entrySet ())
-            {
-                if (entry.getValue ().button () == button)
+            for (final Map.Entry<ControllerMappingId, AbsoluteHarness> entry: this.semantic.entrySet ())
+                if (entry.getValue ().control == control)
                     return entry.getKey ();
-            }
-            throw new IllegalArgumentException ("unknown semantic mapping button");
+            throw new IllegalArgumentException ("unknown semantic mapping control");
         }
     }
 
 
     private static final class ButtonHarness
     {
-        private int unbindPresses;
-        private int unbindReleases;
         private int manualEvents;
         private final IHwButton button = (IHwButton) Proxy.newProxyInstance (IHwButton.class.getClassLoader (), new Class<?> [] {IHwButton.class}, (proxy, method, arguments) -> {
-            switch (method.getName ())
-            {
-                case "unbindPress" -> this.unbindPresses++;
-                case "unbindRelease" -> this.unbindReleases++;
-                case "trigger" -> this.manualEvents++;
-                default -> { }
-            }
-            if (method.getName ().equals ("unbindPress"))
-                this.pressMatcher = false;
+            if (method.getName ().equals ("trigger"))
+                this.manualEvents++;
             return null;
         });
-
-        private boolean pressMatcher;
-
-
-        private IHwButton button ()
-        {
-            return this.button;
-        }
     }
+
+
+    private static final class AbsoluteHarness
+    {
+        private int unbinds;
+        private final IHwAbsoluteControl control = (IHwAbsoluteControl) Proxy.newProxyInstance (IHwAbsoluteControl.class.getClassLoader (), new Class<?> [] {IHwAbsoluteControl.class}, (proxy, method, arguments) -> null);
+    }
+
+
+    private record BoundMatcher (ControlId physicalControl, ControllerMappingValue value)
+    {}
 }

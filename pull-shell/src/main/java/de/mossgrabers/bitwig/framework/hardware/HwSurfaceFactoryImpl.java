@@ -5,6 +5,7 @@
 package de.mossgrabers.bitwig.framework.hardware;
 
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.IntFunction;
@@ -12,13 +13,12 @@ import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
 import com.bitwig.extension.api.Color;
-import com.bitwig.extension.controller.api.BooleanHardwareProperty;
+import com.bitwig.extension.controller.api.AbsoluteHardwareControl;
 import com.bitwig.extension.controller.api.HardwareButton;
 import com.bitwig.extension.controller.api.HardwareLightVisualState;
 import com.bitwig.extension.controller.api.HardwareSurface;
 import com.bitwig.extension.controller.api.InternalHardwareLightState;
 import com.bitwig.extension.controller.api.MultiStateHardwareLight;
-import com.bitwig.extension.controller.api.OnOffHardwareLight;
 
 import de.mossgrabers.bitwig.framework.daw.HostImpl;
 import de.mossgrabers.bitwig.framework.graphics.BitmapImpl;
@@ -27,6 +27,7 @@ import de.mossgrabers.framework.controller.ContinuousID;
 import de.mossgrabers.framework.controller.OutputID;
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.hardware.IHwAbsoluteKnob;
+import de.mossgrabers.framework.controller.hardware.IHwAbsoluteControl;
 import de.mossgrabers.framework.controller.hardware.IHwButton;
 import de.mossgrabers.framework.controller.hardware.IHwFader;
 import de.mossgrabers.framework.controller.hardware.IHwGraphicsDisplay;
@@ -78,15 +79,7 @@ public class HwSurfaceFactoryImpl implements IHwSurfaceFactory
     @Override
     public IHwButton createButton (final int surfaceID, final ButtonID buttonID, final String label)
     {
-        return this.createButton (surfaceID, buttonID.name (), label);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public IHwButton createButton (final int surfaceID, final String hardwareID, final String label)
-    {
-        final String id = createID (surfaceID, hardwareID);
+        final String id = createID (surfaceID, buttonID.name ());
         final HardwareButton hwButton = this.hardwareSurface.createHardwareButton (id);
         return new HwButtonImpl (this.host, hwButton, label, this.buttonTimeoutOptimizer);
     }
@@ -125,23 +118,60 @@ public class HwSurfaceFactoryImpl implements IHwSurfaceFactory
 
     /** {@inheritDoc} */
     @Override
-    public void installMappedBooleanFeedback (final int surfaceID, final String hardwareID, final IHwButton button, final Consumer<Boolean> observer)
+    public void installMappedAbsoluteFeedback (final IHwAbsoluteControl control, final BiConsumer<Boolean, Double> observer)
     {
-        final String id = createID (surfaceID, hardwareID);
-        final OnOffHardwareLight feedbackLight = this.hardwareSurface.createOnOffHardwareLight (id);
-        if (!(Objects.requireNonNull (button, "button") instanceof final HwButtonImpl hwButton))
-            throw new IllegalArgumentException ("mapped Boolean feedback requires a Bitwig hardware button");
-        installMappedBooleanFeedback (hwButton.getHardwareButton (), feedbackLight, observer);
+        if (!(Objects.requireNonNull (control, "control") instanceof final AbstractHwAbsoluteControl<?> absoluteControl))
+            throw new IllegalArgumentException ("mapped absolute feedback requires a Bitwig absolute hardware control");
+        installMappedAbsoluteFeedback (absoluteControl.getHardwareControl (), observer);
     }
 
 
-    static void installMappedBooleanFeedback (final HardwareButton button, final OnOffHardwareLight feedbackLight, final Consumer<Boolean> observer)
+    static void installMappedAbsoluteFeedback (final AbsoluteHardwareControl control, final BiConsumer<Boolean, Double> observer)
     {
-        final HardwareButton checkedButton = Objects.requireNonNull (button, "button");
-        final BooleanHardwareProperty state = Objects.requireNonNull (feedbackLight, "feedbackLight").isOn ();
-        state.setValue (false);
-        state.onUpdateHardware (Objects.requireNonNull (observer, "observer"));
-        checkedButton.setBackgroundLight (feedbackLight);
+        final AbsoluteHardwareControl checkedControl = Objects.requireNonNull (control, "control");
+        final MappedAbsoluteFeedback feedback = new MappedAbsoluteFeedback (observer);
+        checkedControl.hasTargetValue ().markInterested ();
+        checkedControl.targetValue ().addValueObserver (feedback::acceptTargetValue);
+        checkedControl.hasTargetValue ().addValueObserver (feedback::acceptHasTarget);
+    }
+
+
+    private static final class MappedAbsoluteFeedback
+    {
+        private final BiConsumer<Boolean, Double> observer;
+        private boolean hasTargetObserved;
+        private boolean targetValueObserved;
+        private boolean hasTarget;
+        private double targetValue;
+
+
+        private MappedAbsoluteFeedback (final BiConsumer<Boolean, Double> observer)
+        {
+            this.observer = Objects.requireNonNull (observer, "observer");
+        }
+
+
+        private synchronized void acceptHasTarget (final boolean value)
+        {
+            this.hasTarget = value;
+            this.hasTargetObserved = true;
+            this.publishIfReady ();
+        }
+
+
+        private synchronized void acceptTargetValue (final double value)
+        {
+            this.targetValue = value;
+            this.targetValueObserved = true;
+            this.publishIfReady ();
+        }
+
+
+        private void publishIfReady ()
+        {
+            if (this.hasTargetObserved && this.targetValueObserved)
+                this.observer.accept (Boolean.valueOf (this.hasTarget), Double.valueOf (this.targetValue));
+        }
     }
 
 
@@ -168,6 +198,15 @@ public class HwSurfaceFactoryImpl implements IHwSurfaceFactory
     public IHwAbsoluteKnob createAbsoluteKnob (final int surfaceID, final ContinuousID knobID, final String label)
     {
         final String id = createID (surfaceID, knobID.name ());
+        return new HwAbsoluteKnobImpl (this.host, this.hardwareSurface.createAbsoluteHardwareKnob (id), label);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public IHwAbsoluteKnob createAbsoluteKnob (final int surfaceID, final String hardwareID, final String label)
+    {
+        final String id = createID (surfaceID, Objects.requireNonNull (hardwareID, "hardwareID"));
         return new HwAbsoluteKnobImpl (this.host, this.hardwareSurface.createAbsoluteHardwareKnob (id), label);
     }
 

@@ -4,6 +4,8 @@
 
 package de.mossgrabers.bitwig.framework.midi;
 
+import java.util.Objects;
+
 import com.bitwig.extension.controller.api.AbsoluteHardwareControl;
 import com.bitwig.extension.controller.api.AbsoluteHardwareValueMatcher;
 import com.bitwig.extension.controller.api.ContinuousHardwareControl;
@@ -283,6 +285,27 @@ public class MidiInputImpl implements IMidiInput
 
     /** {@inheritDoc} */
     @Override
+    public void bindNoteValue (final IHwAbsoluteControl absoluteControl, final int channel, final int note, final boolean maximum)
+    {
+        bindNoteValue (this.port, ((AbstractHwAbsoluteControl<?>) Objects.requireNonNull (absoluteControl, "absoluteControl")).getHardwareControl (), channel, note, maximum);
+    }
+
+
+    static void bindNoteValue (final MidiIn port, final AbsoluteHardwareControl hardwareControl, final int channel, final int note, final boolean maximum)
+    {
+        if (channel < -1 || channel > 15)
+            throw new IllegalArgumentException ("channel must be between -1 and 15");
+        if (note < 0 || note > 127)
+            throw new IllegalArgumentException ("note must be between 0 and 127");
+        final String statusExpression = channel < 0 ? "status >= 0x90 && status <= 0x9F" : "status == " + (0x90 | channel);
+        final String eventExpression = statusExpression + " && data1 == " + note + " && data2 > 0";
+        final AbsoluteHardwareValueMatcher matcher = Objects.requireNonNull (port, "port").createAbsoluteValueMatcher (eventExpression, maximum ? "127" : "0", 7);
+        Objects.requireNonNull (hardwareControl, "hardwareControl").setAdjustValueMatcher (matcher);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
     public void bindHiRes (final IHwAbsoluteControl absoluteControl, final int channel, final int control)
     {
         final AbsoluteHardwareValueMatcher matcher1 = this.port.createAbsoluteCCValueMatcher (channel, control);
@@ -318,8 +341,6 @@ public class MidiInputImpl implements IMidiInput
 
         hardwareControl.setAdjustValueMatcher (matcher);
     }
-
-
     /** {@inheritDoc} */
     @Override
     public void bindTouch (final IHwContinuousControl continuousControl, final BindType type, final int channel, final int control)

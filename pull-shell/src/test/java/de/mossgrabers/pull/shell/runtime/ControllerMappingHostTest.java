@@ -3,10 +3,13 @@
 
 package de.mossgrabers.pull.shell.runtime;
 
+import de.mossgrabers.framework.controller.hardware.IHwAbsoluteControl;
+import de.mossgrabers.framework.controller.hardware.IHwAbsoluteKnob;
 import de.mossgrabers.framework.controller.hardware.IHwButton;
 import de.mossgrabers.framework.controller.hardware.IHwSurfaceFactory;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerMappingId;
+import de.mossgrabers.pull.core.api.ControllerMappingTarget;
 import de.mossgrabers.pull.core.api.CoreControllerMappings;
 import de.mossgrabers.pull.core.api.PushControlIds;
 
@@ -15,10 +18,11 @@ import org.junit.jupiter.api.Test;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -31,63 +35,98 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ControllerMappingHostTest
 {
     @Test
-    void createsSemanticMappingButtonsAndLeavesPhysicalButtonsRawDispatchOnly ()
+    void createsAbsoluteMappingControlsAndLeavesPhysicalButtonsRawDispatchOnly ()
     {
         final FactoryHarness factory = new FactoryHarness ();
         final Map<ControlId, ButtonHarness> physicalHarnesses = physicalHarnesses ();
         final Map<ControlId, IHwButton> physicalButtons = new LinkedHashMap<> ();
-        physicalHarnesses.forEach ( (control, harness) -> physicalButtons.put (control, harness.button ()));
+        physicalHarnesses.forEach ( (control, harness) -> physicalButtons.put (control, harness.button));
 
         final ControllerMappingHost host = new ControllerMappingHost (factory.factory (), 0, physicalButtons);
 
         assertEquals (List.of (
-            "CONTROLLER_MAPPING_DRUM_CONTROL_1",
-            "CONTROLLER_MAPPING_DRUM_CONTROL_2",
-            "CONTROLLER_MAPPING_DRUM_CONTROL_3",
-            "CONTROLLER_MAPPING_DRUM_CONTROL_4"), factory.buttonHardwareIDs);
+            "CONTROLLER_MAPPING_DRUM_CONTROL_VALUE_1",
+            "CONTROLLER_MAPPING_DRUM_CONTROL_VALUE_2",
+            "CONTROLLER_MAPPING_DRUM_CONTROL_VALUE_3",
+            "CONTROLLER_MAPPING_DRUM_CONTROL_VALUE_4"), factory.hardwareIDs.subList (0, 4));
         assertEquals (List.of (
-            "Drum Controller Control 1",
-            "Drum Controller Control 2",
-            "Drum Controller Control 3",
-            "Drum Controller Control 4"), factory.buttonLabels);
-        assertEquals (List.of (
-            "CONTROLLER_MAPPING_DRUM_CONTROL_STATE_1",
-            "CONTROLLER_MAPPING_DRUM_CONTROL_STATE_2",
-            "CONTROLLER_MAPPING_DRUM_CONTROL_STATE_3",
-            "CONTROLLER_MAPPING_DRUM_CONTROL_STATE_4"), factory.feedbackHardwareIDs);
-        assertEquals (factory.createdButtons, factory.feedbackButtons);
+            "Drum Controller Toggle 1",
+            "Drum Controller Toggle 2",
+            "Drum Controller Toggle 3",
+            "Drum Controller Toggle 4"), factory.labels.subList (0, 4));
+        assertEquals (516, factory.createdControls.size ());
+        assertEquals (516, new LinkedHashSet<> (factory.hardwareIDs).size (), "every permanent endpoint needs its own persisted host identity");
+        for (int bank = 0; bank < CoreControllerMappings.TRACK_BANK_COUNT; bank++)
+            for (int slot = 0; slot < CoreControllerMappings.CONTROLS_PER_TRACK; slot++)
+            {
+                final int index = 4 + bank * CoreControllerMappings.CONTROLS_PER_TRACK + slot;
+                assertEquals ("CONTROLLER_MAPPING_TRACK_" + (bank + 1) + "_CONTROL_VALUE_" + (slot + 1), factory.hardwareIDs.get (index));
+                assertEquals ("Bank " + (bank + 1) + " Drum Controller Toggle " + (slot + 1), factory.labels.get (index));
+                assertSame (factory.createdControls.get (index), host.mappingControls ().get (CoreControllerMappings.trackBank (bank).get (slot)));
+            }
+        factory.controlHarnesses.forEach (harness -> assertEquals (1, harness.disableTakeOverCalls));
+        assertEquals (factory.createdControls, factory.feedbackControls);
         assertEquals (64, physicalHarnesses.size ());
         physicalHarnesses.values ().forEach (harness -> assertEquals (1, harness.unbinds));
         physicalButtons.forEach ( (control, button) -> assertSame (button, host.physicalButtons ().get (control)));
-        assertEquals (Set.copyOf (CoreControllerMappings.DRUM_CONTROL_PADS), host.mappingButtons ().keySet ());
-        assertTrue (host.snapshot ().available ());
-        assertTrue (host.snapshot ().supports (CoreControllerMappings.DRUM_CONTROL_PADS.getFirst ()));
-        assertFalse (host.snapshot ().isOn (CoreControllerMappings.DRUM_CONTROL_PADS.getFirst ()));
+        final Set<ControllerMappingId> installed = new LinkedHashSet<> (CoreControllerMappings.DRUM_CONTROL_PADS);
+        installed.addAll (CoreControllerMappings.TRACK_CONTROL_PADS);
+        assertEquals (installed, host.mappingControls ().keySet ());
+        assertFalse (host.snapshot ().available ());
+        assertTrue (host.snapshot ().targets ().isEmpty ());
         assertThrows (UnsupportedOperationException.class, host.physicalButtons ()::clear);
-        assertThrows (UnsupportedOperationException.class, host.mappingButtons ()::clear);
-        assertThrows (UnsupportedOperationException.class, host.snapshot ().states ()::clear);
+        assertThrows (UnsupportedOperationException.class, host.mappingControls ()::clear);
+        assertThrows (UnsupportedOperationException.class, host.snapshot ().targets ()::clear);
 
+        final var firstMapping = CoreControllerMappings.DRUM_CONTROL_PADS.getFirst ();
+        final var secondMapping = CoreControllerMappings.DRUM_CONTROL_PADS.get (1);
         final var beforeUpdate = host.snapshot ();
-        factory.feedbackObservers.getFirst ().accept (true);
-        assertFalse (beforeUpdate.isOn (CoreControllerMappings.DRUM_CONTROL_PADS.getFirst ()));
-        assertTrue (host.snapshot ().isOn (CoreControllerMappings.DRUM_CONTROL_PADS.getFirst ()));
-        assertFalse (host.snapshot ().isOn (CoreControllerMappings.DRUM_CONTROL_PADS.get (1)));
+        factory.feedbackObservers.getFirst ().accept (true, 0.8);
+        factory.feedbackObservers.get (1).accept (true, 0.2);
+        factory.feedbackObservers.get (2).accept (false, 0.8);
+        assertTrue (host.snapshot ().available (), "ready endpoints must not wait for every unrelated bank");
+        assertFalse (host.snapshot ().supports (CoreControllerMappings.DRUM_CONTROL_PADS.get (3)));
+        factory.feedbackObservers.get (3).accept (false, 0.0);
+        assertTrue (beforeUpdate.targets ().isEmpty ());
+        assertFalse (beforeUpdate.available ());
+        assertTrue (host.snapshot ().available ());
+        assertTrue (host.snapshot ().supports (firstMapping));
+        assertEquals (new ControllerMappingTarget (true, 0.8), host.snapshot ().targets ().get (firstMapping));
+        assertEquals (new ControllerMappingTarget (true, 0.2), host.snapshot ().targets ().get (secondMapping));
+        assertEquals (new ControllerMappingTarget (false, 0.8), host.snapshot ().targets ().get (CoreControllerMappings.DRUM_CONTROL_PADS.get (2)));
         final var afterFirstUpdate = host.snapshot ();
-        factory.feedbackObservers.getFirst ().accept (true);
+        factory.feedbackObservers.getFirst ().accept (true, 0.8);
         assertSame (afterFirstUpdate, host.snapshot ());
-        factory.feedbackObservers.get (1).accept (true);
-        assertTrue (host.snapshot ().isOn (CoreControllerMappings.DRUM_CONTROL_PADS.getFirst ()));
-        assertTrue (host.snapshot ().isOn (CoreControllerMappings.DRUM_CONTROL_PADS.get (1)));
-        factory.feedbackObservers.getFirst ().accept (false);
-        assertFalse (host.snapshot ().isOn (CoreControllerMappings.DRUM_CONTROL_PADS.getFirst ()));
-        assertTrue (host.snapshot ().isOn (CoreControllerMappings.DRUM_CONTROL_PADS.get (1)));
+        factory.feedbackObservers.get (1).accept (true, 0.4);
+        assertEquals (new ControllerMappingTarget (true, 0.4), host.snapshot ().targets ().get (secondMapping));
+        assertEquals (new ControllerMappingTarget (true, 0.2), afterFirstUpdate.targets ().get (secondMapping));
+        factory.feedbackObservers.getFirst ().accept (false, 0.8);
+        assertEquals (new ControllerMappingTarget (false, 0.8), host.snapshot ().targets ().get (firstMapping));
+
+    }
+
+
+    @Test
+    void publishesOnlyObservedEndpointsWithoutWaitingForOtherTrackBanks ()
+    {
+        final FactoryHarness factory = new FactoryHarness ();
+        final Map<ControlId, IHwButton> physical = new LinkedHashMap<> ();
+        physicalHarnesses ().forEach ((control, harness) -> physical.put (control, harness.button));
+        final ControllerMappingHost host = new ControllerMappingHost (factory.factory (), 0, physical);
+        final int bank = CoreControllerMappings.TRACK_BANK_COUNT - 1;
+        for (int slot = 0; slot < CoreControllerMappings.CONTROLS_PER_TRACK; slot++)
+            factory.feedbackObservers.get (4 + bank * CoreControllerMappings.CONTROLS_PER_TRACK + slot).accept (false, 0.0);
+
+        assertEquals (Set.copyOf (CoreControllerMappings.trackBank (bank)), host.snapshot ().targets ().keySet ());
+        assertFalse (host.snapshot ().supports (CoreControllerMappings.trackBank (0).getFirst ()));
+        CoreControllerMappings.trackBank (bank).forEach (mapping -> assertEquals (new ControllerMappingTarget (false, 0), host.snapshot ().targets ().get (mapping)));
     }
 
 
     @Test
     void rejectsIncompletePhysicalTopology ()
     {
-        final Map<ControlId, IHwButton> incomplete = Map.of (PushControlIds.pad (29), new ButtonHarness ().button ());
+        final Map<ControlId, IHwButton> incomplete = Map.of (PushControlIds.pad (29), new ButtonHarness ().button);
         assertThrows (IllegalArgumentException.class, () -> new ControllerMappingHost (new FactoryHarness ().factory (), 0, incomplete));
     }
 
@@ -104,51 +143,72 @@ class ControllerMappingHostTest
     private static final class ButtonHarness
     {
         private int unbinds;
-        private final IHwButton button = (IHwButton) Proxy.newProxyInstance (IHwButton.class.getClassLoader (), new Class<?> [] {IHwButton.class}, (proxy, method, arguments) -> {
+        private final IHwButton button = proxy (IHwButton.class, (proxy, method, arguments) -> {
             if (method.getName ().equals ("unbind"))
                 this.unbinds++;
-            return null;
+            return relaxedValue (method.getReturnType ());
         });
+    }
 
 
-        private IHwButton button ()
-        {
-            return this.button;
-        }
+    private static final class AbsoluteHarness
+    {
+        private int disableTakeOverCalls;
+        private final IHwAbsoluteKnob control = proxy (IHwAbsoluteKnob.class, (proxy, method, arguments) -> {
+            if (method.getName ().equals ("disableTakeOver"))
+                this.disableTakeOverCalls++;
+            return relaxedValue (method.getReturnType ());
+        });
     }
 
 
     private static final class FactoryHarness
     {
-        private final List<String> buttonHardwareIDs = new ArrayList<> ();
-        private final List<String> buttonLabels = new ArrayList<> ();
-        private final List<IHwButton> createdButtons = new ArrayList<> ();
-        private final List<String> feedbackHardwareIDs = new ArrayList<> ();
-        private final List<IHwButton> feedbackButtons = new ArrayList<> ();
-        private final List<Consumer<Boolean>> feedbackObservers = new ArrayList<> ();
+        private final List<String> hardwareIDs = new ArrayList<> ();
+        private final List<String> labels = new ArrayList<> ();
+        private final List<AbsoluteHarness> controlHarnesses = new ArrayList<> ();
+        private final List<IHwAbsoluteControl> createdControls = new ArrayList<> ();
+        private final List<IHwAbsoluteControl> feedbackControls = new ArrayList<> ();
+        private final List<BiConsumer<Boolean, Double>> feedbackObservers = new ArrayList<> ();
 
 
         private IHwSurfaceFactory factory ()
         {
-            return (IHwSurfaceFactory) Proxy.newProxyInstance (IHwSurfaceFactory.class.getClassLoader (), new Class<?> [] {IHwSurfaceFactory.class}, (proxy, method, arguments) -> {
-                if (method.getName ().equals ("createButton") && arguments[1] instanceof final String hardwareID)
+            return proxy (IHwSurfaceFactory.class, (proxy, method, arguments) -> {
+                if (method.getName ().equals ("createAbsoluteKnob") && arguments[1] instanceof final String hardwareID)
                 {
-                    final IHwButton button = new ButtonHarness ().button ();
-                    this.buttonHardwareIDs.add (hardwareID);
-                    this.buttonLabels.add ((String) arguments[2]);
-                    this.createdButtons.add (button);
-                    return button;
+                    final AbsoluteHarness harness = new AbsoluteHarness ();
+                    this.hardwareIDs.add (hardwareID);
+                    this.labels.add ((String) arguments[2]);
+                    this.controlHarnesses.add (harness);
+                    this.createdControls.add (harness.control);
+                    return harness.control;
                 }
-                if (method.getName ().equals ("installMappedBooleanFeedback"))
+                if (method.getName ().equals ("installMappedAbsoluteFeedback"))
                 {
-                    this.feedbackHardwareIDs.add ((String) arguments[1]);
-                    this.feedbackButtons.add ((IHwButton) arguments[2]);
+                    this.feedbackControls.add ((IHwAbsoluteControl) arguments[0]);
                     @SuppressWarnings("unchecked")
-                    final Consumer<Boolean> observer = (Consumer<Boolean>) arguments[3];
+                    final BiConsumer<Boolean, Double> observer = (BiConsumer<Boolean, Double>) arguments[1];
                     this.feedbackObservers.add (observer);
                 }
-                return null;
+                return relaxedValue (method.getReturnType ());
             });
         }
+    }
+
+
+    private static <T> T proxy (final Class<T> type, final java.lang.reflect.InvocationHandler handler)
+    {
+        return type.cast (Proxy.newProxyInstance (type.getClassLoader (), new Class<?> [] {type}, handler));
+    }
+
+
+    private static Object relaxedValue (final Class<?> type)
+    {
+        if (!type.isPrimitive () || void.class.equals (type))
+            return null;
+        if (boolean.class.equals (type))
+            return Boolean.FALSE;
+        return Integer.valueOf (0);
     }
 }

@@ -19,6 +19,7 @@ import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.ParameterMutationEvent;
 import de.mossgrabers.pull.core.api.output.MixerControlsDisplay;
 import de.mossgrabers.pull.core.runtime.view.DefaultWorkspace;
+import de.mossgrabers.pull.core.runtime.view.DrumControlPadView;
 import de.mossgrabers.pull.core.runtime.view.ControllerLevelViews;
 import de.mossgrabers.pull.core.runtime.view.VsLiveWorkspace;
 import de.mossgrabers.pull.core.runtime.view.MasterWorkspace;
@@ -84,12 +85,13 @@ final class PullControllerCore implements ControllerCore
         this.selection = new WorkspaceSelection (restoredState.workspace (), restoredState.selectedDestination (), restoredState.pendingDestination ());
         this.playbackCoordinator = new ProjectPlaybackCoordinator ();
         this.playbackCoordinator.restoreEngineOwner (restoredState.engineOwnerIdentity (), restoredState.engineOwnerPlaying ());
+        final ControllerView drumControlPadView = new DrumControlPadView ();
         final ControllerLevelViews controllerViews = new ControllerLevelViews (this.selection, this.playbackCoordinator);
         final ControllerView retainedSessionView = new RetainedControllerView (SessionView.full ());
         final SessionStopGesture vsLiveStopGesture = new SessionStopGesture ();
-        final List<ControllerView> retainedVsLiveGridViews = VsLiveWorkspace.retainedGridViews (vsLiveStopGesture);
+        final List<ControllerView> retainedVsLiveGridViews = VsLiveWorkspace.retainedGridViews (vsLiveStopGesture, drumControlPadView);
         final ControllerView retainedVsLiveTrackSelection = new RetainedControllerView (new TrackSelectionStripView (vsLiveStopGesture));
-        final List<ControllerView> retainedDefaultDrumViews = DefaultWorkspace.retainedDrumViews ();
+        final List<ControllerView> retainedDefaultDrumViews = DefaultWorkspace.retainedDrumViews (drumControlPadView);
         final Map<WorkspaceSelection.Id, CompiledWorkspace> compiled = new EnumMap<> (WorkspaceSelection.Id.class);
         compiled.put (WorkspaceSelection.Id.DEFAULT, DefaultWorkspace.create (controllerViews));
         compiled.put (WorkspaceSelection.Id.VS_LIVE, VsLiveWorkspace.create (controllerViews, retainedVsLiveTrackSelection, retainedVsLiveGridViews));
@@ -199,7 +201,10 @@ final class PullControllerCore implements ControllerCore
     {
         if (previousState.isEmpty ())
             return RestoredState.empty ();
-        final byte [] payload = previousState.get ().payload ();
+        final StateEnvelope state = previousState.get ();
+        if (!PullCoreProvider.STATE_SCHEMA.equals (state.schema ()) || state.version () != PullCoreProvider.STATE_SCHEMA_VERSION)
+            return RestoredState.empty ();
+        final byte [] payload = state.payload ();
         if (payload.length < Integer.BYTES + 4)
             return RestoredState.empty ();
         final ByteBuffer buffer = ByteBuffer.wrap (payload);

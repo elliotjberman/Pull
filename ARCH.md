@@ -1,6 +1,6 @@
 # Pull View Architecture
 
-Status: current through Core API 41, semantic controller-mapping identities, generic registered
+Status: current through Core API 44, semantic controller-mapping identities, generic registered
 button/grid light arbitration, the shared
 mixer-control renderer, the Master-control migration, the post-demo `VS Live` composition, and
 core-owned Session Stop, selected-track Mute/Solo, VS Live Project/Track and Track/Mix display
@@ -346,8 +346,9 @@ Reloadable core:
 - `DrumRateView`: four exclusive rate-pad gestures, RGB output, and desired note-repeat state.
 - `DrumFillView`: fill selection, launch lifecycle, bindings, and eight RGB lights.
 - `DrumControlPadView`: four exclusive physical control-pad routes, a complete
-  physical-to-semantic controller-mapping lease, and authoritative semantic-endpoint red/off
-  feedback; Bitwig's hardware mapping remains the actuator.
+  track-scoped physical-to-semantic mapping lease, append-only registry allocation, and
+  authoritative semantic-endpoint red/off feedback. Registry failure is core-owned amber/inert
+  output; Bitwig's hardware mapping remains the target actuator.
 - `TransportControlView`: persistent authoritative Play/Record lights and Record modifier policy.
 - `MasterControlView`: Master/Cue encoder policy, project/audio actions, both row-light banks, and
   a complete declarative graphics scene.
@@ -365,15 +366,19 @@ Stable shell:
 - `SessionBankRegistry` and `SessionBankHost`: bounded 8x8/8x4 Bitwig bank canopy, requested
   authoritative state, and generation-fenced bank actions.
 - `PushControlSurface`: remaining stable pitch-bend and navigation integration.
-- `ControllerMappingHost`: eagerly creates the four permanent semantic Bitwig button identities,
-  attaches their no-output Boolean feedback, and removes MIDI matchers from all 64 original grid
-  buttons so physical pads remain ordinary-dispatch-only objects rather than learned identities.
+- `ControllerMappingHost`: eagerly creates 128 banks of four permanent semantic absolute controls plus
+  the four inert legacy identities. It publishes raw target presence/value, document identity, and
+  observed hidden document storage; core owns registry parsing and allocation. All 64 original
+  grid buttons remain ordinary-dispatch-only.
 - `HardwareMappingActivationHost`: mechanically projects the complete core lease onto those
-  semantic buttons. A lane change immediately revokes new mapped presses, retains the exact routed
-  gesture through `END`, and admits only the latest desired projection after the lifecycle is idle.
-  Permanent raw MIDI supplies the normalized core gesture while a semantic matcher is active; when
-  no mapping is active it triggers the established original-button dispatch through the same raw
-  ingress for every grid pad. No duplicate learned action or second MIDI callback exists.
+  semantic absolute controls. Each active endpoint matches positive Note On only and emits the
+  requested literal maximum or minimum. Core derives that lane's next value as the opposite of
+  later authoritative mapped-target feedback; matcher replacement waits for any observed raw
+  gesture to become idle. API 44 leases also fence the document, selected-track UUID/generation,
+  and observed storage revision before activation. Permanent raw MIDI supplies the normalized
+  core gesture when Bitwig also publishes a matched packet to Pull; when no mapping is active it triggers the established
+  original-button dispatch through the same raw ingress for every grid pad. No duplicate learned
+  action or second MIDI callback exists.
 
 ## Migration Status
 
@@ -446,6 +451,10 @@ Implemented:
 
 Partial or transitional:
 
+- Track-scoped native mapping is a bounded V1: 128 historically allocated track banks per document,
+  no tombstone reuse, and acknowledged context latency. Existing shared mappings require relearning.
+  General learned-binding ownership, duplication, recycling, and stronger document identity remain
+  explicit TODOs in `docs/findings/track-scoped-midi-learn-lifecycle.md`.
 - Project macro and VS Live Track/Mix relative encoder and display behavior run in core; touch and
   upper-row Track/Mix page-menu mechanics remain explicit stable adapters. Session grid/scene
   mechanics, navigation, Drum Controller octave
@@ -462,11 +471,11 @@ Partial or transitional:
   unclaimed lights preserve their frozen legacy supplier exactly. Current core owners are
   the sixteen drum-play, eight drum-fill, four drum-rate, and four mappable-control lights, global
   Play/Record, Session Stop Clip, persistent selected-track Mute/Solo, and both Master rows. Authoritative
-  semantic Bitwig Boolean feedback and replayable physical-to-semantic mapping leases support the
-  mappable controls. General display output is still semantically partial: Master and the composed
+  semantic Bitwig target presence/value feedback and replayable physical-to-semantic mapping leases
+  support the mappable controls. General display output is still semantically partial: Master and the composed
   VS Live Project/Track and Track/Mix pages are core-authored, while a generic complete base-scene plane, a
   temporary sparse 8x8 grid overlay, and a complete temporary 960x160 display overlay are
-  arbitrated. The detailed design's API 41 installed-output inventory is canonical.
+  arbitrated. The detailed design's API 44 installed-output inventory is canonical.
 
 Deferred by design:
 

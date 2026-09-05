@@ -11,6 +11,7 @@ import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.valuechanger.RelativeEncoding;
 import de.mossgrabers.framework.graphics.IBitmap;
 
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.IntFunction;
@@ -34,18 +35,6 @@ public interface IHwSurfaceFactory
      * @return The created button
      */
     IHwButton createButton (int surfaceID, ButtonID buttonID, String label);
-
-
-    /**
-     * Create a detached hardware button with a fixed host-facing identifier. Detached buttons are
-     * not entered into a controller surface's ordinary button registry.
-     *
-     * @param surfaceID The ID of the surface
-     * @param hardwareID The stable host-facing hardware identifier
-     * @param label The label of the button
-     * @return The created button
-     */
-    IHwButton createButton (int surfaceID, String hardwareID, String label);
 
 
     /**
@@ -76,15 +65,14 @@ public interface IHwSurfaceFactory
 
 
     /**
-     * Attach a no-output Boolean background light to an existing hardware button. Bitwig manual
-     * mappings override the light's false fallback with their current authoritative Boolean state.
+     * Observe an absolute hardware control's authoritative target presence and normalized value.
+     * The first update waits for both properties; later updates preserve the value independently
+     * of target presence. Interpretation belongs to the consumer.
      *
-     * @param surfaceID The ID of the surface
-     * @param hardwareID Stable host-facing identifier for the feedback light
-     * @param button Hardware button carrying the learned action
-     * @param observer Receives the resolved current Boolean during hardware updates
+     * @param control Absolute hardware control carrying the learned mapping
+     * @param observer Receives later authoritative target presence and value
      */
-    void installMappedBooleanFeedback (int surfaceID, String hardwareID, IHwButton button, Consumer<Boolean> observer);
+    void installMappedAbsoluteFeedback (IHwAbsoluteControl control, BiConsumer<Boolean, Double> observer);
 
 
     /**
@@ -108,6 +96,17 @@ public interface IHwSurfaceFactory
      * @return The created knob
      */
     IHwAbsoluteKnob createAbsoluteKnob (int surfaceID, ContinuousID knobID, String label);
+
+
+    /**
+     * Create a detached absolute knob with a fixed host-facing identifier.
+     *
+     * @param surfaceID The ID of the surface
+     * @param hardwareID The stable host-facing hardware identifier
+     * @param label The label of the knob
+     * @return The created knob
+     */
+    IHwAbsoluteKnob createAbsoluteKnob (int surfaceID, String hardwareID, String label);
 
 
     /**

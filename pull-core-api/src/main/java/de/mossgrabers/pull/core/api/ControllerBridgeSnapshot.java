@@ -16,7 +16,7 @@ import java.util.Objects;
  * @param noteRepeat Live note-repeat read-back and drum-roll setting
  * @param drum Selected-track drum window
  * @param parameters Current parameter slots and retained actuators
- * @param controllerMappingFeedback Bitwig Boolean feedback keyed by semantic mapping endpoint
+ * @param controllerMappingFeedback Bitwig target presence and value keyed by semantic mapping endpoint
  * @param master Current project and Master-page state
  * @param project Lightweight current-project state
  */

@@ -47,6 +47,8 @@ import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
 import de.mossgrabers.pull.core.api.TrackMonitorMode;
 import de.mossgrabers.pull.core.api.TransportSnapshot;
 import de.mossgrabers.pull.core.api.ControllerMappingFeedbackSnapshot;
+import de.mossgrabers.pull.core.api.ControllerMappingContext;
+import de.mossgrabers.pull.core.api.effect.SetControllerMappingStorageEffect;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.ConsumeControllerButtonEffect;
 import de.mossgrabers.pull.core.api.effect.AdjustParameterValueEffect;
@@ -423,6 +425,8 @@ final class BoundedControllerBridge implements ControllerBridge
     @Override
     public ControllerBridge.PreparedAction prepare (final CoreEffect effect, final Map<ParameterTargetRef, ControllerBridge.ParameterLease> parameterLeases)
     {
+        if (effect instanceof final SetControllerMappingStorageEffect storage)
+            return new PreparedControllerMappingStorage (storage);
         Objects.requireNonNull (effect, "effect");
         final ControllerBridge.PreparedAction masterAction = this.masterCommands.prepare (effect);
         if (masterAction != null)
@@ -531,6 +535,12 @@ final class BoundedControllerBridge implements ControllerBridge
     @Override
     public void apply (final ControllerBridge.PreparedAction action)
     {
+        if (action instanceof final PreparedControllerMappingStorage storage)
+        {
+            if (this.controllerMappingContextMatches (storage.effect ().context ()))
+                this.controllerMappings.storage ().compareAndSet (storage.effect ());
+            return;
+        }
         Objects.requireNonNull (action, "action");
         if (this.masterCommands.applyIfOwned (action))
             return;
@@ -894,6 +904,15 @@ final class BoundedControllerBridge implements ControllerBridge
     }
 
 
+    @Override
+    public boolean controllerMappingContextMatches (final ControllerMappingContext context)
+    {
+        return context.active () && this.controllerMappings != null &&
+            this.selectedTargetIsCurrent (context.targetGeneration (), context.channelId ()) &&
+            this.controllerMappings.storage ().matches (context);
+    }
+
+
     private IDrumPad currentDrumPad (final long generation, final String targetID, final String deviceID, final int baseMidiNote, final int padIndex, final String padChannelID)
     {
         final DrumContextSnapshot drum = this.snapshot.drum ();
@@ -1211,6 +1230,12 @@ final class BoundedControllerBridge implements ControllerBridge
 
     private record PreparedParameterReset (ParameterTargetHost.PreparedReset action) implements ControllerBridge.PreparedAction
     {
+    }
+
+
+    private record PreparedControllerMappingStorage (SetControllerMappingStorageEffect effect) implements ControllerBridge.PreparedAction
+    {
+        // Immutable request; live selection and storage are checked at application time.
     }
 
 
