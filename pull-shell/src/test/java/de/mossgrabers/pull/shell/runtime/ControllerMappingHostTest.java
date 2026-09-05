@@ -61,7 +61,7 @@ class ControllerMappingHostTest
             {
                 final int index = 4 + bank * CoreControllerMappings.CONTROLS_PER_TRACK + slot;
                 assertEquals ("CONTROLLER_MAPPING_TRACK_" + (bank + 1) + "_CONTROL_VALUE_" + (slot + 1), factory.hardwareIDs.get (index));
-                assertEquals ("Track " + (bank + 1) + " Toggle " + (slot + 1), factory.labels.get (index));
+                assertEquals ("Bank " + (bank + 1) + " Drum Controller Toggle " + (slot + 1), factory.labels.get (index));
                 assertSame (factory.createdControls.get (index), host.mappingControls ().get (CoreControllerMappings.trackBank (bank).get (slot)));
             }
         factory.controlHarnesses.forEach (harness -> assertEquals (1, harness.disableTakeOverCalls));

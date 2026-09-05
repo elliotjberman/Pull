@@ -11,6 +11,7 @@ import de.mossgrabers.framework.controller.hardware.IHwSurfaceFactory;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerMappingFeedbackSnapshot;
 import de.mossgrabers.pull.core.api.ControllerMappingId;
+import de.mossgrabers.pull.core.api.ControllerMappingNames;
 import de.mossgrabers.pull.core.api.ControllerMappingStorageSnapshot;
 import de.mossgrabers.pull.core.api.ControllerMappingTarget;
 import de.mossgrabers.pull.core.api.CoreControllerMappings;
@@ -33,6 +34,7 @@ final class ControllerMappingHost
     private final Map<ControllerMappingId, IHwAbsoluteControl> mappingControls;
     private final FeedbackState feedback;
     private final ControllerMappingStorageHost storage;
+    private final ControllerMappingNamesHost names;
 
 
     ControllerMappingHost (final PushControlSurface surface, final ControllerMappingStorageHost storage)
@@ -73,8 +75,10 @@ final class ControllerMappingHost
             for (int slot = 0; slot < CoreControllerMappings.trackBank (bank).size (); slot++)
                 this.install (checkedFactory, surfaceID, controls, CoreControllerMappings.trackBank (bank).get (slot),
                     "CONTROLLER_MAPPING_TRACK_" + (bank + 1) + "_CONTROL_VALUE_" + (slot + 1),
-                    "Track " + (bank + 1) + " Toggle " + (slot + 1));
+                    "Bank " + (bank + 1) + " Drum Controller Toggle " + (slot + 1));
         this.mappingControls = Map.copyOf (controls);
+        this.names = new ControllerMappingNamesHost (this.mappingControls,
+            () -> this.storage == null ? ControllerMappingStorageSnapshot.empty () : this.storage.snapshot ());
 
         // Physical pads remain the sole ordinary-command dispatch objects, but none expose native
         // MIDI matchers or Bitwig-learnable identities. The permanent raw ingress drives them.
@@ -103,6 +107,20 @@ final class ControllerMappingHost
     ControllerMappingStorageHost storage ()
     {
         return Objects.requireNonNull (this.storage, "controller mapping storage is not installed");
+    }
+
+
+    /** Replace complete naming metadata independently of physical matcher leases. */
+    void applyNames (final ControllerMappingNames requested)
+    {
+        this.names.request (requested);
+    }
+
+
+    /** Retire presentation metadata as soon as its observed document/storage owner changes. */
+    void refreshNames ()
+    {
+        this.names.refresh ();
     }
 
 

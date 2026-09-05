@@ -12,6 +12,7 @@ import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ControllerLayoutSnapshot;
 import de.mossgrabers.pull.core.api.ControllerMappingBinding;
 import de.mossgrabers.pull.core.api.ControllerMappingId;
+import de.mossgrabers.pull.core.api.ControllerMappingNames;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.ControllerStateScope;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
@@ -72,6 +73,39 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class CompiledWorkspaceTest
 {
+    @Test
+    void mappingNameMetadataComposesWithoutPhysicalInputClaims ()
+    {
+        final ControllerMappingId first = new ControllerMappingId ("semantic.first");
+        final ControllerMappingId second = new ControllerMappingId ("semantic.second");
+        final ControllerView firstView = new NamingView ("first", new ControllerMappingNames ("document", 3, Map.of (first, "First")));
+        final ControllerView secondView = new NamingView ("second", new ControllerMappingNames ("document", 3, Map.of (second, "Second")));
+        final CoreResult result = CompiledWorkspace.compile ("names", List.of (firstView, secondView)).start (snapshot ());
+        final CoreResult reversed = CompiledWorkspace.compile ("names", List.of (secondView, firstView)).start (snapshot ());
+
+        assertEquals (new ControllerMappingNames ("document", 3, Map.of (first, "First", second, "Second")), result.desiredOutput ().controllerMappings ().names ());
+        assertTrue (result.desiredOutput ().controllerMappings ().bindings ().isEmpty ());
+        assertTrue (result.desiredInputRoutes ().routes ().isEmpty ());
+        assertEquals (result, reversed);
+    }
+
+
+    @Test
+    void mappingNameMetadataRejectsCollisionsAndConflictingContexts ()
+    {
+        final ControllerMappingId first = new ControllerMappingId ("semantic.first");
+        final ControllerMappingId second = new ControllerMappingId ("semantic.second");
+        final NamingView original = new NamingView ("first", new ControllerMappingNames ("document", 3, Map.of (first, "First")));
+        final List<ControllerMappingNames> conflicts = List.of (
+            new ControllerMappingNames ("document", 3, Map.of (first, "Same endpoint")),
+            new ControllerMappingNames ("other document", 3, Map.of (second, "Wrong document")),
+            new ControllerMappingNames ("document", 4, Map.of (second, "Wrong revision")));
+        for (final ControllerMappingNames conflict: conflicts)
+            assertThrows (IllegalStateException.class, () -> CompiledWorkspace.compile ("conflict", List.of (original, new NamingView ("second", conflict))).start (snapshot ()));
+        assertThrows (IllegalStateException.class, () -> CompiledWorkspace.compile ("unsubscribed", List.of (new NamingView ("unsubscribed", original.names (), Set.of ()))).start (snapshot ()));
+    }
+
+
     @Test
     void rejectsOverlappingOutputOwners ()
     {
@@ -800,6 +834,30 @@ class CompiledWorkspaceTest
             de.mossgrabers.pull.core.api.MasterSnapshot.empty (),
             de.mossgrabers.pull.core.api.ProjectSnapshot.empty ());
         return new ControllerSnapshot (0, 0, ShellCapabilities.empty (), bridge, ClipCatalogSnapshot.empty (), Map.of (), Map.of (), java.util.Optional.empty (), pressedControls, Set.of ());
+    }
+
+
+    private record NamingView (String id, ControllerMappingNames names, Set<BridgeSubscription> bridgeSubscriptions) implements ControllerView
+    {
+        private NamingView (final String id, final ControllerMappingNames names)
+        {
+            this (id, names, Set.of (BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK));
+        }
+
+
+        @Override
+        public ViewProfile profile ()
+        {
+            return ViewProfile.fixed ("names", Set.of (), Set.of ());
+        }
+
+
+        @Override
+        public ViewOutput render (final ControllerSnapshot snapshot)
+        {
+            return new ViewOutput (Map.of (), Map.of (), ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (),
+                DesiredNotePerformance.inactive (), DesiredNoteRepeat.unowned (), new DesiredControllerMappings (Set.of (), this.names));
+        }
     }
 
 

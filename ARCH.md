@@ -1,6 +1,6 @@
 # Pull View Architecture
 
-Status: current through Core API 44, semantic controller-mapping identities, generic registered
+Status: current through Core API 45, semantic controller-mapping identities, generic registered
 button/grid light arbitration, the shared
 mixer-control renderer, the Master-control migration, the post-demo `VS Live` composition, and
 core-owned Session Stop, selected-track Mute/Solo, VS Live Project/Track and Track/Mix display
@@ -370,6 +370,12 @@ Stable shell:
   the four inert legacy identities. It publishes raw target presence/value, document identity, and
   observed hidden document storage; core owns registry parsing and allocation. All 64 original
   grid buttons remain ordinary-dispatch-only.
+- `ControllerMappingNameView`: a retained controller-level core owner of mapping-browser names.
+  It uses the existing selected-track name and acknowledged registry, caches names by track UUID,
+  and emits complete document-fenced metadata across workspaces. API 45 carries these names
+  separately from matcher bindings. `ControllerMappingNamesHost` only diffs/applies them through
+  Bitwig's `setName`, restoring generic bank labels on omitted or stale output. Unselected names
+  refresh on selection; the cache does not survive core reload. Names grant no input ownership.
 - `HardwareMappingActivationHost`: mechanically projects the complete core lease onto those
   semantic absolute controls. Each active endpoint matches positive Note On only and emits the
   requested literal maximum or minimum. Core derives that lane's next value as the opposite of
@@ -475,7 +481,7 @@ Partial or transitional:
   support the mappable controls. General display output is still semantically partial: Master and the composed
   VS Live Project/Track and Track/Mix pages are core-authored, while a generic complete base-scene plane, a
   temporary sparse 8x8 grid overlay, and a complete temporary 960x160 display overlay are
-  arbitrated. The detailed design's API 44 installed-output inventory is canonical.
+  arbitrated. The detailed design's API 45 installed-output inventory is canonical.
 
 Deferred by design:
 

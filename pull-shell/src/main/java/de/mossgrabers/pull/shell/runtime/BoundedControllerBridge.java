@@ -48,6 +48,7 @@ import de.mossgrabers.pull.core.api.TrackMonitorMode;
 import de.mossgrabers.pull.core.api.TransportSnapshot;
 import de.mossgrabers.pull.core.api.ControllerMappingFeedbackSnapshot;
 import de.mossgrabers.pull.core.api.ControllerMappingContext;
+import de.mossgrabers.pull.core.api.ControllerMappingNames;
 import de.mossgrabers.pull.core.api.effect.SetControllerMappingStorageEffect;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.ConsumeControllerButtonEffect;
@@ -217,6 +218,8 @@ final class BoundedControllerBridge implements ControllerBridge
         this.parameterTargets.refresh (requestedParameterBanks);
         final ParameterBridgeSnapshot parameters = parametersRequested ? this.parameterTargets.snapshot () : ParameterBridgeSnapshot.empty ();
         final ControllerMappingFeedbackSnapshot controllerMappingFeedback = requested.includes (BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK) && this.controllerMappings != null ? this.controllerMappings.snapshot () : ControllerMappingFeedbackSnapshot.empty ();
+        if (this.controllerMappings != null)
+            this.controllerMappings.refreshNames ();
         final boolean masterRequested = requested.includes (BridgeSubscription.MASTER);
         final boolean projectRequested = requested.includes (BridgeSubscription.PROJECT);
         this.masterCommands.refresh (masterRequested, projectRequested);
@@ -258,6 +261,7 @@ final class BoundedControllerBridge implements ControllerBridge
         this.controllerState.invalidate ();
         this.applyNoteRepeat (DesiredNoteRepeat.unowned ());
         this.parameterTargets.invalidate ();
+        this.applyControllerMappingNames (ControllerMappingNames.empty ());
     }
 
 
@@ -271,6 +275,14 @@ final class BoundedControllerBridge implements ControllerBridge
     @Override
     public void abandonActiveCore ()
     {
+        try
+        {
+            this.applyControllerMappingNames (ControllerMappingNames.empty ());
+        }
+        catch (final RuntimeException failure)
+        {
+            this.log.warn ("Controller mapping name cleanup failed: " + failure.getMessage ());
+        }
         try
         {
             this.controllerState.invalidate ();
@@ -310,6 +322,16 @@ final class BoundedControllerBridge implements ControllerBridge
     public ControllerBridge.TargetedParameter resolveParameterMutation (final de.mossgrabers.framework.controller.hardware.IHwContinuousControl control)
     {
         return this.parameterTargets.resolveMutation (control);
+    }
+
+
+    @Override
+    public void applyControllerMappingNames (final ControllerMappingNames names)
+    {
+        if (this.controllerMappings == null)
+            ControllerBridge.super.applyControllerMappingNames (names);
+        else
+            this.controllerMappings.applyNames (names);
     }
 
 

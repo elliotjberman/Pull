@@ -10,6 +10,7 @@ import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerMappingBinding;
 import de.mossgrabers.pull.core.api.ControllerMappingId;
 import de.mossgrabers.pull.core.api.ControllerMappingValue;
+import de.mossgrabers.pull.core.api.ControllerMappingNames;
 import de.mossgrabers.pull.core.api.DesiredControllerMappings;
 
 import org.junit.jupiter.api.Test;
@@ -85,6 +86,23 @@ class HardwareMappingActivationHostTest
         assertEquals (2, fixture.bindingCalls);
         assertEquals (1, fixture.semantic.get (DRUM_1).unbinds);
         assertEquals (new BoundMatcher (PAD_29, ControllerMappingValue.MINIMUM), fixture.bindings.get (DRUM_1));
+    }
+
+
+    @Test
+    void renamingMetadataDoesNotRetireOrRebindAHeldMatcher ()
+    {
+        final Fixture fixture = new Fixture (Set.of (PAD_29), Set.of (DRUM_1));
+        final DesiredControllerMappings projection = desired (PAD_29, DRUM_1, ControllerMappingValue.MAXIMUM);
+        fixture.host.request (new DesiredControllerMappings (projection.bindings (),
+            new ControllerMappingNames ("document", 1, Map.of (DRUM_1, "Kick — Drum Controller Toggle 1"))));
+        fixture.idle.put (PAD_29, Boolean.FALSE);
+        fixture.host.request (new DesiredControllerMappings (projection.bindings (),
+            new ControllerMappingNames ("document", 1, Map.of (DRUM_1, "Percussion — Drum Controller Toggle 1"))));
+
+        assertEquals (1, fixture.bindingCalls);
+        assertEquals (0, fixture.semantic.get (DRUM_1).unbinds);
+        assertEquals (projection, fixture.host.activeMappings (), "presentation metadata is absent from the native matcher identity");
     }
 
 

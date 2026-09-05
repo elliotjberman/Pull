@@ -92,7 +92,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         Map.entry (CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD, Integer.valueOf (4)),
         Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (6)),
-        Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_MAPPING, Integer.valueOf (4)),
+        Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_MAPPING, Integer.valueOf (5)),
         Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_STATE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_NOTE_VIEW_PREFERENCE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.OUTPUT_NOTE_REPEAT, Integer.valueOf (1)),
@@ -667,6 +667,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
             this.deferredInputRelease.run ();
             this.controllerBridge.applyControllerState (prepared.desiredControllerState ());
             this.controllerBridge.applyNoteRepeat (prepared.desiredNoteRepeat ());
+            this.controllerBridge.applyControllerMappingNames (prepared.output ().controllerMappings ().names ());
         }
 
         this.clipHost.setDesiredBindings (prepared.catalogGeneration (), prepared.desiredClipBindings ());
@@ -793,6 +794,14 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         final ControllerPadGridOverlay overlay = result.desiredOutput ().padGridOverlay ();
         final ControllerDisplayOverlay displayOverlay = result.desiredOutput ().displayOverlay ();
         final DesiredControllerMappings controllerMappings = result.desiredOutput ().controllerMappings ();
+        if (!controllerMappings.names ().isEmpty ())
+        {
+            if (!result.desiredBridgeSubscriptions ().includes (BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK) ||
+                !result.desiredBridgeSubscriptions ().includes (BridgeSubscription.SELECTED_TRACK))
+                throw new IllegalArgumentException ("Controller mapping names require observed document and selected-track state");
+            if (this.controllerBridge == null || !CoreControllerMappings.TRACK_CONTROL_PADS.containsAll (controllerMappings.names ().names ().keySet ()))
+                throw new IllegalArgumentException ("Unsupported controller mapping name endpoint");
+        }
         if (!controllerMappings.bindings ().isEmpty () && !result.desiredBridgeSubscriptions ().includes (BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK))
             throw new IllegalArgumentException ("Active controller mappings require authoritative mapping feedback");
         if (!controllerMappings.bindings ().isEmpty () && !result.desiredBridgeSubscriptions ().includes (BridgeSubscription.SELECTED_TRACK))

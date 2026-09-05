@@ -9,6 +9,7 @@ import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerActionBinding;
 import de.mossgrabers.pull.core.api.ControllerMappingBinding;
 import de.mossgrabers.pull.core.api.ControllerMappingId;
+import de.mossgrabers.pull.core.api.ControllerMappingNames;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.CoreResult;
@@ -289,6 +290,8 @@ public final class CompiledWorkspace
         final Map<ControlId, RgbColor> lights = new LinkedHashMap<> ();
         final Map<ControlId, ClipTargetId> clipBindings = new LinkedHashMap<> ();
         final Set<ControllerMappingBinding> controllerMappingBindings = new LinkedHashSet<> ();
+        final Map<ControllerMappingId, String> controllerMappingNames = new LinkedHashMap<> ();
+        ControllerMappingNames mappingNameContext = ControllerMappingNames.empty ();
         final Set<ControlId> mappedPhysicalControls = new LinkedHashSet<> ();
         final Set<ControllerMappingId> mappingIds = new LinkedHashSet<> ();
         ControllerDisplayScene display = ControllerDisplayScene.empty ();
@@ -312,6 +315,16 @@ public final class CompiledWorkspace
                 if (!mappingIds.add (binding.mappingId ()))
                     throw new IllegalStateException ("multiple views activate controller mapping " + binding.mappingId ().value ());
                 controllerMappingBindings.add (binding);
+            }
+            final ControllerMappingNames names = output.controllerMappings ().names ();
+            if (!names.isEmpty ())
+            {
+                if (!view.bridgeSubscriptions ().contains (BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK))
+                    throw new IllegalStateException ("view " + view.id () + " names controller endpoints without authoritative mapping storage");
+                if (!mappingNameContext.isEmpty () && (!mappingNameContext.documentId ().equals (names.documentId ()) || mappingNameContext.storageRevision () != names.storageRevision ()))
+                    throw new IllegalStateException ("controller mapping names have conflicting document contexts");
+                mergeUnique (controllerMappingNames, names.names (), "controller mapping name", view.id ());
+                mappingNameContext = names;
             }
             if (output.display ().isPresent ())
             {
@@ -368,7 +381,8 @@ public final class CompiledWorkspace
             display = DisplayRegionComposition.compose (displayRegions);
 
         return new CoreResult (
-            new DesiredHardwareOutput (lights, display, padGridOverlay, displayOverlay, new DesiredControllerMappings (controllerMappingBindings)),
+            new DesiredHardwareOutput (lights, display, padGridOverlay, displayOverlay, new DesiredControllerMappings (controllerMappingBindings,
+                controllerMappingNames.isEmpty () ? ControllerMappingNames.empty () : new ControllerMappingNames (mappingNameContext.documentId (), mappingNameContext.storageRevision (), controllerMappingNames))),
             this.desiredInputRoutes,
             this.desiredBridgeSubscriptions,
             clipBindings,
@@ -656,7 +670,7 @@ public final class CompiledWorkspace
     }
 
 
-    private static <V> void mergeUnique (final Map<ControlId, V> target, final Map<ControlId, V> source, final String outputName, final String viewId)
+    private static <K, V> void mergeUnique (final Map<K, V> target, final Map<K, V> source, final String outputName, final String viewId)
     {
         source.forEach ( (control, value) -> {
             if (target.putIfAbsent (control, value) != null)

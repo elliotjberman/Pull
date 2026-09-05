@@ -2,7 +2,7 @@
 
 ## Status And Scope
 
-Core API 44 installs bounded track-scoped Drum Controller mappings: 128 permanent banks of four
+Core API 45 retains bounded track-scoped Drum Controller mappings: 128 permanent banks of four
 absolute endpoints, projected onto physical PAD29–32 only while the owning core view supplies an
 acknowledged, fenced lease. The four former shared endpoints remain constructed but inert. All 64
 original physical PAD buttons remain ordinary-dispatch-only; none is a learned mapping identity.
@@ -10,7 +10,7 @@ original physical PAD buttons remain ordinary-dispatch-only; none is a learned m
 This is the user-accepted bounded V1. General native binding ownership, copying, clearing/recycling,
 stronger document identity, and host persistence lifecycle remain explicit TODOs in
 [`track-scoped-midi-learn-lifecycle.md`](../../../../../../../../../docs/findings/track-scoped-midi-learn-lifecycle.md).
-The first API 44 install requires a shell rebuild and Bitwig restart. A core-only policy change
+The API 45 naming addition requires a shell rebuild and Bitwig restart. A core-only policy change
 inside this installed inventory can subsequently hot reload.
 
 ## Three Independent Identities
@@ -26,8 +26,10 @@ Core selects the semantic bank from the observed document and selected-track UUI
 physical projection does not recreate that permanent Bitwig identity. Endpoint names encode bank
 and control slot, not a mutable track name or position. Banks are numbered 1–128 and controls 1–4;
 `CoreControllerMappings.trackBank()` accepts a zero-based bank index. The corresponding hardware
-ID is `CONTROLLER_MAPPING_TRACK_<bank>_CONTROL_VALUE_<slot>`, displayed as
-`Track <bank> Toggle <slot>`; the displayed number is the allocation bank, not track-list position.
+ID is `CONTROLLER_MAPPING_TRACK_<bank>_CONTROL_VALUE_<slot>`, initially displayed as
+`Bank <bank> Drum Controller Toggle <slot>`. Once the track is observed, core supplies
+`<track name> — Drum Controller Toggle <slot>` through separate naming metadata. Neither the
+name nor the track-list position changes the permanent hardware ID.
 
 Only the leased endpoint receives a positive-velocity Note On matcher. Core supplies the literal
 minimum or maximum for that matcher; Note Off and zero-velocity Note On do not write a learned
@@ -78,7 +80,7 @@ validation and later read-back bound V1 operation; they do not establish those s
 - `ControllerMappingStorageSnapshot` carries availability, observed revision, document UUID, and
   opaque value. Its string bound is 8192 characters. Stable observes/stores the value; core parses it.
 
-API 44 advertises controller-mapping output version 4, mapping-feedback version 4, and
+API 45 advertises controller-mapping output version 5, mapping-feedback version 4, and
 `effect.controller-mapping-storage` version 1. Adding more banks, a new parent-loaded contract, or a
 new Bitwig observer still requires a shell install and restart.
 
@@ -89,7 +91,7 @@ read-back acknowledgement policy, and the complete physical-to-semantic lease. I
 modifier/gesture variant, target midpoint (`hasTarget && value >= 0.5`), next endpoint, red/off
 feedback, and amber failure indication. No toggle phase needs to survive a core handoff.
 
-Stable owns eager absolute-control creation, permanent IDs/labels, raw target/storage observation,
+Stable owns eager absolute-control creation, permanent IDs/default labels, raw target/storage observation,
 opaque storage execution, physical matcher translation, lifecycle fencing, and RGB transmission.
 It validates selected-track UUID/generation, document UUID, and observed storage revision when
 accepting/applying a lease. It does not parse the registry or choose which bank means a track.
@@ -110,6 +112,44 @@ Native learned actions execute in Bitwig's matcher path, outside Pull's effect e
 selection change is observed, stable fencing can reject the stale context. It cannot perform an
 instantaneous apply-time selection check inside a previously installed native matcher. V1 therefore
 acknowledges context propagation latency; it does not claim a strict instantaneous selection fence.
+
+## Mapping Browser Names
+
+`ControllerMappingNames` is complete, document/storage-revision-fenced presentation metadata,
+separate from the `ControllerMappingBinding` values that determine native matcher lifetimes.
+`DesiredControllerMappings` carries both; changing only names never retires or rebinds a matcher.
+The metadata accepts at most 512 named endpoints, each bounded to 256 UTF-16 code units.
+
+A retained controller-level core view subscribes to selected-track and mapping-feedback state in
+all workspaces. It caches the last observed name by track UUID within the current acknowledged
+registry, then derives bank labels from that registry. Selected-track renames update from later host
+observation. Unselected names retain their last observed value and refresh on selection. Name
+observation does not allocate a bank or grant input ownership. Names are not saved in the registry:
+after core reload/restart, unvisited banks show their generic bank labels until reselected.
+
+The shell receives the whole name map, validates its installed endpoint inventory, and applies
+only changed names through API 25 `HardwareControl.setName(String)`. Omitted entries restore the
+initialization label using the API's empty-name fallback. The shell rechecks live document and
+storage revision before applying and during refresh, clearing stale names without waiting for a
+new core result. Empty output, invalid state, core failure, and shutdown release name ownership.
+The core owns formatting and retention; the shell owns only metadata application and lifecycle
+fencing. The existing 516 endpoint feedback snapshot is cached and sampled only by subscription;
+name tracking adds no track bank, observer, scanner, target-write path, or matcher.
+
+### API 45 naming capability audit
+
+- Feature: meaningful native mapping-browser names for allocated track banks.
+- Physical inputs and variants: unchanged PAD29–32 press/release/modifier handling; metadata alone
+  grants no physical input or light ownership.
+- Authoritative state: existing selected-track name/UUID and acknowledged document registry.
+- Effects: none; complete replayable naming metadata is a separate output component.
+- Output: a bounded names map applied through verified, non-deprecated API 25 `setName(String)`.
+- Reloadable state: a per-document UUID/name cache; deliberately not persisted across core reload.
+- Existing canopy: selected-name observation, registry read-back, and permanent native controls.
+- Missing canopy: one reusable document-fenced name output mechanism. This is Class B: Core API 45
+  and mapping-output capability 5 require an extension install and Bitwig restart.
+- Out of scope: continuously observing unselected track names; persisting presentation names;
+  allocation/reclamation changes; learned-target copying or migration.
 
 ## Migration Compatibility
 
@@ -151,7 +191,7 @@ activation, and rendered output. Cover raw fractional values, every release/modi
 unavailable state, rejected context, corrupt/foreign registry, duplicate owners, full capacity,
 tombstones, unchanged replay, reload/fault cleanup, and inert legacy identities.
 
-The exact API 44 shell/core build still requires a physical learning smoke test. Learn separate
+The exact API 45 shell/core build still requires a physical learning smoke test. Learn separate
 bindings on two tracks, verify later off → on → off read-back/output, then exercise rename/reorder,
 delete/undo, save/reopen, native duplication, project boundaries, and held-input reload. A debug
 PAD_OUTPUT request proves the routed extension/output path but cannot inject a native learned MIDI

@@ -31,6 +31,12 @@ The scratch project was then closed, the original project restored, and the leas
 observations cover that scratch project only. Reorder/group movement, duplication of actual native
 learned mappings, and a persistent allocation registry were not verified.
 
+API 45 adds core-owned mapping-browser names using the existing selected-track name observation.
+Names are separate from matcher identity, retained only within the active core/document, and reset
+to generic bank labels when unavailable. Inactive tracks refresh on selection; this adds no global
+track scanner and does not resolve the lifecycle questions below. The user confirmed the API 44
+physical two-track mapping smoke; final API 45 rename/browser persistence testing is separate.
+
 ## Contract Gaps And Open Questions
 
 - API 25 exposes channel identity without a documented lifetime guarantee. The observations above

@@ -16,6 +16,14 @@ import de.mossgrabers.framework.daw.midi.IMidiInput;
 public interface IHwAbsoluteControl extends IHwContinuousControl
 {
     /**
+     * Set the presentation name shown by the host without changing this control's identity.
+     *
+     * @param name The name, or an empty string to use the original label
+     */
+    void setName (String name);
+
+
+    /**
      * Bind this absolute control to a MIDI CC 14-bit command.
      *
      * @param input The MIDI input
