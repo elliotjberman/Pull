@@ -175,7 +175,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         this.clipHost = new SelectedTrackFillClipHost (this.controllerHost);
         this.clipHost.connect (Objects.requireNonNull (model, "model"));
         this.controllerMappings = new ControllerMappingHost (surface, new ControllerMappingStorageHost (
-            this.controllerHost, () -> model.getMasterTrack ().getChannelID ()));
+            this.controllerHost.getDocumentState (), () -> model.getMasterTrack ().getChannelID ()));
         final BoundedControllerBridge controllerBridge = new BoundedControllerBridge (
             model,
             Objects.requireNonNull (selectedTarget, "selectedTarget"),

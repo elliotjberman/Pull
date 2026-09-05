@@ -7,7 +7,6 @@ import de.mossgrabers.pull.core.api.ControllerMappingContext;
 import de.mossgrabers.pull.core.api.ControllerMappingStorageSnapshot;
 import de.mossgrabers.pull.core.api.effect.SetControllerMappingStorageEffect;
 
-import com.bitwig.extension.controller.api.ControllerHost;
 import com.bitwig.extension.controller.api.DocumentState;
 import com.bitwig.extension.controller.api.SettableStringValue;
 import com.bitwig.extension.controller.api.Setting;
@@ -28,13 +27,7 @@ final class ControllerMappingStorageHost
     private ControllerMappingStorageSnapshot snapshot = ControllerMappingStorageSnapshot.empty ();
 
 
-    ControllerMappingStorageHost (final ControllerHost host, final Supplier<String> documentId)
-    {
-        this (Objects.requireNonNull (host, "host").getDocumentState (), documentId);
-    }
-
-
-    /** Test seam preserving actual observer delivery separately from command submission. */
+    /** Install one opaque document setting during extension initialization. */
     ControllerMappingStorageHost (final DocumentState documentState, final Supplier<String> documentId)
     {
         this.documentId = Objects.requireNonNull (documentId, "documentId");

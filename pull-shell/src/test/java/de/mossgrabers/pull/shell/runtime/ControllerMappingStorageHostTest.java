@@ -8,7 +8,6 @@ import de.mossgrabers.pull.core.api.ControllerMappingStorageSnapshot;
 import de.mossgrabers.pull.core.api.effect.SetControllerMappingStorageEffect;
 
 import com.bitwig.extension.callback.StringValueChangedCallback;
-import com.bitwig.extension.controller.api.ControllerHost;
 import com.bitwig.extension.controller.api.DocumentState;
 import com.bitwig.extension.controller.api.SettableStringValue;
 import com.bitwig.extension.controller.api.Setting;
@@ -193,9 +192,7 @@ class ControllerMappingStorageHostTest
                     }
                     return null;
                 });
-            final ControllerHost controller = (ControllerHost) Proxy.newProxyInstance (ControllerHost.class.getClassLoader (), new Class<?> [] {ControllerHost.class},
-                (proxy, method, arguments) -> method.getName ().equals ("getDocumentState") ? document : null);
-            return new ControllerMappingStorageHost (controller, () -> this.documentId);
+            return new ControllerMappingStorageHost (document, () -> this.documentId);
         }
 
 
