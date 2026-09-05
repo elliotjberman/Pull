@@ -40,6 +40,13 @@ public interface ControllerView
     ViewProfile profile ();
 
 
+    /** Registered inert mode adapter whose physical page footprint this view uses. */
+    default String installedModeId ()
+    {
+        return "";
+    }
+
+
     /**
      * Get all effective claims from the selected profile.
      *

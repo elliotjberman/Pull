@@ -17,7 +17,7 @@ public record ParameterSlot (ParameterBankId bank, int index)
     /** Number of parameter slots in each installed bank. */
     public static final int BANK_SIZE = 8;
     /** Number of fixed global parameter slots. */
-    public static final int GLOBAL_BANK_SIZE = 2;
+    public static final int GLOBAL_BANK_SIZE = 3;
     /** Maximum parameter targets exposed in one snapshot. */
     public static final int INSTALLED_TARGET_CAPACITY = (ParameterBankId.BANK_CAPACITY - 1) * BANK_SIZE + GLOBAL_BANK_SIZE;
     /** Maximum exact targets one physical eight-knob interaction can retain, including globals. */
@@ -40,6 +40,9 @@ public record ParameterSlot (ParameterBankId bank, int index)
 
     /** Fixed master-volume target. */
     public static final ParameterSlot MASTER_VOLUME = new ParameterSlot (ParameterBankId.GLOBAL, 1);
+
+    /** Fixed current-project metronome volume. */
+    public static final ParameterSlot METRONOME_VOLUME = new ParameterSlot (ParameterBankId.GLOBAL, 2);
 
     /** Master-mode master-volume target. */
     public static final ParameterSlot MASTER_MIX_VOLUME = new ParameterSlot (ParameterBankId.MASTER, 0);
@@ -100,5 +103,12 @@ public record ParameterSlot (ParameterBankId bank, int index)
     public static ParameterSlot trackPan (final int index)
     {
         return new ParameterSlot (ParameterBankId.TRACK_PAN, index);
+    }
+
+
+    /** Get one send column's slot for a current-bank track, with both indices zero-based. */
+    public static ParameterSlot trackSend (final int sendIndex, final int trackIndex)
+    {
+        return new ParameterSlot (ParameterBankId.trackSend (sendIndex), trackIndex);
     }
 }

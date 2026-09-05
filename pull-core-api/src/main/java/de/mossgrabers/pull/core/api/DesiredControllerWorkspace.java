@@ -13,8 +13,9 @@ import java.util.Set;
  * @param name Core-owned workspace name, blank only for no workspace override
  * @param facets Fixed facets to activate
  * @param sessionBankShape Session bank required by the selected facets
+ * @param installedModeId Registered inert page adapter declaring the page footprint, or empty
  */
-public record DesiredControllerWorkspace (String name, Set<ControllerViewFacet> facets, SessionBankShape sessionBankShape)
+public record DesiredControllerWorkspace (String name, Set<ControllerViewFacet> facets, SessionBankShape sessionBankShape, String installedModeId)
 {
     private static final DesiredControllerWorkspace EMPTY = new DesiredControllerWorkspace ("", Set.of (), SessionBankShape.empty ());
 
@@ -27,8 +28,11 @@ public record DesiredControllerWorkspace (String name, Set<ControllerViewFacet> 
         name = Objects.requireNonNull (name, "name").strip ();
         facets = Set.copyOf (Objects.requireNonNull (facets, "facets"));
         sessionBankShape = Objects.requireNonNull (sessionBankShape, "sessionBankShape");
-        if (name.isEmpty () != facets.isEmpty ())
-            throw new IllegalArgumentException ("workspace name and facets must either both be empty or both be present");
+        installedModeId = Objects.requireNonNull (installedModeId, "installedModeId").strip ();
+        if (installedModeId.length () > 128)
+            throw new IllegalArgumentException ("installed mode ID exceeds the bounded identifier length");
+        if (name.isEmpty () != (facets.isEmpty () && installedModeId.isEmpty ()))
+            throw new IllegalArgumentException ("workspace name requires facets or an installed page adapter");
         final boolean hasUpperSessionGrid = facets.contains (ControllerViewFacet.SESSION_CLIP_GRID_UPPER);
         final boolean hasFullSessionGrid = facets.contains (ControllerViewFacet.SESSION_GRID_FULL);
         if (hasUpperSessionGrid && hasFullSessionGrid)
@@ -38,6 +42,13 @@ public record DesiredControllerWorkspace (String name, Set<ControllerViewFacet> 
         final boolean hasSessionGrid = hasUpperSessionGrid || hasFullSessionGrid;
         if (hasSessionGrid != sessionBankShape.isPresent ())
             throw new IllegalArgumentException ("Session grid facets and Session bank shape must either both be present or both be absent");
+    }
+
+
+    /** Compatibility construction for a facet-only workspace. */
+    public DesiredControllerWorkspace (final String name, final Set<ControllerViewFacet> facets, final SessionBankShape sessionBankShape)
+    {
+        this (name, facets, sessionBankShape, "");
     }
 
 
@@ -59,6 +70,6 @@ public record DesiredControllerWorkspace (String name, Set<ControllerViewFacet> 
      */
     public boolean isActive ()
     {
-        return !this.facets.isEmpty ();
+        return !this.facets.isEmpty () || !this.installedModeId.isEmpty ();
     }
 }

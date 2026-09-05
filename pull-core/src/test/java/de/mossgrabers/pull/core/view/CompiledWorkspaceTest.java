@@ -18,6 +18,7 @@ import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.DesiredControllerMappings;
+import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredNotePerformance;
 import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
 import de.mossgrabers.pull.core.api.DrumContextSnapshot;
@@ -72,6 +73,36 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class CompiledWorkspaceTest
 {
+    @Test
+    void nativePageDeclaresItsAdapterWithoutAddingAStableFacet ()
+    {
+        final ControllerView page = pageAdapter ("transport", "TRANSPORT");
+        final DesiredControllerWorkspace desired = CompiledWorkspace.compile ("Metronome", List.of (new RetainedControllerView (page))).desiredControllerWorkspace ();
+        assertEquals ("TRANSPORT", desired.installedModeId ());
+        assertTrue (desired.facets ().isEmpty ());
+        assertTrue (desired.isActive ());
+    }
+
+
+    @Test
+    void twoDistinctRegisteredPagesCannotComposeEvenWithDisjointClaims ()
+    {
+        assertThrows (IllegalArgumentException.class, () -> CompiledWorkspace.compile ("conflicting pages", List.of (
+            pageAdapter ("transport", "TRANSPORT"), pageAdapter ("automation", "AUTOMATION"))));
+    }
+
+
+    private static ControllerView pageAdapter (final String id, final String mode)
+    {
+        return new ControllerView ()
+        {
+            @Override public String id () { return id; }
+            @Override public String installedModeId () { return mode; }
+            @Override public ViewProfile profile () { return ViewProfile.fixed (id, Set.of (), Set.of ()); }
+        };
+    }
+
+
     @Test
     void rejectsOverlappingOutputOwners ()
     {
@@ -789,14 +820,21 @@ class CompiledWorkspaceTest
     private static ControllerSnapshot parameterSnapshot (final Set<ControlId> touchedControls)
     {
         final ParameterBridgeSnapshot parameters = new ParameterBridgeSnapshot (
-            Map.of (ParameterSlot.projectRemote (0), new ParameterTargetSnapshot (PROJECT_TARGET, "Macro 1", 64, 64, "On", -1, 0.5)),
+            Map.of (ParameterSlot.projectRemote (0), new ParameterTargetSnapshot (PROJECT_TARGET, "Macro 1", 64, 64, "On", -1, 0.5, java.util.Optional.empty (), new de.mossgrabers.pull.core.api.ParameterTargetIdentitySnapshot ("project-remote", "project", 0, 0))),
             Map.of ());
         final ControllerBridgeSnapshot bridge = new ControllerBridgeSnapshot (
             TransportSnapshot.empty (),
             SelectedTrackSnapshot.empty (),
+            SessionBankSnapshot.empty (),
             ControllerLayoutSnapshot.empty (),
+            de.mossgrabers.pull.core.api.NoteViewSnapshot.empty (),
+            de.mossgrabers.pull.core.api.NoteRepeatSnapshot.empty (),
             DrumContextSnapshot.empty (),
-            parameters);
+            parameters,
+            de.mossgrabers.pull.core.api.ControllerMappingFeedbackSnapshot.empty (),
+            de.mossgrabers.pull.core.api.MasterSnapshot.empty (),
+            de.mossgrabers.pull.core.api.ProjectSnapshot.empty (),
+            new de.mossgrabers.pull.core.api.AutomationSnapshot ("project", false, false));
         return new ControllerSnapshot (0, 0, ShellCapabilities.empty (), bridge, ClipCatalogSnapshot.empty (), Map.of (), Map.of (), java.util.Optional.empty (), Set.of (), touchedControls);
     }
 

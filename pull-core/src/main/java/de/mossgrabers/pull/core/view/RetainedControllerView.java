@@ -53,6 +53,13 @@ public final class RetainedControllerView implements ControllerView
 
 
     @Override
+    public String installedModeId ()
+    {
+        return this.delegate.installedModeId ();
+    }
+
+
+    @Override
     public Set<BridgeSubscription> bridgeSubscriptions ()
     {
         return this.delegate.bridgeSubscriptions ();

@@ -96,4 +96,28 @@ public interface IMixer extends IObserverManagement
      * Toggle the visibility of the sends section.
      */
     void toggleSendsSectionVisibility ();
+
+
+    /** Submit an absolute native isClipLauncherSectionVisible value. */
+    void setClipLauncherSectionVisible (boolean enabled);
+
+
+    /** Submit an absolute native isIoSectionVisible value. */
+    void setIoSectionVisible (boolean enabled);
+
+
+    /** Submit an absolute native isCrossFadeSectionVisible value. */
+    void setCrossFadeSectionVisible (boolean enabled);
+
+
+    /** Submit an absolute native isDeviceSectionVisible value. */
+    void setDeviceSectionVisible (boolean enabled);
+
+
+    /** Submit an absolute native isMeterSectionVisible value. */
+    void setMeterSectionVisible (boolean enabled);
+
+
+    /** Submit an absolute native isSendSectionVisible value. */
+    void setSendSectionVisible (boolean enabled);
 }

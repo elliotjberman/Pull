@@ -279,7 +279,9 @@ public final class CompiledWorkspace
     /** Execute one previously resolved semantic action and render the complete workspace. */
     public CoreResult handleAction (final ResolvedControllerAction action, final ControllerSnapshot snapshot)
     {
-        return this.render (snapshot, this.dispatchAction (action, snapshot));
+        final List<CoreEffect> effects = new ArrayList<> (action.immediateEffects ());
+        effects.addAll (this.dispatchAction (action, snapshot));
+        return this.render (snapshot, effects);
     }
 
 
@@ -573,7 +575,16 @@ public final class CompiledWorkspace
     {
         final Set<ControllerViewFacet> facets = new LinkedHashSet<> ();
         views.forEach (view -> facets.addAll (view.profile ().controllerFacets ()));
-        if (facets.isEmpty ())
+        final Set<String> modeIds = new LinkedHashSet<> ();
+        views.forEach (view -> {
+            final String modeId = Objects.requireNonNull (view.view ().installedModeId (), "installedModeId").strip ();
+            if (!modeId.isEmpty ())
+                modeIds.add (modeId);
+        });
+        if (modeIds.size () > 1)
+            throw new IllegalArgumentException ("A workspace cannot select multiple page adapters: " + modeIds);
+        final String modeId = modeIds.stream ().findFirst ().orElse ("");
+        if (facets.isEmpty () && modeId.isEmpty ())
         {
             if (sessionBankShape.isPresent ())
                 throw new IllegalArgumentException ("Session bank shape requires stable controller facets");
@@ -584,7 +595,7 @@ public final class CompiledWorkspace
             throw new IllegalArgumentException ("upper Session scene keys require the upper Session clip grid");
         if (facets.contains (ControllerViewFacet.SESSION_CLIP_GRID_UPPER) && facets.contains (ControllerViewFacet.SESSION_GRID_FULL))
             throw new IllegalArgumentException ("upper and full Session grid views cannot be active together");
-        return new DesiredControllerWorkspace (name, facets, sessionBankShape);
+        return new DesiredControllerWorkspace (name, facets, sessionBankShape, modeId);
     }
 
 

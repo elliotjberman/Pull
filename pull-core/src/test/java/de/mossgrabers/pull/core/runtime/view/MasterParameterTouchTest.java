@@ -14,6 +14,7 @@ import de.mossgrabers.pull.core.api.ParameterBankId;
 import de.mossgrabers.pull.core.api.ParameterBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ParameterSlot;
 import de.mossgrabers.pull.core.api.ParameterTargetKind;
+import de.mossgrabers.pull.core.api.ParameterTargetIdentitySnapshot;
 import de.mossgrabers.pull.core.api.ParameterTargetRef;
 import de.mossgrabers.pull.core.api.ParameterTargetSnapshot;
 import de.mossgrabers.pull.core.api.PushControlIds;
@@ -116,7 +117,7 @@ class MasterParameterTouchTest
     {
         final Map<ParameterSlot, ParameterTargetSnapshot> slots = new LinkedHashMap<> ();
         for (int index = 0; index < 4; index++)
-            slots.put (SLOTS.get (index), new ParameterTargetSnapshot (target (index), "Parameter " + index, 64, 64, "64", 128, 0));
+            slots.put (SLOTS.get (index), new ParameterTargetSnapshot (target (index), "Parameter " + index, 64, 64, "64", 128, 0, Optional.empty (), new ParameterTargetIdentitySnapshot ("project-master", "project-a", 0, index)));
         final ControllerBridgeSnapshot empty = ControllerBridgeSnapshot.empty ();
         final MasterSnapshot master = new MasterSnapshot (true, "project-a", "Project", true, false, false, false, false, "Master", new RgbColor (0, 100, 255), true, true, false, 0, 0);
         final ControllerBridgeSnapshot bridge = new ControllerBridgeSnapshot (empty.transport (), empty.selectedTrack (), empty.sessionBank (), empty.layout (), empty.noteView (), empty.noteRepeat (), empty.drum (), new ParameterBridgeSnapshot (slots, Map.of ()), empty.controllerMappingFeedback (), master, empty.project (), new AutomationSnapshot ("project-a", true, true));

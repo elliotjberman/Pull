@@ -116,6 +116,25 @@ slot maps may select only each view's predeclared controls and banks. TrackMode'
 and ACTIVE identity recipe are deleted; an accidental physical Track binding is excluded rather
 than treated as an actuator. Unaligned or absent selected-track windows publish no named targets.
 
+Global Volume/Pan additionally publish the existing classifier's value-only domain, owner, page,
+and role index. These named current-bank targets require the same bank to remain current for new
+writes, while an old touch may still release its exact unchanged actuator after the bank changes.
+Core compares each parameter's channel owner and role against the displayed current-bank slot.
+This matters because immediate parameter-lease reconciliation can refresh parameters while the
+previous full bridge snapshot still contains older track metadata; mismatched output and new
+mutations fail closed until a later full sample aligns them. Empty compatibility identity metadata
+is not proof of alignment. This metadata is an observation, not a new durable target or pinned lease.
+
+The same join now protects selected Track volume/pan/sends, Project macros, and Master/Cue.
+Selected Track compares parameter domain and channel owner with the private selected snapshot.
+Project macros compare their project owner with the subscribed automation project; Master/Cue
+publish a project-scoped role and compare it with the Master snapshot and any available automation
+project. Contradictory targets cannot render, start a touch/reset, mutate, or enter a dynamic
+parameter binding used for snapback capture. An already admitted touch still receives its physical
+END cleanup after its current slot becomes unavailable or contradictory. Focused tests separate
+parameter advancement from later owner-domain advancement; this is a guard over independently
+sampled observations, not a claim that all bridge domains share an atomic sampling epoch.
+
 Parameter touch leases preserve exact acquired actuators while their live identity remains current;
 complete replay does not retrigger touch begin, and page departure/fault/selection/exit cleanup
 releases once when addressable. External proxy rebinding cannot be undone: cleanup drops and warns
@@ -160,9 +179,14 @@ The design must distinguish:
 Each bounded bank or lease pool must document its capacity, identity and generation rules,
 selection scope, and behavior when capacity is exhausted.
 
-The current canopy deliberately omits all-visible-track sends. They should arrive with the authoritative visible
-track bank so send targets and rendered track identities share one generation fence, rather than as
-64 parameter-only slots with an independent alignment model.
+The API 45 working canopy now includes eight current-track send columns of eight targets each.
+It reuses the initialized track send banks and samples only requested columns. Each target carries
+its exact channel-send owner and absolute send position; ordinary writes also require the captured
+bank to remain current. Core joins the target's owner to the authoritative current-bank row before
+rendering, capturing a Snapback baseline, or admitting a new touch/write. A target's opaque actuator
+fence additionally rejects send-window rebinds at effect application. This shares the existing
+current-bank alignment mechanism rather than treating 64 independent parameter values as proof of
+which track is displayed. It does not provide durable device or project-wide parameter leases.
 
 ## Stable Shell And Reloadable Core
 

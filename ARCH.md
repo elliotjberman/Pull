@@ -1,9 +1,12 @@
 # Pull View Architecture
 
-Status: working implementation through Core API 45. This migration adds exact parameter touches,
-core-owned Drum octave/native-note mapping, Track pages, Tap Tempo/Undo, and raw touch-strip policy to the prior composition
-contract. Offline package validation has passed (685 tests); installation and live verification
-are pending. Remaining migration work is tracked in
+Status: working implementation through Core API 45, checkpoint schema 5. The migration includes
+Project/Master/Track touches, Drum octave/native mapping, raw touch strip, normal/VS Track pages,
+Volume/Pan/Send, core page composition and arrows, Track/Mix, Metronome/Automation, Frame/Master entry,
+Accent, Tap Tempo, and Undo/Redo. The expanded deprecation-enabled package passed 823 tests on
+2026-09-05 (385 core, 11 publication, 427 shell); independent finishing review is in progress. No live
+installation or smoke test has run for this worktree. This is not the complete migration; remaining
+families and the Session release-contract decision are tracked in
 [`docs/migrations/core-migration-plan.md`](docs/migrations/core-migration-plan.md).
 
 Read this file before changing controller views, modes, workspaces, input routing, or Session bank
@@ -114,12 +117,13 @@ pad geometry is not yet a core-authored view capability.
 
 ### Parameter banks, effects, and snapback
 
-Core API 24 exposes named, view-independent banks for the inherited active encoder window, project
-remotes, the selected-device remote page, visible-track volume and pan, project-scoped Master/Cue
-controls, and fixed globals. A bank
+Core API 45 exposes named, view-independent banks for the inherited active encoder window, project
+remotes, the selected-device remote page, selected-track volume/pan and sends, visible-track volume
+and pan, project-scoped Master/Cue controls, and fixed globals. A bank
 declaration is latent configuration; stable samples and publishes only the declared banks while
 core requests the `PARAMETERS` subscription. Each slot publishes opaque target identity/generation,
-name, raw and modulated values, authoritative displayed value, step count, and read-back tolerance.
+name, raw and modulated values, authoritative displayed value, step count, read-back tolerance,
+optional enabled state, and classified semantic domain/owner/page/index metadata.
 
 Stable owns the live Bitwig proxies and actuators, target resolution, authoritative read-back,
 exact leases, relative/reset/absolute effect application, and prepare/apply identity fences.
@@ -133,20 +137,25 @@ parameter canopy.
 | `ACTIVE` | 8 slots bound by the current inherited stable mode | Stable binding generation plus resolved live domain/owner/page/role; compatibility only. |
 | `PROJECT_REMOTE` | 8 project remote controls on the current page | Project owner, remote page, slot, and parameter name. |
 | `SELECTED_DEVICE_REMOTE` | 8 controls on the current selected-device page | Device ID, remote page, slot, and parameter name. |
-| `TRACK_VOLUME` / `TRACK_PAN` | 8 visible tracks per bank | Current bank slot, stable channel ID, and parameter role. |
+| `SELECTED_TRACK` / `SELECTED_TRACK_SENDS` | Selected-track volume/pan and eight sends | Private selected target aligned with the rendering model cursor/current bank; live owner, page, slot, and role. |
+| `TRACK_VOLUME` / `TRACK_PAN` | 8 current main/effect-bank tracks per bank | Current bank identity, slot, stable channel ID, and parameter role; exact retained addressability is separate from current-window eligibility. |
 | `MASTER` | Master volume/pan and project cue volume/mix | Current project identity plus exact current parameter proxy; a project-tab change creates a new target generation. |
-| `GLOBAL` | Tempo and master volume | Fixed extension-lifetime target; master is available only in master-volume mode. |
+| `GLOBAL` | Tempo, master volume, and metronome volume | Classified fixed/global roles; master is available only in master-volume mode. |
 
-Track sends are not installed as parameter-only rows. They belong with the future authoritative
-visible-track bank so the rendered track window and send actuators share one generation fence.
+Selected-track sends are installed. General eight-track send columns remain pending; they need
+bounded visible-track/send state whose rendering owners agree with its actuators.
 
-`ProjectMacroControlsView` is the first complete parameter-input migration: its eight encoder turns
-are exclusive core inputs mapped to `PROJECT_REMOTE`, and core emits typed relative effects against
-the authoritative slot target. Its parameter body also uses the core-owned mixer-control renderer;
-stable supplies authoritative parameter snapshots and retains only touch/delete plus the inherited
-Project menu and track footer. `WorkspaceMode` no longer owns parameter copy, typography, geometry,
-units, colors, or shapes. Its snapshot carries the raw Project Macro role, availability, touch state,
-and host values; core alone maps those facts to accent and touch-emphasis policy.
+`ParameterTargetIdentitySnapshot` exposes the classified domain, owner ID, page, and index alongside
+the opaque actuator reference. Volume/Pan compare that owner with the current-bank row before
+rendering, writing, or acquiring a touch. Parameter-only lease publication can run ahead of the
+track-bank snapshot; disagreement stays blank/inert until the later full read-back aligns. Existing
+exact touch release remains permitted through its retained lease. Wrapper identity is not a target.
+
+`ProjectMacroControlsView` owns all eight turns and touches, Delete reset, automation release,
+parameter display, and its complete page feedback. Normal and VS Track share named selected-track
+banks and core menu/touch/rendering policy; normal Volume/Pan use named current-bank parameters.
+The old Project/Track/Volume/Pan parameter-provider policy does not select core targets. Their
+installed `CorePageMode` adapters have empty physical parameter bindings and inert page callbacks.
 
 For movable Bitwig parameters, stable re-resolves the exact identity from the live parameter
 domain, selected owner, selected page, and slot or channel role. The same Java `IParameter` wrapper
@@ -171,8 +180,8 @@ deferred gesture in one policy generation rather than transferring partial gestu
 core checkpoint.
 
 The named bank slots still follow bounded movable proxies; they are not durable project-wide
-parameter identities. API 24 deliberately restores before navigation and has no pinned actuator
-pool. The intended endpoint keeps physical controls, semantic `ParameterTargetRef` values, movable
+parameter identities. Snapback deliberately restores before navigation; there is no general pinned
+actuator pool. The intended endpoint keeps physical controls, semantic `ParameterTargetRef` values, movable
 Bitwig proxies, and bounded pinned leases independent. See
 [`docs/findings/parameter-target-proxy-coupling.md`](docs/findings/parameter-target-proxy-coupling.md).
 
@@ -277,6 +286,23 @@ nor product policy.
 The shell must interpret facet IDs, not workspace names. There must be no stable-shell conditional
 for `"VS Live"`.
 
+## Registered parameter pages and working contract
+
+`DesiredControllerWorkspace.installedModeId` declares a registered inert adapter footprint; it does
+not itself call `setActive()`. The compiler accepts one agreeing page owner and rejects conflicting
+mode declarations. Old Project/Track/Master facets remain compatibility selection leases and must
+agree with that declaration. New pages add no facet. `SelectControllerModeEffect` supports SELECT,
+TEMPORARY, and RESTORE against the complete observed layout generation. Layout read-back includes
+visible, underlying active, previous, and temporary mode state; hidden changes advance generation.
+The native manager has one temporary slot, and RESTORE does not rewrite its previous-mode ID.
+Core renders a selected replacement only after later acknowledgement, over the exact retained grid.
+
+Working Core API 45 capabilities include bridge snapshot 13, parameter targets 4, controller output
+state 3, input routing 7, current-track effects 2, controller-mode effects 2, transport effects 4,
+and new controller-settings/application-UI effects 1. These contract versions describe this
+uninstalled working build. Checkpoint schema 5 preserves semantic page and Track subpage/send state;
+physical held gestures remain within one core generation rather than transferring via checkpoints.
+
 ## VS Live Today
 
 Shift + Session selects the hardcoded VS Live composition. Plain Session and Note return through
@@ -302,19 +328,15 @@ only an authoritatively engaged Drum layout selects those actions and lights, so
 grid retains all eight underlying pad lights.
 
 The parameter-body view is independently replaceable from the retained track strip and grid.
-Selecting Mix publishes a stable semantic parameter-context action and composes
-`TrackMixerControlsView` with the same `TrackSelectionStripView`: core owns the active
-eight-parameter rendering and encoder
-turns while the inherited upper-row page menu and encoder-touch mechanics remain explicit stable
-adapters. The selected Mix view never infers an Input & Output page from a temporarily empty
-parameter snapshot; it keeps Mix selected and leaves unavailable control slots blank until later
-authoritative read-back. Its physical Volume/Pan wrappers are mechanically unwrapped, validated
-against the selected current-bank track, and separately fenced to the private selection-following
-cursor by stable channel ID. A `TRACK` mode transition without the matching semantic page action is
-only controller-layout reconciliation and cannot select Mix. Device and Browse still release the
-parameter body to their frozen stable pages. Core-authored Project and Mix pages retain the track
-strip; every replacement retains the Session/Drum grid, scene keys, navigation, and Session-owned
-Stop Clip control.
+The core `TrackMixControlView` freezes entry/return intent and modifier meaning at BEGIN, behind
+the parameter-restoration barrier. Selecting Track/Mix composes `TrackMixerControlsView` with the
+same `TrackSelectionStripView`: core owns turns, touches, Mix/I-O menus, send paging/enabling, and
+both views' feedback. Missing parameter read-back leaves the chosen page in place and unavailable
+slots blank. Named targets require selected/current/rendering owner agreement. Volume/Pan and the
+registered temporary pages replace the parameter page through the shared page registry. Device,
+Browse, Send, and other unconverted pages retain their frozen implementations. All replacements
+retain the selected Session/Drum grid, scene keys, navigation, raw strip, and Session Stop ownership.
+An incidental `TRACK` layout used by Note-route reconciliation carries no page-selection intent.
 
 The normal Session view declares an 8x8 bank. VS Live declares 8x4. `SessionBankRegistry` eagerly
 holds exactly those installed shapes, preserves track/scene offsets when switching, and enables
@@ -327,8 +349,9 @@ is rejected.
 Reloadable core:
 
 - `CompiledWorkspace`: claim validation, routing, deterministic composition.
-- `ControllerLevelViews`: one retained global selection, transport, parameter, and selected-track
-  policy set shared across every page replacement.
+- `ControllerLevelViews`: retained global selection, transport, parameter, and selected-track policy.
+- `ControllerPageCompositions`: finite declared page/background pairs reusing the exact retained
+  Session/Drum/Note/ribbon instances; page ownership follows later native mode acknowledgement.
 - `DefaultWorkspace`: ordinary migrated behavior plus shared workspace selection.
 - `VsLiveWorkspace`: Java-defined composition and declared 8x4 Session bank.
 - `ProjectMacroControlsView`: relative encoders, exact touch leases, Delete reset, automation
@@ -340,7 +363,11 @@ Reloadable core:
 - `CurrentTrackFooterView`: ordinary Track lower-row gestures and feedback over the model's current
   main/effect bank. VS Live retains its separate `TrackSelectionStripView` over the Session bank.
 - `TrackSelectionStripView`: lower display strip and lower soft-key ownership.
-- `SessionNavigationView`: arrow and page navigation ownership.
+- `GlobalMixerControlsView`: complete Volume/Pan turns, touches, menus, and display, composed with
+  the current-bank footer; owner metadata prevents mismatched row/parameter feedback.
+- `NavigationView`: native-page current-bank scene arrows and Track/Volume/Pan horizontal policy.
+- `SessionNavigationView`: VS arrows, including over legacy parameter pages; its page-button
+  adapter remains frozen. `FrozenSessionArrowsView` declares full-Session legacy-page arrows.
 - `SessionView`: full or upper Session grid profile, optional upper scene keys, and core-owned Stop
   Clip input/feedback across independently selected page views.
 - `SelectedTrackMuteSoloView`: persistent Mute/Solo input and authoritative feedback downstream of
@@ -361,6 +388,11 @@ Reloadable core:
 - `MasterControlView`: Master/Cue encoder turns/touches, project/audio actions, both row-light
   banks, and a complete declarative graphics scene.
 - `TapTempoView` and `UndoRedoView`: native action requests and button feedback.
+- `TrackMixControlView`: Track/Mix entry, held return, VU preference, and button feedback.
+- `MetronomeControlView`, `AutomationControlView`, and `TransportSettingsPageView`: complete global
+  gestures, temporary pages, encoder/option policy, and authoritative feedback.
+- `FramePageView` and `MasterButtonView`: application panel options and the retained Master/Frame
+  entry/restore gesture; page changes wait for raw native mode acknowledgement.
 - `ButtonGestureConsumption`: shared core modifier consumption so Record+track does not also run
   Record's release action.
 - `WorkspaceSelectionView`: shared Shift + Session entry and Session/Note exit policy.
@@ -371,21 +403,29 @@ Stable shell:
 - `StableControllerActionResolver`: derives semantic intent from remaining stable commands at their
   dispatch boundary.
 - `ControllerRuntimeEnvironment`: owns bounded leases, action barriers, and committed bridge state.
-- `WorkspaceMode`: inert page registration for Project Macro; display, touch, track-selection, and
-  row-light semantics are deleted.
+- `CorePageMode`: final inert encoder/touch/row callbacks, empty parameter bindings, blank fallback
+  display, and an installed mechanical input/light footprint. Project, Track, Master, Volume, Pan,
+  Transport, Automation, and Frame use this registration; it contains no page-selection policy.
 - `ParameterTargetHost`: bounded exact touch actuators, target checks, and mechanical cleanup.
-- `AutomationHost`: API 25 unified Automation Write observation and absolute writes.
+- `AutomationHost` and `TransportSettingsHost`: unified Automation Write/raw mode/override state,
+  transport settings, and typed primitive requests.
+- `ControllerSettingsHost`: requested VU/global-mix/send-offset preferences and bounded model-cursor
+  send metadata; core chooses the menu and absolute preference changes.
+- `ApplicationUiHost`: requested panel-layout and thirteen Arranger/Mixer flags from existing eager
+  proxies, exact project/layout fencing, absolute setters, and native unobservable panel toggles.
 - `NoteInputTranslationArbiter` and `TouchStripOutputHost`: complete core output arbitration,
   hardware transmission, and restoration of the latest unowned legacy baseline.
 - `WorkspaceView`: upper Session grid plus mechanical lower Drum Controller engagement.
 - `TrackMode`: inert page registration; Track product handlers, physical parameter provider,
   display, and row-light suppliers are removed.
 - `CurrentTrackBankHost`: eight current-bank slots, exact track effects, and independently fenced
-  cursor-parent navigation. It reuses the two installed main banks and one effect bank.
+  cursor-parent navigation. Its independent navigation generation also fences track/scene windows,
+  project identity, and model cursor ID/pin/position. It reuses two main banks and one effect bank.
 - `SessionBankRegistry` and `SessionBankHost`: bounded 8x8/8x4 Bitwig bank canopy, requested
   authoritative state, and generation-fenced bank actions.
-- `PushControlSurface`: permanent input bindings, generic output integration, and remaining legacy
-  navigation integration.
+- `PushCursorCommand`: inert action/light fallback for registered core pages and VS navigation;
+  unchanged legacy arrows remain available only under their declared frozen profiles.
+- `PushControlSurface`: permanent input bindings and generic output integration.
 - `ControllerMappingHost`: eagerly creates 128 banks of four permanent semantic absolute controls plus
   the four inert legacy identities. It publishes raw target presence/value, document identity, and
   observed hidden document storage; core owns registry parsing and allocation. All 64 original
@@ -459,8 +499,8 @@ Implemented:
   workspace ID.
 - Fixed display-region composition for the VS Live page. Project Macro or Track Mixer owns the
   replaceable 960x143 parameter body; Track Selection owns the retained 960x17 footer plus all
-  eight exclusive lower-row edges and lights. The Track Mixer body renders authoritative active
-  parameter and selected-track state and owns all eight relative encoder effects.
+  eight exclusive lower-row edges and lights. The Track Mixer body renders authoritative named
+  selected-track parameters and owns all eight encoder turns and touches.
   The compiler requires both regions, validates local containment, wraps each region in a real
   renderer-enforced clip, and produces one complete base
   scene. The shell projects that scene generically on any page and keeps the temporary overlay as a
@@ -477,7 +517,10 @@ Partial or transitional:
   explicit TODOs in `docs/findings/track-scoped-midi-learn-lifecycle.md`.
 - Project Macro and Master touch semantics, Drum octave/native mapping, and Session/Drum raw
   pitch bend run in core. Track/Mix touch, menus, ordinary footer, Tap Tempo, and Undo/Redo have also
-  crossed the boundary. Session grid/scene mechanics and navigation remain migration work. The new optional `SESSION_CLIPS` snapshot exposes the bounded
+  crossed the boundary. Volume/Pan and the registered transport/application pages also run in core.
+  Session grid/scene mechanics and page buttons remain migration work; four-arrow policy has moved
+  for registered core pages and VS, with legacy-page arrows explicitly adapted. The optional
+  `SESSION_CLIPS` snapshot exposes the bounded
   slot/scene window without sampling it when unrequested; it does not itself migrate Session.
   General Session release has no API completion signal; the location-actuator design and required
   contract decision are recorded in `docs/migrations/session-launcher-location-design.md`.
@@ -489,14 +532,14 @@ Partial or transitional:
   `CompiledWorkspace`.
 - Every registered Push button light and every physical grid-pad light now has generic explicit
   core-or-stable arbitration. A view may render only controls inside its declared output claims;
-  unclaimed lights preserve their frozen legacy supplier exactly. Current core owners are
-  the sixteen drum-play, eight drum-fill, four drum-rate, and four mappable-control lights, global
-  Play/Record, Session Stop Clip, persistent selected-track Mute/Solo, and both Master rows. Authoritative
-  semantic Bitwig target presence/value feedback and replayable physical-to-semantic mapping leases
-  support the mappable controls. General display output is still semantically partial: Master and the composed
-  VS Live Project/Track and Track/Mix pages are core-authored, while a generic complete base-scene plane, a
-  temporary sparse 8x8 grid overlay, and a complete temporary 960x160 display overlay are
-  arbitrated. The detailed design's API 45 output inventory is canonical.
+  unclaimed lights preserve their frozen legacy supplier exactly. Current core owners include the
+  drum-play/fill/rate/control pads; Play/Record, Mute/Solo, Tap/Undo, Track/Mix, Metronome/Automation,
+  Master, and octave buttons; Session Stop; arrows in migrated profiles; and all registered core
+  pages' row lights. Authoritative mapped-target feedback and replayable physical-to-semantic
+  leases support the four mappable controls. Display semantics remain partial across the entire
+  inherited controller: Project/Track, Volume/Pan, Master, Transport/Automation, and Frame are
+  core-authored; device/browser/configuration/sequencer pages remain pending. The generic complete
+  base-scene plane and temporary grid/display overlays are already installed.
 
 Deferred by design:
 

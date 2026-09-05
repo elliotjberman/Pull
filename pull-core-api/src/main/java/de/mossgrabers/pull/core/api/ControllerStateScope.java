@@ -11,6 +11,8 @@ public enum ControllerStateScope
 {
     /** Parameter bindings selected by the active controller context. */
     ACTIVE_PARAMETERS,
+    /** Controller preferences such as VU-meter visibility. */
+    CONTROLLER_SETTINGS,
     /** Playback state in the active bounded Session window. */
     SESSION_PLAYBACK
 }

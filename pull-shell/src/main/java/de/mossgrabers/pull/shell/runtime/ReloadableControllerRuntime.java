@@ -192,7 +192,8 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             Objects.requireNonNull (valueChanger, "valueChanger"),
             this.log,
             this.controllerMappings,
-            AutomationHost.create (this.controllerHost, model.getProject ()::getIdentity, surface.getConfiguration ()::isStopAutomationOnKnobRelease));
+            AutomationHost.create (this.controllerHost, model.getProject ()::getIdentity, surface.getConfiguration ()::isStopAutomationOnKnobRelease),
+            TransportSettingsHost.create (this.controllerHost, model.getProject ()::getIdentity));
         this.environment = new ControllerRuntimeEnvironment (this.clipHost, controllerBridge, this.log, System::nanoTime);
         this.debugTrace = PushDebugTraceHost.createIfEnabled ();
         this.supervisor = new CoreReloadSupervisor (this.environment, this.log, this.debugTrace);

@@ -1,8 +1,10 @@
 # Metronome and Automation capability audit
 
-Status: design only. Both legacy controls and pages remain active until their complete action,
-feedback, and page lifecycle migrate. The first Track/Undo checkpoint precedes this expansion.
-This is a bounded canopy expansion, not an exclusive migration of only the short-press branches.
+Status: implemented after the Track/Undo checkpoint. Retained core button views and full-display
+page views now own both controls, mode choices, metronome volume, and all feedback. The two permanent
+button commands are inert, their lights are core-only, and TRANSPORT/AUTOMATION use the generic
+`CorePageMode` adapter. The four legacy Push command/page implementations were deleted. This is a
+bounded canopy expansion; first live verification remains pending.
 
 ## Routed behavior to preserve
 
@@ -148,6 +150,41 @@ Drum/Session/ribbon lifecycle instances; replay and quiescent reload; and failur
 policy inert. Generic inert adapter registration and exact button/kind admission must land with
 the complete core action, lights, and display. Leave every other legacy page unchanged.
 
-Run the complete package build with deprecation reporting. First live verification is still required
+Focused offline tests cover the retained gestures, later read-back, native property submission and
+project fencing, complete page claims, and palette translation. Run the complete package build
+with deprecation reporting. First live verification is still required
 under `tools/with-pull-live`, through real routed buttons and later settings/parameter/controller
-output observation. No transport-page canopy or live state was changed for this audit.
+output observation. The migration has not yet changed the live Bitwig extension or project.
+
+## Semantic admission and held continuation
+
+Both global buttons declare `SWITCH_PARAMETER_CONTEXT` with `ACTIVE_PARAMETERS` invalidation at
+physical BEGIN. The original resolved action waits behind Snapback; its gesture already exists,
+so LONG and END record their own modifier, project, and exact mode-origin decisions while BEGIN
+is deferred. `DeferredButtonAdmission` bounds live continuations to the semantic queue capacity
+plus the current physical gesture, invokes admission only once, and invalidates old callbacks on
+deactivation. Accent uses the same mechanical core helper. Product decisions remain in each view.
+
+Metronome retains its consumed-release latch. Automation records actual entry submission time at
+admission, and an early END cannot request RESTORE until a later snapshot identifies the temporary
+AUTOMATION page. An unrelated layout generation or an ordinary AUTOMATION page is insufficient.
+Five seconds without the required observation abandons the pending return; timeout does not imply
+successful entry. Delete-BEGIN preserves the inherited return flag and the exact prior pending
+entry, including the legacy case where Delete was released before Automation END.
+
+Automation consumes an already-held Delete gesture immediately at the original BEGIN using the
+bounded `ResolvedControllerAction.withImmediateConsumption` input-lifecycle mechanism. This occurs
+before Snapback admission because physical Delete END may arrive first. The actual automation reset,
+page selection, and write toggles remain deferred; replaying the queued action does not repeat that
+consumption. LONG/END still read Delete at their own phase and consume it immediately when applicable.
+No stable product policy or general shell quiescence mechanism is introduced.
+
+## Offline verification update
+
+The focused reactor passed 175 core tests and 23 shell tests after the semantic-barrier correction,
+including real core routing through Snapback, authoritative restoration read-back before admission,
+Delete consumption before its physical END, no repeated consumption on queued dispatch, retained
+LONG/END decisions, actual temporary-page acknowledgement, expiry, and deactivation. Transport page
+and host tests distinguish effect requests from state advancement and rendered feedback.
+The final package gate and first routed live smoke remain required; isolated success does not
+prove Bitwig startup or the live controller path.

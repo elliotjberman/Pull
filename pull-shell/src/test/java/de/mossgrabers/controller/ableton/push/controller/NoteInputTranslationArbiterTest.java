@@ -83,6 +83,32 @@ class NoteInputTranslationArbiterTest
     }
 
 
+    @Test
+    void delayedLegacyAccentCallbackCannotOverwriteOwnedDrumVelocityAndReleaseUsesLatestBaseline ()
+    {
+        final List<int[]> transmitted = new ArrayList<> ();
+        final NoteInputTranslationArbiter arbiter = new NoteInputTranslationArbiter (ignored -> { }, transmitted::add);
+        arbiter.setLegacyVelocities (IntStream.range (0, 128).toArray ());
+        final List<Integer> accent = IntStream.range (0, 128).map (velocity -> velocity == 0 ? 0 : 73).boxed ().toList ();
+        final DesiredNoteInputTranslation owned = new DesiredNoteInputTranslation (true, translation (36).keyTranslation (), accent);
+        arbiter.apply (owned);
+        assertEquals (0, transmitted.getLast ()[0]);
+        assertEquals (73, transmitted.getLast ()[100]);
+        final int transmittedCount = transmitted.size ();
+        // Play/Chords callbacks use this exact legacy-writer lane when configuration is observed.
+        arbiter.setLegacyVelocities (IntStream.range (0, 128).map (velocity -> velocity == 0 ? 0 : 91).toArray ());
+        assertEquals (transmittedCount, transmitted.size ());
+        assertEquals (owned, arbiter.snapshot ());
+        final DesiredNoteInputTranslation newlyObserved = new DesiredNoteInputTranslation (true, owned.keyTranslation (), IntStream.range (0, 128).map (velocity -> velocity == 0 ? 0 : 91).boxed ().toList ());
+        arbiter.apply (newlyObserved);
+        assertEquals (newlyObserved, arbiter.snapshot ());
+        assertEquals (91, transmitted.getLast ()[100]);
+        assertEquals (0, transmitted.getLast ()[0]);
+        arbiter.apply (DesiredNoteInputTranslation.unowned ());
+        assertEquals (91, transmitted.getLast ()[100]);
+        assertEquals (0, transmitted.getLast ()[0]);
+    }
+
     private static DesiredNoteInputTranslation translation (final int note)
     {
         final List<Integer> keys = new ArrayList<> (DesiredNoteInputTranslation.silent ().keyTranslation ());

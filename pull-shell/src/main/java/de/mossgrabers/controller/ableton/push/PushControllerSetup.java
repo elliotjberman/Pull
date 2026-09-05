@@ -11,35 +11,27 @@ import de.mossgrabers.controller.ableton.push.command.continuous.ConfigurePitchb
 import de.mossgrabers.controller.ableton.push.command.continuous.MastertrackTouchCommand;
 import de.mossgrabers.controller.ableton.push.command.continuous.PushMasterVolumeCommand;
 import de.mossgrabers.controller.ableton.push.command.pitchbend.TouchstripCommand;
-import de.mossgrabers.controller.ableton.push.command.trigger.AccentCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.ClipCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.DeviceCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.FixedLengthCommand;
-import de.mossgrabers.controller.ableton.push.command.trigger.MastertrackCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.OctaveCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.PageLeftCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.PageRightCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.PlayPositionKnobCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.PushAddEffectCommand;
-import de.mossgrabers.controller.ableton.push.command.trigger.PushAutomationCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.PushCursorCommand;
-import de.mossgrabers.controller.ableton.push.command.trigger.PushMetronomeCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.PushQuantizeCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.RasteredKnobCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.ScalesCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.SelectCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.SetupCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.ShiftCommand;
-import de.mossgrabers.controller.ableton.push.command.trigger.TrackCommand;
 import de.mossgrabers.controller.ableton.push.controller.Push2Display;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
-import de.mossgrabers.controller.ableton.push.mode.AccentMode;
-import de.mossgrabers.controller.ableton.push.mode.AutomationSelectionMode;
+import de.mossgrabers.controller.ableton.push.mode.CorePageMode;
 import de.mossgrabers.controller.ableton.push.mode.FixedMode;
-import de.mossgrabers.controller.ableton.push.mode.FrameMode;
 import de.mossgrabers.controller.ableton.push.mode.GrooveMode;
-import de.mossgrabers.controller.ableton.push.mode.MetronomeMode;
 import de.mossgrabers.controller.ableton.push.mode.NoteMode;
 import de.mossgrabers.controller.ableton.push.mode.NoteRepeatMode;
 import de.mossgrabers.controller.ableton.push.mode.QuantizeMode;
@@ -62,11 +54,8 @@ import de.mossgrabers.controller.ableton.push.mode.track.AddTrackMode;
 import de.mossgrabers.controller.ableton.push.mode.track.ClipMode;
 import de.mossgrabers.controller.ableton.push.mode.track.CrossfadeMode;
 import de.mossgrabers.controller.ableton.push.mode.track.MasterMode;
-import de.mossgrabers.controller.ableton.push.mode.track.PanMode;
-import de.mossgrabers.controller.ableton.push.mode.track.SendMode;
 import de.mossgrabers.controller.ableton.push.mode.track.TrackDetailsMode;
 import de.mossgrabers.controller.ableton.push.mode.track.TrackMode;
-import de.mossgrabers.controller.ableton.push.mode.track.VolumeMode;
 import de.mossgrabers.controller.ableton.push.view.ChordsView;
 import de.mossgrabers.controller.ableton.push.view.Drum4View;
 import de.mossgrabers.controller.ableton.push.view.Drum64View;
@@ -288,12 +277,12 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
 
         modeManager.register (Modes.TRACK, new TrackMode (surface, this.model, this.reloadableRuntime));
         modeManager.register (Modes.TRACK_DETAILS, new TrackDetailsMode (surface, this.model));
-        modeManager.register (Modes.VOLUME, new VolumeMode (surface, this.model));
-        modeManager.register (Modes.PAN, new PanMode (surface, this.model));
+        modeManager.register (Modes.VOLUME, new CorePageMode ("Volume", surface, this.model, this.reloadableRuntime));
+        modeManager.register (Modes.PAN, new CorePageMode ("Pan", surface, this.model, this.reloadableRuntime));
         modeManager.register (Modes.CROSSFADER, new CrossfadeMode (surface, this.model));
 
         for (int i = 0; i < 8; i++)
-            modeManager.register (Modes.get (Modes.SEND1, i), new SendMode (surface, this.model, i));
+            modeManager.register (Modes.get (Modes.SEND1, i), new CorePageMode ("Send " + (i + 1), surface, this.model, this.reloadableRuntime));
 
         modeManager.register (Modes.MASTER, new MasterMode (surface, this.model, false, this.reloadableRuntime));
         modeManager.register (Modes.MASTER_TEMP, new MasterMode (surface, this.model, true, this.reloadableRuntime));
@@ -312,21 +301,21 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
 
         modeManager.register (Modes.CLIP, new ClipMode (surface, this.model));
         modeManager.register (Modes.NOTE, new NoteMode (surface, this.model));
-        modeManager.register (Modes.FRAME, new FrameMode (surface, this.model));
+        modeManager.register (Modes.FRAME, new CorePageMode ("Frame", surface, this.model, this.reloadableRuntime));
 
         modeManager.register (Modes.GROOVE, new GrooveMode (surface, this.model));
         modeManager.register (Modes.REC_ARM, new QuantizeMode (surface, this.model));
-        modeManager.register (Modes.ACCENT, new AccentMode (surface, this.model));
+        modeManager.register (Modes.ACCENT, new CorePageMode ("Accent", surface, this.model, this.reloadableRuntime));
 
         modeManager.register (Modes.SCALES, new ScalesMode (surface, this.model));
         modeManager.register (Modes.SCALE_LAYOUT, new ScaleLayoutMode (surface, this.model));
         modeManager.register (Modes.FIXED, new FixedMode (surface, this.model));
         modeManager.register (Modes.RIBBON, new RibbonMode (surface, this.model));
 
-        modeManager.register (Modes.AUTOMATION, new AutomationSelectionMode (surface, this.model));
-        modeManager.register (Modes.TRANSPORT, new MetronomeMode (surface, this.model));
+        modeManager.register (Modes.AUTOMATION, new CorePageMode ("Automation", surface, this.model, this.reloadableRuntime));
+        modeManager.register (Modes.TRANSPORT, new CorePageMode ("Transport", surface, this.model, this.reloadableRuntime));
         modeManager.register (Modes.USER, new UserMode (surface, this.model));
-        modeManager.register (Modes.WORKSPACE, new WorkspaceMode (surface, this.model));
+        modeManager.register (Modes.WORKSPACE, new WorkspaceMode (surface, this.model, this.reloadableRuntime));
 
         modeManager.register (Modes.INFO, new InfoMode (surface, this.model));
         modeManager.register (Modes.SETUP, new SetupMode (surface, this.model));
@@ -426,15 +415,9 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         this.addButton (ButtonID.DOUBLE, "Double Loop", new DoubleCommand<> (this.model, surface), PushControlSurface.PUSH_BUTTON_DOUBLE);
         this.addButton (ButtonID.UNDO, "Undo", CORE_OWNED_BUTTON_COMMAND, PushControlSurface.PUSH_BUTTON_UNDO, () -> PushColorManager.resolveCoreButtonColor (this.colorManager, ButtonID.UNDO, this.reloadableRuntime.lightColor (PushControlIds.button ("UNDO"))));
 
-        this.addButton (ButtonID.AUTOMATION, "Automate", new PushAutomationCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_AUTOMATION, () -> {
+        this.addButton (ButtonID.AUTOMATION, "Automate", CORE_OWNED_BUTTON_COMMAND, PushControlSurface.PUSH_BUTTON_AUTOMATION, () -> PushColorManager.resolveCoreButtonColor (this.colorManager, ButtonID.AUTOMATION, this.reloadableRuntime.lightColor (PushControlIds.button ("AUTOMATION"))));
 
-            if (surface.isShiftPressed ())
-                return t.isWritingClipLauncherAutomation () ? 3 : 2;
-            return t.isWritingArrangerAutomation () ? 1 : 0;
-
-        }, PushColorManager.PUSH_BUTTON_STATE_REC_ON, PushColorManager.PUSH_BUTTON_STATE_REC_HI, PushColorManager.PUSH_BUTTON_STATE_OVR_ON, PushColorManager.PUSH_BUTTON_STATE_OVR_HI);
-
-        this.addButton (ButtonID.TRACK, "Mix", new TrackCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_TRACK, () -> Modes.isMixMode (modeManager.getActiveID ()));
+        this.addButton (ButtonID.TRACK, "Mix", CORE_OWNED_BUTTON_COMMAND, PushControlSurface.PUSH_BUTTON_TRACK, () -> PushColorManager.resolveCoreButtonColor (this.colorManager, ButtonID.TRACK, this.reloadableRuntime.lightColor (PushControlIds.button ("TRACK"))));
         this.addButton (ButtonID.DEVICE, "Device", new DeviceCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_DEVICE, () -> Modes.isDeviceMode (modeManager.getActiveID ()));
 
         this.addButton (ButtonID.CLIP, "Clip", new ClipCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_CLIP, () -> modeManager.isActive (Modes.CLIP));
@@ -452,8 +435,8 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         this.addButton (ButtonID.SHIFT, "Shift", new ShiftCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_SHIFT);
         this.addButton (ButtonID.SELECT, "Select", new SelectCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_SELECT);
         this.addButton (ButtonID.TAP_TEMPO, "Tap Tempo", CORE_OWNED_BUTTON_COMMAND, PushControlSurface.PUSH_BUTTON_TAP, () -> PushColorManager.resolveCoreButtonColor (this.colorManager, ButtonID.TAP_TEMPO, this.reloadableRuntime.lightColor (PushControlIds.button ("TAP_TEMPO"))));
-        this.addButton (ButtonID.METRONOME, "Metronome", new PushMetronomeCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_METRONOME, t::isMetronomeOn);
-        this.addButton (ButtonID.MASTERTRACK, "Mastertrack", new MastertrackCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_MASTER, () -> Modes.isMasterMode (modeManager.getActiveID ()), PushColorManager.PUSH_BUTTON_STATE_MASTER_ON, PushColorManager.PUSH_BUTTON_STATE_MASTER_HI);
+        this.addButton (ButtonID.METRONOME, "Metronome", CORE_OWNED_BUTTON_COMMAND, PushControlSurface.PUSH_BUTTON_METRONOME, () -> PushColorManager.resolveCoreButtonColor (this.colorManager, ButtonID.METRONOME, this.reloadableRuntime.lightColor (PushControlIds.button ("METRONOME"))));
+        this.addButton (ButtonID.MASTERTRACK, "Mastertrack", CORE_OWNED_BUTTON_COMMAND, PushControlSurface.PUSH_BUTTON_MASTER, () -> PushColorManager.resolveCoreButtonColor (this.colorManager, ButtonID.MASTERTRACK, this.reloadableRuntime.lightColor (PushControlIds.button ("MASTERTRACK"))));
         this.addButton (ButtonID.PAGE_LEFT, "Page Left", new PageLeftCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_DEVICE_LEFT, () -> {
 
             if (viewManager.isActive (Views.SESSION))
@@ -476,7 +459,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         this.addButton (ButtonID.MUTE, "Mute", CORE_OWNED_BUTTON_COMMAND, PushControlSurface.PUSH_BUTTON_MUTE, () -> controllerLightColor (this.colorManager, this.reloadableRuntime.lightColor (PushControlIds.button ("MUTE"))));
         this.addButton (ButtonID.SOLO, "Solo", CORE_OWNED_BUTTON_COMMAND, PushControlSurface.PUSH_BUTTON_SOLO, () -> controllerLightColor (this.colorManager, this.reloadableRuntime.lightColor (PushControlIds.button ("SOLO"))));
         this.addButton (ButtonID.SCALES, "Scale", new ScalesCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_SCALES, () -> modeManager.isActive (Modes.SCALES));
-        this.addButton (ButtonID.ACCENT, "Accent", new AccentCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_ACCENT, this.configuration::isAccentActive);
+        this.addButton (ButtonID.ACCENT, "Accent", CORE_OWNED_BUTTON_COMMAND, PushControlSurface.PUSH_BUTTON_ACCENT, () -> PushColorManager.resolveCoreButtonColor (this.colorManager, ButtonID.ACCENT, this.reloadableRuntime.lightColor (PushControlIds.button ("ACCENT"))));
         this.addButton (ButtonID.ADD_EFFECT, "Add Device", new PushAddEffectCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_ADD_EFFECT);
         this.addButton (ButtonID.ADD_TRACK, "Add Track", new ModeSelectCommand<> (this.model, surface, Modes.ADD_TRACK), PushControlSurface.PUSH_BUTTON_ADD_TRACK);
         this.addButton (ButtonID.NOTE, "Note", CORE_OWNED_BUTTON_COMMAND, PushControlSurface.PUSH_BUTTON_NOTE, () -> !surface.isSessionLayoutActive ());

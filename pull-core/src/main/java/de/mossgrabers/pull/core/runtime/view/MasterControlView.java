@@ -117,6 +117,7 @@ public final class MasterControlView implements ControllerView
     public void reconcile (final ControllerSnapshot snapshot)
     {
         this.touches.reconcile (snapshot);
+        this.touches.retainTargets (ParameterAlignment.references (snapshot));
     }
 
 
@@ -124,6 +125,13 @@ public final class MasterControlView implements ControllerView
     public String id ()
     {
         return "master-controls";
+    }
+
+
+    @Override
+    public String installedModeId ()
+    {
+        return "MASTER";
     }
 
 
@@ -156,12 +164,21 @@ public final class MasterControlView implements ControllerView
 
 
     @Override
+    public Map<ControlId, ParameterSlot> parameterBindings (final ControllerSnapshot snapshot)
+    {
+        return ParameterAlignment.bindings (snapshot, PARAMETER_BINDINGS);
+    }
+
+
+    @Override
     public List<CoreEffect> handle (final CoreEvent event, final ControllerSnapshot snapshot)
     {
         if (!(event instanceof final ControllerInputEvent input))
             return List.of ();
         final ParameterSlot slot = PARAMETER_BINDINGS.get (input.controlId ());
-        final ParameterTargetSnapshot target = slot == null ? null : snapshot.bridge ().parameters ().slots ().get (slot);
+        final ParameterTargetSnapshot target = slot == null ? null : ParameterAlignment.target (snapshot, slot);
+        if (input.kind () == InputKind.TOUCH && input.phase () == de.mossgrabers.pull.core.api.event.InputPhase.BEGIN && (!ParameterAlignment.masterContextAligned (snapshot) || ParameterAlignment.contradicts (snapshot, slot)))
+            return List.of ();
         if (input.kind () == InputKind.RELATIVE)
             return target == null ? List.of () : List.of (new AdjustParameterValueEffect (target.target (), input.value () * PARAMETER_STEP_SIZE));
         return input.kind () == InputKind.TOUCH ? this.touches.handle (input, target, snapshot) : List.of ();
@@ -208,7 +225,7 @@ public final class MasterControlView implements ControllerView
         lights.put (OPEN, WHITE);
         lights.put (SAVE, master.projectDirty () ? ORANGE : WHITE);
 
-        final Map<ParameterSlot, ParameterTargetSnapshot> parameters = snapshot.bridge ().parameters ().slots ();
+        final Map<ParameterSlot, ParameterTargetSnapshot> parameters = ParameterAlignment.targets (snapshot);
         final ControllerDisplayScene scene = MasterDisplayScene.render (master, parameters, snapshot.touchedControls ());
         return new ViewOutput (lights, Map.of (), scene, ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), DesiredNotePerformance.inactive (), DesiredNoteRepeat.unowned (), DesiredControllerMappings.empty (), this.touches.desired ());
     }

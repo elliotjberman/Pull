@@ -145,4 +145,52 @@ public class MixerImpl implements IMixer
     {
         this.mixer.isSendSectionVisible ().toggle ();
     }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void setClipLauncherSectionVisible (final boolean enabled)
+    {
+        this.mixer.isClipLauncherSectionVisible ().set (enabled);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void setIoSectionVisible (final boolean enabled)
+    {
+        this.mixer.isIoSectionVisible ().set (enabled);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void setCrossFadeSectionVisible (final boolean enabled)
+    {
+        this.mixer.isCrossFadeSectionVisible ().set (enabled);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void setDeviceSectionVisible (final boolean enabled)
+    {
+        this.mixer.isDeviceSectionVisible ().set (enabled);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void setMeterSectionVisible (final boolean enabled)
+    {
+        this.mixer.isMeterSectionVisible ().set (enabled);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void setSendSectionVisible (final boolean enabled)
+    {
+        this.mixer.isSendSectionVisible ().set (enabled);
+    }
 }

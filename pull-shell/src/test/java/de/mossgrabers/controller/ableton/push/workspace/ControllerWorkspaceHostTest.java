@@ -121,6 +121,18 @@ class ControllerWorkspaceHostTest
 
 
     @Test
+    void declaredFootprintMustAgreeWithTheLegacyFacetAdapter ()
+    {
+        assertThrows (IllegalArgumentException.class, () -> ControllerWorkspaceHost.validate (new DesiredControllerWorkspace (
+            "Mismatched", Set.of (ControllerViewFacet.MASTER_CONTROLS), SessionBankShape.empty (), "TRANSPORT")));
+        assertThrows (IllegalArgumentException.class, () -> ControllerWorkspaceHost.validate (new DesiredControllerWorkspace (
+            "Mismatched", Set.of (ControllerViewFacet.PROJECT_MACRO_CONTROLS), SessionBankShape.empty (), "TRACK")));
+        final var page = new DesiredControllerWorkspace ("Transport", Set.of (), SessionBankShape.empty (), "TRANSPORT");
+        assertEquals (page, ControllerWorkspaceHost.validate (page));
+    }
+
+
+    @Test
     void rejectsTwoPageAdaptersInOneWorkspace ()
     {
         assertThrows (IllegalArgumentException.class, () -> ControllerWorkspaceHost.validate (new DesiredControllerWorkspace (

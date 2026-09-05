@@ -59,6 +59,26 @@ class SnapbackSessionTest
 
 
     @Test
+    void mixVuPreferenceDoesNotSettleParametersButNormalMixEntryDoes ()
+    {
+        final SnapbackSession session = startedSession (parameters (100, 200));
+        session.handle (mutation (2, KNOB1, FIRST, 100), snapshot (parameters (90, 200), Set.of (SHIFT)), ParameterSlot.active (0));
+        final CompiledWorkspace workspace = CompiledWorkspace.compile ("mix-actions", List.of (new de.mossgrabers.pull.core.runtime.view.TrackMixControlView ()));
+        workspace.start (snapshot (parameters (90, 200), Set.of (SHIFT)));
+        final ControlId mix = PushControlIds.button ("TRACK");
+        final ResolvedControllerAction preference = workspace.resolveAction (button (3, mix, InputPhase.BEGIN), snapshot (parameters (90, 200), Set.of (SHIFT)));
+        assertFalse (session.handleAction (preference, snapshot (parameters (90, 200), Set.of (SHIFT))).intercepted ());
+        final CoreResult afterPreference = session.decorate (CoreResult.empty (), List.of ());
+        assertTrue (afterPreference.desiredParameterInteraction ().acceptsMutations ());
+        assertEquals (0, afterPreference.desiredParameterInteraction ().pendingActionCount ());
+        assertEquals (Map.of (FIRST, 100.0), afterPreference.desiredParameterInteraction ().baselines ());
+        final ResolvedControllerAction page = workspace.resolveAction (button (4, mix, InputPhase.BEGIN), snapshot (parameters (90, 200), Set.of ()));
+        assertTrue (session.handleAction (page, snapshot (parameters (90, 200), Set.of ())).intercepted ());
+        assertEquals (1, session.decorate (CoreResult.empty (), List.of ()).desiredParameterInteraction ().pendingActionCount ());
+    }
+
+
+    @Test
     void capturesEachExactPreMutationBaselineOnceAndRestoresBothTargets ()
     {
         final SnapbackSession session = startedSession (parameters (100, 200));

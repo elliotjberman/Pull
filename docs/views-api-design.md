@@ -1,7 +1,9 @@
 # Views API and Composite Workspaces
 
-Status: design contract. Checkpoints 1 and 2 are structurally implemented through working Core API 45; live activation of the API 45 migration is pending. The
-remaining stable-adapter boundary is represented explicitly in claims and recorded in
+Status: design contract for working Core API 45 and checkpoint schema 5. The expanded offline
+package gate is in progress; live activation and smoke testing are pending. Checkpoints 1 and 2
+have structural implementations. The remaining stable-adapter boundary is explicit in claims and
+recorded in
 [`../ARCH.md`](../ARCH.md). The checkpoints remain below so code, offline tests, and Push hardware
 tests can be compared against the intended end state.
 
@@ -149,9 +151,10 @@ Examples:
 - **Selected-track Mute/Solo** requires the dedicated Mute and Solo buttons and consumes the
   private authoritative selected-track snapshot. It is controller-level policy downstream of
   selection, not part of the selector, Session grid, or active display page.
-- **Session Navigation** currently requires `NAVIGATION.ARROWS` and `NAVIGATION.PAGE` because the
-  installed stable adapter realizes them together. Page navigation may become optional only after
-  the shell exposes it as an independently selectable facet.
+- **Session Navigation** declares core input/output ownership of `NAVIGATION.ARROWS` for VS, plus
+  explicit stable-adapter claims for the still-frozen page buttons. Other native pages use
+  `NavigationView`; full Session over a legacy page declares `FrozenSessionArrowsView`. These
+  profiles keep page buttons and sequencer navigation outside the four-arrow cutover.
 
 ## Native musical ownership and parameter touches
 
@@ -168,7 +171,18 @@ Core returns the complete `DesiredParameterTouches` set. The shell retains exact
 releases omitted leases before effects, and acquires newly requested touches after effects so a
 Delete reset precedes touch acquisition. The retained release observer prevents a page change from
 losing END. Mutable parameter identity is checked again at execution and cleanup; cleanup cannot
-safely retarget an externally rebound proxy. Project Macro and Master own all their touch semantics.
+safely retarget an externally rebound proxy. Project Macro, Master, Track, Volume, and Pan own
+complete touch semantics. The ordered `AcquireParameterTouchEffect` preserves a required
+reset → touch → send-enable sequence while the complete desired touch set remains replayable.
+The unified API 25 Automation Write property preserves stop-on-release policy; its historical
+arranger-named native accessor is not evidence of a separate launcher write domain.
+
+Named parameter snapshots include `ParameterTargetIdentitySnapshot(domain, ownerId, page, index)`
+alongside the opaque actuator target. A Java proxy can stay the same while its semantic owner
+changes. Volume/Pan require their current-bank row and parameter owner/domain to agree before
+rendering, writing, or beginning a touch. A parameter-only reconciliation can precede the next
+track-bank snapshot; that temporary disagreement is blank/inert. Existing exact lease cleanup
+remains separate from eligibility to acquire or mutate the new current target.
 
 ## Workspace Compilation
 
@@ -231,17 +245,30 @@ Activation is transactional. The candidate workspace compiles and renders a comp
 result before it replaces the active workspace. Reload captures the active workspace ID and view
 state in the checkpoint envelope. A rejected candidate leaves the prior generation active.
 
-The stable adapter realizes page and grid facets as independent leases. A page overlay such as
-Master may replace the encoder/display page while retaining the selected workspace's grid facets;
-it must not select a different Bitwig track merely to activate the inherited display mode.
-Transitions back to stable layouts are also views, not shell history: the Session destination
-temporarily composes `TrackMixerPageView` with `SessionView.full()`, and Note compiles
-`TrackMixerPageView` around the core-owned target-fenced Note viewer. Core holds destination page
-facets until the authoritative layout snapshot reports the requested mode/view. It then releases
-only the acknowledged page while retaining `SessionView`, including its grid and Stop Clip
-ownership. Likewise, a composite may release its default parameter/display page after read-back
-while retaining disjoint grid/button views. An empty workspace therefore means only "release every
-core facet"; it does not choose or restore a destination.
+Page and grid selection are independent. `ControllerPageCompositions` compiles the finite declared
+page/background pairs once, retaining the actual Session/Drum/Note/ribbon view instances and their
+fixed claims. A page replacement changes only encoder, row, and display ownership. It never selects
+a different Bitwig track merely to activate an inherited display mode.
+
+A page declares `installedModeId` through `ControllerView`; the compiler merges one agreeing mode
+into `DesiredControllerWorkspace`. Stable validates that the named installed `CorePageMode` exposes
+the requested inert encoder/touch/row/navigation footprint. This declaration is not an active-mode
+request. The old Project/Track/Master facets still perform compatibility selection and must agree
+with the declaration; Transport, Automation, Volume, Pan, and Frame add no new facet.
+
+`SelectControllerModeEffect` requests SELECT, TEMPORARY, or RESTORE. Prepare and apply recheck the
+complete observed mode origin and installed destination. `ControllerLayoutSnapshot` includes
+visible mode, underlying active mode, previous mode, and temporary flag; every change, including a
+hidden underlying/history change, advances its generation. The native manager has one temporary
+slot, and RESTORE leaves the stored previous-mode ID unchanged. Core initiates policy, waits for a
+later mode acknowledgement, and then selects the declared page/background composition. A dependent
+restore cannot be inferred from a submitted temporary-entry call.
+
+Session and Note destinations explicitly select their Track page over the retained grid/note
+composition. An incidental TRACK layout during Note-route neutralization is not page-selection
+intent. Legacy Device/Browse and other unmigrated pages retain their reviewed adapters. Releasing
+all desired facets and the installed mode declaration relinquishes ownership; it does not invent
+a destination from the stable mode manager's history.
 
 Stop-plus-track is an installed Session-bank action. The row owner captures the exact bank
 generation, shape, index, and channel identity at `BEGIN`; stable revalidates that identity at apply
@@ -305,20 +332,56 @@ sensitivity, volume acceleration, and pan centering; VS Live retains its establi
 Track subpage and send offset survive core checkpoints, as does semantic parameter-page selection.
 
 
-VS Live page selection advances only from the semantic action emitted by a stable page command.
+VS Live page selection advances from explicit core page requests or a frozen semantic action from
+an unchanged stable page command, followed by authoritative mode acknowledgement.
 The controller-state host may temporarily report `TRACK` while it neutralizes and reattaches a
 selected-track Note route; that mechanical layout read-back carries no page-selection intent and
-cannot replace Project Macro with Track/Mix. If snapback defers the stable command, core retains
+cannot replace Project Macro with Track/Mix. If snapback defers the page action, core retains
 the old page until a later layout generation acknowledges the released action. Shift+Session is
 an idempotent selection of the declared composite and therefore always reselects Project Macro,
 even when VS Live was already active on Track/Mix or another replaceable page. For named Track banks, stable validates the model cursor and current-bank owner against the
 private selection-following cursor before publishing a slot. The removed Track provider no longer
 chooses the core's parameter identity or response curve.
 
+Normal Volume/Pan pages compose `GlobalMixerControlsView` with the same current-bank footer.
+Their named eight-track banks, configured encoder response, Delete/touch/automation behavior,
+upper menus, display, and lower-row feedback are core-owned. `ControllerSettingsSnapshot` supplies
+observed VU preference, remembered global-mix mode, send-menu offset, and bounded cursor-send
+metadata. Typed absolute settings effects execute in stable; the core decides every menu action.
+General Send/Crossfade/device pages remain legacy until their own complete slices migrate.
+
+`TrackMixControlView` owns the global Track/Mix button, including modifier preference changes,
+entry, held return, and light policy. `MetronomeControlView` and `AutomationControlView` retain their
+global gesture state across page replacement; transport/automation option pages render observed
+settings and use typed requests. `MasterButtonView` handles Master/Frame entry and restoration over
+the exact composition, including Browser and delayed-acknowledgement cases. `FramePageView` owns
+all option rows, copy, layout, and lights. `ApplicationUiSnapshot` contains the native panel layout,
+seven Arranger flags, six Mixer flags, and an exact project/layout context. Native visibility
+values stay interested; unrequested APPLICATION_UI does no DTO sampling and publishes typed empty.
+Observed flags use absolute setters with later read-back. Native panel toggles lacking visibility
+read-back retain ordinary unselected feedback rather than inventing a selected state.
+
+Four-arrow policy is core-owned for registered native pages and every VS page. Track/Volume/Pan
+use plain horizontal track-page movement and Shift cursor swap; other native pages have inert
+horizontal actions. Vertical arrows use current-bank scene step or Shift scene page. VS horizontal
+arrows use track page or Shift track step. Availability controls light output, not whether a valid
+press submits an operation. Left/right retain the parameter-restoration action barrier. The
+separate navigation generation fences current track/scene window, project, cursor ID/pin/position,
+and exact prepared actuators. Full Session with a legacy page retains frozen arrow policy, and
+page/sequencer buttons are unchanged.
+
 Master's own previous/next project action creates a bounded page-retention lease. The lease is tied
 to the workspace-request sequence and survives both intermediate and late stable layout resets.
 Later target-project read-back updates the retained scene without silently changing pages; an
 explicit page or workspace request retires the lease.
+
+The working API 45 capability versions are bridge snapshot 13, parameter targets 4, controller
+output state 3, input routing 7, current-track effects 2, controller-mode effects 2, transport
+effects 4, controller-settings effects 1, and application-UI effects 1. Checkpoint schema 5 retains
+semantic page selection and Track Mix/I-O/send offset. It does not serialize a partially held
+physical gesture into a replacement core. API 45 has not yet been installed or live-verified in
+this migration worktree. Session grid/scene actions and its required release contract remain open;
+optional SESSION_CLIPS observation and migrated arrows do not complete Session launch migration.
 
 ## Implementation Checkpoints
 
@@ -356,8 +419,8 @@ Add one hardcoded workspace named `VS Live`, entered with **Shift + Session** fo
   the current Project side of User mode.
 - Track Selection Strip owns the lower display strip and lower soft keys so visible tracks can be
   selected directly.
-- Session Navigation owns the arrow keys (and established Session paging behavior) so track/scene
-  navigation remains available.
+- Session Navigation owns arrow input/feedback while retaining the declared frozen Session page
+  buttons, so page replacements preserve both surfaces without claiming their migration complete.
 - Session Clip Grid owns the upper four pad rows. Clip launch behavior and scene order match Session
   view through its declared `8x4` Session bank rather than an `8x8` bank cropped at render time.
 - Drum Controller owns the bottom four pad rows, including its existing 4x4 playable block, rate
@@ -399,9 +462,10 @@ note-repeat state. Stable only reads the installed Repeat engine, applies the bo
 restores the pre-ownership manual state after later read-back. Disabling **Automatic arp / roll**
 releases that lease and blanks the rate pads without changing note-view policy.
 
-The stable API addition for this checkpoint is limited to one complete
-`DesiredControllerWorkspace`: a name plus a set of known fixed-facet IDs. `VS Live`, its selected
-facets, its conflict-free composition, and the Shift + Session selection state live in the
+The original checkpoint introduced complete `DesiredControllerWorkspace` values with a name and
+known fixed-facet IDs. Working API 45 also declares an optional installed inert mode footprint;
+new core pages use the generic mode effect and require no new facet. `VS Live`, its selected
+views/facets, its conflict-free composition, and the Shift + Session selection state live in the
 reloadable core. The stable shell contains only reusable adapters for facet mechanics that still
 depend on the inherited Bitwig/DrivenByMoss object graph. There must be no stable-shell branch on
 the name `VS Live`. As individual grid, parameter, display, and navigation capabilities cross the

@@ -21,6 +21,8 @@ import de.mossgrabers.pull.core.api.output.MixerControlsDisplay;
 import de.mossgrabers.pull.core.runtime.view.DefaultWorkspace;
 import de.mossgrabers.pull.core.runtime.view.DrumControlPadView;
 import de.mossgrabers.pull.core.runtime.view.ControllerLevelViews;
+import de.mossgrabers.pull.core.runtime.view.ControllerPageCompositions;
+import de.mossgrabers.pull.core.api.SessionBankShape;
 import de.mossgrabers.pull.core.runtime.view.VsLiveWorkspace;
 import de.mossgrabers.pull.core.runtime.view.MasterWorkspace;
 import de.mossgrabers.pull.core.runtime.view.MixerDisplayScene;
@@ -30,6 +32,9 @@ import de.mossgrabers.pull.core.runtime.view.SessionStopGesture;
 import de.mossgrabers.pull.core.runtime.view.StableDestinationWorkspace;
 import de.mossgrabers.pull.core.runtime.view.TrackMixerPageState;
 import de.mossgrabers.pull.core.runtime.view.TrackMixerControlsView;
+import de.mossgrabers.pull.core.runtime.view.GlobalMixerControlsView;
+import de.mossgrabers.pull.core.runtime.view.FramePageView;
+import de.mossgrabers.pull.core.runtime.view.AccentPageView;
 import de.mossgrabers.pull.core.runtime.view.CurrentTrackFooterView;
 import de.mossgrabers.pull.core.api.effect.SelectControllerModeEffect;
 import de.mossgrabers.pull.core.runtime.view.TrackSelectionStripView;
@@ -64,6 +69,9 @@ final class PullControllerCore implements ControllerCore
     private CompiledWorkspace                              vsLiveStablePageWorkspace;
     private CompiledWorkspace                              vsLiveTrackMixerWorkspace;
     private Map<CompiledWorkspace, CompiledWorkspace>      trackPageWorkspaces = Map.of ();
+    private final ControllerPageCompositions               pageCompositions = new ControllerPageCompositions ();
+    private CompiledWorkspace                              temporaryPageBackground;
+    private long                                           temporaryPageWorkspaceRequest;
     private TrackMixerPageState                            trackMixerPage;
     private boolean                                        normalTrackPageSelected;
     private long                                           normalPageWorkspaceRequest = -1;
@@ -147,6 +155,30 @@ final class PullControllerCore implements ControllerCore
         for (final var entry: this.trackPageWorkspaces.entrySet ())
             compiledMaster.put (entry.getValue (), compiledMaster.get (entry.getKey ()));
         this.masterWorkspaces = Map.copyOf (compiledMaster);
+        this.pageCompositions.register (compiled.get (WorkspaceSelection.Id.DEFAULT), new ControllerPageCompositions.Background (SessionBankShape.empty (), List.of (), true, false));
+        this.pageCompositions.register (this.defaultDrumWorkspace, new ControllerPageCompositions.Background (SessionBankShape.empty (), retainedDefaultDrumViews, true, true));
+        this.pageCompositions.register (this.defaultDrumLegacyWorkspace, new ControllerPageCompositions.Background (SessionBankShape.empty (), retainedDefaultDrumViews, true, false));
+        this.pageCompositions.register (this.defaultSessionWorkspace, new ControllerPageCompositions.Background (StableDestinationWorkspace.SESSION_BANK, List.of (retainedSessionView), true, true));
+        this.pageCompositions.register (compiled.get (WorkspaceSelection.Id.VS_LIVE), new ControllerPageCompositions.Background (VsLiveWorkspace.SESSION_BANK, retainedVsLiveGridViews, false, true));
+        this.pageCompositions.registerAlias (this.vsLiveStablePageWorkspace, compiled.get (WorkspaceSelection.Id.VS_LIVE));
+        this.pageCompositions.registerAlias (this.vsLiveTrackMixerWorkspace, compiled.get (WorkspaceSelection.Id.VS_LIVE));
+        this.pageCompositions.registerAlias (this.destinationWorkspaces.get (WorkspaceSelection.Destination.SESSION), this.defaultSessionWorkspace);
+        this.pageCompositions.registerAlias (this.destinationWorkspaces.get (WorkspaceSelection.Destination.NOTE), compiled.get (WorkspaceSelection.Id.DEFAULT));
+        for (final var entry: this.trackPageWorkspaces.entrySet ())
+            this.pageCompositions.registerAlias (entry.getValue (), entry.getKey ());
+        // Several normal page variants share the same Master composition and musical background.
+        for (final var entry: compiledMaster.entrySet ())
+            this.pageCompositions.registerAlias (entry.getValue (), entry.getKey ());
+        final Map<String, List<ControllerView>> parameterPages = new java.util.LinkedHashMap<> (Map.of (
+            "FRAME", List.of (new RetainedControllerView (new FramePageView ())),
+            "ACCENT", List.of (new RetainedControllerView (new AccentPageView (fullSessionStopGesture, vsLiveStopGesture))),
+            "TRANSPORT", controllerViews.metronomePage (),
+            "AUTOMATION", controllerViews.automationPage (),
+            "VOLUME", List.of (new RetainedControllerView (new GlobalMixerControlsView (GlobalMixerControlsView.Role.VOLUME, controllerViews.parameterTouches ())), normalTrackPage.get (1)),
+            "PAN", List.of (new RetainedControllerView (new GlobalMixerControlsView (GlobalMixerControlsView.Role.PAN, controllerViews.parameterTouches ())), normalTrackPage.get (1))));
+        for (int sendIndex = 0; sendIndex < ParameterSlot.BANK_SIZE; sendIndex++)
+            parameterPages.put ("SEND" + (sendIndex + 1), List.of (new RetainedControllerView (GlobalMixerControlsView.send (sendIndex, controllerViews.parameterTouches ())), normalTrackPage.get (1)));
+        this.pageCompositions.compile (controllerViews, parameterPages);
         this.workspace = this.desiredWorkspace (snapshot);
         this.lifecycle = Lifecycle.RUNNING;
         this.snapback.start (snapshot);
@@ -196,7 +228,10 @@ final class PullControllerCore implements ControllerCore
 
         this.observePageEffects (currentResult.effects (), snapshot);
         currentResult = this.transitionToSelectedWorkspace (currentResult, snapshot);
-        final List<CoreEffect> effects = new ArrayList<> (currentResult.effects ());
+        final List<CoreEffect> effects = new ArrayList<> ();
+        if (action != null)
+            effects.addAll (action.immediateEffects ());
+        effects.addAll (currentResult.effects ());
         for (final ResolvedControllerAction released: update.releasedActions ())
         {
             currentResult = this.dispatchActionToWorkspace (released, snapshot, true);
@@ -329,6 +364,32 @@ final class PullControllerCore implements ControllerCore
         final CompiledWorkspace selectedWorkspace = this.selectedWorkspace (snapshot);
         final String mode = snapshot.bridge ().layout ().modeId ();
         final boolean masterLayout = "MASTER".equals (mode) || "MASTER_TEMP".equals (mode);
+        if (this.pageCompositions.contains (mode))
+        {
+            if (this.temporaryPageBackground == null)
+            {
+                this.temporaryPageWorkspaceRequest = this.selection.requestSequence ();
+                final String underlyingMode = snapshot.bridge ().layout ().activeModeId ();
+                if (this.activeMasterWorkspace != null && (this.masterLayoutObserved || this.masterNavigationLease != null))
+                    this.temporaryPageBackground = this.activeMasterWorkspace;
+                else if ("MASTER".equals (underlyingMode) || "MASTER_TEMP".equals (underlyingMode))
+                    this.temporaryPageBackground = this.masterWorkspaces.get (selectedWorkspace);
+                else
+                    this.temporaryPageBackground = selectedWorkspace;
+            }
+            // A new workspace selection owns its page. A still-visible old mode is stale read-back.
+            if (this.temporaryPageWorkspaceRequest != this.selection.requestSequence ())
+                return selectedWorkspace;
+            if (this.masterWorkspaces.containsValue (this.temporaryPageBackground))
+            {
+                if (this.temporaryPageBackground == this.masterDrumRawWorkspace || this.temporaryPageBackground == this.masterDrumLegacyWorkspace)
+                    this.temporaryPageBackground = snapshot.bridge ().layout ().drumLayoutActive () && snapshot.bridge ().layout ().drumControllerEngaged () ? this.masterDrumRawWorkspace : this.masterDrumLegacyWorkspace;
+            }
+            else
+                this.temporaryPageBackground = selectedWorkspace;
+            return this.pageCompositions.select (mode, this.temporaryPageBackground);
+        }
+        this.temporaryPageBackground = null;
         if (this.masterNavigationLease != null)
         {
             if (this.selection.requestSequence () != this.masterNavigationLease.workspaceRequest ())
@@ -437,7 +498,7 @@ final class PullControllerCore implements ControllerCore
     {
         for (final CoreEffect effect: effects)
         {
-            if (effect instanceof final SelectControllerModeEffect mode)
+            if (effect instanceof final SelectControllerModeEffect mode && mode.operation () == SelectControllerModeEffect.Operation.SELECT)
                 this.pendingPageSelection = new PendingPageSelection (mode.layoutGeneration (), this.selection.requestSequence (), mode.modeId ());
         }
     }

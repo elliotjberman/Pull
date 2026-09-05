@@ -28,6 +28,18 @@ import java.util.function.BooleanSupplier;
 /** Stable bounded canopy used by the transactional runtime. */
 interface ControllerBridge
 {
+    /** Test the fixed inert input footprint of a registered page adapter. */
+    default boolean supportsPageInput (final String installedModeId, final ControlId control, final de.mossgrabers.pull.core.api.event.InputKind kind)
+    {
+        return false;
+    }
+
+    /** Test the fixed light footprint of a registered page adapter. */
+    default boolean supportsPageLight (final String installedModeId, final ControlId control)
+    {
+        return false;
+    }
+
     boolean refresh (long monotonicTimeNanos, DesiredBridgeSubscriptions subscriptions, DesiredParameterBanks parameterBanks);
 
     /** Prepare complete exact-parameter touch ownership without side effects. */

@@ -632,7 +632,7 @@ class CoreApiValueTest
         assertEquals (3, new AdjustParameterValueEffect (target, 3).delta ());
         assertEquals (target, new ResetParameterEffect (target).target ());
         assertThrows (UnsupportedOperationException.class, () -> banks.banks ().clear ());
-        assertEquals (9, ParameterBankId.BANK_CAPACITY);
+        assertEquals (17, ParameterBankId.BANK_CAPACITY);
         assertThrows (IllegalArgumentException.class, () -> new ParameterSlot (ParameterBankId.PROJECT_REMOTE, ParameterSlot.BANK_SIZE));
         assertThrows (IllegalArgumentException.class, () -> new ParameterSlot (ParameterBankId.GLOBAL, ParameterSlot.GLOBAL_BANK_SIZE));
         assertThrows (IllegalArgumentException.class, () -> new ParameterTargetSnapshot (target, "", 0, 0, "", -2, 0.5));

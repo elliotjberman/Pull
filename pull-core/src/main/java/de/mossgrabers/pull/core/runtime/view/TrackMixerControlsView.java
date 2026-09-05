@@ -82,6 +82,13 @@ public final class TrackMixerControlsView implements ControllerView
     }
 
     @Override public String id () { return "track-mixer-controls"; }
+    @Override
+    public String installedModeId ()
+    {
+        return "TRACK";
+    }
+
+
     @Override public ViewProfile profile () { return PROFILE; }
     @Override public Set<ControllerActionBinding> actionBindings () { return ACTIONS; }
     @Override public Set<BridgeSubscription> bridgeSubscriptions ()
@@ -92,7 +99,7 @@ public final class TrackMixerControlsView implements ControllerView
     @Override public Map<ControlId, ParameterSlot> parameterBindings () { return PARAMETER_BINDINGS; }
     @Override public Map<ControlId, ParameterSlot> parameterBindings (final ControllerSnapshot snapshot)
     {
-        return this.page.inputOutputSelected () ? Map.of () : createParameterBindings (this.page.sendOffset ());
+        return this.page.inputOutputSelected () ? Map.of () : ParameterAlignment.bindings (snapshot, createParameterBindings (this.page.sendOffset ()));
     }
     @Override public CoreExecutionRequirements executionRequirements () { return new CoreExecutionRequirements (this.sendEnabled.stream ().anyMatch (AuthoritativeBooleanToggle::pending)); }
 
@@ -115,7 +122,7 @@ public final class TrackMixerControlsView implements ControllerView
     public void reconcile (final ControllerSnapshot snapshot)
     {
         // Wait for an aligned named bank before reconciling restored send-page state.
-        if (snapshot.bridge ().parameters ().slots ().containsKey (ParameterSlot.SELECTED_TRACK_VOLUME) && !hasAdditionalSends (snapshot))
+        if (ParameterAlignment.target (snapshot, ParameterSlot.SELECTED_TRACK_VOLUME) != null && !hasAdditionalSends (snapshot))
             this.page.selectSendOffset (0);
         if (this.pageRevision != this.page.revision ())
         {
@@ -123,8 +130,9 @@ public final class TrackMixerControlsView implements ControllerView
             this.pageRevision = this.page.revision ();
         }
         this.touches.reconcile (snapshot);
+        this.touches.retainTargets (ParameterAlignment.references (snapshot));
         for (int index = 0; index < ParameterSlot.BANK_SIZE; index++)
-            if (!snapshot.bridge ().parameters ().slots ().containsKey (ParameterSlot.selectedTrackSend (index)))
+            if (ParameterAlignment.target (snapshot, ParameterSlot.selectedTrackSend (index)) == null)
                 this.sendEnabled.get (index).clear ();
     }
 
@@ -135,8 +143,8 @@ public final class TrackMixerControlsView implements ControllerView
         this.advanceEnabled (snapshot, effects);
         if (!(event instanceof final ControllerInputEvent input))
             return List.copyOf (effects);
-        final ParameterSlot slot = this.parameterBindings (snapshot).get (input.controlId ());
-        final ParameterTargetSnapshot target = slot == null ? null : snapshot.bridge ().parameters ().slots ().get (slot);
+        final ParameterSlot slot = this.page.inputOutputSelected () ? null : createParameterBindings (this.page.sendOffset ()).get (input.controlId ());
+        final ParameterTargetSnapshot target = ParameterAlignment.target (snapshot, slot);
         if (input.kind () == InputKind.RELATIVE)
         {
             if (target != null)
@@ -144,6 +152,8 @@ public final class TrackMixerControlsView implements ControllerView
         }
         else if (input.kind () == InputKind.TOUCH)
         {
+            if (input.phase () == InputPhase.BEGIN && ParameterAlignment.contradicts (snapshot, slot))
+                return List.copyOf (effects);
             final boolean begin = input.phase () == InputPhase.BEGIN && !this.touchSession.contains (input.controlId ());
             effects.addAll (this.touches.handle (input, target, snapshot));
             if (begin && snapshot.pressedControls ().containsAll (Set.of (SHIFT, SELECT)) && slot != null && slot.bank () == ParameterBankId.SELECTED_TRACK_SENDS)
@@ -201,7 +211,7 @@ public final class TrackMixerControlsView implements ControllerView
     {
         for (int index = 0; index < ParameterSlot.BANK_SIZE; index++)
         {
-            final ParameterTargetSnapshot target = snapshot.bridge ().parameters ().slots ().get (ParameterSlot.selectedTrackSend (index));
+            final ParameterTargetSnapshot target = ParameterAlignment.target (snapshot, ParameterSlot.selectedTrackSend (index));
             final AuthoritativeBooleanToggle<ParameterTargetRef> lane = this.sendEnabled.get (index);
             if (target == null || target.enabled ().isEmpty ())
                 lane.clear ();
@@ -212,7 +222,7 @@ public final class TrackMixerControlsView implements ControllerView
 
     static boolean hasAdditionalSends (final ControllerSnapshot snapshot)
     {
-        return snapshot.bridge ().parameters ().slots ().containsKey (ParameterSlot.selectedTrackSend (6));
+        return ParameterAlignment.target (snapshot, ParameterSlot.selectedTrackSend (6)) != null;
     }
 
     private static Map<ControlId, ParameterSlot> createParameterBindings (final int offset)

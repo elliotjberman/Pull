@@ -48,7 +48,7 @@ public final class DrumOctaveView implements ControllerView
     private static final RgbColor OFF = new RgbColor (0, 0, 0);
     private static final List<String> NOTE_NAMES = List.of ("C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B");
     private static final List<Integer> IDENTITY_VELOCITIES = IntStream.range (0, 128).boxed ().toList ();
-    private static final Set<BridgeSubscription> SUBSCRIPTIONS = Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.DRUM_PADS);
+    private static final Set<BridgeSubscription> SUBSCRIPTIONS = Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.DRUM_PADS, BridgeSubscription.CONTROLLER_SETTINGS);
     private static final ViewProfile PROFILE = ViewProfile.fixed (
         "drum",
         Set.of (
@@ -146,7 +146,7 @@ public final class DrumOctaveView implements ControllerView
     /** Complete native mapping contributed by the existing Drum note-lifecycle owner. */
     public static DesiredNoteInputTranslation translation (final ControllerSnapshot snapshot)
     {
-        if (!enabled (snapshot) || snapshot.bridge ().drum ().baseMidiNote () != snapshot.bridge ().layout ().drumBaseMidiNote ())
+        if (!enabled (snapshot) || !snapshot.bridge ().controllerSettings ().available () || snapshot.bridge ().drum ().baseMidiNote () != snapshot.bridge ().layout ().drumBaseMidiNote ())
             return DesiredNoteInputTranslation.silent ();
 
         final int base = snapshot.bridge ().drum ().baseMidiNote ();
@@ -160,7 +160,9 @@ public final class DrumOctaveView implements ControllerView
                     keys.set (DEFAULT_BASE + row * 8 + column, Integer.valueOf (note));
             }
         }
-        return new DesiredNoteInputTranslation (true, keys, IDENTITY_VELOCITIES);
+        final var settings = snapshot.bridge ().controllerSettings ();
+        final List<Integer> velocities = settings.accentEnabled () ? IntStream.range (0, 128).map (velocity -> velocity == 0 ? 0 : settings.accentVelocity ()).boxed ().toList () : IDENTITY_VELOCITIES;
+        return new DesiredNoteInputTranslation (true, keys, velocities);
     }
 
 

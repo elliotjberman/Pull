@@ -51,16 +51,23 @@ In the current baseline:
   `findings/track-scoped-midi-learn-lifecycle.md`;
 - Record, Shift+Record, and Select+Record are core-owned;
 - VS Live selection and fixed-facet composition are core-owned;
-- VS Live page changes are admitted from semantic stable-command actions, not inferred from raw
-  controller-layout mode changes used during selected-track Note-route reconciliation;
-- stable adapters still realize Session grid/scene and Session navigation;
+- page changes follow explicit core intent or frozen legacy semantic actions and later native mode
+  acknowledgement; incidental TRACK reconciliation during Note routing does not select a page;
+- stable adapters still realize Session grid/scene and page buttons; VS arrows and registered native
+  page arrows are core-owned, while full Session over legacy pages declares its frozen arrows;
 - API 45 migrates Project Macro and Master touches/Delete/automation release, Drum octave/native
   maps, and Session/Drum raw touch-strip gestures and output. Exact touch actuators, complete
   translation tables, and generic strip transmission stay stable. These slices passed offline
   package validation; their first live installation/smoke test is pending;
 - the same working API 45 migration adds full normal/VS Track menus, touches, named selected-track
   parameters, the normal current-bank footer, Tap Tempo, and Undo/Redo. Integration validation is
-  passed in the full 685-test package run; these changes have not been installed live;
+  passed in the full 685-test package run at `e3c35508`; these changes have not been installed live;
+- later API 45 slices implement Volume/Pan, generic page composition, four-arrow navigation, global
+  Track/Mix, Metronome/Automation, and Frame/Master entry. The expanded package gate is in progress;
+  no live proof is claimed. Generic inert page registrations replace their old policy classes;
+- new snapshots include complete native mode history/temporary state, current-bank navigation,
+  controller preferences/cursor-send metadata, and native application/Arranger/Mixer UI state.
+  Classified parameter owner/domain/page/index metadata fences independent snapshot publications;
 - drum-grid pressure interpretation and selected-target Note routing policy are core-owned in both
   standalone and composite Drum layouts, while the permanent `NoteInput`, direct-route actuator, and MIDI
   neutralization remain stable;
@@ -78,7 +85,8 @@ In the current baseline:
   arbitration; its generic stable scene interpreter contains no Master layout policy;
 - one generic complete 960x160 base-scene plane projects core output on every Push page. The VS
   Live Project Macro or Track Mixer body and retained Track Selection view compose its fixed
-  960x143 and 960x17 regions; Track/Mix owns active-parameter rendering and relative encoder turns;
+  960x143 and 960x17 regions; Track/Mix owns named selected-track parameters, complete touches,
+  menus, and rendering;
   Track Selection also owns its lower-row actions and authoritative RGB feedback. The deleted
   stable page/selection/light paths do not return on missing core output;
 - a generic sparse 8x8 pad-grid overlay can freeze, temporarily replace, and restore stable pad
@@ -93,9 +101,9 @@ In the current baseline:
   named bounded Bitwig parameter banks, exact actuator leases, identity fencing, effect execution,
   command-driven compatibility-intent adaptation, and compatibility-action dispatch;
 - VS Live project-macro encoder mapping, relative mutation policy, display rendering, and snapback
-  admission are core-owned. Its Track/Mix replacement likewise owns active-parameter rendering and
-  relative turns. Project Macro and Track/Mix touch/Delete and
-  upper-row Track page-menu policy also run in core.
+  admission are core-owned. Its Track/Mix replacement likewise owns named selected-track
+  parameters, touches, rendering, and relative turns. Project Macro and Track/Mix Delete/automation
+  release and upper-row Track page-menu policy also run in core.
 
 Before taking an item, inspect the active branch and in-flight work. This inventory describes
 architectural ownership, not a promise that no adjacent PR has changed the exact files.
@@ -104,6 +112,14 @@ The active implementation inventory and remaining inherited families are tracked
 [`migrations/core-migration-plan.md`](migrations/core-migration-plan.md). Session slot/scene
 observation is implemented, but general launcher release requires the contract decision described
 in [`migrations/session-launcher-location-design.md`](migrations/session-launcher-location-design.md).
+
+The working Core API remains 45, with checkpoint schema 5. Current capability revisions include
+bridge snapshot 13, parameter targets 4, controller output state 3, input routing 7, current-track
+effects 2, controller-mode effects 2, transport effects 4, and new controller-settings/application-UI
+effects 1. `installedModeId` declares an inert registered footprint and never itself requests a
+mode change. The core composes a finite page/background registry and waits for observed native
+mode entry before rendering that page. These mechanisms reduce avoidable shell expansions; they
+do not expose arbitrary Bitwig topology or remove pending inherited families.
 
 ## State and effect primitives
 
@@ -121,9 +137,11 @@ subsequent policy changes inside that installed vertical slice are core-only.
   state.
 - Absolute tempo and arranger position.
 
-Not every existing transport command is immediately a complete migration. Metronome, Automation,
-Tempo, and Play Position combine temporary modes, configuration, notifications, or missing actions.
-The migration guide scopes Play as the safe first transport cut.
+Metronome and Automation now own their global gestures and complete temporary settings pages,
+using unified Automation Write/raw mode/reset primitives, pre-roll and tick settings, and the
+generic page protocol. Native Tap Tempo and Undo/Redo are also migrated. Tempo, Play Position, and
+other remaining controls still need full variant audits; the presence of a transport effect alone
+is not permission to claim their exclusive inputs.
 
 ### Selected track
 
@@ -189,7 +207,8 @@ The generic complete 960x160 base-scene projection is now installed. Master owns
 and the VS Live Project Macro and Track Selection views compose disjoint, containment-checked
 960x143 and 960x17 regions. Add bounded complete semantic ownership for the remaining surfaces:
 
-- touch-strip mode and LEDs;
+- remaining non-raw ribbon configurations and musical touch-strip policies; the raw pitch-bend
+  mode, position LEDs, and release behavior already form a complete core-owned slice;
 - the other USB display pages using the installed scene buffer;
 - transient notifications with explicit lifetime and replacement rules.
 
@@ -202,13 +221,19 @@ rendering.
 
 ### 2. Visible track bank and mixer
 
-API 41 publishes stable identities, names, semantic channel types, generation, offsets, and basic authoritative state for
-the eight tracks in the active bounded Session bank. It executes a bank-wide Stop action and exact
-generation/shape/index/channel-fenced track selection captured at gesture `BEGIN`. VS Live's lower row action, RGB feedback,
-and footer labels/icons now consume that shared window. Its selected-track Mix compatibility bank
-unwraps only mechanical parameter adapters, validates the actual current-bank binding, and fails
-closed unless that bank owner agrees with the private selected cursor by stable channel ID. Extend it with the remaining state and fenced
-effects for activation, arm, mute, solo, volume, pan, and bounded sends.
+API 45 supplies an eight-slot `CurrentTrackBankSnapshot` independently of the Session bank, using
+the two initialized main-bank windows and one effect bank. It observes exact row identities,
+colors, group state and VU, and supports typed exact selection, duplication, removal, arm/expansion,
+selected-group entry, and cursor-parent navigation. A separate navigation generation fences track
+and scene offsets plus project and model-cursor ID/pin/position; primitives cover track/scene step
+or page and cursor swap. The core owns arrow mappings, modifiers, and availability lights.
+
+Normal Track, Volume, and Pan now use this state and the core footer. VS retains its Session-bank
+footer. Named `SELECTED_TRACK`/`SELECTED_TRACK_SENDS` and `TRACK_VOLUME`/`TRACK_PAN` banks keep
+parameter targets independent of physical providers. Current eligibility rechecks the current bank;
+exact old addressability for touch/Snapback cleanup remains separate. Classified parameter metadata
+allows the core to reject a stale rendered row when parameter-only publication has already changed
+owner. General visible-track sends, Crossfade, and related mixer modes remain open slices.
 
 Controller-level Play is now the reference transport migration: its stable command is inert, its
 edge is core-exclusive, and core targets the remembered engine-owning project with one exact
@@ -219,7 +244,7 @@ so a child-core reload or quarantine cannot split or strand the transaction. The
 This unlocks:
 
 - ordinary track selection;
-- Track, Volume, Pan, Send, Crossfade, and related mixer modes;
+- remaining Send, Crossfade, and related mixer modes; Track, Volume, and Pan are already migrated;
 - any future explicitly designed visible-track state controls;
 - authoritative track-strip lights and display output on other pages.
 
@@ -232,15 +257,16 @@ API 41 installs the bounded visible Session bank's track identities/names/types,
 basic track state, generation-fenced bank-wide Stop, exact visible-track Select, and exact visible-track
 Stop. `SessionView` uses it for Shift/Select Stop while plain Stop uses the private authoritative
 selected target. Stop-plus-track captures generation/shape/index/channel at row `BEGIN`, stops that
-track without selecting it, and fails closed if the bank changes before apply. Still add stable clip-slot
-identity and state such as existence, content, name, color, playing, recording, and queued.
+track without selecting it, and fails closed if the bank changes before apply. The optional
+`SESSION_CLIPS` domain now observes the bounded slot/scene window, including existence, content,
+name, color and playback/queue state. That read-back is groundwork, not a launcher cutover.
 
 Add effects for:
 
 - launch and release/stop of a slot;
 - launch of a scene;
 - selecting a slot or scene where required;
-- bounded bank navigation;
+- remaining Session-specific page/navigation actions; generic current-bank arrows are installed;
 - creating a clip if the product behavior requires it.
 
 Completing those slot capabilities unlocks:
@@ -248,35 +274,34 @@ Completing those slot capabilities unlocks:
 - VS Live's upper Session grid and scene keys;
 - migration of the remaining stable-adapter grid/scene portions of ordinary `SessionView`;
 - clip-slot rendering and launch behavior;
-- Session navigation and paging.
+- remaining Session page buttons and grid-dependent navigation.
+
+General Session release has no native completion acknowledgement. The bounded location-actuator
+proposal and required behavioral contract decision remain open in
+[`migrations/session-launcher-location-design.md`](migrations/session-launcher-location-design.md).
+Do not silently weaken release semantics to complete the exclusive grid migration.
 
 The existing drum-fill catalog and actuator lease should eventually become a consumer of a generic
 bounded clip/session capability rather than remain a parallel feature-shaped API.
 
 ### 4. Complete parameter-view migration and output
 
-API 24 installs named bounded parameter snapshots for active compatibility, project remote,
-selected-device remote, visible-track volume/pan, Master/Cue, and globals. Snapshots contain exact target
-identity, name, raw and modulated values, authoritative displayed value, step count, and tolerance;
-stable applies fenced absolute, relative-change, and reset effects. Project-macro relative input is
-the first fully core-owned path.
+Core API 45 installs named active-compatibility, project/device remote, selected-track/send,
+visible-track volume/pan, Master/Cue, and global parameter banks. Snapshots contain opaque actuator
+identity, classified semantic owner/domain/page/index, name/value/display metadata, and optional
+enabled state. Stable applies exact fenced absolute, relative, reset, enabled, and touch operations.
 
-Still add a safe automation-touch lifecycle before moving touch ownership. The Master page now has
-complete display and row-light arbitration, including a core-authored declarative vector scene
-executed by a generic stable interpreter. Complete the same boundary for other parameter pages
-before moving their rendering. Migrate remaining stable parameter modes to
-the named banks and delete the inherited active-window compatibility path when no consumers remain.
+Project Macro, Track, Volume, Pan, and Master now own complete parameter input and feedback. The
+shared touch session preserves Delete/reset ordering, exact release, automation preferences, and
+cross-page END handling. Generic ordered touch acquisition preserves Track send-enabled ordering;
+complete desired leases remain replayable. Cleanup cannot release a replacement target after an
+external mutable-proxy rebind.
 
-This unlocks:
-
-- VS Live project macros;
-- User/project parameter modes;
-- large portions of device and track parameter rendering;
-- removal of core-invisible parameter-provider policy from stable.
-
-The shell owns Bitwig parameter objects and exact actuation. Core owns bank selection, encoder
-mapping, and mutation semantics now; touch semantics and non-Master display layouts remain
-migration work.
+Migrate remaining device/send/other parameter pages against reusable named banks and complete
+inert installed page declarations. Their display scenes already have a generic output transport.
+Delete ACTIVE and remaining physical parameter providers only when all their consumers migrate.
+The shell keeps exact actuation and lifecycle validation; core owns mappings, gestures, menus,
+response curves, copy, geometry, and output policy.
 
 ### 5. Device, chain, and layer banks
 
@@ -325,11 +350,16 @@ This unlocks:
 
 ### 8. Application and browser actions
 
-Add typed, capability-checked effects and authoritative availability state for undo/redo, browser,
-add track/device/effect, duplicate, delete, double, convert, and other application-level actions.
+Undo/Redo and Frame application layout/options are implemented. APPLICATION_UI publishes the
+native panel layout and thirteen Arranger/Mixer flags only while requested; the existing native
+values remain eagerly interested. Exact project/layout contexts fence typed layout selection,
+absolute observed-flag setters, and six unobservable native panel toggles. Core owns option policy
+and later-readback feedback; a toggle submission does not invent visibility.
 
-These are conceptually reloadable mappings, but they cannot move safely while the core can only
-emit transport, selected-track, drum, MIDI, and fill effects.
+Still add bounded browser, add-track/device/effect, duplicate/delete/double/convert, and other
+application capabilities as their complete controls migrate. Existing selected-track/current-bank
+operations cover only their declared target scopes. Generic UI actions are not an arbitrary action
+string or raw callback escape hatch.
 
 ## Stable policy families to retire
 
@@ -356,8 +386,9 @@ pull-shell/src/main/java/de/mossgrabers/controller/ableton/push/mode
 ```
 
 Their parameter interpretation, modifier behavior, display decisions, and button colors belong in
-core. Temporary-mode behavior should become explicit reloadable state rather than an implicit
-stable `ModeManager` side effect.
+core. Migrated temporary-mode policy now uses SELECT/TEMPORARY/RESTORE primitives, full raw
+mode-origin fencing, and later acknowledgement. Registered `CorePageMode` callbacks stay inert;
+remaining modes must migrate through complete page profiles, without adding new page facets.
 
 ### Views
 
@@ -433,8 +464,8 @@ The following are the intended long-term shell:
 
 ### Phase 1: Complete output arbitration
 
-Extend complete light/display ownership to the remaining underlying grid policy, general lights,
-display pages, touch strip, and notification output. The temporary whole-grid overlay transport is
+Extend complete light/display ownership to the remaining underlying grid policy, global controls,
+display pages, non-raw ribbon configuration, and notification output. The temporary whole-grid overlay transport is
 already installed. Each added surface needs explicit hardware smoke tests.
 
 This comes before further ordinary behavior changes because output-only feature work is still
@@ -443,16 +474,15 @@ may land a bounded generic output lane early when it is reusable and completes o
 
 ### Phase 2: Common performance capabilities
 
-Add, in order:
+The common current-bank, exact touch, native-map, raw-strip, generic page, controller-settings,
+and application-UI capabilities are installed in the working API 45 tree. Current package validation
+and live activation remain separate gates. Their shared consumers include Project/Master/Track,
+Volume/Pan, Drum octave/strip, Track/Mix, Metronome/Automation, and Frame/Master entry.
 
-1. visible track bank;
-2. Session grid;
-3. remaining parameter-bank contexts beyond the API 24 named canopy.
-
-Then migrate `WorkspaceMode` and `WorkspaceView` completely. Project-macro and VS Live Track/Mix
-relative turns and display output plus VS Live track selection/feedback have moved; automation touch, ordinary track
-strips, Session grid/scene behavior, navigation, and Drum adapters remain good acceptance targets
-because their product behavior is specified and exercised in VS Live.
+Next complete the Session release contract and grid/scene effects, then remaining parameter-bank
+contexts and their complete pages. `WorkspaceMode` is inert; `WorkspaceView` still carries Session
+grid/scene debt. Do not mark all Drum, Note, or configuration behavior migrated merely because
+current Drum octave/native mapping and pressure/strip slices are core-owned.
 
 ### Phase 3: Complete vertical migrations
 

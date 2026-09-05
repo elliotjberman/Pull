@@ -146,11 +146,11 @@ class TrackMixerControlsViewTest
     {
         final Map<ParameterSlot, ParameterTargetSnapshot> parameters = new LinkedHashMap<> ();
         for (final ParameterSlot slot: List.of (ParameterSlot.SELECTED_TRACK_VOLUME, ParameterSlot.SELECTED_TRACK_PAN))
-            parameters.put (slot, new ParameterTargetSnapshot (target (slot), "Parameter", 512, 512, "64 units", 128, 0));
+            parameters.put (slot, new ParameterTargetSnapshot (target (slot), "Parameter", 512, 512, "64 units", 128, 0, Optional.empty (), new ParameterTargetIdentitySnapshot (slot.index () == 0 ? "channel-volume" : "channel-pan", "track-a", 0, 0)));
         for (int index = 0; index < sends; index++)
         {
             final ParameterSlot slot = ParameterSlot.selectedTrackSend (index);
-            parameters.put (slot, new ParameterTargetSnapshot (target (slot), "Send " + index, 64, 64, "64 units", 128, 0, Optional.of (enabled)));
+            parameters.put (slot, new ParameterTargetSnapshot (target (slot), "Send " + index, 64, 64, "64 units", 128, 0, Optional.of (enabled), new ParameterTargetIdentitySnapshot ("channel-send", "track-a", 0, index)));
         }
         final SelectedTrackSnapshot selected = new SelectedTrackSnapshot (1, "track-a", "Track", 0, "Instrument", true, false, false, true, false, true, false, TrackMonitorMode.AUTO, false, false, false, false, 0.5, 0.5, COLOR);
         final List<CurrentTrackSnapshot> tracks = new ArrayList<> ();

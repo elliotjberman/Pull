@@ -13,6 +13,7 @@ import de.mossgrabers.pull.core.api.InputRouteMode;
 import de.mossgrabers.pull.core.api.ParameterBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ParameterSlot;
 import de.mossgrabers.pull.core.api.ParameterTargetKind;
+import de.mossgrabers.pull.core.api.ParameterTargetIdentitySnapshot;
 import de.mossgrabers.pull.core.api.ParameterTargetRef;
 import de.mossgrabers.pull.core.api.ParameterTargetSnapshot;
 import de.mossgrabers.pull.core.api.PushControlIds;
@@ -145,7 +146,7 @@ class ProjectMacroTouchTest
     private static ControllerSnapshot snapshot (final ParameterTargetRef target, final AutomationSnapshot automation, final boolean touched, final boolean delete)
     {
         final ControllerBridgeSnapshot empty = ControllerBridgeSnapshot.empty ();
-        final ParameterBridgeSnapshot parameters = target == null ? ParameterBridgeSnapshot.empty () : new ParameterBridgeSnapshot (Map.of (ParameterSlot.projectRemote (0), new ParameterTargetSnapshot (target, "Cutoff", 64, 65, "64 units", 128, 0)), Map.of ());
+        final ParameterBridgeSnapshot parameters = target == null ? ParameterBridgeSnapshot.empty () : new ParameterBridgeSnapshot (Map.of (ParameterSlot.projectRemote (0), new ParameterTargetSnapshot (target, "Cutoff", 64, 65, "64 units", 128, 0, Optional.empty (), new ParameterTargetIdentitySnapshot ("project-remote", "project-a", 0, 0))), Map.of ());
         final ControllerBridgeSnapshot bridge = new ControllerBridgeSnapshot (empty.transport (), empty.selectedTrack (), empty.sessionBank (), empty.layout (), empty.noteView (), empty.noteRepeat (), empty.drum (), parameters, empty.controllerMappingFeedback (), empty.master (), empty.project (), automation);
         return new ControllerSnapshot (1, 1, new ShellCapabilities (Map.of ()), bridge, new ClipCatalogSnapshot (0, List.of ()), Map.of (), Map.of (), Optional.empty (), delete ? Set.of (DELETE) : Set.of (), touched ? Set.of (KNOB) : Set.of ());
     }

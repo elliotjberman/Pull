@@ -431,7 +431,7 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
     private static Set<PhysicalInputAddress<ControlId>> coreOwnedInputs ()
     {
         final java.util.LinkedHashSet<PhysicalInputAddress<ControlId>> inputs = new java.util.LinkedHashSet<> ();
-        for (final ButtonID button: List.of (ButtonID.PLAY, ButtonID.RECORD, ButtonID.NOTE, ButtonID.SESSION, ButtonID.LAYOUT, ButtonID.MUTE, ButtonID.SOLO, ButtonID.OCTAVE_DOWN, ButtonID.OCTAVE_UP))
+        for (final ButtonID button: List.of (ButtonID.PLAY, ButtonID.RECORD, ButtonID.NOTE, ButtonID.SESSION, ButtonID.LAYOUT, ButtonID.MUTE, ButtonID.SOLO, ButtonID.OCTAVE_DOWN, ButtonID.OCTAVE_UP, ButtonID.ARROW_LEFT, ButtonID.ARROW_RIGHT, ButtonID.ARROW_UP, ButtonID.ARROW_DOWN))
             inputs.add (new PhysicalInputAddress<> (PushControlIds.button (button.name ()), InputKind.BUTTON));
         for (final ControlId control: CoreControls.DRUM_RATES)
         {
@@ -451,6 +451,11 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
             inputs.add (new PhysicalInputAddress<> (PushControlIds.continuous ("KNOB" + index), InputKind.TOUCH));
         }
         inputs.add (new PhysicalInputAddress<> (PushControlIds.button ("TAP_TEMPO"), InputKind.BUTTON));
+        inputs.add (new PhysicalInputAddress<> (PushControlIds.button ("METRONOME"), InputKind.BUTTON));
+        inputs.add (new PhysicalInputAddress<> (PushControlIds.button ("AUTOMATION"), InputKind.BUTTON));
+        inputs.add (new PhysicalInputAddress<> (PushControlIds.button ("TRACK"), InputKind.BUTTON));
+        inputs.add (new PhysicalInputAddress<> (PushControlIds.button ("MASTERTRACK"), InputKind.BUTTON));
+        inputs.add (new PhysicalInputAddress<> (PushControlIds.button ("ACCENT"), InputKind.BUTTON));
         inputs.add (new PhysicalInputAddress<> (PushControlIds.button ("UNDO"), InputKind.BUTTON));
         inputs.add (new PhysicalInputAddress<> (PushControlIds.continuous ("TOUCHSTRIP"), InputKind.TOUCH));
         inputs.add (new PhysicalInputAddress<> (PushControlIds.continuous ("TOUCHSTRIP"), InputKind.ABSOLUTE));

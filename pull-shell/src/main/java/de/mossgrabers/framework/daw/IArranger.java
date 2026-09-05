@@ -110,4 +110,32 @@ public interface IArranger extends IObserverManagement
      * Toggles the effect tracks visibility.
      */
     void toggleEffectTracks ();
+
+
+    /** Submit an absolute native isClipLauncherVisible value. */
+    void setClipLauncherVisible (boolean enabled);
+
+
+    /** Submit an absolute native isIoSectionVisible value. */
+    void setIoSectionVisible (boolean enabled);
+
+
+    /** Submit an absolute native areCueMarkersVisible value. */
+    void setCueMarkersVisible (boolean enabled);
+
+
+    /** Submit an absolute native isTimelineVisible value. */
+    void setTimelineVisible (boolean enabled);
+
+
+    /** Submit an absolute native areEffectTracksVisible value. */
+    void setEffectTracksVisible (boolean enabled);
+
+
+    /** Submit an absolute native isPlaybackFollowEnabled value. */
+    void setPlaybackFollowEnabled (boolean enabled);
+
+
+    /** Submit an absolute native hasDoubleRowTrackHeight value. */
+    void setDoubleRowTrackHeight (boolean enabled);
 }

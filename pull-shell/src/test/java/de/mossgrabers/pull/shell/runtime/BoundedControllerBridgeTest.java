@@ -97,6 +97,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -157,6 +158,120 @@ class BoundedControllerBridgeTest
         fixture.surface.getModeManager ().setActive (Modes.MASTER);
         fixture.bridge.apply (prepared);
         assertEquals (Modes.MASTER, fixture.surface.getModeManager ().getActiveID ());
+    }
+
+
+    @Test
+    void temporaryModeOperationsPreserveTheOneSlotAndPreviousModeAndWaitForReadback ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        for (final Modes mode: List.of (Modes.TRACK, Modes.DEVICE_PARAMS, Modes.TRANSPORT, Modes.AUTOMATION))
+            fixture.surface.getModeManager ().register (mode, relaxedProxy (IMode.class));
+        fixture.surface.getModeManager ().setActive (Modes.TRACK);
+        fixture.surface.getModeManager ().setActive (Modes.DEVICE_PARAMS);
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.CONTROLLER_LAYOUT), DesiredParameterBanks.empty ());
+        final var base = fixture.bridge.snapshot ().layout ();
+        assertEquals ("DEVICE_PARAMS", base.activeModeId ());
+        assertEquals ("TRACK", base.previousModeId ());
+        assertFalse (base.temporaryMode ());
+        fixture.bridge.apply (fixture.bridge.prepare (new SelectControllerModeEffect (base.generation (), "TRANSPORT", SelectControllerModeEffect.Operation.TEMPORARY)));
+        assertEquals (base, fixture.bridge.snapshot ().layout ());
+        fixture.bridge.refresh (2, subscriptions (BridgeSubscription.CONTROLLER_LAYOUT), DesiredParameterBanks.empty ());
+        final var firstTemporary = fixture.bridge.snapshot ().layout ();
+        assertEquals ("TRANSPORT", firstTemporary.modeId ());
+        assertEquals ("DEVICE_PARAMS", firstTemporary.activeModeId ());
+        assertEquals ("TRACK", firstTemporary.previousModeId ());
+        assertTrue (firstTemporary.temporaryMode ());
+        fixture.bridge.apply (fixture.bridge.prepare (new SelectControllerModeEffect (firstTemporary.generation (), "AUTOMATION", SelectControllerModeEffect.Operation.TEMPORARY)));
+        fixture.bridge.refresh (3, subscriptions (BridgeSubscription.CONTROLLER_LAYOUT), DesiredParameterBanks.empty ());
+        final var secondTemporary = fixture.bridge.snapshot ().layout ();
+        assertEquals ("AUTOMATION", secondTemporary.modeId ());
+        assertEquals ("DEVICE_PARAMS", secondTemporary.activeModeId ());
+        assertEquals ("TRACK", secondTemporary.previousModeId ());
+        fixture.bridge.apply (fixture.bridge.prepare (SelectControllerModeEffect.restore (secondTemporary.generation ())));
+        fixture.bridge.refresh (4, subscriptions (BridgeSubscription.CONTROLLER_LAYOUT), DesiredParameterBanks.empty ());
+        assertEquals ("DEVICE_PARAMS", fixture.bridge.snapshot ().layout ().modeId ());
+        assertFalse (fixture.bridge.snapshot ().layout ().temporaryMode ());
+        fixture.bridge.apply (fixture.bridge.prepare (SelectControllerModeEffect.restore (fixture.bridge.snapshot ().layout ().generation ())));
+        fixture.bridge.refresh (5, subscriptions (BridgeSubscription.CONTROLLER_LAYOUT), DesiredParameterBanks.empty ());
+        assertEquals ("TRACK", fixture.bridge.snapshot ().layout ().modeId ());
+        assertEquals ("TRACK", fixture.bridge.snapshot ().layout ().previousModeId ());
+        fixture.bridge.refresh (6, DesiredBridgeSubscriptions.empty (), DesiredParameterBanks.empty ());
+        assertEquals (de.mossgrabers.pull.core.api.ControllerLayoutSnapshot.empty (), fixture.bridge.snapshot ().layout ());
+    }
+
+
+    @Test
+    void unchangedVisibleModeStillFencesChangesToItsUnderlyingAndPreviousModes ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        for (final Modes mode: List.of (Modes.TRACK, Modes.MASTER, Modes.TRANSPORT, Modes.AUTOMATION))
+            fixture.surface.getModeManager ().register (mode, relaxedProxy (IMode.class));
+        fixture.surface.getModeManager ().setActive (Modes.TRACK);
+        fixture.surface.getModeManager ().setTemporary (Modes.TRANSPORT);
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.CONTROLLER_LAYOUT), DesiredParameterBanks.empty ());
+        final long original = fixture.bridge.snapshot ().layout ().generation ();
+        fixture.surface.getModeManager ().setPreviousID (Modes.MASTER);
+        assertThrows (IllegalArgumentException.class, () -> fixture.bridge.prepare (SelectControllerModeEffect.restore (original)));
+        fixture.bridge.refresh (2, subscriptions (BridgeSubscription.CONTROLLER_LAYOUT), DesiredParameterBanks.empty ());
+        assertEquals (original + 1, fixture.bridge.snapshot ().layout ().generation ());
+        assertEquals ("TRANSPORT", fixture.bridge.snapshot ().layout ().modeId ());
+        final var pending = fixture.bridge.prepare (SelectControllerModeEffect.restore (fixture.bridge.snapshot ().layout ().generation ()));
+        fixture.surface.getModeManager ().setActive (Modes.MASTER);
+        fixture.surface.getModeManager ().setTemporary (Modes.TRANSPORT);
+        fixture.bridge.apply (pending);
+        assertEquals (Modes.TRANSPORT, fixture.surface.getModeManager ().getActiveID ());
+        fixture.bridge.refresh (3, subscriptions (BridgeSubscription.CONTROLLER_LAYOUT), DesiredParameterBanks.empty ());
+        assertEquals (original + 2, fixture.bridge.snapshot ().layout ().generation ());
+        assertEquals ("MASTER", fixture.bridge.snapshot ().layout ().activeModeId ());
+    }
+
+
+    @Test
+    void modeOperationsRecheckInstalledTargetsAndRestoreWithoutHistoryIsANoop ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.surface.getModeManager ().register (Modes.TRACK, relaxedProxy (IMode.class));
+        fixture.surface.getModeManager ().register (Modes.TRANSPORT, relaxedProxy (IMode.class));
+        fixture.surface.getModeManager ().setActive (Modes.TRACK);
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.CONTROLLER_LAYOUT), DesiredParameterBanks.empty ());
+        final long generation = fixture.bridge.snapshot ().layout ().generation ();
+        fixture.bridge.apply (fixture.bridge.prepare (SelectControllerModeEffect.restore (generation)));
+        assertEquals (Modes.TRACK, fixture.surface.getModeManager ().getActiveID ());
+        assertThrows (IllegalArgumentException.class, () -> fixture.bridge.prepare (new SelectControllerModeEffect (generation, "AUTOMATION", SelectControllerModeEffect.Operation.TEMPORARY)));
+        final var pending = fixture.bridge.prepare (new SelectControllerModeEffect (generation, "TRANSPORT", SelectControllerModeEffect.Operation.TEMPORARY));
+        fixture.surface.getModeManager ().register (Modes.TRANSPORT, null);
+        fixture.bridge.apply (pending);
+        assertEquals (Modes.TRACK, fixture.surface.getModeManager ().getActiveID ());
+    }
+
+
+    @Test
+    void onlyRegisteredInertAdaptersDeclareExclusivePageInputsAndLights ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.surface.addGraphicsDisplay (relaxedProxy (de.mossgrabers.framework.controller.display.IGraphicDisplay.class));
+        final var mode = new de.mossgrabers.controller.ableton.push.mode.CorePageMode ("Core page", fixture.surface, relaxedProxy (IModel.class), new ReloadableControllerRuntime (relaxedProxy (com.bitwig.extension.controller.api.ControllerHost.class)));
+        fixture.surface.getModeManager ().register (Modes.TRANSPORT, mode);
+        fixture.surface.getModeManager ().register (Modes.AUTOMATION, relaxedProxy (IMode.class));
+        fixture.surface.getModeManager ().register (Modes.TRACK, relaxedProxy (IMode.class));
+        fixture.surface.getModeManager ().setActive (Modes.TRACK);
+        final var workspace = new de.mossgrabers.pull.core.api.DesiredControllerWorkspace ("Temporary page", Set.of (), de.mossgrabers.pull.core.api.SessionBankShape.empty (), "TRANSPORT");
+        final var host = new de.mossgrabers.controller.ableton.push.workspace.ControllerWorkspaceHost (fixture.surface);
+        assertEquals (workspace, host.prepare (workspace));
+        assertEquals (Modes.TRACK, fixture.surface.getModeManager ().getActiveID (), "footprint declaration must not select the page");
+        for (int index = 1; index <= 8; index++)
+        {
+            assertTrue (fixture.bridge.supportsPageInput ("TRANSPORT", PushControlIds.continuous ("KNOB" + index), de.mossgrabers.pull.core.api.event.InputKind.TOUCH));
+            assertTrue (fixture.bridge.supportsPageInput ("TRANSPORT", PushControlIds.continuous ("KNOB" + index), de.mossgrabers.pull.core.api.event.InputKind.RELATIVE));
+            assertTrue (fixture.bridge.supportsPageInput ("TRANSPORT", PushControlIds.button ("ROW1_" + index), de.mossgrabers.pull.core.api.event.InputKind.BUTTON));
+            assertTrue (fixture.bridge.supportsPageLight ("TRANSPORT", PushControlIds.button ("ROW2_" + index)));
+        }
+        assertFalse (fixture.bridge.supportsPageInput ("AUTOMATION", PushControlIds.continuous ("KNOB8"), de.mossgrabers.pull.core.api.event.InputKind.TOUCH));
+        assertFalse (fixture.bridge.supportsPageInput ("unknown", PushControlIds.continuous ("KNOB8"), de.mossgrabers.pull.core.api.event.InputKind.RELATIVE));
+        assertFalse (fixture.bridge.supportsPageInput ("TRANSPORT", PushControlIds.pad (1), de.mossgrabers.pull.core.api.event.InputKind.PAD));
+        assertFalse (fixture.bridge.supportsPageLight ("TRANSPORT", PushControlIds.button ("PLAY")));
+        assertThrows (IllegalArgumentException.class, () -> host.prepare (new de.mossgrabers.pull.core.api.DesiredControllerWorkspace ("Legacy", Set.of (), de.mossgrabers.pull.core.api.SessionBankShape.empty (), "AUTOMATION")));
     }
 
 
@@ -696,6 +811,32 @@ class BoundedControllerBridgeTest
 
 
     @Test
+    void immediateParameterReconciliationCarriesIdentityWhenTheCurrentBankSnapshotIsOlder ()
+    {
+        final MutableMixWindow window = new MutableMixWindow ();
+        final BridgeFixture fixture = new BridgeFixture (true, window);
+        final DesiredParameterBanks banks = new DesiredParameterBanks (Set.of (ParameterBankId.TRACK_VOLUME));
+        final DesiredBridgeSubscriptions requested = subscriptions (BridgeSubscription.CURRENT_TRACK_BANK, BridgeSubscription.PARAMETERS);
+        fixture.bridge.refresh (1, requested, banks);
+        final var before = fixture.bridge.snapshot ();
+        assertEquals ("a-0", before.currentTrackBank ().tracks ().getFirst ().track ().channelId ());
+        assertEquals ("a-0", before.parameters ().slots ().get (ParameterSlot.trackVolume (0)).identity ().ownerId ());
+
+        window.prefix = "b";
+        assertTrue (fixture.bridge.applyParameterLeases (Map.of (), banks));
+        final var betweenSamples = fixture.bridge.snapshot ();
+        assertEquals (before.currentTrackBank (), betweenSamples.currentTrackBank ());
+        assertEquals ("b-0", betweenSamples.parameters ().slots ().get (ParameterSlot.trackVolume (0)).identity ().ownerId ());
+        assertEquals ("channel-volume", betweenSamples.parameters ().slots ().get (ParameterSlot.trackVolume (0)).identity ().domain ());
+        assertNotEquals (betweenSamples.currentTrackBank ().tracks ().getFirst ().track ().channelId (), betweenSamples.parameters ().slots ().get (ParameterSlot.trackVolume (0)).identity ().ownerId (), "the core must be able to reject this mixed-epoch pairing");
+
+        fixture.bridge.refresh (2, requested, banks);
+        final var after = fixture.bridge.snapshot ();
+        assertEquals (after.currentTrackBank ().tracks ().getFirst ().track ().channelId (), after.parameters ().slots ().get (ParameterSlot.trackVolume (0)).identity ().ownerId ());
+    }
+
+
+    @Test
     void rejectsPreparedSelectedTrackActionAfterTargetHandoff ()
     {
         final BridgeFixture fixture = new BridgeFixture ();
@@ -896,6 +1037,34 @@ class BoundedControllerBridgeTest
     }
 
 
+    @Test
+    void applicationUiIsRequestedReadbackAndSurvivesParameterOnlyPublication ()
+    {
+        final BridgeFixture fixture = new BridgeFixture (true, new MutableMixWindow ());
+        fixture.bridge.refresh (1, DesiredBridgeSubscriptions.empty (), DesiredParameterBanks.empty ());
+        assertEquals (de.mossgrabers.pull.core.api.ApplicationUiSnapshot.empty (), fixture.bridge.snapshot ().applicationUi ());
+        final var requested = new DesiredBridgeSubscriptions (Set.of (BridgeSubscription.APPLICATION_UI, BridgeSubscription.PARAMETERS));
+        fixture.bridge.refresh (2, requested, DesiredParameterBanks.empty ());
+        final var first = fixture.bridge.snapshot ().applicationUi ();
+        assertTrue (first.available ());
+        assertEquals ("ARRANGE", first.panelLayout ());
+        final var layout = fixture.bridge.prepare (new de.mossgrabers.pull.core.api.effect.SetApplicationLayoutEffect (first.context (), de.mossgrabers.pull.core.api.effect.SetApplicationLayoutEffect.Layout.MIX));
+        fixture.bridge.apply (layout);
+        assertEquals (List.of ("MIX"), fixture.application.panelRequests);
+        fixture.bridge.refresh (3, requested, DesiredParameterBanks.empty ());
+        assertEquals (first, fixture.bridge.snapshot ().applicationUi ());
+        fixture.application.panelLayout = "MIX";
+        fixture.bridge.refresh (4, requested, DesiredParameterBanks.empty ());
+        final var observed = fixture.bridge.snapshot ().applicationUi ();
+        assertEquals ("MIX", observed.panelLayout ());
+        assertTrue (fixture.bridge.applyParameterLeases (Map.of (), new DesiredParameterBanks (Set.of (ParameterBankId.TRACK_VOLUME))));
+        assertEquals (observed, fixture.bridge.snapshot ().applicationUi ());
+        fixture.bridge.refresh (5, DesiredBridgeSubscriptions.empty (), DesiredParameterBanks.empty ());
+        assertEquals (de.mossgrabers.pull.core.api.ApplicationUiSnapshot.empty (), fixture.bridge.snapshot ().applicationUi ());
+        assertThrows (IllegalArgumentException.class, () -> fixture.bridge.prepare (new de.mossgrabers.pull.core.api.effect.ToggleApplicationPanelEffect (observed.context (), de.mossgrabers.pull.core.api.effect.ToggleApplicationPanelEffect.Panel.MIXER)));
+    }
+
+
     private static final class BridgeFixture
     {
         private final MutableSelectedTarget selected = new MutableSelectedTarget ();
@@ -926,6 +1095,12 @@ class BoundedControllerBridgeTest
 
         private BridgeFixture (final boolean manualRepeatActive)
         {
+            this (manualRepeatActive, null);
+        }
+
+
+        private BridgeFixture (final boolean manualRepeatActive, final MutableMixWindow mixWindow)
+        {
             this.noteRepeat = new MutableNoteRepeat (manualRepeatActive);
             final ITransport transportProxy = this.transport.proxy ();
             final ICursorTrack cursorTrack = this.drum.cursorTrack ();
@@ -937,7 +1112,10 @@ class BoundedControllerBridgeTest
                     this.notifications.add ((String) arguments[0]);
                 return relaxedValue (method.getReturnType ());
             });
-            final ITrackBank fullBank = relaxedProxy (ITrackBank.class);
+            final IApplication applicationProxy = this.application.proxy ();
+            final de.mossgrabers.framework.daw.IArranger arrangerProxy = relaxedProxy (de.mossgrabers.framework.daw.IArranger.class);
+            final de.mossgrabers.framework.daw.IMixer mixerProxy = relaxedProxy (de.mossgrabers.framework.daw.IMixer.class);
+            final ITrackBank fullBank = mixWindow == null ? relaxedProxy (ITrackBank.class) : mixWindow.bank;
             final ITrackBank upperBank = relaxedProxy (ITrackBank.class);
             final ITrackBank effectBank = relaxedProxy (ITrackBank.class);
             final IModel model = proxy (IModel.class, (proxy, method, arguments) -> switch (method.getName ())
@@ -952,7 +1130,9 @@ class BoundedControllerBridgeTest
                 case "getScales" -> scales;
                 case "getValueChanger" -> this.valueChanger;
                 case "getProject" -> this.project.proxy ();
-                case "getApplication" -> this.application.proxy ();
+                case "getApplication" -> applicationProxy;
+                case "getArranger" -> arrangerProxy;
+                case "getMixer" -> mixerProxy;
                 case "getMasterTrack" -> this.masterTrack ();
                 case "createNoteClip" -> {
                     this.newClipCount++;
@@ -1037,6 +1217,46 @@ class BoundedControllerBridgeTest
     }
 
 
+    private static final class MutableMixWindow
+    {
+        private String prefix = "a";
+        private final ITrackBank bank;
+
+        private MutableMixWindow ()
+        {
+            final List<ITrack> tracks = new ArrayList<> ();
+            for (int index = 0; index < 8; index++)
+            {
+                final int slot = index;
+                final de.mossgrabers.framework.parameter.IParameter volume = proxy (de.mossgrabers.framework.parameter.IParameter.class, (proxy, method, args) -> switch (method.getName ())
+                {
+                    case "doesExist" -> true;
+                    case "getName" -> "Volume";
+                    case "getValue", "getModulatedValue" -> 64;
+                    case "getDisplayedValue" -> "-6.0 dB";
+                    default -> relaxedValue (method.getReturnType ());
+                });
+                tracks.add (proxy (ITrack.class, (proxy, method, args) -> switch (method.getName ())
+                {
+                    case "doesExist", "isActivated" -> true;
+                    case "getPosition" -> slot;
+                    case "getChannelID" -> this.prefix + "-" + slot;
+                    case "getName" -> "Track " + slot;
+                    case "getVolumeParameter" -> volume;
+                    case "getColor" -> ColorEx.GRAY;
+                    default -> relaxedValue (method.getReturnType ());
+                }));
+            }
+            this.bank = proxy (ITrackBank.class, (proxy, method, args) -> switch (method.getName ())
+            {
+                case "getPageSize" -> 8;
+                case "getItem" -> tracks.get ((Integer) args[0]);
+                default -> relaxedValue (method.getReturnType ());
+            });
+        }
+    }
+
+
     private static final class MutableMappingStorage
     {
         private String documentId = "document-a";
@@ -1099,6 +1319,8 @@ class BoundedControllerBridgeTest
 
     private static final class MutableApplication
     {
+        private String panelLayout = "ARRANGE";
+        private final List<String> panelRequests = new ArrayList<> ();
         private boolean engineActive;
         private boolean canUndo;
         private boolean canRedo;
@@ -1110,6 +1332,8 @@ class BoundedControllerBridgeTest
         {
             return BoundedControllerBridgeTest.proxy (IApplication.class, (proxy, method, arguments) -> switch (method.getName ())
             {
+                case "getPanelLayout" -> this.panelLayout;
+                case "setPanelLayout" -> { this.panelRequests.add ((String) arguments[0]); yield null; }
                 case "isEngineActive" -> Boolean.valueOf (this.engineActive);
                 case "canUndo" -> Boolean.valueOf (this.canUndo);
                 case "canRedo" -> Boolean.valueOf (this.canRedo);

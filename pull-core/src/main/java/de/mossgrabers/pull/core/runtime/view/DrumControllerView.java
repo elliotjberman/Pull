@@ -60,7 +60,7 @@ public final class DrumControllerView implements ControllerView
     public Set<BridgeSubscription> bridgeSubscriptions ()
     {
         final Set<BridgeSubscription> subscriptions = new LinkedHashSet<> (this.fillView.bridgeSubscriptions ());
-        subscriptions.addAll (Set.of (BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.SELECTED_TRACK, BridgeSubscription.NOTE_VIEW, BridgeSubscription.DRUM_PADS));
+        subscriptions.addAll (Set.of (BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.SELECTED_TRACK, BridgeSubscription.NOTE_VIEW, BridgeSubscription.DRUM_PADS, BridgeSubscription.CONTROLLER_SETTINGS));
         return Set.copyOf (subscriptions);
     }
 

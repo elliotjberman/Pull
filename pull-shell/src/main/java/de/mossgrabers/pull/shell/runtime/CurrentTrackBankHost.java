@@ -7,6 +7,9 @@ import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.ICursorTrack;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
+import de.mossgrabers.framework.daw.data.bank.ISceneBank;
+import de.mossgrabers.framework.daw.data.bank.IBank;
+import de.mossgrabers.pull.core.api.BankNavigationSnapshot;
 import de.mossgrabers.pull.core.api.CurrentTrackBankSnapshot;
 import de.mossgrabers.pull.core.api.CurrentTrackSnapshot;
 import de.mossgrabers.pull.core.api.CurrentTrackTarget;
@@ -14,6 +17,7 @@ import de.mossgrabers.pull.core.api.SessionTrackSnapshot;
 import de.mossgrabers.pull.core.api.effect.CurrentTrackActionEffect;
 import de.mossgrabers.pull.core.api.effect.NavigateTrackParentEffect;
 import de.mossgrabers.pull.core.api.effect.SetCurrentTrackBooleanEffect;
+import de.mossgrabers.pull.core.api.effect.CurrentTrackNavigationEffect;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -36,6 +40,8 @@ final class CurrentTrackBankHost
     private ParentIdentity parentIdentity;
     private long generation;
     private long parentGeneration;
+    private NavigationIdentity navigationIdentity;
+    private long navigationGeneration;
 
     CurrentTrackBankHost (final IModel model, final Collection<ITrackBank> mainBanks)
     {
@@ -59,6 +65,7 @@ final class CurrentTrackBankHost
     {
         final Window current = this.window (this.model.getCurrentTrackBank ());
         final ParentIdentity parent = this.parent ();
+        final NavigationIdentity navigation = this.navigation (current);
         if (!Objects.equals (current, this.identity))
         {
             this.identity = current;
@@ -68,6 +75,11 @@ final class CurrentTrackBankHost
         {
             this.parentIdentity = parent;
             this.parentGeneration++;
+        }
+        if (!Objects.equals (navigation, this.navigationIdentity))
+        {
+            this.navigationIdentity = navigation;
+            this.navigationGeneration++;
         }
         final CurrentTrackBankSnapshot next = current == null ? CurrentTrackBankSnapshot.empty () : this.capture (current, parent);
         final boolean changed = !next.equals (this.snapshot);
@@ -101,6 +113,54 @@ final class CurrentTrackBankHost
         if (!this.snapshot.parentAvailable () || effect.parentGeneration () != this.snapshot.parentGeneration () || !effect.cursorChannelId ().equals (this.snapshot.cursorChannelId ()))
             throw new IllegalArgumentException ("main parent navigation target is stale");
         return new PreparedParent (effect);
+    }
+
+    PreparedNavigation prepare (final CurrentTrackNavigationEffect effect)
+    {
+        final ITrackBank bank = this.model.getCurrentTrackBank ();
+        final NavigationIdentity live = this.navigation (this.window (bank));
+        if (effect.navigationGeneration () != this.snapshot.navigationGeneration () || !effect.bankId ().equals (this.snapshot.bankId ()) || live == null || !live.equals (this.navigationIdentity))
+            throw new IllegalArgumentException ("current-bank navigation origin is stale");
+        final ISceneBank scenes = bank.getSceneBank ();
+        final ICursorTrack cursor = this.model.getCursorTrack ();
+        switch (effect.operation ())
+        {
+            case SCENE_SCROLL_PREVIOUS, SCENE_SCROLL_NEXT, SCENE_PAGE_PREVIOUS, SCENE_PAGE_NEXT ->
+            {
+                if (scenes == null)
+                    throw new IllegalArgumentException ("current scene bank is unavailable");
+            }
+            case CURSOR_SWAP_PREVIOUS, CURSOR_SWAP_NEXT ->
+            {
+                if (cursor == null || !cursor.doesExist () || live.cursorId ().isBlank ())
+                    throw new IllegalArgumentException ("model cursor is unavailable");
+            }
+            default -> { }
+        }
+        return new PreparedNavigation (effect, live, bank, scenes, cursor);
+    }
+
+    void apply (final PreparedNavigation prepared)
+    {
+        final CurrentTrackNavigationEffect effect = prepared.effect ();
+        final ITrackBank bank = this.model.getCurrentTrackBank ();
+        if (effect.navigationGeneration () != this.navigationGeneration || bank != prepared.bank () || !prepared.origin ().equals (this.navigation (this.window (bank))))
+            return;
+        final ISceneBank scenes = bank.getSceneBank ();
+        final ICursorTrack cursor = this.model.getCursorTrack ();
+        switch (effect.operation ())
+        {
+            case TRACK_SCROLL_PREVIOUS -> bank.scrollBackwards ();
+            case TRACK_SCROLL_NEXT -> bank.scrollForwards ();
+            case TRACK_PAGE_PREVIOUS -> bank.selectPreviousPage ();
+            case TRACK_PAGE_NEXT -> bank.selectNextPage ();
+            case SCENE_SCROLL_PREVIOUS -> { if (scenes == prepared.scenes ()) scenes.scrollBackwards (); }
+            case SCENE_SCROLL_NEXT -> { if (scenes == prepared.scenes ()) scenes.scrollForwards (); }
+            case SCENE_PAGE_PREVIOUS -> { if (scenes == prepared.scenes ()) scenes.selectPreviousPage (); }
+            case SCENE_PAGE_NEXT -> { if (scenes == prepared.scenes ()) scenes.selectNextPage (); }
+            case CURSOR_SWAP_PREVIOUS -> { if (cursor == prepared.cursor ()) cursor.swapWithPrevious (); }
+            case CURSOR_SWAP_NEXT -> { if (cursor == prepared.cursor ()) cursor.swapWithNext (); }
+        }
     }
 
     void apply (final PreparedTrackAction action)
@@ -184,7 +244,8 @@ final class CurrentTrackBankHost
                 tracks.add (new CurrentTrackSnapshot (new SessionTrackSnapshot (track.getChannelID (), track.getPosition (), track.getName (128), true, track.isSelected (), track.isActivated (), track.isRecArm (), track.isMute (), track.isSolo (), track.isPlaying (), SessionBankHost.toTrackType (track.getType ()), SessionBankHost.toRgb (track.getColor ())), track.isGroupExpanded (), clamp (track.getVuLeft () / maximum), clamp (track.getVuRight () / maximum)));
         }
         final ICursorTrack cursor = this.model.getCursorTrack ();
-        return new CurrentTrackBankSnapshot (this.generation, current.bankId (), current.offset (), tracks, cursor.doesExist () ? cursor.getChannelID () : "", cursor.isPinned (), this.parentGeneration, parent != null && parent.available ());
+        final ISceneBank scenes = bank.getSceneBank ();
+        return new CurrentTrackBankSnapshot (this.generation, current.bankId (), current.offset (), tracks, cursor.doesExist () ? cursor.getChannelID () : "", cursor.isPinned (), this.parentGeneration, parent != null && parent.available (), navigationSnapshot (bank), navigationSnapshot (scenes), scenes == null ? 0 : Math.max (0, scenes.getScrollPosition ()), this.navigationGeneration);
     }
 
     private Window window (final ITrackBank bank)
@@ -210,6 +271,22 @@ final class CurrentTrackBankHost
         return main == null ? null : new ParentIdentity (main, cursor.getChannelID (), cursor.isPinned (), cursor.hasParent ());
     }
 
+    private NavigationIdentity navigation (final Window current)
+    {
+        if (current == null)
+            return null;
+        final ISceneBank scenes = this.model.getCurrentTrackBank ().getSceneBank ();
+        final ICursorTrack cursor = this.model.getCursorTrack ();
+        final boolean cursorExists = cursor != null && cursor.doesExist ();
+        final var project = this.model.getProject ();
+        return new NavigationIdentity (current, scenes == null ? 0 : Math.max (0, scenes.getScrollPosition ()), project == null ? "" : Objects.requireNonNullElse (project.getIdentity (), ""), cursorExists ? Objects.requireNonNullElse (cursor.getChannelID (), "") : "", cursorExists && cursor.isPinned (), cursorExists ? cursor.getPosition () : -1);
+    }
+
+    private static BankNavigationSnapshot navigationSnapshot (final IBank<?> bank)
+    {
+        return bank == null ? BankNavigationSnapshot.empty () : new BankNavigationSnapshot (Math.max (0, bank.getItemCount ()), bank.canScrollBackwards (), bank.canScrollForwards (), bank.canScrollPageBackwards (), bank.canScrollPageForwards ());
+    }
+
     private static boolean isGroup (final CurrentTrackSnapshot track)
     {
         return track.track ().type () == de.mossgrabers.pull.core.api.SessionTrackType.GROUP || track.track ().type () == de.mossgrabers.pull.core.api.SessionTrackType.GROUP_OPEN;
@@ -223,7 +300,9 @@ final class CurrentTrackBankHost
     private record SlotIdentity (String channelId, int position) { }
     private record Window (String bankId, int offset, List<SlotIdentity> slots) { }
     private record ParentIdentity (Window mainWindow, String cursorId, boolean pinned, boolean available) { }
+    private record NavigationIdentity (Window currentWindow, int sceneOffset, String projectId, String cursorId, boolean cursorPinned, int cursorPosition) { }
     record PreparedTrackAction (CurrentTrackActionEffect effect) implements ControllerBridge.PreparedAction { }
     record PreparedBoolean (SetCurrentTrackBooleanEffect effect) implements ControllerBridge.PreparedAction { }
     record PreparedParent (NavigateTrackParentEffect effect) implements ControllerBridge.PreparedAction { }
+    record PreparedNavigation (CurrentTrackNavigationEffect effect, NavigationIdentity origin, ITrackBank bank, ISceneBank scenes, ICursorTrack cursor) implements ControllerBridge.PreparedAction { }
 }

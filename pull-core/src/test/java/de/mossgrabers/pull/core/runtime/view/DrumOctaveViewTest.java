@@ -326,6 +326,26 @@ class DrumOctaveViewTest
     }
 
 
+    @Test
+    void observedAccentChangesDesiredVelocityButWaitsForAppliedNativeMap ()
+    {
+        final Fixture fixture = new Fixture ("DRUM_PAD");
+        assertTrue (DrumOctaveView.mappingApplied (fixture.snapshot ()));
+        fixture.accent = true;
+        fixture.accentVelocity = 73;
+        final var desired = DrumOctaveView.translation (fixture.snapshot ());
+        assertEquals (0, desired.velocityTranslation ().get (0));
+        for (int velocity = 1; velocity < 128; velocity++) assertEquals (73, desired.velocityTranslation ().get (velocity));
+        assertFalse (DrumOctaveView.mappingApplied (fixture.snapshot ()), "configuration read-back is not native-map application");
+        fixture.applyNativeTranslation ();
+        assertTrue (DrumOctaveView.mappingApplied (fixture.snapshot ()));
+        fixture.accent = false;
+        assertEquals (64, DrumOctaveView.translation (fixture.snapshot ()).velocityTranslation ().get (64));
+        assertFalse (DrumOctaveView.mappingApplied (fixture.snapshot ()));
+        fixture.settingsAvailable = false;
+        assertEquals (DesiredNoteInputTranslation.silent (), DrumOctaveView.translation (fixture.snapshot ()));
+    }
+
     private static final class Fixture
     {
         private DrumOctaveView view = new DrumOctaveView ();
@@ -340,6 +360,9 @@ class DrumOctaveViewTest
         private String deviceId = "drum-a";
         private boolean layoutActive = true;
         private String mismatch = "";
+        private boolean accent;
+        private int accentVelocity = 127;
+        private boolean settingsAvailable = true;
         private GridPressureConfiguration pressure = GridPressureConfiguration.OFF;
         private DesiredNoteInputTranslation applied = DesiredNoteInputTranslation.unowned ();
 
@@ -411,7 +434,7 @@ class DrumOctaveViewTest
             final NoteViewSnapshot note = new NoteViewSnapshot ("note-generation".equals (this.mismatch) ? 2 : 1, "note-target".equals (this.mismatch) ? "other-track" : this.targetId, "note-position".equals (this.mismatch) ? 1 : 0, ControllerNoteView.DRUM_PAD, !"no-drum".equals (this.mismatch));
             final DrumPadSnapshot firstPad = new DrumPadSnapshot (0, this.observedBase, "pad-a", true, "Kick", ON, true, true, false, false, false, 0.5, 0.5, 0);
             final DrumContextSnapshot drum = new DrumContextSnapshot (this.drumGeneration, "drum-generation".equals (this.mismatch) ? 2 : 1, "drum-target".equals (this.mismatch) ? "other-track" : this.targetId, this.deviceId, true, !"model".equals (this.mismatch), this.observedBase, List.of (firstPad));
-            final ControllerBridgeSnapshot bridge = new ControllerBridgeSnapshot (TransportSnapshot.empty (), selected, layoutState, note, NoteRepeatSnapshot.empty (), drum, ParameterBridgeSnapshot.empty (), MasterSnapshot.empty (), ProjectSnapshot.empty ());
+            final ControllerBridgeSnapshot bridge = new ControllerBridgeSnapshot (TransportSnapshot.empty (), selected, de.mossgrabers.pull.core.api.SessionBankSnapshot.empty (), layoutState, note, NoteRepeatSnapshot.empty (), drum, ParameterBridgeSnapshot.empty (), de.mossgrabers.pull.core.api.ControllerMappingFeedbackSnapshot.empty (), MasterSnapshot.empty (), ProjectSnapshot.empty (), de.mossgrabers.pull.core.api.AutomationSnapshot.empty (), de.mossgrabers.pull.core.api.EncoderConfigurationSnapshot.empty (), de.mossgrabers.pull.core.api.CurrentTrackBankSnapshot.empty (), de.mossgrabers.pull.core.api.TransportSettingsSnapshot.empty (), this.settingsAvailable ? new de.mossgrabers.pull.core.api.ControllerSettingsSnapshot (true, false, "VOLUME", 0, de.mossgrabers.pull.core.api.CursorSendBankSnapshot.empty (), this.accent, this.accentVelocity) : de.mossgrabers.pull.core.api.ControllerSettingsSnapshot.empty ());
             return new ControllerSnapshot (this.sequence, this.sequence, ShellCapabilities.empty (), bridge, ClipCatalogSnapshot.empty (), Map.of (), Map.of (), java.util.Optional.empty (), this.pressed, Set.of ());
         }
     }

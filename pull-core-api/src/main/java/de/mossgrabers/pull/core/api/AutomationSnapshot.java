@@ -7,7 +7,7 @@ import java.util.Objects;
 
 
 /** Current project's unified Automation Write state and the user's touch-release preference. */
-public record AutomationSnapshot (String projectIdentity, boolean writingEnabled, boolean stopOnTouchRelease)
+public record AutomationSnapshot (String projectIdentity, boolean writingEnabled, boolean stopOnTouchRelease, AutomationWriteMode mode)
 {
     private static final AutomationSnapshot EMPTY = new AutomationSnapshot ("", false, false);
 
@@ -15,8 +15,15 @@ public record AutomationSnapshot (String projectIdentity, boolean writingEnabled
     public AutomationSnapshot
     {
         projectIdentity = Objects.requireNonNull (projectIdentity, "projectIdentity");
-        if (projectIdentity.isBlank () && (writingEnabled || stopOnTouchRelease))
+        mode = Objects.requireNonNull (mode, "mode");
+        if (projectIdentity.isBlank () && (writingEnabled || stopOnTouchRelease || mode != AutomationWriteMode.UNKNOWN))
             throw new IllegalArgumentException ("unavailable automation state must be empty");
+    }
+
+
+    public AutomationSnapshot (final String projectIdentity, final boolean writingEnabled, final boolean stopOnTouchRelease)
+    {
+        this (projectIdentity, writingEnabled, stopOnTouchRelease, AutomationWriteMode.UNKNOWN);
     }
 
 

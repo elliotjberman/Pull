@@ -12,13 +12,22 @@ package de.mossgrabers.pull.core.api;
  */
 public enum BridgeSubscription
 {
+    /** Native application panel layout and Arranger/Mixer options. */
+    APPLICATION_UI,
+
     /** Common transport state, including rate-limited playback position. */
     TRANSPORT,
+
+    /** Project metronome tick and pre-roll settings. */
+    TRANSPORT_SETTINGS,
 
     /** Unified Automation Write read-back and touch-release preference. */
     AUTOMATION,
     /** Raw encoder calibration and user sensitivity preferences. */
     ENCODER_CONFIGURATION,
+
+    /** Controller preferences and the existing model-cursor send metadata window. */
+    CONTROLLER_SETTINGS,
 
     /** State of the private selection-following track target. */
     SELECTED_TRACK,

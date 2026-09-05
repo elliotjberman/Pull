@@ -72,6 +72,13 @@ public final class ProjectMacroControlsView implements ControllerView
 
     /** {@inheritDoc} */
     @Override
+    public String installedModeId ()
+    {
+        return "WORKSPACE";
+    }
+
+
+    @Override
     public ViewProfile profile ()
     {
         return PROFILE;
@@ -83,6 +90,13 @@ public final class ProjectMacroControlsView implements ControllerView
     public Map<ControlId, ParameterSlot> parameterBindings ()
     {
         return PARAMETER_BINDINGS;
+    }
+
+
+    @Override
+    public Map<ControlId, ParameterSlot> parameterBindings (final ControllerSnapshot snapshot)
+    {
+        return ParameterAlignment.bindings (snapshot, PARAMETER_BINDINGS);
     }
 
 
@@ -113,6 +127,7 @@ public final class ProjectMacroControlsView implements ControllerView
     public void reconcile (final ControllerSnapshot snapshot)
     {
         this.touches.reconcile (snapshot);
+        this.touches.retainTargets (ParameterAlignment.references (snapshot));
     }
 
 
@@ -124,7 +139,9 @@ public final class ProjectMacroControlsView implements ControllerView
         final ParameterSlot slot = PARAMETER_BINDINGS.get (input.controlId ());
         if (slot == null)
             return List.of ();
-        final ParameterTargetSnapshot target = snapshot.bridge ().parameters ().slots ().get (slot);
+        final ParameterTargetSnapshot target = ParameterAlignment.target (snapshot, slot);
+        if (input.kind () == InputKind.TOUCH && input.phase () == de.mossgrabers.pull.core.api.event.InputPhase.BEGIN && ParameterAlignment.contradicts (snapshot, slot))
+            return List.of ();
         if (input.kind () == InputKind.RELATIVE)
             return target == null ? List.of () : List.of (new AdjustParameterValueEffect (target.target (), input.value () * PARAMETER_STEP_SIZE));
         if (input.kind () != InputKind.TOUCH)
@@ -140,7 +157,7 @@ public final class ProjectMacroControlsView implements ControllerView
         return new ViewOutput (
             Map.of (),
             Map.of (),
-            ProjectMacroDisplayScene.render (snapshot.bridge ().parameters ().slots (), snapshot.touchedControls ()),
+            ProjectMacroDisplayScene.render (ParameterAlignment.targets (snapshot), snapshot.touchedControls ()),
             ControllerPadGridOverlay.inactive (),
             ControllerDisplayOverlay.inactive (),
             DesiredNotePerformance.inactive (),

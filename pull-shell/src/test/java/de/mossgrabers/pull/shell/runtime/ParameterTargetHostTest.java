@@ -6,7 +6,7 @@ package de.mossgrabers.pull.shell.runtime;
 import de.mossgrabers.controller.ableton.push.PushConfiguration;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
-import de.mossgrabers.controller.ableton.push.parameterprovider.PushVolumeParameter;
+import de.mossgrabers.framework.parameter.AbstractParameterWrapper;
 import de.mossgrabers.framework.controller.ContinuousID;
 import de.mossgrabers.framework.controller.hardware.IHwButton;
 import de.mossgrabers.framework.controller.hardware.IHwLight;
@@ -166,6 +166,38 @@ class ParameterTargetHostTest
 
 
     @Test
+    void metronomeVolumeIsIndependentOfActiveModeBindingsAndFencedToProject ()
+    {
+        final MutableParameter volume = new MutableParameter (64);
+        final IParameter parameter = volume.proxy ();
+        final AtomicReference<String> identity = new AtomicReference<> ("project-a");
+        final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
+        final ITransport transport = proxy (ITransport.class, (proxy, method, arguments) -> "getMetronomeVolumeParameter".equals (method.getName ()) ? parameter : relaxedValue (method.getReturnType ()));
+        final IProject project = proxy (IProject.class, (proxy, method, arguments) -> "getIdentity".equals (method.getName ()) ? identity.get () : relaxedValue (method.getReturnType ()));
+        final IModel model = proxy (IModel.class, (proxy, method, arguments) -> switch (method.getName ())
+        {
+            case "getTransport" -> transport;
+            case "getProject" -> project;
+            case "getValueChanger" -> valueChanger;
+            default -> relaxedValue (method.getReturnType ());
+        });
+        final ParameterTargetHost host = new ParameterTargetHost (createSurface (new MutableContinuous (), valueChanger), model, silentLog ());
+        final DesiredParameterBanks banks = new DesiredParameterBanks (Set.of (ParameterBankId.GLOBAL));
+        host.refresh (banks);
+        final ParameterTargetRef first = host.snapshot ().slots ().get (ParameterSlot.METRONOME_VOLUME).target ();
+        final var pending = host.prepare (new AdjustParameterValueEffect (first, 2));
+        identity.set ("project-b");
+        assertThrows (IllegalStateException.class, () -> host.apply (pending));
+        host.refresh (banks);
+        final ParameterTargetRef next = host.snapshot ().slots ().get (ParameterSlot.METRONOME_VOLUME).target ();
+        assertNotEquals (first, next);
+        host.apply (host.prepare (new AdjustParameterValueEffect (next, 2)));
+        assertEquals (66, volume.value);
+        host.refresh (DesiredParameterBanks.empty ());
+        assertTrue (host.snapshot ().slots ().isEmpty ());
+    }
+
+    @Test
     void masterAndCueTargetsAreFencedToTheObservedProjectTab ()
     {
         final MutableParameter volume = new MutableParameter (64);
@@ -204,6 +236,8 @@ class ParameterTargetHostTest
         final DesiredParameterBanks banks = new DesiredParameterBanks (Set.of (ParameterBankId.MASTER));
 
         host.refresh (banks);
+        for (final ParameterSlot slot: List.of (ParameterSlot.MASTER_MIX_VOLUME, ParameterSlot.MASTER_MIX_PAN, ParameterSlot.CUE_VOLUME, ParameterSlot.CUE_MIX))
+            assertEquals (new de.mossgrabers.pull.core.api.ParameterTargetIdentitySnapshot ("project-master", "project-a", 0, slot.index ()), host.snapshot ().slots ().get (slot).identity ());
         final ParameterTargetRef original = host.snapshot ().slots ().get (ParameterSlot.MASTER_MIX_VOLUME).target ();
         final ParameterTargetHost.PreparedAdjust stale = host.prepare (new AdjustParameterValueEffect (original, 3));
 
@@ -211,6 +245,7 @@ class ParameterTargetHostTest
         assertThrows (IllegalStateException.class, () -> host.apply (stale));
         host.refresh (banks);
         final ParameterTargetRef rebound = host.snapshot ().slots ().get (ParameterSlot.MASTER_MIX_VOLUME).target ();
+        assertEquals ("project-b", host.snapshot ().slots ().get (ParameterSlot.MASTER_MIX_VOLUME).identity ().ownerId ());
         assertNotEquals (original, rebound);
 
         host.apply (host.prepare (new AdjustParameterValueEffect (rebound, 2)));
@@ -280,7 +315,7 @@ class ParameterTargetHostTest
         assertNull (host.resolveMutation (knob));
         assertTrue (host.requiresResolvedMutation (knob));
 
-        knob.bind (new PushVolumeParameter (selectedParameter, valueChanger));
+        knob.bind (new AbstractParameterWrapper (selectedParameter) { });
         host.refresh (banks);
         assertNull (host.resolveMutation (knob));
         assertNull (host.snapshot ().slots ().get (ParameterSlot.active (0)));

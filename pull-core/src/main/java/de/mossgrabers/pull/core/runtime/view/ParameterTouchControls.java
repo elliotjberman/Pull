@@ -26,11 +26,19 @@ final class ParameterTouchControls
     private static final ControlId DELETE = PushControlIds.button ("DELETE");
     private final Map<ControlId, Touch> touches = new LinkedHashMap<> ();
     private final ParameterTouchSession session;
+    private final boolean followsSelection;
 
 
     ParameterTouchControls (final ParameterTouchSession session)
     {
+        this (session, true);
+    }
+
+
+    ParameterTouchControls (final ParameterTouchSession session, final boolean followsSelection)
+    {
         this.session = Objects.requireNonNull (session, "session");
+        this.followsSelection = followsSelection;
     }
 
 
@@ -44,7 +52,7 @@ final class ParameterTouchControls
     {
         this.touches.entrySet ().removeIf (entry ->
             !snapshot.touchedControls ().contains (entry.getKey ()) ||
-                entry.getValue ().selectionGeneration () != snapshot.bridge ().selectedTrack ().generation () ||
+                this.followsSelection && entry.getValue ().selectionGeneration () != snapshot.bridge ().selectedTrack ().generation () ||
                 snapshot.bridge ().parameters ().targetOrNull (entry.getValue ().target ()) == null);
     }
 
@@ -74,6 +82,12 @@ final class ParameterTouchControls
         final Map<ControlId, ParameterTargetRef> targets = new LinkedHashMap<> ();
         this.touches.forEach ((control, touch) -> targets.put (control, touch.target ()));
         return new DesiredParameterTouches (targets);
+    }
+
+
+    void retainTargets (final java.util.Set<ParameterTargetRef> targets)
+    {
+        this.touches.entrySet ().removeIf (entry -> !targets.contains (entry.getValue ().target ()));
     }
 
 

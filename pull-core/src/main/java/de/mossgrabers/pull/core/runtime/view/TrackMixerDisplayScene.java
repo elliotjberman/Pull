@@ -47,7 +47,7 @@ final class TrackMixerDisplayScene
     static ControllerDisplayScene render (final ControllerSnapshot snapshot, final TrackMixerPageState page, final boolean normalProfile)
     {
         final SelectedTrackSnapshot selected = snapshot.bridge ().selectedTrack ();
-        final Map<ParameterSlot, ParameterTargetSnapshot> parameters = snapshot.bridge ().parameters ().slots ();
+        final Map<ParameterSlot, ParameterTargetSnapshot> parameters = ParameterAlignment.targets (snapshot);
         final ArrayList<DisplayCommand> commands = new ArrayList<> (96);
         commands.add (new DisplayCommand.Rectangle (0, 0, WIDTH, HEIGHT, BLACK));
         final RgbColor menuColor = normalProfile && selected.exists () ? selected.color () : SELECTED_MENU;

@@ -21,11 +21,22 @@ public enum ParameterBankId
     TRACK_VOLUME,
     /** Eight visible-track pan parameters. */
     TRACK_PAN,
-    /** Tempo and master-volume parameters. */
+    /** Send column one through eight across the eight current-bank tracks. */
+    TRACK_SEND1, TRACK_SEND2, TRACK_SEND3, TRACK_SEND4,
+    TRACK_SEND5, TRACK_SEND6, TRACK_SEND7, TRACK_SEND8,
+    /** Tempo, master-volume, and metronome-volume parameters. */
     GLOBAL,
     /** Master volume, master pan, cue volume, and cue mix. */
     MASTER;
 
     /** Number of installed bank identities. */
     public static final int BANK_CAPACITY = values ().length;
+
+    /** Resolve one zero-based send column in the installed eight-by-eight current-track matrix. */
+    public static ParameterBankId trackSend (final int sendIndex)
+    {
+        if (sendIndex < 0 || sendIndex >= 8)
+            throw new IllegalArgumentException ("send column must be in 0..7");
+        return values ()[TRACK_SEND1.ordinal () + sendIndex];
+    }
 }

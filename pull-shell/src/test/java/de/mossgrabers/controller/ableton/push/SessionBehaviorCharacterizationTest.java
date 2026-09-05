@@ -309,7 +309,7 @@ class SessionBehaviorCharacterizationTest
 
     @ParameterizedTest
     @ValueSource(ints = { 4, 8 })
-    void arrowAndPageActionsRetainFullVersusCompositeDifferences (final int rows)
+    void legacyFullSessionArrowsAndFrozenPageActionsRemainWhileCompositeArrowsAreCoreOwned (final int rows)
     {
         final Fixture fixture = new Fixture (rows);
         final PushCursorCommand left = new PushCursorCommand (Direction.LEFT, fixture.model, fixture.surface);
@@ -322,8 +322,8 @@ class SessionBehaviorCharacterizationTest
         down.execute (ButtonEvent.DOWN, 127);
         left.execute (ButtonEvent.LONG, 127);
         left.execute (ButtonEvent.UP, 0);
-        assertEquals (List.of (rows == 4 ? "tracks:selectPreviousPage" : "mode:selectPreviousItemPage",
-            rows == 4 ? "tracks:selectNextPage" : "mode:selectNextItemPage", "scenes:scrollBackwards", "scenes:scrollForwards"), fixture.requests);
+        assertEquals (rows == 4 ? List.of () : List.of ("mode:selectPreviousItemPage", "mode:selectNextItemPage", "scenes:scrollBackwards", "scenes:scrollForwards"), fixture.requests,
+            "VS arrow policy and feedback are now exercised through core NavigationView tests");
 
         fixture.requests.clear ();
         fixture.surface.pressed.add (ButtonID.SHIFT);
@@ -333,9 +333,8 @@ class SessionBehaviorCharacterizationTest
         down.execute (ButtonEvent.DOWN, 127);
         new PageLeftCommand (fixture.model, fixture.surface).execute (ButtonEvent.DOWN, 127);
         new PageRightCommand (fixture.model, fixture.surface).execute (ButtonEvent.DOWN, 127);
-        assertEquals (List.of (rows == 4 ? "tracks:scrollBackwards" : "mode:selectPreviousItemPage",
-            rows == 4 ? "tracks:scrollForwards" : "mode:selectNextItemPage", "scenes:selectPreviousPage", "scenes:selectNextPage",
-            "tracks:selectPreviousPage", "tracks:selectNextPage"), fixture.requests);
+        assertEquals (rows == 4 ? List.of ("tracks:selectPreviousPage", "tracks:selectNextPage") :
+            List.of ("mode:selectPreviousItemPage", "mode:selectNextItemPage", "scenes:selectPreviousPage", "scenes:selectNextPage", "tracks:selectPreviousPage", "tracks:selectNextPage"), fixture.requests);
     }
 
 

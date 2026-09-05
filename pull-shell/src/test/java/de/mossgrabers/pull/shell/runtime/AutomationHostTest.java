@@ -16,6 +16,28 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class AutomationHostTest
 {
     @Test
+    void rawModeAndOverrideResetAreIndependentNativeRequestsWithProjectFencing ()
+    {
+        final AtomicReference<String> project = new AtomicReference<> ("project-a");
+        final AtomicReference<de.mossgrabers.pull.core.api.AutomationWriteMode> mode = new AtomicReference<> (de.mossgrabers.pull.core.api.AutomationWriteMode.LATCH);
+        final List<Object> writes = new ArrayList<> ();
+        final AutomationHost host = new AutomationHost (project::get, () -> false, writes::add, () -> false, mode::get, writes::add, () -> writes.add ("reset"));
+        final var modeRequest = host.prepare (new de.mossgrabers.pull.core.api.effect.SetAutomationModeEffect ("project-a", de.mossgrabers.pull.core.api.AutomationWriteMode.TOUCH));
+        host.apply (modeRequest);
+        assertEquals (List.of (de.mossgrabers.pull.core.api.AutomationWriteMode.TOUCH), writes);
+        assertEquals (de.mossgrabers.pull.core.api.AutomationWriteMode.LATCH, host.snapshot ().mode ());
+        assertEquals (false, host.snapshot ().writingEnabled ());
+        mode.set (de.mossgrabers.pull.core.api.AutomationWriteMode.TOUCH);
+        assertEquals (mode.get (), host.snapshot ().mode ());
+        final var reset = host.prepare (new de.mossgrabers.pull.core.api.effect.ResetAutomationOverridesEffect ("project-a"));
+        host.apply (reset);
+        project.set ("project-b");
+        assertThrows (IllegalStateException.class, () -> host.apply (modeRequest));
+        assertThrows (IllegalStateException.class, () -> host.apply (reset));
+        assertEquals (List.of (de.mossgrabers.pull.core.api.AutomationWriteMode.TOUCH, "reset"), writes);
+    }
+
+    @Test
     void submissionDoesNotPretendTheHostHasAcknowledgedWritingChange ()
     {
         final AtomicBoolean writing = new AtomicBoolean (true);

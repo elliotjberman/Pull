@@ -51,6 +51,8 @@ public final class ControllerWorkspaceHost
     public DesiredControllerWorkspace prepare (final DesiredControllerWorkspace workspace)
     {
         final DesiredControllerWorkspace candidate = validate (workspace);
+        if (!candidate.installedModeId ().isEmpty () && !(this.surface.getModeManager ().get (Modes.valueOf (candidate.installedModeId ())) instanceof de.mossgrabers.controller.ableton.push.mode.CorePageMode))
+            throw new IllegalArgumentException ("Requested page adapter is not installed with a complete inert footprint");
         if (candidate.sessionBankShape ().isPresent ())
         {
             this.surface.getSessionBankRegistry ().requireDeclared (candidate.sessionBankShape ());

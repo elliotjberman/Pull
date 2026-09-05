@@ -52,7 +52,19 @@ final class ControllerPageLease
     /** Validate that at most one stable page adapter is requested. */
     static void validate (final DesiredControllerWorkspace workspace)
     {
-        page (workspace);
+        final Page page = page (workspace);
+        final String mode = workspace.installedModeId ();
+        if (mode.isEmpty ())
+            return;
+        final boolean agrees = switch (page)
+        {
+            case WORKSPACE -> mode.equals (Modes.WORKSPACE.name ());
+            case MASTER -> mode.equals (Modes.MASTER.name ()) || mode.equals (Modes.MASTER_TEMP.name ());
+            case TRACK_MIXER -> mode.equals (Modes.TRACK.name ());
+            case STABLE -> true;
+        };
+        if (!agrees)
+            throw new IllegalArgumentException ("Declared page footprint disagrees with the legacy facet's installed adapter");
     }
 
 

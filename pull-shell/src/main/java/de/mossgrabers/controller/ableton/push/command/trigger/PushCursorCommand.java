@@ -10,7 +10,8 @@ import de.mossgrabers.framework.command.trigger.Direction;
 import de.mossgrabers.framework.command.trigger.mode.CursorCommand;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.bank.ISceneBank;
-import de.mossgrabers.framework.daw.data.bank.ITrackBank;
+import de.mossgrabers.controller.ableton.push.mode.CorePageMode;
+import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.framework.featuregroup.IMode;
 
 
@@ -31,6 +32,29 @@ public class PushCursorCommand extends CursorCommand<PushControlSurface, PushCon
     public PushCursorCommand (final Direction direction, final IModel model, final PushControlSurface surface)
     {
         super (direction, model, surface, false);
+    }
+
+
+    /** The permanent binding stays inert for a declared core navigation footprint. */
+    @Override
+    public void execute (final ButtonEvent event, final int velocity)
+    {
+        if (!this.isCoreNavigationAdapter ())
+            super.execute (event, velocity);
+    }
+
+
+    /** Owned core light output is arbitrated by the permanent surface light transport. */
+    @Override
+    public boolean canScroll ()
+    {
+        return !this.isCoreNavigationAdapter () && super.canScroll ();
+    }
+
+
+    private boolean isCoreNavigationAdapter ()
+    {
+        return this.surface.getModeManager ().getActive () instanceof CorePageMode || this.surface.isSessionNavigationActive ();
     }
 
 
@@ -66,12 +90,6 @@ public class PushCursorCommand extends CursorCommand<PushControlSurface, PushCon
     @Override
     protected void scrollLeft ()
     {
-        if (this.surface.isSessionNavigationActive ())
-        {
-            this.scrollTracks (false);
-            return;
-        }
-
         final IMode activeMode = this.surface.getModeManager ().getActive ();
         if (activeMode != null)
             activeMode.selectPreviousItemPage ();
@@ -82,12 +100,6 @@ public class PushCursorCommand extends CursorCommand<PushControlSurface, PushCon
     @Override
     protected void scrollRight ()
     {
-        if (this.surface.isSessionNavigationActive ())
-        {
-            this.scrollTracks (true);
-            return;
-        }
-
         final IMode activeMode = this.surface.getModeManager ().getActive ();
         if (activeMode != null)
             activeMode.selectNextItemPage ();
@@ -121,41 +133,7 @@ public class PushCursorCommand extends CursorCommand<PushControlSurface, PushCon
             this.scrollStates.setCanScrollDown (sceneBank.canScrollForwards ());
         }
 
-        if (this.surface.isSessionNavigationActive ())
-        {
-            this.scrollStates.setCanScrollLeft (this.canScrollTracks (false));
-            this.scrollStates.setCanScrollRight (this.canScrollTracks (true));
-        }
-        else
-        {
-            this.scrollStates.setCanScrollLeft (mode != null && (shiftPressed ? mode.hasPreviousItem () : mode.hasPreviousItemPage ()));
-            this.scrollStates.setCanScrollRight (mode != null && (shiftPressed ? mode.hasNextItem () : mode.hasNextItemPage ()));
-        }
-    }
-
-
-    private void scrollTracks (final boolean forwards)
-    {
-        final ITrackBank trackBank = this.model.getCurrentTrackBank ();
-        if (!this.surface.isShiftPressed ())
-        {
-            if (forwards)
-                trackBank.selectNextPage ();
-            else
-                trackBank.selectPreviousPage ();
-        }
-        else if (forwards)
-            trackBank.scrollForwards ();
-        else
-            trackBank.scrollBackwards ();
-    }
-
-
-    private boolean canScrollTracks (final boolean forwards)
-    {
-        final ITrackBank trackBank = this.model.getCurrentTrackBank ();
-        if (!this.surface.isShiftPressed ())
-            return forwards ? trackBank.canScrollPageForwards () : trackBank.canScrollPageBackwards ();
-        return forwards ? trackBank.canScrollForwards () : trackBank.canScrollBackwards ();
+        this.scrollStates.setCanScrollLeft (mode != null && (shiftPressed ? mode.hasPreviousItem () : mode.hasPreviousItemPage ()));
+        this.scrollStates.setCanScrollRight (mode != null && (shiftPressed ? mode.hasNextItem () : mode.hasNextItemPage ()));
     }
 }

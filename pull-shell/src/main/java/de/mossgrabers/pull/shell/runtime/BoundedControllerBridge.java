@@ -38,6 +38,11 @@ import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
 import de.mossgrabers.pull.core.api.DesiredParameterTouches;
 import de.mossgrabers.pull.core.api.AutomationSnapshot;
+import de.mossgrabers.pull.core.api.TransportSettingsSnapshot;
+import de.mossgrabers.pull.core.api.effect.SetTransportSettingEffect;
+import de.mossgrabers.pull.core.api.effect.SetPreRollEffect;
+import de.mossgrabers.pull.core.api.effect.SetAutomationModeEffect;
+import de.mossgrabers.pull.core.api.effect.ResetAutomationOverridesEffect;
 import de.mossgrabers.pull.core.api.EncoderConfigurationSnapshot;
 import de.mossgrabers.pull.core.api.effect.SetAutomationWriteEffect;
 import de.mossgrabers.pull.core.api.effect.SetDrumBankPositionEffect;
@@ -126,11 +131,14 @@ final class BoundedControllerBridge implements ControllerBridge
     private final NewClipAction newClipAction;
     private final ParameterTargetHost parameterTargets;
     private final AutomationHost automation;
+    private final TransportSettingsHost transportSettings;
     private final MasterCommandHost masterCommands;
     private final ControllerStateHost controllerState;
     private final ControllerMappingHost controllerMappings;
     private final SessionBankHost sessionBank;
     private final CurrentTrackBankHost currentTrackBank;
+    private final ControllerSettingsHost controllerSettings;
+    private final ApplicationUiHost applicationUi;
     private final Map<MidiStateKey, MidiState> noteInputMidiState = new HashMap<> ();
 
     private ControllerBridgeSnapshot snapshot = ControllerBridgeSnapshot.empty ();
@@ -163,7 +171,14 @@ final class BoundedControllerBridge implements ControllerBridge
 
     BoundedControllerBridge (final IModel model, final ISelectedTrackNoteTarget selectedTarget, final MidiShortCallback noteInputMidiSender, final PushControlSurface surface, final IValueChanger valueChanger, final RuntimeLog log, final ControllerMappingHost controllerMappings, final AutomationHost automation)
     {
+        this (model, selectedTarget, noteInputMidiSender, surface, valueChanger, log, controllerMappings, automation, null);
+    }
+
+
+    BoundedControllerBridge (final IModel model, final ISelectedTrackNoteTarget selectedTarget, final MidiShortCallback noteInputMidiSender, final PushControlSurface surface, final IValueChanger valueChanger, final RuntimeLog log, final ControllerMappingHost controllerMappings, final AutomationHost automation, final TransportSettingsHost transportSettings)
+    {
         this.automation = automation;
+        this.transportSettings = transportSettings;
         this.model = Objects.requireNonNull (model, "model");
         this.transport = Objects.requireNonNull (model.getTransport (), "transport");
         this.selectedTarget = Objects.requireNonNull (selectedTarget, "selectedTarget");
@@ -178,6 +193,8 @@ final class BoundedControllerBridge implements ControllerBridge
         this.controllerMappings = controllerMappings;
         this.sessionBank = new SessionBankHost (surface.getSessionBankRegistry ());
         this.currentTrackBank = new CurrentTrackBankHost (model, surface.getSessionBankRegistry ().getBanks ());
+        this.controllerSettings = new ControllerSettingsHost (surface.getConfiguration (), model, surface.getModeManager ());
+        this.applicationUi = new ApplicationUiHost (model);
     }
 
 
@@ -255,7 +272,7 @@ final class BoundedControllerBridge implements ControllerBridge
         this.masterCommands.refresh (masterRequested, projectRequested);
         final MasterSnapshot master = masterRequested ? this.masterCommands.snapshot () : MasterSnapshot.empty ();
         final ProjectSnapshot project = projectRequested ? this.masterCommands.projectSnapshot () : ProjectSnapshot.empty ();
-        final ControllerBridgeSnapshot refreshed = new ControllerBridgeSnapshot (transportState, selected, sessionBankState, layout, noteView, noteRepeat, this.drumSnapshot, parameters, controllerMappingFeedback, master, project, requested.includes (BridgeSubscription.AUTOMATION) && this.automation != null ? this.automation.snapshot () : AutomationSnapshot.empty (), requested.includes (BridgeSubscription.ENCODER_CONFIGURATION) ? new EncoderConfigurationSnapshot (true, this.valueChanger.getUpperBound (), this.valueChanger.getStepSize (), this.surface.getConfiguration ().getKnobSensitivityDefault (), this.surface.getConfiguration ().getKnobSensitivitySlow ()) : EncoderConfigurationSnapshot.empty (), currentTrackBankState);
+        final ControllerBridgeSnapshot refreshed = new ControllerBridgeSnapshot (transportState, selected, sessionBankState, layout, noteView, noteRepeat, this.drumSnapshot, parameters, controllerMappingFeedback, master, project, requested.includes (BridgeSubscription.AUTOMATION) && this.automation != null ? this.automation.snapshot () : AutomationSnapshot.empty (), requested.includes (BridgeSubscription.ENCODER_CONFIGURATION) ? new EncoderConfigurationSnapshot (true, this.valueChanger.getUpperBound (), this.valueChanger.getStepSize (), this.surface.getConfiguration ().getKnobSensitivityDefault (), this.surface.getConfiguration ().getKnobSensitivitySlow ()) : EncoderConfigurationSnapshot.empty (), currentTrackBankState, requested.includes (BridgeSubscription.TRANSPORT_SETTINGS) && this.transportSettings != null ? this.transportSettings.snapshot () : TransportSettingsSnapshot.empty (), requested.includes (BridgeSubscription.CONTROLLER_SETTINGS) ? this.controllerSettings.snapshot () : de.mossgrabers.pull.core.api.ControllerSettingsSnapshot.empty (), this.applicationUi.refresh (requested.includes (BridgeSubscription.APPLICATION_UI)));
         if (refreshed.equals (this.snapshot))
             return false;
 
@@ -403,7 +420,10 @@ final class BoundedControllerBridge implements ControllerBridge
             this.snapshot.project (),
             this.snapshot.automation (),
             this.snapshot.encoderConfiguration (),
-            this.snapshot.currentTrackBank ());
+            this.snapshot.currentTrackBank (),
+            this.snapshot.transportSettings (),
+            this.snapshot.controllerSettings (),
+            this.snapshot.applicationUi ());
         return true;
     }
 
@@ -537,14 +557,32 @@ final class BoundedControllerBridge implements ControllerBridge
             return this.currentTrackBank.prepare (action);
         if (effect instanceof final NavigateTrackParentEffect action)
             return this.currentTrackBank.prepare (action);
+        if (effect instanceof final de.mossgrabers.pull.core.api.effect.CurrentTrackNavigationEffect action)
+            return this.currentTrackBank.prepare (action);
+        if (effect instanceof final de.mossgrabers.pull.core.api.effect.SetControllerBooleanSettingEffect setting)
+            return this.controllerSettings.prepare (setting);
+        if (effect instanceof final de.mossgrabers.pull.core.api.effect.SetControllerIntegerSettingEffect setting)
+            return this.controllerSettings.prepare (setting);
+        if (effect instanceof final de.mossgrabers.pull.core.api.effect.SetControllerModeSettingEffect setting)
+            return this.controllerSettings.prepare (setting);
+        if (effect instanceof final de.mossgrabers.pull.core.api.effect.SetApplicationLayoutEffect ui)
+            return this.applicationUi.prepare (ui);
+        if (effect instanceof final de.mossgrabers.pull.core.api.effect.ToggleApplicationPanelEffect ui)
+            return this.applicationUi.prepare (ui);
+        if (effect instanceof final de.mossgrabers.pull.core.api.effect.SetArrangerBooleanEffect ui)
+            return this.applicationUi.prepare (ui);
+        if (effect instanceof final de.mossgrabers.pull.core.api.effect.SetMixerBooleanEffect ui)
+            return this.applicationUi.prepare (ui);
         if (effect instanceof final SelectControllerModeEffect selection)
         {
-            if (selection.layoutGeneration () != this.snapshot.layout ().generation ())
+            final ControllerLayoutSnapshot origin = this.snapshot.layout ();
+            if (selection.layoutGeneration () != origin.generation () || !origin.equals (this.captureLayout ()))
                 throw new IllegalArgumentException ("controller mode selection layout is stale");
-            final Modes mode = Modes.valueOf (selection.modeId ());
-            if (this.surface.getModeManager ().get (mode) == null)
-                throw new IllegalArgumentException ("controller mode is outside the installed canopy");
-            return new PreparedModeSelection (selection.layoutGeneration (), mode);
+            final String destination = selection.operation () == SelectControllerModeEffect.Operation.RESTORE ? origin.temporaryMode () ? origin.activeModeId () : origin.previousModeId () : selection.modeId ();
+            if (selection.operation () == SelectControllerModeEffect.Operation.RESTORE && origin.temporaryMode () && destination.isEmpty ())
+                throw new IllegalArgumentException ("temporary mode restoration requires an initialized underlying mode");
+            final Modes mode = destination.isEmpty () ? null : this.requireInstalledMode (destination);
+            return new PreparedModeSelection (origin, mode, selection.operation ());
         }
         if (effect instanceof final StopSessionBankEffect action)
             return this.sessionBank.prepare (action);
@@ -557,6 +595,26 @@ final class BoundedControllerBridge implements ControllerBridge
             if (this.automation == null || !this.snapshot.automation ().available ())
                 throw new IllegalArgumentException ("Automation Write capability is unavailable or not subscribed");
             return this.automation.prepare (write);
+        }
+        if (effect instanceof final SetAutomationModeEffect mode)
+        {
+            if (this.automation == null || !this.snapshot.automation ().available ()) throw new IllegalArgumentException ("Automation canopy unavailable or not subscribed");
+            return this.automation.prepare (mode);
+        }
+        if (effect instanceof final ResetAutomationOverridesEffect reset)
+        {
+            if (this.automation == null || !this.snapshot.automation ().available ()) throw new IllegalArgumentException ("Automation canopy unavailable or not subscribed");
+            return this.automation.prepare (reset);
+        }
+        if (effect instanceof final SetTransportSettingEffect setting)
+        {
+            if (this.transportSettings == null || !this.snapshot.transportSettings ().available ()) throw new IllegalArgumentException ("Transport settings canopy unavailable or not subscribed");
+            return this.transportSettings.prepare (setting);
+        }
+        if (effect instanceof final SetPreRollEffect preRoll)
+        {
+            if (this.transportSettings == null || !this.snapshot.transportSettings ().available ()) throw new IllegalArgumentException ("Transport settings canopy unavailable or not subscribed");
+            return this.transportSettings.prepare (preRoll);
         }
         if (effect instanceof final ConsumeControllerButtonEffect consumption)
         {
@@ -642,6 +700,28 @@ final class BoundedControllerBridge implements ControllerBridge
             return;
         if (action instanceof final AutomationHost.PreparedWrite write)
             this.automation.apply (write);
+        else if (action instanceof final AutomationHost.PreparedMode mode)
+            this.automation.apply (mode);
+        else if (action instanceof final AutomationHost.PreparedReset reset)
+            this.automation.apply (reset);
+        else if (action instanceof final TransportSettingsHost.PreparedBoolean setting)
+            this.transportSettings.apply (setting);
+        else if (action instanceof final TransportSettingsHost.PreparedPreRoll preRoll)
+            this.transportSettings.apply (preRoll);
+        else if (action instanceof final ControllerSettingsHost.PreparedBoolean setting)
+            this.controllerSettings.apply (setting);
+        else if (action instanceof final ControllerSettingsHost.PreparedInteger setting)
+            this.controllerSettings.apply (setting);
+        else if (action instanceof final ControllerSettingsHost.PreparedMode setting)
+            this.controllerSettings.apply (setting);
+        else if (action instanceof final ApplicationUiHost.PreparedLayout ui)
+            this.applicationUi.apply (ui);
+        else if (action instanceof final ApplicationUiHost.PreparedPanel ui)
+            this.applicationUi.apply (ui);
+        else if (action instanceof final ApplicationUiHost.PreparedArranger ui)
+            this.applicationUi.apply (ui);
+        else if (action instanceof final ApplicationUiHost.PreparedMixer ui)
+            this.applicationUi.apply (ui);
         else if (action instanceof final PreparedTransportState state)
             this.masterCommands.applyTransportState (state.state (), state.enabled ());
         else if (action instanceof final PreparedParameterSet parameter)
@@ -672,10 +752,19 @@ final class BoundedControllerBridge implements ControllerBridge
             this.currentTrackBank.apply (trackBoolean);
         else if (action instanceof final CurrentTrackBankHost.PreparedParent parent)
             this.currentTrackBank.apply (parent);
+        else if (action instanceof final CurrentTrackBankHost.PreparedNavigation navigation)
+            this.currentTrackBank.apply (navigation);
         else if (action instanceof final PreparedModeSelection selection)
         {
-            if (selection.layoutGeneration () == this.captureLayout ().generation ())
-                this.surface.getModeManager ().setActive (selection.mode ());
+            if (selection.origin ().equals (this.captureLayout ()) && (selection.mode () == null || this.surface.getModeManager ().get (selection.mode ()) != null))
+            {
+                switch (selection.operation ())
+                {
+                    case SELECT -> this.surface.getModeManager ().setActive (selection.mode ());
+                    case TEMPORARY -> this.surface.getModeManager ().setTemporary (selection.mode ());
+                    case RESTORE -> this.surface.getModeManager ().restore ();
+                }
+            }
         }
         else if (action instanceof final SessionBankHost.PreparedStop sessionAction)
             this.sessionBank.apply (sessionAction);
@@ -736,6 +825,8 @@ final class BoundedControllerBridge implements ControllerBridge
     {
         final Object activeView = this.surface.getViewManager ().getActiveID ();
         final Object activeMode = this.surface.getModeManager ().getActiveID ();
+        final Object underlyingMode = this.surface.getModeManager ().getActiveIDIgnoreTemporary ();
+        final Object previousMode = this.surface.getModeManager ().getPreviousID ();
         final ControllerLayoutSnapshot captured = new ControllerLayoutSnapshot (
             this.layoutGeneration,
             activeView == null ? "" : activeView.toString (),
@@ -744,7 +835,10 @@ final class BoundedControllerBridge implements ControllerBridge
             this.surface.isDrumControllerActive (),
             this.model.getScales ().getDrumOffset (),
             this.captureGridPressureConfiguration (),
-            this.surface.getAppliedNoteTranslation ());
+            this.surface.getAppliedNoteTranslation (),
+            underlyingMode == null ? "" : underlyingMode.toString (),
+            previousMode == null ? "" : previousMode.toString (),
+            this.surface.getModeManager ().isTemporary ());
         if (sameLayout (captured, this.sampledLayout))
             return this.sampledLayout;
         this.sampledLayout = new ControllerLayoutSnapshot (
@@ -755,14 +849,55 @@ final class BoundedControllerBridge implements ControllerBridge
             captured.drumControllerEngaged (),
             captured.drumBaseMidiNote (),
             captured.gridPressure (),
-            captured.appliedNoteTranslation ());
+            captured.appliedNoteTranslation (),
+            captured.activeModeId (),
+            captured.previousModeId (),
+            captured.temporaryMode ());
         return this.sampledLayout;
     }
 
 
     private static boolean sameLayout (final ControllerLayoutSnapshot first, final ControllerLayoutSnapshot second)
     {
-        return first.viewId ().equals (second.viewId ()) && first.modeId ().equals (second.modeId ()) && first.drumLayoutActive () == second.drumLayoutActive () && first.drumControllerEngaged () == second.drumControllerEngaged () && first.drumBaseMidiNote () == second.drumBaseMidiNote () && first.gridPressure ().equals (second.gridPressure ()) && first.appliedNoteTranslation ().equals (second.appliedNoteTranslation ());
+        return first.viewId ().equals (second.viewId ()) && first.modeId ().equals (second.modeId ()) && first.activeModeId ().equals (second.activeModeId ()) && first.previousModeId ().equals (second.previousModeId ()) && first.temporaryMode () == second.temporaryMode () && first.drumLayoutActive () == second.drumLayoutActive () && first.drumControllerEngaged () == second.drumControllerEngaged () && first.drumBaseMidiNote () == second.drumBaseMidiNote () && first.gridPressure ().equals (second.gridPressure ()) && first.appliedNoteTranslation ().equals (second.appliedNoteTranslation ());
+    }
+
+
+    @Override
+    public boolean supportsPageInput (final String installedModeId, final ControlId control, final de.mossgrabers.pull.core.api.event.InputKind kind)
+    {
+        return this.isInertPageMode (installedModeId) && de.mossgrabers.controller.ableton.push.mode.CorePageMode.containsInput (control, kind);
+    }
+
+
+    @Override
+    public boolean supportsPageLight (final String installedModeId, final ControlId control)
+    {
+        return this.isInertPageMode (installedModeId) && de.mossgrabers.controller.ableton.push.mode.CorePageMode.containsLight (control);
+    }
+
+
+    private boolean isInertPageMode (final String modeId)
+    {
+        if (modeId.isEmpty ())
+            return false;
+        try
+        {
+            return this.surface.getModeManager ().get (Modes.valueOf (modeId)) instanceof de.mossgrabers.controller.ableton.push.mode.CorePageMode;
+        }
+        catch (final IllegalArgumentException unknownMode)
+        {
+            return false;
+        }
+    }
+
+
+    private Modes requireInstalledMode (final String modeId)
+    {
+        final Modes mode = Modes.valueOf (modeId);
+        if (this.surface.getModeManager ().get (mode) == null)
+            throw new IllegalArgumentException ("controller mode is outside the installed canopy");
+        return mode;
     }
 
 
@@ -1483,6 +1618,6 @@ final class BoundedControllerBridge implements ControllerBridge
             return this.data1 == this.neutralData1 && this.data2 == this.neutralData2;
         }
     }
-    private record PreparedModeSelection (long layoutGeneration, Modes mode) implements ControllerBridge.PreparedAction { }
+    private record PreparedModeSelection (ControllerLayoutSnapshot origin, Modes mode, SelectControllerModeEffect.Operation operation) implements ControllerBridge.PreparedAction { }
 
 }

@@ -70,6 +70,12 @@ public final class CoreCapabilities
     /** Generation-fenced selection of an installed controller mode. */
     public static final String EFFECT_CONTROLLER_MODE = "effect.controller-mode";
 
+    /** Absolute installed controller-preference writes. */
+    public static final String EFFECT_CONTROLLER_SETTINGS = "effect.controller-settings";
+
+    /** Bounded application layout, panel, Arranger, and Mixer UI operations. */
+    public static final String EFFECT_APPLICATION_UI = "effect.application-ui";
+
     /** Mechanical consumption of a stable compatibility button release; v3 admits lower-row, Record, and Duplicate gesture consumption. */
     public static final String EFFECT_CONTROLLER_BUTTON_CONSUMPTION = "effect.controller-button-consumption";
 

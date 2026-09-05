@@ -57,6 +57,8 @@ import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
 import de.mossgrabers.pull.core.api.effect.ClipReleaseTrigger;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
+import de.mossgrabers.pull.core.api.effect.SelectControllerModeEffect;
+import de.mossgrabers.pull.core.api.effect.ResetAutomationOverridesEffect;
 import de.mossgrabers.pull.core.api.effect.SetControllerMappingStorageEffect;
 import de.mossgrabers.pull.core.api.effect.ConsumeControllerButtonEffect;
 import de.mossgrabers.pull.core.api.effect.AdjustParameterValueEffect;
@@ -511,7 +513,7 @@ class PullControllerCoreTest
 
         host.start (Optional.empty ());
 
-        assertEquals (Set.of (BridgeSubscription.AUTOMATION, BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
+        assertEquals (Set.of (BridgeSubscription.CURRENT_TRACK_BANK, BridgeSubscription.CONTROLLER_SETTINGS, BridgeSubscription.TRANSPORT_SETTINGS, BridgeSubscription.AUTOMATION, BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
         assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (PLAY_BUTTON, InputKind.BUTTON));
         assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (RECORD_BUTTON, InputKind.BUTTON));
         assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (NOTE_BUTTON, InputKind.BUTTON));
@@ -717,7 +719,7 @@ class PullControllerCoreTest
         host.bridge (masterBridge (true, true, false));
 
         assertEquals (Set.of (ControllerViewFacet.MASTER_CONTROLS), host.effects ().desiredControllerWorkspace ().facets ());
-        assertEquals (Set.of (BridgeSubscription.AUTOMATION, BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.MASTER, BridgeSubscription.PARAMETERS, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
+        assertEquals (Set.of (BridgeSubscription.CONTROLLER_SETTINGS, BridgeSubscription.CURRENT_TRACK_BANK, BridgeSubscription.TRANSPORT_SETTINGS, BridgeSubscription.AUTOMATION, BridgeSubscription.SELECTED_TRACK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.MASTER, BridgeSubscription.PARAMETERS, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
         assertEquals (Set.of (ParameterBankId.MASTER, ParameterBankId.GLOBAL), host.effects ().desiredParameterBanks ().banks ());
         assertTrue (host.effects ().desiredOutput ().display ().isPresent ());
         assertEquals (960, host.effects ().desiredOutput ().display ().width ());
@@ -1244,6 +1246,84 @@ class PullControllerCoreTest
 
 
     @Test
+    void transportPageLongAndEndWaitBehindRealParameterRestoration ()
+    {
+        for (final String buttonName: List.of ("METRONOME", "AUTOMATION"))
+        {
+            final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+            final ParameterTargetSnapshot baseline = prepareProjectMacroSnapback (host);
+            final ControlId button = PushControlIds.button (buttonName);
+            final String page = buttonName.equals ("METRONOME") ? "TRANSPORT" : "AUTOMATION";
+            host.controllerButton (button, true);
+            assertEquals (1, host.effects ().desiredParameterInteraction ().pendingActionCount ());
+            host.controllerButtonLong (button);
+            host.controllerButton (button, false);
+            host.controllerTick ();
+            host.controllerTick ();
+            assertTrue (host.effects ().executionOrder ().stream ().noneMatch (SelectControllerModeEffect.class::isInstance));
+            assertTrue (host.effects ().executionOrder ().contains (new SetParameterValueEffect (baseline.target (), 100)));
+
+            // Submitting restoration did not advance the fake host; only this read-back admits entry.
+            host.bridge (withParameters (trackSelectionBridge (3, false), baseline));
+            host.controllerTick ();
+            host.controllerTick ();
+            final var entry = new SelectControllerModeEffect (3, page, SelectControllerModeEffect.Operation.TEMPORARY);
+            assertEquals (List.of (entry), host.effects ().executionOrder ().stream ().filter (SelectControllerModeEffect.class::isInstance).toList ());
+            assertEquals (0, host.effects ().desiredParameterInteraction ().pendingActionCount ());
+            host.controllerTick ();
+            assertEquals (List.of (entry), host.effects ().executionOrder ().stream ().filter (SelectControllerModeEffect.class::isInstance).toList ());
+
+            host.bridge (modeState (withParameters (trackSelectionBridge (4, false, page), baseline), "WORKSPACE", "WORKSPACE", true));
+            host.controllerTick ();
+            assertEquals (buttonName.equals ("AUTOMATION") ? List.of (entry, SelectControllerModeEffect.restore (4)) : List.of (entry),
+                host.effects ().executionOrder ().stream ().filter (SelectControllerModeEffect.class::isInstance).toList ());
+        }
+    }
+
+
+    @Test
+    void automationDeleteIsConsumedBeforeDeleteReleaseWhileResetWaitsForSnapback ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        final ParameterTargetSnapshot baseline = prepareProjectMacroSnapback (host);
+        final ControlId delete = PushControlIds.button ("DELETE");
+        final ControlId automation = PushControlIds.button ("AUTOMATION");
+        host.controllerButton (delete, true);
+        host.controllerButton (automation, true);
+        assertEquals (1, host.effects ().desiredParameterInteraction ().pendingActionCount ());
+        assertEquals (new ConsumeControllerButtonEffect (delete), host.effects ().executionOrder ().getLast ());
+        assertTrue (host.effects ().executionOrder ().stream ().noneMatch (ResetAutomationOverridesEffect.class::isInstance));
+        host.controllerButton (delete, false);
+        host.controllerButton (automation, false);
+        host.controllerTick ();
+        host.controllerTick ();
+        assertTrue (host.effects ().executionOrder ().stream ().noneMatch (ResetAutomationOverridesEffect.class::isInstance));
+
+        host.bridge (withParameters (trackSelectionBridge (3, false), baseline));
+        host.controllerTick ();
+        host.controllerTick ();
+        assertEquals (List.of (new ResetAutomationOverridesEffect ("project-a")), host.effects ().executionOrder ().stream ().filter (ResetAutomationOverridesEffect.class::isInstance).toList ());
+        assertEquals (1, host.effects ().executionOrder ().stream ().filter (new ConsumeControllerButtonEffect (delete)::equals).count (), "resuming BEGIN must not consume Delete again");
+    }
+
+
+    private static ParameterTargetSnapshot prepareProjectMacroSnapback (final FakeCoreHost host)
+    {
+        final ParameterSlot slot = ParameterSlot.projectRemote (0);
+        final ParameterTargetSnapshot baseline = parameter (slot, "Project Macro", 100, "100");
+        host.start (Optional.empty ());
+        enterVsLive (host);
+        host.bridge (withParameters (trackSelectionBridge (2, false), baseline));
+        host.controllerButton (SHIFT_BUTTON, true);
+        host.parameterMutation (PushControlIds.continuous ("KNOB1"), baseline);
+        host.bridge (withParameters (trackSelectionBridge (3, false), parameter (slot, "Project Macro", 40, "40")));
+        host.controllerButton (SHIFT_BUTTON, false);
+        assertEquals (Map.of (baseline.target (), 100.0), host.effects ().desiredParameterInteraction ().baselines ());
+        return baseline;
+    }
+
+
+    @Test
     void enteringMasterFromVsLivePreservesOnlyTheVsLiveGridOwnership ()
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
@@ -1542,7 +1622,7 @@ class PullControllerCoreTest
 
         assertVsLive (host.effects ().desiredControllerWorkspace ());
         assertEquals (Optional.of (InputRouteMode.OBSERVE), host.effects ().desiredInputRoutes ().mode (PushControlIds.pad (10), InputKind.POLY_PRESSURE));
-        assertEquals (Set.of (BridgeSubscription.AUTOMATION, BridgeSubscription.SELECTED_TRACK, BridgeSubscription.SESSION_BANK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.NOTE_REPEAT, BridgeSubscription.DRUM_PADS, BridgeSubscription.PARAMETERS, BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
+        assertEquals (Set.of (BridgeSubscription.CONTROLLER_SETTINGS, BridgeSubscription.CURRENT_TRACK_BANK, BridgeSubscription.TRANSPORT_SETTINGS, BridgeSubscription.AUTOMATION, BridgeSubscription.SELECTED_TRACK, BridgeSubscription.SESSION_BANK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.NOTE_REPEAT, BridgeSubscription.DRUM_PADS, BridgeSubscription.PARAMETERS, BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
         assertEquals (Set.of (ParameterBankId.PROJECT_REMOTE, ParameterBankId.GLOBAL), host.effects ().desiredParameterBanks ().banks ());
     }
 
@@ -1734,7 +1814,7 @@ class PullControllerCoreTest
         assertEquals (new SendNoteInputMidiEffect (0xA0, 53, 91), host.effects ().executionOrder ().getLast ());
 
         enterVsLive (host);
-        assertEquals (Set.of (BridgeSubscription.AUTOMATION, BridgeSubscription.SELECTED_TRACK, BridgeSubscription.SESSION_BANK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.NOTE_REPEAT, BridgeSubscription.DRUM_PADS, BridgeSubscription.PARAMETERS, BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
+        assertEquals (Set.of (BridgeSubscription.CONTROLLER_SETTINGS, BridgeSubscription.CURRENT_TRACK_BANK, BridgeSubscription.TRANSPORT_SETTINGS, BridgeSubscription.AUTOMATION, BridgeSubscription.SELECTED_TRACK, BridgeSubscription.SESSION_BANK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.NOTE_REPEAT, BridgeSubscription.DRUM_PADS, BridgeSubscription.PARAMETERS, BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK, BridgeSubscription.PROJECT), host.effects ().desiredBridgeSubscriptions ().domains ());
         assertEquals (Set.of (ParameterBankId.PROJECT_REMOTE, ParameterBankId.GLOBAL), host.effects ().desiredParameterBanks ().banks ());
         final int defaultEffectCount = host.effects ().executionOrder ().size ();
         host.controllerMotion (PushControlIds.pad (10), InputKind.POLY_PRESSURE, 91);
@@ -1745,7 +1825,7 @@ class PullControllerCoreTest
         assertEquals (Optional.of (InputRouteMode.OBSERVE), host.effects ().desiredInputRoutes ().mode (PushControlIds.pad (10), InputKind.PAD));
 
         host.controllerButton (SESSION_BUTTON, true);
-        assertEquals (Set.of (BridgeSubscription.AUTOMATION, BridgeSubscription.SELECTED_TRACK, BridgeSubscription.SESSION_BANK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.PROJECT, BridgeSubscription.PARAMETERS, BridgeSubscription.ENCODER_CONFIGURATION, BridgeSubscription.CURRENT_TRACK_BANK), host.effects ().desiredBridgeSubscriptions ().domains ());
+        assertEquals (Set.of (BridgeSubscription.CONTROLLER_SETTINGS, BridgeSubscription.CURRENT_TRACK_BANK, BridgeSubscription.TRANSPORT_SETTINGS, BridgeSubscription.AUTOMATION, BridgeSubscription.SELECTED_TRACK, BridgeSubscription.SESSION_BANK, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.PROJECT, BridgeSubscription.PARAMETERS, BridgeSubscription.ENCODER_CONFIGURATION), host.effects ().desiredBridgeSubscriptions ().domains ());
         assertEquals (Optional.empty (), host.effects ().desiredInputRoutes ().mode (PushControlIds.pad (10), InputKind.POLY_PRESSURE));
     }
 
@@ -2346,6 +2426,111 @@ class PullControllerCoreTest
 
 
     @Test
+    void nativeMixerPagesRestoreTheOriginalArrowNavigationThroughCoreRouting ()
+    {
+        for (final String mode: List.of ("TRACK", "VOLUME", "PAN", "SEND1", "SEND2", "SEND3", "SEND4", "SEND5", "SEND6", "SEND7", "SEND8"))
+        {
+            final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+            host.initialBridge (withBankNavigation (ordinaryTrackBridge (1, mode)));
+            host.start (Optional.empty ());
+            assertEquals (mode, host.effects ().desiredControllerWorkspace ().installedModeId ());
+            assertEquals (InputRouteMode.EXCLUSIVE, host.effects ().desiredInputRoutes ().modeOrNull (PushControlIds.button ("ARROW_LEFT"), InputKind.BUTTON));
+            host.controllerButton (PushControlIds.button ("ARROW_LEFT"), true);
+            assertEquals (de.mossgrabers.pull.core.api.effect.CurrentTrackNavigationEffect.Operation.TRACK_PAGE_PREVIOUS,
+                assertInstanceOf (de.mossgrabers.pull.core.api.effect.CurrentTrackNavigationEffect.class, host.effects ().executionOrder ().getLast ()).operation ());
+            host.controllerButton (PushControlIds.button ("ARROW_LEFT"), false);
+            host.controllerButton (SHIFT_BUTTON, true);
+            host.controllerButton (PushControlIds.button ("ARROW_RIGHT"), true);
+            assertEquals (de.mossgrabers.pull.core.api.effect.CurrentTrackNavigationEffect.Operation.CURSOR_SWAP_NEXT,
+                assertInstanceOf (de.mossgrabers.pull.core.api.effect.CurrentTrackNavigationEffect.class, host.effects ().executionOrder ().getLast ()).operation ());
+        }
+    }
+
+
+    private static ControllerBridgeSnapshot withBankNavigation (final ControllerBridgeSnapshot base)
+    {
+        final var bank = base.currentTrackBank ();
+        final var navigation = new de.mossgrabers.pull.core.api.BankNavigationSnapshot (24, true, true, true, true);
+        final var current = new de.mossgrabers.pull.core.api.CurrentTrackBankSnapshot (bank.generation (), bank.bankId (), bank.offset (), bank.tracks (), bank.cursorChannelId (), bank.cursorPinned (), bank.parentGeneration (), bank.parentAvailable (), navigation, navigation, 0, 76);
+        return new ControllerBridgeSnapshot (base.transport (), base.selectedTrack (), base.sessionBank (), base.layout (), base.noteView (), base.noteRepeat (), base.drum (), base.parameters (), base.controllerMappingFeedback (), base.master (), base.project (), base.automation (), base.encoderConfiguration (), current, base.transportSettings (), base.controllerSettings ());
+    }
+
+
+    @Test
+    void transportAndAutomationPagesRetainTheVsLiveGridAndHeldRateAcrossMaster ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        enterVsLive (host);
+        final SelectedTrackSnapshot drums = selectedTrack (9, "drums", 0, true, false);
+        final NoteViewSnapshot preference = new NoteViewSnapshot (9, "drums", 0, ControllerNoteView.NONE, true);
+        final NoteRepeatSnapshot manual = new NoteRepeatSnapshot (true, true, false, NoteRepeatMode.RANDOM, 2, 1.0 / 3.0, 0.25, true, true, false, false);
+        host.bridge (noteBridge (2, "DRUM_PAD", "WORKSPACE", drums, preference, drum (drums), manual));
+        host.controllerPad (PushControlIds.pad (5), true);
+        host.bridge (noteBridge (3, "DRUM_PAD", "MASTER", drums, preference, drum (drums), manual));
+        long generation = 4;
+        for (final String page: List.of ("TRANSPORT", "AUTOMATION", "FRAME", "SEND1", "SEND8", "TRANSPORT"))
+        {
+            host.bridge (modeState (noteBridge (generation++, "DRUM_PAD", page, drums, preference, drum (drums), manual), "MASTER", "WORKSPACE", true));
+            final DesiredControllerWorkspace desired = host.effects ().desiredControllerWorkspace ();
+            assertEquals (page, desired.installedModeId ());
+            assertEquals (VsLiveWorkspace.SESSION_BANK, desired.sessionBankShape ());
+            assertTrue (desired.facets ().contains (ControllerViewFacet.SESSION_CLIP_GRID_UPPER));
+            assertFalse (desired.facets ().contains (ControllerViewFacet.MASTER_CONTROLS));
+            assertEquals (2.0 / 3.0, host.effects ().desiredNoteRepeat ().period ());
+            assertEquals (DesiredNoteInputRoute.selectedTrack (9, "drums"), host.effects ().desiredNotePerformance ().inputRoute ());
+        }
+        host.bridge (noteBridge (generation, "DRUM_PAD", "MASTER", drums, preference, drum (drums), manual));
+        assertMasterOverVsLive (host.effects ().desiredControllerWorkspace ());
+        assertEquals (2.0 / 3.0, host.effects ().desiredNoteRepeat ().period ());
+    }
+
+
+    @Test
+    void pageReloadRestoresItsAuthoritativeModeAndUnderlyingNoteRoute ()
+    {
+        final SelectedTrackSnapshot juno = selectedTrack (8, "juno", 5, true, false);
+        final NoteViewSnapshot preference = new NoteViewSnapshot (8, "juno", 5, ControllerNoteView.PLAY, false);
+        final ControllerBridgeSnapshot initial = noteBridge (1, "PLAY", "TRACK", juno, preference, DrumContextSnapshot.empty (), NoteRepeatSnapshot.empty ());
+        final FakeCoreHost before = host (ClipCatalogSnapshot.empty ());
+        before.initialBridge (initial);
+        before.start (Optional.empty ());
+        final ControllerBridgeSnapshot temporary = modeState (noteBridge (2, "PLAY", "AUTOMATION", juno, preference, DrumContextSnapshot.empty (), NoteRepeatSnapshot.empty ()), "TRACK", "DEVICE_PARAMS", true);
+        before.bridge (temporary);
+        final FakeCoreHost after = host (ClipCatalogSnapshot.empty ());
+        after.initialBridge (temporary);
+        after.start (Optional.of (before.checkpoint ()));
+        assertEquals ("AUTOMATION", after.effects ().desiredControllerWorkspace ().installedModeId ());
+        assertEquals (DesiredNoteInputRoute.selectedTrack (8, "juno"), after.effects ().desiredNotePerformance ().inputRoute ());
+        after.bridge (noteBridge (3, "PLAY", "TRACK", juno, preference, DrumContextSnapshot.empty (), NoteRepeatSnapshot.empty ()));
+        assertEquals ("TRACK", after.effects ().desiredControllerWorkspace ().installedModeId ());
+    }
+
+
+    @Test
+    void explicitWorkspaceSelectionReplacesATransportPageEvenBeforeModeReadbackChanges ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.initialBridge (layoutBridge (1, "PLAY", "TRANSPORT"));
+        host.start (Optional.empty ());
+        assertEquals ("TRANSPORT", host.effects ().desiredControllerWorkspace ().installedModeId ());
+        enterVsLive (host);
+        assertEquals (VsLiveWorkspace.NAME, host.effects ().desiredControllerWorkspace ().name ());
+        host.bridge (layoutBridge (2, "WORKSPACE", "TRANSPORT"));
+        assertEquals (VsLiveWorkspace.NAME, host.effects ().desiredControllerWorkspace ().name ());
+    }
+
+
+    private static ControllerBridgeSnapshot modeState (final ControllerBridgeSnapshot base, final String activeMode, final String previousMode, final boolean temporary)
+    {
+        final ControllerLayoutSnapshot layout = base.layout ();
+        return new ControllerBridgeSnapshot (base.transport (), base.selectedTrack (), base.sessionBank (),
+            new ControllerLayoutSnapshot (layout.generation (), layout.viewId (), layout.modeId (), layout.drumLayoutActive (), layout.drumControllerEngaged (), layout.drumBaseMidiNote (), layout.gridPressure (), layout.appliedNoteTranslation (), activeMode, previousMode, temporary),
+            base.noteView (), base.noteRepeat (), base.drum (), base.parameters (), base.controllerMappingFeedback (), base.master (), base.project (), base.automation (), base.encoderConfiguration (), base.currentTrackBank (), base.transportSettings (), base.controllerSettings (), base.applicationUi ());
+    }
+
+
+    @Test
     void vsLiveMasterOverlayRetainsAHeldDrumRateGesture ()
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
@@ -2480,7 +2665,7 @@ class PullControllerCoreTest
 
     private static ControllerBridgeSnapshot noteBridge (final long layoutGeneration, final String view, final String mode, final SelectedTrackSnapshot selected, final NoteViewSnapshot noteView, final DrumContextSnapshot drum, final NoteRepeatSnapshot noteRepeat)
     {
-        return new ControllerBridgeSnapshot (
+        return withBaselineControllerSettings (new ControllerBridgeSnapshot (
             TransportSnapshot.empty (),
             selected,
             new ControllerLayoutSnapshot (layoutGeneration, view, mode, "DRUM_PAD".equals (view), "DRUM_PAD".equals (view), 36, GridPressureConfiguration.OFF, "DRUM_PAD".equals (view) ? appliedDrumTranslation (36) : de.mossgrabers.pull.core.api.DesiredNoteInputTranslation.unowned ()),
@@ -2489,13 +2674,13 @@ class PullControllerCoreTest
             drum,
             ParameterBridgeSnapshot.empty (),
             MasterSnapshot.empty (),
-            ProjectSnapshot.empty ());
+            ProjectSnapshot.empty ()));
     }
 
 
     private static ControllerBridgeSnapshot workspaceDrumBridge (final SelectedTrackSnapshot selected, final NoteViewSnapshot noteView, final DrumContextSnapshot drum, final NoteRepeatSnapshot noteRepeat)
     {
-        return new ControllerBridgeSnapshot (
+        return withBaselineControllerSettings (new ControllerBridgeSnapshot (
             TransportSnapshot.empty (),
             selected,
             new ControllerLayoutSnapshot (1, "WORKSPACE", "PROJECT", true, true, 36, GridPressureConfiguration.OFF, appliedDrumTranslation (36)),
@@ -2504,7 +2689,7 @@ class PullControllerCoreTest
             drum,
             ParameterBridgeSnapshot.empty (),
             MasterSnapshot.empty (),
-            ProjectSnapshot.empty ());
+            ProjectSnapshot.empty ()));
     }
 
 
@@ -2563,7 +2748,7 @@ class PullControllerCoreTest
     private static ControllerBridgeSnapshot bridgeWithPressure (final GridPressureConfiguration pressure, final int drumBaseMidiNote)
     {
         final SelectedTrackSnapshot selected = selectedTrack (false);
-        return new ControllerBridgeSnapshot (
+        return withBaselineControllerSettings (new ControllerBridgeSnapshot (
             TransportSnapshot.empty (),
             selected,
             new ControllerLayoutSnapshot (1, "WORKSPACE", "PROJECT", true, true, drumBaseMidiNote, pressure, appliedDrumTranslation (drumBaseMidiNote)),
@@ -2572,7 +2757,14 @@ class PullControllerCoreTest
             new DrumContextSnapshot (4, selected.generation (), selected.channelId (), "drum-device", true, true, drumBaseMidiNote, List.of ()),
             ParameterBridgeSnapshot.empty (),
             MasterSnapshot.empty (),
-            ProjectSnapshot.empty ());
+            ProjectSnapshot.empty ()));
+    }
+
+
+    private static ControllerBridgeSnapshot withBaselineControllerSettings (final ControllerBridgeSnapshot base)
+    {
+        return new ControllerBridgeSnapshot (base.transport (), base.selectedTrack (), base.sessionBank (), base.layout (), base.noteView (), base.noteRepeat (), base.drum (), base.parameters (), base.controllerMappingFeedback (), base.master (), base.project (), base.automation (), base.encoderConfiguration (), base.currentTrackBank (), base.transportSettings (),
+            new de.mossgrabers.pull.core.api.ControllerSettingsSnapshot (true, false, "VOLUME", 0, de.mossgrabers.pull.core.api.CursorSendBankSnapshot.empty (), false, 127), base.applicationUi ());
     }
 
 
@@ -2750,7 +2942,7 @@ class PullControllerCoreTest
             new ParameterBridgeSnapshot (Map.of (ParameterSlot.projectRemote (0), parameter), Map.of ()),
             base.controllerMappingFeedback (),
             base.master (),
-            base.project ());
+            base.project (), new de.mossgrabers.pull.core.api.AutomationSnapshot ("project-a", false, true));
     }
 
 
@@ -2844,7 +3036,10 @@ class PullControllerCoreTest
             NoteViewSnapshot.empty (),
             NoteRepeatSnapshot.empty (),
             DrumContextSnapshot.empty (),
-            new ParameterBridgeSnapshot (slots, Map.of ()),
+            new ParameterBridgeSnapshot (slots.entrySet ().stream ().collect (java.util.stream.Collectors.toMap (Map.Entry::getKey, entry -> {
+                final ParameterTargetSnapshot value = entry.getValue ();
+                return new ParameterTargetSnapshot (value.target (), value.name (), value.value (), value.modulatedValue (), value.displayedValue (), value.numberOfSteps (), value.tolerance (), value.enabled (), new de.mossgrabers.pull.core.api.ParameterTargetIdentitySnapshot ("project-master", identity, 0, entry.getKey ().index ()));
+            })), Map.of ()),
             ControllerMappingFeedbackSnapshot.empty (),
             new MasterSnapshot (true, identity, name, true, true, canNext, pending, true, "Master", new RgbColor (10, 80, 140), true, true, false, 64, 48),
             new ProjectSnapshot (true, identity, name, true, true, canNext, pending));
@@ -2871,7 +3066,17 @@ class PullControllerCoreTest
 
     private static ParameterTargetSnapshot parameter (final ParameterSlot slot, final String name, final double value, final String displayedValue)
     {
-        return new ParameterTargetSnapshot (parameterTarget (slot), name, value, value, displayedValue, -1, 0.5);
+        final String domain = switch (slot.bank ())
+        {
+            case SELECTED_TRACK -> slot.index () == 0 ? "channel-volume" : "channel-pan";
+            case SELECTED_TRACK_SENDS -> "channel-send";
+            case PROJECT_REMOTE -> "project-remote";
+            case MASTER -> "project-master";
+            default -> "";
+        };
+        final String owner = domain.startsWith ("channel-") ? "track-7" : domain.isEmpty () ? "" : "project-a";
+        final int index = slot.bank () == ParameterBankId.SELECTED_TRACK ? 0 : slot.index ();
+        return new ParameterTargetSnapshot (parameterTarget (slot), name, value, value, displayedValue, -1, 0.5, Optional.empty (), new de.mossgrabers.pull.core.api.ParameterTargetIdentitySnapshot (domain, owner, 0, index));
     }
 
 

@@ -163,4 +163,60 @@ public class ArrangerImpl implements IArranger
     {
         this.arranger.areEffectTracksVisible ().toggle ();
     }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void setClipLauncherVisible (final boolean enabled)
+    {
+        this.arranger.isClipLauncherVisible ().set (enabled);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void setIoSectionVisible (final boolean enabled)
+    {
+        this.arranger.isIoSectionVisible ().set (enabled);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void setCueMarkersVisible (final boolean enabled)
+    {
+        this.arranger.areCueMarkersVisible ().set (enabled);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void setTimelineVisible (final boolean enabled)
+    {
+        this.arranger.isTimelineVisible ().set (enabled);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void setEffectTracksVisible (final boolean enabled)
+    {
+        this.arranger.areEffectTracksVisible ().set (enabled);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void setPlaybackFollowEnabled (final boolean enabled)
+    {
+        this.arranger.isPlaybackFollowEnabled ().set (enabled);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void setDoubleRowTrackHeight (final boolean enabled)
+    {
+        this.arranger.hasDoubleRowTrackHeight ().set (enabled);
+    }
 }

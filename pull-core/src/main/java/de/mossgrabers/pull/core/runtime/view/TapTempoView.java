@@ -43,9 +43,13 @@ public final class TapTempoView implements ControllerView
         new SurfaceClaim (SurfaceArea.TAP_TEMPO_BUTTON, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
         new SurfaceClaim (SurfaceArea.TAP_TEMPO_BUTTON, SurfaceClaim.Kind.OUTPUT),
         new SurfaceClaim (SurfaceArea.SHIFT_MODIFIER, SurfaceClaim.Kind.OBSERVE_INPUT)), Set.of ());
-    private final AuthoritativeBooleanToggle<String> metronome = new AuthoritativeBooleanToggle<> ();
+    private final AuthoritativeBooleanToggle<String> metronome;
     private boolean held;
     private String noticeProject;
+
+    public TapTempoView () { this (new AuthoritativeBooleanToggle<> ()); }
+
+    TapTempoView (final AuthoritativeBooleanToggle<String> metronome) { this.metronome = java.util.Objects.requireNonNull (metronome, "metronome"); }
 
 
     @Override
@@ -91,7 +95,7 @@ public final class TapTempoView implements ControllerView
         }
         final var project = snapshot.bridge ().project ();
         final var transport = snapshot.bridge ().transport ();
-        if (!project.available () || project.commandPending () || !transport.available () || !transport.engineActive () || !project.engineActive ())
+        if (!project.available () || project.commandPending () || !transport.available ())
         {
             this.noticeProject = null;
             this.metronome.clear ();
@@ -102,7 +106,7 @@ public final class TapTempoView implements ControllerView
         final List<CoreEffect> effects = new ArrayList<> (this.metronome.update (
             project.projectIdentity (), transport.metronomeEnabled (), snapshot.monotonicTimeNanos (), toggle,
             (identity, enabled) -> new SetProjectTransportStateEffect (identity, identity, TransportState.METRONOME, enabled.booleanValue ())));
-        if (tap)
+        if (tap && transport.engineActive () && project.engineActive ())
         {
             effects.add (new TapTempoEffect (project.projectIdentity ()));
             this.noticeProject = project.projectIdentity ();
