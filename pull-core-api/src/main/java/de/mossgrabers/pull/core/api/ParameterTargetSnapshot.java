@@ -4,6 +4,7 @@
 package de.mossgrabers.pull.core.api;
 
 import java.util.Objects;
+import java.util.Optional;
 
 
 /**
@@ -16,8 +17,9 @@ import java.util.Objects;
  * @param displayedValue Authoritative host-formatted value
  * @param numberOfSteps Discrete step count, or {@code -1} for a continuous parameter
  * @param tolerance Read-back tolerance for equality
+ * @param enabled Optional authoritative enablement for parameters with that capability
  */
-public record ParameterTargetSnapshot (ParameterTargetRef target, String name, double value, double modulatedValue, String displayedValue, int numberOfSteps, double tolerance)
+public record ParameterTargetSnapshot (ParameterTargetRef target, String name, double value, double modulatedValue, String displayedValue, int numberOfSteps, double tolerance, Optional<Boolean> enabled)
 {
     /**
      * Validate the snapshot.
@@ -25,6 +27,7 @@ public record ParameterTargetSnapshot (ParameterTargetRef target, String name, d
     public ParameterTargetSnapshot
     {
         target = Objects.requireNonNull (target, "target");
+        enabled = Objects.requireNonNull (enabled, "enabled");
         name = Objects.requireNonNullElse (name, "");
         if (!Double.isFinite (value))
             throw new IllegalArgumentException ("parameter value must be finite");
@@ -35,6 +38,13 @@ public record ParameterTargetSnapshot (ParameterTargetRef target, String name, d
             throw new IllegalArgumentException ("parameter step count must be -1 or non-negative");
         if (!Double.isFinite (tolerance) || tolerance < 0)
             throw new IllegalArgumentException ("parameter tolerance must be finite and non-negative");
+    }
+
+
+    /** Compatibility constructor without optional parameter enablement. */
+    public ParameterTargetSnapshot (final ParameterTargetRef target, final String name, final double value, final double modulatedValue, final String displayedValue, final int numberOfSteps, final double tolerance)
+    {
+        this (target, name, value, modulatedValue, displayedValue, numberOfSteps, tolerance, Optional.empty ());
     }
 
 

@@ -62,13 +62,22 @@ class PushControllerInputBridgeTest
     {
         assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("PLAY"), InputKind.BUTTON));
         assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("RECORD"), InputKind.BUTTON));
+        assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("TAP_TEMPO"), InputKind.BUTTON));
+        assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("UNDO"), InputKind.BUTTON));
+        assertFalse (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("TAP_TEMPO"), InputKind.TOUCH));
         assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("SESSION"), InputKind.BUTTON));
         assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("NOTE"), InputKind.BUTTON));
         assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("LAYOUT"), InputKind.BUTTON));
         assertFalse (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("STOP_CLIP"), InputKind.BUTTON));
         assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("MUTE"), InputKind.BUTTON));
         assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("SOLO"), InputKind.BUTTON));
+        assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("OCTAVE_DOWN"), InputKind.BUTTON));
+        assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("OCTAVE_UP"), InputKind.BUTTON));
+        assertFalse (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("OCTAVE_UP"), InputKind.PAD));
         assertFalse (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("SCALES"), InputKind.BUTTON));
+        assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.continuous ("TOUCHSTRIP"), InputKind.TOUCH));
+        assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.continuous ("TOUCHSTRIP"), InputKind.ABSOLUTE));
+        assertFalse (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.continuous ("TOUCHSTRIP"), InputKind.RELATIVE));
         for (final var control: CoreControls.DRUM_CONTROL_PADS)
         {
             assertTrue (PushControllerInputBridge.isCoreOwnedInput (control, InputKind.PAD));

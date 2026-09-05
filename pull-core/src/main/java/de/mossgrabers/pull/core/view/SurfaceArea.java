@@ -179,6 +179,20 @@ public enum SurfaceArea
     }
 
 
+    /** Whether this fixed region consists solely of physical grid pads. */
+    boolean isPadRegion ()
+    {
+        return !this.footprint.isEmpty () && this.footprint.stream ().allMatch (element -> element.type () == ElementType.GRID_PAD);
+    }
+
+
+    /** Test a raw physical pad independently of its semantic controller-action identity. */
+    boolean containsPhysicalPad (final int padIndex)
+    {
+        return padIndex >= 0 && padIndex < 64 && this.footprint.contains (new HardwareElement (ElementType.GRID_PAD, padIndex));
+    }
+
+
     /**
      * Test whether an event belongs to this region.
      *

@@ -29,11 +29,11 @@ public final class MasterWorkspace
      * @param noteController Whether the selected Note controller remains active
      * @return Compiled Master page over the selected workspace grid
      */
-    public static CompiledWorkspace create (final ControllerLevelViews controllerViews, final SessionBankShape sessionBank, final List<? extends ControllerView> backgroundViews, final boolean noteController)
+    public static CompiledWorkspace create (final ControllerLevelViews controllerViews, final SessionBankShape sessionBank, final List<? extends ControllerView> backgroundViews, final boolean noteController, final boolean rawPitchBend)
     {
         final List<ControllerView> views = new ArrayList<> ();
-        views.add (new MasterControlView ());
+        views.add (new MasterControlView (controllerViews.parameterTouches ()));
         views.addAll (backgroundViews);
-        return CompiledWorkspace.compile ("Master", sessionBank, noteController ? controllerViews.compose (views) : controllerViews.composeWithoutNoteController (views));
+        return CompiledWorkspace.compile ("Master", sessionBank, rawPitchBend ? controllerViews.composeWithRawPitchBend (views, noteController) : noteController ? controllerViews.compose (views) : controllerViews.composeWithoutNoteController (views));
     }
 }

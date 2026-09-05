@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 
 
 /**
- * Tests drum capability, layout ownership and legacy Session ribbon policy as separate state.
+ * Tests drum capability and layout ownership as separate state.
  */
 class PushControlSurfaceRoutingTest
 {
@@ -60,21 +60,6 @@ class PushControlSurfaceRoutingTest
         assertFalse (PushControlSurface.isDrumControllerActive (true, false));
         assertFalse (PushControlSurface.isDrumControllerActive (false, true));
         assertTrue (PushControlSurface.isDrumControllerActive (true, true));
-    }
-
-
-    @Test
-    void sessionRetainsItsExplicitRawPitchbendPolicy ()
-    {
-        assertFalse (PushControlSurface.isRawPitchbendRoutingActive (false, false));
-        assertTrue (PushControlSurface.isRawPitchbendRoutingActive (true, false));
-        assertTrue (PushControlSurface.isRawPitchbendRoutingActive (false, true));
-        assertTrue (PushControlSurface.isRawPitchbendRoutingActive (true, true));
-
-        assertFalse (PushControlSurface.shouldRouteRawPitchbend (false, false));
-        assertTrue (PushControlSurface.shouldRouteRawPitchbend (true, false));
-        assertTrue (PushControlSurface.shouldRouteRawPitchbend (false, true));
-        assertTrue (PushControlSurface.shouldRouteRawPitchbend (true, true));
     }
 
 

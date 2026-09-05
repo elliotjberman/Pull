@@ -10,11 +10,15 @@ import de.mossgrabers.framework.controller.hardware.IHwContinuousControl;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.ITransport;
 import de.mossgrabers.framework.daw.data.ITrack;
+import de.mossgrabers.framework.daw.data.ISend;
+import de.mossgrabers.framework.daw.midi.ISelectedTrackNoteTarget;
 import de.mossgrabers.framework.daw.data.bank.IParameterBank;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
 import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.parameter.IParameter;
 import de.mossgrabers.pull.core.api.DesiredParameterBanks;
+import de.mossgrabers.pull.core.api.ControlId;
+import de.mossgrabers.pull.core.api.DesiredParameterTouches;
 import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
 import de.mossgrabers.pull.core.api.ParameterBankId;
 import de.mossgrabers.pull.core.api.ParameterBridgeSnapshot;
@@ -23,12 +27,16 @@ import de.mossgrabers.pull.core.api.ParameterTargetRef;
 import de.mossgrabers.pull.core.api.ParameterTargetKind;
 import de.mossgrabers.pull.core.api.ParameterTargetSnapshot;
 import de.mossgrabers.pull.core.api.effect.AdjustParameterValueEffect;
+import de.mossgrabers.pull.core.api.effect.AcquireParameterTouchEffect;
+import de.mossgrabers.pull.core.api.effect.SetParameterEnabledEffect;
+import de.mossgrabers.pull.core.api.effect.SetParameterNormalizedValueEffect;
 import de.mossgrabers.pull.core.api.effect.ResetParameterEffect;
 import de.mossgrabers.pull.core.api.effect.SetParameterValueEffect;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.BooleanSupplier;
 import java.util.function.DoubleConsumer;
 import java.util.function.DoubleSupplier;
@@ -60,9 +68,12 @@ final class ParameterTargetHost
 
     private final PushControlSurface surface;
     private final IModel model;
+    private final ISelectedTrackNoteTarget selectedTarget;
     private final ITransport transport;
     private final RuntimeLog log;
     private final ParameterTargetIdentityResolver targetIdentities;
+    private final LiveTarget [] selectedTrackTargets = new LiveTarget[2];
+    private final LiveTarget [] selectedSendTargets = new LiveTarget[ParameterSlot.BANK_SIZE];
     private final LiveTarget [] activeTargets = new LiveTarget[ParameterSlot.BANK_SIZE];
     private final LiveTarget [] projectTargets = new LiveTarget[ParameterSlot.BANK_SIZE];
     private final LiveTarget [] deviceTargets = new LiveTarget[ParameterSlot.BANK_SIZE];
@@ -71,6 +82,7 @@ final class ParameterTargetHost
     private final Map<ParameterTargetRef, LiveTarget> currentTargets = new LinkedHashMap<> (ParameterBridgeSnapshot.TARGET_CAPACITY);
 
     private Map<ParameterTargetRef, RetainedTarget> retainedTargets = Map.of ();
+    private final Map<ParameterTargetRef, LiveTarget> touchedTargets = new LinkedHashMap<> ();
     private LiveTarget masterMixVolumeTarget;
     private LiveTarget masterMixPanTarget;
     private LiveTarget cueVolumeTarget;
@@ -89,6 +101,13 @@ final class ParameterTargetHost
      */
     ParameterTargetHost (final PushControlSurface surface, final IModel model, final RuntimeLog log)
     {
+        this (surface, model, null, log);
+    }
+
+
+    ParameterTargetHost (final PushControlSurface surface, final IModel model, final ISelectedTrackNoteTarget selectedTarget, final RuntimeLog log)
+    {
+        this.selectedTarget = selectedTarget;
         this.surface = Objects.requireNonNull (surface, "surface");
         this.model = Objects.requireNonNull (model, "model");
         this.transport = Objects.requireNonNull (model.getTransport (), "transport");
@@ -108,6 +127,16 @@ final class ParameterTargetHost
         this.requestedBanks = Objects.requireNonNull (banks, "banks");
         this.reconcileTargets (this.requestedBanks);
         this.discardStaleRetainedTargets ();
+        final var touches = this.touchedTargets.entrySet ().iterator ();
+        while (touches.hasNext ())
+        {
+            final LiveTarget touched = touches.next ().getValue ();
+            if (!touched.isCurrent ())
+            {
+                this.log.warn ("Abandoned stale parameter touch without releasing a rebound target " + touched.reference);
+                touches.remove ();
+            }
+        }
         final ParameterBridgeSnapshot refreshed = !banks.banks ().isEmpty () || !this.retainedTargets.isEmpty () ? this.captureSnapshot () : ParameterBridgeSnapshot.empty ();
         if (refreshed.equals (this.snapshot))
             return false;
@@ -142,10 +171,9 @@ final class ParameterTargetHost
 
 
     /**
-     * Require the selected-track Mix encoders to resolve against the current selected-track
-     * identity before their established mutation may run. During project navigation the display
-     * can observe the new cursor one host sample before the stable parameter bindings follow it;
-     * that transient mismatch must be inert.
+     * Reject a stale physical Track binding if a compatibility consumer requests ACTIVE.
+     * Track policy now uses named banks and the permanent Track binding is empty; it must never
+     * regain legacy mutation through an unclassified physical parameter wrapper.
      */
     boolean requiresResolvedMutation (final IHwContinuousControl control)
     {
@@ -225,6 +253,96 @@ final class ParameterTargetHost
     }
 
 
+    Map<ControlId, ControllerBridge.ParameterTouchLease> prepareTouches (final DesiredParameterTouches desired, final DesiredParameterBanks banks)
+    {
+        final DesiredParameterBanks committedBanks = this.requestedBanks;
+        try
+        {
+            this.reconcileTargets (banks);
+            final Map<ControlId, ControllerBridge.ParameterTouchLease> prepared = new LinkedHashMap<> ();
+            desired.targets ().forEach ( (control, reference) -> {
+                final LiveTarget target = this.requireCurrent (reference);
+                if (target.parameter == null)
+                    throw new IllegalArgumentException ("Parameter touch requires a touch-capable parameter actuator");
+                prepared.put (control, new TouchTarget (target));
+            });
+            return Map.copyOf (prepared);
+        }
+        finally
+        {
+            this.reconcileTargets (committedBanks);
+        }
+    }
+
+
+    void releaseTouchesExcept (final Map<ControlId, ControllerBridge.ParameterTouchLease> prepared)
+    {
+        final var current = this.touchedTargets.entrySet ().iterator ();
+        while (current.hasNext ())
+        {
+            final LiveTarget target = current.next ().getValue ();
+            final boolean retained = prepared.values ().stream ().anyMatch (lease -> touchTarget (lease).isSameActuator (target));
+            if (retained)
+                continue;
+            current.remove ();
+            this.releaseTouch (target);
+        }
+    }
+
+
+    void acquireTouches (final Map<ControlId, ControllerBridge.ParameterTouchLease> prepared)
+    {
+        for (final ControllerBridge.ParameterTouchLease lease: prepared.values ())
+        {
+            final LiveTarget target = touchTarget (lease);
+            final LiveTarget current = this.requireCurrent (target.reference);
+            if (!target.isSameActuator (current) || !target.isCurrent ())
+                throw new IllegalStateException ("Parameter touch target changed before acquisition");
+            if (this.touchedTargets.containsKey (target.reference))
+                continue;
+            this.touchedTargets.put (target.reference, target);
+            target.parameter.touchValue (true);
+        }
+    }
+
+
+    void releaseTouches ()
+    {
+        this.releaseTouchesExcept (Map.of ());
+    }
+
+
+    private void releaseTouch (final LiveTarget target)
+    {
+        if (!target.addressable.getAsBoolean ())
+        {
+            this.log.warn ("Cannot release a parameter touch after its exact target changed " + target.reference);
+            return;
+        }
+        try
+        {
+            target.parameter.touchValue (false);
+        }
+        catch (final RuntimeException failure)
+        {
+            this.log.warn ("Parameter touch cleanup failed for " + target.reference + ": " + failure.getMessage ());
+        }
+    }
+
+
+    private static LiveTarget touchTarget (final ControllerBridge.ParameterTouchLease lease)
+    {
+        if (!(lease instanceof final TouchTarget touch))
+            throw new IllegalArgumentException ("Parameter touch lease belongs to another bridge");
+        return touch.target ();
+    }
+
+
+    private record TouchTarget (LiveTarget target) implements ControllerBridge.ParameterTouchLease
+    {
+    }
+
+
     boolean retains (final ParameterTargetRef target)
     {
         return this.retainedTargets.containsKey (Objects.requireNonNull (target, "target"));
@@ -253,6 +371,54 @@ final class ParameterTargetHost
     {
         final AdjustParameterValueEffect checkedEffect = Objects.requireNonNull (effect, "effect");
         return new PreparedAdjust (this.requireCurrent (checkedEffect.target ()), checkedEffect.delta ());
+    }
+
+
+    PreparedNormalized prepare (final SetParameterNormalizedValueEffect effect)
+    {
+        final LiveTarget target = this.requireCurrent (effect.target ());
+        if (target.parameter == null)
+            throw new IllegalArgumentException ("Parameter does not expose normalized mutation");
+        return new PreparedNormalized (target, effect.value ());
+    }
+
+
+    void apply (final PreparedNormalized action)
+    {
+        this.requireCurrent (action.target ().reference).parameter.setNormalizedValue (action.value ());
+    }
+
+
+    PreparedEnabled prepare (final SetParameterEnabledEffect effect)
+    {
+        final LiveTarget target = this.requireCurrent (effect.target ());
+        if (!(target.parameter instanceof ISend))
+            throw new IllegalArgumentException ("Parameter does not expose enabled state");
+        return new PreparedEnabled (target, effect.enabled ());
+    }
+
+
+    PreparedTouch prepare (final AcquireParameterTouchEffect effect)
+    {
+        final LiveTarget target = this.requireCurrent (effect.target ());
+        if (target.parameter == null)
+            throw new IllegalArgumentException ("Parameter does not expose touch state");
+        return new PreparedTouch (effect.owner (), target);
+    }
+
+
+    void apply (final PreparedEnabled action)
+    {
+        final LiveTarget target = this.requireCurrent (action.target ().reference);
+        if (!(target.parameter instanceof final ISend send))
+            throw new IllegalStateException ("Parameter enabled capability changed");
+        send.setEnabled (action.enabled ());
+    }
+
+
+    void apply (final PreparedTouch action)
+    {
+        this.acquireTouches (Map.of (action.owner (), new TouchTarget (action.target ())));
     }
 
 
@@ -303,6 +469,7 @@ final class ParameterTargetHost
      */
     void invalidate ()
     {
+        this.releaseTouches ();
         for (final RetainedTarget retained: this.retainedTargets.values ())
         {
             if (!retained.target.isCurrent ())
@@ -327,6 +494,16 @@ final class ParameterTargetHost
     {
         Objects.requireNonNull (banks, "banks");
         this.currentTargets.clear ();
+        if (banks.includes (ParameterBankId.SELECTED_TRACK))
+        {
+            for (int index = 0; index < this.selectedTrackTargets.length; index++)
+                this.selectedTrackTargets[index] = this.reconcileSelectedTarget (this.selectedTrackTargets[index], index, false);
+        }
+        if (banks.includes (ParameterBankId.SELECTED_TRACK_SENDS))
+        {
+            for (int index = 0; index < this.selectedSendTargets.length; index++)
+                this.selectedSendTargets[index] = this.reconcileSelectedTarget (this.selectedSendTargets[index], index, true);
+        }
         if (banks.includes (ParameterBankId.ACTIVE))
         {
             for (int index = 0; index < ACTIVE_CONTROLS.length; index++)
@@ -398,6 +575,48 @@ final class ParameterTargetHost
     }
 
 
+    private LiveTarget reconcileSelectedTarget (final LiveTarget existing, final int index, final boolean send)
+    {
+        if (this.selectedTarget == null || !this.selectedTarget.doesExist ())
+            return null;
+        final ITrackBank bank = this.model.getCurrentTrackBank ();
+        final ITrack track = bank == null ? null : bank.getSelectedItem ().orElse (null);
+        if (track == null || !track.doesExist () || !Objects.equals (this.selectedTarget.getChannelID (), track.getChannelID ()))
+            return null;
+        final IParameter parameter = selectedParameter (track, index, send);
+        if (parameter == null || !parameter.doesExist ())
+            return null;
+        final ParameterTargetIdentityResolver.TargetIdentity identity = this.targetIdentities.channel (track, parameter);
+        if (identity == null)
+            return null;
+        LiveTarget target = existing;
+        if (target == null || target.parameter != parameter || !target.isCurrent () || !identity.equals (target.targetIdentity))
+        {
+            final long selectedGeneration = this.selectedTarget.getGeneration ();
+            final String project = this.model.getProject ().getIdentity ();
+            final String channel = track.getChannelID ();
+            final BooleanSupplier addressable = () -> parameter.doesExist () && track.doesExist () && channel.equals (track.getChannelID ()) &&
+                Objects.equals (project, this.model.getProject ().getIdentity ()) && selectedParameter (track, index, send) == parameter && identity.equals (this.targetIdentities.channel (track, parameter));
+            final BooleanSupplier current = () -> addressable.getAsBoolean () && this.selectedTarget.doesExist () && selectedGeneration == this.selectedTarget.getGeneration () &&
+                channel.equals (this.selectedTarget.getChannelID ()) && this.model.getCurrentTrackBank () == bank &&
+                bank.getSelectedItem ().filter (candidate -> candidate == track && channel.equals (candidate.getChannelID ())).isPresent ();
+            target = new LiveTarget (new ParameterTargetRef (ParameterTargetKind.LIVE, this.nextIdentity (), selectedGeneration), null, parameter, 0, identity,
+                parameter::getValue, value -> parameter.setValueImmediatly ((int) Math.round (value)), current, addressable, 0.5);
+        }
+        if (target.isCurrent ())
+            this.currentTargets.put (target.reference, target);
+        return target;
+    }
+
+
+    private static IParameter selectedParameter (final ITrack track, final int index, final boolean send)
+    {
+        if (!send)
+            return index == 0 ? track.getVolumeParameter () : track.getPanParameter ();
+        return track.getSendBank () != null && index < track.getSendBank ().getPageSize () ? track.getSendBank ().getItem (index) : null;
+    }
+
+
     private LiveTarget reconcileProjectScopedTarget (final LiveTarget existing, final Supplier<IParameter> currentParameter)
     {
         final String projectIdentity = this.model.getProject ().getIdentity ();
@@ -463,7 +682,7 @@ final class ParameterTargetHost
         }
 
         final IParameter parameter = bank.getItem (index);
-        final ParameterTargetIdentityResolver.TargetIdentity targetIdentity = this.targetIdentities.remote ("project-remote", this.model.getProject ().getName (), bank, index);
+        final ParameterTargetIdentityResolver.TargetIdentity targetIdentity = this.targetIdentities.remote ("project-remote", this.model.getProject ().getIdentity (), bank, index);
         if (parameter == null || !parameter.doesExist () || targetIdentity == null)
         {
             this.projectTargets[index] = null;
@@ -479,7 +698,7 @@ final class ParameterTargetHost
                 parameter,
                 0,
                 targetIdentity,
-                () -> parameter.doesExist () && targetIdentity.equals (this.targetIdentities.remote ("project-remote", this.model.getProject ().getName (), bank, index)));
+                () -> parameter.doesExist () && targetIdentity.equals (this.targetIdentities.remote ("project-remote", this.model.getProject ().getIdentity (), bank, index)));
             this.projectTargets[index] = target;
         }
         if (target.isCurrent ())
@@ -597,6 +816,8 @@ final class ParameterTargetHost
     private ParameterBridgeSnapshot captureSnapshot ()
     {
         final Map<ParameterSlot, ParameterTargetSnapshot> slots = new LinkedHashMap<> (ParameterBridgeSnapshot.TARGET_CAPACITY);
+        this.captureBank (slots, ParameterBankId.SELECTED_TRACK, this.selectedTrackTargets, index -> new ParameterSlot (ParameterBankId.SELECTED_TRACK, index));
+        this.captureBank (slots, ParameterBankId.SELECTED_TRACK_SENDS, this.selectedSendTargets, ParameterSlot::selectedTrackSend);
         this.captureBank (slots, ParameterBankId.ACTIVE, this.activeTargets, ParameterSlot::active);
         this.captureBank (slots, ParameterBankId.PROJECT_REMOTE, this.projectTargets, ParameterSlot::projectRemote);
         this.captureBank (slots, ParameterBankId.SELECTED_DEVICE_REMOTE, this.deviceTargets, ParameterSlot::selectedDeviceRemote);
@@ -695,6 +916,21 @@ final class ParameterTargetHost
     }
 
 
+    record PreparedNormalized (LiveTarget target, double value)
+    {
+    }
+
+
+    record PreparedEnabled (LiveTarget target, boolean enabled)
+    {
+    }
+
+
+    record PreparedTouch (ControlId owner, LiveTarget target)
+    {
+    }
+
+
     record PreparedSet (LiveTarget target, double value)
     {
     }
@@ -725,10 +961,17 @@ final class ParameterTargetHost
         private final DoubleSupplier reader;
         private final DoubleConsumer restorer;
         private final BooleanSupplier current;
+        private final BooleanSupplier addressable;
         private final double tolerance;
 
 
         private LiveTarget (final ParameterTargetRef reference, final IHwContinuousControl control, final IParameter parameter, final long bindingGeneration, final ParameterTargetIdentityResolver.TargetIdentity targetIdentity, final DoubleSupplier reader, final DoubleConsumer restorer, final BooleanSupplier current, final double tolerance)
+        {
+            this (reference, control, parameter, bindingGeneration, targetIdentity, reader, restorer, current, current, tolerance);
+        }
+
+
+        private LiveTarget (final ParameterTargetRef reference, final IHwContinuousControl control, final IParameter parameter, final long bindingGeneration, final ParameterTargetIdentityResolver.TargetIdentity targetIdentity, final DoubleSupplier reader, final DoubleConsumer restorer, final BooleanSupplier current, final BooleanSupplier addressable, final double tolerance)
         {
             this.reference = Objects.requireNonNull (reference, "reference");
             this.control = control;
@@ -738,6 +981,7 @@ final class ParameterTargetHost
             this.reader = Objects.requireNonNull (reader, "reader");
             this.restorer = Objects.requireNonNull (restorer, "restorer");
             this.current = Objects.requireNonNull (current, "current");
+            this.addressable = Objects.requireNonNull (addressable, "addressable");
             this.tolerance = tolerance;
         }
 
@@ -754,7 +998,8 @@ final class ParameterTargetHost
                 this.parameter.getModulatedValue (),
                 this.parameter.getDisplayedValue (),
                 this.parameter.getNumberOfSteps (),
-                this.tolerance);
+                this.tolerance,
+                this.parameter instanceof final ISend send ? Optional.of (Boolean.valueOf (send.isEnabled ())) : Optional.empty ());
         }
 
 

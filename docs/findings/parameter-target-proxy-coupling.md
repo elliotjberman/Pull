@@ -82,9 +82,9 @@ view should remove the binding, not redefine the target retained by an independe
 
 ## Current Mitigation
 
-Core API 25 separates physical controls from a named bounded parameter canopy. Stable can publish
+Core API 45 separates physical controls from a named bounded parameter canopy. Stable can publish
 the inherited active encoder window, project remotes, the selected-device remote page, visible-track
-volume and pan, the project-scoped Master/Cue page, and fixed globals. A slot contains an opaque target identity/generation, name, raw
+volume and pan, selected-track volume/pan/eight sends, the project-scoped Master/Cue page, and fixed globals. A slot contains an opaque target identity/generation, name, raw
 and modulated values, authoritative display text, step count, and tolerance; it never uses a Push
 control ID as target identity. Core selects which installed banks are sampled, owns view-specific
 control-to-slot mapping, and owns snapback policy.
@@ -96,7 +96,9 @@ old live target and publishes a new generation before accepting another mutation
 `ProjectMacroControlsView` proves the intended mutation direction: it owns the eight relative
 encoder routes in core and emits typed relative effects against `PROJECT_REMOTE` targets. Stable's
 `WorkspaceMode` no longer mutates or binds those encoders and no longer owns parameter-body display
-policy; it retains touch/delete and the inherited Project menu/track footer. The inherited `ACTIVE`
+policy. API 45 also moves Project/Master/Track touch, Delete reset, and configured automation-release
+policy into core, with complete desired touch leases and core-owned display output. Project remote
+owners now use project identity rather than display names. The inherited `ACTIVE`
 bank remains explicit compatibility scaffolding for unmigrated
 stable parameter modes, not the model new views should copy.
 
@@ -106,13 +108,19 @@ survives a selected-device or remote-page change therefore receives a new opaque
 An unclassified Bitwig `ParameterImpl` is excluded from the lease window instead of being treated as
 exact merely because its Java wrapper is unchanged.
 
-Selected-track Mix is additionally fail-closed against the exact selection-following cursor. Its
-volume, pan, and send encoders mechanically unwrap inherited Push response-curve adapters, validate
-the resulting parameter against the actually selected current-bank proxy and semantic role, and
-then require that owner's stable channel ID to agree with the private selection-following cursor.
-They cannot fall back to a matching parameter elsewhere in the visible track bank; while Bitwig
-reconciles a project or selection change, an unresolved turn is suppressed instead of reaching the
-stale stable binding.
+Selected-track Mix uses named `SELECTED_TRACK` and `SELECTED_TRACK_SENDS` banks, independent of
+physical encoder bindings. Publication and mutation fence the actual selected current-bank proxy,
+private selected-track channel ID/generation, project identity, and parameter role. The core owns
+normal/fine response curves, pan center detent, send paging, and enabled toggles. Dynamic parameter
+slot maps may select only each view's predeclared controls and banks. TrackMode's former provider
+and ACTIVE identity recipe are deleted; an accidental physical Track binding is excluded rather
+than treated as an actuator. Unaligned or absent selected-track windows publish no named targets.
+
+Parameter touch leases preserve exact acquired actuators while their live identity remains current;
+complete replay does not retrigger touch begin, and page departure/fault/selection/exit cleanup
+releases once when addressable. External proxy rebinding cannot be undone: cleanup drops and warns
+rather than touching the replacement target. No pinned touch actuator pool has been added, so this
+finding's broader removal criteria remain unsatisfied.
 
 Core may retain a complete target-to-baseline lease set. Stable resolves each request to the exact
 current live actuator, rechecks that actuator at apply time, executes absolute restores only through
@@ -152,7 +160,7 @@ The design must distinguish:
 Each bounded bank or lease pool must document its capacity, identity and generation rules,
 selection scope, and behavior when capacity is exhausted.
 
-API 25 deliberately omits visible-track sends. They should arrive with the authoritative visible
+The current canopy deliberately omits all-visible-track sends. They should arrive with the authoritative visible
 track bank so send targets and rendered track identities share one generation fence, rather than as
 64 parameter-only slots with an independent alignment model.
 

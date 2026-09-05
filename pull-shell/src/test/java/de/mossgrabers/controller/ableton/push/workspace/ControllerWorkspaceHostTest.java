@@ -33,8 +33,7 @@ class ControllerWorkspaceHostTest
         final Set<ControllerViewFacet> facets = Set.of (
             ControllerViewFacet.SESSION_CLIP_GRID_UPPER,
             ControllerViewFacet.SESSION_SCENE_KEYS_UPPER,
-            ControllerViewFacet.DRUM_CONTROLLER_LOWER,
-            ControllerViewFacet.DRUM_PITCH_BEND);
+            ControllerViewFacet.DRUM_CONTROLLER_LOWER);
         final SessionBankShape shape = new SessionBankShape (8, 4);
         final DesiredControllerWorkspace first = new DesiredControllerWorkspace ("first", facets, shape);
         final DesiredControllerWorkspace second = new DesiredControllerWorkspace ("another name", facets, shape);
@@ -50,10 +49,6 @@ class ControllerWorkspaceHostTest
         assertThrows (IllegalArgumentException.class, () -> ControllerWorkspaceHost.validate (new DesiredControllerWorkspace (
             "scene keys only",
             Set.of (ControllerViewFacet.SESSION_SCENE_KEYS_UPPER),
-            SessionBankShape.empty ())));
-        assertThrows (IllegalArgumentException.class, () -> ControllerWorkspaceHost.validate (new DesiredControllerWorkspace (
-            "pitch only",
-            Set.of (ControllerViewFacet.DRUM_PITCH_BEND),
             SessionBankShape.empty ())));
     }
 

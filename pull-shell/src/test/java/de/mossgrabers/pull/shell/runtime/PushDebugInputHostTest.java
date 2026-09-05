@@ -33,6 +33,7 @@ class PushDebugInputHostTest
     private static final ControlId PLAY = PushControlIds.button ("PLAY");
     private static final ControlId SHIFT = PushControlIds.button ("SHIFT");
     private static final ControlId KNOB = PushControlIds.continuous ("KNOB1");
+    private static final ControlId STRIP = PushControlIds.continuous ("TOUCHSTRIP");
     private static final ControlId PAD = PushControlIds.pad (5);
 
     @TempDir
@@ -157,6 +158,45 @@ class PushDebugInputHostTest
 
 
     @Test
+    void absoluteStripMotionRequiresItsTouchLeaseAndPreservesAllFourteenBits () throws IOException
+    {
+        this.request (this.host, "orphan", STRIP, InputKind.ABSOLUTE, "CHANGE", 9000);
+        this.host.tick ();
+        assertTrue (this.status ().contains ("\"state\":\"FAILED\""));
+        assertTrue (this.surface.events.isEmpty ());
+
+        this.request (this.host, "touch", STRIP, InputKind.TOUCH, "BEGIN", 127);
+        this.host.tick ();
+        this.request (this.host, "position", STRIP, InputKind.ABSOLUTE, "CHANGE", 12345);
+        this.host.tick ();
+        assertTrue (this.status ().contains ("\"state\":\"APPLIED\""));
+        this.request (this.host, "release", STRIP, InputKind.TOUCH, "END", 0);
+        this.host.tick ();
+
+        assertEquals (List.of (
+            "push.continuous.touchstrip:TOUCH:BEGIN:127",
+            "push.continuous.touchstrip:ABSOLUTE:CHANGE:12345",
+            "push.continuous.touchstrip:TOUCH:END:0"), this.surface.events);
+        assertTrue (this.surface.noteInputEvents.isEmpty (), "core effects own musical pitch; the debugger must not add a parallel MIDI write");
+    }
+
+
+    @Test
+    void absoluteStripRangeAndExpiredTouchFailClosed () throws IOException
+    {
+        this.request (this.host, "touch", STRIP, InputKind.TOUCH, "BEGIN", 127);
+        this.host.tick ();
+        this.request (this.host, "invalid", STRIP, InputKind.ABSOLUTE, "CHANGE", 16384);
+        this.host.tick ();
+        assertTrue (this.status ().contains ("\"state\":\"FAILED\""));
+        this.time.set (TimeUnit.SECONDS.toNanos (6));
+        this.host.tick ();
+        assertEquals ("push.continuous.touchstrip:TOUCH:END:0", this.surface.events.getLast ());
+        assertFalse (this.admission.debugActive);
+    }
+
+
+    @Test
     void relativeTurnsAreSummedInsideTheMatchingTouchLease () throws IOException
     {
         this.request (this.host, "touch-down", KNOB, InputKind.TOUCH, "BEGIN", 127);
@@ -275,6 +315,7 @@ class PushDebugInputHostTest
         {
             return (PLAY.equals (control) || SHIFT.equals (control)) && kind == InputKind.BUTTON ||
                 KNOB.equals (control) && (kind == InputKind.TOUCH || kind == InputKind.RELATIVE) ||
+                STRIP.equals (control) && (kind == InputKind.TOUCH || kind == InputKind.ABSOLUTE) ||
                 PAD.equals (control) && (kind == InputKind.PAD || kind == InputKind.POLY_PRESSURE);
         }
 

@@ -24,6 +24,7 @@ import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.event.ParameterMutationEvent;
 import de.mossgrabers.pull.shell.input.PhysicalInputEvent;
 import de.mossgrabers.pull.core.api.output.RgbColor;
+import de.mossgrabers.pull.core.api.output.DesiredTouchStrip;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
@@ -91,6 +92,13 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         if (this.environment == null || this.closed)
             return false;
         return this.environment.ownsLight (Objects.requireNonNull (control, "control"));
+    }
+
+
+    /** Get complete strip ownership; disconnected or closed cores leave the strip inert. */
+    public DesiredTouchStrip touchStrip ()
+    {
+        return this.environment == null || this.closed ? DesiredTouchStrip.off () : this.environment.touchStrip ();
     }
 
 
@@ -183,7 +191,8 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             Objects.requireNonNull (surface, "surface"),
             Objects.requireNonNull (valueChanger, "valueChanger"),
             this.log,
-            this.controllerMappings);
+            this.controllerMappings,
+            AutomationHost.create (this.controllerHost, model.getProject ()::getIdentity, surface.getConfiguration ()::isStopAutomationOnKnobRelease));
         this.environment = new ControllerRuntimeEnvironment (this.clipHost, controllerBridge, this.log, System::nanoTime);
         this.debugTrace = PushDebugTraceHost.createIfEnabled ();
         this.supervisor = new CoreReloadSupervisor (this.environment, this.log, this.debugTrace);

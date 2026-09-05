@@ -14,6 +14,7 @@ import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredControllerLayout;
 import de.mossgrabers.pull.core.api.SessionBankShape;
+import de.mossgrabers.pull.core.api.DesiredNoteInputTranslation;
 
 import java.util.Objects;
 
@@ -82,6 +83,13 @@ public final class ControllerWorkspaceHost
     }
 
 
+    /** Apply a complete native translation after the shared note lifecycle admits it. */
+    public void applyNoteTranslation (final DesiredNoteInputTranslation translation)
+    {
+        this.surface.applyCoreNoteTranslation (Objects.requireNonNull (translation, "translation"));
+    }
+
+
     static void applyPreparedLayout (final DesiredControllerLayout requested, final ModeManager modeManager, final ViewManager viewManager)
     {
         if (requested.neutralizing ())
@@ -101,8 +109,6 @@ public final class ControllerWorkspaceHost
         final DesiredControllerWorkspace candidate = Objects.requireNonNull (workspace, "workspace");
         if (candidate.facets ().contains (ControllerViewFacet.SESSION_SCENE_KEYS_UPPER) && !candidate.facets ().contains (ControllerViewFacet.SESSION_CLIP_GRID_UPPER))
             throw new IllegalArgumentException ("Upper Session scene keys require the upper Session clip grid");
-        if (candidate.facets ().contains (ControllerViewFacet.DRUM_PITCH_BEND) && !candidate.facets ().contains (ControllerViewFacet.DRUM_CONTROLLER_LOWER))
-            throw new IllegalArgumentException ("Drum pitch bend requires the lower Drum controller");
         if (candidate.facets ().contains (ControllerViewFacet.SESSION_CLIP_GRID_UPPER) && candidate.facets ().contains (ControllerViewFacet.SESSION_GRID_FULL))
             throw new IllegalArgumentException ("Upper and full Session views cannot be active together");
         if (candidate.facets ().contains (ControllerViewFacet.SESSION_GRID_FULL) && (candidate.facets ().contains (ControllerViewFacet.DRUM_CONTROLLER_LOWER) || candidate.facets ().contains (ControllerViewFacet.SESSION_NAVIGATION) || candidate.facets ().contains (ControllerViewFacet.SESSION_SCENE_KEYS_UPPER)))

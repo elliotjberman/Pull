@@ -91,7 +91,6 @@ import de.mossgrabers.framework.command.trigger.Direction;
 import de.mossgrabers.framework.command.trigger.FootswitchCommand;
 import de.mossgrabers.framework.command.trigger.application.DeleteCommand;
 import de.mossgrabers.framework.command.trigger.application.DuplicateCommand;
-import de.mossgrabers.framework.command.trigger.application.UndoCommand;
 import de.mossgrabers.framework.command.trigger.clip.ConvertCommand;
 import de.mossgrabers.framework.command.trigger.clip.DoubleCommand;
 import de.mossgrabers.framework.command.trigger.clip.FillModeNoteRepeatCommand;
@@ -99,7 +98,6 @@ import de.mossgrabers.framework.command.trigger.clip.NewCommand;
 import de.mossgrabers.framework.command.trigger.mode.ButtonRowModeCommand;
 import de.mossgrabers.framework.command.trigger.mode.KnobRowTouchModeCommand;
 import de.mossgrabers.framework.command.trigger.mode.ModeSelectCommand;
-import de.mossgrabers.framework.command.trigger.transport.TapTempoCommand;
 import de.mossgrabers.framework.command.trigger.view.ViewButtonCommand;
 import de.mossgrabers.framework.configuration.AbstractConfiguration;
 import de.mossgrabers.framework.configuration.ISettingsUI;
@@ -208,6 +206,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
 
         if (this.touchstripCommand != null)
             this.touchstripCommand.updateValue ();
+        this.getSurface ().synchronizeTouchStripOutput ();
 
         super.flush ();
     }
@@ -425,21 +424,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         this.addButton (ButtonID.QUANTIZE, "Quantize", new PushQuantizeCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_QUANTIZE);
         this.addButton (ButtonID.DELETE, "Delete", new DeleteCommand<> (this.model, surface), PushControlSurface.PUSH_BUTTON_DELETE);
         this.addButton (ButtonID.DOUBLE, "Double Loop", new DoubleCommand<> (this.model, surface), PushControlSurface.PUSH_BUTTON_DOUBLE);
-        this.addButton (ButtonID.UNDO, "Undo", new UndoCommand<> (this.model, surface), PushControlSurface.PUSH_BUTTON_UNDO, () -> {
-
-            if (surface.isShiftPressed ())
-            {
-                if (!this.model.getApplication ().canRedo ())
-                    return 0;
-            }
-            else
-            {
-                if (!this.model.getApplication ().canUndo ())
-                    return 0;
-            }
-            return surface.getButton (ButtonID.UNDO).isPressed () ? 2 : 1;
-
-        }, ColorManager.BUTTON_STATE_OFF, ColorManager.BUTTON_STATE_ON, ColorManager.BUTTON_STATE_HI);
+        this.addButton (ButtonID.UNDO, "Undo", CORE_OWNED_BUTTON_COMMAND, PushControlSurface.PUSH_BUTTON_UNDO, () -> PushColorManager.resolveCoreButtonColor (this.colorManager, ButtonID.UNDO, this.reloadableRuntime.lightColor (PushControlIds.button ("UNDO"))));
 
         this.addButton (ButtonID.AUTOMATION, "Automate", new PushAutomationCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_AUTOMATION, () -> {
 
@@ -466,7 +451,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
 
         this.addButton (ButtonID.SHIFT, "Shift", new ShiftCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_SHIFT);
         this.addButton (ButtonID.SELECT, "Select", new SelectCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_SELECT);
-        this.addButton (ButtonID.TAP_TEMPO, "Tap Tempo", new TapTempoCommand<> (this.model, surface), PushControlSurface.PUSH_BUTTON_TAP);
+        this.addButton (ButtonID.TAP_TEMPO, "Tap Tempo", CORE_OWNED_BUTTON_COMMAND, PushControlSurface.PUSH_BUTTON_TAP, () -> PushColorManager.resolveCoreButtonColor (this.colorManager, ButtonID.TAP_TEMPO, this.reloadableRuntime.lightColor (PushControlIds.button ("TAP_TEMPO"))));
         this.addButton (ButtonID.METRONOME, "Metronome", new PushMetronomeCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_METRONOME, t::isMetronomeOn);
         this.addButton (ButtonID.MASTERTRACK, "Mastertrack", new MastertrackCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_MASTER, () -> Modes.isMasterMode (modeManager.getActiveID ()), PushColorManager.PUSH_BUTTON_STATE_MASTER_ON, PushColorManager.PUSH_BUTTON_STATE_MASTER_HI);
         this.addButton (ButtonID.PAGE_LEFT, "Page Left", new PageLeftCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_DEVICE_LEFT, () -> {
@@ -552,7 +537,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         final ControlId lightControl = PushControlIds.button (buttonID.name ());
         final IntSupplier arbitratedSupplier = () -> {
             if (this.reloadableRuntime.ownsLight (lightControl))
-                return controllerLightColor (this.colorManager, this.reloadableRuntime.lightColor (lightControl));
+                return PushColorManager.resolveCoreButtonColor (this.colorManager, buttonID, this.reloadableRuntime.lightColor (lightControl));
 
             final int state = stableSupplier.getAsInt ();
             if (colorIds == null || colorIds.length == 0)
@@ -825,11 +810,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
     {
         final PushControlSurface surface = this.getSurface ();
 
-        // Update ribbon mode
-        if (surface.shouldRouteRawPitchbend ())
-            surface.setRibbonMode (PushControlSurface.PUSH_RIBBON_PITCHBEND);
-        else
-            this.updateRibbonMode ();
+        this.updateRibbonMode ();
 
         surface.getDisplay ().cancelNotification ();
     }

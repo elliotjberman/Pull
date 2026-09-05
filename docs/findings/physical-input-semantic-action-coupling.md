@@ -46,9 +46,9 @@ This removes the core-side physical navigation table. It does not yet satisfy th
 - The permanent Master binding remains temporarily necessary for its unbridged long-press Frame
   variant. While a composed core workspace is active, its short press is a page-only compatibility
   adapter: it activates Master without selecting Bitwig's master track. Exits no longer depend on
-  stable mode history: `TrackMixerPageView` and `SessionView.full()` explicitly request the plain
-  Session destination. After controller-layout read-back acknowledges `TRACK`/`SESSION`, only the
-  default page request retires; the semantic Session view remains selected.
+  stable mode history: core Track controls/footer and `SessionView.full()` explicitly compose the
+  plain Session destination. After controller-layout read-back acknowledges `TRACK`/`SESSION`, the
+  temporary handoff retires while the Track page and semantic Session grid remain selected.
 - Play is a core-exclusive edge with an inert stable command. Core retains the engine-owning
   project identity and emits one exact origin/target project-transport payload. Stable validates
   the live origin and owns the complete bounded tab visit, authoritative transport readback, and
@@ -74,10 +74,16 @@ This removes the core-side physical navigation table. It does not yet satisfy th
 
 - Several stable mode commands expose only coarse command-level meaning, not a payload identifying
   the exact selected track, page, device, or workspace.
-- VS Live now changes its retained page only when one of those semantic stable-command actions is
-  delivered. A bare `TRACK` mode read-back used to neutralize a selected-track Note route is no
+- Normal Track and VS Live now change their retained page only when a semantic page action is
+  delivered or its explicitly requested mode has later read-back. A bare `TRACK` mode read-back used to neutralize a selected-track Note route is no
   longer misread as Mix selection. The action remains coarse, however, so the exact page still
   comes from its post-command authoritative layout and the removal criteria remain unsatisfied.
+- Ordinary Track lower-row semantics intentionally capture modifiers and target at release. Their
+  BEGIN action establishes a conservative parameter barrier and a bounded provisional gesture;
+  END/LONG captures immutable intent even if dispatch is still delayed. Modifier consumption
+  happens at the physical edge, while target effects wait for admission. Session Stop+track uses a
+  separate declared Stop intent captured at BEGIN. The older compatibility commands still lack
+  equivalent phase-aware contracts.
 - `ButtonRowModeCommand` delegates into an active mode that has no semantic-intent contract, so the
   compatibility adapter must conservatively classify the command.
 - Stable compatibility intent is still inferred from command types. It should disappear as those

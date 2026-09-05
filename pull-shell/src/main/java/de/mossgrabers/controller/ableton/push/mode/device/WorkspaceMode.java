@@ -13,11 +13,10 @@ import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.graphics.canvas.component.IComponent;
 import de.mossgrabers.framework.parameter.IParameter;
 import de.mossgrabers.framework.utils.ButtonEvent;
-import de.mossgrabers.pull.core.api.ControllerViewFacet;
 
 
 /**
- * Stable encoder-touch adapter for the project-macro facet.
+ * Stable layout adapter for the fully core-owned project-macro facet.
  */
 public final class WorkspaceMode extends BaseMode<IParameter> implements WorkspaceFacetAdapter
 {
@@ -51,7 +50,7 @@ public final class WorkspaceMode extends BaseMode<IParameter> implements Workspa
     @Override
     public void reconcileWorkspaceFacets ()
     {
-        // Touch remains a stable adapter. Relative mutation, rendering, track selection, and
+        // Touch, relative mutation, rendering, track selection, and
         // controller feedback are core-owned, so this mode never binds its project bank.
     }
 
@@ -60,18 +59,8 @@ public final class WorkspaceMode extends BaseMode<IParameter> implements Workspa
     @Override
     public void onKnobTouch (final int index, final boolean isTouched)
     {
-        if (!this.hasFacet (ControllerViewFacet.PROJECT_MACRO_CONTROLS))
-            return;
-
-        this.setTouchedKnob (index, isTouched);
-        final IParameter parameter = this.bank.getItem (index);
-        if (isTouched && this.surface.isDeletePressed ())
-        {
-            this.surface.setTriggerConsumed (ButtonID.DELETE);
-            parameter.resetValue ();
-        }
-        parameter.touchValue (isTouched);
-        this.checkStopAutomationOnKnobRelease (isTouched);
+        // Project Macro touch, Delete reset, and automation-release policy are core-owned.
+        // The permanent mode dispatcher remains available to unrelated inherited page profiles.
     }
 
 
@@ -101,8 +90,4 @@ public final class WorkspaceMode extends BaseMode<IParameter> implements Workspa
     }
 
 
-    private boolean hasFacet (final ControllerViewFacet facet)
-    {
-        return this.surface.getControllerWorkspaceHost ().hasFacet (facet);
-    }
 }

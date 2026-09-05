@@ -11,6 +11,12 @@ import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.IModel;
+import de.mossgrabers.framework.mode.Modes;
+import de.mossgrabers.pull.core.api.CurrentTrackBankSnapshot;
+import de.mossgrabers.pull.core.api.effect.CurrentTrackActionEffect;
+import de.mossgrabers.pull.core.api.effect.SetCurrentTrackBooleanEffect;
+import de.mossgrabers.pull.core.api.effect.NavigateTrackParentEffect;
+import de.mossgrabers.pull.core.api.effect.SelectControllerModeEffect;
 import de.mossgrabers.framework.daw.ITransport;
 import de.mossgrabers.framework.daw.data.IDrumDevice;
 import de.mossgrabers.framework.daw.data.IDrumPad;
@@ -30,6 +36,12 @@ import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
 import de.mossgrabers.pull.core.api.DesiredControllerState;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
+import de.mossgrabers.pull.core.api.DesiredParameterTouches;
+import de.mossgrabers.pull.core.api.AutomationSnapshot;
+import de.mossgrabers.pull.core.api.EncoderConfigurationSnapshot;
+import de.mossgrabers.pull.core.api.effect.SetAutomationWriteEffect;
+import de.mossgrabers.pull.core.api.effect.SetDrumBankPositionEffect;
+import de.mossgrabers.pull.core.api.effect.ShowHostNotificationEffect;
 import de.mossgrabers.pull.core.api.DesiredParameterBanks;
 import de.mossgrabers.pull.core.api.DrumContextSnapshot;
 import de.mossgrabers.pull.core.api.DrumPadSnapshot;
@@ -52,6 +64,9 @@ import de.mossgrabers.pull.core.api.effect.SetControllerMappingStorageEffect;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.ConsumeControllerButtonEffect;
 import de.mossgrabers.pull.core.api.effect.AdjustParameterValueEffect;
+import de.mossgrabers.pull.core.api.effect.AcquireParameterTouchEffect;
+import de.mossgrabers.pull.core.api.effect.SetParameterEnabledEffect;
+import de.mossgrabers.pull.core.api.effect.SetParameterNormalizedValueEffect;
 import de.mossgrabers.pull.core.api.effect.ResetParameterEffect;
 import de.mossgrabers.pull.core.api.effect.DrumPadBoolean;
 import de.mossgrabers.pull.core.api.effect.DrumPadValue;
@@ -110,10 +125,12 @@ final class BoundedControllerBridge implements ControllerBridge
     private final RuntimeLog log;
     private final NewClipAction newClipAction;
     private final ParameterTargetHost parameterTargets;
+    private final AutomationHost automation;
     private final MasterCommandHost masterCommands;
     private final ControllerStateHost controllerState;
     private final ControllerMappingHost controllerMappings;
     private final SessionBankHost sessionBank;
+    private final CurrentTrackBankHost currentTrackBank;
     private final Map<MidiStateKey, MidiState> noteInputMidiState = new HashMap<> ();
 
     private ControllerBridgeSnapshot snapshot = ControllerBridgeSnapshot.empty ();
@@ -140,6 +157,13 @@ final class BoundedControllerBridge implements ControllerBridge
     /** Production and test seam for the fixed mapped-light observation host. */
     BoundedControllerBridge (final IModel model, final ISelectedTrackNoteTarget selectedTarget, final MidiShortCallback noteInputMidiSender, final PushControlSurface surface, final IValueChanger valueChanger, final RuntimeLog log, final ControllerMappingHost controllerMappings)
     {
+        this (model, selectedTarget, noteInputMidiSender, surface, valueChanger, log, controllerMappings, null);
+    }
+
+
+    BoundedControllerBridge (final IModel model, final ISelectedTrackNoteTarget selectedTarget, final MidiShortCallback noteInputMidiSender, final PushControlSurface surface, final IValueChanger valueChanger, final RuntimeLog log, final ControllerMappingHost controllerMappings, final AutomationHost automation)
+    {
+        this.automation = automation;
         this.model = Objects.requireNonNull (model, "model");
         this.transport = Objects.requireNonNull (model.getTransport (), "transport");
         this.selectedTarget = Objects.requireNonNull (selectedTarget, "selectedTarget");
@@ -148,11 +172,12 @@ final class BoundedControllerBridge implements ControllerBridge
         this.valueChanger = Objects.requireNonNull (valueChanger, "valueChanger");
         this.newClipAction = new NewClipAction (model);
         this.log = Objects.requireNonNull (log, "log");
-        this.parameterTargets = new ParameterTargetHost (surface, model, this.log);
+        this.parameterTargets = new ParameterTargetHost (surface, model, selectedTarget, this.log);
         this.masterCommands = new MasterCommandHost (model, log);
         this.controllerState = new ControllerStateHost (selectedTarget, surface.getControllerWorkspaceHost (), this::resetNoteInputMidiState);
         this.controllerMappings = controllerMappings;
         this.sessionBank = new SessionBankHost (surface.getSessionBankRegistry ());
+        this.currentTrackBank = new CurrentTrackBankHost (model, surface.getSessionBankRegistry ().getBanks ());
     }
 
 
@@ -172,7 +197,10 @@ final class BoundedControllerBridge implements ControllerBridge
         this.controllerState.refresh ();
         final long selectedGeneration = this.selectedTarget.getGeneration ();
         if (this.observedSelectedGeneration >= 0 && selectedGeneration != this.observedSelectedGeneration)
+        {
             this.resetNoteInputMidiState ();
+            this.parameterTargets.releaseTouches ();
+        }
         this.observedSelectedGeneration = selectedGeneration;
 
         final boolean selectedRequested = requested.includes (BridgeSubscription.SELECTED_TRACK);
@@ -180,10 +208,15 @@ final class BoundedControllerBridge implements ControllerBridge
         final boolean noteViewRequested = requested.includes (BridgeSubscription.NOTE_VIEW);
         final SelectedTrackNoteTargetSnapshot selectedState = selectedRequested || drumRequested || noteViewRequested ? this.selectedTarget.snapshot () : null;
         final SelectedTrackSnapshot selected = selectedRequested ? toApiSnapshot (selectedState) : SelectedTrackSnapshot.empty ();
-        final boolean sessionBankRequested = requested.includes (BridgeSubscription.SESSION_BANK);
+        final boolean sessionClipsRequested = requested.includes (BridgeSubscription.SESSION_CLIPS);
+        final boolean sessionBankRequested = requested.includes (BridgeSubscription.SESSION_BANK) || sessionClipsRequested;
         if (sessionBankRequested)
-            this.sessionBank.refresh ();
+            this.sessionBank.refresh (sessionClipsRequested);
         final SessionBankSnapshot sessionBankState = sessionBankRequested ? this.sessionBank.snapshot () : SessionBankSnapshot.empty ();
+        final boolean currentTrackBankRequested = requested.includes (BridgeSubscription.CURRENT_TRACK_BANK);
+        if (currentTrackBankRequested)
+            this.currentTrackBank.refresh ();
+        final CurrentTrackBankSnapshot currentTrackBankState = currentTrackBankRequested ? this.currentTrackBank.snapshot () : CurrentTrackBankSnapshot.empty ();
 
         final TransportSnapshot transportState;
         if (requested.includes (BridgeSubscription.TRANSPORT))
@@ -222,7 +255,7 @@ final class BoundedControllerBridge implements ControllerBridge
         this.masterCommands.refresh (masterRequested, projectRequested);
         final MasterSnapshot master = masterRequested ? this.masterCommands.snapshot () : MasterSnapshot.empty ();
         final ProjectSnapshot project = projectRequested ? this.masterCommands.projectSnapshot () : ProjectSnapshot.empty ();
-        final ControllerBridgeSnapshot refreshed = new ControllerBridgeSnapshot (transportState, selected, sessionBankState, layout, noteView, noteRepeat, this.drumSnapshot, parameters, controllerMappingFeedback, master, project);
+        final ControllerBridgeSnapshot refreshed = new ControllerBridgeSnapshot (transportState, selected, sessionBankState, layout, noteView, noteRepeat, this.drumSnapshot, parameters, controllerMappingFeedback, master, project, requested.includes (BridgeSubscription.AUTOMATION) && this.automation != null ? this.automation.snapshot () : AutomationSnapshot.empty (), requested.includes (BridgeSubscription.ENCODER_CONFIGURATION) ? new EncoderConfigurationSnapshot (true, this.valueChanger.getUpperBound (), this.valueChanger.getStepSize (), this.surface.getConfiguration ().getKnobSensitivityDefault (), this.surface.getConfiguration ().getKnobSensitivitySlow ()) : EncoderConfigurationSnapshot.empty (), currentTrackBankState);
         if (refreshed.equals (this.snapshot))
             return false;
 
@@ -242,7 +275,10 @@ final class BoundedControllerBridge implements ControllerBridge
         if (generation < 0)
             throw new IllegalArgumentException ("generation must not be negative");
         if (this.activeCoreGeneration != 0 && generation != this.activeCoreGeneration)
+        {
             this.resetNoteInputMidiState ();
+            this.parameterTargets.releaseTouches ();
+        }
         this.activeCoreGeneration = generation;
         this.controllerState.activateCoreGeneration (generation);
     }
@@ -321,6 +357,27 @@ final class BoundedControllerBridge implements ControllerBridge
 
 
     @Override
+    public Map<ControlId, ControllerBridge.ParameterTouchLease> prepareParameterTouches (final DesiredParameterTouches touches, final DesiredParameterBanks banks)
+    {
+        return this.parameterTargets.prepareTouches (touches, banks);
+    }
+
+
+    @Override
+    public void releaseParameterTouches (final Map<ControlId, ControllerBridge.ParameterTouchLease> touches)
+    {
+        this.parameterTargets.releaseTouchesExcept (touches);
+    }
+
+
+    @Override
+    public void acquireParameterTouches (final Map<ControlId, ControllerBridge.ParameterTouchLease> touches)
+    {
+        this.parameterTargets.acquireTouches (touches);
+    }
+
+
+    @Override
     public Map<ParameterTargetRef, ControllerBridge.ParameterLease> prepareParameterLeases (final DesiredParameterInteraction desired, final DesiredParameterBanks parameterBanks)
     {
         return Map.copyOf (this.parameterTargets.prepareLeases (desired, parameterBanks));
@@ -343,7 +400,10 @@ final class BoundedControllerBridge implements ControllerBridge
             this.parameterTargets.snapshot (),
             this.snapshot.controllerMappingFeedback (),
             this.snapshot.master (),
-            this.snapshot.project ());
+            this.snapshot.project (),
+            this.snapshot.automation (),
+            this.snapshot.encoderConfiguration (),
+            this.snapshot.currentTrackBank ());
         return true;
     }
 
@@ -439,6 +499,12 @@ final class BoundedControllerBridge implements ControllerBridge
             return new PreparedParameterAdjust (this.parameterTargets.prepare (adjustParameter));
         if (effect instanceof final ResetParameterEffect resetParameter)
             return new PreparedParameterReset (this.parameterTargets.prepare (resetParameter));
+        if (effect instanceof final SetParameterNormalizedValueEffect normalized)
+            return new PreparedParameterNormalized (this.parameterTargets.prepare (normalized));
+        if (effect instanceof final SetParameterEnabledEffect enabled)
+            return new PreparedParameterEnabled (this.parameterTargets.prepare (enabled));
+        if (effect instanceof final AcquireParameterTouchEffect touch)
+            return new PreparedParameterTouch (this.parameterTargets.prepare (touch));
         if (effect instanceof final SetTransportValueEffect setValue)
         {
             if (setValue.value () == TransportValue.TEMPO && (setValue.amount () < this.transport.getMinimumTempo () || setValue.amount () > this.transport.getMaximumTempo ()))
@@ -465,12 +531,33 @@ final class BoundedControllerBridge implements ControllerBridge
             this.requireSelectedTarget (action.targetGeneration (), action.channelId ());
             return new PreparedSelectedAction (action.targetGeneration (), action.channelId (), action.action ());
         }
+        if (effect instanceof final CurrentTrackActionEffect action)
+            return this.currentTrackBank.prepare (action);
+        if (effect instanceof final SetCurrentTrackBooleanEffect action)
+            return this.currentTrackBank.prepare (action);
+        if (effect instanceof final NavigateTrackParentEffect action)
+            return this.currentTrackBank.prepare (action);
+        if (effect instanceof final SelectControllerModeEffect selection)
+        {
+            if (selection.layoutGeneration () != this.snapshot.layout ().generation ())
+                throw new IllegalArgumentException ("controller mode selection layout is stale");
+            final Modes mode = Modes.valueOf (selection.modeId ());
+            if (this.surface.getModeManager ().get (mode) == null)
+                throw new IllegalArgumentException ("controller mode is outside the installed canopy");
+            return new PreparedModeSelection (selection.layoutGeneration (), mode);
+        }
         if (effect instanceof final StopSessionBankEffect action)
             return this.sessionBank.prepare (action);
         if (effect instanceof final SelectSessionTrackEffect action)
             return this.sessionBank.prepare (action);
         if (effect instanceof final StopSessionTrackEffect action)
             return this.sessionBank.prepare (action);
+        if (effect instanceof final SetAutomationWriteEffect write)
+        {
+            if (this.automation == null || !this.snapshot.automation ().available ())
+                throw new IllegalArgumentException ("Automation Write capability is unavailable or not subscribed");
+            return this.automation.prepare (write);
+        }
         if (effect instanceof final ConsumeControllerButtonEffect consumption)
         {
             final ButtonID button = CONSUMABLE_BUTTONS.get (consumption.controlId ());
@@ -480,6 +567,15 @@ final class BoundedControllerBridge implements ControllerBridge
         }
         if (effect instanceof final SendNoteInputMidiEffect midi)
             return new PreparedNoteInputMidi (midi.status (), midi.data1 (), midi.data2 ());
+        if (effect instanceof final ShowHostNotificationEffect notification)
+            return new PreparedHostNotification (notification.text ());
+        if (effect instanceof final SetDrumBankPositionEffect position)
+        {
+            final DrumContextSnapshot drum = this.snapshot.drum ();
+            if (!drum.available () || !drum.modelAligned () || drum.generation () != position.contextGeneration () || !drum.targetChannelId ().equals (position.targetChannelId ()) || drum.deviceId ().isBlank ())
+                throw new IllegalArgumentException ("Drum bank position targets a stale window");
+            return new PreparedDrumBankPosition (position, drum.targetGeneration (), drum.deviceId (), drum.baseMidiNote ());
+        }
         if (effect instanceof final SetNoteViewPreferenceEffect preference)
         {
             this.requireSelectedTarget (preference.targetGeneration (), preference.channelId ());
@@ -544,13 +640,21 @@ final class BoundedControllerBridge implements ControllerBridge
         Objects.requireNonNull (action, "action");
         if (this.masterCommands.applyIfOwned (action))
             return;
-        if (action instanceof final PreparedTransportState state)
+        if (action instanceof final AutomationHost.PreparedWrite write)
+            this.automation.apply (write);
+        else if (action instanceof final PreparedTransportState state)
             this.masterCommands.applyTransportState (state.state (), state.enabled ());
         else if (action instanceof final PreparedParameterSet parameter)
             this.parameterTargets.apply (parameter.action ());
         else if (action instanceof final PreparedParameterAdjust parameter)
             this.parameterTargets.apply (parameter.action ());
         else if (action instanceof final PreparedParameterReset parameter)
+            this.parameterTargets.apply (parameter.action ());
+        else if (action instanceof final PreparedParameterNormalized parameter)
+            this.parameterTargets.apply (parameter.action ());
+        else if (action instanceof final PreparedParameterEnabled parameter)
+            this.parameterTargets.apply (parameter.action ());
+        else if (action instanceof final PreparedParameterTouch parameter)
             this.parameterTargets.apply (parameter.action ());
         else if (action instanceof final PreparedTransportValue value)
             this.applyTransportValue (value);
@@ -562,6 +666,17 @@ final class BoundedControllerBridge implements ControllerBridge
             this.applySelectedValue (value);
         else if (action instanceof final PreparedSelectedAction selectedAction)
             this.applySelectedAction (selectedAction);
+        else if (action instanceof final CurrentTrackBankHost.PreparedTrackAction trackAction)
+            this.currentTrackBank.apply (trackAction);
+        else if (action instanceof final CurrentTrackBankHost.PreparedBoolean trackBoolean)
+            this.currentTrackBank.apply (trackBoolean);
+        else if (action instanceof final CurrentTrackBankHost.PreparedParent parent)
+            this.currentTrackBank.apply (parent);
+        else if (action instanceof final PreparedModeSelection selection)
+        {
+            if (selection.layoutGeneration () == this.captureLayout ().generation ())
+                this.surface.getModeManager ().setActive (selection.mode ());
+        }
         else if (action instanceof final SessionBankHost.PreparedStop sessionAction)
             this.sessionBank.apply (sessionAction);
         else if (action instanceof final SessionBankHost.PreparedSelection sessionSelection)
@@ -580,6 +695,10 @@ final class BoundedControllerBridge implements ControllerBridge
             this.applyDrumValue (value);
         else if (action instanceof final PreparedDrumSelection selection)
             this.applyDrumSelection (selection);
+        else if (action instanceof final PreparedDrumBankPosition position)
+            this.applyDrumBankPosition (position);
+        else if (action instanceof final PreparedHostNotification notification)
+            this.model.getHost ().showNotification (notification.text ());
     }
 
 
@@ -624,7 +743,8 @@ final class BoundedControllerBridge implements ControllerBridge
             this.surface.isDrumPadLayoutActive (),
             this.surface.isDrumControllerActive (),
             this.model.getScales ().getDrumOffset (),
-            this.captureGridPressureConfiguration ());
+            this.captureGridPressureConfiguration (),
+            this.surface.getAppliedNoteTranslation ());
         if (sameLayout (captured, this.sampledLayout))
             return this.sampledLayout;
         this.sampledLayout = new ControllerLayoutSnapshot (
@@ -634,14 +754,15 @@ final class BoundedControllerBridge implements ControllerBridge
             captured.drumLayoutActive (),
             captured.drumControllerEngaged (),
             captured.drumBaseMidiNote (),
-            captured.gridPressure ());
+            captured.gridPressure (),
+            captured.appliedNoteTranslation ());
         return this.sampledLayout;
     }
 
 
     private static boolean sameLayout (final ControllerLayoutSnapshot first, final ControllerLayoutSnapshot second)
     {
-        return first.viewId ().equals (second.viewId ()) && first.modeId ().equals (second.modeId ()) && first.drumLayoutActive () == second.drumLayoutActive () && first.drumControllerEngaged () == second.drumControllerEngaged () && first.drumBaseMidiNote () == second.drumBaseMidiNote () && first.gridPressure ().equals (second.gridPressure ());
+        return first.viewId ().equals (second.viewId ()) && first.modeId ().equals (second.modeId ()) && first.drumLayoutActive () == second.drumLayoutActive () && first.drumControllerEngaged () == second.drumControllerEngaged () && first.drumBaseMidiNote () == second.drumBaseMidiNote () && first.gridPressure ().equals (second.gridPressure ()) && first.appliedNoteTranslation ().equals (second.appliedNoteTranslation ());
     }
 
 
@@ -1071,6 +1192,26 @@ final class BoundedControllerBridge implements ControllerBridge
     }
 
 
+    private void applyDrumBankPosition (final PreparedDrumBankPosition request)
+    {
+        final SetDrumBankPositionEffect effect = request.effect ();
+        final String target = effect.targetChannelId ();
+        if (!this.selectedTargetIsCurrent (request.targetGeneration (), target) || !this.model.getCursorTrack ().doesExist () || !target.equals (this.model.getCursorTrack ().getChannelID ()))
+            return;
+        final IDrumDevice device = this.model.getDrumDevice ();
+        if (!device.doesExist () || !device.hasDrumPads () || !request.deviceId ().equals (device.getID ()))
+            return;
+        final IDrumPadBank bank = device.getDrumPadBank ();
+        if (bank.getScrollPosition () != request.previousBase ())
+            return;
+        final var view = this.surface.getViewManager ().getActive ();
+        if (view != null)
+            view.getKeyManager ().clearPressedKeys ();
+        this.model.getScales ().setDrumOffset (effect.baseMidiNote ());
+        bank.scrollTo (effect.baseMidiNote (), effect.adjustPage ());
+    }
+
+
     private void applyDrumSelection (final PreparedDrumSelection request)
     {
         final IDrumPad pad = this.currentDrumPad (request.generation (), request.targetID (), request.deviceID (), request.baseMidiNote (), request.padIndex (), request.padChannelID ());
@@ -1228,6 +1369,21 @@ final class BoundedControllerBridge implements ControllerBridge
     }
 
 
+    private record PreparedParameterNormalized (ParameterTargetHost.PreparedNormalized action) implements ControllerBridge.PreparedAction
+    {
+    }
+
+
+    private record PreparedParameterEnabled (ParameterTargetHost.PreparedEnabled action) implements ControllerBridge.PreparedAction
+    {
+    }
+
+
+    private record PreparedParameterTouch (ParameterTargetHost.PreparedTouch action) implements ControllerBridge.PreparedAction
+    {
+    }
+
+
     private record PreparedParameterReset (ParameterTargetHost.PreparedReset action) implements ControllerBridge.PreparedAction
     {
     }
@@ -1268,6 +1424,9 @@ final class BoundedControllerBridge implements ControllerBridge
     {
         final Map<ControlId, ButtonID> buttons = new LinkedHashMap<> ();
         buttons.put (PushControlIds.button (ButtonID.SELECT.name ()), ButtonID.SELECT);
+        buttons.put (PushControlIds.button (ButtonID.DELETE.name ()), ButtonID.DELETE);
+        buttons.put (PushControlIds.button (ButtonID.DUPLICATE.name ()), ButtonID.DUPLICATE);
+        buttons.put (PushControlIds.button (ButtonID.RECORD.name ()), ButtonID.RECORD);
         for (int index = 0; index < 8; index++)
         {
             final ButtonID button = ButtonID.get (ButtonID.ROW1_1, index);
@@ -1288,6 +1447,16 @@ final class BoundedControllerBridge implements ControllerBridge
 
 
     private record PreparedDrumBoolean (long generation, String targetID, String deviceID, int baseMidiNote, int padIndex, String padChannelID, DrumPadBoolean property, boolean enabled) implements ControllerBridge.PreparedAction
+    {
+    }
+
+
+    private record PreparedDrumBankPosition (SetDrumBankPositionEffect effect, long targetGeneration, String deviceId, int previousBase) implements ControllerBridge.PreparedAction
+    {
+    }
+
+
+    private record PreparedHostNotification (String text) implements ControllerBridge.PreparedAction
     {
     }
 
@@ -1314,4 +1483,6 @@ final class BoundedControllerBridge implements ControllerBridge
             return this.data1 == this.neutralData1 && this.data2 == this.neutralData2;
         }
     }
+    private record PreparedModeSelection (long layoutGeneration, Modes mode) implements ControllerBridge.PreparedAction { }
+
 }

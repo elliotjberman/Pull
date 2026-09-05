@@ -16,7 +16,7 @@ import java.util.Objects;
  * @param drumBaseMidiNote First MIDI note in the active drum-controller mapping
  * @param gridPressure User-selected routing for grid pressure
  */
-public record ControllerLayoutSnapshot (long generation, String viewId, String modeId, boolean drumLayoutActive, boolean drumControllerEngaged, int drumBaseMidiNote, GridPressureConfiguration gridPressure)
+public record ControllerLayoutSnapshot (long generation, String viewId, String modeId, boolean drumLayoutActive, boolean drumControllerEngaged, int drumBaseMidiNote, GridPressureConfiguration gridPressure, DesiredNoteInputTranslation appliedNoteTranslation)
 {
     private static final ControllerLayoutSnapshot EMPTY = new ControllerLayoutSnapshot (0, "", "", false, false, 0, GridPressureConfiguration.OFF);
 
@@ -33,6 +33,13 @@ public record ControllerLayoutSnapshot (long generation, String viewId, String m
         if (drumBaseMidiNote < 0 || drumBaseMidiNote > 127)
             throw new IllegalArgumentException ("drumBaseMidiNote must be between 0 and 127");
         gridPressure = Objects.requireNonNull (gridPressure, "gridPressure");
+        appliedNoteTranslation = Objects.requireNonNull (appliedNoteTranslation, "appliedNoteTranslation");
+    }
+
+
+    public ControllerLayoutSnapshot (final long generation, final String viewId, final String modeId, final boolean drumLayoutActive, final boolean drumControllerEngaged, final int drumBaseMidiNote, final GridPressureConfiguration gridPressure)
+    {
+        this (generation, viewId, modeId, drumLayoutActive, drumControllerEngaged, drumBaseMidiNote, gridPressure, DesiredNoteInputTranslation.unowned ());
     }
 
 

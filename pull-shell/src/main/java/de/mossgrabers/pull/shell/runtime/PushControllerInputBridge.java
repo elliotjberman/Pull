@@ -111,7 +111,7 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
         this.stableActions = new StableControllerActionResolver (surface);
         this.physicalPads = physicalPads (surface);
         this.registry = this.createRegistry ();
-        this.router = new PhysicalInputRouter<> (this.registry, this::resolveRoute, this.eventSink, Objects.requireNonNull (stableActionBarrier, "stableActionBarrier"), System::nanoTime, Objects.requireNonNull (activeGeneration, "activeGeneration"));
+        this.router = new PhysicalInputRouter<> (this.registry, this::resolveRoute, this.eventSink, Objects.requireNonNull (stableActionBarrier, "stableActionBarrier"), System::nanoTime, Objects.requireNonNull (activeGeneration, "activeGeneration"), this.registry.contains (PushControlIds.continuous ("TOUCHSTRIP"), InputKind.TOUCH) && this.registry.contains (PushControlIds.continuous ("TOUCHSTRIP"), InputKind.ABSOLUTE) ? Map.of (PushControlIds.continuous ("TOUCHSTRIP"), InputKind.ABSOLUTE) : Map.of ());
         this.installWrappers ();
         this.mappingActivation = new HardwareMappingActivationHost (
             Objects.requireNonNull (physicalPadButtons, "physicalPadButtons"),
@@ -431,7 +431,7 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
     private static Set<PhysicalInputAddress<ControlId>> coreOwnedInputs ()
     {
         final java.util.LinkedHashSet<PhysicalInputAddress<ControlId>> inputs = new java.util.LinkedHashSet<> ();
-        for (final ButtonID button: List.of (ButtonID.PLAY, ButtonID.RECORD, ButtonID.NOTE, ButtonID.SESSION, ButtonID.LAYOUT, ButtonID.MUTE, ButtonID.SOLO))
+        for (final ButtonID button: List.of (ButtonID.PLAY, ButtonID.RECORD, ButtonID.NOTE, ButtonID.SESSION, ButtonID.LAYOUT, ButtonID.MUTE, ButtonID.SOLO, ButtonID.OCTAVE_DOWN, ButtonID.OCTAVE_UP))
             inputs.add (new PhysicalInputAddress<> (PushControlIds.button (button.name ()), InputKind.BUTTON));
         for (final ControlId control: CoreControls.DRUM_RATES)
         {
@@ -446,7 +446,14 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
             inputs.add (new PhysicalInputAddress<> (PushControlIds.button ("ROW2_" + index), InputKind.BUTTON));
         }
         for (int index = 1; index <= 8; index++)
+        {
             inputs.add (new PhysicalInputAddress<> (PushControlIds.continuous ("KNOB" + index), InputKind.RELATIVE));
+            inputs.add (new PhysicalInputAddress<> (PushControlIds.continuous ("KNOB" + index), InputKind.TOUCH));
+        }
+        inputs.add (new PhysicalInputAddress<> (PushControlIds.button ("TAP_TEMPO"), InputKind.BUTTON));
+        inputs.add (new PhysicalInputAddress<> (PushControlIds.button ("UNDO"), InputKind.BUTTON));
+        inputs.add (new PhysicalInputAddress<> (PushControlIds.continuous ("TOUCHSTRIP"), InputKind.TOUCH));
+        inputs.add (new PhysicalInputAddress<> (PushControlIds.continuous ("TOUCHSTRIP"), InputKind.ABSOLUTE));
         return Set.copyOf (inputs);
     }
 

@@ -32,6 +32,8 @@ import de.mossgrabers.framework.featuregroup.IMode;
 import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.parameter.IParameter;
 import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
+import de.mossgrabers.pull.core.api.DesiredParameterTouches;
+import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.DesiredParameterBanks;
 import de.mossgrabers.pull.core.api.ParameterBankId;
 import de.mossgrabers.pull.core.api.ParameterSlot;
@@ -45,6 +47,7 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Proxy;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -217,7 +220,7 @@ class ParameterTargetHostTest
 
 
     @Test
-    void selectedTrackMixKnobFailsClosedUntilItsBindingMatchesTheDisplayedTrack ()
+    void trackPageRejectsPhysicalBindingsBecauseItUsesNamedParameterBanks ()
     {
         final MutableParameter cursorVolume = new MutableParameter (64);
         final MutableParameter selectedVolume = new MutableParameter (64);
@@ -279,9 +282,83 @@ class ParameterTargetHostTest
 
         knob.bind (new PushVolumeParameter (selectedParameter, valueChanger));
         host.refresh (banks);
-        assertNotNull (host.resolveMutation (knob));
-        assertNotNull (host.snapshot ().slots ().get (ParameterSlot.active (0)));
+        assertNull (host.resolveMutation (knob));
+        assertNull (host.snapshot ().slots ().get (ParameterSlot.active (0)));
         assertTrue (host.requiresResolvedMutation (knob));
+    }
+
+
+    @Test
+    void parameterTouchLeasesDeduplicateOwnersAndReplayAndReleaseOnInvalidation ()
+    {
+        final TouchFixture fixture = new TouchFixture ();
+        final var prepared = fixture.host.prepareTouches (new DesiredParameterTouches (Map.of (
+            PushControlIds.continuous ("KNOB1"), fixture.target,
+            PushControlIds.continuous ("KNOB2"), fixture.target)), fixture.banks);
+        fixture.host.releaseTouchesExcept (prepared);
+        fixture.host.apply (fixture.host.prepare (new ResetParameterEffect (fixture.target)));
+        fixture.host.acquireTouches (prepared);
+        fixture.host.acquireTouches (prepared);
+        assertEquals (List.of ("reset", "touch:true"), fixture.parameter.events);
+        final var oneOwner = fixture.host.prepareTouches (new DesiredParameterTouches (Map.of (PushControlIds.continuous ("KNOB2"), fixture.target)), fixture.banks);
+        fixture.host.releaseTouchesExcept (oneOwner);
+        fixture.host.acquireTouches (oneOwner);
+        assertEquals (List.of ("reset", "touch:true"), fixture.parameter.events);
+        fixture.host.invalidate ();
+        fixture.host.invalidate ();
+        assertEquals (List.of ("reset", "touch:true", "touch:false"), fixture.parameter.events);
+    }
+
+
+    @Test
+    void touchPreparationAndAcquisitionRejectAReboundProjectPage ()
+    {
+        final TouchFixture fixture = new TouchFixture ();
+        final var desired = new DesiredParameterTouches (Map.of (PushControlIds.continuous ("KNOB1"), fixture.target));
+        final var prepared = fixture.host.prepareTouches (desired, fixture.banks);
+        fixture.page.incrementAndGet ();
+        assertThrows (IllegalStateException.class, () -> fixture.host.acquireTouches (prepared));
+        assertThrows (IllegalStateException.class, () -> fixture.host.prepareTouches (desired, fixture.banks));
+        assertTrue (fixture.parameter.events.isEmpty ());
+    }
+
+
+    @Test
+    void touchCleanupFailsClosedAfterExternalProxyRebinding ()
+    {
+        final TouchFixture fixture = new TouchFixture ();
+        fixture.host.acquireTouches (fixture.host.prepareTouches (new DesiredParameterTouches (Map.of (PushControlIds.continuous ("KNOB1"), fixture.target)), fixture.banks));
+        fixture.page.incrementAndGet ();
+        fixture.host.releaseTouches ();
+        assertEquals (List.of ("touch:true"), fixture.parameter.events);
+        fixture.host.refresh (fixture.banks);
+        fixture.host.invalidate ();
+        assertEquals (List.of ("touch:true"), fixture.parameter.events);
+    }
+
+
+    private static final class TouchFixture
+    {
+        private final MutableParameter parameter = new MutableParameter (64);
+        private final AtomicInteger page = new AtomicInteger ();
+        private final DesiredParameterBanks banks = new DesiredParameterBanks (Set.of (ParameterBankId.PROJECT_REMOTE));
+        private final ParameterTargetHost host;
+        private final ParameterTargetRef target;
+
+
+        private TouchFixture ()
+        {
+            final IValueChanger changer = new TwosComplementValueChanger (128, 1);
+            this.host = new ParameterTargetHost (createSurface (new MutableContinuous (), changer), model (new MutableRemoteDevice (new MutableParameter (32).proxy ()), changer, this.parameter.proxy (), this.page), silentLog ());
+            this.host.refresh (this.banks);
+            this.target = this.host.snapshot ().slots ().get (ParameterSlot.projectRemote (0)).target ();
+        }
+    }
+
+
+    static PushControlSurface emptySurface (final IValueChanger valueChanger)
+    {
+        return createSurface (new MutableContinuous (), valueChanger);
     }
 
 
@@ -305,6 +382,7 @@ class ParameterTargetHostTest
         final IProject project = proxy (IProject.class, (proxy, method, arguments) -> switch (method.getName ())
         {
             case "getName" -> "test-project";
+            case "getIdentity" -> "project-a";
             case "getParameterBank" -> projectParameters;
             default -> relaxedValue (method.getReturnType ());
         });
@@ -424,6 +502,7 @@ class ParameterTargetHostTest
         private int writeCount;
         private int incrementCount;
         private int resetCount;
+        private final List<String> events = new ArrayList<> ();
 
 
         private MutableParameter (final int value)
@@ -448,7 +527,12 @@ class ParameterTargetHostTest
                     this.incrementCount++;
                     yield null;
                 }
+                case "touchValue" -> {
+                    this.events.add ("touch:" + arguments[0]);
+                    yield null;
+                }
                 case "resetValue" -> {
+                    this.events.add ("reset");
                     this.resetCount++;
                     yield null;
                 }

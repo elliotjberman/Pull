@@ -63,11 +63,19 @@ public final class TransportControlView implements ControllerView
 
     private final ProjectPlaybackCoordinator playbackCoordinator;
     private final SelectedTrackBooleanToggles selectedTrackToggles;
+    private final ButtonGestureConsumption buttonGestures;
     private final AuthoritativeBooleanToggle<String> launcherOverdub = new AuthoritativeBooleanToggle<> ();
 
 
     TransportControlView (final ProjectPlaybackCoordinator playbackCoordinator, final SelectedTrackBooleanToggles selectedTrackToggles)
     {
+        this (playbackCoordinator, selectedTrackToggles, new ButtonGestureConsumption (Set.of (RECORD_BUTTON)));
+    }
+
+
+    TransportControlView (final ProjectPlaybackCoordinator playbackCoordinator, final SelectedTrackBooleanToggles selectedTrackToggles, final ButtonGestureConsumption buttonGestures)
+    {
+        this.buttonGestures = Objects.requireNonNull (buttonGestures, "buttonGestures");
         this.playbackCoordinator = Objects.requireNonNull (playbackCoordinator, "playbackCoordinator");
         this.selectedTrackToggles = Objects.requireNonNull (selectedTrackToggles, "selectedTrackToggles");
     }
@@ -128,7 +136,9 @@ public final class TransportControlView implements ControllerView
     public List<CoreEffect> handle (final CoreEvent event, final ControllerSnapshot snapshot)
     {
         final List<CoreEffect> effects = new ArrayList<> ();
-        final boolean recordRelease = event instanceof final ControllerInputEvent input && isRecordRelease (input);
+        if (event instanceof final ControllerInputEvent input && RECORD_BUTTON.equals (input.controlId ()) && input.kind () == InputKind.BUTTON && input.phase () == InputPhase.BEGIN)
+            this.buttonGestures.begin (RECORD_BUTTON);
+        final boolean recordRelease = event instanceof final ControllerInputEvent input && isRecordRelease (input) && !this.buttonGestures.takeConsumed (RECORD_BUTTON);
         final boolean shiftedRecord = recordRelease && snapshot.pressedControls ().contains (SHIFT_BUTTON);
         final boolean selectedRecord = recordRelease && snapshot.pressedControls ().contains (SELECT_BUTTON);
         effects.addAll (this.selectedTrackToggles.update (

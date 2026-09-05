@@ -12,13 +12,10 @@ import de.mossgrabers.framework.daw.data.ICursorTrack;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.IBank;
 import de.mossgrabers.framework.daw.data.bank.IParameterBank;
-import de.mossgrabers.framework.daw.data.bank.ITrackBank;
 import de.mossgrabers.framework.mode.Modes;
-import de.mossgrabers.framework.parameter.AbstractParameterWrapper;
 import de.mossgrabers.framework.parameter.IParameter;
 
 import java.util.Objects;
-import java.util.Optional;
 
 
 /**
@@ -46,9 +43,9 @@ final class ParameterTargetIdentityResolver
 
         final ICursorTrack cursorTrack = this.model.getCursorTrack ();
         if (this.surface.getModeManager ().getActiveID () == Modes.TRACK)
-            return this.selectedTrackMixParameter (controlIndex, cursorTrack, parameter);
+            return null; // Track uses named banks; its permanent physical parameter binding is inert.
 
-        TargetIdentity identity = this.remoteParameter ("project-remote", this.model.getProject ().getName (), this.model.getProject ().getParameterBank (), parameter);
+        TargetIdentity identity = this.remoteParameter ("project-remote", this.model.getProject ().getIdentity (), this.model.getProject ().getParameterBank (), parameter);
         if (identity != null)
             return identity;
 
@@ -86,48 +83,6 @@ final class ParameterTargetIdentityResolver
             parameter.getPosition (),
             controlIndex,
             parameter.getName ());
-    }
-
-
-    private TargetIdentity selectedTrackMixParameter (final int controlIndex, final ICursorTrack track, final IParameter parameter)
-    {
-        if (track == null || !track.doesExist () || Objects.requireNonNullElse (track.getChannelID (), "").isBlank ())
-            return null;
-
-        // TrackMode binds from the current bank while selected-track state is observed through a
-        // private selection-following cursor. The two proxies are deliberately different. Match
-        // the physical binding against its actual bank owner, then fence that owner to the cursor
-        // by stable channel identity before exposing it to core.
-        final ITrackBank tracks = this.model.getCurrentTrackBank ();
-        final Optional<ITrack> selected = tracks == null ? Optional.empty () : tracks.getSelectedItem ();
-        if (selected.isEmpty ())
-            return null;
-        final ITrack boundTrack = selected.get ();
-        if (!boundTrack.doesExist () || !Objects.equals (boundTrack.getChannelID (), track.getChannelID ()))
-            return null;
-
-        final IParameter unwrapped = unwrap (parameter);
-        if (controlIndex == 0 && boundTrack.getVolumeParameter () == unwrapped)
-            return channelIdentity (boundTrack, "volume", 0, unwrapped);
-        if (controlIndex == 1 && boundTrack.getPanParameter () == unwrapped)
-            return channelIdentity (boundTrack, "pan", 0, unwrapped);
-        if (controlIndex < 2)
-            return null;
-
-        final int sendIndex = this.surface.getConfiguration ().getTrackMixSendOffset () + controlIndex - 2;
-        final IBank<? extends IParameter> sends = boundTrack.getSendBank ();
-        if (sends == null || sendIndex < 0 || sendIndex >= sends.getPageSize () || sends.getItem (sendIndex) != unwrapped)
-            return null;
-        return channelIdentity (boundTrack, "send", sendIndex + sends.getScrollPosition (), unwrapped);
-    }
-
-
-    private static IParameter unwrap (final IParameter parameter)
-    {
-        IParameter unwrapped = parameter;
-        while (unwrapped instanceof final AbstractParameterWrapper wrapper)
-            unwrapped = wrapper.getWrappedParameter ();
-        return unwrapped;
     }
 
 

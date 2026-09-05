@@ -9,6 +9,10 @@ public enum ParameterBankId
 {
     /** Compatibility window currently bound by an inherited stable mode. */
     ACTIVE,
+    /** Selected-track volume and pan, independent of controller bindings. */
+    SELECTED_TRACK,
+    /** Eight sends of the private-selection-aligned track. */
+    SELECTED_TRACK_SENDS,
     /** Eight project remote controls. */
     PROJECT_REMOTE,
     /** Current page of eight selected-device remote controls. */

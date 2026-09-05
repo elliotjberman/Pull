@@ -53,8 +53,14 @@ In the current baseline:
 - VS Live selection and fixed-facet composition are core-owned;
 - VS Live page changes are admitted from semantic stable-command actions, not inferred from raw
   controller-layout mode changes used during selected-track Note-route reconciliation;
-- stable adapters still realize VS Live's Session grid/scene, Drum octave/pitch-bend lifecycle,
-  macro touch/Delete, Track/Mix touch and upper-row page-menu mechanics, and navigation mechanics;
+- stable adapters still realize Session grid/scene and Session navigation;
+- API 45 migrates Project Macro and Master touches/Delete/automation release, Drum octave/native
+  maps, and Session/Drum raw touch-strip gestures and output. Exact touch actuators, complete
+  translation tables, and generic strip transmission stay stable. These slices passed offline
+  package validation; their first live installation/smoke test is pending;
+- the same working API 45 migration adds full normal/VS Track menus, touches, named selected-track
+  parameters, the normal current-bank footer, Tap Tempo, and Undo/Redo. Integration validation is
+  passed in the full 685-test package run; these changes have not been installed live;
 - drum-grid pressure interpretation and selected-target Note routing policy are core-owned in both
   standalone and composite Drum layouts, while the permanent `NoteInput`, direct-route actuator, and MIDI
   neutralization remain stable;
@@ -88,12 +94,18 @@ In the current baseline:
   command-driven compatibility-intent adaptation, and compatibility-action dispatch;
 - VS Live project-macro encoder mapping, relative mutation policy, display rendering, and snapback
   admission are core-owned. Its Track/Mix replacement likewise owns active-parameter rendering and
-  relative turns. Stable retains only the declared touch/Delete and upper-row page-menu adapters.
+  relative turns. Project Macro and Track/Mix touch/Delete and
+  upper-row Track page-menu policy also run in core.
 
 Before taking an item, inspect the active branch and in-flight work. This inventory describes
 architectural ownership, not a promise that no adjacent PR has changed the exact files.
 
-## Installed state and effect primitives
+The active implementation inventory and remaining inherited families are tracked in
+[`migrations/core-migration-plan.md`](migrations/core-migration-plan.md). Session slot/scene
+observation is implemented, but general launcher release requires the contract decision described
+in [`migrations/session-launcher-location-design.md`](migrations/session-launcher-location-design.md).
+
+## State and effect primitives
 
 The production shell already exposes the following state and effect primitives. This inventory is
 not a Class A readiness list: a physical control with feedback is Class B until its input, state,

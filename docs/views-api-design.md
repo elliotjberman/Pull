@@ -1,6 +1,6 @@
 # Views API and Composite Workspaces
 
-Status: design contract. Checkpoints 1 and 2 are structurally implemented through Core API 44. The
+Status: design contract. Checkpoints 1 and 2 are structurally implemented through working Core API 45; live activation of the API 45 migration is pending. The
 remaining stable-adapter boundary is represented explicitly in claims and recorded in
 [`../ARCH.md`](../ARCH.md). The checkpoints remain below so code, offline tests, and Push hardware
 tests can be compared against the intended end state.
@@ -25,7 +25,7 @@ not turn into order-dependent runtime behavior.
 - **Surface area**: a stable, named physical or rendered part of Push 2.
 - **Claim**: one view's declared ownership of an area for input, output, or both.
 - **View**: behavior plus a fixed set of required claims and named optional facets.
-- **Facet**: a coherent optional part of a view, such as Drum Controller pitch bend. A facet has a
+- **Facet**: a coherent optional part of a view, such as the upper Session scene keys. A facet has a
   fixed footprint; it is not a bag of freely assignable callbacks.
 - **Workspace**: a named list of view profiles composed for one controller state.
 - **Workspace compiler**: validates claims and produces one deterministic input/output owner table.
@@ -139,8 +139,8 @@ facets that the view declares.
 Examples:
 
 - **Drum Controller** requires `GRID.LOWER`. Its lower half contains the 4x4 playable drum block,
-  four momentary rate pads, eight fill pads, and four manually mappable control pads. Its named `pitch-bend` facet claims
-  `TOUCH_STRIP`. It does not claim either scene-key group.
+  four momentary rate pads, eight fill pads, and four manually mappable control pads. A separate
+  `RawPitchBendView` owns the touch strip. Drum Controller does not claim either scene-key group.
 - **Session Clip Grid (upper)** requires `GRID.UPPER` and may claim `SCENE_KEYS.UPPER` as its named
   `scene-launch` facet.
 - **Project Macro Controls** requires `ENCODERS`, `DISPLAY.PARAMETERS`, and encoder touches. It does
@@ -152,6 +152,23 @@ Examples:
 - **Session Navigation** currently requires `NAVIGATION.ARROWS` and `NAVIGATION.PAGE` because the
   installed stable adapter realizes them together. Page navigation may become optional only after
   the shell exposes it as an independently selectable facet.
+
+## Native musical ownership and parameter touches
+
+API 45 separates native musical ownership from controller command and RGB ownership. A view that
+returns an owned native key/velocity map, including a deliberately silent map, must declare its
+`MUSICAL_INPUT` footprint. The parent value restricts enabled physical notes to Push pad notes
+36–99; the compiler checks them against the same view's fixed claim and rejects conflicting musical
+owners. A silent map is owned silence, while an unowned map releases the arbiter to the latest
+cached legacy table. Map and layout changes wait for physical input to become idle. Applied-map
+read-back means the shell successfully configured the native NoteInput table; it is not an
+acknowledgement of any playback command.
+
+Core returns the complete `DesiredParameterTouches` set. The shell retains exact bounded actuators,
+releases omitted leases before effects, and acquires newly requested touches after effects so a
+Delete reset precedes touch acquisition. The retained release observer prevents a page change from
+losing END. Mutable parameter identity is checked again at execution and cleanup; cleanup cannot
+safely retarget an externally rebound proxy. Project Macro and Master own all their touch semantics.
 
 ## Workspace Compilation
 
@@ -169,7 +186,7 @@ views:
   - use: session-clip-grid-upper
     facets: [scene-launch]
   - use: drum-controller
-    facets: [pitch-bend]
+  - use: raw-pitch-bend
 ```
 
 The first implementation may construct this exact data in Java. YAML or JSON loading comes only
@@ -272,14 +289,21 @@ owns the legacy parameter visual semantics in its region: subdued teal parameter
 touch, Boolean values use toggle pills, and the old adapter's non-rendered `Project` menu text is
 not invented as a visible title.
 
-When VS Live selects Track/Mix, `TrackMixerControlsView` replaces only the 960x143 producer. It
-declares the installed `ACTIVE` parameter bank, owns all eight relative encoder turns and their
-typed effects, and renders the selected track's Volume/Pan plus active send slots from authoritative
-read-back. Missing parameter slots render blank inside the still-selected Mix view; data absence is
-never interpreted as selection of the inherited Input & Output page. The retained Track Selection
-footer remains the independent 960x17 producer. Encoder
-touches and the inherited upper-row page menu remain explicit frozen adapters; ordinary Track/Mix
-outside this composition is not implied to have migrated.
+When VS Live selects Track/Mix, `TrackMixerControlsView` replaces only the 960x143 producer.
+It declares named `SELECTED_TRACK` and `SELECTED_TRACK_SENDS` banks and owns encoder turns,
+touches, Mix/I-O selection, send paging, send enable, and upper-row feedback. Its fixed physical
+claims remain unchanged while `parameterBindings(snapshot)` selects volume/pan and six send
+slots for the current subpage; the compiler validates every result against the declared controls
+and banks. Missing read-back does not select a different subpage. The retained VS Track Selection
+footer remains the independent 960x17 producer.
+
+Ordinary Track composes the same body with `CurrentTrackFooterView`, which reads the current
+main/effect bank independently from Session. Its lower row preserves release-time modifiers,
+parent navigation, selected-group entry, and device-page selection. Record chord consumption is
+shared with the global core Record gesture. Normal encoder response preserves configured
+sensitivity, volume acceleration, and pan centering; VS Live retains its established response.
+Track subpage and send offset survive core checkpoints, as does semantic parameter-page selection.
+
 
 VS Live page selection advances only from the semantic action emitted by a stable page command.
 The controller-state host may temporarily report `TRACK` while it neutralizes and reattaches a
@@ -287,11 +311,9 @@ selected-track Note route; that mechanical layout read-back carries no page-sele
 cannot replace Project Macro with Track/Mix. If snapback defers the stable command, core retains
 the old page until a later layout generation acknowledges the released action. Shift+Session is
 an idempotent selection of the declared composite and therefore always reselects Project Macro,
-even when VS Live was already active on Track/Mix or another replaceable page. For the inherited
-Mix compatibility window, stable
-unwraps Volume/Pan's mechanical response-curve adapters, validates the real bound parameters
-against the selected current-bank track, and then requires its channel ID to agree with the private
-selection-following cursor before publishing any slot.
+even when VS Live was already active on Track/Mix or another replaceable page. For named Track banks, stable validates the model cursor and current-bank owner against the
+private selection-following cursor before publishing a slot. The removed Track provider no longer
+chooses the core's parameter identity or response curve.
 
 Master's own previous/next project action creates a bounded page-retention lease. The lease is tied
 to the workspace-request sequence and survives both intermediate and late stable layout resets.
@@ -341,7 +363,9 @@ Add one hardcoded workspace named `VS Live`, entered with **Shift + Session** fo
 - Drum Controller owns the bottom four pad rows, including its existing 4x4 playable block, rate
   pads, and fill pads. Separate fixed views implement those subregions: `DrumPlayPadView` for
   playable feedback and pressure, `DrumRateView` for rate/roll policy, and `DrumFillView` for fills.
-- Drum Controller's `pitch-bend` facet owns the touch strip.
+- A separately composed `RawPitchBendView` owns raw strip input, mode, value, and release behavior.
+  Its retained gesture keeps the route selected at BEGIN through END even if the page changes.
+
 - Per-pad pressure on Drum Controller's playable 4x4 block follows that same lower-grid ownership;
   pressure on rate, fill, and Session pads has no musical destination.
 - `DrumPlayPadView` implements that policy in both standalone and composite layouts. It observes the

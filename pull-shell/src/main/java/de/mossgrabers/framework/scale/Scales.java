@@ -538,6 +538,15 @@ public class Scales
     }
 
 
+    /** Set an absolute MIDI-range drum window position; callers choose navigation policy. */
+    public void setDrumOffset (final int midiNote)
+    {
+        if (midiNote < 0 || midiNote > 127)
+            throw new IllegalArgumentException ("Drum position must be in MIDI range");
+        this.drumOffset = midiNote;
+    }
+
+
     /**
      * Returns true if the drum octave can be decreased.
      *

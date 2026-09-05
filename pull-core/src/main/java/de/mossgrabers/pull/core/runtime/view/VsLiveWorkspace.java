@@ -40,27 +40,34 @@ public final class VsLiveWorkspace
     public static CompiledWorkspace create (final ControllerLevelViews controllerViews, final ControllerView trackSelection, final List<? extends ControllerView> gridViews)
     {
         final List<ControllerView> views = new ArrayList<> ();
-        views.add (new ProjectMacroControlsView ());
+        views.add (new ProjectMacroControlsView (controllerViews.parameterTouches ()));
         views.add (trackSelection);
         views.addAll (gridViews);
         return CompiledWorkspace.compile (
             NAME,
             SESSION_BANK,
-            controllerViews.composeWithoutNoteController (views));
+            controllerViews.composeWithRawPitchBend (views, false));
     }
 
 
     /** Compile the retained VS Live grid with the core-owned Track/Mix page. */
     public static CompiledWorkspace createWithTrackMixerPage (final ControllerLevelViews controllerViews, final ControllerView trackSelection, final List<? extends ControllerView> gridViews)
     {
+        return createWithTrackMixerPage (controllerViews, trackSelection, gridViews, new TrackMixerControlsView ());
+    }
+
+
+    /** Compose the retained Track body with VS Live's separate footer and grid. */
+    public static CompiledWorkspace createWithTrackMixerPage (final ControllerLevelViews controllerViews, final ControllerView trackSelection, final List<? extends ControllerView> gridViews, final ControllerView trackControls)
+    {
         final List<ControllerView> views = new ArrayList<> ();
-        views.add (new TrackMixerControlsView ());
+        views.add (trackControls);
         views.add (trackSelection);
         views.addAll (gridViews);
         return CompiledWorkspace.compile (
             NAME + " / Track Mix",
             SESSION_BANK,
-            controllerViews.composeWithoutNoteController (views));
+            controllerViews.composeWithRawPitchBend (views, false));
     }
 
 
@@ -70,7 +77,7 @@ public final class VsLiveWorkspace
         return CompiledWorkspace.compile (
             NAME + " / stable page",
             SESSION_BANK,
-            controllerViews.composeWithoutNoteController (gridViews));
+            controllerViews.composeWithRawPitchBend (gridViews, false));
     }
 
 
@@ -85,7 +92,8 @@ public final class VsLiveWorkspace
             new RetainedControllerView (new SessionNavigationView ()),
             new RetainedControllerView (SessionView.upper (true, stopGesture)),
             new RetainedControllerView (new DrumPlayPadView ()),
-            new RetainedControllerView (new DrumControllerView (true)),
+            new RetainedControllerView (new DrumOctaveView ()),
+            new RetainedControllerView (new DrumControllerView ()),
             drumControlPadView,
             new RetainedControllerView (new DrumRateView ()));
     }

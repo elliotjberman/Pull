@@ -29,18 +29,31 @@ public final class DefaultWorkspace
      */
     public static CompiledWorkspace create (final ControllerLevelViews controllerViews)
     {
-        return CompiledWorkspace.compile ("Pull", controllerViews.compose (List.of (
-            new StableParameterControlsView ())));
+        return create (controllerViews, List.of (new StableParameterControlsView ()));
+    }
+
+
+    /** Compose an independently selected page with the ordinary Note controller. */
+    public static CompiledWorkspace create (final ControllerLevelViews controllerViews, final List<? extends ControllerView> pageViews)
+    {
+        return CompiledWorkspace.compile ("Pull", controllerViews.compose (pageViews));
     }
 
 
     /** Create the default workspace while the authoritative drum layout owns its rate pads. */
-    public static CompiledWorkspace createDrum (final ControllerLevelViews controllerViews, final List<? extends ControllerView> drumViews)
+    public static CompiledWorkspace createDrum (final ControllerLevelViews controllerViews, final List<? extends ControllerView> drumViews, final boolean rawPitchBend)
+    {
+        return createDrum (controllerViews, drumViews, rawPitchBend, List.of (new StableParameterControlsView ()));
+    }
+
+
+    /** Keep the same retained Drum views while replacing only their parameter page. */
+    public static CompiledWorkspace createDrum (final ControllerLevelViews controllerViews, final List<? extends ControllerView> drumViews, final boolean rawPitchBend, final List<? extends ControllerView> pageViews)
     {
         final List<ControllerView> views = new ArrayList<> ();
-        views.add (new StableParameterControlsView ());
+        views.addAll (pageViews);
         views.addAll (drumViews);
-        return CompiledWorkspace.compile ("Pull Drum", controllerViews.compose (views));
+        return CompiledWorkspace.compile ("Pull Drum", rawPitchBend ? controllerViews.composeWithRawPitchBend (views, true) : controllerViews.compose (views));
     }
 
 
@@ -49,6 +62,7 @@ public final class DefaultWorkspace
     {
         return List.of (
             new RetainedControllerView (new DrumPlayPadView ()),
+            new RetainedControllerView (new DrumOctaveView ()),
             new RetainedControllerView (new DrumFillView ()),
             drumControlPadView,
             new RetainedControllerView (new DrumRateView ()));

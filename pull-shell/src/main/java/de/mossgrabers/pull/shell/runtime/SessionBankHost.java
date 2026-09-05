@@ -6,9 +6,18 @@ package de.mossgrabers.pull.shell.runtime;
 import de.mossgrabers.controller.ableton.push.workspace.SessionBankRegistry;
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.daw.data.ITrack;
+import de.mossgrabers.framework.daw.data.IScene;
+import de.mossgrabers.framework.daw.data.ISlot;
+import de.mossgrabers.framework.daw.data.bank.IBank;
+import de.mossgrabers.framework.daw.data.bank.ISceneBank;
+import de.mossgrabers.framework.daw.data.bank.ISlotBank;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
+import de.mossgrabers.pull.core.api.BankNavigationSnapshot;
 import de.mossgrabers.pull.core.api.SessionBankShape;
 import de.mossgrabers.pull.core.api.SessionBankSnapshot;
+import de.mossgrabers.pull.core.api.SessionClipWindowSnapshot;
+import de.mossgrabers.pull.core.api.SessionSceneSnapshot;
+import de.mossgrabers.pull.core.api.SessionSlotSnapshot;
 import de.mossgrabers.pull.core.api.SessionTrackSnapshot;
 import de.mossgrabers.pull.core.api.SessionTrackType;
 import de.mossgrabers.pull.core.api.effect.SelectSessionTrackEffect;
@@ -40,6 +49,13 @@ final class SessionBankHost
     /** Sample the active eight-column Session window. */
     boolean refresh ()
     {
+        return this.refresh (false);
+    }
+
+
+    /** Sample clips/scenes only when their separate subscription is requested. */
+    boolean refresh (final boolean clipsRequested)
+    {
         final TargetIdentity currentIdentity = this.captureIdentity ();
         if (!currentIdentity.equals (this.identity))
         {
@@ -47,7 +63,7 @@ final class SessionBankHost
             this.generation++;
         }
 
-        final SessionBankSnapshot refreshed = this.captureSnapshot (currentIdentity);
+        final SessionBankSnapshot refreshed = this.captureSnapshot (currentIdentity, clipsRequested);
         if (refreshed.equals (this.snapshot))
             return false;
         this.snapshot = refreshed;
@@ -135,7 +151,7 @@ final class SessionBankHost
     }
 
 
-    private SessionBankSnapshot captureSnapshot (final TargetIdentity currentIdentity)
+    private SessionBankSnapshot captureSnapshot (final TargetIdentity currentIdentity, final boolean clipsRequested)
     {
         final ITrackBank bank = this.registry.getActiveBank ();
         final List<SessionTrackSnapshot> tracks = new ArrayList<> (currentIdentity.shape ().tracks ());
@@ -161,7 +177,63 @@ final class SessionBankHost
                 toTrackType (track.getType ()),
                 toRgb (track.getColor ())));
         }
-        return new SessionBankSnapshot (this.generation, currentIdentity.shape (), currentIdentity.trackOffset (), currentIdentity.sceneOffset (), tracks);
+        final SessionClipWindowSnapshot clips = clipsRequested ? this.captureClips (currentIdentity, tracks) : SessionClipWindowSnapshot.empty ();
+        return new SessionBankSnapshot (this.generation, currentIdentity.shape (), currentIdentity.trackOffset (), currentIdentity.sceneOffset (), tracks, clips);
+    }
+
+
+    private SessionClipWindowSnapshot captureClips (final TargetIdentity currentIdentity, final List<SessionTrackSnapshot> tracks)
+    {
+        final ITrackBank bank = this.registry.getActiveBank ();
+        final ISceneBank sceneBank = bank.getSceneBank ();
+        final SessionBankShape shape = currentIdentity.shape ();
+        final List<SessionSceneSnapshot> scenes = new ArrayList<> (shape.scenes ());
+        boolean aligned = bank.getScrollPosition () >= 0 && sceneBank.getScrollPosition () >= 0;
+        for (int row = 0; row < shape.scenes (); row++)
+        {
+            final IScene scene = sceneBank.getItem (row);
+            if (!scene.doesExist ())
+            {
+                scenes.add (SessionSceneSnapshot.empty ());
+                continue;
+            }
+            final int position = scene.getPosition ();
+            aligned &= position == currentIdentity.sceneOffset () + row;
+            if (position < 0)
+                scenes.add (SessionSceneSnapshot.empty ());
+            else
+                scenes.add (new SessionSceneSnapshot (true, position, scene.getName (128), scene.isSelected (), toRgb (scene.getColor ())));
+        }
+        final List<SessionSlotSnapshot> slots = new ArrayList<> (shape.tracks () * shape.scenes ());
+        for (int column = 0; column < shape.tracks (); column++)
+        {
+            final SessionTrackSnapshot track = tracks.get (column);
+            final ISlotBank slotBank = track.exists () ? bank.getItem (column).getSlotBank () : null;
+            if (track.exists ())
+                aligned &= track.position () == currentIdentity.trackOffset () + column;
+            for (int row = 0; row < shape.scenes (); row++)
+            {
+                final ISlot slot = slotBank == null ? null : slotBank.getItem (row);
+                if (slot == null || !slot.doesExist ())
+                {
+                    slots.add (SessionSlotSnapshot.empty ());
+                    continue;
+                }
+                final int position = slot.getPosition ();
+                aligned &= position == currentIdentity.sceneOffset () + row;
+                if (position < 0)
+                    slots.add (SessionSlotSnapshot.empty ());
+                else
+                    slots.add (new SessionSlotSnapshot (true, position, slot.getName (128), slot.hasContent (), slot.isSelected (), slot.isMuted (), slot.isPlaying (), slot.isRecording (), slot.isPlayingQueued (), slot.isRecordingQueued (), slot.isStopQueued (), toRgb (slot.getColor ())));
+            }
+        }
+        return new SessionClipWindowSnapshot (shape, aligned, slots, scenes, captureNavigation (bank), captureNavigation (sceneBank));
+    }
+
+
+    private static BankNavigationSnapshot captureNavigation (final IBank<?> bank)
+    {
+        return new BankNavigationSnapshot (Math.max (0, bank.getItemCount ()), bank.canScrollBackwards (), bank.canScrollForwards (), bank.canScrollPageBackwards (), bank.canScrollPageForwards ());
     }
 
 
@@ -179,14 +251,14 @@ final class SessionBankHost
     }
 
 
-    private static RgbColor toRgb (final ColorEx color)
+    static RgbColor toRgb (final ColorEx color)
     {
         final ColorEx checked = Objects.requireNonNullElse (color, ColorEx.BLACK);
         return new RgbColor ((int) Math.round (255 * checked.getRed ()), (int) Math.round (255 * checked.getGreen ()), (int) Math.round (255 * checked.getBlue ()));
     }
 
 
-    private static SessionTrackType toTrackType (final de.mossgrabers.framework.daw.resource.ChannelType type)
+    static SessionTrackType toTrackType (final de.mossgrabers.framework.daw.resource.ChannelType type)
     {
         return switch (Objects.requireNonNullElse (type, de.mossgrabers.framework.daw.resource.ChannelType.UNKNOWN))
         {

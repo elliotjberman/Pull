@@ -8,6 +8,7 @@ import de.mossgrabers.pull.core.view.CompiledWorkspace;
 import de.mossgrabers.pull.core.view.ControllerView;
 
 import java.util.List;
+import java.util.ArrayList;
 
 
 /** Compiled, read-back-acknowledged handoff to an inherited stable destination. */
@@ -23,29 +24,41 @@ public final class StableDestinationWorkspace
     }
 
 
-    /** Create the explicit Track/Mix plus full Session destination. */
-    public static CompiledWorkspace session (final WorkspaceSelection selection, final ControllerLevelViews controllerViews, final ControllerView sessionView)
+    /** Select an explicit page while the Session destination is acknowledged. */
+    public static CompiledWorkspace session (final WorkspaceSelection selection, final ControllerLevelViews controllerViews, final ControllerView sessionView, final List<? extends ControllerView> pageViews)
     {
+        final List<ControllerView> views = new ArrayList<> (pageViews);
+        views.add (new SessionTemporarySelectionView (selection));
+        views.add (sessionView);
         return CompiledWorkspace.compile (
             "Session destination",
             SESSION_BANK,
-            controllerViews.composeWithoutNoteController (List.of (new SessionTemporarySelectionView (selection), new TrackMixerPageView (), sessionView)));
+            controllerViews.composeWithRawPitchBend (views, false));
     }
 
 
     /** Keep the semantic Session view selected after its default Track/Mix page is acknowledged. */
     public static CompiledWorkspace selectedSession (final ControllerLevelViews controllerViews, final ControllerView sessionView)
     {
-        return CompiledWorkspace.compile (
-            "Session",
-            SESSION_BANK,
-            controllerViews.compose (List.of (sessionView)));
+        return selectedSession (controllerViews, sessionView, List.of ());
     }
 
 
-    /** Create the explicit Track/Mix page destination used around the stable Note view command. */
-    public static CompiledWorkspace note (final ControllerLevelViews controllerViews)
+    /** Retain the Session grid under an independently selected page. */
+    public static CompiledWorkspace selectedSession (final ControllerLevelViews controllerViews, final ControllerView sessionView, final List<? extends ControllerView> pageViews)
     {
-        return CompiledWorkspace.compile ("Note destination", controllerViews.compose (List.of (new TrackMixerPageView ())));
+        final List<ControllerView> views = new ArrayList<> (pageViews);
+        views.add (sessionView);
+        return CompiledWorkspace.compile (
+            "Session",
+            SESSION_BANK,
+            controllerViews.composeWithRawPitchBend (views, true));
+    }
+
+
+    /** Select the Track page while the preferred Note destination is acknowledged. */
+    public static CompiledWorkspace note (final ControllerLevelViews controllerViews, final List<? extends ControllerView> pageViews)
+    {
+        return CompiledWorkspace.compile ("Note destination", controllerViews.compose (pageViews));
     }
 }

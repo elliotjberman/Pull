@@ -10,9 +10,7 @@ import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.DrumContextSnapshot;
 import de.mossgrabers.pull.core.api.DrumPadSnapshot;
 import de.mossgrabers.pull.core.api.GridPressureConfiguration;
-import de.mossgrabers.pull.core.api.NoteViewSnapshot;
 import de.mossgrabers.pull.core.api.PushControlIds;
-import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.SendNoteInputMidiEffect;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
@@ -87,7 +85,7 @@ public final class DrumPlayPadView implements ControllerView
             return List.of ();
 
         final ControllerLayoutSnapshot layout = snapshot.bridge ().layout ();
-        if (!layout.drumLayoutActive () || !layout.drumControllerEngaged ())
+        if (!DrumOctaveView.mappingApplied (snapshot))
             return List.of ();
 
         if (input.kind () == InputKind.POLY_PRESSURE)
@@ -107,7 +105,7 @@ public final class DrumPlayPadView implements ControllerView
     public ViewOutput render (final ControllerSnapshot snapshot)
     {
         final Map<ControlId, RgbColor> lights = new LinkedHashMap<> ();
-        final boolean aligned = isAligned (snapshot);
+        final boolean aligned = DrumOctaveView.mappingApplied (snapshot);
         final DrumContextSnapshot drum = snapshot.bridge ().drum ();
         for (int padIndex = 0; padIndex < PLAY_COLUMNS * PLAY_ROWS; padIndex++)
         {
@@ -123,25 +121,6 @@ public final class DrumPlayPadView implements ControllerView
         if (pad == null || !pad.exists ())
             return OFF;
         return pad.playingVelocity () > 0 ? playingColor (pad.playingVelocity ()) : restingColor;
-    }
-
-
-    private static boolean isAligned (final ControllerSnapshot snapshot)
-    {
-        final ControllerLayoutSnapshot layout = snapshot.bridge ().layout ();
-        final SelectedTrackSnapshot selected = snapshot.bridge ().selectedTrack ();
-        final NoteViewSnapshot noteView = snapshot.bridge ().noteView ();
-        final DrumContextSnapshot drum = snapshot.bridge ().drum ();
-        return layout.drumLayoutActive () && layout.drumControllerEngaged () &&
-            selected.exists () && selected.canHoldNotes () &&
-            noteView.drumControllerApplicable () &&
-            noteView.targetGeneration () == selected.generation () &&
-            noteView.targetChannelId ().equals (selected.channelId ()) &&
-            noteView.trackPosition () == selected.position () &&
-            drum.available () && drum.modelAligned () &&
-            drum.targetGeneration () == selected.generation () &&
-            drum.targetChannelId ().equals (selected.channelId ()) &&
-            drum.baseMidiNote () == layout.drumBaseMidiNote ();
     }
 
 

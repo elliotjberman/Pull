@@ -3,9 +3,6 @@
 
 package de.mossgrabers.controller.ableton.push.view;
 
-import java.util.Arrays;
-
-import de.mossgrabers.controller.ableton.push.PushConfiguration;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.IDrumDevice;
@@ -14,14 +11,13 @@ import de.mossgrabers.framework.scale.Scales;
 
 
 /**
- * Stable lifecycle and note-mapping adapter for the reloadable Drum controller.
+ * Stable target alignment and indication lifecycle for the reloadable Drum controller.
  */
 public final class DrumPadControls
 {
     private static final int LOWER_GRID_ROWS = 4;
 
     private final PushControlSurface surface;
-    private final PushConfiguration configuration;
     private final IModel             model;
     private final Scales             scales;
     private boolean                  active;
@@ -38,7 +34,6 @@ public final class DrumPadControls
     public DrumPadControls (final PushControlSurface surface, final IModel model)
     {
         this.surface = surface;
-        this.configuration = surface.getConfiguration ();
         this.model = model;
         this.scales = model.getScales ();
     }
@@ -58,8 +53,7 @@ public final class DrumPadControls
 
 
     /**
-     * Deactivate the performance controls and restore the repeat and velocity state they
-     * temporarily override.
+     * Deactivate the performance controls and release the old device's indication.
      */
     public void deactivate ()
     {
@@ -119,14 +113,6 @@ public final class DrumPadControls
         this.controllerEngaged = shouldEngage;
         this.engagedDrumDevice = candidate;
 
-        if (shouldEngage)
-        {
-            if (!wasEngaged)
-                this.surface.setVelocityTranslationTable (Scales.getIdentityMatrix ());
-        }
-        else
-            this.restoreVelocityTranslation ();
-
         if (wasEngaged != shouldEngage)
         {
             final IView activeView = this.surface.getViewManager ().getActive ();
@@ -150,18 +136,4 @@ public final class DrumPadControls
 
         return index < this.surface.getPadGrid ().getCols () * LOWER_GRID_ROWS;
     }
-
-
-    private void restoreVelocityTranslation ()
-    {
-        final int [] velocityTable = Scales.getIdentityMatrix ();
-        if (this.configuration.isAccentActive ())
-        {
-            Arrays.fill (velocityTable, Math.min (127, Math.max (0, this.configuration.getFixedAccentValue ())));
-            velocityTable[0] = 0;
-        }
-        this.surface.setVelocityTranslationTable (velocityTable);
-    }
-
-
 }

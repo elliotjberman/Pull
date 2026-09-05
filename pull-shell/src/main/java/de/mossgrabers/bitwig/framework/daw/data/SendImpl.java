@@ -91,6 +91,14 @@ public class SendImpl extends ParameterImpl implements ISend
 
     /** {@inheritDoc} */
     @Override
+    public void setEnabled (final boolean enabled)
+    {
+        this.send.isEnabled ().set (enabled);
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
     public void toggleEnabled ()
     {
         this.send.isEnabled ().toggle ();

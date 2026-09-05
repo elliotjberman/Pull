@@ -9,6 +9,7 @@ import de.mossgrabers.pull.core.api.DesiredControllerLayout;
 import de.mossgrabers.pull.core.api.DesiredControllerState;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredNoteInputRoute;
+import de.mossgrabers.pull.core.api.DesiredNoteInputTranslation;
 import de.mossgrabers.pull.core.api.DesiredNotePerformance;
 
 import java.util.Objects;
@@ -70,7 +71,7 @@ final class ControllerStateHost
         final DesiredNotePerformance performance = requested.notePerformance ();
         return new DesiredControllerState (
             this.surface.prepareWorkspace (requested.workspace ()),
-            new DesiredNotePerformance (this.surface.prepareLayout (performance.layout ()), performance.inputRoute ()));
+            new DesiredNotePerformance (this.surface.prepareLayout (performance.layout ()), performance.inputRoute (), performance.translation ()));
     }
 
 
@@ -176,8 +177,12 @@ final class ControllerStateHost
     {
         if (!reassertLayout && this.desired.equals (this.applied))
             return;
+        final DesiredNoteInputTranslation translation = this.desired.notePerformance ().translation ();
+        if (!translation.equals (this.applied.notePerformance ().translation ()) && !this.inputLifecycleIdle.getAsBoolean ())
+            return;
         this.surface.applyWorkspace (this.desired.workspace ());
         this.applyLayout (this.desired.notePerformance ().layout (), reassertLayout);
+        this.surface.applyTranslation (translation);
         this.applied = this.desired;
     }
 
@@ -192,6 +197,14 @@ final class ControllerStateHost
     {
         RuntimeException failure = original;
         this.applied = DesiredControllerState.empty ();
+        try
+        {
+            this.surface.applyTranslation (DesiredNoteInputTranslation.silent ());
+        }
+        catch (final RuntimeException cleanupFailure)
+        {
+            failure = retain (failure, cleanupFailure);
+        }
         try
         {
             this.applyLayout (DesiredControllerLayout.neutral (), true);
@@ -267,6 +280,12 @@ final class ControllerStateHost
 
         void applyLayout (DesiredControllerLayout layout);
 
+        default void applyTranslation (final DesiredNoteInputTranslation translation)
+        {
+            if (translation.allowsNotes ())
+                throw new IllegalStateException ("Native note translation is not installed on this surface");
+        }
+
         void invalidate ();
     }
 
@@ -304,6 +323,13 @@ final class ControllerStateHost
         public void applyLayout (final DesiredControllerLayout layout)
         {
             this.host.applyLayout (layout);
+        }
+
+
+        @Override
+        public void applyTranslation (final DesiredNoteInputTranslation translation)
+        {
+            this.host.applyNoteTranslation (translation);
         }
 
 

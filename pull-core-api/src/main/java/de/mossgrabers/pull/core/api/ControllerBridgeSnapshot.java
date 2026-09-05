@@ -19,8 +19,11 @@ import java.util.Objects;
  * @param controllerMappingFeedback Bitwig target presence and value keyed by semantic mapping endpoint
  * @param master Current project and Master-page state
  * @param project Lightweight current-project state
+ * @param automation Unified Automation Write state
+ * @param encoderConfiguration Raw installed encoder calibration and preferences
+ * @param currentTrackBank Current main/effect bank, independent of Session topology
  */
-public record ControllerBridgeSnapshot (TransportSnapshot transport, SelectedTrackSnapshot selectedTrack, SessionBankSnapshot sessionBank, ControllerLayoutSnapshot layout, NoteViewSnapshot noteView, NoteRepeatSnapshot noteRepeat, DrumContextSnapshot drum, ParameterBridgeSnapshot parameters, ControllerMappingFeedbackSnapshot controllerMappingFeedback, MasterSnapshot master, ProjectSnapshot project)
+public record ControllerBridgeSnapshot (TransportSnapshot transport, SelectedTrackSnapshot selectedTrack, SessionBankSnapshot sessionBank, ControllerLayoutSnapshot layout, NoteViewSnapshot noteView, NoteRepeatSnapshot noteRepeat, DrumContextSnapshot drum, ParameterBridgeSnapshot parameters, ControllerMappingFeedbackSnapshot controllerMappingFeedback, MasterSnapshot master, ProjectSnapshot project, AutomationSnapshot automation, EncoderConfigurationSnapshot encoderConfiguration, CurrentTrackBankSnapshot currentTrackBank)
 {
     private static final ControllerBridgeSnapshot EMPTY = new ControllerBridgeSnapshot (TransportSnapshot.empty (), SelectedTrackSnapshot.empty (), SessionBankSnapshot.empty (), ControllerLayoutSnapshot.empty (), NoteViewSnapshot.empty (), NoteRepeatSnapshot.empty (), DrumContextSnapshot.empty (), ParameterBridgeSnapshot.empty (), ControllerMappingFeedbackSnapshot.empty (), MasterSnapshot.empty (), ProjectSnapshot.empty ());
 
@@ -41,6 +44,30 @@ public record ControllerBridgeSnapshot (TransportSnapshot transport, SelectedTra
         controllerMappingFeedback = Objects.requireNonNull (controllerMappingFeedback, "controllerMappingFeedback");
         master = Objects.requireNonNull (master, "master");
         project = Objects.requireNonNull (project, "project");
+        automation = Objects.requireNonNull (automation, "automation");
+        encoderConfiguration = Objects.requireNonNull (encoderConfiguration, "encoderConfiguration");
+        currentTrackBank = Objects.requireNonNull (currentTrackBank, "currentTrackBank");
+    }
+
+
+    /** Compatibility constructor without current-track-bank state. */
+    public ControllerBridgeSnapshot (final TransportSnapshot transport, final SelectedTrackSnapshot selectedTrack, final SessionBankSnapshot sessionBank, final ControllerLayoutSnapshot layout, final NoteViewSnapshot noteView, final NoteRepeatSnapshot noteRepeat, final DrumContextSnapshot drum, final ParameterBridgeSnapshot parameters, final ControllerMappingFeedbackSnapshot controllerMappingFeedback, final MasterSnapshot master, final ProjectSnapshot project, final AutomationSnapshot automation, final EncoderConfigurationSnapshot encoderConfiguration)
+    {
+        this (transport, selectedTrack, sessionBank, layout, noteView, noteRepeat, drum, parameters, controllerMappingFeedback, master, project, automation, encoderConfiguration, CurrentTrackBankSnapshot.empty ());
+    }
+
+
+    /** Compatibility constructor without encoder calibration. */
+    public ControllerBridgeSnapshot (final TransportSnapshot transport, final SelectedTrackSnapshot selectedTrack, final SessionBankSnapshot sessionBank, final ControllerLayoutSnapshot layout, final NoteViewSnapshot noteView, final NoteRepeatSnapshot noteRepeat, final DrumContextSnapshot drum, final ParameterBridgeSnapshot parameters, final ControllerMappingFeedbackSnapshot controllerMappingFeedback, final MasterSnapshot master, final ProjectSnapshot project, final AutomationSnapshot automation)
+    {
+        this (transport, selectedTrack, sessionBank, layout, noteView, noteRepeat, drum, parameters, controllerMappingFeedback, master, project, automation, EncoderConfigurationSnapshot.empty ());
+    }
+
+
+    /** Compatibility constructor without automation state. */
+    public ControllerBridgeSnapshot (final TransportSnapshot transport, final SelectedTrackSnapshot selectedTrack, final SessionBankSnapshot sessionBank, final ControllerLayoutSnapshot layout, final NoteViewSnapshot noteView, final NoteRepeatSnapshot noteRepeat, final DrumContextSnapshot drum, final ParameterBridgeSnapshot parameters, final ControllerMappingFeedbackSnapshot controllerMappingFeedback, final MasterSnapshot master, final ProjectSnapshot project)
+    {
+        this (transport, selectedTrack, sessionBank, layout, noteView, noteRepeat, drum, parameters, controllerMappingFeedback, master, project, AutomationSnapshot.empty ());
     }
 
 

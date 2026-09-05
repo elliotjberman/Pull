@@ -4,6 +4,7 @@
 package de.mossgrabers.pull.shell.runtime;
 
 import de.mossgrabers.framework.controller.hardware.IHwContinuousControl;
+import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ControllerMappingContext;
 import de.mossgrabers.pull.core.api.DesiredControllerLayout;
@@ -12,6 +13,7 @@ import de.mossgrabers.pull.core.api.DesiredControllerState;
 import de.mossgrabers.pull.core.api.DesiredNoteInputRoute;
 import de.mossgrabers.pull.core.api.DesiredNotePerformance;
 import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
+import de.mossgrabers.pull.core.api.DesiredParameterTouches;
 import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
 import de.mossgrabers.pull.core.api.DesiredParameterBanks;
 import de.mossgrabers.pull.core.api.ParameterTargetRef;
@@ -27,6 +29,29 @@ import java.util.function.BooleanSupplier;
 interface ControllerBridge
 {
     boolean refresh (long monotonicTimeNanos, DesiredBridgeSubscriptions subscriptions, DesiredParameterBanks parameterBanks);
+
+    /** Prepare complete exact-parameter touch ownership without side effects. */
+    default Map<ControlId, ParameterTouchLease> prepareParameterTouches (final DesiredParameterTouches touches, final DesiredParameterBanks banks)
+    {
+        if (!touches.targets ().isEmpty ())
+            throw new IllegalArgumentException ("Parameter touch ownership is not installed");
+        return Map.of ();
+    }
+
+    /** Release omitted touches before ordered effects execute. */
+    default void releaseParameterTouches (final Map<ControlId, ParameterTouchLease> touches)
+    {
+    }
+
+    /** Acquire new touches after ordered effects (including reset) execute. */
+    default void acquireParameterTouches (final Map<ControlId, ParameterTouchLease> touches)
+    {
+    }
+
+    interface ParameterTouchLease
+    {
+    }
+
 
     void activateCoreGeneration (long generation);
 

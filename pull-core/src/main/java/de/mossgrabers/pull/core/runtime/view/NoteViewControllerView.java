@@ -12,6 +12,7 @@ import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.ControllerStateScope;
 import de.mossgrabers.pull.core.api.DesiredControllerLayout;
 import de.mossgrabers.pull.core.api.DesiredNotePerformance;
+import de.mossgrabers.pull.core.api.DesiredNoteInputTranslation;
 import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
 import de.mossgrabers.pull.core.api.NoteViewSnapshot;
 import de.mossgrabers.pull.core.api.PushControlIds;
@@ -51,6 +52,7 @@ public final class NoteViewControllerView implements ControllerView
         "policy",
         Set.of (
             new SurfaceClaim (SurfaceArea.LAYOUT_BUTTON, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
+            new SurfaceClaim (SurfaceArea.DRUM_PLAY_PADS, SurfaceClaim.Kind.MUSICAL_INPUT),
             new SurfaceClaim (SurfaceArea.SHIFT_MODIFIER, SurfaceClaim.Kind.OBSERVE_INPUT)),
         Set.of ());
 
@@ -126,7 +128,7 @@ public final class NoteViewControllerView implements ControllerView
             ControllerDisplayScene.empty (),
             ControllerPadGridOverlay.inactive (),
             ControllerDisplayOverlay.inactive (),
-            new DesiredNotePerformance (DesiredControllerLayout.note (resolved.layout ()), resolved.noteInputRoute ()),
+            new DesiredNotePerformance (DesiredControllerLayout.note (resolved.layout ()), resolved.noteInputRoute (), resolved.layout () == ControllerNoteView.DRUM_PAD ? DrumOctaveView.translation (snapshot) : DesiredNoteInputTranslation.unowned ()),
             DesiredNoteRepeat.unowned ());
     }
 

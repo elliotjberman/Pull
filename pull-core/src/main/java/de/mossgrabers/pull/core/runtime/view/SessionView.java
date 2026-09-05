@@ -64,7 +64,14 @@ public final class SessionView implements ControllerView
     /** Create the inherited complete eight-by-eight Session view. */
     public static SessionView full ()
     {
-        return new SessionView (fullProfile (), new SessionStopGesture ());
+        return full (new SessionStopGesture ());
+    }
+
+
+    /** Create the full Session grid sharing Stop gestures with a separately composed footer. */
+    public static SessionView full (final SessionStopGesture stopGesture)
+    {
+        return new SessionView (fullProfile (), stopGesture);
     }
 
 

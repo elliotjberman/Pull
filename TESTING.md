@@ -96,7 +96,10 @@ controller submits 0..127 poly-pressure for the last pad clicked through both th
 `/api/input` BEGIN requests can hold modifiers and buttons concurrently before matching END
 requests release them. Pressure may accompany an exact held pad. Each edge has a five-second
 controller-owned lease, renewed independently by the page; disappearing clients release their
-controls and neutralize detached nonzero pressure.
+controls and neutralize detached nonzero pressure. Dragging the touch strip sends `TOUCH` BEGIN,
+coalesced `ABSOLUTE` CHANGE values from 0 through 16383, then the last value before `TOUCH` END.
+The strip position shown in the browser comes from `surface-state.json.touchStrip`, recorded only
+after successful hardware mode and position transmission; it is not a local pointer preview.
 The local server accepts bounded same-origin JSON only with the active random extension-session
 token, atomically queues at most 64 requests, and never invokes controller code itself.
 Debugger output reaches the browser through a bounded Server-Sent Events stream. The event carries
@@ -165,6 +168,13 @@ Wait for `input ready`, then validate the supported layers separately:
 - Confirm that Bitwig-driven pad and button colors appear on the matching browser controls. A queued
   HTTP response proves only local ingress, and an `APPLIED` status proves only controller routing;
   neither by itself proves audible note delivery or later controller output.
+- In Session or an engaged Drum layout, drag the strip through several positions and release.
+  Check later `touchStrip` output for `PITCH_BEND` and the exact 14-bit position, then center 8192.
+  With a sounding instrument, verify audible pitch and release centering independently. Hold the
+  strip while changing the page/layout, verify that the gesture continues until release, and then
+  verify that the next gesture uses the newly selected layout. A raw `ABSOLUTE` request without an
+  exact active browser TOUCH lease must fail. The generic `/api/input` endpoint can submit these
+  values for repeatable checks; it retains the same live lease and session-token requirements.
 
 The bounded files below make those distinctions inspectable without browser developer tools:
 
@@ -181,8 +191,8 @@ The live mirror is constructed only when debugging was enabled before extension 
 this shell change and restarting Bitwig once adds the output observer; later core reloads reuse it.
 The controller thread only copies the fixed Push footprint into one coalescing slot. JSON encoding,
 filesystem writes, HTTP serving, and browser polling stay off the controller thread. Continuous
-touch-strip position is not yet part of browser input. Encoders turn only during a held vertical
-pointer drag; their signed deltas run through the permanent continuous-control input arbitrator.
+touch-strip position is part of the held browser drag path. Encoders turn only during a held
+vertical pointer drag; their signed deltas run through the permanent continuous-control input arbitrator.
 Browser pad presses exercise the extension-side permanent controller binding and Bitwig's
 `NoteInput`, subject to the learned-mapping boundary above.
 

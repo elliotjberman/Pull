@@ -67,6 +67,13 @@ final class AuthoritativeBooleanToggle<T>
     }
 
 
+    /** Whether this lane needs a later authoritative observation. */
+    boolean pending ()
+    {
+        return this.target != null;
+    }
+
+
     /** Retire pending intent when its authoritative target is unavailable. */
     void clear ()
     {

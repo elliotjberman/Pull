@@ -28,6 +28,10 @@ import de.mossgrabers.pull.core.runtime.view.ProjectPlaybackCoordinator;
 import de.mossgrabers.pull.core.runtime.view.SessionView;
 import de.mossgrabers.pull.core.runtime.view.SessionStopGesture;
 import de.mossgrabers.pull.core.runtime.view.StableDestinationWorkspace;
+import de.mossgrabers.pull.core.runtime.view.TrackMixerPageState;
+import de.mossgrabers.pull.core.runtime.view.TrackMixerControlsView;
+import de.mossgrabers.pull.core.runtime.view.CurrentTrackFooterView;
+import de.mossgrabers.pull.core.api.effect.SelectControllerModeEffect;
 import de.mossgrabers.pull.core.runtime.view.TrackSelectionStripView;
 import de.mossgrabers.pull.core.runtime.view.WorkspaceSelection;
 import de.mossgrabers.pull.core.view.CompiledWorkspace;
@@ -54,8 +58,16 @@ final class PullControllerCore implements ControllerCore
     private Map<WorkspaceSelection.Id, CompiledWorkspace> workspaces = Map.of ();
     private CompiledWorkspace                              defaultDrumWorkspace;
     private CompiledWorkspace                              defaultSessionWorkspace;
+    private CompiledWorkspace                              defaultDrumLegacyWorkspace;
+    private CompiledWorkspace                              masterDrumRawWorkspace;
+    private CompiledWorkspace                              masterDrumLegacyWorkspace;
     private CompiledWorkspace                              vsLiveStablePageWorkspace;
     private CompiledWorkspace                              vsLiveTrackMixerWorkspace;
+    private Map<CompiledWorkspace, CompiledWorkspace>      trackPageWorkspaces = Map.of ();
+    private TrackMixerPageState                            trackMixerPage;
+    private boolean                                        normalTrackPageSelected;
+    private long                                           normalPageWorkspaceRequest = -1;
+    private PendingPageSelection                           pendingPageSelection;
     private WorkspaceSelection                             selection;
     private CompiledWorkspace                              workspace;
     private Map<CompiledWorkspace, CompiledWorkspace>      masterWorkspaces = Map.of ();
@@ -67,7 +79,6 @@ final class PullControllerCore implements ControllerCore
     private CompiledWorkspace                              activeMasterWorkspace;
     private VsLivePage                                     vsLivePage = VsLivePage.DEFAULT;
     private long                                           vsLiveWorkspaceRequest = -1;
-    private long                                           vsLivePendingPageAfterGeneration = -1;
     private final SnapbackSession                          snapback = new SnapbackSession ();
     private Lifecycle                                      lifecycle = Lifecycle.NEW;
 
@@ -83,37 +94,58 @@ final class PullControllerCore implements ControllerCore
 
         final RestoredState restoredState = restoreState (previousState);
         this.selection = new WorkspaceSelection (restoredState.workspace (), restoredState.selectedDestination (), restoredState.pendingDestination ());
+        this.trackMixerPage = new TrackMixerPageState (restoredState.inputOutputSelected (), restoredState.sendOffset ());
+        this.normalTrackPageSelected = restoredState.pageStatePresent () ? restoredState.normalTrackPageSelected () : "TRACK".equals (snapshot.bridge ().layout ().modeId ());
+        this.normalPageWorkspaceRequest = this.selection.requestSequence ();
+        this.vsLivePage = restoredState.vsLivePage ();
+        this.vsLiveWorkspaceRequest = this.selection.requestSequence ();
         this.playbackCoordinator = new ProjectPlaybackCoordinator ();
         this.playbackCoordinator.restoreEngineOwner (restoredState.engineOwnerIdentity (), restoredState.engineOwnerPlaying ());
         final ControllerView drumControlPadView = new DrumControlPadView ();
         final ControllerLevelViews controllerViews = new ControllerLevelViews (this.selection, this.playbackCoordinator);
-        final ControllerView retainedSessionView = new RetainedControllerView (SessionView.full ());
+        final SessionStopGesture fullSessionStopGesture = new SessionStopGesture ();
+        final ControllerView retainedSessionView = new RetainedControllerView (SessionView.full (fullSessionStopGesture));
         final SessionStopGesture vsLiveStopGesture = new SessionStopGesture ();
         final List<ControllerView> retainedVsLiveGridViews = VsLiveWorkspace.retainedGridViews (vsLiveStopGesture, drumControlPadView);
         final ControllerView retainedVsLiveTrackSelection = new RetainedControllerView (new TrackSelectionStripView (vsLiveStopGesture));
         final List<ControllerView> retainedDefaultDrumViews = DefaultWorkspace.retainedDrumViews (drumControlPadView);
+        final List<ControllerView> normalTrackPage = List.of (
+            new RetainedControllerView (new TrackMixerControlsView (this.trackMixerPage, controllerViews.parameterTouches (), true)),
+            new RetainedControllerView (new CurrentTrackFooterView (controllerViews.buttonGestures (), fullSessionStopGesture)));
+        final ControllerView vsLiveTrackPage = new RetainedControllerView (new TrackMixerControlsView (this.trackMixerPage, controllerViews.parameterTouches (), false));
         final Map<WorkspaceSelection.Id, CompiledWorkspace> compiled = new EnumMap<> (WorkspaceSelection.Id.class);
         compiled.put (WorkspaceSelection.Id.DEFAULT, DefaultWorkspace.create (controllerViews));
         compiled.put (WorkspaceSelection.Id.VS_LIVE, VsLiveWorkspace.create (controllerViews, retainedVsLiveTrackSelection, retainedVsLiveGridViews));
         this.workspaces = Map.copyOf (compiled);
-        this.defaultDrumWorkspace = DefaultWorkspace.createDrum (controllerViews, retainedDefaultDrumViews);
+        this.defaultDrumWorkspace = DefaultWorkspace.createDrum (controllerViews, retainedDefaultDrumViews, true);
+        this.defaultDrumLegacyWorkspace = DefaultWorkspace.createDrum (controllerViews, retainedDefaultDrumViews, false);
         this.defaultSessionWorkspace = StableDestinationWorkspace.selectedSession (controllerViews, retainedSessionView);
         this.vsLiveStablePageWorkspace = VsLiveWorkspace.createWithStablePage (controllerViews, retainedVsLiveGridViews);
-        this.vsLiveTrackMixerWorkspace = VsLiveWorkspace.createWithTrackMixerPage (controllerViews, retainedVsLiveTrackSelection, retainedVsLiveGridViews);
+        this.vsLiveTrackMixerWorkspace = VsLiveWorkspace.createWithTrackMixerPage (controllerViews, retainedVsLiveTrackSelection, retainedVsLiveGridViews, vsLiveTrackPage);
+        this.trackPageWorkspaces = Map.of (
+            compiled.get (WorkspaceSelection.Id.DEFAULT), DefaultWorkspace.create (controllerViews, normalTrackPage),
+            this.defaultDrumWorkspace, DefaultWorkspace.createDrum (controllerViews, retainedDefaultDrumViews, true, normalTrackPage),
+            this.defaultDrumLegacyWorkspace, DefaultWorkspace.createDrum (controllerViews, retainedDefaultDrumViews, false, normalTrackPage),
+            this.defaultSessionWorkspace, StableDestinationWorkspace.selectedSession (controllerViews, retainedSessionView, normalTrackPage));
         this.destinationWorkspaces = Map.of (
-            WorkspaceSelection.Destination.SESSION, StableDestinationWorkspace.session (this.selection, controllerViews, retainedSessionView),
-            WorkspaceSelection.Destination.NOTE, StableDestinationWorkspace.note (controllerViews));
+            WorkspaceSelection.Destination.SESSION, StableDestinationWorkspace.session (this.selection, controllerViews, retainedSessionView, normalTrackPage),
+            WorkspaceSelection.Destination.NOTE, StableDestinationWorkspace.note (controllerViews, normalTrackPage));
         final Map<CompiledWorkspace, CompiledWorkspace> compiledMaster = new IdentityHashMap<> ();
-        compiledMaster.put (compiled.get (WorkspaceSelection.Id.DEFAULT), MasterWorkspace.create (controllerViews, de.mossgrabers.pull.core.api.SessionBankShape.empty (), List.of (), true));
-        compiledMaster.put (this.defaultDrumWorkspace, MasterWorkspace.create (controllerViews, de.mossgrabers.pull.core.api.SessionBankShape.empty (), retainedDefaultDrumViews, true));
-        final CompiledWorkspace masterSession = MasterWorkspace.create (controllerViews, StableDestinationWorkspace.SESSION_BANK, List.of (retainedSessionView), true);
+        compiledMaster.put (compiled.get (WorkspaceSelection.Id.DEFAULT), MasterWorkspace.create (controllerViews, de.mossgrabers.pull.core.api.SessionBankShape.empty (), List.of (), true, false));
+        this.masterDrumRawWorkspace = MasterWorkspace.create (controllerViews, de.mossgrabers.pull.core.api.SessionBankShape.empty (), retainedDefaultDrumViews, true, true);
+        this.masterDrumLegacyWorkspace = MasterWorkspace.create (controllerViews, de.mossgrabers.pull.core.api.SessionBankShape.empty (), retainedDefaultDrumViews, true, false);
+        compiledMaster.put (this.defaultDrumWorkspace, this.masterDrumRawWorkspace);
+        compiledMaster.put (this.defaultDrumLegacyWorkspace, this.masterDrumLegacyWorkspace);
+        final CompiledWorkspace masterSession = MasterWorkspace.create (controllerViews, StableDestinationWorkspace.SESSION_BANK, List.of (retainedSessionView), true, true);
         compiledMaster.put (this.defaultSessionWorkspace, masterSession);
         compiledMaster.put (this.destinationWorkspaces.get (WorkspaceSelection.Destination.SESSION), masterSession);
-        final CompiledWorkspace masterVsLive = MasterWorkspace.create (controllerViews, VsLiveWorkspace.SESSION_BANK, retainedVsLiveGridViews, false);
+        final CompiledWorkspace masterVsLive = MasterWorkspace.create (controllerViews, VsLiveWorkspace.SESSION_BANK, retainedVsLiveGridViews, false, true);
         compiledMaster.put (compiled.get (WorkspaceSelection.Id.VS_LIVE), masterVsLive);
         compiledMaster.put (this.vsLiveStablePageWorkspace, masterVsLive);
         compiledMaster.put (this.vsLiveTrackMixerWorkspace, masterVsLive);
         compiledMaster.put (this.destinationWorkspaces.get (WorkspaceSelection.Destination.NOTE), compiledMaster.get (compiled.get (WorkspaceSelection.Id.DEFAULT)));
+        for (final var entry: this.trackPageWorkspaces.entrySet ())
+            compiledMaster.put (entry.getValue (), compiledMaster.get (entry.getKey ()));
         this.masterWorkspaces = Map.copyOf (compiledMaster);
         this.workspace = this.desiredWorkspace (snapshot);
         this.lifecycle = Lifecycle.RUNNING;
@@ -132,14 +164,15 @@ final class PullControllerCore implements ControllerCore
         final CompiledWorkspace desiredWorkspace = this.desiredWorkspace (snapshot);
         if (desiredWorkspace != this.workspace)
         {
+            this.workspace.deactivateExcept (desiredWorkspace);
             this.workspace = desiredWorkspace;
             this.workspace.activate (snapshot);
         }
         final ParameterSlot mutationSlot;
         if (event instanceof final ParameterMutationEvent mutation)
-            mutationSlot = this.workspace.parameterSlotOrNull (mutation.controlId ());
+            mutationSlot = this.workspace.parameterSlotOrNull (mutation.controlId (), snapshot);
         else if (event instanceof final ControllerInputEvent input && input.kind () == InputKind.RELATIVE)
-            mutationSlot = this.workspace.parameterSlotOrNull (input.controlId ());
+            mutationSlot = this.workspace.parameterSlotOrNull (input.controlId (), snapshot);
         else
             mutationSlot = null;
         SnapbackSession.Update update = this.snapback.handle (event, snapshot, mutationSlot);
@@ -161,6 +194,7 @@ final class PullControllerCore implements ControllerCore
         else
             currentResult = update.intercepted () ? this.workspace.activate (snapshot) : this.workspace.handle (event, snapshot);
 
+        this.observePageEffects (currentResult.effects (), snapshot);
         currentResult = this.transitionToSelectedWorkspace (currentResult, snapshot);
         final List<CoreEffect> effects = new ArrayList<> (currentResult.effects ());
         for (final ResolvedControllerAction released: update.releasedActions ())
@@ -178,11 +212,15 @@ final class PullControllerCore implements ControllerCore
     {
         this.requireRunning ();
         final byte [] owner = this.playbackCoordinator.engineOwnerIdentity ().getBytes (StandardCharsets.UTF_8);
-        final ByteBuffer payload = ByteBuffer.allocate (Integer.BYTES + 4 + owner.length);
+        final ByteBuffer payload = ByteBuffer.allocate (Integer.BYTES + 8 + owner.length);
         payload.put ((byte) (this.selection.active () == WorkspaceSelection.Id.VS_LIVE ? 1 : 0));
         payload.put ((byte) (this.playbackCoordinator.engineOwnerPlaying () ? 1 : 0));
         payload.put ((byte) this.selection.selectedDestination ().ordinal ());
         payload.put ((byte) this.selection.pendingDestination ().ordinal ());
+        payload.put ((byte) (this.normalTrackPageSelected ? 1 : 0));
+        payload.put ((byte) this.vsLivePage.ordinal ());
+        payload.put ((byte) (this.trackMixerPage.inputOutputSelected () ? 1 : 0));
+        payload.put ((byte) this.trackMixerPage.sendOffset ());
         payload.putInt (owner.length);
         payload.put (owner);
         return new StateEnvelope (PullCoreProvider.STATE_SCHEMA, PullCoreProvider.STATE_SCHEMA_VERSION, payload.array ());
@@ -205,7 +243,7 @@ final class PullControllerCore implements ControllerCore
         if (!PullCoreProvider.STATE_SCHEMA.equals (state.schema ()) || state.version () != PullCoreProvider.STATE_SCHEMA_VERSION)
             return RestoredState.empty ();
         final byte [] payload = state.payload ();
-        if (payload.length < Integer.BYTES + 4)
+        if (payload.length < Integer.BYTES + 8)
             return RestoredState.empty ();
         final ByteBuffer buffer = ByteBuffer.wrap (payload);
         final WorkspaceSelection.Id workspace = buffer.get () == 1 ? WorkspaceSelection.Id.VS_LIVE : WorkspaceSelection.Id.DEFAULT;
@@ -218,12 +256,18 @@ final class PullControllerCore implements ControllerCore
         final WorkspaceSelection.Destination pendingDestination = WorkspaceSelection.Destination.values ()[pendingDestinationOrdinal];
         if (pendingDestination != WorkspaceSelection.Destination.NONE && pendingDestination != selectedDestination)
             return RestoredState.empty ();
+        final int normalTrackPage = Byte.toUnsignedInt (buffer.get ());
+        final int vsPageOrdinal = Byte.toUnsignedInt (buffer.get ());
+        final int inputOutputPage = Byte.toUnsignedInt (buffer.get ());
+        final int sendOffset = Byte.toUnsignedInt (buffer.get ());
+        if (normalTrackPage > 1 || vsPageOrdinal >= VsLivePage.values ().length || inputOutputPage > 1 || sendOffset != 0 && sendOffset != 4)
+            return RestoredState.empty ();
         final int ownerLength = buffer.getInt ();
         if (ownerLength < 0 || ownerLength > 1024 || ownerLength != buffer.remaining ())
-            return new RestoredState (workspace, selectedDestination, pendingDestination, "", false);
+            return RestoredState.empty ();
         final byte [] owner = new byte [ownerLength];
         buffer.get (owner);
-        return new RestoredState (workspace, selectedDestination, pendingDestination, new String (owner, StandardCharsets.UTF_8), playing);
+        return new RestoredState (workspace, selectedDestination, pendingDestination, new String (owner, StandardCharsets.UTF_8), playing, true, normalTrackPage == 1, VsLivePage.values ()[vsPageOrdinal], inputOutputPage == 1, sendOffset);
     }
 
 
@@ -244,6 +288,8 @@ final class PullControllerCore implements ControllerCore
             activeResult.desiredControllerActions (),
             activeResult.desiredParameterBanks (),
             activeResult.desiredParameterInteraction (),
+            activeResult.desiredParameterTouches (),
+            activeResult.executionRequirements (),
             effects);
     }
 
@@ -253,10 +299,12 @@ final class PullControllerCore implements ControllerCore
         final List<CoreEffect> effects = this.workspace.dispatchAction (action, snapshot);
         this.observeMasterNavigationAction (effects);
         this.observeMasterPageExitAction (action);
-        this.observeVsLivePageAction (action, snapshot, awaitStableReadback);
+        this.observeParameterPageAction (action, snapshot, awaitStableReadback);
+        this.observePageEffects (effects, snapshot);
         final CompiledWorkspace selectedWorkspace = this.desiredWorkspace (snapshot);
         if (selectedWorkspace != this.workspace)
-            this.workspace = selectedWorkspace;
+            this.workspace.deactivateExcept (selectedWorkspace);
+        this.workspace = selectedWorkspace;
         return transitionTo (effects, this.workspace.activate (snapshot));
     }
 
@@ -267,6 +315,7 @@ final class PullControllerCore implements ControllerCore
         if (selectedWorkspace == this.workspace)
             return currentResult;
 
+        this.workspace.deactivateExcept (selectedWorkspace);
         this.workspace = selectedWorkspace;
         return transitionTo (currentResult.effects (), this.workspace.activate (snapshot));
     }
@@ -276,7 +325,7 @@ final class PullControllerCore implements ControllerCore
     {
         this.selection.observe (snapshot.bridge ().layout ());
         this.selection.observe (snapshot.bridge ().noteView ());
-        this.observeVsLivePageReadback (snapshot.bridge ().layout ());
+        this.observeParameterPageReadback (snapshot.bridge ().layout ());
         final CompiledWorkspace selectedWorkspace = this.selectedWorkspace (snapshot);
         final String mode = snapshot.bridge ().layout ().modeId ();
         final boolean masterLayout = "MASTER".equals (mode) || "MASTER_TEMP".equals (mode);
@@ -298,6 +347,8 @@ final class PullControllerCore implements ControllerCore
             this.masterEntryWorkspaceRequest = this.selection.requestSequence ();
             this.activeMasterWorkspace = Objects.requireNonNull (this.masterWorkspaces.get (selectedWorkspace), "Master composition for " + selectedWorkspace.name ());
         }
+        if (this.activeMasterWorkspace == this.masterDrumRawWorkspace || this.activeMasterWorkspace == this.masterDrumLegacyWorkspace)
+            this.activeMasterWorkspace = snapshot.bridge ().layout ().drumLayoutActive () && snapshot.bridge ().layout ().drumControllerEngaged () ? this.masterDrumRawWorkspace : this.masterDrumLegacyWorkspace;
         return this.selection.requestSequence () == this.masterEntryWorkspaceRequest ? this.activeMasterWorkspace : selectedWorkspace;
     }
 
@@ -334,7 +385,6 @@ final class PullControllerCore implements ControllerCore
         if (this.selection.active () != WorkspaceSelection.Id.VS_LIVE)
         {
             this.vsLivePage = VsLivePage.DEFAULT;
-            this.vsLivePendingPageAfterGeneration = -1;
             this.vsLiveWorkspaceRequest = this.selection.requestSequence ();
         }
         else if (this.vsLiveWorkspaceRequest != this.selection.requestSequence ())
@@ -342,63 +392,89 @@ final class PullControllerCore implements ControllerCore
             // Shift+Session selects the declared composite, including its default Project Macro
             // page. It is an idempotent workspace selection, not a request to retain a stale page.
             this.vsLivePage = VsLivePage.DEFAULT;
-            this.vsLivePendingPageAfterGeneration = -1;
             this.vsLiveWorkspaceRequest = this.selection.requestSequence ();
+        }
+        if (this.normalPageWorkspaceRequest != this.selection.requestSequence ())
+        {
+            this.normalPageWorkspaceRequest = this.selection.requestSequence ();
+            if (this.selection.active () == WorkspaceSelection.Id.DEFAULT && this.selection.pendingDestination () != WorkspaceSelection.Destination.NONE)
+                this.normalTrackPageSelected = true;
         }
         final WorkspaceSelection.Destination destination = this.selection.pendingDestination ();
         if (destination != WorkspaceSelection.Destination.NONE)
             return this.destinationWorkspaces.get (destination);
-        if (this.selection.active () == WorkspaceSelection.Id.DEFAULT && this.selection.selectedDestination () == WorkspaceSelection.Destination.SESSION)
-            return this.defaultSessionWorkspace;
+        if (this.selection.active () == WorkspaceSelection.Id.DEFAULT && (this.selection.selectedDestination () == WorkspaceSelection.Destination.SESSION || this.selection.selectedDestination () != WorkspaceSelection.Destination.NOTE && "SESSION".equals (snapshot.bridge ().layout ().viewId ())))
+            return this.selectedNormalPage (this.defaultSessionWorkspace);
         if (this.selection.active () == WorkspaceSelection.Id.DEFAULT && snapshot.bridge ().layout ().drumLayoutActive ())
-            return this.defaultDrumWorkspace;
+            return this.selectedNormalPage (snapshot.bridge ().layout ().drumControllerEngaged () ? this.defaultDrumWorkspace : this.defaultDrumLegacyWorkspace);
         if (this.selection.active () == WorkspaceSelection.Id.VS_LIVE && this.vsLivePage == VsLivePage.TRACK_MIXER)
             return this.vsLiveTrackMixerWorkspace;
         if (this.selection.active () == WorkspaceSelection.Id.VS_LIVE && this.vsLivePage == VsLivePage.STABLE)
             return this.vsLiveStablePageWorkspace;
-        return this.workspaces.get (this.selection.active ());
+        final CompiledWorkspace selected = this.workspaces.get (this.selection.active ());
+        return this.selection.active () == WorkspaceSelection.Id.DEFAULT ? this.selectedNormalPage (selected) : selected;
     }
 
 
-    private void observeVsLivePageAction (final ResolvedControllerAction action, final ControllerSnapshot snapshot, final boolean awaitStableReadback)
+    private CompiledWorkspace selectedNormalPage (final CompiledWorkspace base)
     {
-        if (this.selection.active () != WorkspaceSelection.Id.VS_LIVE || action.intent ().action () != ControllerActionId.SWITCH_PARAMETER_CONTEXT)
-            return;
+        return this.normalTrackPageSelected ? this.trackPageWorkspaces.get (base) : base;
+    }
 
-        final de.mossgrabers.pull.core.api.ControllerLayoutSnapshot layout = snapshot.bridge ().layout ();
+
+    private void observeParameterPageAction (final ResolvedControllerAction action, final ControllerSnapshot snapshot, final boolean awaitStableReadback)
+    {
+        if (action.intent ().action () != ControllerActionId.SWITCH_PARAMETER_CONTEXT)
+            return;
         if (awaitStableReadback)
+            this.pendingPageSelection = new PendingPageSelection (snapshot.bridge ().layout ().generation (), this.selection.requestSequence (), "");
+        else
+            this.selectParameterPage (snapshot.bridge ().layout ().modeId ());
+    }
+
+
+    private void observePageEffects (final List<CoreEffect> effects, final ControllerSnapshot snapshot)
+    {
+        for (final CoreEffect effect: effects)
         {
-            // Snapback released the semantic action before the corresponding stable command. The
-            // shell runs that deferred command only after this result retires the action barrier.
-            this.vsLivePendingPageAfterGeneration = layout.generation ();
+            if (effect instanceof final SelectControllerModeEffect mode)
+                this.pendingPageSelection = new PendingPageSelection (mode.layoutGeneration (), this.selection.requestSequence (), mode.modeId ());
+        }
+    }
+
+
+    private void observeParameterPageReadback (final de.mossgrabers.pull.core.api.ControllerLayoutSnapshot layout)
+    {
+        final PendingPageSelection pending = this.pendingPageSelection;
+        if (pending == null)
+            return;
+        if (pending.workspaceRequest () != this.selection.requestSequence ())
+        {
+            this.pendingPageSelection = null;
             return;
         }
-
-        // An ordinary stable command runs before its semantic observation is delivered, so this
-        // snapshot already contains the page it selected.
-        this.selectVsLivePage (layout.modeId ());
-    }
-
-
-    private void observeVsLivePageReadback (final de.mossgrabers.pull.core.api.ControllerLayoutSnapshot layout)
-    {
-        if (this.selection.active () != WorkspaceSelection.Id.VS_LIVE || this.vsLivePendingPageAfterGeneration < 0 || layout.generation () <= this.vsLivePendingPageAfterGeneration)
+        if (layout.generation () <= pending.afterGeneration ())
             return;
-        this.vsLivePendingPageAfterGeneration = -1;
-        this.selectVsLivePage (layout.modeId ());
+        this.pendingPageSelection = null;
+        if (pending.modeId ().isEmpty () || pending.modeId ().equals (layout.modeId ()))
+            this.selectParameterPage (layout.modeId ());
     }
 
 
-    private void selectVsLivePage (final String mode)
+    private void selectParameterPage (final String mode)
     {
-        // Incidental mode changes used to neutralize a selected-track Note route never call this
-        // method and therefore cannot be mistaken for page input.
-        this.vsLivePendingPageAfterGeneration = -1;
-        if ("TRACK".equals (mode))
+        // Only an explicit page action or its later read-back selects this state. Temporary TRACK
+        // read-back used to neutralize a Note route carries no parameter-page selection intent.
+        this.pendingPageSelection = null;
+        if ("MASTER".equals (mode) || "MASTER_TEMP".equals (mode))
+            return;
+        if (this.selection.active () == WorkspaceSelection.Id.DEFAULT)
+            this.normalTrackPageSelected = "TRACK".equals (mode);
+        else if ("TRACK".equals (mode))
             this.vsLivePage = VsLivePage.TRACK_MIXER;
         else if ("WORKSPACE".equals (mode))
             this.vsLivePage = VsLivePage.DEFAULT;
-        else if (!"MASTER".equals (mode) && !"MASTER_TEMP".equals (mode))
+        else
             this.vsLivePage = VsLivePage.STABLE;
     }
 
@@ -415,6 +491,7 @@ final class PullControllerCore implements ControllerCore
             result.desiredControllerActions (),
             result.desiredParameterBanks (),
             result.desiredParameterInteraction (),
+            result.desiredParameterTouches (),
             result.executionRequirements (),
             effects);
     }
@@ -432,7 +509,8 @@ final class PullControllerCore implements ControllerCore
             result.desiredControllerActions (),
             result.desiredParameterBanks (),
             result.desiredParameterInteraction (),
-            this.playbackCoordinator.executionRequirements (),
+            result.desiredParameterTouches (),
+            new de.mossgrabers.pull.core.api.CoreExecutionRequirements (result.executionRequirements ().ticksRequested () || this.playbackCoordinator.executionRequirements ().ticksRequested ()),
             result.effects ());
     }
 
@@ -461,11 +539,16 @@ final class PullControllerCore implements ControllerCore
     }
 
 
-    private record RestoredState (WorkspaceSelection.Id workspace, WorkspaceSelection.Destination selectedDestination, WorkspaceSelection.Destination pendingDestination, String engineOwnerIdentity, boolean engineOwnerPlaying)
+    private record PendingPageSelection (long afterGeneration, long workspaceRequest, String modeId)
+    {
+    }
+
+
+    private record RestoredState (WorkspaceSelection.Id workspace, WorkspaceSelection.Destination selectedDestination, WorkspaceSelection.Destination pendingDestination, String engineOwnerIdentity, boolean engineOwnerPlaying, boolean pageStatePresent, boolean normalTrackPageSelected, VsLivePage vsLivePage, boolean inputOutputSelected, int sendOffset)
     {
         private static RestoredState empty ()
         {
-            return new RestoredState (WorkspaceSelection.Id.DEFAULT, WorkspaceSelection.Destination.NONE, WorkspaceSelection.Destination.NONE, "", false);
+            return new RestoredState (WorkspaceSelection.Id.DEFAULT, WorkspaceSelection.Destination.NONE, WorkspaceSelection.Destination.NONE, "", false, false, false, VsLivePage.DEFAULT, false, 0);
         }
     }
 

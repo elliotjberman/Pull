@@ -23,6 +23,18 @@ public record ParameterSlot (ParameterBankId bank, int index)
     /** Maximum exact targets one physical eight-knob interaction can retain, including globals. */
     public static final int INTERACTION_TARGET_CAPACITY = 10;
 
+    /** Selected-track volume. */
+    public static final ParameterSlot SELECTED_TRACK_VOLUME = new ParameterSlot (ParameterBankId.SELECTED_TRACK, 0);
+    /** Selected-track pan. */
+    public static final ParameterSlot SELECTED_TRACK_PAN = new ParameterSlot (ParameterBankId.SELECTED_TRACK, 1);
+
+    /** Get one of the eight selected-track sends. */
+    public static ParameterSlot selectedTrackSend (final int index)
+    {
+        return new ParameterSlot (ParameterBankId.SELECTED_TRACK_SENDS, index);
+    }
+
+
     /** Fixed tempo target. */
     public static final ParameterSlot TEMPO = new ParameterSlot (ParameterBankId.GLOBAL, 0);
 

@@ -26,6 +26,8 @@ import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.IMasterTrack;
 import de.mossgrabers.framework.daw.data.bank.IDrumPadBank;
 import de.mossgrabers.framework.daw.data.bank.ISlotBank;
+import de.mossgrabers.framework.daw.data.bank.ITrackBank;
+import de.mossgrabers.pull.core.api.effect.SelectControllerModeEffect;
 import de.mossgrabers.framework.daw.midi.IMidiInput;
 import de.mossgrabers.framework.daw.midi.IMidiOutput;
 import de.mossgrabers.framework.daw.midi.INoteInput;
@@ -58,6 +60,11 @@ import de.mossgrabers.pull.core.api.ParameterTargetRef;
 import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.SessionBankShape;
 import de.mossgrabers.pull.core.api.effect.SelectDrumPadEffect;
+import de.mossgrabers.pull.core.api.effect.TapTempoEffect;
+import de.mossgrabers.pull.core.api.effect.ProjectHistoryEffect;
+import de.mossgrabers.pull.core.api.effect.ProjectHistoryAction;
+import de.mossgrabers.pull.core.api.effect.SetDrumBankPositionEffect;
+import de.mossgrabers.pull.core.api.effect.ShowHostNotificationEffect;
 import de.mossgrabers.pull.core.api.effect.SetControllerMappingStorageEffect;
 import de.mossgrabers.pull.core.api.effect.ConsumeControllerButtonEffect;
 import de.mossgrabers.pull.core.api.effect.NavigateProjectEffect;
@@ -107,11 +114,49 @@ class BoundedControllerBridgeTest
         final BridgeFixture fixture = new BridgeFixture ();
 
         fixture.bridge.apply (fixture.bridge.prepare (new ConsumeControllerButtonEffect (PushControlIds.button ("SELECT"))));
+        fixture.bridge.apply (fixture.bridge.prepare (new ConsumeControllerButtonEffect (PushControlIds.button ("DUPLICATE"))));
+        fixture.bridge.apply (fixture.bridge.prepare (new ConsumeControllerButtonEffect (PushControlIds.button ("RECORD"))));
         for (int index = 1; index <= 8; index++)
             fixture.bridge.apply (fixture.bridge.prepare (new ConsumeControllerButtonEffect (PushControlIds.button ("ROW1_" + index))));
 
         assertThrows (IllegalArgumentException.class, () -> fixture.bridge.prepare (new ConsumeControllerButtonEffect (PushControlIds.button ("BROWSE"))));
         assertThrows (IllegalArgumentException.class, () -> fixture.bridge.prepare (new ConsumeControllerButtonEffect (PushControlIds.button ("ROW2_1"))));
+    }
+
+
+    @Test
+    void modeSelectionRequiresInstalledDestinationAndObservedOriginLayout ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.surface.getModeManager ().register (Modes.TRACK, relaxedProxy (IMode.class));
+        fixture.surface.getModeManager ().register (Modes.DEVICE_PARAMS, relaxedProxy (IMode.class));
+        fixture.surface.getModeManager ().setActive (Modes.TRACK);
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.CONTROLLER_LAYOUT), DesiredParameterBanks.empty ());
+        final long generation = fixture.bridge.snapshot ().layout ().generation ();
+        assertThrows (IllegalArgumentException.class, () -> fixture.bridge.prepare (new SelectControllerModeEffect (generation, "UNINSTALLED")));
+        assertThrows (IllegalArgumentException.class, () -> fixture.bridge.prepare (new SelectControllerModeEffect (generation, "MASTER")));
+        assertThrows (IllegalArgumentException.class, () -> fixture.bridge.prepare (new SelectControllerModeEffect (generation + 1, "DEVICE_PARAMS")));
+        fixture.bridge.apply (fixture.bridge.prepare (new SelectControllerModeEffect (generation, "DEVICE_PARAMS")));
+        assertEquals (Modes.DEVICE_PARAMS, fixture.surface.getModeManager ().getActiveID ());
+        assertEquals ("TRACK", fixture.bridge.snapshot ().layout ().modeId (), "submitted mode change needs a later bridge sample");
+        fixture.bridge.refresh (2, subscriptions (BridgeSubscription.CONTROLLER_LAYOUT), DesiredParameterBanks.empty ());
+        assertEquals ("DEVICE_PARAMS", fixture.bridge.snapshot ().layout ().modeId ());
+    }
+
+
+    @Test
+    void modeSelectionRechecksLiveLayoutBeforeApply ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.surface.getModeManager ().register (Modes.TRACK, relaxedProxy (IMode.class));
+        fixture.surface.getModeManager ().register (Modes.MASTER, relaxedProxy (IMode.class));
+        fixture.surface.getModeManager ().register (Modes.DEVICE_PARAMS, relaxedProxy (IMode.class));
+        fixture.surface.getModeManager ().setActive (Modes.TRACK);
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.CONTROLLER_LAYOUT), DesiredParameterBanks.empty ());
+        final var prepared = fixture.bridge.prepare (new SelectControllerModeEffect (fixture.bridge.snapshot ().layout ().generation (), "DEVICE_PARAMS"));
+        fixture.surface.getModeManager ().setActive (Modes.MASTER);
+        fixture.bridge.apply (prepared);
+        assertEquals (Modes.MASTER, fixture.surface.getModeManager ().getActiveID ());
     }
 
 
@@ -499,6 +544,69 @@ class BoundedControllerBridgeTest
 
 
     @Test
+    void nativeHistoryCommandsRecheckTheExactProjectAndAvailabilityAtApply ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.application.canUndo = true;
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.PROJECT), DesiredParameterBanks.empty ());
+        assertTrue (fixture.bridge.snapshot ().project ().canUndo ());
+        assertFalse (fixture.bridge.snapshot ().project ().canRedo ());
+        final var undo = fixture.bridge.prepare (new ProjectHistoryEffect ("project-a", ProjectHistoryAction.UNDO));
+        assertTrue (fixture.application.historyRequests.isEmpty ());
+        fixture.bridge.apply (undo);
+        assertEquals (List.of ("undo"), fixture.application.historyRequests);
+        assertTrue (fixture.bridge.snapshot ().project ().canUndo (), "command submission cannot rewrite availability");
+
+        fixture.project.identity = "project-b";
+        fixture.bridge.apply (undo);
+        fixture.bridge.apply (fixture.bridge.prepare (new ProjectHistoryEffect ("project-a", ProjectHistoryAction.UNDO)));
+        assertEquals (List.of ("undo"), fixture.application.historyRequests);
+        fixture.project.identity = "project-a";
+        fixture.application.canUndo = false;
+        fixture.bridge.apply (undo);
+        assertEquals (List.of ("undo"), fixture.application.historyRequests);
+
+        fixture.application.canRedo = true;
+        fixture.bridge.refresh (2, subscriptions (BridgeSubscription.PROJECT), DesiredParameterBanks.empty ());
+        assertFalse (fixture.bridge.snapshot ().project ().canUndo ());
+        assertTrue (fixture.bridge.snapshot ().project ().canRedo ());
+        fixture.bridge.apply (fixture.bridge.prepare (new ProjectHistoryEffect ("project-a", ProjectHistoryAction.REDO)));
+        assertEquals (List.of ("undo", "redo"), fixture.application.historyRequests);
+    }
+
+
+    @Test
+    void nativeTempoTapRechecksProjectAndEngineAndDoesNotInventTempoReadback ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.application.engineActive = true;
+        final DesiredBridgeSubscriptions requested = subscriptions (BridgeSubscription.PROJECT, BridgeSubscription.TRANSPORT);
+        fixture.bridge.refresh (1, requested, DesiredParameterBanks.empty ());
+        final var prepared = fixture.bridge.prepare (new TapTempoEffect ("project-a"));
+        assertEquals (0, fixture.transport.tapCount);
+        fixture.bridge.apply (prepared);
+        assertEquals (1, fixture.transport.tapCount);
+        assertEquals (120, fixture.bridge.snapshot ().transport ().tempo ());
+
+        fixture.project.identity = "project-b";
+        fixture.bridge.apply (prepared);
+        fixture.bridge.apply (fixture.bridge.prepare (new TapTempoEffect ("project-a")));
+        assertEquals (1, fixture.transport.tapCount);
+        fixture.project.identity = "project-a";
+        fixture.application.engineActive = false;
+        fixture.bridge.apply (prepared);
+        final var inactive = fixture.bridge.prepare (new TapTempoEffect ("project-a"));
+        fixture.application.engineActive = true;
+        fixture.bridge.apply (inactive);
+        assertEquals (1, fixture.transport.tapCount);
+
+        fixture.transport.tempo = 123.45;
+        fixture.bridge.refresh (2, requested, DesiredParameterBanks.empty ());
+        assertEquals (123.45, fixture.bridge.snapshot ().transport ().tempo ());
+    }
+
+
+    @Test
     void masterMeterPublishesAuthoritativeReadbackWheneverMasterIsSubscribed ()
     {
         final BridgeFixture fixture = new BridgeFixture ();
@@ -657,6 +765,46 @@ class BoundedControllerBridgeTest
 
 
     @Test
+    void drumWindowMovementRechecksLiveIdentityAndDoesNotInventBankReadBack ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        final DesiredBridgeSubscriptions requested = subscriptions (BridgeSubscription.DRUM_PADS, BridgeSubscription.CONTROLLER_LAYOUT);
+        fixture.bridge.refresh (1, requested, DesiredParameterBanks.empty ());
+        final DrumContextSnapshot initial = fixture.bridge.snapshot ().drum ();
+        final ControllerBridge.PreparedAction action = fixture.bridge.prepare (new SetDrumBankPositionEffect (initial.generation (), initial.targetChannelId (), 52, false));
+
+        fixture.drum.deviceID = "replacement";
+        fixture.bridge.apply (action);
+        fixture.drum.deviceID = "device-a";
+        fixture.drum.baseMidiNote = 48;
+        fixture.bridge.apply (action);
+        assertTrue (fixture.drum.scrollRequests.isEmpty ());
+
+        fixture.drum.baseMidiNote = 36;
+        fixture.bridge.apply (action);
+        assertEquals (List.of (Integer.valueOf (52)), fixture.drum.scrollRequests);
+        fixture.bridge.refresh (100_000_000, requested, DesiredParameterBanks.empty ());
+        assertEquals (52, fixture.bridge.snapshot ().layout ().drumBaseMidiNote ());
+        assertEquals (36, fixture.bridge.snapshot ().drum ().baseMidiNote ());
+        assertFalse (fixture.bridge.snapshot ().layout ().appliedNoteTranslation ().owned ());
+
+        fixture.drum.baseMidiNote = 52;
+        fixture.bridge.refresh (200_000_000, requested, DesiredParameterBanks.empty ());
+        assertEquals (52, fixture.bridge.snapshot ().drum ().baseMidiNote ());
+        assertThrows (IllegalArgumentException.class, () -> fixture.bridge.prepare (new SetDrumBankPositionEffect (initial.generation (), initial.targetChannelId (), 68, false)));
+    }
+
+
+    @Test
+    void hostNotificationTransmitsCoreTextWithoutAddingControllerPolicy ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.bridge.apply (fixture.bridge.prepare (new ShowHostNotificationEffect ("C2 - D#3")));
+        assertEquals (List.of ("C2 - D#3"), fixture.notifications);
+    }
+
+
+    @Test
     void publishesThePlayableMainDrumWindowInsteadOfTheLegacy64PadWindow ()
     {
         final BridgeFixture fixture = new BridgeFixture ();
@@ -758,6 +906,7 @@ class BoundedControllerBridgeTest
         private final MutableApplication application = new MutableApplication ();
         private final MutableMappingStorage mappingStorage = new MutableMappingStorage ();
         private final List<MidiMessage> noteInputMidiMessages = new ArrayList<> ();
+        private final List<String> notifications = new ArrayList<> ();
         private final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
         private final MutableNoteRepeat noteRepeat;
         private final ManualRepeatConfiguration configuration;
@@ -783,8 +932,20 @@ class BoundedControllerBridgeTest
             final IDrumDevice drumDevice = this.drum.device ();
             final IDrumDevice legacyDrumDevice = this.legacyDrum.device ();
             final Scales scales = new Scales (this.valueChanger, 36, 100, 8, 8);
+            final IHost host = proxy (IHost.class, (ignored, method, arguments) -> {
+                if ("showNotification".equals (method.getName ()))
+                    this.notifications.add ((String) arguments[0]);
+                return relaxedValue (method.getReturnType ());
+            });
+            final ITrackBank fullBank = relaxedProxy (ITrackBank.class);
+            final ITrackBank upperBank = relaxedProxy (ITrackBank.class);
+            final ITrackBank effectBank = relaxedProxy (ITrackBank.class);
             final IModel model = proxy (IModel.class, (proxy, method, arguments) -> switch (method.getName ())
             {
+                case "getTrackBank" -> arguments != null && arguments.length == 2 && ((Integer) arguments[1]).intValue () == 4 ? upperBank : fullBank;
+                case "getCurrentTrackBank" -> fullBank;
+                case "getEffectTrackBank" -> effectBank;
+                case "getHost" -> host;
                 case "getTransport" -> transportProxy;
                 case "getCursorTrack" -> cursorTrack;
                 case "getDrumDevice" -> arguments == null || arguments.length == 0 ? drumDevice : legacyDrumDevice;
@@ -939,6 +1100,9 @@ class BoundedControllerBridgeTest
     private static final class MutableApplication
     {
         private boolean engineActive;
+        private boolean canUndo;
+        private boolean canRedo;
+        private final List<String> historyRequests = new ArrayList<> ();
         private int engineWriteCount;
 
 
@@ -947,6 +1111,12 @@ class BoundedControllerBridgeTest
             return BoundedControllerBridgeTest.proxy (IApplication.class, (proxy, method, arguments) -> switch (method.getName ())
             {
                 case "isEngineActive" -> Boolean.valueOf (this.engineActive);
+                case "canUndo" -> Boolean.valueOf (this.canUndo);
+                case "canRedo" -> Boolean.valueOf (this.canRedo);
+                case "undo", "redo" -> {
+                    this.historyRequests.add (method.getName ());
+                    yield null;
+                }
                 case "setEngineActive" -> {
                     this.engineWriteCount++;
                     yield null;
@@ -964,6 +1134,7 @@ class BoundedControllerBridgeTest
         private boolean arrangerOverdub;
         private boolean playing;
         private double tempo = 120;
+        private int tapCount;
         private int snapshotReadCount;
         private int playCount;
         private int stopCount;
@@ -1025,6 +1196,9 @@ class BoundedControllerBridgeTest
                     case "toggleRecording":
                     case "toggleOverdub":
                         this.writes.add (method.getName ());
+                        return null;
+                    case "tapTempo":
+                        this.tapCount++;
                         return null;
                     default:
                         return relaxedValue (method.getReturnType ());
@@ -1121,6 +1295,7 @@ class BoundedControllerBridgeTest
         private String padChannelID = "pad-a";
         private int baseMidiNote = 36;
         private int selectionCount;
+        private final List<Integer> scrollRequests = new ArrayList<> ();
 
 
         private MutableDrum (final MutableSelectedTarget selected)
@@ -1179,6 +1354,10 @@ class BoundedControllerBridgeTest
             });
             final IDrumPadBank bank = proxy (IDrumPadBank.class, (proxy, method, arguments) -> switch (method.getName ())
             {
+                case "scrollTo" -> {
+                    this.scrollRequests.add ((Integer) arguments[0]);
+                    yield null;
+                }
                 case "getPageSize" -> Integer.valueOf (1);
                 case "getScrollPosition" -> Integer.valueOf (this.baseMidiNote);
                 case "getItem" -> pad;

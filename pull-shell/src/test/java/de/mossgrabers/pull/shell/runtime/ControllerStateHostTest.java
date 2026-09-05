@@ -11,6 +11,7 @@ import de.mossgrabers.pull.core.api.DesiredControllerState;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredNoteInputRoute;
 import de.mossgrabers.pull.core.api.DesiredNotePerformance;
+import de.mossgrabers.pull.core.api.DesiredNoteInputTranslation;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.SessionBankShape;
 import de.mossgrabers.pull.shell.input.InputKind;
@@ -35,6 +36,51 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /** Tests the stable lifecycle boundary shared by every composed musical controller state. */
 class ControllerStateHostTest
 {
+    @Test
+    void nativeMappingAndLayoutChangesWaitForHeldInputToFinish ()
+    {
+        final Fixture fixture = new Fixture ();
+        final DesiredControllerState original = fixture.performance (ControllerNoteView.PLAY);
+        fixture.host.apply (original);
+        fixture.events.clear ();
+        final List<Integer> keys = new ArrayList<> (DesiredNoteInputTranslation.silent ().keyTranslation ());
+        keys.set (36, Integer.valueOf (48));
+        final DesiredNoteInputTranslation translation = new DesiredNoteInputTranslation (true, keys, DesiredNoteInputTranslation.silent ().velocityTranslation ());
+        final DesiredControllerState next = new DesiredControllerState (original.workspace (), new DesiredNotePerformance (DesiredControllerLayout.note (ControllerNoteView.DRUM_PAD), original.notePerformance ().inputRoute (), translation));
+
+        fixture.idle.set (false);
+        fixture.host.apply (next);
+        fixture.host.refresh ();
+        assertTrue (fixture.events.isEmpty ());
+        assertEquals (DesiredNoteInputTranslation.unowned (), fixture.surface.translation);
+
+        fixture.idle.set (true);
+        fixture.host.refresh ();
+        assertEquals (List.of ("workspace:", "layout:DRUM_PAD"), fixture.events);
+        assertEquals (translation, fixture.surface.translation);
+        fixture.events.clear ();
+        fixture.host.apply (next);
+        assertTrue (fixture.events.isEmpty ());
+    }
+
+
+    @Test
+    void targetMismatchSilencesOwnedMappingAndDetachesRoute ()
+    {
+        final Fixture fixture = new Fixture ();
+        final DesiredControllerState original = fixture.performance (ControllerNoteView.DRUM_PAD);
+        final List<Integer> keys = new ArrayList<> (DesiredNoteInputTranslation.silent ().keyTranslation ());
+        keys.set (36, Integer.valueOf (48));
+        fixture.host.apply (new DesiredControllerState (original.workspace (), new DesiredNotePerformance (original.notePerformance ().layout (), original.notePerformance ().inputRoute (), new DesiredNoteInputTranslation (true, keys, DesiredNoteInputTranslation.silent ().velocityTranslation ()))));
+
+        fixture.target.channelID = "replacement";
+        fixture.target.generation++;
+        fixture.host.refresh ();
+        assertEquals (DesiredNoteInputTranslation.silent (), fixture.surface.translation);
+        assertFalse (fixture.target.routeActive);
+    }
+
+
     @Test
     void entersByRoutingBeforeLayoutAndReplaysWithoutRouteChurn ()
     {
@@ -282,6 +328,7 @@ class ControllerStateHostTest
         private final List<String> events;
         private ControllerNoteView failView;
         private boolean failNeutral;
+        private DesiredNoteInputTranslation translation = DesiredNoteInputTranslation.unowned ();
 
 
         private RecordingSurface (final List<String> events)
@@ -301,6 +348,13 @@ class ControllerStateHostTest
         public DesiredControllerLayout prepareLayout (final DesiredControllerLayout layout)
         {
             return layout;
+        }
+
+
+        @Override
+        public void applyTranslation (final DesiredNoteInputTranslation translation)
+        {
+            this.translation = translation;
         }
 
 

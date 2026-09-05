@@ -77,7 +77,7 @@ final class TrackFooterDisplayScene
     }
 
 
-    private static DisplayIcon icon (final SessionTrackType type)
+    static DisplayIcon icon (final SessionTrackType type)
     {
         return switch (type)
         {

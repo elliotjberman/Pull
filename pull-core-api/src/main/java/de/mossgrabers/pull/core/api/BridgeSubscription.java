@@ -15,11 +15,22 @@ public enum BridgeSubscription
     /** Common transport state, including rate-limited playback position. */
     TRANSPORT,
 
+    /** Unified Automation Write read-back and touch-release preference. */
+    AUTOMATION,
+    /** Raw encoder calibration and user sensitivity preferences. */
+    ENCODER_CONFIGURATION,
+
     /** State of the private selection-following track target. */
     SELECTED_TRACK,
 
     /** The active bounded Session bank and its visible track identities. */
     SESSION_BANK,
+
+    /** Eight tracks in the current main/effect bank and its navigation cursor. */
+    CURRENT_TRACK_BANK,
+
+    /** The active Session bank clip slots and scenes. */
+    SESSION_CLIPS,
 
     /** Current visible view/mode and reconciled drum-layout state. */
     CONTROLLER_LAYOUT,

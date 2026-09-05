@@ -7,6 +7,7 @@ import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerActionBinding;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
+import de.mossgrabers.pull.core.api.CoreExecutionRequirements;
 import de.mossgrabers.pull.core.api.ParameterBankId;
 import de.mossgrabers.pull.core.api.ParameterSlot;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
@@ -61,6 +62,13 @@ public interface ControllerView
     }
 
 
+    /** Request controller-cycle observations while this view has retained work to reconcile. */
+    default CoreExecutionRequirements executionRequirements ()
+    {
+        return CoreExecutionRequirements.empty ();
+    }
+
+
     /**
      * Declare physical edge inputs which this view maps to semantic actions.
      *
@@ -80,6 +88,13 @@ public interface ControllerView
     default Map<ControlId, ParameterSlot> parameterBindings ()
     {
         return Map.of ();
+    }
+
+
+    /** Choose current slots within the declared physical footprint and installed bank set. */
+    default Map<ControlId, ParameterSlot> parameterBindings (final ControllerSnapshot snapshot)
+    {
+        return this.parameterBindings ();
     }
 
 
@@ -103,6 +118,13 @@ public interface ControllerView
     default void start (final ControllerSnapshot snapshot)
     {
         this.reconcile (snapshot);
+    }
+
+
+    /** Relinquish page-local state when this compiled composition departs. */
+    default void deactivate ()
+    {
+        // Retained controller-level views keep their independent gesture continuations.
     }
 
 

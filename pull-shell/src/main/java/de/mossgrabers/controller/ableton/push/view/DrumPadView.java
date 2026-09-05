@@ -92,7 +92,8 @@ public final class DrumPadView extends AbstractView<PushControlSurface, PushConf
     @Override
     public void updateNoteMapping ()
     {
-        this.delayedUpdateNoteMapping (this.surface.isDrumControllerActive () ? this.scales.getDrumMatrix () : EMPTY_TABLE);
+        // Neutral legacy baseline. The core's complete native table owns the playable mapping.
+        super.updateNoteMapping ();
     }
 
 
@@ -100,7 +101,7 @@ public final class DrumPadView extends AbstractView<PushControlSurface, PushConf
     @Override
     public void onOctaveDown (final ButtonEvent event)
     {
-        this.changeOctave (event, false, this.surface.isShiftPressed () ? 4 : this.scales.getDrumDefaultOffset ());
+        // Inert permanent command: DrumOctaveView owns every Drum octave gesture.
     }
 
 
@@ -108,7 +109,7 @@ public final class DrumPadView extends AbstractView<PushControlSurface, PushConf
     @Override
     public void onOctaveUp (final ButtonEvent event)
     {
-        this.changeOctave (event, true, this.surface.isShiftPressed () ? 4 : this.scales.getDrumDefaultOffset ());
+        // Inert permanent command: DrumOctaveView owns every Drum octave gesture.
     }
 
 
@@ -116,7 +117,7 @@ public final class DrumPadView extends AbstractView<PushControlSurface, PushConf
     @Override
     public boolean isOctaveUpButtonOn ()
     {
-        return this.surface.isDrumControllerActive () && this.scales.canScrollDrumOctaveUp ();
+        return false;
     }
 
 
@@ -124,7 +125,7 @@ public final class DrumPadView extends AbstractView<PushControlSurface, PushConf
     @Override
     public boolean isOctaveDownButtonOn ()
     {
-        return this.surface.isDrumControllerActive () && this.scales.canScrollDrumOctaveDown ();
+        return false;
     }
 
 
@@ -132,28 +133,6 @@ public final class DrumPadView extends AbstractView<PushControlSurface, PushConf
     @Override
     public void resetOctave ()
     {
-        if (!this.surface.isDrumControllerActive ())
-            return;
-
-        this.keyManager.clearPressedKeys ();
-        this.scales.resetDrumOctave ();
-        this.updateNoteMapping ();
-        this.model.getDrumDevice ().getDrumPadBank ().scrollTo (this.scales.getDrumOffset (), true);
-    }
-
-
-    private void changeOctave (final ButtonEvent event, final boolean isUp, final int offset)
-    {
-        if (event != ButtonEvent.DOWN || !this.surface.isDrumControllerActive ())
-            return;
-
-        this.keyManager.clearPressedKeys ();
-        if (isUp)
-            this.scales.incDrumOffset (offset);
-        else
-            this.scales.decDrumOffset (offset);
-        this.updateNoteMapping ();
-        this.surface.getDisplay ().notify (this.scales.getDrumRangeText ());
-        this.model.getDrumDevice ().getDrumPadBank ().scrollTo (this.scales.getDrumOffset (), false);
+        // This framework callback has no caller for the specialized Drum Pad view.
     }
 }

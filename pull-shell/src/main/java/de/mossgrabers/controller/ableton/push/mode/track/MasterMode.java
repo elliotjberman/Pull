@@ -10,7 +10,6 @@ import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
 import de.mossgrabers.framework.daw.IModel;
-import de.mossgrabers.framework.daw.IProject;
 import de.mossgrabers.framework.daw.data.IMasterTrack;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.empty.EmptyParameter;
@@ -34,7 +33,6 @@ public class MasterMode extends BaseMode<ITrack>
         info.getContext ().fillRectangle (bounds.left (), bounds.top (), bounds.width (), bounds.height (), ColorEx.BLACK);
     };
     private final IMasterTrack      masterTrack;
-    private final IProject          project;
     private final ReloadableControllerRuntime reloadableRuntime;
 
 
@@ -50,7 +48,6 @@ public class MasterMode extends BaseMode<ITrack>
         super ("Master", surface, model);
 
         this.masterTrack = this.model.getMasterTrack ();
-        this.project = this.model.getProject ();
         this.reloadableRuntime = reloadableRuntime;
         this.setParameterProvider (new FixedParameterProvider (EmptyParameter.INSTANCE, EmptyParameter.INSTANCE, EmptyParameter.INSTANCE, EmptyParameter.INSTANCE, EmptyParameter.INSTANCE, EmptyParameter.INSTANCE, EmptyParameter.INSTANCE, EmptyParameter.INSTANCE));
     }
@@ -80,52 +77,7 @@ public class MasterMode extends BaseMode<ITrack>
     @Override
     public void onKnobTouch (final int index, final boolean isTouched)
     {
-        this.setTouchedKnob (index, isTouched);
-
-        if (isTouched && this.surface.isDeletePressed ())
-        {
-            this.surface.setTriggerConsumed (ButtonID.DELETE);
-
-            switch (index)
-            {
-                case 0:
-                    this.masterTrack.resetVolume ();
-                    break;
-                case 1:
-                    this.masterTrack.resetPan ();
-                    break;
-                case 2:
-                    this.project.resetCueVolume ();
-                    break;
-                case 3:
-                    this.project.resetCueMix ();
-                    break;
-                default:
-                    // Not used
-                    break;
-            }
-        }
-
-        switch (index)
-        {
-            case 0:
-                this.masterTrack.touchVolume (isTouched);
-                break;
-            case 1:
-                this.masterTrack.touchPan (isTouched);
-                break;
-            case 2:
-                this.project.touchCueVolume (isTouched);
-                break;
-            case 3:
-                this.project.touchCueMix (isTouched);
-                break;
-            default:
-                // Not used
-                break;
-        }
-
-        this.checkStopAutomationOnKnobRelease (isTouched);
+        // The complete top-encoder touch/reset/release policy is owned by the core Master view.
     }
 
 

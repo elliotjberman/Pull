@@ -155,6 +155,7 @@ final class SnapbackSession
             base.desiredControllerActions (),
             base.desiredParameterBanks (),
             interaction,
+            base.desiredParameterTouches (),
             base.executionRequirements (),
             effects);
     }

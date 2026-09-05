@@ -3,6 +3,8 @@
 
 package de.mossgrabers.pull.core.runtime.view;
 
+import de.mossgrabers.pull.core.api.ControlId;
+import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.MasterSnapshot;
 import de.mossgrabers.pull.core.api.MixerControlKind;
 import de.mossgrabers.pull.core.api.MixerControlRole;
@@ -20,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 
 /** Reloadable composition of the complete Push 2 Master display. */
@@ -59,7 +62,7 @@ final class MasterDisplayScene
 
 
     /** Compose one complete authoritative scene. */
-    static ControllerDisplayScene render (final MasterSnapshot master, final Map<ParameterSlot, ParameterTargetSnapshot> parameters)
+    static ControllerDisplayScene render (final MasterSnapshot master, final Map<ParameterSlot, ParameterTargetSnapshot> parameters, final Set<ControlId> touched)
     {
         final MasterSnapshot state = Objects.requireNonNull (master, "master");
         final Map<ParameterSlot, ParameterTargetSnapshot> values = Objects.requireNonNull (parameters, "parameters");
@@ -68,21 +71,21 @@ final class MasterDisplayScene
 
         final ParameterTargetSnapshot volume = values.get (ParameterSlot.MASTER_MIX_VOLUME);
         if (volume != null)
-            MixerDisplayScene.append (commands, mixerControl (0, MixerControlKind.VOLUME, "Volume", volume, state.trackActive (), state.trackColor (), state.vuLeft (), state.vuRight ()));
+            MixerDisplayScene.append (commands, mixerControl (0, MixerControlKind.VOLUME, "Volume", volume, state.trackActive (), state.trackColor (), state.vuLeft (), state.vuRight (), touched));
         drawFooter (commands, 0, state.trackName (), state.cursorPinned () ? DisplayIcon.PIN : DisplayIcon.MASTER, state.trackColor (), state.trackSelected (), state.trackActive ());
 
         final ParameterTargetSnapshot pan = values.get (ParameterSlot.MASTER_MIX_PAN);
         if (pan != null)
-            MixerDisplayScene.append (commands, mixerControl (1, MixerControlKind.PAN, "Pan", pan, state.trackActive (), state.trackColor (), 0, 0));
+            MixerDisplayScene.append (commands, mixerControl (1, MixerControlKind.PAN, "Pan", pan, state.trackActive (), state.trackColor (), 0, 0, touched));
 
         final ParameterTargetSnapshot cueVolume = values.get (ParameterSlot.CUE_VOLUME);
         if (cueVolume != null)
-            MixerDisplayScene.append (commands, mixerControl (2, MixerControlKind.KNOB, "Cue Volume", cueVolume, true, state.trackColor (), 0, 0));
+            MixerDisplayScene.append (commands, mixerControl (2, MixerControlKind.KNOB, "Cue Volume", cueVolume, true, state.trackColor (), 0, 0, touched));
         drawFooter (commands, 2, "Cue", null, FOOTER_GRAY, false, true);
 
         final ParameterTargetSnapshot cueMix = values.get (ParameterSlot.CUE_MIX);
         if (cueMix != null)
-            MixerDisplayScene.append (commands, mixerControl (3, MixerControlKind.KNOB, "Cue Mix", cueMix, true, state.trackColor (), 0, 0));
+            MixerDisplayScene.append (commands, mixerControl (3, MixerControlKind.KNOB, "Cue Mix", cueMix, true, state.trackColor (), 0, 0, touched));
 
         drawLabel (commands, 4, "Audio Engine");
         drawToggle (commands, 4, state.engineActive ());
@@ -142,7 +145,7 @@ final class MasterDisplayScene
     }
 
 
-    private static MixerControlSnapshot mixerControl (final int column, final MixerControlKind kind, final String label, final ParameterTargetSnapshot parameter, final boolean active, final RgbColor accent, final int vuLeft, final int vuRight)
+    private static MixerControlSnapshot mixerControl (final int column, final MixerControlKind kind, final String label, final ParameterTargetSnapshot parameter, final boolean active, final RgbColor accent, final int vuLeft, final int vuRight, final Set<ControlId> touched)
     {
         return new MixerControlSnapshot (
             column,
@@ -153,7 +156,7 @@ final class MasterDisplayScene
             parameter.displayedValue (),
             MixerControlRole.HOST_COLORED,
             active,
-            false,
+            touched.contains (PushControlIds.continuous ("KNOB" + (column + 1))),
             Optional.of (accent),
             ratio (vuLeft),
             ratio (vuRight));

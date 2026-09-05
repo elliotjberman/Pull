@@ -458,6 +458,15 @@ public class PushColorManager extends ColorManager
     }
 
 
+    /** Translate core RGB to the declared physical button's palette or monochrome intensity. */
+    public static int resolveCoreButtonColor (final ColorManager colors, final ButtonID button, final RgbColor color)
+    {
+        if (MONOCHROME_BUTTONS.contains (button))
+            return (int) Math.round (Math.max (color.red (), Math.max (color.green (), color.blue ())) * 127.0 / 255.0);
+        return resolveCoreColor (colors, color);
+    }
+
+
     /** Resolve core RGB to the indexed Push output convention where black is hardware-off. */
     public static int resolveCoreColor (final ColorManager colors, final RgbColor color)
     {

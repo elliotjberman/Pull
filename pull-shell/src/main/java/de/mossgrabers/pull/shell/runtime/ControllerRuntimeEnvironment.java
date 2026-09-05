@@ -27,6 +27,7 @@ import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredInputRoutes;
 import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
 import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
+import de.mossgrabers.pull.core.api.DesiredParameterTouches;
 import de.mossgrabers.pull.core.api.DesiredParameterBanks;
 import de.mossgrabers.pull.core.api.ParameterTargetRef;
 import de.mossgrabers.pull.core.api.PushControlIds;
@@ -56,6 +57,8 @@ import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
 import de.mossgrabers.pull.core.api.output.DesiredHardwareOutput;
+import de.mossgrabers.pull.core.api.output.DesiredTouchStrip;
+import de.mossgrabers.pull.core.api.output.DisplayCommand;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -84,7 +87,9 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         PushControlIds.button ("RECORD"),
         PushControlIds.button ("STOP_CLIP"),
         PushControlIds.button ("MUTE"),
-        PushControlIds.button ("SOLO"));
+        PushControlIds.button ("SOLO"),
+        PushControlIds.button ("TAP_TEMPO"),
+        PushControlIds.button ("UNDO"));
     private static final ShellCapabilities CAPABILITIES = new ShellCapabilities (Map.ofEntries (
         Map.entry (CoreCapabilities.INPUT_DRUM_FILL, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS, Integer.valueOf (1)),
@@ -93,25 +98,29 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         Map.entry (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD, Integer.valueOf (4)),
         Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (6)),
         Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_MAPPING, Integer.valueOf (4)),
-        Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_STATE, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_STATE, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.EFFECT_NOTE_VIEW_PREFERENCE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.OUTPUT_NOTE_REPEAT, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.OUTPUT_TOUCH_STRIP, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.INPUT_CONTROLLER, Integer.valueOf (1)),
-        Map.entry (CoreCapabilities.ROUTING_CONTROLLER_INPUT, Integer.valueOf (5)),
-        Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE, Integer.valueOf (10)),
+        Map.entry (CoreCapabilities.ROUTING_CONTROLLER_INPUT, Integer.valueOf (6)),
+        Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE, Integer.valueOf (12)),
         Map.entry (CoreCapabilities.SUBSCRIPTION_CONTROLLER_BRIDGE, Integer.valueOf (1)),
-        Map.entry (CoreCapabilities.EFFECT_TRANSPORT, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.EFFECT_TRANSPORT, Integer.valueOf (3)),
+        Map.entry (CoreCapabilities.EFFECT_HOST_NOTIFICATION, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_SELECTED_TRACK, Integer.valueOf (3)),
+        Map.entry (CoreCapabilities.EFFECT_CURRENT_TRACK_BANK, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.EFFECT_CONTROLLER_MODE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_SESSION_BANK, Integer.valueOf (3)),
-        Map.entry (CoreCapabilities.EFFECT_CONTROLLER_BUTTON_CONSUMPTION, Integer.valueOf (2)),
-        Map.entry (CoreCapabilities.EFFECT_DRUM_PAD, Integer.valueOf (1)),
+        Map.entry (CoreCapabilities.EFFECT_CONTROLLER_BUTTON_CONSUMPTION, Integer.valueOf (3)),
+        Map.entry (CoreCapabilities.EFFECT_DRUM_PAD, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.EFFECT_NOTE_INPUT_MIDI, Integer.valueOf (2)),
-        Map.entry (CoreCapabilities.SNAPSHOT_PARAMETER_TARGETS, Integer.valueOf (2)),
-        Map.entry (CoreCapabilities.EFFECT_PARAMETER_TARGET, Integer.valueOf (2)),
+        Map.entry (CoreCapabilities.SNAPSHOT_PARAMETER_TARGETS, Integer.valueOf (3)),
+        Map.entry (CoreCapabilities.EFFECT_PARAMETER_TARGET, Integer.valueOf (4)),
         Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_MAPPING_FEEDBACK, Integer.valueOf (4)),
         Map.entry (CoreCapabilities.EFFECT_CONTROLLER_MAPPING_STORAGE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.SNAPSHOT_MASTER, Integer.valueOf (1)),
-        Map.entry (CoreCapabilities.EFFECT_MASTER, Integer.valueOf (2)),
+        Map.entry (CoreCapabilities.EFFECT_MASTER, Integer.valueOf (3)),
         Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_DISPLAY, Integer.valueOf (4)),
         Map.entry (CoreCapabilities.OUTPUT_PAD_GRID_OVERLAY, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.OUTPUT_DISPLAY_OVERLAY, Integer.valueOf (1)),
@@ -143,6 +152,13 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     private long revision;
     private long eventSequence;
     private long appliedResultRevision;
+
+
+    /** Get the committed complete touch-strip ownership and hardware output. */
+    DesiredTouchStrip touchStrip ()
+    {
+        return this.committedState.output ().touchStrip ();
+    }
 
 
     /** Get the complete replayable pad-grid overlay. */
@@ -607,6 +623,9 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         {
             if (!this.inputRouteValidator.test (route))
                 throw new IllegalArgumentException ("Core requested an unregistered controller input route");
+            if (route.kind () == InputKind.TOUCH && route.mode () == de.mossgrabers.pull.core.api.InputRouteMode.EXCLUSIVE && isTopEncoder (route.controlId ()) &&
+                !hasMigratedEncoderTouchProfile (result))
+                throw new IllegalArgumentException ("Exclusive encoder touch requires a migrated parameter-page profile");
         }
         for (final ControllerActionBinding action: result.desiredControllerActions ().bindings ())
         {
@@ -626,13 +645,37 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
             throw new IllegalArgumentException ("A parameter interaction requires the parameter snapshot subscription");
         if (!parametersRequested && result.effects ().stream ().anyMatch (ControllerRuntimeEnvironment::isParameterEffect))
             throw new IllegalArgumentException ("A parameter effect requires the parameter snapshot subscription");
+        if (!result.desiredBridgeSubscriptions ().includes (BridgeSubscription.AUTOMATION) && result.effects ().stream ().anyMatch (effect -> effect instanceof de.mossgrabers.pull.core.api.effect.SetAutomationWriteEffect))
+            throw new IllegalArgumentException ("An Automation Write effect requires its authoritative snapshot subscription");
+        if ((!result.desiredBridgeSubscriptions ().includes (BridgeSubscription.TRANSPORT) || !result.desiredBridgeSubscriptions ().includes (BridgeSubscription.PROJECT)) && result.effects ().stream ().anyMatch (effect -> effect instanceof de.mossgrabers.pull.core.api.effect.TapTempoEffect))
+            throw new IllegalArgumentException ("A native transport tap requires authoritative project and transport subscriptions");
+        if (!result.desiredBridgeSubscriptions ().includes (BridgeSubscription.PROJECT) && result.effects ().stream ().anyMatch (effect -> effect instanceof de.mossgrabers.pull.core.api.effect.ProjectHistoryEffect))
+            throw new IllegalArgumentException ("A history effect requires authoritative project state");
         if (!result.desiredBridgeSubscriptions ().includes (BridgeSubscription.SESSION_BANK) && result.effects ().stream ().anyMatch (ControllerRuntimeEnvironment::isSessionBankEffect))
             throw new IllegalArgumentException ("A Session-bank effect requires the Session-bank snapshot subscription");
+        if (!result.desiredBridgeSubscriptions ().includes (BridgeSubscription.CURRENT_TRACK_BANK) && result.effects ().stream ().anyMatch (effect -> effect instanceof de.mossgrabers.pull.core.api.effect.CurrentTrackActionEffect || effect instanceof de.mossgrabers.pull.core.api.effect.SetCurrentTrackBooleanEffect || effect instanceof de.mossgrabers.pull.core.api.effect.NavigateTrackParentEffect))
+            throw new IllegalArgumentException ("A current-track effect requires its current-bank snapshot subscription");
+        if (!result.desiredBridgeSubscriptions ().includes (BridgeSubscription.CONTROLLER_LAYOUT) && result.effects ().stream ().anyMatch (effect -> effect instanceof de.mossgrabers.pull.core.api.effect.SelectControllerModeEffect))
+            throw new IllegalArgumentException ("A controller-mode effect requires its layout snapshot subscription");
         if (this.controllerBridge == null && (!parameterBanks.banks ().isEmpty () || parameterInteraction.interactionId () != 0))
             throw new IllegalArgumentException ("Core requested parameter state without a controller bridge");
+        final DesiredParameterTouches parameterTouches = result.desiredParameterTouches ();
+        if (!parameterTouches.targets ().isEmpty () && (!parametersRequested || this.controllerBridge == null))
+            throw new IllegalArgumentException ("Parameter touches require the parameter capability and subscription");
+        for (final ControlId control: parameterTouches.targets ().keySet ())
+        {
+            if (!result.desiredInputRoutes ().ownsExclusively (control, InputKind.TOUCH))
+                throw new IllegalArgumentException ("Parameter touch requires exclusive ownership of its physical touch input");
+        }
+        for (final CoreEffect effect: result.effects ())
+        {
+            if (effect instanceof final de.mossgrabers.pull.core.api.effect.AcquireParameterTouchEffect touch && !touch.target ().equals (parameterTouches.targets ().get (touch.owner ())))
+                throw new IllegalArgumentException ("Ordered touch acquisition must belong to the complete desired touch lease set");
+        }
+        final Map<ControlId, ControllerBridge.ParameterTouchLease> preparedParameterTouches = this.controllerBridge == null ? Map.of () : this.controllerBridge.prepareParameterTouches (parameterTouches, sampledParameterBanks);
         final Map<ParameterTargetRef, ControllerBridge.ParameterLease> preparedParameterLeases = this.controllerBridge == null ? Map.of () : this.controllerBridge.prepareParameterLeases (parameterInteraction, sampledParameterBanks);
         final List<PreparedAction> preparedActions = this.prepareEffects (result.effects (), preparedBindings, preparedParameterLeases);
-        return new PreparedResult (preparedOutput, result.desiredOutput ().lights ().keySet (), result.desiredInputRoutes (), result.desiredBridgeSubscriptions (), preparedControllerState, preparedNoteRepeat, result.desiredControllerActions (), parameterBanks, parameterInteraction, executionRequirements, preparedParameterLeases, this.clipCatalog.generation (), preparedBindings, preparedActions);
+        return new PreparedResult (preparedOutput, result.desiredOutput ().lights ().keySet (), result.desiredInputRoutes (), result.desiredBridgeSubscriptions (), preparedControllerState, preparedNoteRepeat, result.desiredControllerActions (), parameterBanks, parameterInteraction, executionRequirements, preparedParameterLeases, preparedParameterTouches, this.clipCatalog.generation (), preparedBindings, preparedActions);
     }
 
 
@@ -664,6 +707,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
             final DesiredParameterBanks sampledParameterBanks = prepared.desiredBridgeSubscriptions ().includes (BridgeSubscription.PARAMETERS) ? prepared.desiredParameterBanks () : DesiredParameterBanks.empty ();
             if (this.controllerBridge.applyParameterLeases (prepared.parameterLeases (), sampledParameterBanks))
                 this.recordSnapshotChange ();
+            this.controllerBridge.releaseParameterTouches (prepared.parameterTouches ());
             this.deferredInputRelease.run ();
             this.controllerBridge.applyControllerState (prepared.desiredControllerState ());
             this.controllerBridge.applyNoteRepeat (prepared.desiredNoteRepeat ());
@@ -683,6 +727,8 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
             else if (action instanceof final PreparedBridgeAction bridgeAction && this.controllerBridge != null)
                 this.controllerBridge.apply (bridgeAction.action ());
         }
+        if (this.controllerBridge != null)
+            this.controllerBridge.acquireParameterTouches (prepared.parameterTouches ());
         this.recordSessionChange ();
         this.appliedResultRevision++;
     }
@@ -775,6 +821,26 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
+    private static boolean hasMigratedEncoderTouchProfile (final CoreResult result)
+    {
+        final Set<ControllerViewFacet> facets = result.desiredControllerState ().workspace ().facets ();
+        return facets.contains (ControllerViewFacet.PROJECT_MACRO_CONTROLS) && result.desiredParameterBanks ().includes (de.mossgrabers.pull.core.api.ParameterBankId.PROJECT_REMOTE) ||
+            facets.contains (ControllerViewFacet.MASTER_CONTROLS) && result.desiredParameterBanks ().includes (de.mossgrabers.pull.core.api.ParameterBankId.MASTER) ||
+            facets.contains (ControllerViewFacet.TRACK_MIXER_PAGE) && result.desiredParameterBanks ().includes (de.mossgrabers.pull.core.api.ParameterBankId.SELECTED_TRACK) && result.desiredParameterBanks ().includes (de.mossgrabers.pull.core.api.ParameterBankId.SELECTED_TRACK_SENDS);
+    }
+
+
+    private static boolean isTopEncoder (final ControlId control)
+    {
+        for (int index = 1; index <= 8; index++)
+        {
+            if (de.mossgrabers.pull.core.api.PushControlIds.continuous ("KNOB" + index).equals (control))
+                return true;
+        }
+        return false;
+    }
+
+
     private DesiredHardwareOutput prepareOutput (final CoreResult result, final DesiredControllerWorkspace workspace)
     {
         final Map<ControlId, RgbColor> colors = new LinkedHashMap<> (offLights ());
@@ -812,7 +878,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         }
         if (displayOverlay.active () && (displayOverlay.scene ().width () != 960 || displayOverlay.scene ().height () != 160))
             throw new IllegalArgumentException ("Controller display overlay must use the 960x160 Push viewport");
-        return new DesiredHardwareOutput (colors, display, overlay, displayOverlay, controllerMappings);
+        return new DesiredHardwareOutput (colors, display, overlay, displayOverlay, controllerMappings, result.desiredOutput ().touchStrip ());
     }
 
 
@@ -939,7 +1005,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
 
     private static boolean isParameterEffect (final CoreEffect effect)
     {
-        return effect instanceof SetParameterValueEffect || effect instanceof AdjustParameterValueEffect || effect instanceof ResetParameterEffect;
+        return effect instanceof de.mossgrabers.pull.core.api.effect.SetParameterNormalizedValueEffect || effect instanceof SetParameterValueEffect || effect instanceof AdjustParameterValueEffect || effect instanceof ResetParameterEffect || effect instanceof de.mossgrabers.pull.core.api.effect.SetParameterEnabledEffect || effect instanceof de.mossgrabers.pull.core.api.effect.AcquireParameterTouchEffect;
     }
 
 
@@ -1410,7 +1476,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
-    private record PreparedResult (DesiredHardwareOutput output, Set<ControlId> explicitLightOwners, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, DesiredControllerState desiredControllerState, DesiredNoteRepeat desiredNoteRepeat, DesiredControllerActions desiredControllerActions, DesiredParameterBanks desiredParameterBanks, DesiredParameterInteraction desiredParameterInteraction, CoreExecutionRequirements executionRequirements, Map<ParameterTargetRef, ControllerBridge.ParameterLease> parameterLeases, long catalogGeneration, Map<ControlId, ClipTargetId> desiredClipBindings, List<PreparedAction> actions) implements PreparedCoreResult
+    private record PreparedResult (DesiredHardwareOutput output, Set<ControlId> explicitLightOwners, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, DesiredControllerState desiredControllerState, DesiredNoteRepeat desiredNoteRepeat, DesiredControllerActions desiredControllerActions, DesiredParameterBanks desiredParameterBanks, DesiredParameterInteraction desiredParameterInteraction, CoreExecutionRequirements executionRequirements, Map<ParameterTargetRef, ControllerBridge.ParameterLease> parameterLeases, Map<ControlId, ControllerBridge.ParameterTouchLease> parameterTouches, long catalogGeneration, Map<ControlId, ClipTargetId> desiredClipBindings, List<PreparedAction> actions) implements PreparedCoreResult
     {
         private PreparedResult
         {
@@ -1425,6 +1491,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
             desiredParameterInteraction = Objects.requireNonNull (desiredParameterInteraction, "desiredParameterInteraction");
             executionRequirements = Objects.requireNonNull (executionRequirements, "executionRequirements");
             parameterLeases = Map.copyOf (parameterLeases);
+            parameterTouches = Map.copyOf (parameterTouches);
             desiredClipBindings = Map.copyOf (desiredClipBindings);
             actions = List.copyOf (actions);
         }
@@ -1464,7 +1531,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
 
         private static CommittedState invalidated (final long generation)
         {
-            return new CommittedState (generation, new DesiredHardwareOutput (offLights ()), Set.of (), DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), DesiredControllerState.empty (), DesiredControllerActions.empty (), DesiredParameterBanks.empty (), DesiredParameterInteraction.empty (), CoreExecutionRequirements.empty (), null);
+            return new CommittedState (generation, new DesiredHardwareOutput (offLights (), ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), DesiredControllerMappings.empty (), DesiredTouchStrip.off ()), Set.of (), DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), DesiredControllerState.empty (), DesiredControllerActions.empty (), DesiredParameterBanks.empty (), DesiredParameterInteraction.empty (), CoreExecutionRequirements.empty (), null);
         }
 
 
@@ -1477,11 +1544,19 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         private CommittedState quarantined ()
         {
             final Map<ControlId, RgbColor> passiveLights = new LinkedHashMap<> (this.output.lights ());
+            // Inert permanent bindings may read this map even after arbitration ownership is
+            // released. Retire every owned light, including output-only controls, with the core.
+            for (final ControlId lightOwner: this.explicitLightOwners)
+                passiveLights.put (lightOwner, OFF);
             for (final ControlId ratePad: CoreControls.DRUM_RATES)
                 passiveLights.put (ratePad, OFF);
             for (final ControlId controlPad: CoreControls.DRUM_CONTROL_PADS)
                 passiveLights.put (controlPad, OFF);
-            final DesiredHardwareOutput passiveOutput = new DesiredHardwareOutput (passiveLights, this.output.display (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), DesiredControllerMappings.empty ());
+            final ControllerDisplayScene display = this.output.display ();
+            // An absent scene relinquishes the base plane to legacy rendering. Keep an owned
+            // viewport explicitly black until a valid core result replaces it.
+            final ControllerDisplayScene passiveDisplay = display.isPresent () ? new ControllerDisplayScene (display.width (), display.height (), List.of (new DisplayCommand.Rectangle (0, 0, display.width (), display.height (), OFF))) : display;
+            final DesiredHardwareOutput passiveOutput = new DesiredHardwareOutput (passiveLights, passiveDisplay, ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), DesiredControllerMappings.empty (), DesiredTouchStrip.off ());
             return new CommittedState (this.generation, passiveOutput, Set.of (), this.desiredInputRoutes, this.desiredBridgeSubscriptions, this.desiredControllerState, this.desiredControllerActions, DesiredParameterBanks.empty (), DesiredParameterInteraction.empty (), CoreExecutionRequirements.empty (), null);
         }
     }

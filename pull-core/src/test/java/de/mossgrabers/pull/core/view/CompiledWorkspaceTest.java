@@ -244,7 +244,7 @@ class CompiledWorkspaceTest
 
 
     @Test
-    void projectMacrosOwnEncoderTurnsAndTheirDisplayRegionWhileStableAdaptsTouch ()
+    void projectMacrosOwnEncoderTurnsTouchesAndTheirDisplayRegion ()
     {
         final ControllerView footer = displayRegionView (
             "test footer",
@@ -255,8 +255,9 @@ class CompiledWorkspaceTest
         final ControlId firstKnob = PushControlIds.continuous ("KNOB1");
 
         assertEquals (Set.of (ControllerViewFacet.PROJECT_MACRO_CONTROLS), result.desiredControllerState ().workspace ().facets ());
-        assertEquals (8, result.desiredInputRoutes ().routes ().size ());
+        assertEquals (16, result.desiredInputRoutes ().routes ().size ());
         assertEquals (InputRouteMode.EXCLUSIVE, result.desiredInputRoutes ().mode (firstKnob, InputKind.RELATIVE).orElseThrow ());
+        assertEquals (InputRouteMode.EXCLUSIVE, result.desiredInputRoutes ().mode (firstKnob, InputKind.TOUCH).orElseThrow ());
         assertEquals (Set.of (ParameterBankId.PROJECT_REMOTE), result.desiredParameterBanks ().banks ());
         assertTrue (result.desiredBridgeSubscriptions ().includes (BridgeSubscription.PARAMETERS));
         assertTrue (result.desiredOutput ().display ().isPresent ());
@@ -597,6 +598,31 @@ class CompiledWorkspaceTest
 
         assertEquals (ParameterSlot.projectRemote (0), workspace.parameterSlotOrNull (PushControlIds.continuous ("KNOB1")));
         assertEquals (ParameterSlot.projectRemote (7), workspace.parameterSlotOrNull (PushControlIds.continuous ("KNOB8")));
+    }
+
+
+    @Test
+    void dynamicParameterSlotsStayWithinCompiledControlsAndBanks ()
+    {
+        final ControlId declared = PushControlIds.continuous ("KNOB1");
+        final ControlId undeclared = PushControlIds.continuous ("KNOB2");
+        final java.util.concurrent.atomic.AtomicReference<Map<ControlId, ParameterSlot>> bindings = new java.util.concurrent.atomic.AtomicReference<> (Map.of (declared, ParameterSlot.selectedTrackSend (0)));
+        final ControllerView view = new ControllerView ()
+        {
+            @Override public String id () { return "dynamic-parameters"; }
+            @Override public ViewProfile profile () { return ViewProfile.fixed ("default", Set.of (claim (SurfaceArea.ENCODER_TURNS, SurfaceClaim.Kind.EXCLUSIVE_INPUT)), Set.of ()); }
+            @Override public Map<ControlId, ParameterSlot> parameterBindings () { return Map.of (declared, ParameterSlot.selectedTrackSend (0)); }
+            @Override public Map<ControlId, ParameterSlot> parameterBindings (final ControllerSnapshot snapshot) { return bindings.get (); }
+        };
+        final CompiledWorkspace workspace = CompiledWorkspace.compile ("dynamic", List.of (view));
+        bindings.set (Map.of (declared, ParameterSlot.selectedTrackSend (7)));
+        assertEquals (ParameterSlot.selectedTrackSend (7), workspace.parameterSlotOrNull (declared, snapshot ()));
+        bindings.set (Map.of ());
+        assertEquals (null, workspace.parameterSlotOrNull (declared, snapshot ()));
+        bindings.set (Map.of (undeclared, ParameterSlot.selectedTrackSend (0)));
+        assertThrows (IllegalStateException.class, () -> workspace.start (snapshot ()));
+        bindings.set (Map.of (declared, ParameterSlot.projectRemote (0)));
+        assertThrows (IllegalStateException.class, () -> workspace.parameterSlotOrNull (declared, snapshot ()));
     }
 
 
