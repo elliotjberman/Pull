@@ -326,6 +326,10 @@ Reloadable core:
 - `CompiledWorkspace`: claim validation, routing, deterministic composition.
 - `ControllerLevelViews`: one retained global selection, transport, parameter, and selected-track
   policy set shared across every page replacement.
+- `ControllerMappingNameView`: retained mapping-browser name policy using selected-track names
+  and the acknowledged registry. It caches names by track UUID and emits complete document-fenced
+  metadata across workspaces. Unselected names refresh on selection; the cache does not survive
+  core reload. Names grant no input ownership.
 - `DefaultWorkspace`: ordinary migrated behavior plus shared workspace selection.
 - `VsLiveWorkspace`: Java-defined composition and declared 8x4 Session bank.
 - `ProjectMacroControlsView`: core-owned relative encoder behavior plus adapter-backed touch and
@@ -370,12 +374,8 @@ Stable shell:
   the four inert legacy identities. It publishes raw target presence/value, document identity, and
   observed hidden document storage; core owns registry parsing and allocation. All 64 original
   grid buttons remain ordinary-dispatch-only.
-- `ControllerMappingNameView`: a retained controller-level core owner of mapping-browser names.
-  It uses the existing selected-track name and acknowledged registry, caches names by track UUID,
-  and emits complete document-fenced metadata across workspaces. API 45 carries these names
-  separately from matcher bindings. `ControllerMappingNamesHost` only diffs/applies them through
-  Bitwig's `setName`, restoring generic bank labels on omitted or stale output. Unselected names
-  refresh on selection; the cache does not survive core reload. Names grant no input ownership.
+- `ControllerMappingNamesHost`: diffs/applies API 45 name metadata through Bitwig's `setName`,
+  independently of matcher bindings. It restores generic bank labels on omitted or stale output.
 - `HardwareMappingActivationHost`: mechanically projects the complete core lease onto those
   semantic absolute controls. Each active endpoint matches positive Note On only and emits the
   requested literal maximum or minimum. Core derives that lane's next value as the opposite of
