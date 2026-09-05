@@ -73,7 +73,7 @@ final class ControllerMappingHost
             for (int slot = 0; slot < CoreControllerMappings.trackBank (bank).size (); slot++)
                 this.install (checkedFactory, surfaceID, controls, CoreControllerMappings.trackBank (bank).get (slot),
                     "CONTROLLER_MAPPING_TRACK_" + (bank + 1) + "_CONTROL_VALUE_" + (slot + 1),
-                    "Bank " + (bank + 1) + " Drum Controller Toggle " + (slot + 1));
+                    "Drum Controller " + (bank * CoreControllerMappings.CONTROLS_PER_TRACK + slot + 1));
         this.mappingControls = Map.copyOf (controls);
 
         // Physical pads remain the sole ordinary-command dispatch objects, but none expose native
