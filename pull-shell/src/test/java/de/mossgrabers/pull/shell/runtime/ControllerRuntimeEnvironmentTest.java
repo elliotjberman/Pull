@@ -10,6 +10,8 @@ import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ControllerMappingFeedbackSnapshot;
+import de.mossgrabers.pull.core.api.ControllerMappingContext;
+import de.mossgrabers.pull.core.api.ControllerMappingValue;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.ControllerNoteView;
 import de.mossgrabers.pull.core.api.ControllerMappingBinding;
@@ -90,7 +92,8 @@ class ControllerRuntimeEnvironmentTest
     private static final RgbColor OFF = new RgbColor (0, 0, 0);
     private static final RgbColor DIM_RED = new RgbColor (127, 0, 0);
     private static final RgbColor BRIGHT_RED = new RgbColor (255, 0, 0);
-    private static final DesiredBridgeSubscriptions CONTROLLER_MAPPING_SUBSCRIPTIONS = new DesiredBridgeSubscriptions (Set.of (BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK));
+    private static final DesiredBridgeSubscriptions CONTROLLER_MAPPING_SUBSCRIPTIONS = new DesiredBridgeSubscriptions (Set.of (BridgeSubscription.SELECTED_TRACK, BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK));
+    private static final ControllerMappingContext MAPPING_CONTEXT = new ControllerMappingContext (1, "track-a", 1, "document-a");
     private static final ControlId FIRST = CoreControls.DRUM_FILL_1;
     private static final ControlId SECOND = CoreControls.DRUM_FILL_2;
     private static final ControlId THIRD = CoreControls.DRUM_FILL_3;
@@ -125,7 +128,7 @@ class ControllerRuntimeEnvironmentTest
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION));
         assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD));
         assertEquals (Integer.valueOf (6), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_RGB_LIGHT));
-        assertEquals (Integer.valueOf (3), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_MAPPING));
+        assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_MAPPING));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_STATE));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_NOTE_VIEW_PREFERENCE));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_NOTE_REPEAT));
@@ -135,7 +138,7 @@ class ControllerRuntimeEnvironmentTest
         assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_CONTROLLER_BUTTON_CONSUMPTION));
         assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_PARAMETER_TARGETS));
         assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_PARAMETER_TARGET));
-        assertEquals (Integer.valueOf (3), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_CONTROLLER_MAPPING_FEEDBACK));
+        assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_CONTROLLER_MAPPING_FEEDBACK));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_MASTER));
         assertEquals (Integer.valueOf (2), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_MASTER));
         assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_DISPLAY));
@@ -314,12 +317,13 @@ class ControllerRuntimeEnvironmentTest
     @Test
     void admitsSemanticMappingsOnlyWithTheirExclusivePhysicalRouteAndAuthoritativeFeedback ()
     {
-        final ControllerRuntimeEnvironment environment = environment (host (1));
+        final PassthroughControllerBridge bridge = new PassthroughControllerBridge ();
+        final ControllerRuntimeEnvironment environment = new ControllerRuntimeEnvironment (host (1), bridge, new RecordingLog (), () -> 0);
         final AtomicReference<DesiredControllerMappings> mappingsAtDeferredRelease = new AtomicReference<> ();
         environment.setDeferredInputRelease (() -> mappingsAtDeferredRelease.set (environment.activeControllerMappings ()));
         environment.setInputRouteValidator (ignored -> true);
         final ControlId pad = CoreControls.DRUM_CONTROL_PADS.getFirst ();
-        final ControllerMappingBinding binding = new ControllerMappingBinding (pad, CoreControllerMappings.DRUM_CONTROL_PADS.getFirst ());
+        final ControllerMappingBinding binding = new ControllerMappingBinding (pad, CoreControllerMappings.trackBank (0).getFirst (), ControllerMappingValue.MAXIMUM, MAPPING_CONTEXT);
         final DesiredControllerMappings mappings = new DesiredControllerMappings (Set.of (binding));
         final DesiredInputRoutes routes = new DesiredInputRoutes (Set.of (new InputRoute (pad, InputKind.PAD, InputRouteMode.EXCLUSIVE)));
         final DesiredHardwareOutput output = new DesiredHardwareOutput (
@@ -333,6 +337,11 @@ class ControllerRuntimeEnvironmentTest
         commitAndApply (environment, 9, result);
         assertEquals (mappings, environment.activeControllerMappings ());
         assertTrue (environment.debugLightObservation (pad).mappingDesired ());
+
+        bridge.mappingContext = ControllerMappingContext.empty ();
+        assertTrue (environment.activeControllerMappings ().bindings ().isEmpty (), "a stale owner is revoked before another core result");
+        bridge.mappingContext = MAPPING_CONTEXT;
+        assertEquals (mappings, environment.activeControllerMappings ());
 
         environment.quarantine (8);
         assertEquals (mappings, environment.activeControllerMappings ());
@@ -361,9 +370,14 @@ class ControllerRuntimeEnvironmentTest
             new DesiredHardwareOutput (Map.of (pad, BRIGHT_RED), ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), unsupportedSemanticMapping),
             routes,
             CONTROLLER_MAPPING_SUBSCRIPTIONS)));
+        final DesiredControllerMappings legacyMapping = new DesiredControllerMappings (Set.of (
+            new ControllerMappingBinding (pad, CoreControllerMappings.DRUM_CONTROL_PADS.getFirst (), ControllerMappingValue.MAXIMUM, MAPPING_CONTEXT)));
+        assertThrows (IllegalArgumentException.class, () -> environment.prepare (routedResult (
+            new DesiredHardwareOutput (Map.of (pad, BRIGHT_RED), ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), legacyMapping),
+            routes, CONTROLLER_MAPPING_SUBSCRIPTIONS)));
         final ControlId unsupportedPhysical = new ControlId ("not-installed");
         final DesiredControllerMappings unsupportedPhysicalMapping = new DesiredControllerMappings (Set.of (
-            new ControllerMappingBinding (unsupportedPhysical, CoreControllerMappings.DRUM_CONTROL_PADS.getFirst ())));
+            new ControllerMappingBinding (unsupportedPhysical, CoreControllerMappings.trackBank (0).getFirst ())));
         final DesiredInputRoutes unsupportedPhysicalRoute = new DesiredInputRoutes (Set.of (
             new InputRoute (unsupportedPhysical, InputKind.PAD, InputRouteMode.EXCLUSIVE)));
         assertThrows (IllegalArgumentException.class, () -> environment.prepare (routedResult (
@@ -381,11 +395,11 @@ class ControllerRuntimeEnvironmentTest
         environment.setInputRouteValidator (ignored -> true);
         final ControlId first = CoreControls.DRUM_CONTROL_PADS.get (0);
         final ControlId second = CoreControls.DRUM_CONTROL_PADS.get (1);
-        final ControllerMappingId firstMapping = CoreControllerMappings.DRUM_CONTROL_PADS.get (0);
-        final ControllerMappingId secondMapping = CoreControllerMappings.DRUM_CONTROL_PADS.get (1);
+        final ControllerMappingId firstMapping = CoreControllerMappings.trackBank (0).get (0);
+        final ControllerMappingId secondMapping = CoreControllerMappings.trackBank (0).get (1);
         final DesiredControllerMappings mappings = new DesiredControllerMappings (Set.of (
-            new ControllerMappingBinding (first, firstMapping),
-            new ControllerMappingBinding (second, secondMapping)));
+            new ControllerMappingBinding (first, firstMapping, ControllerMappingValue.MAXIMUM, MAPPING_CONTEXT),
+            new ControllerMappingBinding (second, secondMapping, ControllerMappingValue.MAXIMUM, MAPPING_CONTEXT)));
         final DesiredInputRoutes routes = new DesiredInputRoutes (Set.of (
             new InputRoute (first, InputKind.PAD, InputRouteMode.EXCLUSIVE),
             new InputRoute (second, InputKind.PAD, InputRouteMode.EXCLUSIVE)));
@@ -1275,6 +1289,16 @@ class ControllerRuntimeEnvironmentTest
 
     private static final class PassthroughControllerBridge implements ControllerBridge
     {
+        private ControllerMappingContext mappingContext = MAPPING_CONTEXT;
+
+
+        @Override
+        public boolean controllerMappingContextMatches (final ControllerMappingContext context)
+        {
+            return this.mappingContext.equals (context);
+        }
+
+
         private DesiredControllerWorkspace appliedWorkspace = DesiredControllerWorkspace.empty ();
         private DesiredNotePerformance preparedNotePerformance = DesiredNotePerformance.inactive ();
         private DesiredNotePerformance appliedNotePerformance = DesiredNotePerformance.inactive ();

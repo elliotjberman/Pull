@@ -13,13 +13,21 @@ import java.util.Objects;
  * @param physicalControl Physical input that currently drives the endpoint
  * @param mappingId Stable semantic endpoint identity
  * @param value Absolute value emitted by the next matching physical press
+ * @param context Observed selected target and document-storage ownership
  */
-public record ControllerMappingBinding (ControlId physicalControl, ControllerMappingId mappingId, ControllerMappingValue value)
+public record ControllerMappingBinding (ControlId physicalControl, ControllerMappingId mappingId, ControllerMappingValue value, ControllerMappingContext context)
 {
     /** Create a maximum-value binding. */
     public ControllerMappingBinding (final ControlId physicalControl, final ControllerMappingId mappingId)
     {
-        this (physicalControl, mappingId, ControllerMappingValue.MAXIMUM);
+        this (physicalControl, mappingId, ControllerMappingValue.MAXIMUM, ControllerMappingContext.empty ());
+    }
+
+
+    /** Create an ownerless compatibility binding. */
+    public ControllerMappingBinding (final ControlId physicalControl, final ControllerMappingId mappingId, final ControllerMappingValue value)
+    {
+        this (physicalControl, mappingId, value, ControllerMappingContext.empty ());
     }
 
 
@@ -29,5 +37,6 @@ public record ControllerMappingBinding (ControlId physicalControl, ControllerMap
         physicalControl = Objects.requireNonNull (physicalControl, "physicalControl");
         mappingId = Objects.requireNonNull (mappingId, "mappingId");
         value = Objects.requireNonNull (value, "value");
+        context = Objects.requireNonNull (context, "context");
     }
 }

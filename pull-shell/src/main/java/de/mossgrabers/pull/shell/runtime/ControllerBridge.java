@@ -5,6 +5,7 @@ package de.mossgrabers.pull.shell.runtime;
 
 import de.mossgrabers.framework.controller.hardware.IHwContinuousControl;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
+import de.mossgrabers.pull.core.api.ControllerMappingContext;
 import de.mossgrabers.pull.core.api.DesiredControllerLayout;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerState;
@@ -98,6 +99,12 @@ interface ControllerBridge
     }
 
     ControllerBridgeSnapshot snapshot ();
+
+    /** Recheck the live owner before replaying a native mapping lease. */
+    default boolean controllerMappingContextMatches (final ControllerMappingContext context)
+    {
+        return false;
+    }
 
     PreparedAction prepare (CoreEffect effect, Map<ParameterTargetRef, ParameterLease> parameterLeases);
 

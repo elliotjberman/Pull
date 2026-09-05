@@ -43,7 +43,7 @@ assert_status()
 
 write_navigation_status()
 {
-    printf '%s\tREADY\t%s\tSESSION\tTRACK\tfalse\tfalse\tfalse\t5\ttrack-a\t2\tfalse\tOFF\ttrue\tfalse\tfalse\t-\t-\tfalse\t-\t-\tNONE\tOUTPUT\tPAD29\tpush.pad.29\t64\t100\tEXCLUSIVE\ttrue\ttrue\ttrue\t0.75\t0C2238\t43:0:false\tbase=0:64:43;blink=-\tfalse\tfalse\ttrue\t\n' "$1" "$2" > "$test_debug/navigate-status.txt"
+    printf '%s\tREADY\t%s\tSESSION\tTRACK\tfalse\tfalse\tfalse\t5\ttrack-a\t2\tfalse\tOFF\ttrue\tfalse\tfalse\t-\t-\tfalse\t-\t-\tNONE\tOUTPUT\tPAD29\tpush.pad.29\t64\t100\tEXCLUSIVE\ttrue\ttrue\tdrum-controller.track.2.control.1\ttrue\t0.75\t0C2238\t43:0:false\tbase=0:64:43;blink=-\tfalse\tfalse\ttrue\t\n' "$1" "$2" > "$test_debug/navigate-status.txt"
 }
 
 new_debug_home
@@ -115,14 +115,14 @@ new_debug_home
 navigation_output="$(env HOME="$test_home" "${script_dir}/push-debug-request" correlated 'NOTE/workspace=false' 2>&1)"
 [[ "$navigation_output" == *"track_position=5 track_id=track-a track_generation=2"* ]] || fail "navigation client omitted selected-track identity"
 [[ "$navigation_output" == *"pad_button=PAD29 pad_control=push.pad.29 pad_midi_note=64"* ]] || fail "navigation client omitted pad proof fields"
-[[ "$navigation_output" == *"pad_route=EXCLUSIVE mapping_desired=true mapping_active=true mapped_has_target=true mapped_value=0.75"* ]] || fail "navigation client omitted pad route, mapping state, or mapped readback"
+[[ "$navigation_output" == *"pad_route=EXCLUSIVE mapping_desired=true mapping_active=true mapping_id=drum-controller.track.2.control.1 mapped_has_target=true mapped_value=0.75"* ]] || fail "navigation client omitted pad route, mapping state, or mapped readback"
 [[ ! -e "$test_debug/capture-request.txt" ]] || fail "navigation-only request emitted a capture"
 
 new_debug_home
 (
     wait_for_file "$test_debug/navigate-request.txt"
     IFS=$'\t' read -r failed_id failed_label _ < "$test_debug/navigate-request.txt"
-    printf '%s\tFAILED\t%s\tSESSION\tTRACK\tfalse\tfalse\tfalse\t-1\t-\t0\tfalse\tOFF\tfalse\tfalse\tfalse\t-\t-\tfalse\t-\t-\tNONE\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\tfalse\tfalse\tfalse\tpad route is unavailable\n' "$failed_id" "$failed_label" > "$test_debug/navigate-status.txt"
+    printf '%s\tFAILED\t%s\tSESSION\tTRACK\tfalse\tfalse\tfalse\t-1\t-\t0\tfalse\tOFF\tfalse\tfalse\tfalse\t-\t-\tfalse\t-\t-\tNONE\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\tfalse\tfalse\tfalse\tpad route is unavailable\n' "$failed_id" "$failed_label" > "$test_debug/navigate-status.txt"
 ) &
 set +e
 failure_output="$(env HOME="$test_home" "${script_dir}/push-debug-request" failed-navigation 'NOTE/workspace=false' 2>&1)"

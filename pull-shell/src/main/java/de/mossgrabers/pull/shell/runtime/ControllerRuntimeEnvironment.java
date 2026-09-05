@@ -92,7 +92,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         Map.entry (CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD, Integer.valueOf (4)),
         Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (6)),
-        Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_MAPPING, Integer.valueOf (3)),
+        Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_MAPPING, Integer.valueOf (4)),
         Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_STATE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_NOTE_VIEW_PREFERENCE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.OUTPUT_NOTE_REPEAT, Integer.valueOf (1)),
@@ -108,7 +108,8 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         Map.entry (CoreCapabilities.EFFECT_NOTE_INPUT_MIDI, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.SNAPSHOT_PARAMETER_TARGETS, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.EFFECT_PARAMETER_TARGET, Integer.valueOf (2)),
-        Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_MAPPING_FEEDBACK, Integer.valueOf (3)),
+        Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_MAPPING_FEEDBACK, Integer.valueOf (4)),
+        Map.entry (CoreCapabilities.EFFECT_CONTROLLER_MAPPING_STORAGE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.SNAPSHOT_MASTER, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_MASTER, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_DISPLAY, Integer.valueOf (4)),
@@ -478,7 +479,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         final ControlId lightOwner = Objects.requireNonNull (owner, "light owner");
         final RgbColor color = this.committedState.explicitLightOwners ().contains (lightOwner) ? this.committedState.output ().lights ().get (lightOwner) : null;
         final var mappingId = this.committedState.output ().controllerMappings ().mappingIdOrNull (lightOwner);
-        return new DebugLightObservation (this.committedState.generation (), this.appliedResultRevision, color, mappingId != null, this.debugControllerMappingTarget (mappingId));
+        return new DebugLightObservation (this.committedState.generation (), this.appliedResultRevision, color, mappingId != null, mappingId == null ? null : mappingId.value (), this.debugControllerMappingTarget (mappingId));
     }
 
 
@@ -523,7 +524,10 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     /** Get the complete committed projection onto semantic Bitwig mapping actions. */
     DesiredControllerMappings activeControllerMappings ()
     {
-        return this.committedState.output ().controllerMappings ();
+        final DesiredControllerMappings requested = this.committedState.output ().controllerMappings ();
+        return new DesiredControllerMappings (requested.bindings ().stream ()
+            .filter (binding -> this.controllerBridge.controllerMappingContextMatches (binding.context ()))
+            .collect (java.util.stream.Collectors.toUnmodifiableSet ()));
     }
 
 
@@ -791,12 +795,16 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         final DesiredControllerMappings controllerMappings = result.desiredOutput ().controllerMappings ();
         if (!controllerMappings.bindings ().isEmpty () && !result.desiredBridgeSubscriptions ().includes (BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK))
             throw new IllegalArgumentException ("Active controller mappings require authoritative mapping feedback");
+        if (!controllerMappings.bindings ().isEmpty () && !result.desiredBridgeSubscriptions ().includes (BridgeSubscription.SELECTED_TRACK))
+            throw new IllegalArgumentException ("Active controller mappings require authoritative selected-track state");
         for (final ControllerMappingBinding binding: controllerMappings.bindings ())
         {
             if (!CoreControls.DRUM_CONTROL_PADS.contains (binding.physicalControl ()))
                 throw new IllegalArgumentException ("Unsupported physical controller mapping owner");
-            if (!CoreControllerMappings.DRUM_CONTROL_PADS.contains (binding.mappingId ()))
+            if (!CoreControllerMappings.TRACK_CONTROL_PADS.contains (binding.mappingId ()))
                 throw new IllegalArgumentException ("Unsupported semantic controller mapping endpoint");
+            if (!binding.context ().active ())
+                throw new IllegalArgumentException ("Active controller mappings require a selected owner and storage revision");
             if (!result.desiredInputRoutes ().ownsExclusively (binding.physicalControl (), InputKind.PAD))
                 throw new IllegalArgumentException ("An active controller mapping requires an exclusive pad route");
             if (!result.desiredOutput ().lights ().containsKey (binding.physicalControl ()))
@@ -1485,7 +1493,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
-    record DebugLightObservation (long coreGeneration, long appliedRevision, RgbColor color, boolean mappingDesired, ControllerMappingTarget mappedTarget)
+    record DebugLightObservation (long coreGeneration, long appliedRevision, RgbColor color, boolean mappingDesired, String mappingId, ControllerMappingTarget mappedTarget)
     {
         boolean present ()
         {

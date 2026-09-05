@@ -1,6 +1,6 @@
 # Views API and Composite Workspaces
 
-Status: design contract. Checkpoints 1 and 2 are structurally implemented through Core API 43. The
+Status: design contract. Checkpoints 1 and 2 are structurally implemented through Core API 44. The
 remaining stable-adapter boundary is represented explicitly in claims and recorded in
 [`../ARCH.md`](../ARCH.md). The checkpoints remain below so code, offline tests, and Push hardware
 tests can be compared against the intended end state.
@@ -306,9 +306,11 @@ Introduce the fixed-footprint model and workspace compiler inside the reloadable
 currently migrated behavior through views:
 
 - Drum-fill matching, launch ownership, and eight pad lights become one fixed drum-fill view.
-- Four detached semantic absolute controls own the remaining row's Bitwig-learned actions and
-  raw mapped-target presence/value feedback while core retains that view's complete
-  physical-to-semantic lease and next minimum/maximum value.
+- A selected track's allocated bank of four detached semantic absolute controls owns the remaining
+  row's Bitwig-learned actions and raw mapped-target presence/value feedback. Core retains that
+  view's complete fenced physical-to-semantic lease and next minimum/maximum value. API 44
+  installs 128 such banks; allocation and persistence acknowledgement follow the bounded V1
+  contract in `../pull-core-api/src/main/java/de/mossgrabers/pull/core/api/CONTROLLER_MAPPING_IDENTITY.md`.
   All 64 original physical PAD buttons remain ordinary-dispatch-only and never define learned
   identity. Permanent raw MIDI triggers those established objects outside a mapping lease; inside
   one it supplies the normalized core gesture independently of the one semantic learned action.

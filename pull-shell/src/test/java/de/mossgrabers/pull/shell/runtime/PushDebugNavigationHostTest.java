@@ -415,7 +415,7 @@ class PushDebugNavigationHostTest
         assertEquals (List.of ("MUTE:DOWN", "MUTE:UP", "SOLO:DOWN", "SOLO:UP", "STOP_CLIP:DOWN", "STOP_CLIP:UP"), surface.events);
         final List<String> status = this.fullStatus ();
         assertEquals ("READY", status.get (1));
-        assertEquals (List.of ("true", "true", "false"), status.subList (35, 38));
+        assertEquals (List.of ("true", "true", "false"), status.subList (36, 39));
     }
 
 
@@ -564,11 +564,12 @@ class PushDebugNavigationHostTest
         assertEquals ("EXCLUSIVE", status.get (27));
         assertEquals ("true", status.get (28));
         assertEquals ("true", status.get (29));
-        assertEquals ("true", status.get (30));
-        assertEquals ("0.75", status.get (31));
-        assertEquals ("0C2238", status.get (32));
-        assertEquals ("43:44:true", status.get (33));
-        assertEquals ("base=0:64:43;blink=14:64:44", status.get (34));
+        assertEquals ("drum-controller.track.2.control.1", status.get (30));
+        assertEquals ("true", status.get (31));
+        assertEquals ("0.75", status.get (32));
+        assertEquals ("0C2238", status.get (33));
+        assertEquals ("43:44:true", status.get (34));
+        assertEquals ("base=0:64:43;blink=14:64:44", status.get (35));
         assertFalse (admission.debugInputActive);
         assertFalse (surface.padObservationActive);
     }
@@ -611,8 +612,9 @@ class PushDebugNavigationHostTest
         assertEquals ("EXCLUSIVE", status.get (27));
         assertEquals ("false", status.get (28));
         assertEquals ("false", status.get (29));
-        assertEquals ("true", status.get (30));
-        assertEquals ("0.75", status.get (31));
+        assertEquals ("-", status.get (30));
+        assertEquals ("true", status.get (31));
+        assertEquals ("0.75", status.get (32));
         assertTrue (status.getLast ().contains ("mapping lease"));
     }
 
@@ -641,8 +643,9 @@ class PushDebugNavigationHostTest
         assertEquals ("FAILED", status.get (1));
         assertEquals ("true", status.get (28));
         assertEquals ("false", status.get (29));
-        assertEquals ("true", status.get (30));
-        assertEquals ("0.75", status.get (31));
+        assertEquals ("drum-controller.track.2.control.1", status.get (30));
+        assertEquals ("true", status.get (31));
+        assertEquals ("0.75", status.get (32));
         assertTrue (status.getLast ().contains ("activation changed"));
     }
 
@@ -664,8 +667,8 @@ class PushDebugNavigationHostTest
         host.tick ();
         assertEquals (List.of ("PAD29:DOWN:100"), surface.events);
         host.close ();
-        assertEquals ("false", this.fullStatus ().get (30));
-        assertEquals ("0.25", this.fullStatus ().get (31));
+        assertEquals ("false", this.fullStatus ().get (31));
+        assertEquals ("0.25", this.fullStatus ().get (32));
     }
 
 
@@ -684,8 +687,8 @@ class PushDebugNavigationHostTest
         final List<String> status = this.fullStatus ();
         assertEquals (List.of ("PAD29:DOWN:100", "PAD29:UP:0"), surface.events);
         assertEquals ("FAILED", status.get (1));
-        assertEquals ("-", status.get (30));
         assertEquals ("-", status.get (31));
+        assertEquals ("-", status.get (32));
         assertTrue (status.getLast ().contains ("mapped feedback became unavailable"));
     }
 
@@ -999,6 +1002,7 @@ class PushDebugNavigationHostTest
                 this.coreGeneration, this.appliedRevision,
                 control.equals (this.padControl) ? this.padDesiredColor : null,
                 this.mappingDesired,
+                this.mappingDesired ? "drum-controller.track.2.control.1" : null,
                 this.mappedTarget);
         }
 

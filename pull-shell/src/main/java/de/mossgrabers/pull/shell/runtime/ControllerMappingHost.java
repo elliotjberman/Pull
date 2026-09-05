@@ -11,6 +11,7 @@ import de.mossgrabers.framework.controller.hardware.IHwSurfaceFactory;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerMappingFeedbackSnapshot;
 import de.mossgrabers.pull.core.api.ControllerMappingId;
+import de.mossgrabers.pull.core.api.ControllerMappingStorageSnapshot;
 import de.mossgrabers.pull.core.api.ControllerMappingTarget;
 import de.mossgrabers.pull.core.api.CoreControllerMappings;
 import de.mossgrabers.pull.core.api.PushControlIds;
@@ -31,38 +32,48 @@ final class ControllerMappingHost
     private final Map<ControlId, IHwButton> physicalButtons;
     private final Map<ControllerMappingId, IHwAbsoluteControl> mappingControls;
     private final FeedbackState feedback;
+    private final ControllerMappingStorageHost storage;
 
 
-    ControllerMappingHost (final PushControlSurface surface)
+    ControllerMappingHost (final PushControlSurface surface, final ControllerMappingStorageHost storage)
     {
-        this (Objects.requireNonNull (surface, "surface").getSurfaceFactory (), surface.getSurfaceID (), physicalButtons (surface));
+        this (Objects.requireNonNull (surface, "surface").getSurfaceFactory (), surface.getSurfaceID (), physicalButtons (surface), Objects.requireNonNull (storage, "storage"));
     }
 
 
     /** Test seam for installing the bounded endpoint inventory. */
     ControllerMappingHost (final IHwSurfaceFactory factory, final int surfaceID, final Map<ControlId, IHwButton> physicalButtons)
     {
+        this (factory, surfaceID, physicalButtons, null);
+    }
+
+
+    /** Test seam for installing endpoint resources and raw document storage together. */
+    ControllerMappingHost (final IHwSurfaceFactory factory, final int surfaceID, final Map<ControlId, IHwButton> physicalButtons, final ControllerMappingStorageHost storage)
+    {
         final IHwSurfaceFactory checkedFactory = Objects.requireNonNull (factory, "factory");
         this.physicalButtons = Map.copyOf (Objects.requireNonNull (physicalButtons, "physicalButtons"));
         if (!this.physicalButtons.keySet ().equals (PHYSICAL_PAD_CONTROLS))
             throw new IllegalArgumentException ("controller mapping host requires the complete 64-pad physical grid");
 
+        this.storage = storage;
         this.feedback = new FeedbackState ();
         final Map<ControllerMappingId, IHwAbsoluteControl> controls = new LinkedHashMap<> ();
+        // Retain the original identities so persisted mappings remain recognizable, but no core
+        // track context leases them. New banks never inherit these historical global targets.
         for (int slot = 0; slot < CoreControllerMappings.DRUM_CONTROL_PADS.size (); slot++)
         {
             final int number = slot + 1;
             final ControllerMappingId mappingId = CoreControllerMappings.DRUM_CONTROL_PADS.get (slot);
-            final IHwAbsoluteControl mappingControl = Objects.requireNonNull (checkedFactory.createAbsoluteKnob (
-                surfaceID,
+            this.install (checkedFactory, surfaceID, controls, mappingId,
                 "CONTROLLER_MAPPING_DRUM_CONTROL_VALUE_" + number,
-                "Drum Controller Toggle " + number), "semantic mapping control");
-            mappingControl.disableTakeOver ();
-            checkedFactory.installMappedAbsoluteFeedback (
-                mappingControl,
-                (hasTarget, value) -> this.feedback.accept (mappingId, new ControllerMappingTarget (hasTarget.booleanValue (), value.doubleValue ())));
-            controls.put (mappingId, mappingControl);
+                "Drum Controller Toggle " + number);
         }
+        for (int bank = 0; bank < CoreControllerMappings.TRACK_BANK_COUNT; bank++)
+            for (int slot = 0; slot < CoreControllerMappings.trackBank (bank).size (); slot++)
+                this.install (checkedFactory, surfaceID, controls, CoreControllerMappings.trackBank (bank).get (slot),
+                    "CONTROLLER_MAPPING_TRACK_" + (bank + 1) + "_CONTROL_VALUE_" + (slot + 1),
+                    "Track " + (bank + 1) + " Toggle " + (slot + 1));
         this.mappingControls = Map.copyOf (controls);
 
         // Physical pads remain the sole ordinary-command dispatch objects, but none expose native
@@ -85,7 +96,24 @@ final class ControllerMappingHost
 
     ControllerMappingFeedbackSnapshot snapshot ()
     {
-        return this.feedback.snapshot;
+        return this.feedback.snapshot (this.storage == null ? ControllerMappingStorageSnapshot.empty () : this.storage.snapshot ());
+    }
+
+
+    ControllerMappingStorageHost storage ()
+    {
+        return Objects.requireNonNull (this.storage, "controller mapping storage is not installed");
+    }
+
+
+    private void install (final IHwSurfaceFactory factory, final int surfaceID, final Map<ControllerMappingId, IHwAbsoluteControl> controls,
+                         final ControllerMappingId mappingId, final String hardwareId, final String label)
+    {
+        final IHwAbsoluteControl mappingControl = Objects.requireNonNull (factory.createAbsoluteKnob (surfaceID, hardwareId, label), "semantic mapping control");
+        mappingControl.disableTakeOver ();
+        factory.installMappedAbsoluteFeedback (mappingControl,
+            (hasTarget, value) -> this.feedback.accept (mappingId, new ControllerMappingTarget (hasTarget.booleanValue (), value.doubleValue ())));
+        controls.put (mappingId, mappingControl);
     }
 
 
@@ -113,18 +141,27 @@ final class ControllerMappingHost
     private static final class FeedbackState
     {
         private final Map<ControllerMappingId, ControllerMappingTarget> targets = new LinkedHashMap<> ();
-        private volatile ControllerMappingFeedbackSnapshot snapshot = ControllerMappingFeedbackSnapshot.empty ();
+        private ControllerMappingFeedbackSnapshot snapshot = ControllerMappingFeedbackSnapshot.empty ();
+        private boolean dirty;
 
 
         private synchronized void accept (final ControllerMappingId mappingId, final ControllerMappingTarget target)
         {
-            if (!CoreControllerMappings.DRUM_CONTROL_PADS.contains (mappingId))
-                throw new IllegalArgumentException ("controller mapping feedback is not installed");
             if (target.equals (this.targets.get (mappingId)))
                 return;
             this.targets.put (mappingId, target);
-            if (this.targets.size () == CoreControllerMappings.DRUM_CONTROL_PADS.size ())
-                this.snapshot = new ControllerMappingFeedbackSnapshot (true, this.targets);
+            this.dirty = true;
+        }
+
+
+        private synchronized ControllerMappingFeedbackSnapshot snapshot (final ControllerMappingStorageSnapshot storage)
+        {
+            if (this.dirty || !storage.equals (this.snapshot.storage ()))
+            {
+                this.snapshot = new ControllerMappingFeedbackSnapshot (!this.targets.isEmpty (), this.targets, storage);
+                this.dirty = false;
+            }
+            return this.snapshot;
         }
     }
 }

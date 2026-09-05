@@ -42,6 +42,8 @@ import de.mossgrabers.framework.scale.Scales;
 import de.mossgrabers.framework.view.Views;
 import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
+import de.mossgrabers.pull.core.api.ControllerMappingContext;
+import de.mossgrabers.pull.core.api.ControllerMappingId;
 import de.mossgrabers.pull.core.api.CoreControllerMappings;
 import de.mossgrabers.pull.core.api.ControllerNoteView;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
@@ -56,6 +58,7 @@ import de.mossgrabers.pull.core.api.ParameterTargetRef;
 import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.SessionBankShape;
 import de.mossgrabers.pull.core.api.effect.SelectDrumPadEffect;
+import de.mossgrabers.pull.core.api.effect.SetControllerMappingStorageEffect;
 import de.mossgrabers.pull.core.api.effect.ConsumeControllerButtonEffect;
 import de.mossgrabers.pull.core.api.effect.NavigateProjectEffect;
 import de.mossgrabers.pull.core.api.effect.ProjectNavigationDirection;
@@ -72,6 +75,11 @@ import de.mossgrabers.pull.core.api.effect.SetTransportStateEffect;
 import de.mossgrabers.pull.core.api.effect.TransportState;
 
 import org.junit.jupiter.api.Test;
+
+import com.bitwig.extension.callback.StringValueChangedCallback;
+import com.bitwig.extension.controller.api.DocumentState;
+import com.bitwig.extension.controller.api.SettableStringValue;
+import com.bitwig.extension.controller.api.Setting;
 
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
@@ -244,12 +252,72 @@ class BoundedControllerBridgeTest
 
         assertTrue (fixture.bridge.refresh (2, subscriptions (BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK), DesiredParameterBanks.empty ()));
         assertTrue (fixture.bridge.snapshot ().controllerMappingFeedback ().available ());
-        assertEquals (Set.copyOf (CoreControllerMappings.DRUM_CONTROL_PADS), fixture.bridge.snapshot ().controllerMappingFeedback ().targets ().keySet ());
+        final Set<ControllerMappingId> installed = new HashSet<> (CoreControllerMappings.DRUM_CONTROL_PADS);
+        installed.addAll (CoreControllerMappings.TRACK_CONTROL_PADS);
+        assertEquals (installed, fixture.bridge.snapshot ().controllerMappingFeedback ().targets ().keySet ());
         assertTrue (fixture.bridge.snapshot ().controllerMappingFeedback ().targets ().values ().stream ().allMatch (target -> !target.hasTarget () && target.value () == 0.8));
+        assertTrue (fixture.bridge.snapshot ().controllerMappingFeedback ().storage ().available ());
 
         assertTrue (fixture.bridge.refresh (3, DesiredBridgeSubscriptions.empty (), DesiredParameterBanks.empty ()));
         assertFalse (fixture.bridge.snapshot ().controllerMappingFeedback ().available ());
         assertTrue (fixture.bridge.snapshot ().controllerMappingFeedback ().targets ().isEmpty ());
+        assertFalse (fixture.bridge.snapshot ().controllerMappingFeedback ().storage ().available ());
+    }
+
+
+    @Test
+    void mappingStorageApplyRechecksSelectedOwnerAndWaitsForLaterHostObservation ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        final ControllerMappingContext original = fixture.mappingContext ();
+        assertTrue (fixture.bridge.controllerMappingContextMatches (original));
+        assertFalse (fixture.bridge.controllerMappingContextMatches (ControllerMappingContext.empty ()));
+        final ControllerBridge.PreparedAction prepared = fixture.bridge.prepare (new SetControllerMappingStorageEffect (original, "", "owner-a payload"));
+
+        fixture.selected.switchTo (2, "track-b");
+        assertFalse (fixture.bridge.controllerMappingContextMatches (original));
+        fixture.bridge.apply (prepared);
+        assertTrue (fixture.mappingStorage.submitted.isEmpty ());
+
+        final ControllerMappingContext current = fixture.mappingContext ();
+        fixture.bridge.apply (fixture.bridge.prepare (new SetControllerMappingStorageEffect (current, "", "owner-b payload")));
+        assertEquals (List.of ("owner-b payload"), fixture.mappingStorage.submitted);
+        fixture.bridge.refresh (2, subscriptions (BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK), DesiredParameterBanks.empty ());
+        assertEquals ("", fixture.bridge.snapshot ().controllerMappingFeedback ().storage ().value (), "a submission is not persisted readback");
+
+        fixture.mappingStorage.currentValue = "owner-b payload";
+        assertFalse (fixture.bridge.controllerMappingContextMatches (current), "live storage changed before its observer revision arrived");
+        fixture.mappingStorage.deliver ();
+        fixture.bridge.refresh (3, subscriptions (BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK), DesiredParameterBanks.empty ());
+        assertEquals ("owner-b payload", fixture.bridge.snapshot ().controllerMappingFeedback ().storage ().value ());
+        assertFalse (fixture.bridge.controllerMappingContextMatches (current));
+        assertTrue (fixture.bridge.controllerMappingContextMatches (fixture.mappingContext ()));
+    }
+
+
+    @Test
+    void mappingStorageRevisionAndDocumentChangesInvalidatePreparedWrites ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        final ControllerMappingContext initial = fixture.mappingContext ();
+        final ControllerBridge.PreparedAction beforeDelivery = fixture.bridge.prepare (new SetControllerMappingStorageEffect (initial, "", "stale revision"));
+        fixture.mappingStorage.deliver ();
+        assertFalse (fixture.bridge.controllerMappingContextMatches (initial));
+        fixture.bridge.apply (beforeDelivery);
+        assertTrue (fixture.mappingStorage.submitted.isEmpty ());
+
+        final ControllerMappingContext beforeSwitch = fixture.mappingContext ();
+        final ControllerBridge.PreparedAction beforeDocument = fixture.bridge.prepare (new SetControllerMappingStorageEffect (beforeSwitch, "", "stale document"));
+        fixture.mappingStorage.documentId = "document-b";
+        assertFalse (fixture.bridge.controllerMappingContextMatches (beforeSwitch));
+        fixture.bridge.apply (beforeDocument);
+        assertTrue (fixture.mappingStorage.submitted.isEmpty ());
+
+        final ControllerMappingContext current = fixture.mappingContext ();
+        assertEquals ("document-b", current.documentId ());
+        assertTrue (fixture.bridge.controllerMappingContextMatches (current));
+        fixture.bridge.apply (fixture.bridge.prepare (new SetControllerMappingStorageEffect (current, "wrong baseline", "rejected")));
+        assertTrue (fixture.mappingStorage.submitted.isEmpty ());
     }
 
 
@@ -688,12 +756,14 @@ class BoundedControllerBridgeTest
         private final MutableDrum legacyDrum = new MutableDrum (this.selected);
         private final MutableProject project = new MutableProject ();
         private final MutableApplication application = new MutableApplication ();
+        private final MutableMappingStorage mappingStorage = new MutableMappingStorage ();
         private final List<MidiMessage> noteInputMidiMessages = new ArrayList<> ();
         private final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
         private final MutableNoteRepeat noteRepeat;
         private final ManualRepeatConfiguration configuration;
         private final PushControlSurface surface;
         private final BoundedControllerBridge bridge;
+        private final ControllerMappingStorageHost mappingStorageHost;
         private int newClipCount;
         private int masterVuReadCount;
         private boolean failNeutralMidi;
@@ -733,6 +803,8 @@ class BoundedControllerBridgeTest
             final SessionBankShape fullSession = new SessionBankShape (8, 8);
             this.surface.setSessionBankRegistry (new SessionBankRegistry (model, Set.of (fullSession, new SessionBankShape (8, 4)), fullSession));
             this.configuration = (ManualRepeatConfiguration) this.surface.getConfiguration ();
+            this.mappingStorageHost = new ControllerMappingStorageHost (this.mappingStorage.document (), () -> model.getMasterTrack ().getChannelID ());
+            this.mappingStorage.deliver ();
             this.bridge = new BoundedControllerBridge (
                 model,
                 this.selected,
@@ -754,7 +826,14 @@ class BoundedControllerBridgeTest
                         // No test diagnostics.
                     }
                 },
-                new ControllerMappingHost (this.surface));
+                new ControllerMappingHost (this.surface, this.mappingStorageHost));
+        }
+
+
+        private ControllerMappingContext mappingContext ()
+        {
+            final var storage = this.mappingStorageHost.snapshot ();
+            return new ControllerMappingContext (this.selected.getGeneration (), this.selected.getChannelID (), storage.revision (), storage.documentId ());
         }
 
 
@@ -779,6 +858,7 @@ class BoundedControllerBridgeTest
             return proxy (IMasterTrack.class, (proxy, method, arguments) -> switch (method.getName ())
             {
                 case "getName" -> "Master";
+                case "getChannelID" -> this.mappingStorage.documentId;
                 case "getColor" -> ColorEx.GRAY;
                 case "isActivated" -> Boolean.TRUE;
                 case "isSelected", "isRecArm" -> Boolean.FALSE;
@@ -792,6 +872,38 @@ class BoundedControllerBridgeTest
                 }
                 default -> relaxedValue (method.getReturnType ());
             });
+        }
+    }
+
+
+    private static final class MutableMappingStorage
+    {
+        private String documentId = "document-a";
+        private String currentValue = "";
+        private final List<String> submitted = new ArrayList<> ();
+        private StringValueChangedCallback observer;
+
+
+        private DocumentState document ()
+        {
+            final SettableStringValue setting = (SettableStringValue) Proxy.newProxyInstance (SettableStringValue.class.getClassLoader (),
+                new Class<?> [] {SettableStringValue.class, Setting.class}, (proxy, method, arguments) -> {
+                    switch (method.getName ())
+                    {
+                        case "get" -> { return this.currentValue; }
+                        case "set" -> this.submitted.add ((String) arguments[0]);
+                        case "addValueObserver" -> this.observer = (StringValueChangedCallback) arguments[0];
+                        default -> { }
+                    }
+                    return relaxedValue (method.getReturnType ());
+                });
+            return proxy (DocumentState.class, (proxy, method, arguments) -> method.getName ().equals ("getStringSetting") ? setting : relaxedValue (method.getReturnType ()));
+        }
+
+
+        private void deliver ()
+        {
+            this.observer.valueChanged (this.currentValue);
         }
     }
 

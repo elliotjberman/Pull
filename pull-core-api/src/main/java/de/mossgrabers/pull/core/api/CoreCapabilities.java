@@ -76,6 +76,9 @@ public final class CoreCapabilities
     /** Authoritative Bitwig Boolean feedback for bounded semantic controller mappings. */
     public static final String SNAPSHOT_CONTROLLER_MAPPING_FEEDBACK = "snapshot.controller-mapping-feedback";
 
+    /** Compare-and-set access to the installed bounded document storage slot. */
+    public static final String EFFECT_CONTROLLER_MAPPING_STORAGE = "effect.controller-mapping-storage";
+
     /** Authoritative current-project and master-track snapshot. */
     public static final String SNAPSHOT_MASTER = "snapshot.master";
 

@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -47,19 +48,30 @@ class ControllerMappingHostTest
             "CONTROLLER_MAPPING_DRUM_CONTROL_VALUE_1",
             "CONTROLLER_MAPPING_DRUM_CONTROL_VALUE_2",
             "CONTROLLER_MAPPING_DRUM_CONTROL_VALUE_3",
-            "CONTROLLER_MAPPING_DRUM_CONTROL_VALUE_4"), factory.hardwareIDs);
+            "CONTROLLER_MAPPING_DRUM_CONTROL_VALUE_4"), factory.hardwareIDs.subList (0, 4));
         assertEquals (List.of (
             "Drum Controller Toggle 1",
             "Drum Controller Toggle 2",
             "Drum Controller Toggle 3",
-            "Drum Controller Toggle 4"), factory.labels);
-        assertEquals (4, factory.createdControls.size ());
+            "Drum Controller Toggle 4"), factory.labels.subList (0, 4));
+        assertEquals (516, factory.createdControls.size ());
+        assertEquals (516, new LinkedHashSet<> (factory.hardwareIDs).size (), "every permanent endpoint needs its own persisted host identity");
+        for (int bank = 0; bank < CoreControllerMappings.TRACK_BANK_COUNT; bank++)
+            for (int slot = 0; slot < CoreControllerMappings.CONTROLS_PER_TRACK; slot++)
+            {
+                final int index = 4 + bank * CoreControllerMappings.CONTROLS_PER_TRACK + slot;
+                assertEquals ("CONTROLLER_MAPPING_TRACK_" + (bank + 1) + "_CONTROL_VALUE_" + (slot + 1), factory.hardwareIDs.get (index));
+                assertEquals ("Track " + (bank + 1) + " Toggle " + (slot + 1), factory.labels.get (index));
+                assertSame (factory.createdControls.get (index), host.mappingControls ().get (CoreControllerMappings.trackBank (bank).get (slot)));
+            }
         factory.controlHarnesses.forEach (harness -> assertEquals (1, harness.disableTakeOverCalls));
         assertEquals (factory.createdControls, factory.feedbackControls);
         assertEquals (64, physicalHarnesses.size ());
         physicalHarnesses.values ().forEach (harness -> assertEquals (1, harness.unbinds));
         physicalButtons.forEach ( (control, button) -> assertSame (button, host.physicalButtons ().get (control)));
-        assertEquals (Set.copyOf (CoreControllerMappings.DRUM_CONTROL_PADS), host.mappingControls ().keySet ());
+        final Set<ControllerMappingId> installed = new LinkedHashSet<> (CoreControllerMappings.DRUM_CONTROL_PADS);
+        installed.addAll (CoreControllerMappings.TRACK_CONTROL_PADS);
+        assertEquals (installed, host.mappingControls ().keySet ());
         assertFalse (host.snapshot ().available ());
         assertTrue (host.snapshot ().targets ().isEmpty ());
         assertThrows (UnsupportedOperationException.class, host.physicalButtons ()::clear);
@@ -72,7 +84,8 @@ class ControllerMappingHostTest
         factory.feedbackObservers.getFirst ().accept (true, 0.8);
         factory.feedbackObservers.get (1).accept (true, 0.2);
         factory.feedbackObservers.get (2).accept (false, 0.8);
-        assertFalse (host.snapshot ().available (), "partial endpoint readback must remain unavailable");
+        assertTrue (host.snapshot ().available (), "ready endpoints must not wait for every unrelated bank");
+        assertFalse (host.snapshot ().supports (CoreControllerMappings.DRUM_CONTROL_PADS.get (3)));
         factory.feedbackObservers.get (3).accept (false, 0.0);
         assertTrue (beforeUpdate.targets ().isEmpty ());
         assertFalse (beforeUpdate.available ());
@@ -90,6 +103,23 @@ class ControllerMappingHostTest
         factory.feedbackObservers.getFirst ().accept (false, 0.8);
         assertEquals (new ControllerMappingTarget (false, 0.8), host.snapshot ().targets ().get (firstMapping));
 
+    }
+
+
+    @Test
+    void publishesOnlyObservedEndpointsWithoutWaitingForOtherTrackBanks ()
+    {
+        final FactoryHarness factory = new FactoryHarness ();
+        final Map<ControlId, IHwButton> physical = new LinkedHashMap<> ();
+        physicalHarnesses ().forEach ((control, harness) -> physical.put (control, harness.button));
+        final ControllerMappingHost host = new ControllerMappingHost (factory.factory (), 0, physical);
+        final int bank = CoreControllerMappings.TRACK_BANK_COUNT - 1;
+        for (int slot = 0; slot < CoreControllerMappings.CONTROLS_PER_TRACK; slot++)
+            factory.feedbackObservers.get (4 + bank * CoreControllerMappings.CONTROLS_PER_TRACK + slot).accept (false, 0.0);
+
+        assertEquals (Set.copyOf (CoreControllerMappings.trackBank (bank)), host.snapshot ().targets ().keySet ());
+        assertFalse (host.snapshot ().supports (CoreControllerMappings.trackBank (0).getFirst ()));
+        CoreControllerMappings.trackBank (bank).forEach (mapping -> assertEquals (new ControllerMappingTarget (false, 0), host.snapshot ().targets ().get (mapping)));
     }
 
 

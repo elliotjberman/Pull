@@ -5,13 +5,14 @@ scope: track-scoped-native-controller-mapping
 remove_when: bounded per-track native mapping allocation and document lifecycle are proven and their contract is recorded in permanent architecture documentation
 ---
 
-# Track-Scoped MIDI Learn Lifecycle Needs Host Proof
+# Track-Scoped MIDI Learn V1 Lifecycle TODOs
 
 ## Observation
 
-A bounded pool of permanent native Bitwig mapping endpoints could give each track its own four
-Drum Controller toggles. The existing four shared endpoints remain unchanged. This investigation
-supports further host probes; it does not yet establish a safe complete per-track lifecycle.
+The user explicitly accepted a bounded per-track V1 with the general lifecycle work left as TODOs.
+API 44 implements that scope with 128 banks of four permanent native endpoints; the original four
+shared endpoints remain constructed but inert. This acceptance does not establish the unverified
+host contracts below or remove the need for an exact-build physical learning smoke test.
 
 On 2026-09-05, the scratch identity probe held live lease `pr37-track-identity-probe` against PR #37
 commit `748c0df241791d93a0500df81007fa2f22bcd723`, with recorded active core build
@@ -39,9 +40,11 @@ learned mappings, and a persistent allocation registry were not verified.
   inactive source endpoint, still needs a direct native-mapping probe.
 - Hidden string storage through `DocumentState` offers no documented atomic-write or undo contract,
   nor document-addressed compare-and-set. Registry behavior under undo/redo and project switching
-  needs an experiment before it can protect permanent endpoint ownership.
-- `ProjectImpl` currently combines root-channel UUID and project name. Its uniqueness across
-  same-name project copies is unproven; it is not yet a durable registry ownership guarantee.
+  still needs host experiments. V1 gates matching on later storage read-back rather than treating
+  submission as persistence.
+- `ProjectImpl` combines root-channel UUID and project name. V1 instead embeds the observed
+  document master UUID in its registry, but uniqueness across copies remains unproven. A stronger
+  document ownership contract is still a TODO.
 - A native learned action executes in Bitwig's matcher path, outside Pull's effect executor. There
   is no installed apply-time selection check on that path. A design may acknowledge context
   propagation latency, but must not promise a strict instantaneous selection fence.
@@ -49,31 +52,37 @@ learned mappings, and a persistent allocation registry were not verified.
 These are contract gaps and untested behaviors. No duplicate-mapping, undo-registry, or
 cross-project ownership failure was observed in this probe.
 
-## Proposed Bounded Model
+## Accepted Bounded V1
 
-Investigate an eagerly created endpoint pool with an append-only, document-persisted allocation
-from track UUID to one four-endpoint bank. Core owns allocation policy and the active bank lease;
-stable owns bounded resources, owner storage, authoritative observations, and matcher handoff.
+Use an eagerly created endpoint pool with an append-only, document-persisted allocation
+from track UUID to one four-endpoint bank, up to 128 historical allocations per document. Core owns
+allocation policy and the active bank lease; stable owns bounded resources, owner storage,
+authoritative observations, and matcher handoff.
 Deleted tracks retain tombstones so undo can recover their original allocation. A newly duplicated
 track receives a fresh bank. Never recycle a tombstoned bank onto another track while its native
 learned bindings cannot be inspected or cleared safely. Capacity therefore counts historically
 allocated tracks, not merely current tracks; exhaustion must fail closed with a clear diagnostic.
 
-This is a proposal, not implemented persistence. Prove how duplicate bindings interact with the
-fresh bank and how registry writes survive undo, reopening, and document changes before adopting it.
+Core parses the raw hidden DocumentState payload containing document master UUID and track UUIDs.
+Matching waits for observed storage acknowledgement; leases fence the document, selected-track
+UUID/generation, and storage revision. Corrupt storage or exhausted capacity leaves the four pads
+amber and inert. This mechanism does not enumerate or validate Bitwig's native learned targets.
+TODO: prove duplicate native-binding behavior, registry undo/project boundaries, safe clearing and
+recycling, and stronger document identity before claiming a general lifecycle solution.
 
 ## Capability Audit And Next Probes
 
 Existing PAD29–32/PAD input, all modifier/release variants, RGB ownership, raw target feedback,
 and matcher lifecycle remain the baseline. No new pad gesture or target-write effect is needed.
-Missing capabilities are a bounded per-track endpoint inventory, durable document-scoped owner
-read-back/storage, and validated bank activation. Allocation state must survive reload and reopen;
-core retains policy while the parent owns the persistence and endpoint mechanisms.
+The V1 expansion adds a bounded per-track endpoint inventory, raw document owner/storage
+read-back and writes, and fenced bank activation. Allocation state is document-persisted; core
+retains policy while the parent owns the persistence and endpoint mechanisms.
 
-This is Class C / not ready until the lifecycle probes settle those contracts. A subsequent bounded
-canopy expansion would require an API/shell install and Bitwig restart. Keep PR #37's tested shared
-endpoint behavior while investigating actual mapping duplication; registry undo/redo and delayed
-writes across project tabs/copies; capacity exhaustion; and reorder/group movement.
+This accepted V1 is a Class B bounded canopy expansion requiring API/shell installation and a
+Bitwig restart. It supersedes the earlier recommendation to defer all per-track behavior. Full
+native lifecycle support remains pending the probes above. Offline coverage and live verification
+for the final API 44 build must be reported separately; the earlier identity probe is not proof of
+the new registry or native mappings. See `../../TESTING.md` for the required smoke sequence.
 
 ## Removal Criteria
 

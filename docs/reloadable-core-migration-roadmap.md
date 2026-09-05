@@ -43,11 +43,12 @@ In the current baseline:
   standalone Drum page and VS Live; lights follow target-aligned drum-window playing-velocity
   read-back, and the old shell observers/fade policy are deleted;
 - four Bitwig-manually-mappable control pads, their replayable physical-to-semantic leases, and
-  their authoritative mapped-state toggle and red/off policy are core-owned; API 43 publishes raw
-  target presence and normalized values, leaving the midpoint decision in core. Four permanent
-  semantic absolute-control identities own Bitwig learning and target feedback, while all 64
-  original physical PAD actions remain raw ordinary-dispatch objects and never define learned
-  mapping identity;
+  their authoritative mapped-state toggle and red/off policy are core-owned. API 44 adds 128
+  permanent four-endpoint banks with core-owned append-only per-track allocation and observed
+  document-storage acknowledgement before matching. Target presence/value remains raw; core owns
+  the midpoint and failure indication. Original PAD actions remain ordinary-dispatch-only, and
+  the four old shared endpoints are inert. General lifecycle TODOs remain in
+  `findings/track-scoped-midi-learn-lifecycle.md`;
 - Record, Shift+Record, and Select+Record are core-owned;
 - VS Live selection and fixed-facet composition are core-owned;
 - VS Live page changes are admitted from semantic stable-command actions, not inferred from raw

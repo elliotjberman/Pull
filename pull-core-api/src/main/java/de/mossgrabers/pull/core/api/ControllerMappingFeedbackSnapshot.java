@@ -8,18 +8,26 @@ import java.util.Objects;
 
 
 /** Authoritative Bitwig target facts keyed by permanent semantic mapping endpoint. */
-public record ControllerMappingFeedbackSnapshot (boolean available, Map<ControllerMappingId, ControllerMappingTarget> targets)
+public record ControllerMappingFeedbackSnapshot (boolean available, Map<ControllerMappingId, ControllerMappingTarget> targets, ControllerMappingStorageSnapshot storage)
 {
     /** Maximum feedback endpoints accepted across the parent-loaded API. */
-    public static final int CAPACITY = DesiredControllerMappings.CAPACITY;
+    public static final int CAPACITY = CoreControllerMappings.TRACK_CONTROL_PADS.size () + CoreControllerMappings.DRUM_CONTROL_PADS.size ();
 
     private static final ControllerMappingFeedbackSnapshot EMPTY = new ControllerMappingFeedbackSnapshot (false, Map.of ());
+
+
+    /** Create target feedback without an observed document storage slot. */
+    public ControllerMappingFeedbackSnapshot (final boolean available, final Map<ControllerMappingId, ControllerMappingTarget> targets)
+    {
+        this (available, targets, ControllerMappingStorageSnapshot.empty ());
+    }
 
 
     /** Validate and copy one complete bounded snapshot. */
     public ControllerMappingFeedbackSnapshot
     {
         targets = Map.copyOf (Objects.requireNonNull (targets, "targets"));
+        storage = Objects.requireNonNull (storage, "storage");
         if (targets.size () > CAPACITY)
             throw new IllegalArgumentException ("controller mapping feedback exceeds the installed API capacity");
         if (!available && !targets.isEmpty ())
