@@ -13,7 +13,6 @@ import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.ConsumeControllerButtonEffect;
 import de.mossgrabers.pull.core.api.effect.ResetAutomationOverridesEffect;
-import de.mossgrabers.pull.core.api.effect.SelectControllerModeEffect;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
@@ -42,7 +41,6 @@ public final class AutomationControlView implements ControllerView
         new SurfaceClaim (SurfaceArea.SHIFT_MODIFIER, SurfaceClaim.Kind.OBSERVE_INPUT),
         new SurfaceClaim (SurfaceArea.DELETE_MODIFIER, SurfaceClaim.Kind.OBSERVE_INPUT)), Set.of ());
     private final AutomationControlState state;
-    private static final long ACKNOWLEDGEMENT_TIMEOUT_NANOS = 5_000_000_000L;
     private static final Set<ControllerActionBinding> ACTIONS = Set.of (new ControllerActionBinding (BUTTON, InputKind.BUTTON,
         ControllerActionId.SWITCH_PARAMETER_CONTEXT, Set.of (ControllerStateScope.ACTIVE_PARAMETERS)));
     private final DeferredButtonAdmission admission = new DeferredButtonAdmission ();
@@ -50,32 +48,27 @@ public final class AutomationControlView implements ControllerView
     private Gesture held;
     private ControllerSnapshot latest;
     private boolean restoreOnRelease;
-    private PageEntry lastEntry;
+    private final ControllerPageTransitions pages;
+    private ControllerPageTransitions.Request lastEntry;
 
     public AutomationControlView () { this (new AutomationControlState ()); }
-    AutomationControlView (final AutomationControlState state) { this.state = java.util.Objects.requireNonNull (state, "state"); }
+    AutomationControlView (final AutomationControlState state) { this (state, new ControllerPageTransitions ()); }
+    AutomationControlView (final AutomationControlState state, final ControllerPageTransitions pages)
+    {
+        this.state = java.util.Objects.requireNonNull (state, "state");
+        this.pages = java.util.Objects.requireNonNull (pages, "pages");
+    }
     @Override public String id () { return "automation-control"; }
     @Override public ViewProfile profile () { return PROFILE; }
     @Override public Set<ControllerActionBinding> actionBindings () { return ACTIONS; }
     @Override public void start (final ControllerSnapshot snapshot) { this.deactivate (); this.latest = snapshot; }
-    @Override public void deactivate () { this.admission.clear (); this.pending.clear (); this.held = null; this.restoreOnRelease = false; this.lastEntry = null; }
+    @Override public void deactivate () { this.pending.forEach (gesture -> this.pages.cancel (gesture.page)); this.pages.cancel (this.lastEntry); this.admission.clear (); this.pending.clear (); this.held = null; this.restoreOnRelease = false; this.lastEntry = null; }
 
     @Override
     public void reconcile (final ControllerSnapshot snapshot)
     {
         this.latest = snapshot;
-        this.observeEntry (this.lastEntry, snapshot);
-        for (final Gesture gesture: this.pending) this.observeEntry (gesture.entry, snapshot);
-    }
-
-    private void observeEntry (final PageEntry entry, final ControllerSnapshot snapshot)
-    {
-        if (entry == null || !entry.submitted || entry.abandoned || entry.observed) return;
-        final var layout = snapshot.bridge ().layout ();
-        if (snapshot.revision () > entry.submittedRevision && "AUTOMATION".equals (layout.modeId ()) && layout.temporaryMode ())
-            entry.observed = true;
-        else if (snapshot.monotonicTimeNanos () - entry.submittedAt >= ACKNOWLEDGEMENT_TIMEOUT_NANOS)
-            entry.abandoned = true;
+        this.pages.observe (snapshot);
     }
 
     @Override
@@ -83,7 +76,8 @@ public final class AutomationControlView implements ControllerView
     {
         final boolean deleting = snapshot.pressedControls ().contains (DELETE);
         if (!deleting) this.restoreOnRelease = false;
-        final Gesture gesture = new Gesture (this.admission.begin (), this.restoreOnRelease, deleting ? this.lastEntry : null);
+        final Gesture gesture = new Gesture (this.admission.begin (), this.restoreOnRelease, deleting && this.restoreOnRelease ? this.pages.adopt (this.lastEntry) : null);
+        if (gesture.page != null) this.lastEntry = gesture.page;
         if (deleting && snapshot.bridge ().automation ().available ())
             gesture.reset = new ResetAutomationOverridesEffect (snapshot.bridge ().automation ().projectIdentity ());
         this.pending.add (gesture);
@@ -93,7 +87,7 @@ public final class AutomationControlView implements ControllerView
         return deleting ? action.withImmediateConsumption (DELETE) : action;
     }
     @Override public Set<BridgeSubscription> bridgeSubscriptions () { return Set.of (BridgeSubscription.AUTOMATION, BridgeSubscription.CONTROLLER_LAYOUT); }
-    @Override public CoreExecutionRequirements executionRequirements () { return new CoreExecutionRequirements (this.state.pending () || this.pending.stream ().anyMatch (gesture -> gesture.entry != null || gesture.ended)); }
+    @Override public CoreExecutionRequirements executionRequirements () { return new CoreExecutionRequirements (this.state.pending () || this.pages.pending ()); }
 
     @Override
     public List<CoreEffect> handle (final CoreEvent event, final ControllerSnapshot snapshot)
@@ -109,8 +103,8 @@ public final class AutomationControlView implements ControllerView
             {
                 this.restoreOnRelease = true;
                 gesture.restoreOnRelease = true;
-                gesture.entry = new PageEntry (new SelectControllerModeEffect (snapshot.bridge ().layout ().generation (), "AUTOMATION", SelectControllerModeEffect.Operation.TEMPORARY));
-                this.lastEntry = gesture.entry;
+                gesture.page = this.pages.temporary (snapshot.bridge ().layout (), "AUTOMATION");
+                this.lastEntry = gesture.page;
             }
             else if (input.phase () == InputPhase.END)
             {
@@ -132,26 +126,13 @@ public final class AutomationControlView implements ControllerView
         final List<CoreEffect> effects = new ArrayList<> ();
         if (gesture.reset != null)
         {
-            effects.add (gesture.reset);
+            if (gesture.reset.projectIdentity ().equals (snapshot.bridge ().automation ().projectIdentity ())) effects.add (gesture.reset);
             gesture.reset = null;
         }
-        final PageEntry entry = gesture.entry;
-        if (entry != null && !entry.submitted)
-        {
-            entry.submitted = true;
-            // Timestamp submission at admission, not the earlier physical LONG or END.
-            entry.submittedRevision = snapshot.revision ();
-            entry.submittedAt = snapshot.monotonicTimeNanos ();
-            effects.add (entry.effect);
-            return List.copyOf (effects);
-        }
-        if (!gesture.ended) return List.copyOf (effects);
-        if (!gesture.releaseSuppressed && gesture.restoreOnRelease && (entry == null || !entry.abandoned))
-        {
-            if (entry != null && !entry.observed) return List.copyOf (effects);
-            effects.add (SelectControllerModeEffect.restore (snapshot.bridge ().layout ().generation ()));
-        }
-        else if (!gesture.releaseSuppressed && !gesture.toggleProject.isEmpty () && gesture.toggleProject.equals (snapshot.bridge ().automation ().projectIdentity ()))
+        if (gesture.ended && gesture.restoreOnRelease) this.pages.release (gesture.page, !gesture.releaseSuppressed);
+        effects.addAll (this.pages.advance (gesture.page, snapshot));
+        if (!gesture.ended || !this.pages.complete (gesture.page)) return List.copyOf (effects);
+        if (!gesture.releaseSuppressed && !gesture.restoreOnRelease && !gesture.toggleProject.isEmpty () && gesture.toggleProject.equals (snapshot.bridge ().automation ().projectIdentity ()))
         {
             this.state.toggle (snapshot);
             effects.addAll (this.state.advance (snapshot));
@@ -167,27 +148,15 @@ public final class AutomationControlView implements ControllerView
         private boolean restoreOnRelease;
         private boolean ended;
         private boolean releaseSuppressed;
-        private PageEntry entry;
+        private ControllerPageTransitions.Request page;
         private ResetAutomationOverridesEffect reset;
         private String toggleProject = "";
-        private Gesture (final DeferredButtonAdmission.Ticket ticket, final boolean restoreOnRelease, final PageEntry entry)
+        private Gesture (final DeferredButtonAdmission.Ticket ticket, final boolean restoreOnRelease, final ControllerPageTransitions.Request page)
         {
             this.ticket = ticket;
             this.restoreOnRelease = restoreOnRelease;
-            this.entry = entry;
+            this.page = page;
         }
-    }
-
-    /** Delete-BEGIN preserves the prior long-press return flag and its still-pending entry. */
-    private static final class PageEntry
-    {
-        private final SelectControllerModeEffect effect;
-        private boolean submitted;
-        private boolean observed;
-        private boolean abandoned;
-        private long submittedRevision;
-        private long submittedAt;
-        private PageEntry (final SelectControllerModeEffect effect) { this.effect = effect; }
     }
 
     @Override

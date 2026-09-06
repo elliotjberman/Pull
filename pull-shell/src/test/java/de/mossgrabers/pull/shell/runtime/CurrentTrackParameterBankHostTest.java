@@ -57,9 +57,11 @@ class CurrentTrackParameterBankHostTest
         // Both windows expose the same exact track, but ordinary writes still require the current window.
         fixture.current.set (fixture.otherBank);
         assertThrows (IllegalStateException.class, () -> fixture.host.apply (prepared));
+        // Production refreshes before the core can reconcile and release its old desired touch.
+        fixture.host.refresh (BANKS);
+        assertEquals (List.of ("touch:true", "touch:false"), fixture.tracks[0].pan.events);
         fixture.host.releaseTouches ();
         assertEquals (List.of ("touch:true", "touch:false"), fixture.tracks[0].pan.events);
-        fixture.host.refresh (BANKS);
         assertNotEquals (target, fixture.target (ParameterSlot.trackPan (0)));
     }
 
@@ -73,9 +75,9 @@ class CurrentTrackParameterBankHostTest
         fixture.host.acquireTouches (fixture.host.prepareTouches (new DesiredParameterTouches (Map.of (OWNER, target)), BANKS));
         fixture.tracks[0].channel = "replacement";
         assertThrows (IllegalStateException.class, () -> fixture.host.apply (prepared));
+        fixture.host.refresh (BANKS);
         fixture.host.releaseTouches ();
         assertEquals (List.of ("touch:true"), fixture.tracks[0].volume.events);
-        fixture.host.refresh (BANKS);
         assertNotEquals (target, fixture.target (ParameterSlot.trackVolume (0)));
     }
 

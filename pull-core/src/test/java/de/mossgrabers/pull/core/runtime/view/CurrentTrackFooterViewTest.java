@@ -131,6 +131,22 @@ class CurrentTrackFooterViewTest
     }
 
     @Test
+    void deferredDeviceEntryRequiresTheCompleteOriginalLayout ()
+    {
+        for (final boolean hiddenChange: List.of (false, true))
+        {
+            final Fixture f = new Fixture ();
+            f.selected = true;
+            f.begin (true);
+            assertTrue (f.edge (InputPhase.END).isEmpty ());
+            f.layout = new ControllerLayoutSnapshot (hiddenChange ? 4 : 5, "PLAY", "TRACK", false, false, 36, GridPressureConfiguration.OFF, DesiredNoteInputTranslation.unowned (), "TRACK", hiddenChange ? "VOLUME" : "", false);
+            assertTrue (f.dispatch ().isEmpty ());
+            f.begin (false);
+            assertEquals (List.of (new SelectControllerModeEffect (f.layout.generation (), "DEVICE_PARAMS")), f.edge (InputPhase.END));
+        }
+    }
+
+    @Test
     void longNavigatesParentOnceAndSuppressesReleaseWithOrWithoutAvailableParent ()
     {
         for (final boolean available: List.of (true, false))
@@ -292,6 +308,7 @@ class CurrentTrackFooterViewTest
         boolean pinned;
         boolean parent;
         ResolvedControllerAction deferred;
+        ControllerLayoutSnapshot layout = new ControllerLayoutSnapshot (4, "PLAY", "TRACK", false, false, 36, GridPressureConfiguration.OFF);
 
         Fixture () { this (false); }
         Fixture (final boolean sessionView)
@@ -340,8 +357,7 @@ class CurrentTrackFooterViewTest
             }
             final var bank = new CurrentTrackBankSnapshot (this.bankGeneration, "bank-a", 0, tracks, this.cursor, this.pinned, 8, this.parent);
             final var empty = ControllerBridgeSnapshot.empty ();
-            final var layout = new ControllerLayoutSnapshot (4, "PLAY", "TRACK", false, false, 36, GridPressureConfiguration.OFF);
-            final var bridge = new ControllerBridgeSnapshot (empty.transport (), empty.selectedTrack (), this.session, layout, empty.noteView (), empty.noteRepeat (), empty.drum (), empty.parameters (), empty.controllerMappingFeedback (), empty.master (), empty.project (), empty.automation (), empty.encoderConfiguration (), bank);
+            final var bridge = new ControllerBridgeSnapshot (empty.transport (), empty.selectedTrack (), this.session, this.layout, empty.noteView (), empty.noteRepeat (), empty.drum (), empty.parameters (), empty.controllerMappingFeedback (), empty.master (), empty.project (), empty.automation (), empty.encoderConfiguration (), bank);
             return new ControllerSnapshot (this.sequence, this.sequence, new ShellCapabilities (Map.of ()), bridge, ClipCatalogSnapshot.empty (), Map.of (), Map.of (), Optional.empty (), this.pressed, Set.of ());
         }
     }

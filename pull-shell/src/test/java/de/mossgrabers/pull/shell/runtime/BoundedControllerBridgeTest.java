@@ -1065,6 +1065,118 @@ class BoundedControllerBridgeTest
     }
 
 
+    @Test
+    void realCoreCancelsStaleDeferredPagesBeforeTheProductionBridgeCanQuarantineIt () throws Exception
+    {
+        for (final String gesture: List.of ("MASTERTRACK:LONG", "MASTERTRACK:SHORT", "ACCENT:LONG", "AUTOMATION:LONG", "METRONOME:LONG", "METRONOME:SHORT"))
+        {
+            final BridgeFixture fixture = new BridgeFixture ();
+            for (final Modes mode: List.of (Modes.TRACK, Modes.MASTER, Modes.DEVICE_PARAMS, Modes.FRAME, Modes.ACCENT, Modes.AUTOMATION, Modes.TRANSPORT))
+                fixture.surface.getModeManager ().register (mode, relaxedProxy (IMode.class));
+            fixture.surface.getViewManager ().register (Views.PLAY, relaxedProxy (IView.class));
+            fixture.surface.getViewManager ().setActive (Views.PLAY);
+            fixture.surface.getModeManager ().setActive (Modes.TRACK);
+            if (gesture.equals ("METRONOME:SHORT")) fixture.surface.getModeManager ().setTemporary (Modes.TRANSPORT);
+            final java.nio.file.Path classes = java.nio.file.Path.of ("../pull-core/target/classes").toAbsolutePath ().normalize ();
+            assertTrue (java.nio.file.Files.isDirectory (classes), "the reactor must compile the real core before this boundary test");
+            try (final java.net.URLClassLoader loader = new java.net.URLClassLoader (new java.net.URL[] {classes.toUri ().toURL ()}, getClass ().getClassLoader ()))
+            {
+                final var provider = (de.mossgrabers.pull.core.api.CoreProvider) loader.loadClass ("de.mossgrabers.pull.core.runtime.PullCoreProvider").getConstructor ().newInstance ();
+                final ModeBoundaryEnvironment environment = new ModeBoundaryEnvironment (fixture, provider.descriptor ().requiredCapabilities ());
+                final List<String> warnings = new ArrayList<> ();
+                final RuntimeManager manager = new RuntimeManager (environment, new RuntimeLog () {
+                    @Override public void info (final String message) { }
+                    @Override public void warn (final String message) { warnings.add (message); }
+                });
+                final CoreProviderSource source = new CoreProviderSource () {
+                    @Override public de.mossgrabers.pull.core.api.CoreProvider instantiateProvider () { return provider; }
+                    @Override public <T> T invokeWithContext (final java.util.function.Supplier<T> operation) { return operation.get (); }
+                    @Override public void close () { }
+                };
+                manager.start ();
+                final var activation = manager.activate (provider.descriptor ().buildId (), source, () -> true);
+                assertEquals (ActivationResult.State.ACTIVE, activation.state (), activation.message ());
+                environment.edge (manager, "SHIFT", de.mossgrabers.pull.core.api.event.InputPhase.BEGIN);
+                manager.handle (1, new de.mossgrabers.pull.core.api.event.ParameterMutationEvent (++environment.sequence, environment.sequence, PushControlIds.continuous ("TEMPO"), environment.parameter ()));
+                environment.tempo = 126;
+                environment.edge (manager, "SHIFT", de.mossgrabers.pull.core.api.event.InputPhase.END);
+                final String button = gesture.substring (0, gesture.indexOf (':'));
+                environment.edge (manager, button, de.mossgrabers.pull.core.api.event.InputPhase.BEGIN);
+                assertEquals (1, environment.latest.desiredParameterInteraction ().pendingActionCount (), gesture);
+                if (gesture.endsWith ("LONG")) environment.edge (manager, button, de.mossgrabers.pull.core.api.event.InputPhase.LONG);
+                environment.edge (manager, button, de.mossgrabers.pull.core.api.event.InputPhase.END);
+                fixture.surface.getModeManager ().setActive (Modes.DEVICE_PARAMS);
+                environment.tick (manager);
+                environment.tick (manager);
+                assertTrue (environment.requests.stream ().anyMatch (SetParameterValueEffect.class::isInstance));
+                environment.tempo = 120; // Later authoritative restoration, independent of the submitted write.
+                environment.tick (manager);
+                environment.tick (manager);
+                assertEquals (0, environment.latest.desiredParameterInteraction ().pendingActionCount (), gesture);
+                assertTrue (environment.requests.stream ().noneMatch (SelectControllerModeEffect.class::isInstance), gesture);
+                assertEquals (Modes.DEVICE_PARAMS, fixture.surface.getModeManager ().getActiveID ());
+                assertFalse (environment.quarantined, warnings.toString ());
+                assertEquals (1, manager.activeGeneration ());
+                // A fresh routed action still prepares/applies through the real bounded bridge.
+                environment.edge (manager, "MASTERTRACK", de.mossgrabers.pull.core.api.event.InputPhase.BEGIN);
+                environment.edge (manager, "MASTERTRACK", de.mossgrabers.pull.core.api.event.InputPhase.END);
+                assertEquals (Modes.MASTER, fixture.surface.getModeManager ().getActiveID ());
+                assertFalse (environment.quarantined, warnings.toString ());
+                manager.close ();
+            }
+        }
+    }
+
+
+    /** Only tempo advancement is manual; mode validation/actuation and runtime quarantine are production code. */
+    private static final class ModeBoundaryEnvironment implements CoreRuntimeEnvironment
+    {
+        private final BridgeFixture fixture;
+        private final de.mossgrabers.pull.core.api.ShellCapabilities capabilities;
+        private final Set<de.mossgrabers.pull.core.api.ControlId> pressed = new HashSet<> ();
+        private final List<de.mossgrabers.pull.core.api.effect.CoreEffect> requests = new ArrayList<> ();
+        private final ParameterTargetRef target = new ParameterTargetRef (de.mossgrabers.pull.core.api.ParameterTargetKind.LIVE, "tempo-test", 1);
+        private long sequence;
+        private long revision;
+        private double tempo = 120;
+        private boolean quarantined;
+        private de.mossgrabers.pull.core.api.CoreResult latest = de.mossgrabers.pull.core.api.CoreResult.empty ();
+        private ModeBoundaryPrepared prepared;
+        private ModeBoundaryEnvironment (final BridgeFixture fixture, final de.mossgrabers.pull.core.api.ShellCapabilities capabilities) { this.fixture = fixture; this.capabilities = capabilities; }
+        private de.mossgrabers.pull.core.api.ParameterTargetSnapshot parameter () { return new de.mossgrabers.pull.core.api.ParameterTargetSnapshot (this.target, "Tempo", this.tempo, this.tempo, "BPM", -1, 0); }
+        @Override public de.mossgrabers.pull.core.api.ControllerSnapshot snapshot ()
+        {
+            this.fixture.bridge.refresh (++this.revision, subscriptions (BridgeSubscription.CONTROLLER_LAYOUT), DesiredParameterBanks.empty ());
+            final var base = this.fixture.bridge.snapshot ();
+            final var bridge = new ControllerBridgeSnapshot (base.transport (), base.selectedTrack (), base.sessionBank (), base.layout (), base.noteView (), base.noteRepeat (), base.drum (),
+                new de.mossgrabers.pull.core.api.ParameterBridgeSnapshot (Map.of (ParameterSlot.TEMPO, this.parameter ()), Map.of ()), base.controllerMappingFeedback (), base.master (), base.project ());
+            return new de.mossgrabers.pull.core.api.ControllerSnapshot (this.revision, this.revision, this.capabilities, bridge, de.mossgrabers.pull.core.api.ClipCatalogSnapshot.empty (), Map.of (), Map.of (), java.util.Optional.empty (), this.pressed, Set.of ());
+        }
+        @Override public PreparedCoreResult prepare (final de.mossgrabers.pull.core.api.CoreResult result)
+        {
+            final List<ControllerBridge.PreparedAction> actions = new ArrayList<> ();
+            for (final var effect: result.effects ())
+                if (effect instanceof SelectControllerModeEffect) actions.add (this.fixture.bridge.prepare (effect));
+            return new ModeBoundaryPrepared (result, actions);
+        }
+        @Override public void commit (final long generation, final PreparedCoreResult result) { this.prepared = (ModeBoundaryPrepared) result; this.latest = this.prepared.result (); }
+        @Override public void apply (final long generation) { this.requests.addAll (this.prepared.result ().effects ()); this.prepared.actions ().forEach (this.fixture.bridge::apply); }
+        @Override public void invalidate (final long generation) { }
+        @Override public void quarantine (final long generation) { this.quarantined = true; }
+        private void edge (final RuntimeManager manager, final String button, final de.mossgrabers.pull.core.api.event.InputPhase phase)
+        {
+            final var control = PushControlIds.button (button);
+            if (phase == de.mossgrabers.pull.core.api.event.InputPhase.BEGIN) this.pressed.add (control);
+            if (phase == de.mossgrabers.pull.core.api.event.InputPhase.END) this.pressed.remove (control);
+            assertTrue (manager.handle (1, new de.mossgrabers.pull.core.api.event.ControllerInputEvent (++this.sequence, this.sequence, control, de.mossgrabers.pull.core.api.event.InputKind.BUTTON, phase, phase == de.mossgrabers.pull.core.api.event.InputPhase.END ? 0 : 127)));
+        }
+        private void tick (final RuntimeManager manager) { assertTrue (manager.handle (1, new de.mossgrabers.pull.core.api.event.ControllerTickEvent (++this.sequence, this.sequence))); }
+    }
+
+
+    private record ModeBoundaryPrepared (de.mossgrabers.pull.core.api.CoreResult result, List<ControllerBridge.PreparedAction> actions) implements PreparedCoreResult { }
+
+
     private static final class BridgeFixture
     {
         private final MutableSelectedTarget selected = new MutableSelectedTarget ();

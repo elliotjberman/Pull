@@ -4,7 +4,7 @@ Status: working implementation through Core API 45, checkpoint schema 5. The mig
 Project/Master/Track touches, Drum octave/native mapping, raw touch strip, normal/VS Track pages,
 Volume/Pan/Send, core page composition and arrows, Track/Mix, Metronome/Automation, Frame/Master entry,
 Accent, Tap Tempo, and Undo/Redo. The expanded deprecation-enabled package passed 823 tests on
-2026-09-05 (385 core, 11 publication, 427 shell); independent finishing review is in progress. No live
+2026-09-05 (385 core, 11 publication, 427 shell); independent finishing review found bounded lifecycle defects now being corrected. No live
 installation or smoke test has run for this worktree. This is not the complete migration; remaining
 families and the Session release-contract decision are tracked in
 [`docs/migrations/core-migration-plan.md`](docs/migrations/core-migration-plan.md).
@@ -118,8 +118,8 @@ pad geometry is not yet a core-authored view capability.
 ### Parameter banks, effects, and snapback
 
 Core API 45 exposes named, view-independent banks for the inherited active encoder window, project
-remotes, the selected-device remote page, selected-track volume/pan and sends, visible-track volume
-and pan, project-scoped Master/Cue controls, and fixed globals. A bank
+remotes, the selected-device remote page, selected-track volume/pan and sends, visible-track volume,
+pan and eight send columns, project-scoped Master/Cue controls, and fixed globals. A bank
 declaration is latent configuration; stable samples and publishes only the declared banks while
 core requests the `PARAMETERS` subscription. Each slot publishes opaque target identity/generation,
 name, raw and modulated values, authoritative displayed value, step count, read-back tolerance,
@@ -136,17 +136,19 @@ parameter canopy.
 | --- | --- | --- |
 | `ACTIVE` | 8 slots bound by the current inherited stable mode | Stable binding generation plus resolved live domain/owner/page/role; compatibility only. |
 | `PROJECT_REMOTE` | 8 project remote controls on the current page | Project owner, remote page, slot, and parameter name. |
-| `SELECTED_DEVICE_REMOTE` | 8 controls on the current selected-device page | Device ID, remote page, slot, and parameter name. |
+| `SELECTED_DEVICE_REMOTE` | 8 controls on the current selected-device page | Requires a nonblank device ID, remote page, slot and parameter name. Production cursor IDs are currently blank, so these targets are excluded; see the Device capability audit. |
 | `SELECTED_TRACK` / `SELECTED_TRACK_SENDS` | Selected-track volume/pan and eight sends | Private selected target aligned with the rendering model cursor/current bank; live owner, page, slot, and role. |
 | `TRACK_VOLUME` / `TRACK_PAN` | 8 current main/effect-bank tracks per bank | Current bank identity, slot, stable channel ID, and parameter role; exact retained addressability is separate from current-window eligibility. |
+| `TRACK_SEND1`–`TRACK_SEND8` | Eight sends across eight current main/effect-bank tracks, sampled by requested column | Exact bank/track owner, absolute send position and project; rendering rejects mismatched owners. |
 | `MASTER` | Master volume/pan and project cue volume/mix | Current project identity plus exact current parameter proxy; a project-tab change creates a new target generation. |
 | `GLOBAL` | Tempo, master volume, and metronome volume | Classified fixed/global roles; master is available only in master-volume mode. |
 
-Selected-track sends are installed. General eight-track send columns remain pending; they need
-bounded visible-track/send state whose rendering owners agree with its actuators.
+Selected-track sends and all eight current-track send columns are installed in this candidate.
+The full named parameter canopy has seventeen banks and at most 131 slots; core requests only the
+banks it needs. This working API-45 canopy has not yet been installed live.
 
 `ParameterTargetIdentitySnapshot` exposes the classified domain, owner ID, page, and index alongside
-the opaque actuator reference. Volume/Pan compare that owner with the current-bank row before
+the opaque actuator reference. Volume/Pan/Send compare that owner with the current-bank row before
 rendering, writing, or acquiring a touch. Parameter-only lease publication can run ahead of the
 track-bank snapshot; disagreement stays blank/inert until the later full read-back aligns. Existing
 exact touch release remains permitted through its retained lease. Wrapper identity is not a target.
@@ -404,8 +406,8 @@ Stable shell:
   dispatch boundary.
 - `ControllerRuntimeEnvironment`: owns bounded leases, action barriers, and committed bridge state.
 - `CorePageMode`: final inert encoder/touch/row callbacks, empty parameter bindings, blank fallback
-  display, and an installed mechanical input/light footprint. Project, Track, Master, Volume, Pan,
-  Transport, Automation, and Frame use this registration; it contains no page-selection policy.
+  display, and an installed mechanical input/light footprint. Project, Track, Master, Volume, Pan, Send,
+  Transport, Automation, Frame, and Accent use this registration; it contains no page-selection policy.
 - `ParameterTargetHost`: bounded exact touch actuators, target checks, and mechanical cleanup.
 - `AutomationHost` and `TransportSettingsHost`: unified Automation Write/raw mode/override state,
   transport settings, and typed primitive requests.
@@ -537,7 +539,7 @@ Partial or transitional:
   Master, and octave buttons; Session Stop; arrows in migrated profiles; and all registered core
   pages' row lights. Authoritative mapped-target feedback and replayable physical-to-semantic
   leases support the four mappable controls. Display semantics remain partial across the entire
-  inherited controller: Project/Track, Volume/Pan, Master, Transport/Automation, and Frame are
+  inherited controller: Project/Track, Volume/Pan/Send, Master, Transport/Automation, Frame, and Accent are
   core-authored; device/browser/configuration/sequencer pages remain pending. The generic complete
   base-scene plane and temporary grid/display overlays are already installed.
 

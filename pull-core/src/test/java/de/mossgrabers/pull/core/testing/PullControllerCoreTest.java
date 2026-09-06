@@ -1273,11 +1273,39 @@ class PullControllerCoreTest
             host.controllerTick ();
             assertEquals (List.of (entry), host.effects ().executionOrder ().stream ().filter (SelectControllerModeEffect.class::isInstance).toList ());
 
-            host.bridge (modeState (withParameters (trackSelectionBridge (4, false, page), baseline), "WORKSPACE", "WORKSPACE", true));
+            host.bridge (modeState (withParameters (trackSelectionBridge (4, false, page), baseline), "WORKSPACE", "", true));
             host.controllerTick ();
             assertEquals (buttonName.equals ("AUTOMATION") ? List.of (entry, SelectControllerModeEffect.restore (4)) : List.of (entry),
                 host.effects ().executionOrder ().stream ().filter (SelectControllerModeEffect.class::isInstance).toList ());
         }
+    }
+
+
+    @Test
+    void oneSnapbackReleaseBatchSubmitsOnlyTheLatestPhysicalPageIntent ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        final ParameterTargetSnapshot baseline = prepareProjectMacroSnapback (host);
+        host.controllerButton (PushControlIds.button ("ACCENT"), true);
+        host.controllerButtonLong (PushControlIds.button ("ACCENT"));
+        host.controllerButton (PushControlIds.button ("ACCENT"), false);
+        host.controllerButton (PushControlIds.button ("MASTERTRACK"), true);
+        host.controllerButton (PushControlIds.button ("MASTERTRACK"), false);
+        host.controllerButton (PushControlIds.button ("AUTOMATION"), true);
+        host.controllerButtonLong (PushControlIds.button ("AUTOMATION"));
+        assertEquals (3, host.effects ().desiredParameterInteraction ().pendingActionCount ());
+        host.controllerTick ();
+        host.controllerTick ();
+        host.bridge (withParameters (trackSelectionBridge (3, false), baseline));
+        host.controllerTick ();
+        host.controllerTick ();
+        final var entry = new SelectControllerModeEffect (3, "AUTOMATION", SelectControllerModeEffect.Operation.TEMPORARY);
+        assertEquals (List.of (entry), host.effects ().executionOrder ().stream ().filter (SelectControllerModeEffect.class::isInstance).toList ());
+        host.bridge (modeState (withParameters (trackSelectionBridge (4, false, "AUTOMATION"), baseline), "WORKSPACE", "", true));
+        host.controllerTick ();
+        assertEquals (List.of (entry), host.effects ().executionOrder ().stream ().filter (SelectControllerModeEffect.class::isInstance).toList ());
+        host.controllerButton (PushControlIds.button ("AUTOMATION"), false);
+        assertEquals (List.of (entry, SelectControllerModeEffect.restore (4)), host.effects ().executionOrder ().stream ().filter (SelectControllerModeEffect.class::isInstance).toList ());
     }
 
 

@@ -62,9 +62,9 @@ In the current baseline:
 - the same working API 45 migration adds full normal/VS Track menus, touches, named selected-track
   parameters, the normal current-bank footer, Tap Tempo, and Undo/Redo. Integration validation is
   passed in the full 685-test package run at `e3c35508`; these changes have not been installed live;
-- later API 45 slices implement Volume/Pan, generic page composition, four-arrow navigation, global
-  Track/Mix, Metronome/Automation, and Frame/Master entry. The expanded package gate is in progress;
-  no live proof is claimed. Generic inert page registrations replace their old policy classes;
+- later API 45 slices implement Volume/Pan/Send, generic page composition, four-arrow navigation,
+  Track/Mix, Metronome/Automation, Frame/Master entry, and Accent. The expanded package passed 823
+  tests; independent review found bounded lifecycle defects now being corrected. No live proof is claimed. Generic inert page registrations replace their old policy classes;
 - new snapshots include complete native mode history/temporary state, current-bank navigation,
   controller preferences/cursor-send metadata, and native application/Arranger/Mixer UI state.
   Classified parameter owner/domain/page/index metadata fences independent snapshot publications;
@@ -287,17 +287,17 @@ bounded clip/session capability rather than remain a parallel feature-shaped API
 ### 4. Complete parameter-view migration and output
 
 Core API 45 installs named active-compatibility, project/device remote, selected-track/send,
-visible-track volume/pan, Master/Cue, and global parameter banks. Snapshots contain opaque actuator
+visible-track volume/pan/eight send columns, Master/Cue, and global parameter banks. Snapshots contain opaque actuator
 identity, classified semantic owner/domain/page/index, name/value/display metadata, and optional
 enabled state. Stable applies exact fenced absolute, relative, reset, enabled, and touch operations.
 
-Project Macro, Track, Volume, Pan, and Master now own complete parameter input and feedback. The
+Project Macro, Track, Volume, Pan, Send, and Master now own complete parameter input and feedback. The
 shared touch session preserves Delete/reset ordering, exact release, automation preferences, and
 cross-page END handling. Generic ordered touch acquisition preserves Track send-enabled ordering;
 complete desired leases remain replayable. Cleanup cannot release a replacement target after an
 external mutable-proxy rebind.
 
-Migrate remaining device/send/other parameter pages against reusable named banks and complete
+Migrate remaining device and other parameter pages against reusable named banks and complete
 inert installed page declarations. Their display scenes already have a generic output transport.
 Delete ACTIVE and remaining physical parameter providers only when all their consumers migrate.
 The shell keeps exact actuation and lifecycle validation; core owns mappings, gestures, menus,

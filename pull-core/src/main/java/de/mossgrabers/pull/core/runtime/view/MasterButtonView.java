@@ -4,7 +4,6 @@ package de.mossgrabers.pull.core.runtime.view;
 
 import de.mossgrabers.pull.core.api.*;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
-import de.mossgrabers.pull.core.api.effect.SelectControllerModeEffect;
 import de.mossgrabers.pull.core.api.event.*;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.view.*;
@@ -17,7 +16,6 @@ import java.util.Set;
 public final class MasterButtonView implements ControllerView
 {
     private static final ControlId BUTTON = PushControlIds.button ("MASTERTRACK");
-    private static final long ACKNOWLEDGEMENT_TIMEOUT_NANOS = 5_000_000_000L;
     private static final ViewProfile PROFILE = ViewProfile.fixed ("default", Set.of (
         new SurfaceClaim (SurfaceArea.MASTER_BUTTON, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
         new SurfaceClaim (SurfaceArea.MASTER_BUTTON, SurfaceClaim.Kind.OUTPUT)), Set.of ());
@@ -26,41 +24,42 @@ public final class MasterButtonView implements ControllerView
     private final List<Gesture> pending = new ArrayList<> ();
     private Gesture held;
     private ControllerSnapshot latest;
-    private long epoch;
+    private final DeferredButtonAdmission admission = new DeferredButtonAdmission ();
+    private final ControllerPageTransitions pages;
+    private ControllerPageTransitions.Request lastEntry;
     private boolean returnOnRelease;
+
+    public MasterButtonView () { this (new ControllerPageTransitions ()); }
+    MasterButtonView (final ControllerPageTransitions pages) { this.pages = java.util.Objects.requireNonNull (pages, "pages"); }
 
     @Override public String id () { return "master-button"; }
     @Override public ViewProfile profile () { return PROFILE; }
     @Override public Set<ControllerActionBinding> actionBindings () { return ACTIONS; }
     @Override public Set<BridgeSubscription> bridgeSubscriptions () { return Set.of (BridgeSubscription.CONTROLLER_LAYOUT); }
-    @Override public CoreExecutionRequirements executionRequirements () { return new CoreExecutionRequirements (this.pending.stream ().anyMatch (gesture -> gesture.entrySubmitted || gesture.ended)); }
+    @Override public CoreExecutionRequirements executionRequirements () { return new CoreExecutionRequirements (this.pages.pending ()); }
     @Override public void start (final ControllerSnapshot snapshot) { this.deactivate (); this.latest = snapshot; }
-    @Override public void deactivate () { this.epoch++; this.pending.clear (); this.held = null; this.returnOnRelease = false; }
+    @Override public void deactivate () { this.pending.forEach (gesture -> this.pages.cancel (gesture.page)); this.pages.cancel (this.lastEntry); this.admission.clear (); this.pending.clear (); this.held = null; this.returnOnRelease = false; this.lastEntry = null; }
 
     @Override
     public void reconcile (final ControllerSnapshot snapshot)
     {
         this.latest = snapshot;
-        final var layout = snapshot.bridge ().layout ();
-        for (final Gesture gesture: this.pending)
-            if (gesture.entrySubmitted && snapshot.revision () > gesture.submittedRevision && "FRAME".equals (layout.modeId ()) && layout.temporaryMode ())
-                gesture.entryObserved = true;
+        this.pages.observe (snapshot);
     }
 
     @Override
     public ResolvedControllerAction resolveAction (final ControllerActionBinding binding, final ControllerInputEvent input, final ControllerSnapshot snapshot)
     {
         if (!browser (snapshot)) this.returnOnRelease = false;
-        if (this.pending.size () >= DesiredParameterInteraction.PENDING_ACTION_CAPACITY + 1)
-            throw new IllegalStateException ("Master-button continuation capacity exhausted");
-        final Gesture gesture = new Gesture (this.epoch, this.returnOnRelease);
+        final Gesture gesture = new Gesture (this.admission.begin (), this.returnOnRelease);
+        if (gesture.returnOnRelease)
+        {
+            gesture.page = this.pages.adopt (this.lastEntry);
+            if (gesture.page != null) this.lastEntry = gesture.page;
+        }
         this.pending.add (gesture);
         this.held = gesture;
-        return ResolvedControllerAction.of (binding.intent (), () -> {
-            if (gesture.epoch != this.epoch || gesture.admitted) return List.of ();
-            gesture.admitted = true;
-            return this.advance (gesture, this.latest);
-        });
+        return this.admission.action (gesture.ticket, binding.intent (), () -> this.advance (gesture, this.latest));
     }
 
     @Override
@@ -75,7 +74,8 @@ public final class MasterButtonView implements ControllerView
             {
                 this.returnOnRelease = true;
                 gesture.returnOnRelease = true;
-                gesture.entry = new SelectControllerModeEffect (layout.generation (), "FRAME", SelectControllerModeEffect.Operation.TEMPORARY);
+                gesture.page = this.pages.temporary (layout, "FRAME");
+                this.lastEntry = gesture.page;
             }
             else if (input.phase () == InputPhase.END)
             {
@@ -83,7 +83,7 @@ public final class MasterButtonView implements ControllerView
                 this.held = null;
                 gesture.releaseSuppressed = browser (snapshot);
                 if (!gesture.releaseSuppressed && !gesture.returnOnRelease)
-                    gesture.shortRelease = "MASTER".equals (layout.modeId ()) ? SelectControllerModeEffect.restore (layout.generation ()) : new SelectControllerModeEffect (layout.generation (), "MASTER");
+                    gesture.page = "MASTER".equals (layout.modeId ()) ? this.pages.restore (layout) : this.pages.select (layout, "MASTER");
             }
         }
         final List<CoreEffect> effects = new ArrayList<> ();
@@ -93,34 +93,15 @@ public final class MasterButtonView implements ControllerView
 
     private List<CoreEffect> advance (final Gesture gesture, final ControllerSnapshot snapshot)
     {
-        if (!gesture.admitted) return List.of ();
-        if (gesture.entry != null && !gesture.entrySubmitted)
-        {
-            gesture.entrySubmitted = true;
-            gesture.submittedRevision = snapshot.revision ();
-            gesture.submittedAt = snapshot.monotonicTimeNanos ();
-            // A request and its dependent restore are never issued in the same result.
-            return List.of (gesture.entry);
-        }
-        if (!gesture.ended) return List.of ();
-        if (gesture.releaseSuppressed)
+        if (!gesture.ticket.admitted ()) return List.of ();
+        if (gesture.ended && gesture.returnOnRelease) this.pages.release (gesture.page, !gesture.releaseSuppressed);
+        final List<CoreEffect> effects = this.pages.advance (gesture.page, snapshot);
+        if (gesture.ended && this.pages.complete (gesture.page))
         {
             this.pending.remove (gesture);
-            return List.of ();
+            this.admission.finish (gesture.ticket);
         }
-        if (gesture.shortRelease != null)
-        {
-            this.pending.remove (gesture);
-            return List.of (gesture.shortRelease);
-        }
-        if (gesture.returnOnRelease && (gesture.entry == null || gesture.entryObserved))
-        {
-            this.pending.remove (gesture);
-            return List.of (SelectControllerModeEffect.restore (snapshot.bridge ().layout ().generation ()));
-        }
-        if (gesture.entrySubmitted && snapshot.monotonicTimeNanos () - gesture.submittedAt >= ACKNOWLEDGEMENT_TIMEOUT_NANOS)
-            this.pending.remove (gesture);
-        return List.of ();
+        return effects;
     }
 
     @Override
@@ -135,18 +116,12 @@ public final class MasterButtonView implements ControllerView
 
     private static final class Gesture
     {
-        private final long epoch;
-        private boolean admitted;
+        private final DeferredButtonAdmission.Ticket ticket;
         private boolean returnOnRelease;
         private boolean ended;
         private boolean releaseSuppressed;
-        private SelectControllerModeEffect entry;
-        private SelectControllerModeEffect shortRelease;
-        private boolean entrySubmitted;
-        private boolean entryObserved;
-        private long submittedRevision;
-        private long submittedAt;
+        private ControllerPageTransitions.Request page;
 
-        private Gesture (final long epoch, final boolean returnOnRelease) { this.epoch = epoch; this.returnOnRelease = returnOnRelease; }
+        private Gesture (final DeferredButtonAdmission.Ticket ticket, final boolean returnOnRelease) { this.ticket = ticket; this.returnOnRelease = returnOnRelease; }
     }
 }

@@ -81,14 +81,14 @@ class MasterButtonViewTest
     }
 
     @Test
-    void deferredShortReleaseKeepsItsExactReleaseOrigin ()
+    void deferredShortReleaseCancelsWhenItsExactReleaseOriginChanges ()
     {
         final Fixture f = new Fixture ();
         final var action = f.resolve ();
         f.observe ("MASTER", false);
         assertTrue (f.edge (InputPhase.END).effects ().isEmpty ());
         f.observe ("DEVICE_PARAMS", false);
-        assertEquals (List.of (SelectControllerModeEffect.restore (2)), f.dispatch (action).effects ());
+        assertTrue (f.dispatch (action).effects ().isEmpty ());
     }
 
     @Test
@@ -113,7 +113,7 @@ class MasterButtonViewTest
     }
 
     @Test
-    void nestedTemporaryPagesAndExternalChangesKeepTheManagersSingleRestoreSlot ()
+    void externalPageChangesRetireTheOldTemporaryReturn ()
     {
         final Fixture f = new Fixture ();
         f.mode = "AUTOMATION";
@@ -123,7 +123,7 @@ class MasterButtonViewTest
         f.observe ("FRAME", true);
         f.tick ();
         f.observe ("TRANSPORT", true);
-        assertEquals (List.of (SelectControllerModeEffect.restore (3)), f.edge (InputPhase.END).effects ());
+        assertTrue (f.edge (InputPhase.END).effects ().isEmpty ());
     }
 
     @Test

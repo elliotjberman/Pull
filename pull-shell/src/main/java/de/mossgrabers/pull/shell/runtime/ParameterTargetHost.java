@@ -135,8 +135,8 @@ final class ParameterTargetHost
             final LiveTarget touched = touches.next ().getValue ();
             if (!touched.isCurrent ())
             {
-                this.log.warn ("Abandoned stale parameter touch without releasing a rebound target " + touched.reference);
                 touches.remove ();
+                this.releaseTouch (touched);
             }
         }
         final ParameterBridgeSnapshot refreshed = !banks.banks ().isEmpty () || !this.retainedTargets.isEmpty () ? this.captureSnapshot () : ParameterBridgeSnapshot.empty ();
@@ -515,25 +515,25 @@ final class ParameterTargetHost
         {
             final IParameterBank projectParameters = this.model.getProject ().getParameterBank ();
             for (int index = 0; index < this.projectTargets.length; index++)
-                this.reconcileProjectTarget (index, projectParameters);
+                this.projectTargets[index] = this.reconcileRemoteTarget (this.projectTargets[index], index, projectParameters, "project-remote", () -> this.model.getProject ().getIdentity ());
         }
         if (banks.includes (ParameterBankId.SELECTED_DEVICE_REMOTE))
         {
             final IParameterBank deviceParameters = this.model.getCursorDevice ().getParameterBank ();
             for (int index = 0; index < this.deviceTargets.length; index++)
-                this.reconcileDeviceTarget (index, deviceParameters);
+                this.deviceTargets[index] = this.reconcileRemoteTarget (this.deviceTargets[index], index, deviceParameters, "device-remote", () -> this.model.getCursorDevice ().getID ());
         }
         if (banks.includes (ParameterBankId.TRACK_VOLUME))
         {
             final ITrackBank tracks = this.model.getCurrentTrackBank ();
             for (int index = 0; index < this.trackVolumeTargets.length; index++)
-                this.reconcileTrackVolumeTarget (index, tracks);
+                this.trackVolumeTargets[index] = this.reconcileCurrentTrackTarget (this.trackVolumeTargets[index], index, tracks, ITrack::getVolumeParameter);
         }
         if (banks.includes (ParameterBankId.TRACK_PAN))
         {
             final ITrackBank tracks = this.model.getCurrentTrackBank ();
             for (int index = 0; index < this.trackPanTargets.length; index++)
-                this.reconcileTrackPanTarget (index, tracks);
+                this.trackPanTargets[index] = this.reconcileCurrentTrackTarget (this.trackPanTargets[index], index, tracks, ITrack::getPanParameter);
         }
         for (int sendIndex = 0; sendIndex < this.trackSendTargets.length; sendIndex++)
         {
@@ -557,7 +557,7 @@ final class ParameterTargetHost
         if (!banks.includes (ParameterBankId.GLOBAL))
             return;
 
-        this.metronomeVolumeTarget = this.reconcileProjectScopedTarget (this.metronomeVolumeTarget, this.transport::getMetronomeVolumeParameter);
+        this.metronomeVolumeTarget = this.reconcileProjectScopedTarget (this.metronomeVolumeTarget, "project-global", 0, this.transport::getMetronomeVolumeParameter);
 
         final LiveTarget tempo = new LiveTarget (
             TEMPO_TARGET,
@@ -631,12 +631,6 @@ final class ParameterTargetHost
     }
 
 
-    private LiveTarget reconcileProjectScopedTarget (final LiveTarget existing, final Supplier<IParameter> currentParameter)
-    {
-        return this.reconcileProjectScopedTarget (existing, "project-global", 0, currentParameter);
-    }
-
-
     private LiveTarget reconcileProjectScopedTarget (final LiveTarget existing, final String domain, final int role, final Supplier<IParameter> currentParameter)
     {
         final String projectIdentity = this.model.getProject ().getIdentity ();
@@ -696,23 +690,17 @@ final class ParameterTargetHost
     }
 
 
-    private void reconcileProjectTarget (final int index, final IParameterBank bank)
+    private LiveTarget reconcileRemoteTarget (final LiveTarget existing, final int index, final IParameterBank bank, final String domain, final Supplier<String> owner)
     {
         if (bank == null || index >= bank.getPageSize ())
-        {
-            this.projectTargets[index] = null;
-            return;
-        }
+            return null;
 
         final IParameter parameter = bank.getItem (index);
-        final ParameterTargetIdentityResolver.TargetIdentity targetIdentity = this.targetIdentities.remote ("project-remote", this.model.getProject ().getIdentity (), bank, index);
+        final ParameterTargetIdentityResolver.TargetIdentity targetIdentity = this.targetIdentities.remote (domain, owner.get (), bank, index);
         if (parameter == null || !parameter.doesExist () || targetIdentity == null)
-        {
-            this.projectTargets[index] = null;
-            return;
-        }
+            return null;
 
-        LiveTarget target = this.projectTargets[index];
+        LiveTarget target = existing;
         if (target == null || target.parameter != parameter || !target.targetIdentity.equals (targetIdentity))
         {
             target = parameterTarget (
@@ -721,56 +709,11 @@ final class ParameterTargetHost
                 parameter,
                 0,
                 targetIdentity,
-                () -> parameter.doesExist () && targetIdentity.equals (this.targetIdentities.remote ("project-remote", this.model.getProject ().getIdentity (), bank, index)));
-            this.projectTargets[index] = target;
+                () -> parameter.doesExist () && targetIdentity.equals (this.targetIdentities.remote (domain, owner.get (), bank, index)));
         }
         if (target.isCurrent ())
             this.currentTargets.put (target.reference, target);
-    }
-
-
-    private void reconcileDeviceTarget (final int index, final IParameterBank bank)
-    {
-        if (bank == null || index >= bank.getPageSize ())
-        {
-            this.deviceTargets[index] = null;
-            return;
-        }
-
-        final IParameter parameter = bank.getItem (index);
-        final ParameterTargetIdentityResolver.TargetIdentity targetIdentity = this.targetIdentities.remote ("device-remote", this.model.getCursorDevice ().getID (), bank, index);
-        if (parameter == null || !parameter.doesExist () || targetIdentity == null)
-        {
-            this.deviceTargets[index] = null;
-            return;
-        }
-
-        LiveTarget target = this.deviceTargets[index];
-        if (target == null || target.parameter != parameter || !target.targetIdentity.equals (targetIdentity))
-        {
-            target = parameterTarget (
-                new ParameterTargetRef (ParameterTargetKind.LIVE, this.nextIdentity (), bank.getPageBank ().getSelectedItemPosition ()),
-                null,
-                parameter,
-                0,
-                targetIdentity,
-                () -> parameter.doesExist () && targetIdentity.equals (this.targetIdentities.remote ("device-remote", this.model.getCursorDevice ().getID (), bank, index)));
-            this.deviceTargets[index] = target;
-        }
-        if (target.isCurrent ())
-            this.currentTargets.put (target.reference, target);
-    }
-
-
-    private void reconcileTrackVolumeTarget (final int index, final ITrackBank tracks)
-    {
-        this.trackVolumeTargets[index] = this.reconcileCurrentTrackTarget (this.trackVolumeTargets[index], index, tracks, ITrack::getVolumeParameter);
-    }
-
-
-    private void reconcileTrackPanTarget (final int index, final ITrackBank tracks)
-    {
-        this.trackPanTargets[index] = this.reconcileCurrentTrackTarget (this.trackPanTargets[index], index, tracks, ITrack::getPanParameter);
+        return target;
     }
 
 

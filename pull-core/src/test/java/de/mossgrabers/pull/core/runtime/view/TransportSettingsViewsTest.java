@@ -261,7 +261,7 @@ class TransportSettingsViewsTest
     }
 
     @Test
-    void deleteBeginPreservesThePriorReturnFlagAndItsExactPendingEntry ()
+    void deleteBeginPreservesOnlyTheStillOwnedPriorReturn ()
     {
         for (final boolean observeBeforeSecondPress: List.of (false, true))
         {
@@ -285,7 +285,7 @@ class TransportSettingsViewsTest
             f.pressed.remove (delete);
             final CoreResult release = f.edge ("AUTOMATION", InputPhase.END);
             if (observeBeforeSecondPress)
-                assertEquals (List.of (SelectControllerModeEffect.restore (3)), release.effects ());
+                assertTrue (release.effects ().isEmpty (), "an intervening page retired the prior slot");
             else
             {
                 assertTrue (release.effects ().isEmpty ());

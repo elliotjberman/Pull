@@ -43,12 +43,12 @@ This removes the core-side physical navigation table. It does not yet satisfy th
 
 - The Master page now owns its encoder turns and both button rows in core, including exact
   project-identity payloads for project navigation, file actions, and absolute engine state.
-- The permanent Master binding remains temporarily necessary for its unbridged long-press Frame
-  variant. While a composed core workspace is active, its short press is a page-only compatibility
-  adapter: it activates Master without selecting Bitwig's master track. Exits no longer depend on
-  stable mode history: core Track controls/footer and `SessionView.full()` explicitly compose the
-  plain Session destination. After controller-layout read-back acknowledges `TRACK`/`SESSION`, the
-  temporary handoff retires while the Track page and semantic Session grid remain selected.
+- Master now owns its complete short page replacement and long Frame gesture in core. The stable
+  binding is inert. Generic mode effects and raw mode-history observations preserve its Browser
+  edge rules and page return without selecting Bitwig's Master track. The independent finishing
+  review found stale deferred requests and shared temporary-slot ownership defects in this new
+  lifecycle; their correction is tracked in `../migrations/core-migration-review.md`. These slices
+  have passed the checkpoint's offline gate but have not been installed or verified live.
 - Play is a core-exclusive edge with an inert stable command. Core retains the engine-owning
   project identity and emits one exact origin/target project-transport payload. Stable validates
   the live origin and owns the complete bounded tab visit, authoritative transport readback, and

@@ -16,7 +16,6 @@ import java.util.Set;
 public final class AccentControlView implements ControllerView
 {
     private static final ControlId BUTTON = PushControlIds.button ("ACCENT");
-    private static final long TIMEOUT_NANOS = 5_000_000_000L;
     private static final ViewProfile PROFILE = ViewProfile.fixed ("default", Set.of (
         new SurfaceClaim (SurfaceArea.ACCENT_BUTTON, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
         new SurfaceClaim (SurfaceArea.ACCENT_BUTTON, SurfaceClaim.Kind.OUTPUT)), Set.of ());
@@ -27,15 +26,19 @@ public final class AccentControlView implements ControllerView
     private Gesture held;
     private ControllerSnapshot latest;
     private final DeferredButtonAdmission admission = new DeferredButtonAdmission ();
+    private final ControllerPageTransitions pages;
+
+    public AccentControlView () { this (new ControllerPageTransitions ()); }
+    AccentControlView (final ControllerPageTransitions pages) { this.pages = java.util.Objects.requireNonNull (pages, "pages"); }
 
     @Override public String id () { return "accent-control"; }
     @Override public ViewProfile profile () { return PROFILE; }
     @Override public Set<ControllerActionBinding> actionBindings () { return ACTIONS; }
     @Override public Set<BridgeSubscription> bridgeSubscriptions () { return Set.of (BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.CONTROLLER_SETTINGS); }
-    @Override public CoreExecutionRequirements executionRequirements () { return new CoreExecutionRequirements (this.enabled.pending () || this.pending.stream ().anyMatch (gesture -> gesture.submitted)); }
+    @Override public CoreExecutionRequirements executionRequirements () { return new CoreExecutionRequirements (this.enabled.pending () || this.pages.pending ()); }
     @Override public void start (final ControllerSnapshot snapshot) { this.deactivate (); this.latest = snapshot; }
-    @Override public void reconcile (final ControllerSnapshot snapshot) { this.latest = snapshot; }
-    @Override public void deactivate () { this.admission.clear (); this.held = null; this.pending.clear (); this.enabled.clear (); }
+    @Override public void reconcile (final ControllerSnapshot snapshot) { this.latest = snapshot; this.pages.observe (snapshot); }
+    @Override public void deactivate () { this.pending.forEach (gesture -> this.pages.cancel (gesture.page)); this.admission.clear (); this.held = null; this.pending.clear (); this.enabled.clear (); }
 
     @Override
     public ResolvedControllerAction resolveAction (final ControllerActionBinding binding, final ControllerInputEvent input, final ControllerSnapshot snapshot)
@@ -50,11 +53,14 @@ public final class AccentControlView implements ControllerView
     @Override
     public List<CoreEffect> handle (final CoreEvent event, final ControllerSnapshot snapshot)
     {
-        this.latest = snapshot;
+        this.reconcile (snapshot);
         if (event instanceof final ControllerInputEvent input && input.controlId ().equals (BUTTON) && input.kind () == InputKind.BUTTON && this.held != null)
         {
             if (input.phase () == InputPhase.LONG && !this.held.longSeen)
+            {
                 this.held.longSeen = true;
+                this.held.page = this.pages.temporary (this.held.origin, "ACCENT");
+            }
             else if (input.phase () == InputPhase.END)
             {
                 this.held.ended = true;
@@ -69,36 +75,16 @@ public final class AccentControlView implements ControllerView
     private List<CoreEffect> advance (final Gesture gesture, final ControllerSnapshot snapshot)
     {
         if (!gesture.ticket.admitted ()) return List.of ();
-        final var layout = snapshot.bridge ().layout ();
-        if (gesture.longSeen && !gesture.submitted)
-        {
-            if (!gesture.origin.equals (layout) || layout.generation () == 0)
-            {
-                this.finish (gesture);
-                return List.of ();
-            }
-            gesture.submitted = true;
-            gesture.submittedRevision = snapshot.revision ();
-            gesture.submittedAt = snapshot.monotonicTimeNanos ();
-            return List.of (new SelectControllerModeEffect (layout.generation (), "ACCENT", SelectControllerModeEffect.Operation.TEMPORARY));
-        }
-        if (gesture.submitted && snapshot.monotonicTimeNanos () - gesture.submittedAt >= TIMEOUT_NANOS)
-        {
-            this.finish (gesture);
-            return List.of ();
-        }
-        if (!gesture.ended) return List.of ();
         if (!gesture.longSeen)
         {
+            if (!gesture.ended) return List.of ();
             this.finish (gesture);
             return this.toggle (snapshot, true);
         }
-        if (snapshot.revision () > gesture.submittedRevision && layout.generation () >= gesture.origin.generation () && layout.temporaryMode () && "ACCENT".equals (layout.modeId ()) && layout.activeModeId ().equals (gesture.origin.activeModeId ()))
-        {
-            this.finish (gesture);
-            return List.of (SelectControllerModeEffect.restore (layout.generation ()));
-        }
-        return List.of ();
+        if (gesture.ended) this.pages.release (gesture.page, true);
+        final List<CoreEffect> effects = this.pages.advance (gesture.page, snapshot);
+        if (this.pages.complete (gesture.page)) this.finish (gesture);
+        return effects;
     }
 
     private void finish (final Gesture gesture)
@@ -128,9 +114,7 @@ public final class AccentControlView implements ControllerView
         private boolean longSeen;
         private boolean ended;
         private final ControllerLayoutSnapshot origin;
-        private boolean submitted;
-        private long submittedRevision;
-        private long submittedAt;
+        private ControllerPageTransitions.Request page;
         private Gesture (final DeferredButtonAdmission.Ticket ticket, final ControllerLayoutSnapshot origin) { this.ticket = ticket; this.origin = origin; }
     }
 }

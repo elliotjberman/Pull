@@ -141,6 +141,38 @@ class ParameterTargetHostTest
 
 
     @Test
+    void namedRemoteBanksKeepLiveOwnerFencesAndRejectBlankDeviceOwners ()
+    {
+        final MutableParameter deviceParameter = new MutableParameter (32);
+        final MutableRemoteDevice device = new MutableRemoteDevice (deviceParameter.proxy ());
+        final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
+        final ParameterTargetHost host = new ParameterTargetHost (
+            createSurface (new MutableContinuous (), valueChanger),
+            model (device, valueChanger, new MutableParameter (64).proxy ()), silentLog ());
+        final DesiredParameterBanks banks = new DesiredParameterBanks (Set.of (ParameterBankId.PROJECT_REMOTE, ParameterBankId.SELECTED_DEVICE_REMOTE));
+        host.refresh (banks);
+        final ParameterTargetRef project = host.snapshot ().slots ().get (ParameterSlot.projectRemote (0)).target ();
+        final ParameterTargetRef original = host.snapshot ().slots ().get (ParameterSlot.selectedDeviceRemote (0)).target ();
+        host.refresh (banks);
+        assertEquals (original, host.snapshot ().slots ().get (ParameterSlot.selectedDeviceRemote (0)).target ());
+        final var leases = host.prepareLeases (new DesiredParameterInteraction (1, false, Map.of (original, 32.0), Set.of (), Set.of (), 0), banks);
+        host.applyLeases (leases, banks);
+        final var restore = host.prepare (new SetParameterValueEffect (original, 32), leases);
+
+        device.id = "device-b";
+        // The retained fence must read the supplier again, even before the next publication.
+        assertThrows (IllegalStateException.class, () -> host.apply (restore));
+        host.refresh (banks);
+        assertNotEquals (original, host.snapshot ().slots ().get (ParameterSlot.selectedDeviceRemote (0)).target ());
+        assertEquals (project, host.snapshot ().slots ().get (ParameterSlot.projectRemote (0)).target ());
+        device.id = "";
+        host.refresh (banks);
+        assertEquals (Set.of (ParameterSlot.projectRemote (0)), host.snapshot ().slots ().keySet ());
+        assertEquals (0, deviceParameter.writeCount);
+    }
+
+
+    @Test
     void rejectsLeaseCommitWhenTheProjectPageRebindsAfterPreparation ()
     {
         final MutableParameter projectParameter = new MutableParameter (64);

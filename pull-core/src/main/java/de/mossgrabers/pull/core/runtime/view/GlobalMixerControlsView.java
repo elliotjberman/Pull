@@ -37,6 +37,7 @@ public final class GlobalMixerControlsView implements ControllerView
     private final ParameterTouchControls touches;
     private final Map<ControlId, ParameterSlot> bindings;
     private final ViewProfile profile;
+    private ControllerLayoutSnapshot layout;
 
     public GlobalMixerControlsView (final Role role, final ParameterTouchSession touchSession)
     {
@@ -85,10 +86,11 @@ public final class GlobalMixerControlsView implements ControllerView
     @Override public void start (final ControllerSnapshot snapshot) { this.deactivate (); this.reconcile (snapshot); }
     @Override public void reconcile (final ControllerSnapshot snapshot)
     {
+        this.layout = snapshot.bridge ().layout ();
         this.touches.reconcile (snapshot);
         this.touches.retainTargets (IntStream.range (0, 8).mapToObj (index -> this.alignedTarget (snapshot, index)).filter (Objects::nonNull).map (ParameterTargetSnapshot::target).collect (Collectors.toUnmodifiableSet ()));
     }
-    @Override public void deactivate () { this.touches.clear (); this.enabled.forEach (AuthoritativeBooleanToggle::clear); }
+    @Override public void deactivate () { this.layout = null; this.touches.clear (); this.enabled.forEach (AuthoritativeBooleanToggle::clear); }
 
     @Override
     public List<CoreEffect> handle (final CoreEvent event, final ControllerSnapshot snapshot)
@@ -136,8 +138,10 @@ public final class GlobalMixerControlsView implements ControllerView
     public ResolvedControllerAction resolveAction (final ControllerActionBinding binding, final ControllerInputEvent input, final ControllerSnapshot snapshot)
     {
         final int column = IntStream.range (0, 8).filter (index -> upper (index).equals (input.controlId ())).findFirst ().orElse (-1);
-        final List<CoreEffect> effects = GlobalMixerMenu.select (column, snapshot.bridge ().controllerSettings (), snapshot.bridge ().layout ().generation ());
-        return ResolvedControllerAction.of (binding.intent (), () -> effects);
+        final ControllerLayoutSnapshot origin = snapshot.bridge ().layout ();
+        this.layout = origin;
+        final List<CoreEffect> effects = GlobalMixerMenu.select (column, snapshot.bridge ().controllerSettings (), origin.generation ());
+        return ResolvedControllerAction.of (binding.intent (), () -> origin.generation () != 0 && origin.equals (this.layout) ? effects : List.of ());
     }
 
     @Override
@@ -153,8 +157,6 @@ public final class GlobalMixerControlsView implements ControllerView
     private static ControlId upper (final int index) { return PushControlIds.button ("ROW2_" + (index + 1)); }
 
     private ParameterTargetSnapshot alignedTarget (final ControllerSnapshot snapshot, final int index) { return alignedTarget (snapshot, this.role, this.sendIndex, index); }
-
-    static ParameterTargetSnapshot alignedTarget (final ControllerSnapshot snapshot, final Role role, final int index) { return alignedTarget (snapshot, role, -1, index); }
 
     static ParameterTargetSnapshot alignedTarget (final ControllerSnapshot snapshot, final Role role, final int sendIndex, final int index)
     {

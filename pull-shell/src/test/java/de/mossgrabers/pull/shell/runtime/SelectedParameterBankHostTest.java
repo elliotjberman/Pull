@@ -84,9 +84,11 @@ class SelectedParameterBankHostTest
         fixture.generation.incrementAndGet ();
         fixture.selected.set (new TrackFixture ("track-b").track);
         assertThrows (IllegalStateException.class, () -> fixture.host.apply (write));
+        // Production refreshes before the core can reconcile and release its old desired touch.
+        fixture.host.refresh (BANKS);
+        assertEquals (List.of ("touch:true", "touch:false"), fixture.track.sends[0].events);
         fixture.host.releaseTouches ();
         assertEquals (List.of ("touch:true", "touch:false"), fixture.track.sends[0].events);
-        fixture.host.refresh (BANKS);
         assertNotEquals (target, fixture.sendTarget ());
     }
 
@@ -98,8 +100,8 @@ class SelectedParameterBankHostTest
         final ParameterTargetRef target = fixture.sendTarget ();
         fixture.host.acquireTouches (fixture.host.prepareTouches (new DesiredParameterTouches (Map.of (OWNER, target)), BANKS));
         fixture.track.channel.set ("rebound-track");
-        fixture.host.releaseTouches ();
         fixture.host.refresh (BANKS);
+        fixture.host.releaseTouches ();
         assertEquals (List.of ("touch:true"), fixture.track.sends[0].events);
         assertTrue (fixture.host.snapshot ().slots ().isEmpty ());
     }

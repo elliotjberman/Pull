@@ -1,6 +1,8 @@
 # Core migration live smoke record
 
-Status: planned; no live execution or installation from this migration worktree yet.
+Status: planned; no live execution or installation from this migration worktree yet. Initial UI
+inspection on 2026-09-05 was blocked because the Mac was locked; the user has been asked to unlock
+it. Code fixes continue independently. No attempt was made to bypass the lock.
 
 This supplements `TESTING.md`. A passing offline build, submitted debug request, or `APPLIED`
 ingress result is not a passing host-state or output check. Record each layer separately.

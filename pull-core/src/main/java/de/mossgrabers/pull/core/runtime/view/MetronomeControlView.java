@@ -11,7 +11,6 @@ import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.CoreExecutionRequirements;
 import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
-import de.mossgrabers.pull.core.api.effect.SelectControllerModeEffect;
 import de.mossgrabers.pull.core.api.effect.SetProjectTransportStateEffect;
 import de.mossgrabers.pull.core.api.effect.SetTransportSettingEffect;
 import de.mossgrabers.pull.core.api.effect.TransportSetting;
@@ -49,15 +48,22 @@ public final class MetronomeControlView implements ControllerView
     private final List<Gesture> pending = new ArrayList<> ();
     private Gesture held;
     private ControllerSnapshot latest;
+    private final ControllerPageTransitions pages;
+    private ControllerPageTransitions.Request lastEntry;
 
     public MetronomeControlView () { this (new AuthoritativeBooleanToggle<> ()); }
-    MetronomeControlView (final AuthoritativeBooleanToggle<String> metronome) { this.metronome = java.util.Objects.requireNonNull (metronome, "metronome"); }
+    MetronomeControlView (final AuthoritativeBooleanToggle<String> metronome) { this (metronome, new ControllerPageTransitions ()); }
+    MetronomeControlView (final AuthoritativeBooleanToggle<String> metronome, final ControllerPageTransitions pages)
+    {
+        this.metronome = java.util.Objects.requireNonNull (metronome, "metronome");
+        this.pages = java.util.Objects.requireNonNull (pages, "pages");
+    }
     @Override public String id () { return "metronome-control"; }
     @Override public ViewProfile profile () { return PROFILE; }
     @Override public Set<ControllerActionBinding> actionBindings () { return ACTIONS; }
     @Override public void start (final ControllerSnapshot snapshot) { this.deactivate (); this.latest = snapshot; }
-    @Override public void deactivate () { this.admission.clear (); this.pending.clear (); this.held = null; this.ticks.clear (); }
-    @Override public void reconcile (final ControllerSnapshot snapshot) { this.latest = snapshot; }
+    @Override public void deactivate () { this.pending.forEach (gesture -> this.pages.cancel (gesture.page)); this.pages.cancel (this.lastEntry); this.admission.clear (); this.pending.clear (); this.held = null; this.lastEntry = null; this.ticks.clear (); }
+    @Override public void reconcile (final ControllerSnapshot snapshot) { this.latest = snapshot; this.pages.observe (snapshot); }
 
     @Override
     public ResolvedControllerAction resolveAction (final ControllerActionBinding binding, final ControllerInputEvent input, final ControllerSnapshot snapshot)
@@ -68,7 +74,7 @@ public final class MetronomeControlView implements ControllerView
         return this.admission.action (gesture.ticket, binding.intent (), () -> this.advance (gesture, this.latest));
     }
     @Override public Set<BridgeSubscription> bridgeSubscriptions () { return Set.of (BridgeSubscription.PROJECT, BridgeSubscription.TRANSPORT, BridgeSubscription.TRANSPORT_SETTINGS, BridgeSubscription.CONTROLLER_LAYOUT); }
-    @Override public CoreExecutionRequirements executionRequirements () { return new CoreExecutionRequirements (this.metronome.pending () || this.ticks.pending ()); }
+    @Override public CoreExecutionRequirements executionRequirements () { return new CoreExecutionRequirements (this.metronome.pending () || this.ticks.pending () || this.pages.pending ()); }
 
     @Override
     public List<CoreEffect> handle (final CoreEvent event, final ControllerSnapshot snapshot)
@@ -83,7 +89,8 @@ public final class MetronomeControlView implements ControllerView
             if (input.phase () == InputPhase.LONG && !shifted && !gesture.consumed)
             {
                 gesture.consumed = true;
-                gesture.page = new SelectControllerModeEffect (layout.generation (), "TRANSPORT", SelectControllerModeEffect.Operation.TEMPORARY);
+                gesture.page = this.pages.temporary (layout, "TRANSPORT");
+                this.lastEntry = gesture.page;
             }
             else if (input.phase () == InputPhase.END)
             {
@@ -92,7 +99,7 @@ public final class MetronomeControlView implements ControllerView
                 if (!gesture.consumed)
                 {
                     if (shifted) gesture.tickProject = snapshot.bridge ().transportSettings ().projectIdentity ();
-                    else if ("TRANSPORT".equals (layout.modeId ())) gesture.page = SelectControllerModeEffect.restore (layout.generation ());
+                    else if ("TRANSPORT".equals (layout.modeId ())) gesture.page = this.pages.restore (layout);
                     else gesture.metronomeProject = snapshot.bridge ().project ().projectIdentity ();
                 }
             }
@@ -106,11 +113,8 @@ public final class MetronomeControlView implements ControllerView
     {
         if (!gesture.ticket.admitted ()) return List.of ();
         final List<CoreEffect> effects = new ArrayList<> ();
-        if (gesture.page != null)
-        {
-            effects.add (gesture.page);
-            gesture.page = null;
-        }
+        if (gesture.ended && gesture.consumed) this.pages.release (gesture.page, false);
+        effects.addAll (this.pages.advance (gesture.page, snapshot));
         if (gesture.ended)
         {
             effects.addAll (this.advanceToggles (snapshot,
@@ -142,7 +146,7 @@ public final class MetronomeControlView implements ControllerView
         private final DeferredButtonAdmission.Ticket ticket;
         private boolean consumed;
         private boolean ended;
-        private SelectControllerModeEffect page;
+        private ControllerPageTransitions.Request page;
         private String metronomeProject = "";
         private String tickProject = "";
         private Gesture (final DeferredButtonAdmission.Ticket ticket) { this.ticket = ticket; }

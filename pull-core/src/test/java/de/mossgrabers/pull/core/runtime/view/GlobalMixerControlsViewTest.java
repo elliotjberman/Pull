@@ -75,6 +75,21 @@ class GlobalMixerControlsViewTest
     }
 
     @Test
+    void deferredMixerMenusCancelTheirWholeRecipeWhenTheOriginChanges ()
+    {
+        for (final GlobalMixerControlsView.Role role: GlobalMixerControlsView.Role.values ())
+            for (final boolean hiddenChange: List.of (false, true))
+            {
+                final Fixture fixture = new Fixture (role);
+                final var action = fixture.workspace.resolveAction (new ControllerInputEvent (1, 1, upper (0), InputKind.BUTTON, InputPhase.BEGIN, 127), fixture.snapshot ());
+                final var origin = fixture.layout;
+                fixture.layout = new ControllerLayoutSnapshot (hiddenChange ? 7 : 8, "PLAY", origin.modeId (), false, false, 0, GridPressureConfiguration.OFF, DesiredNoteInputTranslation.unowned (), origin.activeModeId (), hiddenChange ? "TRACK" : "", false);
+                assertTrue (fixture.workspace.dispatchAction (action, fixture.snapshot ()).isEmpty ());
+                assertFalse (fixture.menu (0).effects ().isEmpty (), "a fresh action remains usable after cancellation");
+            }
+    }
+
+    @Test
     void globalMenuUsesSixthSendThresholdAndOnlyReadbackMovesItsArrow ()
     {
         final Fixture fixture = new Fixture (GlobalMixerControlsView.Role.VOLUME);
@@ -216,6 +231,7 @@ class GlobalMixerControlsViewTest
         private final GlobalMixerControlsView.Role role;
         private final GlobalMixerControlsView view;
         private final CompiledWorkspace workspace;
+        private ControllerLayoutSnapshot layout;
         private double value = 512;
         private double modulated = -1;
         private boolean vu;
@@ -235,11 +251,12 @@ class GlobalMixerControlsViewTest
         {
             this.role = role;
             final ParameterTouchSession session = new ParameterTouchSession ();
-            this.view = new GlobalMixerControlsView (role, session);
+            this.view = role == GlobalMixerControlsView.Role.SEND ? GlobalMixerControlsView.send (0, session) : new GlobalMixerControlsView (role, session);
+            this.layout = new ControllerLayoutSnapshot (7, "PLAY", this.view.installedModeId (), false, false, 0, GridPressureConfiguration.OFF);
             this.workspace = CompiledWorkspace.compile (role.name (), List.of (this.view, new CurrentTrackFooterView (), new ParameterTouchReleaseView (session)));
             this.workspace.start (this.snapshot ());
         }
-        private ParameterSlot slot (final int index) { return this.role == GlobalMixerControlsView.Role.VOLUME ? ParameterSlot.trackVolume (index) : ParameterSlot.trackPan (index); }
+        private ParameterSlot slot (final int index) { return this.role == GlobalMixerControlsView.Role.SEND ? ParameterSlot.trackSend (0, index) : this.role == GlobalMixerControlsView.Role.VOLUME ? ParameterSlot.trackVolume (index) : ParameterSlot.trackPan (index); }
         private ParameterTargetRef target (final int index) { return new ParameterTargetRef (ParameterTargetKind.LIVE, this.role + "-" + index, this.targetGeneration); }
         private CoreResult turn (final int index, final int amount) { return this.workspace.handle (new ControllerInputEvent (1, 1, knob (index), InputKind.RELATIVE, InputPhase.UPDATE, amount), this.snapshot ()); }
         private CoreResult touch (final int index, final boolean begin)
@@ -267,7 +284,7 @@ class GlobalMixerControlsViewTest
             final ControllerSettingsSnapshot settings = this.settingsAvailable ? new ControllerSettingsSnapshot (true, this.vu, "VOLUME", this.sendOffset, new CursorSendBankSnapshot (1, "pinned-cursor", 0, sends)) : ControllerSettingsSnapshot.empty ();
             final var empty = ControllerBridgeSnapshot.empty ();
             final SelectedTrackSnapshot selected = new SelectedTrackSnapshot (this.selectedGeneration, "other-private-track", "Other", 0, "Audio", true, false, false, true, false, false, true, TrackMonitorMode.AUTO, false, false, false, false, 0.5, 0.5, COLOR);
-            final var bridge = new ControllerBridgeSnapshot (empty.transport (), selected, empty.sessionBank (), new ControllerLayoutSnapshot (7, "PLAY", this.role.name (), false, false, 0, GridPressureConfiguration.OFF), empty.noteView (), empty.noteRepeat (), empty.drum (), new ParameterBridgeSnapshot (parameters, Map.of ()), empty.controllerMappingFeedback (), empty.master (), empty.project (), new AutomationSnapshot ("project", this.writing, true), this.configuration, new CurrentTrackBankSnapshot (1, "effect-bank", 8, tracks, "pinned-cursor", true, 1, true), empty.transportSettings (), settings);
+            final var bridge = new ControllerBridgeSnapshot (empty.transport (), selected, empty.sessionBank (), this.layout, empty.noteView (), empty.noteRepeat (), empty.drum (), new ParameterBridgeSnapshot (parameters, Map.of ()), empty.controllerMappingFeedback (), empty.master (), empty.project (), new AutomationSnapshot ("project", this.writing, true), this.configuration, new CurrentTrackBankSnapshot (1, "effect-bank", 8, tracks, "pinned-cursor", true, 1, true), empty.transportSettings (), settings);
             return new ControllerSnapshot (1, 1, new ShellCapabilities (Map.of ()), bridge, ClipCatalogSnapshot.empty (), Map.of (), Map.of (), Optional.empty (), this.pressed, this.touched);
         }
     }

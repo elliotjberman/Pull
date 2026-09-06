@@ -27,11 +27,6 @@ final class GlobalMixerDisplayScene
 
     private GlobalMixerDisplayScene () { }
 
-    static ControllerDisplayScene render (final ControllerSnapshot snapshot, final GlobalMixerControlsView.Role role, final List<GlobalMixerMenu.Entry> menu)
-    {
-        return render (snapshot, role, -1, menu);
-    }
-
     static ControllerDisplayScene render (final ControllerSnapshot snapshot, final GlobalMixerControlsView.Role role, final int sendIndex, final List<GlobalMixerMenu.Entry> menu)
     {
         final ArrayList<DisplayCommand> commands = new ArrayList<> (100);

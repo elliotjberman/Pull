@@ -144,7 +144,7 @@ public final class CurrentTrackFooterView implements ControllerView
         {
             gesture.longSeen = true;
             final CurrentTrackBankSnapshot bank = snapshot.bridge ().currentTrackBank ();
-            gesture.intent = new Intent (Operation.PARENT, null, bank.parentGeneration (), bank.cursorChannelId (), snapshot.bridge ().layout ().generation (), null);
+            gesture.intent = new Intent (Operation.PARENT, null, bank.parentGeneration (), bank.cursorChannelId (), snapshot.bridge ().layout (), null);
             effects.add (new ConsumeControllerButtonEffect (BUTTONS.get (index)));
         }
         else if (input.phase () == InputPhase.END && !gesture.ended)
@@ -196,7 +196,7 @@ public final class CurrentTrackFooterView implements ControllerView
                 operation = !track.track ().selected () ? Operation.SELECT : isGroup (track) ? pressed.contains (SHIFT) ? Operation.GROUP_TOGGLE : Operation.ENTER : Operation.DEVICE;
             }
         }
-        return new Intent (operation, target, 0, "", snapshot.bridge ().layout ().generation (), consume);
+        return new Intent (operation, target, 0, "", snapshot.bridge ().layout (), consume);
     }
 
     private List<CoreEffect> execute (final Intent intent, final ControllerSnapshot snapshot)
@@ -234,8 +234,8 @@ public final class CurrentTrackFooterView implements ControllerView
             }
             case DEVICE ->
             {
-                if (track.track ().selected () && !isGroup (track) && intent.layoutGeneration () == snapshot.bridge ().layout ().generation ())
-                    effects.add (new SelectControllerModeEffect (intent.layoutGeneration (), "DEVICE_PARAMS"));
+                if (track.track ().selected () && !isGroup (track) && intent.layout ().generation () != 0 && intent.layout ().equals (snapshot.bridge ().layout ()))
+                    effects.add (new SelectControllerModeEffect (intent.layout ().generation (), "DEVICE_PARAMS"));
             }
             case NONE, PARENT -> { }
         }
@@ -305,7 +305,7 @@ public final class CurrentTrackFooterView implements ControllerView
     }
 
     private enum Operation { NONE, SELECT, DUPLICATE, REMOVE, ARM, GROUP_TOGGLE, ENTER, DEVICE, PARENT }
-    private record Intent (Operation operation, CurrentTrackTarget target, long parentGeneration, String cursorId, long layoutGeneration, ControlId consume) { }
+    private record Intent (Operation operation, CurrentTrackTarget target, long parentGeneration, String cursorId, ControllerLayoutSnapshot layout, ControlId consume) { }
     private static final class Gesture
     {
         private boolean ready;

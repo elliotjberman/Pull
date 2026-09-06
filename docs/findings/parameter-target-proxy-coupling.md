@@ -84,7 +84,7 @@ view should remove the binding, not redefine the target retained by an independe
 
 Core API 45 separates physical controls from a named bounded parameter canopy. Stable can publish
 the inherited active encoder window, project remotes, the selected-device remote page, visible-track
-volume and pan, selected-track volume/pan/eight sends, the project-scoped Master/Cue page, and fixed globals. A slot contains an opaque target identity/generation, name, raw
+volume, pan and eight send columns, selected-track volume/pan/eight sends, the project-scoped Master/Cue page, and fixed globals. A slot contains an opaque target identity/generation, name, raw
 and modulated values, authoritative display text, step count, and tolerance; it never uses a Push
 control ID as target identity. Core selects which installed banks are sampled, owns view-specific
 control-to-slot mapping, and owns snapback policy.
@@ -135,9 +135,10 @@ END cleanup after its current slot becomes unavailable or contradictory. Focused
 parameter advancement from later owner-domain advancement; this is a guard over independently
 sampled observations, not a claim that all bridge domains share an atomic sampling epoch.
 
-Parameter touch leases preserve exact acquired actuators while their live identity remains current;
-complete replay does not retrigger touch begin, and page departure/fault/selection/exit cleanup
-releases once when addressable. External proxy rebinding cannot be undone: cleanup drops and warns
+Parameter touch leases distinguish current write eligibility from exact cleanup addressability.
+When refresh observes that a touched target is no longer current, it releases the original actuator
+through its addressability fence before retiring the lease. Complete replay does not retrigger touch
+begin, and later page departure/fault/selection/exit cleanup cannot release it twice. External proxy rebinding cannot be undone: cleanup drops and warns
 rather than touching the replacement target. No pinned touch actuator pool has been added, so this
 finding's broader removal criteria remain unsatisfied.
 
