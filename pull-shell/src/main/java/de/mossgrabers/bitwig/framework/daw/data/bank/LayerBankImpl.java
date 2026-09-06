@@ -4,8 +4,6 @@
 
 package de.mossgrabers.bitwig.framework.daw.data.bank;
 
-import java.util.Optional;
-
 import com.bitwig.extension.controller.api.CursorDeviceLayer;
 import com.bitwig.extension.controller.api.DeviceLayer;
 import com.bitwig.extension.controller.api.DeviceLayerBank;
@@ -13,7 +11,6 @@ import com.bitwig.extension.controller.api.DeviceLayerBank;
 import de.mossgrabers.bitwig.framework.daw.data.LayerImpl;
 import de.mossgrabers.bitwig.framework.daw.data.Util;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
-import de.mossgrabers.framework.daw.DAWColor;
 import de.mossgrabers.framework.daw.IHost;
 import de.mossgrabers.framework.daw.data.ILayer;
 import de.mossgrabers.framework.daw.data.bank.ILayerBank;
@@ -78,17 +75,6 @@ public class LayerBankImpl extends AbstractChannelBankImpl<DeviceLayerBank, ILay
 
         for (int i = 0; i < this.getPageSize (); i++)
             this.getItem (i).enableObservers (enable);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public String getSelectedChannelColorEntry ()
-    {
-        final Optional<ILayer> sel = this.getSelectedItem ();
-        if (sel.isEmpty ())
-            return DAWColor.COLOR_OFF.name ();
-        return DAWColor.getColorID (sel.get ().getColor ());
     }
 
 

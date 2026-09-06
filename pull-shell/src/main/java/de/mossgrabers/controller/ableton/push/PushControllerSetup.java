@@ -221,9 +221,8 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         ms.setNumResults (48);
         ms.setNumSends (8);
         ms.setNumMarkers (8);
-        // Pull uses hierarchical navigation and includes group/master tracks.
+        // Pull uses hierarchical track navigation.
         ms.setHasFlatTrackList (false);
-        ms.setHasFullFlatTrackList (true);
         ms.setWantsFocusedParameter (true);
         for (final SessionBankShape shape: SESSION_BANK_CANOPY)
             ms.addTrackBank (shape.tracks (), shape.scenes ());

@@ -39,10 +39,8 @@ public class EffectTrackBankImpl extends AbstractTrackBankImpl
      * @param numScenes The number of scenes of a bank page
      * @param numSends The number of sends in a bank page
      * @param audioInstrumentTrackBank The track bank which monitors the audio and instrument tracks
-     * @param numParamPages The number of project parameter pages
-     * @param numParams The number of project parameters
      */
-    public EffectTrackBankImpl (final IHost host, final IValueChanger valueChanger, final TrackBank effectTrackBank, final CursorTrackImpl cursorTrack, final Track rootGroup, final ApplicationImpl application, final int numFxTracks, final int numScenes, final int numSends, final int numParamPages, final int numParams, final ITrackBank audioInstrumentTrackBank)
+    public EffectTrackBankImpl (final IHost host, final IValueChanger valueChanger, final TrackBank effectTrackBank, final CursorTrackImpl cursorTrack, final Track rootGroup, final ApplicationImpl application, final int numFxTracks, final int numScenes, final int numSends, final ITrackBank audioInstrumentTrackBank)
     {
         super (host, valueChanger, effectTrackBank, cursorTrack, rootGroup, application, numFxTracks, numScenes, numSends);
 

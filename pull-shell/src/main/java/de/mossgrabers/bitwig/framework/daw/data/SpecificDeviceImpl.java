@@ -16,7 +16,6 @@ import de.mossgrabers.bitwig.framework.daw.data.bank.ParameterBankImpl;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.IHost;
 import de.mossgrabers.framework.daw.ModelSetup;
-import de.mossgrabers.framework.daw.data.IParameterList;
 import de.mossgrabers.framework.daw.data.ISpecificDevice;
 import de.mossgrabers.framework.daw.data.bank.IDrumPadBank;
 import de.mossgrabers.framework.daw.data.bank.ILayerBank;
@@ -35,7 +34,6 @@ public class SpecificDeviceImpl extends DeviceImpl implements ISpecificDevice
     private final ILayerBank                    layerBank;
     private final IDrumPadBank                  drumPadBank;
     private final List<IValueObserver<Boolean>> hasDrumPadsObservers = new ArrayList<> ();
-    private final IParameterList                parameterList;
 
 
     /**
@@ -48,7 +46,7 @@ public class SpecificDeviceImpl extends DeviceImpl implements ISpecificDevice
      */
     public SpecificDeviceImpl (final IHost host, final IValueChanger valueChanger, final Device device, final ModelSetup modelSetup)
     {
-        this (host, valueChanger, device, modelSetup.getNumSends (), modelSetup.getNumParamPages (), modelSetup.getNumParams (), modelSetup.getNumDevicesInBank (), modelSetup.getNumDeviceLayers (), modelSetup.getNumDrumPadLayers (), modelSetup.getNumListParams ());
+        this (host, valueChanger, device, modelSetup.getNumSends (), modelSetup.getNumParamPages (), modelSetup.getNumParams (), modelSetup.getNumDevicesInBank (), modelSetup.getNumDeviceLayers (), modelSetup.getNumDrumPadLayers ());
     }
 
 
@@ -64,10 +62,8 @@ public class SpecificDeviceImpl extends DeviceImpl implements ISpecificDevice
      * @param numDevicesInBank The number of devices
      * @param numDeviceLayers The number of layers
      * @param numDrumPadLayers The number of drum pad layers
-     * @param numListParams The number of parameter of a device to monitor and make a available in a
-     *            list
      */
-    public SpecificDeviceImpl (final IHost host, final IValueChanger valueChanger, final Device device, final int numSends, final int numParamPages, final int numParams, final int numDevicesInBank, final int numDeviceLayers, final int numDrumPadLayers, final int numListParams)
+    public SpecificDeviceImpl (final IHost host, final IValueChanger valueChanger, final Device device, final int numSends, final int numParamPages, final int numParams, final int numDevicesInBank, final int numDeviceLayers, final int numDrumPadLayers)
     {
         super (device, -1);
 
@@ -95,8 +91,6 @@ public class SpecificDeviceImpl extends DeviceImpl implements ISpecificDevice
         }
         else
             this.parameterBank = null;
-
-        this.parameterList = new ParameterListImpl (numListParams / 8, device, host, valueChanger);
 
         // Monitor the layers of a container device (if any)
         this.layerBank = new LayerBankImpl (host, valueChanger, checkedNumDeviceLayers > 0 ? this.device.createLayerBank (checkedNumDeviceLayers) : null, this.device.createCursorLayer (), checkedNumDeviceLayers, numSends, checkedNumDevices);
@@ -273,14 +267,6 @@ public class SpecificDeviceImpl extends DeviceImpl implements ISpecificDevice
     {
         final Boolean v = Boolean.valueOf (hasDrumPads);
         this.hasDrumPadsObservers.forEach (observer -> observer.update (v));
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public IParameterList getParameterList ()
-    {
-        return this.parameterList;
     }
 
 
