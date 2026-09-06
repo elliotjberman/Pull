@@ -13,7 +13,7 @@ public final class MasterMode extends CorePageMode
 {
     private final IMasterTrack masterTrack;
 
-    public MasterMode (final PushControlSurface surface, final IModel model, final boolean temporary, final ReloadableControllerRuntime runtime)
+    public MasterMode (final PushControlSurface surface, final IModel model, final ReloadableControllerRuntime runtime)
     {
         super ("Master", surface, model, runtime);
         this.masterTrack = model.getMasterTrack ();

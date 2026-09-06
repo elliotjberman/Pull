@@ -30,7 +30,6 @@ public class ModelSetup
     private int                  numParamPages              = 8;
     private int                  numParams                  = 8;
     private int                  numDrumPadLayers           = 16;
-    private int                  numListParams              = 0;
     private boolean              wantsFocusedParameter      = false;
 
     private int                  numFilterColumnEntries     = 16;
@@ -224,29 +223,6 @@ public class ModelSetup
     public void setNumParams (final int numParams)
     {
         this.numParams = numParams;
-    }
-
-
-    /**
-     * Get the number of parameters of a device to provide in a list.
-     *
-     * @return The number of parameter of a device to monitor and make a available in a list
-     */
-    public int getNumListParams ()
-    {
-        return this.numListParams;
-    }
-
-
-    /**
-     * Set the number of parameters of a device to provide in a list.
-     *
-     * @param numListParams The number of parameter of a device to monitor and make a available in a
-     *            list
-     */
-    public void setNumListParams (final int numListParams)
-    {
-        this.numListParams = numListParams;
     }
 
 

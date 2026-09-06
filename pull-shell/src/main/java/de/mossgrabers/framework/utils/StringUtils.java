@@ -76,19 +76,6 @@ public class StringUtils
 
 
     /**
-     * First replaces umlauts with alternative writing, then shortens a text to the given length.
-     *
-     * @param text The text to shorten
-     * @param length The length to shorten to
-     * @return The shortened text
-     */
-    public static String shortenAndFixASCII (final String text, final int length)
-    {
-        return optimizeName (fixASCII (text), length);
-    }
-
-
-    /**
      * Replace umlauts and other non-ASCII characters with alternative writing.
      *
      * @param text The string to check
@@ -197,21 +184,6 @@ public class StringUtils
                 str.append (c);
         }
         return str.toString ();
-    }
-
-
-    /**
-     * Convert an string containing only ascii characters to a hex string separated by spaces.
-     *
-     * @param asciiText The ASCII text to convert
-     * @return The formatted hex code
-     */
-    public static String asciiToHex (final String asciiText)
-    {
-        final int [] array = new int [asciiText.length ()];
-        for (int i = 0; i < asciiText.length (); i++)
-            array[i] = asciiText.charAt (i);
-        return toHexStr (array);
     }
 
 
@@ -368,38 +340,6 @@ public class StringUtils
             result[i] = Integer.parseInt (data.substring (pos, pos + 2), 16);
         }
         return result;
-    }
-
-
-    /**
-     * Convert the given integer array into a byte array.
-     *
-     * @param data The integer array
-     * @return The byte array
-     */
-    public static byte [] asBytes (final int [] data)
-    {
-        final byte [] bytes = new byte [data.length];
-        for (int i = 0; i < data.length; i++)
-            bytes[i] = (byte) data[i];
-        return bytes;
-    }
-
-
-    /**
-     * Interpret the content of an integer array as an ASCII text.
-     *
-     * @param start At which index to start to convert the ASCII text in the array
-     * @param length The number of integers to convert
-     * @param data The integer array
-     * @return The converted ASCII string
-     */
-    public static String integerArrayToString (final int start, final int length, final int [] data)
-    {
-        final StringBuilder sb = new StringBuilder (length);
-        for (int i = 0; i < length; i++)
-            sb.append ((char) data[start + i]);
-        return sb.toString ();
     }
 
 

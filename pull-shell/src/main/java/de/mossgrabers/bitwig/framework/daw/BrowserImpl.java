@@ -65,7 +65,6 @@ public class BrowserImpl extends AbstractBrowser
 
         this.browser.exists ().addValueObserver (this::fireActiveObserver);
         this.browser.selectedContentTypeIndex ().markInterested ();
-        this.browser.selectedContentTypeName ().markInterested ();
         this.browser.contentTypeNames ().markInterested ();
         this.browser.shouldAudition ().markInterested ();
 
@@ -99,7 +98,6 @@ public class BrowserImpl extends AbstractBrowser
     {
         Util.setIsSubscribed (this.browser.exists (), enable);
         Util.setIsSubscribed (this.browser.selectedContentTypeIndex (), enable);
-        Util.setIsSubscribed (this.browser.selectedContentTypeName (), enable);
         Util.setIsSubscribed (this.browser.contentTypeNames (), enable);
         Util.setIsSubscribed (this.browser.shouldAudition (), enable);
 
@@ -149,10 +147,9 @@ public class BrowserImpl extends AbstractBrowser
     @Override
     public String getSelectedContentType ()
     {
-        return "Result";
         // TODO API extension required - Currently not working in Bitwig 5, requires adaption to the
         // new browser
-        // return this.browser.selectedContentTypeName ().get ();
+        return "Result";
     }
 
 

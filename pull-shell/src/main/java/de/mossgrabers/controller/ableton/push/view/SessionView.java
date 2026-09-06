@@ -214,13 +214,4 @@ public class SessionView extends AbstractSessionView<PushControlSurface, PushCon
     {
         // Currently, not used
     }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void onButton (final ButtonID buttonID, final ButtonEvent event, final int velocity)
-    {
-        super.onButton (buttonID, event, velocity);
-
-    }
 }
