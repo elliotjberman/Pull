@@ -51,8 +51,6 @@ public final class MetronomeControlView implements ControllerView
     private final ControllerPageTransitions pages;
     private ControllerPageTransitions.Request lastEntry;
 
-    public MetronomeControlView () { this (new AuthoritativeBooleanToggle<> ()); }
-    MetronomeControlView (final AuthoritativeBooleanToggle<String> metronome) { this (metronome, new ControllerPageTransitions ()); }
     MetronomeControlView (final AuthoritativeBooleanToggle<String> metronome, final ControllerPageTransitions pages)
     {
         this.metronome = java.util.Objects.requireNonNull (metronome, "metronome");

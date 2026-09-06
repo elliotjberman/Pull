@@ -42,16 +42,22 @@ class CoreParameterGestureCaptureTest
     @Test
     void hiddenTouchDropsAReboundTargetAndDoesNotStopWritingInAnotherProject ()
     {
-        final Fixture f = new Fixture ();
-        f.page ("WORKSPACE");
-        f.touch (true);
-        f.page ("DEVICE_PARAMS");
-        f.target = new ParameterTargetRef (ParameterTargetKind.LIVE, "project-b-macro", 2);
-        f.automation = new AutomationSnapshot ("project-b", true, true);
-        f.tick ();
-        assertTrue (f.result.desiredParameterTouches ().targets ().isEmpty ());
-        f.touch (false);
-        assertTrue (f.result.effects ().isEmpty ());
+        for (final String project: List.of ("project-a", "project-b"))
+        {
+            final Fixture f = new Fixture ();
+            f.page ("WORKSPACE");
+            f.touch (true);
+            f.page ("DEVICE_PARAMS");
+            f.target = new ParameterTargetRef (ParameterTargetKind.LIVE, "replacement-macro", 2);
+            f.automation = new AutomationSnapshot (project, true, true);
+            f.tick ();
+            assertTrue (f.result.desiredParameterTouches ().targets ().isEmpty ());
+            f.target = TARGET;
+            f.tick ();
+            assertTrue (f.result.desiredParameterTouches ().targets ().isEmpty (), "returning an old target cannot reacquire a held touch");
+            f.touch (false);
+            assertEquals (project.equals ("project-a") ? List.of (new SetAutomationWriteEffect (project, false)) : List.of (), f.result.effects ());
+        }
     }
 
     private static final class Fixture

@@ -15,6 +15,9 @@
 ## Closed-loop testing
 
 - Read `TESTING.md` before validating controller behavior or changing debug ingress.
+- Retain tests for observable controller behavior and real host/hardware/reload contracts. Do not
+  keep implementation-mirroring or migration-only scaffolding when a behavior test covers the
+  same outcome. Keep documentation focused on current contracts, limits and concise evidence.
 - A build or submitted command is not proof that a feature worked. Drive the real routed path and
   verify later authoritative host state and controller output. If the harness cannot drive or
   observe the feature, add the smallest reusable, bounded, opt-in debug capability needed to close

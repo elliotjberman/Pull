@@ -41,6 +41,40 @@ class RawPitchBendCoreIntegrationTest
 {
     private static final ControlId STRIP = PushControlIds.continuous ("TOUCHSTRIP");
 
+    @Test
+    void rawGesturePreservesFourteenBitsAndCentersMidiAndLightsOnRelease ()
+    {
+        final Fixture fixture = new Fixture ("SESSION", false, false);
+        fixture.start ();
+        assertTrue (fixture.input (InputKind.ABSOLUTE, InputPhase.UPDATE, 12289).effects ().isEmpty (), "motion without a touch must be inert");
+        fixture.pressed = Set.of (PushControlIds.button ("SHIFT"), PushControlIds.button ("DELETE"), PushControlIds.button ("REPEAT"));
+        fixture.input (InputKind.TOUCH, InputPhase.BEGIN, 127);
+        final CoreResult moved = fixture.input (InputKind.ABSOLUTE, InputPhase.UPDATE, 12289);
+        assertEquals (List.of (new SendNoteInputMidiEffect (0xE0, 1, 96)), moved.effects ());
+        assertEquals (DesiredTouchStrip.pitchBend (12289), moved.desiredOutput ().touchStrip ());
+        assertEquals (DesiredTouchStrip.pitchBend (12289), fixture.input (InputKind.TOUCH, InputPhase.BEGIN, 127).desiredOutput ().touchStrip (), "duplicate BEGIN must not recenter");
+        final CoreResult release = fixture.input (InputKind.TOUCH, InputPhase.END, 0);
+        assertEquals (List.of (new SendNoteInputMidiEffect (0xE0, 0, 64)), release.effects ());
+        assertEquals (DesiredTouchStrip.pitchBend (8192), release.desiredOutput ().touchStrip ());
+        assertTrue (fixture.input (InputKind.TOUCH, InputPhase.END, 0).effects ().isEmpty ());
+    }
+
+    @Test
+    void enteringRawModeCannotStealATouchThatBeganWithLegacyMeaning ()
+    {
+        final Fixture fixture = new Fixture ("DRUM_PAD", true, false);
+        fixture.start ();
+        fixture.input (InputKind.TOUCH, InputPhase.BEGIN, 127);
+        fixture.engaged = true;
+        fixture.changed ();
+        final CoreResult held = fixture.input (InputKind.ABSOLUTE, InputPhase.UPDATE, 12289);
+        assertTrue (held.effects ().isEmpty ());
+        assertEquals (DesiredTouchStrip.unowned (), held.desiredOutput ().touchStrip ());
+        assertTrue (fixture.input (InputKind.TOUCH, InputPhase.END, 0).effects ().isEmpty ());
+        fixture.input (InputKind.TOUCH, InputPhase.BEGIN, 127);
+        assertEquals (List.of (new SendNoteInputMidiEffect (0xE0, 127, 127)), fixture.input (InputKind.ABSOLUTE, InputPhase.UPDATE, 16383).effects ());
+    }
+
 
     @Test
     void initialSessionAndEngagedDrumOwnRawWhileOrdinaryNoteRetainsLegacy ()

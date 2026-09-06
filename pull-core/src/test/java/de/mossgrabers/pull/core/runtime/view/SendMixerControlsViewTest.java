@@ -21,24 +21,6 @@ class SendMixerControlsViewTest
     private static final RgbColor COLOR = new RgbColor (30, 120, 240);
 
     @Test
-    void allEightPagesDeclareOneEightTrackColumnAndUseTheSharedMenu ()
-    {
-        for (int send = 0; send < 8; send++)
-        {
-            final Fixture f = new Fixture (send);
-            final var result = f.workspace.activate (f.snapshot ());
-            assertEquals ("SEND" + (send + 1), f.pages.legacyAlias ());
-            assertEquals (Set.of (ParameterBankId.trackSend (send)), result.desiredParameterBanks ().banks ());
-            assertEquals (16, result.desiredOutput ().lights ().size ());
-            assertEquals (143, f.view.render (f.snapshot ()).display ().height ());
-            assertEquals (160, result.desiredOutput ().display ().height ());
-            for (int track = 0; track < 8; track++) assertEquals (ParameterSlot.trackSend (send, track), f.workspace.parameterSlotOrNull (knob (track), f.snapshot ()));
-            assertTrue (result.effects ().isEmpty ());
-        }
-        assertThrows (IllegalArgumentException.class, () -> GlobalMixerControlsView.send (8, new ParameterTouchSession ()));
-    }
-
-    @Test
     void allSendEncodersUseOrdinaryCalibratedRelativeResponse ()
     {
         final Fixture f = new Fixture (3);
@@ -206,7 +188,7 @@ class SendMixerControlsViewTest
             this.sendIndex = sendIndex;
             this.view = GlobalMixerControlsView.send (sendIndex, this.session, this.pages);
             this.pages.select (this.pages.resolve ("SEND" + (sendIndex + 1)));
-            this.workspace = CompiledWorkspace.compile ("send", List.of (this.view, new CurrentTrackFooterView ()));
+            this.workspace = CompiledWorkspace.compile ("send", List.of (this.view, new CurrentTrackFooterView (new ButtonGestureConsumption (Set.of (PushControlIds.button ("RECORD"))), new SessionStopGesture (), this.pages)));
             this.workspace.start (this.snapshot ());
         }
         private ParameterTargetRef target (final int track) { return new ParameterTargetRef (ParameterTargetKind.LIVE, "send-" + this.sendIndex + "-track-" + track, this.targetEpoch); }

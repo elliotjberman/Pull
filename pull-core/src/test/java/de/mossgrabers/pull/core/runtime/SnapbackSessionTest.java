@@ -63,7 +63,7 @@ class SnapbackSessionTest
     {
         final SnapbackSession session = startedSession (parameters (100, 200));
         session.handle (mutation (2, KNOB1, FIRST, 100), snapshot (parameters (90, 200), Set.of (SHIFT)), ParameterSlot.active (0));
-        final CompiledWorkspace workspace = CompiledWorkspace.compile ("mix-actions", List.of (new de.mossgrabers.pull.core.runtime.view.TrackMixControlView ()));
+        final CompiledWorkspace workspace = CompiledWorkspace.compile ("mix-actions", List.of (new de.mossgrabers.pull.core.runtime.view.TrackMixControlView (new de.mossgrabers.pull.core.runtime.view.PageNavigation (de.mossgrabers.pull.core.api.ControllerPageRef.core ("track", "TRACK"), de.mossgrabers.pull.core.api.ControllerPageRef::legacy))));
         workspace.start (snapshot (parameters (90, 200), Set.of (SHIFT)));
         final ControlId mix = PushControlIds.button ("TRACK");
         final ResolvedControllerAction preference = workspace.resolveAction (button (3, mix, InputPhase.BEGIN), snapshot (parameters (90, 200), Set.of (SHIFT)));

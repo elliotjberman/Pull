@@ -19,11 +19,6 @@ public final class MasterPageStyle
     public static final double  STATUS_MAX_FONT_SIZE    = 19.0;
     public static final double  STATUS_MIN_FONT_SIZE    = 12.0;
     public static final double  RING_CENTER_Y           = 106.0;
-    public static final double  TOGGLE_WIDTH            = 66.0;
-    public static final double  TOGGLE_HEIGHT           = 32.0;
-    public static final double  TOGGLE_THUMB_RADIUS     = 10.0;
-    public static final double  TOGGLE_THUMB_GAP        = 5.0;
-    public static final double  TOGGLE_INSET            = 1.4;
     public static final double  FOOTER_TOP              = 143.0;
 
     public static final RgbColor BLACK       = PageStyle.BLACK;

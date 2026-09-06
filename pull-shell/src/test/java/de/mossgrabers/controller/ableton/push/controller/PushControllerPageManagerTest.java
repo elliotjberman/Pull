@@ -20,13 +20,13 @@ class PushControllerPageManagerTest
     {
         final var manager = manager ();
         final var handle = manager.beginTemporary (Modes.MASTER_TEMP);
-        final var entry = manager.requests ().requests ().getFirst ();
+        final var entry = manager.requests (true).requests ().getFirst ();
         assertEquals (LegacyControllerPageRequest.Operation.BEGIN_TEMPORARY, entry.operation ());
         manager.apply (new DesiredControllerPageState (1, ControllerPageRef.core ("track", "TRACK"), ControllerPageRef.none (), Optional.of (new ControllerTemporaryPage (7, ControllerPageRef.core ("master", "MASTER_TEMP"))), entry.sequence ()));
         assertFalse (manager.canReplaceCore (), "an acknowledged entry still has a physical owner");
         handle.close ();
         handle.close ();
-        final var returns = manager.requests ().requests ();
+        final var returns = manager.requests (true).requests ();
         assertEquals (1, returns.size ());
         assertEquals (entry.sequence (), returns.getFirst ().temporaryRequestSequence ());
         manager.apply (state (2, ControllerPageRef.core ("track", "TRACK"), ControllerPageRef.none (), returns.getFirst ().sequence ()));
@@ -41,23 +41,8 @@ class PushControllerPageManagerTest
         manager.invalidate ();
         manager.activateConsumer (2);
         handle.close ();
-        assertTrue (manager.requests ().requests ().isEmpty ());
+        assertTrue (manager.requests (true).requests ().isEmpty ());
         assertTrue (manager.canReplaceCore ());
-    }
-
-    @Test
-    void corePageIdentityIsIndependentOfTheInstalledLegacyRegistry ()
-    {
-        final var manager = manager ();
-        final IMode generic = manager.getActive ();
-        final var first = ControllerPageRef.core ("unregistered/page-a");
-        manager.apply (state (1, first, ControllerPageRef.none (), 0));
-        assertSame (generic, manager.getActive ());
-        assertNull (manager.getActiveID ());
-        manager.apply (state (2, ControllerPageRef.core ("unregistered/page-b", "MASTER"), first, 0));
-        assertSame (generic, manager.getActive ());
-        assertEquals (Modes.MASTER, manager.getActiveID ());
-        assertEquals (first, manager.pageState ().previous ());
     }
 
     @Test
@@ -67,12 +52,12 @@ class PushControllerPageManagerTest
         manager.apply (state (1, ControllerPageRef.core ("mixer", "TRACK"), ControllerPageRef.none (), 0));
         manager.setActive (Modes.DEVICE_PARAMS);
         manager.setTemporary (Modes.BROWSER);
-        final var inbox = manager.requests ();
-        assertEquals (inbox, manager.requests ());
+        final var inbox = manager.requests (true);
+        assertEquals (inbox, manager.requests (true));
         assertEquals (Modes.TRACK, manager.getActiveID ());
         assertFalse (manager.isIdle ());
         manager.apply (state (2, ControllerPageRef.legacy ("DEVICE_PARAMS"), ControllerPageRef.core ("mixer", "TRACK"), 1));
-        assertEquals (List.of (inbox.requests ().get (1)), manager.requests ().requests ());
+        assertEquals (List.of (inbox.requests ().get (1)), manager.requests (true).requests ());
         manager.apply (new DesiredControllerPageState (3, manager.pageState ().selected (), manager.pageState ().previous (), Optional.of (new ControllerTemporaryPage (7, ControllerPageRef.legacy ("BROWSER"))), 2));
         assertTrue (manager.isIdle ());
         assertEquals (Modes.BROWSER, manager.getActiveID ());
@@ -88,7 +73,7 @@ class PushControllerPageManagerTest
         manager.register (Modes.DEVICE_PARAMS, mode (() -> manager.setPreviousID (Modes.TRACK), () -> { }));
         manager.apply (new DesiredControllerPageState (5, ControllerPageRef.core ("opaque"), ControllerPageRef.none (), Optional.of (new ControllerTemporaryPage (13, ControllerPageRef.legacy ("BROWSER"))), 0));
         manager.apply (state (6, ControllerPageRef.legacy ("DEVICE_PARAMS"), ControllerPageRef.core ("opaque"), 0));
-        final var requests = manager.requests ().requests ();
+        final var requests = manager.requests (true).requests ();
         assertEquals (2, requests.size ());
         assertEquals (5, requests.get (0).originPageRevision ());
         assertEquals (13, requests.get (0).originTemporaryToken ());
@@ -132,7 +117,7 @@ class PushControllerPageManagerTest
         final var captured = manager.captureSelectedPage ();
         manager.apply (state (2, ControllerPageRef.legacy ("DEVICE_PARAMS"), opaque, 0));
         manager.requestCapturedPage (captured);
-        final var request = manager.requests ().requests ().get (0);
+        final var request = manager.requests (true).requests ().get (0);
         assertEquals (LegacyControllerPageRequest.Operation.SELECT_CAPTURED, request.operation ());
         assertEquals (opaque, request.capturedTarget ());
         assertEquals (2, request.originPageRevision ());
@@ -146,7 +131,7 @@ class PushControllerPageManagerTest
         final Runnable delayed = manager.freezeRequestOrigin (() -> manager.setActive (Modes.BROWSER));
         manager.apply (state (2, ControllerPageRef.core ("newer"), ControllerPageRef.none (), 0));
         delayed.run ();
-        assertEquals (1, manager.requests ().requests ().get (0).originPageRevision ());
+        assertEquals (1, manager.requests (true).requests ().get (0).originPageRevision ());
     }
 
     @Test
@@ -158,7 +143,7 @@ class PushControllerPageManagerTest
         manager.setActive (Modes.DEVICE_PARAMS);
         manager.afterPageRequest (() -> notified.add (manager.getActiveID ()));
         assertTrue (notified.isEmpty ());
-        final var next = state (2, ControllerPageRef.legacy ("DEVICE_PARAMS"), manager.capturePage (), 1);
+        final var next = state (2, ControllerPageRef.legacy ("DEVICE_PARAMS"), manager.pageState ().effectivePage (), 1);
         manager.apply (next);
         manager.apply (next);
         assertEquals (List.of (Modes.DEVICE_PARAMS), notified);
@@ -171,7 +156,7 @@ class PushControllerPageManagerTest
         manager.register (Modes.BROWSER, mode (() -> { }, () -> manager.apply (state (3, ControllerPageRef.core ("nested"), ControllerPageRef.none (), 0))));
         manager.apply (state (1, ControllerPageRef.legacy ("BROWSER"), ControllerPageRef.none (), 0));
         manager.apply (state (2, ControllerPageRef.legacy ("DEVICE_PARAMS"), ControllerPageRef.none (), 0));
-        assertEquals ("nested", manager.capturePage ().id ());
+        assertEquals ("nested", manager.pageState ().effectivePage ().id ());
         assertTrue (manager.isIdle ());
     }
 
@@ -184,7 +169,7 @@ class PushControllerPageManagerTest
         manager.apply (state (1, ControllerPageRef.legacy ("BROWSER"), ControllerPageRef.none (), 0));
         manager.invalidate ();
         assertSame (generic, manager.getActive ());
-        assertEquals (ControllerPageRef.none (), manager.capturePage ());
+        assertEquals (ControllerPageRef.none (), manager.pageState ().effectivePage ());
         assertTrue (manager.isIdle ());
     }
 
@@ -200,7 +185,7 @@ class PushControllerPageManagerTest
         manager.apply (state (2, ControllerPageRef.legacy ("DEVICE_PARAMS"), ControllerPageRef.none (), 0));
         assertEquals (0, destinationStarts.get ());
         assertEquals (0, destinationStops.get ());
-        assertEquals (ControllerPageRef.none (), manager.capturePage ());
+        assertEquals (ControllerPageRef.none (), manager.pageState ().effectivePage ());
         assertTrue (manager.isIdle ());
     }
 
@@ -216,15 +201,15 @@ class PushControllerPageManagerTest
         manager.invalidate ();
         manager.setActive (Modes.BROWSER);
         assertTrue (manager.canReplaceCore ());
-        assertTrue (manager.requests ().requests ().isEmpty ());
-        assertEquals (2, manager.requests ().retiredSequence ());
+        assertTrue (manager.requests (true).requests ().isEmpty ());
+        assertEquals (2, manager.requests (true).retiredSequence ());
         manager.activateConsumer (2);
         manager.apply (state (0, ControllerPageRef.core ("recovered"), ControllerPageRef.none (), 2));
         oldCallback.run ();
-        assertTrue (manager.requests ().requests ().isEmpty ());
+        assertTrue (manager.requests (true).requests ().isEmpty ());
         manager.setActive (Modes.DEVICE_PARAMS);
-        assertEquals (3, manager.requests ().requests ().get (0).sequence ());
-        assertEquals (0, manager.requests ().requests ().get (0).originPageRevision ());
+        assertEquals (3, manager.requests (true).requests ().get (0).sequence ());
+        assertEquals (0, manager.requests (true).requests ().get (0).originPageRevision ());
         manager.apply (state (1, ControllerPageRef.legacy ("DEVICE_PARAMS"), ControllerPageRef.none (), 3));
         assertTrue (manager.isIdle ());
     }
@@ -238,7 +223,7 @@ class PushControllerPageManagerTest
         final Runnable delayed = manager.freezeRequestOrigin (() -> manager.setActive (Modes.BROWSER));
         manager.activateConsumer (2);
         delayed.run ();
-        assertTrue (manager.requests ().requests ().isEmpty ());
+        assertTrue (manager.requests (true).requests ().isEmpty ());
         assertEquals (1, manager.requests (false).retiredSequence ());
         assertThrows (IllegalArgumentException.class, () -> manager.prepare (state (0, ControllerPageRef.core ("fresh"), ControllerPageRef.none (), 0)));
     }
@@ -249,7 +234,7 @@ class PushControllerPageManagerTest
         final var manager = manager ();
         for (int i = 0; i < LegacyControllerPageRequests.CAPACITY; i++) manager.setActive (Modes.DEVICE_PARAMS);
         assertThrows (IllegalStateException.class, () -> manager.setActive (Modes.BROWSER));
-        assertEquals (64, manager.requests ().requests ().size ());
+        assertEquals (64, manager.requests (true).requests ().size ());
         assertThrows (IllegalArgumentException.class, () -> manager.prepare (state (1, ControllerPageRef.core ("a"), ControllerPageRef.none (), 65)));
         assertThrows (IllegalArgumentException.class, () -> new LegacyControllerPageRequests (List.of (new LegacyControllerPageRequest (1, 0, 0, LegacyControllerPageRequest.Operation.RESTORE, ""), new LegacyControllerPageRequest (3, 0, 0, LegacyControllerPageRequest.Operation.RESTORE, ""))));
     }

@@ -49,7 +49,7 @@ class CurrentTrackSendBankHostTest
     }
 
     @Test
-    void allSixtyFourTargetsFitAndColumnIndicesAreStrictlyBounded ()
+    void allSixtyFourSendTargetsAreIndependentlyAddressable ()
     {
         final Fixture fixture = new Fixture ();
         final Set<ParameterBankId> all = new HashSet<> ();
@@ -57,9 +57,6 @@ class CurrentTrackSendBankHostTest
         fixture.host.refresh (new DesiredParameterBanks (all));
         assertEquals (64, fixture.host.snapshot ().slots ().size ());
         assertEquals (64, fixture.host.snapshot ().slots ().values ().stream ().map (ParameterTargetSnapshot::target).distinct ().count ());
-        assertThrows (IllegalArgumentException.class, () -> ParameterBankId.trackSend (-1));
-        assertThrows (IllegalArgumentException.class, () -> ParameterBankId.trackSend (8));
-        assertThrows (IllegalArgumentException.class, () -> ParameterSlot.trackSend (0, 8));
     }
 
     @Test

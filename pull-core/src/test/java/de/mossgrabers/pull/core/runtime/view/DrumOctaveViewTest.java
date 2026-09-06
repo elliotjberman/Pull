@@ -13,7 +13,6 @@ import de.mossgrabers.pull.core.api.DesiredNoteInputTranslation;
 import de.mossgrabers.pull.core.api.DrumContextSnapshot;
 import de.mossgrabers.pull.core.api.DrumPadSnapshot;
 import de.mossgrabers.pull.core.api.GridPressureConfiguration;
-import de.mossgrabers.pull.core.api.InputRouteMode;
 import de.mossgrabers.pull.core.api.MasterSnapshot;
 import de.mossgrabers.pull.core.api.NoteRepeatSnapshot;
 import de.mossgrabers.pull.core.api.NoteViewSnapshot;
@@ -33,8 +32,6 @@ import de.mossgrabers.pull.core.api.event.ControllerTickEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.output.RgbColor;
-import de.mossgrabers.pull.core.view.CompiledWorkspace;
-import de.mossgrabers.pull.core.view.RetainedControllerView;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -58,20 +55,6 @@ class DrumOctaveViewTest
     private static final ControlId PLAY_PAD = PushControlIds.pad (1);
     private static final RgbColor OFF = new RgbColor (0, 0, 0);
     private static final RgbColor ON = new RgbColor (255, 255, 255);
-
-
-    @ParameterizedTest
-    @ValueSource (strings = {"DRUM_PAD", "WORKSPACE"})
-    void standaloneAndCompositeAcquireOctaveInputAndLightsTogether (final String layout)
-    {
-        final Fixture fixture = new Fixture (layout);
-        final var result = CompiledWorkspace.compile ("Drum", List.of (fixture.view)).start (fixture.snapshot ());
-        assertEquals (InputRouteMode.EXCLUSIVE, result.desiredInputRoutes ().modeOrNull (UP, InputKind.BUTTON));
-        assertEquals (InputRouteMode.EXCLUSIVE, result.desiredInputRoutes ().modeOrNull (DOWN, InputKind.BUTTON));
-        assertEquals (InputRouteMode.OBSERVE, result.desiredInputRoutes ().modeOrNull (PLAY_PAD, InputKind.PAD));
-        assertEquals (InputRouteMode.OBSERVE, result.desiredInputRoutes ().modeOrNull (SHIFT, InputKind.BUTTON));
-        assertEquals (Map.of (UP, ON, DOWN, ON), result.desiredOutput ().lights ());
-    }
 
 
     @Test
@@ -226,35 +209,6 @@ class DrumOctaveViewTest
         fixture.applyNativeTranslation ();
         assertEquals (ON, pads.render (fixture.snapshot ()).lights ().get (PLAY_PAD));
         assertEquals (List.of (new SendNoteInputMidiEffect (0xA0, 52, 91)), pads.handle (pressure, fixture.snapshot ()));
-    }
-
-
-    @Test
-    void masterRetainsTheHeldMoveButLeavingTheDrumCompositionCancelsIt ()
-    {
-        final Fixture fixture = new Fixture ("WORKSPACE");
-        final var retained = new RetainedControllerView (fixture.view);
-        final var drum = CompiledWorkspace.compile ("Drum", List.of (retained));
-        final var master = CompiledWorkspace.compile ("Master", List.of (retained));
-        final var other = CompiledWorkspace.compile ("Other", List.of ());
-        drum.start (fixture.snapshot ());
-        fixture.pressed = Set.of (PLAY_PAD);
-        fixture.press (UP);
-        drum.deactivateExcept (master);
-        master.activate (fixture.snapshot ());
-        fixture.pressed = Set.of ();
-        fixture.event (PLAY_PAD, InputKind.PAD, InputPhase.END);
-        assertEquals (List.of (new SetDrumBankPositionEffect (1, "track-a", 52, false)), fixture.submitted);
-
-        fixture.submitted.clear ();
-        fixture.pressed = Set.of (PLAY_PAD);
-        fixture.press (UP);
-        master.deactivateExcept (other);
-        other.activate (fixture.snapshot ());
-        fixture.pressed = Set.of ();
-        drum.activate (fixture.snapshot ());
-        fixture.event (PLAY_PAD, InputKind.PAD, InputPhase.END);
-        assertTrue (fixture.submitted.isEmpty ());
     }
 
 

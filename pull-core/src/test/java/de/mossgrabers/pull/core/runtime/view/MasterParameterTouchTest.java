@@ -83,28 +83,6 @@ class MasterParameterTouchTest
         assertEquals (before, view.render (snapshot (Set.of (knob (0)), Set.of ())).display ());
     }
 
-    @Test
-    void departureRetainsExactMasterTouchAndOriginalReleaseFinishesGesture ()
-    {
-        final ParameterTouchSession session = new ParameterTouchSession ();
-        final CompiledWorkspace master = CompiledWorkspace.compile ("Master", List.of (new MasterControlView (session)));
-        final CompiledWorkspace other = CompiledWorkspace.compile ("Other", List.of ());
-        master.start (snapshot (Set.of (), Set.of ()));
-        final var router = new de.mossgrabers.pull.core.view.InputGestureRouter ();
-        final var held = snapshot (Set.of (knob (0)), Set.of ());
-        final var begin = router.capture (touch (knob (0), InputPhase.BEGIN), master);
-        router.dispatch (begin, held);
-        router.finish (begin, master);
-        router.transition (master, other);
-        assertEquals (Map.of (knob (0), target (0)), router.decorate (other, other.start (held), held).desiredParameterTouches ().targets ());
-        final var released = snapshot (Set.of (), Set.of ());
-        router.reconcile (other, released);
-        final var end = router.capture (touch (knob (0), InputPhase.END), other);
-        assertEquals (List.of (new SetAutomationWriteEffect ("project-a", false)), router.dispatch (end, released));
-        router.finish (end, other);
-        assertTrue (master.activate (held).desiredParameterTouches ().targets ().isEmpty ());
-    }
-
     private static ControllerInputEvent touch (final ControlId knob, final InputPhase phase)
     {
         return new ControllerInputEvent (1, 1, knob, InputKind.TOUCH, phase, phase == InputPhase.END ? 0 : 127);

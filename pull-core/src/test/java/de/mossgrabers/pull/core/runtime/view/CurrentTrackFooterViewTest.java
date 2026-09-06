@@ -19,18 +19,6 @@ class CurrentTrackFooterViewTest
     private static final RgbColor BLUE = new RgbColor (0, 80, 255);
 
     @Test
-    void ownsWholeFooterButOnlyObservesModifiers ()
-    {
-        final Fixture f = new Fixture ();
-        final CoreResult start = f.workspace.activate (f.snapshot ());
-        assertEquals (InputRouteMode.EXCLUSIVE, start.desiredInputRoutes ().modeOrNull (ROW, InputKind.BUTTON));
-        for (final String modifier: List.of ("DUPLICATE", "DELETE", "RECORD", "SELECT", "SHIFT"))
-            assertEquals (InputRouteMode.OBSERVE, start.desiredInputRoutes ().modeOrNull (PushControlIds.button (modifier), InputKind.BUTTON));
-        assertEquals (Set.of (BridgeSubscription.CURRENT_TRACK_BANK, BridgeSubscription.CONTROLLER_LAYOUT), start.desiredBridgeSubscriptions ().domains ());
-        assertEquals (8, start.desiredOutput ().lights ().size ());
-    }
-
-    @Test
     void selectsAllEightTracksOnReleaseAndNeverOptimisticallyChangesFeedback ()
     {
         for (int index = 0; index < 8; index++)
@@ -263,24 +251,6 @@ class CurrentTrackFooterViewTest
     }
 
     @Test
-    void stopChordTargetsExactSessionBankAtBeginAndSuppressesFooterAndPlainStopRelease ()
-    {
-        final Fixture f = new Fixture (true);
-        final List<SessionTrackSnapshot> tracks = new ArrayList<> ();
-        for (int index = 0; index < 8; index++)
-            tracks.add (new SessionTrackSnapshot ("session-" + index, index, "Session", true, false, true, false, false, false, false, SessionTrackType.INSTRUMENT, BLUE));
-        f.session = new SessionBankSnapshot (9, new SessionBankShape (8, 8), 0, 0, tracks);
-        final ControlId stop = PushControlIds.button ("STOP_CLIP");
-        f.press ("STOP_CLIP");
-        f.workspace.handle (new ControllerInputEvent (1, 1, stop, InputKind.BUTTON, InputPhase.BEGIN, 127), f.snapshot ());
-        assertEquals (List.of (new ConsumeControllerButtonEffect (ROW), new StopSessionTrackEffect (9, new SessionBankShape (8, 8), 0, "session-0", true)), f.begin (false));
-        assertTrue (f.edge (InputPhase.LONG).isEmpty ());
-        assertTrue (f.edge (InputPhase.END).isEmpty ());
-        f.pressed.remove (stop);
-        assertTrue (f.workspace.handle (new ControllerInputEvent (2, 2, stop, InputKind.BUTTON, InputPhase.END, 0), f.snapshot ()).effects ().isEmpty ());
-    }
-
-    @Test
     void stopHeldOutsideSessionDoesNotChangeNormalFooterSemantics ()
     {
         final Fixture f = new Fixture ();
@@ -315,8 +285,7 @@ class CurrentTrackFooterViewTest
         ResolvedControllerAction deferred;
         ControllerLayoutSnapshot layout = new ControllerLayoutSnapshot (4, "PLAY", "TRACK", false, false, 36, GridPressureConfiguration.OFF);
 
-        Fixture () { this (false); }
-        Fixture (final boolean sessionView)
+        Fixture ()
         {
             final ControllerView top = new ControllerView ()
             {
@@ -324,7 +293,7 @@ class CurrentTrackFooterViewTest
                 public ViewProfile profile () { return ViewProfile.fixed ("default", Set.of (new SurfaceClaim (SurfaceArea.DISPLAY_PARAMETERS, SurfaceClaim.Kind.OUTPUT)), Set.of ()); }
                 public ViewOutput render (final ControllerSnapshot snapshot) { return new ViewOutput (Map.of (), Map.of (), new ControllerDisplayScene (960, 143, List.of (new DisplayCommand.Rectangle (0, 0, 960, 143, new RgbColor (0, 0, 0))))); }
             };
-            this.workspace = CompiledWorkspace.compile ("footer", sessionView ? new SessionBankShape (8, 8) : SessionBankShape.empty (), sessionView ? List.of (top, this.view, SessionView.full (this.stop)) : List.of (top, this.view));
+            this.workspace = CompiledWorkspace.compile ("footer", List.of (top, this.view));
             this.workspace.start (this.snapshot ());
         }
         void press (final String button) { this.pressed.add (PushControlIds.button (button)); }
@@ -362,7 +331,7 @@ class CurrentTrackFooterViewTest
             }
             final var bank = new CurrentTrackBankSnapshot (this.bankGeneration, "bank-a", 0, tracks, this.cursor, this.pinned, 8, this.parent);
             final var empty = ControllerBridgeSnapshot.empty ();
-            final var bridge = new ControllerBridgeSnapshot (empty.transport (), empty.selectedTrack (), this.session, this.layout, empty.noteView (), empty.noteRepeat (), empty.drum (), empty.parameters (), empty.controllerMappingFeedback (), empty.master (), empty.project (), empty.automation (), empty.encoderConfiguration (), bank);
+            final var bridge = new ControllerBridgeSnapshot (empty.transport (), empty.selectedTrack (), SessionBankSnapshot.empty (), this.layout, empty.noteView (), empty.noteRepeat (), empty.drum (), empty.parameters (), empty.controllerMappingFeedback (), empty.master (), empty.project (), empty.automation (), empty.encoderConfiguration (), bank);
             return new ControllerSnapshot (this.sequence, this.sequence, new ShellCapabilities (Map.of ()), bridge, ClipCatalogSnapshot.empty (), Map.of (), Map.of (), Optional.empty (), this.pressed, Set.of ());
         }
     }

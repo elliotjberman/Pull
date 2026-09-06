@@ -28,21 +28,6 @@ class GlobalMixerControlsViewTest
     private static final EncoderConfigurationSnapshot CONFIG = new EncoderConfigurationSnapshot (true, 1024, 10, 0, -90);
 
     @Test
-    void boundedPageContractUsesCurrentBankSlotsAndLeavesNavigationUnclaimed ()
-    {
-        for (final GlobalMixerControlsView.Role role: List.of (GlobalMixerControlsView.Role.VOLUME, GlobalMixerControlsView.Role.PAN))
-        {
-            final Fixture fixture = new Fixture (role);
-            final CoreResult result = fixture.workspace.activate (fixture.snapshot ());
-            assertEquals (role.name (), fixture.pages.legacyAlias ());
-            assertEquals (Set.of (role == GlobalMixerControlsView.Role.VOLUME ? ParameterBankId.TRACK_VOLUME : ParameterBankId.TRACK_PAN), result.desiredParameterBanks ().banks ());
-            assertTrue (fixture.view.profile ().controllerFacets ().isEmpty ());
-            for (int index = 0; index < 8; index++) assertEquals (fixture.slot (index), fixture.workspace.parameterSlotOrNull (knob (index), fixture.snapshot ()));
-            assertNull (fixture.workspace.parameterSlotOrNull (PushControlIds.continuous ("MASTER_KNOB"), fixture.snapshot ()));
-        }
-    }
-
-    @Test
     void fullBankVolumeAndPanUseRoleCalibrationAndFineSensitivity ()
     {
         final Fixture volume = new Fixture (GlobalMixerControlsView.Role.VOLUME);
@@ -260,7 +245,7 @@ class GlobalMixerControlsViewTest
             this.view = role == GlobalMixerControlsView.Role.SEND ? GlobalMixerControlsView.send (0, session, this.pages) : new GlobalMixerControlsView (role, session, this.pages);
             this.layout = new ControllerLayoutSnapshot (7, "PLAY", role == GlobalMixerControlsView.Role.SEND ? "SEND1" : role.name (), false, false, 0, GridPressureConfiguration.OFF);
             this.pages.select (this.pages.resolve (this.layout.modeId ()));
-            this.workspace = CompiledWorkspace.compile (role.name (), List.of (this.view, new CurrentTrackFooterView ()));
+            this.workspace = CompiledWorkspace.compile (role.name (), List.of (this.view, new CurrentTrackFooterView (new ButtonGestureConsumption (Set.of (PushControlIds.button ("RECORD"))), new SessionStopGesture (), this.pages)));
             this.workspace.start (this.snapshot ());
         }
         private ParameterSlot slot (final int index) { return this.role == GlobalMixerControlsView.Role.SEND ? ParameterSlot.trackSend (0, index) : this.role == GlobalMixerControlsView.Role.VOLUME ? ParameterSlot.trackVolume (index) : ParameterSlot.trackPan (index); }

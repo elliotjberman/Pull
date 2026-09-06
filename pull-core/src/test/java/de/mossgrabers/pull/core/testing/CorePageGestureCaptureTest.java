@@ -16,6 +16,38 @@ class CorePageGestureCaptureTest
     private static final ControlId NOTE_EDITOR = PushControlIds.button ("ROW1_4");
 
     @Test
+    void releasingAnOlderHeldPageButtonCannotDismissTheNewerPage ()
+    {
+        for (final String older: List.of ("ACCENT", "AUTOMATION", "MASTERTRACK", "METRONOME"))
+            for (final String newer: List.of ("ACCENT", "AUTOMATION", "MASTERTRACK", "METRONOME"))
+            {
+                if (older.equals (newer)) continue;
+                final FakeCoreHost host = host ();
+                final ControlId first = PushControlIds.button (older);
+                final ControlId second = PushControlIds.button (newer);
+                host.controllerButton (first, true);
+                host.controllerButtonLong (first);
+                host.controllerButton (second, true);
+                host.controllerButtonLong (second);
+                host.controllerButton (first, false);
+                final String visible = switch (newer) { case "MASTERTRACK" -> "FRAME"; case "METRONOME" -> "TRANSPORT"; default -> newer; };
+                assertEquals (visible, page (host), older + " release dismissed " + newer);
+                host.controllerTick ();
+                assertEquals (visible, page (host));
+                host.controllerButton (second, false);
+                assertEquals (newer.equals ("METRONOME") ? "TRANSPORT" : "TRACK", page (host));
+                host.controllerButton (second, false);
+                assertEquals (newer.equals ("METRONOME") ? "TRANSPORT" : "TRACK", page (host), "duplicate release must be inert");
+                if (newer.equals ("METRONOME"))
+                {
+                    host.controllerButton (second, true);
+                    host.controllerButton (second, false);
+                    assertEquals ("TRACK", page (host), "a later Metronome tap closes its latched page");
+                }
+            }
+    }
+
+    @Test
     void frameReleaseReturnsToItsOriginalViewWithoutRestoringTheOldPage ()
     {
         final FakeCoreHost host = host ();

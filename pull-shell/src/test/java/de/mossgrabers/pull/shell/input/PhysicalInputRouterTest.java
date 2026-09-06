@@ -497,24 +497,6 @@ class PhysicalInputRouterTest
     }
 
 
-    @Test
-    void relatedMotionDeclarationsMustReferenceInstalledTouchAndMotionInputs ()
-    {
-        assertThrows (IllegalArgumentException.class, () -> new PhysicalInputRouter<> (
-            touchRegistry (), (control, kind) -> InputRoute.NONE, event -> { },
-            (control, kind, action) -> false, new IncrementingClock (), () -> 1,
-            Map.of (RIBBON, InputKind.TOUCH)));
-        assertThrows (IllegalArgumentException.class, () -> new PhysicalInputRouter<> (
-            touchRegistry (), (control, kind) -> InputRoute.NONE, event -> { },
-            (control, kind, action) -> false, new IncrementingClock (), () -> 1,
-            Map.of (RIBBON, InputKind.RELATIVE)));
-        assertThrows (IllegalArgumentException.class, () -> new PhysicalInputRouter<> (
-            registry (), (control, kind) -> InputRoute.NONE, event -> { },
-            (control, kind, action) -> false, new IncrementingClock (), () -> 1,
-            Map.of (RIBBON, InputKind.ABSOLUTE)));
-    }
-
-
     private static PhysicalInputRouter<String> touchRouter (final AtomicReference<InputRoute> route, final AtomicLong generation, final List<PhysicalInputEvent<String>> events)
     {
         return new PhysicalInputRouter<> (

@@ -25,11 +25,6 @@ public final class MacroPageStyle
     public static final double UNIT_FONT_SIZE = 14.0;
     public static final double VALUE_FIELD_WIDTH = 64.0;
     public static final double VALUE_UNIT_GAP = 2.0;
-    public static final double TOGGLE_WIDTH = 66.0;
-    public static final double TOGGLE_HEIGHT = 32.0;
-    public static final double TOGGLE_INSET = 1.4;
-    public static final double TOGGLE_THUMB_GAP = 5.0;
-    public static final double TOGGLE_THUMB_RADIUS = 10.0;
 
     private MacroPageStyle () { }
 

@@ -42,7 +42,7 @@ public final class MasterPageRenderer
         drawFooter (commands, 2, "Cue", null, FOOTER_GRAY, false, true);
         appendControl (commands, page, 3);
         drawLabel (commands, 4, "Audio Engine");
-        drawToggle (commands, 4, page.engineActive ());
+        ToggleRenderer.append (commands, left (4) + CONTENT_LEFT, RING_CENTER_Y, page.engineActive (), page.engineActive () ? TOGGLE_ON : GRAY);
         drawLabel (commands, 5, "Project");
         drawStatusValue (commands, 5, page.projectName ());
         drawHeader (commands, 6, "Previous", page.canPrevious ());
@@ -87,24 +87,6 @@ public final class MasterPageRenderer
         commands.add (new DisplayCommand.TextBox (text, left (column) + CONTENT_LEFT, STATUS_VALUE_TOP, COLUMN_WIDTH - 2 * CONTENT_LEFT, STATUS_VALUE_HEIGHT, DisplayTextAlignment.LEFT, WHITE, STATUS_MAX_FONT_SIZE, STATUS_MIN_FONT_SIZE, DisplayTextFit.SHRINK_ELLIPSIS));
     }
 
-
-    private static void drawToggle (final ArrayList<DisplayCommand> commands, final int column, final boolean on)
-    {
-        final double left = left (column) + CONTENT_LEFT;
-        final double top = RING_CENTER_Y - TOGGLE_HEIGHT / 2.0;
-        final double radius = TOGGLE_HEIGHT / 2.0;
-        final RgbColor color = on ? TOGGLE_ON : GRAY;
-        final double thumbX = on ? left + TOGGLE_WIDTH - TOGGLE_THUMB_GAP - TOGGLE_THUMB_RADIUS : left + TOGGLE_THUMB_GAP + TOGGLE_THUMB_RADIUS;
-        commands.add (new DisplayCommand.RoundedRectangle (left, top, TOGGLE_WIDTH, TOGGLE_HEIGHT, radius, color));
-        if (on)
-        {
-            commands.add (new DisplayCommand.Circle (thumbX, RING_CENTER_Y, TOGGLE_THUMB_RADIUS, BLACK));
-            return;
-        }
-        commands.add (new DisplayCommand.RoundedRectangle (left + TOGGLE_INSET, top + TOGGLE_INSET, TOGGLE_WIDTH - 2 * TOGGLE_INSET, TOGGLE_HEIGHT - 2 * TOGGLE_INSET, radius - TOGGLE_INSET, BLACK));
-        commands.add (new DisplayCommand.Circle (thumbX, RING_CENTER_Y, TOGGLE_THUMB_RADIUS, color));
-        commands.add (new DisplayCommand.Circle (thumbX, RING_CENTER_Y, TOGGLE_THUMB_RADIUS - TOGGLE_INSET, BLACK));
-    }
 
 
     private static void drawFooter (final ArrayList<DisplayCommand> commands, final int column, final String text, final DisplayIcon icon, final RgbColor color, final boolean selected, final boolean active)

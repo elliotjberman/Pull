@@ -51,8 +51,6 @@ public final class AutomationControlView implements ControllerView
     private final ControllerPageTransitions pages;
     private ControllerPageTransitions.Request lastEntry;
 
-    public AutomationControlView () { this (new AutomationControlState ()); }
-    AutomationControlView (final AutomationControlState state) { this (state, new ControllerPageTransitions ()); }
     AutomationControlView (final AutomationControlState state, final ControllerPageTransitions pages)
     {
         this.state = java.util.Objects.requireNonNull (state, "state");

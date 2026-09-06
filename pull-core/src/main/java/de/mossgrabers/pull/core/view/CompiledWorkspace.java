@@ -185,18 +185,6 @@ public final class CompiledWorkspace
     }
 
 
-    /** Relinquish only views absent from the next composition; shared instances keep their gestures. */
-    public void deactivateExcept (final CompiledWorkspace next)
-    {
-        Objects.requireNonNull (next, "next");
-        for (final CompiledView current: this.views)
-        {
-            if (next.views.stream ().noneMatch (retained -> retained.view () == current.view ()))
-                current.view ().deactivate ();
-        }
-    }
-
-
     /**
      * Start every view and render the complete workspace.
      *

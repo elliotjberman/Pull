@@ -21,6 +21,14 @@ input log, or optimistic fake is not proof that the feature worked.
 
 ## Offline test loops
 
+Keep tests that protect observable controller behavior or the real Bitwig, hardware and reload
+contracts. A fake host is useful when it separates submitted input/effects from later host state;
+assert the resulting action, target, feedback or failure behavior. Prefer that path over a second
+test of its private bookkeeping. Do not retain constructor/getter checks, internal call counts,
+serialized implementation hashes, or migration-only probes merely because they helped build the
+feature. Share small fixtures when they remove repetition without hiding host advancement or
+target identity. Git history preserves discarded scaffolding.
+
 Run the reloadable controller core and its shell fakes without building the Bitwig extension:
 
 ```bash

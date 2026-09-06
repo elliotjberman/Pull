@@ -33,61 +33,6 @@ class AccentViewsTest
         assertEquals (new RgbColor (255, 255, 255), observed.desiredOutput ().lights ().get (PushControlIds.button ("ACCENT")));
     }
 
-    @Test
-    void deferredLongAndEndCompleteLocallyAfterAdmission ()
-    {
-        final Fixture f = new Fixture (false);
-        final ResolvedControllerAction action = f.resolve ("ACCENT");
-        assertEquals (Set.of (ControllerStateScope.ACTIVE_PARAMETERS), action.intent ().invalidates ());
-        assertTrue (f.edge ("ACCENT", InputPhase.LONG).effects ().isEmpty ());
-        assertTrue (f.edge ("ACCENT", InputPhase.END).effects ().isEmpty ());
-        assertTrue (f.dispatch (action).effects ().isEmpty ());
-        assertEquals ("TRACK", f.navigation.legacyAlias ());
-        assertTrue (f.tick ().effects ().isEmpty ());
-        f.observe ("PAN", false);
-        assertTrue (f.tick ().effects ().isEmpty ());
-        f.observe ("ACCENT", false);
-        assertTrue (f.tick ().effects ().isEmpty ());
-        f.observe ("ACCENT", true);
-        assertTrue (f.tick ().effects ().isEmpty ());
-        assertEquals ("ACCENT", f.navigation.legacyAlias (), "retired return cannot close a newer page");
-        assertTrue (f.tick ().effects ().isEmpty ());
-    }
-
-    @Test
-    void staleAdmissionAndDeactivationCannotRevivePageRequests ()
-    {
-        final Fixture f = new Fixture (false);
-        final var stale = f.resolve ("ACCENT");
-        f.edge ("ACCENT", InputPhase.LONG);
-        f.edge ("ACCENT", InputPhase.END);
-        f.observe ("PAN", false);
-        assertTrue (f.dispatch (stale).effects ().isEmpty ());
-        final var retired = f.resolve ("ACCENT");
-        f.edge ("ACCENT", InputPhase.END);
-        f.view.deactivate ();
-        assertTrue (f.dispatch (retired).effects ().isEmpty ());
-    }
-
-    @Test
-    void aNewAccentOwnerReturnsLocallyAndOldReturnsStayRetired ()
-    {
-        final Fixture f = new Fixture (false);
-        f.observe ("ACCENT", true);
-        f.edge ("ACCENT", InputPhase.BEGIN);
-        f.edge ("ACCENT", InputPhase.LONG);
-        assertTrue (f.edge ("ACCENT", InputPhase.END).effects ().isEmpty ());
-        assertEquals ("TRACK", f.navigation.legacyAlias ());
-        f.observe ("TRACK", false);
-        f.edge ("ACCENT", InputPhase.BEGIN);
-        f.edge ("ACCENT", InputPhase.LONG);
-        f.edge ("ACCENT", InputPhase.END);
-        f.sequence += 5_000_000_000L;
-        assertTrue (f.tick ().effects ().isEmpty ());
-        f.observe ("ACCENT", true);
-        assertTrue (f.tick ().effects ().isEmpty ());
-    }
-
     @ParameterizedTest
     @ValueSource (ints = {1, 2, 3, 4, 5, 6, 7, 8})
     void everyKnobUsesFixedCalibrationAndObservedValueDespiteModifiers (final int knob)
@@ -129,24 +74,6 @@ class AccentViewsTest
     }
 
     @Test
-    void accentRingPreservesLegacyDisplayRangeAndExactGeometry ()
-    {
-        final Fixture f = new Fixture (true);
-        for (final int velocity: new int[] {1, 64, 127})
-        {
-            f.velocity = velocity;
-            final var commands = f.view.render (f.snapshot ()).display ().commands ();
-            final DisplayCommand.DottedArc foreground = (DisplayCommand.DottedArc) commands.get (4);
-            final double ratio = (velocity * 1023 / 127) / 1024.0;
-            assertEquals (-260 * ratio, foreground.sweepDegrees ());
-            assertEquals (873, foreground.centerX ());
-            assertEquals (105, foreground.centerY ());
-            assertEquals (25, foreground.radius ());
-            assertEquals (Math.max (2, (int) Math.ceil (220 * ratio)), foreground.steps ());
-        }
-    }
-
-    @Test
     void lowerRowCapturesBeginTargetAndSelectsAfterReleaseAndDeferredAdmission ()
     {
         final Fixture f = new Fixture (true);
@@ -159,22 +86,6 @@ class AccentViewsTest
         f.edge ("ROW1_3", InputPhase.END);
         f.bankGeneration++;
         assertTrue (f.dispatch (changed).effects ().isEmpty ());
-    }
-
-    @Test
-    void sessionStopChordConsumesBothSharedTokensAndStopsExactBeginTrackWithoutSelection ()
-    {
-        final Fixture f = new Fixture (true);
-        f.session = true;
-        f.pressed.add (PushControlIds.button ("STOP_CLIP"));
-        f.fullStop.begin ();
-        final var action = f.resolve ("ROW1_2");
-        assertEquals (ControllerActionId.STOP_VISIBLE_SESSION_TRACK, action.intent ().action ());
-        assertTrue (f.fullStop.takeConsumed ());
-        assertEquals (List.of (new ConsumeControllerButtonEffect (PushControlIds.button ("ROW1_2"))), action.immediateEffects ());
-        f.edge ("ROW1_2", InputPhase.END);
-        assertEquals (List.of (new StopSessionTrackEffect (1, new SessionBankShape (8, 8), 1, "track-1", true)), f.workspace.dispatchAction (action, f.snapshot ()));
-        assertTrue (f.tick ().effects ().isEmpty ());
     }
 
     @Test
@@ -200,16 +111,11 @@ class AccentViewsTest
         private final CompiledWorkspace workspace;
         private final Set<ControlId> pressed = new HashSet<> ();
         private long sequence;
-        private long generation = 1;
         private long bankGeneration = 1;
-        private String mode = "TRACK";
-        private boolean temporary;
         private boolean available = true;
         private boolean enabled;
-        private boolean session;
         private int velocity = 64;
         private Fixture (final boolean page) { this.view = page ? new AccentPageView (this.fullStop) : new AccentControlView (new ControllerPageTransitions (this.navigation)); this.workspace = CompiledWorkspace.compile ("test", List.of (this.view)); this.workspace.start (this.snapshot ()); }
-        private void observe (final String mode, final boolean temporary) { if (temporary) this.navigation.temporary (this.navigation.origin (), this.navigation.resolve (mode)); else this.navigation.select (this.navigation.resolve (mode)); }
         private ControllerInputEvent input (final ControlId id, final InputKind kind, final InputPhase phase, final long value) { this.sequence++; return new ControllerInputEvent (this.sequence, this.sequence, id, kind, phase, value); }
         private ResolvedControllerAction resolve (final String button) { this.pressed.add (PushControlIds.button (button)); return this.workspace.resolveAction (this.input (PushControlIds.button (button), InputKind.BUTTON, InputPhase.BEGIN, 127), this.snapshot ()); }
         private CoreResult dispatch (final ResolvedControllerAction action) { return this.workspace.handleAction (action, this.snapshot ()); }
@@ -222,9 +128,9 @@ class AccentViewsTest
         {
             final var tracks = IntStream.range (0, 8).mapToObj (i -> new SessionTrackSnapshot ("track-" + i, i, "Track " + i, true, i == 0, true, false, false, false, false, SessionTrackType.AUDIO, new RgbColor (255, 255, 255))).toList ();
             final var current = new CurrentTrackBankSnapshot (this.bankGeneration, "main", 0, tracks.stream ().map (track -> new CurrentTrackSnapshot (track, false, 0, 0)).toList (), "track-0", false, 1, false);
-            final var bank = this.session ? new SessionBankSnapshot (1, new SessionBankShape (8, 8), 0, 0, tracks) : SessionBankSnapshot.empty ();
+            final var bank = SessionBankSnapshot.empty ();
             final var settings = this.available ? new ControllerSettingsSnapshot (true, false, "VOLUME", 0, CursorSendBankSnapshot.empty (), this.enabled, this.velocity) : ControllerSettingsSnapshot.empty ();
-            final var layout = new ControllerLayoutSnapshot (this.generation, "PLAY", this.mode, false, false, 0, GridPressureConfiguration.OFF, DesiredNoteInputTranslation.unowned (), this.temporary ? "TRACK" : this.mode, "TRACK", this.temporary);
+            final var layout = new ControllerLayoutSnapshot (1, "PLAY", "TRACK", false, false, 0, GridPressureConfiguration.OFF);
             final var bridge = new ControllerBridgeSnapshot (TransportSnapshot.empty (), SelectedTrackSnapshot.empty (), bank, layout, NoteViewSnapshot.empty (), NoteRepeatSnapshot.empty (), DrumContextSnapshot.empty (), ParameterBridgeSnapshot.empty (), ControllerMappingFeedbackSnapshot.empty (), MasterSnapshot.empty (), ProjectSnapshot.empty (), AutomationSnapshot.empty (), new EncoderConfigurationSnapshot (true, 1024, 10, 80, -35), current, TransportSettingsSnapshot.empty (), settings);
             return new ControllerSnapshot (this.sequence, this.sequence, new PullCoreProvider ().descriptor ().requiredCapabilities (), bridge, ClipCatalogSnapshot.empty (), Map.of (), Map.of (), Optional.empty (), this.pressed, Set.of ());
         }

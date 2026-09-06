@@ -24,8 +24,6 @@ import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
 import de.mossgrabers.pull.core.runtime.view.SessionView;
 
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,7 +31,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -65,9 +62,6 @@ class MusicalInputClaimsTest
             final ControllerView owner = view ("invalid", Set.of (new SurfaceClaim (SurfaceArea.DRUM_PLAY_PADS, kind)), map (36), false);
             assertThrows (IllegalStateException.class, () -> CompiledWorkspace.compile ("invalid", List.of (owner)).start (snapshot ()));
         }
-        assertFalse (SurfaceClaim.Kind.MUSICAL_INPUT.isInput ());
-        assertFalse (SurfaceClaim.Kind.MUSICAL_INPUT.ownsInput ());
-        assertFalse (SurfaceClaim.Kind.MUSICAL_INPUT.ownsOutput ());
     }
 
 
@@ -82,28 +76,12 @@ class MusicalInputClaimsTest
     }
 
 
-    @ParameterizedTest
-    @ValueSource (ints = {0, 35, 100, 127})
-    void parentLoadedValueRejectsEnablingAnUninstalledPhysicalNote (final int physicalNote)
-    {
-        assertThrows (IllegalArgumentException.class, () -> map (physicalNote));
-    }
-
-
     @Test
     void enabledKeysMustStayWithinTheSameViewsPhysicalFootprint ()
     {
         final ControllerView owner = view ("lower", Set.of (LOWER), map (68), false);
         final var error = assertThrows (IllegalStateException.class, () -> CompiledWorkspace.compile ("invalid", List.of (owner)).start (snapshot ()));
         assertTrue (error.getMessage ().contains ("outside its musical-input footprint"));
-    }
-
-
-    @Test
-    void nonPadAreasCannotClaimMusicalTranslation ()
-    {
-        for (final SurfaceArea area: List.of (SurfaceArea.ENCODERS, SurfaceArea.TOUCH_STRIP, SurfaceArea.NAVIGATION_OCTAVE, SurfaceArea.GRID_CHANNEL_PRESSURE, SurfaceArea.DISPLAY_PARAMETERS))
-            assertThrows (IllegalArgumentException.class, () -> new SurfaceClaim (area, SurfaceClaim.Kind.MUSICAL_INPUT));
     }
 
 

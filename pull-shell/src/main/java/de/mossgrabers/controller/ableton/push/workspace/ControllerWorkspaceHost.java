@@ -6,9 +6,7 @@ package de.mossgrabers.controller.ableton.push.workspace;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.view.SessionView;
 import de.mossgrabers.controller.ableton.push.view.WorkspaceView;
-import de.mossgrabers.framework.featuregroup.ModeManager;
 import de.mossgrabers.framework.featuregroup.ViewManager;
-import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.view.Views;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
@@ -78,7 +76,7 @@ public final class ControllerWorkspaceHost
     public void applyLayout (final DesiredControllerLayout layout)
     {
         final DesiredControllerLayout requested = this.prepareLayout (layout);
-        applyPreparedLayout (requested, this.surface.getModeManager (), this.surface.getViewManager ());
+        applyPreparedLayout (requested, this.surface.getViewManager ());
     }
 
 
@@ -89,7 +87,7 @@ public final class ControllerWorkspaceHost
     }
 
 
-    static void applyPreparedLayout (final DesiredControllerLayout requested, final ModeManager modeManager, final ViewManager viewManager)
+    static void applyPreparedLayout (final DesiredControllerLayout requested, final ViewManager viewManager)
     {
         if (requested.neutralizing ())
         {
@@ -175,11 +173,7 @@ public final class ControllerWorkspaceHost
     }
 
 
-    /**
-     * Test whether any core-owned workspace is active.
-     *
-     * @return True when active
-     */
+    /** Whether the core currently owns a workspace; also exposed by the debugger. */
     public boolean isActive ()
     {
         return this.desiredWorkspace.isActive ();

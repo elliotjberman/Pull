@@ -27,7 +27,6 @@ import de.mossgrabers.framework.daw.data.IMasterTrack;
 import de.mossgrabers.framework.daw.data.bank.IDrumPadBank;
 import de.mossgrabers.framework.daw.data.bank.ISlotBank;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
-import de.mossgrabers.pull.core.api.effect.SelectControllerModeEffect;
 import de.mossgrabers.framework.daw.midi.IMidiInput;
 import de.mossgrabers.framework.daw.midi.IMidiOutput;
 import de.mossgrabers.framework.daw.midi.INoteInput;
@@ -115,7 +114,7 @@ class BoundedControllerBridgeTest
         final BridgeFixture fixture = new BridgeFixture (true, null, true);
         fixture.bridge.refresh (1, subscriptions (BridgeSubscription.BROWSER), DesiredParameterBanks.empty ());
         assertEquals (new de.mossgrabers.pull.core.api.BrowserSnapshot (1, true), fixture.bridge.snapshot ().browser ());
-        assertTrue (fixture.surface.getModeManager ().requests ().requests ().isEmpty ());
+        assertTrue (fixture.surface.getModeManager ().requests (true).requests ().isEmpty ());
     }
 
     @Test
@@ -127,7 +126,7 @@ class BoundedControllerBridgeTest
         fixture.browserObserver.update (Boolean.FALSE);
         fixture.bridge.refresh (1, subscriptions (BridgeSubscription.BROWSER), DesiredParameterBanks.empty ());
         assertEquals (new de.mossgrabers.pull.core.api.BrowserSnapshot (3, false), fixture.bridge.snapshot ().browser ());
-        assertTrue (fixture.surface.getModeManager ().requests ().requests ().isEmpty ());
+        assertTrue (fixture.surface.getModeManager ().requests (true).requests ().isEmpty ());
         fixture.bridge.refresh (2, DesiredBridgeSubscriptions.empty (), DesiredParameterBanks.empty ());
         assertEquals (de.mossgrabers.pull.core.api.BrowserSnapshot.empty (), fixture.bridge.snapshot ().browser ());
         fixture.bridge.refresh (3, subscriptions (BridgeSubscription.BROWSER), DesiredParameterBanks.empty ());
@@ -160,6 +159,8 @@ class BoundedControllerBridgeTest
         fixture.bridge.applyControllerState (state);
         assertEquals (page, fixture.surface.getModeManager ().pageState ());
         assertNull (fixture.surface.getModeManager ().getActiveID ());
+        assertFalse (fixture.bridge.supportsPageInput (page, PushControlIds.pad (1), de.mossgrabers.pull.core.api.event.InputKind.PAD), "a new page cannot acquire the retained grid");
+        assertFalse (fixture.bridge.supportsPageLight (page, PushControlIds.button ("PLAY")), "page projection cannot acquire controller-level output");
         assertThrows (IllegalArgumentException.class, () -> fixture.surface.getModeManager ().prepare (
             pageState (2, de.mossgrabers.pull.core.api.ControllerPageRef.legacy ("DEVICE_PARAMS"), 0)));
     }
@@ -191,26 +192,6 @@ class BoundedControllerBridgeTest
         assertTrue (fixture.bridge.canReplaceActiveCore ());
         assertEquals (1, fixture.bridge.snapshot ().controllerPages ().retiredSequence ());
         assertTrue (fixture.bridge.snapshot ().controllerPages ().requests ().isEmpty ());
-    }
-
-
-    @Test
-    void genericCorePageOwnsThePageFootprintWithoutEnumRegistration ()
-    {
-        final BridgeFixture fixture = new BridgeFixture ();
-        final var page = pageState (1, de.mossgrabers.pull.core.api.ControllerPageRef.core ("new-page"), 0);
-        for (int index = 1; index <= 8; index++)
-        {
-            assertTrue (fixture.bridge.supportsPageInput (page, PushControlIds.continuous ("KNOB" + index), de.mossgrabers.pull.core.api.event.InputKind.TOUCH));
-            assertTrue (fixture.bridge.supportsPageInput (page, PushControlIds.continuous ("KNOB" + index), de.mossgrabers.pull.core.api.event.InputKind.RELATIVE));
-            assertTrue (fixture.bridge.supportsPageInput (page, PushControlIds.button ("ROW1_" + index), de.mossgrabers.pull.core.api.event.InputKind.BUTTON));
-            assertTrue (fixture.bridge.supportsPageLight (page, PushControlIds.button ("ROW2_" + index)));
-        }
-        final var legacy = pageState (1, de.mossgrabers.pull.core.api.ControllerPageRef.legacy ("DEVICE_PARAMS"), 0);
-        assertFalse (fixture.bridge.supportsPageInput (legacy, PushControlIds.continuous ("KNOB8"), de.mossgrabers.pull.core.api.event.InputKind.TOUCH));
-        assertFalse (fixture.bridge.supportsPageInput (de.mossgrabers.pull.core.api.DesiredControllerPageState.empty (), PushControlIds.continuous ("KNOB8"), de.mossgrabers.pull.core.api.event.InputKind.RELATIVE));
-        assertFalse (fixture.bridge.supportsPageInput (page, PushControlIds.pad (1), de.mossgrabers.pull.core.api.event.InputKind.PAD));
-        assertFalse (fixture.bridge.supportsPageLight (page, PushControlIds.button ("PLAY")));
     }
 
 
@@ -1036,20 +1017,19 @@ class BoundedControllerBridgeTest
             manager.start ();
             final var activation = manager.activate (provider.descriptor ().buildId (), source, () -> true);
             assertEquals (ActivationResult.State.ACTIVE, activation.state (), activation.message ());
-            final var original = fixture.surface.getModeManager ().capturePage ();
+            final var original = fixture.surface.getModeManager ().pageState ().effectivePage ();
             assertEquals (de.mossgrabers.pull.core.api.ControllerPageRef.Kind.CORE, original.kind ());
             fixture.surface.getModeManager ().setActive (Modes.DEVICE_PARAMS);
-            assertEquals (original, fixture.surface.getModeManager ().capturePage (), "legacy calls only submit requests");
+            assertEquals (original, fixture.surface.getModeManager ().pageState ().effectivePage (), "legacy calls only submit requests");
             environment.tick (manager);
-            assertEquals (de.mossgrabers.pull.core.api.ControllerPageRef.legacy ("DEVICE_PARAMS"), fixture.surface.getModeManager ().capturePage ());
-            assertTrue (fixture.surface.getModeManager ().requests ().requests ().isEmpty ());
+            assertEquals (de.mossgrabers.pull.core.api.ControllerPageRef.legacy ("DEVICE_PARAMS"), fixture.surface.getModeManager ().pageState ().effectivePage ());
+            assertTrue (fixture.surface.getModeManager ().requests (true).requests ().isEmpty ());
             fixture.surface.getModeManager ().requestCapturedPage (original);
             environment.tick (manager);
-            assertEquals (original, fixture.surface.getModeManager ().capturePage ());
+            assertEquals (original, fixture.surface.getModeManager ().pageState ().effectivePage ());
             final long returnedRevision = fixture.surface.getModeManager ().pageState ().revision ();
             environment.tick (manager);
             assertEquals (returnedRevision, fixture.surface.getModeManager ().pageState ().revision (), "acknowledged requests cannot replay twice");
-            assertTrue (environment.requests.stream ().noneMatch (SelectControllerModeEffect.class::isInstance));
             assertFalse (environment.quarantined, warnings.toString ());
             assertEquals (1, manager.activeGeneration ());
             manager.close ();
@@ -1088,7 +1068,7 @@ class BoundedControllerBridgeTest
             assertEquals (ActivationResult.State.ACTIVE, manager.activate (provider.descriptor ().buildId (), pageCoreSource (initialProvider), () -> true).state ());
             pages.setActive (Modes.DEVICE_PARAMS);
             environment.tick (manager);
-            assertEquals (1, pages.requests ().retiredSequence ());
+            assertEquals (1, pages.requests (true).retiredSequence ());
             final Runnable preReplacement = pages.freezeRequestOrigin (() -> pages.setActive (Modes.USER));
             final var incompatible = new de.mossgrabers.pull.core.api.CoreProvider () {
                 @Override public de.mossgrabers.pull.core.api.CoreDescriptor descriptor () {
@@ -1105,12 +1085,12 @@ class BoundedControllerBridgeTest
             assertEquals (ActivationResult.State.ACTIVE, replaced.state (), replaced.message ());
             assertEquals (1, environment.latest.desiredControllerState ().page ().acknowledgedRequestSequence ());
             preReplacement.run ();
-            assertTrue (pages.requests ().requests ().isEmpty ());
+            assertTrue (pages.requests (true).requests ().isEmpty ());
             environment.includePageRequests = true;
             pages.setActive (Modes.USER);
             environment.tick (manager);
             assertEquals (Modes.USER, pages.getActiveID ());
-            assertEquals (2, pages.requests ().retiredSequence ());
+            assertEquals (2, pages.requests (true).retiredSequence ());
 
             final Runnable preFault = pages.freezeRequestOrigin (() -> pages.setActive (Modes.USER));
             pages.setActive (Modes.DEVICE_PARAMS);
@@ -1119,11 +1099,11 @@ class BoundedControllerBridgeTest
             environment.refresh ();
             assertFalse (manager.handle (manager.activeGeneration (), new de.mossgrabers.pull.core.api.event.ControllerTickEvent (++environment.sequence, environment.sequence)));
             assertTrue (environment.quarantined);
-            assertEquals (3, pages.requests ().retiredSequence ());
+            assertEquals (3, pages.requests (true).retiredSequence ());
             for (int count = 0; count < 100; count++) pages.setActive (Modes.USER);
             preFault.run ();
             final Runnable duringFault = pages.freezeRequestOrigin (() -> pages.setActive (Modes.USER));
-            assertTrue (pages.requests ().requests ().isEmpty ());
+            assertTrue (pages.requests (true).requests ().isEmpty ());
             assertFalse (manager.canReplaceActiveCore (), "quarantine retirement must be sampled before replacement");
             environment.includePageRequests = false;
             environment.refresh ();
@@ -1133,12 +1113,12 @@ class BoundedControllerBridgeTest
             assertEquals (3, environment.latest.desiredControllerState ().page ().acknowledgedRequestSequence ());
             preFault.run ();
             duringFault.run ();
-            assertTrue (pages.requests ().requests ().isEmpty ());
+            assertTrue (pages.requests (true).requests ().isEmpty ());
             environment.includePageRequests = true;
             pages.setActive (Modes.DEVICE_PARAMS);
             environment.tick (manager);
             assertEquals (Modes.DEVICE_PARAMS, pages.getActiveID ());
-            assertEquals (4, pages.requests ().retiredSequence ());
+            assertEquals (4, pages.requests (true).retiredSequence ());
             assertFalse (manager.canReplaceActiveCore ());
             environment.refresh ();
             assertTrue (manager.canReplaceActiveCore ());

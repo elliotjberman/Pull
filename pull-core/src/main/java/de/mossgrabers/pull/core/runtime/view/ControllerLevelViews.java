@@ -41,12 +41,6 @@ public final class ControllerLevelViews
     private final ParameterTouchSession parameterTouches = new ParameterTouchSession ();
 
 
-    /** Construct one retained controller-level policy set for a core generation. */
-    public ControllerLevelViews (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator)
-    {
-        this (selection, playbackCoordinator, PageNavigation.defaults ());
-    }
-
     public ControllerLevelViews (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator, final PageNavigation navigation)
     {
         this.pages = new ControllerPageTransitions (navigation);

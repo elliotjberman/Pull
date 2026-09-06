@@ -18,7 +18,6 @@ import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.CoreResult;
 import de.mossgrabers.pull.core.api.DesiredControllerMappings;
-import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredNotePerformance;
 import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
 import de.mossgrabers.pull.core.api.DrumContextSnapshot;
@@ -73,25 +72,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class CompiledWorkspaceTest
 {
-    @Test
-    void pageIdentityDoesNotNeedAStableAdapter ()
-    {
-        final ControllerView body = view ("new-page-body", claim (SurfaceArea.DISPLAY_PARAMETERS, SurfaceClaim.Kind.OUTPUT));
-        final Page page = new Page (new PageId ("new-page"), List.of (body), java.util.Optional.empty (), Set.of ());
-        final DesiredControllerWorkspace desired = CompiledWorkspace.compile (page.id ().value (), page.views ()).desiredControllerWorkspace ();
-        assertTrue (desired.facets ().isEmpty ());
-        assertFalse (desired.isActive (), "page selection is independent of stable grid facets");
-    }
-
-
-    @Test
-    void pageDefinitionRejectsDuplicateViewIdentities ()
-    {
-        final ControllerView body = view ("body", claim (SurfaceArea.DISPLAY_PARAMETERS, SurfaceClaim.Kind.OUTPUT));
-        assertThrows (IllegalArgumentException.class, () -> new Page (new PageId ("duplicate"), List.of (body, body), java.util.Optional.empty (), Set.of ()));
-    }
-
-
     @Test
     void rejectsOverlappingOutputOwners ()
     {

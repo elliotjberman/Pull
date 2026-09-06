@@ -1,17 +1,10 @@
 # Pull View Architecture
 
-Status: working implementation through Core API 46, checkpoint schema 6. Core now owns typed page
-identity, navigation/history, temporary ownership, composition, presentation models and styling.
-The shell projects those decisions through one generic inert page adapter and a bounded inbox for
-frozen legacy callers. On 2026-09-06 the API 46 package passed 932 tests; exact-build `202arp` page,
-original-view release, parameter read-back, legacy return and held-input hot-reload checks passed.
-[The API 46 smoke record](docs/migrations/core-page-ownership-live-smoke.md) documents exact builds
-and restoration. The corrected-project [202arp3 follow-up](docs/migrations/core-page-ownership-202arp3-smoke.md)
-also passes page/legacy-return/gesture checks, a mapped Boolean macro write/read-back, and actual
-Master/Track light output. Continuous macro precision and audible playback remain unverified.
-Device/Browser/configuration/sequencer bodies, continuous-motion capture and
-the Session release-contract decision remain tracked migration work; see
-[the migration plan](docs/migrations/core-migration-plan.md) and [active findings](docs/findings/README.md).
+Status: working source uses Core API 46 and checkpoint schema 6. Core owns typed pages,
+navigation/history, exact temporary ownership, composition and presentation; shell supplies bounded
+data/effects and one inert page projection. Latest installed/live-tested production is `11e33477`.
+Later cleanup is **not deployed or live tested**; the Push is disconnected. Exact build identities,
+scoped results and limits are in [the validation record](docs/migrations/core-page-ownership-live-smoke.md).
 
 Read this file before changing controller views, modes, workspaces, input routing, or Session bank
 topology. The detailed design contract is in
@@ -140,7 +133,7 @@ parameter canopy.
 | --- | --- | --- |
 | `ACTIVE` | 8 slots bound by the current inherited stable mode | Stable binding generation plus resolved live domain/owner/page/role; compatibility only. |
 | `PROJECT_REMOTE` | 8 project remote controls on the current page | Project owner, remote page, slot, and parameter name. |
-| `SELECTED_DEVICE_REMOTE` | 8 controls on the current selected-device page | Requires a nonblank device ID, remote page, slot and parameter name. Production cursor IDs are currently blank, so these targets are excluded; see the Device capability audit. |
+| `SELECTED_DEVICE_REMOTE` | 8 controls on the current selected-device page | Requires a nonblank device ID, remote page, slot and parameter name. Production cursor IDs are currently blank, so these targets are excluded; see the [remaining Device work](docs/reloadable-core-migration-roadmap.md#device-chain-layer-and-browser-families). |
 | `SELECTED_TRACK` / `SELECTED_TRACK_SENDS` | Selected-track volume/pan and eight sends | Private selected target aligned with the rendering model cursor/current bank; live owner, page, slot, and role. |
 | `TRACK_VOLUME` / `TRACK_PAN` | 8 current main/effect-bank tracks per bank | Current bank identity, slot, stable channel ID, and parameter role; exact retained addressability is separate from current-window eligibility. |
 | `TRACK_SEND1`–`TRACK_SEND8` | Eight sends across eight current main/effect-bank tracks, sampled by requested column | Exact bank/track owner, absolute send position and project; rendering rejects mismatched owners. |
@@ -149,8 +142,8 @@ parameter canopy.
 
 Selected-track sends and all eight current-track send columns are installed in this candidate.
 The full named parameter canopy has seventeen banks and at most 131 slots; core requests only the
-banks it needs. This API-45 canopy was installed and activated live on 2026-09-06; exact build
-identities and the sampled coverage are recorded in the live smoke document.
+banks it needs. The [validation record](docs/migrations/core-page-ownership-live-smoke.md) identifies
+the installed production build and sampled coverage; later cleanup is not deployed.
 
 `ParameterTargetIdentitySnapshot` exposes the classified domain, owner ID, page, and index alongside
 the opaque actuator reference. Volume/Pan/Send compare that owner with the current-bank row before
@@ -499,114 +492,34 @@ Stable shell:
   original-button dispatch through the same raw ingress for every grid pad. No duplicate learned
   action or second MIDI callback exists.
 
-## Migration Status
+## Migration status
 
-Implemented:
+Core owns the fixed view/compiler model, page registry and original-view edge lifetime; the mixer,
+transport/application and Drum/Note slices above use core-authored behavior and feedback. Missing or
+faulted migrated behavior is inert/blank. Stable preparation remains transactional: an invalid
+replacement does not revive deleted policy or destroy the previous valid generation.
 
-- Fixed-footprint areas, profiles, named optional facets, and deterministic conflict detection.
-- Independent core views for every VS Live behavior and a real compiled VS Live workspace.
-- Deterministic event-owner tables, active-workspace routes/subscriptions, and exit/re-entry
-  reconciliation.
-- Explicit core versus stable-adapter input/output claims.
-- Behavior-preserving core views for drum fills and Record controls.
-- Core-owned Shift + Session workspace selection and reload checkpoint state.
-- Correct 8x4 Session navigation and Bitwig feedback via a declared bank.
-- One persistent `SessionView` owns the full/upper grid footprint plus Stop Clip input and RGB
-  feedback: available is white and a held Stop is red. Plain Stop immediately stops the
-  authoritative selected track; Shift/Select Stop targets the exact active Session bank, and
-  Stop-plus-pad consumption remains part of the same view. Stop-plus-track captures the exact
-  generation/shape/index/channel identity at row `BEGIN` and stops that visible track without
-  selecting it. Its lower-row binding declares selection and held-Stop variants separately, so the
-  `SESSION_PLAYBACK` Stop intent never waits behind the `ACTIVE_PARAMETERS` snapback barrier; full
-  Session also consumes the bounded stable row release. Neither path can retarget
-  after a bank replacement or emit a trailing plain Stop. The old
-  long/lock and page-row Stop overlays are deleted. Stop remains `OBSERVE` rather than `EXCLUSIVE`
-  only because the stable grid adapter still needs its held state for Stop-plus-pad; the direct
-  stable Stop command is inert.
-- Mute/Solo are one persistent selected-track view with exclusive edges and read-back-driven RGB
-  feedback: available is white, authoritative Mute is orange, and authoritative Solo uses the
-  Tetra yellow. Project-wide clear, lock/long row overlays, Master/layer retargeting, and pad/note
-  modifier meanings are deleted rather than encoded into the new view model.
-- Mute, Solo, Record-arm, and launcher-overdub toggles use bounded retained intent lanes. A second
-  press before acknowledgement queues parity; no dependent absolute write is submitted until a
-  later authoritative snapshot reports the previous expected state. Target or project changes
-  retire the pending lane rather than applying it to a replacement.
-- Session is retained independently from its default Track/Mix destination, and VS Live retains
-  the same started grid-view instances when Mix, Device, Browse, or Master replaces the page, so
-  active grid gestures are not restarted. Every Shift+Session request reselects the declared VS
-  Live composite and its Project Macro page; stale replaceable page state is not part of workspace
-  selection.
-- Playable-pad feedback and pressure owned by the same fixed `DrumPlayPadView` in standalone and
-  composite Drum layouts; the deleted stable observers, palette policy, and firmware fade cannot
-  return as a fallback.
-- Removal of the unused legacy aftertouch commands and ClipLauncherNavigator topology.
-- Transactional shell preparation before a candidate result is committed.
-- Core-owned selected-track note-view policy with private-target identity fencing and delayed drum
-  applicability reconciliation.
-- Core-owned drum-rate input/output policy with authoritative note-repeat feedback and a
-  stable-owned restoration lease for the user's manual Repeat state.
-- Complete Master-page input and output arbitration. The core owns its copy, typography, geometry,
-  colors, clipping, shapes, and composition; the stable shell only interprets bounded generic
-  display primitives. Missing or execution-faulted core behavior is blank and inert. A stable
-  preparation rejection preserves the active generation's last committed output rather than
-  converting one invalid result into a controller-wide fault. A Master-owned project navigation
-  retains the page through Bitwig's intermediate and late layout resets. Project acknowledgement
-  updates the retained Master scene but does not invent a page change; only a later explicit page
-  or workspace request releases that lease. Master replaces only the page over the exact selected
-  composition: standalone Drum, full Session, Note routing, and each VS Live page retain their
-  actual started views and owned grid/routing state rather than being reconstructed from a coarse
-  workspace ID.
-- Fixed display-region composition for the VS Live page. Project Macro or Track Mixer owns the
-  replaceable 960x143 parameter body; Track Selection owns the retained 960x17 footer plus all
-  eight exclusive lower-row edges and lights. The Track Mixer body renders authoritative named
-  selected-track parameters and owns all eight encoder turns and touches.
-  The compiler requires both regions, validates local containment, wraps each region in a real
-  renderer-enforced clip, and produces one complete base
-  scene. The shell projects that scene generically on any page and keeps the temporary overlay as a
-  distinct higher plane. Track selection captures the exact visible target at gesture `BEGIN`, is
-  generation/shape/index/channel fenced at execution, and renders feedback only from later
-  Session-bank read-back. Its footer reproduces authoritative track colors, inactive dimming,
-  selection contrast, and bounded channel-type icons from the same Session-bank snapshot.
+Remaining product-policy families and installed capacities are maintained in
+[one migration inventory](docs/reloadable-core-migration-roadmap.md). In particular:
 
-Partial or transitional:
-
-- Track-scoped native mapping is a bounded V1: 128 historically allocated track banks per document,
-  no tombstone reuse, and acknowledged context latency. Existing shared mappings require relearning.
-  General learned-binding ownership, duplication, recycling, and stronger document identity remain
-  explicit TODOs in `docs/findings/track-scoped-midi-learn-lifecycle.md`.
-- Project Macro and Master touch semantics, Drum octave/native mapping, and Session/Drum raw
-  pitch bend run in core. Track/Mix touch, menus, ordinary footer, Tap Tempo, and Undo/Redo have also
-  crossed the boundary. Volume/Pan and the transport/application pages also run in core.
-  Session grid/scene mechanics and page buttons remain migration work; four-arrow policy has moved
-  for core-owned pages and VS, with legacy-page arrows explicitly adapted. The optional
-  `SESSION_CLIPS` snapshot exposes the bounded
-  slot/scene window without sampling it when unrequested; it does not itself migrate Session.
-  General Session release has no API completion signal; the location-actuator design and required
-  contract decision are recorded in `docs/migrations/session-launcher-location-design.md`.
-- `ControllerViewFacet` remains a closed cross-boundary adapter ID.
-- Stable facets are not yet bidirectionally proven against every exact stable claim their shell
-  adapters activate; the built-in profiles are reviewed, and the remaining compiler gap is tracked
-  in `docs/findings/stable-facet-claim-coupling.md`.
-- Capability and Session-shape validation happens during stable result preparation, not entirely in
-  `CompiledWorkspace`.
-- Every registered Push button light and every physical grid-pad light now has generic explicit
-  core-or-stable arbitration. A view may render only controls inside its declared output claims;
-  unclaimed lights preserve their frozen legacy supplier exactly. Current core owners include the
-  drum-play/fill/rate/control pads; Play/Record, Mute/Solo, Tap/Undo, Track/Mix, Metronome/Automation,
-  Master, and octave buttons; Session Stop; arrows in migrated profiles; and all registered core
-  pages' row lights. Authoritative mapped-target feedback and replayable physical-to-semantic
-  leases support the four mappable controls. Display semantics remain partial across the entire
-  inherited controller: Project/Track, Volume/Pan/Send, Master, Transport/Automation, Frame, and Accent are
-  core-authored; device/browser/configuration/sequencer pages remain pending. The generic complete
-  base-scene plane and temporary grid/display overlays are already installed.
-
-Deferred by design:
-
-- YAML/JSON loading and schema versioning.
-- Capability-driven optional-facet negotiation.
-- Explicit named overlay/replacement rules.
-- User-authored workspace configurations.
-- Rich per-view navigation state across reloads.
+- Session grid/scene/page-button mechanics remain frozen. `SESSION_CLIPS` is an installed opt-in
+  observation capability with no production consumer; it performs no high-rate sampling when
+  unrequested. Exact Session actuator retirement still requires the
+  [release-contract decision](docs/migrations/session-launcher-location-design.md).
+- Stop remains OBSERVE for the adapted Stop-plus-pad chord, with its direct stable command inert.
+  Plain Stop targets the private selected track; Shift/Select and Stop-plus-track target the exact
+  Session bank. Shared chord consumption prevents a trailing plain Stop.
+- Mute/Solo now target the selected track. The former clear/lock/row overlays and Master/layer/pad
+  modifier retargeting were removed, not hidden in adapters. Toggle lanes serialize dependent
+  writes across later read-back and cancel on target/project change.
+- Device/Browser/configuration/sequencer bodies, Crossfade/Details/Color and their providers remain
+  frozen migration debt; core page compatibility does not migrate their behavior.
+- Native learned mappings remain bounded V1: 128 historical track banks per document, no tombstone
+  reuse and acknowledged context latency. See [the lifecycle finding](docs/findings/track-scoped-midi-learn-lifecycle.md).
+- General continuous capture, facet/claim coupling, semantic parameter identity and explicitly
+  parked async quiescence retain [active findings](docs/findings/README.md).
+- YAML/JSON, user-authored workspaces, dynamic facet negotiation, richer checkpointed navigation and
+  general overlays remain deferred. Current compositions are statically declared Java.
 
 ## Rules For New Work
 

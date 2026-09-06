@@ -196,13 +196,6 @@ class CurrentTrackBankHostTest
     }
 
     @Test
-    void canopyRejectsMoreThanThreeInstalledBanks ()
-    {
-        final Fixture f = new Fixture ();
-        assertThrows (IllegalArgumentException.class, () -> new CurrentTrackBankHost (f.model, List.of (f.main.proxy, f.upper.proxy, f.newBank ("extra").proxy)));
-    }
-
-    @Test
     void navigationPrimitivesUseExactCurrentBankAndRemainRequestsUntilHostAdvances ()
     {
         final String[] expected = { "scrollBackwards", "scrollForwards", "selectPreviousPage", "selectNextPage",

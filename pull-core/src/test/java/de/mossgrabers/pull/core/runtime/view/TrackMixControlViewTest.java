@@ -88,21 +88,6 @@ class TrackMixControlViewTest
     }
 
     @Test
-    void deferredBeginKeepsItsLongAndReleaseWithLocalContinuation ()
-    {
-        final Fixture f = new Fixture ();
-        f.mode ("DEVICE_PARAMS");
-        final var action = f.resolve ();
-        f.edge (InputPhase.LONG);
-        f.edge (InputPhase.END);
-        assertTrue (f.dispatch (action).effects ().isEmpty ());
-        assertEquals ("TRACK", f.navigation.legacyAlias ());
-        assertTrue (f.tick ().effects ().isEmpty ());
-        assertEquals ("DEVICE_PARAMS", f.navigation.legacyAlias ());
-        assertTrue (f.tick ().effects ().isEmpty ());
-    }
-
-    @Test
     void admittedEntryKeepsCapturedReturnAfterAnExternalPageChange ()
     {
         final Fixture f = new Fixture ();
@@ -145,26 +130,6 @@ class TrackMixControlViewTest
         }
         f.mode ("");
         assertEquals (new RgbColor (0, 0, 0), f.tick ().desiredOutput ().lights ().get (BUTTON));
-    }
-
-    @Test
-    void retainedViewSurvivesPageCompositionButNewGenerationRejectsOrphanRelease ()
-    {
-        final Fixture f = new Fixture ();
-        f.mode ("DEVICE_PARAMS");
-        final var action = f.resolve ();
-        f.dispatch (action);
-        f.edge (InputPhase.LONG);
-        final CompiledWorkspace nextPage = CompiledWorkspace.compile ("next-page", List.of (f.retained));
-        f.workspace.deactivateExcept (nextPage);
-        nextPage.start (f.snapshot ());
-        f.observe ("TRACK");
-        assertTrue (nextPage.handle (f.input (InputPhase.END), f.snapshot ()).effects ().isEmpty ());
-        assertEquals ("DEVICE_PARAMS", f.navigation.legacyAlias ());
-        f.view.deactivate ();
-        assertTrue (f.dispatch (action).effects ().isEmpty ());
-        assertTrue (f.edge (InputPhase.END).effects ().isEmpty ());
-        assertTrue (f.tick ().effects ().isEmpty ());
     }
 
     private static final class Fixture

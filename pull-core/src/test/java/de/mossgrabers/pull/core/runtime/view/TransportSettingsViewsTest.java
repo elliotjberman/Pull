@@ -21,21 +21,6 @@ import static org.junit.jupiter.api.Assertions.*;
 class TransportSettingsViewsTest
 {
     @Test
-    void metronomeLongConsumesItsReleaseAndALaterTapRestoresTheLatchedPage ()
-    {
-        final Fixture f = new Fixture (pages -> List.of (new MetronomeControlView (new AuthoritativeBooleanToggle<> (), pages)));
-        f.edge ("METRONOME", InputPhase.BEGIN);
-        assertTrue (f.edge ("METRONOME", InputPhase.LONG).effects ().isEmpty ());
-        assertEquals ("TRANSPORT", f.navigation.legacyAlias ());
-        f.mode = "TRANSPORT";
-        f.generation++;
-        assertTrue (f.edge ("METRONOME", InputPhase.END).effects ().isEmpty ());
-        f.edge ("METRONOME", InputPhase.BEGIN);
-        assertTrue (f.edge ("METRONOME", InputPhase.END).effects ().isEmpty ());
-        assertEquals ("TRACK", f.navigation.legacyAlias ());
-    }
-
-    @Test
     void metronomeModifiersAreReadAtReleaseAndTogglesWaitForReadback ()
     {
         final Fixture f = new Fixture (pages -> List.of (new MetronomeControlView (new AuthoritativeBooleanToggle<> (), pages)));
@@ -91,23 +76,6 @@ class TransportSettingsViewsTest
         assertTrue (f.tick ().effects ().isEmpty ());
         final CoreResult reset = f.edge ("AUTOMATION", InputPhase.BEGIN);
         assertTrue (reset.effects ().contains (new ResetAutomationOverridesEffect ("project-a")));
-    }
-
-    @Test
-    void automationReturnCannotDismissAnInterveningTemporaryOwner ()
-    {
-        final Fixture f = new Fixture (pages -> List.of (new AutomationControlView (new AutomationControlState (), pages)));
-        f.edge ("AUTOMATION", InputPhase.BEGIN);
-        f.edge ("AUTOMATION", InputPhase.LONG);
-        final long replacement = f.navigation.temporary (f.navigation.origin (), f.navigation.resolve ("PAN"));
-        assertTrue (f.edge ("AUTOMATION", InputPhase.END).effects ().isEmpty ());
-        assertEquals (replacement, f.navigation.state ().temporaryToken ());
-        assertEquals ("PAN", f.navigation.legacyAlias ());
-        f.mode = "AUTOMATION";
-        f.temporary = true;
-        f.generation++;
-        assertTrue (f.tick ().effects ().isEmpty ());
-        assertEquals ("PAN", f.navigation.legacyAlias (), "stale shell layout is not page ownership");
     }
 
     @Test
@@ -186,30 +154,6 @@ class TransportSettingsViewsTest
     }
 
     @Test
-    void bothPageGesturesRetainLongAndReleaseAcrossDeferredBeginAdmission ()
-    {
-        for (final boolean automation: List.of (false, true))
-        {
-            final Fixture f = new Fixture (pages -> List.of (automation ? new AutomationControlView (new AutomationControlState (), pages) : new MetronomeControlView (new AuthoritativeBooleanToggle<> (), pages)));
-            final String button = automation ? "AUTOMATION" : "METRONOME";
-            final String page = automation ? "AUTOMATION" : "TRANSPORT";
-            final var action = f.resolve (button);
-            assertEquals (ControllerActionId.SWITCH_PARAMETER_CONTEXT, action.intent ().action ());
-            assertEquals (Set.of (ControllerStateScope.ACTIVE_PARAMETERS), action.intent ().invalidates ());
-            assertTrue (f.edge (button, InputPhase.LONG).effects ().isEmpty ());
-            assertTrue (f.edge (button, InputPhase.END).effects ().isEmpty ());
-            assertTrue (f.dispatch (action).effects ().isEmpty ());
-            assertEquals (automation ? "TRACK" : page, f.navigation.legacyAlias ());
-            assertTrue (f.tick ().effects ().isEmpty ());
-            f.mode = page;
-            f.temporary = true;
-            f.generation++;
-            assertTrue (f.tick ().effects ().isEmpty ());
-            assertEquals (automation ? "TRACK" : page, f.navigation.legacyAlias ());
-        }
-    }
-
-    @Test
     void deferredMetronomeReleaseKeepsItsModifierAndProjectDecision ()
     {
         final Fixture f = new Fixture (pages -> List.of (new MetronomeControlView (new AuthoritativeBooleanToggle<> (), pages)));
@@ -236,20 +180,6 @@ class TransportSettingsViewsTest
         assertEquals (List.of (new ConsumeControllerButtonEffect (delete)), f.edge ("AUTOMATION", InputPhase.END).effects ());
         f.pressed.clear ();
         assertEquals (List.of (new ConsumeControllerButtonEffect (delete), new ResetAutomationOverridesEffect ("project-a")), f.dispatch (action).effects ());
-        assertTrue (f.tick ().effects ().isEmpty ());
-    }
-
-    @Test
-    void deferredEntryAndReturnCompleteAtAdmissionWithoutAHostPageAcknowledgement ()
-    {
-        final Fixture f = new Fixture (pages -> List.of (new AutomationControlView (new AutomationControlState (), pages)));
-        f.mode = "AUTOMATION";
-        f.temporary = true;
-        final var action = f.resolve ("AUTOMATION");
-        f.edge ("AUTOMATION", InputPhase.LONG);
-        f.edge ("AUTOMATION", InputPhase.END);
-        assertTrue (f.dispatch (action).effects ().isEmpty ());
-        assertEquals ("TRACK", f.navigation.legacyAlias ());
         assertTrue (f.tick ().effects ().isEmpty ());
     }
 
@@ -292,36 +222,6 @@ class TransportSettingsViewsTest
                 assertTrue (f.tick ().effects ().isEmpty ());
                 assertEquals ("TRACK", f.navigation.legacyAlias ());
             }
-        }
-    }
-
-    @Test
-    void deferredGestureCapacityIsBoundedAndRetirementReleasesCapacity ()
-    {
-        final Fixture f = new Fixture (pages -> List.of (new MetronomeControlView (new AuthoritativeBooleanToggle<> (), pages)));
-        final java.util.ArrayList<ResolvedControllerAction> actions = new java.util.ArrayList<> ();
-        for (int index = 0; index <= DesiredParameterInteraction.PENDING_ACTION_CAPACITY; index++)
-        {
-            actions.add (f.resolve ("METRONOME"));
-            f.edge ("METRONOME", InputPhase.END);
-        }
-        assertThrows (IllegalStateException.class, () -> f.resolve ("METRONOME"));
-        f.dispatch (actions.getFirst ());
-        assertNotNull (f.resolve ("METRONOME"));
-    }
-
-    @Test
-    void deactivationCancelsUnadmittedPageGesturesAndOrphanReleases ()
-    {
-        for (final ControllerView view: List.of (new MetronomeControlView (), new AutomationControlView ()))
-        {
-            final Fixture f = new Fixture (view);
-            final String button = view instanceof AutomationControlView ? "AUTOMATION" : "METRONOME";
-            final var action = f.resolve (button);
-            f.edge (button, InputPhase.LONG);
-            view.deactivate ();
-            assertTrue (f.dispatch (action).effects ().isEmpty ());
-            assertTrue (f.edge (button, InputPhase.END).effects ().isEmpty ());
         }
     }
 

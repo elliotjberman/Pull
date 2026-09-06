@@ -11,6 +11,11 @@ public final class PageStyle
     public static final int HEIGHT = 160;
     public static final int COLUMNS = 8;
     public static final int COLUMN_WIDTH = WIDTH / COLUMNS;
+    public static final double TOGGLE_WIDTH = 66.0;
+    public static final double TOGGLE_HEIGHT = 32.0;
+    public static final double TOGGLE_INSET = 1.4;
+    public static final double TOGGLE_THUMB_GAP = 5.0;
+    public static final double TOGGLE_THUMB_RADIUS = 10.0;
     public static final RgbColor BLACK = new RgbColor (0, 0, 0);
     public static final RgbColor WHITE = new RgbColor (255, 255, 255);
     public static final RgbColor GREY = new RgbColor (30, 30, 30);

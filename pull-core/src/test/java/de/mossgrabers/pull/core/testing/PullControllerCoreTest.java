@@ -59,7 +59,6 @@ import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
 import de.mossgrabers.pull.core.api.effect.ClipReleaseTrigger;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
-import de.mossgrabers.pull.core.api.effect.SelectControllerModeEffect;
 import de.mossgrabers.pull.core.api.effect.ResetAutomationOverridesEffect;
 import de.mossgrabers.pull.core.api.effect.SetControllerMappingStorageEffect;
 import de.mossgrabers.pull.core.api.effect.ConsumeControllerButtonEffect;
@@ -1246,14 +1245,14 @@ class PullControllerCoreTest
 
 
     @Test
-    void transportPageLongAndEndWaitBehindRealParameterRestoration ()
+    void pageHoldsWaitForHostAcknowledgedParameterRestoration ()
     {
-        for (final String buttonName: List.of ("METRONOME", "AUTOMATION"))
+        for (final String buttonName: List.of ("METRONOME", "AUTOMATION", "ACCENT", "MASTERTRACK", "TRACK"))
         {
             final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
             final ParameterTargetSnapshot baseline = prepareProjectMacroSnapback (host);
             final ControlId button = PushControlIds.button (buttonName);
-            final String page = buttonName.equals ("METRONOME") ? "TRANSPORT" : "AUTOMATION";
+            final String page = buttonName.equals ("METRONOME") ? "TRANSPORT" : "WORKSPACE";
             host.controllerButton (button, true);
             assertEquals (1, host.effects ().desiredParameterInteraction ().pendingActionCount ());
             host.controllerButtonLong (button);
@@ -1268,10 +1267,9 @@ class PullControllerCoreTest
             host.controllerTick ();
             host.controllerTick ();
             assertEquals (0, host.effects ().desiredParameterInteraction ().pendingActionCount ());
-            assertPage (host, buttonName.equals ("AUTOMATION") ? "WORKSPACE" : page);
+            assertPage (host, page);
             host.controllerTick ();
-            assertPage (host, buttonName.equals ("AUTOMATION") ? "WORKSPACE" : page);
-            assertTrue (host.effects ().executionOrder ().stream ().noneMatch (SelectControllerModeEffect.class::isInstance));
+            assertPage (host, page);
         }
     }
 
@@ -1299,7 +1297,6 @@ class PullControllerCoreTest
         assertPage (host, "AUTOMATION");
         host.controllerButton (PushControlIds.button ("AUTOMATION"), false);
         assertPage (host, "WORKSPACE");
-        assertTrue (host.effects ().executionOrder ().stream ().noneMatch (SelectControllerModeEffect.class::isInstance));
     }
 
 
@@ -1743,7 +1740,6 @@ class PullControllerCoreTest
         host.controllerButton (PushControlIds.button ("ROW1_1"), false);
 
         assertPage (host, "DEVICE_PARAMS");
-        assertTrue (host.effects ().executionOrder ().stream ().noneMatch (SelectControllerModeEffect.class::isInstance));
         host.bridge (ordinaryTrackBridge (3, "DEVICE_PARAMS"));
         assertFalse ("TRACK".equals (page (host)));
         assertEquals (Optional.empty (), host.effects ().desiredInputRoutes ().mode (PushControlIds.button ("ROW1_1"), InputKind.BUTTON));

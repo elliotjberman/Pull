@@ -44,21 +44,6 @@ public final class CurrentTrackFooterView implements ControllerView
     private ControllerSnapshot latest;
     private final PageNavigation pages;
 
-    public CurrentTrackFooterView ()
-    {
-        this (new ButtonGestureConsumption (Set.of (RECORD)));
-    }
-
-    public CurrentTrackFooterView (final ButtonGestureConsumption buttonGestures)
-    {
-        this (buttonGestures, new SessionStopGesture ());
-    }
-
-    public CurrentTrackFooterView (final ButtonGestureConsumption buttonGestures, final SessionStopGesture stopGesture)
-    {
-        this (buttonGestures, stopGesture, PageNavigation.defaults ());
-    }
-
     public CurrentTrackFooterView (final ButtonGestureConsumption buttonGestures, final SessionStopGesture stopGesture, final PageNavigation pages)
     {
         this.pages = java.util.Objects.requireNonNull (pages, "pages");

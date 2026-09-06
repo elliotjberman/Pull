@@ -41,17 +41,6 @@ public final class GlobalMixerControlsView implements ControllerView
     private final ViewProfile profile;
     private final PageNavigation pages;
 
-    public GlobalMixerControlsView (final Role role, final ParameterTouchSession touchSession)
-    {
-        this (role, -1, touchSession, PageNavigation.defaults ());
-    }
-
-    /** One fixed current-bank send column, zero-based across the eight installed send roles. */
-    public static GlobalMixerControlsView send (final int sendIndex, final ParameterTouchSession touchSession)
-    {
-        return new GlobalMixerControlsView (Role.SEND, sendIndex, touchSession, PageNavigation.defaults ());
-    }
-
     public GlobalMixerControlsView (final Role role, final ParameterTouchSession touchSession, final PageNavigation pages)
     {
         this (role, -1, touchSession, pages);

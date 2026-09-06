@@ -28,7 +28,6 @@ public final class AccentControlView implements ControllerView
     private final DeferredButtonAdmission admission = new DeferredButtonAdmission ();
     private final ControllerPageTransitions pages;
 
-    public AccentControlView () { this (new ControllerPageTransitions ()); }
     AccentControlView (final ControllerPageTransitions pages) { this.pages = java.util.Objects.requireNonNull (pages, "pages"); }
 
     @Override public String id () { return "accent-control"; }

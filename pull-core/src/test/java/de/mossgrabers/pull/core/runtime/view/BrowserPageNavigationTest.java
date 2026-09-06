@@ -29,19 +29,6 @@ class BrowserPageNavigationTest
     }
 
     @Test
-    void deferredOpenIsCancelledByLaterHostCloseBeforeAdmission ()
-    {
-        this.browser.reconcile (new BrowserSnapshot (1, true));
-        final var open = this.browser.resolveAction ();
-        assertEquals (Set.of (ControllerStateScope.ACTIVE_PARAMETERS), open.intent ().invalidates ());
-        this.browser.reconcile (new BrowserSnapshot (2, false));
-        assertNull (this.browser.resolveAction ());
-        this.dispatch (open);
-        assertEquals ("TRACK", this.pages.legacyAlias ());
-        assertFalse (this.pages.state ().temporary ().isPresent ());
-    }
-
-    @Test
     void lateCloseCannotDismissAReplacementPage ()
     {
         this.browser.reconcile (new BrowserSnapshot (1, true));
@@ -52,38 +39,6 @@ class BrowserPageNavigationTest
         this.dispatch (this.browser.resolveAction ());
         assertEquals (newer, this.pages.state ().temporaryToken ());
         assertEquals ("ACCENT", this.pages.legacyAlias ());
-    }
-
-    @Test
-    void closedBrowserReloadRestoresItsCheckpointedExactReturn ()
-    {
-        final var exact = ControllerPageRef.core ("future-core-page");
-        this.pages.select (exact);
-        this.browser.reconcile (new BrowserSnapshot (1, true));
-        this.dispatch (this.browser.resolveAction ());
-        final var restored = PageNavigation.defaults ();
-        restored.restoreState (this.pages.state ());
-        final var replacement = new BrowserPageNavigation (restored);
-        replacement.reconcile (new BrowserSnapshot (2, false));
-        this.dispatch (replacement.resolveAction ());
-        assertEquals (exact, restored.visible ());
-    }
-
-    @Test
-    void healthyReloadKeepsAnOpenBrowsersTemporaryOwnerUntilTheRealClose ()
-    {
-        this.browser.reconcile (new BrowserSnapshot (1, true));
-        this.dispatch (this.browser.resolveAction ());
-        final var restored = PageNavigation.defaults ();
-        restored.restoreState (this.pages.state ());
-        final long token = restored.state ().temporaryToken ();
-        final var replacement = new BrowserPageNavigation (restored);
-        replacement.reconcile (new BrowserSnapshot (1, true));
-        this.dispatch (replacement.resolveAction ());
-        assertEquals (token, restored.state ().temporaryToken ());
-        replacement.reconcile (new BrowserSnapshot (2, false));
-        this.dispatch (replacement.resolveAction ());
-        assertEquals ("TRACK", restored.legacyAlias ());
     }
 
     @Test

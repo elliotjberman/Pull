@@ -28,7 +28,6 @@ public final class MasterButtonView implements ControllerView
     private ControllerPageTransitions.Request lastEntry;
     private boolean returnOnRelease;
 
-    public MasterButtonView () { this (new ControllerPageTransitions ()); }
     MasterButtonView (final ControllerPageTransitions pages) { this.pages = java.util.Objects.requireNonNull (pages, "pages"); }
 
     @Override public String id () { return "master-button"; }

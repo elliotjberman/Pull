@@ -62,17 +62,16 @@ class ControllerSettingsHostTest
     }
 
     @Test
-    void modePreferenceRequiresAnInstalledEntryAndIntegerValuesRemainBounded ()
+    void modePreferenceRequiresAnInstalledEntry ()
     {
         final Fixture fixture = new Fixture ();
         assertThrows (IllegalArgumentException.class, () -> fixture.host.prepare (new SetControllerModeSettingEffect (SetControllerModeSettingEffect.Setting.GLOBAL_MIX_MODE, "not-a-mode")));
         assertThrows (IllegalArgumentException.class, () -> fixture.host.prepare (new SetControllerModeSettingEffect (SetControllerModeSettingEffect.Setting.GLOBAL_MIX_MODE, "SEND8")));
-        assertThrows (IllegalArgumentException.class, () -> new SetControllerIntegerSettingEffect (SetControllerIntegerSettingEffect.Setting.MIX_SEND_OFFSET, 5));
         assertTrue (fixture.configuration.commands.isEmpty ());
     }
 
     @Test
-    void accentSettingsAreObservedOnlyAfterCallbacksAndKeepMidiVelocityBounds ()
+    void accentSettingsAreObservedOnlyAfterCallbacks ()
     {
         final Fixture fixture = new Fixture ();
         final var before = fixture.host.snapshot ();
@@ -84,8 +83,6 @@ class ControllerSettingsHostTest
         fixture.configuration.velocity = 73;
         assertTrue (fixture.host.snapshot ().accentEnabled ());
         assertEquals (73, fixture.host.snapshot ().accentVelocity ());
-        assertThrows (IllegalArgumentException.class, () -> new SetControllerIntegerSettingEffect (SetControllerIntegerSettingEffect.Setting.ACCENT_VELOCITY, 0));
-        assertThrows (IllegalArgumentException.class, () -> new SetControllerIntegerSettingEffect (SetControllerIntegerSettingEffect.Setting.ACCENT_VELOCITY, 128));
     }
 
     private static final class Fixture

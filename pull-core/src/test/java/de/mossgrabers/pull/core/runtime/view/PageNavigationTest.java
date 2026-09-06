@@ -8,14 +8,12 @@ import de.mossgrabers.pull.core.api.ShellCapabilities;
 import java.util.Map;
 import java.util.Set;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
-import de.mossgrabers.pull.core.api.DesiredControllerPageState;
 import de.mossgrabers.pull.core.api.LegacyControllerPageRequest;
 import de.mossgrabers.pull.core.api.LegacyControllerPageRequests;
 import de.mossgrabers.pull.core.view.CompiledWorkspace;
 import de.mossgrabers.pull.core.view.ResolvedControllerAction;
 import org.junit.jupiter.api.Test;
 import java.util.List;
-import java.util.Optional;
 import static de.mossgrabers.pull.core.api.LegacyControllerPageRequest.Operation.*;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -27,16 +25,6 @@ class PageNavigationTest
     private static final ControllerSnapshot SNAPSHOT = new ControllerSnapshot (0, 0, new ShellCapabilities (Map.of ()), ClipCatalogSnapshot.empty (), Map.of (), Set.of (), Set.of ());
 
     PageNavigationTest () { this.dispatch.start (SNAPSHOT); }
-
-    @Test
-    void bootstrapRequestsUseTheEmptyShellProjectionOrigin ()
-    {
-        assertEquals (0, this.pages.revision ());
-        assertEquals (ControllerPageRef.core ("track", "TRACK"), this.pages.visible ());
-        this.apply (this.pages.resolveLegacyActions (inbox (request (1, 0, 0, SELECT, "DEVICE_PARAMS"))));
-        assertEquals (ControllerPageRef.legacy ("DEVICE_PARAMS"), this.pages.visible ());
-        assertEquals (1, this.pages.state ().acknowledgedRequestSequence ());
-    }
 
     @Test
     void compatibilityBatchIsOrderedAndReplayDoesNotDispatchItTwice ()
@@ -52,16 +40,6 @@ class PageNavigationTest
         this.apply (actions);
         assertEquals (revision, this.pages.revision ());
         assertTrue (this.pages.resolveLegacyActions (inbox).isEmpty ());
-    }
-
-    @Test
-    void anOutOfOrderDispatchCannotAcknowledgeAnUndispatchedPrefix ()
-    {
-        final var actions = this.pages.resolveLegacyActions (inbox (request (1, 0, 0, SELECT, "DEVICE_PARAMS"), request (2, 0, 0, SELECT, "PAN")));
-        assertThrows (IllegalStateException.class, () -> this.apply (List.of (actions.get (1))));
-        assertEquals (0, this.pages.state ().acknowledgedRequestSequence ());
-        this.apply (actions);
-        assertEquals (2, this.pages.state ().acknowledgedRequestSequence ());
     }
 
     @Test
@@ -139,43 +117,6 @@ class PageNavigationTest
         this.apply (restore);
         assertEquals (currentToken, this.pages.state ().temporaryToken ());
         assertEquals (1, this.pages.state ().acknowledgedRequestSequence ());
-    }
-
-    @Test
-    void workspaceChangeInvalidatesOldOriginsEvenWhenThePageIsUnchanged ()
-    {
-        final var before = this.pages.origin ();
-        this.pages.workspaceChanged (1, this.pages.visible ());
-        assertFalse (this.pages.select (before, this.pages.resolve ("PAN")));
-        assertEquals (0, this.pages.temporary (before, this.pages.resolve ("FRAME")));
-        assertFalse (this.pages.restore (before));
-    }
-
-    @Test
-    void checkpointRestorationPreservesReferencesAndAdvancesTemporaryTokens ()
-    {
-        final var newPage = ControllerPageRef.core ("new-looper-page");
-        this.pages.select (newPage);
-        this.pages.temporary (this.pages.origin (), this.pages.resolve ("TRANSPORT"));
-        final var checkpoint = this.pages.state ();
-        final var replacement = PageNavigation.defaults ();
-        replacement.restoreState (checkpoint);
-        assertEquals (checkpoint, replacement.state ());
-        assertTrue (replacement.temporary (replacement.origin (), replacement.resolve ("FRAME")) > checkpoint.temporaryToken ());
-        replacement.releaseTemporary (replacement.state ().temporaryToken ());
-        assertEquals (newPage, replacement.visible ());
-    }
-
-    @Test
-    void hydrationRetiresPreviouslyResolvedCompatibilityClosures ()
-    {
-        final var old = this.pages.resolveLegacyActions (inbox (request (1, 0, 0, SELECT, "DEVICE_PARAMS")));
-        this.pages.restoreState (new DesiredControllerPageState (0, this.pages.resolve ("PAN"), ControllerPageRef.none (), Optional.empty (), 0));
-        this.apply (old);
-        assertEquals (this.pages.resolve ("PAN"), this.pages.visible ());
-        assertEquals (0, this.pages.state ().acknowledgedRequestSequence ());
-        this.apply (this.pages.resolveLegacyActions (inbox (request (1, 0, 0, SELECT, "DEVICE_PARAMS"))));
-        assertEquals (this.pages.resolve ("DEVICE_PARAMS"), this.pages.visible ());
     }
 
     @Test

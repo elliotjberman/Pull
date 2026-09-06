@@ -98,6 +98,7 @@ import java.lang.reflect.Proxy;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -274,7 +275,7 @@ class ControllerRuntimeEnvironmentTest
 
 
     @Test
-    void currentTrackAndControllerModeEffectsRequireTheirOwnAuthoritativeSubscriptions ()
+    void trackSettingsAndApplicationEffectsRequireTheirOwnAuthoritativeSubscriptions ()
     {
         final ControllerRuntimeEnvironment environment = new ControllerRuntimeEnvironment (host (1), new PassthroughControllerBridge (), new RecordingLog (), () -> 0);
         final var target = new de.mossgrabers.pull.core.api.CurrentTrackTarget (1, "main", 0, "track-a");
@@ -299,7 +300,7 @@ class ControllerRuntimeEnvironmentTest
 
 
     @Test
-    void arrowClaimsRequireAnInstalledInertPageOrTheFrozenSessionNavigationFootprint ()
+    void arrowClaimsRequireCorePageOwnership ()
     {
         final PassthroughControllerBridge bridge = new PassthroughControllerBridge ();
         final ControllerRuntimeEnvironment environment = new ControllerRuntimeEnvironment (host (1), bridge, new RecordingLog (), () -> 0);
@@ -307,59 +308,16 @@ class ControllerRuntimeEnvironmentTest
         for (final String arrow: List.of ("ARROW_LEFT", "ARROW_RIGHT", "ARROW_UP", "ARROW_DOWN"))
         {
             final var routes = new DesiredInputRoutes (Set.of (new InputRoute (PushControlIds.button (arrow), InputKind.BUTTON, InputRouteMode.EXCLUSIVE)));
-            for (final DesiredControllerWorkspace workspace: List.of (
-                new DesiredControllerWorkspace ("Track", Set.of (ControllerViewFacet.TRACK_MIXER_PAGE), SessionBankShape.empty (), "TRACK"),
-                DesiredControllerWorkspace.empty (),
-                new DesiredControllerWorkspace ("VS", Set.of (ControllerViewFacet.SESSION_NAVIGATION), SessionBankShape.empty ())))
-            {
-                final CoreResult result = new CoreResult (
-                    DesiredHardwareOutput.empty (), routes, DesiredBridgeSubscriptions.empty (), Map.of (),
-                    new DesiredControllerState (workspace, DesiredNotePerformance.inactive (), corePage ()), DesiredNoteRepeat.unowned (),
-                    de.mossgrabers.pull.core.api.DesiredControllerActions.empty (), DesiredParameterBanks.empty (), DesiredParameterInteraction.empty (), List.of ());
-                assertTrue (environment.prepare (result) != null);
-            }
+            final CoreResult claimed = new CoreResult (
+                DesiredHardwareOutput.empty (), routes, DesiredBridgeSubscriptions.empty (), Map.of (),
+                new DesiredControllerState (DesiredControllerWorkspace.empty (), DesiredNotePerformance.inactive (), corePage ()), DesiredNoteRepeat.unowned (),
+                de.mossgrabers.pull.core.api.DesiredControllerActions.empty (), DesiredParameterBanks.empty (), DesiredParameterInteraction.empty (), List.of ());
+            assertNotNull (environment.prepare (claimed));
             final CoreResult unclassified = new CoreResult (
                 DesiredHardwareOutput.empty (), routes, DesiredBridgeSubscriptions.empty (), Map.of (),
                 de.mossgrabers.pull.core.api.DesiredControllerActions.empty (), DesiredParameterBanks.empty (), DesiredParameterInteraction.empty (), List.of ());
             assertThrows (IllegalArgumentException.class, () -> environment.prepare (unclassified));
         }
-    }
-
-
-    @Test
-    void touchAcquisitionFollowsResetAndOnlyMigratedProfilesMayOwnEncoderTouch ()
-    {
-        final PassthroughControllerBridge bridge = new PassthroughControllerBridge ();
-        bridge.recordTouches = true;
-        final ControllerRuntimeEnvironment environment = new ControllerRuntimeEnvironment (host (1), bridge, new RecordingLog (), () -> 0);
-        environment.setInputRouteValidator (ignored -> true);
-        final ControlId knob = PushControlIds.continuous ("KNOB1");
-        final ParameterTargetRef target = new ParameterTargetRef (ParameterTargetKind.LIVE, "project-a-macro", 1);
-        final DesiredInputRoutes routes = new DesiredInputRoutes (Set.of (new InputRoute (knob, InputKind.TOUCH, InputRouteMode.EXCLUSIVE)));
-        final CoreResult result = new CoreResult (
-            DesiredHardwareOutput.empty (), routes, new DesiredBridgeSubscriptions (Set.of (BridgeSubscription.PARAMETERS)), Map.of (),
-            new DesiredControllerState (new DesiredControllerWorkspace ("Project", Set.of (ControllerViewFacet.PROJECT_MACRO_CONTROLS), SessionBankShape.empty (), "WORKSPACE"), DesiredNotePerformance.inactive (), corePage ()),
-            DesiredNoteRepeat.unowned (), de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
-            new DesiredParameterBanks (Set.of (ParameterBankId.PROJECT_REMOTE)), DesiredParameterInteraction.empty (),
-            new DesiredParameterTouches (Map.of (knob, target)), CoreExecutionRequirements.empty (), List.of (new ResetParameterEffect (target)));
-        final PreparedCoreResult prepared = environment.prepare (result);
-        assertTrue (bridge.applicationOrder.isEmpty ());
-        environment.commit (1, prepared);
-        assertTrue (bridge.applicationOrder.isEmpty ());
-        environment.apply (1);
-        assertEquals (List.of ("touch-release", "controller-state", "note-repeat", "reset", "touch-acquire"), bridge.applicationOrder);
-        environment.apply (1);
-        assertEquals (5, bridge.applicationOrder.size ());
-        final CoreResult wrongProfile = new CoreResult (
-            result.desiredOutput (), routes, result.desiredBridgeSubscriptions (), Map.of (),
-            new DesiredControllerState (new DesiredControllerWorkspace ("Mix", Set.of (ControllerViewFacet.TRACK_MIXER_PAGE), SessionBankShape.empty ()), DesiredNotePerformance.inactive ()),
-            result.desiredNoteRepeat (), result.desiredControllerActions (), result.desiredParameterBanks (), result.desiredParameterInteraction (), result.desiredParameterTouches (), result.executionRequirements (), List.of ());
-        assertThrows (IllegalArgumentException.class, () -> environment.prepare (wrongProfile));
-        final CoreResult masterProfile = new CoreResult (
-            result.desiredOutput (), routes, result.desiredBridgeSubscriptions (), Map.of (),
-            new DesiredControllerState (new DesiredControllerWorkspace ("Master", Set.of (ControllerViewFacet.MASTER_CONTROLS), SessionBankShape.empty (), "MASTER"), DesiredNotePerformance.inactive (), corePage ()),
-            result.desiredNoteRepeat (), result.desiredControllerActions (), new DesiredParameterBanks (Set.of (ParameterBankId.MASTER)), result.desiredParameterInteraction (), result.desiredParameterTouches (), result.executionRequirements (), List.of ());
-        assertTrue (environment.prepare (masterProfile) != null);
     }
 
 
@@ -461,6 +419,8 @@ class ControllerRuntimeEnvironmentTest
         assertTrue (bridge.applicationOrder.isEmpty ());
         environment.apply (1);
         assertEquals (List.of ("touch-release", "controller-state", "note-repeat", "reset", "touch-acquire-ordered", "enabled", "touch-acquire"), bridge.applicationOrder);
+        environment.apply (1);
+        assertEquals (7, bridge.applicationOrder.size (), "unchanged replay cannot repeat reset or touch acquisition");
         final CoreResult withoutLease = new CoreResult (
             result.desiredOutput (), result.desiredInputRoutes (), result.desiredBridgeSubscriptions (), result.desiredClipBindings (), result.desiredControllerState (),
             result.desiredNoteRepeat (), result.desiredControllerActions (), result.desiredParameterBanks (), result.desiredParameterInteraction (), DesiredParameterTouches.empty (), result.executionRequirements (), result.effects ());

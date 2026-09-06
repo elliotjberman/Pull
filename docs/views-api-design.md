@@ -1,10 +1,9 @@
 # Views API and Composite Workspaces
 
-Status: design contract for working Core API 46 and checkpoint schema 6. The page ownership
-refactor's integration package and exact-build `202arp` smoke are pending. Earlier baseline tests
-and live checks do not certify this build. The remaining stable-adapter boundary is explicit in
-claims and recorded in [`../ARCH.md`](../ARCH.md). The checkpoints below describe the composition
-contract, not a claim that every inherited controller body has migrated.
+Status: design contract for Core API 46 and checkpoint schema 6. Production `11e33477` passed the
+scoped live checks; later cleanup passes offline checks but is not installed or live tested. See
+[the validation record](migrations/core-page-ownership-live-smoke.md). Remaining stable adapters are
+explicit in claims and [ARCH](../ARCH.md); this contract does not claim every inherited body migrated.
 
 ## Goal
 
@@ -452,113 +451,25 @@ never serializes executable continuations or a partially held physical
 gesture. Session grid/scene actions and their release contract remain open; optional SESSION_CLIPS
 observation and migrated arrows do not complete Session launch migration.
 
-## Implementation Checkpoints
+## Declared composition
 
-### Checkpoint 1: Behavior-Preserving View Runtime
+`ControllerPages` defines the supported backgrounds and pages in Java. VS Live combines an actual
+8×4 Session bank in the upper half with the lower Drum Controller play/rate/fill regions, project
+macros or another selected page, a track-selection footer and raw strip behavior. Lower scene keys
+do not gain ownership merely by sitting beside Drum Controller. Plain Session selects the full
+8×8 background; Note/Layout follow the selected target's fenced preference and later layout
+read-back without replacing independent page state.
 
-Introduce the fixed-footprint model and workspace compiler inside the reloadable core. Move the
-currently migrated behavior through views:
+Learned actions use the selected track's allocated bank of four permanent semantic endpoints;
+all 64 physical PAD actions stay ordinary-dispatch-only. The bounded persistence contract is in
+[CONTROLLER_MAPPING_IDENTITY.md](../pull-core-api/src/main/java/de/mossgrabers/pull/core/api/CONTROLLER_MAPPING_IDENTITY.md).
+Native note transport remains separate from controller-command ownership.
 
-- Drum-fill matching, launch ownership, and eight pad lights become one fixed drum-fill view.
-- A selected track's allocated bank of four detached semantic absolute controls owns the remaining
-  row's Bitwig-learned actions and raw mapped-target presence/value feedback. Core retains that
-  view's complete fenced physical-to-semantic lease and next minimum/maximum value. API 44
-  installs 128 such banks; allocation and persistence acknowledgement follow the bounded V1
-  contract in `../pull-core-api/src/main/java/de/mossgrabers/pull/core/api/CONTROLLER_MAPPING_IDENTITY.md`.
-  All 64 original physical PAD buttons remain ordinary-dispatch-only and never define learned
-  identity. Permanent raw MIDI triggers those established objects outside a mapping lease; inside
-  one it supplies the normalized core gesture independently of the one semantic learned action.
-  Core owns the midpoint, next-endpoint, and red/off policy derived from later authoritative
-  presence/value feedback keyed by semantic endpoint; stable code does not interpret the value.
-- Record, Shift + Record, and Select + Record become one fixed Record control view.
-- The selected Drum workspace composes those views; melodic Note workspaces do not retain a hidden
-  drum-fill owner.
-- Existing `CoreResult` output, input routes, bridge subscriptions, clip bindings, effects,
-  reload semantics, and hardware behavior remain byte-for-byte or value-for-value equivalent.
-
-Offline tests must retain all current behavior cases and add compiler tests for conflicting output,
-exclusive input, shared observers, and declaration-order independence. Commit this checkpoint
-before adding `VS Live`; it is the rollback point for the first Bitwig/Push smoke test.
-
-### Checkpoint 2: `VS Live` Composite
-
-Add one hardcoded workspace named `VS Live`, entered with **Shift + Session** for now:
-
-- Project Macro Controls own the eight top encoders, their touches, and parameter display, matching
-  the current Project side of User mode.
-- Track Selection Strip owns the lower display strip and lower soft keys so visible tracks can be
-  selected directly.
-- Session Navigation owns arrow input/feedback while retaining the declared frozen Session page
-  buttons, so page replacements preserve both surfaces without claiming their migration complete.
-- Session Clip Grid owns the upper four pad rows. Clip launch behavior and scene order match Session
-  view through its declared `8x4` Session bank rather than an `8x8` bank cropped at render time.
-- Drum Controller owns the bottom four pad rows, including its existing 4x4 playable block, rate
-  pads, and fill pads. Separate fixed views implement those subregions: `DrumPlayPadView` for
-  playable feedback and pressure, `DrumRateView` for rate/roll policy, and `DrumFillView` for fills.
-- A separately composed `RawPitchBendView` owns raw strip input, mode, value, and release behavior.
-  Its retained gesture keeps the route selected at BEGIN through END even if the page changes.
-
-- Per-pad pressure on Drum Controller's playable 4x4 block follows that same lower-grid ownership;
-  pressure on rate, fill, and Session pads has no musical destination.
-- `DrumPlayPadView` implements that policy in both standalone and composite layouts. It observes the
-  playable pad edges and pressure, honors Off/Poly/Channel/CC configuration, and sends mapped output
-  through the permanent NoteInput MIDI effect. Neither stable view performs parallel pressure
-  mutation or playable-pad rendering.
-- No view claims the lower scene keys merely because they sit beside Drum Controller. Upper scene
-  keys may launch the four visible Session scenes through the Session grid's named facet.
-
-The first version is deliberately a Java-defined configuration and a hardcoded entry gesture. It
-proves that fixed views compose correctly before configuration parsing or dynamic negotiation is
-added.
-
-Plain **Session** exits through an explicit destination workspace containing the Track/Mix page and
-the complete `8x8` Session view. **Note** enters a controller-level core view that resolves the
-selected track's target-fenced preference and applicability to one bounded installed note view.
-Core holds the destination until controller-layout read-back acknowledges the requested stable
-grid/view; command submission alone does not release musical ownership. Stable code must not infer the
-view from a pinnable cursor, force the workspace from generic mode/view listeners, or recover a
-destination from previous-mode history.
-
-The same controller-level Note view owns Layout-button input. Normal and Shift cycles update the
-selected track's fenced preference and flow through the composed Note lifecycle; a track-selection
-observer must never activate a preferred view independently. Page and grid are separate outputs:
-changing the Note layout may update the underlying grid without dismissing a Scale, Device, or
-other stable page overlay.
-
-The four rate pads are a complete core-owned semantic slice. Their edge routes and RGB feedback are
-exclusive while Drum Controller is engaged, and the output includes a replayable desired
-note-repeat state. Stable only reads the installed Repeat engine, applies the bounded request, and
-restores the pre-ownership manual state after later read-back. Disabling **Automatic arp / roll**
-releases that lease and blanks the rate pads without changing note-view policy.
-
-The original checkpoint introduced complete `DesiredControllerWorkspace` values with a name and
-known fixed-facet IDs. API 46 separates its grid/facet selection from `DesiredControllerState.page`;
-there is no installed-mode field or controller-mode effect in the page path. `VS Live`, its selected
-views/facets, conflict-free composition and Shift+Session selection live in reloadable core.
-Stable contains reusable adapters for facet mechanics that still depend on the inherited object
-graph. It must not branch on the name `VS Live`. As those remaining capabilities migrate, adapters
-can be replaced without redesigning page identity, presentation or workspace configuration.
-
-The Bitwig smoke test checks:
-
-1. Existing startup and ordinary Session/Drum/User behavior still work.
-2. Shift + Session enters `VS Live` without a stuck Shift gesture.
-3. Encoders edit project macros and the display reflects authoritative values.
-4. Lower soft keys select the tracks named in the bottom strip.
-5. Arrow keys navigate the Session bank.
-6. Upper pads launch the expected four scenes; lower pads play drums/rates/fills only.
-7. Pitch bend reaches the selected drum track and releases cleanly.
-8. Strike velocity and pressure produce the same drum-note behavior as standalone Drum Controller.
-9. Plain Session and Note leave the workspace through their ordinary destinations; re-entry
-   restores composite ownership and note mapping.
-10. Moving from a melodic track to a drum target while Note is visible selects Drum Controller
-    after authoritative drum applicability arrives; moving back selects the track's melodic view.
-11. Automatic roll is present only while Drum Controller owns the rate pads, its lights follow
-    Repeat read-back, and leaving or disabling it retires Repeat while restoring the prior manual
-    parameters.
-
-Commit the composite separately so a hardware failure can be bisected to either the view-runtime
-migration or the `VS Live` shell integration.
+Current implementation/capacity is in [ARCH](../ARCH.md); unmigrated families and prerequisites are
+in [the roadmap](reloadable-core-migration-roadmap.md). Behavioral tests are the characterization
+record. [TESTING](../TESTING.md) defines closed-loop validation; the
+[smoke record](migrations/core-page-ownership-live-smoke.md) records exact builds and coverage.
+Do not infer a new capability or an all-features pass from an old implementation milestone.
 
 ## Deferred Work
 

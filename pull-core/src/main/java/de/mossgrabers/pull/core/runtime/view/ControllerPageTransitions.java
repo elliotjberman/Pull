@@ -10,7 +10,6 @@ final class ControllerPageTransitions
     private final PageNavigation navigation;
     private Request current;
 
-    ControllerPageTransitions () { this (PageNavigation.defaults ()); }
     ControllerPageTransitions (final PageNavigation navigation) { this.navigation = Objects.requireNonNull (navigation, "navigation"); }
     PageNavigation.Origin origin () { return this.navigation.origin (); }
     String visibleAlias () { return this.navigation.legacyAlias (); }

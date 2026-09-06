@@ -21,7 +21,6 @@ import java.lang.reflect.Proxy;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 
@@ -54,14 +53,6 @@ class ControllerWorkspaceHostTest
 
 
     @Test
-    void emptyWorkspaceDoesNotDeclareAControllerPage ()
-    {
-        final var page = DesiredControllerWorkspace.empty ();
-        assertEquals (page, ControllerWorkspaceHost.validate (page));
-    }
-
-
-    @Test
     void neutralLayoutActuallyLeavesMusicalPadsForSession ()
     {
         final ModeManager modes = new ModeManager ();
@@ -75,7 +66,7 @@ class ControllerWorkspaceHostTest
         views.setDefaultID (Views.SESSION);
         views.setActive (Views.PLAY);
 
-        ControllerWorkspaceHost.applyPreparedLayout (DesiredControllerLayout.neutral (), modes, views);
+        ControllerWorkspaceHost.applyPreparedLayout (DesiredControllerLayout.neutral (), views);
 
         assertEquals (Modes.DEVICE_PARAMS, modes.getActiveID ());
         assertEquals (Views.SESSION, views.getActiveID ());
@@ -96,7 +87,7 @@ class ControllerWorkspaceHostTest
         views.setDefaultID (Views.PLAY);
         views.setActive (Views.PLAY);
 
-        ControllerWorkspaceHost.applyPreparedLayout (DesiredControllerLayout.note (ControllerNoteView.CHORDS), modes, views);
+        ControllerWorkspaceHost.applyPreparedLayout (DesiredControllerLayout.note (ControllerNoteView.CHORDS), views);
 
         assertEquals (Modes.SCALES, modes.getActiveID ());
         assertEquals (Views.CHORDS, views.getActiveID ());

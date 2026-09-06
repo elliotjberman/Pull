@@ -41,21 +41,6 @@ class MasterButtonViewTest
     }
 
     @Test
-    void deferredLongAndEndAreBothAppliedLocallyOnAdmission ()
-    {
-        final Fixture f = new Fixture ();
-        final var action = f.resolve ();
-        assertEquals (Set.of (ControllerStateScope.ACTIVE_PARAMETERS), action.intent ().invalidates ());
-        f.edge (InputPhase.LONG);
-        f.edge (InputPhase.END);
-        assertEquals ("TRACK", f.navigation.legacyAlias ());
-        assertTrue (f.dispatch (action).effects ().isEmpty ());
-        assertEquals ("TRACK", f.navigation.legacyAlias ());
-        assertTrue (f.navigation.state ().temporary ().isEmpty ());
-        assertFalse (f.view.executionRequirements ().ticksRequested ());
-    }
-
-    @Test
     void deferredShortReleaseIsFencedToItsReleasePage ()
     {
         final Fixture f = new Fixture ();
@@ -88,24 +73,6 @@ class MasterButtonViewTest
         f.observe ("FRAME", true);
         f.tick ();
         assertEquals ("FRAME", f.navigation.legacyAlias ());
-    }
-
-    @Test
-    void retainedGestureSurvivesPageCompositionAndRetiredGenerationIsInert ()
-    {
-        final Fixture f = new Fixture ();
-        final var action = f.resolve ();
-        f.dispatch (action);
-        f.edge (InputPhase.LONG);
-        final var next = CompiledWorkspace.compile ("next", List.of (f.retained));
-        f.workspace.deactivateExcept (next);
-        next.start (f.snapshot ());
-        next.handle (f.input (InputPhase.END), f.snapshot ());
-        assertEquals ("TRACK", f.navigation.legacyAlias ());
-        f.view.deactivate ();
-        f.dispatch (action);
-        f.edge (InputPhase.END);
-        assertEquals ("TRACK", f.navigation.legacyAlias ());
     }
 
     @Test

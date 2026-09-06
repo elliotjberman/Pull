@@ -46,8 +46,9 @@ This removes the core-side physical navigation table. It does not yet satisfy th
 - Master owns its complete short page replacement and long Frame gesture in core. The stable
   binding is inert. API 46 uses `PageNavigation` for exact page/history/temporary ownership; Browser
   edge rules and returns no longer depend on mode effects or native mode acknowledgement. The
-  prior migration review is tracked in `../migrations/core-migration-review.md`; API 46 still needs
-  its own exact-build integration and live validation.
+  resolved findings are in the [review ledger](../migrations/migration-shortcuts-and-friction.md).
+  [Exact-build validation](../migrations/core-page-ownership-live-smoke.md) covers production
+  `11e33477`; subsequent cleanup has not been deployed or live tested.
 - Play is a core-exclusive edge with an inert stable command. Core retains the engine-owning
   project identity and emits one exact origin/target project-transport payload. Stable validates
   the live origin and owns the complete bounded tab visit, authoritative transport readback, and

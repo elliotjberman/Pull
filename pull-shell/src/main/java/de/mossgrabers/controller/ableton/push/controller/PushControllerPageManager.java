@@ -53,9 +53,7 @@ public final class PushControllerPageManager extends ModeManager
     @Override public IMode getPrevious () { return this.body (this.projected.previous ()); }
 
     public DesiredControllerPageState pageState () { return this.projected; }
-    public ControllerPageRef capturePage () { return this.projected.effectivePage (); }
     public ControllerPageRef captureSelectedPage () { return this.projected.selected (); }
-    public LegacyControllerPageRequests requests () { return this.requests (true); }
     public LegacyControllerPageRequests requests (final boolean includePending) { return new LegacyControllerPageRequests (this.retiredSequence, includePending ? this.inbox : List.of ()); }
     public boolean canReplaceCore () { return !this.consumerHealthy || this.isIdle (); }
 

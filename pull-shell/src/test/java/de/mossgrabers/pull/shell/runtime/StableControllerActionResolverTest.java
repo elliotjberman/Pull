@@ -69,12 +69,12 @@ class StableControllerActionResolverTest
         final var command = new de.mossgrabers.controller.ableton.push.command.trigger.SelectCommand (fixture.model, fixture.surface);
         fixture.browserActive = true;
         command.execute (ButtonEvent.UP, 0);
-        assertEquals (0, manager.requests ().requests ().size ());
+        assertEquals (0, manager.requests (true).requests ().size ());
         manager.apply (new de.mossgrabers.pull.core.api.DesiredControllerPageState (1, de.mossgrabers.pull.core.api.ControllerPageRef.legacy ("BROWSER"), de.mossgrabers.pull.core.api.ControllerPageRef.none (), java.util.Optional.empty (), 0));
         fixture.browserActive = false;
         command.execute (ButtonEvent.UP, 0);
-        assertEquals (1, manager.requests ().requests ().size ());
-        assertEquals ("TRACK_DETAILS", manager.requests ().requests ().getFirst ().legacyModeId ());
+        assertEquals (1, manager.requests (true).requests ().size ());
+        assertEquals ("TRACK_DETAILS", manager.requests (true).requests ().getFirst ().legacyModeId ());
     }
 
 

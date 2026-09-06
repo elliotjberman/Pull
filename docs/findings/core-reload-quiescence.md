@@ -7,6 +7,9 @@ remove_when: all asynchronous operation owners declare and test their replacemen
 
 # Core Reload Does Not Account For Every Pending Operation
 
+Implementation is **explicitly parked by the user**. Keep this investigation and its removal
+criteria active; the page/gesture migration and subsequent cleanup do not implement a general drain.
+
 ## Observation
 
 Source inspection at commit `256d01ce` found a coherent central replacement gate, but no complete

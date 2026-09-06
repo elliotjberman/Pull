@@ -35,7 +35,6 @@ public final class TrackMixControlView implements ControllerView
     private long epoch;
     private final PageNavigation navigation;
 
-    public TrackMixControlView () { this (PageNavigation.defaults ()); }
     public TrackMixControlView (final PageNavigation navigation) { this.navigation = java.util.Objects.requireNonNull (navigation, "navigation"); }
 
     @Override public String id () { return "track-mix-control"; }
