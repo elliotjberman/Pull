@@ -130,6 +130,16 @@ class PushSurfaceServerTest(unittest.TestCase):
         self.assertEqual(HTTPStatus.SERVICE_UNAVAILABLE, status)
         self.assertFalse((self.debug_dir / SERVER_MODULE.INPUT_REQUEST_DIRECTORY).exists())
 
+    def test_absolute_motion_preserves_fourteen_bits_and_rejects_invalid_values(self) -> None:
+        headers = {"Host": self.authority, "Origin": self.origin, "Content-Type": "application/json"}
+        for value in (0, 8192, 16383, -1, 16384):
+            body = json.dumps({"session": "test-session", "control": "push.continuous.touchstrip",
+                               "kind": "ABSOLUTE", "phase": "CHANGE", "value": value}).encode("utf-8")
+            status, _response = self.request("POST", "/api/input", headers, body)
+            self.assertEqual(HTTPStatus.ACCEPTED if 0 <= value <= 16383 else HTTPStatus.BAD_REQUEST, status)
+        queued = sorted((self.debug_dir / SERVER_MODULE.INPUT_REQUEST_DIRECTORY).glob("input-*.txt"))
+        self.assertEqual(["0", "8192", "16383"], [path.read_text().strip().split("\t")[-1] for path in queued])
+
     def test_live_lease_requires_matching_live_supervisor(self) -> None:
         owner_file = Path(self.temporary.name) / "live.owner"
         owner_file.write_text(f"pid={os.getpid()}\ntoken=test-token\n", encoding="utf-8")

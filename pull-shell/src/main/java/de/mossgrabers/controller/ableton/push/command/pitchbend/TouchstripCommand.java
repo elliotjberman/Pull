@@ -46,16 +46,8 @@ public class TouchstripCommand extends AbstractPitchbendCommand<PushControlSurfa
     @Override
     public void onPitchbend (final int data1, final int data2)
     {
-        if (this.surface.shouldRouteRawPitchbend ())
-        {
-            // A policy can become active after touch-down. Acquiring here makes the first raw
-            // value authoritative for the rest of that physical gesture and guarantees centering
-            // on release even if the policy changes again.
-            this.surface.beginRawPitchbendGesture ();
-            this.surface.sendMidiEvent (MidiConstants.CMD_PITCHBEND, data1, data2);
-            this.surface.getMidiOutput ().sendPitchbend (data1, data2);
+        if (!this.surface.isLegacyTouchStripEnabled ())
             return;
-        }
 
         // Don't get in the way of configuration
         if (this.surface.isShiftPressed ())
@@ -149,7 +141,7 @@ public class TouchstripCommand extends AbstractPitchbendCommand<PushControlSurfa
                         parameterOpt.get ().setValue (this.model.getValueChanger ().toDAWValue (data2));
                 }
                 else
-                    this.surface.getMidiOutput ().sendPitchbend (0, 0);
+                    this.surface.setRibbonPosition (0);
                 return;
 
             default:
@@ -157,7 +149,7 @@ public class TouchstripCommand extends AbstractPitchbendCommand<PushControlSurfa
                 break;
         }
 
-        this.surface.getMidiOutput ().sendPitchbend (data1, data2);
+        this.surface.setRibbonPosition (data1 | data2 << 7);
     }
 
 
@@ -167,13 +159,6 @@ public class TouchstripCommand extends AbstractPitchbendCommand<PushControlSurfa
     public void updateValue ()
     {
         final IValueChanger valueChanger = this.model.getValueChanger ();
-        if (this.surface.shouldRouteRawPitchbend ())
-        {
-            this.surface.setRibbonMode (PushControlSurface.PUSH_RIBBON_PITCHBEND);
-            this.surface.setRibbonValue (64);
-            return;
-        }
-
         final PushConfiguration config = this.surface.getConfiguration ();
 
         // Check if Note Repeat is active and its settings should be changed

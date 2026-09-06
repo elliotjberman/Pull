@@ -15,6 +15,9 @@
 ## Closed-loop testing
 
 - Read `TESTING.md` before validating controller behavior or changing debug ingress.
+- Retain tests for observable controller behavior and real host/hardware/reload contracts. Do not
+  keep implementation-mirroring or migration-only scaffolding when a behavior test covers the
+  same outcome. Keep documentation focused on current contracts, limits and concise evidence.
 - A build or submitted command is not proof that a feature worked. Drive the real routed path and
   verify later authoritative host state and controller output. If the harness cannot drive or
   observe the feature, add the smallest reusable, bounded, opt-in debug capability needed to close
@@ -191,7 +194,7 @@
 - A core-only change inside the installed API/canopy hot reloads. Changing a parent-loaded API
   contract, adding a Bitwig proxy/property/observer, changing a permanent binding or proxy capacity,
   or broadening hardware output ownership requires a shell build/install and Bitwig restart.
-- Core API 41 is the current installed composition contract. Each view contributes fixed claims,
+- Core API 46 is the working composition contract; `ARCH.md` records live activation status. Each view contributes fixed claims,
   facets, state subscriptions, semantic actions, musical routing, and owned output; workspaces may
   merge only disjoint contributions. `ARCH.md` is the canonical current inventory and
   `docs/views-api-design.md` is the detailed contract—do not duplicate or extend product policy in
@@ -208,8 +211,8 @@
   screen. It must retain the active Session/Drum/Note routes and view lifecycles. The temporary
   full-grid/full-display overlay plane remains an explicit whole-surface carveout; ordinary base
   display regions compose through claims.
-- Stable adapter facets, inherited Track Mix menus/touches, Session grid mechanics, Drum octave and
-  pitch-bend mechanics, and other listed debt are not extension points. Missing/faulted core output
+- Stable adapter facets, Session grid mechanics, and other remaining debt listed in `ARCH.md`
+  are not extension points. Missing/faulted core output
   stays blank or inert instead of reviving deleted policy. Logical timer DTOs have no production
   executor and must not be emitted while `docs/findings/logical-timer-production-gap.md` is active.
 

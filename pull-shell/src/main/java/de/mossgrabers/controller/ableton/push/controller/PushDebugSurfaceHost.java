@@ -11,6 +11,7 @@ import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
+import de.mossgrabers.pull.core.api.output.DesiredTouchStrip;
 import de.mossgrabers.pull.shell.PushDebugging;
 
 import java.io.IOException;
@@ -52,6 +53,7 @@ final class PushDebugSurfaceHost implements AutoCloseable
 
     private long revision;
     private long inputEventSequence;
+    private DesiredTouchStrip touchStrip;
 
 
     static PushDebugSurfaceHost createIfEnabled ()
@@ -136,6 +138,16 @@ final class PushDebugSurfaceHost implements AutoCloseable
     }
 
 
+    /** Record a complete mode/position only after both physical sends succeeded. */
+    void observeTouchStrip (final DesiredTouchStrip strip)
+    {
+        if (this.closed.get ())
+            return;
+        this.touchStrip = Objects.requireNonNull (strip, "strip");
+        this.publish (true);
+    }
+
+
     /** Deterministic pressed-state seam for tests. */
     void observePressedControls (final Collection<String> controls)
     {
@@ -166,7 +178,7 @@ final class PushDebugSurfaceHost implements AutoCloseable
             connected,
             new TreeMap<> (this.lights),
             Set.copyOf (this.pressed),
-            new ArrayList<> (this.inputEvents)));
+            new ArrayList<> (this.inputEvents), this.touchStrip));
         this.requestDrain ();
     }
 
@@ -258,7 +270,16 @@ final class PushDebugSurfaceHost implements AutoCloseable
             appendString (json, event.phase ());
             json.append (",\"value\":").append (event.value ()).append ('}');
         }
-        return json.append ("]}\n").toString ();
+        json.append ("],\"touchStrip\":");
+        if (snapshot.touchStrip () == null)
+            json.append ("null");
+        else
+        {
+            json.append ("{\"mode\":");
+            appendString (json, snapshot.touchStrip ().mode ().name ());
+            json.append (",\"value\":").append (snapshot.touchStrip ().value ()).append ('}');
+        }
+        return json.append ("}\n").toString ();
     }
 
 
@@ -295,7 +316,7 @@ final class PushDebugSurfaceHost implements AutoCloseable
             false,
             new TreeMap<> (this.lights),
             Set.of (),
-            new ArrayList<> (this.inputEvents)));
+            new ArrayList<> (this.inputEvents), this.touchStrip));
     }
 
 
@@ -309,7 +330,7 @@ final class PushDebugSurfaceHost implements AutoCloseable
     }
 
 
-    private record Snapshot (long revision, boolean connected, Map<String, LightState> lights, Set<String> pressed, Collection<InputEvent> inputEvents)
+    private record Snapshot (long revision, boolean connected, Map<String, LightState> lights, Set<String> pressed, Collection<InputEvent> inputEvents, DesiredTouchStrip touchStrip)
     {
     }
 }

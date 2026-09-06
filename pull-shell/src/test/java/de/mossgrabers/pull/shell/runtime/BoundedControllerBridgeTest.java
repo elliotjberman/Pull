@@ -26,6 +26,7 @@ import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.IMasterTrack;
 import de.mossgrabers.framework.daw.data.bank.IDrumPadBank;
 import de.mossgrabers.framework.daw.data.bank.ISlotBank;
+import de.mossgrabers.framework.daw.data.bank.ITrackBank;
 import de.mossgrabers.framework.daw.midi.IMidiInput;
 import de.mossgrabers.framework.daw.midi.IMidiOutput;
 import de.mossgrabers.framework.daw.midi.INoteInput;
@@ -58,6 +59,11 @@ import de.mossgrabers.pull.core.api.ParameterTargetRef;
 import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.SessionBankShape;
 import de.mossgrabers.pull.core.api.effect.SelectDrumPadEffect;
+import de.mossgrabers.pull.core.api.effect.TapTempoEffect;
+import de.mossgrabers.pull.core.api.effect.ProjectHistoryEffect;
+import de.mossgrabers.pull.core.api.effect.ProjectHistoryAction;
+import de.mossgrabers.pull.core.api.effect.SetDrumBankPositionEffect;
+import de.mossgrabers.pull.core.api.effect.ShowHostNotificationEffect;
 import de.mossgrabers.pull.core.api.effect.SetControllerMappingStorageEffect;
 import de.mossgrabers.pull.core.api.effect.ConsumeControllerButtonEffect;
 import de.mossgrabers.pull.core.api.effect.NavigateProjectEffect;
@@ -90,6 +96,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -102,16 +109,95 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class BoundedControllerBridgeTest
 {
     @Test
+    void rawBrowserObservationStartsFromAnAlreadyOpenBrowserWithoutAnObserverReplay ()
+    {
+        final BridgeFixture fixture = new BridgeFixture (true, null, true);
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.BROWSER), DesiredParameterBanks.empty ());
+        assertEquals (new de.mossgrabers.pull.core.api.BrowserSnapshot (1, true), fixture.bridge.snapshot ().browser ());
+        assertTrue (fixture.surface.getModeManager ().requests (true).requests ().isEmpty ());
+    }
+
+    @Test
+    void rawBrowserObservationKeepsTheLatestActivityGenerationWithoutSelectingAPage ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.browserObserver.update (Boolean.FALSE);
+        fixture.browserObserver.update (Boolean.TRUE);
+        fixture.browserObserver.update (Boolean.FALSE);
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.BROWSER), DesiredParameterBanks.empty ());
+        assertEquals (new de.mossgrabers.pull.core.api.BrowserSnapshot (3, false), fixture.bridge.snapshot ().browser ());
+        assertTrue (fixture.surface.getModeManager ().requests (true).requests ().isEmpty ());
+        fixture.bridge.refresh (2, DesiredBridgeSubscriptions.empty (), DesiredParameterBanks.empty ());
+        assertEquals (de.mossgrabers.pull.core.api.BrowserSnapshot.empty (), fixture.bridge.snapshot ().browser ());
+        fixture.bridge.refresh (3, subscriptions (BridgeSubscription.BROWSER), DesiredParameterBanks.empty ());
+        assertEquals (new de.mossgrabers.pull.core.api.BrowserSnapshot (3, false), fixture.bridge.snapshot ().browser ());
+    }
+
+    @Test
     void admitsOnlyTheInstalledStableButtonConsumptionTargets ()
     {
         final BridgeFixture fixture = new BridgeFixture ();
 
         fixture.bridge.apply (fixture.bridge.prepare (new ConsumeControllerButtonEffect (PushControlIds.button ("SELECT"))));
+        fixture.bridge.apply (fixture.bridge.prepare (new ConsumeControllerButtonEffect (PushControlIds.button ("DUPLICATE"))));
+        fixture.bridge.apply (fixture.bridge.prepare (new ConsumeControllerButtonEffect (PushControlIds.button ("RECORD"))));
         for (int index = 1; index <= 8; index++)
             fixture.bridge.apply (fixture.bridge.prepare (new ConsumeControllerButtonEffect (PushControlIds.button ("ROW1_" + index))));
 
         assertThrows (IllegalArgumentException.class, () -> fixture.bridge.prepare (new ConsumeControllerButtonEffect (PushControlIds.button ("BROWSE"))));
         assertThrows (IllegalArgumentException.class, () -> fixture.bridge.prepare (new ConsumeControllerButtonEffect (PushControlIds.button ("ROW2_1"))));
+    }
+
+
+    @Test
+    void opaqueCorePageProjectionDoesNotNeedAnInstalledModeWhileLegacyPagesDo ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        final var page = pageState (1, de.mossgrabers.pull.core.api.ControllerPageRef.core ("new-page-with-no-enum"), 0);
+        final var state = new de.mossgrabers.pull.core.api.DesiredControllerState (de.mossgrabers.pull.core.api.DesiredControllerWorkspace.empty (), de.mossgrabers.pull.core.api.DesiredNotePerformance.inactive (), page);
+        assertEquals (state, fixture.bridge.prepareControllerState (state));
+        fixture.bridge.applyControllerState (state);
+        assertEquals (page, fixture.surface.getModeManager ().pageState ());
+        assertNull (fixture.surface.getModeManager ().getActiveID ());
+        assertFalse (fixture.bridge.supportsPageInput (page, PushControlIds.pad (1), de.mossgrabers.pull.core.api.event.InputKind.PAD), "a new page cannot acquire the retained grid");
+        assertFalse (fixture.bridge.supportsPageLight (page, PushControlIds.button ("PLAY")), "page projection cannot acquire controller-level output");
+        assertThrows (IllegalArgumentException.class, () -> fixture.surface.getModeManager ().prepare (
+            pageState (2, de.mossgrabers.pull.core.api.ControllerPageRef.legacy ("DEVICE_PARAMS"), 0)));
+    }
+
+
+    @Test
+    void pageInboxIsSubscriptionGatedReplayableAndFencesReplacementUntilAcknowledged ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        final var pages = fixture.surface.getModeManager ();
+        pages.register (Modes.DEVICE_PARAMS, relaxedProxy (IMode.class));
+        pages.apply (pageState (1, de.mossgrabers.pull.core.api.ControllerPageRef.core ("track", "TRACK"), 0));
+        fixture.bridge.activateCoreGeneration (1);
+        pages.setActive (Modes.DEVICE_PARAMS);
+        assertFalse (fixture.bridge.canReplaceActiveCore ());
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.CONTROLLER_PAGES), DesiredParameterBanks.empty ());
+        final var inbox = fixture.bridge.snapshot ().controllerPages ();
+        assertEquals (1, inbox.requests ().size ());
+        assertEquals (1, inbox.requests ().get (0).originPageRevision ());
+        fixture.bridge.refresh (2, DesiredBridgeSubscriptions.empty (), DesiredParameterBanks.empty ());
+        assertTrue (fixture.bridge.snapshot ().controllerPages ().requests ().isEmpty ());
+        fixture.bridge.refresh (3, subscriptions (BridgeSubscription.CONTROLLER_PAGES), DesiredParameterBanks.empty ());
+        assertEquals (inbox, fixture.bridge.snapshot ().controllerPages ());
+        fixture.bridge.applyParameterLeases (Map.of (), new DesiredParameterBanks (Set.of (ParameterBankId.TRACK_VOLUME)));
+        assertEquals (inbox, fixture.bridge.snapshot ().controllerPages ());
+        pages.apply (pageState (2, de.mossgrabers.pull.core.api.ControllerPageRef.legacy ("DEVICE_PARAMS"), 1));
+        assertFalse (fixture.bridge.canReplaceActiveCore (), "an idle inbox still needs a bootstrap snapshot with its latest retired prefix");
+        fixture.bridge.refresh (4, subscriptions (BridgeSubscription.CONTROLLER_PAGES), DesiredParameterBanks.empty ());
+        assertTrue (fixture.bridge.canReplaceActiveCore ());
+        assertEquals (1, fixture.bridge.snapshot ().controllerPages ().retiredSequence ());
+        assertTrue (fixture.bridge.snapshot ().controllerPages ().requests ().isEmpty ());
+    }
+
+
+    private static de.mossgrabers.pull.core.api.DesiredControllerPageState pageState (final long revision, final de.mossgrabers.pull.core.api.ControllerPageRef page, final long acknowledged)
+    {
+        return new de.mossgrabers.pull.core.api.DesiredControllerPageState (revision, page, de.mossgrabers.pull.core.api.ControllerPageRef.none (), java.util.Optional.empty (), acknowledged);
     }
 
 
@@ -499,6 +585,69 @@ class BoundedControllerBridgeTest
 
 
     @Test
+    void nativeHistoryCommandsRecheckTheExactProjectAndAvailabilityAtApply ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.application.canUndo = true;
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.PROJECT), DesiredParameterBanks.empty ());
+        assertTrue (fixture.bridge.snapshot ().project ().canUndo ());
+        assertFalse (fixture.bridge.snapshot ().project ().canRedo ());
+        final var undo = fixture.bridge.prepare (new ProjectHistoryEffect ("project-a", ProjectHistoryAction.UNDO));
+        assertTrue (fixture.application.historyRequests.isEmpty ());
+        fixture.bridge.apply (undo);
+        assertEquals (List.of ("undo"), fixture.application.historyRequests);
+        assertTrue (fixture.bridge.snapshot ().project ().canUndo (), "command submission cannot rewrite availability");
+
+        fixture.project.identity = "project-b";
+        fixture.bridge.apply (undo);
+        fixture.bridge.apply (fixture.bridge.prepare (new ProjectHistoryEffect ("project-a", ProjectHistoryAction.UNDO)));
+        assertEquals (List.of ("undo"), fixture.application.historyRequests);
+        fixture.project.identity = "project-a";
+        fixture.application.canUndo = false;
+        fixture.bridge.apply (undo);
+        assertEquals (List.of ("undo"), fixture.application.historyRequests);
+
+        fixture.application.canRedo = true;
+        fixture.bridge.refresh (2, subscriptions (BridgeSubscription.PROJECT), DesiredParameterBanks.empty ());
+        assertFalse (fixture.bridge.snapshot ().project ().canUndo ());
+        assertTrue (fixture.bridge.snapshot ().project ().canRedo ());
+        fixture.bridge.apply (fixture.bridge.prepare (new ProjectHistoryEffect ("project-a", ProjectHistoryAction.REDO)));
+        assertEquals (List.of ("undo", "redo"), fixture.application.historyRequests);
+    }
+
+
+    @Test
+    void nativeTempoTapRechecksProjectAndEngineAndDoesNotInventTempoReadback ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.application.engineActive = true;
+        final DesiredBridgeSubscriptions requested = subscriptions (BridgeSubscription.PROJECT, BridgeSubscription.TRANSPORT);
+        fixture.bridge.refresh (1, requested, DesiredParameterBanks.empty ());
+        final var prepared = fixture.bridge.prepare (new TapTempoEffect ("project-a"));
+        assertEquals (0, fixture.transport.tapCount);
+        fixture.bridge.apply (prepared);
+        assertEquals (1, fixture.transport.tapCount);
+        assertEquals (120, fixture.bridge.snapshot ().transport ().tempo ());
+
+        fixture.project.identity = "project-b";
+        fixture.bridge.apply (prepared);
+        fixture.bridge.apply (fixture.bridge.prepare (new TapTempoEffect ("project-a")));
+        assertEquals (1, fixture.transport.tapCount);
+        fixture.project.identity = "project-a";
+        fixture.application.engineActive = false;
+        fixture.bridge.apply (prepared);
+        final var inactive = fixture.bridge.prepare (new TapTempoEffect ("project-a"));
+        fixture.application.engineActive = true;
+        fixture.bridge.apply (inactive);
+        assertEquals (1, fixture.transport.tapCount);
+
+        fixture.transport.tempo = 123.45;
+        fixture.bridge.refresh (2, requested, DesiredParameterBanks.empty ());
+        assertEquals (123.45, fixture.bridge.snapshot ().transport ().tempo ());
+    }
+
+
+    @Test
     void masterMeterPublishesAuthoritativeReadbackWheneverMasterIsSubscribed ()
     {
         final BridgeFixture fixture = new BridgeFixture ();
@@ -588,6 +737,32 @@ class BoundedControllerBridgeTest
 
 
     @Test
+    void immediateParameterReconciliationCarriesIdentityWhenTheCurrentBankSnapshotIsOlder ()
+    {
+        final MutableMixWindow window = new MutableMixWindow ();
+        final BridgeFixture fixture = new BridgeFixture (true, window);
+        final DesiredParameterBanks banks = new DesiredParameterBanks (Set.of (ParameterBankId.TRACK_VOLUME));
+        final DesiredBridgeSubscriptions requested = subscriptions (BridgeSubscription.CURRENT_TRACK_BANK, BridgeSubscription.PARAMETERS);
+        fixture.bridge.refresh (1, requested, banks);
+        final var before = fixture.bridge.snapshot ();
+        assertEquals ("a-0", before.currentTrackBank ().tracks ().getFirst ().track ().channelId ());
+        assertEquals ("a-0", before.parameters ().slots ().get (ParameterSlot.trackVolume (0)).identity ().ownerId ());
+
+        window.prefix = "b";
+        assertTrue (fixture.bridge.applyParameterLeases (Map.of (), banks));
+        final var betweenSamples = fixture.bridge.snapshot ();
+        assertEquals (before.currentTrackBank (), betweenSamples.currentTrackBank ());
+        assertEquals ("b-0", betweenSamples.parameters ().slots ().get (ParameterSlot.trackVolume (0)).identity ().ownerId ());
+        assertEquals ("channel-volume", betweenSamples.parameters ().slots ().get (ParameterSlot.trackVolume (0)).identity ().domain ());
+        assertNotEquals (betweenSamples.currentTrackBank ().tracks ().getFirst ().track ().channelId (), betweenSamples.parameters ().slots ().get (ParameterSlot.trackVolume (0)).identity ().ownerId (), "the core must be able to reject this mixed-epoch pairing");
+
+        fixture.bridge.refresh (2, requested, banks);
+        final var after = fixture.bridge.snapshot ();
+        assertEquals (after.currentTrackBank ().tracks ().getFirst ().track ().channelId (), after.parameters ().slots ().get (ParameterSlot.trackVolume (0)).identity ().ownerId ());
+    }
+
+
+    @Test
     void rejectsPreparedSelectedTrackActionAfterTargetHandoff ()
     {
         final BridgeFixture fixture = new BridgeFixture ();
@@ -653,6 +828,46 @@ class BoundedControllerBridgeTest
         fixture.drum.padChannelID = "pad-a";
         fixture.bridge.apply (prepared);
         assertEquals (1, fixture.drum.selectionCount);
+    }
+
+
+    @Test
+    void drumWindowMovementRechecksLiveIdentityAndDoesNotInventBankReadBack ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        final DesiredBridgeSubscriptions requested = subscriptions (BridgeSubscription.DRUM_PADS, BridgeSubscription.CONTROLLER_LAYOUT);
+        fixture.bridge.refresh (1, requested, DesiredParameterBanks.empty ());
+        final DrumContextSnapshot initial = fixture.bridge.snapshot ().drum ();
+        final ControllerBridge.PreparedAction action = fixture.bridge.prepare (new SetDrumBankPositionEffect (initial.generation (), initial.targetChannelId (), 52, false));
+
+        fixture.drum.deviceID = "replacement";
+        fixture.bridge.apply (action);
+        fixture.drum.deviceID = "device-a";
+        fixture.drum.baseMidiNote = 48;
+        fixture.bridge.apply (action);
+        assertTrue (fixture.drum.scrollRequests.isEmpty ());
+
+        fixture.drum.baseMidiNote = 36;
+        fixture.bridge.apply (action);
+        assertEquals (List.of (Integer.valueOf (52)), fixture.drum.scrollRequests);
+        fixture.bridge.refresh (100_000_000, requested, DesiredParameterBanks.empty ());
+        assertEquals (52, fixture.bridge.snapshot ().layout ().drumBaseMidiNote ());
+        assertEquals (36, fixture.bridge.snapshot ().drum ().baseMidiNote ());
+        assertFalse (fixture.bridge.snapshot ().layout ().appliedNoteTranslation ().owned ());
+
+        fixture.drum.baseMidiNote = 52;
+        fixture.bridge.refresh (200_000_000, requested, DesiredParameterBanks.empty ());
+        assertEquals (52, fixture.bridge.snapshot ().drum ().baseMidiNote ());
+        assertThrows (IllegalArgumentException.class, () -> fixture.bridge.prepare (new SetDrumBankPositionEffect (initial.generation (), initial.targetChannelId (), 68, false)));
+    }
+
+
+    @Test
+    void hostNotificationTransmitsCoreTextWithoutAddingControllerPolicy ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.bridge.apply (fixture.bridge.prepare (new ShowHostNotificationEffect ("C2 - D#3")));
+        assertEquals (List.of ("C2 - D#3"), fixture.notifications);
     }
 
 
@@ -748,8 +963,237 @@ class BoundedControllerBridgeTest
     }
 
 
+    @Test
+    void applicationUiIsRequestedReadbackAndSurvivesParameterOnlyPublication ()
+    {
+        final BridgeFixture fixture = new BridgeFixture (true, new MutableMixWindow ());
+        fixture.bridge.refresh (1, DesiredBridgeSubscriptions.empty (), DesiredParameterBanks.empty ());
+        assertEquals (de.mossgrabers.pull.core.api.ApplicationUiSnapshot.empty (), fixture.bridge.snapshot ().applicationUi ());
+        final var requested = new DesiredBridgeSubscriptions (Set.of (BridgeSubscription.APPLICATION_UI, BridgeSubscription.PARAMETERS));
+        fixture.bridge.refresh (2, requested, DesiredParameterBanks.empty ());
+        final var first = fixture.bridge.snapshot ().applicationUi ();
+        assertTrue (first.available ());
+        assertEquals ("ARRANGE", first.panelLayout ());
+        final var layout = fixture.bridge.prepare (new de.mossgrabers.pull.core.api.effect.SetApplicationLayoutEffect (first.context (), de.mossgrabers.pull.core.api.effect.SetApplicationLayoutEffect.Layout.MIX));
+        fixture.bridge.apply (layout);
+        assertEquals (List.of ("MIX"), fixture.application.panelRequests);
+        fixture.bridge.refresh (3, requested, DesiredParameterBanks.empty ());
+        assertEquals (first, fixture.bridge.snapshot ().applicationUi ());
+        fixture.application.panelLayout = "MIX";
+        fixture.bridge.refresh (4, requested, DesiredParameterBanks.empty ());
+        final var observed = fixture.bridge.snapshot ().applicationUi ();
+        assertEquals ("MIX", observed.panelLayout ());
+        assertTrue (fixture.bridge.applyParameterLeases (Map.of (), new DesiredParameterBanks (Set.of (ParameterBankId.TRACK_VOLUME))));
+        assertEquals (observed, fixture.bridge.snapshot ().applicationUi ());
+        fixture.bridge.refresh (5, DesiredBridgeSubscriptions.empty (), DesiredParameterBanks.empty ());
+        assertEquals (de.mossgrabers.pull.core.api.ApplicationUiSnapshot.empty (), fixture.bridge.snapshot ().applicationUi ());
+        assertThrows (IllegalArgumentException.class, () -> fixture.bridge.prepare (new de.mossgrabers.pull.core.api.effect.ToggleApplicationPanelEffect (observed.context (), de.mossgrabers.pull.core.api.effect.ToggleApplicationPanelEffect.Panel.MIXER)));
+    }
+
+
+    @Test
+    void realCoreConsumesReplayedLegacyRequestsAndKeepsPageProjectionOutOfHostEffects () throws Exception
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.surface.getModeManager ().register (Modes.DEVICE_PARAMS, relaxedProxy (IMode.class));
+        fixture.surface.getViewManager ().register (Views.PLAY, relaxedProxy (IView.class));
+        fixture.surface.getViewManager ().setActive (Views.PLAY);
+        final java.nio.file.Path classes = java.nio.file.Path.of ("../pull-core/target/classes").toAbsolutePath ().normalize ();
+        assertTrue (java.nio.file.Files.isDirectory (classes), "the reactor must compile the real core before this boundary test");
+        try (final java.net.URLClassLoader loader = new java.net.URLClassLoader (new java.net.URL[] {classes.toUri ().toURL ()}, getClass ().getClassLoader ()))
+        {
+            final var provider = (de.mossgrabers.pull.core.api.CoreProvider) loader.loadClass ("de.mossgrabers.pull.core.runtime.PullCoreProvider").getConstructor ().newInstance ();
+            final ModeBoundaryEnvironment environment = new ModeBoundaryEnvironment (fixture, provider.descriptor ().requiredCapabilities ());
+            final List<String> warnings = new ArrayList<> ();
+            final RuntimeManager manager = new RuntimeManager (environment, new RuntimeLog () {
+                @Override public void info (final String message) { }
+                @Override public void warn (final String message) { warnings.add (message); }
+            });
+            final CoreProviderSource source = new CoreProviderSource () {
+                @Override public de.mossgrabers.pull.core.api.CoreProvider instantiateProvider () { return provider; }
+                @Override public <T> T invokeWithContext (final java.util.function.Supplier<T> operation) { return operation.get (); }
+                @Override public void close () { }
+            };
+            manager.start ();
+            final var activation = manager.activate (provider.descriptor ().buildId (), source, () -> true);
+            assertEquals (ActivationResult.State.ACTIVE, activation.state (), activation.message ());
+            final var original = fixture.surface.getModeManager ().pageState ().effectivePage ();
+            assertEquals (de.mossgrabers.pull.core.api.ControllerPageRef.Kind.CORE, original.kind ());
+            fixture.surface.getModeManager ().setActive (Modes.DEVICE_PARAMS);
+            assertEquals (original, fixture.surface.getModeManager ().pageState ().effectivePage (), "legacy calls only submit requests");
+            environment.tick (manager);
+            assertEquals (de.mossgrabers.pull.core.api.ControllerPageRef.legacy ("DEVICE_PARAMS"), fixture.surface.getModeManager ().pageState ().effectivePage ());
+            assertTrue (fixture.surface.getModeManager ().requests (true).requests ().isEmpty ());
+            fixture.surface.getModeManager ().requestCapturedPage (original);
+            environment.tick (manager);
+            assertEquals (original, fixture.surface.getModeManager ().pageState ().effectivePage ());
+            final long returnedRevision = fixture.surface.getModeManager ().pageState ().revision ();
+            environment.tick (manager);
+            assertEquals (returnedRevision, fixture.surface.getModeManager ().pageState ().revision (), "acknowledged requests cannot replay twice");
+            assertFalse (environment.quarantined, warnings.toString ());
+            assertEquals (1, manager.activeGeneration ());
+            manager.close ();
+        }
+    }
+
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void runtimeRecoveryAcceptsIncompatibleOrDiscardedCheckpointsAndQuarantineWithoutStrandingThePageInbox (final boolean discarded) throws Exception
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        final var pages = fixture.surface.getModeManager ();
+        for (final Modes mode: List.of (Modes.DEVICE_PARAMS, Modes.USER)) pages.register (mode, relaxedProxy (IMode.class));
+        final var classes = java.nio.file.Path.of ("../pull-core/target/classes").toAbsolutePath ().normalize ();
+        try (final var loader = new java.net.URLClassLoader (new java.net.URL[] {classes.toUri ().toURL ()}, getClass ().getClassLoader ()))
+        {
+            final var provider = (de.mossgrabers.pull.core.api.CoreProvider) loader.loadClass ("de.mossgrabers.pull.core.runtime.PullCoreProvider").getConstructor ().newInstance ();
+            final var environment = new ModeBoundaryEnvironment (fixture, provider.descriptor ().requiredCapabilities ());
+            final var manager = new RuntimeManager (environment, new RuntimeLog () {
+                @Override public void info (final String message) { }
+                @Override public void warn (final String message) { }
+            });
+            final var initialProvider = !discarded ? provider : new de.mossgrabers.pull.core.api.CoreProvider () {
+                @Override public de.mossgrabers.pull.core.api.CoreDescriptor descriptor () { return provider.descriptor (); }
+                @Override public de.mossgrabers.pull.core.api.ControllerCore create () {
+                    final var delegate = provider.create ();
+                    return new de.mossgrabers.pull.core.api.ControllerCore () {
+                        @Override public de.mossgrabers.pull.core.api.CoreResult start (final de.mossgrabers.pull.core.api.ControllerSnapshot snapshot, final java.util.Optional<de.mossgrabers.pull.core.api.StateEnvelope> state) { return delegate.start (snapshot, state); }
+                        @Override public de.mossgrabers.pull.core.api.CoreResult handle (final de.mossgrabers.pull.core.api.event.CoreEvent event, final de.mossgrabers.pull.core.api.ControllerSnapshot snapshot) { return delegate.handle (event, snapshot); }
+                        @Override public de.mossgrabers.pull.core.api.StateEnvelope checkpoint () { throw new IllegalStateException ("injected checkpoint failure"); }
+                    };
+                }
+            };
+            manager.start ();
+            assertEquals (ActivationResult.State.ACTIVE, manager.activate (provider.descriptor ().buildId (), pageCoreSource (initialProvider), () -> true).state ());
+            pages.setActive (Modes.DEVICE_PARAMS);
+            environment.tick (manager);
+            assertEquals (1, pages.requests (true).retiredSequence ());
+            final Runnable preReplacement = pages.freezeRequestOrigin (() -> pages.setActive (Modes.USER));
+            final var incompatible = new de.mossgrabers.pull.core.api.CoreProvider () {
+                @Override public de.mossgrabers.pull.core.api.CoreDescriptor descriptor () {
+                    final var original = provider.descriptor ();
+                    return new de.mossgrabers.pull.core.api.CoreDescriptor (original.apiVersion (), original.buildId (), original.stateSchema () + ".different", original.stateSchemaVersion (), original.requiredCapabilities ());
+                }
+                @Override public de.mossgrabers.pull.core.api.ControllerCore create () { return provider.create (); }
+            };
+            environment.includePageRequests = false; // Lifecycle prefix remains available without the domain subscription.
+            assertFalse (manager.canReplaceActiveCore (), "input acknowledgement happened after this tick's sample");
+            environment.refresh ();
+            assertTrue (manager.canReplaceActiveCore ());
+            final var replaced = manager.activate (provider.descriptor ().buildId (), pageCoreSource (discarded ? provider : incompatible), () -> true);
+            assertEquals (ActivationResult.State.ACTIVE, replaced.state (), replaced.message ());
+            assertEquals (1, environment.latest.desiredControllerState ().page ().acknowledgedRequestSequence ());
+            preReplacement.run ();
+            assertTrue (pages.requests (true).requests ().isEmpty ());
+            environment.includePageRequests = true;
+            pages.setActive (Modes.USER);
+            environment.tick (manager);
+            assertEquals (Modes.USER, pages.getActiveID ());
+            assertEquals (2, pages.requests (true).retiredSequence ());
+
+            final Runnable preFault = pages.freezeRequestOrigin (() -> pages.setActive (Modes.USER));
+            pages.setActive (Modes.DEVICE_PARAMS);
+            assertFalse (manager.canReplaceActiveCore ());
+            environment.failNextPrepare = true;
+            environment.refresh ();
+            assertFalse (manager.handle (manager.activeGeneration (), new de.mossgrabers.pull.core.api.event.ControllerTickEvent (++environment.sequence, environment.sequence)));
+            assertTrue (environment.quarantined);
+            assertEquals (3, pages.requests (true).retiredSequence ());
+            for (int count = 0; count < 100; count++) pages.setActive (Modes.USER);
+            preFault.run ();
+            final Runnable duringFault = pages.freezeRequestOrigin (() -> pages.setActive (Modes.USER));
+            assertTrue (pages.requests (true).requests ().isEmpty ());
+            assertFalse (manager.canReplaceActiveCore (), "quarantine retirement must be sampled before replacement");
+            environment.includePageRequests = false;
+            environment.refresh ();
+            assertTrue (manager.canReplaceActiveCore ());
+            final var recovered = manager.activate (provider.descriptor ().buildId (), pageCoreSource (provider), () -> true);
+            assertEquals (ActivationResult.State.ACTIVE, recovered.state (), recovered.message ());
+            assertEquals (3, environment.latest.desiredControllerState ().page ().acknowledgedRequestSequence ());
+            preFault.run ();
+            duringFault.run ();
+            assertTrue (pages.requests (true).requests ().isEmpty ());
+            environment.includePageRequests = true;
+            pages.setActive (Modes.DEVICE_PARAMS);
+            environment.tick (manager);
+            assertEquals (Modes.DEVICE_PARAMS, pages.getActiveID ());
+            assertEquals (4, pages.requests (true).retiredSequence ());
+            assertFalse (manager.canReplaceActiveCore ());
+            environment.refresh ();
+            assertTrue (manager.canReplaceActiveCore ());
+            manager.close ();
+        }
+    }
+
+    private static CoreProviderSource pageCoreSource (final de.mossgrabers.pull.core.api.CoreProvider provider)
+    {
+        return new CoreProviderSource () {
+            @Override public de.mossgrabers.pull.core.api.CoreProvider instantiateProvider () { return provider; }
+            @Override public <T> T invokeWithContext (final java.util.function.Supplier<T> operation) { return operation.get (); }
+            @Override public void close () { }
+        };
+    }
+
+
+    /** Host snapshots are fake; core navigation, shell projection and runtime quarantine are production code. */
+    private static final class ModeBoundaryEnvironment implements CoreRuntimeEnvironment
+    {
+        private final BridgeFixture fixture;
+        private final de.mossgrabers.pull.core.api.ShellCapabilities capabilities;
+        private final Set<de.mossgrabers.pull.core.api.ControlId> pressed = new HashSet<> ();
+        private final List<de.mossgrabers.pull.core.api.effect.CoreEffect> requests = new ArrayList<> ();
+        private final ParameterTargetRef target = new ParameterTargetRef (de.mossgrabers.pull.core.api.ParameterTargetKind.LIVE, "tempo-test", 1);
+        private long sequence;
+        private long revision;
+        private double tempo = 120;
+        private boolean quarantined;
+        private boolean failNextPrepare;
+        private boolean includePageRequests = true;
+        private de.mossgrabers.pull.core.api.CoreResult latest = de.mossgrabers.pull.core.api.CoreResult.empty ();
+        private ModeBoundaryPrepared prepared;
+        private ModeBoundaryEnvironment (final BridgeFixture fixture, final de.mossgrabers.pull.core.api.ShellCapabilities capabilities) { this.fixture = fixture; this.capabilities = capabilities; this.refresh (); }
+        private void refresh ()
+        {
+            this.fixture.bridge.refresh (++this.revision, subscriptions (this.includePageRequests ? new BridgeSubscription[] {BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.CONTROLLER_PAGES} : new BridgeSubscription[] {BridgeSubscription.CONTROLLER_LAYOUT}), DesiredParameterBanks.empty ());
+        }
+        private de.mossgrabers.pull.core.api.ParameterTargetSnapshot parameter () { return new de.mossgrabers.pull.core.api.ParameterTargetSnapshot (this.target, "Tempo", this.tempo, this.tempo, "BPM", -1, 0); }
+        @Override public de.mossgrabers.pull.core.api.ControllerSnapshot snapshot ()
+        {
+            final var base = this.fixture.bridge.snapshot ();
+            final var bridge = new ControllerBridgeSnapshot (base.transport (), base.selectedTrack (), base.sessionBank (), base.layout (), base.noteView (), base.noteRepeat (), base.drum (),
+                new de.mossgrabers.pull.core.api.ParameterBridgeSnapshot (Map.of (ParameterSlot.TEMPO, this.parameter ()), Map.of ()), base.controllerMappingFeedback (), base.master (), base.project (), base.automation (), base.encoderConfiguration (), base.currentTrackBank (), base.transportSettings (), base.controllerSettings (), base.applicationUi (), base.controllerPages ());
+            return new de.mossgrabers.pull.core.api.ControllerSnapshot (this.revision, this.revision, this.capabilities, bridge, de.mossgrabers.pull.core.api.ClipCatalogSnapshot.empty (), Map.of (), Map.of (), java.util.Optional.empty (), this.pressed, Set.of ());
+        }
+        @Override public PreparedCoreResult prepare (final de.mossgrabers.pull.core.api.CoreResult result)
+        {
+            if (this.failNextPrepare) { this.failNextPrepare = false; throw new IllegalStateException ("injected prepare fault"); }
+            this.fixture.surface.getModeManager ().prepare (result.desiredControllerState ().page ());
+            return new ModeBoundaryPrepared (result, List.of ());
+        }
+        @Override public void commit (final long generation, final PreparedCoreResult result) { this.prepared = (ModeBoundaryPrepared) result; this.latest = this.prepared.result (); }
+        @Override public void apply (final long generation) { this.fixture.bridge.activateCoreGeneration (generation); this.requests.addAll (this.prepared.result ().effects ()); this.fixture.surface.getModeManager ().apply (this.prepared.result ().desiredControllerState ().page ()); }
+        @Override public void invalidate (final long generation) { this.fixture.bridge.invalidate (); }
+        @Override public void quarantine (final long generation) { this.quarantined = true; this.fixture.bridge.abandonActiveCore (); }
+        @Override public boolean canReplaceActiveCore () { return this.fixture.bridge.canReplaceActiveCore (); }
+        private void edge (final RuntimeManager manager, final String button, final de.mossgrabers.pull.core.api.event.InputPhase phase)
+        {
+            this.refresh ();
+            final var control = PushControlIds.button (button);
+            if (phase == de.mossgrabers.pull.core.api.event.InputPhase.BEGIN) this.pressed.add (control);
+            if (phase == de.mossgrabers.pull.core.api.event.InputPhase.END) this.pressed.remove (control);
+            assertTrue (manager.handle (manager.activeGeneration (), new de.mossgrabers.pull.core.api.event.ControllerInputEvent (++this.sequence, this.sequence, control, de.mossgrabers.pull.core.api.event.InputKind.BUTTON, phase, phase == de.mossgrabers.pull.core.api.event.InputPhase.END ? 0 : 127)));
+        }
+        private void tick (final RuntimeManager manager) { this.refresh (); assertTrue (manager.handle (manager.activeGeneration (), new de.mossgrabers.pull.core.api.event.ControllerTickEvent (++this.sequence, this.sequence))); }
+    }
+
+
+    private record ModeBoundaryPrepared (de.mossgrabers.pull.core.api.CoreResult result, List<ControllerBridge.PreparedAction> actions) implements PreparedCoreResult { }
+
+
     private static final class BridgeFixture
     {
+        private de.mossgrabers.framework.observer.IValueObserver<Boolean> browserObserver;
         private final MutableSelectedTarget selected = new MutableSelectedTarget ();
         private final MutableTransport transport = new MutableTransport ();
         private final MutableDrum drum = new MutableDrum (this.selected);
@@ -758,6 +1202,7 @@ class BoundedControllerBridgeTest
         private final MutableApplication application = new MutableApplication ();
         private final MutableMappingStorage mappingStorage = new MutableMappingStorage ();
         private final List<MidiMessage> noteInputMidiMessages = new ArrayList<> ();
+        private final List<String> notifications = new ArrayList<> ();
         private final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
         private final MutableNoteRepeat noteRepeat;
         private final ManualRepeatConfiguration configuration;
@@ -777,21 +1222,60 @@ class BoundedControllerBridgeTest
 
         private BridgeFixture (final boolean manualRepeatActive)
         {
+            this (manualRepeatActive, null);
+        }
+
+
+        private BridgeFixture (final boolean manualRepeatActive, final MutableMixWindow mixWindow)
+        {
+            this (manualRepeatActive, mixWindow, false);
+        }
+
+
+        private BridgeFixture (final boolean manualRepeatActive, final MutableMixWindow mixWindow, final boolean browserInitiallyActive)
+        {
             this.noteRepeat = new MutableNoteRepeat (manualRepeatActive);
             final ITransport transportProxy = this.transport.proxy ();
             final ICursorTrack cursorTrack = this.drum.cursorTrack ();
             final IDrumDevice drumDevice = this.drum.device ();
             final IDrumDevice legacyDrumDevice = this.legacyDrum.device ();
             final Scales scales = new Scales (this.valueChanger, 36, 100, 8, 8);
+            final IHost host = proxy (IHost.class, (ignored, method, arguments) -> {
+                if ("showNotification".equals (method.getName ()))
+                    this.notifications.add ((String) arguments[0]);
+                return relaxedValue (method.getReturnType ());
+            });
+            final IApplication applicationProxy = this.application.proxy ();
+            final de.mossgrabers.framework.daw.IArranger arrangerProxy = relaxedProxy (de.mossgrabers.framework.daw.IArranger.class);
+            final de.mossgrabers.framework.daw.IMixer mixerProxy = relaxedProxy (de.mossgrabers.framework.daw.IMixer.class);
+            final ITrackBank fullBank = mixWindow == null ? relaxedProxy (ITrackBank.class) : mixWindow.bank;
+            final ITrackBank upperBank = relaxedProxy (ITrackBank.class);
+            final ITrackBank effectBank = relaxedProxy (ITrackBank.class);
+            final var browser = proxy (de.mossgrabers.framework.daw.IBrowser.class, (ignored, method, arguments) -> {
+                if (method.getName ().equals ("isActive")) return Boolean.valueOf (browserInitiallyActive);
+                if (method.getName ().equals ("addActiveObserver"))
+                {
+                    @SuppressWarnings ("unchecked") final var observer = (de.mossgrabers.framework.observer.IValueObserver<Boolean>) arguments[0];
+                    this.browserObserver = observer;
+                }
+                return relaxedValue (method.getReturnType ());
+            });
             final IModel model = proxy (IModel.class, (proxy, method, arguments) -> switch (method.getName ())
             {
+                case "getBrowser" -> browser;
+                case "getTrackBank" -> arguments != null && arguments.length == 2 && ((Integer) arguments[1]).intValue () == 4 ? upperBank : fullBank;
+                case "getCurrentTrackBank" -> fullBank;
+                case "getEffectTrackBank" -> effectBank;
+                case "getHost" -> host;
                 case "getTransport" -> transportProxy;
                 case "getCursorTrack" -> cursorTrack;
                 case "getDrumDevice" -> arguments == null || arguments.length == 0 ? drumDevice : legacyDrumDevice;
                 case "getScales" -> scales;
                 case "getValueChanger" -> this.valueChanger;
                 case "getProject" -> this.project.proxy ();
-                case "getApplication" -> this.application.proxy ();
+                case "getApplication" -> applicationProxy;
+                case "getArranger" -> arrangerProxy;
+                case "getMixer" -> mixerProxy;
                 case "getMasterTrack" -> this.masterTrack ();
                 case "createNoteClip" -> {
                     this.newClipCount++;
@@ -876,6 +1360,46 @@ class BoundedControllerBridgeTest
     }
 
 
+    private static final class MutableMixWindow
+    {
+        private String prefix = "a";
+        private final ITrackBank bank;
+
+        private MutableMixWindow ()
+        {
+            final List<ITrack> tracks = new ArrayList<> ();
+            for (int index = 0; index < 8; index++)
+            {
+                final int slot = index;
+                final de.mossgrabers.framework.parameter.IParameter volume = proxy (de.mossgrabers.framework.parameter.IParameter.class, (proxy, method, args) -> switch (method.getName ())
+                {
+                    case "doesExist" -> true;
+                    case "getName" -> "Volume";
+                    case "getValue", "getModulatedValue" -> 64;
+                    case "getDisplayedValue" -> "-6.0 dB";
+                    default -> relaxedValue (method.getReturnType ());
+                });
+                tracks.add (proxy (ITrack.class, (proxy, method, args) -> switch (method.getName ())
+                {
+                    case "doesExist", "isActivated" -> true;
+                    case "getPosition" -> slot;
+                    case "getChannelID" -> this.prefix + "-" + slot;
+                    case "getName" -> "Track " + slot;
+                    case "getVolumeParameter" -> volume;
+                    case "getColor" -> ColorEx.GRAY;
+                    default -> relaxedValue (method.getReturnType ());
+                }));
+            }
+            this.bank = proxy (ITrackBank.class, (proxy, method, args) -> switch (method.getName ())
+            {
+                case "getPageSize" -> 8;
+                case "getItem" -> tracks.get ((Integer) args[0]);
+                default -> relaxedValue (method.getReturnType ());
+            });
+        }
+    }
+
+
     private static final class MutableMappingStorage
     {
         private String documentId = "document-a";
@@ -938,7 +1462,12 @@ class BoundedControllerBridgeTest
 
     private static final class MutableApplication
     {
+        private String panelLayout = "ARRANGE";
+        private final List<String> panelRequests = new ArrayList<> ();
         private boolean engineActive;
+        private boolean canUndo;
+        private boolean canRedo;
+        private final List<String> historyRequests = new ArrayList<> ();
         private int engineWriteCount;
 
 
@@ -946,7 +1475,15 @@ class BoundedControllerBridgeTest
         {
             return BoundedControllerBridgeTest.proxy (IApplication.class, (proxy, method, arguments) -> switch (method.getName ())
             {
+                case "getPanelLayout" -> this.panelLayout;
+                case "setPanelLayout" -> { this.panelRequests.add ((String) arguments[0]); yield null; }
                 case "isEngineActive" -> Boolean.valueOf (this.engineActive);
+                case "canUndo" -> Boolean.valueOf (this.canUndo);
+                case "canRedo" -> Boolean.valueOf (this.canRedo);
+                case "undo", "redo" -> {
+                    this.historyRequests.add (method.getName ());
+                    yield null;
+                }
                 case "setEngineActive" -> {
                     this.engineWriteCount++;
                     yield null;
@@ -964,6 +1501,7 @@ class BoundedControllerBridgeTest
         private boolean arrangerOverdub;
         private boolean playing;
         private double tempo = 120;
+        private int tapCount;
         private int snapshotReadCount;
         private int playCount;
         private int stopCount;
@@ -1025,6 +1563,9 @@ class BoundedControllerBridgeTest
                     case "toggleRecording":
                     case "toggleOverdub":
                         this.writes.add (method.getName ());
+                        return null;
+                    case "tapTempo":
+                        this.tapCount++;
                         return null;
                     default:
                         return relaxedValue (method.getReturnType ());
@@ -1121,6 +1662,7 @@ class BoundedControllerBridgeTest
         private String padChannelID = "pad-a";
         private int baseMidiNote = 36;
         private int selectionCount;
+        private final List<Integer> scrollRequests = new ArrayList<> ();
 
 
         private MutableDrum (final MutableSelectedTarget selected)
@@ -1179,6 +1721,10 @@ class BoundedControllerBridgeTest
             });
             final IDrumPadBank bank = proxy (IDrumPadBank.class, (proxy, method, arguments) -> switch (method.getName ())
             {
+                case "scrollTo" -> {
+                    this.scrollRequests.add ((Integer) arguments[0]);
+                    yield null;
+                }
                 case "getPageSize" -> Integer.valueOf (1);
                 case "getScrollPosition" -> Integer.valueOf (this.baseMidiNote);
                 case "getItem" -> pad;
@@ -1215,7 +1761,9 @@ class BoundedControllerBridgeTest
         final IMidiInput input = proxy (IMidiInput.class, (proxy, method, arguments) -> "getDefaultNoteInput".equals (method.getName ()) ? noteInput : relaxedValue (method.getReturnType ()));
         final IMidiOutput output = relaxedProxy (IMidiOutput.class);
         final PushConfiguration configuration = new ManualRepeatConfiguration (host, valueChanger, manualRepeatActive, noteRepeat);
-        return new PushControlSurface (host, new PushColorManager (), configuration, output, input, selectedTarget, drumModelTrack, () -> true, null);
+        final PushControlSurface surface = new PushControlSurface (host, new PushColorManager (), configuration, output, input, selectedTarget, drumModelTrack, () -> true, null);
+        surface.getModeManager ().installCoreAdapter (relaxedProxy (IMode.class));
+        return surface;
     }
 
 

@@ -64,7 +64,14 @@ public final class SessionView implements ControllerView
     /** Create the inherited complete eight-by-eight Session view. */
     public static SessionView full ()
     {
-        return new SessionView (fullProfile (), new SessionStopGesture ());
+        return full (new SessionStopGesture ());
+    }
+
+
+    /** Create the full Session grid sharing Stop gestures with a separately composed footer. */
+    public static SessionView full (final SessionStopGesture stopGesture)
+    {
+        return new SessionView (fullProfile (), stopGesture);
     }
 
 
@@ -177,7 +184,6 @@ public final class SessionView implements ControllerView
         addStable (claims, SurfaceArea.GRID_LOWER);
         addStable (claims, SurfaceArea.SCENE_KEYS_UPPER);
         addStable (claims, SurfaceArea.SCENE_KEYS_LOWER);
-        addStable (claims, SurfaceArea.NAVIGATION_ARROWS);
         addStable (claims, SurfaceArea.NAVIGATION_PAGE);
         return ViewProfile.fixed ("full", claims, Set.of (ControllerViewFacet.SESSION_GRID_FULL));
     }

@@ -21,6 +21,8 @@ public enum ControllerActionId
     NAVIGATE_SELECTED_TARGET,
     /** Change the stable controller context which supplies active parameters. */
     SWITCH_PARAMETER_CONTEXT,
+    /** Change an observed controller preference without changing parameter targets. */
+    SET_CONTROLLER_PREFERENCE,
     /** Enter another compiled core workspace. */
     SWITCH_WORKSPACE,
     /** Select another layout for the current Note viewer. */

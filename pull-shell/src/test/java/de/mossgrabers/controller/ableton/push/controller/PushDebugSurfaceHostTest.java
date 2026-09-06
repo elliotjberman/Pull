@@ -8,6 +8,7 @@ import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
+import de.mossgrabers.pull.core.api.output.DesiredTouchStrip;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -36,12 +37,14 @@ class PushDebugSurfaceHostTest
         host.observePressedControls (List.of ("push.button.play", "push.pad.29"));
         host.observeDebugInput (PushControlIds.button ("PLAY"), InputKind.BUTTON, InputPhase.BEGIN, 127);
         host.observeDebugInput (PushControlIds.button ("PLAY"), InputKind.BUTTON, InputPhase.END, 0);
+        host.observeTouchStrip (DesiredTouchStrip.pitchBend (12345));
         host.pollForTest ();
 
         final String live = Files.readString (statePath);
         assertTrue (live.contains ("\"push.button.play\":{\"rgb\":\"00FF60\",\"palette\":21"));
         assertTrue (live.contains ("\"push.pad.29\":{\"rgb\":\"0C2238\",\"palette\":43,\"blinkRgb\":\"FF0000\",\"blinkPalette\":5,\"fast\":true}"));
         assertTrue (live.contains ("\"pressed\":[\"push.button.play\",\"push.pad.29\"]"));
+        assertTrue (live.contains ("\"touchStrip\":{\"mode\":\"PITCH_BEND\",\"value\":12345}"));
         assertTrue (live.contains ("\"events\":[{\"sequence\":1,\"control\":\"push.button.play\",\"kind\":\"BUTTON\",\"phase\":\"BEGIN\",\"value\":127},{\"sequence\":2,\"control\":\"push.button.play\",\"kind\":\"BUTTON\",\"phase\":\"END\",\"value\":0}]"));
 
         host.close ();

@@ -207,7 +207,7 @@ class CoreApiValueTest
     @Test
     void publishesStableVersionCapabilityAndControlIdentifiers ()
     {
-        assertEquals (44, CoreApi.VERSION);
+        assertEquals (46, CoreApi.VERSION);
         assertEquals ("input.drum-fill", CoreCapabilities.INPUT_DRUM_FILL);
         assertEquals ("snapshot.selected-track-clips", CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS);
         assertEquals ("binding.clip-target", CoreCapabilities.BINDING_CLIP_TARGET);
@@ -632,7 +632,7 @@ class CoreApiValueTest
         assertEquals (3, new AdjustParameterValueEffect (target, 3).delta ());
         assertEquals (target, new ResetParameterEffect (target).target ());
         assertThrows (UnsupportedOperationException.class, () -> banks.banks ().clear ());
-        assertEquals (7, ParameterBankId.BANK_CAPACITY);
+        assertEquals (17, ParameterBankId.BANK_CAPACITY);
         assertThrows (IllegalArgumentException.class, () -> new ParameterSlot (ParameterBankId.PROJECT_REMOTE, ParameterSlot.BANK_SIZE));
         assertThrows (IllegalArgumentException.class, () -> new ParameterSlot (ParameterBankId.GLOBAL, ParameterSlot.GLOBAL_BANK_SIZE));
         assertThrows (IllegalArgumentException.class, () -> new ParameterTargetSnapshot (target, "", 0, 0, "", -2, 0.5));

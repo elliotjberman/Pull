@@ -112,7 +112,6 @@ public class PushConfiguration extends AbstractConfiguration implements IGraphic
     private boolean               stopAutomationOnKnobRelease  = false;
     private Modes                 globalMixMode                = Modes.VOLUME;
     private int                   mixSendOffset;
-    private int                   trackMixSendOffset;
     private Modes                 layerMode                    = null;
 
     private int                   displayBrightness            = 255;
@@ -507,28 +506,6 @@ public class PushConfiguration extends AbstractConfiguration implements IGraphic
     public void setMixSendOffset (final int offset)
     {
         this.mixSendOffset = Math.max (0, Math.min (4, offset));
-    }
-
-
-    /**
-     * Get the first send shown for the selected track.
-     *
-     * @return The zero-based send offset
-     */
-    public int getTrackMixSendOffset ()
-    {
-        return this.trackMixSendOffset;
-    }
-
-
-    /**
-     * Set the first send shown for the selected track.
-     *
-     * @param offset The zero-based send offset
-     */
-    public void setTrackMixSendOffset (final int offset)
-    {
-        this.trackMixSendOffset = Math.max (0, Math.min (4, offset));
     }
 
 

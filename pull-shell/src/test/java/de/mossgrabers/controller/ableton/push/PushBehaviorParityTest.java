@@ -3,13 +3,11 @@
 
 package de.mossgrabers.controller.ableton.push;
 
-import de.mossgrabers.controller.ableton.push.command.trigger.MastertrackCommand;
-import de.mossgrabers.controller.ableton.push.command.trigger.PushAutomationCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.PushCursorCommand;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.mode.device.UserMode;
-import de.mossgrabers.controller.ableton.push.mode.device.WorkspaceMode;
+import de.mossgrabers.controller.ableton.push.mode.CorePageMode;
 import de.mossgrabers.controller.ableton.push.workspace.SessionBankRegistry;
 import de.mossgrabers.framework.command.trigger.mode.ButtonRowModeCommand;
 import de.mossgrabers.framework.command.trigger.Direction;
@@ -27,7 +25,6 @@ import de.mossgrabers.framework.daw.IHost;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.IProject;
 import de.mossgrabers.framework.daw.data.ICursorTrack;
-import de.mossgrabers.framework.daw.data.IMasterTrack;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.IParameterBank;
 import de.mossgrabers.framework.daw.data.bank.IParameterPageBank;
@@ -60,6 +57,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 
@@ -143,7 +142,7 @@ class PushBehaviorParityTest
 
 
     @Test
-    void fixedCursorDefaultsPreserveSceneAndSessionNavigation ()
+    void migratedSessionNavigationArrowsAreInertWhileLegacySceneNavigationIsPreserved ()
     {
         final AtomicBoolean shiftPressed = new AtomicBoolean ();
         final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
@@ -172,86 +171,48 @@ class PushBehaviorParityTest
         surface.getControllerWorkspaceHost ().apply (new DesiredControllerWorkspace (
             "Session navigation", Set.of (ControllerViewFacet.SESSION_NAVIGATION), SessionBankShape.empty ()));
         operations.clear ();
-        final TestPushCursorCommand command = new TestPushCursorCommand (model, surface);
+        for (final Direction direction: Direction.values ())
+        {
+            final PushCursorCommand command = new PushCursorCommand (direction, model, surface);
+            command.execute (ButtonEvent.DOWN, 127);
+            shiftPressed.set (true);
+            command.execute (ButtonEvent.DOWN, 127);
+            assertFalse (command.canScroll ());
+            shiftPressed.set (false);
+        }
+        assertTrue (operations.isEmpty (), "a missing core cannot revive the removed VS navigation recipe");
 
-        command.scrollUpForTest ();
-        command.scrollLeftForTest ();
+        surface.getControllerWorkspaceHost ().apply (DesiredControllerWorkspace.empty ());
+        operations.clear ();
+        final PushCursorCommand legacy = new PushCursorCommand (Direction.UP, model, surface);
+        legacy.execute (ButtonEvent.DOWN, 127);
         shiftPressed.set (true);
-        command.scrollUpForTest ();
-        command.scrollLeftForTest ();
+        legacy.execute (ButtonEvent.DOWN, 127);
+        assertEquals (List.of ("scrollBackwards", "selectPreviousPage"), operations);
 
-        assertEquals (List.of ("scrollBackwards", "selectPreviousPage", "selectPreviousPage", "scrollBackwards"), operations);
     }
 
 
     @Test
-    void fixedAutomationModifierPreservesArrangerAndLauncherTargets ()
+    void coreAutomationColorsPreserveTheInstalledButtonPalette ()
     {
-        final AtomicBoolean shiftPressed = new AtomicBoolean ();
-        final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
-        final PushControlSurface surface = createSurface (valueChanger, relaxedProxy (ISelectedTrackNoteTarget.class), relaxedProxy (ICursorTrack.class), shiftPressed::get);
-        surface.createButton (ButtonID.SHIFT, "Shift");
-        final List<String> operations = new ArrayList<> ();
-        final de.mossgrabers.framework.daw.ITransport transport = proxy (de.mossgrabers.framework.daw.ITransport.class, (proxy, method, arguments) -> {
-            operations.add (method.getName ());
-            return relaxedValue (method.getReturnType ());
-        });
-        final IModel model = proxy (IModel.class, (proxy, method, arguments) -> "getTransport".equals (method.getName ()) ? transport : relaxedValue (method.getReturnType ()));
-        final PushAutomationCommand command = new PushAutomationCommand (model, surface);
-
-        command.execute (ButtonEvent.UP, 0);
-        shiftPressed.set (true);
-        command.execute (ButtonEvent.UP, 0);
-
-        assertEquals (List.of ("toggleWriteArrangerAutomation", "toggleWriteClipLauncherAutomation"), operations);
+        final PushColorManager colors = new PushColorManager ();
+        assertEquals (PushColorManager.PUSH2_COLOR2_GREY_LO, PushColorManager.resolveCoreButtonColor (colors, ButtonID.AUTOMATION, new RgbColor (30, 30, 30)));
+        assertEquals (PushColorManager.PUSH2_COLOR2_RED_HI, PushColorManager.resolveCoreButtonColor (colors, ButtonID.AUTOMATION, new RgbColor (255, 0, 0)));
+        assertEquals (PushColorManager.PUSH2_COLOR2_AMBER, PushColorManager.resolveCoreButtonColor (colors, ButtonID.AUTOMATION, new RgbColor (89, 29, 0)));
     }
 
 
     @Test
-    void masterButtonFreezesPageOverlayPolicyAtPress ()
+    void coreMixAndMasterButtonsPreserveTheInstalledMonochromeIntensities ()
     {
-        final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
-        final ICursorTrack cursorTrack = proxy (ICursorTrack.class, (proxy, method, arguments) -> switch (method.getName ())
+        final PushColorManager colors = new PushColorManager ();
+        for (final ButtonID button: List.of (ButtonID.TRACK, ButtonID.MASTERTRACK))
         {
-            case "doesExist" -> Boolean.TRUE;
-            case "getIndex" -> Integer.valueOf (3);
-            default -> relaxedValue (method.getReturnType ());
-        });
-        final List<String> selections = new ArrayList<> ();
-        final IMasterTrack masterTrack = proxy (IMasterTrack.class, (proxy, method, arguments) -> {
-            if ("select".equals (method.getName ()))
-                selections.add ("master");
-            return relaxedValue (method.getReturnType ());
-        });
-        final IModel model = proxy (IModel.class, (proxy, method, arguments) -> switch (method.getName ())
-        {
-            case "getCursorTrack" -> cursorTrack;
-            case "getMasterTrack" -> masterTrack;
-            default -> relaxedValue (method.getReturnType ());
-        });
-        final PushControlSurface surface = createSurface (valueChanger, relaxedProxy (ISelectedTrackNoteTarget.class), cursorTrack);
-        surface.getModeManager ().register (Modes.TRACK, relaxedProxy (IMode.class));
-        surface.getModeManager ().register (Modes.MASTER, relaxedProxy (IMode.class));
-        surface.getModeManager ().setDefaultID (Modes.TRACK);
-        final SessionBankShape sessionShape = new SessionBankShape (8, 8);
-        surface.setSessionBankRegistry (new SessionBankRegistry (model, Set.of (sessionShape), sessionShape));
-        surface.getControllerWorkspaceHost ().apply (new DesiredControllerWorkspace (
-            "Master", Set.of (ControllerViewFacet.MASTER_CONTROLS), SessionBankShape.empty ()));
-        surface.getModeManager ().setActive (Modes.TRACK);
-        final MastertrackCommand command = new MastertrackCommand (model, surface);
-
-        command.execute (ButtonEvent.DOWN, 127);
-        surface.getControllerWorkspaceHost ().invalidate ();
-        command.execute (ButtonEvent.UP, 0);
-
-        assertEquals (Modes.MASTER, surface.getModeManager ().getActiveID ());
-        assertEquals (List.of (), selections);
-
-        command.execute (ButtonEvent.DOWN, 127);
-        command.execute (ButtonEvent.UP, 0);
-
-        assertEquals (Modes.TRACK, surface.getModeManager ().getActiveID ());
-        assertEquals (List.of (), selections);
+            assertEquals (30, PushColorManager.resolveCoreButtonColor (colors, button, new RgbColor (60, 60, 60)));
+            assertEquals (127, PushColorManager.resolveCoreButtonColor (colors, button, new RgbColor (255, 255, 255)));
+            assertEquals (0, PushColorManager.resolveCoreButtonColor (colors, button, new RgbColor (0, 0, 0)));
+        }
     }
 
 
@@ -349,8 +310,10 @@ class PushBehaviorParityTest
             default -> relaxedValue (method.getReturnType ());
         });
         final PushControlSurface surface = createSurface (valueChanger, relaxedProxy (ISelectedTrackNoteTarget.class), relaxedProxy (ICursorTrack.class));
+        for (int index = 1; index <= 8; index++)
+            surface.createAbsoluteKnob (de.mossgrabers.framework.controller.ContinuousID.valueOf ("KNOB" + index), "Knob " + index);
         surface.getModeManager ().register (Modes.USER, relaxedProxy (IMode.class));
-        surface.getModeManager ().register (Modes.WORKSPACE, new WorkspaceMode (surface, model));
+        surface.getModeManager ().register (Modes.WORKSPACE, new CorePageMode ("Workspace", surface, model, new de.mossgrabers.pull.shell.runtime.ReloadableControllerRuntime (relaxedProxy (com.bitwig.extension.controller.api.ControllerHost.class))));
         surface.getModeManager ().setActive (Modes.USER);
         final ButtonRowModeCommand<PushControlSurface, PushConfiguration> command = new ButtonRowModeCommand<> (0, 1, model, surface);
 
@@ -359,6 +322,37 @@ class PushBehaviorParityTest
         command.execute (ButtonEvent.UP, 0);
 
         assertEquals (List.of (), selections);
+    }
+
+
+    @Test
+    void masterTouchBrowserGuardReadsNativeActivityBeforeAndAfterPageProjection ()
+    {
+        final var active = new java.util.concurrent.atomic.AtomicBoolean (true);
+        final var calls = new ArrayList<String> ();
+        final var browser = proxy (de.mossgrabers.framework.daw.IBrowser.class, (proxy, method, arguments) -> "isActive".equals (method.getName ()) ? active.get () : relaxedValue (method.getReturnType ()));
+        final var master = proxy (de.mossgrabers.framework.daw.data.IMasterTrack.class, (proxy, method, arguments) -> {
+            if ("touchVolume".equals (method.getName ())) calls.add ("touch:" + arguments[0]);
+            if ("resetVolume".equals (method.getName ())) calls.add ("reset");
+            return relaxedValue (method.getReturnType ());
+        });
+        final var model = proxy (IModel.class, (proxy, method, arguments) -> switch (method.getName ()) {
+            case "getBrowser" -> browser;
+            case "getMasterTrack" -> master;
+            default -> relaxedValue (method.getReturnType ());
+        });
+        final var surface = createSurface (new TwosComplementValueChanger (128, 1), relaxedProxy (ISelectedTrackNoteTarget.class), relaxedProxy (ICursorTrack.class));
+        final var pages = surface.getModeManager ();
+        final var command = new de.mossgrabers.controller.ableton.push.command.continuous.MastertrackTouchCommand (model, surface);
+        command.execute (ButtonEvent.DOWN, 127);
+        command.execute (ButtonEvent.UP, 0);
+        assertTrue (calls.isEmpty (), "native Browser must guard touch/reset even before its controller page is admitted");
+        pages.register (Modes.BROWSER, relaxedProxy (IMode.class));
+        pages.apply (new de.mossgrabers.pull.core.api.DesiredControllerPageState (1, de.mossgrabers.pull.core.api.ControllerPageRef.legacy ("BROWSER"), de.mossgrabers.pull.core.api.ControllerPageRef.core ("track", "TRACK"), java.util.Optional.empty (), 0, Set.of ()));
+        active.set (false);
+        command.execute (ButtonEvent.DOWN, 127);
+        command.execute (ButtonEvent.UP, 0);
+        assertEquals (List.of ("touch:true", "touch:false"), calls, "a stale projected Browser cannot suppress touch cleanup after the native Browser closes");
     }
 
 
@@ -391,27 +385,6 @@ class PushBehaviorParityTest
             null);
         surface.addGraphicsDisplay (relaxedProxy (IGraphicDisplay.class));
         return surface;
-    }
-
-
-    private static final class TestPushCursorCommand extends PushCursorCommand
-    {
-        private TestPushCursorCommand (final IModel model, final PushControlSurface surface)
-        {
-            super (Direction.UP, model, surface);
-        }
-
-
-        private void scrollUpForTest ()
-        {
-            this.scrollUp ();
-        }
-
-
-        private void scrollLeftForTest ()
-        {
-            this.scrollLeft ();
-        }
     }
 
 

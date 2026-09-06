@@ -21,6 +21,9 @@ import de.mossgrabers.pull.core.api.effect.ProjectNavigationDirection;
 import de.mossgrabers.pull.core.api.effect.SetProjectEngineEffect;
 import de.mossgrabers.pull.core.api.effect.SetProjectTransportStateEffect;
 import de.mossgrabers.pull.core.api.effect.TransportState;
+import de.mossgrabers.pull.core.api.effect.TapTempoEffect;
+import de.mossgrabers.pull.core.api.effect.ProjectHistoryEffect;
+import de.mossgrabers.pull.core.api.effect.ProjectHistoryAction;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 
 import java.util.ArrayList;
@@ -115,6 +118,10 @@ final class MasterCommandHost
 
     ControllerBridge.PreparedAction prepare (final CoreEffect effect)
     {
+        if (effect instanceof final ProjectHistoryEffect history)
+            return this.canTargetHistory (history.projectIdentity (), history.action ()) ? new PreparedHistory (history.projectIdentity (), history.action ()) : IgnoredAction.INSTANCE;
+        if (effect instanceof final TapTempoEffect tap)
+            return this.canTargetProject (tap.projectIdentity ()) && this.application.isEngineActive () ? new PreparedTapTempo (tap.projectIdentity ()) : IgnoredAction.INSTANCE;
         if (effect instanceof final NavigateProjectEffect navigation)
         {
             final boolean unavailable = navigation.direction () == ProjectNavigationDirection.PREVIOUS ? this.previousUnavailable : this.nextUnavailable;
@@ -141,6 +148,23 @@ final class MasterCommandHost
     {
         if (action == IgnoredAction.INSTANCE)
             return true;
+        if (action instanceof final PreparedHistory history)
+        {
+            if (this.canTargetHistory (history.projectIdentity (), history.action ()))
+            {
+                if (history.action () == ProjectHistoryAction.UNDO)
+                    this.application.undo ();
+                else
+                    this.application.redo ();
+            }
+            return true;
+        }
+        if (action instanceof final PreparedTapTempo tap)
+        {
+            if (this.canTargetProject (tap.projectIdentity ()) && this.application.isEngineActive ())
+                this.transport.tapTempo ();
+            return true;
+        }
         if (action instanceof final PreparedNavigation navigation)
         {
             if (this.canTargetProject (navigation.expectedProjectIdentity ()))
@@ -560,7 +584,9 @@ final class MasterCommandHost
             this.application.isEngineActive (),
             !this.previousUnavailable,
             !this.nextUnavailable,
-            this.commandPending ());
+            this.commandPending (),
+            this.application.canUndo (),
+            this.application.canRedo ());
     }
 
 
@@ -573,6 +599,22 @@ final class MasterCommandHost
     private enum IgnoredAction implements ControllerBridge.PreparedAction
     {
         INSTANCE
+    }
+
+
+    private boolean canTargetHistory (final String identity, final ProjectHistoryAction action)
+    {
+        return this.canTargetProject (identity) && (action == ProjectHistoryAction.UNDO ? this.application.canUndo () : this.application.canRedo ());
+    }
+
+
+    private record PreparedHistory (String projectIdentity, ProjectHistoryAction action) implements ControllerBridge.PreparedAction
+    {
+    }
+
+
+    private record PreparedTapTempo (String projectIdentity) implements ControllerBridge.PreparedAction
+    {
     }
 
 

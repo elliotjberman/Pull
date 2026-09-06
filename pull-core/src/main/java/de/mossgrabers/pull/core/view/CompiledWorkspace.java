@@ -12,12 +12,16 @@ import de.mossgrabers.pull.core.api.ControllerMappingId;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.CoreResult;
+import de.mossgrabers.pull.core.api.CoreExecutionRequirements;
+import de.mossgrabers.pull.core.api.DesiredParameterTouches;
+import de.mossgrabers.pull.core.api.ParameterTargetRef;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerActions;
 import de.mossgrabers.pull.core.api.DesiredControllerMappings;
 import de.mossgrabers.pull.core.api.DesiredControllerState;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredNotePerformance;
+import de.mossgrabers.pull.core.api.DesiredNoteInputTranslation;
 import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
 import de.mossgrabers.pull.core.api.DesiredInputRoutes;
 import de.mossgrabers.pull.core.api.DesiredParameterBanks;
@@ -35,6 +39,7 @@ import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.event.TouchInputEvent;
 import de.mossgrabers.pull.core.api.output.DesiredHardwareOutput;
+import de.mossgrabers.pull.core.api.output.DesiredTouchStrip;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
@@ -172,6 +177,14 @@ public final class CompiledWorkspace
     }
 
 
+    /** Relinquish page-local desired state before selecting another composition. */
+    public void deactivate ()
+    {
+        for (final CompiledView view: this.views)
+            view.view ().deactivate ();
+    }
+
+
     /**
      * Start every view and render the complete workspace.
      *
@@ -210,6 +223,16 @@ public final class CompiledWorkspace
     }
 
 
+    /** Activate through the router's event-scoped identity reconciliation. */
+    CoreResult activate (final ControllerSnapshot snapshot, final java.util.function.BiConsumer<ControllerView, Boolean> reconciler)
+    {
+        final boolean starting = !this.started;
+        this.started = true;
+        for (final CompiledView view: this.views) reconciler.accept (view.view (), Boolean.valueOf (starting));
+        return this.render (snapshot, List.of ());
+    }
+
+
     /**
      * Route one event and render the complete workspace.
      *
@@ -232,6 +255,19 @@ public final class CompiledWorkspace
     }
 
 
+    /** Exact view instances, used only by the core's gesture/lifecycle router. */
+    List<ControllerView> viewInstances ()
+    {
+        return this.eventObservers;
+    }
+
+
+    ActionOwner actionOwner (final ControllerInputEvent input)
+    {
+        return this.actionOwners.get (new RouteKey (input.controlId (), input.kind ()));
+    }
+
+
     /** Resolve a physical edge through the active view-owned semantic action table. */
     public ResolvedControllerAction resolveAction (final ControllerInputEvent input, final ControllerSnapshot snapshot)
     {
@@ -242,19 +278,16 @@ public final class CompiledWorkspace
         final ActionOwner owner = this.actionOwners.get (new RouteKey (input.controlId (), input.kind ()));
         if (owner == null)
             return null;
-        final ResolvedControllerAction resolved = Objects.requireNonNull (
-            owner.view ().resolveAction (owner.binding (), input, snapshot),
-            "resolved controller action");
-        if (!owner.binding ().intents ().contains (resolved.intent ()))
-            throw new IllegalStateException ("view resolved an undeclared semantic action from " + input.controlId ().value ());
-        return resolved;
+        return owner.resolve (input, snapshot);
     }
 
 
     /** Execute one previously resolved semantic action and render the complete workspace. */
     public CoreResult handleAction (final ResolvedControllerAction action, final ControllerSnapshot snapshot)
     {
-        return this.render (snapshot, this.dispatchAction (action, snapshot));
+        final List<CoreEffect> effects = new ArrayList<> (action.immediateEffects ());
+        effects.addAll (this.dispatchAction (action, snapshot));
+        return this.render (snapshot, effects);
     }
 
 
@@ -277,6 +310,35 @@ public final class CompiledWorkspace
     }
 
 
+    /** Resolve current view-selected slots without changing a view's declared control footprint. */
+    public ParameterSlot parameterSlotOrNull (final ControlId control, final ControllerSnapshot snapshot)
+    {
+        return this.parameterSlots (snapshot).get (Objects.requireNonNull (control, "control"));
+    }
+
+
+    private Map<ControlId, ParameterSlot> parameterSlots (final ControllerSnapshot snapshot)
+    {
+        final Map<ControlId, ParameterSlot> bindings = new LinkedHashMap<> ();
+        for (final CompiledView view: this.views)
+        {
+            final Set<ControlId> declared = view.parameterBindings ().keySet ();
+            final Set<ParameterBankId> banks = view.parameterBanks ();
+            final Map<ControlId, ParameterSlot> current = Map.copyOf (Objects.requireNonNull (view.view ().parameterBindings (snapshot), "current parameter bindings"));
+            for (final Map.Entry<ControlId, ParameterSlot> binding: current.entrySet ())
+            {
+                if (!declared.contains (binding.getKey ()) || !claimsInput (view.profile (), new RouteKey (binding.getKey (), InputKind.RELATIVE)))
+                    throw new IllegalStateException ("view " + view.id () + " changed its declared parameter-control footprint");
+                if (!banks.contains (binding.getValue ().bank ()))
+                    throw new IllegalStateException ("view " + view.id () + " requested an undeclared parameter bank");
+                if (bindings.putIfAbsent (binding.getKey (), binding.getValue ()) != null)
+                    throw new IllegalStateException ("multiple views map parameter control " + binding.getKey ());
+            }
+        }
+        return Map.copyOf (bindings);
+    }
+
+
     /** Resolve a physical continuous control through this workspace's parameter mapping. */
     public ParameterSlot parameterSlotOrNull (final ControlId control)
     {
@@ -284,10 +346,12 @@ public final class CompiledWorkspace
     }
 
 
-    private CoreResult render (final ControllerSnapshot snapshot, final List<CoreEffect> effects)
+    CoreResult render (final ControllerSnapshot snapshot, final List<CoreEffect> effects)
     {
+        this.parameterSlots (snapshot);
         final Map<ControlId, RgbColor> lights = new LinkedHashMap<> ();
         final Map<ControlId, ClipTargetId> clipBindings = new LinkedHashMap<> ();
+        final Map<ControlId, ParameterTargetRef> parameterTouches = new LinkedHashMap<> ();
         final Set<ControllerMappingBinding> controllerMappingBindings = new LinkedHashSet<> ();
         final Set<ControlId> mappedPhysicalControls = new LinkedHashSet<> ();
         final Set<ControllerMappingId> mappingIds = new LinkedHashSet<> ();
@@ -297,6 +361,7 @@ public final class CompiledWorkspace
         ControllerDisplayOverlay displayOverlay = ControllerDisplayOverlay.inactive ();
         DesiredNotePerformance notePerformance = DesiredNotePerformance.inactive ();
         DesiredNoteRepeat noteRepeat = DesiredNoteRepeat.unowned ();
+        DesiredTouchStrip touchStrip = DesiredTouchStrip.unowned ();
         for (final CompiledView view: this.views)
         {
             final ViewOutput output = Objects.requireNonNull (view.view ().render (snapshot), "view output");
@@ -304,6 +369,15 @@ public final class CompiledWorkspace
                 validateLightOwner (view, control);
             mergeUnique (lights, output.lights (), "light", view.id ());
             mergeUnique (clipBindings, output.clipBindings (), "clip binding", view.id ());
+            final DesiredParameterTouches touches = Objects.requireNonNull (view.view ().parameterTouches (snapshot), "view parameter touches");
+            for (final ControlId control: touches.targets ().keySet ())
+            {
+                final boolean ownsTouch = view.profile ().claims ().stream ().anyMatch (claim ->
+                    claim.kind () == SurfaceClaim.Kind.EXCLUSIVE_INPUT && claim.area ().controls ().contains (control) && claim.area ().inputKinds ().contains (InputKind.TOUCH));
+                if (!ownsTouch)
+                    throw new IllegalStateException ("view " + view.id () + " touches a parameter outside its exclusive touch claims");
+            }
+            mergeUnique (parameterTouches, touches.targets (), "parameter touch", view.id ());
             for (final ControllerMappingBinding binding: output.controllerMappings ().bindings ())
             {
                 validateControllerMapping (view, binding);
@@ -350,9 +424,18 @@ public final class CompiledWorkspace
             }
             if (ownsNotePerformance (output.notePerformance ()))
             {
+                this.validateNoteTranslation (view, output.notePerformance ().translation ());
                 if (ownsNotePerformance (notePerformance))
                     throw new IllegalStateException ("multiple views own Note performance");
                 notePerformance = output.notePerformance ();
+            }
+            if (output.touchStrip ().owned ())
+            {
+                if (view.profile ().claims ().stream ().noneMatch (claim -> claim.kind () == SurfaceClaim.Kind.OUTPUT && claim.area () == SurfaceArea.TOUCH_STRIP))
+                    throw new IllegalStateException ("view " + view.id () + " emits touch-strip output outside its output claim");
+                if (touchStrip.owned ())
+                    throw new IllegalStateException ("multiple views own the touch strip");
+                touchStrip = output.touchStrip ();
             }
             if (output.noteRepeat ().owned ())
             {
@@ -368,7 +451,7 @@ public final class CompiledWorkspace
             display = DisplayRegionComposition.compose (displayRegions);
 
         return new CoreResult (
-            new DesiredHardwareOutput (lights, display, padGridOverlay, displayOverlay, new DesiredControllerMappings (controllerMappingBindings)),
+            new DesiredHardwareOutput (lights, display, padGridOverlay, displayOverlay, new DesiredControllerMappings (controllerMappingBindings), touchStrip),
             this.desiredInputRoutes,
             this.desiredBridgeSubscriptions,
             clipBindings,
@@ -377,13 +460,15 @@ public final class CompiledWorkspace
             this.desiredControllerActions,
             this.desiredParameterBanks,
             DesiredParameterInteraction.empty (),
+            new DesiredParameterTouches (parameterTouches),
+            new CoreExecutionRequirements (this.views.stream ().anyMatch (view -> view.view ().executionRequirements ().ticksRequested ())),
             effects);
     }
 
 
     private static boolean ownsNotePerformance (final DesiredNotePerformance performance)
     {
-        return performance.layout ().isPresent () || performance.inputRoute ().active ();
+        return performance.layout ().isPresent () || performance.inputRoute ().active () || performance.translation ().owned ();
     }
 
 
@@ -394,7 +479,33 @@ public final class CompiledWorkspace
         if (id.isEmpty ())
             throw new IllegalArgumentException ("view id must not be blank");
         final Set<BridgeSubscription> bridgeSubscriptions = Set.copyOf (Objects.requireNonNull (checkedView.bridgeSubscriptions (), "bridge subscriptions"));
-        return new CompiledView (id, checkedView, Objects.requireNonNull (checkedView.profile (), "view profile"), bridgeSubscriptions);
+        return new CompiledView (id, checkedView, Objects.requireNonNull (checkedView.profile (), "view profile"), bridgeSubscriptions, Map.copyOf (checkedView.parameterBindings ()), Set.copyOf (checkedView.parameterBanks ()));
+    }
+
+
+    private void validateNoteTranslation (final CompiledView view, final DesiredNoteInputTranslation translation)
+    {
+        if (!translation.owned ())
+            return;
+        final List<SurfaceClaim> musicalClaims = view.profile ().claims ().stream ().filter (claim -> claim.kind () == SurfaceClaim.Kind.MUSICAL_INPUT).toList ();
+        if (musicalClaims.isEmpty ())
+            throw new IllegalStateException ("view " + view.id () + " owns native translation without a musical-input claim");
+        for (int key = 36; key <= 99; key++)
+        {
+            if (translation.keyTranslation ().get (key).intValue () < 0)
+                continue;
+            final int padIndex = key - 36;
+            if (musicalClaims.stream ().noneMatch (claim -> claim.area ().containsPhysicalPad (padIndex)))
+                throw new IllegalStateException ("view " + view.id () + " enables a native note outside its musical-input footprint: " + key);
+            for (final CompiledView other: this.views)
+            {
+                if (other == view)
+                    continue;
+                final boolean controllerOwned = other.profile ().claims ().stream ().anyMatch (claim -> claim.kind ().ownsInput () && claim.area ().inputKinds ().contains (InputKind.PAD) && claim.area ().containsPhysicalPad (padIndex));
+                if (controllerOwned)
+                    throw new IllegalStateException ("view " + view.id () + " enables a native note on " + other.id () + "'s controller pad: " + key);
+            }
+        }
     }
 
 
@@ -482,8 +593,6 @@ public final class CompiledWorkspace
             throw new IllegalArgumentException ("upper Session scene keys require the upper Session clip grid");
         if (facets.contains (ControllerViewFacet.SESSION_CLIP_GRID_UPPER) && facets.contains (ControllerViewFacet.SESSION_GRID_FULL))
             throw new IllegalArgumentException ("upper and full Session grid views cannot be active together");
-        if (facets.contains (ControllerViewFacet.DRUM_PITCH_BEND) && !facets.contains (ControllerViewFacet.DRUM_CONTROLLER_LOWER))
-            throw new IllegalArgumentException ("drum pitch bend requires the lower Drum controller");
         return new DesiredControllerWorkspace (name, facets, sessionBankShape);
     }
 
@@ -493,6 +602,8 @@ public final class CompiledWorkspace
         if (!left.area ().overlaps (right.area ()))
             return false;
         if (left.kind ().ownsOutput () && right.kind ().ownsOutput ())
+            return true;
+        if (left.kind () == SurfaceClaim.Kind.MUSICAL_INPUT && right.kind () == SurfaceClaim.Kind.MUSICAL_INPUT)
             return true;
         return left.kind ().ownsInput () && right.kind ().ownsInput ();
     }
@@ -569,7 +680,7 @@ public final class CompiledWorkspace
         final Map<ControlId, ParameterSlot> bindings = new LinkedHashMap<> ();
         for (final CompiledView view: views)
         {
-            for (final Map.Entry<ControlId, ParameterSlot> binding: Map.copyOf (Objects.requireNonNull (view.view ().parameterBindings (), "parameter bindings")).entrySet ())
+            for (final Map.Entry<ControlId, ParameterSlot> binding: view.parameterBindings ().entrySet ())
             {
                 final ControlId control = Objects.requireNonNull (binding.getKey (), "parameter control");
                 final ParameterSlot slot = Objects.requireNonNull (binding.getValue (), "parameter slot");
@@ -586,7 +697,7 @@ public final class CompiledWorkspace
     private static DesiredParameterBanks compileParameterBanks (final List<CompiledView> views)
     {
         final Set<ParameterBankId> banks = new LinkedHashSet<> ();
-        views.forEach (view -> banks.addAll (Set.copyOf (Objects.requireNonNull (view.view ().parameterBanks (), "parameter banks"))));
+        views.forEach (view -> banks.addAll (view.parameterBanks ()));
         return new DesiredParameterBanks (banks);
     }
 
@@ -636,7 +747,7 @@ public final class CompiledWorkspace
     }
 
 
-    private List<ControllerView> receivers (final CoreEvent event)
+    List<ControllerView> receivers (final CoreEvent event)
     {
         if (event instanceof final ButtonInputEvent button)
             return this.directInputOwners.getOrDefault (button.controlId (), List.of ());
@@ -677,7 +788,7 @@ public final class CompiledWorkspace
     }
 
 
-    private record CompiledView (String id, ControllerView view, ViewProfile profile, Set<BridgeSubscription> bridgeSubscriptions)
+    private record CompiledView (String id, ControllerView view, ViewProfile profile, Set<BridgeSubscription> bridgeSubscriptions, Map<ControlId, ParameterSlot> parameterBindings, Set<ParameterBankId> parameterBanks)
     {
     }
 
@@ -687,7 +798,14 @@ public final class CompiledWorkspace
     }
 
 
-    private record ActionOwner (ControllerActionBinding binding, ControllerView view)
+    record ActionOwner (ControllerActionBinding binding, ControllerView view)
     {
+        ResolvedControllerAction resolve (final ControllerInputEvent input, final ControllerSnapshot snapshot)
+        {
+            final ResolvedControllerAction action = Objects.requireNonNull (this.view.resolveAction (this.binding, input, snapshot), "resolved controller action");
+            if (!this.binding.intents ().contains (action.intent ()))
+                throw new IllegalStateException ("view resolved an undeclared semantic action from " + input.controlId ().value ());
+            return action;
+        }
     }
 }

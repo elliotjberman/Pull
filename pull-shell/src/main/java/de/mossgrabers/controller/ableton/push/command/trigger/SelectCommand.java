@@ -8,7 +8,7 @@ import de.mossgrabers.controller.ableton.push.PushConfiguration;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.command.core.AbstractTriggerCommand;
 import de.mossgrabers.framework.daw.IModel;
-import de.mossgrabers.framework.featuregroup.ModeManager;
+import de.mossgrabers.controller.ableton.push.controller.PushControllerPageManager;
 import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.utils.ButtonEvent;
 
@@ -39,18 +39,15 @@ public class SelectCommand extends AbstractTriggerCommand<PushControlSurface, Pu
         // Update for key combinations
         this.surface.getViewManager ().getActive ().updateNoteMapping ();
 
-        final ModeManager modeManager = this.surface.getModeManager ();
+        final PushControllerPageManager modeManager = this.surface.getModeManager ();
 
         // Don't do anything in browser mode
-        if (modeManager.isActive (Modes.BROWSER))
+        if (this.model.getBrowser ().isActive ())
             return;
 
         if (event == ButtonEvent.UP)
         {
-            if (modeManager.isActive (Modes.TRACK_DETAILS, Modes.DEVICE_LAYER_DETAILS))
-                modeManager.restore ();
-            else
-                modeManager.setTemporary (Modes.isLayerMode (modeManager.getActiveID ()) ? Modes.DEVICE_LAYER_DETAILS : Modes.TRACK_DETAILS);
+            modeManager.toggleTemporary (Modes.isLayerMode (modeManager.getActiveID ()) ? Modes.DEVICE_LAYER_DETAILS : Modes.TRACK_DETAILS);
         }
     }
 }

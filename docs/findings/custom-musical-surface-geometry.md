@@ -9,15 +9,18 @@ remove_when: a core view can declare and validate a bounded non-built-in physica
 
 ## Observation
 
-The view compiler can compose fixed pad regions, route controller gestures, render RGB feedback,
-and select the installed selected-track `NoteInput` route. It cannot yet let a core-authored view
-define an arbitrary musical pad map. Note edges still use initialization-owned Push note
-translation for the closed built-in layouts, and the special lower Drum Controller route is
-admitted only for its installed geometry.
+The current migration installs complete, replayable 128-entry native key and velocity translation
+under the selected-track `NoteInput` lifecycle. Only physical Push pad notes 36–99 may be enabled.
+The compiler requires a same-view `MUSICAL_INPUT` claim, rejects overlapping musical footprints,
+and prevents enabled notes from borrowing another view's controller-owned pads. Musical ownership
+is independent of controller callback routes and RGB output claims. The standalone and composite
+Drum views use this capability for their existing lower-left 4x4 geometry.
 
-`DrumPlayPadView` is therefore reusable across the standalone and VS Live 4x4 Drum Controller
-composition, but it is not a general drum-controller SDK. A rotated 4x4 layout, 8x2 layout, sparse
-pad set, or second semantic layout cannot define its physical-pad-to-note translation core-only.
+This removes the fixed native key-table obstacle for core maps within declared physical areas.
+It does not yet establish a general musical-surface contract: pressure and feedback still use the
+built-in Drum geometry, channels are not per-pad, and no non-built-in geometry has passed the
+required integrated live test. A rotated 4x4, 8x2, sparse, or second layout is not yet a demonstrated
+end-to-end authoring capability.
 
 ## Consequences
 
@@ -25,9 +28,9 @@ pad set, or second semantic layout cannot define its physical-pad-to-note transl
   their target fencing, pressure, feedback, repeat, fill, or mapping policy.
 - A friend can add a Java `ControllerView` that uses installed areas, snapshots, effects, and
   output lanes, then hot reload policy inside the current canopy.
-- A genuinely new playable geometry still needs a parent-loaded API/shell expansion and Bitwig
-  restart. Pretending that RGB ownership or an `EXCLUSIVE` controller route also owns Bitwig's
-  musical note translation would create a second, unsafe input path.
+- A new geometry must audit its footprint, pressure, feedback, and target route independently;
+  gaps outside the installed bounded capability still require a shell change and restart.
+  Neither RGB ownership nor `EXCLUSIVE` controller routing grants native musical translation.
 - There is no dynamic class/config registration contract; authored views are currently source
   changes compiled into `pull-core`.
 

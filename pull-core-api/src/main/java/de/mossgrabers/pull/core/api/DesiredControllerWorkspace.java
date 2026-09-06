@@ -28,7 +28,7 @@ public record DesiredControllerWorkspace (String name, Set<ControllerViewFacet> 
         facets = Set.copyOf (Objects.requireNonNull (facets, "facets"));
         sessionBankShape = Objects.requireNonNull (sessionBankShape, "sessionBankShape");
         if (name.isEmpty () != facets.isEmpty ())
-            throw new IllegalArgumentException ("workspace name and facets must either both be empty or both be present");
+            throw new IllegalArgumentException ("workspace name and facets must either both be present or both be absent");
         final boolean hasUpperSessionGrid = facets.contains (ControllerViewFacet.SESSION_CLIP_GRID_UPPER);
         final boolean hasFullSessionGrid = facets.contains (ControllerViewFacet.SESSION_GRID_FULL);
         if (hasUpperSessionGrid && hasFullSessionGrid)
@@ -38,6 +38,14 @@ public record DesiredControllerWorkspace (String name, Set<ControllerViewFacet> 
         final boolean hasSessionGrid = hasUpperSessionGrid || hasFullSessionGrid;
         if (hasSessionGrid != sessionBankShape.isPresent ())
             throw new IllegalArgumentException ("Session grid facets and Session bank shape must either both be present or both be absent");
+    }
+
+
+    /** Transitional source compatibility; page identity lives in DesiredControllerState.page. */
+    public DesiredControllerWorkspace (final String name, final Set<ControllerViewFacet> facets, final SessionBankShape sessionBankShape, final String ignoredInstalledModeId)
+    {
+        this (name, facets, sessionBankShape);
+        Objects.requireNonNull (ignoredInstalledModeId, "ignoredInstalledModeId");
     }
 
 

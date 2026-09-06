@@ -13,49 +13,29 @@ import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.view.ControllerView;
 import de.mossgrabers.pull.core.view.SurfaceArea;
 import de.mossgrabers.pull.core.view.SurfaceClaim;
-import de.mossgrabers.pull.core.view.ViewFacet;
 import de.mossgrabers.pull.core.view.ViewOutput;
 import de.mossgrabers.pull.core.view.ViewProfile;
 
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 
 /**
- * Remaining composite Drum Controller lifecycle with a fixed optional pitch-bend facet.
+ * Remaining composite Drum Controller lifecycle; the shared touch-strip view owns pitch bend.
  */
 public final class DrumControllerView implements ControllerView
 {
-    /** Pitch-bend facet identifier. */
-    public static final String PITCH_BEND = "pitch-bend";
-
-    private static final ViewFacet PITCH_BEND_FACET = new ViewFacet (
-        PITCH_BEND,
-        Set.of (
-            new SurfaceClaim (SurfaceArea.TOUCH_STRIP, SurfaceClaim.Kind.STABLE_ADAPTER_INPUT),
-            new SurfaceClaim (SurfaceArea.TOUCH_STRIP, SurfaceClaim.Kind.STABLE_ADAPTER_OUTPUT)),
-        Set.of (ControllerViewFacet.DRUM_PITCH_BEND));
-
     private final DrumFillView fillView = new DrumFillView ();
     private final ViewProfile profile;
 
 
-    /**
-     * Constructor.
-     *
-     * @param pitchBendEnabled Whether the fixed touch-strip facet is selected
-     */
-    public DrumControllerView (final boolean pitchBendEnabled)
+    /** Construct the remaining fixed Drum lifecycle adapter. */
+    public DrumControllerView ()
     {
-        this.profile = new ViewProfile (
-            "lower",
-            requiredClaims (this.fillView),
-            requiredControllerFacets (this.fillView),
-            Map.of (PITCH_BEND, PITCH_BEND_FACET),
-            pitchBendEnabled ? Set.of (PITCH_BEND) : Set.of ());
-
+        final Set<SurfaceClaim> claims = new LinkedHashSet<> (this.fillView.claims ());
+        claims.add (new SurfaceClaim (SurfaceArea.DRUM_PLAY_PADS, SurfaceClaim.Kind.MUSICAL_INPUT));
+        this.profile = ViewProfile.fixed ("lower", claims, requiredControllerFacets (this.fillView));
     }
 
 
@@ -80,7 +60,7 @@ public final class DrumControllerView implements ControllerView
     public Set<BridgeSubscription> bridgeSubscriptions ()
     {
         final Set<BridgeSubscription> subscriptions = new LinkedHashSet<> (this.fillView.bridgeSubscriptions ());
-        subscriptions.addAll (Set.of (BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.SELECTED_TRACK, BridgeSubscription.NOTE_VIEW));
+        subscriptions.addAll (Set.of (BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.SELECTED_TRACK, BridgeSubscription.NOTE_VIEW, BridgeSubscription.DRUM_PADS, BridgeSubscription.CONTROLLER_SETTINGS));
         return Set.copyOf (subscriptions);
     }
 
@@ -121,18 +101,8 @@ public final class DrumControllerView implements ControllerView
             fill.display (),
             fill.padGridOverlay (),
             fill.displayOverlay (),
-            new DesiredNotePerformance (DesiredControllerLayout.empty (), resolved.noteInputRoute ()),
+            new DesiredNotePerformance (DesiredControllerLayout.empty (), resolved.noteInputRoute (), DrumOctaveView.translation (snapshot)),
             fill.noteRepeat ());
-    }
-
-
-    private static Set<SurfaceClaim> requiredClaims (final DrumFillView fillView)
-    {
-        final Set<SurfaceClaim> claims = new LinkedHashSet<> (fillView.claims ());
-        claims.addAll (Set.of (
-            new SurfaceClaim (SurfaceArea.NAVIGATION_OCTAVE, SurfaceClaim.Kind.STABLE_ADAPTER_INPUT),
-            new SurfaceClaim (SurfaceArea.NAVIGATION_OCTAVE, SurfaceClaim.Kind.STABLE_ADAPTER_OUTPUT)));
-        return Set.copyOf (claims);
     }
 
 

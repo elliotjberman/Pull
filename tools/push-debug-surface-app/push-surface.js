@@ -30,6 +30,9 @@
         stateFetchPending: false
     };
     let activeEncoderDrag = null;
+    let activeTouchStripPointer = null;
+    let pendingTouchStripValue = null;
+    let touchStripTimer = null;
     let inputRequestChain = Promise.resolve();
     let selectedPressurePad = 1;
     let pressureTimer = null;
@@ -147,7 +150,7 @@
         return `push.continuous.${symbolicName.toLowerCase().replaceAll("_", "-")}`;
     }
 
-    function registerControl(group, address, debugName, label, inputKind) {
+    function registerControl(group, address, debugName, label, inputKind, hoverTouch = true) {
         group.classList.add("control");
         group.dataset.controlId = address;
         group.dataset.debugName = debugName;
@@ -184,7 +187,7 @@
                 }
             });
         }
-        else if (inputKind === "TOUCH") {
+        else if (inputKind === "TOUCH" && hoverTouch) {
             group.addEventListener("pointerenter", () => setTouched(address, true));
             group.addEventListener("pointerleave", () => {
                 if (!group.classList.contains("is-turning"))
@@ -494,7 +497,67 @@
         const text = svgElement("text", {class: "touch-label", x: x + width / 2 - 0.4, y: y + 10});
         text.textContent = "TOUCH STRIP";
         group.append(text);
-        registerControl(group, continuousAddress("TOUCHSTRIP"), "TOUCHSTRIP", "Touch strip", "TOUCH");
+        const address = continuousAddress("TOUCHSTRIP");
+        registerControl(group, address, "TOUCHSTRIP", "Touch strip", "TOUCH", false);
+        group.dataset.stripY = String(y);
+        group.dataset.stripHeight = String(height);
+        const sample = event => {
+            const bounds = group.querySelector(".touch-track").getBoundingClientRect();
+            pendingTouchStripValue = Math.round(16383 * Math.max(0, Math.min(1, (bounds.bottom - event.clientY) / bounds.height)));
+            if (touchStripTimer === null)
+                touchStripTimer = window.setTimeout(flushTouchStripMotion, 40);
+        };
+        group.addEventListener("pointerdown", event => {
+            if (event.button !== 0 || activeTouchStripPointer !== null)
+                return;
+            event.preventDefault();
+            activeTouchStripPointer = event.pointerId;
+            group.setPointerCapture(event.pointerId);
+            setTouched(address, true);
+            sample(event);
+        });
+        group.addEventListener("pointermove", event => {
+            if (event.pointerId === activeTouchStripPointer)
+                sample(event);
+        });
+        const release = event => {
+            if (event.pointerId === activeTouchStripPointer)
+                releaseTouchStrip();
+        };
+        group.addEventListener("pointerup", release);
+        group.addEventListener("pointercancel", release);
+        group.addEventListener("lostpointercapture", release);
+        setTouchStripOutput(null);
+    }
+
+    function flushTouchStripMotion() {
+        if (touchStripTimer !== null)
+            window.clearTimeout(touchStripTimer);
+        touchStripTimer = null;
+        if (pendingTouchStripValue !== null)
+            queueDebugInput("TOUCHSTRIP", "ABSOLUTE", "CHANGE", pendingTouchStripValue);
+        pendingTouchStripValue = null;
+    }
+
+    function releaseTouchStrip() {
+        if (activeTouchStripPointer === null)
+            return;
+        flushTouchStripMotion();
+        activeTouchStripPointer = null;
+        setTouched(continuousAddress("TOUCHSTRIP"), false);
+    }
+
+    function setTouchStripOutput(output) {
+        const group = findControl("TOUCHSTRIP");
+        const enabled = output && output.mode !== "OFF" && Number.isInteger(output.value) && output.value >= 0 && output.value <= 16383;
+        group.querySelector(".touch-position").style.display = enabled ? "" : "none";
+        group.querySelector(".touch-fill").style.display = "none";
+        if (enabled) {
+            const y = Number(group.dataset.stripY) + Number(group.dataset.stripHeight) * (1 - output.value / 16383);
+            group.querySelector(".touch-position").setAttribute("y", String(y - 0.6));
+        }
+        group.dataset.stripMode = enabled ? output.mode : "OFF";
+        group.dataset.stripValue = enabled ? String(output.value) : "";
     }
 
     function resolveAddress(reference) {
@@ -598,6 +661,7 @@
     }
 
     function releaseBrowserInputs() {
+        releaseTouchStrip();
         for (const [address, kind] of [...activeInjectedEdges])
             endEdge(address, kind);
         for (const address of [...touchedControls])
@@ -727,6 +791,7 @@
             control.setAttribute("aria-pressed", "false");
         });
         setDisplay(null);
+        setTouchStripOutput(null);
         status.textContent = "Preview · ready";
     }
 
@@ -766,6 +831,7 @@
         }
 
         const lights = state.lights && typeof state.lights === "object" ? state.lights : {};
+        setTouchStripOutput(state.touchStrip);
         controlsRoot.querySelectorAll(".control").forEach(control => {
             const light = lights[control.dataset.controlId];
             setLight(control.dataset.controlId, light ? cssColor(light.rgb) : null, light ? {

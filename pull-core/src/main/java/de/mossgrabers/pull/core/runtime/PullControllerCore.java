@@ -1,231 +1,198 @@
 // (c) 2026
 // Licensed under LGPLv3 - http://www.gnu.org/licenses/lgpl-3.0.txt
-
 package de.mossgrabers.pull.core.runtime;
 
-import de.mossgrabers.pull.core.api.ControllerCore;
-import de.mossgrabers.pull.core.api.ControllerActionId;
-import de.mossgrabers.pull.core.api.ControllerSnapshot;
-import de.mossgrabers.pull.core.api.CoreResult;
-import de.mossgrabers.pull.core.api.ParameterSlot;
-import de.mossgrabers.pull.core.api.MixerControlsSnapshot;
-import de.mossgrabers.pull.core.api.StateEnvelope;
+import de.mossgrabers.pull.core.api.*;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
-import de.mossgrabers.pull.core.api.effect.NavigateProjectEffect;
-import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
-import de.mossgrabers.pull.core.api.event.ControllerActionEvent;
-import de.mossgrabers.pull.core.api.event.CoreEvent;
-import de.mossgrabers.pull.core.api.event.InputKind;
-import de.mossgrabers.pull.core.api.event.ParameterMutationEvent;
+import de.mossgrabers.pull.core.api.event.*;
 import de.mossgrabers.pull.core.api.output.MixerControlsDisplay;
-import de.mossgrabers.pull.core.runtime.view.DefaultWorkspace;
-import de.mossgrabers.pull.core.runtime.view.DrumControlPadView;
-import de.mossgrabers.pull.core.runtime.view.ControllerLevelViews;
-import de.mossgrabers.pull.core.runtime.view.VsLiveWorkspace;
-import de.mossgrabers.pull.core.runtime.view.MasterWorkspace;
-import de.mossgrabers.pull.core.runtime.view.MixerDisplayScene;
-import de.mossgrabers.pull.core.runtime.view.ProjectPlaybackCoordinator;
-import de.mossgrabers.pull.core.runtime.view.SessionView;
-import de.mossgrabers.pull.core.runtime.view.SessionStopGesture;
-import de.mossgrabers.pull.core.runtime.view.StableDestinationWorkspace;
-import de.mossgrabers.pull.core.runtime.view.TrackSelectionStripView;
-import de.mossgrabers.pull.core.runtime.view.WorkspaceSelection;
+import de.mossgrabers.pull.core.runtime.view.*;
+import de.mossgrabers.pull.core.ui.page.MixerDisplayScene;
 import de.mossgrabers.pull.core.view.CompiledWorkspace;
-import de.mossgrabers.pull.core.view.ControllerView;
-import de.mossgrabers.pull.core.view.RetainedControllerView;
+import de.mossgrabers.pull.core.view.InputGestureRouter;
+import de.mossgrabers.pull.core.view.PageId;
 import de.mossgrabers.pull.core.view.ResolvedControllerAction;
-
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.EnumMap;
-import java.util.IdentityHashMap;
+import java.util.EnumSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
-
-/**
- * Reloadable Pull behavior. The stable shell owns physical mappings and all effect execution.
- */
+/** Reloadable controller behavior, including the authoritative page/navigation state. */
 final class PullControllerCore implements ControllerCore
 {
-    private Map<WorkspaceSelection.Id, CompiledWorkspace> workspaces = Map.of ();
-    private CompiledWorkspace                              defaultDrumWorkspace;
-    private CompiledWorkspace                              defaultSessionWorkspace;
-    private CompiledWorkspace                              vsLiveStablePageWorkspace;
-    private CompiledWorkspace                              vsLiveTrackMixerWorkspace;
-    private WorkspaceSelection                             selection;
-    private CompiledWorkspace                              workspace;
-    private Map<CompiledWorkspace, CompiledWorkspace>      masterWorkspaces = Map.of ();
-    private Map<WorkspaceSelection.Destination, CompiledWorkspace> destinationWorkspaces = Map.of ();
-    private ProjectPlaybackCoordinator                     playbackCoordinator;
-    private boolean                                        masterLayoutObserved;
-    private long                                           masterEntryWorkspaceRequest;
-    private MasterNavigationLease                          masterNavigationLease;
-    private CompiledWorkspace                              activeMasterWorkspace;
-    private VsLivePage                                     vsLivePage = VsLivePage.DEFAULT;
-    private long                                           vsLiveWorkspaceRequest = -1;
-    private long                                           vsLivePendingPageAfterGeneration = -1;
-    private final SnapbackSession                          snapback = new SnapbackSession ();
-    private Lifecycle                                      lifecycle = Lifecycle.NEW;
+    private WorkspaceSelection selection;
+    private TrackMixerPageState trackMixerPage;
+    private PageNavigation pages;
+    private ControllerPages catalog;
+    private MasterTrackPageNavigation masterSelection;
+    private BrowserPageNavigation browserPage;
+    private CompiledWorkspace workspace;
+    private ProjectPlaybackCoordinator playbackCoordinator;
+    private final SnapbackSession snapback = new SnapbackSession ();
+    private final InputGestureRouter gestures = new InputGestureRouter ();
+    private Lifecycle lifecycle = Lifecycle.NEW;
 
-
-    /** {@inheritDoc} */
     @Override
     public CoreResult start (final ControllerSnapshot snapshot, final Optional<StateEnvelope> previousState)
     {
         Objects.requireNonNull (snapshot, "snapshot");
         Objects.requireNonNull (previousState, "previousState");
-        if (this.lifecycle != Lifecycle.NEW)
-            throw new IllegalStateException ("Core can only be started once");
-
-        final RestoredState restoredState = restoreState (previousState);
-        this.selection = new WorkspaceSelection (restoredState.workspace (), restoredState.selectedDestination (), restoredState.pendingDestination ());
+        if (this.lifecycle != Lifecycle.NEW) throw new IllegalStateException ("Core can only be started once");
+        final ControllerCheckpoint restored = ControllerCheckpoint.decode (previousState);
+        this.selection = new WorkspaceSelection (restored.workspace (), restored.selectedDestination (), restored.pendingDestination ());
+        this.trackMixerPage = new TrackMixerPageState (restored.inputOutputSelected (), restored.sendOffset ());
+        final ControllerPageRef initial = restored.workspace () == WorkspaceSelection.Id.VS_LIVE ? LegacyPageAliases.reference (PageId.PROJECT_MACROS) : LegacyPageAliases.resolve (snapshot.bridge ().layout ().modeId ());
+        this.pages = new PageNavigation (initial, LegacyPageAliases::resolve);
+        restored.page ().ifPresent (this.pages::restoreState);
+        this.pages.startRequestStream (snapshot.bridge ().controllerPages ());
+        this.masterSelection = new MasterTrackPageNavigation (this.pages);
+        this.masterSelection.start (snapshot);
+        this.browserPage = new BrowserPageNavigation (this.pages);
+        this.browserPage.reconcile (snapshot.bridge ().browser ());
         this.playbackCoordinator = new ProjectPlaybackCoordinator ();
-        this.playbackCoordinator.restoreEngineOwner (restoredState.engineOwnerIdentity (), restoredState.engineOwnerPlaying ());
-        final ControllerView drumControlPadView = new DrumControlPadView ();
-        final ControllerLevelViews controllerViews = new ControllerLevelViews (this.selection, this.playbackCoordinator);
-        final ControllerView retainedSessionView = new RetainedControllerView (SessionView.full ());
-        final SessionStopGesture vsLiveStopGesture = new SessionStopGesture ();
-        final List<ControllerView> retainedVsLiveGridViews = VsLiveWorkspace.retainedGridViews (vsLiveStopGesture, drumControlPadView);
-        final ControllerView retainedVsLiveTrackSelection = new RetainedControllerView (new TrackSelectionStripView (vsLiveStopGesture));
-        final List<ControllerView> retainedDefaultDrumViews = DefaultWorkspace.retainedDrumViews (drumControlPadView);
-        final Map<WorkspaceSelection.Id, CompiledWorkspace> compiled = new EnumMap<> (WorkspaceSelection.Id.class);
-        compiled.put (WorkspaceSelection.Id.DEFAULT, DefaultWorkspace.create (controllerViews));
-        compiled.put (WorkspaceSelection.Id.VS_LIVE, VsLiveWorkspace.create (controllerViews, retainedVsLiveTrackSelection, retainedVsLiveGridViews));
-        this.workspaces = Map.copyOf (compiled);
-        this.defaultDrumWorkspace = DefaultWorkspace.createDrum (controllerViews, retainedDefaultDrumViews);
-        this.defaultSessionWorkspace = StableDestinationWorkspace.selectedSession (controllerViews, retainedSessionView);
-        this.vsLiveStablePageWorkspace = VsLiveWorkspace.createWithStablePage (controllerViews, retainedVsLiveGridViews);
-        this.vsLiveTrackMixerWorkspace = VsLiveWorkspace.createWithTrackMixerPage (controllerViews, retainedVsLiveTrackSelection, retainedVsLiveGridViews);
-        this.destinationWorkspaces = Map.of (
-            WorkspaceSelection.Destination.SESSION, StableDestinationWorkspace.session (this.selection, controllerViews, retainedSessionView),
-            WorkspaceSelection.Destination.NOTE, StableDestinationWorkspace.note (controllerViews));
-        final Map<CompiledWorkspace, CompiledWorkspace> compiledMaster = new IdentityHashMap<> ();
-        compiledMaster.put (compiled.get (WorkspaceSelection.Id.DEFAULT), MasterWorkspace.create (controllerViews, de.mossgrabers.pull.core.api.SessionBankShape.empty (), List.of (), true));
-        compiledMaster.put (this.defaultDrumWorkspace, MasterWorkspace.create (controllerViews, de.mossgrabers.pull.core.api.SessionBankShape.empty (), retainedDefaultDrumViews, true));
-        final CompiledWorkspace masterSession = MasterWorkspace.create (controllerViews, StableDestinationWorkspace.SESSION_BANK, List.of (retainedSessionView), true);
-        compiledMaster.put (this.defaultSessionWorkspace, masterSession);
-        compiledMaster.put (this.destinationWorkspaces.get (WorkspaceSelection.Destination.SESSION), masterSession);
-        final CompiledWorkspace masterVsLive = MasterWorkspace.create (controllerViews, VsLiveWorkspace.SESSION_BANK, retainedVsLiveGridViews, false);
-        compiledMaster.put (compiled.get (WorkspaceSelection.Id.VS_LIVE), masterVsLive);
-        compiledMaster.put (this.vsLiveStablePageWorkspace, masterVsLive);
-        compiledMaster.put (this.vsLiveTrackMixerWorkspace, masterVsLive);
-        compiledMaster.put (this.destinationWorkspaces.get (WorkspaceSelection.Destination.NOTE), compiledMaster.get (compiled.get (WorkspaceSelection.Id.DEFAULT)));
-        this.masterWorkspaces = Map.copyOf (compiledMaster);
+        this.playbackCoordinator.restoreEngineOwner (restored.engineOwnerIdentity (), restored.engineOwnerPlaying ());
+        final ControllerLevelViews controls = new ControllerLevelViews (this.selection, this.playbackCoordinator, this.pages);
+        this.catalog = new ControllerPages (this.selection, controls, this.pages, this.trackMixerPage);
         this.workspace = this.desiredWorkspace (snapshot);
         this.lifecycle = Lifecycle.RUNNING;
         this.snapback.start (snapshot);
-        return this.withExecutionRequirements (this.snapback.decorate (this.workspace.activate (snapshot), List.of ()));
+        return this.completeResult (this.snapback.decorate (this.gestures.activate (this.workspace, snapshot), List.of ()), snapshot);
     }
 
-
-    /** {@inheritDoc} */
     @Override
     public CoreResult handle (final CoreEvent event, final ControllerSnapshot snapshot)
     {
         this.requireRunning ();
         Objects.requireNonNull (event, "event");
         Objects.requireNonNull (snapshot, "snapshot");
-        final CompiledWorkspace desiredWorkspace = this.desiredWorkspace (snapshot);
-        if (desiredWorkspace != this.workspace)
-        {
-            this.workspace = desiredWorkspace;
-            this.workspace.activate (snapshot);
-        }
+        this.gestures.beginEvent ();
+        this.browserPage.reconcile (snapshot.bridge ().browser ());
+        this.activateSelectedWorkspace (snapshot);
+        this.gestures.reconcile (this.workspace, snapshot);
+        // Capture physical edges before any deferred or host-driven page action can change owners.
+        final boolean edge = event instanceof final ControllerInputEvent input && input.kind ().isEdge () || event instanceof ButtonInputEvent || event instanceof TouchInputEvent;
+        final InputGestureRouter.Dispatch captured = edge ? this.gestures.capture (event, this.workspace) : null;
+        final ResolvedControllerAction capturedAction = captured == null ? null : this.gestures.resolveAction (captured, snapshot);
         final ParameterSlot mutationSlot;
-        if (event instanceof final ParameterMutationEvent mutation)
-            mutationSlot = this.workspace.parameterSlotOrNull (mutation.controlId ());
-        else if (event instanceof final ControllerInputEvent input && input.kind () == InputKind.RELATIVE)
-            mutationSlot = this.workspace.parameterSlotOrNull (input.controlId ());
-        else
-            mutationSlot = null;
-        SnapbackSession.Update update = this.snapback.handle (event, snapshot, mutationSlot);
-        CoreResult currentResult;
-        final ResolvedControllerAction action;
-        if (event instanceof final ControllerInputEvent input)
-            action = this.workspace.resolveAction (input, snapshot);
-        else if (event instanceof final ControllerActionEvent semanticAction)
-            action = ResolvedControllerAction.stable (semanticAction.intent ());
-        else
-            action = null;
+        if (event instanceof final ParameterMutationEvent mutation) mutationSlot = this.workspace.parameterSlotOrNull (mutation.controlId (), snapshot);
+        else if (event instanceof final ControllerInputEvent input && input.kind () == InputKind.RELATIVE) mutationSlot = this.workspace.parameterSlotOrNull (input.controlId (), snapshot);
+        else mutationSlot = null;
+        final List<CoreEffect> effects = new ArrayList<> ();
+        SnapbackSession.Update update = this.drainReleased (this.snapback.handle (event, snapshot, mutationSlot), snapshot, effects);
+        final boolean eventIntercepted = update.intercepted ();
 
+        // Legacy callbacks and host-driven page selection use the same parameter-restoration
+        // admission as physical page buttons. Resolving a request does not acknowledge it.
+        final List<ResolvedControllerAction> pageActions = new ArrayList<> (this.pages.resolveLegacyActions (snapshot.bridge ().controllerPages ()));
+        final ResolvedControllerAction masterAction = this.masterSelection.observe (snapshot);
+        if (masterAction != null) pageActions.add (masterAction);
+        for (final ResolvedControllerAction request: pageActions)
+        {
+            final SnapbackSession.Update admitted = this.drainReleased (this.snapback.handleAction (request, snapshot), snapshot, effects);
+            update = mergeUpdates (update, admitted);
+            if (!admitted.intercepted ()) effects.addAll (this.dispatchActionToWorkspace (request, snapshot).effects ());
+        }
+
+        final ResolvedControllerAction browserAction = this.browserPage.resolveAction ();
+        if (browserAction != null)
+        {
+            final SnapbackSession.Update admitted = this.drainReleased (this.snapback.handleAction (browserAction, snapshot), snapshot, effects);
+            update = mergeUpdates (update, admitted);
+            if (!admitted.intercepted ()) effects.addAll (this.dispatchActionToWorkspace (browserAction, snapshot).effects ());
+        }
+
+        final ResolvedControllerAction action;
+        if (captured != null) action = capturedAction;
+        else if (event instanceof final ControllerActionEvent semantic) action = ResolvedControllerAction.stable (semantic.intent ());
+        else action = null;
+        CoreResult currentResult;
         if (action != null)
         {
-            final SnapbackSession.Update actionUpdate = this.snapback.handleAction (action, snapshot);
-            update = mergeUpdates (update, actionUpdate);
-            currentResult = actionUpdate.intercepted () ? this.workspace.activate (snapshot) : this.dispatchActionToWorkspace (action, snapshot, false);
+            final SnapbackSession.Update admitted = this.drainReleased (this.snapback.handleAction (action, snapshot), snapshot, effects);
+            update = mergeUpdates (update, admitted);
+            currentResult = admitted.intercepted () ? this.gestures.activate (this.workspace, snapshot) : this.dispatchActionToWorkspace (action, snapshot);
+            effects.addAll (action.immediateEffects ());
         }
         else
-            currentResult = update.intercepted () ? this.workspace.activate (snapshot) : this.workspace.handle (event, snapshot);
-
-        currentResult = this.transitionToSelectedWorkspace (currentResult, snapshot);
-        final List<CoreEffect> effects = new ArrayList<> (currentResult.effects ());
-        for (final ResolvedControllerAction released: update.releasedActions ())
         {
-            currentResult = this.dispatchActionToWorkspace (released, snapshot, true);
-            effects.addAll (currentResult.effects ());
+            final List<CoreEffect> routed = eventIntercepted ? List.of () : this.gestures.dispatch (captured != null ? captured : this.gestures.capture (event, this.workspace), snapshot);
+            currentResult = withEffects (this.gestures.activate (this.workspace, snapshot), routed);
         }
-        return this.withExecutionRequirements (this.snapback.decorate (withEffects (currentResult, effects), update.effects ()));
+        this.gestures.finish (captured, this.workspace);
+        currentResult = this.transitionToSelectedWorkspace (currentResult, snapshot);
+        effects.addAll (currentResult.effects ());
+        return this.completeResult (this.snapback.decorate (withEffects (currentResult, effects), update.effects ()), snapshot);
     }
 
+    private SnapbackSession.Update drainReleased (final SnapbackSession.Update update, final ControllerSnapshot snapshot, final List<CoreEffect> effects)
+    {
+        for (final ResolvedControllerAction released: update.releasedActions ())
+            effects.addAll (this.dispatchActionToWorkspace (released, snapshot).effects ());
+        return new SnapbackSession.Update (update.intercepted (), List.of (), update.effects ());
+    }
 
-    /** {@inheritDoc} */
     @Override
     public StateEnvelope checkpoint ()
     {
         this.requireRunning ();
-        final byte [] owner = this.playbackCoordinator.engineOwnerIdentity ().getBytes (StandardCharsets.UTF_8);
-        final ByteBuffer payload = ByteBuffer.allocate (Integer.BYTES + 4 + owner.length);
-        payload.put ((byte) (this.selection.active () == WorkspaceSelection.Id.VS_LIVE ? 1 : 0));
-        payload.put ((byte) (this.playbackCoordinator.engineOwnerPlaying () ? 1 : 0));
-        payload.put ((byte) this.selection.selectedDestination ().ordinal ());
-        payload.put ((byte) this.selection.pendingDestination ().ordinal ());
-        payload.putInt (owner.length);
-        payload.put (owner);
-        return new StateEnvelope (PullCoreProvider.STATE_SCHEMA, PullCoreProvider.STATE_SCHEMA_VERSION, payload.array ());
+        return new ControllerCheckpoint (this.selection.active (), this.selection.selectedDestination (), this.selection.pendingDestination (), this.playbackCoordinator.engineOwnerIdentity (), this.playbackCoordinator.engineOwnerPlaying (), this.trackMixerPage.inputOutputSelected (), this.trackMixerPage.sendOffset (), Optional.of (this.pages.state ())).encode ();
     }
 
-
-    /** {@inheritDoc} */
     @Override
     public MixerControlsDisplay renderMixerControls (final MixerControlsSnapshot snapshot)
     {
         return MixerDisplayScene.render (Objects.requireNonNull (snapshot, "snapshot"));
     }
 
-
-    private static RestoredState restoreState (final Optional<StateEnvelope> previousState)
+    private CompiledWorkspace desiredWorkspace (final ControllerSnapshot snapshot)
     {
-        if (previousState.isEmpty ())
-            return RestoredState.empty ();
-        final StateEnvelope state = previousState.get ();
-        if (!PullCoreProvider.STATE_SCHEMA.equals (state.schema ()) || state.version () != PullCoreProvider.STATE_SCHEMA_VERSION)
-            return RestoredState.empty ();
-        final byte [] payload = state.payload ();
-        if (payload.length < Integer.BYTES + 4)
-            return RestoredState.empty ();
-        final ByteBuffer buffer = ByteBuffer.wrap (payload);
-        final WorkspaceSelection.Id workspace = buffer.get () == 1 ? WorkspaceSelection.Id.VS_LIVE : WorkspaceSelection.Id.DEFAULT;
-        final boolean playing = buffer.get () == 1;
-        final int selectedDestinationOrdinal = Byte.toUnsignedInt (buffer.get ());
-        final int pendingDestinationOrdinal = Byte.toUnsignedInt (buffer.get ());
-        if (selectedDestinationOrdinal >= WorkspaceSelection.Destination.values ().length || pendingDestinationOrdinal >= WorkspaceSelection.Destination.values ().length)
-            return RestoredState.empty ();
-        final WorkspaceSelection.Destination selectedDestination = WorkspaceSelection.Destination.values ()[selectedDestinationOrdinal];
-        final WorkspaceSelection.Destination pendingDestination = WorkspaceSelection.Destination.values ()[pendingDestinationOrdinal];
-        if (pendingDestination != WorkspaceSelection.Destination.NONE && pendingDestination != selectedDestination)
-            return RestoredState.empty ();
-        final int ownerLength = buffer.getInt ();
-        if (ownerLength < 0 || ownerLength > 1024 || ownerLength != buffer.remaining ())
-            return new RestoredState (workspace, selectedDestination, pendingDestination, "", false);
-        final byte [] owner = new byte [ownerLength];
-        buffer.get (owner);
-        return new RestoredState (workspace, selectedDestination, pendingDestination, new String (owner, StandardCharsets.UTF_8), playing);
+        this.selection.observe (snapshot.bridge ().layout ());
+        this.selection.observe (snapshot.bridge ().noteView ());
+        final PageId defaultPage = this.selection.active () == WorkspaceSelection.Id.VS_LIVE ? PageId.PROJECT_MACROS : PageId.TRACK;
+        this.pages.workspaceChanged (this.selection.requestSequence (), LegacyPageAliases.reference (defaultPage));
+        return this.catalog.select (this.pages.visible (), this.selection, snapshot);
     }
 
+    private void activateSelectedWorkspace (final ControllerSnapshot snapshot)
+    {
+        final CompiledWorkspace selected = this.desiredWorkspace (snapshot);
+        if (selected == this.workspace) return;
+        this.gestures.transition (this.workspace, selected);
+        this.workspace = selected;
+        this.gestures.activate (this.workspace, snapshot);
+    }
+
+    private CoreResult dispatchActionToWorkspace (final ResolvedControllerAction action, final ControllerSnapshot snapshot)
+    {
+        final List<CoreEffect> effects = this.gestures.dispatchAction (action, snapshot);
+        this.masterSelection.observeEffects (effects);
+        this.activateSelectedWorkspace (snapshot);
+        return transitionTo (effects, this.gestures.activate (this.workspace, snapshot));
+    }
+
+    private CoreResult transitionToSelectedWorkspace (final CoreResult result, final ControllerSnapshot snapshot)
+    {
+        final CompiledWorkspace selected = this.desiredWorkspace (snapshot);
+        if (selected == this.workspace) return result;
+        this.gestures.transition (this.workspace, selected);
+        this.workspace = selected;
+        return transitionTo (result.effects (), this.gestures.activate (this.workspace, snapshot));
+    }
+
+    private CoreResult completeResult (final CoreResult activeResult, final ControllerSnapshot snapshot)
+    {
+        final CoreResult result = this.gestures.decorate (this.workspace, activeResult, snapshot);
+        final EnumSet<BridgeSubscription> subscriptions = EnumSet.noneOf (BridgeSubscription.class);
+        subscriptions.addAll (result.desiredBridgeSubscriptions ().domains ());
+        subscriptions.add (BridgeSubscription.CONTROLLER_PAGES);
+        subscriptions.add (BridgeSubscription.BROWSER);
+        subscriptions.add (BridgeSubscription.MASTER);
+        final DesiredControllerPageState state = this.pages.state ();
+        final DesiredControllerPageState page = new DesiredControllerPageState (state.revision (), state.selected (), state.previous (), state.temporary (), state.acknowledgedRequestSequence (), this.catalog.indications (this.pages.visible (), this.selection, snapshot));
+        final DesiredControllerState controller = new DesiredControllerState (result.desiredControllerState ().workspace (), result.desiredControllerState ().notePerformance (), page);
+        return new CoreResult (result.desiredOutput (), result.desiredInputRoutes (), new DesiredBridgeSubscriptions (subscriptions), result.desiredClipBindings (), controller, result.desiredNoteRepeat (), result.desiredControllerActions (), result.desiredParameterBanks (), result.desiredParameterInteraction (), result.desiredParameterTouches (), new CoreExecutionRequirements (result.executionRequirements ().ticksRequested () || this.playbackCoordinator.executionRequirements ().ticksRequested ()), result.effects ());
+    }
 
     private static CoreResult transitionTo (final List<CoreEffect> departingEffects, final CoreResult activeResult)
     {
@@ -244,162 +211,9 @@ final class PullControllerCore implements ControllerCore
             activeResult.desiredControllerActions (),
             activeResult.desiredParameterBanks (),
             activeResult.desiredParameterInteraction (),
+            activeResult.desiredParameterTouches (),
+            activeResult.executionRequirements (),
             effects);
-    }
-
-
-    private CoreResult dispatchActionToWorkspace (final ResolvedControllerAction action, final ControllerSnapshot snapshot, final boolean awaitStableReadback)
-    {
-        final List<CoreEffect> effects = this.workspace.dispatchAction (action, snapshot);
-        this.observeMasterNavigationAction (effects);
-        this.observeMasterPageExitAction (action);
-        this.observeVsLivePageAction (action, snapshot, awaitStableReadback);
-        final CompiledWorkspace selectedWorkspace = this.desiredWorkspace (snapshot);
-        if (selectedWorkspace != this.workspace)
-            this.workspace = selectedWorkspace;
-        return transitionTo (effects, this.workspace.activate (snapshot));
-    }
-
-
-    private CoreResult transitionToSelectedWorkspace (final CoreResult currentResult, final ControllerSnapshot snapshot)
-    {
-        final CompiledWorkspace selectedWorkspace = this.desiredWorkspace (snapshot);
-        if (selectedWorkspace == this.workspace)
-            return currentResult;
-
-        this.workspace = selectedWorkspace;
-        return transitionTo (currentResult.effects (), this.workspace.activate (snapshot));
-    }
-
-
-    private CompiledWorkspace desiredWorkspace (final ControllerSnapshot snapshot)
-    {
-        this.selection.observe (snapshot.bridge ().layout ());
-        this.selection.observe (snapshot.bridge ().noteView ());
-        this.observeVsLivePageReadback (snapshot.bridge ().layout ());
-        final CompiledWorkspace selectedWorkspace = this.selectedWorkspace (snapshot);
-        final String mode = snapshot.bridge ().layout ().modeId ();
-        final boolean masterLayout = "MASTER".equals (mode) || "MASTER_TEMP".equals (mode);
-        if (this.masterNavigationLease != null)
-        {
-            if (this.selection.requestSequence () != this.masterNavigationLease.workspaceRequest ())
-                this.masterNavigationLease = null;
-            else
-                return this.activeMasterWorkspace;
-        }
-        if (!masterLayout)
-        {
-            this.masterLayoutObserved = false;
-            return selectedWorkspace;
-        }
-        if (!this.masterLayoutObserved)
-        {
-            this.masterLayoutObserved = true;
-            this.masterEntryWorkspaceRequest = this.selection.requestSequence ();
-            this.activeMasterWorkspace = Objects.requireNonNull (this.masterWorkspaces.get (selectedWorkspace), "Master composition for " + selectedWorkspace.name ());
-        }
-        return this.selection.requestSequence () == this.masterEntryWorkspaceRequest ? this.activeMasterWorkspace : selectedWorkspace;
-    }
-
-
-    private void observeMasterNavigationAction (final List<CoreEffect> effects)
-    {
-        for (final CoreEffect effect: effects)
-        {
-            if (effect instanceof NavigateProjectEffect)
-            {
-                this.masterNavigationLease = new MasterNavigationLease (this.selection.requestSequence ());
-                return;
-            }
-        }
-    }
-
-
-    private void observeMasterPageExitAction (final ResolvedControllerAction action)
-    {
-        if (this.masterNavigationLease == null)
-            return;
-        switch (action.intent ().action ())
-        {
-            case SELECT_PARAMETER_CONTEXT, SELECT_PARAMETER_PAGE, SWITCH_PARAMETER_CONTEXT, SWITCH_WORKSPACE, SELECT_NOTE_LAYOUT -> this.masterNavigationLease = null;
-            default -> {
-                // Target navigation and Master-owned actions retain the explicitly selected page.
-            }
-        }
-    }
-
-
-    private CompiledWorkspace selectedWorkspace (final ControllerSnapshot snapshot)
-    {
-        if (this.selection.active () != WorkspaceSelection.Id.VS_LIVE)
-        {
-            this.vsLivePage = VsLivePage.DEFAULT;
-            this.vsLivePendingPageAfterGeneration = -1;
-            this.vsLiveWorkspaceRequest = this.selection.requestSequence ();
-        }
-        else if (this.vsLiveWorkspaceRequest != this.selection.requestSequence ())
-        {
-            // Shift+Session selects the declared composite, including its default Project Macro
-            // page. It is an idempotent workspace selection, not a request to retain a stale page.
-            this.vsLivePage = VsLivePage.DEFAULT;
-            this.vsLivePendingPageAfterGeneration = -1;
-            this.vsLiveWorkspaceRequest = this.selection.requestSequence ();
-        }
-        final WorkspaceSelection.Destination destination = this.selection.pendingDestination ();
-        if (destination != WorkspaceSelection.Destination.NONE)
-            return this.destinationWorkspaces.get (destination);
-        if (this.selection.active () == WorkspaceSelection.Id.DEFAULT && this.selection.selectedDestination () == WorkspaceSelection.Destination.SESSION)
-            return this.defaultSessionWorkspace;
-        if (this.selection.active () == WorkspaceSelection.Id.DEFAULT && snapshot.bridge ().layout ().drumLayoutActive ())
-            return this.defaultDrumWorkspace;
-        if (this.selection.active () == WorkspaceSelection.Id.VS_LIVE && this.vsLivePage == VsLivePage.TRACK_MIXER)
-            return this.vsLiveTrackMixerWorkspace;
-        if (this.selection.active () == WorkspaceSelection.Id.VS_LIVE && this.vsLivePage == VsLivePage.STABLE)
-            return this.vsLiveStablePageWorkspace;
-        return this.workspaces.get (this.selection.active ());
-    }
-
-
-    private void observeVsLivePageAction (final ResolvedControllerAction action, final ControllerSnapshot snapshot, final boolean awaitStableReadback)
-    {
-        if (this.selection.active () != WorkspaceSelection.Id.VS_LIVE || action.intent ().action () != ControllerActionId.SWITCH_PARAMETER_CONTEXT)
-            return;
-
-        final de.mossgrabers.pull.core.api.ControllerLayoutSnapshot layout = snapshot.bridge ().layout ();
-        if (awaitStableReadback)
-        {
-            // Snapback released the semantic action before the corresponding stable command. The
-            // shell runs that deferred command only after this result retires the action barrier.
-            this.vsLivePendingPageAfterGeneration = layout.generation ();
-            return;
-        }
-
-        // An ordinary stable command runs before its semantic observation is delivered, so this
-        // snapshot already contains the page it selected.
-        this.selectVsLivePage (layout.modeId ());
-    }
-
-
-    private void observeVsLivePageReadback (final de.mossgrabers.pull.core.api.ControllerLayoutSnapshot layout)
-    {
-        if (this.selection.active () != WorkspaceSelection.Id.VS_LIVE || this.vsLivePendingPageAfterGeneration < 0 || layout.generation () <= this.vsLivePendingPageAfterGeneration)
-            return;
-        this.vsLivePendingPageAfterGeneration = -1;
-        this.selectVsLivePage (layout.modeId ());
-    }
-
-
-    private void selectVsLivePage (final String mode)
-    {
-        // Incidental mode changes used to neutralize a selected-track Note route never call this
-        // method and therefore cannot be mistaken for page input.
-        this.vsLivePendingPageAfterGeneration = -1;
-        if ("TRACK".equals (mode))
-            this.vsLivePage = VsLivePage.TRACK_MIXER;
-        else if ("WORKSPACE".equals (mode))
-            this.vsLivePage = VsLivePage.DEFAULT;
-        else if (!"MASTER".equals (mode) && !"MASTER_TEMP".equals (mode))
-            this.vsLivePage = VsLivePage.STABLE;
     }
 
 
@@ -415,25 +229,9 @@ final class PullControllerCore implements ControllerCore
             result.desiredControllerActions (),
             result.desiredParameterBanks (),
             result.desiredParameterInteraction (),
+            result.desiredParameterTouches (),
             result.executionRequirements (),
             effects);
-    }
-
-
-    private CoreResult withExecutionRequirements (final CoreResult result)
-    {
-        return new CoreResult (
-            result.desiredOutput (),
-            result.desiredInputRoutes (),
-            result.desiredBridgeSubscriptions (),
-            result.desiredClipBindings (),
-            result.desiredControllerState (),
-            result.desiredNoteRepeat (),
-            result.desiredControllerActions (),
-            result.desiredParameterBanks (),
-            result.desiredParameterInteraction (),
-            this.playbackCoordinator.executionRequirements (),
-            result.effects ());
     }
 
 
@@ -454,32 +252,5 @@ final class PullControllerCore implements ControllerCore
     }
 
 
-    private enum Lifecycle
-    {
-        NEW,
-        RUNNING
-    }
-
-
-    private record RestoredState (WorkspaceSelection.Id workspace, WorkspaceSelection.Destination selectedDestination, WorkspaceSelection.Destination pendingDestination, String engineOwnerIdentity, boolean engineOwnerPlaying)
-    {
-        private static RestoredState empty ()
-        {
-            return new RestoredState (WorkspaceSelection.Id.DEFAULT, WorkspaceSelection.Destination.NONE, WorkspaceSelection.Destination.NONE, "", false);
-        }
-    }
-
-
-    private enum VsLivePage
-    {
-        DEFAULT,
-        TRACK_MIXER,
-        STABLE
-    }
-
-
-    /** Keeps Master selected after its own project navigation until an explicit page request. */
-    private record MasterNavigationLease (long workspaceRequest)
-    {
-    }
+    private enum Lifecycle { NEW, RUNNING }
 }

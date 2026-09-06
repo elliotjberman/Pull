@@ -31,6 +31,10 @@ public interface ISend extends IParameter
     boolean isEnabled ();
 
 
+    /** Set the absolute enabled state. */
+    void setEnabled (boolean enabled);
+
+
     /**
      * Toggle the enabled state of the send.
      */

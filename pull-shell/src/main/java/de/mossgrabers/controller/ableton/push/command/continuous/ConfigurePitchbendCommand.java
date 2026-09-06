@@ -11,7 +11,6 @@ import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.command.core.AbstractTriggerCommand;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.daw.IModel;
-import de.mossgrabers.framework.daw.midi.MidiConstants;
 import de.mossgrabers.framework.featuregroup.ModeManager;
 import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.parameter.IFocusedParameter;
@@ -42,15 +41,8 @@ public class ConfigurePitchbendCommand extends AbstractTriggerCommand<PushContro
     @Override
     public void executeNormal (final ButtonEvent event)
     {
-        if (event == ButtonEvent.DOWN && this.surface.beginRawPitchbendGesture ())
+        if (!this.surface.isLegacyTouchStripEnabled ())
             return;
-
-        if (event == ButtonEvent.UP && (this.surface.endRawPitchbendGesture () || this.surface.isRawPitchbendRoutingActive ()))
-        {
-            this.surface.sendMidiEvent (MidiConstants.CMD_PITCHBEND, 0, 64);
-            this.surface.getMidiOutput ().sendPitchbend (0, 64);
-            return;
-        }
 
         // Reset parameters if Delete button is held
 
@@ -86,11 +78,8 @@ public class ConfigurePitchbendCommand extends AbstractTriggerCommand<PushContro
     @Override
     public void executeShifted (final ButtonEvent event)
     {
-        if (this.surface.shouldRouteRawPitchbend ())
-        {
-            this.executeNormal (event);
+        if (!this.surface.isLegacyTouchStripEnabled ())
             return;
-        }
 
         if (event == ButtonEvent.UP)
         {

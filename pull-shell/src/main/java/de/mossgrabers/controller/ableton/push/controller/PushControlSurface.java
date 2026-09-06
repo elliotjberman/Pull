@@ -4,6 +4,9 @@
 
 package de.mossgrabers.controller.ableton.push.controller;
 
+import de.mossgrabers.pull.core.api.DesiredNoteInputTranslation;
+import de.mossgrabers.pull.core.api.output.DesiredTouchStrip;
+import de.mossgrabers.pull.core.api.output.TouchStripMode;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
 
@@ -349,6 +352,7 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
     private final PushPadGrid                 pushPadGrid;
     private final ReloadableControllerRuntime reloadableRuntime;
     private final ControllerWorkspaceHost      controllerWorkspaceHost;
+    private final PushControllerPageManager pageManager = new PushControllerPageManager ();
     private final PushDebugSurfaceHost         debugSurfaceHost;
     private SessionBankRegistry                 sessionBankRegistry;
     private final ISelectedTrackNoteTarget    selectedTrackNoteTarget;
@@ -356,10 +360,9 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
     private final BooleanSupplier             drumModelDeviceReady;
     private BooleanSupplier                   drumPadLayoutActive       = () -> false;
     private BooleanSupplier                   drumControllerEngaged     = () -> false;
-    private boolean                           rawPitchbendGestureActive;
+    private final TouchStripOutputHost        touchStripOutput;
+    private final NoteInputTranslationArbiter noteTranslation;
 
-    private int                      ribbonMode                           = -1;
-    private int                      ribbonValue                          = -1;
 
     private int                      majorVersion                         = -1;
     private int                      minorVersion                         = -1;
@@ -395,6 +398,8 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
         this.drumModelTrack = Objects.requireNonNull (drumModelTrack, "drumModelTrack");
         this.drumModelDeviceReady = Objects.requireNonNull (drumModelDeviceReady, "drumModelDeviceReady");
         this.reloadableRuntime = reloadableRuntime;
+        this.touchStripOutput = new TouchStripOutputHost (this::transmitTouchStrip);
+        this.noteTranslation = new NoteInputTranslationArbiter (super::setKeyTranslationTable, super::setVelocityTranslationTable);
         this.controllerWorkspaceHost = new ControllerWorkspaceHost (this);
         this.notifyViewChange = false;
         this.pushPadGrid = (PushPadGrid) this.padGrid;
@@ -421,6 +426,11 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
 
         this.input.setSysexCallback (this::handleSysEx);
     }
+
+
+    /** Every legacy page caller observes the core projection through this facade. */
+    @Override
+    public PushControllerPageManager getModeManager () { return this.pageManager; }
 
 
     /** Mirror successful button-light transmissions into the opt-in local debugger. */
@@ -753,57 +763,46 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
     }
 
 
-    /**
-     * Test whether the ribbon currently has direct raw pitch-bend semantics. Session keeps its
-     * existing policy; the drum path follows layout ownership rather than a view identifier.
-     *
-     * @return True when raw pitch bend should be routed and rendered directly
-     */
-    public boolean isRawPitchbendRoutingActive ()
+    /** Apply the complete core-owned translation through the permanent musical-input owner. */
+    public void applyCoreNoteTranslation (final DesiredNoteInputTranslation translation)
     {
-        final boolean workspacePitchbend = this.controllerWorkspaceHost.hasFacet (ControllerViewFacet.DRUM_PITCH_BEND);
-        final boolean standaloneDrumController = !this.controllerWorkspaceHost.isActive () && this.isDrumControllerActive ();
-        return isRawPitchbendRoutingActive (this.viewManager.isActive (Views.SESSION), workspacePitchbend || standaloneDrumController);
+        this.noteTranslation.apply (translation);
     }
 
 
-    /**
-     * Acquire raw pitch-bend routing for the current ribbon touch. Once acquired, the lease stays
-     * active until release even if selection or view state changes in the meantime.
-     *
-     * @return True if raw routing was acquired
-     */
-    public boolean beginRawPitchbendGesture ()
+    /** Return the translation actually applied by the permanent musical-input owner. */
+    public DesiredNoteInputTranslation getAppliedNoteTranslation ()
     {
-        if (!this.isRawPitchbendRoutingActive ())
-            return false;
-
-        this.rawPitchbendGestureActive = true;
-        return true;
+        return this.noteTranslation.snapshot ();
     }
 
 
-    /**
-     * Release the current raw pitch-bend routing lease.
-     *
-     * @return True if a raw gesture had been active
-     */
-    public boolean endRawPitchbendGesture ()
+    @Override
+    public void setKeyTranslationTable (final int [] table)
     {
-        final boolean wasActive = this.rawPitchbendGestureActive;
-        this.rawPitchbendGestureActive = false;
-        return wasActive;
+        this.noteTranslation.setLegacyKeys (table);
     }
 
 
-    /**
-     * Test whether pitch-bend data should be routed raw, including an in-flight gesture lease.
-     *
-     * @return True when raw pitch-bend data should be routed
-     */
-    public boolean shouldRouteRawPitchbend ()
+    @Override
+    public void setVelocityTranslationTable (final int [] table)
     {
-        return shouldRouteRawPitchbend (this.isRawPitchbendRoutingActive (), this.rawPitchbendGestureActive);
+        this.noteTranslation.setLegacyVelocities (table);
+    }
+
+
+    /** Apply the complete core-owned strip output through the single hardware arbitrator. */
+    public void synchronizeTouchStripOutput ()
+    {
+        this.touchStripOutput.apply (this.reloadableRuntime == null ? DesiredTouchStrip.off () : this.reloadableRuntime.touchStrip (), this.reloadableRuntime == null ? 0 : this.reloadableRuntime.outputGeneration ());
+    }
+
+
+    /** Whether the committed output explicitly permits the frozen legacy input path. */
+    public boolean isLegacyTouchStripEnabled ()
+    {
+        this.synchronizeTouchStripOutput ();
+        return this.touchStripOutput.legacyInputEnabled ();
     }
 
 
@@ -831,15 +830,13 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
     }
 
 
-    static boolean isRawPitchbendRoutingActive (final boolean sessionActive, final boolean drumControllerActive)
+    /** Replay every installed output, including the complete touch-strip state. */
+    @Override
+    public void forceFlush ()
     {
-        return sessionActive || drumControllerActive;
-    }
-
-
-    static boolean shouldRouteRawPitchbend (final boolean currentPolicyActive, final boolean gestureLeaseActive)
-    {
-        return currentPolicyActive || gestureLeaseActive;
+        super.forceFlush ();
+        this.synchronizeTouchStripOutput ();
+        this.touchStripOutput.forceFlush ();
     }
 
 
@@ -940,32 +937,14 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
      */
     public void setRibbonMode (final int mode)
     {
-        if (this.ribbonMode == mode)
-            return;
-        this.ribbonMode = mode;
-        // See section 2.10.1 in Push 2 programmer manual for status codes
-        int status = 0;
-        switch (mode)
+        this.synchronizeTouchStripOutput ();
+        this.touchStripOutput.legacyMode (switch (mode)
         {
-            case PUSH_RIBBON_PITCHBEND:
-                status = 104;
-                break;
-            case PUSH_RIBBON_VOLUME:
-                status = 1;
-                break;
-            case PUSH_RIBBON_PAN:
-                status = 17;
-                break;
-            case PUSH_RIBBON_DISCRETE:
-                status = 9;
-                break;
-            default:
-                break;
-        }
-        this.sendSysex (new int []
-        {
-            23,
-            status
+            case PUSH_RIBBON_PITCHBEND -> TouchStripMode.PITCH_BEND;
+            case PUSH_RIBBON_VOLUME -> TouchStripMode.VOLUME;
+            case PUSH_RIBBON_PAN -> TouchStripMode.PAN;
+            case PUSH_RIBBON_DISCRETE -> TouchStripMode.DISCRETE;
+            default -> TouchStripMode.OFF;
         });
     }
 
@@ -977,10 +956,32 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
      */
     public void setRibbonValue (final int value)
     {
-        if (this.ribbonValue == value)
-            return;
-        this.ribbonValue = value;
-        this.output.sendPitchbend (0, value);
+        this.setRibbonPosition (value << 7);
+    }
+
+
+    /** Publish a complete legacy 14-bit indicator value through the same output arbitration. */
+    public void setRibbonPosition (final int value)
+    {
+        this.synchronizeTouchStripOutput ();
+        this.touchStripOutput.legacyPosition (value);
+    }
+
+
+    private void transmitTouchStrip (final DesiredTouchStrip strip)
+    {
+        final int status = switch (strip.mode ())
+        {
+            case OFF -> 0;
+            case PITCH_BEND -> 104;
+            case VOLUME -> 1;
+            case PAN -> 17;
+            case DISCRETE -> 9;
+        };
+        this.sendSysex (new int [] { 23, status });
+        this.output.sendPitchbend (strip.value () & 0x7F, strip.value () >> 7);
+        if (this.debugSurfaceHost != null)
+            this.debugSurfaceHost.observeTouchStrip (strip);
     }
 
 

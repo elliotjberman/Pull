@@ -12,7 +12,7 @@ import java.util.Objects;
  * @param layout Desired installed note-controller layout
  * @param inputRoute Desired target-fenced musical input route
  */
-public record DesiredNotePerformance (DesiredControllerLayout layout, DesiredNoteInputRoute inputRoute)
+public record DesiredNotePerformance (DesiredControllerLayout layout, DesiredNoteInputRoute inputRoute, DesiredNoteInputTranslation translation)
 {
     private static final DesiredNotePerformance INACTIVE = new DesiredNotePerformance (DesiredControllerLayout.empty (), DesiredNoteInputRoute.disabled ());
 
@@ -22,6 +22,16 @@ public record DesiredNotePerformance (DesiredControllerLayout layout, DesiredNot
     {
         layout = Objects.requireNonNull (layout, "layout");
         inputRoute = Objects.requireNonNull (inputRoute, "inputRoute");
+        translation = Objects.requireNonNull (translation, "translation");
+        if (!inputRoute.active () && translation.allowsNotes ())
+            throw new IllegalArgumentException ("A playable core note translation requires a target-fenced route");
+    }
+
+
+    /** Legacy layout whose native translation is still adapter-owned. */
+    public DesiredNotePerformance (final DesiredControllerLayout layout, final DesiredNoteInputRoute inputRoute)
+    {
+        this (layout, inputRoute, DesiredNoteInputTranslation.unowned ());
     }
 
 

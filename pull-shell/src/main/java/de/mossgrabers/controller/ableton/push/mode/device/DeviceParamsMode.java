@@ -246,14 +246,14 @@ public class DeviceParamsMode extends BaseMode<IParameter>
         if (cd.isNested ())
         {
             cd.selectParent ();
-            this.model.getHost ().scheduleTask (() -> {
+            this.model.getHost ().scheduleTask (this.surface.getModeManager ().freezeRequestOrigin (() -> {
                 if (cd.hasLayers ())
                     modeManager.setActive (this.surface.getConfiguration ().getCurrentLayerMixMode ());
                 else
                     modeManager.setActive (Modes.DEVICE_PARAMS);
                 deviceParamsMode.setShowDevices (false);
                 cd.selectChannel ();
-            }, 300);
+            }), 300);
             return;
         }
 

@@ -21,6 +21,14 @@ input log, or optimistic fake is not proof that the feature worked.
 
 ## Offline test loops
 
+Keep tests that protect observable controller behavior or the real Bitwig, hardware and reload
+contracts. A fake host is useful when it separates submitted input/effects from later host state;
+assert the resulting action, target, feedback or failure behavior. Prefer that path over a second
+test of its private bookkeeping. Do not retain constructor/getter checks, internal call counts,
+serialized implementation hashes, or migration-only probes merely because they helped build the
+feature. Share small fixtures when they remove repetition without hiding host advancement or
+target identity. Git history preserves discarded scaffolding.
+
 Run the reloadable controller core and its shell fakes without building the Bitwig extension:
 
 ```bash
@@ -96,7 +104,10 @@ controller submits 0..127 poly-pressure for the last pad clicked through both th
 `/api/input` BEGIN requests can hold modifiers and buttons concurrently before matching END
 requests release them. Pressure may accompany an exact held pad. Each edge has a five-second
 controller-owned lease, renewed independently by the page; disappearing clients release their
-controls and neutralize detached nonzero pressure.
+controls and neutralize detached nonzero pressure. Dragging the touch strip sends `TOUCH` BEGIN,
+coalesced `ABSOLUTE` CHANGE values from 0 through 16383, then the last value before `TOUCH` END.
+The strip position shown in the browser comes from `surface-state.json.touchStrip`, recorded only
+after successful hardware mode and position transmission; it is not a local pointer preview.
 The local server accepts bounded same-origin JSON only with the active random extension-session
 token, atomically queues at most 64 requests, and never invokes controller code itself.
 Debugger output reaches the browser through a bounded Server-Sent Events stream. The event carries
@@ -165,6 +176,13 @@ Wait for `input ready`, then validate the supported layers separately:
 - Confirm that Bitwig-driven pad and button colors appear on the matching browser controls. A queued
   HTTP response proves only local ingress, and an `APPLIED` status proves only controller routing;
   neither by itself proves audible note delivery or later controller output.
+- In Session or an engaged Drum layout, drag the strip through several positions and release.
+  Check later `touchStrip` output for `PITCH_BEND` and the exact 14-bit position, then center 8192.
+  With a sounding instrument, verify audible pitch and release centering independently. Hold the
+  strip while changing the page/layout, verify that the gesture continues until release, and then
+  verify that the next gesture uses the newly selected layout. A raw `ABSOLUTE` request without an
+  exact active browser TOUCH lease must fail. The generic `/api/input` endpoint can submit these
+  values for repeatable checks; it retains the same live lease and session-token requirements.
 
 The bounded files below make those distinctions inspectable without browser developer tools:
 
@@ -181,8 +199,8 @@ The live mirror is constructed only when debugging was enabled before extension 
 this shell change and restarting Bitwig once adds the output observer; later core reloads reuse it.
 The controller thread only copies the fixed Push footprint into one coalescing slot. JSON encoding,
 filesystem writes, HTTP serving, and browser polling stay off the controller thread. Continuous
-touch-strip position is not yet part of browser input. Encoders turn only during a held vertical
-pointer drag; their signed deltas run through the permanent continuous-control input arbitrator.
+touch-strip position is part of the held browser drag path. Encoders turn only during a held
+vertical pointer drag; their signed deltas run through the permanent continuous-control input arbitrator.
 Browser pad presses exercise the extension-side permanent controller binding and Bitwig's
 `NoteInput`, subject to the learned-mapping boundary above.
 
@@ -195,6 +213,14 @@ tools/capture-push2-display master
 tools/capture-push2-display project-macros
 tools/capture-push2-display session
 ```
+
+`mix` selects the Track parameter page and retains the current grid and musical-input background;
+`master` does the same for the Master page. `session` selects the full Session grid with the Track
+page, while `project-macros` selects the declared Workspace grid and Project Macro page. The
+navigation status field `workspace` reports whether any core-owned composition is active. It is
+not a screen identifier: a Drum grid with the Track page can legitimately report `workspace=true`.
+Recipes therefore verify their exact page/grid targets instead of using that flag to select a
+screen.
 
 Calling the tool without a target captures the current display. A targeted capture injects the
 same permanent button gestures as the hardware, through the installed input arbitrator. The tool
@@ -239,12 +265,13 @@ client-side:
 
 ```bash
 tools/push-debug-request session \
-    'NOTE/workspace=false' \
-    'TRACK/mode=TRACK,workspace=false' \
-    'SESSION/view=SESSION,mode!=WORKSPACE|MASTER|MASTER_TEMP,workspace=true'
+    'SESSION/view=SESSION,mode=TRACK'
 ```
 
-The eight upper display buttons are admitted while ordinary Track mode owns them. Every terminal
+The navigation host's legacy Track guard still requires `workspace=false` for its eight ROW1
+shortcuts. Those shortcuts reject migrated Track compositions; use the generic surface HTTP input
+lane for these buttons until that bounded harness guard is updated. This does not prevent the
+TRACK gesture or the named capture recipes. Every terminal
 status reports the private selection-following target's `track_position`, stable `track_id`,
 identity `track_generation`, `armed`, `muted`, `soloed`, `clip_playing`, and `monitor` state. It also reports authoritative
 `repeat` and `latch` state plus parent-owned Note-route command state. Bitwig track positions are
@@ -254,7 +281,7 @@ useful context; it is never global proof. A client can first run a harmless alre
 to discover the currently selected identity:
 
 ```bash
-tools/push-debug-request identify 'TRACK/mode=TRACK,workspace=false'
+tools/push-debug-request identify 'TRACK/mode=TRACK'
 ```
 
 Mute, Solo, and Stop Clip are admitted through their permanent routed buttons. Use `muted`,
@@ -264,14 +291,16 @@ when no selected-track launcher clip is playing and therefore does not press the
 
 A `repeat=true|false` postcondition waits for authoritative read-back from the permanent Push
 NoteInput repeat engine. With the project-specific identities discovered from terminal statuses,
-this reproduces a Juno-to-Drum-Machine viewer transition without leaving Note mode and proves
-automatic roll is scoped to Drum Controller:
+the following legacy navigation plan describes a Juno-to-Drum-Machine viewer transition without
+leaving Note mode. Its ROW1 shortcuts currently require the guard correction described above;
+for migrated Track pages, drive those buttons through the surface HTTP lane and verify the same
+later selected-track identity and repeat state:
 
 ```bash
 JUNO_ID='<juno-track-id>'
 DRUM_ID='<top-level-drum-track-id>'
 tools/push-debug-request juno-to-drums \
-    'TRACK/mode=TRACK,workspace=false,repeat=false' \
+    'TRACK/mode=TRACK,repeat=false' \
     "ROW1_6/track=5,track-id=${JUNO_ID},repeat=false" \
     "NOTE/view=PLAY,track=5,track-id=${JUNO_ID},repeat=false" \
     "ROW1_1/view=DRUM_PAD,track=0,track-id=${DRUM_ID},repeat=true"
@@ -282,9 +311,9 @@ preference cycles without calling the legacy view manager directly:
 
 ```bash
 tools/push-debug-request note-layout \
-    'NOTE/view=PLAY,workspace=false' \
-    'LAYOUT/view=CHORDS,workspace=false' \
-    'SHIFT_LAYOUT/view=SEQUENCER,workspace=false'
+    'NOTE/view=PLAY' \
+    'LAYOUT/view=CHORDS' \
+    'SHIFT_LAYOUT/view=SEQUENCER'
 ```
 
 ### Routed pad-output proof

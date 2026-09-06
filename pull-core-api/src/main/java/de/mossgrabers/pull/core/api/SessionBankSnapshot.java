@@ -10,7 +10,7 @@ import java.util.Set;
 
 
 /** Authoritative identity and visible-track state for the active bounded Session bank. */
-public record SessionBankSnapshot (long generation, SessionBankShape shape, int trackOffset, int sceneOffset, List<SessionTrackSnapshot> tracks)
+public record SessionBankSnapshot (long generation, SessionBankShape shape, int trackOffset, int sceneOffset, List<SessionTrackSnapshot> tracks, SessionClipWindowSnapshot clips)
 {
     private static final SessionBankSnapshot EMPTY = new SessionBankSnapshot (0, SessionBankShape.empty (), -1, -1, List.of ());
 
@@ -24,6 +24,9 @@ public record SessionBankSnapshot (long generation, SessionBankShape shape, int 
         if (trackOffset < -1 || sceneOffset < -1)
             throw new IllegalArgumentException ("Session offsets must be -1 or greater");
         tracks = List.copyOf (Objects.requireNonNull (tracks, "tracks"));
+        clips = Objects.requireNonNull (clips, "clips");
+        if (clips.shape ().isPresent () && !clips.shape ().equals (shape))
+            throw new IllegalArgumentException ("Session clips must describe the same bank as the visible tracks");
         if (!shape.isPresent ())
         {
             if (trackOffset != -1 || sceneOffset != -1 || !tracks.isEmpty ())
@@ -40,6 +43,13 @@ public record SessionBankSnapshot (long generation, SessionBankShape shape, int 
                     throw new IllegalArgumentException ("visible Session tracks must have unique channel IDs");
             }
         }
+    }
+
+
+    /** Track-only subscription; clip/scene observations remain empty. */
+    public SessionBankSnapshot (final long generation, final SessionBankShape shape, final int trackOffset, final int sceneOffset, final List<SessionTrackSnapshot> tracks)
+    {
+        this (generation, shape, trackOffset, sceneOffset, tracks, SessionClipWindowSnapshot.empty ());
     }
 
 

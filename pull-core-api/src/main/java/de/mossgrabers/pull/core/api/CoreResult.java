@@ -26,12 +26,20 @@ import java.util.Objects;
  * @param desiredControllerActions Complete replayable view-owned semantic actions
  * @param desiredParameterBanks Complete replayable installed parameter-bank selection
  * @param desiredParameterInteraction Complete replayable parameter leases and barriers
+ * @param desiredParameterTouches Complete replayable exact-parameter touch ownership
  * @param executionRequirements Complete replayable cadence and transaction fencing
  * @param effects Ordered one-shot shell effects
  */
-public record CoreResult (DesiredHardwareOutput desiredOutput, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, Map<ControlId, ClipTargetId> desiredClipBindings, DesiredControllerState desiredControllerState, DesiredNoteRepeat desiredNoteRepeat, DesiredControllerActions desiredControllerActions, DesiredParameterBanks desiredParameterBanks, DesiredParameterInteraction desiredParameterInteraction, CoreExecutionRequirements executionRequirements, List<CoreEffect> effects)
+public record CoreResult (DesiredHardwareOutput desiredOutput, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, Map<ControlId, ClipTargetId> desiredClipBindings, DesiredControllerState desiredControllerState, DesiredNoteRepeat desiredNoteRepeat, DesiredControllerActions desiredControllerActions, DesiredParameterBanks desiredParameterBanks, DesiredParameterInteraction desiredParameterInteraction, DesiredParameterTouches desiredParameterTouches, CoreExecutionRequirements executionRequirements, List<CoreEffect> effects)
 {
     private static final CoreResult EMPTY = new CoreResult (DesiredHardwareOutput.empty (), DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), Map.of (), DesiredControllerState.empty (), DesiredNoteRepeat.unowned (), DesiredControllerActions.empty (), DesiredParameterBanks.empty (), DesiredParameterInteraction.empty (), CoreExecutionRequirements.empty (), List.of ());
+
+
+    /** Compatibility constructor without parameter touch ownership. */
+    public CoreResult (final DesiredHardwareOutput desiredOutput, final DesiredInputRoutes desiredInputRoutes, final DesiredBridgeSubscriptions desiredBridgeSubscriptions, final Map<ControlId, ClipTargetId> desiredClipBindings, final DesiredControllerState desiredControllerState, final DesiredNoteRepeat desiredNoteRepeat, final DesiredControllerActions desiredControllerActions, final DesiredParameterBanks desiredParameterBanks, final DesiredParameterInteraction desiredParameterInteraction, final CoreExecutionRequirements executionRequirements, final List<CoreEffect> effects)
+    {
+        this (desiredOutput, desiredInputRoutes, desiredBridgeSubscriptions, desiredClipBindings, desiredControllerState, desiredNoteRepeat, desiredControllerActions, desiredParameterBanks, desiredParameterInteraction, DesiredParameterTouches.empty (), executionRequirements, effects);
+    }
 
 
     /** Construct a result with no runtime cadence or transaction fencing. */
@@ -62,6 +70,7 @@ public record CoreResult (DesiredHardwareOutput desiredOutput, DesiredInputRoute
         desiredControllerActions = Objects.requireNonNull (desiredControllerActions, "desiredControllerActions");
         desiredParameterBanks = Objects.requireNonNull (desiredParameterBanks, "desiredParameterBanks");
         desiredParameterInteraction = Objects.requireNonNull (desiredParameterInteraction, "desiredParameterInteraction");
+        desiredParameterTouches = Objects.requireNonNull (desiredParameterTouches, "desiredParameterTouches");
         executionRequirements = Objects.requireNonNull (executionRequirements, "executionRequirements");
         effects = List.copyOf (Objects.requireNonNull (effects, "effects"));
     }

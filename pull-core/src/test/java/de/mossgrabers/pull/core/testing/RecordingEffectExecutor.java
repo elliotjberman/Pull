@@ -47,6 +47,7 @@ final class RecordingEffectExecutor
     private DesiredBridgeSubscriptions desiredBridgeSubscriptions = DesiredBridgeSubscriptions.empty ();
     private Map<ControlId, ClipTargetId> desiredClipBindings = Map.of ();
     private DesiredControllerActions desiredControllerActions = DesiredControllerActions.empty ();
+    private de.mossgrabers.pull.core.api.DesiredControllerPageState desiredControllerPage = de.mossgrabers.pull.core.api.DesiredControllerPageState.empty ();
     private DesiredControllerWorkspace desiredControllerWorkspace = DesiredControllerWorkspace.empty ();
     private DesiredNotePerformance desiredNotePerformance = DesiredNotePerformance.inactive ();
     private DesiredNoteRepeat desiredNoteRepeat = DesiredNoteRepeat.unowned ();
@@ -69,6 +70,7 @@ final class RecordingEffectExecutor
         this.desiredClipBindings = result.desiredClipBindings ();
         this.desiredControllerActions = result.desiredControllerActions ();
         this.desiredControllerWorkspace = result.desiredControllerState ().workspace ();
+        this.desiredControllerPage = result.desiredControllerState ().page ();
         this.desiredNotePerformance = result.desiredControllerState ().notePerformance ();
         this.desiredNoteRepeat = result.desiredNoteRepeat ();
         this.desiredParameterBanks = result.desiredParameterBanks ();
@@ -255,6 +257,12 @@ final class RecordingEffectExecutor
      *
      * @return The desired workspace
      */
+    de.mossgrabers.pull.core.api.DesiredControllerPageState desiredControllerPage ()
+    {
+        return this.desiredControllerPage;
+    }
+
+
     DesiredControllerWorkspace desiredControllerWorkspace ()
     {
         return this.desiredControllerWorkspace;

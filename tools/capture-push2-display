@@ -140,19 +140,16 @@ then
         navigation_label="$target"
         case "$target" in
             mix)
-                navigation_steps=('NOTE/workspace=false' 'TRACK/mode=TRACK,workspace=false')
+                navigation_steps=('TRACK/mode=TRACK')
                 ;;
             master)
                 navigation_steps=('MASTERTRACK/mode=MASTER|MASTER_TEMP')
                 ;;
             project-macros)
-                navigation_steps=('SHIFT+SESSION/view=WORKSPACE,mode=WORKSPACE,workspace=true')
+                navigation_steps=('SHIFT+SESSION/view=WORKSPACE,mode=WORKSPACE')
                 ;;
             session)
-                navigation_steps=(
-                    'NOTE/workspace=false'
-                    'TRACK/mode=TRACK,workspace=false'
-                    'SESSION/view=SESSION,mode!=WORKSPACE|MASTER|MASTER_TEMP,workspace=true')
+                navigation_steps=('SESSION/view=SESSION,mode=TRACK')
                 ;;
         esac
     fi

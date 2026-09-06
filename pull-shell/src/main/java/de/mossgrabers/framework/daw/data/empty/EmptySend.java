@@ -47,6 +47,14 @@ public class EmptySend extends EmptyParameter implements ISend
 
     /** {@inheritDoc} */
     @Override
+    public void setEnabled (final boolean enabled)
+    {
+        // No target.
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
     public void toggleEnabled ()
     {
         // Intentionally empty

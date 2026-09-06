@@ -21,7 +21,6 @@ import java.lang.reflect.Proxy;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 
@@ -33,8 +32,7 @@ class ControllerWorkspaceHostTest
         final Set<ControllerViewFacet> facets = Set.of (
             ControllerViewFacet.SESSION_CLIP_GRID_UPPER,
             ControllerViewFacet.SESSION_SCENE_KEYS_UPPER,
-            ControllerViewFacet.DRUM_CONTROLLER_LOWER,
-            ControllerViewFacet.DRUM_PITCH_BEND);
+            ControllerViewFacet.DRUM_CONTROLLER_LOWER);
         final SessionBankShape shape = new SessionBankShape (8, 4);
         final DesiredControllerWorkspace first = new DesiredControllerWorkspace ("first", facets, shape);
         final DesiredControllerWorkspace second = new DesiredControllerWorkspace ("another name", facets, shape);
@@ -51,87 +49,6 @@ class ControllerWorkspaceHostTest
             "scene keys only",
             Set.of (ControllerViewFacet.SESSION_SCENE_KEYS_UPPER),
             SessionBankShape.empty ())));
-        assertThrows (IllegalArgumentException.class, () -> ControllerWorkspaceHost.validate (new DesiredControllerWorkspace (
-            "pitch only",
-            Set.of (ControllerViewFacet.DRUM_PITCH_BEND),
-            SessionBankShape.empty ())));
-    }
-
-
-    @Test
-    void explicitDestinationPageDrivesVsLiveMasterSessionWithoutModeHistory ()
-    {
-        final ModeManager modes = new ModeManager ();
-        modes.register (Modes.TRACK, mode ());
-        modes.register (Modes.WORKSPACE, mode ());
-        modes.register (Modes.MASTER, mode ());
-        modes.setDefaultID (Modes.TRACK);
-        modes.setActive (Modes.TRACK);
-        final ControllerPageLease lease = new ControllerPageLease ();
-        final DesiredControllerWorkspace vsLive = new DesiredControllerWorkspace (
-            "VS Live",
-            Set.of (ControllerViewFacet.PROJECT_MACRO_CONTROLS, ControllerViewFacet.SESSION_CLIP_GRID_UPPER),
-            new SessionBankShape (8, 4));
-        final DesiredControllerWorkspace master = new DesiredControllerWorkspace (
-            "Master",
-            Set.of (ControllerViewFacet.MASTER_CONTROLS),
-            SessionBankShape.empty ());
-        final DesiredControllerWorkspace session = new DesiredControllerWorkspace (
-            "Session destination",
-            Set.of (ControllerViewFacet.TRACK_MIXER_PAGE, ControllerViewFacet.SESSION_GRID_FULL),
-            new SessionBankShape (8, 8));
-
-        lease.apply (DesiredControllerWorkspace.empty (), vsLive, modes);
-        assertEquals (Modes.WORKSPACE, modes.getActiveID ());
-
-        modes.setActive (Modes.MASTER);
-        lease.apply (vsLive, master, modes);
-        assertEquals (Modes.MASTER, modes.getActiveID ());
-
-        lease.apply (master, session, modes);
-        assertEquals (Modes.TRACK, modes.getActiveID ());
-
-        modes.setActive (Modes.WORKSPACE);
-        lease.reconcile (session, modes);
-        assertEquals (Modes.TRACK, modes.getActiveID ());
-
-        lease.apply (session, DesiredControllerWorkspace.empty (), modes);
-
-        assertEquals (Modes.TRACK, modes.getActiveID ());
-        assertEquals (Views.SESSION, ControllerWorkspaceHost.desiredGridView (session));
-        assertEquals (Views.WORKSPACE, ControllerWorkspaceHost.desiredGridView (vsLive));
-        assertNull (ControllerWorkspaceHost.desiredGridView (DesiredControllerWorkspace.empty ()));
-    }
-
-
-    @Test
-    void masterPageReconciliationPreservesTemporaryMasterMode ()
-    {
-        final ModeManager modes = new ModeManager ();
-        modes.register (Modes.TRACK, mode ());
-        modes.register (Modes.MASTER, mode ());
-        modes.register (Modes.MASTER_TEMP, mode ());
-        modes.setDefaultID (Modes.TRACK);
-        modes.setActive (Modes.TRACK);
-        modes.setTemporary (Modes.MASTER_TEMP);
-        final DesiredControllerWorkspace master = new DesiredControllerWorkspace (
-            "Master", Set.of (ControllerViewFacet.MASTER_CONTROLS), SessionBankShape.empty ());
-
-        new ControllerPageLease ().reconcile (master, modes);
-
-        assertEquals (Modes.MASTER_TEMP, modes.getActiveID ());
-        modes.restore ();
-        assertEquals (Modes.TRACK, modes.getActiveID ());
-    }
-
-
-    @Test
-    void rejectsTwoPageAdaptersInOneWorkspace ()
-    {
-        assertThrows (IllegalArgumentException.class, () -> ControllerWorkspaceHost.validate (new DesiredControllerWorkspace (
-            "ambiguous page",
-            Set.of (ControllerViewFacet.MASTER_CONTROLS, ControllerViewFacet.TRACK_MIXER_PAGE),
-            SessionBankShape.empty ())));
     }
 
 
@@ -141,16 +58,17 @@ class ControllerWorkspaceHostTest
         final ModeManager modes = new ModeManager ();
         final ViewManager views = new ViewManager ();
         modes.register (Modes.TRACK, mode ());
+        modes.register (Modes.DEVICE_PARAMS, mode ());
         modes.setDefaultID (Modes.TRACK);
-        modes.setActive (Modes.TRACK);
+        modes.setActive (Modes.DEVICE_PARAMS);
         views.register (Views.PLAY, view ());
         views.register (Views.SESSION, view ());
         views.setDefaultID (Views.SESSION);
         views.setActive (Views.PLAY);
 
-        ControllerWorkspaceHost.applyPreparedLayout (DesiredControllerLayout.neutral (), modes, views);
+        ControllerWorkspaceHost.applyPreparedLayout (DesiredControllerLayout.neutral (), views);
 
-        assertEquals (Modes.TRACK, modes.getActiveID ());
+        assertEquals (Modes.DEVICE_PARAMS, modes.getActiveID ());
         assertEquals (Views.SESSION, views.getActiveID ());
     }
 
@@ -169,7 +87,7 @@ class ControllerWorkspaceHostTest
         views.setDefaultID (Views.PLAY);
         views.setActive (Views.PLAY);
 
-        ControllerWorkspaceHost.applyPreparedLayout (DesiredControllerLayout.note (ControllerNoteView.CHORDS), modes, views);
+        ControllerWorkspaceHost.applyPreparedLayout (DesiredControllerLayout.note (ControllerNoteView.CHORDS), views);
 
         assertEquals (Modes.SCALES, modes.getActiveID ());
         assertEquals (Views.CHORDS, views.getActiveID ());

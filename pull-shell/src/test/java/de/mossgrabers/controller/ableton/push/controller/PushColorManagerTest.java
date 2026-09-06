@@ -5,6 +5,8 @@ package de.mossgrabers.controller.ableton.push.controller;
 
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.grid.IPadGrid;
+import de.mossgrabers.framework.controller.ButtonID;
+import de.mossgrabers.pull.core.api.output.RgbColor;
 
 import org.junit.jupiter.api.Test;
 
@@ -15,6 +17,17 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class PushColorManagerTest
 {
     private final PushColorManager colorManager = new PushColorManager ();
+
+
+    @Test
+    void coreMonochromeOutputUsesBrightnessWhileRgbButtonsRetainPaletteTranslation ()
+    {
+        assertEquals (0, PushColorManager.resolveCoreButtonColor (this.colorManager, ButtonID.TAP_TEMPO, new RgbColor (0, 0, 0)));
+        assertEquals (30, PushColorManager.resolveCoreButtonColor (this.colorManager, ButtonID.TAP_TEMPO, new RgbColor (60, 60, 60)));
+        assertEquals (127, PushColorManager.resolveCoreButtonColor (this.colorManager, ButtonID.TAP_TEMPO, new RgbColor (255, 255, 255)));
+        final RgbColor green = new RgbColor (0, 255, 0);
+        assertEquals (PushColorManager.resolveCoreColor (this.colorManager, green), PushColorManager.resolveCoreButtonColor (this.colorManager, ButtonID.PLAY, green));
+    }
 
 
     @Test

@@ -51,6 +51,8 @@ public final class PhysicalInputRouter<C>
     private final LongSupplier ownerGeneration;
     private final Map<PhysicalInputAddress<C>, GestureBinding> gestureBindings;
     private final Map<PhysicalInputAddress<C>, PhysicalInputEvent<C>> pendingMotion;
+    private final Map<PhysicalInputAddress<C>, PhysicalInputAddress<C>> touchMotionInputs;
+    private final Map<PhysicalInputAddress<C>, MotionBinding> touchMotionBindings;
     private final ArrayDeque<DeferredStableDispatch<C>> deferredStableDispatches = new ArrayDeque<> (MAX_DEFERRED_STABLE_DISPATCHES);
     private long nextSequence = 1;
 
@@ -101,6 +103,19 @@ public final class PhysicalInputRouter<C>
      */
     public PhysicalInputRouter (final PhysicalControlRegistry<C> registry, final BiFunction<? super C, ? super InputKind, InputRoute> routeResolver, final Consumer<? super PhysicalInputEvent<C>> eventSink, final StableActionBarrier<? super C> stableDispatchBarrier, final LongSupplier nanoTime, final LongSupplier ownerGeneration)
     {
+        this (registry, routeResolver, eventSink, stableDispatchBarrier, nanoTime, ownerGeneration, Map.of ());
+    }
+
+
+    /**
+     * Create a router with explicitly installed same-control motion/touch relationships. Each
+     * declared motion route and generation is frozen at TOUCH BEGIN until END. Undeclared motion
+     * retains the existing per-sample routing behavior.
+     *
+     * @param touchMotionKinds Bounded registered controls and their associated non-edge input kind
+     */
+    public PhysicalInputRouter (final PhysicalControlRegistry<C> registry, final BiFunction<? super C, ? super InputKind, InputRoute> routeResolver, final Consumer<? super PhysicalInputEvent<C>> eventSink, final StableActionBarrier<? super C> stableDispatchBarrier, final LongSupplier nanoTime, final LongSupplier ownerGeneration, final Map<C, InputKind> touchMotionKinds)
+    {
         this.registry = Objects.requireNonNull (registry, "registry");
         this.routeResolver = Objects.requireNonNull (routeResolver, "routeResolver");
         this.eventSink = Objects.requireNonNull (eventSink, "eventSink");
@@ -109,6 +124,14 @@ public final class PhysicalInputRouter<C>
         this.ownerGeneration = Objects.requireNonNull (ownerGeneration, "ownerGeneration");
         this.gestureBindings = new HashMap<> (registry.capacity ());
         this.pendingMotion = new HashMap<> (registry.capacity ());
+        final Map<PhysicalInputAddress<C>, PhysicalInputAddress<C>> relations = new HashMap<> ();
+        Objects.requireNonNull (touchMotionKinds, "touchMotionKinds").forEach ( (control, kind) -> {
+            if (Objects.requireNonNull (kind, "motion kind").isEdge ())
+                throw new IllegalArgumentException ("touch-related input must be motion");
+            relations.put (registry.require (control, InputKind.TOUCH), registry.require (control, kind));
+        });
+        this.touchMotionInputs = Map.copyOf (relations);
+        this.touchMotionBindings = new HashMap<> (relations.size ());
     }
 
 
@@ -233,7 +256,15 @@ public final class PhysicalInputRouter<C>
      */
     public boolean isIdle ()
     {
-        return this.gestureBindings.values ().stream ().noneMatch (GestureBinding::crossesCoreGeneration) && this.pendingMotion.isEmpty () && this.deferredStableDispatches.isEmpty ();
+        return this.gestureBindings.values ().stream ().noneMatch (GestureBinding::crossesCoreGeneration) && this.touchMotionBindings.values ().stream ().noneMatch (binding -> binding.route () != InputRoute.NONE) && this.pendingMotion.isEmpty () && this.deferredStableDispatches.isEmpty ();
+    }
+
+
+    /** Whether this exact held edge belongs exclusively to the currently active core generation. */
+    public boolean ownsActiveGesture (final C control, final InputKind kind)
+    {
+        final GestureBinding binding = this.gestureBindings.get (new PhysicalInputAddress<> (control, kind));
+        return binding != null && binding.route () == InputRoute.EXCLUSIVE && binding.generation () == this.ownerGeneration.getAsLong ();
     }
 
 
@@ -255,6 +286,9 @@ public final class PhysicalInputRouter<C>
 
     private InputRoute routeEdge (final PhysicalInputAddress<C> input, final InputPhase phase, final long value, final ControllerActionIntent stableAction, final Runnable stableCommand)
     {
+        final PhysicalInputAddress<C> relatedMotion = this.touchMotionInputs.get (input);
+        if (relatedMotion != null && (phase == InputPhase.BEGIN || phase == InputPhase.END))
+            this.flush (relatedMotion.control (), relatedMotion.kind ());
         final GestureBinding binding;
         if (phase == InputPhase.BEGIN)
         {
@@ -270,6 +304,8 @@ public final class PhysicalInputRouter<C>
                     this.stableDispatchBarrier.test (input.control (), input.kind (), routedStableAction) ? StableDispatch.DEFER : StableDispatch.RUN;
                 binding = new GestureBinding (route, this.ownerGeneration.getAsLong (), routedStableAction, stableDispatch);
                 this.gestureBindings.put (input, binding);
+                if (relatedMotion != null)
+                    this.touchMotionBindings.put (relatedMotion, new MotionBinding (this.resolveRoute (relatedMotion), binding.generation ()));
             }
             else
                 binding = existing;
@@ -286,18 +322,23 @@ public final class PhysicalInputRouter<C>
         finally
         {
             if (event.phase () == InputPhase.END)
+            {
                 this.gestureBindings.remove (input);
+                if (relatedMotion != null)
+                    this.touchMotionBindings.remove (relatedMotion);
+            }
         }
     }
 
 
     private InputRoute routeMotion (final PhysicalInputAddress<C> input, final InputPhase phase, final long value, final Runnable stableCommand)
     {
-        final InputRoute route = this.resolveRoute (input);
+        final MotionBinding binding = this.touchMotionBindings.get (input);
+        final InputRoute route = binding == null ? this.resolveRoute (input) : binding.route ();
         if (route != InputRoute.EXCLUSIVE)
             stableCommand.run ();
         if (route != InputRoute.NONE)
-            this.coalesce (input, this.newEvent (input, phase, value, this.ownerGeneration.getAsLong (), null));
+            this.coalesce (input, this.newEvent (input, phase, value, binding == null ? this.ownerGeneration.getAsLong () : binding.generation (), null));
         return route;
     }
 
@@ -374,6 +415,11 @@ public final class PhysicalInputRouter<C>
         {
             return this.route != InputRoute.NONE || this.stableAction != null || this.stableDispatch == StableDispatch.DEFER;
         }
+    }
+
+
+    private record MotionBinding (InputRoute route, long generation)
+    {
     }
 
 

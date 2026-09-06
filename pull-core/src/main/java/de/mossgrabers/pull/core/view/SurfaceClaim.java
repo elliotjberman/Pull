@@ -21,6 +21,8 @@ public record SurfaceClaim (SurfaceArea area, Kind kind)
     {
         area = Objects.requireNonNull (area, "area");
         kind = Objects.requireNonNull (kind, "kind");
+        if (kind == Kind.MUSICAL_INPUT && !area.isPadRegion ())
+            throw new IllegalArgumentException ("Native musical input requires a physical pad footprint");
     }
 
 
@@ -39,6 +41,8 @@ public record SurfaceClaim (SurfaceArea area, Kind kind)
         OBSERVE_INPUT,
         /** Input owned by the reloadable core instead of stable behavior. */
         EXCLUSIVE_INPUT,
+        /** Native NoteInput translation ownership, independent of controller callback routing. */
+        MUSICAL_INPUT,
         /** Replayable hardware output rendered directly by the reloadable core. */
         OUTPUT,
         /** Hardware output rendered by the selected view's stable mechanical adapter. */
@@ -52,7 +56,7 @@ public record SurfaceClaim (SurfaceArea area, Kind kind)
          */
         public boolean isInput ()
         {
-            return this != OUTPUT && this != STABLE_ADAPTER_OUTPUT;
+            return this == DIRECT_INPUT || this == STABLE_ADAPTER_INPUT || this == OBSERVE_INPUT || this == EXCLUSIVE_INPUT;
         }
 
 

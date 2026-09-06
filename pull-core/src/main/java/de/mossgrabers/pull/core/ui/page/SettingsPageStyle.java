@@ -1,0 +1,26 @@
+// (c) 2026
+// Licensed under LGPLv3 - http://www.gnu.org/licenses/lgpl-3.0.txt
+package de.mossgrabers.pull.core.ui.page;
+
+/** Typography and geometry of the original pre-roll/automation option cells. */
+final class SettingsPageStyle
+{
+    static final double CONTENT_LEFT = 8;
+    static final double CONTENT_WIDTH = 104;
+    static final double HEADING_TOP = 82;
+    static final double HEADING_FONT = 13;
+    static final double TEXT_HEIGHT = 25;
+    static final double TEXT_MIN_FONT = 9;
+    static final double OPTION_TOP = 108;
+    static final double OPTION_HEIGHT = 28;
+    static final double LABEL_LEFT = 12;
+    static final double LABEL_TOP = 110;
+    static final double LABEL_WIDTH = 96;
+    static final double LABEL_HEIGHT = 24;
+    static final double LABEL_FONT = 14;
+    static final double LABEL_MIN_FONT = 10;
+    static final double METRONOME_HEADING_TOP = 25;
+    static final double METRONOME_HEADING_FONT = 14;
+
+    private SettingsPageStyle () { }
+}

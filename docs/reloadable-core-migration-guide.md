@@ -53,7 +53,8 @@ Read `AGENTS.md` before changing code. In particular:
 
 ## The migration decision
 
-Before editing, write a short capability audit using this template:
+Before editing, record a short capability audit using this template. It may live in the task or PR;
+retain a separate document only when it contains a durable design decision:
 
 ```text
 Feature:
@@ -162,137 +163,50 @@ For an exclusively migrated control:
 
 Do not add a second MIDI callback or a second hardware binding.
 
-### 6. Test the state boundary
+### 6. Test behavior and the real boundary
 
-At minimum, core tests cover:
+Keep tests that prove controller-observable behavior or a real shell, Bitwig or reload contract.
+Prefer the production core entry point and parent bridge when that path can demonstrate the
+outcome. Cover the meaningful phase/modifier variants, unavailable state, requested effect order,
+later host read-back and resulting output, plus target changes or replacement where relevant.
+Fakes must separate submission from host advancement so they cannot confirm optimistic feedback.
 
-- the compiled route mode and subscription set;
-- every phase/modifier branch;
-- unavailable state;
-- effect ordering;
-- no optimistic snapshot mutation after an effect;
-- a later host snapshot causing the authoritative rendered state;
-- reload/checkpoint behavior for any retained gesture or mode state.
+Do not require separate route, claim, constructor or internal lifecycle tests when the same outcome
+is already proved through the real core path. Keep a focused boundary test when it exercises a
+distinct failure or safety contract that the behavioral test cannot reach; do not mirror the
+implementation merely to preserve its current structure. One-off migration fixtures, diagnostic
+drivers and capability-audit files need not remain tracked after durable invariants and relevant
+evidence have been recorded. Use [TESTING](../TESTING.md) for the repository verification policy.
 
-Shell tests cover any new exclusive admission, snapshot capture, effect validation/execution, and
-identity fencing. A fake host must separate command submission from host advancement.
+Before verification, account for every changed `pull-shell` line as resource creation,
+authoritative observation, validation/fencing, effect execution, lifecycle safety, hardware/output
+translation, or deletion of legacy policy. A shell line that chooses a control meaning, color,
+layout, animation, navigation recipe or page behavior leaves the migration incomplete.
 
-Before verification, account for every changed `pull-shell` line as one of: resource creation,
-authoritative observation/snapshot publication, validation/fencing, effect execution, lifecycle
-safety, generic hardware/output translation, or deletion/inerting of legacy policy. If a shell line
-chooses a control meaning, color, layout, animation, navigation recipe, or workspace behavior, the
-migration is incomplete.
+### 7. Verify the exact candidate
 
-### 7. Verify proportionally
-
-Run focused tests while iterating, then:
+Run focused behavioral tests while iterating, then the required package gate:
 
 ```bash
 mvn -o -Dmaven.compiler.showDeprecation=true package
 ```
 
-For a core-only change, publish the core and verify its exact build ID becomes active. For any shell
-change, install the extension, restart Bitwig once, and perform the documented live smoke test.
+For a core-only change, publish and verify the exact build ID. A shell/API change needs extension
+installation and a Bitwig restart. Hold the live lease through activation and the complete smoke
+test, and verify later authoritative host state and controller output through the routed path.
+Record source/build identity, observed behavior and limits; distinguish submitted input from
+applied effects, read-back and hardware output.
 
-## Worked example: migrate the complete Play slice
+If live testing is unavailable or deferred, say it was not performed. A previous build's live pass
+does not validate later source cleanup. No new install or live run is part of documentation cleanup.
 
-Play is the reference for a complete vertical migration, not for split ownership. The historical
-input-only version left its light policy stable and forced another shell restart as soon as Play
-became project-aware. Do not repeat that sequence.
+## Reference slice: Play
 
-### Capability audit
+Play illustrates a complete action-and-feedback migration: one permanent button registration feeds
+an inert stable command; core owns every gesture variant and the light's meaning; generic shell
+lanes publish transport/project state, validate effects and transmit RGB output. Core renders from
+later host state. Adding the missing input admission or output transport is Class B; changing Play
+semantics after those capabilities are installed is Class A.
 
-```text
-Feature: Push Play action and authoritative light
-Physical inputs and input kinds: PLAY / BUTTON; any observed modifiers used by the preserved behavior
-All semantic variants: every BEGIN/LONG/END and modifier branch in the legacy command
-Authoritative state: transport plus any project/engine identity required by the requested meaning
-Effects: typed transport/project requests with apply-time identity fences
-Hardware output: generic core-owned button-light lane for PLAY
-Reloadable retained state: only state required by the requested transaction or feedback policy
-Existing canopy coverage: normalized input and available transport/project snapshots and effects
-Missing canopy coverage at first migration: exclusive PLAY admission, inert stable binding, and
-  generic button-light arbitration
-Restart: yes, once, for those reusable parent-loaded mechanisms
-Out of scope: unrelated transport controls whose action or feedback meaning is unchanged
-```
-
-This is Class B. The generic Play input admission and button-light lane are stable mechanisms; Play
-semantics are not.
-
-### Required changes
-
-#### Reloadable core
-
-1. Declare the complete Play input and output surface.
-2. Request only the authoritative transport/project subscriptions needed by the behavior.
-3. Implement every input phase and modifier variant.
-4. Emit typed effects without mutating the supplied snapshot optimistically.
-5. Render the complete Play light from later authoritative read-back, including every color/state
-   distinction introduced by the request.
-6. Retain only reloadable transaction state; checkpoint it only when replay is safe.
-
-#### Stable shell
-
-1. Keep the permanent Play hardware registration but replace its semantic command with an inert
-   binding.
-2. Admit exactly `PLAY/BUTTON` to exclusive core routing.
-3. Observe and publish the reusable authoritative state required by the core.
-4. Validate and execute typed effects with live identity fences.
-5. Arbitrate the generic Play light lane and translate the core RGB value to Push hardware.
-6. Remove or inert the legacy Play light supplier. The shell must contain no white/green/purple,
-   engine-owner, modifier, or navigation policy.
-
-### Required tests
-
-Core tests prove every phase/modifier branch, requested effect order, output color/state derived from
-authoritative snapshots, no optimistic feedback, and safe reload/checkpoint behavior. Shell tests
-prove exclusive admission, inert stable behavior, effect validation, output-lane validation, and
-mechanical palette translation. The fake host advances transport/project state explicitly after
-submission.
-
-The first live smoke test follows the installed behavior through action, later Bitwig read-back,
-light output, and a core reload without another restart. Any later change to Play meaning or color
-that uses the installed canopy must be core-only.
-
-## Remaining transport controls are separate migrations
-
-Do not treat “transport” as one automatically easy PR:
-
-| Control | Current readiness | Missing or complicated behavior |
-| --- | --- | --- |
-| Record | Core-owned action and light | Preserve complete modifier and authoritative feedback behavior |
-| Play | Core-owned action and light | Current project-aware transaction is documented in `ARCH.md` |
-| Metronome | Plain toggle is representable | Long-press temporary Transport mode and its display |
-| Automation | Partial transport state exists | Reset-overrides action and long-press mode/display |
-| Play-position knob | Absolute position effect exists | Relative stepping policy, Select+loop-length behavior, touch notifications |
-| Tempo knob | Tempo state/effect exists | Relative/rastered policy, Shift+shuffle, touch display semantics |
-| Tap Tempo | Input exists | A typed tap-tempo effect and any tempo indication semantics |
-
-Split these only at complete semantic boundaries. If exact legacy behavior is required, add the
-shared capability before taking exclusive ownership.
-
-## Agent handoff template
-
-Use this compact task description when assigning the next migration:
-
-```text
-Migrate <feature> from stable Push behavior into the reloadable core.
-
-Read AGENTS.md and docs/reloadable-core-migration-guide.md first. Preserve every existing input
-phase, modifier, long-press, and mode-dependent semantic branch. Start with the guide's capability
-audit and stop before implementation if the feature cannot be completely owned with the declared
-scope.
-
-Keep Bitwig/Push resources and effect execution stable; move only policy. Use authoritative
-snapshot read-back, make the stable semantic binding inert before requesting EXCLUSIVE ownership,
-move the control's feedback with its action, and do not add fallback behavior or duplicate
-callbacks. If the canopy is incomplete, add a reusable capability or stop; never implement the
-feature in stable. Account for every shell diff as mechanism or legacy-policy deletion. Add
-deterministic core tests plus shell tests for any canopy change. Run the full API-21 deprecation
-build and clearly state whether the first live test requires a Bitwig restart.
-
-Scope: <exact controls and variants>
-Out of scope: <explicit exclusions>
-Acceptance: <behavior and live smoke cases>
-```
+For current control readiness and remaining prerequisites, use the
+[roadmap](reloadable-core-migration-roadmap.md). Avoid duplicating that inventory in a feature audit.

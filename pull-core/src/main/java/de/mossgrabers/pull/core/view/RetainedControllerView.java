@@ -7,6 +7,8 @@ import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerActionBinding;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
+import de.mossgrabers.pull.core.api.CoreExecutionRequirements;
+import de.mossgrabers.pull.core.api.DesiredParameterTouches;
 import de.mossgrabers.pull.core.api.ParameterBankId;
 import de.mossgrabers.pull.core.api.ParameterSlot;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
@@ -73,6 +75,13 @@ public final class RetainedControllerView implements ControllerView
 
 
     @Override
+    public Map<ControlId, ParameterSlot> parameterBindings (final ControllerSnapshot snapshot)
+    {
+        return this.delegate.parameterBindings (snapshot);
+    }
+
+
+    @Override
     public Set<ParameterBankId> parameterBanks ()
     {
         return this.delegate.parameterBanks ();
@@ -100,6 +109,13 @@ public final class RetainedControllerView implements ControllerView
 
 
     @Override
+    public void deactivate ()
+    {
+        this.delegate.deactivate ();
+    }
+
+
+    @Override
     public List<CoreEffect> handle (final CoreEvent event, final ControllerSnapshot snapshot)
     {
         return this.delegate.handle (event, snapshot);
@@ -114,8 +130,22 @@ public final class RetainedControllerView implements ControllerView
 
 
     @Override
+    public DesiredParameterTouches parameterTouches (final ControllerSnapshot snapshot)
+    {
+        return this.delegate.parameterTouches (snapshot);
+    }
+
+
+    @Override
     public ViewOutput render (final ControllerSnapshot snapshot)
     {
         return this.delegate.render (snapshot);
+    }
+
+
+    @Override
+    public CoreExecutionRequirements executionRequirements ()
+    {
+        return this.delegate.executionRequirements ();
     }
 }

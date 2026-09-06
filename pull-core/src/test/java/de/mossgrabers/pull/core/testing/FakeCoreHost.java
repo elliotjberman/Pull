@@ -54,6 +54,7 @@ final class FakeCoreHost
     private ControllerBridgeSnapshot bridge = ControllerBridgeSnapshot.empty ();
     private long revision;
     private long eventSequence;
+    private long pageRequestSequence;
 
 
     /**
@@ -267,6 +268,29 @@ final class FakeCoreHost
             this.time.nowNanos ()), this.snapshot ()));
     }
 
+
+    /** Deliver a legacy page request, separately from unrelated host/layout read-back. */
+    void legacyPageSelection (final ControllerBridgeSnapshot bridge)
+    {
+        this.bridge = Objects.requireNonNull (bridge, "bridge");
+        this.requestPage (de.mossgrabers.pull.core.api.LegacyControllerPageRequest.Operation.SELECT, bridge.layout ().modeId ());
+    }
+
+    void requestPage (final de.mossgrabers.pull.core.api.LegacyControllerPageRequest.Operation operation, final String alias)
+    {
+        this.queuePageRequest (operation, alias);
+        this.snapshotChanged ();
+    }
+
+    void queuePageRequest (final de.mossgrabers.pull.core.api.LegacyControllerPageRequest.Operation operation, final String alias)
+    {
+        final var state = this.effectExecutor.desiredControllerPage ();
+        final long sequence = this.pageRequestSequence = Math.max (state.acknowledgedRequestSequence (), this.pageRequestSequence) + 1;
+        final var requests = new java.util.ArrayList<> (this.bridge.controllerPages ().requests ().stream ().filter (request -> request.sequence () > state.acknowledgedRequestSequence ()).toList ());
+        requests.add (new de.mossgrabers.pull.core.api.LegacyControllerPageRequest (sequence, state.revision (), state.temporaryToken (), operation, alias));
+        final var b = this.bridge;
+        this.bridge = new ControllerBridgeSnapshot (b.transport (), b.selectedTrack (), b.sessionBank (), b.layout (), b.noteView (), b.noteRepeat (), b.drum (), b.parameters (), b.controllerMappingFeedback (), b.master (), b.project (), b.automation (), b.encoderConfiguration (), b.currentTrackBank (), b.transportSettings (), b.controllerSettings (), b.applicationUi (), new de.mossgrabers.pull.core.api.LegacyControllerPageRequests (requests), b.browser ());
+    }
 
     /** Deliver one stable semantic action with the authoritative post-command bridge state. */
     void controllerAction (final ControllerActionIntent intent, final ControllerBridgeSnapshot bridge)

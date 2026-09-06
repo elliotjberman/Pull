@@ -21,7 +21,7 @@ import de.mossgrabers.framework.utils.ButtonEvent;
  */
 public class DeviceCommand extends AbstractTriggerCommand<PushControlSurface, PushConfiguration>
 {
-    private Modes   previousMode;
+    private de.mossgrabers.pull.core.api.ControllerPageRef   previousMode;
     private boolean switchedMode;
     private boolean restoreOnRelease;
 
@@ -42,7 +42,7 @@ public class DeviceCommand extends AbstractTriggerCommand<PushControlSurface, Pu
     @Override
     public void execute (final ButtonEvent event, final int velocity)
     {
-        final ModeManager modeManager = this.surface.getModeManager ();
+        final de.mossgrabers.controller.ableton.push.controller.PushControllerPageManager modeManager = this.surface.getModeManager ();
         if (event == ButtonEvent.LONG)
         {
             if (this.switchedMode)
@@ -53,7 +53,7 @@ public class DeviceCommand extends AbstractTriggerCommand<PushControlSurface, Pu
         if (event == ButtonEvent.UP)
         {
             if (this.switchedMode && this.restoreOnRelease && this.previousMode != null)
-                modeManager.setActive (this.previousMode);
+                modeManager.requestCapturedPage (this.previousMode);
             this.previousMode = null;
             this.switchedMode = false;
             this.restoreOnRelease = false;
@@ -80,7 +80,7 @@ public class DeviceCommand extends AbstractTriggerCommand<PushControlSurface, Pu
             return;
         }
 
-        this.previousMode = modeManager.getActiveIDIgnoreTemporary ();
+        this.previousMode = modeManager.captureSelectedPage ();
         modeManager.setActive (Modes.DEVICE_PARAMS);
         this.switchedMode = true;
     }

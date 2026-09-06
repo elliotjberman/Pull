@@ -5,12 +5,10 @@ package de.mossgrabers.pull.shell.runtime;
 
 import de.mossgrabers.controller.ableton.push.command.trigger.ClipCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.DeviceCommand;
-import de.mossgrabers.controller.ableton.push.command.trigger.MastertrackCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.PageLeftCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.PageRightCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.PushAddEffectCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.PushCursorCommand;
-import de.mossgrabers.controller.ableton.push.command.trigger.TrackCommand;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.command.core.TriggerCommand;
 import de.mossgrabers.framework.command.trigger.BrowserCommand;
@@ -56,9 +54,7 @@ final class StableControllerActionResolver
             return this.surface.isSessionLayoutActive () ? intent (ControllerActionId.NAVIGATE_SELECTED_TARGET) : null;
         if (command instanceof ButtonRowModeCommand<?, ?>)
             return this.surface.getModeManager ().getActive () == null ? null : intent (ControllerActionId.SELECT_PARAMETER_CONTEXT);
-        if (command instanceof TrackCommand)
-            return this.surface.isShiftPressed () ? null : intent (ControllerActionId.SWITCH_PARAMETER_CONTEXT);
-        if (command instanceof DeviceCommand || command instanceof ClipCommand || command instanceof MastertrackCommand || command instanceof PushAddEffectCommand || command instanceof ModeSelectCommand<?, ?> || command instanceof BrowserCommand<?, ?>)
+        if (command instanceof DeviceCommand || command instanceof ClipCommand || command instanceof PushAddEffectCommand || command instanceof ModeSelectCommand<?, ?> || command instanceof BrowserCommand<?, ?>)
             return intent (ControllerActionId.SWITCH_PARAMETER_CONTEXT);
         return null;
     }

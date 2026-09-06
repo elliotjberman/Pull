@@ -3,14 +3,19 @@
 
 package de.mossgrabers.pull.core.runtime.view;
 
+import de.mossgrabers.pull.core.ui.page.MasterPageRenderer;
+import de.mossgrabers.pull.core.ui.page.PageVisuals;
+
 import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerActionBinding;
 import de.mossgrabers.pull.core.api.ControllerActionId;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.ControllerStateScope;
-import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.MasterSnapshot;
+import de.mossgrabers.pull.core.api.DesiredControllerMappings;
+import de.mossgrabers.pull.core.api.DesiredNotePerformance;
+import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
 import de.mossgrabers.pull.core.api.ParameterSlot;
 import de.mossgrabers.pull.core.api.ParameterTargetSnapshot;
 import de.mossgrabers.pull.core.api.PushControlIds;
@@ -24,8 +29,8 @@ import de.mossgrabers.pull.core.api.effect.SetProjectEngineEffect;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
-import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
-import de.mossgrabers.pull.core.api.output.RgbColor;
+import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
+import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
 import de.mossgrabers.pull.core.view.ControllerView;
 import de.mossgrabers.pull.core.view.ResolvedControllerAction;
 import de.mossgrabers.pull.core.view.SurfaceArea;
@@ -33,7 +38,6 @@ import de.mossgrabers.pull.core.view.SurfaceClaim;
 import de.mossgrabers.pull.core.view.ViewOutput;
 import de.mossgrabers.pull.core.view.ViewProfile;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -42,12 +46,9 @@ import java.util.Set;
 /** Core-owned policy, input, lights, and display for the Master page. */
 public final class MasterControlView implements ControllerView
 {
+    private final ParameterTouchControls touches;
+
     private static final double PARAMETER_STEP_SIZE = 10.0;
-    private static final RgbColor BLACK = new RgbColor (0, 0, 0);
-    private static final RgbColor GRAY = new RgbColor (30, 30, 30);
-    private static final RgbColor WHITE = new RgbColor (255, 255, 255);
-    private static final RgbColor GREEN = new RgbColor (0, 255, 0);
-    private static final RgbColor ORANGE = new RgbColor (255, 84, 0);
     private static final ControlId ENGINE = row (2, 5);
     private static final ControlId PREVIOUS = row (2, 7);
     private static final ControlId NEXT = row (2, 8);
@@ -58,7 +59,7 @@ public final class MasterControlView implements ControllerView
         PushControlIds.continuous ("KNOB2"), ParameterSlot.MASTER_MIX_PAN,
         PushControlIds.continuous ("KNOB3"), ParameterSlot.CUE_VOLUME,
         PushControlIds.continuous ("KNOB4"), ParameterSlot.CUE_MIX);
-    private static final Set<BridgeSubscription> SUBSCRIPTIONS = Set.of (BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.MASTER, BridgeSubscription.PARAMETERS);
+    private static final Set<BridgeSubscription> SUBSCRIPTIONS = Set.of (BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.MASTER, BridgeSubscription.PARAMETERS, BridgeSubscription.AUTOMATION, BridgeSubscription.SELECTED_TRACK);
     private static final Set<ControllerActionBinding> ACTION_BINDINGS = Set.of (
         new ControllerActionBinding (ENGINE, InputKind.BUTTON, ControllerActionId.SET_PROJECT_ENGINE, Set.of (ControllerStateScope.ACTIVE_PARAMETERS)),
         new ControllerActionBinding (PREVIOUS, InputKind.BUTTON, ControllerActionId.NAVIGATE_PROJECT, Set.of (ControllerStateScope.ACTIVE_PARAMETERS)),
@@ -70,14 +71,48 @@ public final class MasterControlView implements ControllerView
         Set.of (
             new SurfaceClaim (SurfaceArea.SHIFT_MODIFIER, SurfaceClaim.Kind.OBSERVE_INPUT),
             new SurfaceClaim (SurfaceArea.ENCODER_TURNS, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
-            new SurfaceClaim (SurfaceArea.ENCODER_TOUCHES, SurfaceClaim.Kind.STABLE_ADAPTER_INPUT),
+            new SurfaceClaim (SurfaceArea.ENCODER_TOUCHES, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
             new SurfaceClaim (SurfaceArea.SOFT_KEYS_UPPER, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
             new SurfaceClaim (SurfaceArea.SOFT_KEYS_UPPER, SurfaceClaim.Kind.OUTPUT),
             new SurfaceClaim (SurfaceArea.SOFT_KEYS_LOWER, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
             new SurfaceClaim (SurfaceArea.SOFT_KEYS_LOWER, SurfaceClaim.Kind.OUTPUT),
             new SurfaceClaim (SurfaceArea.DISPLAY_PARAMETERS, SurfaceClaim.Kind.OUTPUT),
             new SurfaceClaim (SurfaceArea.DISPLAY_BOTTOM_STRIP, SurfaceClaim.Kind.OUTPUT)),
-        Set.of (ControllerViewFacet.MASTER_CONTROLS));
+        Set.of ());
+
+
+    public MasterControlView ()
+    {
+        this (new ParameterTouchSession ());
+    }
+
+
+    public MasterControlView (final ParameterTouchSession session)
+    {
+        this.touches = new ParameterTouchControls (session);
+    }
+
+
+    @Override
+    public void start (final ControllerSnapshot snapshot)
+    {
+        this.touches.clear ();
+    }
+
+
+    @Override
+    public void deactivate ()
+    {
+        this.touches.clear ();
+    }
+
+
+    @Override
+    public void reconcile (final ControllerSnapshot snapshot)
+    {
+        this.touches.reconcile (snapshot);
+        this.touches.retainTargets (ParameterAlignment.references (snapshot));
+    }
 
 
     @Override
@@ -85,6 +120,8 @@ public final class MasterControlView implements ControllerView
     {
         return "master-controls";
     }
+
+
 
 
     @Override
@@ -116,13 +153,24 @@ public final class MasterControlView implements ControllerView
 
 
     @Override
+    public Map<ControlId, ParameterSlot> parameterBindings (final ControllerSnapshot snapshot)
+    {
+        return ParameterAlignment.bindings (snapshot, PARAMETER_BINDINGS);
+    }
+
+
+    @Override
     public List<CoreEffect> handle (final CoreEvent event, final ControllerSnapshot snapshot)
     {
-        if (!(event instanceof final ControllerInputEvent input) || input.kind () != InputKind.RELATIVE)
+        if (!(event instanceof final ControllerInputEvent input))
             return List.of ();
         final ParameterSlot slot = PARAMETER_BINDINGS.get (input.controlId ());
-        final ParameterTargetSnapshot target = slot == null ? null : snapshot.bridge ().parameters ().slots ().get (slot);
-        return target == null ? List.of () : List.of (new AdjustParameterValueEffect (target.target (), input.value () * PARAMETER_STEP_SIZE));
+        final ParameterTargetSnapshot target = slot == null ? null : ParameterAlignment.target (snapshot, slot);
+        if (input.kind () == InputKind.TOUCH && input.phase () == de.mossgrabers.pull.core.api.event.InputPhase.BEGIN && (!ParameterAlignment.masterContextAligned (snapshot) || ParameterAlignment.contradicts (snapshot, slot)))
+            return List.of ();
+        if (input.kind () == InputKind.RELATIVE)
+            return target == null ? List.of () : List.of (new AdjustParameterValueEffect (target.target (), input.value () * PARAMETER_STEP_SIZE));
+        return input.kind () == InputKind.TOUCH ? this.touches.handle (input, target, snapshot) : List.of ();
     }
 
 
@@ -148,27 +196,21 @@ public final class MasterControlView implements ControllerView
 
 
     @Override
+    public de.mossgrabers.pull.core.api.DesiredParameterTouches parameterTouches (final ControllerSnapshot snapshot)
+    {
+        return this.touches.desired ();
+    }
+
+
+    @Override
     public ViewOutput render (final ControllerSnapshot snapshot)
     {
         final MasterSnapshot master = snapshot.bridge ().master ();
         if (!master.available ())
             return ViewOutput.empty ();
 
-        final Map<ControlId, RgbColor> lights = new LinkedHashMap<> ();
-        for (int row = 1; row <= 2; row++)
-        {
-            for (int column = 1; column <= 8; column++)
-                lights.put (row (row, column), BLACK);
-        }
-        lights.put (ENGINE, master.engineActive () ? GREEN : WHITE);
-        lights.put (PREVIOUS, master.canPrevious () ? WHITE : GRAY);
-        lights.put (NEXT, master.canNext () ? WHITE : GRAY);
-        lights.put (OPEN, WHITE);
-        lights.put (SAVE, master.projectDirty () ? ORANGE : WHITE);
-
-        final Map<ParameterSlot, ParameterTargetSnapshot> parameters = snapshot.bridge ().parameters ().slots ();
-        final ControllerDisplayScene scene = MasterDisplayScene.render (master, parameters);
-        return new ViewOutput (lights, Map.of (), scene);
+        final PageVisuals visuals = MasterPageRenderer.render (MixerPageProjections.master (snapshot));
+        return new ViewOutput (visuals.lights (), Map.of (), visuals.display (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), DesiredNotePerformance.inactive (), DesiredNoteRepeat.unowned (), DesiredControllerMappings.empty ());
     }
 
 

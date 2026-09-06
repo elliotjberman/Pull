@@ -11,7 +11,7 @@ import java.util.Set;
  * One semantic controller action resolved before its stable or core behavior executes.
  *
  * @param action Semantic action
- * @param invalidates Authoritative state scopes which may change after execution
+ * @param invalidates Authoritative state scopes which may change after execution; empty for an ordered no-op
  */
 public record ControllerActionIntent (ControllerActionId action, Set<ControllerStateScope> invalidates)
 {
@@ -20,7 +20,5 @@ public record ControllerActionIntent (ControllerActionId action, Set<ControllerS
     {
         action = Objects.requireNonNull (action, "action");
         invalidates = Set.copyOf (Objects.requireNonNull (invalidates, "invalidates"));
-        if (invalidates.isEmpty ())
-            throw new IllegalArgumentException ("controller action invalidation scopes must not be empty");
     }
 }

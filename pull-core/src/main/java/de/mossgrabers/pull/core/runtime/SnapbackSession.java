@@ -155,6 +155,7 @@ final class SnapbackSession
             base.desiredControllerActions (),
             base.desiredParameterBanks (),
             interaction,
+            base.desiredParameterTouches (),
             base.executionRequirements (),
             effects);
     }
@@ -374,7 +375,9 @@ final class SnapbackSession
 
     private boolean shouldDefer (final ResolvedControllerAction action)
     {
-        return !this.captures.isEmpty () && action.intent ().invalidates ().contains (ControllerStateScope.ACTIVE_PARAMETERS);
+        // Even a conditionally inert action must not overtake the action which establishes its
+        // context. The queue is one ordered admission stream until restoration is acknowledged.
+        return !this.pendingActions.isEmpty () || !this.captures.isEmpty () && action.intent ().invalidates ().contains (ControllerStateScope.ACTIVE_PARAMETERS);
     }
 
 

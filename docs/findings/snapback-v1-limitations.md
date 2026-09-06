@@ -2,7 +2,7 @@
 status: active
 created: 2026-08-05
 scope: parameter-mutations
-remove_when: snapback sessions can safely retain and restore semantic targets across proxy rebinding
+remove_when: snapback sessions retain and restore semantic targets across proxy rebinding with full host-value precision
 ---
 
 # Snapback Parameters V1
@@ -118,8 +118,31 @@ callback. A pure stable-only `NONE` gesture with no semantic action does not cro
 Policy now lives in the reloadable core. Stable owns only the bounded live actuator window, exact
 leases, absolute effect execution, generation rechecks, and best-effort invalidation restoration.
 An in-flight lease is included immediately in the public snapshot so a same-cycle core reload can
-hydrate and finish it. The remaining limitation is the absence of a pinned proxy pool: restoration
-still completes before navigation rather than spanning a proxy rebind.
+hydrate and finish it. The absence of a pinned proxy pool means restoration still completes before navigation rather than
+spanning a proxy rebind. The value-precision boundary below is a separate remaining limitation.
+
+## Restoration precision
+
+The API 46 live cleanup audit distinguished controller-resolution values from normalized host
+values: selected pan `0.5` and `0.5004887585532747` both read as controller value `512`. A positive
+encoder step followed by its negative restored that integer, but did not restore the original raw
+pan. Native pan reset subsequently restored the known original `0.5` exactly.
+
+Follow-up code inspection found the same units in the retained-target restoration contract:
+`ParameterTargetHost.parameterTarget()` samples `IParameter.getValue()` and restores with
+`setValueImmediatly((int) Math.round(value))`. `SnapbackSession` captures `snapshot.value()`; the
+parent retained-baseline map copies that value instead of capturing independent normalized host
+precision. This pair already exists on `origin/master` at `00b341e0`; the page refactor did not
+introduce it. A direct live Snapback precision reproduction has not yet been run, but the current
+contract cannot guarantee preservation of arbitrary sub-controller-step host values.
+
+Keep controller response/sensitivity units separate from restoration units. A future correction
+should retain normalized host baselines (or an opaque parent-owned full-precision baseline), restore
+through the same exact target fence, and compare later host observations at the same precision.
+Tests must start at nonrepresentable controller-grid values so rounded fakes cannot conceal loss.
+Confirmed two-step Boolean parameters are exactly representable; that does not establish precision
+for continuous project macros. Native Undo also must not be inferred merely from `canUndo=true`,
+which cannot identify the last operation when earlier history exists.
 
 ## V1 Decisions
 
@@ -160,6 +183,7 @@ still completes before navigation rather than spanning a proxy rebind.
 ## Removal Criteria
 
 Delete this finding when semantic parameter targets and bounded retained target leases allow an
-active snapback session to span supported track, device, and parameter-page changes safely. Move
+active snapback session to span supported track, device, and parameter-page changes safely, and
+restoration preserves full host-value precision through later acknowledgement. Move
 any durable snapback lifecycle rules into the permanent controller architecture documentation
 before deletion.

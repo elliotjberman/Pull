@@ -8,7 +8,7 @@ import de.mossgrabers.controller.ableton.push.PushConfiguration;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.command.core.AbstractTriggerCommand;
 import de.mossgrabers.framework.daw.IModel;
-import de.mossgrabers.framework.featuregroup.ModeManager;
+import de.mossgrabers.controller.ableton.push.controller.PushControllerPageManager;
 import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.utils.ButtonEvent;
 
@@ -39,10 +39,7 @@ public class ScalesCommand extends AbstractTriggerCommand<PushControlSurface, Pu
         if (event != ButtonEvent.DOWN)
             return;
 
-        final ModeManager modeManager = this.surface.getModeManager ();
-        if (modeManager.isActive (Modes.SCALES))
-            modeManager.restore ();
-        else
-            modeManager.setTemporary (Modes.SCALES);
+        final PushControllerPageManager modeManager = this.surface.getModeManager ();
+        modeManager.toggleTemporary (Modes.SCALES);
     }
 }

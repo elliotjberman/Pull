@@ -6,14 +6,13 @@ package de.mossgrabers.controller.ableton.push.workspace;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.view.SessionView;
 import de.mossgrabers.controller.ableton.push.view.WorkspaceView;
-import de.mossgrabers.framework.featuregroup.ModeManager;
 import de.mossgrabers.framework.featuregroup.ViewManager;
-import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.view.Views;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredControllerLayout;
 import de.mossgrabers.pull.core.api.SessionBankShape;
+import de.mossgrabers.pull.core.api.DesiredNoteInputTranslation;
 
 import java.util.Objects;
 
@@ -24,7 +23,6 @@ import java.util.Objects;
 public final class ControllerWorkspaceHost
 {
     private final PushControlSurface surface;
-    private final ControllerPageLease pageLease = new ControllerPageLease ();
 
     private DesiredControllerWorkspace desiredWorkspace = DesiredControllerWorkspace.empty ();
     private Views previousView;
@@ -78,15 +76,21 @@ public final class ControllerWorkspaceHost
     public void applyLayout (final DesiredControllerLayout layout)
     {
         final DesiredControllerLayout requested = this.prepareLayout (layout);
-        applyPreparedLayout (requested, this.surface.getModeManager (), this.surface.getViewManager ());
+        applyPreparedLayout (requested, this.surface.getViewManager ());
     }
 
 
-    static void applyPreparedLayout (final DesiredControllerLayout requested, final ModeManager modeManager, final ViewManager viewManager)
+    /** Apply a complete native translation after the shared note lifecycle admits it. */
+    public void applyNoteTranslation (final DesiredNoteInputTranslation translation)
+    {
+        this.surface.applyCoreNoteTranslation (Objects.requireNonNull (translation, "translation"));
+    }
+
+
+    static void applyPreparedLayout (final DesiredControllerLayout requested, final ViewManager viewManager)
     {
         if (requested.neutralizing ())
         {
-            modeManager.setActive (Modes.TRACK);
             viewManager.setActive (Views.SESSION);
             return;
         }
@@ -101,13 +105,10 @@ public final class ControllerWorkspaceHost
         final DesiredControllerWorkspace candidate = Objects.requireNonNull (workspace, "workspace");
         if (candidate.facets ().contains (ControllerViewFacet.SESSION_SCENE_KEYS_UPPER) && !candidate.facets ().contains (ControllerViewFacet.SESSION_CLIP_GRID_UPPER))
             throw new IllegalArgumentException ("Upper Session scene keys require the upper Session clip grid");
-        if (candidate.facets ().contains (ControllerViewFacet.DRUM_PITCH_BEND) && !candidate.facets ().contains (ControllerViewFacet.DRUM_CONTROLLER_LOWER))
-            throw new IllegalArgumentException ("Drum pitch bend requires the lower Drum controller");
         if (candidate.facets ().contains (ControllerViewFacet.SESSION_CLIP_GRID_UPPER) && candidate.facets ().contains (ControllerViewFacet.SESSION_GRID_FULL))
             throw new IllegalArgumentException ("Upper and full Session views cannot be active together");
         if (candidate.facets ().contains (ControllerViewFacet.SESSION_GRID_FULL) && (candidate.facets ().contains (ControllerViewFacet.DRUM_CONTROLLER_LOWER) || candidate.facets ().contains (ControllerViewFacet.SESSION_NAVIGATION) || candidate.facets ().contains (ControllerViewFacet.SESSION_SCENE_KEYS_UPPER)))
             throw new IllegalArgumentException ("Full Session cannot overlap a separately composed grid or navigation facet");
-        ControllerPageLease.validate (candidate);
         return candidate;
     }
 
@@ -136,8 +137,6 @@ public final class ControllerWorkspaceHost
         else
             this.surface.getSessionBankRegistry ().restoreDefault ();
         final ViewManager viewManager = this.surface.getViewManager ();
-        final ModeManager modeManager = this.surface.getModeManager ();
-        this.pageLease.apply (previous, next, modeManager);
 
         if (!hadGrid && wantsGrid)
             this.previousView = viewManager.getActiveID ();
@@ -174,11 +173,7 @@ public final class ControllerWorkspaceHost
     }
 
 
-    /**
-     * Test whether any core-owned workspace is active.
-     *
-     * @return True when active
-     */
+    /** Whether the core currently owns a workspace; also exposed by the debugger. */
     public boolean isActive ()
     {
         return this.desiredWorkspace.isActive ();
@@ -213,17 +208,9 @@ public final class ControllerWorkspaceHost
     }
 
 
-    private static boolean usesWorkspaceModeAdapter (final DesiredControllerWorkspace workspace)
-    {
-        return workspace.facets ().contains (ControllerViewFacet.PROJECT_MACRO_CONTROLS);
-    }
-
-
     private void reconcileDesiredAdapters (final DesiredControllerWorkspace workspace)
     {
         final ViewManager viewManager = this.surface.getViewManager ();
-        final ModeManager modeManager = this.surface.getModeManager ();
-        this.pageLease.reconcile (workspace, modeManager);
 
         final Views gridView = desiredGridView (workspace);
         if (gridView != null)
@@ -237,11 +224,6 @@ public final class ControllerWorkspaceHost
             }
         }
 
-        if (usesWorkspaceModeAdapter (workspace))
-        {
-            if (!(modeManager.getActive () instanceof final WorkspaceFacetAdapter adapter))
-                throw new IllegalStateException ("Workspace mode adapter is not registered");
-            adapter.reconcileWorkspaceFacets ();
-        }
+
     }
 }

@@ -10,11 +10,14 @@ import de.mossgrabers.framework.controller.hardware.IHwContinuousControl;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.ITransport;
 import de.mossgrabers.framework.daw.data.ITrack;
+import de.mossgrabers.framework.daw.data.ISend;
+import de.mossgrabers.framework.daw.midi.ISelectedTrackNoteTarget;
 import de.mossgrabers.framework.daw.data.bank.IParameterBank;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
-import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.parameter.IParameter;
 import de.mossgrabers.pull.core.api.DesiredParameterBanks;
+import de.mossgrabers.pull.core.api.ControlId;
+import de.mossgrabers.pull.core.api.DesiredParameterTouches;
 import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
 import de.mossgrabers.pull.core.api.ParameterBankId;
 import de.mossgrabers.pull.core.api.ParameterBridgeSnapshot;
@@ -23,12 +26,16 @@ import de.mossgrabers.pull.core.api.ParameterTargetRef;
 import de.mossgrabers.pull.core.api.ParameterTargetKind;
 import de.mossgrabers.pull.core.api.ParameterTargetSnapshot;
 import de.mossgrabers.pull.core.api.effect.AdjustParameterValueEffect;
+import de.mossgrabers.pull.core.api.effect.AcquireParameterTouchEffect;
+import de.mossgrabers.pull.core.api.effect.SetParameterEnabledEffect;
+import de.mossgrabers.pull.core.api.effect.SetParameterNormalizedValueEffect;
 import de.mossgrabers.pull.core.api.effect.ResetParameterEffect;
 import de.mossgrabers.pull.core.api.effect.SetParameterValueEffect;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.BooleanSupplier;
 import java.util.function.DoubleConsumer;
 import java.util.function.DoubleSupplier;
@@ -60,18 +67,27 @@ final class ParameterTargetHost
 
     private final PushControlSurface surface;
     private final IModel model;
+    private final ISelectedTrackNoteTarget selectedTarget;
     private final ITransport transport;
     private final RuntimeLog log;
     private final ParameterTargetIdentityResolver targetIdentities;
+    private final LiveTarget [] selectedTrackTargets = new LiveTarget[2];
+    private final LiveTarget [] selectedSendTargets = new LiveTarget[ParameterSlot.BANK_SIZE];
+    private Map<ParameterTargetRef, LiveTarget> indicatedTargets = Map.of ();
+    private java.util.Set<ParameterSlot> requestedIndications = java.util.Set.of ();
+
     private final LiveTarget [] activeTargets = new LiveTarget[ParameterSlot.BANK_SIZE];
     private final LiveTarget [] projectTargets = new LiveTarget[ParameterSlot.BANK_SIZE];
     private final LiveTarget [] deviceTargets = new LiveTarget[ParameterSlot.BANK_SIZE];
     private final LiveTarget [] trackVolumeTargets = new LiveTarget[ParameterSlot.BANK_SIZE];
     private final LiveTarget [] trackPanTargets = new LiveTarget[ParameterSlot.BANK_SIZE];
+    private final LiveTarget [][] trackSendTargets = new LiveTarget[ParameterSlot.BANK_SIZE][ParameterSlot.BANK_SIZE];
     private final Map<ParameterTargetRef, LiveTarget> currentTargets = new LinkedHashMap<> (ParameterBridgeSnapshot.TARGET_CAPACITY);
 
     private Map<ParameterTargetRef, RetainedTarget> retainedTargets = Map.of ();
+    private final Map<ParameterTargetRef, LiveTarget> touchedTargets = new LinkedHashMap<> ();
     private LiveTarget masterMixVolumeTarget;
+    private LiveTarget metronomeVolumeTarget;
     private LiveTarget masterMixPanTarget;
     private LiveTarget cueVolumeTarget;
     private LiveTarget cueMixTarget;
@@ -89,6 +105,13 @@ final class ParameterTargetHost
      */
     ParameterTargetHost (final PushControlSurface surface, final IModel model, final RuntimeLog log)
     {
+        this (surface, model, null, log);
+    }
+
+
+    ParameterTargetHost (final PushControlSurface surface, final IModel model, final ISelectedTrackNoteTarget selectedTarget, final RuntimeLog log)
+    {
+        this.selectedTarget = selectedTarget;
         this.surface = Objects.requireNonNull (surface, "surface");
         this.model = Objects.requireNonNull (model, "model");
         this.transport = Objects.requireNonNull (model.getTransport (), "transport");
@@ -108,10 +131,24 @@ final class ParameterTargetHost
         this.requestedBanks = Objects.requireNonNull (banks, "banks");
         this.reconcileTargets (this.requestedBanks);
         this.discardStaleRetainedTargets ();
+        final var touches = this.touchedTargets.entrySet ().iterator ();
+        while (touches.hasNext ())
+        {
+            final LiveTarget touched = touches.next ().getValue ();
+            if (!touched.isCurrent ())
+            {
+                touches.remove ();
+                this.releaseTouch (touched);
+            }
+        }
         final ParameterBridgeSnapshot refreshed = !banks.banks ().isEmpty () || !this.retainedTargets.isEmpty () ? this.captureSnapshot () : ParameterBridgeSnapshot.empty ();
         if (refreshed.equals (this.snapshot))
+        {
+            this.reconcileIndications ();
             return false;
+        }
         this.snapshot = refreshed;
+        this.reconcileIndications ();
         return true;
     }
 
@@ -142,14 +179,13 @@ final class ParameterTargetHost
 
 
     /**
-     * Require the selected-track Mix encoders to resolve against the current selected-track
-     * identity before their established mutation may run. During project navigation the display
-     * can observe the new cursor one host sample before the stable parameter bindings follow it;
-     * that transient mismatch must be inert.
+     * Reject a stale physical binding under the generic core page adapter.
+     * Core pages use named banks and the permanent page binding is empty; it must never
+     * regain legacy mutation through an unclassified physical parameter wrapper.
      */
     boolean requiresResolvedMutation (final IHwContinuousControl control)
     {
-        if (!this.requestedBanks.includes (ParameterBankId.ACTIVE) || this.surface.getModeManager ().getActiveID () != Modes.TRACK)
+        if (!this.requestedBanks.includes (ParameterBankId.ACTIVE) || this.surface.getModeManager ().pageState ().effectivePage ().kind () != de.mossgrabers.pull.core.api.ControllerPageRef.Kind.CORE)
             return false;
         final IHwContinuousControl checkedControl = Objects.requireNonNull (control, "control");
         for (final ContinuousID id: ACTIVE_CONTROLS)
@@ -225,6 +261,96 @@ final class ParameterTargetHost
     }
 
 
+    Map<ControlId, ControllerBridge.ParameterTouchLease> prepareTouches (final DesiredParameterTouches desired, final DesiredParameterBanks banks)
+    {
+        final DesiredParameterBanks committedBanks = this.requestedBanks;
+        try
+        {
+            this.reconcileTargets (banks);
+            final Map<ControlId, ControllerBridge.ParameterTouchLease> prepared = new LinkedHashMap<> ();
+            desired.targets ().forEach ( (control, reference) -> {
+                final LiveTarget target = this.requireCurrent (reference);
+                if (target.parameter == null)
+                    throw new IllegalArgumentException ("Parameter touch requires a touch-capable parameter actuator");
+                prepared.put (control, new TouchTarget (target));
+            });
+            return Map.copyOf (prepared);
+        }
+        finally
+        {
+            this.reconcileTargets (committedBanks);
+        }
+    }
+
+
+    void releaseTouchesExcept (final Map<ControlId, ControllerBridge.ParameterTouchLease> prepared)
+    {
+        final var current = this.touchedTargets.entrySet ().iterator ();
+        while (current.hasNext ())
+        {
+            final LiveTarget target = current.next ().getValue ();
+            final boolean retained = prepared.values ().stream ().anyMatch (lease -> touchTarget (lease).isSameActuator (target));
+            if (retained)
+                continue;
+            current.remove ();
+            this.releaseTouch (target);
+        }
+    }
+
+
+    void acquireTouches (final Map<ControlId, ControllerBridge.ParameterTouchLease> prepared)
+    {
+        for (final ControllerBridge.ParameterTouchLease lease: prepared.values ())
+        {
+            final LiveTarget target = touchTarget (lease);
+            final LiveTarget current = this.requireCurrent (target.reference);
+            if (!target.isSameActuator (current) || !target.isCurrent ())
+                throw new IllegalStateException ("Parameter touch target changed before acquisition");
+            if (this.touchedTargets.containsKey (target.reference))
+                continue;
+            this.touchedTargets.put (target.reference, target);
+            target.parameter.touchValue (true);
+        }
+    }
+
+
+    void releaseTouches ()
+    {
+        this.releaseTouchesExcept (Map.of ());
+    }
+
+
+    private void releaseTouch (final LiveTarget target)
+    {
+        if (!target.addressable.getAsBoolean ())
+        {
+            this.log.warn ("Cannot release a parameter touch after its exact target changed " + target.reference);
+            return;
+        }
+        try
+        {
+            target.parameter.touchValue (false);
+        }
+        catch (final RuntimeException failure)
+        {
+            this.log.warn ("Parameter touch cleanup failed for " + target.reference + ": " + failure.getMessage ());
+        }
+    }
+
+
+    private static LiveTarget touchTarget (final ControllerBridge.ParameterTouchLease lease)
+    {
+        if (!(lease instanceof final TouchTarget touch))
+            throw new IllegalArgumentException ("Parameter touch lease belongs to another bridge");
+        return touch.target ();
+    }
+
+
+    private record TouchTarget (LiveTarget target) implements ControllerBridge.ParameterTouchLease
+    {
+    }
+
+
     boolean retains (final ParameterTargetRef target)
     {
         return this.retainedTargets.containsKey (Objects.requireNonNull (target, "target"));
@@ -253,6 +379,54 @@ final class ParameterTargetHost
     {
         final AdjustParameterValueEffect checkedEffect = Objects.requireNonNull (effect, "effect");
         return new PreparedAdjust (this.requireCurrent (checkedEffect.target ()), checkedEffect.delta ());
+    }
+
+
+    PreparedNormalized prepare (final SetParameterNormalizedValueEffect effect)
+    {
+        final LiveTarget target = this.requireCurrent (effect.target ());
+        if (target.parameter == null)
+            throw new IllegalArgumentException ("Parameter does not expose normalized mutation");
+        return new PreparedNormalized (target, effect.value ());
+    }
+
+
+    void apply (final PreparedNormalized action)
+    {
+        this.requireCurrent (action.target ().reference).parameter.setNormalizedValue (action.value ());
+    }
+
+
+    PreparedEnabled prepare (final SetParameterEnabledEffect effect)
+    {
+        final LiveTarget target = this.requireCurrent (effect.target ());
+        if (!(target.parameter instanceof ISend))
+            throw new IllegalArgumentException ("Parameter does not expose enabled state");
+        return new PreparedEnabled (target, effect.enabled ());
+    }
+
+
+    PreparedTouch prepare (final AcquireParameterTouchEffect effect)
+    {
+        final LiveTarget target = this.requireCurrent (effect.target ());
+        if (target.parameter == null)
+            throw new IllegalArgumentException ("Parameter does not expose touch state");
+        return new PreparedTouch (effect.owner (), target);
+    }
+
+
+    void apply (final PreparedEnabled action)
+    {
+        final LiveTarget target = this.requireCurrent (action.target ().reference);
+        if (!(target.parameter instanceof final ISend send))
+            throw new IllegalStateException ("Parameter enabled capability changed");
+        send.setEnabled (action.enabled ());
+    }
+
+
+    void apply (final PreparedTouch action)
+    {
+        this.acquireTouches (Map.of (action.owner (), new TouchTarget (action.target ())));
     }
 
 
@@ -303,6 +477,7 @@ final class ParameterTargetHost
      */
     void invalidate ()
     {
+        this.releaseTouches ();
         for (final RetainedTarget retained: this.retainedTargets.values ())
         {
             if (!retained.target.isCurrent ())
@@ -316,6 +491,7 @@ final class ParameterTargetHost
                 this.log.warn ("Terminal parameter restoration failed for " + retained.target.reference + ": " + failure.getMessage ());
             }
         }
+        this.applyIndications (java.util.Set.of ());
         this.retainedTargets = Map.of ();
         this.requestedBanks = DesiredParameterBanks.empty ();
         this.currentTargets.clear ();
@@ -323,10 +499,64 @@ final class ParameterTargetHost
     }
 
 
+    /** Apply core-selected host indication through the same named, fenced target canopy. */
+    void applyIndications (final java.util.Set<ParameterSlot> slots)
+    {
+        this.requestedIndications = java.util.Set.copyOf (Objects.requireNonNull (slots, "slots"));
+        this.reconcileIndications ();
+    }
+
+    /** Retire outgoing ownership before a legacy page's foreign activation callback. */
+    void releaseIndicationsExcept (final java.util.Set<ParameterSlot> slots)
+    {
+        this.requestedIndications = java.util.Set.copyOf (Objects.requireNonNull (slots, "slots"));
+        final java.util.Set<ParameterTargetRef> retained = new java.util.HashSet<> ();
+        for (final ParameterSlot slot: slots)
+        {
+            final ParameterTargetSnapshot target = this.snapshot.slots ().get (slot);
+            if (target != null) retained.add (target.target ());
+        }
+        final Map<ParameterTargetRef, LiveTarget> previous = this.indicatedTargets;
+        final Map<ParameterTargetRef, LiveTarget> next = new LinkedHashMap<> (previous);
+        next.keySet ().retainAll (retained);
+        this.indicatedTargets = Map.copyOf (next);
+        for (final var entry: previous.entrySet ())
+            if (!next.containsKey (entry.getKey ()) && entry.getValue ().addressable.getAsBoolean ()) entry.getValue ().parameter.setIndication (false);
+    }
+
+
+    private void reconcileIndications ()
+    {
+        final Map<ParameterTargetRef, LiveTarget> next = new LinkedHashMap<> ();
+        for (final ParameterSlot slot: this.requestedIndications)
+        {
+            final ParameterTargetSnapshot value = this.snapshot.slots ().get (slot);
+            final LiveTarget target = value == null ? null : this.currentTargets.get (value.target ());
+            if (target != null && target.parameter != null && target.isCurrent ()) next.put (target.reference, target);
+        }
+        final Map<ParameterTargetRef, LiveTarget> previous = this.indicatedTargets;
+        this.indicatedTargets = Map.copyOf (next);
+        for (final var entry: previous.entrySet ())
+            if (!next.containsKey (entry.getKey ()) && entry.getValue ().addressable.getAsBoolean ()) entry.getValue ().parameter.setIndication (false);
+        for (final var entry: next.entrySet ())
+            if (!previous.containsKey (entry.getKey ())) entry.getValue ().parameter.setIndication (true);
+    }
+
+
     private void reconcileTargets (final DesiredParameterBanks banks)
     {
         Objects.requireNonNull (banks, "banks");
         this.currentTargets.clear ();
+        if (banks.includes (ParameterBankId.SELECTED_TRACK))
+        {
+            for (int index = 0; index < this.selectedTrackTargets.length; index++)
+                this.selectedTrackTargets[index] = this.reconcileSelectedTarget (this.selectedTrackTargets[index], index, false);
+        }
+        if (banks.includes (ParameterBankId.SELECTED_TRACK_SENDS))
+        {
+            for (int index = 0; index < this.selectedSendTargets.length; index++)
+                this.selectedSendTargets[index] = this.reconcileSelectedTarget (this.selectedSendTargets[index], index, true);
+        }
         if (banks.includes (ParameterBankId.ACTIVE))
         {
             for (int index = 0; index < ACTIVE_CONTROLS.length; index++)
@@ -336,37 +566,49 @@ final class ParameterTargetHost
         {
             final IParameterBank projectParameters = this.model.getProject ().getParameterBank ();
             for (int index = 0; index < this.projectTargets.length; index++)
-                this.reconcileProjectTarget (index, projectParameters);
+                this.projectTargets[index] = this.reconcileRemoteTarget (this.projectTargets[index], index, projectParameters, "project-remote", () -> this.model.getProject ().getIdentity ());
         }
         if (banks.includes (ParameterBankId.SELECTED_DEVICE_REMOTE))
         {
             final IParameterBank deviceParameters = this.model.getCursorDevice ().getParameterBank ();
             for (int index = 0; index < this.deviceTargets.length; index++)
-                this.reconcileDeviceTarget (index, deviceParameters);
+                this.deviceTargets[index] = this.reconcileRemoteTarget (this.deviceTargets[index], index, deviceParameters, "device-remote", () -> this.model.getCursorDevice ().getID ());
         }
         if (banks.includes (ParameterBankId.TRACK_VOLUME))
         {
             final ITrackBank tracks = this.model.getCurrentTrackBank ();
             for (int index = 0; index < this.trackVolumeTargets.length; index++)
-                this.reconcileTrackVolumeTarget (index, tracks);
+                this.trackVolumeTargets[index] = this.reconcileCurrentTrackTarget (this.trackVolumeTargets[index], index, tracks, ITrack::getVolumeParameter);
         }
         if (banks.includes (ParameterBankId.TRACK_PAN))
         {
             final ITrackBank tracks = this.model.getCurrentTrackBank ();
             for (int index = 0; index < this.trackPanTargets.length; index++)
-                this.reconcileTrackPanTarget (index, tracks);
+                this.trackPanTargets[index] = this.reconcileCurrentTrackTarget (this.trackPanTargets[index], index, tracks, ITrack::getPanParameter);
+        }
+        for (int sendIndex = 0; sendIndex < this.trackSendTargets.length; sendIndex++)
+        {
+            if (!banks.includes (ParameterBankId.trackSend (sendIndex)))
+                continue;
+            final int column = sendIndex;
+            final ITrackBank tracks = this.model.getCurrentTrackBank ();
+            final LiveTarget [] targets = this.trackSendTargets[column];
+            for (int trackIndex = 0; trackIndex < targets.length; trackIndex++)
+                targets[trackIndex] = this.reconcileCurrentTrackTarget (targets[trackIndex], trackIndex, tracks, track -> selectedParameter (track, column, true));
         }
 
         if (banks.includes (ParameterBankId.MASTER))
         {
-            this.masterMixVolumeTarget = this.reconcileProjectScopedTarget (this.masterMixVolumeTarget, () -> this.model.getMasterTrack ().getVolumeParameter ());
-            this.masterMixPanTarget = this.reconcileProjectScopedTarget (this.masterMixPanTarget, () -> this.model.getMasterTrack ().getPanParameter ());
-            this.cueVolumeTarget = this.reconcileProjectScopedTarget (this.cueVolumeTarget, () -> this.model.getProject ().getCueVolumeParameter ());
-            this.cueMixTarget = this.reconcileProjectScopedTarget (this.cueMixTarget, () -> this.model.getProject ().getCueMixParameter ());
+            this.masterMixVolumeTarget = this.reconcileProjectScopedTarget (this.masterMixVolumeTarget, "project-master", 0, () -> this.model.getMasterTrack ().getVolumeParameter ());
+            this.masterMixPanTarget = this.reconcileProjectScopedTarget (this.masterMixPanTarget, "project-master", 1, () -> this.model.getMasterTrack ().getPanParameter ());
+            this.cueVolumeTarget = this.reconcileProjectScopedTarget (this.cueVolumeTarget, "project-master", 2, () -> this.model.getProject ().getCueVolumeParameter ());
+            this.cueMixTarget = this.reconcileProjectScopedTarget (this.cueMixTarget, "project-master", 3, () -> this.model.getProject ().getCueMixParameter ());
         }
 
         if (!banks.includes (ParameterBankId.GLOBAL))
             return;
+
+        this.metronomeVolumeTarget = this.reconcileProjectScopedTarget (this.metronomeVolumeTarget, "project-global", 0, this.transport::getMetronomeVolumeParameter);
 
         final LiveTarget tempo = new LiveTarget (
             TEMPO_TARGET,
@@ -398,9 +640,53 @@ final class ParameterTargetHost
     }
 
 
-    private LiveTarget reconcileProjectScopedTarget (final LiveTarget existing, final Supplier<IParameter> currentParameter)
+    private LiveTarget reconcileSelectedTarget (final LiveTarget existing, final int index, final boolean send)
+    {
+        if (this.selectedTarget == null || !this.selectedTarget.doesExist ())
+            return null;
+        final ITrackBank bank = this.model.getCurrentTrackBank ();
+        final ITrack track = bank == null ? null : bank.getSelectedItem ().orElse (null);
+        if (track == null || !track.doesExist () || !Objects.equals (this.selectedTarget.getChannelID (), track.getChannelID ()))
+            return null;
+        final IParameter parameter = selectedParameter (track, index, send);
+        if (parameter == null || !parameter.doesExist ())
+            return null;
+        final ParameterTargetIdentityResolver.TargetIdentity identity = this.targetIdentities.channel (track, parameter);
+        if (identity == null)
+            return null;
+        LiveTarget target = existing;
+        if (target == null || target.parameter != parameter || !target.isCurrent () || !identity.equals (target.targetIdentity))
+        {
+            final long selectedGeneration = this.selectedTarget.getGeneration ();
+            final String project = this.model.getProject ().getIdentity ();
+            final String channel = track.getChannelID ();
+            final BooleanSupplier addressable = () -> parameter.doesExist () && track.doesExist () && channel.equals (track.getChannelID ()) &&
+                Objects.equals (project, this.model.getProject ().getIdentity ()) && selectedParameter (track, index, send) == parameter && identity.equals (this.targetIdentities.channel (track, parameter));
+            final BooleanSupplier current = () -> addressable.getAsBoolean () && this.selectedTarget.doesExist () && selectedGeneration == this.selectedTarget.getGeneration () &&
+                channel.equals (this.selectedTarget.getChannelID ()) && this.model.getCurrentTrackBank () == bank &&
+                bank.getSelectedItem ().filter (candidate -> candidate == track && channel.equals (candidate.getChannelID ())).isPresent ();
+            target = new LiveTarget (new ParameterTargetRef (ParameterTargetKind.LIVE, this.nextIdentity (), selectedGeneration), null, parameter, 0, identity,
+                parameter::getValue, value -> parameter.setValueImmediatly ((int) Math.round (value)), current, addressable, 0.5);
+        }
+        if (target.isCurrent ())
+            this.currentTargets.put (target.reference, target);
+        return target;
+    }
+
+
+    private static IParameter selectedParameter (final ITrack track, final int index, final boolean send)
+    {
+        if (!send)
+            return index == 0 ? track.getVolumeParameter () : track.getPanParameter ();
+        return track.getSendBank () != null && index < track.getSendBank ().getPageSize () ? track.getSendBank ().getItem (index) : null;
+    }
+
+
+    private LiveTarget reconcileProjectScopedTarget (final LiveTarget existing, final String domain, final int role, final Supplier<IParameter> currentParameter)
     {
         final String projectIdentity = this.model.getProject ().getIdentity ();
+        if (projectIdentity == null || projectIdentity.isBlank ())
+            return null;
         final IParameter parameter = currentParameter.get ();
         if (parameter == null || !parameter.doesExist ())
             return null;
@@ -413,6 +699,7 @@ final class ParameterTargetHost
                 null,
                 parameter,
                 0,
+                new ParameterTargetIdentityResolver.TargetIdentity (domain, projectIdentity, 0, role, parameter.getName ()),
                 () -> parameter.doesExist () && Objects.equals (projectIdentity, this.model.getProject ().getIdentity ()) && currentParameter.get () == parameter);
         }
         if (target.isCurrent ())
@@ -454,23 +741,17 @@ final class ParameterTargetHost
     }
 
 
-    private void reconcileProjectTarget (final int index, final IParameterBank bank)
+    private LiveTarget reconcileRemoteTarget (final LiveTarget existing, final int index, final IParameterBank bank, final String domain, final Supplier<String> owner)
     {
         if (bank == null || index >= bank.getPageSize ())
-        {
-            this.projectTargets[index] = null;
-            return;
-        }
+            return null;
 
         final IParameter parameter = bank.getItem (index);
-        final ParameterTargetIdentityResolver.TargetIdentity targetIdentity = this.targetIdentities.remote ("project-remote", this.model.getProject ().getName (), bank, index);
+        final ParameterTargetIdentityResolver.TargetIdentity targetIdentity = this.targetIdentities.remote (domain, owner.get (), bank, index);
         if (parameter == null || !parameter.doesExist () || targetIdentity == null)
-        {
-            this.projectTargets[index] = null;
-            return;
-        }
+            return null;
 
-        LiveTarget target = this.projectTargets[index];
+        LiveTarget target = existing;
         if (target == null || target.parameter != parameter || !target.targetIdentity.equals (targetIdentity))
         {
             target = parameterTarget (
@@ -479,135 +760,65 @@ final class ParameterTargetHost
                 parameter,
                 0,
                 targetIdentity,
-                () -> parameter.doesExist () && targetIdentity.equals (this.targetIdentities.remote ("project-remote", this.model.getProject ().getName (), bank, index)));
-            this.projectTargets[index] = target;
+                () -> parameter.doesExist () && targetIdentity.equals (this.targetIdentities.remote (domain, owner.get (), bank, index)));
         }
         if (target.isCurrent ())
             this.currentTargets.put (target.reference, target);
+        return target;
     }
 
 
-    private void reconcileDeviceTarget (final int index, final IParameterBank bank)
-    {
-        if (bank == null || index >= bank.getPageSize ())
-        {
-            this.deviceTargets[index] = null;
-            return;
-        }
-
-        final IParameter parameter = bank.getItem (index);
-        final ParameterTargetIdentityResolver.TargetIdentity targetIdentity = this.targetIdentities.remote ("device-remote", this.model.getCursorDevice ().getID (), bank, index);
-        if (parameter == null || !parameter.doesExist () || targetIdentity == null)
-        {
-            this.deviceTargets[index] = null;
-            return;
-        }
-
-        LiveTarget target = this.deviceTargets[index];
-        if (target == null || target.parameter != parameter || !target.targetIdentity.equals (targetIdentity))
-        {
-            target = parameterTarget (
-                new ParameterTargetRef (ParameterTargetKind.LIVE, this.nextIdentity (), bank.getPageBank ().getSelectedItemPosition ()),
-                null,
-                parameter,
-                0,
-                targetIdentity,
-                () -> parameter.doesExist () && targetIdentity.equals (this.targetIdentities.remote ("device-remote", this.model.getCursorDevice ().getID (), bank, index)));
-            this.deviceTargets[index] = target;
-        }
-        if (target.isCurrent ())
-            this.currentTargets.put (target.reference, target);
-    }
-
-
-    private void reconcileTrackVolumeTarget (final int index, final ITrackBank tracks)
+    private LiveTarget reconcileCurrentTrackTarget (final LiveTarget existing, final int index, final ITrackBank tracks, final java.util.function.Function<ITrack, IParameter> role)
     {
         if (tracks == null || index >= tracks.getPageSize ())
-        {
-            this.trackVolumeTargets[index] = null;
-            return;
-        }
+            return null;
 
         final ITrack track = tracks.getItem (index);
-        final IParameter parameter = track == null ? null : track.getVolumeParameter ();
+        final IParameter parameter = track == null ? null : role.apply (track);
         final ParameterTargetIdentityResolver.TargetIdentity targetIdentity = parameter == null ? null : this.targetIdentities.channel (track, parameter);
-        if (parameter == null || !parameter.doesExist () || targetIdentity == null)
-        {
-            this.trackVolumeTargets[index] = null;
-            return;
-        }
+        if (track == null || !track.doesExist () || parameter == null || !parameter.doesExist () || targetIdentity == null)
+            return null;
 
-        LiveTarget target = this.trackVolumeTargets[index];
-        if (target == null || target.parameter != parameter || !target.targetIdentity.equals (targetIdentity))
+        LiveTarget target = existing;
+        if (target == null || target.parameter != parameter || !target.isCurrent () || !target.targetIdentity.equals (targetIdentity))
         {
-            target = parameterTarget (
-                new ParameterTargetRef (ParameterTargetKind.LIVE, this.nextIdentity (), index),
-                null,
-                parameter,
-                0,
-                targetIdentity,
-                () -> {
-                    final ITrack currentTrack = tracks.getItem (index);
-                    return currentTrack != null && currentTrack.getVolumeParameter () == parameter && parameter.doesExist () && targetIdentity.equals (this.targetIdentities.channel (currentTrack, parameter));
-                });
-            this.trackVolumeTargets[index] = target;
+            final String project = this.model.getProject ().getIdentity ();
+            final String channel = track.getChannelID ();
+            final BooleanSupplier addressable = () -> parameter.doesExist () && track.doesExist () && channel.equals (track.getChannelID ()) &&
+                Objects.equals (project, this.model.getProject ().getIdentity ()) && tracks.getItem (index) == track && role.apply (track) == parameter &&
+                targetIdentity.equals (this.targetIdentities.channel (track, parameter));
+            final BooleanSupplier current = () -> this.model.getCurrentTrackBank () == tracks && addressable.getAsBoolean ();
+            target = new LiveTarget (new ParameterTargetRef (ParameterTargetKind.LIVE, this.nextIdentity (), index), null, parameter, 0, targetIdentity,
+                parameter::getValue, value -> parameter.setValueImmediatly ((int) Math.round (value)), current, addressable, 0.5);
         }
         if (target.isCurrent ())
             this.currentTargets.put (target.reference, target);
-    }
-
-
-    private void reconcileTrackPanTarget (final int index, final ITrackBank tracks)
-    {
-        if (tracks == null || index >= tracks.getPageSize ())
-        {
-            this.trackPanTargets[index] = null;
-            return;
-        }
-
-        final ITrack track = tracks.getItem (index);
-        final IParameter parameter = track == null ? null : track.getPanParameter ();
-        final ParameterTargetIdentityResolver.TargetIdentity targetIdentity = parameter == null ? null : this.targetIdentities.channel (track, parameter);
-        if (parameter == null || !parameter.doesExist () || targetIdentity == null)
-        {
-            this.trackPanTargets[index] = null;
-            return;
-        }
-
-        LiveTarget target = this.trackPanTargets[index];
-        if (target == null || target.parameter != parameter || !target.targetIdentity.equals (targetIdentity))
-        {
-            target = parameterTarget (
-                new ParameterTargetRef (ParameterTargetKind.LIVE, this.nextIdentity (), index),
-                null,
-                parameter,
-                0,
-                targetIdentity,
-                () -> {
-                    final ITrack currentTrack = tracks.getItem (index);
-                    return currentTrack != null && currentTrack.getPanParameter () == parameter && parameter.doesExist () && targetIdentity.equals (this.targetIdentities.channel (currentTrack, parameter));
-                });
-            this.trackPanTargets[index] = target;
-        }
-        if (target.isCurrent ())
-            this.currentTargets.put (target.reference, target);
+        return target;
     }
 
 
     private ParameterBridgeSnapshot captureSnapshot ()
     {
         final Map<ParameterSlot, ParameterTargetSnapshot> slots = new LinkedHashMap<> (ParameterBridgeSnapshot.TARGET_CAPACITY);
+        this.captureBank (slots, ParameterBankId.SELECTED_TRACK, this.selectedTrackTargets, index -> new ParameterSlot (ParameterBankId.SELECTED_TRACK, index));
+        this.captureBank (slots, ParameterBankId.SELECTED_TRACK_SENDS, this.selectedSendTargets, ParameterSlot::selectedTrackSend);
         this.captureBank (slots, ParameterBankId.ACTIVE, this.activeTargets, ParameterSlot::active);
         this.captureBank (slots, ParameterBankId.PROJECT_REMOTE, this.projectTargets, ParameterSlot::projectRemote);
         this.captureBank (slots, ParameterBankId.SELECTED_DEVICE_REMOTE, this.deviceTargets, ParameterSlot::selectedDeviceRemote);
         this.captureBank (slots, ParameterBankId.TRACK_VOLUME, this.trackVolumeTargets, ParameterSlot::trackVolume);
         this.captureBank (slots, ParameterBankId.TRACK_PAN, this.trackPanTargets, ParameterSlot::trackPan);
+        for (int sendIndex = 0; sendIndex < this.trackSendTargets.length; sendIndex++)
+        {
+            final int column = sendIndex;
+            this.captureBank (slots, ParameterBankId.trackSend (column), this.trackSendTargets[column], trackIndex -> ParameterSlot.trackSend (column, trackIndex));
+        }
         final LiveTarget tempo = this.requestedBanks.includes (ParameterBankId.GLOBAL) ? this.currentTargets.get (TEMPO_TARGET) : null;
         if (tempo != null)
             slots.put (ParameterSlot.TEMPO, tempo.snapshot ());
         final LiveTarget master = this.requestedBanks.includes (ParameterBankId.GLOBAL) ? this.currentTargets.get (MASTER_VOLUME_TARGET) : null;
         if (master != null)
             slots.put (ParameterSlot.MASTER_VOLUME, master.snapshot ());
+        this.captureTargetSlot (slots, ParameterBankId.GLOBAL, ParameterSlot.METRONOME_VOLUME, this.metronomeVolumeTarget);
         this.captureTargetSlot (slots, ParameterBankId.MASTER, ParameterSlot.MASTER_MIX_VOLUME, this.masterMixVolumeTarget);
         this.captureTargetSlot (slots, ParameterBankId.MASTER, ParameterSlot.MASTER_MIX_PAN, this.masterMixPanTarget);
         this.captureTargetSlot (slots, ParameterBankId.MASTER, ParameterSlot.CUE_VOLUME, this.cueVolumeTarget);
@@ -695,6 +906,21 @@ final class ParameterTargetHost
     }
 
 
+    record PreparedNormalized (LiveTarget target, double value)
+    {
+    }
+
+
+    record PreparedEnabled (LiveTarget target, boolean enabled)
+    {
+    }
+
+
+    record PreparedTouch (ControlId owner, LiveTarget target)
+    {
+    }
+
+
     record PreparedSet (LiveTarget target, double value)
     {
     }
@@ -725,10 +951,17 @@ final class ParameterTargetHost
         private final DoubleSupplier reader;
         private final DoubleConsumer restorer;
         private final BooleanSupplier current;
+        private final BooleanSupplier addressable;
         private final double tolerance;
 
 
         private LiveTarget (final ParameterTargetRef reference, final IHwContinuousControl control, final IParameter parameter, final long bindingGeneration, final ParameterTargetIdentityResolver.TargetIdentity targetIdentity, final DoubleSupplier reader, final DoubleConsumer restorer, final BooleanSupplier current, final double tolerance)
+        {
+            this (reference, control, parameter, bindingGeneration, targetIdentity, reader, restorer, current, current, tolerance);
+        }
+
+
+        private LiveTarget (final ParameterTargetRef reference, final IHwContinuousControl control, final IParameter parameter, final long bindingGeneration, final ParameterTargetIdentityResolver.TargetIdentity targetIdentity, final DoubleSupplier reader, final DoubleConsumer restorer, final BooleanSupplier current, final BooleanSupplier addressable, final double tolerance)
         {
             this.reference = Objects.requireNonNull (reference, "reference");
             this.control = control;
@@ -738,6 +971,7 @@ final class ParameterTargetHost
             this.reader = Objects.requireNonNull (reader, "reader");
             this.restorer = Objects.requireNonNull (restorer, "restorer");
             this.current = Objects.requireNonNull (current, "current");
+            this.addressable = Objects.requireNonNull (addressable, "addressable");
             this.tolerance = tolerance;
         }
 
@@ -754,7 +988,9 @@ final class ParameterTargetHost
                 this.parameter.getModulatedValue (),
                 this.parameter.getDisplayedValue (),
                 this.parameter.getNumberOfSteps (),
-                this.tolerance);
+                this.tolerance,
+                this.parameter instanceof final ISend send ? Optional.of (Boolean.valueOf (send.isEnabled ())) : Optional.empty (),
+                this.targetIdentity == null || this.targetIdentity.page () < 0 || this.targetIdentity.index () < 0 ? de.mossgrabers.pull.core.api.ParameterTargetIdentitySnapshot.empty () : new de.mossgrabers.pull.core.api.ParameterTargetIdentitySnapshot (this.targetIdentity.domain (), this.targetIdentity.ownerId (), this.targetIdentity.page (), this.targetIdentity.index ()));
         }
 
 

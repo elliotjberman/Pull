@@ -123,8 +123,8 @@ public final class WorkspaceView extends SessionView implements WorkspaceFacetAd
     @Override
     public void updateNoteMapping ()
     {
-        final boolean drumActive = this.hasFacet (ControllerViewFacet.DRUM_CONTROLLER_LOWER) && this.surface.isDrumControllerActive ();
-        this.delayedUpdateNoteMapping (drumActive ? this.scales.getDrumMatrix () : EMPTY_TABLE);
+        // Neutral legacy baseline. Composite Drum translation is a complete core-owned value.
+        super.updateNoteMapping ();
     }
 
 
@@ -153,7 +153,7 @@ public final class WorkspaceView extends SessionView implements WorkspaceFacetAd
     @Override
     public void onOctaveDown (final ButtonEvent event)
     {
-        this.changeDrumOctave (event, false);
+        // Inert permanent command: the fixed core Drum profile owns octave policy.
     }
 
 
@@ -161,7 +161,7 @@ public final class WorkspaceView extends SessionView implements WorkspaceFacetAd
     @Override
     public void onOctaveUp (final ButtonEvent event)
     {
-        this.changeDrumOctave (event, true);
+        // Inert permanent command: the fixed core Drum profile owns octave policy.
     }
 
 
@@ -169,7 +169,7 @@ public final class WorkspaceView extends SessionView implements WorkspaceFacetAd
     @Override
     public boolean isOctaveUpButtonOn ()
     {
-        return this.surface.isDrumControllerActive () && this.scales.canScrollDrumOctaveUp ();
+        return false;
     }
 
 
@@ -177,7 +177,7 @@ public final class WorkspaceView extends SessionView implements WorkspaceFacetAd
     @Override
     public boolean isOctaveDownButtonOn ()
     {
-        return this.surface.isDrumControllerActive () && this.scales.canScrollDrumOctaveDown ();
+        return false;
     }
 
 
@@ -185,30 +185,7 @@ public final class WorkspaceView extends SessionView implements WorkspaceFacetAd
     @Override
     public void resetOctave ()
     {
-        if (!this.surface.isDrumControllerActive ())
-            return;
-
-        this.keyManager.clearPressedKeys ();
-        this.scales.resetDrumOctave ();
-        this.updateNoteMapping ();
-        this.model.getDrumDevice ().getDrumPadBank ().scrollTo (this.scales.getDrumOffset (), true);
-    }
-
-
-    private void changeDrumOctave (final ButtonEvent event, final boolean up)
-    {
-        if (event != ButtonEvent.DOWN || !this.surface.isDrumControllerActive ())
-            return;
-
-        final int offset = this.surface.isShiftPressed () ? 4 : this.scales.getDrumDefaultOffset ();
-        this.keyManager.clearPressedKeys ();
-        if (up)
-            this.scales.incDrumOffset (offset);
-        else
-            this.scales.decDrumOffset (offset);
-        this.updateNoteMapping ();
-        this.surface.getDisplay ().notify (this.scales.getDrumRangeText ());
-        this.model.getDrumDevice ().getDrumPadBank ().scrollTo (this.scales.getDrumOffset (), false);
+        // This framework callback has no caller for composite workspace views.
     }
 
 

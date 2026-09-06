@@ -110,7 +110,7 @@ public final class WorkspaceSelectionView implements ControllerView
             target = shifted ? WorkspaceSelection.Id.VS_LIVE : WorkspaceSelection.Id.DEFAULT;
             destination = shifted ? WorkspaceSelection.Destination.NONE : WorkspaceSelection.Destination.SESSION;
             gesture = WorkspaceSelection.Gesture.SESSION;
-            switched = this.selection.active () != target || !shifted && !("TRACK".equals (snapshot.bridge ().layout ().modeId ()) && "SESSION".equals (snapshot.bridge ().layout ().viewId ()));
+            switched = this.selection.active () != target || !shifted && !"SESSION".equals (snapshot.bridge ().layout ().viewId ());
             effects = List.of ();
         }
         else if (NOTE_BUTTON.equals (input.controlId ()))
@@ -122,7 +122,7 @@ public final class WorkspaceSelectionView implements ControllerView
             final NoteViewSnapshot noteView = snapshot.bridge ().noteView ();
             final boolean requestDrum = shifted && noteView.drumControllerApplicable () && !noteView.targetChannelId ().isBlank () && noteView.trackPosition () >= 0;
             final ControllerNoteView requestedView = requestDrum ? ControllerNoteView.DRUM_PAD : ControllerNoteView.NONE;
-            switched = this.selection.active () != target || !"TRACK".equals (snapshot.bridge ().layout ().modeId ()) || !ControllerNoteView.fromStableId (snapshot.bridge ().layout ().viewId ()).isPresent () || requestedView.isPresent () && !requestedView.name ().equals (snapshot.bridge ().layout ().viewId ());
+            switched = this.selection.active () != target || !ControllerNoteView.fromStableId (snapshot.bridge ().layout ().viewId ()).isPresent () || requestedView.isPresent () && !requestedView.name ().equals (snapshot.bridge ().layout ().viewId ());
             if (requestDrum)
                 effects = List.of (new SetNoteViewPreferenceEffect (noteView.targetGeneration (), noteView.targetChannelId (), noteView.trackPosition (), requestedView));
             else

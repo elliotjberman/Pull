@@ -12,7 +12,7 @@ import java.util.Objects;
  * @param workspace Fixed stable-controller facets contributed by the active views
  * @param notePerformance Selected-track musical route and any full-grid Note layout
  */
-public record DesiredControllerState (DesiredControllerWorkspace workspace, DesiredNotePerformance notePerformance)
+public record DesiredControllerState (DesiredControllerWorkspace workspace, DesiredNotePerformance notePerformance, DesiredControllerPageState page)
 {
     private static final DesiredControllerState EMPTY = new DesiredControllerState (DesiredControllerWorkspace.empty (), DesiredNotePerformance.inactive ());
 
@@ -22,6 +22,7 @@ public record DesiredControllerState (DesiredControllerWorkspace workspace, Desi
     {
         workspace = Objects.requireNonNull (workspace, "workspace");
         notePerformance = Objects.requireNonNull (notePerformance, "notePerformance");
+        page = Objects.requireNonNull (page, "page");
 
         final ControllerNoteView noteView = notePerformance.layout ().noteView ();
         final boolean fullGridLayout = noteView.isPresent ();
@@ -37,6 +38,13 @@ public record DesiredControllerState (DesiredControllerWorkspace workspace, Desi
             throw new IllegalArgumentException ("A full-grid Note layout cannot overlap a Session grid workspace");
         if (notePerformance.layout ().neutralizing ())
             throw new IllegalArgumentException ("Layout neutralization is a stable lifecycle state, not core-owned view output");
+    }
+
+
+    /** Compatibility constructor without core-owned page state. */
+    public DesiredControllerState (final DesiredControllerWorkspace workspace, final DesiredNotePerformance notePerformance)
+    {
+        this (workspace, notePerformance, DesiredControllerPageState.empty ());
     }
 
 

@@ -8,6 +8,9 @@ package de.mossgrabers.pull.core.api;
  */
 public final class CoreCapabilities
 {
+    /** Core-owned page projection and ordered frozen legacy selection inbox. */
+    public static final String CONTROLLER_PAGES = "controller.pages";
+
     /** Normalized input for the drum-fill control. */
     public static final String INPUT_DRUM_FILL = "input.drum-fill";
 
@@ -29,7 +32,7 @@ public final class CoreCapabilities
     /** Replayable projection onto bounded semantic host-learnable controller endpoints. */
     public static final String OUTPUT_CONTROLLER_MAPPING = "output.controller-mapping";
 
-    /** Atomic composition of fixed view facets, Note layout, and selected-track note routing. */
+    /** Atomic composition of fixed view facets, Note layout, selected-track routing, and native translation. */
     public static final String OUTPUT_CONTROLLER_STATE = "output.controller-state";
 
     /** Selected-target-fenced persistence of one controller Note-view preference. */
@@ -38,19 +41,25 @@ public final class CoreCapabilities
     /** Replayable lease over the stable note-repeat engine. */
     public static final String OUTPUT_NOTE_REPEAT = "output.note-repeat";
 
+    /** Complete touch-strip hardware mode and 14-bit position with explicit output ownership. */
+    public static final String OUTPUT_TOUCH_STRIP = "output.touch-strip";
+
     /** Normalized bounded Push controller inputs. */
     public static final String INPUT_CONTROLLER = "input.controller";
 
-    /** Replayable input ownership; v5 adds declared semantic variants for one physical edge. */
+    /** Replayable input ownership; v6 freezes related continuous motion for a held touch. */
     public static final String ROUTING_CONTROLLER_INPUT = "routing.controller-input";
 
-    /** Common bounded controller state; v9 adds visible Session-track names and v10 their types. */
+    /** Common bounded controller state; v12 adds current-bank tracks, encoder preferences, and project history readback. */
     public static final String SNAPSHOT_CONTROLLER_BRIDGE = "snapshot.controller-bridge";
 
     /** Replayable selection of bounded bridge-state domains to publish and sample. */
     public static final String SUBSCRIPTION_CONTROLLER_BRIDGE = "subscription.controller-bridge";
 
-    /** Absolute transport state and value effects. */
+    /** Native DAW notification presentation with core-authored bounded text. */
+    public static final String EFFECT_HOST_NOTIFICATION = "effect.host-notification";
+
+    /** Absolute transport state/value, automation-write, and project-fenced native tap effects. */
     public static final String EFFECT_TRANSPORT = "effect.transport";
 
     /** Generation-fenced selected-track state, value, and action effects. */
@@ -58,10 +67,22 @@ public final class CoreCapabilities
 
     /** Generation-fenced actions against the active bounded Session bank; v2 adds selection and v3 exact-track Stop. */
     public static final String EFFECT_SESSION_BANK = "effect.session-bank";
-    /** Mechanical consumption of a stable compatibility button release; v2 admits the lower row. */
+    /** Exact bounded current-bank track actions and main-bank parent navigation. */
+    public static final String EFFECT_CURRENT_TRACK_BANK = "effect.current-track-bank";
+
+    /** Generation-fenced selection of an installed controller mode. */
+    public static final String EFFECT_CONTROLLER_MODE = "effect.controller-mode";
+
+    /** Absolute installed controller-preference writes. */
+    public static final String EFFECT_CONTROLLER_SETTINGS = "effect.controller-settings";
+
+    /** Bounded application layout, panel, Arranger, and Mixer UI operations. */
+    public static final String EFFECT_APPLICATION_UI = "effect.application-ui";
+
+    /** Mechanical consumption of a stable compatibility button release; v3 admits lower-row, Record, and Duplicate gesture consumption. */
     public static final String EFFECT_CONTROLLER_BUTTON_CONSUMPTION = "effect.controller-button-consumption";
 
-    /** Generation-fenced drum-pad state and selection effects. */
+    /** Generation-fenced drum-pad state, selection, and absolute bank-position effects. */
     public static final String EFFECT_DRUM_PAD = "effect.drum-pad";
 
     /** Stateful raw MIDI sent through Bitwig's ordinary permanent controller note input. */
@@ -82,7 +103,7 @@ public final class CoreCapabilities
     /** Authoritative current-project and master-track snapshot. */
     public static final String SNAPSHOT_MASTER = "snapshot.master";
 
-    /** Serialized project/file/engine commands and stable-owned exact cross-project transport. */
+    /** Serialized project/file/history/engine commands and stable-owned exact cross-project transport. */
     public static final String EFFECT_MASTER = "effect.master";
 
     /** Complete replayable controller display; v3 projects composed scenes and v4 adds channel icons. */

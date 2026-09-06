@@ -6,11 +6,14 @@ package de.mossgrabers.pull.shell.runtime;
 import de.mossgrabers.framework.daw.midi.SelectedTrackMonitorMode;
 import de.mossgrabers.framework.daw.midi.SelectedTrackNoteTargetSnapshot;
 import de.mossgrabers.pull.core.api.ControllerNoteView;
+import de.mossgrabers.pull.core.api.ControlId;
+import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.DesiredControllerLayout;
 import de.mossgrabers.pull.core.api.DesiredControllerState;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredNoteInputRoute;
 import de.mossgrabers.pull.core.api.DesiredNotePerformance;
+import de.mossgrabers.pull.core.api.DesiredNoteInputTranslation;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.SessionBankShape;
 import de.mossgrabers.pull.shell.input.InputKind;
@@ -20,11 +23,22 @@ import de.mossgrabers.pull.shell.input.PhysicalControlRegistry;
 import de.mossgrabers.pull.shell.input.PhysicalInputRouter;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -35,6 +49,139 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /** Tests the stable lifecycle boundary shared by every composed musical controller state. */
 class ControllerStateHostTest
 {
+    @TempDir
+    Path debugDirectory;
+
+
+    @ParameterizedTest
+    @EnumSource (ReleaseLane.class)
+    void selectedNoteRouteCleanupSurvivesSynchronousRoutedDebugRelease (final ReleaseLane lane) throws IOException
+    {
+        final RoutedCleanupFixture fixture = new RoutedCleanupFixture (this.debugDirectory);
+        fixture.host.apply (state (ControllerNoteView.PLAY, 1, "track-a"));
+        fixture.edge (RoutedCleanupFixture.MASTER, "BEGIN");
+        fixture.edge (RoutedCleanupFixture.ROW, "BEGIN");
+        fixture.target.generation = 2;
+        fixture.target.channelID = "track-b";
+
+        switch (lane)
+        {
+            case INVALIDATION -> fixture.host.refresh ();
+            case END -> fixture.edge (RoutedCleanupFixture.ROW, "END");
+            case EXPIRY -> {
+                fixture.time.set (TimeUnit.SECONDS.toNanos (6));
+                fixture.debug.tick ();
+            }
+        }
+        fixture.debug.tick ();
+
+        assertFalse (fixture.target.routeActive);
+        assertFalse (fixture.host.state ().submittedRoute ().active ());
+        assertEquals (DesiredControllerLayout.neutral (), fixture.host.state ().commandedLayout ());
+        assertEquals (DesiredNoteInputTranslation.silent (), fixture.surface.translation);
+        assertTrue (fixture.held.isEmpty ());
+        assertTrue (fixture.inputs.isIdle ());
+        assertFalse (fixture.admissionActive);
+        assertEquals (List.of (
+            RoutedCleanupFixture.MASTER + ":BEGIN", RoutedCleanupFixture.ROW + ":BEGIN",
+            (lane == ReleaseLane.EXPIRY ? RoutedCleanupFixture.MASTER : RoutedCleanupFixture.ROW) + ":END",
+            (lane == ReleaseLane.EXPIRY ? RoutedCleanupFixture.ROW : RoutedCleanupFixture.MASTER) + ":END"), fixture.routedEdges);
+
+        // A later aligned request must recover after the exact old route and all debug edges retire.
+        fixture.host.apply (state (ControllerNoteView.DRUM_PAD, 2, "track-b"));
+        assertTrue (fixture.target.routeActive);
+        assertEquals (DesiredControllerLayout.note (ControllerNoteView.DRUM_PAD), fixture.host.state ().commandedLayout ());
+        fixture.edge (RoutedCleanupFixture.ROW, "BEGIN");
+        fixture.edge (RoutedCleanupFixture.ROW, "END");
+        assertTrue (fixture.inputs.isIdle ());
+        assertFalse (fixture.admissionActive);
+    }
+
+
+    @ParameterizedTest
+    @ValueSource (booleans = { false, true })
+    void reentrantReplacementWaitsUntilOldNativeRouteDetachReturns (final boolean normalExit)
+    {
+        final List<String> events = new ArrayList<> ();
+        final MutableTarget target = new MutableTarget (events);
+        final AtomicReference<ControllerStateHost> reference = new AtomicReference<> ();
+        final ControllerStateHost host = new ControllerStateHost (target, new RecordingSurface (events), () -> {
+            target.generation = 2;
+            target.channelID = "track-b";
+            reference.get ().apply (state (ControllerNoteView.DRUM_PAD, 2, "track-b"));
+            assertTrue (target.routeActive, "the old physical route has not yet received detach");
+            assertFalse (reference.get ().state ().submittedRoute ().active (), "logical ownership must already be consumed");
+        });
+        reference.set (host);
+        host.apply (state (ControllerNoteView.PLAY, 1, "track-a"));
+        events.clear ();
+
+        if (normalExit)
+            host.apply (DesiredControllerState.empty ());
+        else
+        {
+            target.generation = 2;
+            target.channelID = "track-b";
+            host.refresh ();
+        }
+        assertFalse (target.routeActive);
+        assertEquals (DesiredControllerLayout.neutral (), host.state ().commandedLayout ());
+        assertFalse (events.contains ("route:on"));
+        assertFalse (events.contains ("layout:DRUM_PAD"), "replacement layout cannot activate during the old detach");
+
+        host.refresh ();
+        assertTrue (target.routeActive);
+        assertEquals (DesiredControllerLayout.note (ControllerNoteView.DRUM_PAD), host.state ().commandedLayout ());
+        assertTrue (events.indexOf ("route:off") < events.indexOf ("route:on"));
+        assertTrue (events.indexOf ("route:on") < events.indexOf ("layout:DRUM_PAD"), "replacement route must attach before its layout activates");
+    }
+
+
+    @Test
+    void nativeMappingAndLayoutChangesWaitForHeldInputToFinish ()
+    {
+        final Fixture fixture = new Fixture ();
+        final DesiredControllerState original = fixture.performance (ControllerNoteView.PLAY);
+        fixture.host.apply (original);
+        fixture.events.clear ();
+        final List<Integer> keys = new ArrayList<> (DesiredNoteInputTranslation.silent ().keyTranslation ());
+        keys.set (36, Integer.valueOf (48));
+        final DesiredNoteInputTranslation translation = new DesiredNoteInputTranslation (true, keys, DesiredNoteInputTranslation.silent ().velocityTranslation ());
+        final DesiredControllerState next = new DesiredControllerState (original.workspace (), new DesiredNotePerformance (DesiredControllerLayout.note (ControllerNoteView.DRUM_PAD), original.notePerformance ().inputRoute (), translation));
+
+        fixture.idle.set (false);
+        fixture.host.apply (next);
+        fixture.host.refresh ();
+        assertTrue (fixture.events.isEmpty ());
+        assertEquals (DesiredNoteInputTranslation.unowned (), fixture.surface.translation);
+
+        fixture.idle.set (true);
+        fixture.host.refresh ();
+        assertEquals (List.of ("workspace:", "layout:DRUM_PAD"), fixture.events);
+        assertEquals (translation, fixture.surface.translation);
+        fixture.events.clear ();
+        fixture.host.apply (next);
+        assertTrue (fixture.events.isEmpty ());
+    }
+
+
+    @Test
+    void targetMismatchSilencesOwnedMappingAndDetachesRoute ()
+    {
+        final Fixture fixture = new Fixture ();
+        final DesiredControllerState original = fixture.performance (ControllerNoteView.DRUM_PAD);
+        final List<Integer> keys = new ArrayList<> (DesiredNoteInputTranslation.silent ().keyTranslation ());
+        keys.set (36, Integer.valueOf (48));
+        fixture.host.apply (new DesiredControllerState (original.workspace (), new DesiredNotePerformance (original.notePerformance ().layout (), original.notePerformance ().inputRoute (), new DesiredNoteInputTranslation (true, keys, DesiredNoteInputTranslation.silent ().velocityTranslation ()))));
+
+        fixture.target.channelID = "replacement";
+        fixture.target.generation++;
+        fixture.host.refresh ();
+        assertEquals (DesiredNoteInputTranslation.silent (), fixture.surface.translation);
+        assertFalse (fixture.target.routeActive);
+    }
+
+
     @Test
     void entersByRoutingBeforeLayoutAndReplaysWithoutRouteChurn ()
     {
@@ -249,6 +396,85 @@ class ControllerStateHostTest
     }
 
 
+    private enum ReleaseLane { INVALIDATION, END, EXPIRY }
+
+
+    /** The real router feeds refresh back into the host whose neutralizer cancels debug edges. */
+    private static final class RoutedCleanupFixture implements PushDebugInputHost.InputSurface, PushDebugNavigationHost.GestureAdmission
+    {
+        private static final ControlId MASTER = PushControlIds.button ("MASTERTRACK");
+        private static final ControlId ROW = PushControlIds.button ("ROW1_1");
+        private final List<String> events = new ArrayList<> ();
+        private final List<String> routedEdges = new ArrayList<> ();
+        private final Set<ControlId> held = new HashSet<> ();
+        private final MutableTarget target = new MutableTarget (this.events);
+        private final RecordingSurface surface = new RecordingSurface (this.events);
+        private final AtomicLong time = new AtomicLong ();
+        private final Path directory;
+        private final ControllerStateHost host;
+        private final PhysicalInputRouter<ControlId> inputs;
+        private final PushDebugInputHost debug;
+        private boolean admissionActive;
+        private int requestSequence;
+
+
+        private RoutedCleanupFixture (final Path directory)
+        {
+            this.directory = directory;
+            this.host = new ControllerStateHost (this.target, this.surface, this::neutralize);
+            this.inputs = new PhysicalInputRouter<> (
+                PhysicalControlRegistry.<ControlId>builder (2).register (MASTER, InputKind.BUTTON).register (ROW, InputKind.BUTTON).build (),
+                (control, kind) -> InputRoute.EXCLUSIVE,
+                event -> {
+                    this.routedEdges.add (event.control () + ":" + event.phase ());
+                    this.host.refresh ();
+                    assertTrue (this.admissionActive, "an in-flight routed callback still fences the debug admission");
+                });
+            this.debug = new PushDebugInputHost (directory, this, this, this.time::get);
+            this.host.setInputLifecycleIdle (() -> this.inputs.gesturesIdle (input -> input.kind () == InputKind.PAD));
+            this.debug.tick ();
+        }
+
+
+        private void neutralize ()
+        {
+            this.events.add ("midi:neutral");
+            this.debug.cancelActive ("selected note route invalidated");
+        }
+
+
+        private void edge (final ControlId control, final String phase) throws IOException
+        {
+            final String request = "edge-" + this.requestSequence++;
+            Files.writeString (this.directory.resolve (PushDebugInputHost.REQUEST_DIRECTORY).resolve ("input-" + request + ".txt"),
+                String.join ("\t", this.debug.sessionForTest (), request, control.value (), "BUTTON", phase, "BEGIN".equals (phase) ? "127" : "0") + "\n");
+            this.debug.tick ();
+            assertTrue (Files.readString (this.directory.resolve (PushDebugInputHost.STATUS_FILE)).contains ("\"state\":\"APPLIED\""));
+        }
+
+
+        @Override public boolean supports (final ControlId control, final InputKind kind) { return kind == InputKind.BUTTON && (MASTER.equals (control) || ROW.equals (control)); }
+        @Override public boolean isActive (final ControlId control, final InputKind kind) { return this.held.contains (control); }
+        @Override public void triggerNoteInput (final ControlId control, final InputKind kind, final InputPhase phase, final int value) { throw new AssertionError ("button edges must not send musical MIDI"); }
+
+        @Override
+        public void trigger (final ControlId control, final InputKind kind, final InputPhase phase, final int value)
+        {
+            if (phase == InputPhase.BEGIN) this.held.add (control);
+            else if (phase == InputPhase.END) this.held.remove (control);
+            this.inputs.route (control, kind, phase, value, () -> { throw new AssertionError ("exclusive route ran legacy policy"); });
+        }
+
+        @Override public boolean isIdle () { return !this.admissionActive && this.inputs.isIdle (); }
+        @Override public boolean debugInputRouteIdle () { return this.inputs.isIdle (); }
+        @Override public boolean trySubmit (final Runnable gesture) { if (!this.isIdle ()) return false; gesture.run (); return true; }
+        @Override public boolean tryBeginDebugInput (final Runnable press) { if (!this.isIdle ()) return false; this.admissionActive = true; press.run (); return true; }
+        @Override public boolean tryExtendDebugInput (final Runnable press) { if (!this.admissionActive) return false; press.run (); return true; }
+        @Override public void endDebugInput (final Runnable release) { assertTrue (this.admissionActive); release.run (); }
+        @Override public void completeDebugInput () { assertTrue (this.inputs.isIdle ()); this.admissionActive = false; }
+    }
+
+
     private static final class Fixture
     {
         private final List<String> events = new ArrayList<> ();
@@ -282,6 +508,7 @@ class ControllerStateHostTest
         private final List<String> events;
         private ControllerNoteView failView;
         private boolean failNeutral;
+        private DesiredNoteInputTranslation translation = DesiredNoteInputTranslation.unowned ();
 
 
         private RecordingSurface (final List<String> events)
@@ -301,6 +528,13 @@ class ControllerStateHostTest
         public DesiredControllerLayout prepareLayout (final DesiredControllerLayout layout)
         {
             return layout;
+        }
+
+
+        @Override
+        public void applyTranslation (final DesiredNoteInputTranslation translation)
+        {
+            this.translation = translation;
         }
 
 

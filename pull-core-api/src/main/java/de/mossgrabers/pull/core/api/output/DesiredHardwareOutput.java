@@ -17,8 +17,9 @@ import java.util.Objects;
  * @param padGridOverlay Temporary sparse pad-grid overlay
  * @param displayOverlay Temporary complete scene above the current display page
  * @param controllerMappings Physical-to-semantic host-learned action projections
+ * @param touchStrip Complete explicitly owned touch-strip output
  */
-public record DesiredHardwareOutput (Map<ControlId, RgbColor> lights, ControllerDisplayScene display, ControllerPadGridOverlay padGridOverlay, ControllerDisplayOverlay displayOverlay, DesiredControllerMappings controllerMappings)
+public record DesiredHardwareOutput (Map<ControlId, RgbColor> lights, ControllerDisplayScene display, ControllerPadGridOverlay padGridOverlay, ControllerDisplayOverlay displayOverlay, DesiredControllerMappings controllerMappings, DesiredTouchStrip touchStrip)
 {
     private static final DesiredHardwareOutput EMPTY = new DesiredHardwareOutput (Map.of (), ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), DesiredControllerMappings.empty ());
 
@@ -33,6 +34,14 @@ public record DesiredHardwareOutput (Map<ControlId, RgbColor> lights, Controller
         padGridOverlay = Objects.requireNonNull (padGridOverlay, "padGridOverlay");
         displayOverlay = Objects.requireNonNull (displayOverlay, "displayOverlay");
         controllerMappings = Objects.requireNonNull (controllerMappings, "controllerMappings");
+        touchStrip = Objects.requireNonNull (touchStrip, "touchStrip");
+    }
+
+
+    /** Compatibility constructor without touch-strip output ownership. */
+    public DesiredHardwareOutput (final Map<ControlId, RgbColor> lights, final ControllerDisplayScene display, final ControllerPadGridOverlay padGridOverlay, final ControllerDisplayOverlay displayOverlay, final DesiredControllerMappings controllerMappings)
+    {
+        this (lights, display, padGridOverlay, displayOverlay, controllerMappings, DesiredTouchStrip.unowned ());
     }
 
 
