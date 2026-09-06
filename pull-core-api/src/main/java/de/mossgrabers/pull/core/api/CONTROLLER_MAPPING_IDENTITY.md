@@ -23,14 +23,15 @@ push.pad.29          drum-controller.track.1.control.1                push.pad.2
 ```
 
 Core selects the semantic bank from the observed document and selected-track UUID. Moving its
-physical projection does not recreate that permanent Bitwig identity. Endpoint names encode bank
-and control slot, not a mutable track name or position. Banks are numbered 1–128 and controls 1–4;
+physical projection does not recreate that permanent Bitwig identity. Endpoint names use a fixed
+sequence, not a mutable track name or position. Banks are numbered 1–128 and controls 1–4;
 `CoreControllerMappings.trackBank()` accepts a zero-based bank index. The corresponding hardware
 ID is `CONTROLLER_MAPPING_TRACK_<bank>_CONTROL_VALUE_<slot>`, displayed as
-`Bank <bank> Drum Controller Toggle <slot>`; the displayed number is the allocation bank, not
-track-list position. These source labels remain fixed. Live testing showed that Bitwig restricts
-both `HardwareControl.setName(String)` and `HardwareElement.setLabel(String)` to extension
-initialization, despite the API 25 declarations omitting that restriction. Runtime track-name
+`Drum Controller <number>`, where `number = (bank - 1) * 4 + slot` (1–512). The first bank uses
+1–4, the second uses 5–8; these numbers do not indicate track-list positions. These source labels
+remain fixed. Live testing showed that Bitwig restricts `HardwareControl.setName(String)` to
+extension initialization; the installed implementation has the same guard on
+`HardwareElement.setLabel(String)`, despite the API 25 declarations omitting that restriction. Runtime track-name
 labels are therefore deferred; no name cache, naming output API, or runtime setter is installed.
 
 Only the leased endpoint receives a positive-velocity Note On matcher. Core supplies the literal

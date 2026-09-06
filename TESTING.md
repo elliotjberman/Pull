@@ -371,8 +371,9 @@ with `mvn -o -Dmaven.compiler.showDeprecation=true package`, create a recoverabl
 and hold `tools/with-pull-live --owner LABEL` through installation, restart, exact-build activation,
 and this smoke. The earlier API 43 identity probe does not validate the new registry or mappings.
 Record final-build test results separately; this sequence is an acceptance procedure, not a result.
-The source labels are fixed `Bank N Drum Controller Toggle M` names, where bank numbers are
-allocation slots. Runtime track-name labels are deferred: the installed host rejects `setName`
+The source labels are fixed `Drum Controller N` names (1–512): bank 1 uses 1–4, bank 2 uses 5–8,
+and so on. Numbers identify permanent controls, not track positions. Runtime track-name labels
+are deferred: the installed host rejects `setName`
 and `setLabel` outside initialization, even though the API 25 declarations omit that restriction.
 
 1. Use a saved scratch project with two drum tracks. Select the first and wait for its mapping

@@ -49,10 +49,61 @@ API 25 source declares both without deprecation or an initialization-only warnin
 alone therefore does not establish runtime mutability.
 
 The naming experiment was removed. V1 remains on core API 44 and uses permanent
-`Bank N Drum Controller Toggle M` labels, making allocation slots distinct from track positions.
+`Drum Controller N` labels numbered 1–512: bank 1 contains 1–4, bank 2 contains 5–8, and so on.
+These numbers identify allocated controls, not track positions. Track renames do not change the
+UUID-to-bank allocation or the permanent native control identities.
 A future naming design must demonstrate a supported runtime presentation mechanism in the actual
 host before adding a cache or API transport. Do not revive the runtime setters or recreate controls
 under new identities on rename; either would break the current bounded contract.
+
+## Bitwig Report Draft — Runtime Mapping-Source Labels
+
+TODO: send the following report to Bitwig and establish a supported naming contract before
+revisiting track-name labels. This draft has not been sent.
+
+**Environment:** Bitwig Studio 6.1 on macOS, Java controller extension targeting controller API 25.
+
+**Impact:** Our extension preallocates persistent hardware controls for independent per-track MIDI
+mappings. We want Bitwig's mapping-source labels to identify the owning track while preserving each
+control's permanent ID and learned bindings. Fixed names such as `Drum Controller 1` work, but cannot
+identify the track to the user. Even a frozen first-known track name is difficult: our new track and
+document-state proxies provide the required metadata through later host updates, after the controls
+have been created. This timing is evidence from our current proxy setup, not an explicit API timing
+guarantee. Bitwig itself already has the track metadata.
+
+**Observed behavior:** In our extension, calling `HardwareControl.setName(String)` after
+initialization failed live at 2026-09-05 17:18:23 with `This can only be called during driver
+initialization`. The stack passed through `jaS.setName` and our `ControllerMappingNamesHost.refresh`.
+Inspection of this installed Bitwig version also found the same `checkIsInitializingDriver()` guard
+in `HardwareElement.setLabel(String)`; we did not separately reproduce a `setLabel` failure live.
+The locally resolved API 25 source documents neither setter as initialization-only or deprecated.
+
+**Minimal reproduction sketch:** The following Java-like pseudocode isolates the attempted sequence;
+it has not been independently executed as a minimal reproduction. The live evidence above came from
+the full extension.
+
+```java
+void init() {
+    surface = host.createHardwareSurface();
+    control = surface.createAbsoluteHardwareKnob("PERMANENT_DRUM_CONTROL_1");
+    control.setName("Drum Controller 1");
+    track = host.createCursorTrack("name-probe", "Name probe", 0, 0, true);
+    track.name().markInterested();
+}
+
+void flush() {
+    if (!attempted && !track.name().get().isBlank()) {
+        attempted = true;
+        control.setName(track.name().get() + " Drum Controller 1");
+    }
+}
+```
+
+**Requested support:** Is there a supported way to update a native mapping-source display name after
+initialization without changing the persistent hardware control identity or its learned bindings?
+If not, please consider adding one, and document the initialization restriction on both existing
+setters. The display name should be able to follow later track metadata and renames independently of
+the control's identity.
 
 ## Contract Gaps And Open Questions
 
