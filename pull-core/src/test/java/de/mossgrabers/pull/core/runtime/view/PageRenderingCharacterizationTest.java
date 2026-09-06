@@ -25,7 +25,7 @@ class PageRenderingCharacterizationTest
     @Test
     void framePreservesEveryObservedOptionCombinationAndUnavailableLayout () throws Exception
     {
-        assertEquals ("7228d8cb5390eacbcae456ebae6d39747c1ae25512ecca5eeb8e97b4ed3a0573", fingerprint (frame ())); 
+        assertEquals ("7228d8cb5390eacbcae456ebae6d39747c1ae25512ecca5eeb8e97b4ed3a0573", fingerprint (frame ()));
     }
 
     @Test
