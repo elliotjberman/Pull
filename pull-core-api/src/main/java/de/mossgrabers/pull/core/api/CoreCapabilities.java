@@ -8,6 +8,9 @@ package de.mossgrabers.pull.core.api;
  */
 public final class CoreCapabilities
 {
+    /** Core-owned page projection and ordered frozen legacy selection inbox. */
+    public static final String CONTROLLER_PAGES = "controller.pages";
+
     /** Normalized input for the drum-fill control. */
     public static final String INPUT_DRUM_FILL = "input.drum-fill";
 

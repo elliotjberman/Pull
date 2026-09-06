@@ -3,6 +3,9 @@
 
 package de.mossgrabers.pull.core.runtime.view;
 
+import de.mossgrabers.pull.core.ui.page.TrackFooterRenderer;
+import de.mossgrabers.pull.core.ui.page.PageVisuals;
+
 import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerActionBinding;
@@ -17,7 +20,6 @@ import de.mossgrabers.pull.core.api.effect.SelectSessionTrackEffect;
 import de.mossgrabers.pull.core.api.effect.StopSessionTrackEffect;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
-import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.view.ControllerView;
 import de.mossgrabers.pull.core.view.ResolvedControllerAction;
 import de.mossgrabers.pull.core.view.SurfaceArea;
@@ -26,7 +28,6 @@ import de.mossgrabers.pull.core.view.ViewOutput;
 import de.mossgrabers.pull.core.view.ViewProfile;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -37,8 +38,6 @@ import java.util.Set;
  */
 public final class TrackSelectionStripView implements ControllerView
 {
-    private static final RgbColor OFF = new RgbColor (0, 0, 0);
-    private static final RgbColor RECORD_ARMED = new RgbColor (255, 0, 0);
     private static final ControlId STOP_CLIP = PushControlIds.button ("STOP_CLIP");
     private static final ControllerActionIntent SELECT_TRACK = new ControllerActionIntent (
         ControllerActionId.SELECT_VISIBLE_TRACK,
@@ -139,17 +138,8 @@ public final class TrackSelectionStripView implements ControllerView
     @Override
     public ViewOutput render (final ControllerSnapshot snapshot)
     {
-        final List<SessionTrackSnapshot> tracks = snapshot.bridge ().sessionBank ().tracks ();
-        final Map<ControlId, RgbColor> lights = new LinkedHashMap<> ();
-        for (int index = 0; index < TRACK_BUTTONS.size (); index++)
-        {
-            final SessionTrackSnapshot track = index < tracks.size () ? tracks.get (index) : SessionTrackSnapshot.empty ();
-            lights.put (TRACK_BUTTONS.get (index), !track.exists () || !track.activated () ? OFF : track.recordArmed () ? RECORD_ARMED : track.color ());
-        }
-        return new ViewOutput (
-            lights,
-            Map.of (),
-            TrackFooterDisplayScene.render (tracks));
+        final PageVisuals visuals = TrackFooterRenderer.render (TrackFooterProjection.sessionBank (snapshot.bridge ().sessionBank ().tracks ()));
+        return new ViewOutput (visuals.lights (), Map.of (), visuals.display ());
     }
 
 

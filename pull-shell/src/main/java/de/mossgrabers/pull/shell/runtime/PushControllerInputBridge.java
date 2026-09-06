@@ -148,6 +148,13 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
     }
 
 
+    /** Parent-owned evidence for continuing an already admitted exact touch lease. */
+    boolean ownsActiveTouch (final ControlId control)
+    {
+        return this.router.ownsActiveGesture (control, InputKind.TOUCH);
+    }
+
+
     /** Test whether no pad or sustain lifecycle can outlive the selected Note route. */
     boolean musicalInputLifecycleIdle ()
     {

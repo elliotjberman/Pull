@@ -74,32 +74,21 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class CompiledWorkspaceTest
 {
     @Test
-    void nativePageDeclaresItsAdapterWithoutAddingAStableFacet ()
+    void pageIdentityDoesNotNeedAStableAdapter ()
     {
-        final ControllerView page = pageAdapter ("transport", "TRANSPORT");
-        final DesiredControllerWorkspace desired = CompiledWorkspace.compile ("Metronome", List.of (new RetainedControllerView (page))).desiredControllerWorkspace ();
-        assertEquals ("TRANSPORT", desired.installedModeId ());
+        final ControllerView body = view ("new-page-body", claim (SurfaceArea.DISPLAY_PARAMETERS, SurfaceClaim.Kind.OUTPUT));
+        final Page page = new Page (new PageId ("new-page"), List.of (body), java.util.Optional.empty (), Set.of ());
+        final DesiredControllerWorkspace desired = CompiledWorkspace.compile (page.id ().value (), page.views ()).desiredControllerWorkspace ();
         assertTrue (desired.facets ().isEmpty ());
-        assertTrue (desired.isActive ());
+        assertFalse (desired.isActive (), "page selection is independent of stable grid facets");
     }
 
 
     @Test
-    void twoDistinctRegisteredPagesCannotComposeEvenWithDisjointClaims ()
+    void pageDefinitionRejectsDuplicateViewIdentities ()
     {
-        assertThrows (IllegalArgumentException.class, () -> CompiledWorkspace.compile ("conflicting pages", List.of (
-            pageAdapter ("transport", "TRANSPORT"), pageAdapter ("automation", "AUTOMATION"))));
-    }
-
-
-    private static ControllerView pageAdapter (final String id, final String mode)
-    {
-        return new ControllerView ()
-        {
-            @Override public String id () { return id; }
-            @Override public String installedModeId () { return mode; }
-            @Override public ViewProfile profile () { return ViewProfile.fixed (id, Set.of (), Set.of ()); }
-        };
+        final ControllerView body = view ("body", claim (SurfaceArea.DISPLAY_PARAMETERS, SurfaceClaim.Kind.OUTPUT));
+        assertThrows (IllegalArgumentException.class, () -> new Page (new PageId ("duplicate"), List.of (body, body), java.util.Optional.empty (), Set.of ()));
     }
 
 
@@ -285,7 +274,7 @@ class CompiledWorkspaceTest
         final CoreResult result = workspace.start (parameterSnapshot ());
         final ControlId firstKnob = PushControlIds.continuous ("KNOB1");
 
-        assertEquals (Set.of (ControllerViewFacet.PROJECT_MACRO_CONTROLS), result.desiredControllerState ().workspace ().facets ());
+        assertTrue (result.desiredControllerState ().workspace ().facets ().isEmpty ());
         assertEquals (16, result.desiredInputRoutes ().routes ().size ());
         assertEquals (InputRouteMode.EXCLUSIVE, result.desiredInputRoutes ().mode (firstKnob, InputKind.RELATIVE).orElseThrow ());
         assertEquals (InputRouteMode.EXCLUSIVE, result.desiredInputRoutes ().mode (firstKnob, InputKind.TOUCH).orElseThrow ());

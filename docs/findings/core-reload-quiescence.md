@@ -12,7 +12,7 @@ remove_when: all asynchronous operation owners declare and test their replacemen
 Source inspection at commit `256d01ce` found a coherent central replacement gate, but no complete
 contract requiring every core-owned asynchronous operation to participate. The concrete queued
 toggle scenario below is a source-based finding; it has not been reproduced in a test or live
-Bitwig. This document records an investigation and proposed direction, not an implemented fix.
+Bitwig. This document records an investigation and proposed direction, not a completed general fix.
 
 [CoreReloadSupervisor](../../pull-shell/src/main/java/de/mossgrabers/pull/shell/runtime/CoreReloadSupervisor.java)
 retains the newest candidate until `RuntimeManager.canReplaceActiveCore()` permits activation.
@@ -28,6 +28,21 @@ the physical input lifecycle is idle, and the controller bridge permits replacem
 counts core-relevant gestures, queued motion, and deferred stable dispatches as non-idle. This
 already provides a common boundary for physical interactions, but button release does not imply
 completion of the host operations requested by that button.
+
+## Bounded Page-Inbox Recovery In API 46
+
+The page migration adds a specific tested owner; it does not implement the general contract below.
+`PushControllerPageManager` fences a healthy consumer's pending requests, captured temporary holds,
+notifications and projection. A monotonic parent-owned retired prefix records acknowledged or
+abandoned requests and bootstraps every new core independently of checkpoint compatibility. Fault
+cleanup retires pending work, disables callback admission, and clears captured handles; old delayed
+callbacks also expire when their consumer generation is replaced. With no healthy consumer, new
+legacy callbacks cannot refill an unserviceable inbox or block recovery.
+
+Routed `RuntimeManager`/bridge tests cover incompatible and discarded checkpoints, quarantine with
+pending requests, callbacks during quarantine, replacement, and successful subsequent navigation.
+These tests close the page-inbox recovery gap only. They do not establish completion or checkpoint
+semantics for queued Mute/Solo/Record intent or every asynchronous owner listed below.
 
 ## Suspected Lost Toggle Intent
 
@@ -49,7 +64,7 @@ The candidate scenario is:
 Without replacement, the old toggle lane would now submit unmute. With replacement, the queued
 second intent appears to be lost: the gate does not inspect toggle lanes, and
 [PullControllerCore.checkpoint](../../pull-core/src/main/java/de/mossgrabers/pull/core/runtime/PullControllerCore.java)
-serializes workspace/destination selection and engine-owner state, not toggle state. Startup creates
+serializes workspace/page selection and engine-owner state, not toggle state. Startup creates
 fresh lanes through
 [ControllerLevelViews](../../pull-core/src/main/java/de/mossgrabers/pull/core/runtime/view/ControllerLevelViews.java).
 The shell receives only the first submitted absolute write; it cannot reconstruct the second

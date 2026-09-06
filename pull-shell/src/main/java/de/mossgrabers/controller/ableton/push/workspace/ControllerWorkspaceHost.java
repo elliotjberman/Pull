@@ -25,7 +25,6 @@ import java.util.Objects;
 public final class ControllerWorkspaceHost
 {
     private final PushControlSurface surface;
-    private final ControllerPageLease pageLease = new ControllerPageLease ();
 
     private DesiredControllerWorkspace desiredWorkspace = DesiredControllerWorkspace.empty ();
     private Views previousView;
@@ -51,8 +50,6 @@ public final class ControllerWorkspaceHost
     public DesiredControllerWorkspace prepare (final DesiredControllerWorkspace workspace)
     {
         final DesiredControllerWorkspace candidate = validate (workspace);
-        if (!candidate.installedModeId ().isEmpty () && !(this.surface.getModeManager ().get (Modes.valueOf (candidate.installedModeId ())) instanceof de.mossgrabers.controller.ableton.push.mode.CorePageMode))
-            throw new IllegalArgumentException ("Requested page adapter is not installed with a complete inert footprint");
         if (candidate.sessionBankShape ().isPresent ())
         {
             this.surface.getSessionBankRegistry ().requireDeclared (candidate.sessionBankShape ());
@@ -96,7 +93,6 @@ public final class ControllerWorkspaceHost
     {
         if (requested.neutralizing ())
         {
-            modeManager.setActive (Modes.TRACK);
             viewManager.setActive (Views.SESSION);
             return;
         }
@@ -115,7 +111,6 @@ public final class ControllerWorkspaceHost
             throw new IllegalArgumentException ("Upper and full Session views cannot be active together");
         if (candidate.facets ().contains (ControllerViewFacet.SESSION_GRID_FULL) && (candidate.facets ().contains (ControllerViewFacet.DRUM_CONTROLLER_LOWER) || candidate.facets ().contains (ControllerViewFacet.SESSION_NAVIGATION) || candidate.facets ().contains (ControllerViewFacet.SESSION_SCENE_KEYS_UPPER)))
             throw new IllegalArgumentException ("Full Session cannot overlap a separately composed grid or navigation facet");
-        ControllerPageLease.validate (candidate);
         return candidate;
     }
 
@@ -144,8 +139,6 @@ public final class ControllerWorkspaceHost
         else
             this.surface.getSessionBankRegistry ().restoreDefault ();
         final ViewManager viewManager = this.surface.getViewManager ();
-        final ModeManager modeManager = this.surface.getModeManager ();
-        this.pageLease.apply (previous, next, modeManager);
 
         if (!hadGrid && wantsGrid)
             this.previousView = viewManager.getActiveID ();
@@ -221,17 +214,9 @@ public final class ControllerWorkspaceHost
     }
 
 
-    private static boolean usesWorkspaceModeAdapter (final DesiredControllerWorkspace workspace)
-    {
-        return workspace.facets ().contains (ControllerViewFacet.PROJECT_MACRO_CONTROLS);
-    }
-
-
     private void reconcileDesiredAdapters (final DesiredControllerWorkspace workspace)
     {
         final ViewManager viewManager = this.surface.getViewManager ();
-        final ModeManager modeManager = this.surface.getModeManager ();
-        this.pageLease.reconcile (workspace, modeManager);
 
         final Views gridView = desiredGridView (workspace);
         if (gridView != null)
@@ -245,11 +230,6 @@ public final class ControllerWorkspaceHost
             }
         }
 
-        if (usesWorkspaceModeAdapter (workspace))
-        {
-            if (!(modeManager.getActive () instanceof final WorkspaceFacetAdapter adapter))
-                throw new IllegalStateException ("Workspace mode adapter is not registered");
-            adapter.reconcileWorkspaceFacets ();
-        }
+
     }
 }

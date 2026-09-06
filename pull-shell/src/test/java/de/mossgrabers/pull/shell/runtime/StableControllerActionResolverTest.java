@@ -57,6 +57,28 @@ class StableControllerActionResolverTest
 
 
     @Test
+    void selectDetailsUsesNativeBrowserActivityBeforePageProjectionCatchesUp ()
+    {
+        final Fixture fixture = new Fixture ();
+        final var manager = fixture.surface.getModeManager ();
+        manager.activateConsumer (1);
+        fixture.surface.getViewManager ().register (de.mossgrabers.framework.view.Views.PLAY, relaxedProxy (de.mossgrabers.framework.featuregroup.IView.class));
+        fixture.surface.getViewManager ().setActive (de.mossgrabers.framework.view.Views.PLAY);
+        manager.register (Modes.BROWSER, relaxedProxy (IMode.class));
+        manager.register (Modes.TRACK_DETAILS, relaxedProxy (IMode.class));
+        final var command = new de.mossgrabers.controller.ableton.push.command.trigger.SelectCommand (fixture.model, fixture.surface);
+        fixture.browserActive = true;
+        command.execute (ButtonEvent.UP, 0);
+        assertEquals (0, manager.requests ().requests ().size ());
+        manager.apply (new de.mossgrabers.pull.core.api.DesiredControllerPageState (1, de.mossgrabers.pull.core.api.ControllerPageRef.legacy ("BROWSER"), de.mossgrabers.pull.core.api.ControllerPageRef.none (), java.util.Optional.empty (), 0));
+        fixture.browserActive = false;
+        command.execute (ButtonEvent.UP, 0);
+        assertEquals (1, manager.requests ().requests ().size ());
+        assertEquals ("TRACK_DETAILS", manager.requests ().requests ().getFirst ().legacyModeId ());
+    }
+
+
+    @Test
     void cursorIntentFollowsTheCommandModePath ()
     {
         final Fixture fixture = new Fixture ();
@@ -78,7 +100,7 @@ class StableControllerActionResolverTest
 
         assertNull (fixture.resolver.resolve (row, ButtonEvent.DOWN));
         fixture.surface.getModeManager ().register (Modes.USER, relaxedProxy (IMode.class));
-        fixture.surface.getModeManager ().setActive (Modes.USER);
+        fixture.surface.getModeManager ().apply (new de.mossgrabers.pull.core.api.DesiredControllerPageState (1, de.mossgrabers.pull.core.api.ControllerPageRef.legacy ("USER"), de.mossgrabers.pull.core.api.ControllerPageRef.none (), java.util.Optional.empty (), 0));
 
         assertEquals (ControllerActionId.SELECT_PARAMETER_CONTEXT, fixture.resolver.resolve (row, ButtonEvent.DOWN).action ());
     }
@@ -123,7 +145,9 @@ class StableControllerActionResolverTest
     private static final class Fixture
     {
         private final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
-        private final IModel model = relaxedProxy (IModel.class);
+        private boolean browserActive;
+        private final de.mossgrabers.framework.daw.IBrowser browser = proxy (de.mossgrabers.framework.daw.IBrowser.class, (proxy, method, arguments) -> "isActive".equals (method.getName ()) ? this.browserActive : relaxedValue (method.getReturnType ()));
+        private final IModel model = proxy (IModel.class, (proxy, method, arguments) -> "getBrowser".equals (method.getName ()) ? this.browser : relaxedValue (method.getReturnType ()));
         private final PushControlSurface surface = createSurface (this.valueChanger);
         private final StableControllerActionResolver resolver = new StableControllerActionResolver (this.surface);
 

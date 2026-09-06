@@ -104,25 +104,34 @@ class ProjectMacroTouchTest
     }
 
     @Test
-    void departureReleasesLeaseButPhysicalEndStillStopsWritingAndReentryDoesNotInventTouch ()
+    void departureRetainsTheExactTouchAndOriginalReleasePolicyUntilPhysicalEnd ()
     {
         final Fixture fixture = new Fixture ();
         fixture.project.start (snapshot (TARGET, WRITING, false, false));
-        fixture.project.handle (touch (InputPhase.BEGIN), snapshot (TARGET, WRITING, true, false));
-        fixture.project.deactivate ();
-        assertTrue (fixture.other.start (snapshot (TARGET, WRITING, true, false)).desiredParameterTouches ().targets ().isEmpty ());
-        assertTrue (fixture.project.activate (snapshot (TARGET, WRITING, true, false)).desiredParameterTouches ().targets ().isEmpty ());
-        final CoreResult end = fixture.other.handle (touch (InputPhase.END), snapshot (TARGET, WRITING, false, false));
-        assertEquals (List.of (new SetAutomationWriteEffect ("project-a", false)), end.effects ());
-        assertTrue (fixture.other.handle (touch (InputPhase.END), snapshot (TARGET, WRITING, false, false)).effects ().isEmpty ());
+        final var router = new de.mossgrabers.pull.core.view.InputGestureRouter ();
+        final var held = snapshot (TARGET, WRITING, true, false);
+        final var begin = router.capture (touch (InputPhase.BEGIN), fixture.project);
+        router.dispatch (begin, held);
+        router.finish (begin, fixture.project);
+        router.transition (fixture.project, fixture.other);
+        final var other = fixture.other.start (held);
+        assertEquals (Map.of (KNOB, TARGET), router.decorate (fixture.other, other, held).desiredParameterTouches ().targets ());
+        final var released = snapshot (TARGET, WRITING, false, false);
+        router.reconcile (fixture.other, released);
+        final var end = router.capture (touch (InputPhase.END), fixture.other);
+        assertEquals (List.of (new SetAutomationWriteEffect ("project-a", false)), router.dispatch (end, released));
+        router.finish (end, fixture.other);
+        assertTrue (router.decorate (fixture.other, fixture.other.activate (released), released).desiredParameterTouches ().targets ().isEmpty ());
+        assertTrue (router.dispatch (router.capture (touch (InputPhase.END), fixture.other), released).isEmpty ());
+        assertTrue (fixture.project.activate (held).desiredParameterTouches ().targets ().isEmpty ());
     }
 
     @Test
-    void legacyTouchesAreObservedWithoutAcquiringProjectReleasePolicy ()
+    void unclaimedLegacyTouchesDoNotAcquireProjectReleasePolicy ()
     {
         final Fixture fixture = new Fixture ();
         final CoreResult initial = fixture.other.start (snapshot (TARGET, WRITING, false, false));
-        assertEquals (InputRouteMode.OBSERVE, initial.desiredInputRoutes ().modeOrNull (KNOB, InputKind.TOUCH));
+        assertEquals (null, initial.desiredInputRoutes ().modeOrNull (KNOB, InputKind.TOUCH));
         fixture.other.handle (touch (InputPhase.BEGIN), snapshot (TARGET, WRITING, true, false));
         assertTrue (fixture.other.handle (touch (InputPhase.END), snapshot (TARGET, WRITING, false, false)).effects ().isEmpty ());
     }
@@ -154,7 +163,7 @@ class ProjectMacroTouchTest
     private static final class Fixture
     {
         private final ParameterTouchSession session = new ParameterTouchSession ();
-        private final CompiledWorkspace project = CompiledWorkspace.compile ("project", List.of (new ProjectMacroControlsView (this.session), new ParameterTouchReleaseView (this.session), new TrackSelectionStripView ()));
-        private final CompiledWorkspace other = CompiledWorkspace.compile ("other", List.of (new ParameterTouchReleaseView (this.session)));
+        private final CompiledWorkspace project = CompiledWorkspace.compile ("project", List.of (new ProjectMacroControlsView (this.session), new TrackSelectionStripView ()));
+        private final CompiledWorkspace other = CompiledWorkspace.compile ("other", List.of ());
     }
 }

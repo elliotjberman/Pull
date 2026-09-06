@@ -1,79 +1,66 @@
 // (c) 2026
 // Licensed under LGPLv3 - http://www.gnu.org/licenses/lgpl-3.0.txt
-package de.mossgrabers.pull.core.runtime.view;
+package de.mossgrabers.pull.core.ui.page;
 
-import de.mossgrabers.pull.core.api.ControllerSnapshot;
-import de.mossgrabers.pull.core.api.CurrentTrackSnapshot;
-import de.mossgrabers.pull.core.api.ParameterSlot;
-import de.mossgrabers.pull.core.api.ParameterTargetSnapshot;
+import de.mossgrabers.pull.core.ui.page.MixerDisplayScene;
+
 import de.mossgrabers.pull.core.api.output.*;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.LinkedHashMap;
+import de.mossgrabers.pull.core.api.ControlId;
+import de.mossgrabers.pull.core.api.PushControlIds;
+import static de.mossgrabers.pull.core.ui.page.PageStyle.*;
+import static de.mossgrabers.pull.core.ui.page.MixerPageStyle.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /** Preserved normal global mixer graphics, wholly inside the parameter region above the shared footer. */
-final class GlobalMixerDisplayScene
+public final class GlobalMixerPageRenderer
 {
-    private static final double COLUMN = 120;
-    private static final double MENU_HEIGHT = 160.0 / 12 + 4;
-    private static final RgbColor BLACK = new RgbColor (0, 0, 0);
-    private static final RgbColor WHITE = new RgbColor (255, 255, 255);
-    private static final RgbColor DIM_WHITE = new RgbColor (102, 102, 102);
-    private static final RgbColor DARK = new RgbColor (63, 63, 63);
-    private static final RgbColor DIM_DARK = new RgbColor (25, 25, 25);
     private static final Pattern VALUE_UNIT = Pattern.compile ("^(.+?)(?:\\s*)(%|dB|kHz|Hz|ms|sec|s|st|ct|BPM|x|L|R)$");
 
-    private GlobalMixerDisplayScene () { }
+    private GlobalMixerPageRenderer () { }
 
-    static ControllerDisplayScene render (final ControllerSnapshot snapshot, final GlobalMixerControlsView.Role role, final int sendIndex, final List<GlobalMixerMenu.Entry> menu)
+    public static PageVisuals render (final GlobalMixerPagePresentation page)
     {
         final ArrayList<DisplayCommand> commands = new ArrayList<> (100);
-        commands.add (new DisplayCommand.Rectangle (0, 0, 960, 143, BLACK));
-        for (int index = 0; index < 8; index++)
+        commands.add (new DisplayCommand.Rectangle (0, 0, WIDTH, PARAMETER_HEIGHT, BLACK));
+        final Map<ControlId, RgbColor> lights = new LinkedHashMap<> ();
+        for (int index = 0; index < COLUMNS; index++)
         {
-            final GlobalMixerMenu.Entry item = menu.get (index);
+            final GlobalMixerPagePresentation.MenuItem item = page.menu ().get (index);
+            lights.put (PushControlIds.button ("ROW2_" + (index + 1)), item.selected () || item.arrow () ? WHITE : BLACK);
             if (item.text ().isBlank ()) continue;
             if (item.selected ()) commands.add (new DisplayCommand.Rectangle (index * COLUMN, 0, COLUMN - 2, MENU_HEIGHT - 1, WHITE));
             commands.add (new DisplayCommand.TextBox (item.text (), index * COLUMN + 8, 0, COLUMN - 16, MENU_HEIGHT, DisplayTextAlignment.LEFT, item.selected () ? BLACK : WHITE, 12, 12, DisplayTextFit.CLIP));
         }
-        if (!snapshot.bridge ().encoderConfiguration ().available ()) return new ControllerDisplayScene (960, 143, commands);
-        final double upper = snapshot.bridge ().encoderConfiguration ().valueUpperBound ();
-        final List<CurrentTrackSnapshot> tracks = snapshot.bridge ().currentTrackBank ().tracks ();
-        for (int index = 0; index < tracks.size (); index++)
+        for (final GlobalMixerPagePresentation.Control control: page.controls ())
         {
-            final CurrentTrackSnapshot track = tracks.get (index);
-            final ParameterTargetSnapshot parameter = GlobalMixerControlsView.alignedTarget (snapshot, role, sendIndex, index);
-            if (!track.track ().exists () || parameter == null) continue;
-            if (role == GlobalMixerControlsView.Role.SEND && parameter.name ().isBlank ()) continue;
-            final boolean active = track.track ().activated () && (role != GlobalMixerControlsView.Role.SEND || parameter.enabled ().orElse (Boolean.FALSE).booleanValue ());
-            final RgbColor accent = active ? track.track ().color () : dim (track.track ().color ());
-            final RgbColor text = active ? WHITE : DIM_WHITE;
-            final RgbColor background = active ? DARK : DIM_DARK;
-            final double ratio = ratio ((parameter.modulatedValue () == -1 ? parameter.value () : parameter.modulatedValue ()) / upper);
-            if (role == GlobalMixerControlsView.Role.VOLUME)
+            final double left = control.column () * COLUMN;
+            final RgbColor accent = control.active () ? control.color () : dim (control.color ());
+            final RgbColor text = control.active () ? WHITE : DIM_WHITE;
+            final RgbColor background = control.active () ? DARK : DIM_DARK;
+            if (control.widget () == GlobalMixerPagePresentation.Widget.VOLUME)
             {
-                value (commands, index * COLUMN, MENU_HEIGHT + 21, parameter.displayedValue (), 18, 66, text);
-                volume (commands, index * COLUMN, ratio, snapshot.bridge ().controllerSettings ().vuMetersEnabled () ? track.vuLeft () * (upper - 1) / upper : 0, snapshot.bridge ().controllerSettings ().vuMetersEnabled () ? track.vuRight () * (upper - 1) / upper : 0, accent, background);
-            }
-            else if (role == GlobalMixerControlsView.Role.PAN)
-            {
-                value (commands, index * COLUMN, 55, formatPan (parameter.value () / (upper - 1)), 19, 69, text);
-                pan (commands, index * COLUMN, ratio, accent, background);
+                value (commands, left, MENU_HEIGHT + 21, control.displayedValue (), 18, 66, text);
+                volume (commands, left, control.value (), control.vuLeft (), control.vuRight (), accent, background);
             }
             else
             {
-                final String displayed = parameter.displayedValue ();
-                value (commands, index * COLUMN, 55, displayed.substring (0, Math.min (8, displayed.length ())), 19, 69, text);
-                // The inherited global Send renderer chooses its widget from the parameter name.
-                // Keep this quirk until an explicit visual policy change replaces it.
-                if (parameter.name ().contains ("Volume")) sendVolume (commands, index * COLUMN, ratio, accent, background);
-                else if ("Pan".equals (parameter.name ()) || parameter.name ().contains ("Panning")) pan (commands, index * COLUMN, ratio, accent, background);
-                else ring (commands, index * COLUMN, ratio, accent, background);
+                value (commands, left, 55, control.displayedValue (), 19, 69, text);
+                switch (control.widget ())
+                {
+                    case SEND_VOLUME -> sendVolume (commands, left, control.value (), accent, background);
+                    case PAN -> pan (commands, left, control.value (), accent, background);
+                    case RING -> ring (commands, left, control.value (), accent, background);
+                    default -> throw new IllegalStateException ("Volume rendered above");
+                }
             }
         }
-        return new ControllerDisplayScene (960, 143, commands);
+        return new PageVisuals (lights, new ControllerDisplayScene (WIDTH, PARAMETER_HEIGHT, commands));
     }
 
     private static void sendVolume (final List<DisplayCommand> commands, final double left, final double ratio, final RgbColor accent, final RgbColor background)
@@ -133,17 +120,5 @@ final class GlobalMixerDisplayScene
         else commands.add (new DisplayCommand.TextAt (text, left + 8, baseline, color, fontSize));
     }
 
-    private static String formatPan (final double normalized)
-    {
-        final double bipolar = 2 * normalized - 1;
-        final int amount = (int) Math.round (100 * Math.abs (bipolar));
-        return amount == 0 ? "C" : (bipolar < 0 ? "L " : "R ") + amount;
-    }
-
     private static double ratio (final double value) { return Math.max (0, Math.min (1, value)); }
-    private static RgbColor dim (final RgbColor color)
-    {
-        final int gray = (int) Math.round ((color.red () + color.green () + color.blue ()) / 3.0 * 0.4);
-        return new RgbColor (gray, gray, gray);
-    }
 }

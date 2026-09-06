@@ -5,7 +5,6 @@ package de.mossgrabers.pull.core.runtime.view;
 import de.mossgrabers.pull.core.api.ControllerSettingsSnapshot;
 import de.mossgrabers.pull.core.api.CursorSendBankSnapshot;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
-import de.mossgrabers.pull.core.api.effect.SelectControllerModeEffect;
 import de.mossgrabers.pull.core.api.effect.SetControllerIntegerSettingEffect;
 import de.mossgrabers.pull.core.api.effect.SetControllerModeSettingEffect;
 
@@ -47,9 +46,9 @@ final class GlobalMixerMenu
         return List.copyOf (entries);
     }
 
-    static List<CoreEffect> select (final int column, final ControllerSettingsSnapshot settings, final long layoutGeneration)
+    static Selection select (final int column, final ControllerSettingsSnapshot settings)
     {
-        if (!settings.available () || column < 0 || column >= 8) return List.of ();
+        if (!settings.available () || column < 0 || column >= 8) return new Selection ("", List.of ());
         final ArrayList<CoreEffect> effects = new ArrayList<> (3);
         String mode = switch (column) { case 0 -> "VOLUME"; case 1 -> "PAN"; case 7 -> "CROSSFADER"; default -> ""; };
         if (mode.isEmpty ())
@@ -60,15 +59,14 @@ final class GlobalMixerMenu
             if (additional && (offset == 0 && column == 6 || offset > 0 && column == 2))
             {
                 effects.add (offset (offset == 0 ? 4 : 0));
-                return List.copyOf (effects);
+                return new Selection ("", List.copyOf (effects));
             }
             final int send = offset == 0 ? column - 2 : column - 3 + offset;
-            if (send < 0 || send >= 8) return List.copyOf (effects);
+            if (send < 0 || send >= 8) return new Selection ("", List.copyOf (effects));
             mode = "SEND" + (send + 1);
         }
         effects.add (new SetControllerModeSettingEffect (SetControllerModeSettingEffect.Setting.GLOBAL_MIX_MODE, mode));
-        effects.add (new SelectControllerModeEffect (layoutGeneration, mode));
-        return List.copyOf (effects);
+        return new Selection (mode, List.copyOf (effects));
     }
 
     static List<CoreEffect> normalize (final ControllerSettingsSnapshot settings)
@@ -88,6 +86,8 @@ final class GlobalMixerMenu
         final boolean exists = send != null && send.exists ();
         return new Entry (exists ? send.name ().trim () : "", exists && ("SEND" + (index + 1)).equals (activeMode), false);
     }
+
+    record Selection (String destination, List<CoreEffect> effects) { }
 
     record Entry (String text, boolean selected, boolean arrow) { }
 }

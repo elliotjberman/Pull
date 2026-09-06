@@ -8,10 +8,10 @@ review can distinguish shortcuts we retained from defects we caught and removed.
 
 | Item | What we did and why | Cost / architectural direction | Status |
 | --- | --- | --- | --- |
-| Registered inert mode adapters | Core-authored pages still name an installed `CorePageMode` and use the legacy mode manager's SELECT/TEMPORARY/RESTORE operations. This preserves integration with unmigrated controls while making the page's behavior reloadable. | Adding another named page can still require stable registration. A core-owned page lifecycle over a generic physical footprint would remove those per-page registrations after legacy consumers migrate. | Retained migration scaffolding; not the final view API. |
-| Finite page/background combinations | `ControllerPageCompositions` precompiles pages over the existing Note, Drum, full Session, and VS Live backgrounds, retaining the exact view instances. Existing special Track/Master composition handling still coexists with it. | The finite combinations and alias registrations grow with both page and background families. A single composition model with independently retained grid, parameter page, and overlays would remove duplicate selection machinery. | Retained; bounded and tested, but review for simplification. |
-| Raw legacy mode names and temporary-slot semantics | The bridge exposes active/previous/visible mode IDs and temporary occupancy. Core button gestures preserve the real manager's behavior instead of pretending it is an arbitrary stack. | Core recipes still understand legacy names and awkward nested-page behavior. A typed core navigation state with acknowledged page transitions could replace this after all callers migrate. | Retained compatibility surface. |
-| Legacy page manager still has one temporary slot | Accent, Automation, Master/Frame and Metronome now share `ControllerPageTransitions`. It owns one outstanding page intent and return debt; the button views retain their distinct gesture policies. Track/Mix still returns to an explicit prior page. | This removes repeated acknowledgement machinery and the reproduced old-release/new-hold race. The native one-slot model still constrains nested pages; a fully core-owned page lifecycle remains the longer-term direction. | Shared owner and regression coverage pass the focused core and real-runtime gates; re-review and full 838-test gate passed; live pending. |
+| Registered inert mode adapters | The initial migration required a registered mode per core page. The page-ownership refactor replaces those bodies with one generic inert footprint; old names remain aliases for frozen legacy callers. | A new core `PageId` within the installed footprint needs no stable registration. Device/Browser and other legacy bodies still require compatibility projection. | Per-core-page registration removed in the API 46 refactor; frozen aliases remain. |
+| Finite page/background combinations | `ControllerPages` now declares all typed pages over the existing Note, Drum, full Session and VS Live backgrounds. One compiler replaces the special Track/Master maps and native-mode selection paths. | The finite combinations are intentional startup validation; every page reuses the same retained grid objects. Adding new hardware geometry still requires a canopy expansion. | Duplicate selection machinery removed; bounded precompilation retained. |
+| Raw legacy mode names and temporary-slot semantics | `PageNavigation` now owns selected/previous/temporary references and exact return tokens. `LegacyPageAliases` translates existing names; core-only pages may have no alias. | Legacy bodies submit a bounded ordered request inbox and inspect the committed compatibility projection. Their remaining page assumptions must migrate with those bodies. | Core page identity/history no longer depend on raw mode read-back. |
+| Legacy page manager still has one temporary slot | One core navigation owner preserves the established single replaceable temporary page and the controls’ distinct latch/return behavior. The shell only projects the resulting value. | This deliberately preserves product behavior rather than introducing a new navigation stack during an ownership refactor. A later product change can alter it entirely in core. | Shell temporary-page policy removed; one core temporary owner retained. |
 | Snapshot-domain alignment checks | Immediate parameter-lease reconciliation can refresh the parameter table while the rest of the bridge snapshot is older. Views compare published parameter owner/role metadata with the track or project they render. | Correct checks repeat across pages. A bridge publication model with explicit coherent domain epochs or reusable typed joins could reduce this burden. Blanket object identity checks cannot solve it. | Volume/Pan and selected Track/Master/Project guarded; expanded 823-test gate passed, live pending. |
 | Named parameter banks remain proxy windows | Migrated pages bind to explicit bounded bank slots and then obtain opaque fenced targets. This reuses installed Bitwig proxies and avoids physical-knob identities. | It is not yet a durable semantic-target model or pinned actuator pool. Some navigation invalidates old targets, and two slots can represent the same musical parameter independently. | Retained; see `../findings/parameter-target-proxy-coupling.md`. |
 | DTO compatibility constructors | Extended records keep old constructors with typed empty/default values so existing callers and tests can migrate incrementally. | Defaults can hide missing state in a fixture or caller. New production behavior must fail closed when required identity metadata is absent. Remove obsolete overloads after all production consumers are explicit. | Retained; no claim of old binary API compatibility. |
@@ -141,3 +141,80 @@ the clearest supporting evidence from this ledger.
   `IHwButton.isPressed()` for physical collisions. A physically held exclusively routed button can
   evade that check. The smoke runs use one input operator; they do not prove mixed-ingress safety.
   A raw physical-state or exact-router-gesture query is the appropriate future mechanism.
+
+## Core page ownership follow-up (2026-09-06)
+
+The requested follow-up removes the duplicate shell/core page histories. `Page` is an immutable
+core definition with a typed ID, fixed views, optional navigation owner, and named parameter
+indications. `PageNavigation` owns the selected/previous/temporary references. Views project host
+read-back into immutable presentation records; renderers and shared/family styles live separately
+under `core.ui.page`. No renderer looks up a target, submits an effect, or changes navigation.
+
+| Decision or friction | Why it exists | Status / future direction |
+| --- | --- | --- |
+| Frozen legacy inbox | Unmigrated Device, configuration and sequencer bodies still call the inherited manager. The shell converts calls into bounded sequenced values, and core admits them through the parameter-restoration barrier. | Retained compatibility mechanism, capacity 64. Remove callers as those bodies migrate; do not add new product behavior through it. |
+| Captured legacy returns | Device hold-return and delayed Device navigation formerly depended on mutable mode-manager state. They now capture a value-only page reference or origin revision/token. | Generic lifecycle protection; arbitrary new core IDs can return through legacy pages. No stable catalogue of new pages. |
+| Legacy post-selection notifications | Some old commands read the selected page immediately after requesting it. Notifications now run after the corresponding request is acknowledged. | Bounded parent-owned continuations for unchanged legacy notifications. Acknowledgement here means core navigation admission, not Bitwig parameter or playback completion. |
+| Typed family presentations | Frame, Accent, transport settings, Macro, Track, Master, global mixer and footer have their own immutable data and pure renderers, sharing measured styles and drawing primitives. | Retained deliberate family boundaries. Avoid a universal configurable UI schema; existing visual output is characterized against the previous build. |
+| One-time parent contract change | API 46 adds full page projection and the legacy request inbox; checkpoint schema 6 saves typed navigation. | Requires one shell install/restart. Later page definitions, navigation and styling within the footprint reload in core. Schema-5 state is not replayed across this parent API change. |
+| Full Master snapshot requested globally | Core observes real DAW Master selection to preserve existing page-entry behavior formerly implemented by shell observers. | Bounded existing snapshot, no new Bitwig proxy. A smaller generic selected-channel snapshot could reduce sampling if measurement justifies it. |
+| Local state vs host state | Core page changes no longer wait for a mode proxy to echo them. Parameter values, selected targets, native note routing and playback still require authoritative host read-back. | Removes synthetic page-acknowledgement workarounds without weakening real host barriers. |
+
+New regressions cover FIFO admission when a parameter-restoration release and a new legacy page
+request arrive in the same sample, and preserving a restored page while Master was already selected
+before reload. The first prevents a later request from skipping an earlier acknowledgement; the
+second prevents reload from manufacturing a new selection edge.
+
+Live verification for this follow-up is pending completion of the full offline gate and finishing
+review. The requested project is `202arp`; physical learned-MIDI validation must be recorded separately
+from debugger-driven controller input.
+
+The page-ownership finishing review reproduced an inherited Stop-owner mismatch on VS global mixer
+pages, after the analogous Macro assembly was corrected. The structural correction is one owner
+for the physical Stop gesture across all page/grid compositions, rather than a separate flag per
+background. It also found real Browser and fault-recovery protocol gaps; those are blockers being
+fixed, not retained shortcuts. See `core-page-ownership-review.md` for evidence and final status.
+
+The recovery correction uses a parent-owned monotonic retired request prefix rather than trying to
+recover stream sequencing from a possibly rejected child checkpoint. This prefix is lifecycle
+metadata and remains available even when the pending-request list is unsubscribed; it requires no
+Bitwig sampling. This is an explicit exception to domain-empty publication. With no healthy core,
+legacy callbacks cannot enqueue orphaned work. Healthy generation changes and faults retire delayed
+old callbacks. The semantic page checkpoint and the transport’s retired prefix have distinct owners.
+
+### Original-view release rule
+
+Elliot requested one shared mechanism so a release goes to the view that received its press. The
+compiler previously chose receivers from the currently visible composition for every edge; keeping
+some shared view objects did not establish that guarantee. `CorePageGestureCaptureTest` reproduces
+the missing Frame continuation before the correction (one expected failure in two tests).
+
+The new core input-lifetime work captures edge receivers once, keeps offscreen interaction state
+without rendering its old page, and retires it after release/deferred dispatch. Exact touch leases
+may continue across a legacy page only when the target was already applied and the parent router
+still owns that exact exclusive gesture in the same generation. This is a bounded lifecycle
+permission, not permission to claim fresh legacy inputs. Initial parent mechanism tests: 64 passed.
+
+Continuous motion remains a separate boundary: the shell currently freezes related strip motion,
+but does not generally pair every encoder touch with relative turns or every pad with pressure.
+This follow-up does not claim those relationships are solved. Extending them requires a reusable
+physical relationship declaration plus exact target/binding fences, rather than per-button fixes.
+
+Two integration failures reinforced the shared ownership boundary. An offscreen Frame release
+initially lost its declared data subscription in the result carrying its effect, so the parent
+correctly rejected it. The router now retains effect requirements through that result only. The
+first full-core run also caught duplicate reconciliation within one event affecting drum-fill
+arming; reconciliation must run once per view identity per event, including page activation. These
+are corrected centrally, without special Frame or fill branches. Disposal is the cancellation
+boundary for retained actions; a separate public queued-action cancellation API is not part of this
+change.
+
+### Browser compatibility observation
+
+The old synchronous Browser observer made native Browser activity and the projected Browser page
+appear interchangeable. Once core owns asynchronous admission, they can differ. Existing frozen
+Master-touch, tempo-knob, Select and Browse-light Browser predicates now read `IBrowser.isActive()`
+where they previously inferred native activity from the page manager. The guards/behavior stay the
+same; this is an observation correction, not a new stable semantic branch. Browser navigation and
+return ownership remain in core. Tests distinguish native-open/pre-projection from native-closed/
+stale-projection, rather than forcing the host and controller page to change together.

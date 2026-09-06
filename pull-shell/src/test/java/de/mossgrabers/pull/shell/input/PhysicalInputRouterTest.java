@@ -35,6 +35,28 @@ class PhysicalInputRouterTest
 
 
     @Test
+    void continuationOwnershipUsesTheCapturedDispositionAndGenerationUntilRelease ()
+    {
+        final AtomicLong generation = new AtomicLong (7);
+        final AtomicReference<InputRoute> route = new AtomicReference<> (InputRoute.EXCLUSIVE);
+        final PhysicalInputRouter<String> router = new PhysicalInputRouter<> (registry (), (control, kind) -> route.get (), event -> { }, new IncrementingClock (), generation::get);
+        assertFalse (router.ownsActiveGesture (BUTTON, InputKind.BUTTON));
+        router.route (BUTTON, InputKind.BUTTON, InputPhase.BEGIN, 127, () -> { });
+        route.set (InputRoute.NONE);
+        assertTrue (router.ownsActiveGesture (BUTTON, InputKind.BUTTON));
+        assertFalse (router.ownsActiveGesture (BUTTON, InputKind.TOUCH));
+        generation.set (8);
+        assertFalse (router.ownsActiveGesture (BUTTON, InputKind.BUTTON));
+        generation.set (7);
+        router.route (BUTTON, InputKind.BUTTON, InputPhase.END, 0, () -> { });
+        assertFalse (router.ownsActiveGesture (BUTTON, InputKind.BUTTON));
+        route.set (InputRoute.OBSERVE);
+        router.route (BUTTON, InputKind.BUTTON, InputPhase.BEGIN, 127, () -> { });
+        assertFalse (router.ownsActiveGesture (BUTTON, InputKind.BUTTON));
+    }
+
+
+    @Test
     void unclaimedInputRunsStableCommandExactlyOncePerEdge ()
     {
         final AtomicInteger stableCalls = new AtomicInteger ();

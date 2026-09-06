@@ -1,16 +1,14 @@
 # Pull View Architecture
 
-Status: working implementation through Core API 45, checkpoint schema 5. The migration includes
-Project/Master/Track touches, Drum octave/native mapping, raw touch strip, normal/VS Track pages,
-Volume/Pan/Send, core page composition and arrows, Track/Mix, Metronome/Automation, Frame/Master entry,
-Accent, Tap Tempo, and Undo/Redo. The deprecation-enabled package passed 851 tests on
-2026-09-06 (398 core, 11 publication, 442 shell), including the independent review
-corrections. Bounded architecture re-review found no remaining material findings in these slices.
-Live installation and exact core activation succeeded on 2026-09-06; representative parameter and
-Drum/strip read-back checks pass. The [live record](docs/migrations/core-migration-live-smoke.md)
-tracks the remaining coverage and the reentrant cleanup correction awaiting live retest. This is not the complete migration; remaining
-families and the Session release-contract decision are tracked in
-[`docs/migrations/core-migration-plan.md`](docs/migrations/core-migration-plan.md).
+Status: working implementation through Core API 46, checkpoint schema 6. Core now owns typed page
+identity, navigation/history, temporary ownership, composition, presentation models and styling.
+The shell projects those decisions through one generic inert page adapter and a bounded inbox for
+frozen legacy callers. The prior migration baseline passed 851 tests on 2026-09-06; the API 46
+integration package and exact-build `202arp` live smoke remain pending while this refactor is in
+progress. Earlier live evidence is recorded in
+[the migration smoke record](docs/migrations/core-migration-live-smoke.md), and does not verify this
+new build. Device/Browser/configuration/sequencer bodies and the Session release-contract decision
+remain migration work tracked in [the migration plan](docs/migrations/core-migration-plan.md).
 
 Read this file before changing controller views, modes, workspaces, input routing, or Session bank
 topology. The detailed design contract is in
@@ -120,7 +118,7 @@ pad geometry is not yet a core-authored view capability.
 
 ### Parameter banks, effects, and snapback
 
-Core API 45 exposes named, view-independent banks for the inherited active encoder window, project
+Core API 46 exposes named, view-independent banks for the inherited active encoder window, project
 remotes, the selected-device remote page, selected-track volume/pan and sends, visible-track volume,
 pan and eight send columns, project-scoped Master/Cue controls, and fixed globals. A bank
 declaration is latent configuration; stable samples and publishes only the declared banks while
@@ -160,8 +158,9 @@ exact touch release remains permitted through its retained lease. Wrapper identi
 `ProjectMacroControlsView` owns all eight turns and touches, Delete reset, automation release,
 parameter display, and its complete page feedback. Normal and VS Track share named selected-track
 banks and core menu/touch/rendering policy; normal Volume/Pan use named current-bank parameters.
-The old Project/Track/Volume/Pan parameter-provider policy does not select core targets. Their
-installed `CorePageMode` adapters have empty physical parameter bindings and inert page callbacks.
+The old Project/Track/Volume/Pan parameter-provider policy does not select core targets. One
+generic `CorePageMode` adapter supplies empty physical parameter bindings and inert page callbacks
+for every core page, including IDs unknown to the shell.
 
 For movable Bitwig parameters, stable re-resolves the exact identity from the live parameter
 domain, selected owner, selected page, and slot or channel role. The same Java `IParameter` wrapper
@@ -261,8 +260,9 @@ views:
   - raw-pitch-bend
 ```
 
-`VsLiveWorkspace.create(...)` constructs this configuration directly in Java. YAML/JSON is not
-implemented and must not become a raw control-mapping language.
+`ControllerPages` declares the fixed standalone and VS grid configurations and their independent
+page definitions directly in Java. YAML/JSON is not implemented and must not become a raw
+control-mapping language.
 
 ### Current authoring boundary
 
@@ -273,7 +273,7 @@ installed canopy. The compiler rejects ordinary physical overlap and output outs
 
 That does **not** currently permit dynamic class or YAML registration, new Bitwig proxies/effects,
 new Session bank shapes or additional permanent semantic mapping endpoints without a parent-loaded
-API/shell change and Bitwig restart. API 45 carries complete 128-entry native key/velocity tables,
+API/shell change and Bitwig restart. API 46 carries complete 128-entry native key/velocity tables,
 bounded to the 64 physical pad notes and the producing view's declared musical footprint. That
 mechanism supports core-authored maps inside the installed physical canopy; arbitrary new resource
 topology remains outside it. The semantic mapping banks are bounded installed capacity. Stable adapter facets
@@ -292,22 +292,67 @@ nor product policy.
 The shell must interpret facet IDs, not workspace names. There must be no stable-shell conditional
 for `"VS Live"`.
 
-## Registered parameter pages and working contract
+## Core-owned pages and working contract
 
-`DesiredControllerWorkspace.installedModeId` declares a registered inert adapter footprint; it does
-not itself call `setActive()`. The compiler accepts one agreeing page owner and rejects conflicting
-mode declarations. Old Project/Track/Master facets remain compatibility selection leases and must
-agree with that declaration. New pages add no facet. `SelectControllerModeEffect` supports SELECT,
-TEMPORARY, and RESTORE against the complete observed layout generation. Layout read-back includes
-visible, underlying active, previous, and temporary mode state; hidden changes advance generation.
-The native manager has one temporary slot, and RESTORE does not rewrite its previous-mode ID.
-Core renders a selected replacement only after later acknowledgement, over the exact retained grid.
+`PageId` is a core-owned value, not a stable mode enum. Immutable `Page` definitions declare their
+fixed constituent `ControllerView` instances, optional navigation view, and parameter indications.
+`ControllerPages` declares the production catalog; `ControllerPageCompositions` compiles each
+finite page/background pair and checks its surface claims. Page selection never replaces the
+retained Session/Drum/Note objects simply to change the display.
 
-Working Core API 45 capabilities include bridge snapshot 13, parameter targets 4, controller output
-state 3, input routing 7, current-track effects 2, controller-mode effects 2, transport effects 4,
-and new controller-settings/application-UI effects 1. These contract versions describe this
-uninstalled working build. Checkpoint schema 5 preserves semantic page and Track subpage/send state;
-physical held gestures remain within one core generation rather than transferring via checkpoints.
+`PageNavigation` is the sole owner of selected/previous page references and one temporary token.
+A newer temporary owner replaces the older one; only its exact token can return to the persistent
+page. Local selection commits after the existing parameter-restoration barrier. It needs no
+synthetic Bitwig acknowledgement. Host parameters, project/track selection, transport, and musical
+routing still use later authoritative read-back.
+
+`DesiredControllerState.page` publishes the complete revision, selected/previous references,
+optional temporary owner, compatibility-request acknowledgement and parameter indications.
+`ControllerPageRef` distinguishes opaque CORE IDs, installed LEGACY bodies, and NONE. Frozen legacy
+aliases are handled by `LegacyPageAliases`; a new core page may have no alias. Neither
+`ControllerView` nor `DesiredControllerWorkspace` declares an installed mode ID.
+
+The shell's `PushControllerPageManager` projects that value through one inert `CorePageMode` or an
+explicit legacy body. Existing enum registrations alias the shared adapter solely for frozen
+callers. Their SELECT/TEMPORARY/RESTORE/history requests enter a replayable inbox bounded to 64,
+fenced to the originating page revision and temporary token. Core reduces ordered batches through
+the same parameter barrier as physical actions and acknowledges only dispatched prefixes. Captured
+return references preserve arbitrary core IDs through Device/Browser. Captured legacy temporary
+holds pair by initiating request sequence, and core maps each to its exact temporary token; queued
+toggles are reduced in order. Failed conditional entries cannot initiate parameter restoration,
+but still wait behind an earlier deferred action before their condition is rechecked. Lifecycle callbacks enqueue
+requests rather than reentering core: old-body deactivation retains the old origin while new-body
+activation sees the new projection. The manager tracks the actually activated body separately from
+visible projection, so a reentrant fault cannot activate or deactivate an unentered destination.
+Healthy-consumer inbox entries, captured temporary holds, notifications and projection fence core
+replacement. With no healthy consumer, callback requests are inert rather than blocking recovery.
+
+`LegacyControllerPageRequests.retiredSequence` is the shell's monotonic acknowledged-or-abandoned
+prefix. Startup rebases request acknowledgements from that prefix independently of checkpoint
+compatibility. The prefix is zero-cost lifecycle metadata and remains available when the pending
+request list is unsubscribed; the list itself stays gated by `CONTROLLER_PAGES`. Quarantine retires
+pending work, and lifecycle epochs discard delayed callbacks from an abandoned or replaced
+consumer. This bounded inbox lifecycle does not resolve the broader parked quiescence finding.
+
+Raw `BrowserSnapshot` activity and transition generation are observed by the shell and sampled
+through `BROWSER`. `BrowserPageNavigation` decides temporary entry and exact-token return in core,
+behind the parameter barrier. A browser that closes before deferred entry cannot leave a stale
+Browser page, and an older close cannot restore over another temporary owner. The inherited
+Browser body and browsing operations remain migration debt.
+
+Presentation is separate from page identity and navigation. Feature views project observed data
+into immutable family-specific models in `core.ui.page`. Pure renderers consume those models and
+shared/family styles and return `PageVisuals` (display scene and row lights). They cannot choose
+host targets, mutate parameters, navigate or emit effects. This keeps geometry, typography, color,
+formatting and input policy independently testable without building a universal UI schema.
+
+Working Core API 46 capabilities include bridge snapshot 14, controller output state 4 and
+controller pages 1; parameter targets remain 4, input routing 7, current-track effects 2, transport
+effects 4 and controller-settings/application-UI effects 1. Schema 6 checkpoints retain exact page
+references, history, a latched temporary token and Track Mix/I-O/send state. The serialized inbox
+acknowledgement is not authority: startup always rebases it to the parent-owned retired prefix.
+Physical held gestures remain in one generation. This parent-loaded contract requires one shell
+install/restart; further pages or styling within its installed capabilities reload in core.
 
 ## VS Live Today
 
@@ -339,8 +384,8 @@ the parameter-restoration barrier. Selecting Track/Mix composes `TrackMixerContr
 same `TrackSelectionStripView`: core owns turns, touches, Mix/I-O menus, send paging/enabling, and
 both views' feedback. Missing parameter read-back leaves the chosen page in place and unavailable
 slots blank. Named targets require selected/current/rendering owner agreement. Volume/Pan and the
-registered temporary pages replace the parameter page through the shared page registry. Device,
-Browse, Send, and other unconverted pages retain their frozen implementations. All replacements
+temporary pages replace the parameter page through the core page catalog. Device, Browse,
+Crossfade and other unconverted bodies retain their frozen implementations. All replacements
 retain the selected Session/Drum grid, scene keys, navigation, raw strip, and Session Stop ownership.
 An incidental `TRACK` layout used by Note-route reconciliation carries no page-selection intent.
 
@@ -354,14 +399,20 @@ is rejected.
 
 Reloadable core:
 
-- `CompiledWorkspace`: claim validation, routing, deterministic composition.
+- `CompiledWorkspace`: claim validation, route declarations, deterministic composition.
+- `InputGestureRouter`: bounded original-view edge capture, deferred-action lifetimes and offscreen
+  data/touch continuation; only the current composition renders output.
 - `ControllerLevelViews`: retained global selection, transport, parameter, and selected-track policy.
 - `ControllerPageCompositions`: finite declared page/background pairs reusing the exact retained
-  Session/Drum/Note/ribbon instances; page ownership follows later native mode acknowledgement.
-- `DefaultWorkspace`: ordinary migrated behavior plus shared workspace selection.
-- `VsLiveWorkspace`: Java-defined composition and declared 8x4 Session bank.
+  Session/Drum/Note/ribbon instances; page ownership follows committed core navigation state.
+- `PageNavigation` and `LegacyPageAliases`: exact selected/previous/temporary ownership and a frozen
+  compatibility translation, separate from host layout read-back.
+- `core.ui.page`: typed presentation models, pure family renderers and shared/family styles.
+- `ControllerPages`: fixed standalone/VS grid declarations, the declared 8x4 Session bank, and
+  independent typed page definitions.
+- `BrowserPageNavigation`: core reduction of raw browser activity into exact temporary ownership.
 - `ProjectMacroControlsView`: relative encoders, exact touch leases, Delete reset, automation
-  release policy, and parameter display. `ParameterTouchReleaseView` observes releases across page
+  release policy, and parameter display. `InputGestureRouter` retains original edge receivers across page
   replacement while the shell retains the exact parameter actuator.
 - `TrackMixerControlsView`: Mix/I-O selection, send paging, encoder turns/touches, send enable,
   upper-row feedback, and the parameter body. Named selected-track banks keep this independent of
@@ -398,7 +449,7 @@ Reloadable core:
 - `MetronomeControlView`, `AutomationControlView`, and `TransportSettingsPageView`: complete global
   gestures, temporary pages, encoder/option policy, and authoritative feedback.
 - `FramePageView` and `MasterButtonView`: application panel options and the retained Master/Frame
-  entry/restore gesture; page changes wait for raw native mode acknowledgement.
+  entry/restore gesture; page selection is local after semantic-action admission.
 - `ButtonGestureConsumption`: shared core modifier consumption so Record+track does not also run
   Record's release action.
 - `WorkspaceSelectionView`: shared Shift + Session entry and Session/Note exit policy.
@@ -409,9 +460,10 @@ Stable shell:
 - `StableControllerActionResolver`: derives semantic intent from remaining stable commands at their
   dispatch boundary.
 - `ControllerRuntimeEnvironment`: owns bounded leases, action barriers, and committed bridge state.
-- `CorePageMode`: final inert encoder/touch/row callbacks, empty parameter bindings, blank fallback
-  display, and an installed mechanical input/light footprint. Project, Track, Master, Volume, Pan, Send,
-  Transport, Automation, Frame, and Accent use this registration; it contains no page-selection policy.
+- `PushControllerPageManager`: generic page projection and a bounded sequenced inbox for unchanged
+  legacy callers; core owns the decisions and return history.
+- `CorePageMode`: one inert encoder/touch/row body and blank output baseline shared by every core
+  page. Old registered names are compatibility aliases, not a catalog of required UI pages.
 - `ParameterTargetHost`: bounded exact touch actuators, target checks, and mechanical cleanup.
 - `AutomationHost` and `TransportSettingsHost`: unified Automation Write/raw mode/override state,
   transport settings, and typed primitive requests.
@@ -422,14 +474,12 @@ Stable shell:
 - `NoteInputTranslationArbiter` and `TouchStripOutputHost`: complete core output arbitration,
   hardware transmission, and restoration of the latest unowned legacy baseline.
 - `WorkspaceView`: upper Session grid plus mechanical lower Drum Controller engagement.
-- `TrackMode`: inert page registration; Track product handlers, physical parameter provider,
-  display, and row-light suppliers are removed.
 - `CurrentTrackBankHost`: eight current-bank slots, exact track effects, and independently fenced
   cursor-parent navigation. Its independent navigation generation also fences track/scene windows,
   project identity, and model cursor ID/pin/position. It reuses two main banks and one effect bank.
 - `SessionBankRegistry` and `SessionBankHost`: bounded 8x8/8x4 Bitwig bank canopy, requested
   authoritative state, and generation-fenced bank actions.
-- `PushCursorCommand`: inert action/light fallback for registered core pages and VS navigation;
+- `PushCursorCommand`: inert action/light fallback for core-owned pages and VS navigation;
   unchanged legacy arrows remain available only under their declared frozen profiles.
 - `PushControlSurface`: permanent input bindings and generic output integration.
 - `ControllerMappingHost`: eagerly creates 128 banks of four permanent semantic absolute controls plus
@@ -523,9 +573,9 @@ Partial or transitional:
   explicit TODOs in `docs/findings/track-scoped-midi-learn-lifecycle.md`.
 - Project Macro and Master touch semantics, Drum octave/native mapping, and Session/Drum raw
   pitch bend run in core. Track/Mix touch, menus, ordinary footer, Tap Tempo, and Undo/Redo have also
-  crossed the boundary. Volume/Pan and the registered transport/application pages also run in core.
+  crossed the boundary. Volume/Pan and the transport/application pages also run in core.
   Session grid/scene mechanics and page buttons remain migration work; four-arrow policy has moved
-  for registered core pages and VS, with legacy-page arrows explicitly adapted. The optional
+  for core-owned pages and VS, with legacy-page arrows explicitly adapted. The optional
   `SESSION_CLIPS` snapshot exposes the bounded
   slot/scene window without sampling it when unrequested; it does not itself migrate Session.
   General Session release has no API completion signal; the location-actuator design and required

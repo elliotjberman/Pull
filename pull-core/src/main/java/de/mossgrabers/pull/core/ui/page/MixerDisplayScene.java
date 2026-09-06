@@ -1,7 +1,7 @@
 // (c) 2026
 // Licensed under LGPLv3 - http://www.gnu.org/licenses/lgpl-3.0.txt
 
-package de.mossgrabers.pull.core.runtime.view;
+package de.mossgrabers.pull.core.ui.page;
 
 import de.mossgrabers.pull.core.api.MixerControlKind;
 import de.mossgrabers.pull.core.api.MixerControlRole;
@@ -16,6 +16,7 @@ import de.mossgrabers.pull.core.api.output.MixerControlsDisplay;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 
 import java.util.ArrayList;
+import static de.mossgrabers.pull.core.ui.page.MixerControlStyle.*;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -24,55 +25,6 @@ import java.util.regex.Pattern;
 /** One hot-reloadable mixer-control renderer shared by Master and stable-data Mix adapters. */
 public final class MixerDisplayScene
 {
-    private static final double  COLUMN_WIDTH           = MixerControlDisplay.WIDTH;
-    private static final double  CONTENT_LEFT           = 8.0;
-    private static final double  LABEL_TOP              = 18.0;
-    private static final double  LABEL_HEIGHT           = 20.0;
-    private static final double  LABEL_FONT_SIZE        = 15.0;
-    private static final double  LABEL_MIN_FONT_SIZE    = 9.0;
-    private static final double  VALUE_TOP              = 36.0;
-    private static final double  VALUE_HEIGHT           = 24.0;
-    private static final double  VALUE_BASELINE         = 55.0;
-    private static final double  VALUE_FONT_SIZE        = 19.0;
-    private static final double  VALUE_MIN_FONT_SIZE    = 11.0;
-    private static final double  UNIT_FONT_SIZE         = 8.5;
-    private static final double  VALUE_FIELD_WIDTH      = 58.0;
-    private static final double  VALUE_UNIT_GAP         = 3.0;
-    private static final double  PAN_VALUE_TOP           = 38.0;
-    private static final double  PAN_VALUE_HEIGHT        = 30.0;
-    private static final double  PAN_VALUE_BASELINE      = 64.0;
-    private static final double  PAN_VALUE_FONT_SIZE     = 30.0;
-    private static final double  PAN_VALUE_MIN_FONT_SIZE = 12.0;
-    private static final double  PAN_UNIT_FONT_SIZE      = 14.0;
-    private static final double  PAN_VALUE_FIELD_WIDTH   = 64.0;
-    private static final double  CONTROL_CENTER_Y       = 106.0;
-    private static final double  PAN_SLIDER_WIDTH       = 82.0;
-    private static final double  PAN_RAIL_HEIGHT        = 4.0;
-    private static final double  PAN_MARKER_WIDTH       = 3.0;
-    private static final double  PAN_MARKER_HEIGHT      = 16.0;
-    private static final double  KNOB_RING_RADIUS       = 25.0;
-    private static final double  KNOB_DOT_RADIUS        = 1.1;
-    private static final double  KNOB_START             = 220.0;
-    private static final double  KNOB_SWEEP             = -260.0;
-    private static final int     KNOB_STEPS             = 200;
-    private static final double  FADER_TOP              = 60.0;
-    private static final double  FADER_HEIGHT           = 80.0;
-    private static final double  METER_WIDTH            = 24.0;
-    private static final double  METER_GAP              = 4.0;
-    private static final double  FADER_RAIL_LEFT        = 69.0;
-    private static final double  FADER_LINE_WIDTH       = 2.0;
-    private static final double  FADER_MARKER_WIDTH     = 6.0;
-    private static final double  METER_ORANGE_START     = 0.75;
-    private static final double  METER_RED_START        = 0.90;
-
-    private static final RgbColor WHITE       = new RgbColor (255, 255, 255);
-    private static final RgbColor DIM_WHITE   = new RgbColor (102, 102, 102);
-    private static final RgbColor DARKER_GRAY = new RgbColor (63, 63, 63);
-    private static final RgbColor GREEN       = new RgbColor (0, 255, 0);
-    private static final RgbColor ORANGE      = new RgbColor (255, 80, 0);
-    private static final RgbColor RED         = new RgbColor (255, 0, 0);
-    private static final RgbColor PROJECT_MACRO = new RgbColor (132, 214, 255);
-
     private static final Pattern VALUE_UNIT_PATTERN = Pattern.compile ("^(.+?)(?:\\s*)(%|dB|kHz|Hz|ms|sec|s|st|ct|BPM|x|L|R)$");
     private static final Pattern PAN_VALUE = Pattern.compile ("[-+]?\\d+(?:[.,]\\d+)?");
 
@@ -93,7 +45,7 @@ public final class MixerDisplayScene
 
 
     /** Append one control to a larger core-owned scene. */
-    static void append (final List<DisplayCommand> commands, final MixerControlSnapshot control)
+    public static void append (final List<DisplayCommand> commands, final MixerControlSnapshot control)
     {
         final MixerControlDisplay display = renderControl (control);
         final double offsetX = control.column () * COLUMN_WIDTH;
@@ -299,12 +251,6 @@ public final class MixerDisplayScene
     private static double currentValue (final MixerControlSnapshot control)
     {
         return control.modulatedValue () == -1 ? control.value () : control.modulatedValue ();
-    }
-
-
-    private static double left (final int column)
-    {
-        return column * COLUMN_WIDTH;
     }
 
 

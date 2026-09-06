@@ -10,7 +10,7 @@ import de.mossgrabers.framework.command.core.AbstractTriggerCommand;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.IMasterTrack;
-import de.mossgrabers.framework.featuregroup.ModeManager;
+import de.mossgrabers.controller.ableton.push.controller.PushControllerPageManager;
 import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.utils.ButtonEvent;
 
@@ -22,6 +22,8 @@ import de.mossgrabers.framework.utils.ButtonEvent;
  */
 public class MastertrackTouchCommand extends AbstractTriggerCommand<PushControlSurface, PushConfiguration>
 {
+    private PushControllerPageManager.TemporaryRequest masterPage;
+
     /**
      * Constructor.
      *
@@ -39,11 +41,17 @@ public class MastertrackTouchCommand extends AbstractTriggerCommand<PushControlS
     public void execute (final ButtonEvent event, final int velocity)
     {
         final boolean isTouched = event != ButtonEvent.UP;
+        final PushControllerPageManager.TemporaryRequest released = isTouched ? null : this.masterPage;
+        if (!isTouched) this.masterPage = null;
 
-        // Avoid accidentally leaving the browser
-        final ModeManager modeManager = this.surface.getModeManager ();
-        if (modeManager.isActive (Modes.BROWSER))
+        // Native Browser activity can precede the asynchronously projected controller page.
+        // Preserve the existing Browser guard against its authoritative host state.
+        final PushControllerPageManager modeManager = this.surface.getModeManager ();
+        if (this.model.getBrowser ().isActive ())
+        {
+            if (released != null) released.cancel ();
             return;
+        }
 
         final IMasterTrack masterTrack = this.model.getMasterTrack ();
         masterTrack.touchVolume (isTouched);
@@ -52,6 +60,7 @@ public class MastertrackTouchCommand extends AbstractTriggerCommand<PushControlS
         {
             this.surface.setTriggerConsumed (ButtonID.DELETE);
             masterTrack.resetVolume ();
+            if (released != null) released.cancel ();
             return;
         }
 
@@ -60,8 +69,11 @@ public class MastertrackTouchCommand extends AbstractTriggerCommand<PushControlS
             return;
 
         if (isTouched)
-            modeManager.setTemporary (Modes.MASTER_TEMP);
-        else if (!isMasterMode)
-            modeManager.restore ();
+            this.masterPage = modeManager.beginTemporary (Modes.MASTER_TEMP);
+        else if (released != null)
+        {
+            if (isMasterMode) released.cancel ();
+            else released.close ();
+        }
     }
 }

@@ -68,7 +68,7 @@ public final class AutomationControlView implements ControllerView
     public void reconcile (final ControllerSnapshot snapshot)
     {
         this.latest = snapshot;
-        this.pages.observe (snapshot);
+        this.pages.observe ();
     }
 
     @Override
@@ -86,8 +86,8 @@ public final class AutomationControlView implements ControllerView
         // Delete's physical release can precede admission, so consume it at the original BEGIN.
         return deleting ? action.withImmediateConsumption (DELETE) : action;
     }
-    @Override public Set<BridgeSubscription> bridgeSubscriptions () { return Set.of (BridgeSubscription.AUTOMATION, BridgeSubscription.CONTROLLER_LAYOUT); }
-    @Override public CoreExecutionRequirements executionRequirements () { return new CoreExecutionRequirements (this.state.pending () || this.pages.pending ()); }
+    @Override public Set<BridgeSubscription> bridgeSubscriptions () { return Set.of (BridgeSubscription.AUTOMATION); }
+    @Override public CoreExecutionRequirements executionRequirements () { return new CoreExecutionRequirements (this.state.pending ()); }
 
     @Override
     public List<CoreEffect> handle (final CoreEvent event, final ControllerSnapshot snapshot)
@@ -103,7 +103,7 @@ public final class AutomationControlView implements ControllerView
             {
                 this.restoreOnRelease = true;
                 gesture.restoreOnRelease = true;
-                gesture.page = this.pages.temporary (snapshot.bridge ().layout (), "AUTOMATION");
+                gesture.page = this.pages.temporary (this.pages.origin (), "AUTOMATION");
                 this.lastEntry = gesture.page;
             }
             else if (input.phase () == InputPhase.END)
@@ -130,7 +130,7 @@ public final class AutomationControlView implements ControllerView
             gesture.reset = null;
         }
         if (gesture.ended && gesture.restoreOnRelease) this.pages.release (gesture.page, !gesture.releaseSuppressed);
-        effects.addAll (this.pages.advance (gesture.page, snapshot));
+        this.pages.advance (gesture.page);
         if (!gesture.ended || !this.pages.complete (gesture.page)) return List.copyOf (effects);
         if (!gesture.releaseSuppressed && !gesture.restoreOnRelease && !gesture.toggleProject.isEmpty () && gesture.toggleProject.equals (snapshot.bridge ().automation ().projectIdentity ()))
         {
@@ -154,6 +154,7 @@ public final class AutomationControlView implements ControllerView
         private Gesture (final DeferredButtonAdmission.Ticket ticket, final boolean restoreOnRelease, final ControllerPageTransitions.Request page)
         {
             this.ticket = ticket;
+
             this.restoreOnRelease = restoreOnRelease;
             this.page = page;
         }

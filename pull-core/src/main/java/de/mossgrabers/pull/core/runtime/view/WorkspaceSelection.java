@@ -38,9 +38,9 @@ public final class WorkspaceSelection
     {
         /** No destination handoff is pending. */
         NONE,
-        /** Track/Mix page with the full Session view. */
+        /** The full Session grid. */
         SESSION,
-        /** Track/Mix page around the stable preferred Note view. */
+        /** The stable preferred Note grid. */
         NOTE
     }
 
@@ -201,18 +201,10 @@ public final class WorkspaceSelection
     {
         final ControllerLayoutSnapshot observed = Objects.requireNonNull (layout, "layout");
         if (this.selectedDestination == Destination.NONE && this.pendingDestination == Destination.NONE && this.active == Id.DEFAULT)
-        {
             this.selectedDestination = destinationOf (observed);
-            if (this.selectedDestination == Destination.SESSION && observed.modeId ().isBlank ())
-            {
-                this.pendingDestination = Destination.SESSION;
-                this.pendingAfterLayoutGeneration = observed.generation ();
-            }
-        }
-        final boolean trackPage = "TRACK".equals (observed.modeId ());
         if (observed.generation () <= this.pendingAfterLayoutGeneration)
             return;
-        if (this.pendingDestination == Destination.SESSION && trackPage && "SESSION".equals (observed.viewId ()))
+        if (this.pendingDestination == Destination.SESSION && "SESSION".equals (observed.viewId ()))
         {
             if (this.heldSelections.containsKey (Gesture.SESSION))
             {
@@ -221,7 +213,7 @@ public final class WorkspaceSelection
             }
             this.pendingDestination = Destination.NONE;
         }
-        else if (this.pendingDestination == Destination.NOTE && trackPage && ControllerNoteView.fromStableId (observed.viewId ()).isPresent ())
+        else if (this.pendingDestination == Destination.NOTE && ControllerNoteView.fromStableId (observed.viewId ()).isPresent ())
             this.pendingDestination = Destination.NONE;
         if (this.pendingDestination == Destination.NONE)
             this.pendingAfterLayoutGeneration = -1;

@@ -260,6 +260,14 @@ public final class PhysicalInputRouter<C>
     }
 
 
+    /** Whether this exact held edge belongs exclusively to the currently active core generation. */
+    public boolean ownsActiveGesture (final C control, final InputKind kind)
+    {
+        final GestureBinding binding = this.gestureBindings.get (new PhysicalInputAddress<> (control, kind));
+        return binding != null && binding.route () == InputRoute.EXCLUSIVE && binding.generation () == this.ownerGeneration.getAsLong ();
+    }
+
+
     /** Test whether no active edge gesture matches a caller-defined lifecycle boundary. */
     public boolean gesturesIdle (final Predicate<? super PhysicalInputAddress<C>> boundary)
     {

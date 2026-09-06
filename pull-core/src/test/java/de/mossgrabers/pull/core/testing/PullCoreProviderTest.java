@@ -74,19 +74,19 @@ class PullCoreProviderTest
             Map.entry (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD, Integer.valueOf (4)),
             Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (6)),
             Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_MAPPING, Integer.valueOf (4)),
-            Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_STATE, Integer.valueOf (3)),
+            Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_STATE, Integer.valueOf (4)),
             Map.entry (CoreCapabilities.EFFECT_NOTE_VIEW_PREFERENCE, Integer.valueOf (1)),
             Map.entry (CoreCapabilities.OUTPUT_NOTE_REPEAT, Integer.valueOf (1)),
             Map.entry (CoreCapabilities.OUTPUT_TOUCH_STRIP, Integer.valueOf (1)),
             Map.entry (CoreCapabilities.INPUT_CONTROLLER, Integer.valueOf (1)),
             Map.entry (CoreCapabilities.ROUTING_CONTROLLER_INPUT, Integer.valueOf (7)),
-            Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE, Integer.valueOf (13)),
+            Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE, Integer.valueOf (14)),
             Map.entry (CoreCapabilities.SUBSCRIPTION_CONTROLLER_BRIDGE, Integer.valueOf (1)),
             Map.entry (CoreCapabilities.EFFECT_TRANSPORT, Integer.valueOf (4)),
             Map.entry (CoreCapabilities.EFFECT_HOST_NOTIFICATION, Integer.valueOf (1)),
             Map.entry (CoreCapabilities.EFFECT_SELECTED_TRACK, Integer.valueOf (3)),
             Map.entry (CoreCapabilities.EFFECT_CURRENT_TRACK_BANK, Integer.valueOf (2)),
-            Map.entry (CoreCapabilities.EFFECT_CONTROLLER_MODE, Integer.valueOf (2)),
+            Map.entry (CoreCapabilities.CONTROLLER_PAGES, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_CONTROLLER_SETTINGS, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_APPLICATION_UI, Integer.valueOf (1)),
             Map.entry (CoreCapabilities.EFFECT_SESSION_BANK, Integer.valueOf (3)),
@@ -210,10 +210,10 @@ class PullCoreProviderTest
         final StateEnvelope checkpoint = core.checkpoint ();
         assertEquals (provider.descriptor ().stateSchema (), checkpoint.schema ());
         assertEquals (provider.descriptor ().stateSchemaVersion (), checkpoint.version ());
-        assertArrayEquals (new byte []
-        {
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-        }, checkpoint.payload ());
+        assertTrue (checkpoint.payload ().length < 8192);
+        final ControllerCore restored = provider.create ();
+        assertEquals ("track", restored.start (snapshot, Optional.of (checkpoint)).desiredControllerState ().page ().selected ().id ());
+        assertArrayEquals (checkpoint.payload (), restored.checkpoint ().payload ());
 
     }
 

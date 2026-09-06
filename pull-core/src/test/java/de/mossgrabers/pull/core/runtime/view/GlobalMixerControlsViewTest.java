@@ -34,7 +34,7 @@ class GlobalMixerControlsViewTest
         {
             final Fixture fixture = new Fixture (role);
             final CoreResult result = fixture.workspace.activate (fixture.snapshot ());
-            assertEquals (role.name (), result.desiredControllerState ().workspace ().installedModeId ());
+            assertEquals (role.name (), fixture.pages.legacyAlias ());
             assertEquals (Set.of (role == GlobalMixerControlsView.Role.VOLUME ? ParameterBankId.TRACK_VOLUME : ParameterBankId.TRACK_PAN), result.desiredParameterBanks ().banks ());
             assertTrue (fixture.view.profile ().controllerFacets ().isEmpty ());
             for (int index = 0; index < 8; index++) assertEquals (fixture.slot (index), fixture.workspace.parameterSlotOrNull (knob (index), fixture.snapshot ()));
@@ -68,14 +68,14 @@ class GlobalMixerControlsViewTest
         final DesiredHardwareOutput before = fixture.workspace.activate (fixture.snapshot ()).desiredOutput ();
         assertEquals (before, fixture.turn (0, 8).desiredOutput ());
         final CoreResult requested = fixture.menu (0);
-        assertEquals (List.of (new SetControllerModeSettingEffect (SetControllerModeSettingEffect.Setting.GLOBAL_MIX_MODE, "VOLUME"), new SelectControllerModeEffect (7, "VOLUME")), requested.effects ());
-        assertEquals (before, requested.desiredOutput ());
+        assertEquals (List.of (new SetControllerModeSettingEffect (SetControllerModeSettingEffect.Setting.GLOBAL_MIX_MODE, "VOLUME")), requested.effects ());
+        assertEquals ("VOLUME", fixture.pages.legacyAlias ());
         fixture.value = 700;
         assertNotEquals (before.display (), fixture.workspace.activate (fixture.snapshot ()).desiredOutput ().display ());
     }
 
     @Test
-    void deferredMixerMenusCancelTheirWholeRecipeWhenTheOriginChanges ()
+    void deferredMixerMenusCancelTheirWholeRecipeWhenTheCorePageChanges ()
     {
         for (final GlobalMixerControlsView.Role role: GlobalMixerControlsView.Role.values ())
             for (final boolean hiddenChange: List.of (false, true))
@@ -84,6 +84,7 @@ class GlobalMixerControlsViewTest
                 final var action = fixture.workspace.resolveAction (new ControllerInputEvent (1, 1, upper (0), InputKind.BUTTON, InputPhase.BEGIN, 127), fixture.snapshot ());
                 final var origin = fixture.layout;
                 fixture.layout = new ControllerLayoutSnapshot (hiddenChange ? 7 : 8, "PLAY", origin.modeId (), false, false, 0, GridPressureConfiguration.OFF, DesiredNoteInputTranslation.unowned (), origin.activeModeId (), hiddenChange ? "TRACK" : "", false);
+                fixture.pages.select (fixture.pages.resolve (hiddenChange ? "FRAME" : "TRACK"));
                 assertTrue (fixture.workspace.dispatchAction (action, fixture.snapshot ()).isEmpty ());
                 assertFalse (fixture.menu (0).effects ().isEmpty (), "a fresh action remains usable after cancellation");
             }
@@ -96,7 +97,8 @@ class GlobalMixerControlsViewTest
         fixture.sendCount = 5;
         final CoreResult five = fixture.workspace.activate (fixture.snapshot ());
         assertFalse (texts (five).contains (">"));
-        assertEquals ("SEND5", ((SelectControllerModeEffect) fixture.menu (6).effects ().getLast ()).modeId ());
+        fixture.menu (6);
+        assertEquals ("SEND5", fixture.pages.legacyAlias ());
         fixture.sendCount = 6;
         final CoreResult six = fixture.workspace.activate (fixture.snapshot ());
         assertTrue (texts (six).contains (">"));
@@ -109,8 +111,10 @@ class GlobalMixerControlsViewTest
         assertTrue (texts (advanced).contains ("<"));
         assertFalse (texts (advanced).contains (">"));
         assertEquals (WHITE, advanced.desiredOutput ().lights ().get (upper (2)));
-        assertEquals ("SEND5", ((SelectControllerModeEffect) fixture.menu (3).effects ().getLast ()).modeId ());
-        assertEquals ("SEND8", ((SelectControllerModeEffect) fixture.menu (6).effects ().getLast ()).modeId ());
+        fixture.menu (3);
+        assertEquals ("SEND5", fixture.pages.legacyAlias ());
+        fixture.menu (6);
+        assertEquals ("SEND8", fixture.pages.legacyAlias ());
         assertEquals (List.of (new SetControllerIntegerSettingEffect (SetControllerIntegerSettingEffect.Setting.MIX_SEND_OFFSET, 0)), fixture.menu (2).effects ());
     }
 
@@ -121,7 +125,7 @@ class GlobalMixerControlsViewTest
         fixture.sendOffset = 4;
         fixture.sendCount = 0;
         fixture.workspace.activate (fixture.snapshot ());
-        assertEquals (List.of (new SetControllerIntegerSettingEffect (SetControllerIntegerSettingEffect.Setting.MIX_SEND_OFFSET, 0), new SetControllerModeSettingEffect (SetControllerModeSettingEffect.Setting.GLOBAL_MIX_MODE, "SEND1"), new SelectControllerModeEffect (7, "SEND1")), fixture.menu (2).effects ());
+        assertEquals (List.of (new SetControllerIntegerSettingEffect (SetControllerIntegerSettingEffect.Setting.MIX_SEND_OFFSET, 0), new SetControllerModeSettingEffect (SetControllerModeSettingEffect.Setting.GLOBAL_MIX_MODE, "SEND1")), fixture.menu (2).effects ());
         assertEquals (List.of (new SetControllerIntegerSettingEffect (SetControllerIntegerSettingEffect.Setting.MIX_SEND_OFFSET, 0)), fixture.workspace.handle (new SnapshotChangedEvent (3, 3), fixture.snapshot ()).effects ());
         fixture.settingsAvailable = false;
         assertTrue (fixture.menu (2).effects ().isEmpty ());
@@ -132,8 +136,9 @@ class GlobalMixerControlsViewTest
     {
         final Fixture fixture = new Fixture (GlobalMixerControlsView.Role.VOLUME);
         fixture.pressed = Set.of (SHIFT, SELECT, DELETE);
-        assertEquals (List.of (new SetControllerModeSettingEffect (SetControllerModeSettingEffect.Setting.GLOBAL_MIX_MODE, "VOLUME"), new SelectControllerModeEffect (7, "VOLUME")), fixture.menu (0).effects ());
-        assertEquals ("CROSSFADER", ((SelectControllerModeEffect) fixture.menu (7).effects ().getLast ()).modeId ());
+        assertEquals (List.of (new SetControllerModeSettingEffect (SetControllerModeSettingEffect.Setting.GLOBAL_MIX_MODE, "VOLUME")), fixture.menu (0).effects ());
+        fixture.menu (7);
+        assertEquals ("CROSSFADER", fixture.pages.legacyAlias ());
         assertTrue (fixture.workspace.handle (new ControllerInputEvent (1, 1, upper (1), InputKind.BUTTON, InputPhase.END, 0), fixture.snapshot ()).effects ().isEmpty ());
     }
 
@@ -228,6 +233,7 @@ class GlobalMixerControlsViewTest
 
     private static final class Fixture
     {
+        private final PageNavigation pages = PageNavigation.defaults ();
         private final GlobalMixerControlsView.Role role;
         private final GlobalMixerControlsView view;
         private final CompiledWorkspace workspace;
@@ -251,9 +257,10 @@ class GlobalMixerControlsViewTest
         {
             this.role = role;
             final ParameterTouchSession session = new ParameterTouchSession ();
-            this.view = role == GlobalMixerControlsView.Role.SEND ? GlobalMixerControlsView.send (0, session) : new GlobalMixerControlsView (role, session);
-            this.layout = new ControllerLayoutSnapshot (7, "PLAY", this.view.installedModeId (), false, false, 0, GridPressureConfiguration.OFF);
-            this.workspace = CompiledWorkspace.compile (role.name (), List.of (this.view, new CurrentTrackFooterView (), new ParameterTouchReleaseView (session)));
+            this.view = role == GlobalMixerControlsView.Role.SEND ? GlobalMixerControlsView.send (0, session, this.pages) : new GlobalMixerControlsView (role, session, this.pages);
+            this.layout = new ControllerLayoutSnapshot (7, "PLAY", role == GlobalMixerControlsView.Role.SEND ? "SEND1" : role.name (), false, false, 0, GridPressureConfiguration.OFF);
+            this.pages.select (this.pages.resolve (this.layout.modeId ()));
+            this.workspace = CompiledWorkspace.compile (role.name (), List.of (this.view, new CurrentTrackFooterView ()));
             this.workspace.start (this.snapshot ());
         }
         private ParameterSlot slot (final int index) { return this.role == GlobalMixerControlsView.Role.SEND ? ParameterSlot.trackSend (0, index) : this.role == GlobalMixerControlsView.Role.VOLUME ? ParameterSlot.trackVolume (index) : ParameterSlot.trackPan (index); }

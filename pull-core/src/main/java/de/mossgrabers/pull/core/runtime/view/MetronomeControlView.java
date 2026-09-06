@@ -63,7 +63,7 @@ public final class MetronomeControlView implements ControllerView
     @Override public Set<ControllerActionBinding> actionBindings () { return ACTIONS; }
     @Override public void start (final ControllerSnapshot snapshot) { this.deactivate (); this.latest = snapshot; }
     @Override public void deactivate () { this.pending.forEach (gesture -> this.pages.cancel (gesture.page)); this.pages.cancel (this.lastEntry); this.admission.clear (); this.pending.clear (); this.held = null; this.lastEntry = null; this.ticks.clear (); }
-    @Override public void reconcile (final ControllerSnapshot snapshot) { this.latest = snapshot; this.pages.observe (snapshot); }
+    @Override public void reconcile (final ControllerSnapshot snapshot) { this.latest = snapshot; this.pages.observe (); }
 
     @Override
     public ResolvedControllerAction resolveAction (final ControllerActionBinding binding, final ControllerInputEvent input, final ControllerSnapshot snapshot)
@@ -73,8 +73,8 @@ public final class MetronomeControlView implements ControllerView
         this.held = gesture;
         return this.admission.action (gesture.ticket, binding.intent (), () -> this.advance (gesture, this.latest));
     }
-    @Override public Set<BridgeSubscription> bridgeSubscriptions () { return Set.of (BridgeSubscription.PROJECT, BridgeSubscription.TRANSPORT, BridgeSubscription.TRANSPORT_SETTINGS, BridgeSubscription.CONTROLLER_LAYOUT); }
-    @Override public CoreExecutionRequirements executionRequirements () { return new CoreExecutionRequirements (this.metronome.pending () || this.ticks.pending () || this.pages.pending ()); }
+    @Override public Set<BridgeSubscription> bridgeSubscriptions () { return Set.of (BridgeSubscription.PROJECT, BridgeSubscription.TRANSPORT, BridgeSubscription.TRANSPORT_SETTINGS); }
+    @Override public CoreExecutionRequirements executionRequirements () { return new CoreExecutionRequirements (this.metronome.pending () || this.ticks.pending ()); }
 
     @Override
     public List<CoreEffect> handle (final CoreEvent event, final ControllerSnapshot snapshot)
@@ -85,11 +85,11 @@ public final class MetronomeControlView implements ControllerView
         {
             final Gesture gesture = this.held;
             final boolean shifted = snapshot.pressedControls ().contains (SHIFT);
-            final var layout = snapshot.bridge ().layout ();
+            final var origin = this.pages.origin ();
             if (input.phase () == InputPhase.LONG && !shifted && !gesture.consumed)
             {
                 gesture.consumed = true;
-                gesture.page = this.pages.temporary (layout, "TRANSPORT");
+                gesture.page = this.pages.temporary (origin, "TRANSPORT");
                 this.lastEntry = gesture.page;
             }
             else if (input.phase () == InputPhase.END)
@@ -99,7 +99,7 @@ public final class MetronomeControlView implements ControllerView
                 if (!gesture.consumed)
                 {
                     if (shifted) gesture.tickProject = snapshot.bridge ().transportSettings ().projectIdentity ();
-                    else if ("TRANSPORT".equals (layout.modeId ())) gesture.page = this.pages.restore (layout);
+                    else if ("TRANSPORT".equals (this.pages.visibleAlias ())) gesture.page = this.pages.restore (origin);
                     else gesture.metronomeProject = snapshot.bridge ().project ().projectIdentity ();
                 }
             }
@@ -114,7 +114,7 @@ public final class MetronomeControlView implements ControllerView
         if (!gesture.ticket.admitted ()) return List.of ();
         final List<CoreEffect> effects = new ArrayList<> ();
         if (gesture.ended && gesture.consumed) this.pages.release (gesture.page, false);
-        effects.addAll (this.pages.advance (gesture.page, snapshot));
+        this.pages.advance (gesture.page);
         if (gesture.ended)
         {
             effects.addAll (this.advanceToggles (snapshot,

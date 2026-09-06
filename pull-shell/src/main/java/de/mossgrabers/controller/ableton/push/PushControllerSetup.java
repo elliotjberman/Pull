@@ -49,13 +49,10 @@ import de.mossgrabers.controller.ableton.push.mode.device.DeviceLayerSendMode;
 import de.mossgrabers.controller.ableton.push.mode.device.DeviceLayerVolumeMode;
 import de.mossgrabers.controller.ableton.push.mode.device.DeviceParamsMode;
 import de.mossgrabers.controller.ableton.push.mode.device.UserMode;
-import de.mossgrabers.controller.ableton.push.mode.device.WorkspaceMode;
 import de.mossgrabers.controller.ableton.push.mode.track.AddTrackMode;
 import de.mossgrabers.controller.ableton.push.mode.track.ClipMode;
 import de.mossgrabers.controller.ableton.push.mode.track.CrossfadeMode;
-import de.mossgrabers.controller.ableton.push.mode.track.MasterMode;
 import de.mossgrabers.controller.ableton.push.mode.track.TrackDetailsMode;
-import de.mossgrabers.controller.ableton.push.mode.track.TrackMode;
 import de.mossgrabers.controller.ableton.push.view.ChordsView;
 import de.mossgrabers.controller.ableton.push.view.Drum4View;
 import de.mossgrabers.controller.ableton.push.view.Drum64View;
@@ -223,14 +220,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         final ITrackBank effectTrackBank = this.model.getEffectTrackBank ();
         if (effectTrackBank != null)
             effectTrackBank.addSelectionObserver ( (index, isSelected) -> this.handleTrackChange (isSelected));
-        this.model.getMasterTrack ().addSelectionObserver ( (index, isSelected) -> {
-            final PushControlSurface surface = this.getSurface ();
-            final ModeManager modeManager = surface.getModeManager ();
-            if (isSelected)
-                modeManager.setActive (Modes.MASTER);
-            else if (modeManager.isActive (Modes.MASTER))
-                modeManager.restore ();
-        });
+
     }
 
 
@@ -240,6 +230,11 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
     {
         // The inherited selection callback must not actuate a second Note-layout control plane.
     }
+
+
+    /** Core owns page selection in response to authoritative track/master changes. */
+    @Override
+    protected void updateMode () { }
 
 
     /** {@inheritDoc} */
@@ -274,17 +269,20 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         final PushControlSurface surface = this.getSurface ();
         final ModeManager modeManager = surface.getModeManager ();
 
-        modeManager.register (Modes.TRACK, new TrackMode (surface, this.model, this.reloadableRuntime));
+        final CorePageMode corePageAdapter = new CorePageMode ("Core", surface, this.model, this.reloadableRuntime);
+        surface.getModeManager ().installCoreAdapter (corePageAdapter);
+
+        modeManager.register (Modes.TRACK, corePageAdapter);
         modeManager.register (Modes.TRACK_DETAILS, new TrackDetailsMode (surface, this.model));
-        modeManager.register (Modes.VOLUME, new CorePageMode ("Volume", surface, this.model, this.reloadableRuntime));
-        modeManager.register (Modes.PAN, new CorePageMode ("Pan", surface, this.model, this.reloadableRuntime));
+        modeManager.register (Modes.VOLUME, corePageAdapter);
+        modeManager.register (Modes.PAN, corePageAdapter);
         modeManager.register (Modes.CROSSFADER, new CrossfadeMode (surface, this.model));
 
         for (int i = 0; i < 8; i++)
-            modeManager.register (Modes.get (Modes.SEND1, i), new CorePageMode ("Send " + (i + 1), surface, this.model, this.reloadableRuntime));
+            modeManager.register (Modes.get (Modes.SEND1, i), corePageAdapter);
 
-        modeManager.register (Modes.MASTER, new MasterMode (surface, this.model, this.reloadableRuntime));
-        modeManager.register (Modes.MASTER_TEMP, new MasterMode (surface, this.model, this.reloadableRuntime));
+        modeManager.register (Modes.MASTER, corePageAdapter);
+        modeManager.register (Modes.MASTER_TEMP, corePageAdapter);
 
         modeManager.register (Modes.DEVICE_PARAMS, new DeviceParamsMode (surface, this.model));
         modeManager.register (Modes.DEVICE_CHAINS, new DeviceChainsMode (surface, this.model));
@@ -300,21 +298,21 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
 
         modeManager.register (Modes.CLIP, new ClipMode (surface, this.model));
         modeManager.register (Modes.NOTE, new NoteMode (surface, this.model));
-        modeManager.register (Modes.FRAME, new CorePageMode ("Frame", surface, this.model, this.reloadableRuntime));
+        modeManager.register (Modes.FRAME, corePageAdapter);
 
         modeManager.register (Modes.GROOVE, new GrooveMode (surface, this.model));
         modeManager.register (Modes.REC_ARM, new QuantizeMode (surface, this.model));
-        modeManager.register (Modes.ACCENT, new CorePageMode ("Accent", surface, this.model, this.reloadableRuntime));
+        modeManager.register (Modes.ACCENT, corePageAdapter);
 
         modeManager.register (Modes.SCALES, new ScalesMode (surface, this.model));
         modeManager.register (Modes.SCALE_LAYOUT, new ScaleLayoutMode (surface, this.model));
         modeManager.register (Modes.FIXED, new FixedMode (surface, this.model));
         modeManager.register (Modes.RIBBON, new RibbonMode (surface, this.model));
 
-        modeManager.register (Modes.AUTOMATION, new CorePageMode ("Automation", surface, this.model, this.reloadableRuntime));
-        modeManager.register (Modes.TRANSPORT, new CorePageMode ("Transport", surface, this.model, this.reloadableRuntime));
+        modeManager.register (Modes.AUTOMATION, corePageAdapter);
+        modeManager.register (Modes.TRANSPORT, corePageAdapter);
         modeManager.register (Modes.USER, new UserMode (surface, this.model));
-        modeManager.register (Modes.WORKSPACE, new WorkspaceMode (surface, this.model, this.reloadableRuntime));
+        modeManager.register (Modes.WORKSPACE, corePageAdapter);
 
         modeManager.register (Modes.INFO, new InfoMode (surface, this.model));
         modeManager.register (Modes.SETUP, new SetupMode (surface, this.model));
@@ -354,7 +352,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
 
         surface.getViewManager ().addChangeListener ( (previousViewId, activeViewId) -> this.onViewChange ());
 
-        this.activateBrowserObserver (Modes.BROWSER);
+        // Raw Browser activity is observed by the bridge; core owns its page lifecycle.
 
     }
 
@@ -460,7 +458,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         this.addButton (ButtonID.SCALES, "Scale", new ScalesCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_SCALES, () -> modeManager.isActive (Modes.SCALES));
         this.addButton (ButtonID.ACCENT, "Accent", CORE_OWNED_BUTTON_COMMAND, PushControlSurface.PUSH_BUTTON_ACCENT, () -> PushColorManager.resolveCoreButtonColor (this.colorManager, ButtonID.ACCENT, this.reloadableRuntime.lightColor (PushControlIds.button ("ACCENT"))));
         this.addButton (ButtonID.ADD_EFFECT, "Add Device", new PushAddEffectCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_ADD_EFFECT);
-        this.addButton (ButtonID.ADD_TRACK, "Add Track", new ModeSelectCommand<> (this.model, surface, Modes.ADD_TRACK), PushControlSurface.PUSH_BUTTON_ADD_TRACK);
+        this.addButton (ButtonID.ADD_TRACK, "Add Track", new de.mossgrabers.controller.ableton.push.command.trigger.PushModeSelectCommand (this.model, surface, Modes.ADD_TRACK), PushControlSurface.PUSH_BUTTON_ADD_TRACK);
         this.addButton (ButtonID.NOTE, "Note", CORE_OWNED_BUTTON_COMMAND, PushControlSurface.PUSH_BUTTON_NOTE, () -> !surface.isSessionLayoutActive ());
 
         final PushCursorCommand cursorDownCommand = new PushCursorCommand (Direction.DOWN, this.model, surface);
@@ -493,9 +491,9 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
                 return 0;
             return surface.getButton (ButtonID.CONVERT).isPressed () ? 2 : 1;
         }, ColorManager.BUTTON_STATE_OFF, ColorManager.BUTTON_STATE_ON, ColorManager.BUTTON_STATE_HI);
-        this.addButton (ButtonID.USER, "User", new ModeSelectCommand<> (this.model, surface, Modes.USER), PushControlSurface.PUSH_BUTTON_USER_MODE, () -> modeManager.isActive (Modes.USER));
+        this.addButton (ButtonID.USER, "User", new de.mossgrabers.controller.ableton.push.command.trigger.PushModeSelectCommand (this.model, surface, Modes.USER), PushControlSurface.PUSH_BUTTON_USER_MODE, () -> modeManager.isActive (Modes.USER));
 
-        this.addButton (ButtonID.BROWSE, "Browse", new BrowserCommand<> (this.model, surface), PushControlSurface.PUSH_BUTTON_BROWSE, () -> modeManager.isActive (Modes.BROWSER));
+        this.addButton (ButtonID.BROWSE, "Browse", new BrowserCommand<> (this.model, surface), PushControlSurface.PUSH_BUTTON_BROWSE, () -> this.model.getBrowser ().isActive ());
     }
 
 

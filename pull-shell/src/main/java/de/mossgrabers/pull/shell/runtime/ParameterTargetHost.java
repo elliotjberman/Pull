@@ -14,7 +14,6 @@ import de.mossgrabers.framework.daw.data.ISend;
 import de.mossgrabers.framework.daw.midi.ISelectedTrackNoteTarget;
 import de.mossgrabers.framework.daw.data.bank.IParameterBank;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
-import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.parameter.IParameter;
 import de.mossgrabers.pull.core.api.DesiredParameterBanks;
 import de.mossgrabers.pull.core.api.ControlId;
@@ -74,6 +73,9 @@ final class ParameterTargetHost
     private final ParameterTargetIdentityResolver targetIdentities;
     private final LiveTarget [] selectedTrackTargets = new LiveTarget[2];
     private final LiveTarget [] selectedSendTargets = new LiveTarget[ParameterSlot.BANK_SIZE];
+    private Map<ParameterTargetRef, LiveTarget> indicatedTargets = Map.of ();
+    private java.util.Set<ParameterSlot> requestedIndications = java.util.Set.of ();
+
     private final LiveTarget [] activeTargets = new LiveTarget[ParameterSlot.BANK_SIZE];
     private final LiveTarget [] projectTargets = new LiveTarget[ParameterSlot.BANK_SIZE];
     private final LiveTarget [] deviceTargets = new LiveTarget[ParameterSlot.BANK_SIZE];
@@ -141,8 +143,12 @@ final class ParameterTargetHost
         }
         final ParameterBridgeSnapshot refreshed = !banks.banks ().isEmpty () || !this.retainedTargets.isEmpty () ? this.captureSnapshot () : ParameterBridgeSnapshot.empty ();
         if (refreshed.equals (this.snapshot))
+        {
+            this.reconcileIndications ();
             return false;
+        }
         this.snapshot = refreshed;
+        this.reconcileIndications ();
         return true;
     }
 
@@ -173,13 +179,13 @@ final class ParameterTargetHost
 
 
     /**
-     * Reject a stale physical Track binding if a compatibility consumer requests ACTIVE.
-     * Track policy now uses named banks and the permanent Track binding is empty; it must never
+     * Reject a stale physical binding under the generic core page adapter.
+     * Core pages use named banks and the permanent page binding is empty; it must never
      * regain legacy mutation through an unclassified physical parameter wrapper.
      */
     boolean requiresResolvedMutation (final IHwContinuousControl control)
     {
-        if (!this.requestedBanks.includes (ParameterBankId.ACTIVE) || this.surface.getModeManager ().getActiveID () != Modes.TRACK)
+        if (!this.requestedBanks.includes (ParameterBankId.ACTIVE) || this.surface.getModeManager ().pageState ().effectivePage ().kind () != de.mossgrabers.pull.core.api.ControllerPageRef.Kind.CORE)
             return false;
         final IHwContinuousControl checkedControl = Objects.requireNonNull (control, "control");
         for (final ContinuousID id: ACTIVE_CONTROLS)
@@ -485,10 +491,55 @@ final class ParameterTargetHost
                 this.log.warn ("Terminal parameter restoration failed for " + retained.target.reference + ": " + failure.getMessage ());
             }
         }
+        this.applyIndications (java.util.Set.of ());
         this.retainedTargets = Map.of ();
         this.requestedBanks = DesiredParameterBanks.empty ();
         this.currentTargets.clear ();
         this.snapshot = ParameterBridgeSnapshot.empty ();
+    }
+
+
+    /** Apply core-selected host indication through the same named, fenced target canopy. */
+    void applyIndications (final java.util.Set<ParameterSlot> slots)
+    {
+        this.requestedIndications = java.util.Set.copyOf (Objects.requireNonNull (slots, "slots"));
+        this.reconcileIndications ();
+    }
+
+    /** Retire outgoing ownership before a legacy page's foreign activation callback. */
+    void releaseIndicationsExcept (final java.util.Set<ParameterSlot> slots)
+    {
+        this.requestedIndications = java.util.Set.copyOf (Objects.requireNonNull (slots, "slots"));
+        final java.util.Set<ParameterTargetRef> retained = new java.util.HashSet<> ();
+        for (final ParameterSlot slot: slots)
+        {
+            final ParameterTargetSnapshot target = this.snapshot.slots ().get (slot);
+            if (target != null) retained.add (target.target ());
+        }
+        final Map<ParameterTargetRef, LiveTarget> previous = this.indicatedTargets;
+        final Map<ParameterTargetRef, LiveTarget> next = new LinkedHashMap<> (previous);
+        next.keySet ().retainAll (retained);
+        this.indicatedTargets = Map.copyOf (next);
+        for (final var entry: previous.entrySet ())
+            if (!next.containsKey (entry.getKey ()) && entry.getValue ().addressable.getAsBoolean ()) entry.getValue ().parameter.setIndication (false);
+    }
+
+
+    private void reconcileIndications ()
+    {
+        final Map<ParameterTargetRef, LiveTarget> next = new LinkedHashMap<> ();
+        for (final ParameterSlot slot: this.requestedIndications)
+        {
+            final ParameterTargetSnapshot value = this.snapshot.slots ().get (slot);
+            final LiveTarget target = value == null ? null : this.currentTargets.get (value.target ());
+            if (target != null && target.parameter != null && target.isCurrent ()) next.put (target.reference, target);
+        }
+        final Map<ParameterTargetRef, LiveTarget> previous = this.indicatedTargets;
+        this.indicatedTargets = Map.copyOf (next);
+        for (final var entry: previous.entrySet ())
+            if (!next.containsKey (entry.getKey ()) && entry.getValue ().addressable.getAsBoolean ()) entry.getValue ().parameter.setIndication (false);
+        for (final var entry: next.entrySet ())
+            if (!previous.containsKey (entry.getKey ())) entry.getValue ().parameter.setIndication (true);
     }
 
 

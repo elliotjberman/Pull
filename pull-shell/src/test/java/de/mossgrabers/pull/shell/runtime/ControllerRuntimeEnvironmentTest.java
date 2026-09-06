@@ -148,11 +148,11 @@ class ControllerRuntimeEnvironmentTest
         assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD));
         assertEquals (Integer.valueOf (6), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_RGB_LIGHT));
         assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_MAPPING));
-        assertEquals (Integer.valueOf (3), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_STATE));
+        assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_STATE));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_NOTE_VIEW_PREFERENCE));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_NOTE_REPEAT));
         assertEquals (Integer.valueOf (7), initial.capabilities ().versions ().get (CoreCapabilities.ROUTING_CONTROLLER_INPUT));
-        assertEquals (Integer.valueOf (13), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE));
+        assertEquals (Integer.valueOf (14), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE));
         assertEquals (Integer.valueOf (3), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_SESSION_BANK));
         assertEquals (Integer.valueOf (3), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_CONTROLLER_BUTTON_CONSUMPTION));
         assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_PARAMETER_TARGETS));
@@ -231,7 +231,7 @@ class ControllerRuntimeEnvironmentTest
             DesiredInputRoutes.empty (),
             DesiredBridgeSubscriptions.empty (),
             Map.of (),
-            new DesiredControllerState (workspace, DesiredNotePerformance.inactive ()),
+            new DesiredControllerState (workspace, DesiredNotePerformance.inactive (), corePage ()),
             DesiredNoteRepeat.unowned (),
             de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
             de.mossgrabers.pull.core.api.DesiredParameterBanks.empty (),
@@ -289,8 +289,7 @@ class ControllerRuntimeEnvironmentTest
             new de.mossgrabers.pull.core.api.effect.SetApplicationLayoutEffect (new de.mossgrabers.pull.core.api.ApplicationUiContext (1, "project", "ARRANGE"), de.mossgrabers.pull.core.api.effect.SetApplicationLayoutEffect.Layout.MIX),
             new de.mossgrabers.pull.core.api.effect.ToggleApplicationPanelEffect (new de.mossgrabers.pull.core.api.ApplicationUiContext (1, "project", "ARRANGE"), de.mossgrabers.pull.core.api.effect.ToggleApplicationPanelEffect.Panel.DEVICES),
             new de.mossgrabers.pull.core.api.effect.SetArrangerBooleanEffect (new de.mossgrabers.pull.core.api.ApplicationUiContext (1, "project", "ARRANGE"), de.mossgrabers.pull.core.api.effect.SetArrangerBooleanEffect.Property.TIMELINE_VISIBLE, true),
-            new de.mossgrabers.pull.core.api.effect.SetMixerBooleanEffect (new de.mossgrabers.pull.core.api.ApplicationUiContext (1, "project", "MIX"), de.mossgrabers.pull.core.api.effect.SetMixerBooleanEffect.Property.CROSS_FADE_VISIBLE, true),
-            new de.mossgrabers.pull.core.api.effect.SelectControllerModeEffect (1, "DEVICE_PARAMS"));
+            new de.mossgrabers.pull.core.api.effect.SetMixerBooleanEffect (new de.mossgrabers.pull.core.api.ApplicationUiContext (1, "project", "MIX"), de.mossgrabers.pull.core.api.effect.SetMixerBooleanEffect.Property.CROSS_FADE_VISIBLE, true));
         for (final CoreEffect effect: effects)
         {
             final IllegalArgumentException failure = assertThrows (IllegalArgumentException.class, () -> environment.prepare (result (Map.of (), Map.of (), List.of (effect))));
@@ -310,12 +309,12 @@ class ControllerRuntimeEnvironmentTest
             final var routes = new DesiredInputRoutes (Set.of (new InputRoute (PushControlIds.button (arrow), InputKind.BUTTON, InputRouteMode.EXCLUSIVE)));
             for (final DesiredControllerWorkspace workspace: List.of (
                 new DesiredControllerWorkspace ("Track", Set.of (ControllerViewFacet.TRACK_MIXER_PAGE), SessionBankShape.empty (), "TRACK"),
-                new DesiredControllerWorkspace ("Temporary", Set.of (), SessionBankShape.empty (), "TRANSPORT"),
+                DesiredControllerWorkspace.empty (),
                 new DesiredControllerWorkspace ("VS", Set.of (ControllerViewFacet.SESSION_NAVIGATION), SessionBankShape.empty ())))
             {
                 final CoreResult result = new CoreResult (
                     DesiredHardwareOutput.empty (), routes, DesiredBridgeSubscriptions.empty (), Map.of (),
-                    new DesiredControllerState (workspace, DesiredNotePerformance.inactive ()), DesiredNoteRepeat.unowned (),
+                    new DesiredControllerState (workspace, DesiredNotePerformance.inactive (), corePage ()), DesiredNoteRepeat.unowned (),
                     de.mossgrabers.pull.core.api.DesiredControllerActions.empty (), DesiredParameterBanks.empty (), DesiredParameterInteraction.empty (), List.of ());
                 assertTrue (environment.prepare (result) != null);
             }
@@ -339,7 +338,7 @@ class ControllerRuntimeEnvironmentTest
         final DesiredInputRoutes routes = new DesiredInputRoutes (Set.of (new InputRoute (knob, InputKind.TOUCH, InputRouteMode.EXCLUSIVE)));
         final CoreResult result = new CoreResult (
             DesiredHardwareOutput.empty (), routes, new DesiredBridgeSubscriptions (Set.of (BridgeSubscription.PARAMETERS)), Map.of (),
-            new DesiredControllerState (new DesiredControllerWorkspace ("Project", Set.of (ControllerViewFacet.PROJECT_MACRO_CONTROLS), SessionBankShape.empty (), "WORKSPACE"), DesiredNotePerformance.inactive ()),
+            new DesiredControllerState (new DesiredControllerWorkspace ("Project", Set.of (ControllerViewFacet.PROJECT_MACRO_CONTROLS), SessionBankShape.empty (), "WORKSPACE"), DesiredNotePerformance.inactive (), corePage ()),
             DesiredNoteRepeat.unowned (), de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
             new DesiredParameterBanks (Set.of (ParameterBankId.PROJECT_REMOTE)), DesiredParameterInteraction.empty (),
             new DesiredParameterTouches (Map.of (knob, target)), CoreExecutionRequirements.empty (), List.of (new ResetParameterEffect (target)));
@@ -358,9 +357,83 @@ class ControllerRuntimeEnvironmentTest
         assertThrows (IllegalArgumentException.class, () -> environment.prepare (wrongProfile));
         final CoreResult masterProfile = new CoreResult (
             result.desiredOutput (), routes, result.desiredBridgeSubscriptions (), Map.of (),
-            new DesiredControllerState (new DesiredControllerWorkspace ("Master", Set.of (ControllerViewFacet.MASTER_CONTROLS), SessionBankShape.empty (), "MASTER"), DesiredNotePerformance.inactive ()),
+            new DesiredControllerState (new DesiredControllerWorkspace ("Master", Set.of (ControllerViewFacet.MASTER_CONTROLS), SessionBankShape.empty (), "MASTER"), DesiredNotePerformance.inactive (), corePage ()),
             result.desiredNoteRepeat (), result.desiredControllerActions (), new DesiredParameterBanks (Set.of (ParameterBankId.MASTER)), result.desiredParameterInteraction (), result.desiredParameterTouches (), result.executionRequirements (), List.of ());
         assertTrue (environment.prepare (masterProfile) != null);
+    }
+
+
+    @Test
+    void realCoreOriginalFrameReleaseKeepsDependenciesThroughParentPreparation () throws Exception
+    {
+        final var classes = java.nio.file.Path.of ("../pull-core/target/classes").toAbsolutePath ().normalize ();
+        try (final var loader = new java.net.URLClassLoader (new java.net.URL[] {classes.toUri ().toURL ()}, getClass ().getClassLoader ()))
+        {
+            final var provider = (de.mossgrabers.pull.core.api.CoreProvider) loader.loadClass ("de.mossgrabers.pull.core.runtime.PullCoreProvider").getConstructor ().newInstance ();
+            final var core = provider.create ();
+            final var capabilities = provider.descriptor ().requiredCapabilities ();
+            final var empty = de.mossgrabers.pull.core.api.LegacyControllerPageRequests.empty ();
+            final var started = core.start (pageCaptureSnapshot (capabilities, 1, Set.of (), empty), Optional.empty ());
+            final var row = PushControlIds.button ("ROW1_4");
+            core.handle (new ControllerInputEvent (2, 2, row, InputKind.BUTTON, InputPhase.BEGIN, 127), pageCaptureSnapshot (capabilities, 2, Set.of (row), empty));
+            final var request = new de.mossgrabers.pull.core.api.LegacyControllerPageRequest (1, started.desiredControllerState ().page ().revision (), 0, de.mossgrabers.pull.core.api.LegacyControllerPageRequest.Operation.SELECT, "TRACK");
+            core.handle (new de.mossgrabers.pull.core.api.event.SnapshotChangedEvent (3, 3), pageCaptureSnapshot (capabilities, 3, Set.of (row), new de.mossgrabers.pull.core.api.LegacyControllerPageRequests (List.of (request))));
+            final var released = core.handle (new ControllerInputEvent (4, 4, row, InputKind.BUTTON, InputPhase.END, 0), pageCaptureSnapshot (capabilities, 4, Set.of (), new de.mossgrabers.pull.core.api.LegacyControllerPageRequests (1, List.of ())));
+            assertEquals ("TRACK", released.desiredControllerState ().page ().effectivePage ().legacyAlias ());
+            assertEquals (1, released.effects ().stream ().filter (de.mossgrabers.pull.core.api.effect.ToggleApplicationPanelEffect.class::isInstance).count ());
+            assertTrue (released.desiredBridgeSubscriptions ().includes (BridgeSubscription.APPLICATION_UI));
+            final var environment = new ControllerRuntimeEnvironment (host (1), new PassthroughControllerBridge (), new RecordingLog (), () -> 0);
+            environment.setInputRouteValidator (ignored -> true);
+            environment.setControllerActionValidator (ignored -> true);
+            environment.setPhysicalLightOwnerValidator (ignored -> true);
+            assertTrue (environment.prepare (released) != null, "the actual core release result must survive the parent contract");
+        }
+    }
+
+    private static ControllerSnapshot pageCaptureSnapshot (final de.mossgrabers.pull.core.api.ShellCapabilities capabilities, final long sequence, final Set<ControlId> pressed, final de.mossgrabers.pull.core.api.LegacyControllerPageRequests requests)
+    {
+        final var e = de.mossgrabers.pull.core.api.ControllerBridgeSnapshot.empty ();
+        final var layout = new de.mossgrabers.pull.core.api.ControllerLayoutSnapshot (1, "", "FRAME", false, false, 0, de.mossgrabers.pull.core.api.GridPressureConfiguration.OFF);
+        final var ui = new de.mossgrabers.pull.core.api.ApplicationUiSnapshot (1, "project", "ARRANGE", de.mossgrabers.pull.core.api.ArrangerUiSnapshot.empty (), de.mossgrabers.pull.core.api.MixerUiSnapshot.empty ());
+        final var bridge = new de.mossgrabers.pull.core.api.ControllerBridgeSnapshot (e.transport (), e.selectedTrack (), e.sessionBank (), layout, e.noteView (), e.noteRepeat (), e.drum (), e.parameters (), e.controllerMappingFeedback (), e.master (), e.project (), e.automation (), e.encoderConfiguration (), e.currentTrackBank (), e.transportSettings (), e.controllerSettings (), ui, requests, e.browser ());
+        return new ControllerSnapshot (sequence, sequence, capabilities, bridge, ClipCatalogSnapshot.empty (), Map.of (), Map.of (), Optional.empty (), pressed, Set.of ());
+    }
+
+
+    @Test
+    void legacyPageMayContinueOnlyTheAlreadyAppliedExactCapturedTouch ()
+    {
+        final PassthroughControllerBridge bridge = new PassthroughControllerBridge ();
+        bridge.recordTouches = true;
+        final ControllerRuntimeEnvironment environment = new ControllerRuntimeEnvironment (host (1), bridge, new RecordingLog (), () -> 0);
+        environment.setInputRouteValidator (ignored -> true);
+        final ControlId knob = PushControlIds.continuous ("KNOB1");
+        final ParameterTargetRef target = new ParameterTargetRef (ParameterTargetKind.LIVE, "original-parameter", 1);
+        final java.util.concurrent.atomic.AtomicBoolean captured = new java.util.concurrent.atomic.AtomicBoolean (true);
+        environment.setActiveTouchOwner (control -> control.equals (knob) && captured.get ());
+        environment.controllerInput (knob, InputKind.TOUCH, InputPhase.BEGIN, 127);
+        final var touch = new DesiredParameterTouches (Map.of (knob, target));
+        final CoreResult begin = touchContinuationResult (touch, new DesiredInputRoutes (Set.of (new InputRoute (knob, InputKind.TOUCH, InputRouteMode.EXCLUSIVE))), new DesiredControllerState (DesiredControllerWorkspace.empty (), DesiredNotePerformance.inactive (), corePage ()));
+        final CoreResult continuation = touchContinuationResult (touch, DesiredInputRoutes.empty (), DesiredControllerState.empty ());
+        assertThrows (IllegalArgumentException.class, () -> environment.prepare (continuation), "a physical capture alone cannot acquire an unadmitted target");
+        environment.commit (1, environment.prepare (begin));
+        environment.apply (1);
+        environment.commit (1, environment.prepare (continuation));
+        environment.apply (1);
+        final var other = new DesiredParameterTouches (Map.of (knob, new ParameterTargetRef (ParameterTargetKind.LIVE, "another-parameter", 2)));
+        assertThrows (IllegalArgumentException.class, () -> environment.prepare (touchContinuationResult (other, DesiredInputRoutes.empty (), DesiredControllerState.empty ())));
+        captured.set (false);
+        assertThrows (IllegalArgumentException.class, () -> environment.prepare (continuation), "release retires the continuation permission");
+        captured.set (true);
+        environment.invalidate (1);
+        assertThrows (IllegalArgumentException.class, () -> environment.prepare (continuation), "core invalidation retires applied touch ownership");
+    }
+
+    private static CoreResult touchContinuationResult (final DesiredParameterTouches touches, final DesiredInputRoutes routes, final DesiredControllerState state)
+    {
+        return new CoreResult (DesiredHardwareOutput.empty (), routes, new DesiredBridgeSubscriptions (Set.of (BridgeSubscription.PARAMETERS)), Map.of (), state,
+            DesiredNoteRepeat.unowned (), de.mossgrabers.pull.core.api.DesiredControllerActions.empty (), new DesiredParameterBanks (Set.of (ParameterBankId.PROJECT_REMOTE)),
+            DesiredParameterInteraction.empty (), touches, CoreExecutionRequirements.empty (), List.of ());
     }
 
 
@@ -376,7 +449,7 @@ class ControllerRuntimeEnvironmentTest
         final DesiredInputRoutes routes = new DesiredInputRoutes (Set.of (new InputRoute (knob, InputKind.TOUCH, InputRouteMode.EXCLUSIVE)));
         final CoreResult result = new CoreResult (
             DesiredHardwareOutput.empty (), routes, new DesiredBridgeSubscriptions (Set.of (BridgeSubscription.PARAMETERS)), Map.of (),
-            new DesiredControllerState (new DesiredControllerWorkspace ("Track", Set.of (ControllerViewFacet.TRACK_MIXER_PAGE), SessionBankShape.empty (), "TRACK"), DesiredNotePerformance.inactive ()),
+            new DesiredControllerState (new DesiredControllerWorkspace ("Track", Set.of (ControllerViewFacet.TRACK_MIXER_PAGE), SessionBankShape.empty (), "TRACK"), DesiredNotePerformance.inactive (), corePage ()),
             DesiredNoteRepeat.unowned (), de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
             new DesiredParameterBanks (Set.of (ParameterBankId.SELECTED_TRACK, ParameterBankId.SELECTED_TRACK_SENDS)), DesiredParameterInteraction.empty (),
             new DesiredParameterTouches (Map.of (knob, target)), CoreExecutionRequirements.empty (), List.of (
@@ -408,7 +481,7 @@ class ControllerRuntimeEnvironmentTest
             DesiredInputRoutes.empty (),
             DesiredBridgeSubscriptions.empty (),
             Map.of (),
-            new DesiredControllerState (workspace, DesiredNotePerformance.inactive ()),
+            new DesiredControllerState (workspace, DesiredNotePerformance.inactive (), corePage ()),
             DesiredNoteRepeat.unowned (),
             de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
             DesiredParameterBanks.empty (),
@@ -721,7 +794,7 @@ class ControllerRuntimeEnvironmentTest
         final CoreResult result = new CoreResult (
             new DesiredHardwareOutput (Map.of (previous, BRIGHT_RED, ratePad, BRIGHT_RED, tap, new RgbColor (255, 255, 255), undo, new RgbColor (60, 60, 60)), display, padOverlay, displayOverlay),
             DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), Map.of (FIRST, FIRST_TARGET),
-            new DesiredControllerState (workspace, DesiredNotePerformance.inactive ()), DesiredNoteRepeat.unowned (), de.mossgrabers.pull.core.api.DesiredControllerActions.empty (), DesiredParameterBanks.empty (),
+            new DesiredControllerState (workspace, DesiredNotePerformance.inactive (), corePage ()), DesiredNoteRepeat.unowned (), de.mossgrabers.pull.core.api.DesiredControllerActions.empty (), DesiredParameterBanks.empty (),
             DesiredParameterInteraction.empty (), new CoreExecutionRequirements (true),
             List.of (new PressClipTargetEffect (FIRST, 1, FIRST_TARGET, LAUNCH_POLICY)));
 
@@ -1503,6 +1576,21 @@ class ControllerRuntimeEnvironmentTest
     }
 
 
+    @Test
+    void pageParameterIndicationsRequireTheirDeclaredSnapshotAndBank ()
+    {
+        final var environment = new ControllerRuntimeEnvironment (host (1), new PassthroughControllerBridge (), new RecordingLog (), () -> 0);
+        final var page = new de.mossgrabers.pull.core.api.DesiredControllerPageState (1, de.mossgrabers.pull.core.api.ControllerPageRef.core ("arbitrary"), de.mossgrabers.pull.core.api.ControllerPageRef.none (), java.util.Optional.empty (), 0, Set.of (de.mossgrabers.pull.core.api.ParameterSlot.selectedDeviceRemote (0)));
+        for (final var subscriptions: List.of (DesiredBridgeSubscriptions.empty (), new DesiredBridgeSubscriptions (Set.of (BridgeSubscription.PARAMETERS))))
+        {
+            final var result = new CoreResult (DesiredHardwareOutput.empty (), DesiredInputRoutes.empty (), subscriptions, Map.of (),
+                new DesiredControllerState (DesiredControllerWorkspace.empty (), DesiredNotePerformance.inactive (), page), DesiredNoteRepeat.unowned (),
+                de.mossgrabers.pull.core.api.DesiredControllerActions.empty (), DesiredParameterBanks.empty (), DesiredParameterInteraction.empty (), List.of ());
+            assertThrows (IllegalArgumentException.class, () -> environment.prepare (result));
+        }
+    }
+
+
     private static CoreResult parameterResult (final DesiredBridgeSubscriptions subscriptions, final DesiredParameterBanks banks)
     {
         return parameterResult (subscriptions, banks, List.of ());
@@ -1570,20 +1658,26 @@ class ControllerRuntimeEnvironmentTest
     }
 
 
+    private static de.mossgrabers.pull.core.api.DesiredControllerPageState corePage ()
+    {
+        return new de.mossgrabers.pull.core.api.DesiredControllerPageState (1, de.mossgrabers.pull.core.api.ControllerPageRef.core ("unregistered-test-page"), de.mossgrabers.pull.core.api.ControllerPageRef.none (), java.util.Optional.empty (), 0);
+    }
+
+
     private static final class PassthroughControllerBridge implements ControllerBridge
     {
         private ControllerMappingContext mappingContext = MAPPING_CONTEXT;
 
         @Override
-        public boolean supportsPageInput (final String modeId, final ControlId control, final InputKind kind)
+        public boolean supportsPageInput (final de.mossgrabers.pull.core.api.DesiredControllerPageState page, final ControlId control, final InputKind kind)
         {
-            return Set.of ("WORKSPACE", "MASTER", "TRACK", "TRANSPORT").contains (modeId) && de.mossgrabers.controller.ableton.push.mode.CorePageMode.containsInput (control, kind);
+            return page.effectivePage ().kind () == de.mossgrabers.pull.core.api.ControllerPageRef.Kind.CORE && de.mossgrabers.controller.ableton.push.mode.CorePageMode.containsInput (control, kind);
         }
 
         @Override
-        public boolean supportsPageLight (final String modeId, final ControlId control)
+        public boolean supportsPageLight (final de.mossgrabers.pull.core.api.DesiredControllerPageState page, final ControlId control)
         {
-            return Set.of ("WORKSPACE", "MASTER", "TRACK", "TRANSPORT").contains (modeId) && de.mossgrabers.controller.ableton.push.mode.CorePageMode.containsLight (control);
+            return page.effectivePage ().kind () == de.mossgrabers.pull.core.api.ControllerPageRef.Kind.CORE && de.mossgrabers.controller.ableton.push.mode.CorePageMode.containsLight (control);
         }
 
 
@@ -1747,6 +1841,8 @@ class ControllerRuntimeEnvironmentTest
         @Override
         public PreparedAction prepare (final CoreEffect effect, final Map<ParameterTargetRef, ParameterLease> parameterLeases)
         {
+            if (effect instanceof de.mossgrabers.pull.core.api.effect.ToggleApplicationPanelEffect)
+                return new RecordedParameterAction ("application-panel");
             if (!this.recordTouches)
                 return null;
             if (effect instanceof ResetParameterEffect)

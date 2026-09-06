@@ -8,7 +8,7 @@ import de.mossgrabers.controller.ableton.push.PushConfiguration;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.command.core.AbstractTriggerCommand;
 import de.mossgrabers.framework.daw.IModel;
-import de.mossgrabers.framework.featuregroup.ModeManager;
+import de.mossgrabers.controller.ableton.push.controller.PushControllerPageManager;
 import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.utils.ButtonEvent;
 
@@ -38,11 +38,8 @@ public class SetupCommand extends AbstractTriggerCommand<PushControlSurface, Pus
     {
         if (event != ButtonEvent.DOWN)
             return;
-        final ModeManager modeManager = this.surface.getModeManager ();
+        final PushControllerPageManager modeManager = this.surface.getModeManager ();
 
-        if (modeManager.isActive (Modes.SETUP))
-            modeManager.restore ();
-        else
-            modeManager.setTemporary (Modes.SETUP);
+        modeManager.toggleTemporary (Modes.SETUP);
     }
 }

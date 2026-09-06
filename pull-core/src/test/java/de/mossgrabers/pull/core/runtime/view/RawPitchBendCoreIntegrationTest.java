@@ -82,7 +82,7 @@ class RawPitchBendCoreIntegrationTest
         fixture.pressed = Set.of (PushControlIds.button ("SHIFT"));
         final CoreResult entered = fixture.button ("SESSION", InputPhase.END);
         assertRaw (entered);
-        assertEquals (VsLiveWorkspace.NAME, entered.desiredControllerState ().workspace ().name ());
+        assertEquals (ControllerPages.VS_LIVE_NAME + " / project-macros", entered.desiredControllerState ().workspace ().name ());
     }
 
 

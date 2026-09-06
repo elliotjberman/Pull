@@ -7,7 +7,6 @@ import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.DesiredControllerMappings;
 import de.mossgrabers.pull.core.api.DesiredNotePerformance;
 import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
-import de.mossgrabers.pull.core.api.DesiredParameterTouches;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
@@ -99,6 +98,6 @@ public final class RawPitchBendView implements ControllerView
         return new ViewOutput (
             Map.of (), Map.of (), ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (),
             ControllerDisplayOverlay.inactive (), DesiredNotePerformance.inactive (), DesiredNoteRepeat.unowned (),
-            DesiredControllerMappings.empty (), DesiredParameterTouches.empty (), this.gesture.output (this.rawProfile));
+            DesiredControllerMappings.empty (), this.gesture.output (this.rawProfile));
     }
 }

@@ -72,7 +72,7 @@ final class ControllerStateHost
         final DesiredNotePerformance performance = requested.notePerformance ();
         return new DesiredControllerState (
             this.surface.prepareWorkspace (requested.workspace ()),
-            new DesiredNotePerformance (this.surface.prepareLayout (performance.layout ()), performance.inputRoute (), performance.translation ()));
+            new DesiredNotePerformance (this.surface.prepareLayout (performance.layout ()), performance.inputRoute (), performance.translation ()), requested.page ());
     }
 
 

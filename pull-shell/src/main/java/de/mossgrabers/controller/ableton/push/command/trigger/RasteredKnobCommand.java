@@ -45,7 +45,7 @@ public class RasteredKnobCommand extends TempoCommand<PushControlSurface, PushCo
         // Executed from knob turn
 
         final ModeManager modeManager = this.surface.getModeManager ();
-        if (modeManager.isActive (Modes.BROWSER))
+        if (this.model.getBrowser ().isActive ())
         {
             final DeviceBrowserMode mode = (DeviceBrowserMode) modeManager.get (Modes.BROWSER);
             mode.changeSelectedColumnValue (value);
@@ -89,7 +89,7 @@ public class RasteredKnobCommand extends TempoCommand<PushControlSurface, PushCo
             return;
         }
 
-        if (this.surface.getModeManager ().isActive (Modes.BROWSER))
+        if (this.model.getBrowser ().isActive ())
             return;
 
         if (this.isTempoMode)
@@ -111,7 +111,7 @@ public class RasteredKnobCommand extends TempoCommand<PushControlSurface, PushCo
      */
     public void notifyMode ()
     {
-        if (this.surface.getModeManager ().isActive (Modes.BROWSER))
+        if (this.model.getBrowser ().isActive ())
             return;
 
         if (this.isTempoMode)

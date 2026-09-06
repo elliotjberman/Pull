@@ -17,117 +17,81 @@ class MasterButtonViewTest
     private static final ControlId BUTTON = PushControlIds.button ("MASTERTRACK");
 
     @Test
-    void shortReleaseSelectsOnlyTheMasterPageAndRestoresOnlyFromExactMasterMode ()
+    void shortReleaseSelectsMasterAndSecondPressRestoresItsHistory ()
     {
-        for (final String mode: List.of ("TRACK", "DEVICE_PARAMS", "MASTER", "MASTER_TEMP", "TRANSPORT"))
-        {
-            final Fixture f = new Fixture ();
-            f.mode = mode;
-            assertTrue (f.edge (InputPhase.BEGIN).effects ().isEmpty ());
-            final CoreResult release = f.edge (InputPhase.END);
-            assertEquals (List.of (mode.equals ("MASTER") ? SelectControllerModeEffect.restore (1) : new SelectControllerModeEffect (1, "MASTER")), release.effects ());
-            assertTrue (release.effects ().stream ().allMatch (SelectControllerModeEffect.class::isInstance));
-        }
+        final Fixture f = new Fixture ();
+        f.observe ("DEVICE_PARAMS", false);
+        f.edge (InputPhase.BEGIN);
+        assertTrue (f.edge (InputPhase.END).effects ().isEmpty ());
+        assertEquals ("MASTER", f.navigation.legacyAlias ());
+        f.edge (InputPhase.BEGIN);
+        f.edge (InputPhase.END);
+        assertEquals ("DEVICE_PARAMS", f.navigation.legacyAlias ());
     }
 
     @Test
-    void modifiersDoNotChangeTheGestureAndShortReleaseReadsTheCurrentMode ()
+    void modifiersDoNotChangeGestureAndShortReleaseReadsCurrentPage ()
     {
         final Fixture f = new Fixture ();
         f.modifiers = Set.of (PushControlIds.button ("SHIFT"), PushControlIds.button ("SELECT"), PushControlIds.button ("DELETE"));
         f.edge (InputPhase.BEGIN);
         f.observe ("MASTER", false);
-        assertEquals (List.of (SelectControllerModeEffect.restore (2)), f.edge (InputPhase.END).effects ());
+        f.edge (InputPhase.END);
+        assertEquals ("TRACK", f.navigation.legacyAlias ());
     }
 
     @Test
-    void longReleaseWaitsForActualTemporaryFrameObservation ()
-    {
-        final Fixture f = new Fixture ();
-        f.edge (InputPhase.BEGIN);
-        assertEquals (List.of (new SelectControllerModeEffect (1, "FRAME", SelectControllerModeEffect.Operation.TEMPORARY)), f.edge (InputPhase.LONG).effects ());
-        assertTrue (f.edge (InputPhase.END).effects ().isEmpty ());
-        assertTrue (f.tick ().effects ().isEmpty ());
-        f.observe ("FRAME", false);
-        assertTrue (f.tick ().effects ().isEmpty ());
-        f.observe ("FRAME", true);
-        assertEquals (List.of (SelectControllerModeEffect.restore (3)), f.tick ().effects ());
-        assertTrue (f.tick ().effects ().isEmpty ());
-    }
-
-    @Test
-    void alreadyTemporaryFrameUsesALaterSampleEvenWithoutGenerationChange ()
-    {
-        final Fixture f = new Fixture ();
-        f.mode = "FRAME";
-        f.temporary = true;
-        f.edge (InputPhase.BEGIN);
-        f.edge (InputPhase.LONG);
-        assertEquals (List.of (SelectControllerModeEffect.restore (1)), f.edge (InputPhase.END).effects ());
-    }
-
-    @Test
-    void deferredBeginRetainsLongAndEndWithoutIssuingReturnBesideEntry ()
+    void deferredLongAndEndAreBothAppliedLocallyOnAdmission ()
     {
         final Fixture f = new Fixture ();
         final var action = f.resolve ();
         assertEquals (Set.of (ControllerStateScope.ACTIVE_PARAMETERS), action.intent ().invalidates ());
-        assertTrue (f.edge (InputPhase.LONG).effects ().isEmpty ());
-        assertTrue (f.edge (InputPhase.END).effects ().isEmpty ());
-        assertEquals (List.of (new SelectControllerModeEffect (1, "FRAME", SelectControllerModeEffect.Operation.TEMPORARY)), f.dispatch (action).effects ());
-        assertTrue (f.tick ().effects ().isEmpty ());
-        f.observe ("FRAME", true);
-        assertEquals (List.of (SelectControllerModeEffect.restore (2)), f.tick ().effects ());
+        f.edge (InputPhase.LONG);
+        f.edge (InputPhase.END);
+        assertEquals ("TRACK", f.navigation.legacyAlias ());
+        assertTrue (f.dispatch (action).effects ().isEmpty ());
+        assertEquals ("TRACK", f.navigation.legacyAlias ());
+        assertTrue (f.navigation.state ().temporary ().isEmpty ());
+        assertFalse (f.view.executionRequirements ().ticksRequested ());
     }
 
     @Test
-    void deferredShortReleaseCancelsWhenItsExactReleaseOriginChanges ()
+    void deferredShortReleaseIsFencedToItsReleasePage ()
     {
         final Fixture f = new Fixture ();
         final var action = f.resolve ();
         f.observe ("MASTER", false);
-        assertTrue (f.edge (InputPhase.END).effects ().isEmpty ());
+        f.edge (InputPhase.END);
         f.observe ("DEVICE_PARAMS", false);
-        assertTrue (f.dispatch (action).effects ().isEmpty ());
+        f.dispatch (action);
+        assertEquals ("DEVICE_PARAMS", f.navigation.legacyAlias ());
     }
 
     @Test
-    void browserSuppressesIndividualEdgesIncludingLongReleaseButLeavingItAllowsLaterEdges ()
+    void browserSuppressesEdgesButLeavingItAllowsLaterRelease ()
     {
         final Fixture f = new Fixture ();
-        f.mode = "BROWSER";
-        assertTrue (f.edge (InputPhase.BEGIN).effects ().isEmpty ());
-        assertTrue (f.edge (InputPhase.LONG).effects ().isEmpty ());
-        assertTrue (f.edge (InputPhase.END).effects ().isEmpty ());
+        f.observe ("BROWSER", false);
+        f.edge (InputPhase.BEGIN);
+        f.edge (InputPhase.LONG);
+        f.edge (InputPhase.END);
+        assertEquals ("BROWSER", f.navigation.legacyAlias ());
         f.edge (InputPhase.BEGIN);
         f.observe ("TRACK", false);
-        assertEquals (List.of (new SelectControllerModeEffect (2, "MASTER")), f.edge (InputPhase.END).effects ());
+        f.edge (InputPhase.END);
+        assertEquals ("MASTER", f.navigation.legacyAlias ());
         f.edge (InputPhase.BEGIN);
         f.edge (InputPhase.LONG);
-        f.observe ("FRAME", true);
-        f.tick ();
         f.observe ("BROWSER", true);
-        assertTrue (f.edge (InputPhase.END).effects ().isEmpty ());
-        f.observe ("FRAME", true);
-        assertTrue (f.tick ().effects ().isEmpty ());
-    }
-
-    @Test
-    void externalPageChangesRetireTheOldTemporaryReturn ()
-    {
-        final Fixture f = new Fixture ();
-        f.mode = "AUTOMATION";
-        f.temporary = true;
-        f.edge (InputPhase.BEGIN);
-        f.edge (InputPhase.LONG);
+        f.edge (InputPhase.END);
+        assertEquals ("BROWSER", f.navigation.legacyAlias ());
         f.observe ("FRAME", true);
         f.tick ();
-        f.observe ("TRANSPORT", true);
-        assertTrue (f.edge (InputPhase.END).effects ().isEmpty ());
+        assertEquals ("FRAME", f.navigation.legacyAlias ());
     }
 
     @Test
-    void retainedGestureSurvivesPageReplacementAndOldGenerationReleaseIsInert ()
+    void retainedGestureSurvivesPageCompositionAndRetiredGenerationIsInert ()
     {
         final Fixture f = new Fixture ();
         final var action = f.resolve ();
@@ -136,32 +100,20 @@ class MasterButtonViewTest
         final var next = CompiledWorkspace.compile ("next", List.of (f.retained));
         f.workspace.deactivateExcept (next);
         next.start (f.snapshot ());
-        f.observe ("FRAME", true);
-        assertEquals (List.of (SelectControllerModeEffect.restore (2)), next.handle (f.input (InputPhase.END), f.snapshot ()).effects ());
+        next.handle (f.input (InputPhase.END), f.snapshot ());
+        assertEquals ("TRACK", f.navigation.legacyAlias ());
         f.view.deactivate ();
-        assertTrue (f.dispatch (action).effects ().isEmpty ());
-        assertTrue (f.edge (InputPhase.END).effects ().isEmpty ());
-    }
-
-    @Test
-    void rejectedFrameEntryExpiresWithoutRestoringAnUnrelatedPage ()
-    {
-        final Fixture f = new Fixture ();
-        f.edge (InputPhase.BEGIN);
-        f.edge (InputPhase.LONG);
+        f.dispatch (action);
         f.edge (InputPhase.END);
-        f.observe ("DEVICE_PARAMS", false);
-        f.time += 5_000_000_000L;
-        assertTrue (f.tick ().effects ().isEmpty ());
-        assertFalse (f.view.executionRequirements ().ticksRequested ());
+        assertEquals ("TRACK", f.navigation.legacyAlias ());
     }
 
     @Test
-    void masterLightPreservesMasterTemporaryAndFrameStatesWithoutOptimism ()
+    void lightReflectsCorePageStateWhileHostLayoutRemainsUnchanged ()
     {
         final Fixture f = new Fixture ();
         f.edge (InputPhase.BEGIN);
-        assertEquals (new RgbColor (60, 60, 60), f.edge (InputPhase.END).desiredOutput ().lights ().get (BUTTON));
+        assertEquals (new RgbColor (255, 255, 255), f.edge (InputPhase.END).desiredOutput ().lights ().get (BUTTON));
         for (final String mode: List.of ("MASTER", "MASTER_TEMP", "FRAME"))
         {
             f.observe (mode, false);
@@ -173,7 +125,8 @@ class MasterButtonViewTest
 
     private static final class Fixture
     {
-        private final MasterButtonView view = new MasterButtonView ();
+        private final PageNavigation navigation = PageNavigation.defaults ();
+        private final MasterButtonView view = new MasterButtonView (new ControllerPageTransitions (this.navigation));
         private final RetainedControllerView retained = new RetainedControllerView (this.view);
         private final CompiledWorkspace workspace = CompiledWorkspace.compile ("master-button", List.of (this.retained));
         private String mode = "TRACK";
@@ -183,7 +136,7 @@ class MasterButtonViewTest
         private long time;
         private Set<ControlId> modifiers = Set.of ();
         private Fixture () { this.workspace.start (this.snapshot ()); }
-        private void observe (final String mode, final boolean temporary) { this.mode = mode; this.temporary = temporary; this.generation++; }
+        private void observe (final String mode, final boolean temporary) { if (temporary) this.navigation.temporary (this.navigation.origin (), this.navigation.resolve (mode)); else this.navigation.select (this.navigation.resolve (mode)); }
         private ControllerInputEvent input (final InputPhase phase) { this.sequence++; this.time++; return new ControllerInputEvent (this.sequence, this.time, BUTTON, InputKind.BUTTON, phase, phase == InputPhase.END ? 0 : 127); }
         private ResolvedControllerAction resolve () { return this.workspace.resolveAction (this.input (InputPhase.BEGIN), this.snapshot ()); }
         private CoreResult dispatch (final ResolvedControllerAction action) { return this.workspace.handleAction (action, this.snapshot ()); }

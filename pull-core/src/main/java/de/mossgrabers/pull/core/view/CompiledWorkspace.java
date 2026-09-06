@@ -235,6 +235,16 @@ public final class CompiledWorkspace
     }
 
 
+    /** Activate through the router's event-scoped identity reconciliation. */
+    CoreResult activate (final ControllerSnapshot snapshot, final java.util.function.BiConsumer<ControllerView, Boolean> reconciler)
+    {
+        final boolean starting = !this.started;
+        this.started = true;
+        for (final CompiledView view: this.views) reconciler.accept (view.view (), Boolean.valueOf (starting));
+        return this.render (snapshot, List.of ());
+    }
+
+
     /**
      * Route one event and render the complete workspace.
      *
@@ -257,6 +267,19 @@ public final class CompiledWorkspace
     }
 
 
+    /** Exact view instances, used only by the core's gesture/lifecycle router. */
+    List<ControllerView> viewInstances ()
+    {
+        return this.eventObservers;
+    }
+
+
+    ActionOwner actionOwner (final ControllerInputEvent input)
+    {
+        return this.actionOwners.get (new RouteKey (input.controlId (), input.kind ()));
+    }
+
+
     /** Resolve a physical edge through the active view-owned semantic action table. */
     public ResolvedControllerAction resolveAction (final ControllerInputEvent input, final ControllerSnapshot snapshot)
     {
@@ -267,12 +290,7 @@ public final class CompiledWorkspace
         final ActionOwner owner = this.actionOwners.get (new RouteKey (input.controlId (), input.kind ()));
         if (owner == null)
             return null;
-        final ResolvedControllerAction resolved = Objects.requireNonNull (
-            owner.view ().resolveAction (owner.binding (), input, snapshot),
-            "resolved controller action");
-        if (!owner.binding ().intents ().contains (resolved.intent ()))
-            throw new IllegalStateException ("view resolved an undeclared semantic action from " + input.controlId ().value ());
-        return resolved;
+        return owner.resolve (input, snapshot);
     }
 
 
@@ -340,7 +358,7 @@ public final class CompiledWorkspace
     }
 
 
-    private CoreResult render (final ControllerSnapshot snapshot, final List<CoreEffect> effects)
+    CoreResult render (final ControllerSnapshot snapshot, final List<CoreEffect> effects)
     {
         this.parameterSlots (snapshot);
         final Map<ControlId, RgbColor> lights = new LinkedHashMap<> ();
@@ -363,14 +381,15 @@ public final class CompiledWorkspace
                 validateLightOwner (view, control);
             mergeUnique (lights, output.lights (), "light", view.id ());
             mergeUnique (clipBindings, output.clipBindings (), "clip binding", view.id ());
-            for (final ControlId control: output.parameterTouches ().targets ().keySet ())
+            final DesiredParameterTouches touches = Objects.requireNonNull (view.view ().parameterTouches (snapshot), "view parameter touches");
+            for (final ControlId control: touches.targets ().keySet ())
             {
                 final boolean ownsTouch = view.profile ().claims ().stream ().anyMatch (claim ->
                     claim.kind () == SurfaceClaim.Kind.EXCLUSIVE_INPUT && claim.area ().controls ().contains (control) && claim.area ().inputKinds ().contains (InputKind.TOUCH));
                 if (!ownsTouch)
                     throw new IllegalStateException ("view " + view.id () + " touches a parameter outside its exclusive touch claims");
             }
-            mergeUnique (parameterTouches, output.parameterTouches ().targets (), "parameter touch", view.id ());
+            mergeUnique (parameterTouches, touches.targets (), "parameter touch", view.id ());
             for (final ControllerMappingBinding binding: output.controllerMappings ().bindings ())
             {
                 validateControllerMapping (view, binding);
@@ -575,16 +594,7 @@ public final class CompiledWorkspace
     {
         final Set<ControllerViewFacet> facets = new LinkedHashSet<> ();
         views.forEach (view -> facets.addAll (view.profile ().controllerFacets ()));
-        final Set<String> modeIds = new LinkedHashSet<> ();
-        views.forEach (view -> {
-            final String modeId = Objects.requireNonNull (view.view ().installedModeId (), "installedModeId").strip ();
-            if (!modeId.isEmpty ())
-                modeIds.add (modeId);
-        });
-        if (modeIds.size () > 1)
-            throw new IllegalArgumentException ("A workspace cannot select multiple page adapters: " + modeIds);
-        final String modeId = modeIds.stream ().findFirst ().orElse ("");
-        if (facets.isEmpty () && modeId.isEmpty ())
+        if (facets.isEmpty ())
         {
             if (sessionBankShape.isPresent ())
                 throw new IllegalArgumentException ("Session bank shape requires stable controller facets");
@@ -595,7 +605,7 @@ public final class CompiledWorkspace
             throw new IllegalArgumentException ("upper Session scene keys require the upper Session clip grid");
         if (facets.contains (ControllerViewFacet.SESSION_CLIP_GRID_UPPER) && facets.contains (ControllerViewFacet.SESSION_GRID_FULL))
             throw new IllegalArgumentException ("upper and full Session grid views cannot be active together");
-        return new DesiredControllerWorkspace (name, facets, sessionBankShape, modeId);
+        return new DesiredControllerWorkspace (name, facets, sessionBankShape);
     }
 
 
@@ -749,7 +759,7 @@ public final class CompiledWorkspace
     }
 
 
-    private List<ControllerView> receivers (final CoreEvent event)
+    List<ControllerView> receivers (final CoreEvent event)
     {
         if (event instanceof final ButtonInputEvent button)
             return this.directInputOwners.getOrDefault (button.controlId (), List.of ());
@@ -800,7 +810,14 @@ public final class CompiledWorkspace
     }
 
 
-    private record ActionOwner (ControllerActionBinding binding, ControllerView view)
+    record ActionOwner (ControllerActionBinding binding, ControllerView view)
     {
+        ResolvedControllerAction resolve (final ControllerInputEvent input, final ControllerSnapshot snapshot)
+        {
+            final ResolvedControllerAction action = Objects.requireNonNull (this.view.resolveAction (this.binding, input, snapshot), "resolved controller action");
+            if (!this.binding.intents ().contains (action.intent ()))
+                throw new IllegalStateException ("view resolved an undeclared semantic action from " + input.controlId ().value ());
+            return action;
+        }
     }
 }

@@ -23,7 +23,8 @@ class TrackMixControlViewTest
         {
             final Fixture f = new Fixture ();
             f.mode (mode);
-            assertEquals (List.of (new SelectControllerModeEffect (1, mode.equals ("TRACK") ? "PAN" : "TRACK")), f.edge (InputPhase.BEGIN).effects ());
+            assertTrue (f.edge (InputPhase.BEGIN).effects ().isEmpty ());
+            assertEquals (mode.equals ("TRACK") ? "PAN" : "TRACK", f.navigation.legacyAlias ());
             assertTrue (f.edge (InputPhase.LONG).effects ().isEmpty ());
             assertTrue (f.edge (InputPhase.END).effects ().isEmpty ());
         }
@@ -33,14 +34,15 @@ class TrackMixControlViewTest
     void otherPagesEnterTrackAndOnlyLongReleaseRestoresTheUnderlyingPage ()
     {
         final Fixture f = new Fixture ();
-        f.mode = "AUTOMATION";
-        f.activeMode = "DEVICE_PARAMS";
-        f.temporary = true;
-        assertEquals (List.of (new SelectControllerModeEffect (1, "TRACK")), f.edge (InputPhase.BEGIN).effects ());
+        f.mode ("DEVICE_PARAMS");
+        f.navigation.temporary (f.navigation.origin (), f.navigation.resolve ("AUTOMATION"));
+        assertTrue (f.edge (InputPhase.BEGIN).effects ().isEmpty ());
+        assertEquals ("TRACK", f.navigation.legacyAlias ());
         f.observe ("TRACK");
         f.edge (InputPhase.LONG);
         f.shift = true;
-        assertEquals (List.of (new SelectControllerModeEffect (2, "DEVICE_PARAMS")), f.edge (InputPhase.END).effects ());
+        assertTrue (f.edge (InputPhase.END).effects ().isEmpty ());
+        assertEquals ("DEVICE_PARAMS", f.navigation.legacyAlias ());
         final Fixture shortPress = new Fixture ();
         shortPress.mode ("DEVICE_PARAMS");
         shortPress.edge (InputPhase.BEGIN);
@@ -78,29 +80,30 @@ class TrackMixControlViewTest
         f.channel = "later-track";
         f.shift = true;
         final var effects = f.dispatch (action).effects ();
-        assertEquals (List.of (new SelectControllerModeEffect (1, "PAN"), new CurrentTrackActionEffect (new CurrentTrackTarget (7, "main", 0, "track-a"), CurrentTrackActionEffect.Action.SELECT)), effects);
+        assertEquals (List.of (new CurrentTrackActionEffect (new CurrentTrackTarget (7, "main", 0, "track-a"), CurrentTrackActionEffect.Action.SELECT)), effects);
         final Fixture empty = new Fixture ();
         empty.bankAvailable = false;
-        assertEquals (List.of (new SelectControllerModeEffect (1, "PAN")), empty.edge (InputPhase.BEGIN).effects ());
+        assertTrue (empty.edge (InputPhase.BEGIN).effects ().isEmpty ());
+        assertEquals ("PAN", empty.navigation.legacyAlias ());
     }
 
     @Test
-    void deferredBeginKeepsItsLongAndReleaseThenWaitsForActualEntry ()
+    void deferredBeginKeepsItsLongAndReleaseWithLocalContinuation ()
     {
         final Fixture f = new Fixture ();
         f.mode ("DEVICE_PARAMS");
         final var action = f.resolve ();
         f.edge (InputPhase.LONG);
         f.edge (InputPhase.END);
-        assertEquals (List.of (new SelectControllerModeEffect (1, "TRACK")), f.dispatch (action).effects ());
+        assertTrue (f.dispatch (action).effects ().isEmpty ());
+        assertEquals ("TRACK", f.navigation.legacyAlias ());
         assertTrue (f.tick ().effects ().isEmpty ());
-        f.observe ("TRACK");
-        assertEquals (List.of (new SelectControllerModeEffect (2, "DEVICE_PARAMS")), f.tick ().effects ());
+        assertEquals ("DEVICE_PARAMS", f.navigation.legacyAlias ());
         assertTrue (f.tick ().effects ().isEmpty ());
     }
 
     @Test
-    void acknowledgedEntryKeepsLegacyReturnAfterAnExternalPageChange ()
+    void admittedEntryKeepsCapturedReturnAfterAnExternalPageChange ()
     {
         final Fixture f = new Fixture ();
         f.mode ("DEVICE_PARAMS");
@@ -109,11 +112,12 @@ class TrackMixControlViewTest
         f.tick ();
         f.edge (InputPhase.LONG);
         f.observe ("TRANSPORT");
-        assertEquals (List.of (new SelectControllerModeEffect (3, "DEVICE_PARAMS")), f.edge (InputPhase.END).effects ());
+        assertTrue (f.edge (InputPhase.END).effects ().isEmpty ());
+        assertEquals ("DEVICE_PARAMS", f.navigation.legacyAlias ());
     }
 
     @Test
-    void rejectedStaleEntryAndUnobservedEntryNeverRestoreAnUnrelatedPage ()
+    void staleEntryCannotRestoreAnUnrelatedPage ()
     {
         final Fixture f = new Fixture ();
         f.mode ("DEVICE_PARAMS");
@@ -123,23 +127,17 @@ class TrackMixControlViewTest
         f.observe ("TRANSPORT");
         assertTrue (f.dispatch (action).effects ().isEmpty ());
         assertTrue (f.tick ().effects ().isEmpty ());
-        f.mode ("DEVICE_PARAMS");
-        f.edge (InputPhase.BEGIN);
-        f.edge (InputPhase.LONG);
-        f.edge (InputPhase.END);
-        f.observe ("AUTOMATION");
-        f.time += 5_000_000_000L;
-        assertTrue (f.tick ().effects ().isEmpty ());
+        assertEquals ("TRANSPORT", f.navigation.legacyAlias ());
         assertFalse (f.view.executionRequirements ().ticksRequested ());
     }
 
     @Test
-    void lightComesOnlyFromVisibleHostModeIncludingLegacyDetailsAndArmModes ()
+    void lightComesFromCorePageStateIncludingLegacyDetailsAndArmModes ()
     {
         final Fixture f = new Fixture ();
         f.mode ("DEVICE_PARAMS");
-        assertEquals (new RgbColor (60, 60, 60), f.edge (InputPhase.BEGIN).desiredOutput ().lights ().get (BUTTON));
-        assertEquals (new RgbColor (60, 60, 60), f.tick ().desiredOutput ().lights ().get (BUTTON));
+        assertEquals (new RgbColor (255, 255, 255), f.edge (InputPhase.BEGIN).desiredOutput ().lights ().get (BUTTON));
+        assertEquals (new RgbColor (255, 255, 255), f.tick ().desiredOutput ().lights ().get (BUTTON));
         for (final String mode: List.of ("TRACK", "VOLUME", "PAN", "CROSSFADER", "SEND8", "TRACK_DETAILS", "REC_ARM"))
         {
             f.observe (mode);
@@ -161,7 +159,8 @@ class TrackMixControlViewTest
         f.workspace.deactivateExcept (nextPage);
         nextPage.start (f.snapshot ());
         f.observe ("TRACK");
-        assertEquals (List.of (new SelectControllerModeEffect (2, "DEVICE_PARAMS")), nextPage.handle (f.input (InputPhase.END), f.snapshot ()).effects ());
+        assertTrue (nextPage.handle (f.input (InputPhase.END), f.snapshot ()).effects ().isEmpty ());
+        assertEquals ("DEVICE_PARAMS", f.navigation.legacyAlias ());
         f.view.deactivate ();
         assertTrue (f.dispatch (action).effects ().isEmpty ());
         assertTrue (f.edge (InputPhase.END).effects ().isEmpty ());
@@ -170,7 +169,8 @@ class TrackMixControlViewTest
 
     private static final class Fixture
     {
-        private final TrackMixControlView view = new TrackMixControlView ();
+        private final PageNavigation navigation = PageNavigation.defaults ();
+        private final TrackMixControlView view = new TrackMixControlView (this.navigation);
         private final RetainedControllerView retained = new RetainedControllerView (this.view);
         private final CompiledWorkspace workspace = CompiledWorkspace.compile ("mix", List.of (this.retained));
         private String mode = "TRACK";
@@ -187,7 +187,7 @@ class TrackMixControlViewTest
         private long time;
 
         private Fixture () { this.workspace.start (this.snapshot ()); }
-        private void mode (final String mode) { this.mode = mode; this.activeMode = mode; this.temporary = false; }
+        private void mode (final String mode) { this.navigation.select (mode.isEmpty () ? ControllerPageRef.core ("unaliased") : this.navigation.resolve (mode)); }
         private void observe (final String mode) { this.generation++; this.mode (mode); }
         private ControllerInputEvent input (final InputPhase phase) { this.sequence++; this.time++; return new ControllerInputEvent (this.sequence, this.time, BUTTON, InputKind.BUTTON, phase, phase == InputPhase.END ? 0 : 127); }
         private ResolvedControllerAction resolve () { return this.workspace.resolveAction (this.input (InputPhase.BEGIN), this.snapshot ()); }

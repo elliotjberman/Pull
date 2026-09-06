@@ -23,7 +23,6 @@ public final class MasterButtonView implements ControllerView
         ControllerActionId.SWITCH_PARAMETER_CONTEXT, Set.of (ControllerStateScope.ACTIVE_PARAMETERS)));
     private final List<Gesture> pending = new ArrayList<> ();
     private Gesture held;
-    private ControllerSnapshot latest;
     private final DeferredButtonAdmission admission = new DeferredButtonAdmission ();
     private final ControllerPageTransitions pages;
     private ControllerPageTransitions.Request lastEntry;
@@ -35,22 +34,20 @@ public final class MasterButtonView implements ControllerView
     @Override public String id () { return "master-button"; }
     @Override public ViewProfile profile () { return PROFILE; }
     @Override public Set<ControllerActionBinding> actionBindings () { return ACTIONS; }
-    @Override public Set<BridgeSubscription> bridgeSubscriptions () { return Set.of (BridgeSubscription.CONTROLLER_LAYOUT); }
-    @Override public CoreExecutionRequirements executionRequirements () { return new CoreExecutionRequirements (this.pages.pending ()); }
-    @Override public void start (final ControllerSnapshot snapshot) { this.deactivate (); this.latest = snapshot; }
+    @Override public void start (final ControllerSnapshot snapshot) { this.deactivate (); }
     @Override public void deactivate () { this.pending.forEach (gesture -> this.pages.cancel (gesture.page)); this.pages.cancel (this.lastEntry); this.admission.clear (); this.pending.clear (); this.held = null; this.returnOnRelease = false; this.lastEntry = null; }
 
     @Override
     public void reconcile (final ControllerSnapshot snapshot)
     {
-        this.latest = snapshot;
-        this.pages.observe (snapshot);
+
+        this.pages.observe ();
     }
 
     @Override
     public ResolvedControllerAction resolveAction (final ControllerActionBinding binding, final ControllerInputEvent input, final ControllerSnapshot snapshot)
     {
-        if (!browser (snapshot)) this.returnOnRelease = false;
+        if (!this.browser ()) this.returnOnRelease = false;
         final Gesture gesture = new Gesture (this.admission.begin (), this.returnOnRelease);
         if (gesture.returnOnRelease)
         {
@@ -59,7 +56,7 @@ public final class MasterButtonView implements ControllerView
         }
         this.pending.add (gesture);
         this.held = gesture;
-        return this.admission.action (gesture.ticket, binding.intent (), () -> this.advance (gesture, this.latest));
+        return this.admission.action (gesture.ticket, binding.intent (), () -> this.advance (gesture));
     }
 
     @Override
@@ -69,50 +66,50 @@ public final class MasterButtonView implements ControllerView
         if (event instanceof final ControllerInputEvent input && BUTTON.equals (input.controlId ()) && input.kind () == InputKind.BUTTON && this.held != null)
         {
             final Gesture gesture = this.held;
-            final var layout = snapshot.bridge ().layout ();
-            if (input.phase () == InputPhase.LONG && !browser (snapshot))
+            final var origin = this.pages.origin ();
+            if (input.phase () == InputPhase.LONG && !this.browser ())
             {
                 this.returnOnRelease = true;
                 gesture.returnOnRelease = true;
-                gesture.page = this.pages.temporary (layout, "FRAME");
+                gesture.page = this.pages.temporary (origin, "FRAME");
                 this.lastEntry = gesture.page;
             }
             else if (input.phase () == InputPhase.END)
             {
                 gesture.ended = true;
                 this.held = null;
-                gesture.releaseSuppressed = browser (snapshot);
+                gesture.releaseSuppressed = this.browser ();
                 if (!gesture.releaseSuppressed && !gesture.returnOnRelease)
-                    gesture.page = "MASTER".equals (layout.modeId ()) ? this.pages.restore (layout) : this.pages.select (layout, "MASTER");
+                    gesture.page = "MASTER".equals (this.pages.visibleAlias ()) ? this.pages.restore (origin) : this.pages.select (origin, "MASTER");
             }
         }
         final List<CoreEffect> effects = new ArrayList<> ();
-        for (final Gesture gesture: List.copyOf (this.pending)) effects.addAll (this.advance (gesture, snapshot));
+        for (final Gesture gesture: List.copyOf (this.pending)) effects.addAll (this.advance (gesture));
         return List.copyOf (effects);
     }
 
-    private List<CoreEffect> advance (final Gesture gesture, final ControllerSnapshot snapshot)
+    private List<CoreEffect> advance (final Gesture gesture)
     {
         if (!gesture.ticket.admitted ()) return List.of ();
         if (gesture.ended && gesture.returnOnRelease) this.pages.release (gesture.page, !gesture.releaseSuppressed);
-        final List<CoreEffect> effects = this.pages.advance (gesture.page, snapshot);
+        this.pages.advance (gesture.page);
         if (gesture.ended && this.pages.complete (gesture.page))
         {
             this.pending.remove (gesture);
             this.admission.finish (gesture.ticket);
         }
-        return effects;
+        return List.of ();
     }
 
     @Override
     public ViewOutput render (final ControllerSnapshot snapshot)
     {
-        final String mode = snapshot.bridge ().layout ().modeId ();
+        final String mode = this.pages.visibleAlias ();
         final int brightness = mode.isEmpty () ? 0 : Set.of ("MASTER", "MASTER_TEMP", "FRAME").contains (mode) ? 255 : 60;
         return new ViewOutput (Map.of (BUTTON, new RgbColor (brightness, brightness, brightness)), Map.of ());
     }
 
-    private static boolean browser (final ControllerSnapshot snapshot) { return "BROWSER".equals (snapshot.bridge ().layout ().modeId ()); }
+    private boolean browser () { return "BROWSER".equals (this.pages.visibleAlias ()); }
 
     private static final class Gesture
     {

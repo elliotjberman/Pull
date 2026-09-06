@@ -8,7 +8,7 @@ import de.mossgrabers.controller.ableton.push.PushConfiguration;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.command.core.AbstractTriggerCommand;
 import de.mossgrabers.framework.daw.IModel;
-import de.mossgrabers.framework.featuregroup.ModeManager;
+import de.mossgrabers.controller.ableton.push.controller.PushControllerPageManager;
 import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.utils.ButtonEvent;
 
@@ -20,6 +20,8 @@ import de.mossgrabers.framework.utils.ButtonEvent;
  */
 public class ShiftCommand extends AbstractTriggerCommand<PushControlSurface, PushConfiguration>
 {
+    private PushControllerPageManager.TemporaryRequest layoutPage;
+
     /**
      * Constructor.
      *
@@ -36,12 +38,13 @@ public class ShiftCommand extends AbstractTriggerCommand<PushControlSurface, Pus
     @Override
     public void execute (final ButtonEvent event, final int velocity)
     {
-        final ModeManager modeManager = this.surface.getModeManager ();
-        final Modes cm = modeManager.getActiveID ();
-        if (event == ButtonEvent.DOWN && Modes.SCALES.equals (cm))
-            modeManager.setTemporary (Modes.SCALE_LAYOUT);
-        else if (event == ButtonEvent.UP && Modes.SCALE_LAYOUT.equals (cm))
-            modeManager.restore ();
+        if (event == ButtonEvent.DOWN)
+            this.layoutPage = this.surface.getModeManager ().beginTemporary (Modes.SCALE_LAYOUT, Modes.SCALES);
+        else if (event == ButtonEvent.UP && this.layoutPage != null)
+        {
+            this.layoutPage.close ();
+            this.layoutPage = null;
+        }
 
         this.surface.setKnobSensitivityIsSlow (this.surface.isShiftPressed ());
     }

@@ -14,25 +14,42 @@ import static org.junit.jupiter.api.Assertions.*;
 class ControllerPageTransitionsTest
 {
     @Test
-    void repeatedLongPressReplacesOldReturnDebtBeforeTheSecondEntryIsObserved ()
+    void localEntryAndReturnNeedNoHostLayoutAcknowledgement ()
+    {
+        for (final String button: List.of ("ACCENT", "AUTOMATION", "MASTERTRACK"))
+        {
+            final Fixture f = new Fixture ();
+            f.edge (button, InputPhase.BEGIN);
+            assertTrue (f.edge (button, InputPhase.LONG).isEmpty ());
+            assertEquals (page (button), f.navigation.legacyAlias ());
+            assertTrue (f.navigation.state ().temporary ().isPresent ());
+            assertTrue (f.edge (button, InputPhase.END).isEmpty ());
+            assertEquals ("TRACK", f.navigation.legacyAlias ());
+        }
+    }
+
+    @Test
+    void repeatedLongGesturesHaveIndependentTemporaryOwners ()
     {
         for (final String button: List.of ("ACCENT", "AUTOMATION", "MASTERTRACK"))
         {
             final Fixture f = new Fixture ();
             f.edge (button, InputPhase.BEGIN);
             f.edge (button, InputPhase.LONG);
-            assertTrue (f.edge (button, InputPhase.END).isEmpty ());
+            final long first = f.navigation.state ().temporaryToken ();
+            f.edge (button, InputPhase.END);
             f.edge (button, InputPhase.BEGIN);
             f.edge (button, InputPhase.LONG);
-            f.observe (page (button), true);
-            assertTrue (f.tick ().isEmpty (), "the earlier END must not close the newer physical hold");
-            assertEquals (List.of (SelectControllerModeEffect.restore (2)), f.edge (button, InputPhase.END));
-            assertTrue (f.tick ().isEmpty ());
+            assertTrue (f.navigation.state ().temporaryToken () > first);
+            f.tick ();
+            assertEquals (page (button), f.navigation.legacyAlias ());
+            f.edge (button, InputPhase.END);
+            assertEquals ("TRACK", f.navigation.legacyAlias ());
         }
     }
 
     @Test
-    void everyCrossControlLongPressSupersedesOnlyThePreviousTemporaryOwner ()
+    void everyCrossControlHoldSupersedesOnlyThePreviousTemporaryOwner ()
     {
         for (final String older: List.of ("ACCENT", "AUTOMATION", "MASTERTRACK", "METRONOME"))
             for (final String newer: List.of ("ACCENT", "AUTOMATION", "MASTERTRACK", "METRONOME"))
@@ -43,78 +60,61 @@ class ControllerPageTransitionsTest
                 f.edge (older, InputPhase.LONG);
                 f.edge (newer, InputPhase.BEGIN);
                 f.edge (newer, InputPhase.LONG);
-                f.observe (page (newer), true);
-                assertTrue (f.edge (older, InputPhase.END).isEmpty (), older + " must not restore over " + newer);
-                assertTrue (f.tick ().isEmpty ());
-                assertEquals (newer.equals ("METRONOME") ? List.of () : List.of (SelectControllerModeEffect.restore (2)), f.edge (newer, InputPhase.END));
+                f.edge (older, InputPhase.END);
+                assertEquals (page (newer), f.navigation.legacyAlias ());
+                f.edge (newer, InputPhase.END);
+                assertEquals (newer.equals ("METRONOME") ? "TRANSPORT" : "TRACK", f.navigation.legacyAlias ());
             }
     }
 
     @Test
-    void acknowledgedLongHoldsSurviveTheMissingAcknowledgementTimeout ()
+    void metronomeLatchesAndASecondPlainPressRestores ()
     {
-        for (final String button: List.of ("ACCENT", "AUTOMATION", "MASTERTRACK"))
-        {
-            final Fixture f = new Fixture ();
-            f.edge (button, InputPhase.BEGIN);
-            f.edge (button, InputPhase.LONG);
-            f.observe (page (button), true);
-            assertTrue (f.tick ().isEmpty ());
-            f.time += 20_000_000_000L;
-            f.generation++;
-            f.drumBase = 36;
-            f.translation = new DesiredNoteInputTranslation (true, java.util.stream.IntStream.range (0, 128).map (index -> index >= 36 && index <= 99 ? index : -1).boxed ().toList (), java.util.stream.IntStream.range (0, 128).map (index -> index == 0 ? 0 : 64).boxed ().toList ());
-            assertTrue (f.tick ().isEmpty ());
-            assertEquals (List.of (SelectControllerModeEffect.restore (3)), f.edge (button, InputPhase.END));
-        }
+        final Fixture f = new Fixture ();
+        f.edge ("METRONOME", InputPhase.BEGIN);
+        f.edge ("METRONOME", InputPhase.LONG);
+        f.edge ("METRONOME", InputPhase.END);
+        assertEquals ("TRANSPORT", f.navigation.legacyAlias ());
+        f.edge ("METRONOME", InputPhase.BEGIN);
+        f.edge ("METRONOME", InputPhase.END);
+        assertEquals ("TRACK", f.navigation.legacyAlias ());
     }
 
     @Test
-    void missingAcknowledgementExpiresWithoutClosingARecentlyUnrelatedPage ()
+    void localHoldsSurviveElapsedTimeAndNativeMappingUpdates ()
     {
         final Fixture f = new Fixture ();
         f.edge ("ACCENT", InputPhase.BEGIN);
         f.edge ("ACCENT", InputPhase.LONG);
+        f.time += 20_000_000_000L;
+        f.generation++;
+        f.drumBase = 36;
+        f.tick ();
+        assertEquals ("ACCENT", f.navigation.legacyAlias ());
         f.edge ("ACCENT", InputPhase.END);
-        f.time += 5_000_000_000L;
-        assertTrue (f.tick ().isEmpty ());
-        f.observe ("ACCENT", true);
-        assertTrue (f.tick ().isEmpty ());
+        assertEquals ("TRACK", f.navigation.legacyAlias ());
     }
 
     @Test
-    void deferredEntriesRejectEveryChangedPartOfTheirFrozenOrigin ()
+    void deferredEntriesRejectInterveningPageOrWorkspaceChanges ()
     {
         for (final String button: List.of ("ACCENT", "AUTOMATION", "MASTERTRACK", "METRONOME"))
-            for (final boolean hiddenChange: List.of (false, true))
+            for (final boolean workspaceChange: List.of (false, true))
             {
                 final Fixture f = new Fixture ();
                 final var action = f.resolve (button);
                 f.edge (button, InputPhase.LONG);
                 f.edge (button, InputPhase.END);
-                if (hiddenChange) f.previous = "VOLUME";
+                if (workspaceChange) f.navigation.workspaceChanged (1, f.navigation.resolve ("PAN"));
                 else f.observe ("PAN", false);
-                assertTrue (f.dispatch (action).isEmpty (), "do not emit an effect the parent will reject as stale");
-                assertTrue (f.tick ().isEmpty ());
+                f.dispatch (action);
+                f.tick ();
+                assertEquals ("PAN", f.navigation.legacyAlias ());
             }
     }
 
     @Test
-    void deferredShortPageEffectsAreCancelledWithoutRetargeting ()
-    {
-        for (final String button: List.of ("MASTERTRACK", "METRONOME"))
-        {
-            final Fixture f = new Fixture ();
-            if (button.equals ("METRONOME")) f.observe ("TRANSPORT", true);
-            final var action = f.resolve (button);
-            f.edge (button, InputPhase.END);
-            f.observe ("PAN", false);
-            assertTrue (f.dispatch (action).isEmpty ());
-        }
-    }
-
-    @Test
-    void deferredPageRequestsUseTheLatestPhysicalPageIntentWhenAdmittedTogether ()
+    void deferredPageRequestsUseLatestPhysicalPageIntentWhenAdmittedTogether ()
     {
         final Fixture f = new Fixture ();
         final var first = f.resolve ("ACCENT");
@@ -124,69 +124,48 @@ class ControllerPageTransitionsTest
         f.edge ("MASTERTRACK", InputPhase.END);
         final var third = f.resolve ("AUTOMATION");
         f.edge ("AUTOMATION", InputPhase.LONG);
-        final List<CoreEffect> effects = new ArrayList<> ();
-        effects.addAll (f.dispatch (first));
-        effects.addAll (f.dispatch (second));
-        effects.addAll (f.dispatch (third));
-        assertEquals (List.of (new SelectControllerModeEffect (1, "AUTOMATION", SelectControllerModeEffect.Operation.TEMPORARY)), effects);
-        f.observe ("AUTOMATION", true);
-        assertTrue (f.tick ().isEmpty ());
-        assertEquals (List.of (SelectControllerModeEffect.restore (2)), f.edge ("AUTOMATION", InputPhase.END));
+        f.dispatch (first);
+        f.dispatch (second);
+        assertEquals ("TRACK", f.navigation.legacyAlias ());
+        f.dispatch (third);
+        assertEquals ("AUTOMATION", f.navigation.legacyAlias ());
+        f.edge ("AUTOMATION", InputPhase.END);
+        assertEquals ("TRACK", f.navigation.legacyAlias ());
     }
 
     @Test
-    void shortPageIntentsAlsoSupersedeAnOlderUnsubmittedShortRequest ()
+    void shortPageIntentsAlsoSupersedeOlderUnsubmittedRequests ()
     {
         final Fixture f = new Fixture ();
         final var first = f.resolve ("MASTERTRACK");
         f.edge ("MASTERTRACK", InputPhase.END);
         final var second = f.resolve ("MASTERTRACK");
         f.edge ("MASTERTRACK", InputPhase.END);
-        assertTrue (f.dispatch (first).isEmpty ());
-        assertEquals (List.of (new SelectControllerModeEffect (1, "MASTER")), f.dispatch (second));
+        f.dispatch (first);
+        assertEquals ("TRACK", f.navigation.legacyAlias ());
+        f.dispatch (second);
+        assertEquals ("MASTER", f.navigation.legacyAlias ());
     }
 
     @Test
-    void acknowledgementMustBelongToTheRequestedUnderlyingAndPreviousMode ()
+    void interveningTemporaryReplacementPermanentlyRetiresOldReturn ()
     {
         final Fixture f = new Fixture ();
         f.edge ("ACCENT", InputPhase.BEGIN);
         f.edge ("ACCENT", InputPhase.LONG);
-        f.edge ("ACCENT", InputPhase.END);
+        f.observe ("PAN", true);
+        f.tick ();
         f.observe ("ACCENT", true);
-        f.previous = "PAN";
-        assertTrue (f.tick ().isEmpty ());
-        f.previous = "DEVICE_PARAMS";
-        f.active = "VOLUME";
-        assertTrue (f.tick ().isEmpty ());
-        f.active = "TRACK";
-        assertEquals (List.of (SelectControllerModeEffect.restore (2)), f.tick ());
-    }
-
-    @Test
-    void acknowledgedReturnIsRetiredByAnInterveningPageButNotNativeMapUpdates ()
-    {
-        for (final String button: List.of ("ACCENT", "AUTOMATION", "MASTERTRACK"))
-        {
-            final Fixture f = new Fixture ();
-            f.edge (button, InputPhase.BEGIN);
-            f.edge (button, InputPhase.LONG);
-            f.observe (page (button), true);
-            f.tick ();
-            f.generation++;
-            assertTrue (f.tick ().isEmpty (), "an unrelated layout generation alone does not lose the slot");
-            f.observe ("PAN", true);
-            f.tick ();
-            f.observe (page (button), true);
-            assertTrue (f.edge (button, InputPhase.END).isEmpty (), "returning to the same page cannot revive retired ownership");
-        }
+        f.edge ("ACCENT", InputPhase.END);
+        assertEquals ("ACCENT", f.navigation.legacyAlias ());
     }
 
     private static String page (final String button) { return switch (button) { case "MASTERTRACK" -> "FRAME"; case "METRONOME" -> "TRANSPORT"; default -> button; }; }
 
     private static final class Fixture
     {
-        private final ControllerPageTransitions pages = new ControllerPageTransitions ();
+        private final PageNavigation navigation = PageNavigation.defaults ();
+        private final ControllerPageTransitions pages = new ControllerPageTransitions (this.navigation);
         private final CompiledWorkspace workspace = CompiledWorkspace.compile ("globals", List.of (
             new AccentControlView (this.pages), new MasterButtonView (this.pages),
             new AutomationControlView (new AutomationControlState (), this.pages),
@@ -202,7 +181,11 @@ class ControllerPageTransitionsTest
         private DesiredNoteInputTranslation translation = DesiredNoteInputTranslation.unowned ();
         private final Set<ControlId> pressed = new HashSet<> ();
         private Fixture () { this.workspace.start (this.snapshot ()); }
-        private void observe (final String mode, final boolean temporary) { this.mode = mode; this.temporary = temporary; if (!temporary) this.active = mode; this.generation++; }
+        private void observe (final String mode, final boolean temporary)
+        {
+            if (temporary) this.navigation.temporary (this.navigation.origin (), this.navigation.resolve (mode));
+            else this.navigation.select (this.navigation.resolve (mode));
+        }
         private ControllerInputEvent input (final String button, final InputPhase phase)
         {
             final ControlId control = PushControlIds.button (button);

@@ -122,16 +122,17 @@ class CurrentTrackFooterViewTest
     }
 
     @Test
-    void selectedNonGroupRequestsInstalledDeviceModeFromExactLayoutGeneration ()
+    void selectedNonGroupSelectsTheLegacyDevicePageInCore ()
     {
         final Fixture f = new Fixture ();
         f.selected = true;
         f.begin (false);
-        assertEquals (List.of (new SelectControllerModeEffect (4, "DEVICE_PARAMS")), f.edge (InputPhase.END));
+        assertTrue (f.edge (InputPhase.END).isEmpty ());
+        assertEquals ("DEVICE_PARAMS", f.pages.legacyAlias ());
     }
 
     @Test
-    void deferredDeviceEntryRequiresTheCompleteOriginalLayout ()
+    void deferredDeviceEntryRequiresTheOriginalCorePage ()
     {
         for (final boolean hiddenChange: List.of (false, true))
         {
@@ -140,9 +141,12 @@ class CurrentTrackFooterViewTest
             f.begin (true);
             assertTrue (f.edge (InputPhase.END).isEmpty ());
             f.layout = new ControllerLayoutSnapshot (hiddenChange ? 4 : 5, "PLAY", "TRACK", false, false, 36, GridPressureConfiguration.OFF, DesiredNoteInputTranslation.unowned (), "TRACK", hiddenChange ? "VOLUME" : "", false);
+            f.pages.select (f.pages.resolve (hiddenChange ? "VOLUME" : "FRAME"));
             assertTrue (f.dispatch ().isEmpty ());
+            assertNotEquals ("DEVICE_PARAMS", f.pages.legacyAlias ());
             f.begin (false);
-            assertEquals (List.of (new SelectControllerModeEffect (f.layout.generation (), "DEVICE_PARAMS")), f.edge (InputPhase.END));
+            assertTrue (f.edge (InputPhase.END).isEmpty ());
+            assertEquals ("DEVICE_PARAMS", f.pages.legacyAlias ());
         }
     }
 
@@ -289,7 +293,8 @@ class CurrentTrackFooterViewTest
     {
         final ButtonGestureConsumption consumption = new ButtonGestureConsumption (Set.of (PushControlIds.button ("RECORD")));
         final SessionStopGesture stop = new SessionStopGesture ();
-        final CurrentTrackFooterView view = new CurrentTrackFooterView (this.consumption, this.stop);
+        final PageNavigation pages = PageNavigation.defaults ();
+        final CurrentTrackFooterView view = new CurrentTrackFooterView (this.consumption, this.stop, this.pages);
         final CompiledWorkspace workspace;
         SessionBankSnapshot session = SessionBankSnapshot.empty ();
         final Set<ControlId> pressed = new HashSet<> ();

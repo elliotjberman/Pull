@@ -12,6 +12,10 @@ package de.mossgrabers.pull.core.api;
  */
 public enum BridgeSubscription
 {
+    /** Bounded compatibility page requests; selection and history are core-local state. */
+    BROWSER,
+    CONTROLLER_PAGES,
+
     /** Native application panel layout and Arranger/Mixer options. */
     APPLICATION_UI,
 

@@ -287,7 +287,7 @@ class ParameterTargetHostTest
 
 
     @Test
-    void trackPageRejectsPhysicalBindingsBecauseItUsesNamedParameterBanks ()
+    void opaqueCorePageRejectsPhysicalBindingsBecauseItUsesNamedParameterBanks ()
     {
         final MutableParameter cursorVolume = new MutableParameter (64);
         final MutableParameter selectedVolume = new MutableParameter (64);
@@ -299,9 +299,8 @@ class ParameterTargetHostTest
         final MutableContinuous continuous = new MutableContinuous ();
         final PushControlSurface surface = createSurface (continuous, valueChanger);
         final IHwRelativeKnob knob = surface.createRelativeKnob (ContinuousID.KNOB1, "Knob 1");
-        surface.getModeManager ().register (Modes.TRACK, relaxedProxy (IMode.class));
-        surface.getModeManager ().setDefaultID (Modes.TRACK);
-        surface.getModeManager ().setActive (Modes.TRACK);
+        surface.getModeManager ().installCoreAdapter (relaxedProxy (IMode.class));
+        surface.getModeManager ().apply (new de.mossgrabers.pull.core.api.DesiredControllerPageState (1, de.mossgrabers.pull.core.api.ControllerPageRef.core ("no-native-mode"), de.mossgrabers.pull.core.api.ControllerPageRef.none (), Optional.empty (), 0));
 
         final ICursorTrack selectedTrack = proxy (ICursorTrack.class, (proxy, method, arguments) -> switch (method.getName ())
         {
@@ -352,6 +351,31 @@ class ParameterTargetHostTest
         assertNull (host.resolveMutation (knob));
         assertNull (host.snapshot ().slots ().get (ParameterSlot.active (0)));
         assertTrue (host.requiresResolvedMutation (knob));
+    }
+
+
+    @Test
+    void namedParameterIndicationsReplayWithoutChurnAndReleaseOnPageOrCoreExit ()
+    {
+        final MutableParameter parameter = new MutableParameter (64);
+        final MutableRemoteDevice device = new MutableRemoteDevice (parameter.proxy ());
+        final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
+        final PushControlSurface surface = createSurface (new MutableContinuous (), valueChanger);
+        final ParameterTargetHost host = new ParameterTargetHost (surface, model (device, valueChanger), silentLog ());
+        final DesiredParameterBanks banks = new DesiredParameterBanks (Set.of (ParameterBankId.SELECTED_DEVICE_REMOTE));
+        host.refresh (banks);
+        host.applyIndications (Set.of (ParameterSlot.selectedDeviceRemote (0)));
+        host.applyIndications (Set.of (ParameterSlot.selectedDeviceRemote (0)));
+        host.refresh (banks);
+        assertEquals (List.of ("indication:true"), parameter.events);
+        host.releaseIndicationsExcept (Set.of ());
+        host.refresh (banks); // A reentrant or later sample cannot revive retired indication ownership.
+        assertEquals (List.of ("indication:true", "indication:false"), parameter.events);
+        host.applyIndications (Set.of ());
+        assertEquals (List.of ("indication:true", "indication:false"), parameter.events);
+        host.applyIndications (Set.of (ParameterSlot.selectedDeviceRemote (0)));
+        host.invalidate ();
+        assertEquals (List.of ("indication:true", "indication:false", "indication:true", "indication:false"), parameter.events);
     }
 
 
@@ -592,6 +616,10 @@ class ParameterTargetHostTest
                 case "inc" -> {
                     this.value += (int) Math.round (((Number) arguments[0]).doubleValue ());
                     this.incrementCount++;
+                    yield null;
+                }
+                case "setIndication" -> {
+                    this.events.add ("indication:" + arguments[0]);
                     yield null;
                 }
                 case "touchValue" -> {

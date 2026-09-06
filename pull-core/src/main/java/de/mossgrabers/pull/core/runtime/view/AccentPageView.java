@@ -5,7 +5,8 @@ package de.mossgrabers.pull.core.runtime.view;
 import de.mossgrabers.pull.core.api.*;
 import de.mossgrabers.pull.core.api.effect.*;
 import de.mossgrabers.pull.core.api.event.*;
-import de.mossgrabers.pull.core.api.output.*;
+import de.mossgrabers.pull.core.ui.page.AccentPagePresentation;
+import de.mossgrabers.pull.core.ui.page.AccentPageRenderer;
 import de.mossgrabers.pull.core.view.*;
 import java.util.*;
 import java.util.stream.IntStream;
@@ -14,7 +15,6 @@ import java.util.stream.IntStream;
 public final class AccentPageView implements ControllerView
 {
     private static final long TIMEOUT_NANOS = 5_000_000_000L;
-    private static final RgbColor BLACK = new RgbColor (0, 0, 0);
     private static final ControlId STOP = PushControlIds.button ("STOP_CLIP");
     private static final List<ControlId> KNOBS = IntStream.rangeClosed (1, 8).mapToObj (i -> PushControlIds.continuous ("KNOB" + i)).toList ();
     private static final List<ControlId> ROW = IntStream.rangeClosed (1, 8).mapToObj (i -> PushControlIds.button ("ROW1_" + i)).toList ();
@@ -29,8 +29,7 @@ public final class AccentPageView implements ControllerView
         new SurfaceClaim (SurfaceArea.SOFT_KEYS_LOWER, SurfaceClaim.Kind.OUTPUT),
         new SurfaceClaim (SurfaceArea.DISPLAY_PARAMETERS, SurfaceClaim.Kind.OUTPUT),
         new SurfaceClaim (SurfaceArea.DISPLAY_BOTTOM_STRIP, SurfaceClaim.Kind.OUTPUT)), Set.of ());
-    private final SessionStopGesture fullSessionStop;
-    private final SessionStopGesture compositeStop;
+    private final SessionStopGesture stopGesture;
     private final Gesture[] rows = new Gesture[8];
     private final Set<ControlId> touched = new HashSet<> ();
     private ControllerSnapshot latest;
@@ -40,14 +39,12 @@ public final class AccentPageView implements ControllerView
     private long submittedAt;
     private long submittedRevision;
 
-    public AccentPageView (final SessionStopGesture fullSessionStop, final SessionStopGesture compositeStop)
+    public AccentPageView (final SessionStopGesture stopGesture)
     {
-        this.fullSessionStop = Objects.requireNonNull (fullSessionStop, "fullSessionStop");
-        this.compositeStop = Objects.requireNonNull (compositeStop, "compositeStop");
+        this.stopGesture = Objects.requireNonNull (stopGesture, "stopGesture");
     }
 
     @Override public String id () { return "accent-page"; }
-    @Override public String installedModeId () { return "ACCENT"; }
     @Override public ViewProfile profile () { return PROFILE; }
     @Override public Set<ControllerActionBinding> actionBindings () { return ACTIONS; }
     @Override public Set<BridgeSubscription> bridgeSubscriptions () { return Set.of (BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.CONTROLLER_SETTINGS, BridgeSubscription.ENCODER_CONFIGURATION, BridgeSubscription.CURRENT_TRACK_BANK); }
@@ -66,8 +63,7 @@ public final class AccentPageView implements ControllerView
         CoreEffect effect = null;
         if (stop)
         {
-            this.fullSessionStop.consume ();
-            this.compositeStop.consume ();
+            this.stopGesture.consume ();
             if (index < session.tracks ().size () && session.tracks ().get (index).exists ())
                 effect = new StopSessionTrackEffect (session.generation (), session.shape (), index, session.tracks ().get (index).channelId (), true);
         }
@@ -166,26 +162,15 @@ public final class AccentPageView implements ControllerView
     @Override
     public ViewOutput render (final ControllerSnapshot snapshot)
     {
-        final Map<ControlId, RgbColor> lights = new LinkedHashMap<> ();
-        for (int i = 1; i <= 8; i++) { lights.put (PushControlIds.button ("ROW1_" + i), BLACK); lights.put (PushControlIds.button ("ROW2_" + i), BLACK); }
-        final List<DisplayCommand> commands = new ArrayList<> ();
-        commands.add (new DisplayCommand.Rectangle (0, 0, 960, 160, BLACK));
         final var settings = snapshot.bridge ().controllerSettings ();
         final var encoder = snapshot.bridge ().encoderConfiguration ();
-        if (settings.available () && encoder.available ())
-        {
-            final double intensity = this.touched.contains (KNOBS.get (7)) ? 1 : 0.5;
-            final RgbColor text = color (190, 235, 247, intensity);
-            commands.add (new DisplayCommand.TextAt ("Accent", 848, 31, text, 12.5));
-            commands.add (new DisplayCommand.TextAt (Integer.toString (settings.accentVelocity ()), 848, 64, text, 30));
-            final double value = Math.floor (settings.accentVelocity () * (encoder.valueUpperBound () - 1.0) / 127) / encoder.valueUpperBound ();
-            commands.add (new DisplayCommand.DottedArc (873, 105, 25, 220, -260, 220, 1.1, color (20, 54, 65, intensity)));
-            commands.add (new DisplayCommand.DottedArc (873, 105, 25, 220, -260 * value, Math.max (2, (int) Math.ceil (220 * value)), 1.1, color (132, 214, 255, intensity)));
-        }
-        return new ViewOutput (lights, Map.of (), new ControllerDisplayScene (960, 160, commands));
+        final boolean available = settings.available () && encoder.available ();
+        final double position = available ? Math.floor (settings.accentVelocity () * (encoder.valueUpperBound () - 1.0) / 127) / encoder.valueUpperBound () : 0;
+        final var presentation = new AccentPagePresentation (available, settings.accentVelocity (), position, this.touched.contains (KNOBS.get (7)));
+        final var visuals = AccentPageRenderer.render (presentation);
+        return new ViewOutput (visuals.lights (), Map.of (), visuals.display ());
     }
 
-    private static RgbColor color (final int red, final int green, final int blue, final double intensity) { return new RgbColor ((int) Math.round (red * intensity), (int) Math.round (green * intensity), (int) Math.round (blue * intensity)); }
     private static final class Gesture
     {
         private final CoreEffect effect;

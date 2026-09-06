@@ -247,6 +247,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             this::handleControllerInput,
             () -> this.supervisor == null ? 0 : this.supervisor.activeGeneration ());
         this.environment.setInputRouteValidator (this.inputBridge::supports);
+        this.environment.setActiveTouchOwner (this.inputBridge::ownsActiveTouch);
         this.environment.setControllerActionValidator (this.inputBridge::supports);
         this.environment.setPhysicalLightOwnerValidator (this.inputBridge::supportsLight);
         this.environment.setDeferredInputRelease (this.inputBridge::releaseDeferredStableDispatches);

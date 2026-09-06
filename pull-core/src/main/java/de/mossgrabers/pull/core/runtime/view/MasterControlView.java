@@ -3,13 +3,15 @@
 
 package de.mossgrabers.pull.core.runtime.view;
 
+import de.mossgrabers.pull.core.ui.page.MasterPageRenderer;
+import de.mossgrabers.pull.core.ui.page.PageVisuals;
+
 import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerActionBinding;
 import de.mossgrabers.pull.core.api.ControllerActionId;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.ControllerStateScope;
-import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.MasterSnapshot;
 import de.mossgrabers.pull.core.api.DesiredControllerMappings;
 import de.mossgrabers.pull.core.api.DesiredNotePerformance;
@@ -27,10 +29,8 @@ import de.mossgrabers.pull.core.api.effect.SetProjectEngineEffect;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
-import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
-import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.view.ControllerView;
 import de.mossgrabers.pull.core.view.ResolvedControllerAction;
 import de.mossgrabers.pull.core.view.SurfaceArea;
@@ -38,7 +38,6 @@ import de.mossgrabers.pull.core.view.SurfaceClaim;
 import de.mossgrabers.pull.core.view.ViewOutput;
 import de.mossgrabers.pull.core.view.ViewProfile;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -50,11 +49,6 @@ public final class MasterControlView implements ControllerView
     private final ParameterTouchControls touches;
 
     private static final double PARAMETER_STEP_SIZE = 10.0;
-    private static final RgbColor BLACK = new RgbColor (0, 0, 0);
-    private static final RgbColor GRAY = new RgbColor (30, 30, 30);
-    private static final RgbColor WHITE = new RgbColor (255, 255, 255);
-    private static final RgbColor GREEN = new RgbColor (0, 255, 0);
-    private static final RgbColor ORANGE = new RgbColor (255, 84, 0);
     private static final ControlId ENGINE = row (2, 5);
     private static final ControlId PREVIOUS = row (2, 7);
     private static final ControlId NEXT = row (2, 8);
@@ -84,7 +78,7 @@ public final class MasterControlView implements ControllerView
             new SurfaceClaim (SurfaceArea.SOFT_KEYS_LOWER, SurfaceClaim.Kind.OUTPUT),
             new SurfaceClaim (SurfaceArea.DISPLAY_PARAMETERS, SurfaceClaim.Kind.OUTPUT),
             new SurfaceClaim (SurfaceArea.DISPLAY_BOTTOM_STRIP, SurfaceClaim.Kind.OUTPUT)),
-        Set.of (ControllerViewFacet.MASTER_CONTROLS));
+        Set.of ());
 
 
     public MasterControlView ()
@@ -128,11 +122,6 @@ public final class MasterControlView implements ControllerView
     }
 
 
-    @Override
-    public String installedModeId ()
-    {
-        return "MASTER";
-    }
 
 
     @Override
@@ -207,27 +196,21 @@ public final class MasterControlView implements ControllerView
 
 
     @Override
+    public de.mossgrabers.pull.core.api.DesiredParameterTouches parameterTouches (final ControllerSnapshot snapshot)
+    {
+        return this.touches.desired ();
+    }
+
+
+    @Override
     public ViewOutput render (final ControllerSnapshot snapshot)
     {
         final MasterSnapshot master = snapshot.bridge ().master ();
         if (!master.available ())
             return ViewOutput.empty ();
 
-        final Map<ControlId, RgbColor> lights = new LinkedHashMap<> ();
-        for (int row = 1; row <= 2; row++)
-        {
-            for (int column = 1; column <= 8; column++)
-                lights.put (row (row, column), BLACK);
-        }
-        lights.put (ENGINE, master.engineActive () ? GREEN : WHITE);
-        lights.put (PREVIOUS, master.canPrevious () ? WHITE : GRAY);
-        lights.put (NEXT, master.canNext () ? WHITE : GRAY);
-        lights.put (OPEN, WHITE);
-        lights.put (SAVE, master.projectDirty () ? ORANGE : WHITE);
-
-        final Map<ParameterSlot, ParameterTargetSnapshot> parameters = ParameterAlignment.targets (snapshot);
-        final ControllerDisplayScene scene = MasterDisplayScene.render (master, parameters, snapshot.touchedControls ());
-        return new ViewOutput (lights, Map.of (), scene, ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), DesiredNotePerformance.inactive (), DesiredNoteRepeat.unowned (), DesiredControllerMappings.empty (), this.touches.desired ());
+        final PageVisuals visuals = MasterPageRenderer.render (MixerPageProjections.master (snapshot));
+        return new ViewOutput (visuals.lights (), Map.of (), visuals.display (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), DesiredNotePerformance.inactive (), DesiredNoteRepeat.unowned (), DesiredControllerMappings.empty ());
     }
 
 

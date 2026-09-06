@@ -8,6 +8,7 @@ import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerActionBinding;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.CoreExecutionRequirements;
+import de.mossgrabers.pull.core.api.DesiredParameterTouches;
 import de.mossgrabers.pull.core.api.ParameterBankId;
 import de.mossgrabers.pull.core.api.ParameterSlot;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
@@ -38,13 +39,6 @@ public interface ControllerView
      * @return Immutable profile
      */
     ViewProfile profile ();
-
-
-    /** Registered inert mode adapter whose physical page footprint this view uses. */
-    default String installedModeId ()
-    {
-        return "";
-    }
 
 
     /**
@@ -164,6 +158,13 @@ public interface ControllerView
     default ResolvedControllerAction resolveAction (final ControllerActionBinding binding, final ControllerInputEvent input, final ControllerSnapshot snapshot)
     {
         return ResolvedControllerAction.stable (binding.intent ());
+    }
+
+
+    /** Nonvisual exact-target touches retained while this view finishes a captured gesture. */
+    default DesiredParameterTouches parameterTouches (final ControllerSnapshot snapshot)
+    {
+        return DesiredParameterTouches.empty ();
     }
 
 

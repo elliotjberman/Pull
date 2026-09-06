@@ -77,7 +77,8 @@ class ParameterSnapbackIntegrationTest
 
         manager.start ();
         final Path coreJar = createCoreJar (temporaryDirectory.resolve ("pull-core.jar"));
-        assertEquals (ActivationResult.State.ACTIVE, manager.activate ("unpublished", new CoreJarLoader ().load (coreJar), () -> true).state ());
+        final var activated = manager.activate ("unpublished", new CoreJarLoader ().load (coreJar), () -> true);
+        assertEquals (ActivationResult.State.ACTIVE, activated.state (), activated.message ());
         assertEquals (DesiredParameterBanks.empty (), bridge.lastAppliedBanks);
         final ReloadableControllerRuntime runtime = new ReloadableControllerRuntime (environment, NoOpLog.INSTANCE, event -> manager.handle (manager.activeGeneration (), event));
         runtime.start ();
@@ -210,7 +211,10 @@ class ParameterSnapbackIntegrationTest
         private static final ParameterTargetRef TARGET = new ParameterTargetRef (ParameterTargetKind.LIVE, "integration-target", 1);
 
         private final IHwContinuousControl control = proxyControl ();
-        private ControllerBridgeSnapshot snapshot = ControllerBridgeSnapshot.empty ();
+        private ControllerBridgeSnapshot snapshot = new ControllerBridgeSnapshot (
+            de.mossgrabers.pull.core.api.TransportSnapshot.empty (), de.mossgrabers.pull.core.api.SelectedTrackSnapshot.empty (),
+            new de.mossgrabers.pull.core.api.ControllerLayoutSnapshot (1, "PLAY", "DEVICE_PARAMS", false, false, 0, de.mossgrabers.pull.core.api.GridPressureConfiguration.OFF),
+            de.mossgrabers.pull.core.api.DrumContextSnapshot.empty (), ParameterBridgeSnapshot.empty ());
         private Map<ParameterTargetRef, ParameterLease> retained = Map.of ();
         private DesiredParameterBanks lastAppliedBanks = DesiredParameterBanks.empty ();
         private double authoritativeValue = 100;

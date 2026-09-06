@@ -22,13 +22,13 @@ the type system does not prove that correspondence for future authors.
 Parameter bindings are now separately checked against the declaring view's relative-input claim;
 that closes one concrete ownership gap but not the general facet contract.
 
-## API 45 working migration
+## API 46 page ownership migration
 
-Native parameter pages now declare an installed inert mode adapter separately from their claims.
-The shell checks that the registered adapter exposes the requested physical footprint, and rejects
-a legacy page facet that disagrees with the declared mode. Metronome, Automation, Volume, and Pan
-therefore do not need additional page facets. This reduces the migration bridge, but does not prove
-the inverse contract for every remaining grid, scene, and navigation facet; keep this finding active.
+Core pages now use a separate typed navigation state and one generic inert shell projection. They
+do not declare installed mode IDs or depend on Project/Track/Master selection facets. Their input,
+output and parameter claims are checked by ordinary composition validation. This removes the
+page-registration coupling, but does not prove the inverse contract for every remaining grid,
+scene and navigation facet; keep this finding active until those removal criteria are met.
 
 ## Safe Current Boundary
 

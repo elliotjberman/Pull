@@ -463,8 +463,8 @@ class SessionBehaviorCharacterizationTest
                 case "hasPreviousItem" -> Boolean.valueOf (this.modeCanPreviousItem);
                 default -> defaultValue (method.getReturnType ());
             });
-            this.surface.getModeManager ().register (Modes.TRACK, mode);
-            this.surface.getModeManager ().setActive (Modes.TRACK);
+            this.surface.getModeManager ().register (Modes.DEVICE_PARAMS, mode);
+            this.surface.getModeManager ().apply (new de.mossgrabers.pull.core.api.DesiredControllerPageState (1, de.mossgrabers.pull.core.api.ControllerPageRef.legacy ("DEVICE_PARAMS"), de.mossgrabers.pull.core.api.ControllerPageRef.none (), java.util.Optional.empty (), 0));
             this.surface.getViewManager ().register (Views.SESSION, emptyProxy (IView.class));
             this.surface.getViewManager ().register (Views.WORKSPACE, (IView) Proxy.newProxyInstance (
                 IView.class.getClassLoader (), new Class<?> [] { IView.class, WorkspaceFacetAdapter.class },

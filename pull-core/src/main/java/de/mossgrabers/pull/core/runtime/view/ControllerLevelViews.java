@@ -16,37 +16,45 @@ import java.util.Objects;
  */
 public final class ControllerLevelViews
 {
-    private final ControllerView mixerNavigation = retained (new NavigationView (NavigationView.Horizontal.MIXER));
-    private final ControllerView inertPageNavigation = retained (new NavigationView (NavigationView.Horizontal.INERT));
     private final ControllerView frozenSessionArrows = new FrozenSessionArrowsView ();
     private final ControllerView workspaceSelection;
     private final ControllerView noteViewController;
     private final ControllerView globalParameters;
     private final ControllerView transport;
     private final ButtonGestureConsumption buttonGestures = new ButtonGestureConsumption (java.util.Set.of (de.mossgrabers.pull.core.api.PushControlIds.button ("RECORD")));
-    private final ControllerPageTransitions pages = new ControllerPageTransitions ();
+    private final ControllerPageTransitions pages;
     private final AuthoritativeBooleanToggle<String> metronomeToggle = new AuthoritativeBooleanToggle<> ();
     private final ControllerView tapTempo = retained (new TapTempoView (this.metronomeToggle));
-    private final ControllerView metronome = retained (new MetronomeControlView (this.metronomeToggle, this.pages));
+    private final ControllerView metronome;
     private final AutomationControlState automationState = new AutomationControlState ();
-    private final ControllerView automation = retained (new AutomationControlView (this.automationState, this.pages));
+    private final ControllerView automation;
     private final List<ControllerView> metronomePage = List.of (retained (new TransportSettingsPageView (false, this.automationState)));
     private final List<ControllerView> automationPage = List.of (retained (new TransportSettingsPageView (true, this.automationState)));
     private final ControllerView undoRedo = retained (new UndoRedoView ());
-    private final ControllerView trackMix = retained (new TrackMixControlView ());
-    private final ControllerView masterButton = retained (new MasterButtonView (this.pages));
-    private final ControllerView accent = retained (new AccentControlView (this.pages));
+    private final ControllerView trackMix;
+    private final ControllerView masterButton;
+    private final ControllerView accent;
     private final ControllerView selectedTrackMuteSolo;
     private final RawPitchBendGesture pitchBend = new RawPitchBendGesture ();
     private final ControllerView rawPitchBend = retained (RawPitchBendView.raw (this.pitchBend));
     private final ControllerView legacyPitchBend = retained (RawPitchBendView.legacyContinuation (this.pitchBend));
     private final ParameterTouchSession parameterTouches = new ParameterTouchSession ();
-    private final ControllerView parameterTouchRelease = retained (new ParameterTouchReleaseView (this.parameterTouches));
 
 
     /** Construct one retained controller-level policy set for a core generation. */
     public ControllerLevelViews (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator)
     {
+        this (selection, playbackCoordinator, PageNavigation.defaults ());
+    }
+
+    public ControllerLevelViews (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator, final PageNavigation navigation)
+    {
+        this.pages = new ControllerPageTransitions (navigation);
+        this.metronome = retained (new MetronomeControlView (this.metronomeToggle, this.pages));
+        this.automation = retained (new AutomationControlView (this.automationState, this.pages));
+        this.trackMix = retained (new TrackMixControlView (navigation));
+        this.masterButton = retained (new MasterButtonView (this.pages));
+        this.accent = retained (new AccentControlView (this.pages));
         final WorkspaceSelection checkedSelection = Objects.requireNonNull (selection, "selection");
         final SelectedTrackBooleanToggles selectedTrackToggles = new SelectedTrackBooleanToggles ();
         this.workspaceSelection = retained (new WorkspaceSelectionView (checkedSelection));
@@ -102,19 +110,12 @@ public final class ControllerLevelViews
         views.add (this.masterButton);
         views.add (this.accent);
         views.add (this.selectedTrackMuteSolo);
-        views.add (this.parameterTouchRelease);
         views.add (rawPitchBend ? this.rawPitchBend : this.legacyPitchBend);
         for (final ControllerView view: checkedWorkspaceViews)
             views.add (Objects.requireNonNull (view, "workspaceView"));
         final boolean hasNavigation = checkedWorkspaceViews.stream ().flatMap (view -> view.claims ().stream ()).anyMatch (claim -> claim.area () == de.mossgrabers.pull.core.view.SurfaceArea.NAVIGATION_ARROWS);
-        if (!hasNavigation)
-        {
-            final String page = checkedWorkspaceViews.stream ().map (ControllerView::installedModeId).filter (id -> !id.isEmpty ()).findFirst ().orElse ("");
-            if (!page.isEmpty ())
-                views.add (java.util.Set.of ("TRACK", "VOLUME", "PAN", "CROSSFADER", "SEND1", "SEND2", "SEND3", "SEND4", "SEND5", "SEND6", "SEND7", "SEND8").contains (page) ? this.mixerNavigation : this.inertPageNavigation);
-            else if (checkedWorkspaceViews.stream ().anyMatch (view -> view.profile ().controllerFacets ().contains (de.mossgrabers.pull.core.api.ControllerViewFacet.SESSION_GRID_FULL)))
-                views.add (this.frozenSessionArrows);
-        }
+        if (!hasNavigation && checkedWorkspaceViews.stream ().anyMatch (view -> view.profile ().controllerFacets ().contains (de.mossgrabers.pull.core.api.ControllerViewFacet.SESSION_GRID_FULL)))
+            views.add (this.frozenSessionArrows);
         return List.copyOf (views);
     }
 

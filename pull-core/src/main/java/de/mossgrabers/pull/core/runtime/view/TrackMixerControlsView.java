@@ -2,13 +2,16 @@
 // Licensed under LGPLv3 - http://www.gnu.org/licenses/lgpl-3.0.txt
 package de.mossgrabers.pull.core.runtime.view;
 
+import de.mossgrabers.pull.core.ui.page.TrackMixerPageRenderer;
+import de.mossgrabers.pull.core.ui.page.PageVisuals;
+
+
 import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerActionBinding;
 import de.mossgrabers.pull.core.api.ControllerActionId;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.ControllerStateScope;
-import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.CoreExecutionRequirements;
 import de.mossgrabers.pull.core.api.DesiredControllerMappings;
 import de.mossgrabers.pull.core.api.DesiredNotePerformance;
@@ -29,7 +32,6 @@ import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
-import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.view.ControllerView;
 import de.mossgrabers.pull.core.view.ResolvedControllerAction;
 import de.mossgrabers.pull.core.view.SurfaceArea;
@@ -49,15 +51,13 @@ public final class TrackMixerControlsView implements ControllerView
 {
     private static final ControlId SHIFT = PushControlIds.button ("SHIFT");
     private static final ControlId SELECT = PushControlIds.button ("SELECT");
-    private static final RgbColor BLACK = new RgbColor (0, 0, 0);
-    private static final RgbColor WHITE = new RgbColor (255, 255, 255);
     private static final Map<ControlId, ParameterSlot> PARAMETER_BINDINGS = createParameterBindings (0);
     private static final ViewProfile PROFILE = ViewProfile.fixed ("selected-track-mix", Set.of (
         new SurfaceClaim (SurfaceArea.ENCODER_TURNS, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
         new SurfaceClaim (SurfaceArea.ENCODER_TOUCHES, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
         new SurfaceClaim (SurfaceArea.DISPLAY_PARAMETERS, SurfaceClaim.Kind.OUTPUT),
         new SurfaceClaim (SurfaceArea.SOFT_KEYS_UPPER, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
-        new SurfaceClaim (SurfaceArea.SOFT_KEYS_UPPER, SurfaceClaim.Kind.OUTPUT)), Set.of (ControllerViewFacet.TRACK_MIXER_PAGE));
+        new SurfaceClaim (SurfaceArea.SOFT_KEYS_UPPER, SurfaceClaim.Kind.OUTPUT)), Set.of ());
     private static final Set<ControllerActionBinding> ACTIONS = Set.of (
         pageAction (0), pageAction (1), pageAction (6), pageAction (7));
 
@@ -82,11 +82,6 @@ public final class TrackMixerControlsView implements ControllerView
     }
 
     @Override public String id () { return "track-mixer-controls"; }
-    @Override
-    public String installedModeId ()
-    {
-        return "TRACK";
-    }
 
 
     @Override public ViewProfile profile () { return PROFILE; }
@@ -191,21 +186,19 @@ public final class TrackMixerControlsView implements ControllerView
     }
 
     @Override
+    public de.mossgrabers.pull.core.api.DesiredParameterTouches parameterTouches (final ControllerSnapshot snapshot)
+    {
+        return this.touches.desired ();
+    }
+
+
+    @Override
     public ViewOutput render (final ControllerSnapshot snapshot)
     {
-        final Map<ControlId, RgbColor> lights = new LinkedHashMap<> ();
-        for (int index = 0; index < 8; index++)
-            lights.put (upper (index), BLACK);
-        lights.put (upper (this.page.inputOutputSelected () ? 1 : 0), WHITE);
-        if (!this.page.inputOutputSelected ())
-        {
-            if (this.page.sendOffset () > 0)
-                lights.put (upper (6), WHITE);
-            else if (hasAdditionalSends (snapshot))
-                lights.put (upper (7), WHITE);
-        }
-        return new ViewOutput (lights, Map.of (), TrackMixerDisplayScene.render (snapshot, this.page, this.normalResponse), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), DesiredNotePerformance.inactive (), DesiredNoteRepeat.unowned (), DesiredControllerMappings.empty (), this.touches.desired ());
+        final PageVisuals visuals = TrackMixerPageRenderer.render (MixerPageProjections.track (snapshot, this.page, this.normalResponse));
+        return new ViewOutput (visuals.lights (), Map.of (), visuals.display (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), DesiredNotePerformance.inactive (), DesiredNoteRepeat.unowned (), DesiredControllerMappings.empty ());
     }
+
 
     private void advanceEnabled (final ControllerSnapshot snapshot, final List<CoreEffect> effects)
     {

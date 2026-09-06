@@ -3,14 +3,15 @@
 
 package de.mossgrabers.pull.core.runtime.view;
 
+import de.mossgrabers.pull.core.ui.page.TrackFooterRenderer;
+import de.mossgrabers.pull.core.ui.page.PageVisuals;
+
 import de.mossgrabers.pull.core.api.*;
 import de.mossgrabers.pull.core.api.effect.*;
 import de.mossgrabers.pull.core.api.event.*;
-import de.mossgrabers.pull.core.api.output.*;
 import de.mossgrabers.pull.core.view.*;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -24,8 +25,6 @@ public final class CurrentTrackFooterView implements ControllerView
     private static final ControlId SELECT = PushControlIds.button ("SELECT");
     private static final ControlId STOP = PushControlIds.button ("STOP_CLIP");
     private static final ControlId SHIFT = PushControlIds.button ("SHIFT");
-    private static final RgbColor OFF = new RgbColor (0, 0, 0);
-    private static final RgbColor ARMED = new RgbColor (255, 0, 0);
     private static final List<ControlId> BUTTONS = java.util.stream.IntStream.rangeClosed (1, 8).mapToObj (index -> PushControlIds.button ("ROW1_" + index)).toList ();
     private static final Set<ControllerActionBinding> ACTIONS = BUTTONS.stream ().map (button -> new ControllerActionBinding (button, InputKind.BUTTON, Set.of (new ControllerActionIntent (ControllerActionId.NAVIGATE_SELECTED_TARGET, Set.of (ControllerStateScope.ACTIVE_PARAMETERS)), new ControllerActionIntent (ControllerActionId.STOP_VISIBLE_SESSION_TRACK, Set.of (ControllerStateScope.SESSION_PLAYBACK))))).collect (java.util.stream.Collectors.toUnmodifiableSet ());
     private static final ViewProfile PROFILE = ViewProfile.fixed ("default", Set.of (
@@ -43,6 +42,7 @@ public final class CurrentTrackFooterView implements ControllerView
     private final List<AuthoritativeBooleanToggle<CurrentTrackTarget>> arms = lanes ();
     private final List<AuthoritativeBooleanToggle<CurrentTrackTarget>> groups = lanes ();
     private ControllerSnapshot latest;
+    private final PageNavigation pages;
 
     public CurrentTrackFooterView ()
     {
@@ -56,6 +56,12 @@ public final class CurrentTrackFooterView implements ControllerView
 
     public CurrentTrackFooterView (final ButtonGestureConsumption buttonGestures, final SessionStopGesture stopGesture)
     {
+        this (buttonGestures, stopGesture, PageNavigation.defaults ());
+    }
+
+    public CurrentTrackFooterView (final ButtonGestureConsumption buttonGestures, final SessionStopGesture stopGesture, final PageNavigation pages)
+    {
+        this.pages = java.util.Objects.requireNonNull (pages, "pages");
         this.buttonGestures = java.util.Objects.requireNonNull (buttonGestures, "buttonGestures");
         this.stopGesture = java.util.Objects.requireNonNull (stopGesture, "stopGesture");
     }
@@ -144,7 +150,7 @@ public final class CurrentTrackFooterView implements ControllerView
         {
             gesture.longSeen = true;
             final CurrentTrackBankSnapshot bank = snapshot.bridge ().currentTrackBank ();
-            gesture.intent = new Intent (Operation.PARENT, null, bank.parentGeneration (), bank.cursorChannelId (), snapshot.bridge ().layout (), null);
+            gesture.intent = new Intent (Operation.PARENT, null, bank.parentGeneration (), bank.cursorChannelId (), this.pages.origin (), null);
             effects.add (new ConsumeControllerButtonEffect (BUTTONS.get (index)));
         }
         else if (input.phase () == InputPhase.END && !gesture.ended)
@@ -196,7 +202,7 @@ public final class CurrentTrackFooterView implements ControllerView
                 operation = !track.track ().selected () ? Operation.SELECT : isGroup (track) ? pressed.contains (SHIFT) ? Operation.GROUP_TOGGLE : Operation.ENTER : Operation.DEVICE;
             }
         }
-        return new Intent (operation, target, 0, "", snapshot.bridge ().layout (), consume);
+        return new Intent (operation, target, 0, "", this.pages.origin (), consume);
     }
 
     private List<CoreEffect> execute (final Intent intent, final ControllerSnapshot snapshot)
@@ -234,8 +240,8 @@ public final class CurrentTrackFooterView implements ControllerView
             }
             case DEVICE ->
             {
-                if (track.track ().selected () && !isGroup (track) && intent.layout ().generation () != 0 && intent.layout ().equals (snapshot.bridge ().layout ()))
-                    effects.add (new SelectControllerModeEffect (intent.layout ().generation (), "DEVICE_PARAMS"));
+                if (track.track ().selected () && !isGroup (track) && this.pages.matches (intent.pageOrigin ()))
+                    this.pages.select (intent.pageOrigin (), this.pages.resolve ("DEVICE_PARAMS"));
             }
             case NONE, PARENT -> { }
         }
@@ -268,24 +274,10 @@ public final class CurrentTrackFooterView implements ControllerView
     @Override
     public ViewOutput render (final ControllerSnapshot snapshot)
     {
-        final CurrentTrackBankSnapshot bank = snapshot.bridge ().currentTrackBank ();
-        final Map<ControlId, RgbColor> lights = new LinkedHashMap<> ();
-        final List<DisplayCommand> commands = new ArrayList<> ();
-        commands.add (new DisplayCommand.Rectangle (0, 0, 960, TrackFooterDisplayScene.HEIGHT, OFF));
-        for (int index = 0; index < 8; index++)
-        {
-            final SessionTrackSnapshot track = index < bank.tracks ().size () ? bank.tracks ().get (index).track () : SessionTrackSnapshot.empty ();
-            lights.put (BUTTONS.get (index), !track.exists () || !track.activated () ? OFF : track.recordArmed () ? ARMED : track.color ());
-            if (track.exists ())
-            {
-                final String name = track.name ().substring (0, Math.min (12, track.name ().length ()));
-                final SessionTrackType type = track.type () == SessionTrackType.GROUP && bank.tracks ().get (index).groupExpanded () ? SessionTrackType.GROUP_OPEN : track.type ();
-                final DisplayIcon icon = track.selected () && bank.cursorPinned () ? DisplayIcon.PIN : TrackFooterDisplayScene.icon (type);
-                TrackFooterDisplayScene.append (commands, index, 0, name, icon, track.color (), track.selected (), track.activated ());
-            }
-        }
-        return new ViewOutput (lights, Map.of (), new ControllerDisplayScene (960, (int) TrackFooterDisplayScene.HEIGHT, commands));
+        final PageVisuals visuals = TrackFooterRenderer.render (TrackFooterProjection.currentBank (snapshot.bridge ().currentTrackBank ()));
+        return new ViewOutput (visuals.lights (), Map.of (), visuals.display ());
     }
+
 
     private static CurrentTrackTarget target (final CurrentTrackBankSnapshot bank, final int index)
     {
@@ -305,7 +297,7 @@ public final class CurrentTrackFooterView implements ControllerView
     }
 
     private enum Operation { NONE, SELECT, DUPLICATE, REMOVE, ARM, GROUP_TOGGLE, ENTER, DEVICE, PARENT }
-    private record Intent (Operation operation, CurrentTrackTarget target, long parentGeneration, String cursorId, ControllerLayoutSnapshot layout, ControlId consume) { }
+    private record Intent (Operation operation, CurrentTrackTarget target, long parentGeneration, String cursorId, PageNavigation.Origin pageOrigin, ControlId consume) { }
     private static final class Gesture
     {
         private boolean ready;

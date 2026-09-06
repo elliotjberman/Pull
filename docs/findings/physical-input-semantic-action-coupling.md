@@ -43,12 +43,11 @@ This removes the core-side physical navigation table. It does not yet satisfy th
 
 - The Master page now owns its encoder turns and both button rows in core, including exact
   project-identity payloads for project navigation, file actions, and absolute engine state.
-- Master now owns its complete short page replacement and long Frame gesture in core. The stable
-  binding is inert. Generic mode effects and raw mode-history observations preserve its Browser
-  edge rules and page return without selecting Bitwig's Master track. The independent finishing
-  review found stale deferred requests and shared temporary-slot ownership defects in this new
-  lifecycle; their correction is tracked in `../migrations/core-migration-review.md`. These slices
-  have passed the checkpoint's offline gate but have not been installed or verified live.
+- Master owns its complete short page replacement and long Frame gesture in core. The stable
+  binding is inert. API 46 uses `PageNavigation` for exact page/history/temporary ownership; Browser
+  edge rules and returns no longer depend on mode effects or native mode acknowledgement. The
+  prior migration review is tracked in `../migrations/core-migration-review.md`; API 46 still needs
+  its own exact-build integration and live validation.
 - Play is a core-exclusive edge with an inert stable command. Core retains the engine-owning
   project identity and emits one exact origin/target project-transport payload. Stable validates
   the live origin and owns the complete bounded tab visit, authoritative transport readback, and
@@ -74,10 +73,15 @@ This removes the core-side physical navigation table. It does not yet satisfy th
 
 - Several stable mode commands expose only coarse command-level meaning, not a payload identifying
   the exact selected track, page, device, or workspace.
-- Normal Track and VS Live now change their retained page only when a semantic page action is
-  delivered or its explicitly requested mode has later read-back. A bare `TRACK` mode read-back used to neutralize a selected-track Note route is no
-  longer misread as Mix selection. The action remains coarse, however, so the exact page still
-  comes from its post-command authoritative layout and the removal criteria remain unsatisfied.
+- Normal Track and VS Live change pages through exact core references after semantic admission.
+  Frozen legacy page commands submit a bounded, sequenced request with origin revision/token;
+  captured return references preserve arbitrary core pages. Native layout read-back no longer
+  supplies the destination or acknowledges controller-local page selection. This closes the page
+  identity portion of the finding, while the other coarse legacy action contracts remain. The
+  shell's monotonic retired request prefix bootstraps a fresh consumer independently of checkpoint
+  compatibility. Quarantine disables admission and retires outstanding requests/callback epochs;
+  this recovery mechanism carries no page-selection policy. Raw Browser activity now drives a
+  core-owned temporary-page owner instead of a stable restore callback.
 - Ordinary Track lower-row semantics intentionally capture modifiers and target at release. Their
   BEGIN action establishes a conservative parameter barrier and a bounded provisional gesture;
   END/LONG captures immutable intent even if dispatch is still delayed. Modifier consumption

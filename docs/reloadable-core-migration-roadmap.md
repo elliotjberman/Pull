@@ -51,23 +51,21 @@ In the current baseline:
   `findings/track-scoped-midi-learn-lifecycle.md`;
 - Record, Shift+Record, and Select+Record are core-owned;
 - VS Live selection and fixed-facet composition are core-owned;
-- page changes follow explicit core intent or frozen legacy semantic actions and later native mode
-  acknowledgement; incidental TRACK reconciliation during Note routing does not select a page;
-- stable adapters still realize Session grid/scene and page buttons; VS arrows and registered native
+- core owns page identity, history, temporary ownership and selection after semantic admission;
+  frozen legacy requests enter its reducer, and Note-route reconciliation cannot select a page;
+- stable adapters still realize Session grid/scene and page buttons; VS arrows and generic core
   page arrows are core-owned, while full Session over legacy pages declares its frozen arrows;
-- API 45 migrates Project Macro and Master touches/Delete/automation release, Drum octave/native
-  maps, and Session/Drum raw touch-strip gestures and output. Exact touch actuators, complete
-  translation tables, and generic strip transmission stay stable. These slices passed offline
-  package validation; their first live installation/smoke test is pending;
-- the same working API 45 migration adds full normal/VS Track menus, touches, named selected-track
-  parameters, the normal current-bank footer, Tap Tempo, and Undo/Redo. Integration validation is
-  passed in the full 685-test package run at `e3c35508`; these changes have not been installed live;
-- later API 45 slices implement Volume/Pan/Send, generic page composition, four-arrow navigation,
-  Track/Mix, Metronome/Automation, Frame/Master entry, and Accent. The package passed 838
-  tests after bounded lifecycle corrections and independent re-review. No live proof is claimed. Generic inert page registrations replace their old policy classes;
-- new snapshots include complete native mode history/temporary state, current-bank navigation,
-  controller preferences/cursor-send metadata, and native application/Arranger/Mixer UI state.
-  Classified parameter owner/domain/page/index metadata fences independent snapshot publications;
+- the API 45 migration moved Project Macro/Master touches, Delete/automation release, Drum octave
+  and native maps, raw touch-strip gestures/output, normal/VS Track, Volume/Pan/Send, global
+  navigation, Tap Tempo, Undo/Redo, Metronome/Automation, Frame/Master entry and Accent into core.
+  Its exact-build offline/live evidence is recorded in the migration smoke document; that earlier
+  evidence does not verify the working API 46 page-ownership refactor;
+- API 46 replaces per-page stable registrations and native-mode acknowledgement with a typed core
+  page catalog, local navigation, independent musical backgrounds, and one generic inert adapter.
+  Presentation models, family renderers and styling are separate from navigation;
+- current-bank navigation, controller preferences/cursor-send metadata, and native application,
+  Arranger/Mixer and browser activity are available as subscribed raw state. Classified parameter
+  owner/domain/page/index metadata fences independently sampled publications;
 - drum-grid pressure interpretation and selected-target Note routing policy are core-owned in both
   standalone and composite Drum layouts, while the permanent `NoteInput`, direct-route actuator, and MIDI
   neutralization remain stable;
@@ -113,13 +111,21 @@ The active implementation inventory and remaining inherited families are tracked
 observation is implemented, but general launcher release requires the contract decision described
 in [`migrations/session-launcher-location-design.md`](migrations/session-launcher-location-design.md).
 
-The working Core API remains 45, with checkpoint schema 5. Current capability revisions include
-bridge snapshot 13, parameter targets 4, controller output state 3, input routing 7, current-track
-effects 2, controller-mode effects 2, transport effects 4, and new controller-settings/application-UI
-effects 1. `installedModeId` declares an inert registered footprint and never itself requests a
-mode change. The core composes a finite page/background registry and waits for observed native
-mode entry before rendering that page. These mechanisms reduce avoidable shell expansions; they
-do not expose arbitrary Bitwig topology or remove pending inherited families.
+The working contract is Core API 46 and checkpoint schema 6. Capability revisions include bridge
+snapshot 14, controller output state 4, controller pages 1, parameter targets 4, input routing 7,
+current-track effects 2, transport effects 4, and controller-settings/application-UI effects 1.
+`DesiredControllerState.page` carries opaque core references and complete local page ownership;
+`DesiredControllerWorkspace` contains only fixed grid/adapter facets. `installedModeId` and native
+mode effects are no longer in the page path. `ControllerPages` declares the finite page/background
+catalog, and `ControllerPageCompositions` retains its actual grid/view instances during replacement.
+
+Frozen callers submit bounded requests to core. The shell retains a monotonic retired request
+prefix, publishes it even when pending requests are unsubscribed, and admits callbacks only while
+a healthy consumer exists. Startup rebases the prefix independently of checkpoint compatibility;
+quarantine abandons pending work and retires delayed callbacks. Raw browser activity is observed
+separately, while core owns temporary Browser entry and exact-token return. These mechanisms do
+not expose arbitrary Bitwig topology or migrate the remaining Browser/Device bodies. The final
+API 46 integration gate and exact-build live smoke remain separate from previous baseline evidence.
 
 ## State and effect primitives
 
@@ -138,7 +144,7 @@ subsequent policy changes inside that installed vertical slice are core-only.
 - Absolute tempo and arranger position.
 
 Metronome and Automation now own their global gestures and complete temporary settings pages,
-using unified Automation Write/raw mode/reset primitives, pre-roll and tick settings, and the
+using unified Automation Write/reset primitives, pre-roll and tick settings, and the
 generic page protocol. Native Tap Tempo and Undo/Redo are also migrated. Tempo, Play Position, and
 other remaining controls still need full variant audits; the presence of a transport effect alone
 is not permission to claim their exclusive inputs.
@@ -221,7 +227,7 @@ rendering.
 
 ### 2. Visible track bank and mixer
 
-API 45 supplies an eight-slot `CurrentTrackBankSnapshot` independently of the Session bank, using
+The working API 46 canopy supplies an eight-slot `CurrentTrackBankSnapshot` independently of the Session bank, using
 the two initialized main-bank windows and one effect bank. It observes exact row identities,
 colors, group state and VU, and supports typed exact selection, duplication, removal, arm/expansion,
 selected-group entry, and cursor-parent navigation. A separate navigation generation fences track
@@ -286,7 +292,7 @@ bounded clip/session capability rather than remain a parallel feature-shaped API
 
 ### 4. Complete parameter-view migration and output
 
-Core API 45 installs named active-compatibility, project/device remote, selected-track/send,
+Core API 46 includes named active-compatibility, project/device remote, selected-track/send,
 visible-track volume/pan/eight send columns, Master/Cue, and global parameter banks. Snapshots contain opaque actuator
 identity, classified semantic owner/domain/page/index, name/value/display metadata, and optional
 enabled state. Stable applies exact fenced absolute, relative, reset, enabled, and touch operations.
@@ -298,7 +304,8 @@ complete desired leases remain replayable. Cleanup cannot release a replacement 
 external mutable-proxy rebind.
 
 Migrate remaining device and other parameter pages against reusable named banks and complete
-inert installed page declarations. Their display scenes already have a generic output transport.
+typed core page declarations through the generic inert adapter. Their display scenes already have
+a generic output transport.
 Delete ACTIVE and remaining physical parameter providers only when all their consumers migrate.
 The shell keeps exact actuation and lifecycle validation; core owns mappings, gestures, menus,
 response curves, copy, geometry, and output policy.
@@ -356,8 +363,9 @@ values remain eagerly interested. Exact project/layout contexts fence typed layo
 absolute observed-flag setters, and six unobservable native panel toggles. Core owns option policy
 and later-readback feedback; a toggle submission does not invent visibility.
 
-Still add bounded browser, add-track/device/effect, duplicate/delete/double/convert, and other
-application capabilities as their complete controls migrate. Existing selected-track/current-bank
+Raw browser activity is installed, and its temporary page lifecycle is core-owned. Browser search,
+selection, commit/cancel, add-track/device/effect, duplicate/delete/double/convert, and other
+application capabilities still need complete control migrations. Existing selected-track/current-bank
 operations cover only their declared target scopes. Generic UI actions are not an arbitrary action
 string or raw callback escape hatch.
 
@@ -425,8 +433,7 @@ mistaken for the final architecture:
 - `ControllerWorkspaceHost`;
 - `WorkspaceFacetAdapter`;
 - `WorkspaceView`;
-- `WorkspaceMode`;
-- legacy `Views.WORKSPACE` and `Modes.WORKSPACE` realization;
+- legacy `Views.WORKSPACE` realization and frozen `Modes` aliases required by unmigrated callers;
 - the fixed-facet `DesiredControllerWorkspace` compatibility protocol once core owns the complete
   underlying input/output behavior;
 - feature-shaped `desiredClipBindings` fields once a generic bounded session interaction API exists;
@@ -475,13 +482,13 @@ may land a bounded generic output lane early when it is reusable and completes o
 ### Phase 2: Common performance capabilities
 
 The common current-bank, exact touch, native-map, raw-strip, generic page, controller-settings,
-and application-UI capabilities are installed in the working API 45 tree. Current package validation
+and application-UI capabilities are installed in the working API 46 tree. Current package validation
 and live activation remain separate gates. Their shared consumers include Project/Master/Track,
 Volume/Pan, Drum octave/strip, Track/Mix, Metronome/Automation, and Frame/Master entry.
 
 Next complete the Session release contract and grid/scene effects, then remaining parameter-bank
-contexts and their complete pages. `WorkspaceMode` is inert; `WorkspaceView` still carries Session
-grid/scene debt. Do not mark all Drum, Note, or configuration behavior migrated merely because
+contexts and their complete pages. `WorkspaceMode` has been deleted in favor of the generic
+`CorePageMode`; `WorkspaceView` still carries Session grid/scene debt. Do not mark all Drum, Note, or configuration behavior migrated merely because
 current Drum octave/native mapping and pressure/strip slices are core-owned.
 
 ### Phase 3: Complete vertical migrations

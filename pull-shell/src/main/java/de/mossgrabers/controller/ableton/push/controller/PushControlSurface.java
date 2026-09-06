@@ -352,6 +352,7 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
     private final PushPadGrid                 pushPadGrid;
     private final ReloadableControllerRuntime reloadableRuntime;
     private final ControllerWorkspaceHost      controllerWorkspaceHost;
+    private final PushControllerPageManager pageManager = new PushControllerPageManager ();
     private final PushDebugSurfaceHost         debugSurfaceHost;
     private SessionBankRegistry                 sessionBankRegistry;
     private final ISelectedTrackNoteTarget    selectedTrackNoteTarget;
@@ -425,6 +426,11 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
 
         this.input.setSysexCallback (this::handleSysEx);
     }
+
+
+    /** Every legacy page caller observes the core projection through this facade. */
+    @Override
+    public PushControllerPageManager getModeManager () { return this.pageManager; }
 
 
     /** Mirror successful button-light transmissions into the opt-in local debugger. */

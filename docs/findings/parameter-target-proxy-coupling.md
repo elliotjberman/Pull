@@ -82,7 +82,8 @@ view should remove the binding, not redefine the target retained by an independe
 
 ## Current Mitigation
 
-Core API 45 separates physical controls from a named bounded parameter canopy. Stable can publish
+The working Core API 46 retains the named bounded parameter canopy introduced in API 45,
+separating physical controls from sampled target slots. Stable can publish
 the inherited active encoder window, project remotes, the selected-device remote page, visible-track
 volume, pan and eight send columns, selected-track volume/pan/eight sends, the project-scoped Master/Cue page, and fixed globals. A slot contains an opaque target identity/generation, name, raw
 and modulated values, authoritative display text, step count, and tolerance; it never uses a Push
@@ -94,9 +95,9 @@ Bitwig retains the same Java parameter wrapper while switching project tabs, sta
 old live target and publishes a new generation before accepting another mutation.
 
 `ProjectMacroControlsView` proves the intended mutation direction: it owns the eight relative
-encoder routes in core and emits typed relative effects against `PROJECT_REMOTE` targets. Stable's
-`WorkspaceMode` no longer mutates or binds those encoders and no longer owns parameter-body display
-policy. API 45 also moves Project/Master/Track touch, Delete reset, and configured automation-release
+encoder routes in core and emits typed relative effects against `PROJECT_REMOTE` targets. The old
+`WorkspaceMode` has been deleted; one generic `CorePageMode` supplies inert physical bindings for
+all core page IDs, including IDs unknown to the shell. API 45 also moves Project/Master/Track touch, Delete reset, and configured automation-release
 policy into core, with complete desired touch leases and core-owned display output. Project remote
 owners now use project identity rather than display names. The inherited `ACTIVE`
 bank remains explicit compatibility scaffolding for unmigrated
@@ -113,8 +114,8 @@ physical encoder bindings. Publication and mutation fence the actual selected cu
 private selected-track channel ID/generation, project identity, and parameter role. The core owns
 normal/fine response curves, pan center detent, send paging, and enabled toggles. Dynamic parameter
 slot maps may select only each view's predeclared controls and banks. TrackMode's former provider
-and ACTIVE identity recipe are deleted; an accidental physical Track binding is excluded rather
-than treated as an actuator. Unaligned or absent selected-track windows publish no named targets.
+and ACTIVE identity recipe are deleted; accidental physical bindings under any generic CORE page
+are excluded rather than treated as actuators. Unaligned or absent selected-track windows publish no named targets.
 
 Global Volume/Pan additionally publish the existing classifier's value-only domain, owner, page,
 and role index. These named current-bank targets require the same bank to remain current for new
@@ -180,7 +181,7 @@ The design must distinguish:
 Each bounded bank or lease pool must document its capacity, identity and generation rules,
 selection scope, and behavior when capacity is exhausted.
 
-The API 45 working canopy now includes eight current-track send columns of eight targets each.
+The working API 46 canopy includes eight current-track send columns of eight targets each.
 It reuses the initialized track send banks and samples only requested columns. Each target carries
 its exact channel-send owner and absolute send position; ordinary writes also require the captured
 bank to remain current. Core joins the target's owner to the authoritative current-bank row before

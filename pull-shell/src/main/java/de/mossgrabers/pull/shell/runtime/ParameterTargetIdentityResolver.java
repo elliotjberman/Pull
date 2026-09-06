@@ -12,7 +12,6 @@ import de.mossgrabers.framework.daw.data.ICursorTrack;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.IBank;
 import de.mossgrabers.framework.daw.data.bank.IParameterBank;
-import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.parameter.IParameter;
 
 import java.util.Objects;
@@ -42,8 +41,8 @@ final class ParameterTargetIdentityResolver
         Objects.requireNonNull (parameter, "parameter");
 
         final ICursorTrack cursorTrack = this.model.getCursorTrack ();
-        if (this.surface.getModeManager ().getActiveID () == Modes.TRACK)
-            return null; // Track uses named banks; its permanent physical parameter binding is inert.
+        if (this.surface.getModeManager ().pageState ().effectivePage ().kind () == de.mossgrabers.pull.core.api.ControllerPageRef.Kind.CORE)
+            return null; // Core pages use named banks; their generic physical parameter binding is inert.
 
         TargetIdentity identity = this.remoteParameter ("project-remote", this.model.getProject ().getIdentity (), this.model.getProject ().getParameterBank (), parameter);
         if (identity != null)

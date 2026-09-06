@@ -134,7 +134,7 @@ class FramePageViewTest
         }
         assertTrue (fixture.edge (false, 0, InputPhase.LONG).effects ().isEmpty ());
         final CoreResult rendered = fixture.tick ();
-        assertEquals ("FRAME", rendered.desiredControllerState ().workspace ().installedModeId ());
+        assertTrue (rendered.desiredControllerState ().workspace ().facets ().isEmpty (), "page rendering needs no stable workspace registration");
         assertEquals (16, rendered.desiredOutput ().lights ().size ());
         assertEquals (960, rendered.desiredOutput ().display ().width ());
         assertEquals (160, rendered.desiredOutput ().display ().height ());

@@ -27,7 +27,7 @@ class SendMixerControlsViewTest
         {
             final Fixture f = new Fixture (send);
             final var result = f.workspace.activate (f.snapshot ());
-            assertEquals ("SEND" + (send + 1), result.desiredControllerState ().workspace ().installedModeId ());
+            assertEquals ("SEND" + (send + 1), f.pages.legacyAlias ());
             assertEquals (Set.of (ParameterBankId.trackSend (send)), result.desiredParameterBanks ().banks ());
             assertEquals (16, result.desiredOutput ().lights ().size ());
             assertEquals (143, f.view.render (f.snapshot ()).display ().height ());
@@ -70,14 +70,18 @@ class SendMixerControlsViewTest
         f.missing.add (0);
         f.writing = true;
         f.pressed = Set.of (DELETE, SHIFT, SELECT);
-        assertEquals (List.of (new ConsumeControllerButtonEffect (DELETE), new ConsumeControllerButtonEffect (SELECT)), f.touch (0, InputPhase.BEGIN).effects ());
-        assertTrue (f.workspace.activate (f.snapshot ()).desiredParameterTouches ().targets ().isEmpty ());
-        final var next = CompiledWorkspace.compile ("replacement-page", List.of (f.release));
-        f.workspace.deactivateExcept (next);
+        final var router = new de.mossgrabers.pull.core.view.InputGestureRouter ();
+        f.touched.add (knob (0));
+        final var begin = router.capture (f.input (knob (0), InputKind.TOUCH, InputPhase.BEGIN, 127), f.workspace);
+        assertEquals (List.of (new ConsumeControllerButtonEffect (DELETE), new ConsumeControllerButtonEffect (SELECT)), router.dispatch (begin, f.snapshot ()));
+        router.finish (begin, f.workspace);
+        final var next = CompiledWorkspace.compile ("replacement-page", List.of ());
+        router.transition (f.workspace, next);
         next.start (f.snapshot ());
         f.touched.clear ();
-        final var result = next.handle (f.input (knob (0), InputKind.TOUCH, InputPhase.END, 0), f.snapshot ());
-        assertEquals (List.of (new SetAutomationWriteEffect ("project-a", false)), result.effects ());
+        final var end = router.capture (f.input (knob (0), InputKind.TOUCH, InputPhase.END, 0), next);
+        assertEquals (List.of (new SetAutomationWriteEffect ("project-a", false)), router.dispatch (end, f.snapshot ()));
+        router.finish (end, next);
     }
 
     @Test
@@ -169,8 +173,8 @@ class SendMixerControlsViewTest
             final var input = f.input (PushControlIds.button ("ROW2_5"), InputKind.BUTTON, InputPhase.BEGIN, 127);
             final var action = f.workspace.resolveAction (input, f.snapshot ());
             f.menuOffset = 0;
-            if (changeLayout) f.layoutGeneration++;
-            assertEquals (changeLayout ? List.of () : List.of (new SetControllerModeSettingEffect (SetControllerModeSettingEffect.Setting.GLOBAL_MIX_MODE, "SEND6"), new SelectControllerModeEffect (1, "SEND6")), f.workspace.dispatchAction (action, f.snapshot ()));
+            if (changeLayout) f.pages.select (f.pages.resolve ("FRAME"));
+            assertEquals (changeLayout ? List.of () : List.of (new SetControllerModeSettingEffect (SetControllerModeSettingEffect.Setting.GLOBAL_MIX_MODE, "SEND6")), f.workspace.dispatchAction (action, f.snapshot ()));
             assertEquals (new RgbColor (255, 255, 255), f.workspace.activate (f.snapshot ()).desiredOutput ().lights ().get (PushControlIds.button ("ROW2_7")));
         }
     }
@@ -180,10 +184,10 @@ class SendMixerControlsViewTest
 
     private static final class Fixture
     {
+        private final PageNavigation pages = PageNavigation.defaults ();
         private final int sendIndex;
         private final ParameterTouchSession session = new ParameterTouchSession ();
         private final GlobalMixerControlsView view;
-        private final RetainedControllerView release = new RetainedControllerView (new ParameterTouchReleaseView (this.session));
         private final CompiledWorkspace workspace;
         private final Set<Integer> missing = new HashSet<> ();
         private final Set<ControlId> touched = new HashSet<> ();
@@ -200,8 +204,9 @@ class SendMixerControlsViewTest
         private Fixture (final int sendIndex)
         {
             this.sendIndex = sendIndex;
-            this.view = GlobalMixerControlsView.send (sendIndex, this.session);
-            this.workspace = CompiledWorkspace.compile ("send", List.of (this.view, new CurrentTrackFooterView (), this.release));
+            this.view = GlobalMixerControlsView.send (sendIndex, this.session, this.pages);
+            this.pages.select (this.pages.resolve ("SEND" + (sendIndex + 1)));
+            this.workspace = CompiledWorkspace.compile ("send", List.of (this.view, new CurrentTrackFooterView ()));
             this.workspace.start (this.snapshot ());
         }
         private ParameterTargetRef target (final int track) { return new ParameterTargetRef (ParameterTargetKind.LIVE, "send-" + this.sendIndex + "-track-" + track, this.targetEpoch); }

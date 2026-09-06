@@ -3,10 +3,11 @@
 
 package de.mossgrabers.pull.core.runtime.view;
 
+import de.mossgrabers.pull.core.ui.page.MacroPageRenderer;
+
 import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
-import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.DesiredControllerMappings;
 import de.mossgrabers.pull.core.api.DesiredNotePerformance;
 import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
@@ -47,7 +48,7 @@ public final class ProjectMacroControlsView implements ControllerView
             new SurfaceClaim (SurfaceArea.ENCODER_TURNS, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
             new SurfaceClaim (SurfaceArea.ENCODER_TOUCHES, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
             new SurfaceClaim (SurfaceArea.DISPLAY_PARAMETERS, SurfaceClaim.Kind.OUTPUT)),
-        Set.of (ControllerViewFacet.PROJECT_MACRO_CONTROLS));
+        Set.of ());
 
 
     public ProjectMacroControlsView ()
@@ -71,13 +72,6 @@ public final class ProjectMacroControlsView implements ControllerView
 
 
     /** {@inheritDoc} */
-    @Override
-    public String installedModeId ()
-    {
-        return "WORKSPACE";
-    }
-
-
     @Override
     public ViewProfile profile ()
     {
@@ -152,18 +146,24 @@ public final class ProjectMacroControlsView implements ControllerView
 
 
     @Override
+    public de.mossgrabers.pull.core.api.DesiredParameterTouches parameterTouches (final ControllerSnapshot snapshot)
+    {
+        return this.touches.desired ();
+    }
+
+
+    @Override
     public ViewOutput render (final ControllerSnapshot snapshot)
     {
         return new ViewOutput (
             Map.of (),
             Map.of (),
-            ProjectMacroDisplayScene.render (ParameterAlignment.targets (snapshot), snapshot.touchedControls ()),
+            MacroPageRenderer.render (MixerPageProjections.macros (snapshot)),
             ControllerPadGridOverlay.inactive (),
             ControllerDisplayOverlay.inactive (),
             DesiredNotePerformance.inactive (),
             DesiredNoteRepeat.unowned (),
-            DesiredControllerMappings.empty (),
-            this.touches.desired ());
+            DesiredControllerMappings.empty ());
     }
 
 

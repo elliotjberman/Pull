@@ -8,6 +8,7 @@ import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerActionBinding;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.CoreExecutionRequirements;
+import de.mossgrabers.pull.core.api.DesiredParameterTouches;
 import de.mossgrabers.pull.core.api.ParameterBankId;
 import de.mossgrabers.pull.core.api.ParameterSlot;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
@@ -49,13 +50,6 @@ public final class RetainedControllerView implements ControllerView
     public ViewProfile profile ()
     {
         return this.delegate.profile ();
-    }
-
-
-    @Override
-    public String installedModeId ()
-    {
-        return this.delegate.installedModeId ();
     }
 
 
@@ -132,6 +126,13 @@ public final class RetainedControllerView implements ControllerView
     public ResolvedControllerAction resolveAction (final ControllerActionBinding binding, final ControllerInputEvent input, final ControllerSnapshot snapshot)
     {
         return this.delegate.resolveAction (binding, input, snapshot);
+    }
+
+
+    @Override
+    public DesiredParameterTouches parameterTouches (final ControllerSnapshot snapshot)
+    {
+        return this.delegate.parameterTouches (snapshot);
     }
 
 

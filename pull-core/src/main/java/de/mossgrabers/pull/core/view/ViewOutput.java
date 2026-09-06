@@ -8,7 +8,6 @@ import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.DesiredControllerMappings;
 import de.mossgrabers.pull.core.api.DesiredNotePerformance;
 import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
-import de.mossgrabers.pull.core.api.DesiredParameterTouches;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.api.output.DesiredTouchStrip;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
@@ -30,11 +29,10 @@ import java.util.Objects;
  * @param displayOverlay Temporary overlay composed above the current display page
  * @param notePerformance Complete replayable Note layout and selected-track routing lifecycle
  * @param noteRepeat Complete replayable note-repeat ownership and state
- * @param parameterTouches Complete replayable exact-target automation touches
  * @param controllerMappings Physical-to-semantic host-learned action projections
  * @param touchStrip Complete replayable touch-strip hardware output
  */
-public record ViewOutput (Map<ControlId, RgbColor> lights, Map<ControlId, ClipTargetId> clipBindings, ControllerDisplayScene display, ControllerPadGridOverlay padGridOverlay, ControllerDisplayOverlay displayOverlay, DesiredNotePerformance notePerformance, DesiredNoteRepeat noteRepeat, DesiredControllerMappings controllerMappings, DesiredParameterTouches parameterTouches, DesiredTouchStrip touchStrip)
+public record ViewOutput (Map<ControlId, RgbColor> lights, Map<ControlId, ClipTargetId> clipBindings, ControllerDisplayScene display, ControllerPadGridOverlay padGridOverlay, ControllerDisplayOverlay displayOverlay, DesiredNotePerformance notePerformance, DesiredNoteRepeat noteRepeat, DesiredControllerMappings controllerMappings, DesiredTouchStrip touchStrip)
 {
     private static final ViewOutput EMPTY = new ViewOutput (Map.of (), Map.of (), ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), DesiredNotePerformance.inactive (), DesiredNoteRepeat.unowned (), DesiredControllerMappings.empty ());
 
@@ -52,22 +50,14 @@ public record ViewOutput (Map<ControlId, RgbColor> lights, Map<ControlId, ClipTa
         notePerformance = Objects.requireNonNull (notePerformance, "notePerformance");
         noteRepeat = Objects.requireNonNull (noteRepeat, "noteRepeat");
         controllerMappings = Objects.requireNonNull (controllerMappings, "controllerMappings");
-        parameterTouches = Objects.requireNonNull (parameterTouches, "parameterTouches");
         touchStrip = Objects.requireNonNull (touchStrip, "touchStrip");
     }
 
 
-    /** Compatibility constructor without touch-strip ownership. */
-    public ViewOutput (final Map<ControlId, RgbColor> lights, final Map<ControlId, ClipTargetId> clipBindings, final ControllerDisplayScene display, final ControllerPadGridOverlay padGridOverlay, final ControllerDisplayOverlay displayOverlay, final DesiredNotePerformance notePerformance, final DesiredNoteRepeat noteRepeat, final DesiredControllerMappings controllerMappings, final DesiredParameterTouches parameterTouches)
-    {
-        this (lights, clipBindings, display, padGridOverlay, displayOverlay, notePerformance, noteRepeat, controllerMappings, parameterTouches, DesiredTouchStrip.unowned ());
-    }
-
-
-    /** Compatibility constructor without parameter touch ownership. */
+    /** Constructor without touch-strip ownership. */
     public ViewOutput (final Map<ControlId, RgbColor> lights, final Map<ControlId, ClipTargetId> clipBindings, final ControllerDisplayScene display, final ControllerPadGridOverlay padGridOverlay, final ControllerDisplayOverlay displayOverlay, final DesiredNotePerformance notePerformance, final DesiredNoteRepeat noteRepeat, final DesiredControllerMappings controllerMappings)
     {
-        this (lights, clipBindings, display, padGridOverlay, displayOverlay, notePerformance, noteRepeat, controllerMappings, DesiredParameterTouches.empty ());
+        this (lights, clipBindings, display, padGridOverlay, displayOverlay, notePerformance, noteRepeat, controllerMappings, DesiredTouchStrip.unowned ());
     }
 
 

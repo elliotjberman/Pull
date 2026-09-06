@@ -23,20 +23,22 @@ class TransportSettingsViewsTest
     @Test
     void metronomeLongConsumesItsReleaseAndALaterTapRestoresTheLatchedPage ()
     {
-        final Fixture f = new Fixture (new MetronomeControlView ());
+        final Fixture f = new Fixture (pages -> List.of (new MetronomeControlView (new AuthoritativeBooleanToggle<> (), pages)));
         f.edge ("METRONOME", InputPhase.BEGIN);
-        assertEquals (List.of (new SelectControllerModeEffect (1, "TRANSPORT", SelectControllerModeEffect.Operation.TEMPORARY)), f.edge ("METRONOME", InputPhase.LONG).effects ());
+        assertTrue (f.edge ("METRONOME", InputPhase.LONG).effects ().isEmpty ());
+        assertEquals ("TRANSPORT", f.navigation.legacyAlias ());
         f.mode = "TRANSPORT";
         f.generation++;
         assertTrue (f.edge ("METRONOME", InputPhase.END).effects ().isEmpty ());
         f.edge ("METRONOME", InputPhase.BEGIN);
-        assertEquals (List.of (SelectControllerModeEffect.restore (2)), f.edge ("METRONOME", InputPhase.END).effects ());
+        assertTrue (f.edge ("METRONOME", InputPhase.END).effects ().isEmpty ());
+        assertEquals ("TRACK", f.navigation.legacyAlias ());
     }
 
     @Test
     void metronomeModifiersAreReadAtReleaseAndTogglesWaitForReadback ()
     {
-        final Fixture f = new Fixture (new MetronomeControlView ());
+        final Fixture f = new Fixture (pages -> List.of (new MetronomeControlView (new AuthoritativeBooleanToggle<> (), pages)));
         f.edge ("METRONOME", InputPhase.BEGIN);
         f.pressed.add (PushControlIds.button ("SHIFT"));
         assertTrue (f.edge ("METRONOME", InputPhase.LONG).effects ().isEmpty ());
@@ -58,7 +60,7 @@ class TransportSettingsViewsTest
     void tapAndMetronomeShareOneAuthoritativeToggleLane ()
     {
         final AuthoritativeBooleanToggle<String> lane = new AuthoritativeBooleanToggle<> ();
-        final Fixture f = new Fixture (new TapTempoView (lane), new MetronomeControlView (lane));
+        final Fixture f = new Fixture (pages -> List.of (new TapTempoView (lane), new MetronomeControlView (lane, pages)));
         f.pressed.add (PushControlIds.button ("SHIFT"));
         f.edge ("TAP_TEMPO", InputPhase.BEGIN);
         assertEquals (1, f.edge ("TAP_TEMPO", InputPhase.END).effects ().size ());
@@ -70,16 +72,18 @@ class TransportSettingsViewsTest
     }
 
     @Test
-    void automationLongReleaseWaitsForModeObservationAndPreservesDeleteSuppression ()
+    void automationLongReleaseReturnsLocallyAndPreservesDeleteSuppression ()
     {
-        final Fixture f = new Fixture (new AutomationControlView ());
+        final Fixture f = new Fixture (pages -> List.of (new AutomationControlView (new AutomationControlState (), pages)));
         f.edge ("AUTOMATION", InputPhase.BEGIN);
-        assertEquals (List.of (new SelectControllerModeEffect (1, "AUTOMATION", SelectControllerModeEffect.Operation.TEMPORARY)), f.edge ("AUTOMATION", InputPhase.LONG).effects ());
+        assertTrue (f.edge ("AUTOMATION", InputPhase.LONG).effects ().isEmpty ());
+        assertEquals ("AUTOMATION", f.navigation.legacyAlias ());
         assertTrue (f.edge ("AUTOMATION", InputPhase.END).effects ().isEmpty ());
         f.mode = "AUTOMATION";
         f.temporary = true;
         f.generation++;
-        assertEquals (List.of (SelectControllerModeEffect.restore (2)), f.tick ().effects ());
+        assertTrue (f.tick ().effects ().isEmpty ());
+        assertEquals ("TRACK", f.navigation.legacyAlias ());
         f.edge ("AUTOMATION", InputPhase.BEGIN);
         f.edge ("AUTOMATION", InputPhase.LONG);
         f.pressed.add (PushControlIds.button ("DELETE"));
@@ -90,40 +94,26 @@ class TransportSettingsViewsTest
     }
 
     @Test
-    void automationReturnRequiresTheActualTemporaryPageAndDropsAnUnacknowledgedReturn ()
+    void automationReturnCannotDismissAnInterveningTemporaryOwner ()
     {
-        final Fixture f = new Fixture (new AutomationControlView ());
+        final Fixture f = new Fixture (pages -> List.of (new AutomationControlView (new AutomationControlState (), pages)));
         f.edge ("AUTOMATION", InputPhase.BEGIN);
         f.edge ("AUTOMATION", InputPhase.LONG);
+        final long replacement = f.navigation.temporary (f.navigation.origin (), f.navigation.resolve ("PAN"));
         assertTrue (f.edge ("AUTOMATION", InputPhase.END).effects ().isEmpty ());
-        f.mode = "PAN";
-        f.generation++;
-        assertTrue (f.tick ().effects ().isEmpty (), "an unrelated generation change is not entry acknowledgement");
+        assertEquals (replacement, f.navigation.state ().temporaryToken ());
+        assertEquals ("PAN", f.navigation.legacyAlias ());
         f.mode = "AUTOMATION";
-        f.generation++;
-        assertTrue (f.tick ().effects ().isEmpty (), "the ordinary page is not the requested temporary slot");
         f.temporary = true;
         f.generation++;
-        assertEquals (List.of (SelectControllerModeEffect.restore (4)), f.tick ().effects ());
-
-        f.mode = "TRACK";
-        f.temporary = false;
-        f.generation++;
-        f.edge ("AUTOMATION", InputPhase.BEGIN);
-        f.edge ("AUTOMATION", InputPhase.LONG);
-        f.edge ("AUTOMATION", InputPhase.END);
-        f.sequence += 5_000_000_000L;
         assertTrue (f.tick ().effects ().isEmpty ());
-        f.mode = "AUTOMATION";
-        f.temporary = true;
-        f.generation++;
-        assertTrue (f.tick ().effects ().isEmpty (), "late unrelated entry cannot revive an expired return");
+        assertEquals ("PAN", f.navigation.legacyAlias (), "stale shell layout is not page ownership");
     }
 
     @Test
     void automationShiftChangesLightButUsesTheSameWriteActuator ()
     {
-        final Fixture f = new Fixture (new AutomationControlView ());
+        final Fixture f = new Fixture (pages -> List.of (new AutomationControlView (new AutomationControlState (), pages)));
         f.edge ("AUTOMATION", InputPhase.BEGIN);
         f.pressed.add (PushControlIds.button ("SHIFT"));
         final CoreResult release = f.edge ("AUTOMATION", InputPhase.END);
@@ -139,7 +129,7 @@ class TransportSettingsViewsTest
     void automationPageWaitsForRawModeBeforeEnablingWriteAndReadCancelsQueuedEnable ()
     {
         final AutomationControlState state = new AutomationControlState ();
-        final Fixture f = new Fixture (new AutomationControlView (state), new TransportSettingsPageView (true, state));
+        final Fixture f = new Fixture (pages -> List.of (new AutomationControlView (state, pages), new TransportSettingsPageView (true, state)));
         f.edge ("ROW1_3", InputPhase.BEGIN);
         final CoreResult mode = f.edge ("ROW1_3", InputPhase.END);
         assertEquals (List.of (new SetAutomationModeEffect ("project-a", AutomationWriteMode.TOUCH)), mode.effects ());
@@ -179,7 +169,7 @@ class TransportSettingsViewsTest
     void completeMetronomePageOwnsFooterAndOnlyItsDeclaredKnobAndChoicesAct ()
     {
         final Fixture f = new Fixture (new TransportSettingsPageView (false, new AutomationControlState ()));
-        assertEquals ("TRANSPORT", f.initial.desiredControllerState ().workspace ().installedModeId ());
+        assertTrue (f.initial.desiredControllerState ().workspace ().facets ().isEmpty (), "the page is independent of stable workspace registration");
         assertEquals (16, f.initial.desiredOutput ().lights ().size ());
         assertTrue (f.initial.desiredOutput ().display ().isPresent ());
         assertEquals (ParameterSlot.METRONOME_VOLUME, f.workspace.parameterSlotOrNull (PushControlIds.continuous ("KNOB8")));
@@ -200,7 +190,7 @@ class TransportSettingsViewsTest
     {
         for (final boolean automation: List.of (false, true))
         {
-            final Fixture f = new Fixture (automation ? new AutomationControlView () : new MetronomeControlView ());
+            final Fixture f = new Fixture (pages -> List.of (automation ? new AutomationControlView (new AutomationControlState (), pages) : new MetronomeControlView (new AuthoritativeBooleanToggle<> (), pages)));
             final String button = automation ? "AUTOMATION" : "METRONOME";
             final String page = automation ? "AUTOMATION" : "TRANSPORT";
             final var action = f.resolve (button);
@@ -208,19 +198,21 @@ class TransportSettingsViewsTest
             assertEquals (Set.of (ControllerStateScope.ACTIVE_PARAMETERS), action.intent ().invalidates ());
             assertTrue (f.edge (button, InputPhase.LONG).effects ().isEmpty ());
             assertTrue (f.edge (button, InputPhase.END).effects ().isEmpty ());
-            assertEquals (List.of (new SelectControllerModeEffect (1, page, SelectControllerModeEffect.Operation.TEMPORARY)), f.dispatch (action).effects ());
+            assertTrue (f.dispatch (action).effects ().isEmpty ());
+            assertEquals (automation ? "TRACK" : page, f.navigation.legacyAlias ());
             assertTrue (f.tick ().effects ().isEmpty ());
             f.mode = page;
             f.temporary = true;
             f.generation++;
-            assertEquals (automation ? List.of (SelectControllerModeEffect.restore (2)) : List.of (), f.tick ().effects ());
+            assertTrue (f.tick ().effects ().isEmpty ());
+            assertEquals (automation ? "TRACK" : page, f.navigation.legacyAlias ());
         }
     }
 
     @Test
     void deferredMetronomeReleaseKeepsItsModifierAndProjectDecision ()
     {
-        final Fixture f = new Fixture (new MetronomeControlView ());
+        final Fixture f = new Fixture (pages -> List.of (new MetronomeControlView (new AuthoritativeBooleanToggle<> (), pages)));
         final var action = f.resolve ("METRONOME");
         f.pressed.add (PushControlIds.button ("SHIFT"));
         f.edge ("METRONOME", InputPhase.END);
@@ -235,7 +227,7 @@ class TransportSettingsViewsTest
     @Test
     void deleteConsumptionPrecedesAdmissionWhileItsResetWaitsAndLaterEdgesStillConsume ()
     {
-        final Fixture f = new Fixture (new AutomationControlView ());
+        final Fixture f = new Fixture (pages -> List.of (new AutomationControlView (new AutomationControlState (), pages)));
         final var delete = PushControlIds.button ("DELETE");
         f.pressed.add (delete);
         final var action = f.resolve ("AUTOMATION");
@@ -248,16 +240,17 @@ class TransportSettingsViewsTest
     }
 
     @Test
-    void deferredEntryAlreadyOnAutomationStillRequiresALaterSampleAfterActualSubmission ()
+    void deferredEntryAndReturnCompleteAtAdmissionWithoutAHostPageAcknowledgement ()
     {
-        final Fixture f = new Fixture (new AutomationControlView ());
+        final Fixture f = new Fixture (pages -> List.of (new AutomationControlView (new AutomationControlState (), pages)));
         f.mode = "AUTOMATION";
         f.temporary = true;
         final var action = f.resolve ("AUTOMATION");
         f.edge ("AUTOMATION", InputPhase.LONG);
         f.edge ("AUTOMATION", InputPhase.END);
-        assertEquals (List.of (new SelectControllerModeEffect (1, "AUTOMATION", SelectControllerModeEffect.Operation.TEMPORARY)), f.dispatch (action).effects ());
-        assertEquals (List.of (SelectControllerModeEffect.restore (1)), f.tick ().effects ());
+        assertTrue (f.dispatch (action).effects ().isEmpty ());
+        assertEquals ("TRACK", f.navigation.legacyAlias ());
+        assertTrue (f.tick ().effects ().isEmpty ());
     }
 
     @Test
@@ -265,7 +258,7 @@ class TransportSettingsViewsTest
     {
         for (final boolean observeBeforeSecondPress: List.of (false, true))
         {
-            final Fixture f = new Fixture (new AutomationControlView ());
+            final Fixture f = new Fixture (pages -> List.of (new AutomationControlView (new AutomationControlState (), pages)));
             final ControlId delete = PushControlIds.button ("DELETE");
             f.edge ("AUTOMATION", InputPhase.BEGIN);
             f.edge ("AUTOMATION", InputPhase.LONG);
@@ -278,6 +271,7 @@ class TransportSettingsViewsTest
                 f.generation++;
                 assertTrue (f.tick ().effects ().isEmpty ());
                 f.mode = "PAN";
+                f.navigation.select (f.navigation.resolve ("PAN"));
                 f.generation++;
                 f.tick ();
             }
@@ -285,14 +279,18 @@ class TransportSettingsViewsTest
             f.pressed.remove (delete);
             final CoreResult release = f.edge ("AUTOMATION", InputPhase.END);
             if (observeBeforeSecondPress)
+            {
                 assertTrue (release.effects ().isEmpty (), "an intervening page retired the prior slot");
+                assertEquals ("PAN", f.navigation.legacyAlias ());
+            }
             else
             {
                 assertTrue (release.effects ().isEmpty ());
                 f.mode = "AUTOMATION";
                 f.temporary = true;
                 f.generation++;
-                assertEquals (List.of (SelectControllerModeEffect.restore (2)), f.tick ().effects ());
+                assertTrue (f.tick ().effects ().isEmpty ());
+                assertEquals ("TRACK", f.navigation.legacyAlias ());
             }
         }
     }
@@ -300,7 +298,7 @@ class TransportSettingsViewsTest
     @Test
     void deferredGestureCapacityIsBoundedAndRetirementReleasesCapacity ()
     {
-        final Fixture f = new Fixture (new MetronomeControlView ());
+        final Fixture f = new Fixture (pages -> List.of (new MetronomeControlView (new AuthoritativeBooleanToggle<> (), pages)));
         final java.util.ArrayList<ResolvedControllerAction> actions = new java.util.ArrayList<> ();
         for (int index = 0; index <= DesiredParameterInteraction.PENDING_ACTION_CAPACITY; index++)
         {
@@ -329,6 +327,7 @@ class TransportSettingsViewsTest
 
     private static final class Fixture
     {
+        private final PageNavigation navigation = PageNavigation.defaults ();
         private final CompiledWorkspace workspace;
         private final Set<ControlId> pressed = new HashSet<> ();
         private long sequence;
@@ -342,7 +341,8 @@ class TransportSettingsViewsTest
         private AutomationWriteMode automationMode = AutomationWriteMode.LATCH;
         private Map<ParameterSlot, ParameterTargetSnapshot> parameters = Map.of ();
         private final CoreResult initial;
-        private Fixture (final ControllerView... views) { this.workspace = CompiledWorkspace.compile ("test", List.of (views)); this.initial = this.workspace.start (this.snapshot ()); }
+        private Fixture (final ControllerView... views) { this (pages -> List.of (views)); }
+        private Fixture (final java.util.function.Function<ControllerPageTransitions, List<ControllerView>> factory) { this.workspace = CompiledWorkspace.compile ("test", factory.apply (new ControllerPageTransitions (this.navigation))); this.initial = this.workspace.start (this.snapshot ()); }
         private CoreResult edge (final String button, final InputPhase phase)
         {
             final ControlId id = PushControlIds.button (button);

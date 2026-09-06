@@ -7,7 +7,7 @@ import de.mossgrabers.controller.ableton.push.command.trigger.PushCursorCommand;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.mode.device.UserMode;
-import de.mossgrabers.controller.ableton.push.mode.device.WorkspaceMode;
+import de.mossgrabers.controller.ableton.push.mode.CorePageMode;
 import de.mossgrabers.controller.ableton.push.workspace.SessionBankRegistry;
 import de.mossgrabers.framework.command.trigger.mode.ButtonRowModeCommand;
 import de.mossgrabers.framework.command.trigger.Direction;
@@ -313,7 +313,7 @@ class PushBehaviorParityTest
         for (int index = 1; index <= 8; index++)
             surface.createAbsoluteKnob (de.mossgrabers.framework.controller.ContinuousID.valueOf ("KNOB" + index), "Knob " + index);
         surface.getModeManager ().register (Modes.USER, relaxedProxy (IMode.class));
-        surface.getModeManager ().register (Modes.WORKSPACE, new WorkspaceMode (surface, model, new de.mossgrabers.pull.shell.runtime.ReloadableControllerRuntime (relaxedProxy (com.bitwig.extension.controller.api.ControllerHost.class))));
+        surface.getModeManager ().register (Modes.WORKSPACE, new CorePageMode ("Workspace", surface, model, new de.mossgrabers.pull.shell.runtime.ReloadableControllerRuntime (relaxedProxy (com.bitwig.extension.controller.api.ControllerHost.class))));
         surface.getModeManager ().setActive (Modes.USER);
         final ButtonRowModeCommand<PushControlSurface, PushConfiguration> command = new ButtonRowModeCommand<> (0, 1, model, surface);
 
@@ -322,6 +322,37 @@ class PushBehaviorParityTest
         command.execute (ButtonEvent.UP, 0);
 
         assertEquals (List.of (), selections);
+    }
+
+
+    @Test
+    void masterTouchBrowserGuardReadsNativeActivityBeforeAndAfterPageProjection ()
+    {
+        final var active = new java.util.concurrent.atomic.AtomicBoolean (true);
+        final var calls = new ArrayList<String> ();
+        final var browser = proxy (de.mossgrabers.framework.daw.IBrowser.class, (proxy, method, arguments) -> "isActive".equals (method.getName ()) ? active.get () : relaxedValue (method.getReturnType ()));
+        final var master = proxy (de.mossgrabers.framework.daw.data.IMasterTrack.class, (proxy, method, arguments) -> {
+            if ("touchVolume".equals (method.getName ())) calls.add ("touch:" + arguments[0]);
+            if ("resetVolume".equals (method.getName ())) calls.add ("reset");
+            return relaxedValue (method.getReturnType ());
+        });
+        final var model = proxy (IModel.class, (proxy, method, arguments) -> switch (method.getName ()) {
+            case "getBrowser" -> browser;
+            case "getMasterTrack" -> master;
+            default -> relaxedValue (method.getReturnType ());
+        });
+        final var surface = createSurface (new TwosComplementValueChanger (128, 1), relaxedProxy (ISelectedTrackNoteTarget.class), relaxedProxy (ICursorTrack.class));
+        final var pages = surface.getModeManager ();
+        final var command = new de.mossgrabers.controller.ableton.push.command.continuous.MastertrackTouchCommand (model, surface);
+        command.execute (ButtonEvent.DOWN, 127);
+        command.execute (ButtonEvent.UP, 0);
+        assertTrue (calls.isEmpty (), "native Browser must guard touch/reset even before its controller page is admitted");
+        pages.register (Modes.BROWSER, relaxedProxy (IMode.class));
+        pages.apply (new de.mossgrabers.pull.core.api.DesiredControllerPageState (1, de.mossgrabers.pull.core.api.ControllerPageRef.legacy ("BROWSER"), de.mossgrabers.pull.core.api.ControllerPageRef.core ("track", "TRACK"), java.util.Optional.empty (), 0, Set.of ()));
+        active.set (false);
+        command.execute (ButtonEvent.DOWN, 127);
+        command.execute (ButtonEvent.UP, 0);
+        assertEquals (List.of ("touch:true", "touch:false"), calls, "a stale projected Browser cannot suppress touch cleanup after the native Browser closes");
     }
 
 

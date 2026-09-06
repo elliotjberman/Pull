@@ -2,6 +2,10 @@
 // Licensed under LGPLv3 - http://www.gnu.org/licenses/lgpl-3.0.txt
 package de.mossgrabers.pull.core.runtime.view;
 
+import de.mossgrabers.pull.core.ui.page.GlobalMixerPageRenderer;
+import de.mossgrabers.pull.core.ui.page.PageVisuals;
+
+
 import de.mossgrabers.pull.core.api.*;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.AcquireParameterTouchEffect;
@@ -26,8 +30,6 @@ public final class GlobalMixerControlsView implements ControllerView
     public enum Role { VOLUME, PAN, SEND }
     private static final ControlId SELECT = PushControlIds.button ("SELECT");
     private static final ControlId SHIFT = PushControlIds.button ("SHIFT");
-    private static final RgbColor BLACK = new RgbColor (0, 0, 0);
-    private static final RgbColor WHITE = new RgbColor (255, 255, 255);
     private static final Set<ControllerActionBinding> ACTIONS = IntStream.range (0, 8).mapToObj (index -> new ControllerActionBinding (upper (index), InputKind.BUTTON, ControllerActionId.SELECT_PARAMETER_PAGE, Set.of (ControllerStateScope.ACTIVE_PARAMETERS))).collect (Collectors.toUnmodifiableSet ());
     private final Role role;
     private final int sendIndex;
@@ -37,22 +39,33 @@ public final class GlobalMixerControlsView implements ControllerView
     private final ParameterTouchControls touches;
     private final Map<ControlId, ParameterSlot> bindings;
     private final ViewProfile profile;
-    private ControllerLayoutSnapshot layout;
+    private final PageNavigation pages;
 
     public GlobalMixerControlsView (final Role role, final ParameterTouchSession touchSession)
     {
-        this (role, -1, touchSession);
+        this (role, -1, touchSession, PageNavigation.defaults ());
     }
 
     /** One fixed current-bank send column, zero-based across the eight installed send roles. */
     public static GlobalMixerControlsView send (final int sendIndex, final ParameterTouchSession touchSession)
     {
-        return new GlobalMixerControlsView (Role.SEND, sendIndex, touchSession);
+        return new GlobalMixerControlsView (Role.SEND, sendIndex, touchSession, PageNavigation.defaults ());
     }
 
-    private GlobalMixerControlsView (final Role role, final int sendIndex, final ParameterTouchSession touchSession)
+    public GlobalMixerControlsView (final Role role, final ParameterTouchSession touchSession, final PageNavigation pages)
+    {
+        this (role, -1, touchSession, pages);
+    }
+
+    public static GlobalMixerControlsView send (final int sendIndex, final ParameterTouchSession touchSession, final PageNavigation pages)
+    {
+        return new GlobalMixerControlsView (Role.SEND, sendIndex, touchSession, pages);
+    }
+
+    private GlobalMixerControlsView (final Role role, final int sendIndex, final ParameterTouchSession touchSession, final PageNavigation pages)
     {
         this.role = Objects.requireNonNull (role, "role");
+        this.pages = Objects.requireNonNull (pages, "pages");
         this.sendIndex = sendIndex;
         this.bank = role == Role.SEND ? ParameterBankId.trackSend (sendIndex) : role == Role.VOLUME ? ParameterBankId.TRACK_VOLUME : ParameterBankId.TRACK_PAN;
         this.touchSession = Objects.requireNonNull (touchSession, "touchSession");
@@ -60,7 +73,7 @@ public final class GlobalMixerControlsView implements ControllerView
         final Map<ControlId, ParameterSlot> slots = new LinkedHashMap<> ();
         for (int index = 0; index < 8; index++) slots.put (PushControlIds.continuous ("KNOB" + (index + 1)), this.slot (index));
         this.bindings = Map.copyOf (slots);
-        this.profile = ViewProfile.fixed ("current-track-" + this.installedModeId ().toLowerCase (java.util.Locale.ROOT), Set.of (
+        this.profile = ViewProfile.fixed ("current-track-" + this.roleId ().toLowerCase (java.util.Locale.ROOT), Set.of (
             new SurfaceClaim (SurfaceArea.ENCODER_TURNS, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
             new SurfaceClaim (SurfaceArea.ENCODER_TOUCHES, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
             new SurfaceClaim (SurfaceArea.SOFT_KEYS_UPPER, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
@@ -71,8 +84,8 @@ public final class GlobalMixerControlsView implements ControllerView
             new SurfaceClaim (SurfaceArea.DELETE_MODIFIER, SurfaceClaim.Kind.OBSERVE_INPUT)), Set.of ());
     }
 
-    @Override public String id () { return "global-mixer-" + this.installedModeId ().toLowerCase (java.util.Locale.ROOT); }
-    @Override public String installedModeId () { return this.role == Role.SEND ? "SEND" + (this.sendIndex + 1) : this.role.name (); }
+    @Override public String id () { return "global-mixer-" + this.roleId ().toLowerCase (java.util.Locale.ROOT); }
+    private String roleId () { return this.role == Role.SEND ? "SEND" + (this.sendIndex + 1) : this.role.name (); }
     @Override public ViewProfile profile () { return this.profile; }
     @Override public Set<ControllerActionBinding> actionBindings () { return ACTIONS; }
     @Override public Set<BridgeSubscription> bridgeSubscriptions () { return Set.of (BridgeSubscription.PARAMETERS, BridgeSubscription.AUTOMATION, BridgeSubscription.CURRENT_TRACK_BANK, BridgeSubscription.ENCODER_CONFIGURATION, BridgeSubscription.CONTROLLER_SETTINGS, BridgeSubscription.CONTROLLER_LAYOUT); }
@@ -86,11 +99,10 @@ public final class GlobalMixerControlsView implements ControllerView
     @Override public void start (final ControllerSnapshot snapshot) { this.deactivate (); this.reconcile (snapshot); }
     @Override public void reconcile (final ControllerSnapshot snapshot)
     {
-        this.layout = snapshot.bridge ().layout ();
         this.touches.reconcile (snapshot);
         this.touches.retainTargets (IntStream.range (0, 8).mapToObj (index -> this.alignedTarget (snapshot, index)).filter (Objects::nonNull).map (ParameterTargetSnapshot::target).collect (Collectors.toUnmodifiableSet ()));
     }
-    @Override public void deactivate () { this.layout = null; this.touches.clear (); this.enabled.forEach (AuthoritativeBooleanToggle::clear); }
+    @Override public void deactivate () { this.touches.clear (); this.enabled.forEach (AuthoritativeBooleanToggle::clear); }
 
     @Override
     public List<CoreEffect> handle (final CoreEvent event, final ControllerSnapshot snapshot)
@@ -138,20 +150,31 @@ public final class GlobalMixerControlsView implements ControllerView
     public ResolvedControllerAction resolveAction (final ControllerActionBinding binding, final ControllerInputEvent input, final ControllerSnapshot snapshot)
     {
         final int column = IntStream.range (0, 8).filter (index -> upper (index).equals (input.controlId ())).findFirst ().orElse (-1);
-        final ControllerLayoutSnapshot origin = snapshot.bridge ().layout ();
-        this.layout = origin;
-        final List<CoreEffect> effects = GlobalMixerMenu.select (column, snapshot.bridge ().controllerSettings (), origin.generation ());
-        return ResolvedControllerAction.of (binding.intent (), () -> origin.generation () != 0 && origin.equals (this.layout) ? effects : List.of ());
+        final PageNavigation.Origin origin = this.pages.origin ();
+        final GlobalMixerMenu.Selection selection = GlobalMixerMenu.select (column, snapshot.bridge ().controllerSettings ());
+        return ResolvedControllerAction.of (binding.intent (), () -> {
+            if (!this.pages.matches (origin)) return List.of ();
+            if (!selection.destination ().isEmpty ())
+                this.pages.select (origin, this.pages.resolve (selection.destination ()));
+            return selection.effects ();
+        });
     }
+
+    @Override
+    public de.mossgrabers.pull.core.api.DesiredParameterTouches parameterTouches (final ControllerSnapshot snapshot)
+    {
+        return this.touches.desired ();
+    }
+
 
     @Override
     public ViewOutput render (final ControllerSnapshot snapshot)
     {
-        final List<GlobalMixerMenu.Entry> menu = GlobalMixerMenu.entries (snapshot.bridge ().controllerSettings (), snapshot.bridge ().layout ().modeId ());
-        final Map<ControlId, RgbColor> lights = new LinkedHashMap<> ();
-        for (int index = 0; index < 8; index++) lights.put (upper (index), menu.get (index).selected () || menu.get (index).arrow () ? WHITE : BLACK);
-        return new ViewOutput (lights, Map.of (), GlobalMixerDisplayScene.render (snapshot, this.role, this.sendIndex, menu), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), DesiredNotePerformance.inactive (), DesiredNoteRepeat.unowned (), DesiredControllerMappings.empty (), this.touches.desired ());
+        final List<GlobalMixerMenu.Entry> menu = GlobalMixerMenu.entries (snapshot.bridge ().controllerSettings (), this.pages.legacyAlias ());
+        final PageVisuals visuals = GlobalMixerPageRenderer.render (MixerPageProjections.global (snapshot, this.role, this.sendIndex, menu));
+        return new ViewOutput (visuals.lights (), Map.of (), visuals.display (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), DesiredNotePerformance.inactive (), DesiredNoteRepeat.unowned (), DesiredControllerMappings.empty ());
     }
+
 
     private ParameterSlot slot (final int index) { return new ParameterSlot (this.bank, index); }
     private static ControlId upper (final int index) { return PushControlIds.button ("ROW2_" + (index + 1)); }

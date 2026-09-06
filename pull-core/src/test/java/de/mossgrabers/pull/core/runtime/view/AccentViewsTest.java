@@ -34,21 +34,23 @@ class AccentViewsTest
     }
 
     @Test
-    void deferredLongAndEndSubmitEntryOnlyAfterAdmissionThenWaitForActualTemporaryReadback ()
+    void deferredLongAndEndCompleteLocallyAfterAdmission ()
     {
         final Fixture f = new Fixture (false);
         final ResolvedControllerAction action = f.resolve ("ACCENT");
         assertEquals (Set.of (ControllerStateScope.ACTIVE_PARAMETERS), action.intent ().invalidates ());
         assertTrue (f.edge ("ACCENT", InputPhase.LONG).effects ().isEmpty ());
         assertTrue (f.edge ("ACCENT", InputPhase.END).effects ().isEmpty ());
-        assertEquals (List.of (new SelectControllerModeEffect (1, "ACCENT", SelectControllerModeEffect.Operation.TEMPORARY)), f.dispatch (action).effects ());
+        assertTrue (f.dispatch (action).effects ().isEmpty ());
+        assertEquals ("TRACK", f.navigation.legacyAlias ());
         assertTrue (f.tick ().effects ().isEmpty ());
         f.observe ("PAN", false);
         assertTrue (f.tick ().effects ().isEmpty ());
         f.observe ("ACCENT", false);
         assertTrue (f.tick ().effects ().isEmpty ());
         f.observe ("ACCENT", true);
-        assertEquals (List.of (SelectControllerModeEffect.restore (4)), f.tick ().effects ());
+        assertTrue (f.tick ().effects ().isEmpty ());
+        assertEquals ("ACCENT", f.navigation.legacyAlias (), "retired return cannot close a newer page");
         assertTrue (f.tick ().effects ().isEmpty ());
     }
 
@@ -68,14 +70,14 @@ class AccentViewsTest
     }
 
     @Test
-    void alreadyTemporaryAccentCanRestoreAfterALaterSampleAndUnacknowledgedEntryExpires ()
+    void aNewAccentOwnerReturnsLocallyAndOldReturnsStayRetired ()
     {
         final Fixture f = new Fixture (false);
-        f.mode = "ACCENT";
-        f.temporary = true;
+        f.observe ("ACCENT", true);
         f.edge ("ACCENT", InputPhase.BEGIN);
         f.edge ("ACCENT", InputPhase.LONG);
-        assertEquals (List.of (SelectControllerModeEffect.restore (1)), f.edge ("ACCENT", InputPhase.END).effects ());
+        assertTrue (f.edge ("ACCENT", InputPhase.END).effects ().isEmpty ());
+        assertEquals ("TRACK", f.navigation.legacyAlias ());
         f.observe ("TRACK", false);
         f.edge ("ACCENT", InputPhase.BEGIN);
         f.edge ("ACCENT", InputPhase.LONG);
@@ -166,11 +168,9 @@ class AccentViewsTest
         f.session = true;
         f.pressed.add (PushControlIds.button ("STOP_CLIP"));
         f.fullStop.begin ();
-        f.vsStop.begin ();
         final var action = f.resolve ("ROW1_2");
         assertEquals (ControllerActionId.STOP_VISIBLE_SESSION_TRACK, action.intent ().action ());
         assertTrue (f.fullStop.takeConsumed ());
-        assertTrue (f.vsStop.takeConsumed ());
         assertEquals (List.of (new ConsumeControllerButtonEffect (PushControlIds.button ("ROW1_2"))), action.immediateEffects ());
         f.edge ("ROW1_2", InputPhase.END);
         assertEquals (List.of (new StopSessionTrackEffect (1, new SessionBankShape (8, 8), 1, "track-1", true)), f.workspace.dispatchAction (action, f.snapshot ()));
@@ -194,8 +194,8 @@ class AccentViewsTest
 
     private static final class Fixture
     {
+        private final PageNavigation navigation = PageNavigation.defaults ();
         private final SessionStopGesture fullStop = new SessionStopGesture ();
-        private final SessionStopGesture vsStop = new SessionStopGesture ();
         private final ControllerView view;
         private final CompiledWorkspace workspace;
         private final Set<ControlId> pressed = new HashSet<> ();
@@ -208,8 +208,8 @@ class AccentViewsTest
         private boolean enabled;
         private boolean session;
         private int velocity = 64;
-        private Fixture (final boolean page) { this.view = page ? new AccentPageView (this.fullStop, this.vsStop) : new AccentControlView (); this.workspace = CompiledWorkspace.compile ("test", List.of (this.view)); this.workspace.start (this.snapshot ()); }
-        private void observe (final String mode, final boolean temporary) { this.mode = mode; this.temporary = temporary; this.generation++; }
+        private Fixture (final boolean page) { this.view = page ? new AccentPageView (this.fullStop) : new AccentControlView (new ControllerPageTransitions (this.navigation)); this.workspace = CompiledWorkspace.compile ("test", List.of (this.view)); this.workspace.start (this.snapshot ()); }
+        private void observe (final String mode, final boolean temporary) { if (temporary) this.navigation.temporary (this.navigation.origin (), this.navigation.resolve (mode)); else this.navigation.select (this.navigation.resolve (mode)); }
         private ControllerInputEvent input (final ControlId id, final InputKind kind, final InputPhase phase, final long value) { this.sequence++; return new ControllerInputEvent (this.sequence, this.sequence, id, kind, phase, value); }
         private ResolvedControllerAction resolve (final String button) { this.pressed.add (PushControlIds.button (button)); return this.workspace.resolveAction (this.input (PushControlIds.button (button), InputKind.BUTTON, InputPhase.BEGIN, 127), this.snapshot ()); }
         private CoreResult dispatch (final ResolvedControllerAction action) { return this.workspace.handleAction (action, this.snapshot ()); }

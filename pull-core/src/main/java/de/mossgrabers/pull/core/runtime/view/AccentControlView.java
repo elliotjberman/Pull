@@ -34,17 +34,17 @@ public final class AccentControlView implements ControllerView
     @Override public String id () { return "accent-control"; }
     @Override public ViewProfile profile () { return PROFILE; }
     @Override public Set<ControllerActionBinding> actionBindings () { return ACTIONS; }
-    @Override public Set<BridgeSubscription> bridgeSubscriptions () { return Set.of (BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.CONTROLLER_SETTINGS); }
-    @Override public CoreExecutionRequirements executionRequirements () { return new CoreExecutionRequirements (this.enabled.pending () || this.pages.pending ()); }
+    @Override public Set<BridgeSubscription> bridgeSubscriptions () { return Set.of (BridgeSubscription.CONTROLLER_SETTINGS); }
+    @Override public CoreExecutionRequirements executionRequirements () { return new CoreExecutionRequirements (this.enabled.pending ()); }
     @Override public void start (final ControllerSnapshot snapshot) { this.deactivate (); this.latest = snapshot; }
-    @Override public void reconcile (final ControllerSnapshot snapshot) { this.latest = snapshot; this.pages.observe (snapshot); }
+    @Override public void reconcile (final ControllerSnapshot snapshot) { this.latest = snapshot; this.pages.observe (); }
     @Override public void deactivate () { this.pending.forEach (gesture -> this.pages.cancel (gesture.page)); this.admission.clear (); this.held = null; this.pending.clear (); this.enabled.clear (); }
 
     @Override
     public ResolvedControllerAction resolveAction (final ControllerActionBinding binding, final ControllerInputEvent input, final ControllerSnapshot snapshot)
     {
         this.latest = snapshot;
-        final Gesture gesture = new Gesture (this.admission.begin (), snapshot.bridge ().layout ());
+        final Gesture gesture = new Gesture (this.admission.begin (), this.pages.origin ());
         this.pending.add (gesture);
         this.held = gesture;
         return this.admission.action (gesture.ticket, binding.intent (), () -> this.advance (gesture, this.latest));
@@ -82,9 +82,9 @@ public final class AccentControlView implements ControllerView
             return this.toggle (snapshot, true);
         }
         if (gesture.ended) this.pages.release (gesture.page, true);
-        final List<CoreEffect> effects = this.pages.advance (gesture.page, snapshot);
+        this.pages.advance (gesture.page);
         if (this.pages.complete (gesture.page)) this.finish (gesture);
-        return effects;
+        return List.of ();
     }
 
     private void finish (final Gesture gesture)
@@ -113,8 +113,8 @@ public final class AccentControlView implements ControllerView
         private final DeferredButtonAdmission.Ticket ticket;
         private boolean longSeen;
         private boolean ended;
-        private final ControllerLayoutSnapshot origin;
+        private final PageNavigation.Origin origin;
         private ControllerPageTransitions.Request page;
-        private Gesture (final DeferredButtonAdmission.Ticket ticket, final ControllerLayoutSnapshot origin) { this.ticket = ticket; this.origin = origin; }
+        private Gesture (final DeferredButtonAdmission.Ticket ticket, final PageNavigation.Origin origin) { this.ticket = ticket; this.origin = origin; }
     }
 }
