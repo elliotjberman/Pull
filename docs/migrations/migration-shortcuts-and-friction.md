@@ -168,9 +168,10 @@ before reload. The first prevents a later request from skipping an earlier ackno
 second prevents reload from manufacturing a new selection edge.
 
 The final package passes 932 tests and the documented `202arp` page/release/reload smoke passes.
-Mapped-macro writes remain pending because the project has no named macros and macOS is locked.
-Physical learned-MIDI validation remains separate from debugger-driven controller input. See
-`core-page-ownership-live-smoke.md` for exact scope and build identity.
+The corrected-project `202arp3` follow-up also passes a mapped Boolean macro write/read-back,
+page/gesture checks and actual button-light output. Continuous precision and physical learned-MIDI
+validation remain separate limits. See `core-page-ownership-live-smoke.md` and
+`core-page-ownership-202arp3-smoke.md` for exact scope and build identity.
 
 The page-ownership finishing review reproduced an inherited Stop-owner mismatch on VS global mixer
 pages, after the analogous Macro assembly was corrected. The structural correction is one owner
@@ -240,4 +241,28 @@ stale-projection, rather than forcing the host and controller page to change tog
   selected pan and displayed host text as well. Existing native pan reset restored the originally
   observed center exactly, confirmed by later read-back. A reusable test transaction should capture
   and restore normalized host baselines instead of assuming opposite encoder steps are lossless.
-  This finding concerns the smoke harness; it is not evidence that Snapback restoration is broken.
+  This live observation directly concerns the smoke harness; the later source inspection below
+  separately establishes an inherited Snapback precision limit, without a direct live reproduction.
+
+### 202arp3 follow-up
+
+- The corrected-project smoke passed without a production patch or restart. `Rippler` is a genuine
+  two-state macro, so On → Off → On can verify the routed write/read-back/display loop with an exact
+  discrete baseline. That intentionally bounded choice does not cover arbitrary continuous macros.
+  Encoder debug requests are capped at ±63; the harness uses two normal bounded updates per turn.
+- The final audit compares semantic parameter identity and values, while recording expected opaque
+  handle and generation changes. It also records the dirty/undo flags left by reversible testing.
+  All observed musical/controller values match, all inputs are released, and the saved file hash
+  is unchanged. It does not clear history or save the project to hide those metadata differences.
+- Subsequent UI inspection showed the copied scratch project tab was open but its audio engine was
+  inactive. The prior smoke had still observed `202arp` through the controller bridge. Opening a
+  tab and confirming its controller context must remain separate checks; an OS open acknowledgement
+  is insufficient. `202arp3` is now verified by its later project identity before test input.
+- The user explicitly identified current audio-engine errors as caused by their changes and asked
+  us to ignore those errors. The controller checks proceed without changing audio configuration;
+  they do not claim audible playback validation.
+- Inspection after the live precision finding shows that Snapback also retains controller-resolution
+  values through an inherited immediate integer setter. This is now recorded in
+  `../findings/snapback-v1-limitations.md`; it warrants a bounded precision correction separately
+  from the page/gesture migration. Arbitrary continuous macro restoration is not claimed by an
+  equal-opposite encoder test.

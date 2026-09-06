@@ -5,9 +5,11 @@ identity, navigation/history, temporary ownership, composition, presentation mod
 The shell projects those decisions through one generic inert page adapter and a bounded inbox for
 frozen legacy callers. On 2026-09-06 the API 46 package passed 932 tests; exact-build `202arp` page,
 original-view release, parameter read-back, legacy return and held-input hot-reload checks passed.
-[The API 46 smoke record](docs/migrations/core-page-ownership-live-smoke.md) documents exact builds,
-restoration and limits: mapped-macro writes remain pending because this project has no named macros
-and the Mac is locked. Device/Browser/configuration/sequencer bodies, continuous-motion capture and
+[The API 46 smoke record](docs/migrations/core-page-ownership-live-smoke.md) documents exact builds
+and restoration. The corrected-project [202arp3 follow-up](docs/migrations/core-page-ownership-202arp3-smoke.md)
+also passes page/legacy-return/gesture checks, a mapped Boolean macro write/read-back, and actual
+Master/Track light output. Continuous macro precision and audible playback remain unverified.
+Device/Browser/configuration/sequencer bodies, continuous-motion capture and
 the Session release-contract decision remain tracked migration work; see
 [the migration plan](docs/migrations/core-migration-plan.md) and [active findings](docs/findings/README.md).
 

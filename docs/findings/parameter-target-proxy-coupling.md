@@ -85,9 +85,10 @@ view should remove the binding, not redefine the target retained by an independe
 The working Core API 46 retains the named bounded parameter canopy introduced in API 45,
 separating physical controls from sampled target slots. Stable can publish
 the inherited active encoder window, project remotes, the selected-device remote page, visible-track
-volume, pan and eight send columns, selected-track volume/pan/eight sends, the project-scoped Master/Cue page, and fixed globals. A slot contains an opaque target identity/generation, name, raw
-and modulated values, authoritative display text, step count, and tolerance; it never uses a Push
-control ID as target identity. Core selects which installed banks are sampled, owns view-specific
+volume, pan and eight send columns, selected-track volume/pan/eight sends, the project-scoped Master/Cue page, and fixed globals. A slot contains an opaque target identity/generation, name, unmodulated
+and modulated controller-resolution values, authoritative display text, step count, and tolerance; it never uses a Push
+control ID as target identity. These values are not raw normalized host baselines; the separate
+[Snapback precision finding](snapback-v1-limitations.md#restoration-precision) tracks that limitation. Core selects which installed banks are sampled, owns view-specific
 control-to-slot mapping, and owns snapback policy.
 
 Master volume/pan and cue volume/mix are fenced to the subscribed project identity. Even when

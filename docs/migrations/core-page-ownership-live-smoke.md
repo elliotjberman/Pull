@@ -1,5 +1,10 @@
 # API 46 page ownership live smoke
 
+Follow-up: the user later corrected the project to `202arp3`. Its
+[separate smoke record](core-page-ownership-202arp3-smoke.md) verifies a mapped Boolean macro,
+repeats the page/gesture checks, and records restored values and unchanged project-file hash.
+The environment limitations below describe this earlier `202arp` pass.
+
 Date: 2026-09-06. Source checkpoint: `11e33477b352c3020df95272f24b957e17026d16`.
 Persistent worktree: `.codex-worktrees/core-page-ownership`. All installation, publication, project
 opening and routed input occurred under one `core-page-ownership` live lease.

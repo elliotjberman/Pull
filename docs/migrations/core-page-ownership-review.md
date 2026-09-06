@@ -38,7 +38,10 @@ The final complete deprecation-enabled package at checkpoint `11e33477` passes 9
 458 core, 11 publisher and 463 shell, with no failures, errors or skips. Six deprecation warnings
 remain in unchanged `TransportImpl`; changed code introduces none. The architecture re-review found
 no unresolved P0/P1 issue and recommends **merge with tracked debt**, with the live `202arp` page/release/reload checks now completed.
-[The live record](core-page-ownership-live-smoke.md) identifies the remaining mapped-macro test limit.
+[The live record](core-page-ownership-live-smoke.md) and corrected-project
+[202arp3 follow-up](core-page-ownership-202arp3-smoke.md) document the scope. The latter adds mapped
+Boolean macro write/read-back and button-light output checks; continuous precision and audible
+playback remain outside the verified scope.
 
 ## User-requested original-view release primitive
 
@@ -80,7 +83,7 @@ to the generic router rather than that flag.
 | Ownership/dependency direction | Typed pages, navigation, composition and presentation are core-owned; shell projects values. |
 | Reload/lifecycle fencing | Retired-prefix freshness, consumer epochs and exact physical-generation touch continuation agree. |
 | API compatibility | Core API 46 / checkpoint 6 contract is consistent. |
-| Test realism | Offline parent/core and documented exact-build live scenarios pass; mapped-macro writes remain an explicit environment limit. |
+| Test realism | Offline parent/core and documented exact-build live scenarios pass, including a mapped Boolean macro in 202arp3; continuous precision, physical learned MIDI and audible playback remain explicit limits. |
 | Legacy deletion | Obsolete workspace bodies and duplicate touch continuation deleted; frozen legacy bodies remain tracked. |
 
 The final code-size rereview found no credible remaining behavior-preserving deletion in the gesture
