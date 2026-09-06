@@ -6,7 +6,8 @@ in selected-note-route cleanup. The observed cycle is `ControllerStateHost.detac
 → debug cancellation → `releaseAll` → END → refresh → detach. The bounded reentrancy correction passed the deprecation-enabled package gate: **851 tests,
 zero failures/errors** (398 core, 11 publication, 442 shell), completed 2026-09-06
 13:01:50 EDT; log `target/migration-evidence/reentrant-cleanup-package.log`. A new
-checkpoint/install, focused selection regression, and held-reload rerun are still required.
+checkpoint `bf367a06` is installed, but Bitwig has not launched with it: the Mac is locked.
+Exact activation, focused selection regression, and held-reload rerun are still required.
 Earlier passed cases remain evidence for `6272f48d`, not a sign-off for a later replacement.
 
 This supplements `TESTING.md`. A passing offline build, submitted debug request, or `APPLIED`
@@ -14,19 +15,25 @@ ingress result is not a passing host-state or output check. Record each layer se
 
 ## Build and environment
 
+- Reentrancy correction checkpoint: `bf367a06`; built/installed shell SHA-256
+  `cac7132246385ce5f250a812807415c81b29f12bd530080dd187f7604a61eb10`.
+  Both file hashes match in `reentrant-cleanup-installed-sha256.txt`. Bitwig was cleanly closed
+  before installation, and the scratch project was saved. No active-core acknowledgement exists
+  for this replacement yet. Automatic review initially could not see the lease; an explicit
+  `require-pull-live` check proved ownership and allowed the retry, which then reported a locked Mac.
 - Working branch: `codex/complete-core-migration`.
 - Source regression baseline: `master` at `5537271f575852634a7a94e473eb57a404fd77a8`.
 - Intended contract: Core API 45; Bitwig controller API 25; checkpoint schema 5.
 - Initial live source checkpoint: `a6c7ccd03c6c01687a842bf1b2e74268966983af`.
 - Initial extension SHA-256: `b2101cbc7156cdc97ba9c769bf430f54da23cd518d9f05614f48c06c37cbe313`.
-- Final source checkpoint: `6272f48d4c137a9db46ccb4b37c10ff4d88d8471`.
-- Final built and installed extension SHA-256:
+- Last live-tested source checkpoint: `6272f48d4c137a9db46ccb4b37c10ff4d88d8471`.
+- Last live-tested extension SHA-256:
   `8326a296840e928bad7e2d0996ec5de0bede4117c9a8590476360c70c4917565`.
   Both paths match in `target/migration-evidence/debug-fix-installed-sha256.txt`.
-- Final deprecation-enabled package gate: **845 tests, zero failures/errors** (398 core,
+- Earlier deprecation-enabled package gate: **845 tests, zero failures/errors** (398 core,
   11 publication, 436 shell), completed 2026-09-06 12:43:10 EDT. Log:
   `target/migration-evidence/live-debug-fix-package.log`.
-- Final active core: `20260906T164738Z-36252a87aa8a6b8dcf191cc8563e2619`, generation 4,
+- Last active core before the crash: `20260906T164738Z-36252a87aa8a6b8dcf191cc8563e2619`, generation 4,
   SHA-256 `fa03e3e42804fcd575732937aa10acd35100237327f58945c49abb1873206f17`.
   `held-reload-activated.json` and `held-reload-release.tsv` identify the same activation.
 - Candidate API compatibility fingerprint: `b3f11d5fdbc8dfcfaa9b53cba761e293f45a8732`.
@@ -204,7 +211,29 @@ preserves project macro values 518/617/512. Recorded Bitwig PIDs 58202/58203 are
 The backed-up `selection-stackoverflow-BitwigStudio.log` contains the stack overflow. The observed
 recursive chain passes through selected-note detachment, MIDI neutralization, debugger edge
 cancellation, synthetic END, state refresh, and detachment again. A bounded parent-owned
-reentrancy fix is being implemented. Preserve the earlier results as evidence for this failed
+reentrancy fix is implemented and passes the 851-test gate. Preserve the earlier results as evidence for this failed
 checkpoint; require a new checkpoint, exact shell/core activation, and the selection/reload
 regressions before marking the live smoke ready. The held-reload success above does not erase
 this later independent failure.
+
+## Prepared final regression
+
+After the Mac is unlocked, reacquire the live lease, launch Bitwig with the installed checkpoint,
+open the saved scratch project, and run exact `tools/reload-core --timeout-ms 20000` activation.
+Start this worktree's debug surface at its normal local port. The bounded artifact drivers are:
+
+1. `python3 target/migration-evidence/verify_selection.py --prefix postfix-selection-v1`:
+   two footer selections, exact private/cursor/bank/parameter-owner agreement, then volume motion
+   and touch release on each. Route-invalidation cancellation is separately correlated to the
+   exact BEGIN receipt; it is not treated as proof that selection succeeded.
+2. `python3 target/migration-evidence/verify_reentrant_frame.py`: repeated row gestures while
+   Master remains held, MIX/EDIT host read-back and long-hold return.
+3. `python3 target/migration-evidence/verify_reentrant_macros.py`: project volume, pan reset and
+   touch cleanup; leaves the macro page ready for the following held-touch reload.
+4. `python3 target/migration-evidence/verify_reentrant_reload.py`: candidate waits for touch END,
+   exact new build activates afterward, Bitwig PIDs remain unchanged, and released state persists.
+
+These scripts are prepared and syntax checked, not executed on the replacement. Preserve new
+driver logs, exact activation IDs, action traces, later snapshots and controller images under
+`target/migration-evidence/`. Inspect the new Bitwig log for the original recursion and any new
+fault, then save the scratch project and release the live lease.

@@ -114,8 +114,11 @@ represent real differences.
 ### Remaining gate
 
 Live validation resumed on 2026-09-06: exact shell installation/core activation and representative
-parameter, Drum-map and touch-strip checks succeeded. A generic debugger chord-release defect was
-reproduced; the live gate remains partial until its correction and remaining checks are recorded in
-`core-migration-live-smoke.md`. Do not infer untested native behavior from the offline tests.
+parameter, Drum-map and touch-strip checks succeeded. The generic debugger chord-release defect
+was corrected and repeated-chord host read-back passed. Final footer selection then exposed
+reentrant route/debug cleanup. Checkpoint `bf367a06` fixes ownership retirement and stale reconcile
+continuation, with real-router regressions; the full package passes 851 tests. The replacement
+shell is installed, but the Mac must be unlocked before launch and the final live regression.
+See `core-migration-live-smoke.md`; do not infer untested native behavior from the offline tests.
 The [shortcuts ledger](migration-shortcuts-and-friction.md) records retained architecture costs and
 rejected shortcuts separately from the corrected defects.

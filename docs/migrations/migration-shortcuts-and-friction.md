@@ -112,12 +112,14 @@ the clearest supporting evidence from this ledger.
   Separate individual edge lifetime from shared debug-admission lifetime; preserve router-idle
   completion. Repeating I/O under a held Master now produces later false→true→false host state.
   This is debug transport lifecycle, not new stable product behavior.
-- **Reentrant cleanup ownership, correction under test:** footer selection invalidated the note
+- **Reentrant cleanup ownership, offline corrected; live retest pending:** footer selection invalidated the note
   route; neutralization synchronously released browser input, which refreshed the same route and
   recursively attempted cleanup until Bitwig reported a stack overflow. Both route and debug-edge
   owners must retire their logical ownership before callbacks, while retaining shared admission
   until callbacks return and the router is idle. Regression tests connect the real input router to
-  both lifecycle hosts, including nested chord release. This is a demonstrated lifecycle defect,
+  both lifecycle hosts, including nested chord release and replacement attach-before-layout ordering.
+  The full 851-test gate passes; checkpoint `bf367a06` is installed, awaiting Mac unlock and live retest.
+  This is a demonstrated lifecycle defect,
   separate from the parked general quiescence redesign; no blanket asynchronous drain is claimed.
 - **Trace serialization cap:** large complete snapshots can fill the 2 MiB trace before a long
   scenario ends. Keep the cap; use short per-step samples and inspect truncation markers. The
