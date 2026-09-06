@@ -3,12 +3,13 @@
 Status: working implementation through Core API 46, checkpoint schema 6. Core now owns typed page
 identity, navigation/history, temporary ownership, composition, presentation models and styling.
 The shell projects those decisions through one generic inert page adapter and a bounded inbox for
-frozen legacy callers. The prior migration baseline passed 851 tests on 2026-09-06; the API 46
-integration package and exact-build `202arp` live smoke remain pending while this refactor is in
-progress. Earlier live evidence is recorded in
-[the migration smoke record](docs/migrations/core-migration-live-smoke.md), and does not verify this
-new build. Device/Browser/configuration/sequencer bodies and the Session release-contract decision
-remain migration work tracked in [the migration plan](docs/migrations/core-migration-plan.md).
+frozen legacy callers. On 2026-09-06 the API 46 package passed 932 tests; exact-build `202arp` page,
+original-view release, parameter read-back, legacy return and held-input hot-reload checks passed.
+[The API 46 smoke record](docs/migrations/core-page-ownership-live-smoke.md) documents exact builds,
+restoration and limits: mapped-macro writes remain pending because this project has no named macros
+and the Mac is locked. Device/Browser/configuration/sequencer bodies, continuous-motion capture and
+the Session release-contract decision remain tracked migration work; see
+[the migration plan](docs/migrations/core-migration-plan.md) and [active findings](docs/findings/README.md).
 
 Read this file before changing controller views, modes, workspaces, input routing, or Session bank
 topology. The detailed design contract is in

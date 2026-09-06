@@ -112,13 +112,15 @@ the clearest supporting evidence from this ledger.
   Separate individual edge lifetime from shared debug-admission lifetime; preserve router-idle
   completion. Repeating I/O under a held Master now produces later false→true→false host state.
   This is debug transport lifecycle, not new stable product behavior.
-- **Reentrant cleanup ownership, offline corrected; live retest pending:** footer selection invalidated the note
+- **Reentrant cleanup ownership, corrected and live retested:** footer selection invalidated the note
   route; neutralization synchronously released browser input, which refreshed the same route and
   recursively attempted cleanup until Bitwig reported a stack overflow. Both route and debug-edge
   owners must retire their logical ownership before callbacks, while retaining shared admission
   until callbacks return and the router is idle. Regression tests connect the real input router to
   both lifecycle hosts, including nested chord release and replacement attach-before-layout ordering.
-  The full 851-test gate passes; checkpoint `bf367a06` is installed, awaiting Mac unlock and live retest.
+  The earlier 851-test gate passed. The API 46 build now also passes a real
+  `202arp` footer selection/return, including the exact route-invalidation release, without recursion.
+  Its full package passes 932 tests; see `core-page-ownership-live-smoke.md`.
   This is a demonstrated lifecycle defect,
   separate from the parked general quiescence redesign; no blanket asynchronous drain is claimed.
 - **Trace serialization cap:** large complete snapshots can fill the 2 MiB trace before a long
@@ -165,15 +167,15 @@ request arrive in the same sample, and preserving a restored page while Master w
 before reload. The first prevents a later request from skipping an earlier acknowledgement; the
 second prevents reload from manufacturing a new selection edge.
 
-Live verification for this follow-up is pending completion of the full offline gate and finishing
-review. The requested project is `202arp`; physical learned-MIDI validation must be recorded separately
-from debugger-driven controller input.
+The final package passes 932 tests and the documented `202arp` page/release/reload smoke passes.
+Mapped-macro writes remain pending because the project has no named macros and macOS is locked.
+Physical learned-MIDI validation remains separate from debugger-driven controller input. See
+`core-page-ownership-live-smoke.md` for exact scope and build identity.
 
 The page-ownership finishing review reproduced an inherited Stop-owner mismatch on VS global mixer
 pages, after the analogous Macro assembly was corrected. The structural correction is one owner
 for the physical Stop gesture across all page/grid compositions, rather than a separate flag per
-background. It also found real Browser and fault-recovery protocol gaps; those are blockers being
-fixed, not retained shortcuts. See `core-page-ownership-review.md` for evidence and final status.
+background. It also found real Browser and fault-recovery protocol gaps; those were corrected and re-reviewed, rather than retained as shortcuts. See `core-page-ownership-review.md` for evidence and final status.
 
 The recovery correction uses a parent-owned monotonic retired request prefix rather than trying to
 recover stream sequencing from a possibly rejected child checkpoint. This prefix is lifecycle
@@ -218,3 +220,24 @@ where they previously inferred native activity from the page manager. The guards
 same; this is an observation correction, not a new stable semantic branch. Browser navigation and
 return ownership remain in core. Tests distinguish native-open/pre-projection from native-closed/
 stale-projection, rather than forcing the host and controller page to change together.
+
+### API 46 live harness findings
+
+- The original-view Frame release passed through routed input, stable application and later native
+  MIX/EDIT read-back while Track remained visible. The generic owner mechanism needed no Frame
+  exception. A held encoder also deferred a real core replacement until release, without restarting
+  Bitwig. This is evidence for the existing input boundary, not a general asynchronous drain.
+- A page-tour assertion initially discarded numeric display text: the trace parser read a string
+  such as `-10.0` as a number. The actual scene and framebuffer were correct. The harness now retains
+  numeric text and still compares it with authoritative host display values. A structured typed
+  trace format would remove this string-parser ambiguity; no renderer change was made.
+- `202arp` has no named project remotes. Its macro write test stopped before input. GUI mapping was
+  unavailable because macOS was locked; an attempt to open the previously mapped scratch project
+  had not changed the active project. This is a test-environment limit, not a missing stable feature.
+
+- The final restoration audit caught a precision shortcut: controller pan `512` represents both
+  initial raw `0.5` and the quantized inverse-step result `0.5004887585532747`. The test now checks raw
+  selected pan and displayed host text as well. Existing native pan reset restored the originally
+  observed center exactly, confirmed by later read-back. A reusable test transaction should capture
+  and restore normalized host baselines instead of assuming opposite encoder steps are lossless.
+  This finding concerns the smoke harness; it is not evidence that Snapback restoration is broken.

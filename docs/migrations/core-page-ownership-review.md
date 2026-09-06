@@ -8,9 +8,9 @@ the code-size reviewer measured tracked and untracked code, excluding generated 
 
 | Finding | Evidence | Correction / verification status |
 | --- | --- | --- |
-| P1 — inbox recovery depends on a discarded core checkpoint | After quarantine, a new core starts acknowledgement at zero while the shell sequence may be higher. A legacy callback with no healthy consumer can also prevent replacement from becoming idle. | Implemented: parent-owned monotonic retired prefix, explicit consumer lifecycle, and fresh-core bootstrap independent of checkpoint. Thirteen core and 94 shell tests pass, including actual runtime quarantine, incompatible/thrown checkpoints, callbacks without a healthy consumer, successful replacement and later navigation. Architecture re-review accepted; complete final package/live check remains pending. |
+| P1 — inbox recovery depends on a discarded core checkpoint | After quarantine, a new core starts acknowledgement at zero while the shell sequence may be higher. A legacy callback with no healthy consumer can also prevent replacement from becoming idle. | Implemented: parent-owned monotonic retired prefix, explicit consumer lifecycle, and fresh-core bootstrap independent of checkpoint. Thirteen core and 94 shell tests pass, including actual runtime quarantine, incompatible/thrown checkpoints, callbacks without a healthy consumer, successful replacement and later navigation. Architecture re-review accepted; the final 932-test package and documented live page/return scenarios pass. |
 | P1 — Browser closure lost before page admission | Existing observer queues Browser entry on active, then checks only projected page on inactive. If Snapback delays entry, closure is discarded and the inactive Browser opens afterward. | Implemented: raw Browser lifecycle observation with core-owned page policy and exact temporary ownership. Focused runs passed 108 tests across Browser/Snapback/Shift/manager/bridge and compatibility guards; late closure cannot dismiss a newer page. |
-| P1 — page footer and Session grid use different Stop owners | VS Volume/Pan/Send Stop+track stops the requested track, then plain Stop release also stops the selected track. Reproduced through the production core. This defect was inherited from `9f0d575f`, not introduced here. | One physical Stop gesture now has one owner shared by all pages and grids. Added a 26-combination full-Session/VS × Track/Macro/Volume/Pan/Accent/eight-Send regression, including page replacement before Stop release. All 430 core tests pass after this correction. Architecture re-review accepted; complete final package/live check remains pending. |
+| P1 — page footer and Session grid use different Stop owners | VS Volume/Pan/Send Stop+track stops the requested track, then plain Stop release also stops the selected track. Reproduced through the production core. This defect was inherited from `9f0d575f`, not introduced here. | One physical Stop gesture now has one owner shared by all pages and grids. Added a 26-combination full-Session/VS × Track/Macro/Volume/Pan/Accent/eight-Send regression, including page replacement before Stop release. All 430 core tests pass after this correction. Architecture re-review accepted; the final 932-test package and documented live page/return scenarios pass. |
 
 Earlier integration fixes remain covered: FIFO dispatch of released requests before newly offered
 ones, restoring a page without manufacturing a Master selection edge, and projecting the correct
@@ -34,9 +34,11 @@ preserve the intentionally different layouts and formatting without adding a con
 
 ## Gate status
 
-The initial full package passed 890 tests before the finishing corrections. Follow-up lifecycle
-checks passed separately. A new complete deprecation-enabled package, architecture re-review, and
-exact-build `202arp` live smoke are required before claiming this refactor verified.
+The final complete deprecation-enabled package at checkpoint `11e33477` passes 932 tests:
+458 core, 11 publisher and 463 shell, with no failures, errors or skips. Six deprecation warnings
+remain in unchanged `TransportImpl`; changed code introduces none. The architecture re-review found
+no unresolved P0/P1 issue and recommends **merge with tracked debt**, with the live `202arp` page/release/reload checks now completed.
+[The live record](core-page-ownership-live-smoke.md) identifies the remaining mapped-macro test limit.
 
 ## User-requested original-view release primitive
 
@@ -52,8 +54,7 @@ permission: exact already-applied target, still-held exclusive edge, and matchin
 It keeps no old routes and allows no fresh legacy acquisition. Its 64 focused tests passed and the
 architecture reviewer accepted that boundary. The actual Frame continuation also passes the real
 parent result validator; subscriptions needed by a release effect survive in that same result,
-then disappear on the next tick. The 42-test parent-runtime gate passes. Complete package and live
-proof remain pending.
+then disappear on the next tick. The 42-test parent-runtime gate passes. The complete 932-test package and routed original-view Frame/legacy-touch live checks pass.
 
 The independent size review accepted the router's distinct physical, deferred-action and departing
 view lifetimes. Removing the obsolete global touch-release observer and the duplicate touch DTO
@@ -61,11 +62,27 @@ path eliminated approximately 75–80 production lines. Active and retained view
 nonvisual touch accessor. No further credible behavior-preserving reduction was identified.
 
 The full core regression run exposed duplicate reconciliation during one event, affecting existing
-drum-fill arming. The correction must deduplicate by view identity within that event, including
-activation, and preserve the existing regression unchanged. Disposal remains the cancellation
+drum-fill arming. The correction deduplicates by view identity within that event, including
+activation. The existing regression passes unchanged in the 458-test core gate. Disposal remains the cancellation
 boundary; this change does not introduce an independent queued-action cancellation API.
 
 This does not generalize all continuous motion. Related strip motion already has a parent capture;
 encoder TOUCH→RELATIVE and PAD→pressure transport relationships remain documented follow-up scope.
 Stop-specific chord consumption remains product state; delivery of original-view releases belongs
 to the generic router rather than that flag.
+
+## Final architecture scorecard
+
+| Concern | Review result |
+| --- | --- |
+| Semantic intent resolution | Original owner/action resolved before later page admission; deferred actions retain ownership. |
+| Authoritative state | Raw Browser observation and existing parameter/application target fences preserved. |
+| Ownership/dependency direction | Typed pages, navigation, composition and presentation are core-owned; shell projects values. |
+| Reload/lifecycle fencing | Retired-prefix freshness, consumer epochs and exact physical-generation touch continuation agree. |
+| API compatibility | Core API 46 / checkpoint 6 contract is consistent. |
+| Test realism | Offline parent/core and documented exact-build live scenarios pass; mapped-macro writes remain an explicit environment limit. |
+| Legacy deletion | Obsolete workspace bodies and duplicate touch continuation deleted; frozen legacy bodies remain tracked. |
+
+The final code-size rereview found no credible remaining behavior-preserving deletion in the gesture
+router. It accepted bounded capture, physical/deferred/departing lifetimes, deterministic iteration,
+per-result effect dependencies and nonvisual touch validation as separate necessary responsibilities.
