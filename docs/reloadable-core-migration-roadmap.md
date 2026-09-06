@@ -63,8 +63,8 @@ In the current baseline:
   parameters, the normal current-bank footer, Tap Tempo, and Undo/Redo. Integration validation is
   passed in the full 685-test package run at `e3c35508`; these changes have not been installed live;
 - later API 45 slices implement Volume/Pan/Send, generic page composition, four-arrow navigation,
-  Track/Mix, Metronome/Automation, Frame/Master entry, and Accent. The expanded package passed 823
-  tests; independent review found bounded lifecycle defects now being corrected. No live proof is claimed. Generic inert page registrations replace their old policy classes;
+  Track/Mix, Metronome/Automation, Frame/Master entry, and Accent. The package passed 838
+  tests after bounded lifecycle corrections and independent re-review. No live proof is claimed. Generic inert page registrations replace their old policy classes;
 - new snapshots include complete native mode history/temporary state, current-bank navigation,
   controller preferences/cursor-send metadata, and native application/Arranger/Mixer UI state.
   Classified parameter owner/domain/page/index metadata fences independent snapshot publications;

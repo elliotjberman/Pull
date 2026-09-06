@@ -3,8 +3,9 @@
 Status: working implementation through Core API 45, checkpoint schema 5. The migration includes
 Project/Master/Track touches, Drum octave/native mapping, raw touch strip, normal/VS Track pages,
 Volume/Pan/Send, core page composition and arrows, Track/Mix, Metronome/Automation, Frame/Master entry,
-Accent, Tap Tempo, and Undo/Redo. The expanded deprecation-enabled package passed 823 tests on
-2026-09-05 (385 core, 11 publication, 427 shell); independent finishing review found bounded lifecycle defects now being corrected. No live
+Accent, Tap Tempo, and Undo/Redo. The deprecation-enabled package passed 838 tests on
+2026-09-05 (398 core, 11 publication, 429 shell), after the independent review
+corrections. Bounded architecture re-review found no remaining material findings in these slices. No live
 installation or smoke test has run for this worktree. This is not the complete migration; remaining
 families and the Session release-contract decision are tracked in
 [`docs/migrations/core-migration-plan.md`](docs/migrations/core-migration-plan.md).

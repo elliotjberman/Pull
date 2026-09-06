@@ -9,10 +9,10 @@ This review covers the implemented slices, not completion of the remaining migra
 
 | ID | Severity | Failure and invariant | Required correction | Current status |
 | --- | --- | --- | --- | --- |
-| A1 | P1 | Master, Automation and Metronome can emit a deferred mode effect after its captured layout becomes stale. Bridge preparation rejects it and RuntimeManager quarantines the active core. An existing Master test positively asserted this invalid sequence. | Revalidate the full frozen origin immediately before emission; cancel stale intent without retargeting. Exercise the production bridge/runtime boundary. | Implemented; focused regressions pass; independent re-review pending. |
-| A2 | P1 | ParameterTargetHost refresh removes a touch when ordinary write eligibility changes, even when its exact old actuator remains addressable. Later cleanup cannot release the forgotten touch. Tests released before refresh and masked production ordering. | Release through the existing addressability fence before retiring the lease. Test refresh-before-cleanup on selection/bank changes and reject cleanup through truly rebound proxies. | Implemented; production-order host regressions pass; independent re-review pending. |
-| A3 | P1 | Accent's five-second timeout retires an acknowledged long hold. Releasing after editing velocity for more than five seconds cannot return from the page. | Separate submission, acknowledgement and physical lifetime; only missing acknowledgement expires. | Implemented; focused regressions pass; independent re-review pending. |
-| A4 | P2 | Independent pending gestures all claim the manager's single temporary slot. Accent BEGIN/LONG/END/BEGIN/LONG before read-back emits two entries; the older release closes the page during the newer hold. Master and Automation have equivalent ownership. | One bounded temporary-slot owner with explicit per-control return policy and supersession. Test repeated and overlapping gestures. Preserve Metronome's latch and Track/Mix's explicit prior-page semantics. | Shared ControllerPageTransitions implemented; repeated/cross-control and actual Snapback batch regressions pass; independent re-review pending. |
+| A1 | P1 | Master, Automation and Metronome can emit a deferred mode effect after its captured layout becomes stale. Bridge preparation rejects it and RuntimeManager quarantines the active core. An existing Master test positively asserted this invalid sequence. | Revalidate the full frozen origin immediately before emission; cancel stale intent without retargeting. Exercise the production bridge/runtime boundary. | Resolved in independent re-review; focused and full gates pass. |
+| A2 | P1 | ParameterTargetHost refresh removes a touch when ordinary write eligibility changes, even when its exact old actuator remains addressable. Later cleanup cannot release the forgotten touch. Tests released before refresh and masked production ordering. | Release through the existing addressability fence before retiring the lease. Test refresh-before-cleanup on selection/bank changes and reject cleanup through truly rebound proxies. | Resolved in independent re-review; production-order host and full gates pass. |
+| A3 | P1 | Accent's five-second timeout retires an acknowledged long hold. Releasing after editing velocity for more than five seconds cannot return from the page. | Separate submission, acknowledgement and physical lifetime; only missing acknowledgement expires. | Resolved in independent re-review; focused and full gates pass. |
+| A4 | P2 | Independent pending gestures all claim the manager's single temporary slot. Accent BEGIN/LONG/END/BEGIN/LONG before read-back emits two entries; the older release closes the page during the newer hold. Master and Automation have equivalent ownership. | One bounded temporary-slot owner with explicit per-control return policy and supersession. Test repeated and overlapping gestures. Preserve Metronome's latch and Track/Mix's explicit prior-page semantics. | Resolved in independent re-review; shared slot, cross-control and actual Snapback batch regressions pass. |
 
 The stronger conjecture that duplicate RESTORE effects necessarily unwind multiple pages was **not
 established**: shell apply-time layout checks reject subsequent stale operations. The demonstrated
@@ -73,6 +73,48 @@ paths and proves a later fresh Master action still works. An additional 34 core 
 pass for mixer/footer stale origins, selected/current-bank cleanup and shared remote reconciliation.
 Logs are retained under `target/migration-evidence/` in this durable worktree.
 
-Pending: full package gate, independent re-review, master integration and exact-build live evidence.
+Master `5537271f` was integrated. The complete deprecation-enabled package passed **838 tests**
+(398 core, 11 publication, 429 shell) at 20:06:20 EDT on 2026-09-05. Six deprecation warnings are
+confined to unchanged TransportImpl. An initial full attempt exposed one additional Send test
+that expected a stale effect; it now distinguishes frozen pagination intent from layout cancellation.
+
+### Bounded architecture re-review
+
+A1, A2, A3 and A4 are **Resolved**. No new material findings. The reviewer accepted one shared
+transition owner as the structural correction while preserving per-button latch/modifier behavior.
+Track/Mix's explicit prior-page return remains separate. Updated scorecard:
+
+| Concern | Status | Evidence |
+| --- | --- | --- |
+| Semantic intent resolution | Resolved for reviewed slices | Stale frozen origins cancel; immediate consumption remains separate. |
+| Authoritative state | Resolved for reviewed slices | Entry acknowledgement, physical hold and return ownership are distinct. |
+| Ownership and dependency direction | Resolved for reviewed slices | One core slot owner; exact stable touch cleanup. |
+| Reload and lifecycle fencing | Partial | Bounded defects resolved; general quiescence remains explicitly parked. |
+| API compatibility | Resolved | Correction introduces no new API-45 or Bitwig-25 contract. |
+| Test realism | Partial | Production boundaries and full package pass; native live validation remains. |
+| Legacy deletion | Partial | Implemented slices deleted policy; remaining families/scaffolding remain documented. |
+
+Architecture recommendation: **Merge with tracked debt**, conditional on the exact-build live gate.
+The reviewer originally also named the full package gate; the parent subsequently confirmed it
+passed. This is architecture readiness for the reviewed slices, not whole-migration completion.
+
+### Bounded line-count re-review
+
+Verdict: **Justified as written**; zero additional necessary reductions. At `25aa5b6f`:
+production `+8,893/-3,316`, tests `+8,820/-186`, other `+2,968/-218` versus `a905be84`.
+The later Send test correction and this reporting update change only tests/docs. LC1, LC2 and
+Master admission duplication are resolved. Composition duplication is appropriately deferred.
+
+The shared transition helper plus its four consumers/wiring adds **70 net production lines** versus
+the pre-correction checkpoint. This is a correctness expansion, not a net reduction: one slot owner,
+centralized origin/acknowledgement checks and independent physical lifetime earn those lines.
+The reviewer advised against another generic button abstraction; remaining control-specific branches
+represent real differences.
+
+### Remaining gate
+
+No candidate installation, restart, core publication or state-changing debugger input has occurred.
+The Mac is locked and user unlock is pending. Follow `core-migration-live-smoke.md` under the live
+lease when it becomes available; do not infer native success from the 838 offline tests.
 The [shortcuts ledger](migration-shortcuts-and-friction.md) records retained architecture costs and
 rejected shortcuts separately from the corrected defects.

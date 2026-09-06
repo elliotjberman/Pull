@@ -10,8 +10,8 @@ Track/Mix, and Master. The overall inventory also includes the inherited browser
 configuration, and sequencer families; completing the first group does not complete the migration.
 No inherited feature is retired without an explicit product decision.
 
-The separate core-reload quiescence investigation is recorded on `codex/quiescence-finding` and is
-not being implemented as an incidental part of this migration.
+The separate [core-reload quiescence investigation](../findings/core-reload-quiescence.md) is
+recorded here and is not being implemented as an incidental part of this migration.
 
 Completion means all supported mappings, gesture variants, navigation, layout, lights, and display
 policy are core-owned. Stable retains initialization, observations, typed effect execution, target
@@ -28,16 +28,16 @@ not sufficient if their behavior has merely moved into another stable class.
 | Session/Drum raw pitch bend | Generic strip output plus core-owned gesture policy | Implemented with gesture continuity and browser debug ingress; offline tests passed; live pending |
 | Drum octave and velocity mapping | Bounded desired musical map, authoritative base, output/notification ownership | Implemented and offline tested; musical-claim validation added; live pending |
 | Track/Mix menus and normal footer | Named selected-track/send parameters, I/O, current-bank state, exact effects | Normal and VS Track implemented and included in the 685-test checkpoint; live pending |
-| Volume/Pan pages | Named current-bank parameters, exact owner metadata, shared footer, preferences, generic page registry | Implemented; 823-test package gate passed; review corrections in progress; live pending |
-| Send pages 1–8 | Eight requested columns across eight current tracks, exact owner/position fences, shared menu/footer/touch machinery | Implemented with stable SendMode deletion; 823-test package gate passed; live pending |
-| Four-arrow navigation | Independent current-bank track/scene/cursor fence and installed inert arrow footprint | Core-owned for registered pages and VS; full Session legacy-page arrows and page/sequencer buttons remain declared frozen behavior; 823-test gate passed; review corrections in progress |
-| Global Track/Mix button | Raw mode/history read-back, generic mode effects, controller preferences, semantic action barrier | Complete gesture and feedback policy implemented; 823-test gate passed; review corrections in progress; live pending |
+| Volume/Pan pages | Named current-bank parameters, exact owner metadata, shared footer, preferences, generic page registry | Implemented; 838-test package gate passed after review corrections; live pending |
+| Send pages 1–8 | Eight requested columns across eight current tracks, exact owner/position fences, shared menu/footer/touch machinery | Implemented with stable SendMode deletion; 838-test package gate passed; live pending |
+| Four-arrow navigation | Independent current-bank track/scene/cursor fence and installed inert arrow footprint | Core-owned for registered pages and VS; full Session legacy-page arrows and page/sequencer buttons remain declared frozen behavior; 838-test gate passed after review corrections |
+| Global Track/Mix button | Raw mode/history read-back, generic mode effects, controller preferences, semantic action barrier | Complete gesture and feedback policy implemented; 838-test gate passed after review corrections; live pending |
 | Device and browser pages | Bounded device/layer/browser state and actions | Pending |
 | Note layouts, scales, repeat, configuration | Core-authored musical maps and configuration policy | Pending |
 | Clip editing and sequencers | Bounded clip-content windows and editing effects | Pending |
-| Metronome/Automation and temporary settings pages | Generic SELECT/TEMPORARY/RESTORE, transport settings, raw automation mode/reset, exact parameters | Implemented with action/feedback and observer ownership; 823-test gate passed; review corrections in progress; live pending |
-| Frame and Master entry | Generic application UI context, thirteen observed flags, native primitives, retained page/background composition | Implemented with delayed entry/restore acknowledgement and full row/display ownership; 823-test gate passed; review corrections in progress; live pending |
-| Accent | Observed enabled/velocity preferences, core-authored Drum velocity map, generic page and input admission | Implemented; 823-test package passed; lifecycle correction in progress; summed-motion clamp deviation recorded in the shortcut ledger |
+| Metronome/Automation and temporary settings pages | Generic SELECT/TEMPORARY/RESTORE, transport settings, raw automation mode/reset, exact parameters | Implemented with action/feedback and observer ownership; 838-test gate passed after review corrections; live pending |
+| Frame and Master entry | Generic application UI context, thirteen observed flags, native primitives, retained page/background composition | Implemented with delayed entry/restore acknowledgement and full row/display ownership; 838-test gate passed after review corrections; live pending |
+| Accent | Observed enabled/velocity preferences, core-authored Drum velocity map, generic page and input admission | Implemented; 838-test package passed after lifecycle correction; summed-motion clamp deviation recorded in the shortcut ledger |
 | Remaining global controls and temporary pages | Complete target/configuration/application capabilities | Tap Tempo and Undo/Redo were included in the 685-test checkpoint; other inherited controls require their own full audits |
 | Remove compatibility architecture | All remaining adapter consumers migrated; findings resolved individually | Pending |
 
@@ -81,7 +81,14 @@ domain gates DTO sampling. None of these mechanisms moves controller product pol
   `/private/tmp/pull-native-pages-package.log`. Six deprecation warnings remain in unchanged
   legacy `TransportImpl`; none are in changed code. Independent architecture/code-size review
   found three P1 defects and one bounded ownership issue, documented in `core-migration-review.md`.
-  Corrections are in progress; this is a verification checkpoint, not final acceptance or live proof.
+  Those findings were corrected and re-reviewed; this earlier run remains a verification checkpoint, not live proof.
+- Final deprecation-enabled package passed **838 tests** (398 core, 11 publication, 429 shell)
+  at 20:06:20 EDT on 2026-09-05, after integration of `master` at `5537271f` and corrections.
+  Log: `target/migration-evidence/post-review-package.log`. Six deprecation warnings remain only
+  in unchanged `TransportImpl`. Independent bounded architecture re-review resolved A1–A4 and
+  found no new material findings; the size review accepted the correction as written. A stale
+  Send test expectation was replaced by separate frozen-selection and stale-layout-cancellation
+  checks before this successful run. Live installation/testing remains blocked by the locked Mac.
 - Characterize existing behavior before each migration, including modifiers, release, target
   changes, output, and delayed host acknowledgement.
 - Keep fake command submission distinct from explicit host advancement and later snapshots.

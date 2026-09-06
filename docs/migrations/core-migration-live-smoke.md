@@ -12,8 +12,15 @@ ingress result is not a passing host-state or output check. Record each layer se
 - Working branch: `codex/complete-core-migration`.
 - Source regression baseline: `master` at `5537271f575852634a7a94e473eb57a404fd77a8`.
 - Intended contract: Core API 45; Bitwig controller API 25; checkpoint schema 5.
-- Exact checkpoint, shell fingerprint, extension hash, active core build ID: pending.
-- Offline package and independent finishing review for the exact installed build: pending.
+- Production checkpoint: `25aa5b6f`; the later Send test correction changes no production source.
+- Candidate extension SHA-256: `b2101cbc7156cdc97ba9c769bf430f54da23cd518d9f05614f48c06c37cbe313`.
+- Candidate API compatibility fingerprint: `b3f11d5fdbc8dfcfaa9b53cba761e293f45a8732`.
+  This is not proof of the running shell's identity; the provenance finding remains active.
+- Offline package passed 838 tests at 20:06:20 EDT on 2026-09-05; bounded finishing reviews cleared
+  A1–A4 and LC1–LC2. Full log: `target/migration-evidence/post-review-package.log`.
+- Active installed shell/core identity and live activation receipt: pending. The candidate's bundled
+  core metadata is `unpublished`; use `tools/reload-core` under the live lease to publish and verify
+  a unique build ID after the exact candidate shell is installed and Bitwig is restarted.
 - Live lease: acquire `tools/with-pull-live --owner complete-core-migration` and keep its shell
   open through installation, restart, exact activation, all input, and final observation.
 - Preserve the user's open project. Use a saved scratch project for parameter, automation, and

@@ -160,16 +160,19 @@ class SendMixerControlsViewTest
     }
 
     @Test
-    void sendPageMenuUsesTheSameObservedPaginationAndFrozenSelectionEffects ()
+    void sendPageMenuFreezesItsSelectionAndCancelsIfTheLayoutChanges ()
     {
-        final Fixture f = new Fixture (5);
-        f.menuOffset = 4;
-        final var input = f.input (PushControlIds.button ("ROW2_5"), InputKind.BUTTON, InputPhase.BEGIN, 127);
-        final var action = f.workspace.resolveAction (input, f.snapshot ());
-        f.menuOffset = 0;
-        f.layoutGeneration++;
-        assertEquals (List.of (new SetControllerModeSettingEffect (SetControllerModeSettingEffect.Setting.GLOBAL_MIX_MODE, "SEND6"), new SelectControllerModeEffect (1, "SEND6")), f.workspace.dispatchAction (action, f.snapshot ()));
-        assertEquals (new RgbColor (255, 255, 255), f.workspace.activate (f.snapshot ()).desiredOutput ().lights ().get (PushControlIds.button ("ROW2_7")));
+        for (final boolean changeLayout: List.of (false, true))
+        {
+            final Fixture f = new Fixture (5);
+            f.menuOffset = 4;
+            final var input = f.input (PushControlIds.button ("ROW2_5"), InputKind.BUTTON, InputPhase.BEGIN, 127);
+            final var action = f.workspace.resolveAction (input, f.snapshot ());
+            f.menuOffset = 0;
+            if (changeLayout) f.layoutGeneration++;
+            assertEquals (changeLayout ? List.of () : List.of (new SetControllerModeSettingEffect (SetControllerModeSettingEffect.Setting.GLOBAL_MIX_MODE, "SEND6"), new SelectControllerModeEffect (1, "SEND6")), f.workspace.dispatchAction (action, f.snapshot ()));
+            assertEquals (new RgbColor (255, 255, 255), f.workspace.activate (f.snapshot ()).desiredOutput ().lights ().get (PushControlIds.button ("ROW2_7")));
+        }
     }
 
     private static ControlId knob (final int index) { return PushControlIds.continuous ("KNOB" + (index + 1)); }
