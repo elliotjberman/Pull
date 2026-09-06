@@ -261,7 +261,7 @@ class PushDebugInputHostTest
 
 
     @Test
-    void cancelCompletesAnAdmissionWithNoRemainingHeldEdges () throws IOException
+    void cancelRetainsAnAdmissionUntilTheReleasedRouteIsIdle () throws IOException
     {
         this.request (this.host, "down", ROW, InputKind.BUTTON, "BEGIN", 127);
         this.host.tick ();
@@ -272,6 +272,33 @@ class PushDebugInputHostTest
         this.host.tick ();
 
         assertEquals (2, this.surface.events.size (), "the completed edge must not receive a duplicate release");
+        assertTrue (this.admission.debugActive);
+        assertEquals (0, this.admission.completionCount);
+        this.admission.routeIdle = true;
+        this.host.tick ();
+        assertFalse (this.admission.debugActive);
+        assertEquals (1, this.admission.completionCount);
+    }
+
+
+    @Test
+    void pressureNeutralizationCanReenterCancellationWithoutDuplicatingRelease () throws IOException
+    {
+        this.request (this.host, "pad-down", PAD, InputKind.PAD, "BEGIN", 100);
+        this.host.tick ();
+        this.request (this.host, "pressure", PAD, InputKind.POLY_PRESSURE, "CHANGE", 91);
+        this.host.tick ();
+        this.surface.onNeutralPressure = () -> this.host.cancelActive ("route invalidated by pressure callback");
+        this.request (this.host, "pad-up", PAD, InputKind.PAD, "END", 0);
+        this.host.tick ();
+
+        assertEquals (List.of (
+            "push.pad.5:PAD:BEGIN:100",
+            "push.pad.5:POLY_PRESSURE:CHANGE:91",
+            "push.pad.5:POLY_PRESSURE:CHANGE:0",
+            "push.pad.5:PAD:END:0"), this.surface.events);
+        assertEquals (this.surface.events, this.surface.noteInputEvents);
+        assertTrue (this.surface.active.isEmpty ());
         assertFalse (this.admission.debugActive);
         assertEquals (1, this.admission.completionCount);
     }
@@ -489,6 +516,7 @@ class PushDebugInputHostTest
         private final List<String> noteInputEvents = new ArrayList<> ();
         private final Set<String> active = new HashSet<> ();
         private ControlId failNextEnd;
+        private Runnable onNeutralPressure = () -> { };
 
 
         @Override
@@ -511,17 +539,20 @@ class PushDebugInputHostTest
         @Override
         public void trigger (final ControlId control, final InputKind kind, final InputPhase phase, final int value)
         {
-            if (phase == InputPhase.END && control.equals (this.failNextEnd))
-            {
-                this.failNextEnd = null;
-                throw new IllegalStateException ("test release failed");
-            }
             final String address = control.value () + ":" + kind.name ();
             if (phase == InputPhase.BEGIN)
                 this.active.add (address);
             else if (phase == InputPhase.END)
                 this.active.remove (address);
             this.events.add (address + ":" + phase.name () + ":" + value);
+            if (kind == InputKind.POLY_PRESSURE && value == 0)
+                this.onNeutralPressure.run ();
+            // Hardware state and routed ownership are updated before a downstream callback can fail.
+            if (phase == InputPhase.END && control.equals (this.failNextEnd))
+            {
+                this.failNextEnd = null;
+                throw new IllegalStateException ("test release failed");
+            }
         }
 
 

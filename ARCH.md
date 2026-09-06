@@ -3,12 +3,12 @@
 Status: working implementation through Core API 45, checkpoint schema 5. The migration includes
 Project/Master/Track touches, Drum octave/native mapping, raw touch strip, normal/VS Track pages,
 Volume/Pan/Send, core page composition and arrows, Track/Mix, Metronome/Automation, Frame/Master entry,
-Accent, Tap Tempo, and Undo/Redo. The deprecation-enabled package passed 838 tests on
-2026-09-05 (398 core, 11 publication, 429 shell), after the independent review
+Accent, Tap Tempo, and Undo/Redo. The deprecation-enabled package passed 851 tests on
+2026-09-06 (398 core, 11 publication, 442 shell), including the independent review
 corrections. Bounded architecture re-review found no remaining material findings in these slices.
 Live installation and exact core activation succeeded on 2026-09-06; representative parameter and
 Drum/strip read-back checks pass. The [live record](docs/migrations/core-migration-live-smoke.md)
-tracks the remaining coverage and a debugger chord-release defect found during smoke testing. This is not the complete migration; remaining
+tracks the remaining coverage and the reentrant cleanup correction awaiting live retest. This is not the complete migration; remaining
 families and the Session release-contract decision are tracked in
 [`docs/migrations/core-migration-plan.md`](docs/migrations/core-migration-plan.md).
 
@@ -148,7 +148,8 @@ parameter canopy.
 
 Selected-track sends and all eight current-track send columns are installed in this candidate.
 The full named parameter canopy has seventeen banks and at most 131 slots; core requests only the
-banks it needs. This working API-45 canopy has not yet been installed live.
+banks it needs. This API-45 canopy was installed and activated live on 2026-09-06; exact build
+identities and the sampled coverage are recorded in the live smoke document.
 
 `ParameterTargetIdentitySnapshot` exposes the classified domain, owner ID, page, and index alongside
 the opaque actuator reference. Volume/Pan/Send compare that owner with the current-bank row before

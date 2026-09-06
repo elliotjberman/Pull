@@ -69,6 +69,7 @@ final class PushDebugInputHost implements AutoCloseable
 
     private final Map<EdgeAddress, ActiveEdge> activeEdges = new LinkedHashMap<> ();
     private boolean debugInputActive;
+    private int releaseDepth;
     private ControlId pressuredPad;
     private long pressureExpiresAtNanos;
 
@@ -238,6 +239,11 @@ final class PushDebugInputHost implements AutoCloseable
 
     private void beginEdge (final Incoming request)
     {
+        if (this.releaseDepth > 0)
+        {
+            this.fail (request, "controller input is busy");
+            return;
+        }
         final EdgeAddress address = EdgeAddress.from (request);
         if (this.activeEdges.containsKey (address) || this.surface.isActive (request.control (), request.kind ()))
         {
@@ -273,7 +279,7 @@ final class PushDebugInputHost implements AutoCloseable
 
     private void endEdge (final Incoming request)
     {
-        final ActiveEdge owned = this.activeEdges.get (EdgeAddress.from (request));
+        final ActiveEdge owned = this.activeEdges.remove (EdgeAddress.from (request));
         if (owned == null)
         {
             this.fail (request, "no matching browser input is held");
@@ -282,9 +288,7 @@ final class PushDebugInputHost implements AutoCloseable
 
         try
         {
-            this.neutralizePressure (request.control ());
-            this.admission.endDebugInput ( () -> this.triggerEdge (request.control (), request.kind (), InputPhase.END, 0));
-            this.activeEdges.remove (EdgeAddress.from (request));
+            this.releaseOwnedEdge (owned);
             this.succeed (request);
             this.expireOrCompleteActive ();
         }
@@ -388,18 +392,16 @@ final class PushDebugInputHost implements AutoCloseable
 
     private void expireOrCompleteActive ()
     {
-        if (!this.debugInputActive)
+        if (!this.debugInputActive || this.releaseDepth > 0)
             return;
         final long now = this.nanoTime.getAsLong ();
         for (final ActiveEdge owned: List.copyOf (this.activeEdges.values ()))
         {
-            if (now >= owned.expiresAtNanos)
+            if (now >= owned.expiresAtNanos && this.activeEdges.remove (new EdgeAddress (owned.control, owned.kind), owned))
             {
                 try
                 {
-                    this.neutralizePressure (owned.control);
-                    this.admission.endDebugInput ( () -> this.triggerEdge (owned.control, owned.kind, InputPhase.END, 0));
-                    this.activeEdges.remove (new EdgeAddress (owned.control, owned.kind));
+                    this.releaseOwnedEdge (owned);
                     this.outgoing.set (new Status (owned.requestID, "RELEASED", owned.control.value (), owned.kind.name (), "END", 0, "browser input lease expired"));
                 }
                 catch (final RuntimeException ex)
@@ -409,13 +411,7 @@ final class PushDebugInputHost implements AutoCloseable
                 }
             }
         }
-        // A released control can be pressed again while another chord edge remains held. The
-        // shared admission outlives those individual edges until the routed lifecycle is idle.
-        if (this.activeEdges.isEmpty () && this.admission.debugInputRouteIdle ())
-        {
-            this.admission.completeDebugInput ();
-            this.debugInputActive = false;
-        }
+        this.completeAdmissionIfIdle ();
     }
 
 
@@ -447,25 +443,66 @@ final class PushDebugInputHost implements AutoCloseable
     private void releaseAllActive (final String message)
     {
         final List<ActiveEdge> ownedEdges = List.copyOf (this.activeEdges.values ());
-        this.neutralizePressureBestEffort ();
-        for (final ActiveEdge owned: ownedEdges.reversed ())
+        this.activeEdges.clear ();
+        this.releaseDepth++;
+        try
         {
-            try
+            this.neutralizePressureBestEffort ();
+            for (final ActiveEdge owned: ownedEdges.reversed ())
             {
-                this.admission.endDebugInput ( () -> this.triggerEdge (owned.control, owned.kind, InputPhase.END, 0));
-            }
-            catch (final RuntimeException ignored)
-            {
-                // Releasing each exact established control is best-effort during failure or shutdown.
+                try
+                {
+                    this.releaseOwnedEdge (owned);
+                }
+                catch (final RuntimeException ignored)
+                {
+                    // Releasing each exact established control is best-effort during failure or shutdown.
+                }
             }
         }
-        this.admission.completeDebugInput ();
-        this.debugInputActive = false;
-        this.activeEdges.clear ();
+        finally
+        {
+            this.releaseDepth--;
+            this.completeAdmissionIfIdle ();
+        }
         if (!ownedEdges.isEmpty ())
         {
             final ActiveEdge last = ownedEdges.getLast ();
             this.outgoing.set (new Status (last.requestID, "RELEASED", last.control.value (), last.kind.name (), "END", 0, message));
+        }
+    }
+
+
+    /** The caller must consume this edge's ownership before entering synchronous routed callbacks. */
+    private void releaseOwnedEdge (final ActiveEdge owned)
+    {
+        this.releaseDepth++;
+        try
+        {
+            try
+            {
+                this.neutralizePressure (owned.control);
+            }
+            finally
+            {
+                this.admission.endDebugInput ( () -> this.triggerEdge (owned.control, owned.kind, InputPhase.END, 0));
+            }
+        }
+        finally
+        {
+            this.releaseDepth--;
+        }
+    }
+
+
+    private void completeAdmissionIfIdle ()
+    {
+        // Individual edges may retire while a chord remains held. Reentrant cleanup must also
+        // finish its entire callback stack before giving up the shared debug admission.
+        if (this.debugInputActive && this.releaseDepth == 0 && this.activeEdges.isEmpty () && this.admission.debugInputRouteIdle ())
+        {
+            this.debugInputActive = false;
+            this.admission.completeDebugInput ();
         }
     }
 
@@ -573,15 +610,9 @@ final class PushDebugInputHost implements AutoCloseable
     {
         if (this.pressuredPad == null || !this.pressuredPad.equals (control))
             return;
-        try
-        {
-            this.triggerPressure (control, 0);
-        }
-        finally
-        {
-            this.pressuredPad = null;
-            this.pressureExpiresAtNanos = 0;
-        }
+        this.pressuredPad = null;
+        this.pressureExpiresAtNanos = 0;
+        this.triggerPressure (control, 0);
     }
 
 

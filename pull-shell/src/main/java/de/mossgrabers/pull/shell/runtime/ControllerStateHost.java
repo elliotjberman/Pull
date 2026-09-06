@@ -31,6 +31,7 @@ final class ControllerStateHost
     private long activeCoreGeneration = Long.MIN_VALUE;
     private boolean quarantinedUntilInputIdle;
     private boolean replayPending;
+    private boolean detaching;
 
 
     ControllerStateHost (final ISelectedTrackNoteTarget selectedTarget, final ControllerWorkspaceHost workspaceHost, final Runnable routeNeutralizer)
@@ -106,12 +107,15 @@ final class ControllerStateHost
 
     private void reconcile (final boolean reassertLayout)
     {
-        final DesiredNoteInputRoute requested = this.desired.notePerformance ().inputRoute ();
+        if (this.detaching)
+            return;
+        final DesiredControllerState requestedState = this.desired;
+        final DesiredNoteInputRoute requested = requestedState.notePerformance ().inputRoute ();
         if (this.submittedRoute.active () && !this.liveTargetMatches (this.submittedRoute))
         {
             this.failClosed (null);
             this.quarantinedUntilInputIdle = !this.inputLifecycleIdle.getAsBoolean ();
-            if (requested.active () && !this.liveTargetMatches (requested))
+            if (!requestedState.equals (this.desired) || requested.active () && !this.liveTargetMatches (requested))
                 return;
         }
 
@@ -167,6 +171,10 @@ final class ControllerStateHost
                 return;
             }
             this.detach ();
+            // A synchronous release callback may replace desired state while detach parks its
+            // reconcile. Let the next refresh attach that route before activating its layout.
+            if (!requestedState.equals (this.desired))
+                return;
         }
         this.quarantinedUntilInputIdle = false;
         this.activateDesiredSurface (reassertLayout);
@@ -248,14 +256,25 @@ final class ControllerStateHost
     {
         if (!this.submittedRoute.active ())
             return;
+        // Neutralization can release a routed debug edge, whose synchronous input callback
+        // refreshes this host. Retire ownership before calling out and defer replacement until
+        // the old physical route has actually received its detach submission.
+        this.submittedRoute = DesiredNoteInputRoute.disabled ();
+        this.detaching = true;
         try
         {
             this.routeNeutralizer.run ();
         }
         finally
         {
-            this.selectedTarget.submitNoteInputRoute (false);
-            this.submittedRoute = DesiredNoteInputRoute.disabled ();
+            try
+            {
+                this.selectedTarget.submitNoteInputRoute (false);
+            }
+            finally
+            {
+                this.detaching = false;
+            }
         }
     }
 

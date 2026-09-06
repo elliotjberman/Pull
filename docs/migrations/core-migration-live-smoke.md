@@ -1,9 +1,13 @@
 # Core migration live smoke record
 
-Status: live execution began on 2026-09-06. The exact checkpointed API-45 shell was installed,
-Bitwig started, and a uniquely published core was acknowledged. Representative controller/host
-checks pass, but this is not a complete smoke sign-off. A generic debugger chord-release defect
-was reproduced and is being corrected; remaining gesture variants and physical/audio checks remain open.
+Status: **not ready**. Source checkpoint `6272f48d` passed the representative checks recorded
+below, but its final live regression failed during ROW1_1 track selection with a stack overflow
+in selected-note-route cleanup. The observed cycle is `ControllerStateHost.detach` → neutralize
+→ debug cancellation → `releaseAll` → END → refresh → detach. The bounded reentrancy correction passed the deprecation-enabled package gate: **851 tests,
+zero failures/errors** (398 core, 11 publication, 442 shell), completed 2026-09-06
+13:01:50 EDT; log `target/migration-evidence/reentrant-cleanup-package.log`. A new
+checkpoint/install, focused selection regression, and held-reload rerun are still required.
+Earlier passed cases remain evidence for `6272f48d`, not a sign-off for a later replacement.
 
 This supplements `TESTING.md`. A passing offline build, submitted debug request, or `APPLIED`
 ingress result is not a passing host-state or output check. Record each layer separately.
@@ -14,14 +18,24 @@ ingress result is not a passing host-state or output check. Record each layer se
 - Source regression baseline: `master` at `5537271f575852634a7a94e473eb57a404fd77a8`.
 - Intended contract: Core API 45; Bitwig controller API 25; checkpoint schema 5.
 - Initial live source checkpoint: `a6c7ccd03c6c01687a842bf1b2e74268966983af`.
-- Candidate extension SHA-256: `b2101cbc7156cdc97ba9c769bf430f54da23cd518d9f05614f48c06c37cbe313`.
+- Initial extension SHA-256: `b2101cbc7156cdc97ba9c769bf430f54da23cd518d9f05614f48c06c37cbe313`.
+- Final source checkpoint: `6272f48d4c137a9db46ccb4b37c10ff4d88d8471`.
+- Final built and installed extension SHA-256:
+  `8326a296840e928bad7e2d0996ec5de0bede4117c9a8590476360c70c4917565`.
+  Both paths match in `target/migration-evidence/debug-fix-installed-sha256.txt`.
+- Final deprecation-enabled package gate: **845 tests, zero failures/errors** (398 core,
+  11 publication, 436 shell), completed 2026-09-06 12:43:10 EDT. Log:
+  `target/migration-evidence/live-debug-fix-package.log`.
+- Final active core: `20260906T164738Z-36252a87aa8a6b8dcf191cc8563e2619`, generation 4,
+  SHA-256 `fa03e3e42804fcd575732937aa10acd35100237327f58945c49abb1873206f17`.
+  `held-reload-activated.json` and `held-reload-release.tsv` identify the same activation.
 - Candidate API compatibility fingerprint: `b3f11d5fdbc8dfcfaa9b53cba761e293f45a8732`.
   This is not proof of the running shell's identity; the provenance finding remains active.
 - Offline package passed 838 tests at 20:06:20 EDT on 2026-09-05; bounded finishing reviews cleared
   A1–A4 and LC1–LC2. Full log: `target/migration-evidence/post-review-package.log`.
 - Initial live activation: core `20260906T162533Z-080374d0eb4b16da80b0c38085a23dee`, SHA-256
   `7d63965385abe4793bbe56e9d613d897407c6b1b2c1af826faaec0cb4e338690`; exact `Activated` receipt
-  in `target/migration-evidence/first-live-reload.log`. Installed extension bytes matched the SHA above.
+  in `target/migration-evidence/first-live-reload.log`. Installed extension bytes matched the initial extension SHA above.
   The previously published API-44 core was correctly rejected before the API-45 publication.
 - Live lease: acquire `tools/with-pull-live --owner complete-core-migration` and keep its shell
   open through installation, restart, exact activation, all input, and final observation.
@@ -48,25 +62,31 @@ compare against master if a layout or inherited gesture is in doubt. Record logs
 in the table. Actual note sound and native learned mappings require their separate physical/audio
 proof described in `TESTING.md`; controller ingress alone cannot supply it.
 
-| Slice | Routed interaction | Authoritative completion / output evidence | Result |
-| --- | --- | --- | --- |
-| Startup and exact build | Install checkpointed extension, restart Bitwig, activate exact core | Correct API/fingerprint/build acknowledgement; no startup stack trace; populated subscribed domains | Pending |
-| Project macros | Select Project Macro page, touch/turn/release a mapped encoder | Later target value and display agree; touch lease releases; empty slots remain inert | Pending |
-| Selected Track | Select each scratch track, edit volume/pan/send, use menu and arrows | Matching owner/name/value, later track/bank change, expected light/display; no old-owner write | Pending |
-| Global Volume/Pan | Mix button to global page, upper menu selection, encoder gesture | Exact current-bank track changes; observed parameter and row metadata agree | Pending |
-| Global Sends | Visit send pages, adjust and toggle a send; include Delete+Shift+Select touch | Reset/touch/toggle order, later enabled/value state, matching display; absent sends remain inert | Pending |
-| Master | Short page replacement and return; touch/turn/release; LONG Frame and release | Master/Cue parameter read-back, retained grid/note composition, exact return without DAW track selection | Pending |
-| Frame | Toggle representative Arranger/Mixer properties and switch UI layout | Later application snapshot and visible Bitwig UI agree with corresponding controller feedback | Pending |
-| Metronome/Automation | Plain/Shift/Delete variants; LONG pages; early release while entry pending | Later setting/write-mode read-back; documented latch/return; modifier release consumed correctly | Pending |
-| Accent | Toggle Accent and edit fixed velocity; switch between Drum and legacy Note layouts | Observed configuration, desired and applied native velocity tables, zero stays zero; physical/audio note check separately | Pending |
-| Drum octave and strip | Octave changes; strip drag, held page change, release | Later base/applied translation; exact strip position then center; independent audible check if available | Pending |
-| Retained composition | Move through Master/temporary/mixer pages over VS Live and ordinary Note | Same grid/note routing and held gesture lifecycle persist through page replacement | Pending |
-| Core hot reload | Reload exact candidate from this shell, including a held supported gesture | Replacement waits for old gesture; no completion reaches replacement; settings, mapped parameter output, and composition recover | Pending |
-| Final regression pass | Repeat representative macro, Track, Master, Send interactions after reload | Later host values and outbound frame, no runtime faults or leaked touch state | Pending |
+All artifact names below are relative to `target/migration-evidence/`. A **verified** row is
+limited to the listed interactions. Empty columns, every modifier combination, every send page,
+audio and native learned mappings are not implied by a representative pass.
+
+| Slice | Verified interaction and later observation | Evidence / limits |
+| --- | --- | --- |
+| Startup and exact build | Final installed extension hash matches; API 45 core activates after restart and again after held reload | Final hashes/gate above; `held-reload-activated.json`; startup stack traces inspected by operator |
+| Project macros | Remote Volume 468→518; remote Pan 414→454→512 by movement and Delete+touch reset; exact project owner and released touch ownership; saved values persist after reopen/reload | `macros-*`, `macro-touch-*`, `held-reload-before/after.tsv`; initial movement/reset preceded final debugger-only shell fix; generation-4 final regression also verifies movement 518→558 and release before the later selection crash |
+| Selected Track / global Volume | Exact selected-track volume 553→642, pan 512→542, send 0→80; global Volume edits another exact bank owner 598→642 | Initial live `track-volume.tsv`, `selected.tsv`, `globals.tsv`; final Track regression pending |
+| Global Pan | Exact `TRACK_PAN:0` owner, motion 542→562, Delete reset→512; BEGIN ownership and END cleanup | Complete generation-4 `final-pan-*` short snapshots, action traces and captures |
+| Global Send | `TRACK_SEND1:0` 80→120, Delete reset→0, Shift+Select touch enabled true→false; exact target remains stable and all releases clear ownership | Complete generation-4 `final-send-*`; separate reset and toggle gestures, not the untested combined Delete+Shift+Select variant; SEND2–8 not exercised |
+| Master | Page entry/return retains WORKSPACE grid; Master pan 621→661 with exact project owner and touch cleanup | Generation-4 `final-frame-master-*` and touch action traces; Cue controls not exercised |
+| Frame | Held temporary Frame: repeated I/O false→true→false, MIX→EDIT→MIX, still held >7s, release→TRACK with no pressed controls | `final-frame-*`; ARRANGE is a native no-op in the observed Dual Display (Studio) profile; available MIX/EDIT controls verified; not a migrated-input failure |
+| Metronome | Plain toggle false→true; Shift tick playback false→true; long Transport page and release latch; independent volume 767→807; next press restores TRACK | Generation-4 `final-metro-*`; later project/parameter observations, capture and touch END result; pre-roll variants not rerun |
+| Automation | Writing false→true; long temporary page; select TOUCH with writing enabled; release restores TRACK | Generation-4 `final-auto-*`; Delete/reset-overrides and release-before-entry variants not exercised in final live pass |
+| Accent | Enable at velocity124, edit→122; applied native table exactly `[0] + [122]×127`; acknowledged page survives >7s physical hold, release→TRACK | Generation-4 `final-accent-*`; retained WORKSPACE grid and no pressed controls after release; audible/native learned mapping proof separate |
+| Drum octave and strip | Base36→52→36 and applied native key maps; transmitted pitchbend12000 retained across Master→3000→center8192 on release | Initial live `drum-*` and `strip-*-surface.json`; not repeated after debugger-only shell fix; no audible pitch claim |
+| Retained composition | Master, Frame, mixer, Metronome, Automation and Accent pages retain WORKSPACE grid; long holds and returns use later layout observations | Generation-4 final-case snapshots; selected NoteInput attachment/audio are separate proofs |
+| Core hot reload | Published replacement waits while macro knob1 remains touched; old generation receives END and applies empty touch ownership; new generation activates ~81ms later without restarting Bitwig | Complete `held-reload-*`, exact IDs and unchanged PIDs 58202/58203; release trace details below |
+| Final regression | Macro movement/release and preference restoration completed before ROW1_1 selection; Track selection and final cleanup failed | **Failed on 6272f48d:** recursive selected-note cleanup stack overflow; see completed `final-regression-*` artifacts and backed-up Bitwig log |
 
 ## Limits and remaining work
 
-This first live pass covers the completed migration slices, not all inherited Push behavior. Session
+This live pass samples the migrated slices; it does not establish every semantic variant or all
+inherited Push behavior. Session
 grid actuation still awaits its release contract decision, and device/browser, Crossfade, remaining
 configuration/note/clip/sequencer families remain in the migration inventory. Any failure must be
 recorded with the exact build and turned into an offline regression when its boundary can be modeled.
@@ -112,3 +132,79 @@ scaffolding, not new production interfaces. They use existing bounded, opt-in de
   468→518 / −14.4→−11.7 dB. `macro-touch-pan-*-observed.json` verifies exact target acquisition,
   later movement and release for remote 2; `macro-touch-pan-reset-applied-observed.json` verifies
   Delete+touch reset to 512/center, and the released snapshot has no remaining touch ownership.
+
+## Final short-sample results (generation 4)
+
+On the subsequently failed `6272f48d` build, the `final-accent`, `final-metro`, `final-auto`, `final-send`, `final-pan` and `final-frame`
+driver logs end `VERIFIED`. Their short samples/action traces are complete, contain no runtime
+failure stage, and avoid the earlier serialization truncation. Host samples may contain no fresh
+core result when the core is idle. Parameter-touch assertions therefore use their separately
+recorded BEGIN/END action result and same-generation APPLIED receipt; they do not skip ownership
+checks or treat a missing idle result as empty output.
+
+- **Accent:** revisions 93→97 observe enablement and applied124 mapping; revision 104 observes
+  edited122 and an exact128-entry velocity table with zero→zero and all nonzero inputs→122.
+  The already-acknowledged ACCENT page remains physically held for another 6.395s between the
+  entry and long-hold samples; the full gesture exceeds 7s. Revision 107 restores TRACK and clears
+  pressed controls. Grid remains WORKSPACE throughout.
+- **Metronome:** later revisions 110 and 115 acknowledge metronome and tick playback. TRANSPORT
+  remains latched with no pressed controls at 119. `GLOBAL:2`, exact project-global LIVE5, changes
+  767→807 (-12.0→-10.1dB) at 121; END clears host touch at 122 and its explicit core result has no
+  parameter-touch ownership. This knob intentionally has no DAW parameter-touch acquisition.
+  Revision 127 restores TRACK.
+- **Automation:** revision 132 acknowledges writing enabled; 136 acknowledges temporary
+  AUTOMATION; 139 acknowledges TOUCH mode with writing enabled; 143 restores TRACK and clears
+  pressed controls.
+- **Send/Pan:** exact channel owner is `5e10dc9a-b8c9-4771-bd30-c0a536b6ba2b`.
+  Send LIVE19 (channel-send, index0) changes 80→120 at 153, resets 0 at 157, then toggles enabled
+  false at 164. Three separate END results are empty and final 168 has no touch/modifier held.
+  Pan LIVE22 (channel-pan) changes 542→562 at 174, resets 512 at 178, and releases at 180.
+- **Master/Frame:** exact project-master Pan LIVE13 changes 621→661 at 191 and releases at 192.
+  FRAME retains underlying TRACK and WORKSPACE, I/O changes false→true at 204→false at 207,
+  EDIT is observed at 212 and MIX restored at 215. The acknowledged held FRAME page persists
+  another 7.672s between entry and final hold sample; 219 restores TRACK with no held controls.
+  This closes the repeated-soft-key defect reproduced before the debugger fix.
+
+The earlier Frame v2 I/O assertion ran in EDIT, where upper I/O is intentionally inactive. V3
+proved repeated I/O under MIX but found ARRANGE did not change the observed host layout. A
+separate action trace confirmed the correct ARRANGE effect and APPLIED receipt; the legacy
+implementation uses the same native API call. The operator then read Settings → User Interface without changing it: the active profile is
+**Dual Display (Studio)**, with two displays and selected display 2 at 200% scale. The visible
+application exposes MIX and EDIT. ARRANGE remains a native no-op in this profile, preserving
+the same legacy API call; it is not recorded as a migrated-input failure. Final Frame coverage
+uses the available MIX and EDIT layouts.
+
+## Held-reload delivery and cleanup
+
+`held-reload-waiting.json` records candidate `20260906T164738Z-36252a87aa8a6b8dcf191cc8563e2619`
+published while old build `20260906T164443Z-64f870a4132019d04c1e7d62bf5f5266` remains active.
+The waiting trace shows generation 3 and knob1 ownership of exact LIVE6. Browser KEEPALIVEs keep
+the physical touch alive across the build/publication; its timeout does not release the gesture.
+In the complete release trace, entry 4 at 467646µs delivers TOUCH END to generation 3 and returns
+empty requested touches with host touched-controls already empty. Entry 5 at 467724µs applies that
+result. Entry 6 at 548140µs starts generation 4; entry 8 at 548516µs activates the exact candidate ID.
+No completion is delivered to the replacement. The post-reload sample remains released and
+preserves project macro values 518/617/512. Recorded Bitwig PIDs 58202/58203 are unchanged.
+
+## Final regression failure — checkpoint 6272f48d is not ready
+
+`final-regression-*` completed these generation-4 steps before the failure:
+
+- Automation writing is off at revision 222; metronome and tick playback are off at 230.
+- Accent velocity returns to 127 at 237, its page returns to TRACK at 240, and Accent is disabled
+  at 244 with the applied velocity table restored to identity. Those snapshots have no leftover
+  touch or button state after their respective releases.
+- Project remote 0 retains exact project-remote owner and LIVE6; later revisions 250→252 show
+  518→558 (-11.7→-9.8dB). Its BEGIN action result owns knob1→LIVE6; its END action result is
+  empty and revision 253 has no touched controls. This is post-reload macro movement on generation 4.
+- TRACK page selection itself is observed at 258. The following ROW1_1 track-selection BEGIN
+  receives an ingress APPLIED receipt, but subsequent KEEPALIVE and cleanup never reach terminal
+  success. **No successful track-selection or final cleanup is claimed.**
+
+The backed-up `selection-stackoverflow-BitwigStudio.log` contains the stack overflow. The observed
+recursive chain passes through selected-note detachment, MIDI neutralization, debugger edge
+cancellation, synthetic END, state refresh, and detachment again. A bounded parent-owned
+reentrancy fix is being implemented. Preserve the earlier results as evidence for this failed
+checkpoint; require a new checkpoint, exact shell/core activation, and the selection/reload
+regressions before marking the live smoke ready. The held-reload success above does not erase
+this later independent failure.

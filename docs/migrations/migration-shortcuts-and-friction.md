@@ -107,17 +107,33 @@ the clearest supporting evidence from this ledger.
   their actual page/grid IDs and have wire-plan regressions. No shell rebuild is needed for this fix.
   The older shell ROW1 Track-context guard has the same assumption; generic routed HTTP rows are
   used for smoke instead, and that named-shortcut guard remains explicit harness debt.
-- **Released chord edge retained, correction underway:** debug END marked an edge released but
+- **Released chord edge retained, corrected and live verified:** debug END marked an edge released but
   kept it in the map until the whole chord ended. Repeating a row while holding Master was rejected.
   Separate individual edge lifetime from shared debug-admission lifetime; preserve router-idle
-  completion. This is debug transport lifecycle, not new stable product behavior.
+  completion. Repeating I/O under a held Master now produces later false→true→false host state.
+  This is debug transport lifecycle, not new stable product behavior.
+- **Reentrant cleanup ownership, correction under test:** footer selection invalidated the note
+  route; neutralization synchronously released browser input, which refreshed the same route and
+  recursively attempted cleanup until Bitwig reported a stack overflow. Both route and debug-edge
+  owners must retire their logical ownership before callbacks, while retaining shared admission
+  until callbacks return and the router is idle. Regression tests connect the real input router to
+  both lifecycle hosts, including nested chord release. This is a demonstrated lifecycle defect,
+  separate from the parked general quiescence redesign; no blanket asynchronous drain is claimed.
 - **Trace serialization cap:** large complete snapshots can fill the 2 MiB trace before a long
   scenario ends. Keep the cap; use short per-step samples and inspect truncation markers. The
-  artifact scripts are test scaffolding and do not change the production bridge.
+  artifact scripts are test scaffolding and do not change the production bridge. Idle samples may
+  have authoritative snapshots without a new core result. Use exact action-scoped traces to prove
+  input/effect/touch ownership and later samples to prove host state; never fabricate a result from
+  the idle sample. A selection-triggered cancellation must match the original browser BEGIN and be
+  recorded separately from the later host selection that proves the feature worked.
 - **UI automation limitation:** keyboard Save As created an independent scratch project, while
   custom-content clicks fail with out-of-window coordinates. The user supplied three mapped
   project remotes, and their routed writes/touch/reset were then verified. No shell feature or
   optimistic fake was added to work around this limitation.
+- **Profile-dependent Frame layout:** the scratch host uses Bitwig's Dual Display (Studio) profile.
+  MIX↔EDIT was observed; the submitted ARRANGE request was a no-op. API 25 documents that available
+  panel layouts depend on the display profile, and master uses the same native request. No fallback
+  remapping or stable policy was added to make an unsupported profile appear to pass.
 
 - **Mixed physical/browser collision guard remains limited:** debugger admission still reads legacy
   `IHwButton.isPressed()` for physical collisions. A physically held exclusively routed button can
