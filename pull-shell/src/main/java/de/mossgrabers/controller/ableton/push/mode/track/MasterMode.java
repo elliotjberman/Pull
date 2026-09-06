@@ -43,9 +43,8 @@ public class MasterMode extends BaseMode<ITrack>
      *
      * @param surface The control surface
      * @param model The model
-     * @param isTemporary If true treat this mode only as temporary
      */
-    public MasterMode (final PushControlSurface surface, final IModel model, final boolean isTemporary, final ReloadableControllerRuntime reloadableRuntime)
+    public MasterMode (final PushControlSurface surface, final IModel model, final ReloadableControllerRuntime reloadableRuntime)
     {
         super ("Master", surface, model);
 

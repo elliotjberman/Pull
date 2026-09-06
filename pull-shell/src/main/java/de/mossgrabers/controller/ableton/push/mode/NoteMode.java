@@ -40,9 +40,6 @@ import de.mossgrabers.framework.utils.StringUtils;
  */
 public class NoteMode extends BaseMode<IItem> implements INoteEditorMode
 {
-    private static final String    OFF                = "  Off";
-    private static final String    ON                 = "   On";
-
     private static final String [] MENU               =
     {
         "Common",

@@ -135,7 +135,7 @@ public class ModelImpl extends AbstractModel
 
         final int numFxTracks = this.modelSetup.getNumFxTracks ();
         final TrackBank effectTrackBank = controllerHost.createEffectTrackBank (numFxTracks, numSends, numScenes);
-        this.effectTrackBank = new EffectTrackBankImpl (this.host, this.valueChanger, effectTrackBank, (CursorTrackImpl) this.cursorTrack, this.rootTrackGroup, (ApplicationImpl) this.application, numFxTracks, numScenes, numSends, numParamPages, numParams, this.trackBank);
+        this.effectTrackBank = new EffectTrackBankImpl (this.host, this.valueChanger, effectTrackBank, (CursorTrackImpl) this.cursorTrack, this.rootTrackGroup, (ApplicationImpl) this.application, numFxTracks, numScenes, numSends, this.trackBank);
 
         //////////////////////////////////////////////////////////////////////////////
         // Create devices

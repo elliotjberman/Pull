@@ -7,7 +7,6 @@ package de.mossgrabers.bitwig.framework.daw.data.bank;
 import de.mossgrabers.bitwig.framework.daw.data.DrumPadImpl;
 import de.mossgrabers.bitwig.framework.daw.data.Util;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
-import de.mossgrabers.framework.daw.DAWColor;
 import de.mossgrabers.framework.daw.IHost;
 import de.mossgrabers.framework.daw.data.IDrumPad;
 import de.mossgrabers.framework.daw.data.ILayer;
@@ -15,8 +14,6 @@ import de.mossgrabers.framework.daw.data.bank.IDrumPadBank;
 
 import com.bitwig.extension.controller.api.DrumPad;
 import com.bitwig.extension.controller.api.DrumPadBank;
-
-import java.util.Optional;
 
 
 /**
@@ -85,17 +82,6 @@ public class DrumPadBankImpl extends AbstractChannelBankImpl<DrumPadBank, ILayer
     public IDrumPad getItem (final int index)
     {
         return (IDrumPad) super.getItem (index);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public String getSelectedChannelColorEntry ()
-    {
-        final Optional<ILayer> sel = this.getSelectedItem ();
-        if (sel.isEmpty ())
-            return DAWColor.COLOR_OFF.name ();
-        return DAWColor.getColorID (sel.get ().getColor ());
     }
 
 

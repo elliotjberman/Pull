@@ -221,9 +221,8 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         ms.setNumResults (48);
         ms.setNumSends (8);
         ms.setNumMarkers (8);
-        // Pull uses hierarchical navigation and includes group/master tracks.
+        // Pull uses hierarchical track navigation.
         ms.setHasFlatTrackList (false);
-        ms.setHasFullFlatTrackList (true);
         ms.setWantsFocusedParameter (true);
         for (final SessionBankShape shape: SESSION_BANK_CANOPY)
             ms.addTrackBank (shape.tracks (), shape.scenes ());
@@ -296,8 +295,8 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         for (int i = 0; i < 8; i++)
             modeManager.register (Modes.get (Modes.SEND1, i), new SendMode (surface, this.model, i));
 
-        modeManager.register (Modes.MASTER, new MasterMode (surface, this.model, false, this.reloadableRuntime));
-        modeManager.register (Modes.MASTER_TEMP, new MasterMode (surface, this.model, true, this.reloadableRuntime));
+        modeManager.register (Modes.MASTER, new MasterMode (surface, this.model, this.reloadableRuntime));
+        modeManager.register (Modes.MASTER_TEMP, new MasterMode (surface, this.model, this.reloadableRuntime));
 
         modeManager.register (Modes.DEVICE_PARAMS, new DeviceParamsMode (surface, this.model));
         modeManager.register (Modes.DEVICE_CHAINS, new DeviceChainsMode (surface, this.model));

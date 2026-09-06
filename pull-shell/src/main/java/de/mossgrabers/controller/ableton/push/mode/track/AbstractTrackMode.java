@@ -218,22 +218,6 @@ public abstract class AbstractTrackMode extends BaseMode<ITrack>
     }
 
 
-    /**
-     * Handle the selection of a send effect.
-     *
-     * @param sendIndex The index of the send
-     */
-    protected void handleSendEffect (final int sendIndex)
-    {
-        final ITrackBank tb = this.model.getCurrentTrackBank ();
-        if (tb == null || !tb.canEditSend (sendIndex))
-            return;
-        final Modes si = Modes.get (Modes.SEND1, sendIndex);
-        final ModeManager modeManager = this.surface.getModeManager ();
-        modeManager.setActive (modeManager.isActive (si) ? Modes.TRACK : si);
-    }
-
-
     /** {@inheritDoc} */
     @Override
     public int getButtonColor (final ButtonID buttonID)
