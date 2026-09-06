@@ -43,7 +43,7 @@ assert_status()
 
 write_navigation_status()
 {
-    printf '%s\tREADY\t%s\tSESSION\tTRACK\tfalse\tfalse\tfalse\t5\ttrack-a\t2\tfalse\tOFF\ttrue\tfalse\tfalse\t-\t-\tfalse\t-\t-\tNONE\tOUTPUT\tPAD29\tpush.pad.29\t64\t100\tEXCLUSIVE\ttrue\ttrue\tdrum-controller.track.2.control.1\ttrue\t0.75\t0C2238\t43:0:false\tbase=0:64:43;blink=-\tfalse\tfalse\ttrue\t\n' "$1" "$2" > "$test_debug/navigate-status.txt"
+    printf '%s\tREADY\t%s\t%s\t%s\t%s\tfalse\tfalse\t5\ttrack-a\t2\tfalse\tOFF\ttrue\tfalse\tfalse\t-\t-\tfalse\t-\t-\tNONE\tOUTPUT\tPAD29\tpush.pad.29\t64\t100\tEXCLUSIVE\ttrue\ttrue\tdrum-controller.track.2.control.1\ttrue\t0.75\t0C2238\t43:0:false\tbase=0:64:43;blink=-\tfalse\tfalse\ttrue\t\n' "$1" "$2" "${3:-SESSION}" "${4:-TRACK}" "${5:-false}" > "$test_debug/navigate-status.txt"
 }
 
 new_debug_home
@@ -143,20 +143,34 @@ write_navigation_status "$request_id" "$request_label"
 assert_status 130 wait "$client_pid"
 [[ ! -d "$test_debug/client.lock" ]] || fail "terminal client retained its lock"
 
-new_debug_home
-(
-    wait_for_file "$test_debug/navigate-request.txt"
-    IFS=$'\t' read -r navigation_id navigation_label _ < "$test_debug/navigate-request.txt"
-    write_navigation_status "$navigation_id" "$navigation_label"
-    wait_for_file "$test_debug/capture-request.txt"
-    IFS=$'\t' read -r capture_id _ < "$test_debug/capture-request.txt"
-    [[ "$capture_id" == "$navigation_id" && -d "$test_debug/client.lock" ]] || fail "capture lost request identity or lock"
-    touch "$test_debug/fake.png"
-    printf '%s\tREADY\tfake.png\t-\n' "$capture_id" > "$test_debug/capture-status.txt"
-) &
-capture="$(env HOME="$test_home" "${script_dir}/capture-push2-display" session 2>/dev/null)"
-[[ "$capture" == "$test_debug/fake.png" ]] || fail "capture returned the wrong artifact"
-[[ ! -d "$test_debug/client.lock" ]] || fail "capture retained its lock"
+for recipe in mix master project-macros session
+do
+    case "$recipe" in
+        mix) expected_step='TRACK/mode=TRACK'; observed_view=DRUM_PAD; observed_mode=TRACK ;;
+        master) expected_step='MASTERTRACK/mode=MASTER|MASTER_TEMP'; observed_view=DRUM_PAD; observed_mode=MASTER ;;
+        project-macros) expected_step='SHIFT+SESSION/view=WORKSPACE,mode=WORKSPACE'; observed_view=WORKSPACE; observed_mode=WORKSPACE ;;
+        session) expected_step='SESSION/view=SESSION,mode=TRACK'; observed_view=SESSION; observed_mode=TRACK ;;
+    esac
+    new_debug_home
+    (
+        wait_for_file "$test_debug/navigate-request.txt"
+        IFS=$'\t' read -r navigation_id navigation_label _ < "$test_debug/navigate-request.txt"
+        [[ ! -f "$test_debug/capture-request.txt" ]] || fail "capture preceded navigation acknowledgement"
+        write_navigation_status "$navigation_id" "$navigation_label" "$observed_view" "$observed_mode" true
+        wait_for_file "$test_debug/capture-request.txt"
+        IFS=$'\t' read -r capture_id _ < "$test_debug/capture-request.txt"
+        [[ "$capture_id" == "$navigation_id" && -d "$test_debug/client.lock" ]] || fail "capture lost request identity or lock"
+        touch "$test_debug/fake.png"
+        printf '%s\tREADY\tfake.png\t-\n' "$capture_id" > "$test_debug/capture-status.txt"
+    ) &
+    capture="$(env HOME="$test_home" "${script_dir}/capture-push2-display" "$recipe" 2>/dev/null)"
+    IFS=$'\t' read -r navigation_id navigation_label actual_steps < "$test_debug/navigate-request.txt"
+    [[ "$navigation_label" == "$recipe" && "$actual_steps" == "$expected_step" ]] || fail "$recipe did not declare its exact page/grid target"
+    IFS=$'\t' read -r capture_id capture_mode < "$test_debug/capture-request.txt"
+    [[ "$capture_mode" == NEXT_FRAME ]] || fail "$recipe did not request a later framebuffer"
+    [[ "$capture" == "$test_debug/fake.png" ]] || fail "capture returned the wrong artifact"
+    [[ ! -d "$test_debug/client.lock" ]] || fail "capture retained its lock"
+done
 
 new_debug_home
 (

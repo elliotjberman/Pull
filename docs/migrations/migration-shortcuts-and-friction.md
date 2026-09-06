@@ -99,3 +99,27 @@ approximation, unsupported test path, or explicit behavior deviation encountered
 code/audits; do not classify a genuine initialization-only Bitwig constraint as a removable hack.
 The final report should identify retained compromises and the few architectural improvements with
 the clearest supporting evidence from this ledger.
+
+## Live harness friction discovered on 2026-09-06
+
+- **Stale navigation meaning, corrected in CLI:** the Mix recipe expected `workspace=false`, but
+  that flag now means any core composition, including Track over Drum. Named recipes now wait for
+  their actual page/grid IDs and have wire-plan regressions. No shell rebuild is needed for this fix.
+  The older shell ROW1 Track-context guard has the same assumption; generic routed HTTP rows are
+  used for smoke instead, and that named-shortcut guard remains explicit harness debt.
+- **Released chord edge retained, correction underway:** debug END marked an edge released but
+  kept it in the map until the whole chord ended. Repeating a row while holding Master was rejected.
+  Separate individual edge lifetime from shared debug-admission lifetime; preserve router-idle
+  completion. This is debug transport lifecycle, not new stable product behavior.
+- **Trace serialization cap:** large complete snapshots can fill the 2 MiB trace before a long
+  scenario ends. Keep the cap; use short per-step samples and inspect truncation markers. The
+  artifact scripts are test scaffolding and do not change the production bridge.
+- **UI automation limitation:** keyboard Save As created an independent scratch project, while
+  custom-content clicks fail with out-of-window coordinates. The user supplied three mapped
+  project remotes, and their routed writes/touch/reset were then verified. No shell feature or
+  optimistic fake was added to work around this limitation.
+
+- **Mixed physical/browser collision guard remains limited:** debugger admission still reads legacy
+  `IHwButton.isPressed()` for physical collisions. A physically held exclusively routed button can
+  evade that check. The smoke runs use one input operator; they do not prove mixed-ingress safety.
+  A raw physical-state or exact-router-gesture query is the appropriate future mechanism.

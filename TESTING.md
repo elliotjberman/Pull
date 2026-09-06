@@ -206,6 +206,14 @@ tools/capture-push2-display project-macros
 tools/capture-push2-display session
 ```
 
+`mix` selects the Track parameter page and retains the current grid and musical-input background;
+`master` does the same for the Master page. `session` selects the full Session grid with the Track
+page, while `project-macros` selects the declared Workspace grid and Project Macro page. The
+navigation status field `workspace` reports whether any core-owned composition is active. It is
+not a screen identifier: a Drum grid with the Track page can legitimately report `workspace=true`.
+Recipes therefore verify their exact page/grid targets instead of using that flag to select a
+screen.
+
 Calling the tool without a target captures the current display. A targeted capture injects the
 same permanent button gestures as the hardware, through the installed input arbitrator. The tool
 waits until the input router and relevant physical controls are idle, submits each gesture once,
@@ -249,12 +257,13 @@ client-side:
 
 ```bash
 tools/push-debug-request session \
-    'NOTE/workspace=false' \
-    'TRACK/mode=TRACK,workspace=false' \
-    'SESSION/view=SESSION,mode!=WORKSPACE|MASTER|MASTER_TEMP,workspace=true'
+    'SESSION/view=SESSION,mode=TRACK'
 ```
 
-The eight upper display buttons are admitted while ordinary Track mode owns them. Every terminal
+The navigation host's legacy Track guard still requires `workspace=false` for its eight ROW1
+shortcuts. Those shortcuts reject migrated Track compositions; use the generic surface HTTP input
+lane for these buttons until that bounded harness guard is updated. This does not prevent the
+TRACK gesture or the named capture recipes. Every terminal
 status reports the private selection-following target's `track_position`, stable `track_id`,
 identity `track_generation`, `armed`, `muted`, `soloed`, `clip_playing`, and `monitor` state. It also reports authoritative
 `repeat` and `latch` state plus parent-owned Note-route command state. Bitwig track positions are
@@ -264,7 +273,7 @@ useful context; it is never global proof. A client can first run a harmless alre
 to discover the currently selected identity:
 
 ```bash
-tools/push-debug-request identify 'TRACK/mode=TRACK,workspace=false'
+tools/push-debug-request identify 'TRACK/mode=TRACK'
 ```
 
 Mute, Solo, and Stop Clip are admitted through their permanent routed buttons. Use `muted`,
@@ -274,14 +283,16 @@ when no selected-track launcher clip is playing and therefore does not press the
 
 A `repeat=true|false` postcondition waits for authoritative read-back from the permanent Push
 NoteInput repeat engine. With the project-specific identities discovered from terminal statuses,
-this reproduces a Juno-to-Drum-Machine viewer transition without leaving Note mode and proves
-automatic roll is scoped to Drum Controller:
+the following legacy navigation plan describes a Juno-to-Drum-Machine viewer transition without
+leaving Note mode. Its ROW1 shortcuts currently require the guard correction described above;
+for migrated Track pages, drive those buttons through the surface HTTP lane and verify the same
+later selected-track identity and repeat state:
 
 ```bash
 JUNO_ID='<juno-track-id>'
 DRUM_ID='<top-level-drum-track-id>'
 tools/push-debug-request juno-to-drums \
-    'TRACK/mode=TRACK,workspace=false,repeat=false' \
+    'TRACK/mode=TRACK,repeat=false' \
     "ROW1_6/track=5,track-id=${JUNO_ID},repeat=false" \
     "NOTE/view=PLAY,track=5,track-id=${JUNO_ID},repeat=false" \
     "ROW1_1/view=DRUM_PAD,track=0,track-id=${DRUM_ID},repeat=true"
@@ -292,9 +303,9 @@ preference cycles without calling the legacy view manager directly:
 
 ```bash
 tools/push-debug-request note-layout \
-    'NOTE/view=PLAY,workspace=false' \
-    'LAYOUT/view=CHORDS,workspace=false' \
-    'SHIFT_LAYOUT/view=SEQUENCER,workspace=false'
+    'NOTE/view=PLAY' \
+    'LAYOUT/view=CHORDS' \
+    'SHIFT_LAYOUT/view=SEQUENCER'
 ```
 
 ### Routed pad-output proof

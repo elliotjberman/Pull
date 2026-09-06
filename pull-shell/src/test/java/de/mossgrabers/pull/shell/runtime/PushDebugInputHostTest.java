@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -32,6 +33,9 @@ class PushDebugInputHostTest
 {
     private static final ControlId PLAY = PushControlIds.button ("PLAY");
     private static final ControlId SHIFT = PushControlIds.button ("SHIFT");
+    private static final ControlId MASTER = PushControlIds.button ("MASTERTRACK");
+    private static final List<ControlId> ROW_BUTTONS = IntStream.rangeClosed (1, 8).mapToObj (index -> PushControlIds.button ("ROW2_" + index)).toList ();
+    private static final ControlId ROW = ROW_BUTTONS.get (1);
     private static final ControlId KNOB = PushControlIds.continuous ("KNOB1");
     private static final ControlId STRIP = PushControlIds.continuous ("TOUCHSTRIP");
     private static final ControlId PAD = PushControlIds.pad (5);
@@ -110,6 +114,182 @@ class PushDebugInputHostTest
         this.admission.routeIdle = true;
         this.host.tick ();
         assertFalse (this.admission.debugActive);
+    }
+
+
+    @Test
+    void releasedRowCanRepeatWhileMasterRemainsHeld () throws IOException
+    {
+        this.request (this.host, "master-down", MASTER, InputKind.BUTTON, "BEGIN", 127);
+        this.host.tick ();
+        this.admission.routeIdle = false;
+        for (int press = 0; press < 2; press++)
+        {
+            this.request (this.host, "row-down-" + press, ROW, InputKind.BUTTON, "BEGIN", 127);
+            this.host.tick ();
+            assertTrue (this.status ().contains ("\"state\":\"APPLIED\""));
+            this.request (this.host, "row-up-" + press, ROW, InputKind.BUTTON, "END", 0);
+            this.host.tick ();
+            assertFalse (this.surface.isActive (ROW, InputKind.BUTTON));
+            assertTrue (this.surface.isActive (MASTER, InputKind.BUTTON));
+            assertTrue (this.admission.debugActive);
+        }
+        this.request (this.host, "duplicate-row-up", ROW, InputKind.BUTTON, "END", 0);
+        this.host.tick ();
+        assertTrue (this.status ().contains ("no matching browser input is held"));
+        this.request (this.host, "released-row-keepalive", ROW, InputKind.BUTTON, "KEEPALIVE", 0);
+        this.host.tick ();
+        assertTrue (this.status ().contains ("no matching browser input is held"));
+
+        this.request (this.host, "master-up", MASTER, InputKind.BUTTON, "END", 0);
+        this.host.tick ();
+        assertEquals (List.of (
+            "push.button.mastertrack:BUTTON:BEGIN:127",
+            "push.button.row2-2:BUTTON:BEGIN:127",
+            "push.button.row2-2:BUTTON:END:0",
+            "push.button.row2-2:BUTTON:BEGIN:127",
+            "push.button.row2-2:BUTTON:END:0",
+            "push.button.mastertrack:BUTTON:END:0"), this.surface.events);
+        assertEquals (1, this.admission.beginCount);
+        assertEquals (2, this.admission.extensionCount);
+        assertEquals (0, this.admission.completionCount, "the final release still waits for routed idle");
+        this.admission.routeIdle = true;
+        this.host.tick ();
+        assertEquals (1, this.admission.completionCount);
+        assertFalse (this.admission.debugActive);
+    }
+
+
+    @Test
+    void repeatedEdgeExtendsAdmissionWhileEarlierReleaseAwaitsRoutedIdle () throws IOException
+    {
+        this.request (this.host, "down", ROW, InputKind.BUTTON, "BEGIN", 127);
+        this.host.tick ();
+        this.admission.routeIdle = false;
+        this.request (this.host, "up", ROW, InputKind.BUTTON, "END", 0);
+        this.host.tick ();
+        this.request (this.host, "repeat-down", ROW, InputKind.BUTTON, "BEGIN", 127);
+        this.host.tick ();
+
+        assertTrue (this.status ().contains ("\"state\":\"APPLIED\""));
+        assertEquals (1, this.admission.beginCount);
+        assertEquals (1, this.admission.extensionCount);
+        assertEquals (0, this.admission.completionCount);
+        this.request (this.host, "repeat-up", ROW, InputKind.BUTTON, "END", 0);
+        this.host.tick ();
+        this.admission.routeIdle = true;
+        this.host.tick ();
+        assertEquals (1, this.admission.completionCount);
+    }
+
+
+    @Test
+    void expiredRowCanRepeatWhileMasterLeaseIsRenewed () throws IOException
+    {
+        this.request (this.host, "master-down", MASTER, InputKind.BUTTON, "BEGIN", 127);
+        this.host.tick ();
+        this.request (this.host, "row-down", ROW, InputKind.BUTTON, "BEGIN", 127);
+        this.host.tick ();
+        this.admission.routeIdle = false;
+        this.time.set (TimeUnit.SECONDS.toNanos (4));
+        this.request (this.host, "master-keepalive", MASTER, InputKind.BUTTON, "KEEPALIVE", 0);
+        this.host.tick ();
+        this.time.set (TimeUnit.SECONDS.toNanos (6));
+        this.host.tick ();
+
+        assertFalse (this.surface.isActive (ROW, InputKind.BUTTON));
+        assertTrue (this.surface.isActive (MASTER, InputKind.BUTTON));
+        this.request (this.host, "repeat-row-down", ROW, InputKind.BUTTON, "BEGIN", 127);
+        this.host.tick ();
+        assertTrue (this.status ().contains ("\"state\":\"APPLIED\""));
+        assertEquals (1, this.admission.beginCount);
+        assertEquals (2, this.admission.extensionCount);
+        assertEquals (0, this.admission.completionCount);
+    }
+
+
+    @Test
+    void releasedEdgesDoNotConsumeTheConcurrentChordCapacity () throws IOException
+    {
+        this.request (this.host, "master-down", MASTER, InputKind.BUTTON, "BEGIN", 127);
+        this.host.tick ();
+        for (int index = 0; index < ROW_BUTTONS.size (); index++)
+        {
+            this.request (this.host, "row-down-" + index, ROW_BUTTONS.get (index), InputKind.BUTTON, "BEGIN", 127);
+            this.host.tick ();
+            assertTrue (this.status ().contains ("\"state\":\"APPLIED\""));
+            this.request (this.host, "row-up-" + index, ROW_BUTTONS.get (index), InputKind.BUTTON, "END", 0);
+            this.host.tick ();
+        }
+        for (int index = 0; index < ROW_BUTTONS.size (); index++)
+        {
+            this.request (this.host, "held-row-" + index, ROW_BUTTONS.get (index), InputKind.BUTTON, "BEGIN", 127);
+            this.host.tick ();
+        }
+        assertTrue (this.status ().contains ("too many browser inputs are held"));
+        assertEquals (8, this.surface.active.size (), "the eight-edge limit still applies to concurrent holds");
+    }
+
+
+    @Test
+    void failedReleaseCleansOnlyStillOwnedEdges () throws IOException
+    {
+        this.request (this.host, "master-down", MASTER, InputKind.BUTTON, "BEGIN", 127);
+        this.host.tick ();
+        this.request (this.host, "row-down", ROW, InputKind.BUTTON, "BEGIN", 127);
+        this.host.tick ();
+        this.request (this.host, "row-up", ROW, InputKind.BUTTON, "END", 0);
+        this.host.tick ();
+        this.request (this.host, "play-down", PLAY, InputKind.BUTTON, "BEGIN", 127);
+        this.host.tick ();
+        this.surface.failNextEnd = PLAY;
+        this.request (this.host, "play-up", PLAY, InputKind.BUTTON, "END", 0);
+        this.host.tick ();
+
+        assertTrue (this.status ().contains ("could not end input"));
+        assertEquals (List.of (
+            "push.button.mastertrack:BUTTON:BEGIN:127",
+            "push.button.row2-2:BUTTON:BEGIN:127",
+            "push.button.row2-2:BUTTON:END:0",
+            "push.button.play:BUTTON:BEGIN:127",
+            "push.button.play:BUTTON:END:0",
+            "push.button.mastertrack:BUTTON:END:0"), this.surface.events);
+        assertTrue (this.surface.active.isEmpty ());
+        assertFalse (this.admission.debugActive);
+        assertEquals (1, this.admission.completionCount);
+    }
+
+
+    @Test
+    void cancelCompletesAnAdmissionWithNoRemainingHeldEdges () throws IOException
+    {
+        this.request (this.host, "down", ROW, InputKind.BUTTON, "BEGIN", 127);
+        this.host.tick ();
+        this.admission.routeIdle = false;
+        this.request (this.host, "up", ROW, InputKind.BUTTON, "END", 0);
+        this.host.tick ();
+        this.host.cancelActive ("route invalidated");
+        this.host.tick ();
+
+        assertEquals (2, this.surface.events.size (), "the completed edge must not receive a duplicate release");
+        assertFalse (this.admission.debugActive);
+        assertEquals (1, this.admission.completionCount);
+    }
+
+
+    @Test
+    void failedBrowserAdmissionDoesNotReleaseAPhysicallyHeldControl () throws IOException
+    {
+        this.surface.active.add (ROW.value () + ":BUTTON");
+        this.request (this.host, "physical-row-down", ROW, InputKind.BUTTON, "BEGIN", 127);
+        this.host.tick ();
+        assertTrue (this.status ().contains ("that physical or browser input is already held"));
+        this.host.cancelActive ("route invalidated");
+
+        assertTrue (this.surface.isActive (ROW, InputKind.BUTTON));
+        assertTrue (this.surface.events.isEmpty ());
+        assertEquals (0, this.admission.beginCount);
+        assertEquals (0, this.admission.completionCount);
     }
 
 
@@ -308,12 +488,13 @@ class PushDebugInputHostTest
         private final List<String> events = new ArrayList<> ();
         private final List<String> noteInputEvents = new ArrayList<> ();
         private final Set<String> active = new HashSet<> ();
+        private ControlId failNextEnd;
 
 
         @Override
         public boolean supports (final ControlId control, final InputKind kind)
         {
-            return (PLAY.equals (control) || SHIFT.equals (control)) && kind == InputKind.BUTTON ||
+            return (PLAY.equals (control) || SHIFT.equals (control) || MASTER.equals (control) || ROW_BUTTONS.contains (control)) && kind == InputKind.BUTTON ||
                 KNOB.equals (control) && (kind == InputKind.TOUCH || kind == InputKind.RELATIVE) ||
                 STRIP.equals (control) && (kind == InputKind.TOUCH || kind == InputKind.ABSOLUTE) ||
                 PAD.equals (control) && (kind == InputKind.PAD || kind == InputKind.POLY_PRESSURE);
@@ -330,6 +511,11 @@ class PushDebugInputHostTest
         @Override
         public void trigger (final ControlId control, final InputKind kind, final InputPhase phase, final int value)
         {
+            if (phase == InputPhase.END && control.equals (this.failNextEnd))
+            {
+                this.failNextEnd = null;
+                throw new IllegalStateException ("test release failed");
+            }
             final String address = control.value () + ":" + kind.name ();
             if (phase == InputPhase.BEGIN)
                 this.active.add (address);
@@ -351,6 +537,9 @@ class PushDebugInputHostTest
     {
         private boolean debugActive;
         private boolean routeIdle = true;
+        private int beginCount;
+        private int extensionCount;
+        private int completionCount;
 
 
         @Override
@@ -376,6 +565,7 @@ class PushDebugInputHostTest
             if (!this.isIdle ())
                 return false;
             this.debugActive = true;
+            this.beginCount++;
             press.run ();
             return true;
         }
@@ -386,6 +576,7 @@ class PushDebugInputHostTest
         {
             if (!this.debugActive)
                 return false;
+            this.extensionCount++;
             press.run ();
             return true;
         }
@@ -403,6 +594,7 @@ class PushDebugInputHostTest
         public void completeDebugInput ()
         {
             this.debugActive = false;
+            this.completionCount++;
         }
 
 

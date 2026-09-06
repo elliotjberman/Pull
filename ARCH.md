@@ -5,8 +5,10 @@ Project/Master/Track touches, Drum octave/native mapping, raw touch strip, norma
 Volume/Pan/Send, core page composition and arrows, Track/Mix, Metronome/Automation, Frame/Master entry,
 Accent, Tap Tempo, and Undo/Redo. The deprecation-enabled package passed 838 tests on
 2026-09-05 (398 core, 11 publication, 429 shell), after the independent review
-corrections. Bounded architecture re-review found no remaining material findings in these slices. No live
-installation or smoke test has run for this worktree. This is not the complete migration; remaining
+corrections. Bounded architecture re-review found no remaining material findings in these slices.
+Live installation and exact core activation succeeded on 2026-09-06; representative parameter and
+Drum/strip read-back checks pass. The [live record](docs/migrations/core-migration-live-smoke.md)
+tracks the remaining coverage and a debugger chord-release defect found during smoke testing. This is not the complete migration; remaining
 families and the Session release-contract decision are tracked in
 [`docs/migrations/core-migration-plan.md`](docs/migrations/core-migration-plan.md).
 
