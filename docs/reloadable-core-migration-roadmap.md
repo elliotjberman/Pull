@@ -6,7 +6,11 @@ resources in a bounded shell. [ARCH](../ARCH.md) inventories the current impleme
 [the migration guide](reloadable-core-migration-guide.md) defines the capability audit and cutover
 workflow. Do not add new policy to frozen stable adapters.
 
-## Current scope
+## Migration part 1
+
+[PR #40](https://github.com/elliotjberman/Pull/pull/40) establishes core page ownership and migrates
+the controls listed below. It does **not** complete the shell-to-core migration. This document is
+the continuation checklist; owning navigation to a legacy page does not migrate that page's body.
 
 Working contract: Core API 46, checkpoint schema 6, Bitwig API 25. The latest installed/live-tested
 production source is `11e33477`; subsequent cleanup has not been deployed or live tested.
@@ -44,6 +48,17 @@ New banks, observers, permanent bindings, capacities, parent API shapes or outpu
 a shell build and restart. Behavior inside the installed canopy reloads in core.
 
 ## Remaining work and prerequisites
+
+Keep these items open until their complete behavior and feedback live in core and the corresponding
+stable policy is deleted. The sections below record the prerequisites and known limits.
+
+- [ ] Session grid, scene and page-button behavior, including Stop-plus-pad and launcher retirement.
+- [ ] Device, chain and layer pages: establish exact target identity before migrating their controls.
+- [ ] Browser contents and operations; its page entry/return lifecycle is already core-owned.
+- [ ] Crossfade, Track/Layer Details and Color workflows.
+- [ ] Configuration screens, remaining musical layouts, and clip/note/sequencer editing.
+- [ ] Remove the remaining facet adapters, legacy page aliases/inbox consumers and parameter
+  providers as their last behavior migrates. Keep generic resource and transport mechanisms.
 
 ### Session actions and retirement
 

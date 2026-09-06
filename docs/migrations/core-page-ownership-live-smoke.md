@@ -8,9 +8,11 @@ failures/errors/skips; six warnings were confined to unchanged `TransportImpl`.
 
 Installation/publication and all routed input ran under uninterrupted live leases
 (`core-page-ownership`, then `core-pages-202arp3`). Project files were backed up before input and
-were not saved by the smoke. Evidence is in this persistent worktree's ignored
-`target/page-ownership-evidence/`: activation receipts, bounded traces, later host observations,
-surface output and request-correlated 960×160 framebuffers.
+were not saved by the smoke. Evidence includes activation receipts, bounded traces, later host
+observations, surface output and request-correlated 960×160 framebuffers. Before retiring the
+part-1 worktree, its live/cleanup evidence and project backups were archived locally at
+`~/.drivenbymoss/pull/test-evidence/pr-40-migration-part-1-20260906/evidence.tar.gz`.
+The adjacent `manifest.json` records all 789 files, verified by SHA-256 against the source.
 
 | Identity | Value |
 | --- | --- |
@@ -67,11 +69,13 @@ receipts were not used as substitutes for later host read-back.
 the installed production build and the evidence above remain `11e33477`. Offline cleanup checks
 must be reported separately and must not inherit this live pass.
 
-The cleanup candidate passed a fresh module-clean deprecation-enabled package: **826 tests**
+The cleanup code at `862c4db6` passed a fresh module-clean deprecation-enabled package: **826 tests**
 (375 core, 11 publisher, 440 shell), no failures/errors/skips and no changed-code deprecations.
 Macro ring/toggle/touch and Master engine on/off display/light output matches the exact tested
 core JAR after renderer consolidation. This one-off comparison lives in ignored cleanup evidence,
 not in the permanent test suite. The installed extension hash above was rechecked unchanged.
+GitHub's Java tests workflow also passed for that commit, including the debugger-client, live-lease
+and surface-server checks. The final part-1 handoff changes documentation only.
 
 Earlier API-45 smoke history is superseded by this scoped record. Its reentrant cleanup failure
 and other durable lessons remain in the [review/shortcuts ledger](migration-shortcuts-and-friction.md).
