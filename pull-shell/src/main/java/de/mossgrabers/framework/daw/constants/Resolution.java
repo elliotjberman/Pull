@@ -98,18 +98,6 @@ public enum Resolution
 
 
     /**
-     * Get the name of the resolution.
-     *
-     * @param index The index of the resolution enumeration
-     * @return The name
-     */
-    public static String getNameAt (final int index)
-    {
-        return values ()[index].getName ();
-    }
-
-
-    /**
      * Get a resolution by its name.
      *
      * @param name The name

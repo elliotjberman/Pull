@@ -885,18 +885,6 @@ public enum ButtonID
     /**
      * Test if the given button ID belongs to a pad.
      *
-     * @param buttonID The button ID to test
-     * @return True if it is a pad
-     */
-    public static boolean isPad (final ButtonID buttonID)
-    {
-        return isInRange (buttonID, ButtonID.PAD1, 88);
-    }
-
-
-    /**
-     * Test if the given button ID belongs to a pad.
-     *
      * @param buttonID The ID of the button to test
      * @param firstButtonID The ID of the first button in the range
      * @param length The number of buttons in the range

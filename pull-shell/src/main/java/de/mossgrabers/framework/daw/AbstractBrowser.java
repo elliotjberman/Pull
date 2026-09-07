@@ -184,35 +184,6 @@ public abstract class AbstractBrowser implements IBrowser
     }
 
 
-    /**
-     * Set the index of the selected filter item of a column.
-     *
-     * @param columnIndex The index of the column
-     * @param index The index of the item
-     */
-    public void setSelectedFilterItemIndex (final int columnIndex, final int index)
-    {
-        if (columnIndex >= 0)
-            this.columnData[columnIndex].setCursorIndex (index);
-    }
-
-
-    /**
-     * Get the index of the selected result item.
-     *
-     * @return The index of the result
-     */
-    public int getSelectedResultIndex ()
-    {
-        for (int i = 0; i < this.numResults; i++)
-        {
-            if (this.resultData[i].isSelected ())
-                return i;
-        }
-        return -1;
-    }
-
-
     /** {@inheritDoc} */
     @Override
     public int getNumResults ()

@@ -31,7 +31,6 @@ public class FeatureGroupManager<E extends Enum<E>, F extends IFeatureGroup>
     protected E                                       defaultID         = null;
 
     private final List<FeatureGroupChangeListener<E>> changeListeners   = new ArrayList<> ();
-    private final List<FeatureGroupManager<E, F>>     connectedManagers = new ArrayList<> ();
 
 
     /**
@@ -104,18 +103,6 @@ public class FeatureGroupManager<E extends Enum<E>, F extends IFeatureGroup>
      */
     public void setActive (final E featureGroupID)
     {
-        this.setActive (featureGroupID, true);
-    }
-
-
-    /**
-     * Set the active feature group.
-     *
-     * @param featureGroupID The ID of the feature group to activate
-     * @param syncSiblings Changes sibling feature group managers as well if true
-     */
-    private void setActive (final E featureGroupID, final boolean syncSiblings)
-    {
         final E id = featureGroupID == null ? this.defaultID : featureGroupID;
         if (id == null)
             throw new FrameworkException ("Attempt to set the active feature group to null and no default feature group is registered.");
@@ -135,22 +122,7 @@ public class FeatureGroupManager<E extends Enum<E>, F extends IFeatureGroup>
         this.activeID = id;
         this.get (this.activeID).onActivate ();
 
-        if (syncSiblings)
-            this.connectedManagers.forEach (sibling -> sibling.setActive (featureGroupID, false));
-
         this.notifyObservers (this.previousID, this.activeID);
-    }
-
-
-    /**
-     * Set the active feature group temporarily. Calling restore activates the previous active one
-     * even if setTemporary was called multiple times.
-     *
-     * @param featureGroupID The ID of the feature group to activate
-     */
-    public void setTemporary (final E featureGroupID)
-    {
-        this.setTemporary (featureGroupID, true);
     }
 
 
@@ -159,9 +131,8 @@ public class FeatureGroupManager<E extends Enum<E>, F extends IFeatureGroup>
      * restore sets back the previous active one.
      *
      * @param featureGroupID The ID of the feature group to activate
-     * @param syncSiblings Sync changes to siblings if true
      */
-    private void setTemporary (final E featureGroupID, final boolean syncSiblings)
+    public void setTemporary (final E featureGroupID)
     {
         if (featureGroupID == null)
             throw new FrameworkException ("Attempt to set the temporary feature group to null.");
@@ -182,9 +153,6 @@ public class FeatureGroupManager<E extends Enum<E>, F extends IFeatureGroup>
             throw new FrameworkException ("Attempt to set the temporary feature group to non-existing: " + featureGroupID);
         featureGroup.onActivate ();
 
-        if (syncSiblings)
-            this.connectedManagers.forEach (sibling -> sibling.setActive (featureGroupID, false));
-
         this.notifyObservers (this.activeID, this.temporaryID);
     }
 
@@ -199,25 +167,6 @@ public class FeatureGroupManager<E extends Enum<E>, F extends IFeatureGroup>
     public final boolean isActive (final E... featureGroupIDs)
     {
         final E id = this.getActiveID ();
-        for (final E featureGroupID: featureGroupIDs)
-        {
-            if (id == featureGroupID)
-                return true;
-        }
-        return false;
-    }
-
-
-    /**
-     * Check if one of the feature group IDs is the active feature group.
-     *
-     * @param featureGroupIDs Several feature group IDs
-     * @return True if active
-     */
-    @SafeVarargs
-    public final boolean isActiveIgnoreTemporary (final E... featureGroupIDs)
-    {
-        final E id = this.getActiveIDIgnoreTemporary ();
         for (final E featureGroupID: featureGroupIDs)
         {
             if (id == featureGroupID)
@@ -290,22 +239,7 @@ public class FeatureGroupManager<E extends Enum<E>, F extends IFeatureGroup>
      */
     public void setPreviousID (final E featureGroupID)
     {
-        this.setPrevious (featureGroupID, true);
-    }
-
-
-    /**
-     * Set the previous feature group.
-     *
-     * @param featureGroupID The ID of the previous feature group
-     * @param syncSiblings Sync changes to siblings if true
-     */
-    private void setPrevious (final E featureGroupID, final boolean syncSiblings)
-    {
         this.previousID = featureGroupID;
-
-        if (syncSiblings)
-            this.connectedManagers.forEach (sibling -> sibling.setPrevious (featureGroupID, false));
     }
 
 
@@ -324,17 +258,6 @@ public class FeatureGroupManager<E extends Enum<E>, F extends IFeatureGroup>
      * Set the previous feature group as the active one.
      */
     public void restore ()
-    {
-        this.restore (true);
-    }
-
-
-    /**
-     * Set the previous feature group as the active one.
-     *
-     * @param syncSiblings Sync changes to siblings if true
-     */
-    private void restore (final boolean syncSiblings)
     {
         // Deactivate the current temporary or active feature group
         E oldID = null;
@@ -365,23 +288,8 @@ public class FeatureGroupManager<E extends Enum<E>, F extends IFeatureGroup>
             featureGroup.onActivate ();
         }
 
-        if (syncSiblings)
-            this.connectedManagers.forEach (sibling -> sibling.restore (false));
-
         if (oldID != null)
             this.notifyObservers (oldID, this.activeID);
-    }
-
-
-    /**
-     * Register another manager. If a feature group changes all states are synchronized to the
-     * registered siblings.
-     *
-     * @param sibling Another manager to keep in sync
-     */
-    public void addConnectedManagerListener (final FeatureGroupManager<E, F> sibling)
-    {
-        this.connectedManagers.add (sibling);
     }
 
 
@@ -408,13 +316,4 @@ public class FeatureGroupManager<E extends Enum<E>, F extends IFeatureGroup>
     }
 
 
-    /**
-     * Get all connected managers.
-     *
-     * @return The connectedManagers
-     */
-    public List<FeatureGroupManager<E, F>> getConnectedManagers ()
-    {
-        return this.connectedManagers;
-    }
 }

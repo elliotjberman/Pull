@@ -114,7 +114,7 @@ and the response curve adds line transport. See
 
 The [UI/editing handoff](migrations/ui-and-editing-handoff.md) remains the checklist. Info's complete
 action/feedback slice now lives in core, with the subscribed hardware tuple described
-in [ARCH](../ARCH.md#pages-and-input). The tuple does not guarantee physical
+in [ControllerHardwareSnapshot](../pull-core-api/src/main/java/de/mossgrabers/pull/core/api/ControllerHardwareSnapshot.java). The tuple does not guarantee physical
 connection or recover values discarded by the existing hardware parser. Setup and Ribbon settings
 now consume shared components too. Their offline cutover does not migrate the remaining physical
 Ribbon behavior, Scales/Scale Layout, Repeat or User. Fixed Length additionally depends on Session create/launch/overdub

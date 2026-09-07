@@ -3,12 +3,9 @@
 Working source: Core API 52, checkpoint schema 6, Bitwig API 25. Migration is incomplete:
 core owns pages and migrated controls; the inventory below names the remaining shell handlers.
 
-Production `2fa63736` / Core API 50 is installed and passed scoped Setup/Info and plain/Shift track-arrow checks.
-The prior API 50 source passed 1,018 offline package tests. The [smoke record](docs/migrations/session-core-live-smoke.md)
-identifies exact builds and limits; Session and reload coverage remains the earlier API 49 evidence.
-
-API 51 removed the unused logical timer contract; API 52 removes obsolete constructor overloads.
-These cleanups require a matching shell install and restart and have not been installed or live tested.
+The last recorded live build is `2fa63736` / Core API 50. Source API 52 has not been installed
+or live tested. The [smoke record](docs/migrations/session-core-live-smoke.md) identifies exact
+builds, covered scenarios and pending checks; it is not blanket validation of current source.
 
 ## Assembly
 
@@ -56,20 +53,10 @@ pages project through one inert `CorePageMode`; they need no shell enum. Remaini
 request navigation through a bounded 64-entry inbox. Its aliases and `STABLE_ADAPTER_*` facets
 are migration debt, not extension points.
 
-The [UI component library](docs/ui-component-library.md) supplies shared choice, toggle, ring and
-parameter visuals plus an offline catalog. Info owns hardware identity presentation, Info/Setup tabs,
-current-bank row selection and row/display output. Setup owns its physical button, five preferences,
-Delete-touch defaults and calibration graph; Ribbon owns its settings page and return controls.
-Their settings writes wait for later read-back and page departure retires unsent intent. Physical
-Ribbon behavior and Shift-strip entry remain frozen legacy policy.
-
-`CONTROLLER_SETTINGS` adds five hardware integers (brightness 0–100, pad controls 0–10), exactly 128
-velocity samples (1–127), and Ribbon function/CC/repeat ranges 0–5/0–127/0–2. These are observed global
-preferences, not project targets. The shell caches the curve until settings change and rasterizes
-bounded core line primitives inside compiler-owned clips. `CONTROLLER_HARDWARE`
-samples the existing firmware/board/signed-serial tuple only when requested. Its generation counts
-observed tuple changes, survives core replacement/subscription gaps and resets with the extension.
-It is neither a connection guarantee nor an actuator identity; unsampled changes are unobservable.
+The [UI component library](docs/ui-component-library.md) supplies shared components and pure page
+renderers with an offline catalog. Core owns Info, Setup and Ribbon settings-page interactions
+and feedback. Settings writes wait for read-back; page departure retires unsent intent. Physical
+Ribbon behavior and Shift-strip entry remain partly in frozen handlers.
 
 See [views](docs/views-api-design.md) for authoring and [interaction lifecycle](docs/interaction-lifecycle.md)
 for target/cleanup contracts. Native `NoteInput`, command arbitration and learned hardware actions
@@ -79,23 +66,27 @@ are separate paths. The shared lifecycle does not make unmigrated shell handlers
 
 | Surface | Implementation |
 | --- | --- |
-| Project Macros, Track, Volume/Pan, eight Sends, Master/Cue | Core controls, touches/reset, menus, display and lights. Normal Track has a current-bank footer; VS has a Session track strip. |
+| Project Macros, Track, Volume/Pan, eight Sends, Master/Cue | Core page controls, touches/reset, menus, display and lights. The physical Master encoder is separately listed below. |
 | Transport/global pages | Core Play/Record, Mute/Solo, Tap, Undo/Redo, Track/Mix, Master/Frame, Accent/Info/Setup, Ribbon settings, Metronome/Automation and migrated arrows, including feedback. |
 | Drum / selected Note | Core applicability, Note/Layout, playable-pad pressure/lights, rates/roll, fills, octave/native maps and raw strip policy within installed geometry. |
-| Session | Core grid, scene keys, bank/page/octave navigation, Stop chords, modifiers, create/record/copy/browse and observed blinking lights. Legacy parameter pages retain only horizontal parameter navigation. |
-| Device/Chains/layers, Browser body, Crossfade, Details/Color, remaining settings and editing | Stable handlers/providers. Core page entry/return does not migrate their controls or rendering. |
+| Session | Core grid, scene keys, bank/page/octave navigation, Stop chords, modifiers, create/record/copy/browse and observed blinking lights. Within the Session navigation slice, legacy parameter pages retain horizontal parameter navigation. |
+| Device/Chains/layers and Browser body | Stable parameter providers, handlers and rendering; page entry/return alone is core-owned. |
+| Crossfade, Track/Layer Details, Color, Scales/Layout, Repeat, Fixed Length, User, Add Track, Groove and Quantize pages | Stable handlers and feedback. |
+| Clip/note editing, clip length, Chords/Piano/Program Change, sequencers, Raindrops and alternate drum layouts | Remaining stable musical/editing behavior; core Note/Layout selection does not migrate the selected implementation. |
+| Global knobs and standalone commands | Stable Tempo/Master/play-position variants and touch notifications; New, Duplicate, Delete, Double, Quantize, Convert and footswitch commands. Core handling of a modifier chord does not migrate its standalone command. |
 
-Plain Session uses 8×8; Shift+Session selects VS with an upper 8×4 Session bank, Project Macros,
-track-selection footer and lower Drum controls. The lower Drum footprint has 4×4 play pads,
-four rate pads, eight fills and four native mapping pads; lower scene keys are unclaimed.
-`DrumFillView` is directly composed in Drum and VS; `RawPitchBendView` independently owns the strip.
+Plain Session uses an 8×8 grid; VS composes upper Session with Project Macros, a track footer
+and lower Drum controls. Views declare their fixed footprints and musical/output ownership.
+Global Tempo/Master `DIRECT_INPUT` parameter bindings support parameter interaction; they do not
+establish exclusive ownership of the complete knob gesture. Trace permanent commands and feedback
+as well as core claims when auditing a migration.
 
 Selected-track Mute/Solo is page-independent. Stop normally targets the private selected track;
 its supported chords target the exact Session bank/track and consume the plain release action.
 Toggle lanes serialize dependent writes across host read-back. Migrated track-navigation arrows step one track;
 Shift pages eight. Light refresh is a single end-of-flush pass, so observer bursts cannot multiply it.
 
-## Installed bounds
+## Stable capability bounds
 
 | Capability | Capacity / identity |
 | --- | --- |

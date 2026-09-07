@@ -1,6 +1,6 @@
 # Remaining core migration
 
-[ARCH](../ARCH.md) is the current ownership/capacity inventory. Core API 50 includes Session, Setup/Ribbon settings and shared
+[ARCH](../ARCH.md) is the current ownership/capacity inventory. Core owns Session, Setup/Ribbon settings and shared
 interaction cancellation; page entry/return and input lifecycle ownership do not migrate remaining
 handler bodies. Use the [capability audit](reloadable-core-migration-guide.md) for each complete slice.
 
@@ -10,14 +10,20 @@ handler bodies. Use the [capability audit](reloadable-core-migration-guide.md) f
 - [ ] Browser filtering/results/audition/operations; navigation lifecycle is already core-owned.
 - [ ] Crossfade, Track/Layer Details and Color.
 - [ ] Scales/Layout, Repeat, Fixed Length, User, remaining physical Ribbon behavior and remaining musical layouts.
-- [ ] Clip/note/sequencer editing and scene/clip-length workflows.
+- [ ] Clip/note/sequencer editing and scene/clip-length workflows, including Chords/Piano/Program
+      Change, Raindrops and alternate drum layouts.
+- [ ] Add Track, Groove and Quantize pages.
+- [ ] Global Tempo/Master/play-position knob variants and touch feedback. Direct parameter
+      bindings do not migrate browser selection, loop start/length, zoom or notifications.
+- [ ] Standalone New, Duplicate, Delete, Double, Quantize, Convert and footswitch commands.
+      Session modifier handling does not complete those standalone gestures.
 - [ ] Delete each family's stable policy, providers, facet claims and aliases/inbox callers as its
       complete action/feedback behavior moves. Keep generic resources and transport.
 
 The [UI/editing handoff](migrations/ui-and-editing-handoff.md) scopes those separate tasks.
 The migration ends when no frozen product-policy adapter remains.
 
-API 50 is installed: Setup/Info and plain/Shift track arrows passed the [scoped live check](migrations/session-core-live-smoke.md).
+The last recorded live build is API 50: Setup/Info and plain/Shift track arrows passed the [scoped live check](migrations/session-core-live-smoke.md).
 Ribbon, Session and reload were not rerun on API 50; earlier Session evidence and its
 [bounded location/release limits](migrations/session-launcher-location-design.md) remain applicable only to the recorded builds.
 
@@ -53,7 +59,7 @@ native-note/pressure/feedback capability expansion.
 
 [General async reload draining](findings/core-reload-quiescence.md) is explicitly parked. Other
 [active findings](findings/README.md) own unresolved parameter precision/addressability, MIDI-learn
-lifecycle, facet/claim validation, logical timers and live provenance. Update or delete them when
+lifecycle, facet/claim validation and live provenance. Update or delete them when
 their removal criteria are met; do not duplicate their investigations in a feature diary.
 
 Follow [TESTING](../TESTING.md): routed behavior, separately advanced host state and output; target

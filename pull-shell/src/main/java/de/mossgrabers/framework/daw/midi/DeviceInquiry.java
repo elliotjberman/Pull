@@ -28,10 +28,7 @@ public class DeviceInquiry
     private static final int     LENGTH_RESULT_SHORT      = 15;
     private static final int     LENGTH_RESULT_LONG       = 17;
     private static final int     LENGTH_DEVICE_FAMILY     = 4;
-    private static final int     LENGTH_SOFTWARE_REVISION = 4;
 
-    private static final int     OFFSET_DEVICE_ID         = 2;
-    private static final int     OFFSET_MANUFACTURER_ID   = 5;
     private static final int     OFFSET_CONTENT_SHORT     = 6;
     private static final int     OFFSET_CONTENT_LONG      = 8;
 
@@ -105,102 +102,6 @@ public class DeviceInquiry
 
 
     /**
-     * Get the device ID.
-     *
-     * @return The device ID or -1 if data is not valid
-     */
-    public int getDeviceID ()
-    {
-        return this.isValid () ? this.data[OFFSET_DEVICE_ID] : -1;
-    }
-
-
-    /**
-     * Get the manufacturers system exclusive ID code. It is 1 or 3 bytes long for newer IDs. If the
-     * first ID is 0, it is a 3 byte code.
-     *
-     * @return The manufacturers system exclusive id code or an empty array if data is not valid
-     */
-    public int [] getManufacturer ()
-    {
-        if (!this.isValid ())
-            return new int [0];
-
-        // Old 1 byte ID
-        if (this.responseType == ResponseType.SHORT)
-        {
-            return new int []
-            {
-                this.data[OFFSET_MANUFACTURER_ID]
-            };
-        }
-
-        // Newer 3-byte ID if first byte is 0
-        return new int []
-        {
-            this.data[OFFSET_MANUFACTURER_ID],
-            this.data[OFFSET_MANUFACTURER_ID + 1],
-            this.data[OFFSET_MANUFACTURER_ID + 2]
-        };
-    }
-
-
-    /**
-     * Get the device family code of the message.
-     *
-     * @return The code or -1 if data is not valid
-     */
-    public int [] getDeviceFamilyCode ()
-    {
-        if (!this.isValid ())
-            return new int [0];
-
-        final int contentStart = this.getContentStart ();
-        return new int []
-        {
-            this.data[contentStart],
-            this.data[contentStart + 1]
-        };
-    }
-
-
-    /**
-     * Get the device family member code of the message.
-     *
-     * @return The 2 byte code or an empty array if data is not valid
-     */
-    public int [] getDeviceFamilyMemberCode ()
-    {
-        if (!this.isValid ())
-            return new int [0];
-
-        final int contentStart = this.getContentStart ();
-        return new int []
-        {
-            this.data[contentStart + 2],
-            this.data[contentStart + 3]
-        };
-    }
-
-
-    /**
-     * Get the software revision level. The format and length is device specific.
-     *
-     * @return The Software revision level or an empty array if data is not valid
-     */
-    public int [] getRevisionLevel ()
-    {
-        if (!this.isValid ())
-            return new int [0];
-
-        final int start = this.getContentStart () + LENGTH_DEVICE_FAMILY;
-        final int [] softwareData = new int [LENGTH_SOFTWARE_REVISION];
-        System.arraycopy (this.data, start, softwareData, 0, LENGTH_SOFTWARE_REVISION);
-        return softwareData;
-    }
-
-
-    /**
      * Get the data which starts at the software revision position but has more data bytes (> 4) as
      * specified by the MIDI specification.
      *
@@ -242,13 +143,4 @@ public class DeviceInquiry
     }
 
 
-    /**
-     * Get the whole data packet.
-     *
-     * @return The data
-     */
-    public int [] getData ()
-    {
-        return this.data;
-    }
 }

@@ -107,25 +107,6 @@ public class UsbMatcher
 
 
     /**
-     * Add an end-point.
-     *
-     * @param interfaceNumber The interface
-     * @param endpointAddress The end-point on the interface
-     * @param isBulk True to use bulk otherwise interrupted
-     */
-    public final void addEndpoint (final byte interfaceNumber, final byte endpointAddress, final boolean isBulk)
-    {
-        this.endpoints.add (new EndpointMatcher (interfaceNumber, new byte []
-        {
-            endpointAddress
-        }, new boolean []
-        {
-            isBulk
-        }));
-    }
-
-
-    /**
      * Get the configured end-points.
      *
      * @return The end-points

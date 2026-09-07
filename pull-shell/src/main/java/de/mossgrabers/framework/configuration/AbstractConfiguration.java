@@ -29,7 +29,6 @@ import de.mossgrabers.framework.observer.ISettingObserver;
 import de.mossgrabers.framework.scale.Scale;
 import de.mossgrabers.framework.scale.ScaleLayout;
 import de.mossgrabers.framework.scale.Scales;
-import de.mossgrabers.framework.view.Views;
 
 
 /**
@@ -343,7 +342,6 @@ public abstract class AbstractConfiguration implements Configuration
         for (int i = 0; i < this.footswitch.length; i++)
             this.footswitch[i] = FOOTSWITCH_NEW_BUTTON;
 
-        Views.init ();
     }
 
 

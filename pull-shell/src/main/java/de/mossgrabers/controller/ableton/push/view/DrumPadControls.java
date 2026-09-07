@@ -15,7 +15,6 @@ import de.mossgrabers.framework.scale.Scales;
  */
 public final class DrumPadControls
 {
-    private static final int LOWER_GRID_ROWS = 4;
 
     private final PushControlSurface surface;
     private final IModel             model;
@@ -122,18 +121,4 @@ public final class DrumPadControls
     }
 
 
-    /**
-     * Test whether this component owns a physical grid note.
-     *
-     * @param note The physical grid note
-     * @return True if the note belongs to the complete lower four-row controller
-     */
-    public boolean ownsGridNote (final int note)
-    {
-        final int index = note - this.surface.getPadGrid ().getStartNote ();
-        if (index < 0)
-            return false;
-
-        return index < this.surface.getPadGrid ().getCols () * LOWER_GRID_ROWS;
-    }
 }

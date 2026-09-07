@@ -213,28 +213,6 @@ public class Scales
 
 
     /**
-     * Returns true if there is a previous scale to select.
-     *
-     * @return True if there is a previous scale to select
-     */
-    public boolean hasPrevScale ()
-    {
-        return this.selectedScale.ordinal () > 0;
-    }
-
-
-    /**
-     * Returns true if there is a next scale to select.
-     *
-     * @return True if there is a next scale to select
-     */
-    public boolean hasNextScale ()
-    {
-        return this.selectedScale.ordinal () < Scale.values ().length - 1;
-    }
-
-
-    /**
      * Select the previous scale.
      */
     public void prevScale ()
@@ -251,46 +229,6 @@ public class Scales
     {
         final Scale [] values = Scale.values ();
         this.selectedScale = values[Math.min (values.length - 1, this.selectedScale.ordinal () + 1)];
-    }
-
-
-    /**
-     * Returns true if there is a previous scale offset to select.
-     *
-     * @return True if there is a previous scale offset to select
-     */
-    public boolean hasPrevScaleOffset ()
-    {
-        return this.scaleOffset > 0;
-    }
-
-
-    /**
-     * Returns true if there is a next scale offset to select.
-     *
-     * @return True if there is a next scale offset to select
-     */
-    public boolean hasNextScaleOffset ()
-    {
-        return this.scaleOffset < Scales.OFFSETS.length - 1;
-    }
-
-
-    /**
-     * Select the previous scale offset.
-     */
-    public void prevScaleOffset ()
-    {
-        this.setScaleOffsetByIndex (this.scaleOffset - 1);
-    }
-
-
-    /**
-     * Select the next scale offset.
-     */
-    public void nextScaleOffset ()
-    {
-        this.setScaleOffsetByIndex (this.scaleOffset + 1);
     }
 
 
@@ -402,48 +340,6 @@ public class Scales
     public void setScaleLayoutByName (final String scaleLayoutName)
     {
         this.setScaleLayout (ScaleLayout.getByName (scaleLayoutName));
-    }
-
-
-    /**
-     * Returns true if there is a previous scale layout to select.
-     *
-     * @return True if there is a previous scale layout to select
-     */
-    public boolean hasPrevScaleLayout ()
-    {
-        return this.scaleLayout.ordinal () > 0;
-    }
-
-
-    /**
-     * Returns true if there is a next scale layout to select.
-     *
-     * @return True if there is a next scale layout to select
-     */
-    public boolean hasNextScaleLayout ()
-    {
-        return this.scaleLayout.ordinal () < ScaleLayout.values ().length - 1;
-    }
-
-
-    /**
-     * Select the previous scale layout.
-     */
-    public void prevScaleLayout ()
-    {
-        final ScaleLayout [] values = ScaleLayout.values ();
-        this.scaleLayout = values[Math.max (0, this.scaleLayout.ordinal () - 1)];
-    }
-
-
-    /**
-     * Select the next scale layout.
-     */
-    public void nextScaleLayout ()
-    {
-        final ScaleLayout [] values = ScaleLayout.values ();
-        this.scaleLayout = values[Math.min (values.length - 1, this.scaleLayout.ordinal () + 1)];
     }
 
 
@@ -572,24 +468,6 @@ public class Scales
 
 
     /**
-     * Increases the drum layout by default drum offset.
-     */
-    public void incDrumOctave ()
-    {
-        this.incDrumOffset (this.drumDefaultOffset);
-    }
-
-
-    /**
-     * Decreases the drum layout by the default drum offset.
-     */
-    public void decDrumOctave ()
-    {
-        this.decDrumOffset (this.drumDefaultOffset);
-    }
-
-
-    /**
      * Resets the octave offset for the drum layout.
      */
     public void resetDrumOctave ()
@@ -617,17 +495,6 @@ public class Scales
     public void decDrumOffset (final int offset)
     {
         this.drumOffset = Math.max (DRUM_NOTE_LOWER, this.drumOffset - offset);
-    }
-
-
-    /**
-     * Set the default value for de-/increasing the drum offset.
-     *
-     * @param drumDefaultOffset The offset
-     */
-    public void setDrumDefaultOffset (final int drumDefaultOffset)
-    {
-        this.drumDefaultOffset = drumDefaultOffset;
     }
 
 
@@ -694,28 +561,6 @@ public class Scales
         this.scaleShift = scaleShift;
         this.semitoneShift = semitoneShift;
         this.generateMatrices ();
-    }
-
-
-    /**
-     * Get the number of scale steps that the notes in the next rows are shifted (e.g. 4).
-     *
-     * @return The steps
-     */
-    public int getScaleShift ()
-    {
-        return this.scaleShift;
-    }
-
-
-    /**
-     * Get the number of semitones the notes in the next rows are shifted in chromatic mode
-     *
-     * @return The number of semitone
-     */
-    public int getSemitoneShift ()
-    {
-        return this.semitoneShift;
     }
 
 
@@ -819,19 +664,6 @@ public class Scales
                 return i;
         }
         return -1;
-    }
-
-
-    /**
-     * Calculate the thirds on top of the given MIDI note. Respects the current octave, scale and
-     * scale base.
-     *
-     * @param baseNote The base note of the chord
-     * @return The additional 2 thirds or an empty array if the baseNote is out of the scale
-     */
-    public int [] getThirdChord (final int baseNote)
-    {
-        return this.getChord (baseNote, 3, 5);
     }
 
 
@@ -978,20 +810,6 @@ public class Scales
 
 
     /**
-     * Get a new identity matrix. All notes are mapped to themselves.
-     *
-     * @return The identity matrix
-     */
-    public static int [] getIdentityMatrix ()
-    {
-        final int [] identityMatrix = new int [128];
-        for (int i = 0; i < 128; i++)
-            identityMatrix[i] = i;
-        return identityMatrix;
-    }
-
-
-    /**
      * Get the drum matrix.
      *
      * @return The drum matrix
@@ -1006,39 +824,6 @@ public class Scales
             noteMap[note] = n < 0 || n > 127 ? -1 : n;
         }
         return noteMap;
-    }
-
-
-    /**
-     * Set a new drum matrix.
-     *
-     * @param matrix The new drum matrix
-     */
-    public void setDrumMatrix (final int [] matrix)
-    {
-        this.drumMatrix = matrix;
-    }
-
-
-    /**
-     * Set the first drum note.
-     *
-     * @param drumNoteStart The first drum note
-     */
-    public void setDrumNoteStart (final int drumNoteStart)
-    {
-        this.drumNoteStart = drumNoteStart;
-    }
-
-
-    /**
-     * Set the last drum note.
-     *
-     * @param drumNoteEnd The last drum note
-     */
-    public void setDrumNoteEnd (final int drumNoteEnd)
-    {
-        this.drumNoteEnd = drumNoteEnd;
     }
 
 
@@ -1193,17 +978,6 @@ public class Scales
 
 
     /**
-     * Set the first MIDI note of the pad grid.
-     *
-     * @param startNote The first MIDI note of the pad grid
-     */
-    public void setStartNote (final int startNote)
-    {
-        this.startNote = startNote;
-    }
-
-
-    /**
      * Get the last MIDI note of the pad grid.
      *
      * @return The last MIDI note of the pad grid
@@ -1211,17 +985,6 @@ public class Scales
     public int getEndNote ()
     {
         return this.endNote;
-    }
-
-
-    /**
-     * Set the last MIDI note of the pad grid.
-     *
-     * @param endNote The last MIDI note of the pad grid
-     */
-    public void setEndNote (final int endNote)
-    {
-        this.endNote = endNote;
     }
 
 

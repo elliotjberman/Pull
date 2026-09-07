@@ -85,17 +85,6 @@ public class ColorView<S extends IControlSurface<C>, C extends Configuration> ex
     }
 
 
-    /**
-     * Get the currently active color page.
-     *
-     * @return The currently active color page
-     */
-    public int getPage ()
-    {
-        return this.page;
-    }
-
-
     /** {@inheritDoc} */
     @Override
     public void drawGrid ()

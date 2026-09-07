@@ -705,19 +705,6 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
 
 
     /**
-     * Test whether the selected target is compatible with the drum layout and the framework drum
-     * model represents that same track. Layout preference must not be written through a stale or
-     * pinned model cursor.
-     *
-     * @return True if the selected target is drum-capable and aligned with the model cursor
-     */
-    public boolean isDrumControllerTargetAligned ()
-    {
-        return this.isDrumControllerTarget () && this.isDrumModelAligned ();
-    }
-
-
-    /**
      * Capture the authoritative private selection-following target.
      *
      * @return The coherent selected-target snapshot
@@ -1278,17 +1265,6 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
 
 
     /**
-     * Set the major hardware version.
-     *
-     * @param majorVersion The major hardware version.
-     */
-    public void setMajorVersion (final int majorVersion)
-    {
-        this.majorVersion = majorVersion;
-    }
-
-
-    /**
      * Get the minor hardware version.
      *
      * @return The minor hardware version.
@@ -1296,17 +1272,6 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
     public int getMinorVersion ()
     {
         return this.minorVersion;
-    }
-
-
-    /**
-     * Set the minor hardware version.
-     *
-     * @param minorVersion The major hardware version.
-     */
-    public void setMinorVersion (final int minorVersion)
-    {
-        this.minorVersion = minorVersion;
     }
 
 
