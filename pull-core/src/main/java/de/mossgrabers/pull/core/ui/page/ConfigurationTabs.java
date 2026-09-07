@@ -14,7 +14,7 @@ import static de.mossgrabers.pull.core.ui.PageStyle.*;
 /** The shared Info/Setup menu and its owned row feedback, independent of navigation behavior. */
 final class ConfigurationTabs
 {
-    private static final ChoiceCell.Style CHOICE = new ChoiceCell.Style (COLUMN_WIDTH - 2, 34, 4, 2, 17, 10, DARK);
+    private static final ChoiceCell.Style CHOICE = new ChoiceCell.Style (COLUMN_WIDTH - 2, 34, 6, 2, 17, 10);
 
     private ConfigurationTabs () { }
 

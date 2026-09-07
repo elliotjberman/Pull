@@ -75,7 +75,7 @@ public final class UiComponentCatalog
                 html.append ("</div><figcaption><span>").append (variant.title ()).append ("</span><a href=\"").append (file).append ("\" aria-label=\"Open ")
                     .append (component.title ()).append (' ').append (variant.title ()).append (" SVG\">SVG ↗</a></figcaption>");
                 variant.light ().ifPresent (color -> html.append ("<div class=\"choice-light\"><i style=\"--light:").append (DisplaySceneSvg.color (color))
-                    .append ("\"></i>Light color <span>").append (DisplaySceneSvg.color (color)).append ("</span></div>"));
+                    .append ("\"></i>Button light <span>").append (DisplaySceneSvg.color (color)).append ("</span></div>"));
                 html.append ("</figure>");
                 specimens++;
             }
@@ -95,7 +95,9 @@ public final class UiComponentCatalog
                 .append (example.group ()).append ("</small><h3>").append (DisplaySceneSvg.escape (example.title ())).append ("</h3></div><a href=\"")
                 .append (file).append ("\">Open SVG ↗</a></header><p>").append (DisplaySceneSvg.escape (example.description ())).append ("</p><div class=\"surface\">");
             lights (html, example.visuals (), 2);
+            html.append ("<div class=\"screen-area\"><div class=\"surface-label\">Display content</div><div class=\"screen\">");
             image (html, file, example.title (), example.visuals ().display ());
+            html.append ("</div></div>");
             lights (html, example.visuals (), 1);
             html.append ("</div><footer><code>").append (example.renderer ()).append ("</code> · ")
                 .append (example.visuals ().display ().width ()).append (" × ").append (example.visuals ().display ().height ())
@@ -196,8 +198,8 @@ public final class UiComponentCatalog
 
     private static List<Component> components ()
     {
-        final ChoiceCell.Style choiceStyle = new ChoiceCell.Style (104, 28, 4, 2, 14, 10, new RgbColor (30, 30, 30));
-        final Component choices = new Component ("component-choice", "Choice cell", "Availability and selection produce one bounded label and a matching light color. Unavailable and empty choices remain blank.", "ChoiceCell", List.of (
+        final ChoiceCell.Style choiceStyle = new ChoiceCell.Style (104, 28, 6, 2, 14, 10);
+        final Component choices = new Component ("component-choice", "Choice cell", "Left-aligned text with a 3 px full-height marker. Selected choices are white; unselected choices are dimmed. Unavailable and empty choices remain blank.", "ChoiceCell", List.of (
             choice ("normal", "Available", new ChoiceCell ("Read", true, false), choiceStyle),
             choice ("selected", "Selected", new ChoiceCell ("Touch", true, true), choiceStyle),
             choice ("long", "Long label", new ChoiceCell ("Very long option label", true, false), choiceStyle),
@@ -282,15 +284,17 @@ public final class UiComponentCatalog
 
     private static void lights (final StringBuilder html, final PageVisuals visuals, final int row)
     {
-        html.append ("<div class=\"lights\" aria-label=\"ROW").append (row).append (" lights\">");
+        final String label = row == 2 ? "Upper" : "Lower";
+        html.append ("<div class=\"hardware-row\"><div class=\"surface-label\">").append (label)
+            .append (" hardware buttons</div><div class=\"lights\" aria-label=\"").append (label).append (" hardware button lights\">");
         for (int column = 1; column <= 8; column++)
         {
             final RgbColor color = visuals.lights ().get (PushControlIds.button ("ROW" + row + "_" + column));
             html.append ("<span class=\"").append (color == null ? "unowned" : "owned").append ("\" style=\"--light:")
-                .append (color == null ? "transparent" : DisplaySceneSvg.color (color)).append ("\" title=\"ROW").append (row).append ('_').append (column)
-                .append (": ").append (color == null ? "unowned" : DisplaySceneSvg.color (color)).append ("\"><i></i></span>");
+                .append (color == null ? "transparent" : DisplaySceneSvg.color (color)).append ("\" title=\"").append (label).append (" button ").append (column)
+                .append (": ").append (color == null ? "no light state from this view" : DisplaySceneSvg.color (color)).append ("\"><i></i></span>");
         }
-        html.append ("</div>");
+        html.append ("</div></div>");
     }
 
     private record Example (String id, String group, String title, String description, String renderer, PageVisuals visuals)
@@ -325,9 +329,12 @@ public final class UiComponentCatalog
         button{border:1px solid #343c4a;border-radius:7px;background:#1a2029;color:#c2ccd9;padding:8px 14px;cursor:pointer;font:inherit}
         button[aria-pressed=true]{background:#bddcff;color:#101216;border-color:#bddcff}article{margin:0 0 28px;padding:24px;background:#181c23;border:1px solid #2a303a;border-radius:12px;scroll-margin-top:20px}
         article header{display:flex;justify-content:space-between;align-items:center;gap:20px}a{color:#a4d0ff;text-decoration:none;white-space:nowrap;font-size:13px}a:hover{text-decoration:underline}
-        .surface{background:#07080b;padding:12px;border-radius:7px;overflow:auto}.surface img{display:block;max-width:100%;height:auto;margin:8px auto}
-        .lights{display:grid;grid-template-columns:repeat(8,1fr);gap:2px;max-width:960px;margin:0 auto}.lights span{display:block;padding:0 10px}
-        .lights i,.choice-light i{display:block;height:5px;background:var(--light);border:1px solid #3a404a;border-radius:2px}.lights .unowned i{border-style:dashed;opacity:.4}
+        .surface{background:#24262b;padding:18px;border:1px solid #34373d;border-radius:7px;overflow:auto}.surface img{display:block;max-width:100%;height:auto;margin:0 auto}
+        .hardware-row,.screen-area{max-width:960px;margin:0 auto}.surface-label{color:#9298a2;font-size:10px;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px}
+        .screen-area{margin:20px auto}.screen{background:#000;outline:5px solid #111216;border-radius:2px;overflow:hidden}
+        .lights{display:grid;grid-template-columns:repeat(8,1fr);gap:2px}.lights span{display:block;padding:0 10px}
+        .lights i{display:block;height:18px;background:var(--light);border:1px solid #484c53;border-radius:3px;box-shadow:0 2px 0 #111216}.lights .unowned i{border-style:dashed;opacity:.4}
+        .choice-light i{display:block;background:var(--light);border:1px solid #3a404a;border-radius:2px}
         .specimens{display:grid;grid-template-columns:repeat(auto-fill,minmax(138px,1fr));gap:12px}.specimens figure{margin:0;min-width:0}
         .specimen-display{height:96px;display:flex;align-items:center;justify-content:center;background:#000;border:1px solid #2a303a;border-radius:7px}
         .specimen-display svg{display:block;flex:none}.specimens figcaption{display:flex;justify-content:space-between;gap:5px;margin-top:8px;font-size:12px}
@@ -343,7 +350,7 @@ public final class UiComponentCatalog
         </style></head><body><div class="intro"><small>Pull / Reloadable UI</small><h1>UI library</h1>
         <p>Explore the individual building blocks, then preview the views built from them. Everything here uses production drawing commands with supplied values. No Bitwig or Push connection is needed.</p>
         <p class="notes">All UI text uses Lato. Display previews are measured with the same Lato Regular font data embedded in each SVG; catalog headings use Lato Semibold. Host rasterization can still differ; verify final typography on Push.</p>
-        <p class="notes">View previews: top swatches are ROW2, bottom swatches ROW1. Dashed swatches are unowned; solid black is owned and off.</p></div>
+        <p class="notes">Each view separates the display content from the physical button lights above and below it. Dashed buttons have no light state from this view; black buttons are off.</p></div>
         """;
 
     private static final String COLOR_CONTROLS = """

@@ -9,12 +9,15 @@ import de.mossgrabers.pull.core.api.output.RgbColor;
 import java.util.List;
 import static de.mossgrabers.pull.core.ui.PageStyle.*;
 
-/** A value-only choice with matching display and button feedback. Unavailable choices stay blank. */
+/** A left-aligned choice with a full-height selection marker. Unavailable choices stay blank. */
 public record ChoiceCell (String label, boolean available, boolean selected)
 {
+    private static final double MARKER_WIDTH = 3;
+    private static final RgbColor UNSELECTED = new RgbColor (128, 128, 128);
+
     /** Geometry is local to the cell; the consuming page chooses its position and physical button. */
     public record Style (double width, double height, double insetX, double insetY, double fontSize,
-                         double minimumFontSize, RgbColor background) { }
+                         double minimumFontSize) { }
 
     public RgbColor lightColor ()
     {
@@ -25,10 +28,11 @@ public record ChoiceCell (String label, boolean available, boolean selected)
     public void append (final List<DisplayCommand> commands, final double left, final double top, final Style style)
     {
         if (!this.visible ()) return;
-        commands.add (new DisplayCommand.Rectangle (left, top, style.width (), style.height (), this.selected ? WHITE : style.background ()));
-        commands.add (new DisplayCommand.TextBox (this.label, left + style.insetX (), top + style.insetY (),
-            style.width () - 2 * style.insetX (), style.height () - 2 * style.insetY (), DisplayTextAlignment.CENTER,
-            this.selected ? BLACK : WHITE, style.fontSize (), style.minimumFontSize (), DisplayTextFit.SHRINK_ELLIPSIS));
+        final RgbColor color = this.selected ? WHITE : UNSELECTED;
+        commands.add (new DisplayCommand.Rectangle (left, top, MARKER_WIDTH, style.height (), color));
+        commands.add (new DisplayCommand.TextBox (this.label, left + MARKER_WIDTH + style.insetX (), top + style.insetY (),
+            style.width () - MARKER_WIDTH - 2 * style.insetX (), style.height () - 2 * style.insetY (), DisplayTextAlignment.LEFT,
+            color, style.fontSize (), style.minimumFontSize (), DisplayTextFit.SHRINK_ELLIPSIS));
     }
 
     private boolean visible ()

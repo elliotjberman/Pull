@@ -24,7 +24,7 @@ does not integrate or replace production input routing.
 
 | Component | Contract | Consumers |
 | --- | --- | --- |
-| `ChoiceCell` | Label, availability and observed selection produce one fitted cell and matching light color. Empty/unavailable choices are blank and off. | Automation, Metronome, Frame, Info, Setup and Ribbon |
+| `ChoiceCell` | Left-aligned label and 3 px full-height marker: white selected, dimmed unselected, no background fill. Physical light feedback remains white/dim/off; empty or unavailable choices are blank and off. | Automation, Metronome, Frame, Info, Setup and Ribbon |
 | `Toggle` | One shared on/off geometry, with page-supplied position and resolved color | Macro Boolean parameters and Master audio engine |
 | `RingMeter` | Normalized value and explicit family geometry/colors produce a dotted meter | Mixer, Macro, Accent and Setup |
 | `ParameterValue` | Typed value/unit content fits within explicit separate fields | Mixer, Macro, Accent and Setup |
@@ -83,7 +83,9 @@ Choice cells retain their neutral selection palette, and ring tracks retain thei
 The SVG link opens the component with the current color and embedded Lato font. These controls work
 in the generated HTML without a server; complete view fixtures retain their supplied colors.
 **Views** shows complete known screens, including Master, Track mix, global mixer, project macros
-and settings, with their actual display output and row lights. Future custom plugin views belong
+and settings, with display content separated from labeled upper/lower hardware-button rows. Button
+lights align to the display columns; dashed buttons have no light state from the view, while black
+buttons are off. Partial display regions retain their own height. Future custom plugin views belong
 here once they have a production renderer; their reusable controls belong in Components.
 Use it to inspect long names, missing values, unavailable/selected choices, touched controls and
 value extremes before a live smoke. The catalog is a visual preview; its font rasterization and
