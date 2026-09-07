@@ -60,7 +60,7 @@ class ControlReturnConfigurationTest
 
     @ParameterizedTest
     @ValueSource(strings = {"wrong: 1", "control_return: {}", "control_return: {curve: {interpolation: math}}",
-        "a: 1\na: 2", "---\n{}\n---\n{}", "a: &a [1]\nb: *a", "x: !java/object {}"})
+        "---\n{}\n---\n{}", "x: !java/object {}"})
     void rejectsMalformedOrUnsupportedDocuments (final String yaml)
     {
         assertThrows (IllegalArgumentException.class, () -> ControlReturnConfiguration.parse (yaml));
@@ -69,8 +69,11 @@ class ControlReturnConfigurationTest
     @Test
     void boundsInputAndNestingAndKeyCount ()
     {
-        assertThrows (IllegalArgumentException.class, () -> ControlReturnConfiguration.parse ("x: " + "[".repeat (20) + "0" + "]".repeat (20)));
-        assertThrows (IllegalArgumentException.class, () -> ControlReturnConfiguration.parse ("x: " + "a".repeat (17000)));
+        assertTrue (assertThrows (IllegalArgumentException.class, () -> ControlReturnConfiguration.parse (yaml ("smooth", "[".repeat (20) + "0" + "]".repeat (20)))).getMessage ().contains ("YAML nesting exceeds 8 levels"));
+        final String valid = yaml ("linear", "[[0, 1], [1, 0]]");
+        assertThrows (IllegalArgumentException.class, () -> ControlReturnConfiguration.parse (valid + "\n# " + "a".repeat (17000)));
+        assertThrows (IllegalArgumentException.class, () -> ControlReturnConfiguration.parse (valid.replace ("interpolation: linear", "interpolation: smooth\n    interpolation: linear")));
+        assertTrue (assertThrows (IllegalArgumentException.class, () -> ControlReturnConfiguration.parse (yaml ("linear", "[[&zero 0, &one 1], [*one, *zero]]"))).getMessage ().contains ("YAML aliases are not supported"));
         final String points = java.util.stream.IntStream.rangeClosed (0, 32).mapToObj (i -> "[" + i / 32.0 + ", " + (1 - i / 32.0) + "]").collect (java.util.stream.Collectors.joining (",", "[", "]"));
         assertThrows (IllegalArgumentException.class, () -> ControlReturnConfiguration.parse (yaml ("smooth", points)));
     }

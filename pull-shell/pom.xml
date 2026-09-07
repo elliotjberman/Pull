@@ -27,6 +27,13 @@
     </repositories>
 
     <dependencies>
+        <!-- Child-core fixture dependency; never included in the shell artifact. -->
+        <dependency>
+            <groupId>org.snakeyaml</groupId>
+            <artifactId>snakeyaml-engine</artifactId>
+            <version>3.0.1</version>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>de.mossgrabers</groupId>
             <artifactId>pull-core-api</artifactId>

@@ -9,8 +9,9 @@ identifies exact builds and limits; Session and reload coverage remains the earl
 
 API 51 removed the unused logical timer contract; API 52 removed obsolete constructor overloads.
 API 53 adds observed Control Return preferences. Core reads custom keyframes from YAML when
-creating a candidate; see [Control Return](docs/control-return.md). Verification of the final
-combined shell is pending.
+creating a candidate; see [Control Return](docs/control-return.md). The combined API 53 shell
+is not installed/live-tested; a further live smoke was deferred by request. The prior feature
+build verified spring baseline crossings and invalid-YAML Linear fallback in Bitwig.
 
 
 ## Assembly

@@ -291,7 +291,7 @@ class SnapbackSessionTest
         final ControllerBridgeSnapshot bridge = new ControllerBridgeSnapshot (
             base.transport (), base.selectedTrack (), base.sessionBank (), base.layout (), base.noteView (), base.noteRepeat (), base.drum (), parameters,
             base.controllerMappingFeedback (), base.master (), base.project (), base.automation (), base.encoderConfiguration (), base.currentTrackBank (), base.transportSettings (),
-            new de.mossgrabers.pull.core.api.ControllerSettingsSnapshot (true, false, "VOLUME", 0, de.mossgrabers.pull.core.api.CursorSendBankSnapshot.empty (), false, 127, de.mossgrabers.pull.core.api.SessionSettingsSnapshot.empty (), 1000));
+            new de.mossgrabers.pull.core.api.ControllerSettingsSnapshot (true, false, "VOLUME", 0, de.mossgrabers.pull.core.api.CursorSendBankSnapshot.empty (), false, 127, de.mossgrabers.pull.core.api.SessionSettingsSnapshot.empty (), 1000, "Linear"));
         return new ControllerSnapshot (0, millis * 1_000_000, ShellCapabilities.empty (), bridge, ClipCatalogSnapshot.empty (), Map.of (), Map.of (), Optional.empty (), Set.of (), Set.of ());
     }
 

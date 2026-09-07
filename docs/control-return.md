@@ -1,7 +1,7 @@
 # Control return
 
 In Bitwig’s Pull controller settings → **Control Return**, choose **Curve → Custom**
-and set **Time** (0–2,000 ms; 0 is instant).
+and set **Time** (0–10,000 ms; 0 is instant).
 
 Save this spring-shaped example as `~/.drivenbymoss/pull/config.yaml`:
 

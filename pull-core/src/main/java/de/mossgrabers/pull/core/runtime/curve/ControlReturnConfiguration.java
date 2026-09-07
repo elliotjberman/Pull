@@ -19,6 +19,8 @@ public final class ControlReturnConfiguration
     /** Missing/empty configuration leaves Custom using the built-in linear curve. */
     public static ReturnCurve parse (final String yaml)
     {
+        if (yaml.codePointCount (0, yaml.length ()) > 16384)
+            throw new IllegalArgumentException ("Invalid control return configuration: YAML exceeds 16384 code points");
         if (yaml.isBlank ()) return time -> time;
         try
         {

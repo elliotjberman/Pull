@@ -58,13 +58,13 @@ class ControllerSettingsHostTest
         fixture.configuration.vu = true;
         fixture.configuration.offset = 4;
         fixture.configuration.mode = Modes.PAN;
-        fixture.configuration.returnMillis = 750;
+        fixture.configuration.returnMillis = 10000;
         fixture.configuration.returnCurve = "Ease-out";
         final var after = fixture.host.snapshot ();
         assertTrue (after.vuMetersEnabled ());
         assertEquals (4, after.mixSendOffset ());
         assertEquals ("PAN", after.globalMixMode ());
-        assertEquals (750, after.parameterReturnMillis ());
+        assertEquals (10000, after.parameterReturnMillis ());
         assertEquals ("Ease-out", after.parameterReturnCurve ());
     }
 

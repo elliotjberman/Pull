@@ -185,7 +185,7 @@ public class PushConfiguration extends AbstractConfiguration implements IGraphic
         // Bitwig fixes enum choices at controller initialization. YAML supplies one curve behind
         // Custom; reloading core changes that curve, not this option list.
         globalSettings.getEnumSetting ("Curve", "Control Return", new String [] { "Linear", "Ease-out", "Custom" }, "Linear").addValueObserver (value -> this.parameterReturnCurve = value);
-        globalSettings.getRangeSetting ("Time", "Control Return", 0, 2000, 10, "ms", 0).addValueObserver (value -> this.parameterReturnMillis = value.intValue ());
+        globalSettings.getRangeSetting ("Time", "Control Return", 0, 10000, 10, "ms", 0).addValueObserver (value -> this.parameterReturnMillis = value.intValue ());
 
         ///////////////////////////
         // Add Track - Device Shortcuts

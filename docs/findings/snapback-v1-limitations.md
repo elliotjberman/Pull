@@ -27,7 +27,7 @@ exists, later actions cannot overtake it. If Shift remains held after the barrie
 can begin. Views do not carry their own Snapback modifier checks or rebinding-button lists.
 
 Settlement waits for two stable value observations, bounded to eight controller ticks. Bitwig's
-controller settings expose Control Return → Time (0–2,000 ms, default 0). Zero restores
+controller settings expose Control Return → Time (0–10,000 ms, default 0). Zero restores
 immediately after settlement. Curve selects Linear (default) or cubic Ease-out,
 which starts faster and slows toward the baseline. Custom evaluates the bounded [YAML keyframe curve](../control-return.md). Positive duration returns from the settled
 observed value on monotonic controller ticks. Duration and curve are captured at release. Navigation shortens the return to

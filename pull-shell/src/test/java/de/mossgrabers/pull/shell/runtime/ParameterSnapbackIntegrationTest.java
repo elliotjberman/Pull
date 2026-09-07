@@ -170,11 +170,11 @@ class ParameterSnapbackIntegrationTest
 
 
     @ParameterizedTest
-    @CsvSource({"Linear, 55, 70", "Ease-out, 74.6875, 92.5", "Custom, 115, 94"})
-    void returnUsesElapsedTimeAndLaterReadbackBeforeReplacement (final String curve, final double quarterValue, final double halfValue, @TempDir final Path temporaryDirectory) throws Exception
+    @CsvSource({"Linear, 55, 70, 1000", "Ease-out, 74.6875, 92.5, 1000", "Custom, 115, 94, 1000", "Custom, 115, 94, 10000"})
+    void returnUsesElapsedTimeAndLaterReadbackBeforeReplacement (final String curve, final double quarterValue, final double halfValue, final int duration, @TempDir final Path temporaryDirectory) throws Exception
     {
         final AsyncParameterBridge bridge = new AsyncParameterBridge ();
-        bridge.returnMillis = 1000;
+        bridge.returnMillis = duration;
         bridge.returnCurve = curve;
         final IncrementingClock clock = new IncrementingClock ();
         final ControllerRuntimeEnvironment environment = new ControllerRuntimeEnvironment (new EmptyClipHost (), bridge, NoOpLog.INSTANCE, clock);
@@ -205,14 +205,14 @@ class ParameterSnapbackIntegrationTest
         assertFalse (manager.canReplaceActiveCore (), "released Shift does not end the return");
         assertEquals (ActivationResult.State.BLOCKED, manager.activate ("unpublished", new CoreJarLoader ().load (coreJar), () -> true).state ());
 
-        clock.value += 250_000_000;
+        clock.value += duration * 250_000L;
         runtime.tick ();
         assertEquals (quarterValue, bridge.submittedValue, 0.001);
         assertEquals (40, bridge.authoritativeValue, "submitted interpolation is not observed host state");
         bridge.advanceHost ();
         bridge.returnMillis = 0; // Setting changes affect the next release, not this trajectory.
         bridge.returnCurve = "Linear".equals (curve) ? "Ease-out" : "Linear";
-        clock.value += 250_000_000;
+        clock.value += duration * 250_000L;
         runtime.tick ();
         assertEquals (halfValue, bridge.submittedValue, 0.001);
         route (inputs, SHIFT, InputPhase.BEGIN, () -> {});
@@ -220,7 +220,7 @@ class ParameterSnapbackIntegrationTest
         assertEquals (halfValue, bridge.submittedValue, 0.001, "repress cannot mutate a restoring target");
         route (inputs, SHIFT, InputPhase.END, () -> {});
         bridge.advanceHost ();
-        clock.value += 900_000_000; // A delayed tick goes straight to the endpoint.
+        clock.value += duration * 900_000L; // A delayed tick goes straight to the endpoint.
         runtime.tick ();
         assertEquals (100, bridge.submittedValue);
         assertEquals (halfValue, bridge.authoritativeValue, 0.001);
@@ -306,7 +306,7 @@ class ParameterSnapbackIntegrationTest
     }
 
 
-    private static Path createCoreJar (final Path destination) throws IOException
+    private static Path createCoreJar (final Path destination) throws Exception
     {
         final Path classes = Path.of ("..", "pull-core", "target", "classes").toAbsolutePath ().normalize ();
         if (!Files.isDirectory (classes))
@@ -325,7 +325,7 @@ class ParameterSnapbackIntegrationTest
                 Files.copy (file, jar);
                 jar.closeEntry ();
             }
-            try (var dependencies = new java.util.jar.JarFile (Path.of ("..", "pull-core", "target", "pull-core.jar").toFile ()))
+            try (var dependencies = new java.util.jar.JarFile (Path.of (org.snakeyaml.engine.v2.api.Load.class.getProtectionDomain ().getCodeSource ().getLocation ().toURI ()).toFile ()))
             {
                 for (final var entry: dependencies.stream ().filter (entry -> entry.getName ().startsWith ("org/snakeyaml/") && !entry.isDirectory ()).toList ())
                 {
