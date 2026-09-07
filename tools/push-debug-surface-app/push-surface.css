@@ -32,12 +32,11 @@
 
 :root {
     color-scheme: dark;
-    --page: #090b0d;
-    --panel: #17191b;
-    --ink: #f4f5f5;
-    --muted: #83888b;
-    --line: #2b2e31;
-    --accent: #38e58c;
+    --page: #101011;
+    --ink: #e5e5e3;
+    --muted: #92928f;
+    --line: #303031;
+    --accent: #bfc6bf;
     --display-font: "Push Lato", Lato, -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
     font-family: var(--display-font);
 }
@@ -53,20 +52,17 @@ body {
 
 body {
     margin: 0;
-    background:
-        radial-gradient(circle at 50% 20%, #161b1e 0, transparent 42rem),
-        var(--page);
+    background: var(--page);
     color: var(--ink);
 }
 
 .toolbar {
-    min-height: 68px;
+    min-height: 60px;
     padding: 12px clamp(16px, 3vw, 38px);
-    border-bottom: 1px solid #202326;
-    background: rgb(9 11 13 / 82%);
-    backdrop-filter: blur(18px);
+    border-bottom: 1px solid #242425;
+    background: #151516;
     display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    grid-template-columns: 1fr minmax(0, auto) 1fr;
     align-items: center;
     gap: 24px;
 }
@@ -78,32 +74,38 @@ body {
 }
 
 .mark {
-    width: 28px;
-    height: 28px;
-    border: 6px solid #f5f6f6;
-    border-right-color: var(--accent);
-    border-radius: 50%;
-    transform: rotate(45deg);
+    width: 22px;
+    height: 22px;
+    background:
+        linear-gradient(90deg, transparent 6px, #151516 6px 8px, transparent 8px 14px, #151516 14px 16px, transparent 16px),
+        linear-gradient(transparent 6px, #151516 6px 8px, transparent 8px 14px, #151516 14px 16px, transparent 16px),
+        #c9c9c5;
 }
 
 h1 {
     margin: 0;
     font-size: 15px;
+    font-weight: 600;
     line-height: 1.15;
     letter-spacing: 0.02em;
 }
 
+.identity-label {
+    margin-left: 2px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 400;
+}
+
 .status {
-    min-width: 250px;
+    min-width: 0;
     padding: 8px 12px;
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    background: #111416;
-    color: #c9cdcf;
-    font: 600 11px/1.2 var(--display-font);
-    letter-spacing: 0.035em;
+    color: #9c9c98;
+    font: 400 11px/1.2 var(--display-font);
     text-align: center;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .status-dot {
@@ -111,9 +113,8 @@ h1 {
     width: 6px;
     height: 6px;
     margin-right: 7px;
-    border-radius: 50%;
+    border-radius: 1px;
     background: var(--accent);
-    box-shadow: 0 0 9px color-mix(in srgb, var(--accent), transparent 20%);
 }
 
 .toolbar-actions {
@@ -126,16 +127,22 @@ button {
     min-height: 32px;
     padding: 0 12px;
     border: 1px solid var(--line);
-    border-radius: 0;
-    background: #15181a;
-    color: #c5c8ca;
-    font: 600 11px/1 inherit;
+    border-radius: 3px;
+    background: #202021;
+    color: #c5c5c1;
+    font: 500 11px/1 var(--display-font);
     cursor: pointer;
 }
 
 button:hover {
-    border-color: #484d50;
+    border-color: #62625e;
     color: white;
+}
+
+button:focus-visible,
+#pressure-slider:focus-visible {
+    outline: 2px solid #deded9;
+    outline-offset: 3px;
 }
 
 button:active {
@@ -145,14 +152,13 @@ button:active {
 main {
     width: min(1480px, 100%);
     margin: 0 auto;
-    padding: clamp(22px, 4vw, 54px) clamp(12px, 3vw, 42px) 24px;
+    padding: 24px clamp(12px, 3vw, 42px) 20px;
 }
 
 .surface-frame {
-    width: min(100%, 104vh);
+    width: min(100%, max(580px, calc((100svh - 174px) * 1.274)));
     margin: 0 auto;
     padding: 1px;
-    border-radius: 0;
 }
 
 #push-surface {
@@ -166,9 +172,16 @@ main {
 }
 
 .panel {
-    fill: #050607;
-    stroke: #393c3f;
+    fill: url(#panel-gradient);
+    stroke: #3c3c3d;
+    stroke-width: 0.35;
+}
+
+.panel-edge {
+    fill: none;
+    stroke: #101011;
     stroke-width: 0.45;
+    pointer-events: none;
 }
 
 .control {
@@ -177,9 +190,9 @@ main {
 }
 
 .control-face {
-    fill: #25282b;
-    stroke: #505459;
-    stroke-width: 0.35;
+    fill: #252526;
+    stroke: #3d3d3d;
+    stroke-width: 0.25;
     transition: fill 80ms ease, stroke 80ms ease, transform 80ms ease, filter 80ms ease;
     transform-box: fill-box;
     transform-origin: center;
@@ -187,13 +200,13 @@ main {
 
 .control:hover .control-face,
 .control:focus-visible .control-face {
-    stroke: #8b9297;
+    stroke: #aaa9a3;
 }
 
 .control.is-pressed .control-face {
-    fill: #70767a;
-    stroke: #eef1f1;
-    transform: scale(0.92);
+    fill: #555552;
+    stroke: #eeeee9;
+    transform: scale(0.96);
 }
 
 .control.debug-pulse .control-face {
@@ -202,7 +215,7 @@ main {
 
 .control[data-lit="true"] .control-face {
     fill: var(--light);
-    stroke: color-mix(in srgb, var(--light), white 28%);
+    stroke: color-mix(in srgb, var(--light), white 12%);
     filter: url(#light-glow);
 }
 
@@ -215,23 +228,36 @@ main {
 .pad-number,
 .touch-label {
     pointer-events: none;
-    fill: #a7abad;
-    font-weight: 650;
+    fill: #a6a6a0;
+    font-weight: 500;
     font-family: var(--display-font);
-    letter-spacing: 0.04em;
+    letter-spacing: 0.01em;
     text-anchor: middle;
 }
 
 .button-label {
-    font-size: 1.55px;
+    font-size: 1.65px;
 }
 
 .button-label.small {
-    font-size: 1.22px;
+    font-size: 1.4px;
 }
 
 .button-label.micro {
-    font-size: 1.02px;
+    font-size: 1.22px;
+}
+
+/* Push's display-row buttons have no printed numbers. Keep them on inspection. */
+.button[data-control-id^="push.button.row"] .button-label {
+    opacity: 0;
+}
+
+.button[data-control-id^="push.button.row"]:is(:hover, :focus-visible, .is-pressed) .button-label {
+    opacity: 1;
+    fill: #111;
+    paint-order: stroke;
+    stroke: #fff;
+    stroke-width: 0.25;
 }
 
 .control.is-pressed .button-label,
@@ -239,8 +265,12 @@ main {
     fill: white;
 }
 
+.button:not(.button-legend)[data-lit="true"] .button-label {
+    fill: #19191a;
+}
+
 .transport-icon {
-    fill: #d9dcdd;
+    fill: #c4c4bf;
     pointer-events: none;
     transition: fill 80ms ease, transform 80ms ease;
     transform-box: fill-box;
@@ -266,14 +296,14 @@ main {
 
 .direction-chevron {
     fill: none;
-    stroke: #e8eae8;
+    stroke: #b9b9b4;
     stroke-width: 0.62;
     stroke-linecap: square;
     stroke-linejoin: miter;
 }
 
 .direction-triangle {
-    fill: #e8eae8;
+    fill: #b9b9b4;
 }
 
 .direction-pad.is-pressed .direction-chevron {
@@ -285,12 +315,56 @@ main {
     fill: white;
 }
 
+/* The surrounding buttons illuminate their legends; row buttons and pads diffuse light. */
+.button-legend[data-lit="true"] .control-face {
+    fill: #252526;
+    stroke: #484846;
+    filter: none;
+}
+
+.button-legend.is-pressed .control-face {
+    fill: #444441;
+}
+
+.button-legend[data-lit="true"] :is(.button-label, .transport-icon, .direction-triangle) {
+    fill: var(--light);
+}
+
+.button-legend[data-lit="true"] .direction-chevron {
+    stroke: var(--light);
+}
+
 .control[data-blink="slow"] .control-face {
     animation: transmitted-light-blink 1s steps(1, end) infinite;
 }
 
 .control[data-blink="fast"] .control-face {
     animation: transmitted-light-blink 0.5s steps(1, end) infinite;
+}
+
+.button-legend[data-blink="slow"] :is(.button-label, .transport-icon, .direction-triangle) {
+    animation: transmitted-light-blink 1s steps(1, end) infinite;
+}
+
+.button-legend[data-blink="fast"] :is(.button-label, .transport-icon, .direction-triangle) {
+    animation: transmitted-light-blink 0.5s steps(1, end) infinite;
+}
+
+.button-legend[data-blink="slow"] .direction-chevron {
+    animation: transmitted-stroke-blink 1s steps(1, end) infinite;
+}
+
+.button-legend[data-blink="fast"] .direction-chevron {
+    animation: transmitted-stroke-blink 0.5s steps(1, end) infinite;
+}
+
+.button-legend:is([data-blink="slow"], [data-blink="fast"]) .control-face {
+    animation: none;
+}
+
+@keyframes transmitted-stroke-blink {
+    0%, 49% { stroke: var(--light); }
+    50%, 100% { stroke: var(--blink-light); }
 }
 
 @keyframes transmitted-light-blink {
@@ -318,9 +392,9 @@ main {
 }
 
 .pad .control-face {
-    fill: #303436;
-    stroke: #5a6062;
-    stroke-width: 0.34;
+    fill: #424240;
+    stroke: #51514e;
+    stroke-width: 0.25;
 }
 
 .pad-number {
@@ -340,14 +414,14 @@ main {
 }
 
 .pad.is-pressure-target .control-face {
-    stroke: #53e7a0;
+    stroke: #eeeeda;
     stroke-width: 0.7;
 }
 
 .encoder-ring {
-    fill: #111415;
-    stroke: #454a4b;
-    stroke-width: 0.4;
+    fill: #101011;
+    stroke: #383839;
+    stroke-width: 0.35;
 }
 
 .encoder {
@@ -355,9 +429,9 @@ main {
 }
 
 .encoder .control-face {
-    fill: #303536;
-    stroke: #8b9191;
-    stroke-width: 0.32;
+    fill: url(#encoder-gradient);
+    stroke: #525250;
+    stroke-width: 0.25;
 }
 
 .encoder.is-touched .encoder-ring,
@@ -368,21 +442,21 @@ main {
 }
 
 .encoder-tick {
-    stroke: #f7f8f6;
-    stroke-width: 0.62;
+    stroke: #bcbcb5;
+    stroke-width: 0.45;
     stroke-linecap: round;
     pointer-events: none;
 }
 
 .encoder-label {
-    fill: #777c80;
+    fill: #888883;
     font-size: 1.18px;
 }
 
 .touch-track {
-    fill: #0b0d0e;
-    stroke: #45494c;
-    stroke-width: 0.45;
+    fill: #141415;
+    stroke: #393939;
+    stroke-width: 0.25;
 }
 
 .touch-fill {
@@ -396,15 +470,15 @@ main {
 }
 
 .touch-label {
-    fill: #74797c;
+    fill: #777773;
     font-size: 1.1px;
     writing-mode: vertical-rl;
 }
 
 .display-bezel {
-    fill: #080a0b;
-    stroke: #494d50;
-    stroke-width: 0.4;
+    fill: #060607;
+    stroke: #09090a;
+    stroke-width: 0.65;
 }
 
 .display-screen {
@@ -413,19 +487,19 @@ main {
 
 .display-grid {
     fill: none;
-    stroke: #173035;
+    stroke: #232325;
     stroke-width: 0.18;
 }
 
 .display-kicker {
     fill: var(--accent);
     font-size: 1.4px;
-    font-weight: 800;
+    font-weight: 600;
     letter-spacing: 0.08em;
 }
 
 .display-title {
-    fill: #9caaad;
+    fill: #a2a29c;
     font-family: var(--display-font);
     font-size: 2.25px;
     font-weight: 600;
@@ -433,18 +507,16 @@ main {
 }
 
 .display-subtitle {
-    fill: #506065;
+    fill: #777771;
     font-family: var(--display-font);
     font-size: 1.25px;
 }
 
 .pressure-control {
-    width: min(100%, 760px);
-    margin: 18px auto 0;
-    padding: 13px 16px;
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    background: #111416;
+    width: min(100%, max(580px, calc((100svh - 174px) * 1.274)));
+    margin: 14px auto 0;
+    padding: 12px 0;
+    border-top: 1px solid var(--line);
     display: grid;
     grid-template-columns: minmax(150px, auto) 1fr 42px;
     align-items: center;
@@ -459,8 +531,9 @@ main {
 }
 
 .pressure-control strong {
-    color: #dfe2e3;
+    color: #c5c5bf;
     font-size: 12px;
+    font-weight: 500;
 }
 
 #pressure-target,
@@ -476,7 +549,7 @@ main {
 }
 
 #pressure-value {
-    color: #dfe2e3;
+    color: #c5c5bf;
     text-align: right;
 }
 

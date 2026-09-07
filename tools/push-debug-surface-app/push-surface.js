@@ -238,13 +238,15 @@
     }
 
     function createButton([symbolicName, label, x, y, width, height]) {
-        const group = svgElement("g", {class: "button"});
+        const backlitFace = symbolicName.startsWith("ROW") || symbolicName.startsWith("SCENE");
+        const group = svgElement("g", {class: backlitFace ? "button" : "button button-legend"});
         const face = svgElement("rect", {
             class: "control-face",
             x,
             y,
             width,
-            height
+            height,
+            rx: 0.45
         });
         group.append(face);
         if (symbolicName === "RECORD")
@@ -294,7 +296,7 @@
         };
         for (const direction of ["up", "right", "down", "left"]) {
             const [symbolicName, label] = controls[direction];
-            const group = svgElement("g", {class: "direction-pad button"});
+            const group = svgElement("g", {class: "direction-pad button button-legend"});
             group.append(svgElement("path", {class: "control-face", d: faces[direction]}));
             const [dx, dy] = vectors[direction];
             const iconX = centerX + dx * size * 0.28;
@@ -368,7 +370,8 @@
                     x: gridColumnX(column),
                     y: gridRowY(grid.rows - row - 1),
                     width: grid.cellWidth,
-                    height: grid.cellHeight
+                    height: grid.cellHeight,
+                    rx: 0.6
                 });
                 const number = svgElement("text", {
                     class: "pad-number",

@@ -5,14 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Pull · Push 2 Debug Surface</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="push-surface.css?v=aligned-right-panel">
+    <link rel="stylesheet" href="push-surface.css?v=matte-push">
 </head>
 <body>
     <header class="toolbar">
         <div class="identity">
             <span class="mark" aria-hidden="true"></span>
             <div>
-                <h1>Pull</h1>
+                <h1>Pull <span class="identity-label">/ Push 2</span></h1>
             </div>
         </div>
         <div class="status" aria-live="polite">
@@ -31,15 +31,24 @@
                 <title id="surface-title">Interactive Push 2 debug surface</title>
                 <desc id="surface-description">A mapped Push 2 controller with 64 pads, display, buttons, encoders, and touch strip.</desc>
                 <defs>
+                    <linearGradient id="panel-gradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0" stop-color="#242425"/>
+                        <stop offset="0.3" stop-color="#1b1b1c"/>
+                        <stop offset="1" stop-color="#171718"/>
+                    </linearGradient>
+                    <radialGradient id="encoder-gradient" cx="42%" cy="30%" r="70%">
+                        <stop offset="0" stop-color="#393938"/>
+                        <stop offset="1" stop-color="#252525"/>
+                    </radialGradient>
                     <linearGradient id="display-gradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0" stop-color="#131b1d"/>
-                        <stop offset="1" stop-color="#071012"/>
+                        <stop offset="0" stop-color="#101011"/>
+                        <stop offset="1" stop-color="#080809"/>
                     </linearGradient>
                     <filter id="panel-shadow" x="-10%" y="-10%" width="120%" height="130%">
-                        <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#000" flood-opacity="0.55"/>
+                        <feDropShadow dx="0" dy="1.4" stdDeviation="1.8" flood-color="#000" flood-opacity="0.4"/>
                     </filter>
                     <filter id="light-glow" x="-80%" y="-80%" width="260%" height="260%">
-                        <feGaussianBlur stdDeviation="1.2" result="blur"/>
+                        <feGaussianBlur stdDeviation="0.35" result="blur"/>
                         <feMerge>
                             <feMergeNode in="blur"/>
                             <feMergeNode in="SourceGraphic"/>
@@ -50,7 +59,8 @@
                     </clipPath>
                 </defs>
 
-                <rect class="panel" x="1" y="1" width="198" height="155" filter="url(#panel-shadow)"/>
+                <rect class="panel" x="1" y="1" width="198" height="155" rx="1" filter="url(#panel-shadow)"/>
+                <rect class="panel-edge" x="1.5" y="1.5" width="197" height="154" rx="0.65"/>
                 <g id="surface-controls"></g>
 
                 <g id="display" aria-label="Push display">
@@ -77,6 +87,6 @@
         </aside>
     </main>
 
-    <script src="push-surface.js?v=event-stream-aligned-right-panel"></script>
+    <script src="push-surface.js?v=matte-push"></script>
 </body>
 </html>
