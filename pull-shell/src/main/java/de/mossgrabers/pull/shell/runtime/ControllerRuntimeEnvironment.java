@@ -610,13 +610,13 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
-    /** Install cleanup which must run before core-owned routes are invalidated. */
-    void setInputLifecycleCleanup (final Runnable cleanup)
+    /** Install independent terminal edge cancellation and raw musical-state neutralization. */
+    void setInputLifecycleCleanup (final Runnable cleanup, final Runnable neutralizeNoteInput)
     {
         if (this.committedState.generation () != 0)
             throw new IllegalStateException ("Input lifecycle cleanup must be installed before core activation");
         if (this.controllerBridge != null)
-            this.controllerBridge.setInputLifecycleCleanup (Objects.requireNonNull (cleanup, "cleanup"));
+            this.controllerBridge.setInputLifecycleCleanup (Objects.requireNonNull (cleanup, "cleanup"), Objects.requireNonNull (neutralizeNoteInput, "neutralizeNoteInput"));
     }
 
 

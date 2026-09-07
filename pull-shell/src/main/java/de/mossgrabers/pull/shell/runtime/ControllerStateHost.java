@@ -256,9 +256,9 @@ final class ControllerStateHost
     {
         if (!this.submittedRoute.active ())
             return;
-        // Neutralization can release a routed debug edge, whose synchronous input callback
-        // refreshes this host. Retire ownership before calling out and defer replacement until
-        // the old physical route has actually received its detach submission.
+        // MIDI neutralization can reenter this host. Retire route ownership before calling out
+        // and defer replacement until the old physical route receives its detach submission.
+        // Physical gestures remain held; their target loss is handled by core cancellation.
         this.submittedRoute = DesiredNoteInputRoute.disabled ();
         this.detaching = true;
         try

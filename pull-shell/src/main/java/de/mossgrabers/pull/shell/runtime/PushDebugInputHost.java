@@ -21,10 +21,12 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ScheduledExecutorService;
@@ -68,6 +70,8 @@ final class PushDebugInputHost implements AutoCloseable
     private final AtomicBoolean closedInfoWritten = new AtomicBoolean ();
 
     private final Map<EdgeAddress, ActiveEdge> activeEdges = new LinkedHashMap<> ();
+    private final Set<ControlId> noteInputPads = new HashSet<> ();
+    private long noteInputEpoch;
     private boolean debugInputActive;
     private int releaseDepth;
     private ControlId pressuredPad;
@@ -172,13 +176,49 @@ final class PushDebugInputHost implements AutoCloseable
     }
 
 
-    /** Release a browser-owned edge before an input-route or core-generation invalidation. */
+    /** Release browser-owned physical edges during terminal or core-generation invalidation. */
     void cancelActive (final String reason)
     {
-        if (this.debugInputActive)
-            this.releaseAllActive (Objects.requireNonNull (reason, "reason"));
-        else
-            this.neutralizePressureBestEffort ();
+        try
+        {
+            if (this.debugInputActive)
+                this.releaseAllActive (Objects.requireNonNull (reason, "reason"));
+            else
+                this.neutralizePressureBestEffort ();
+        }
+        finally
+        {
+            this.neutralizeNoteInput ();
+        }
+    }
+
+
+    /** Neutralize only submitted browser MIDI; physical leases survive ordinary target loss. */
+    void neutralizeNoteInput ()
+    {
+        this.noteInputEpoch++;
+        final ControlId pressure = this.pressuredPad;
+        this.pressuredPad = null;
+        this.pressureExpiresAtNanos = 0;
+        if (pressure != null)
+            this.neutralizeNoteInputBestEffort (pressure, InputKind.POLY_PRESSURE, InputPhase.CHANGE);
+        final Set<ControlId> pads = Set.copyOf (this.noteInputPads);
+        this.noteInputPads.clear ();
+        for (final ControlId pad: pads)
+            this.neutralizeNoteInputBestEffort (pad, InputKind.PAD, InputPhase.END);
+    }
+
+
+    private void neutralizeNoteInputBestEffort (final ControlId control, final InputKind kind, final InputPhase phase)
+    {
+        try
+        {
+            this.surface.triggerNoteInput (control, kind, phase, 0);
+        }
+        catch (final RuntimeException ignored)
+        {
+            // Native note state has no host acknowledgement; terminal cleanup is best effort.
+        }
     }
 
 
@@ -315,7 +355,6 @@ final class PushDebugInputHost implements AutoCloseable
                     return;
                 }
                 this.triggerPressure (request.control (), request.value ());
-                this.rememberPressure (request.control (), request.value ());
                 this.succeed (request);
                 return;
             }
@@ -324,7 +363,6 @@ final class PushDebugInputHost implements AutoCloseable
                 this.fail (request, "controller input is busy");
                 return;
             }
-            this.rememberPressure (request.control (), request.value ());
             this.succeed (request);
         }
         catch (final RuntimeException ex)
@@ -517,7 +555,11 @@ final class PushDebugInputHost implements AutoCloseable
 
         if (phase == InputPhase.BEGIN)
         {
+            final long epoch = this.noteInputEpoch;
             this.surface.trigger (control, kind, phase, value);
+            if (epoch != this.noteInputEpoch)
+                return;
+            this.noteInputPads.add (control);
             try
             {
                 this.surface.triggerNoteInput (control, kind, phase, value);
@@ -534,7 +576,8 @@ final class PushDebugInputHost implements AutoCloseable
                 }
                 try
                 {
-                    this.surface.triggerNoteInput (control, kind, InputPhase.END, 0);
+                    if (this.noteInputPads.remove (control))
+                        this.surface.triggerNoteInput (control, kind, InputPhase.END, 0);
                 }
                 catch (final RuntimeException cleanupFailure)
                 {
@@ -556,7 +599,8 @@ final class PushDebugInputHost implements AutoCloseable
         }
         try
         {
-            this.surface.triggerNoteInput (control, kind, phase, value);
+            if (this.noteInputPads.remove (control))
+                this.surface.triggerNoteInput (control, kind, phase, value);
         }
         catch (final RuntimeException ex)
         {
@@ -572,9 +616,13 @@ final class PushDebugInputHost implements AutoCloseable
 
     private void triggerPressure (final ControlId control, final int value)
     {
+        final long epoch = this.noteInputEpoch;
         this.surface.trigger (control, InputKind.POLY_PRESSURE, InputPhase.CHANGE, value);
+        if (value != 0 && (epoch != this.noteInputEpoch || this.activeEdges.containsKey (new EdgeAddress (control, InputKind.PAD)) && !this.noteInputPads.contains (control)))
+            return;
         try
         {
+            this.rememberPressure (control, value);
             this.surface.triggerNoteInput (control, InputKind.POLY_PRESSURE, InputPhase.CHANGE, value);
         }
         catch (final RuntimeException failure)

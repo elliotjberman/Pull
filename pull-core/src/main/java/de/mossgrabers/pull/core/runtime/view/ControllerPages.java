@@ -42,7 +42,7 @@ public final class ControllerPages
         this.drumLegacy = background ("Pull Drum", SessionBankShape.empty (), drumViews, true, false, legacyPage);
         this.session = background ("Session", FULL_SESSION_BANK, List.of (sessionGrid), true, true, legacyPage);
         this.sessionPending = background ("Session destination", FULL_SESSION_BANK, List.of (new SessionTemporarySelectionView (selection), sessionGrid), false, true, legacyPage);
-        this.vsLive = background (VS_LIVE_NAME, VS_LIVE_BANK, List.of (new SessionNavigationView (), SessionView.upper (true, stopGesture), new DrumPlayPadView (), new DrumOctaveView (), new DrumControllerView (), drumControls, new DrumRateView ()), false, true, List.of ());
+        this.vsLive = background (VS_LIVE_NAME, VS_LIVE_BANK, List.of (new SessionNavigationView (), SessionView.upper (true, stopGesture), new DrumPlayPadView (), new DrumOctaveView (), new DrumFillView (), new DrumControllerView (), drumControls, new DrumRateView ()), false, true, List.of ());
 
         final ControllerView mixerNavigation = new NavigationView (NavigationView.Horizontal.MIXER);
         final ControllerView otherNavigation = new NavigationView (NavigationView.Horizontal.INERT);

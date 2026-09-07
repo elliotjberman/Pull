@@ -935,18 +935,32 @@ class BoundedControllerBridgeTest
 
 
     @Test
-    void neutralizesStatefulMidiWhenTheSelectedTargetChanges ()
+    void selectedTargetLossNeutralizesMidiWhileOnlyTerminalBoundariesCancelDebugEdges ()
     {
-        final BridgeFixture fixture = new BridgeFixture ();
-        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.SELECTED_TRACK), DesiredParameterBanks.empty ());
-        applyMidi (fixture, 0xB1, 1, 127);
+        for (final String terminal: List.of ("invalidate", "abandon", "generation"))
+        {
+            final BridgeFixture fixture = new BridgeFixture ();
+            fixture.surface.getViewManager ().register (Views.SESSION, relaxedProxy (IView.class));
+            final List<String> debugLifecycle = new ArrayList<> ();
+            fixture.bridge.setInputLifecycleCleanup (() -> debugLifecycle.add ("edges:end"), () -> debugLifecycle.add ("midi:neutral"));
+            fixture.bridge.refresh (1, subscriptions (BridgeSubscription.SELECTED_TRACK), DesiredParameterBanks.empty ());
+            fixture.bridge.activateCoreGeneration (1);
+            applyMidi (fixture, 0xB1, 1, 127);
 
-        fixture.selected.switchTo (2, "track-b");
-        fixture.bridge.refresh (2, DesiredBridgeSubscriptions.empty (), DesiredParameterBanks.empty ());
+            fixture.selected.switchTo (2, "track-b");
+            fixture.bridge.refresh (2, DesiredBridgeSubscriptions.empty (), DesiredParameterBanks.empty ());
 
-        assertEquals (List.of (
-            new MidiMessage (0xB1, 1, 127),
-            new MidiMessage (0xB1, 1, 0)), fixture.noteInputMidiMessages);
+            assertEquals (List.of ("midi:neutral"), debugLifecycle, "selected-target loss cannot synthesize a physical END");
+            assertEquals (List.of (new MidiMessage (0xB1, 1, 127), new MidiMessage (0xB1, 1, 0)), fixture.noteInputMidiMessages);
+            debugLifecycle.clear ();
+            switch (terminal)
+            {
+                case "invalidate" -> fixture.bridge.invalidate ();
+                case "abandon" -> fixture.bridge.abandonActiveCore ();
+                default -> fixture.bridge.activateCoreGeneration (2);
+            }
+            assertEquals (List.of ("edges:end", "midi:neutral"), debugLifecycle, terminal);
+        }
     }
 
 

@@ -259,6 +259,9 @@ public final class ReloadableControllerRuntime implements AutoCloseable
                 this.debugInputs.cancelActive ("core-owned input route is being invalidated");
             if (this.debugNavigation != null)
                 this.debugNavigation.cancelActiveProbe ("core-owned input route is being invalidated");
+        }, () -> {
+            if (this.debugInputs != null)
+                this.debugInputs.neutralizeNoteInput ();
         });
     }
 

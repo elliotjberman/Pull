@@ -157,6 +157,9 @@ final class BoundedControllerBridge implements ControllerBridge
     private Runnable inputLifecycleCleanup = () -> {
         // No debugger input is active unless the optional debugger installs one.
     };
+    private Runnable debugNoteInputCleanup = () -> {
+        // Browser MIDI exists only when the optional debugger is installed.
+    };
     private DesiredNoteRepeat desiredNoteRepeat = DesiredNoteRepeat.unowned ();
     private NoteRepeatLease noteRepeatLease;
     private boolean noteRepeatActiveReleasePending;
@@ -304,6 +307,7 @@ final class BoundedControllerBridge implements ControllerBridge
             throw new IllegalArgumentException ("generation must not be negative");
         if (this.activeCoreGeneration != 0 && generation != this.activeCoreGeneration)
         {
+            this.inputLifecycleCleanup.run ();
             this.resetNoteInputMidiState ();
             this.parameterTargets.releaseTouches ();
         }
@@ -319,6 +323,7 @@ final class BoundedControllerBridge implements ControllerBridge
     @Override
     public void invalidate ()
     {
+        this.inputLifecycleCleanup.run ();
         this.resetNoteInputMidiState ();
         this.surface.getModeManager ().invalidate ();
         this.controllerState.invalidate ();
@@ -338,9 +343,10 @@ final class BoundedControllerBridge implements ControllerBridge
 
 
     @Override
-    public void setInputLifecycleCleanup (final Runnable cleanup)
+    public void setInputLifecycleCleanup (final Runnable cleanup, final Runnable neutralizeNoteInput)
     {
         this.inputLifecycleCleanup = Objects.requireNonNull (cleanup, "cleanup");
+        this.debugNoteInputCleanup = Objects.requireNonNull (neutralizeNoteInput, "neutralizeNoteInput");
     }
 
 
@@ -349,8 +355,16 @@ final class BoundedControllerBridge implements ControllerBridge
     {
         try
         {
+            this.inputLifecycleCleanup.run ();
+        }
+        catch (final RuntimeException failure)
+        {
+            this.log.warn ("Debug input quarantine cleanup failed: " + failure.getMessage ());
+        }
+        try
+        {
             this.surface.getModeManager ().invalidate ();
-        this.controllerState.invalidate ();
+            this.controllerState.invalidate ();
         }
         catch (final RuntimeException failure)
         {
@@ -1269,7 +1283,8 @@ final class BoundedControllerBridge implements ControllerBridge
 
     private void resetNoteInputMidiState ()
     {
-        this.inputLifecycleCleanup.run ();
+        // A target or note-route change retires musical state, not the physical gestures.
+        this.debugNoteInputCleanup.run ();
         if (this.noteInputMidiState.isEmpty ())
             return;
 

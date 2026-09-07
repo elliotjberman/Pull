@@ -100,6 +100,8 @@ import de.mossgrabers.pull.core.api.output.DisplayIcon;
 import de.mossgrabers.pull.core.runtime.PullCoreProvider;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -406,8 +408,9 @@ class PullControllerCoreTest
     }
 
 
-    @Test
-    void catalogChangesCancelTheHeldFillAndWaitForAuthoritativeRetirement ()
+    @ParameterizedTest
+    @ValueSource (booleans = { false, true })
+    void catalogChangesCancelTheHeldFillAndWaitForAuthoritativeRetirement (final boolean vsLive)
     {
         final ClipTargetId original = new ClipTargetId (1);
         final ClipTargetId second = new ClipTargetId (2);
@@ -415,6 +418,7 @@ class PullControllerCoreTest
             new CatalogClip (original, "fill one"),
             new CatalogClip (second, "fill two"))));
         startFillCore (host);
+        if (vsLive) enterVsLive (host);
         host.armedClipTargets (host.effects ().desiredClipBindings ());
         host.button (CoreControls.DRUM_FILL_1, true);
         host.activeClipLaunchOwner (Optional.of (CoreControls.DRUM_FILL_1));
