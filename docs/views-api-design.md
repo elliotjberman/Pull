@@ -1,479 +1,205 @@
-# Views API and Composite Workspaces
+# Views, pages and composition
 
-Status: design contract for Core API 47 and checkpoint schema 6. Production `11e33477` passed the
-scoped live checks; later cleanup passes offline checks but is not installed or live tested. See
-[the validation record](migrations/core-page-ownership-live-smoke.md). Remaining stable adapters are
-explicit in claims and [ARCH](../ARCH.md); this contract does not claim every inherited body migrated.
+This is the current Core API 47 / checkpoint schema 6 view contract. [ARCH](../ARCH.md) maps the
+implementation and records live activation status. The [roadmap](reloadable-core-migration-roadmap.md)
+identifies remaining stable families; page ownership does not imply their bodies have migrated.
 
-## Goal
+## A view has a fixed footprint
 
-Make a controller view a reusable behavior with a fixed, inspectable Push 2 footprint. A workspace
-combines views without allowing configuration to remap their behavior onto arbitrary controls.
+A `ControllerView` owns behavior over named `SurfaceArea` regions. Its `ViewProfile` declares
+required claims, fixed optional facets and the selected facet IDs. `ViewFacet` groups a coherent
+optional footprint, such as the upper Session scene keys. The compiler snapshots each profile and
+rejects invalid ownership. Configuration cannot remap callbacks onto raw controls.
 
-The important rule is:
+The source interfaces are the authority:
 
-> A view decides where its behavior lives. A workspace may include a named facet, omit an optional
-> facet, or explicitly replace an overlapping facet, but it cannot wire arbitrary behavior to raw
-> hardware.
+- [`ControllerView`](../pull-core/src/main/java/de/mossgrabers/pull/core/view/ControllerView.java):
+  subscriptions, parameter banks/bindings, semantic actions, targets, lifecycle and output.
+- [`ViewProfile`](../pull-core/src/main/java/de/mossgrabers/pull/core/view/ViewProfile.java) and
+  [`SurfaceArea`](../pull-core/src/main/java/de/mossgrabers/pull/core/view/SurfaceArea.java): fixed
+  claims and physical regions. View/profile IDs are strings; no separate runtime registration language exists.
+- [`Page`](../pull-core/src/main/java/de/mossgrabers/pull/core/view/Page.java): immutable page
+  definition, separate from navigation state and presentation values.
 
-This keeps authored configurations useful without making them a second controller-programming
-language. A bad composition should fail at compile time with both owners and the contested region,
-not turn into order-dependent runtime behavior.
+## Claims and regions
 
-## Terms
+| Claim | Meaning |
+| --- | --- |
+| `OBSERVE_INPUT` | Receives core input alongside established stable behavior. Multiple observers may coexist. |
+| `EXCLUSIVE_INPUT` | Core owns the routed control; its permanent stable binding is semantically inert. |
+| `DIRECT_INPUT` | Core input arrives through an existing permanent semantic route. |
+| `MUSICAL_INPUT` | Owns native NoteInput translation for a fixed pad footprint, independently of command and RGB ownership. |
+| `OUTPUT` | Core supplies complete replayable display/light output for the claimed region. |
+| `STABLE_ADAPTER_INPUT` / `STABLE_ADAPTER_OUTPUT` | Explicit unmigrated behavior, requiring a declared stable adapter facet. Frozen debt, not a choice for new views. |
 
-- **Surface area**: a stable, named physical or rendered part of Push 2.
-- **Claim**: one view's declared ownership of an area for input, output, or both.
-- **View**: behavior plus a fixed set of required claims and named optional facets.
-- **Facet**: a coherent optional part of a view, such as the upper Session scene keys. A facet has a
-  fixed footprint; it is not a bag of freely assignable callbacks.
-- **Workspace**: a named list of view profiles composed for one controller state.
-- **Workspace compiler**: validates claims and produces one deterministic input/output owner table.
-- **Stable shell**: owns Bitwig objects, MIDI/USB resources, callbacks, and effect execution.
-- **Reloadable core**: owns view selection, composition, policy, and replayable desired state.
+There may be only one owning command-input claim and one output claim for an atomic area.
+Native musical ownership is validated separately. Observing input or claiming output does not
+silence native notes. Stable facet/claim validation is currently one-way; the remaining
+[bidirectional validation gap](findings/stable-facet-claim-coupling.md) is explicit.
 
-"Mode" and "view" in the inherited DrivenByMoss framework are implementation details during the
-migration. Pull's model uses **view** for a fixed-footprint behavior and **workspace** for the active
-composition. Session navigation and mixer controls are orthogonal views; there is no combined
-Session/Mix super-view.
+Areas cover the eight encoders/touches, parameter display, bottom strip, both soft-key rows,
+full/upper/lower pad grids and drum subregions, scene groups, arrows/page/octave navigation,
+touch strip and individual migrated global controls. Grid coordinates use `(column, row)` with
+row zero at the bottom, matching Push MIDI layout. New areas must describe reusable physical
+footprints, never workspace-specific coordinate fragments.
 
-## Push 2 Areas
+A grid command claim includes pad edges, strike velocity and per-pad pressure. Pressure follows
+the admitted pad owner. Aggregate channel pressure has no pad identity and uses a separate
+surface claim; each receiving view sees only its own admitted pads.
 
-Areas are semantic and bounded. Grid coordinates use `(column, row)` with row 0 at the bottom, the
-same orientation as Push 2 MIDI note layout.
+## Declaring pages and backgrounds
 
-```text
-ENCODERS[0..7]             turns and touches
-DISPLAY.PARAMETERS[0..7]   parameter name, value, and control graphics
-DISPLAY.BOTTOM_STRIP[0..7] track/menu labels aligned to the lower soft keys
-SOFT_KEYS.UPPER[0..7]      buttons above the display
-SOFT_KEYS.LOWER[0..7]      buttons below the display
-GRID.UPPER                 columns 0..7, rows 4..7
-GRID.LOWER                 columns 0..7, rows 0..3
-SCENE_KEYS.UPPER           four side keys aligned to GRID.UPPER
-SCENE_KEYS.LOWER           four side keys aligned to GRID.LOWER
-NAVIGATION.ARROWS          left, right, up, down
-NAVIGATION.PAGE            page left and page right
-NAVIGATION.OCTAVE          octave up and octave down
-TOUCH_STRIP                touch and pitch/position data plus strip output mode
-TRANSPORT.*                named transport controls, claimed individually
-GLOBAL_MODIFIERS.*         Shift, Select, Delete, and similar controls
-```
-
-Smaller fixed subregions may be added when a real view proves the need. They must be named for a
-stable physical footprint, not created ad hoc by a workspace. For example, the current drum-fill
-view occupies the eight pads at columns 4..7 and rows 1..2 inside `GRID.LOWER`; four manually
-mappable control pads occupy columns 4..7 on row 3. The fill view names its semantic action
-endpoints and physical RGB endpoints separately while assigning both areas the same atomic
-footprint. That lets direct fill routing keep stable semantic identities without hiding the actual
-pad-light ownership or weakening overlap detection.
-
-A claim declares both ownership and its current realization boundary. The Java API uses explicit
-kinds equivalent to:
+`ControllerPages` declares supported compositions in Java. For example, the ordinary Track page
+is assembled from a parameter body and current-bank footer:
 
 ```java
-record SurfaceClaim(SurfaceArea area, ClaimKind kind) {}
-
-enum ClaimKind {
-    OBSERVE_INPUT,
-    EXCLUSIVE_INPUT,
-    DIRECT_INPUT,
-    STABLE_ADAPTER_INPUT,
-    OUTPUT,
-    STABLE_ADAPTER_OUTPUT
-}
+new Page(PageId.TRACK,
+    List.of(new TrackMixerControlsView(trackState, true), normalFooter),
+    mixerNavigation);
 ```
 
-Multiple observers may coexist. There is exactly one owning input claim and one output claim for
-any atomic area in a compiled workspace. The `STABLE_ADAPTER_*` kinds keep ownership in the view
-graph while honestly recording that current shell mechanics still realize it; they require a
-declared stable adapter facet. They are frozen migration-debt markers, not implementation choices
-for new work. An adapter may preserve existing behavior only; a requested semantic change requires
-a reusable canopy expansion and core policy.
+`Page` stores identity, fixed view instances, optional navigation and parameter indications.
+`ControllerPageCompositions` compiles the finite page/background pairs. A background that already
+owns arrows omits the page's optional navigation. It retains the actual Session/Drum/Note/ribbon
+instances so a page replacement does not restart an unchanged musical view.
 
-A grid input claim includes the pad edge, its strike velocity, and per-pad pressure. Pressure is a
-companion event for the same physical pad and follows the same compiled owner; it is never enabled
-through a separate concrete-view registration list. A view may ignore pressure, and an unmapped
-pad has no musical pressure destination. Aggregate channel pressure has no pad identity and remains
-a distinct surface-wide input.
+The supported backgrounds include Note, Drum, full Session and VS Live. Plain Session declares
+8×8; VS declares an upper 8×4 Session bank plus lower Drum views. The shell eagerly registers
+exactly those Session shapes, preserves offsets on a switch and grants launcher feedback only
+to the active bank. An undeclared shape fails before activation and needs a shell expansion.
 
-The stable shell captures those events and publishes the current typed pressure configuration and
-drum base note. `DrumPlayPadView` owns RGB and pressure-to-MIDI policy for its fixed playable
-footprint in both standalone and composite Drum layouts. Musical note edges still use the installed
-built-in `NoteInput` translation; a view cannot yet declare arbitrary playable geometry. Both
-stable adapters are inert for pressure.
+VS initially combines Project Macros, the Session track-selection footer, upper Session grid and
+scene keys, Drum play/octave/rate/fill/mapping views, musical route and raw pitch bend. Drum does
+not own lower scene keys. `DrumFillView` participates directly in the composition so its target
+and cancellation hooks are visible to the router. Other pages replace the parameter region.
+There is no YAML loader, dynamic view plugin registry or arbitrary callback mapping layer.
 
-## Fixed Views
+`CompiledWorkspace` expands profiles/facets, validates claims and parameter/action bindings,
+merges subscriptions and installed-bank requests, and produces one complete `CoreResult`.
+Declaration order cannot decide ownership. A conflicting ordinary owner fails validation;
+temporary whole-grid/display overlays use explicit separate planes, not implicit overlap.
 
-A view exposes named profiles, not arbitrary ports:
+## Target-bound input
 
-```java
-interface ControllerView {
-    ViewId id();
-    ViewProfile profile();
-    void start(ControllerSnapshot snapshot);
-    void reconcile(ControllerSnapshot snapshot);
-    List<CoreEffect> handle(CoreEvent event, ControllerSnapshot snapshot);
-    ViewOutput render(ControllerSnapshot snapshot);
-}
+`InputGestureRouter` applies the shared [interaction lifecycle](interaction-lifecycle.md).
+BEGIN captures each receiver's target and semantic intent. A changed or missing binding cancels
+that receiver before deactivation. Cancellation emits required cleanup, never an ordinary END.
+Motion, pressure, LONG and END from that physical tail cannot reach a replacement or revive after
+returning to the old binding. An unchanged visible binding survives a page overlay.
 
-record ViewProfile(
-    ProfileId id,
-    Set<SurfaceClaim> requiredClaims,
-    Set<ControllerViewFacet> requiredControllerFacets,
-    Map<FacetId, ViewFacet> optionalFacets,
-    Set<FacetId> enabledFacets
-) {}
+Only active views receive ordinary reconciliation/input/rendering. Cleanup effects retain their
+needed subscriptions/banks through submission; resource retirement retains just its required
+observations. Deferred actions capture their exact cancellation function, so an older canceled
+action cannot clean up a newer gesture on the same control. The view's input projection excludes
+canceled controls from modifiers and pressure. Raw host values remain unchanged.
 
-record ViewFacet(
-    FacetId id,
-    Set<SurfaceClaim> claims,
-    Set<ControllerViewFacet> controllerFacets
-) {}
-```
+Views declare `parameterTouchControls`; the router owns touch/reset/automation-release lifetime.
+Mapped controls resolve through the compiler's aligned named parameter slots. Other controls
+provide immutable `InputTarget` contexts; unavailable targets reject admission. The shell freezes
+physical disposition and core generation through each edge and its motion/pressure companions.
+A core replacement waits for the existing input/deferred-action fences; it does not inherit a
+partially held physical gesture. This is not a general asynchronous-operation drain.
 
-The code currently represents IDs as validated strings. The shape above is normative: fixed claims
-live with the view, selected facets are part of the profile, and configurations may select only
-facets that the view declares.
+## Parameters and native music
 
-Examples:
+Named parameters carry an opaque reference plus classified domain, owner, page and slot/role.
+A Java wrapper surviving navigation is not a target identity. Current-bank and selected-track
+views join parameter ownership to independently sampled track/project state before rendering,
+writing or touching. Temporary disagreement stays blank/inert until later observations align.
 
-- **Drum Controller** requires `GRID.LOWER`. Its lower half contains the 4x4 playable drum block,
-  four momentary rate pads, eight fill pads, and four manually mappable control pads. A separate
-  `RawPitchBendView` owns the touch strip. Drum Controller does not claim either scene-key group.
-- **Session Clip Grid (upper)** requires `GRID.UPPER` and may claim `SCENE_KEYS.UPPER` as its named
-  `scene-launch` facet.
-- **Project Macro Controls** requires `ENCODERS`, `DISPLAY.PARAMETERS`, and encoder touches. It does
-  not implicitly own the lower track strip.
-- **Track Selection Strip** requires `DISPLAY.BOTTOM_STRIP` and `SOFT_KEYS.LOWER`.
-- **Selected-track Mute/Solo** requires the dedicated Mute and Solo buttons and consumes the
-  private authoritative selected-track snapshot. It is controller-level policy downstream of
-  selection, not part of the selector, Session grid, or active display page.
-- **Session Navigation** declares core input/output ownership of `NAVIGATION.ARROWS` for VS, plus
-  explicit stable-adapter claims for the still-frozen page buttons. Other native pages use
-  `NavigationView`; full Session over a legacy page declares `FrozenSessionArrowsView`. These
-  profiles keep page buttons and sequencer navigation outside the four-arrow cutover.
+Core returns the complete desired parameter-touch set. The shell releases omitted exact leases
+before effects and acquires new touches afterward, so Delete reset precedes touch. The ordered
+`AcquireParameterTouchEffect` also supports reset → touch → send-enable. A later `touchLeases`
+sample proves resource retirement. Cleanup may address a retained exact actuator, but must abandon
+and report it if an external rebind made that actuator point elsewhere. It may never clean up the
+replacement. Touch retirement does not acknowledge every earlier parameter write.
 
-## Target-bound input across page changes
+Snapback captures an authoritative baseline and restores before navigation through the semantic
+parameter barrier. The router resolves the gesture's intent at BEGIN. Frozen legacy commands
+publish their actual semantic consequence into that same barrier; an EXCLUSIVE route suppresses
+stable dispatch before it can queue a fallback. Remaining target and precision limits are in
+[the parameter finding](findings/parameter-target-proxy-coupling.md) and
+[Snapback limits](findings/snapback-v1-limitations.md).
 
-`InputGestureRouter` uses the shared [interaction lifecycle](interaction-lifecycle.md). BEGIN captures
-receivers, per-view target contexts and semantic intent. Binding loss cancels centrally; only required
-cleanup runs, and motion/pressure/LONG/END cannot reach a replacement. Unchanged visible bindings
-survive page overlays. Hidden views have no continuation routes, ticks or parameter touches.
+A native key/velocity map is a complete 128-entry value. Enabled notes are restricted to physical
+Push pads 36–99 and the producing view's `MUSICAL_INPUT` footprint; a map cannot enable a pad that another view
+owns for controller input. Owned silence suppresses the
+native map; unowned output relinquishes it to the latest frozen baseline. Normal translation changes wait for musical-input idle. Route loss/failure silences and neutralizes
+immediately; normal exit relinquishes the layout before waiting to detach. Applied-map read-back
+proves configuration, not note playback.
 
-Parameter touches are declared by views and owned once by the router. Shell touch-lease retirement
-and clip-owner retirement are later observed facts; they are independent of physical UP. Deferred
-intent cancellation is addressed to the original resolved action. Cleanup-only effects retain their
-required domains for that result. Cancelled controls also disappear from the core view's modifier
-projection; aggregate pressure sees only admitted pads.
+The selected-track Note route uses a private selection-following cursor aligned with rendering
+state. The parent attaches before activating a layout; exit relinquishes the layout, waits for
+physical idle, neutralizes parent-owned MIDI and detaches. Unchanged desired state does not churn
+the route. Musical input, command dispatch and learned hardware actions remain separate paths;
+[TESTING](../TESTING.md) describes what browser injection can and cannot prove.
 
-The parent freezes every declared encoder/strip/pad companion's disposition and core generation.
-Core replacement still respects the existing physical/deferred ingress fence. This is not the
-separately parked application-wide asynchronous-operation drain.
+## Navigation and legacy projection
 
-## Native musical ownership and parameter touches
+`PageNavigation` owns selected/previous references and one temporary owner. Only its exact token
+can return; a newer owner invalidates an older return even when the page names match. Local page
+selection commits after semantic-action admission. It does not wait for a synthetic Bitwig mode
+acknowledgement. Track/project values and musical destination changes still require host read-back.
+Master replaces the page over the exact selected composition, retaining grid and Note routing.
 
-API 46 separates native musical ownership from controller command and RGB ownership. A view that
-returns an owned native key/velocity map, including a deliberately silent map, must declare its
-`MUSICAL_INPUT` footprint. The parent value restricts enabled physical notes to Push pad notes
-36–99; the compiler checks them against the same view's fixed claim and rejects conflicting musical
-owners. A silent map is owned silence, while an unowned map releases the arbiter to the latest
-cached legacy table. Map and layout changes wait for physical input to become idle. Applied-map
-read-back means the shell successfully configured the native NoteInput table; it is not an
-acknowledgement of any playback command.
+`DesiredControllerState.page` publishes revision, selected/previous references, optional temporary
+owner, acknowledged legacy-request prefix and parameter indications. References are CORE (opaque
+ID), LEGACY (installed body) or NONE. `ControllerLayoutSnapshot` mode is a compatibility/debug
+projection, not navigation authority. `LegacyPageAliases` translates frozen names outside page
+definitions and rendering. New core pages require no stable alias.
 
-Core returns the complete `DesiredParameterTouches` set. The shell retains exact bounded actuators,
-releases omitted leases before effects, and acquires newly requested touches after effects so a
-Delete reset precedes touch acquisition. `InputGestureRouter` sends END to the original view even
-after its page departs. Mutable parameter identity is checked again at execution and cleanup; cleanup cannot
-safely retarget an externally rebound proxy. Project Macro, Master, Track, Volume, and Pan own
-complete touch semantics. The ordered `AcquireParameterTouchEffect` preserves a required
-reset → touch → send-enable sequence while the complete desired touch set remains replayable.
-The unified API 25 Automation Write property preserves stop-on-release policy; its historical
-arranger-named native accessor is not evidence of a separate launcher write domain.
+`PushControllerPageManager` projects CORE IDs through one inert `CorePageMode`. Its remaining
+legacy callers enter a 64-request contiguous inbox. Each request carries its origin page revision,
+temporary token and sequence. Core reduces ordered requests through the same parameter barrier,
+rejects stale origins and acknowledges only a dispatched prefix. Exact page references preserve
+returns to core IDs unknown to the shell.
 
-Named parameter snapshots include `ParameterTargetIdentitySnapshot(domain, ownerId, page, index)`
-alongside the opaque actuator target. A Java proxy can stay the same while its semantic owner
-changes. Volume/Pan require their current-bank row and parameter owner/domain to agree before
-rendering, writing, or beginning a touch. A parameter-only reconciliation can precede the next
-track-bank snapshot; that temporary disagreement is blank/inert. Existing exact lease cleanup
-remains separate from eligibility to acquire or mutate the new current target.
+The inbox has several lifetime guarantees needed by those callers:
 
-## Workspace Compilation
+- Captured temporary holds pair by initiating request sequence; END closes only that hold's core
+  token, while CANCEL retires the handle without navigating. Queued toggles remain ordered.
+- A failed conditional entry cannot start restoration. It still waits behind earlier deferred
+  work, then rechecks its condition at dispatch.
+- Projection publishes state before callbacks. Old-body deactivation retains the old origin;
+  new-body activation sees the new projection. Callbacks enqueue instead of recursively entering
+  core, and the manager tracks the actually entered body separately from the visible projection.
+- Pending inbox entries, temporary handles, notifications and projection fence healthy replacement.
+  Quarantine retires them and invalidates callback epochs; an unhealthy consumer accepts no work.
+- Parent-owned `retiredSequence` includes acknowledged or abandoned requests. Startup rebases from
+  it independently of checkpoint compatibility. The prefix remains available when pending-request
+  sampling is unsubscribed. A discarded checkpoint cannot replay retired page requests.
 
-A workspace is intentionally boring data:
+`BrowserPageNavigation` observes raw Browser activity and transition generation, then owns entry
+and exact-token return through this barrier. A browser that closes before deferred entry cannot
+leave a stale page. Browser filtering, results and operations remain in its inherited body.
+The inbox is compatibility for those bodies, not a second page API for new features.
 
-```yaml
-name: VS Live
-session_bank:
-  tracks: 8
-  scenes: 4
-views:
-  - use: project-macro-controls
-  - use: track-selection-strip
-  - use: session-navigation
-  - use: session-clip-grid-upper
-    facets: [scene-launch]
-  - use: drum-controller
-  - use: raw-pitch-bend
-```
+Schema 6 checkpoints store page references/history, latched temporary ownership, Track Mix/I-O/send
+state and playback-owner state. They never serialize executable continuations or half a physical
+gesture. On startup without a compatible checkpoint, the initial legacy alias supplies the page;
+later projected modes cannot overwrite core navigation.
 
-The first implementation may construct this exact data in Java. YAML or JSON loading comes only
-after the compiler and ownership diagnostics are stable.
+## Presentation and hardware output
 
-`session_bank` is part of the workspace's fixed footprint, not a free mapping. The normal Session
-view declares `8x8`; the current upper-grid Session profile declares `8x4`. The stable shell eagerly
-installs only the deduplicated bank shapes declared by installed views and adapters. Core selects
-among those banks as replayable workspace state, while stable switches the matching Bitwig proxy,
-preserves track/scene offsets, and gives only that proxy clip-launcher feedback. A core requesting an
-undeclared shape is rejected before activation; adding a new shape requires a shell build and Bitwig
-restart, while selecting or composing already installed shapes remains core-reloadable.
+Feature views project observed host data and controller-local state into immutable values in
+`core.ui.page`. Family renderers consume those values plus `PageStyle` and family styles and return
+`PageVisuals`: display scene and row lights. Renderers cannot look up targets, acquire resources,
+navigate or emit effects. Shared primitives cover recurring parameter, toggle and footer drawing;
+Browser lists and editing grids need suitable models rather than a universal UI schema.
 
-Compilation rules:
+The base display is 960×160. Split pages use a local 960×143 parameter region and 960×17 bottom
+strip. The compiler rejects incomplete split output, unclaimed fragments, complete-scene overlap
+and primitives outside their viewport. It wraps each accepted fragment in a renderer-enforced clip.
+Temporary full-display/grid overlays have explicit ownership and reveal the underlying base when
+removed. Core chooses content, geometry, colors and timing; shell rasterizes, clips, translates the
+palette and transmits through the existing output lane.
 
-1. Expand each selected profile and facet into atomic claims.
-2. Permit shared `OBSERVE` input claims.
-3. Reject overlapping exclusive-input or output claims by default.
-4. Permit replacement only through an explicit, named overlay rule that identifies the displaced
-   facet and replacement facet.
-5. Produce deterministic input and output ownership tables independent of declaration order.
-6. Validate required shell capabilities before activation.
-7. Validate that the declared Session bank shape matches the fixed Session adapter footprint.
+Parameter values and host-derived lights come from later authoritative snapshots. Effect submission
+cannot supply optimistic parameter text or a selected state. Where Bitwig exposes a native toggle
+without visibility read-back, the UI does not invent an observed selection. Missing/faulted migrated
+output stays blank/inert. Rejected replacement candidates may leave the previous valid core active.
 
-V1 has no dynamic negotiation. V2 may allow a workspace to enable or disable named optional facets
-based on capabilities, but a view's remaining footprint still cannot move.
-
-## Runtime Flow
-
-```mermaid
-flowchart LR
-    S["Stable shell snapshot + normalized event"] --> W["Active compiled workspace"]
-    W --> R["Route event to declared owners/observers"]
-    R --> V1["View A"]
-    R --> V2["View B"]
-    V1 --> C["Validate and compose complete desired state"]
-    V2 --> C
-    C --> E["Stable shell executes effects and writes hardware"]
-```
-
-Activation is transactional. The candidate workspace compiles and renders a complete initial
-result before it replaces the active workspace. Reload captures the active workspace ID and view
-state in the checkpoint envelope. A rejected candidate leaves the prior generation active.
-
-Page and grid selection are independent. `ControllerPageCompositions` compiles the finite declared
-page/background pairs once, retaining the actual Session/Drum/Note/ribbon view instances and their
-fixed claims. A page replacement changes only encoder, row, and display ownership. It never selects
-a different Bitwig track merely to activate an inherited display mode.
-
-`Page` is an immutable core definition: a `PageId`, fixed constituent `ControllerView` objects,
-optional navigation view, and declared parameter-indication slots. `PageNavigation` owns runtime
-selection/history separately. The compiled catalog chooses the page's views over an independent
-musical background; a background that already owns arrows omits the optional page navigation.
-Legacy aliases live in `LegacyPageAliases`, outside the definition and rendering model. A new
-`PageId` requires no parent-loaded enum, registered shell mode, or page-specific facade.
-
-The complete replayable `DesiredControllerState.page` contains selected/previous references, one
-optional temporary page token, revision, legacy-request acknowledgement and indications. References
-are CORE (opaque ID), LEGACY (explicit installed body) or NONE. An unchanged projection causes no
-lifecycle churn. Core page changes commit after semantic-action admission; they do not await host
-mode acknowledgement. Bitwig state and musical-route acknowledgement remain independent barriers.
-`ControllerLayoutSnapshot` mode fields are compatibility/debug projection, not navigation authority.
-
-`PushControllerPageManager` realizes any CORE ID through one inert adapter. Its frozen enum aliases
-support existing callers without owning history. Legacy mutations enter a 64-entry contiguous
-inbox carrying page revision and temporary token. Core resolves each request once, routes it through
-ACTIVE_PARAMETERS restoration, applies same-origin batches in order, rejects stale batches, and
-acknowledges only the dispatched prefix. Exact captured page references support returns to IDs with
-no legacy alias. A new temporary owner invalidates an old owner's return even when both use the
-same page name. Captured legacy holds pair BEGIN and END by initiating request sequence; END
-releases only the resulting exact core token, while CANCEL retires the handle without changing
-the page. Toggle requests are reduced in core, so two presses before projection still open and
-close in order. Conditional entry (the inherited Shift/Scales hold) cannot initiate parameter
-restoration while its required page is absent. It stays ordered behind an earlier deferred action
-and rechecks the condition at dispatch. Physical gesture state never crosses a core replacement.
-
-Projection publishes the new state before lifecycle callbacks. Old-body deactivation requests keep
-the old origin; new-body activation requests use the new origin. Callbacks enqueue only and cannot
-synchronously recurse through the runtime. Pending inbox entries, notifications and projection
-fence replacement while a healthy consumer exists. Captured temporary-request handles also fence
-healthy replacement; their once-only close retains the initiating request identity. Fault cleanup
-retires those handles and callbacks. Projection tracks visible state separately from the body that
-actually entered, preventing reentrant cleanup from activating an unentered legacy destination.
-Generic parameter indications come from declared slots and exact live targets; outgoing indication
-ownership is published and released before a legacy activation callback, and refresh cannot revive
-that retired ownership. These are not Master-specific shell policies.
-
-The inbox carries a monotonic parent-owned `retiredSequence` as well as its bounded pending suffix.
-It includes acknowledged and abandoned requests. Core startup rebases its acknowledgement from
-this prefix even when a checkpoint is incompatible or discarded. The prefix is lifecycle metadata,
-available without host sampling even when `CONTROLLER_PAGES` is unrequested; only pending request
-publication is subscription-gated. An absent healthy consumer cannot accept new callback requests.
-Generation replacement and quarantine retire delayed callback epochs. This is a bounded page-inbox
-recovery protocol, not a replacement for the parked general quiescence work.
-
-`BROWSER` supplies raw `BrowserSnapshot` activity with a transition generation. Core's
-`BrowserPageNavigation` owns temporary Browser entry/return through the same parameter barrier.
-It reconciles newer observations before executing deferred requests, so open-then-close before
-admission cannot create a stale Browser page. Return requires its exact temporary token, which a
-healthy replacement recovers from the checkpointed desired page. The raw observation stores only
-one latest state and a monotonic transition generation, not an unbounded event log. Browser
-search, selection and commit/cancel bodies remain frozen legacy behavior.
-
-Session and Note selection choose their default Track page and a grid destination independently.
-Grid handoff retires only after a later generation reports the requested grid; it never waits for
-TRACK mode. Note-route neutralization cannot select a page. Legacy Device/Browser and other
-unmigrated bodies retain their reviewed behavior under explicit LEGACY references. Relinquishing
-workspace facets changes grid ownership; it does not consult an inherited page history.
-
-Feature views project authoritative data and controller-local state into typed immutable models
-in `de.mossgrabers.pull.core.ui.page`. Family renderers consume those models and `PageStyle` plus
-family styles, returning only `PageVisuals` (scene and row lights). Input policy, target resolution,
-identity alignment, effects and touch ownership stay in feature views. Renderers perform no host
-lookup, navigation, effect emission or parameter acquisition. This separation covers Macro,
-Track, Master, Volume/Pan/Send, Accent, Frame and transport/automation pages; shared drawing
-primitives preserve their established layout without a universal configurable UI schema.
-
-Stop-plus-track is an installed Session-bank action. The row owner captures the exact bank
-generation, shape, index, and channel identity at `BEGIN`; stable revalidates that identity at apply
-time and stops the track without selecting it. Full Session also mechanically consumes the bounded
-stable lower-row release. Both paths consume the shared Stop gesture so release cannot become a
-plain selected-track Stop.
-
-Page and Master overlays reuse exact instances of the underlying grid views. The central router
-starts each identity once. A held interaction survives only while its original binding remains
-visible; removing that binding cancels it before deactivating the view.
-
-Master is resolved from the exact selected composition, not only its top-level workspace ID. Its
-page therefore retains standalone Drum views and mapping leases, full Session and Stop ownership,
-selected Note routing, or the VS Live grid views actually active when Master was entered.
-
-Hydration restores exact page references and history from schema 6. When no checkpoint is
-available, the frozen initial layout alias supplies the starting page. Later mode projection does
-not override that core state. The persistent Session grid composes around the selected page.
-
-Controller-level selected-track Mute/Solo remains composed through every such page replacement.
-Its exclusive input and RGB output claims are unaffected by Session, Mix, Device, Browse, Master,
-or composite-grid selection. Legacy page-retarget and held-modifier meanings were removed; a view
-which needs a future target other than the selected track must declare a different target-specific
-control view rather than infer it from the visible page.
-
-Mute, Solo, Record-arm, and launcher-overdub toggles retain one bounded pending lane per semantic
-property. Repeated presses collapse to parity while an absolute request awaits host read-back; a
-dependent request is emitted only after a later authoritative snapshot acknowledges the previous
-expected state. A target/project change retires the lane.
-
-Display fragments now follow the same ownership rule for the installed VS Live page. Project Macro
-or Track Mixer emits only a local 960x143 `DISPLAY.PARAMETERS` scene, while Track Selection emits only a local
-960x17 `DISPLAY.BOTTOM_STRIP` scene. The compiler rejects a partial page, an unclaimed fragment, an
-overlap with a complete-scene owner, or a primitive outside its local viewport; successful
-composition wraps each fragment in a compiler-owned, renderer-enforced clip and yields one 960x160
-base scene. The shell's generic base plane replaces inherited page
-columns without suppressing ordinary overlays. A temporary display overlay is different: for
-example, a short-lived full-screen status/animation scene sits above the composed base and then
-reveals it again, rather than sharing either region claim.
-
-The retained Track Selection footer consumes the bounded Session bank's semantic track type as
-well as its name, color, activation, and selection state. Its colors, selection contrast, inactive
-dimming, two-pixel column gap, and channel icon are core-owned parity policy. Project Macro likewise
-owns the legacy parameter visual semantics in its region: subdued teal parameters brighten on
-touch, Boolean values use toggle pills, and the old adapter's non-rendered `Project` menu text is
-not invented as a visible title.
-
-When VS Live selects Track/Mix, `TrackMixerControlsView` replaces only the 960x143 producer.
-It declares named `SELECTED_TRACK` and `SELECTED_TRACK_SENDS` banks and owns encoder turns,
-touches, Mix/I-O selection, send paging, send enable, and upper-row feedback. Its fixed physical
-claims remain unchanged while `parameterBindings(snapshot)` selects volume/pan and six send
-slots for the current subpage; the compiler validates every result against the declared controls
-and banks. Missing read-back does not select a different subpage. The retained VS Track Selection
-footer remains the independent 960x17 producer.
-
-Ordinary Track composes the same body with `CurrentTrackFooterView`, which reads the current
-main/effect bank independently from Session. Its lower row preserves release-time modifiers,
-parent navigation, selected-group entry, and device-page selection. Record chord consumption is
-shared with the global core Record gesture. Normal encoder response preserves configured
-sensitivity, volume acceleration, and pan centering; VS Live retains its established response.
-Track subpage and send offset survive core checkpoints, as does semantic parameter-page selection.
-
-
-VS Live page selection commits through core navigation after parameter-restoration admission.
-Mechanical Note-route changes carry no page-selection intent. A deferred page action retains the
-old page until admission, then selects locally. Shift+Session reselects the declared composite and
-its Project Macro default even when VS Live was already active on another page. For named Track
-banks, stable validates model cursor and current-bank owner against the private selection-following
-cursor before publishing a slot. The removed Track provider no longer chooses core parameter
-identity or response.
-
-Normal Volume/Pan pages compose `GlobalMixerControlsView` with the same current-bank footer.
-Their named eight-track banks, configured encoder response, Delete/touch/automation behavior,
-upper menus, display, and lower-row feedback are core-owned. `ControllerSettingsSnapshot` supplies
-observed VU preference, remembered global-mix mode, send-menu offset, and bounded cursor-send
-metadata. Typed absolute settings effects execute in stable; the core decides every menu action.
-Send 1–8 use the same core family with named send banks. Crossfade and device bodies remain legacy.
-
-`TrackMixControlView` owns the global Track/Mix button, including modifier preference changes,
-entry, held return, and light policy. `MetronomeControlView` and `AutomationControlView` retain their
-global gesture state across page replacement; transport/automation option pages render observed
-settings and use typed requests. `MasterButtonView` handles Master/Frame entry and restoration over
-the exact composition, including Browser guards and deferred semantic admission. `FramePageView` owns
-all option rows, copy, layout, and lights. `ApplicationUiSnapshot` contains the native panel layout,
-seven Arranger flags, six Mixer flags, and an exact project/layout context. Native visibility
-values stay interested; unrequested APPLICATION_UI does no DTO sampling and publishes typed empty.
-Observed flags use absolute setters with later read-back. Native panel toggles lacking visibility
-read-back retain ordinary unselected feedback rather than inventing a selected state.
-
-Four-arrow policy is core-owned for core pages and every VS page. Track/Volume/Pan
-use plain horizontal track-page movement and Shift cursor swap; other core pages have inert
-horizontal actions. Vertical arrows use current-bank scene step or Shift scene page. VS horizontal
-arrows use track page or Shift track step. Availability controls light output, not whether a valid
-press submits an operation. Left/right retain the parameter-restoration action barrier. The
-separate navigation generation fences current track/scene window, project, cursor ID/pin/position,
-and exact prepared actuators. Full Session with a legacy page retains frozen arrow policy, and
-page/sequencer buttons are unchanged.
-
-Master's own previous/next project action retains its local page revision across the resulting
-project observations. Later target-project read-back updates the retained scene; an explicit page
-or workspace change retires that retention. DAW Master selection is reduced by
-`MasterTrackPageNavigation` in core, separate from the shell's raw Master selection observation.
-
-Working API 47 capability versions are bridge snapshot 14, controller output state 4 and controller
-pages 1. Parameter targets remain 4, input routing 7, current-track effects 2, transport effects 4,
-controller-settings effects 1 and application-UI effects 1. Schema 6 stores exact page references,
-history and latched temporary ownership alongside Track Mix/I-O/send and playback-owner state.
-Its stored request acknowledgement is rebased from the shell retired prefix at every startup. It
-never serializes executable continuations or a partially held physical
-gesture. Session grid/scene actions and their release contract remain open; optional SESSION_CLIPS
-observation and migrated arrows do not complete Session launch migration.
-
-## Declared composition
-
-`ControllerPages` defines the supported backgrounds and pages in Java. VS Live combines an actual
-8×4 Session bank in the upper half with the lower Drum Controller play/rate/fill regions, project
-macros or another selected page, a track-selection footer and raw strip behavior. Lower scene keys
-do not gain ownership merely by sitting beside Drum Controller. Plain Session selects the full
-8×8 background; Note/Layout follow the selected target's fenced preference and later layout
-read-back without replacing independent page state.
-
-Learned actions use the selected track's allocated bank of four permanent semantic endpoints;
-all 64 physical PAD actions stay ordinary-dispatch-only. The bounded persistence contract is in
-[CONTROLLER_MAPPING_IDENTITY.md](../pull-core-api/src/main/java/de/mossgrabers/pull/core/api/CONTROLLER_MAPPING_IDENTITY.md).
-Native note transport remains separate from controller-command ownership.
-
-Current implementation/capacity is in [ARCH](../ARCH.md); unmigrated families and prerequisites are
-in [the roadmap](reloadable-core-migration-roadmap.md). Behavioral tests are the characterization
-record. [TESTING](../TESTING.md) defines closed-loop validation; the
-[smoke record](migrations/core-page-ownership-live-smoke.md) records exact builds and coverage.
-Do not infer a new capability or an all-features pass from an old implementation milestone.
-
-## Deferred Work
-
-- YAML/JSON configuration loading and schema versioning.
-- Capability-driven optional-facet negotiation.
-- Complete remaining display and light ownership in the stable Core API. Until each surface
-  migrates, its inherited stable renderer is frozen and may not receive new semantics.
-- Migrating every inherited DrivenByMoss mode/view family.
-- User-authored overlays beyond named, statically validated replacements.
-- Persisting richer per-view navigation state across reload.
-- Arbitrary core-authored musical pad geometry; see
-  [`findings/custom-musical-surface-geometry.md`](findings/custom-musical-surface-geometry.md).
-- A bidirectional compiler contract between every stable facet and its exact stable claims; see
-  [`findings/stable-facet-claim-coupling.md`](findings/stable-facet-claim-coupling.md).
+Current feature ownership and capacities live in [ARCH](../ARCH.md), migration prerequisites in
+[the roadmap](reloadable-core-migration-roadmap.md), and live coverage in the
+[current smoke record](migrations/interaction-lifecycle-live-smoke.md). Keep per-feature behavior in
+its core implementation and behavioral tests rather than duplicating it in this contract.

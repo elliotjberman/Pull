@@ -1,14 +1,9 @@
 # UI and editing migration handoff
 
-This is work for a later session: migrate the remaining UI pages and musical editing behavior
-into reloadable core. It is not an implementation or a promise that these families are independent
-of input and target capabilities. [Migration part 1, PR #40](https://github.com/elliotjberman/Pull/pull/40)
-merged as `8659c2d1` with Core API 46 / Bitwig API 25.
-Installed-build provenance remains in the [validation record](core-page-ownership-live-smoke.md).
-
-Lifecycle integration now uses working API 47; rebase onto it before using the new
-[InputTarget, cancellation and parameter-touch contract](../interaction-lifecycle.md). It removes
-the per-page touch sessions and start-once view wrappers; do not recreate them.
+This scopes the remaining UI pages and musical editing migration. Start from the integrated
+Core API 47 / Bitwig API 25 [interaction contract](../interaction-lifecycle.md); do not recreate
+per-page touch sessions or offscreen view wrappers. [ARCH](../../ARCH.md) records activation status,
+and the [smoke record](interaction-lifecycle-live-smoke.md) separates live evidence from source.
 
 ## Scope and starting points
 
@@ -34,11 +29,7 @@ live-validation requirements differ. Do not claim the whole inventory as one mec
 
 ## Shared interaction contract
 
-The working API 47 source integrates the shared lifecycle into production routing. It is offline
-validated only; the installed Bitwig build still uses the previous routing. Rebase onto the
-integration before using it and keep exact-build live validation separate.
-
-The user's chosen policy for that work is: **cancel an interaction when its target leaves the
+The shared policy is: **cancel an interaction when its target leaves the
 active binding; suppress the remaining physical interaction until a fresh gesture starts**.
 Do not silently redirect it to the new target, revive it when an old binding reappears, or create
 per-feature held-target/timeout logic to bridge a missing shared contract. Confirm the integrated
@@ -110,9 +101,7 @@ Verify direct Bitwig calls against the resolved API 25 JAR, avoid deprecated met
 required deprecation-enabled package. Report required canopy expansion/restart and pending live
 evidence explicitly; offline success cannot inherit part 1's live pass.
 
-**Current user constraint: leave the installed Bitwig version alone.** Do not install, publish,
-reload, restart Bitwig, or drive state-changing debugger input as part of this handoff. Prepare and
-test offline. When the user later authorizes live validation, hold `tools/with-pull-live --owner
-LABEL` continuously through exact-build activation and the full smoke; checkpoint before a
-restart, identify the tested build, preserve project files and record authoritative read-back plus
-actual display/light output. Keep durable results and remaining gaps concise in the canonical docs.
+For authorized live validation, hold `tools/with-pull-live --owner LABEL` continuously through
+exact-build activation and the full smoke. Checkpoint before a restart, preserve project files,
+and record authoritative read-back plus actual display/light output. Do not derive installation
+permission from this handoff; use the current session's scope and the shared live lease.

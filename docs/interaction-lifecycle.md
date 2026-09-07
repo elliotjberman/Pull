@@ -1,7 +1,7 @@
 # Target-bound interaction lifecycle
 
-Working source: Core API 47 / Bitwig API 25. The standalone lifecycle is now used by production
-`InputGestureRouter`. Matched builds are undergoing [live validation](migrations/interaction-lifecycle-live-smoke.md)
+Working source: Core API 47 / Bitwig API 25. `InputGestureRouter` uses the shared host-independent
+`InteractionLifecycle`. The matched shell/core passed [routed live validation](migrations/interaction-lifecycle-live-smoke.md)
 in `202arp3`. UI/editing migration remains a [separate task](migrations/ui-and-editing-handoff.md).
 
 ## One rule
@@ -22,6 +22,9 @@ receipts, capacity limits and different generations without Bitwig or Push.
 - The shell registers TOUCH→RELATIVE/ABSOLUTE and PAD→POLY_PRESSURE companions once. They keep
   the edge's original disposition and core generation, flush before END, and cannot leak into a
   replacement stable command. Native musical `NoteInput` remains a separate path.
+- The common stable grid dispatcher captures its receiver at DOWN. View/target loss retires that
+  receiver and its held-key state; an orphan LONG/UP cannot reach a newly active legacy view.
+  Debugger target neutralization preserves the physical hold so this path can be tested faithfully.
 - Core derives its physical footprint from `SurfaceArea`, with at most 256 retained interactions,
   256 view instances and 64 pending semantic actions. Lifecycle IDs remain local to that core
   instance; shell generation fencing remains at permanent ingress.
@@ -50,12 +53,7 @@ Snapback and asynchronous toggle/clip executors still settle their submitted req
 existing authoritative observations. This integration does not replace those with fabricated generic
 receipts or implement the separately parked [application-wide reload drain](findings/core-reload-quiescence.md).
 
-## Deletions and remaining seams
-
-Deleted the old offscreen receiver/touch retention, `ParameterTouchControls`, `ParameterTouchSession`,
-`RetainedControllerView`, raw/legacy pitch-bend continuation, held fill binding preservation, and the
-shell permission/query/bookkeeping for touches without current exclusive ownership. No fallback to
-those paths remains.
+## Adapter limits
 
 Two concrete adapter constraints remain visible:
 
@@ -70,13 +68,6 @@ There are no replacement timeouts, pinned offscreen pools, or stable product-pol
 Core cancellation never manufactures ordinary END events. Full Device identity and Session grid/scenes release guarantees still need
 proof when those remaining families migrate; a shared lifecycle does not create missing host APIs.
 
-Offline validation: `mvn -o -Dmaven.compiler.showDeprecation=true package` passes 858 tests
-(403 core, 11 publisher, 444 shell), with no deprecation warnings in changed code.
-The six existing warnings in untouched `TransportImpl` remain outside this change. The routed regressions
-cover page/core/legacy transitions, parameter rebinding, modifiers, direct/aggregate pressure, clip
-owner retirement, project/selected-track changes during global button gestures, and delayed host
-read-back. Live validation requires a matched shell/core install
-under the singleton live lease; API 47 requires its matching parent-loaded shell contract.
-The [live-validation finding](findings/core-continuous-input-capture.md) stays open until that run.
-The two-agent arch-nemesis finishing review could not run because the agent tool reached its limit;
-this record does not claim that review passed.
+Exact package results, routed smoke evidence and physical-only limits are in the
+[live record](migrations/interaction-lifecycle-live-smoke.md). The corrected matched shell/core
+passed the scoped lifecycle run; broader Device/Session migration remains separate.

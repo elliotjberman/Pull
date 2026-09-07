@@ -1,52 +1,65 @@
-# Interaction lifecycle live smoke — 2026-09-07
+# Interaction lifecycle smoke — 2026-09-07
 
-Validation is in progress on `202arp3`, under one uninterrupted `lifecycle-api47-smoke` lease.
-The original project file remains unchanged: SHA-256
-`80e5cb6f30bfee568eb33c588926042491259faede2a2ae7a879720572cf4bf9`.
-Raw request receipts, host snapshots, controller output and failed attempts are retained locally
-in `target/live-api47`; only completed cases below count as evidence. A durable archive is at
-`~/.drivenbymoss/pull/test-evidence/lifecycle-api47-20260907/evidence.tar.gz` (SHA-256
-`0a99e7ccc653b83fff907cc5b031b6f92181987119228a383b97aa558be6f01b`).
+The corrected API 47 shell/core passed routed live smoke in `202arp3` under the continuous
+`lifecycle-api47-final-smoke` lease. Earlier runs used `lifecycle-api47-smoke` and found the bugs
+below; only the corrected `checked-*` runs establish final coverage. The saved project was reopened
+without saving smoke changes and left stopped, with no held controls or parameter-touch leases.
 
-## Completed checks
+## Exact build and evidence
 
-| Source | Real routed checks and later evidence |
+| Item | Identity |
 | --- | --- |
-| `32ecb416` | Track, Volume, Pan, Send, Master, Frame, Accent, Automation and Metronome pages; Browser open/cancel; Setup/User navigation. Host page state and actual output frames agree; temporary returns preserve the grid. |
-| `32ecb416` | Existing Rippler project macro: exact mapped target On → Off → On, later host values and rendered text, baseline restored. |
-| `32ecb416` | Track touch across Master/Device: old lease retires, old motion stays inert, fresh touch works, original pan resets exactly. Frame cancellation cannot change the layout; releasing an older temporary owner cannot close Accent. |
-| `32ecb416` | Session clip launch/stop and transport start/stop; later host playback flags and transmitted pad/Play lights. |
-| `4325a2da` | Selected track A → B → A with an encoder held: neither target changes from canceled motion. Canceled Mute release is inert; fresh Mute/Solo/arm changes are observed and restored. |
-| `4325a2da` | Raw strip 12000 survives Master, centers on leaving its view, ignores both old tails, accepts fresh 10000 and centers on release. |
-| `4325a2da` | VS fill: exact active owner/target, cancellation on track loss, later owner retirement, no revival on return, fresh acquisition and later release retirement. |
+| Tested production source | `bf5bc4d7`; subsequent edits are documentation only. |
+| Installed extension SHA-256 | `bf07cba27029bca9287969e0198fc2898dc1cfeb84747af47adcc638802b7f18` |
+| Core before held reload | `20260907T193458Z-fdbd9b0cfabf6f9c7f35c22fe97d9279` |
+| Core left active | `20260907T193849Z-23bb97b20e244e723f9009132986fe42` |
+| Active core SHA-256 | `0d0ff99a5801901f0760114c3fd554e721ce0eb9db15aa73e6c668a9226562b1` |
+| Parent API fingerprint | `00ce7163ad429e18f0d4d8ec3d4484293a67b339` |
+| Bitwig PIDs before/after held reload | `66685`, `66686`, unchanged. |
+| Saved project SHA-256 before/after | `80e5cb6f30bfee568eb33c588926042491259faede2a2ae7a879720572cf4bf9` |
 
-The drum rate/pressure run exposed an inherited grid-release leak and is **not** a clean workflow
-pass: an old Drum PAD END reached the temporary Session handler and started playback. Commit
-`bf5bc4d7` fixes this centrally and passes the full 858-test package (403 core, 11 publisher, 444
-shell; only unchanged `TransportImpl` deprecations). The Mac locked before its install. Final matched
-build validation and held-input hot reload remain pending; the installed shell is still `4325a2da`.
+Raw receipts, bounded traces, host snapshots, output frames, failed attempts and helper scripts are
+in ignored `target/live-api47`. Durable archive:
+`~/.drivenbymoss/pull/test-evidence/lifecycle-api47-20260907/evidence-final.tar.gz`, SHA-256
+`df56999e83c4f29e60bd8f9a5f31d46e7b5ada570c082995f8d1b142b535ad91`;
+`manifest-final.json` alongside it records final installed identities and restored project state.
 
-## Findings and shortcuts
+The deprecation-enabled full package passes **858 tests** (403 core, 11 publisher, 444 shell), with
+no failures/errors/skips and no changed-code deprecations. Six warnings remain in untouched
+`TransportImpl`. Independent read-only review checked the critical live receipts/read-back/output.
+The separate two-agent arch-nemesis finishing review has not run for this integration; the earlier
+attempt hit the agent limit. This record does not claim that review passed.
 
-- Fixed: the VS wrapper hid the fill view's target/cancellation hooks. Composing `DrumFillView`
-  directly removes the wrapper behavior and 60 net lines. Its full-core regression failed before
-  the fix and passes afterward.
-- Fixed: debugger target cleanup synthesized physical releases, masking lifecycle bugs. Native
-  MIDI neutralization now preserves physical holds; terminal/core invalidation still retires them.
-- Fixed offline: the common grid dispatcher now captures its receiver at DOWN and invalidates it
-  on view/target loss. Orphan LONG/UP cannot reach another view or revive on return. The routed
-  regression also proves ordinary Session DOWN/UP still launches normally.
-- Existing debug traces are bounded to 2 MB. Busy meter/Drum output can truncate the tail. Smoke
-  helpers retain only complete records and use separate later host samples; missing required input
-  evidence fails the case. Faster client polling reduces idle collection before the actual input.
-- Reused smoke helpers stay in ignored build output. They are evidence tools, not added product
-  tests or a second implementation of controller behavior.
+## Verified behavior
 
-## Limits
+| Evidence prefix | Routed action and later observation |
+| --- | --- |
+| `checked-drum` | Hold rate/play pad through track A → B → A: canceled pressure/rate tails stay inert, original END cannot launch Session playback, fresh rate/pressure works, release retires it. |
+| `checked-fill` | VS fill exact active owner/target and playing state; track loss retires that owner while the physical pad remains held, return cannot revive it, fresh acquisition/release retires later. |
+| `checked-playback` | Session clip launch/stop and transport start/stop, later playback flags and transmitted pad/Play lights. |
+| `checked-target` | Held pan target A → B → A: lease retires, old motion changes neither raw baseline. Canceled Mute release is inert; fresh Mute/Solo/arm changes and restores observed state. |
+| `checked-rippler` | Existing mapped Boolean project macro: exact target On → Off → On, later host value and rendered toggle/text; original value restored. |
+| `checked-tour` | Track, Volume, Pan, Send, Accent, Metronome and Automation pages; authoritative page/settings and actual frames agree, temporary returns preserve grid and preferences. |
+| `checked-life` | Parameter hold across Master/Device: old lease retires and motion remains inert after return; fresh touch works. Frame cancellation cannot perform an old action; older temporary release cannot close newer Accent. |
+| `api47-reload` / `api47-reloaded` | Old core remains active while a touch is held after candidate publication; replacement activates after END, inherits no touch, then acquires and retires a fresh exact lease. |
+| `checked-strip` | Held 12000 survives Master; leaving the raw-strip view centers to 8192. Old motion stays inert after return; fresh 10000 works and release centers. |
+| `checked-extra2` | Master/Frame and held Device return; Frame remains held beyond six seconds. Setup/User enter/return; Browser opens and cancels back to exact page/grid. Host state and output frames agree. |
+| `checked-restored` | Reopened original `202arp3`, transport stopped, no pressed/touched controls or touch leases, original raw pan 0.5 and saved file hash unchanged. |
 
-The full Push debugger includes transmitted lights/strip state and output frames, not just a screen
-mock. Browser input cannot trigger Bitwig's native learned MIDI actions; physical mapping, audible
-notes/pitch and hardware feel remain manual checks with the Push connected. Frozen Device controls
-lack classified `ACTIVE` parameter read-back, so that boundary check proves old-target safety and
-routing without claiming exact replacement-device parameter behavior. This is functional smoke,
-not a timing benchmark or exhaustive validation of the remaining Device/Session editing families.
+## Bugs and harness limits
+
+Smoke exposed and fixed three gaps: the VS wrapper hid fill target/cancel hooks (now composed
+directly, 60 net lines removed); debugger MIDI cleanup synthesized physical releases (now preserves
+holds); and the stable grid dispatcher sent an old Drum END to Session (now retires its captured
+receiver on binding loss). Each production fix has a deterministic routed regression.
+
+Busy output can exceed the 2 MB trace bound; helpers use complete records and fresh later samples.
+The critical old Drum END and later playback observation were untruncated. Setup/User are stable
+bindings with no child input event; an initial overly strict harness assertion was corrected to
+use correlated permanent-ingress receipts and later host/UI output, as for Device/Browse.
+
+The full debugger observes transmitted display, lights and strip state. It cannot trigger Bitwig's
+native learned MIDI actions or prove audible notes/pitch and physical feel; those remain checks with
+the Push connected. Frozen Device controls lack classified `ACTIVE` parameter read-back, so their
+boundary test proves old-target safety and routed page return, not exact replacement-device writes.
+This is functional smoke, not a timing benchmark or exhaustive Device/Session editing validation.
