@@ -50,7 +50,7 @@ public final class CoreCapabilities
     /** Replayable input ownership; v6 freezes related continuous motion for a held touch. */
     public static final String ROUTING_CONTROLLER_INPUT = "routing.controller-input";
 
-    /** Common bounded controller state; v12 adds current-bank tracks, encoder preferences, and project history readback. */
+    /** Common bounded controller state; v15 adds raw attached-controller hardware identity. */
     public static final String SNAPSHOT_CONTROLLER_BRIDGE = "snapshot.controller-bridge";
 
     /** Replayable selection of bounded bridge-state domains to publish and sample. */

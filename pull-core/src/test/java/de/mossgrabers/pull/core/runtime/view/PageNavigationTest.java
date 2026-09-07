@@ -10,10 +10,14 @@ import java.util.Set;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.LegacyControllerPageRequest;
 import de.mossgrabers.pull.core.api.LegacyControllerPageRequests;
+import de.mossgrabers.pull.core.api.ControllerTemporaryPage;
+import de.mossgrabers.pull.core.api.DesiredControllerPageState;
+import de.mossgrabers.pull.core.api.ParameterSlot;
 import de.mossgrabers.pull.core.view.CompiledWorkspace;
 import de.mossgrabers.pull.core.view.ResolvedControllerAction;
 import org.junit.jupiter.api.Test;
 import java.util.List;
+import java.util.Optional;
 import static de.mossgrabers.pull.core.api.LegacyControllerPageRequest.Operation.*;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -162,6 +166,42 @@ class PageNavigationTest
     {
         this.apply (this.pages.resolveLegacyActions (inbox (request (1, 0, 0, TOGGLE_TEMPORARY, "SETUP"), request (2, 0, 0, TOGGLE_TEMPORARY, "SETUP"))));
         assertEquals ("TRACK", this.pages.legacyAlias ());
+    }
+
+    @Test
+    void hydrationPromotesLegacySelectedAndTemporaryInfoWithoutChangingTheirOwnership ()
+    {
+        final var setup = ControllerPageRef.legacy ("SETUP");
+        final var info = this.pages.resolve ("INFO");
+        this.pages.restoreState (new DesiredControllerPageState (17, ControllerPageRef.legacy ("INFO"), setup,
+            Optional.of (new ControllerTemporaryPage (29, ControllerPageRef.legacy ("INFO"))), 12, Set.of (ParameterSlot.TEMPO)));
+
+        assertEquals (new DesiredControllerPageState (17, info, setup, Optional.of (new ControllerTemporaryPage (29, info)), 12, Set.of (ParameterSlot.TEMPO)), this.pages.state ());
+        assertFalse (this.pages.releaseTemporary (28));
+        assertTrue (this.pages.releaseTemporary (29));
+        assertEquals (info, this.pages.visible ());
+        assertTrue (this.pages.temporary (this.pages.origin (), setup) > 29, "hydration must not reuse a saved temporary owner token");
+    }
+
+    @Test
+    void hydrationPromotesLegacyPreviousInfoSoSetupReturnsToItsCorePage ()
+    {
+        this.pages.restoreState (new DesiredControllerPageState (9, ControllerPageRef.legacy ("SETUP"), ControllerPageRef.legacy ("INFO"), Optional.empty (), 4));
+
+        assertEquals (this.pages.resolve ("INFO"), this.pages.state ().previous ());
+        this.apply (this.pages.resolveLegacyActions (inbox (request (5, 9, 0, RESTORE, ""))));
+        assertEquals (this.pages.resolve ("INFO"), this.pages.visible ());
+        assertEquals (5, this.pages.state ().acknowledgedRequestSequence ());
+    }
+
+    @Test
+    void hydrationPreservesOpaqueCorePagesEvenWhenTheyCarryAMigratedLegacyAlias ()
+    {
+        final var saved = new DesiredControllerPageState (13, ControllerPageRef.core ("future-selected", "INFO"), ControllerPageRef.core ("future-previous", "INFO"),
+            Optional.of (new ControllerTemporaryPage (21, ControllerPageRef.core ("future-temporary", "INFO"))), 7, Set.of (ParameterSlot.TEMPO));
+        this.pages.restoreState (saved);
+
+        assertEquals (saved, this.pages.state (), "an alias must not rewrite a core page's exact identity");
     }
 
     private void apply (final List<ResolvedControllerAction> actions)

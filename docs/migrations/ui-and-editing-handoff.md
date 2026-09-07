@@ -4,7 +4,8 @@ Migrate the remaining UI pages and musical editing behavior into reloadable core
 a clear, reusable UI component library. Each slice must make later UI improvements shared and easy
 to inspect. This is a completion checklist, not a claim that the remaining families have migrated
 or that they are independent of input and target capabilities. [Migration part 1, PR #40](https://github.com/elliotjberman/Pull/pull/40)
-merged as `8659c2d1`; its current source contract is Core API 46 / Bitwig API 25.
+merged as `8659c2d1` with Core API 46 / Bitwig API 25. The current Info candidate advances the
+parent-loaded contract to Core API 47 / bridge snapshot 15; Bitwig API remains 25.
 Installed-build provenance remains in the [validation record](core-page-ownership-live-smoke.md).
 
 ## Scope and starting points
@@ -16,7 +17,7 @@ page's core-owned entry/return does not mean its body has migrated.
 
 - **Browser:** inherited `DeviceBrowserMode`; filtering, results, selection, audition and
   commit/cancel behavior. Reuse `BrowserPageNavigation` for entry and exact return ownership.
-- **Settings and other pages:** Scales/Scale Layout, Repeat/Ribbon, Fixed Length, Setup/Info,
+- **Settings and other pages:** Scales/Scale Layout, Repeat/Ribbon, Fixed Length, Setup,
   User, Crossfade and Track/Layer Details. Include preferences, modifier variants, touches,
   row actions, display and lights. Configuration storage can remain mechanical in the shell.
 - **Color:** trace the caller and inherited grid workflow, including selected target, confirmation,
@@ -28,6 +29,10 @@ page's core-owned entry/return does not mean its body has migrated.
 Choose a complete small slice first, preferably a settings page whose required state/effects are
 already available. Keep a checklist in the PR; split subsequent slices when their capability or
 live-validation requirements differ. Do not claim the whole inventory as one mechanical port.
+
+Info is now migrated in source and represented in the central offline catalog. [ARCH](../../ARCH.md#core-owned-pages-and-working-contract)
+defines its complete footprint and hardware observation limits; [activation status](../../ARCH.md)
+records the required shell restart and pending live verification. Setup remains in the checklist.
 
 ## Shared interaction work: decision versus shipping behavior
 
@@ -97,7 +102,8 @@ A slice is structurally complete when its pages consume shared components, obsol
 rendering is removed, and changing a shared component changes all its real consumers. Preserve
 behavior through the extraction; make deliberate UI improvements explicit and review them in the
 catalog. The initial library slice uses the already-core-owned Settings, Frame, Macro, Accent and
-Master/mixer families. Remaining legacy families below still need complete capability audits.
+Master/mixer families; Info is the first subsequent legacy-page consumer. Remaining legacy families
+still need complete capability audits.
 
 ## Cutover and evidence
 

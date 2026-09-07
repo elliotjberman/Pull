@@ -194,7 +194,7 @@
 - A core-only change inside the installed API/canopy hot reloads. Changing a parent-loaded API
   contract, adding a Bitwig proxy/property/observer, changing a permanent binding or proxy capacity,
   or broadening hardware output ownership requires a shell build/install and Bitwig restart.
-- Core API 46 is the working composition contract; `ARCH.md` records live activation status. Each view contributes fixed claims,
+- Core API 47 is the working composition contract; `ARCH.md` records live activation status. Each view contributes fixed claims,
   facets, state subscriptions, semantic actions, musical routing, and owned output; workspaces may
   merge only disjoint contributions. `ARCH.md` is the canonical current inventory and
   `docs/views-api-design.md` is the detailed contract—do not duplicate or extend product policy in

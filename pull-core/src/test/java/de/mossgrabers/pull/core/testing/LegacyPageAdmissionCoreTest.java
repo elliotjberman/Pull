@@ -17,6 +17,34 @@ class LegacyPageAdmissionCoreTest
     private static final ParameterTargetRef TARGET = new ParameterTargetRef (ParameterTargetKind.LIVE, "legacy-page-tempo", 1);
 
     @Test
+    void infoTabReleasedDuringRestorationWaitsForLaterParameterReadback ()
+    {
+        final var provider = new PullCoreProvider ();
+        final var host = new FakeCoreHost (provider.create (), provider.descriptor ().requiredCapabilities ());
+        host.initialBridge (bridge (100, List.of ()));
+        host.start (Optional.empty ());
+        host.requestPage (SELECT, "INFO");
+        host.controllerButton (PushControlIds.button ("SHIFT"), true);
+        host.parameterMutation (PushControlIds.continuous ("TEMPO"), new ParameterTargetSnapshot (TARGET, 100, 0));
+        host.bridge (bridge (40, List.of ()));
+        host.controllerButton (PushControlIds.button ("ROW2_2"), true);
+        host.controllerButton (PushControlIds.button ("ROW2_2"), false);
+        assertEquals ("INFO", host.effects ().desiredControllerPage ().effectivePage ().legacyAlias ());
+        assertEquals (1, host.effects ().desiredParameterInteraction ().pendingActionCount ());
+        host.controllerTick ();
+        host.controllerTick ();
+        assertEquals ("INFO", host.effects ().desiredControllerPage ().effectivePage ().legacyAlias (), "submitted restoration is not host acknowledgement");
+        host.bridge (bridge (100, List.of ()));
+        host.controllerTick ();
+        host.controllerTick ();
+        assertEquals ("SETUP", host.effects ().desiredControllerPage ().effectivePage ().legacyAlias ());
+        assertEquals (0, host.effects ().desiredParameterInteraction ().pendingActionCount ());
+        final long token = host.effects ().desiredControllerPage ().temporaryToken ();
+        host.controllerButton (PushControlIds.button ("ROW2_2"), false);
+        assertEquals (token, host.effects ().desiredControllerPage ().temporaryToken (), "duplicate release cannot repeat the deferred tab action");
+    }
+
+    @Test
     void ordinaryShiftDoesNotRestoreParametersForItsRejectedScaleLayoutRequest ()
     {
         final var host = capturedShift ();
@@ -69,6 +97,6 @@ class LegacyPageAdmissionCoreTest
     private static ControllerBridgeSnapshot bridge (final double value, final List<LegacyControllerPageRequest> requests)
     {
         final var e = ControllerBridgeSnapshot.empty ();
-        return new ControllerBridgeSnapshot (e.transport (), e.selectedTrack (), e.sessionBank (), e.layout (), e.noteView (), e.noteRepeat (), e.drum (), new ParameterBridgeSnapshot (Map.of (ParameterSlot.TEMPO, new ParameterTargetSnapshot (TARGET, value, 0)), Map.of ()), e.controllerMappingFeedback (), e.master (), e.project (), e.automation (), e.encoderConfiguration (), e.currentTrackBank (), e.transportSettings (), e.controllerSettings (), e.applicationUi (), new LegacyControllerPageRequests (requests), e.browser ());
+        return new ControllerBridgeSnapshot (e.transport (), e.selectedTrack (), e.sessionBank (), e.layout (), e.noteView (), e.noteRepeat (), e.drum (), new ParameterBridgeSnapshot (Map.of (ParameterSlot.TEMPO, new ParameterTargetSnapshot (TARGET, value, 0)), Map.of ()), e.controllerMappingFeedback (), e.master (), e.project (), e.automation (), e.encoderConfiguration (), e.currentTrackBank (), e.transportSettings (), e.controllerSettings (), e.applicationUi (), new LegacyControllerPageRequests (requests), e.browser (), e.controllerHardware ());
     }
 }

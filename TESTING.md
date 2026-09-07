@@ -55,11 +55,25 @@ deprecation reporting before the live smoke test.
 
 Run `tools/ui-component-catalog` to generate a local HTML gallery from production components and
 page renderers. The command prints the output path under `pull-core/target/ui-component-catalog`;
-open that HTML to compare normal, selected, touched, unavailable and long-text fixtures with their
-row lights. This requires neither Bitwig nor the Push debugger. See the
+open that HTML to compare the 28 normal, selected, touched, unavailable and long-text fixtures with
+their row lights, including Info's known identity, transport limits and waiting state. This requires
+neither Bitwig nor the Push debugger. See the
 [component library](docs/ui-component-library.md) for component contracts and preview limitations.
 Use existing routed behavior tests for submitted effects, later observed state and feedback; a
 catalog fixture is visual evidence, not host/hardware or gesture validation.
+
+Info's hardware snapshot uses Core API 47 / bridge snapshot 15, requiring a shell install and
+restart before its first live smoke. Installed `11e33477` remains unchanged. Once live validation
+is authorized, use the existing leased debugger/display loop to verify later identity read-back,
+Info/Setup navigation, inherited lower-row action variants and both light rows. A retained identity
+tuple does not prove that Push is still connected; the shell cannot observe a disconnect from these
+fields alone. Keep that live limitation separate from the catalog's explicit unavailable fixture.
+
+Info source validation (2026-09-07): the complete offline package gate with deprecation reporting
+passed 855 tests. The 28 generated catalog SVGs parsed successfully; known, limit and unavailable
+Info scenes were visually checked. Routed tests include deferred tab release across later parameter
+read-back, stale page/bank cancellation, Stop chords and saved legacy-page promotion. Live verification
+remains pending.
 
 ## Live Push display loop
 

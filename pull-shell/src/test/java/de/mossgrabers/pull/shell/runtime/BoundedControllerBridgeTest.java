@@ -29,6 +29,7 @@ import de.mossgrabers.framework.daw.data.bank.ISlotBank;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
 import de.mossgrabers.framework.daw.midi.IMidiInput;
 import de.mossgrabers.framework.daw.midi.IMidiOutput;
+import de.mossgrabers.framework.daw.midi.MidiSysExCallback;
 import de.mossgrabers.framework.daw.midi.INoteInput;
 import de.mossgrabers.framework.daw.midi.INoteRepeat;
 import de.mossgrabers.framework.daw.midi.ArpeggiatorMode;
@@ -43,6 +44,7 @@ import de.mossgrabers.framework.scale.Scales;
 import de.mossgrabers.framework.view.Views;
 import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
+import de.mossgrabers.pull.core.api.ControllerHardwareSnapshot;
 import de.mossgrabers.pull.core.api.ControllerMappingContext;
 import de.mossgrabers.pull.core.api.ControllerMappingId;
 import de.mossgrabers.pull.core.api.CoreControllerMappings;
@@ -108,6 +110,62 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class BoundedControllerBridgeTest
 {
+    @Test
+    void hardwareIdentityWaitsForThePermanentInquiryResponseAndLaterSubscribedReadback ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        final var requested = subscriptions (BridgeSubscription.CONTROLLER_HARDWARE);
+        fixture.bridge.refresh (1, requested, DesiredParameterBanks.empty ());
+        assertEquals (ControllerHardwareSnapshot.empty (), fixture.bridge.snapshot ().controllerHardware ());
+
+        // A standard short identity reply does not contain the Push-specific identity fields.
+        fixture.hardwareInquiry.reply.handleMidi ("F07E7F060200211D0101000001020304F7");
+        fixture.bridge.refresh (2, requested, DesiredParameterBanks.empty ());
+        assertFalse (fixture.bridge.snapshot ().controllerHardware ().available ());
+
+        fixture.hardwareInquiry.reply.handleMidi ("F07E7F060200211D0101000001020301010000000802F7");
+        assertFalse (fixture.bridge.snapshot ().controllerHardware ().available (), "incoming identity is not a published snapshot until later capture");
+        fixture.bridge.refresh (3, requested, DesiredParameterBanks.empty ());
+        final var observed = new ControllerHardwareSnapshot (1, 1, 2, 131, 2, Integer.MIN_VALUE + 1);
+        assertEquals (observed, fixture.bridge.snapshot ().controllerHardware (), "the raw signed serial is valid identity data");
+
+        fixture.bridge.applyParameterLeases (Map.of (), DesiredParameterBanks.empty ());
+        assertEquals (observed, fixture.bridge.snapshot ().controllerHardware (), "parameter read-back preserves other published domains");
+        fixture.bridge.activateCoreGeneration (1);
+        fixture.bridge.activateCoreGeneration (2);
+        fixture.bridge.refresh (4, requested, DesiredParameterBanks.empty ());
+        assertEquals (observed, fixture.bridge.snapshot ().controllerHardware (), "core replacement does not change observed hardware revision");
+    }
+
+
+    @Test
+    void hardwareSubscriptionGatesSamplingAndObservesOnlyTheLatestCompleteTuple ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        final var requested = subscriptions (BridgeSubscription.CONTROLLER_HARDWARE);
+        fixture.hardwareInquiry.reply.handleMidi ("F07E7F060200211D01010000010203017F7F7F7F0F02F7");
+        fixture.bridge.refresh (1, requested, DesiredParameterBanks.empty ());
+        final var original = new ControllerHardwareSnapshot (1, 1, 2, 131, 2, -1);
+        assertEquals (original, fixture.bridge.snapshot ().controllerHardware (), "serial -1 remains valid when the identity fields are observed");
+
+        fixture.hardwareInquiry.allowSampling = false;
+        fixture.bridge.refresh (2, DesiredBridgeSubscriptions.empty (), DesiredParameterBanks.empty ());
+        assertEquals (ControllerHardwareSnapshot.empty (), fixture.bridge.snapshot ().controllerHardware ());
+        fixture.hardwareInquiry.allowSampling = true;
+        fixture.bridge.refresh (3, requested, DesiredParameterBanks.empty ());
+        assertEquals (original, fixture.bridge.snapshot ().controllerHardware (), "unchanged resubscription retains the observed revision");
+
+        fixture.hardwareInquiry.allowSampling = false;
+        fixture.hardwareInquiry.reply.handleMidi ("F07E7F060200211D0101000001030301010000000002F7");
+        fixture.bridge.refresh (4, DesiredBridgeSubscriptions.empty (), DesiredParameterBanks.empty ());
+        fixture.hardwareInquiry.reply.handleMidi ("F07E7F060200211D0101000001040301020000000003F7");
+        fixture.bridge.refresh (5, DesiredBridgeSubscriptions.empty (), DesiredParameterBanks.empty ());
+        fixture.hardwareInquiry.allowSampling = true;
+        fixture.bridge.refresh (6, requested, DesiredParameterBanks.empty ());
+        assertEquals (new ControllerHardwareSnapshot (2, 1, 4, 131, 3, 2), fixture.bridge.snapshot ().controllerHardware (), "generation counts observed tuples, not all physical replies");
+    }
+
+
     @Test
     void rawBrowserObservationStartsFromAnAlreadyOpenBrowserWithoutAnObserverReplay ()
     {
@@ -1193,6 +1251,7 @@ class BoundedControllerBridgeTest
 
     private static final class BridgeFixture
     {
+        private final HardwareInquiry hardwareInquiry = new HardwareInquiry ();
         private de.mossgrabers.framework.observer.IValueObserver<Boolean> browserObserver;
         private final MutableSelectedTarget selected = new MutableSelectedTarget ();
         private final MutableTransport transport = new MutableTransport ();
@@ -1283,7 +1342,7 @@ class BoundedControllerBridgeTest
                 }
                 default -> relaxedValue (method.getReturnType ());
             });
-            this.surface = createSurface (this.selected, cursorTrack, this.valueChanger, this.noteRepeat, manualRepeatActive);
+            this.surface = createSurface (this.selected, cursorTrack, this.valueChanger, this.noteRepeat, manualRepeatActive, this.hardwareInquiry);
             final SessionBankShape fullSession = new SessionBankShape (8, 8);
             this.surface.setSessionBankRegistry (new SessionBankRegistry (model, Set.of (fullSession, new SessionBankShape (8, 4)), fullSession));
             this.configuration = (ManualRepeatConfiguration) this.surface.getConfiguration ();
@@ -1742,7 +1801,7 @@ class BoundedControllerBridgeTest
 
 
     @SuppressWarnings("unchecked")
-    private static PushControlSurface createSurface (final ISelectedTrackNoteTarget selectedTarget, final ITrack drumModelTrack, final IValueChanger valueChanger, final MutableNoteRepeat noteRepeat, final boolean manualRepeatActive)
+    private static PushControlSurface createSurface (final ISelectedTrackNoteTarget selectedTarget, final ITrack drumModelTrack, final IValueChanger valueChanger, final MutableNoteRepeat noteRepeat, final boolean manualRepeatActive, final HardwareInquiry hardwareInquiry)
     {
         final IHwButton button = relaxedProxy (IHwButton.class);
         final IHwLight light = relaxedProxy (IHwLight.class);
@@ -1758,12 +1817,36 @@ class BoundedControllerBridgeTest
         });
         final IHost host = proxy (IHost.class, (proxy, method, arguments) -> "createSurfaceFactory".equals (method.getName ()) ? surfaceFactory : relaxedValue (method.getReturnType ()));
         final INoteInput noteInput = proxy (INoteInput.class, (proxy, method, arguments) -> "getNoteRepeat".equals (method.getName ()) ? noteRepeat.proxy () : relaxedValue (method.getReturnType ()));
-        final IMidiInput input = proxy (IMidiInput.class, (proxy, method, arguments) -> "getDefaultNoteInput".equals (method.getName ()) ? noteInput : relaxedValue (method.getReturnType ()));
+        final IMidiInput input = proxy (IMidiInput.class, (proxy, method, arguments) -> {
+            if ("setSysexCallback".equals (method.getName ()))
+                hardwareInquiry.reply = (MidiSysExCallback) arguments[0];
+            return "getDefaultNoteInput".equals (method.getName ()) ? noteInput : relaxedValue (method.getReturnType ());
+        });
         final IMidiOutput output = relaxedProxy (IMidiOutput.class);
         final PushConfiguration configuration = new ManualRepeatConfiguration (host, valueChanger, manualRepeatActive, noteRepeat);
-        final PushControlSurface surface = new PushControlSurface (host, new PushColorManager (), configuration, output, input, selectedTarget, drumModelTrack, () -> true, null);
+        final PushControlSurface surface = new PushControlSurface (host, new PushColorManager (), configuration, output, input, selectedTarget, drumModelTrack, () -> true, null)
+        {
+            @Override public int getMajorVersion () { return hardwareInquiry.sample (super.getMajorVersion ()); }
+            @Override public int getMinorVersion () { return hardwareInquiry.sample (super.getMinorVersion ()); }
+            @Override public int getBuildNumber () { return hardwareInquiry.sample (super.getBuildNumber ()); }
+            @Override public int getBoardRevision () { return hardwareInquiry.sample (super.getBoardRevision ()); }
+            @Override public int getSerialNumber () { return hardwareInquiry.sample (super.getSerialNumber ()); }
+        };
         surface.getModeManager ().installCoreAdapter (relaxedProxy (IMode.class));
         return surface;
+    }
+
+
+    private static final class HardwareInquiry
+    {
+        private MidiSysExCallback reply;
+        private boolean allowSampling = true;
+
+        private int sample (final int value)
+        {
+            assertTrue (this.allowSampling, "unrequested hardware identity must not be sampled");
+            return value;
+        }
     }
 
 

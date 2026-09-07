@@ -49,12 +49,20 @@ public final class PageNavigation
     public void restoreState (final DesiredControllerPageState restored)
     {
         final DesiredControllerPageState checked = Objects.requireNonNull (restored, "restored");
-        this.state = checked.selected ().isPresent () ? checked : new DesiredControllerPageState (checked.revision (), this.defaultPage, checked.previous (), Optional.empty (), checked.acknowledgedRequestSequence ());
+        // A saved compatibility page may have migrated since the checkpoint was written.
+        this.state = new DesiredControllerPageState (checked.revision (), checked.selected ().isPresent () ? this.promote (checked.selected ()) : this.defaultPage,
+            this.promote (checked.previous ()), checked.selected ().isPresent () ? checked.temporary ().map (temporary -> new ControllerTemporaryPage (temporary.token (), this.promote (temporary.page ()))) : Optional.empty (),
+            checked.acknowledgedRequestSequence (), checked.parameterIndications ());
         this.nextToken = Math.max (this.nextToken, Math.max (this.revision (), this.state.temporaryToken ()));
         this.offeredSequence = this.state.acknowledgedRequestSequence ();
         this.admissionEpoch++;
         this.lastBatch = null;
         this.legacyTemporaryOwners.clear ();
+    }
+
+    private ControllerPageRef promote (final ControllerPageRef page)
+    {
+        return page.kind () == ControllerPageRef.Kind.LEGACY ? this.resolve (page.legacyAlias ()) : page;
     }
 
     /** Request acknowledgements belong to the shell stream, independently of UI checkpoints. */

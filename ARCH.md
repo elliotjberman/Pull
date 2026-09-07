@@ -1,10 +1,11 @@
 # Pull View Architecture
 
-Status: working source uses Core API 46 and checkpoint schema 6. Core owns typed pages,
+Status: working source uses Core API 47 and checkpoint schema 6. Core owns typed pages,
 navigation/history, exact temporary ownership, composition and presentation; shell supplies bounded
 data/effects and one inert page projection. Latest installed/live-tested production is `11e33477`.
-Later cleanup is **not deployed or live tested**; the Push is disconnected. Exact build identities,
-scoped results and limits are in [the validation record](docs/migrations/core-page-ownership-live-smoke.md).
+Later cleanup and the Info migration are **not deployed or live tested**; the Push is disconnected.
+The Info hardware-read-back contract requires a shell install and restart before activation. Exact
+build identities, scoped results and limits are in [the validation record](docs/migrations/core-page-ownership-live-smoke.md).
 
 Read this file before changing controller views, modes, workspaces, input routing, or Session bank
 topology. The detailed design contract is in
@@ -114,7 +115,7 @@ pad geometry is not yet a core-authored view capability.
 
 ### Parameter banks, effects, and snapback
 
-Core API 46 exposes named, view-independent banks for the inherited active encoder window, project
+Since Core API 46, named, view-independent banks cover the inherited active encoder window, project
 remotes, the selected-device remote page, selected-track volume/pan and sends, visible-track volume,
 pan and eight send columns, project-scoped Master/Cue controls, and fixed globals. A bank
 declaration is latent configuration; stable samples and publishes only the declared banks while
@@ -346,7 +347,20 @@ Renderers assemble shared choice, toggle, ring and parameter-value components in
 records their real consumers and offline visual catalog. Its Macro text fitting improvements are
 core-only source changes, not part of the installed/live-tested build cited above.
 
-Working Core API 46 capabilities include bridge snapshot 14, controller output state 4 and
+Info is now a core page built from the same choice cells and bounded text primitives. It owns
+Info/Setup upper-row navigation, the inherited current-bank lower-row selection variants, its
+full display, and both light rows. Lower-row lights remain off. Unavailable hardware identity
+shows a waiting message while the configuration menu remains navigable; Setup retains its legacy body.
+
+`CONTROLLER_HARDWARE` requests one raw identity tuple from the attached Push surface: firmware
+major/minor/build, board revision and the existing signed 32-bit serial field. The bridge samples
+the existing surface values only when subscribed and otherwise publishes typed empty. Its positive
+generation counts complete tuples observed to change during subscribed sampling, survives core
+replacement and subscription gaps, and resets with extension reconstruction. It is not an actuator
+identity or a connection guarantee: disconnects without another identity response and changes
+between samples are unobservable. No project, selected-track or user-pinnable cursor scopes this data.
+
+Working Core API 47 capabilities include bridge snapshot 15, controller output state 4 and
 controller pages 1; parameter targets remain 4, input routing 7, current-track effects 2, transport
 effects 4 and controller-settings/application-UI effects 1. Schema 6 checkpoints retain exact page
 references, history, a latched temporary token and Track Mix/I-O/send state. The serialized inbox
@@ -451,6 +465,8 @@ Reloadable core:
   gestures, temporary pages, encoder/option policy, and authoritative feedback.
 - `FramePageView` and `MasterButtonView`: application panel options and the retained Master/Frame
   entry/restore gesture; page selection is local after semantic-action admission.
+- `InfoPageView`: subscribed hardware identity presentation, Info/Setup navigation, inherited
+  current-bank lower-row actions, and complete display/row-light ownership.
 - `ButtonGestureConsumption`: shared core modifier consumption so Record+track does not also run
   Record's release action.
 - `WorkspaceSelectionView`: shared Shift + Session entry and Session/Note exit policy.
@@ -482,7 +498,8 @@ Stable shell:
   authoritative state, and generation-fenced bank actions.
 - `PushCursorCommand`: inert action/light fallback for core-owned pages and VS navigation;
   unchanged legacy arrows remain available only under their declared frozen profiles.
-- `PushControlSurface`: permanent input bindings and generic output integration.
+- `PushControlSurface`: permanent input bindings and generic output integration. Its existing
+  hardware identity values feed the subscribed `BoundedControllerBridge` tuple described above.
 - `ControllerMappingHost`: eagerly creates 128 banks of four permanent semantic absolute controls plus
   the four inert legacy identities. It publishes raw target presence/value, document identity, and
   observed hidden document storage; core owns registry parsing and allocation. All 64 original
@@ -517,8 +534,8 @@ Remaining product-policy families and installed capacities are maintained in
 - Mute/Solo now target the selected track. The former clear/lock/row overlays and Master/layer/pad
   modifier retargeting were removed, not hidden in adapters. Toggle lanes serialize dependent
   writes across later read-back and cancel on target/project change.
-- Device/Browser/configuration/sequencer bodies, Crossfade/Details/Color and their providers remain
-  frozen migration debt; core page compatibility does not migrate their behavior.
+- Device, Browser, remaining configuration and sequencer bodies, Crossfade/Details/Color and their
+  providers remain frozen migration debt; core page compatibility does not migrate their behavior.
 - Native learned mappings remain bounded V1: 128 historical track banks per document, no tombstone
   reuse and acknowledged context latency. See [the lifecycle finding](docs/findings/track-scoped-midi-learn-lifecycle.md).
 - General continuous capture, facet/claim coupling, semantic parameter identity and explicitly
