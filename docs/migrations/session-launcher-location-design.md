@@ -1,6 +1,6 @@
 # Session launcher contract
 
-Core API 48 moves Session actions and feedback into the reloadable `SessionView`, using the shared
+Core API 49 moves Session actions and feedback into the reloadable `SessionView`, using the shared
 interaction lifecycle. Shell Session/Workspace views retain only neutral hardware and bank setup.
 The installed windows are 8×8 and 8×4, with at most 64 slot and eight scene launch presses.
 
@@ -31,4 +31,4 @@ promise completion, arbitrary offscreen retention or guaranteed restoration afte
 Timers and `flush()` do not provide that stronger acknowledgement.
 
 Offline routed behavior and host-boundary tests cover both shapes, modifier variants, delayed host
-read-back, target changes, cleanup ordering and blinking output. Exact API 48 live smoke is pending.
+read-back, target changes, cleanup ordering and blinking output. Exact API 49 live smoke is pending.

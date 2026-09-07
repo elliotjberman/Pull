@@ -1,6 +1,6 @@
 # Views, pages and composition
 
-This is the current Core API 48 / checkpoint schema 6 view contract. [ARCH](../ARCH.md) maps the
+This is the current Core API 49 / checkpoint schema 6 view contract. [ARCH](../ARCH.md) maps the
 implementation and records live activation status. The [roadmap](reloadable-core-migration-roadmap.md)
 identifies remaining stable families; page ownership does not imply their bodies have migrated.
 
@@ -180,3 +180,7 @@ Current feature ownership and capacities live in [ARCH](../ARCH.md), migration p
 [the roadmap](reloadable-core-migration-roadmap.md), and live coverage in the
 [current smoke record](migrations/interaction-lifecycle-live-smoke.md). Keep per-feature behavior in
 its core implementation and behavioral tests rather than duplicating it in this contract.
+
+Shared display components and the production visual catalog live in the [UI library](ui-component-library.md).
+Info uses the same page and interaction lifecycle; its subscribed hardware tuple is described in
+[ARCH](../ARCH.md#pages-and-input).

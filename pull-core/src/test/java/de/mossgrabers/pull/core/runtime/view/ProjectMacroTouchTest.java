@@ -24,6 +24,8 @@ import de.mossgrabers.pull.core.api.effect.SetAutomationWriteEffect;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
+import de.mossgrabers.pull.core.api.output.DisplayCommand;
+import de.mossgrabers.pull.core.api.output.DisplayTextFit;
 import de.mossgrabers.pull.core.view.CompiledWorkspace;
 import de.mossgrabers.pull.core.view.RoutedWorkspace;
 import org.junit.jupiter.api.Test;
@@ -74,6 +76,29 @@ class ProjectMacroTouchTest
 
 
     @Test
+    void longObservedMacroTextFitsItsOwnColumnAndLeavesTheUnitSeparate ()
+    {
+        final String label = "A long parameter name beside the next encoder";
+        final String number = "+123456789.123456";
+        final var snapshot = snapshot (TARGET, WRITING, false, false, label, number + " ms");
+        final var view = new ProjectMacroControlsView ();
+        view.start (snapshot);
+        final var commands = view.render (snapshot).display ().commands ();
+        final var fields = commands.stream ().filter (DisplayCommand.TextBox.class::isInstance).map (DisplayCommand.TextBox.class::cast).toList ();
+
+        assertEquals (List.of (label, number, "ms"), fields.stream ().map (DisplayCommand.TextBox::text).toList ());
+        for (final var field: fields)
+        {
+            assertTrue (field.x () >= 0 && field.x () + field.width () <= 120, "Observed text must remain inside its encoder column");
+            assertTrue (field.y () >= 0 && field.y () + field.height () <= 143, "Macro text must remain above the independent footer");
+            assertEquals (DisplayTextFit.SHRINK_ELLIPSIS, field.fit ());
+        }
+        final var unit = fields.stream ().filter (text -> "ms".equals (text.text ())).findFirst ().orElseThrow ();
+        assertTrue (fields.get (1).x () + fields.get (1).width () < unit.x (), "A long numeric value must not overlap its unit");
+    }
+
+
+    @Test
     void releaseUsesCurrentPreferenceAndAuthoritativeWritingState ()
     {
         for (final AutomationSnapshot automation: List.of (new AutomationSnapshot ("project-a", true, false), new AutomationSnapshot ("project-a", false, true), AutomationSnapshot.empty ()))
@@ -103,8 +128,18 @@ class ProjectMacroTouchTest
 
     private static ControllerSnapshot snapshot (final ParameterTargetRef target, final AutomationSnapshot automation, final boolean touched, final boolean delete, final Set<ParameterTargetRef> leases)
     {
+        return snapshot (target, automation, touched, delete, leases, "Cutoff", "64 units");
+    }
+
+    private static ControllerSnapshot snapshot (final ParameterTargetRef target, final AutomationSnapshot automation, final boolean touched, final boolean delete, final String label, final String displayedValue)
+    {
+        return snapshot (target, automation, touched, delete, Set.of (), label, displayedValue);
+    }
+
+    private static ControllerSnapshot snapshot (final ParameterTargetRef target, final AutomationSnapshot automation, final boolean touched, final boolean delete, final Set<ParameterTargetRef> leases, final String label, final String displayedValue)
+    {
         final ControllerBridgeSnapshot empty = ControllerBridgeSnapshot.empty ();
-        final ParameterBridgeSnapshot parameters = target == null ? ParameterBridgeSnapshot.empty () : new ParameterBridgeSnapshot (Map.of (ParameterSlot.projectRemote (0), new ParameterTargetSnapshot (target, "Cutoff", 64, 65, "64 units", 128, 0, Optional.empty (), new ParameterTargetIdentitySnapshot ("project-remote", "project-a", 0, 0))), Map.of (), leases);
+        final ParameterBridgeSnapshot parameters = target == null ? ParameterBridgeSnapshot.empty () : new ParameterBridgeSnapshot (Map.of (ParameterSlot.projectRemote (0), new ParameterTargetSnapshot (target, label, 64, 65, displayedValue, 128, 0, Optional.empty (), new ParameterTargetIdentitySnapshot ("project-remote", "project-a", 0, 0))), Map.of (), leases);
         final ControllerBridgeSnapshot bridge = new ControllerBridgeSnapshot (empty.transport (), empty.selectedTrack (), empty.sessionBank (), empty.layout (), empty.noteView (), empty.noteRepeat (), empty.drum (), parameters, empty.controllerMappingFeedback (), empty.master (), empty.project (), automation);
         return new ControllerSnapshot (1, 1, new ShellCapabilities (Map.of ()), bridge, new ClipCatalogSnapshot (0, List.of ()), Map.of (), Map.of (), Optional.empty (), delete ? Set.of (DELETE) : Set.of (), touched ? Set.of (KNOB) : Set.of ());
     }

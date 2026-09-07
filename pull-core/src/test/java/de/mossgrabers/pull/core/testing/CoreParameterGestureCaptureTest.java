@@ -121,7 +121,7 @@ class CoreParameterGestureCaptureTest
         {
             final var e = ControllerBridgeSnapshot.empty ();
             final var parameters = new ParameterBridgeSnapshot (Map.of (ParameterSlot.projectRemote (0), new ParameterTargetSnapshot (this.target, "Cutoff", 64, 64, "64", 128, 0, Optional.empty (), new ParameterTargetIdentitySnapshot ("project-remote", this.automation.projectIdentity (), 0, 0))), Map.of (), this.leases);
-            final var bridge = new ControllerBridgeSnapshot (e.transport (), e.selectedTrack (), e.sessionBank (), e.layout (), e.noteView (), e.noteRepeat (), e.drum (), parameters, e.controllerMappingFeedback (), e.master (), e.project (), this.automation, e.encoderConfiguration (), e.currentTrackBank (), e.transportSettings (), e.controllerSettings (), e.applicationUi (), this.requests, e.browser ());
+            final var bridge = new ControllerBridgeSnapshot (e.transport (), e.selectedTrack (), e.sessionBank (), e.layout (), e.noteView (), e.noteRepeat (), e.drum (), parameters, e.controllerMappingFeedback (), e.master (), e.project (), this.automation, e.encoderConfiguration (), e.currentTrackBank (), e.transportSettings (), e.controllerSettings (), e.applicationUi (), this.requests, e.browser (), e.controllerHardware ());
             return new ControllerSnapshot (this.sequence, this.sequence, new PullCoreProvider ().descriptor ().requiredCapabilities (), bridge, ClipCatalogSnapshot.empty (), Map.of (), Map.of (), Optional.empty (), Set.of (), this.touched ? Set.of (KNOB) : Set.of ());
         }
     }

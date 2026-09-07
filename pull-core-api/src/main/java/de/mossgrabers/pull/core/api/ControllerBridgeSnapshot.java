@@ -22,8 +22,9 @@ import java.util.Objects;
  * @param automation Unified Automation Write state
  * @param encoderConfiguration Raw installed encoder calibration and preferences
  * @param currentTrackBank Current main/effect bank, independent of Session topology
+ * @param controllerHardware Raw identity read-back for the attached controller surface
  */
-public record ControllerBridgeSnapshot (TransportSnapshot transport, SelectedTrackSnapshot selectedTrack, SessionBankSnapshot sessionBank, ControllerLayoutSnapshot layout, NoteViewSnapshot noteView, NoteRepeatSnapshot noteRepeat, DrumContextSnapshot drum, ParameterBridgeSnapshot parameters, ControllerMappingFeedbackSnapshot controllerMappingFeedback, MasterSnapshot master, ProjectSnapshot project, AutomationSnapshot automation, EncoderConfigurationSnapshot encoderConfiguration, CurrentTrackBankSnapshot currentTrackBank, TransportSettingsSnapshot transportSettings, ControllerSettingsSnapshot controllerSettings, ApplicationUiSnapshot applicationUi, LegacyControllerPageRequests controllerPages, BrowserSnapshot browser)
+public record ControllerBridgeSnapshot (TransportSnapshot transport, SelectedTrackSnapshot selectedTrack, SessionBankSnapshot sessionBank, ControllerLayoutSnapshot layout, NoteViewSnapshot noteView, NoteRepeatSnapshot noteRepeat, DrumContextSnapshot drum, ParameterBridgeSnapshot parameters, ControllerMappingFeedbackSnapshot controllerMappingFeedback, MasterSnapshot master, ProjectSnapshot project, AutomationSnapshot automation, EncoderConfigurationSnapshot encoderConfiguration, CurrentTrackBankSnapshot currentTrackBank, TransportSettingsSnapshot transportSettings, ControllerSettingsSnapshot controllerSettings, ApplicationUiSnapshot applicationUi, LegacyControllerPageRequests controllerPages, BrowserSnapshot browser, ControllerHardwareSnapshot controllerHardware)
 {
     private static final ControllerBridgeSnapshot EMPTY = new ControllerBridgeSnapshot (TransportSnapshot.empty (), SelectedTrackSnapshot.empty (), SessionBankSnapshot.empty (), ControllerLayoutSnapshot.empty (), NoteViewSnapshot.empty (), NoteRepeatSnapshot.empty (), DrumContextSnapshot.empty (), ParameterBridgeSnapshot.empty (), ControllerMappingFeedbackSnapshot.empty (), MasterSnapshot.empty (), ProjectSnapshot.empty ());
 
@@ -52,6 +53,14 @@ public record ControllerBridgeSnapshot (TransportSnapshot transport, SelectedTra
         applicationUi = Objects.requireNonNull (applicationUi, "applicationUi");
         controllerPages = Objects.requireNonNull (controllerPages, "controllerPages");
         browser = Objects.requireNonNull (browser, "browser");
+        controllerHardware = Objects.requireNonNull (controllerHardware, "controllerHardware");
+    }
+
+
+    /** Compatibility constructor without controller hardware identity. */
+    public ControllerBridgeSnapshot (final TransportSnapshot transport, final SelectedTrackSnapshot selectedTrack, final SessionBankSnapshot sessionBank, final ControllerLayoutSnapshot layout, final NoteViewSnapshot noteView, final NoteRepeatSnapshot noteRepeat, final DrumContextSnapshot drum, final ParameterBridgeSnapshot parameters, final ControllerMappingFeedbackSnapshot controllerMappingFeedback, final MasterSnapshot master, final ProjectSnapshot project, final AutomationSnapshot automation, final EncoderConfigurationSnapshot encoderConfiguration, final CurrentTrackBankSnapshot currentTrackBank, final TransportSettingsSnapshot transportSettings, final ControllerSettingsSnapshot controllerSettings, final ApplicationUiSnapshot applicationUi, final LegacyControllerPageRequests controllerPages, final BrowserSnapshot browser)
+    {
+        this (transport, selectedTrack, sessionBank, layout, noteView, noteRepeat, drum, parameters, controllerMappingFeedback, master, project, automation, encoderConfiguration, currentTrackBank, transportSettings, controllerSettings, applicationUi, controllerPages, browser, ControllerHardwareSnapshot.empty ());
     }
 
 

@@ -1,6 +1,6 @@
 # UI and editing migration handoff
 
-Start from Core API 48 / Bitwig API 25. Follow the [capability audit](../reloadable-core-migration-guide.md)
+Start from Core API 49 / Bitwig API 25. Follow the [capability audit](../reloadable-core-migration-guide.md)
 and [remaining checklist](../reloadable-core-migration-roadmap.md); core-owned page entry/return
 does not imply the page body has migrated. Choose one complete action-and-feedback slice per PR.
 
@@ -9,7 +9,7 @@ does not imply the page body has migrated. Choose one complete action-and-feedba
 | Family | Include | Prerequisite |
 | --- | --- | --- |
 | Browser | Filters, results, selection, audition, commit/cancel; reuse `BrowserPageNavigation`. | Bounded observations and operations; exact insertion/replacement destination. Raw activity alone is insufficient. |
-| Settings/pages | Scales/Layout, Repeat/Ribbon, Fixed Length, Setup/Info, User, Crossfade, Track/Layer Details; preferences, modifiers, touches, rows, display and lights. | Missing state/effects from the roadmap. Persistence may remain mechanical in shell. |
+| Settings/pages | Scales/Layout, Repeat/Ribbon, Fixed Length, Setup, User, Crossfade, Track/Layer Details; preferences, modifiers, touches, rows, display and lights. | Missing state/effects from the roadmap. Persistence may remain mechanical in shell. |
 | Color | Target, inherited grid workflow, confirm/cancel and exact return. | Target alignment and native-note suppression; exclusive command ownership does not silence `NoteInput`. |
 | Musical layouts/editing | Note/Clip and melodic/polyphonic/Drum sequencers; paging, selections, edits, playing feedback, pressure, scenes and clip length. | Bounded note/step/clip windows, identities, read-back and primitive edits reusable across layouts. |
 
@@ -17,8 +17,8 @@ Crossfade/MIDI-channel callback count and clamp order cannot be recovered from s
 Resolve the shared input contract or agree a behavior change before migrating those controls.
 New musical geometry must cover native notes, pressure, output and target routing together.
 
-Session launcher retirement, Device/chain/layer identity research and general async reload draining
-are separate work. Browser replacement or Layer Details may depend on Device identity; leave a
+Session is core-owned under its [bounded location contract](session-launcher-location-design.md).
+Device/chain/layer identity research and general async reload draining are separate work. Browser replacement or Layer Details may depend on Device identity; leave a
 dependent slice unready rather than inventing a name/slot-based identity.
 
 ## Reuse
@@ -27,9 +27,11 @@ dependent slice unready rather than inventing a name/slot-based identity.
   and cleanup; it does not create its own retained/offscreen touch sessions or timeout scheme.
 - Follow [views and composition](../views-api-design.md): `Page`, `PageNavigation`, fixed claims and
   `ControllerPageCompositions`. New core pages need no stable enum or page-specific adapter.
-- Use existing `core.ui.page` presentation/renderer/style families: Settings for choice pages,
-  `MixerDisplayScene`/`MixerControlStyle` for parameters, `ToggleRenderer` and `TrackFooterRenderer`.
-  Add components for actual repeated needs; Browser lists and sequencers need suitable models.
+- Use the [shared UI library and catalog](../ui-component-library.md): `core.ui.PageStyle`,
+  `core.ui.component` choices/toggles/rings/parameter values, and pure `core.ui.page` families.
+  Info is migrated through these components; Setup remains in the checklist. Extend the production
+  visual catalog with normal and awkward states when adding a repeated pattern. Browser lists and
+  sequencers need suitable models, not a universal configurable UI schema.
 
 ## Acceptance
 

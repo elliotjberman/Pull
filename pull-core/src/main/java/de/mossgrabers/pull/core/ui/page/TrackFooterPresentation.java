@@ -2,6 +2,8 @@
 // Licensed under LGPLv3 - http://www.gnu.org/licenses/lgpl-3.0.txt
 package de.mossgrabers.pull.core.ui.page;
 
+import de.mossgrabers.pull.core.ui.PageStyle;
+
 import de.mossgrabers.pull.core.api.output.DisplayIcon;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import java.util.List;

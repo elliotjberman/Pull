@@ -1,6 +1,6 @@
 # Remaining core migration
 
-[ARCH](../ARCH.md) is the current ownership/capacity inventory. Core API 48 includes Session and shared
+[ARCH](../ARCH.md) is the current ownership/capacity inventory. Core API 49 includes Session and shared
 interaction cancellation; page entry/return and input lifecycle ownership do not migrate remaining
 handler bodies. Use the [capability audit](reloadable-core-migration-guide.md) for each complete slice.
 
@@ -9,7 +9,7 @@ handler bodies. Use the [capability audit](reloadable-core-migration-guide.md) f
 - [ ] Device, chain and layer controls with verified target identities.
 - [ ] Browser filtering/results/audition/operations; navigation lifecycle is already core-owned.
 - [ ] Crossfade, Track/Layer Details and Color.
-- [ ] Scales/Layout, Repeat/Ribbon, Fixed Length, Setup/Info, User and remaining musical layouts.
+- [ ] Scales/Layout, Repeat/Ribbon, Fixed Length, Setup, User and remaining musical layouts.
 - [ ] Clip/note/sequencer editing and scene/clip-length workflows.
 - [ ] Delete each family's stable policy, providers, facet claims and aliases/inbox callers as its
       complete action/feedback behavior moves. Keep generic resources and transport.

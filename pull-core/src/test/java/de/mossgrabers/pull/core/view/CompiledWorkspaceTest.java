@@ -298,7 +298,7 @@ class CompiledWorkspaceTest
         assertTrue (result.desiredBridgeSubscriptions ().includes (BridgeSubscription.PARAMETERS));
         assertTrue (result.desiredOutput ().display ().isPresent ());
         assertFalse (result.desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "Project".equals (text.text ())));
-        assertTrue (result.desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextAt text && "Macro 1".equals (text.text ()) && new RgbColor (95, 118, 124).equals (text.color ())));
+        assertTrue (result.desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "Macro 1".equals (text.text ()) && new RgbColor (95, 118, 124).equals (text.color ())));
         assertTrue (result.desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.RoundedRectangle rectangle && new RgbColor (66, 107, 128).equals (rectangle.color ())));
         assertFalse (result.desiredOutput ().display ().commands ().stream ().anyMatch (DisplayCommand.DottedArc.class::isInstance));
 
@@ -307,9 +307,9 @@ class CompiledWorkspaceTest
             new ControllerInputEvent (2, 2, firstKnob, InputKind.RELATIVE, InputPhase.UPDATE, 3),
             parameterSnapshot (Set.of (firstKnob)));
         assertEquals (List.of (new AdjustParameterValueEffect (PROJECT_TARGET, 30)), adjusted.effects ());
-        assertFalse (adjusted.desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextAt text && "Macro 1".equals (text.text ()) && new RgbColor (190, 235, 247).equals (text.color ())));
+        assertFalse (adjusted.desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "Macro 1".equals (text.text ()) && new RgbColor (190, 235, 247).equals (text.color ())));
         final CoreResult acknowledged = workspace.activate (parameterSnapshot (Set.of (firstKnob), Set.of (PROJECT_TARGET)));
-        assertTrue (acknowledged.desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextAt text && "Macro 1".equals (text.text ()) && new RgbColor (190, 235, 247).equals (text.color ())));
+        assertTrue (acknowledged.desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "Macro 1".equals (text.text ()) && new RgbColor (190, 235, 247).equals (text.color ())));
 
         workspace.handle (new ControllerInputEvent (3, 3, firstKnob, InputKind.TOUCH, InputPhase.END, 0), parameterSnapshot ());
         final CoreResult decreased = workspace.handle (

@@ -378,7 +378,7 @@ class ControllerRuntimeEnvironmentTest
         final var e = de.mossgrabers.pull.core.api.ControllerBridgeSnapshot.empty ();
         final var layout = new de.mossgrabers.pull.core.api.ControllerLayoutSnapshot (1, "", "FRAME", false, false, 0, de.mossgrabers.pull.core.api.GridPressureConfiguration.OFF);
         final var ui = new de.mossgrabers.pull.core.api.ApplicationUiSnapshot (1, "project", "ARRANGE", de.mossgrabers.pull.core.api.ArrangerUiSnapshot.empty (), de.mossgrabers.pull.core.api.MixerUiSnapshot.empty ());
-        final var bridge = new de.mossgrabers.pull.core.api.ControllerBridgeSnapshot (e.transport (), e.selectedTrack (), e.sessionBank (), layout, e.noteView (), e.noteRepeat (), e.drum (), e.parameters (), e.controllerMappingFeedback (), e.master (), e.project (), e.automation (), e.encoderConfiguration (), e.currentTrackBank (), e.transportSettings (), e.controllerSettings (), ui, requests, e.browser ());
+        final var bridge = new de.mossgrabers.pull.core.api.ControllerBridgeSnapshot (e.transport (), e.selectedTrack (), e.sessionBank (), layout, e.noteView (), e.noteRepeat (), e.drum (), e.parameters (), e.controllerMappingFeedback (), e.master (), e.project (), e.automation (), e.encoderConfiguration (), e.currentTrackBank (), e.transportSettings (), e.controllerSettings (), ui, requests, e.browser (), e.controllerHardware ());
         return new ControllerSnapshot (sequence, sequence, capabilities, bridge, ClipCatalogSnapshot.empty (), Map.of (), Map.of (), Optional.empty (), pressed, Set.of ());
     }
 

@@ -38,7 +38,6 @@ import de.mossgrabers.controller.ableton.push.mode.QuantizeMode;
 import de.mossgrabers.controller.ableton.push.mode.RibbonMode;
 import de.mossgrabers.controller.ableton.push.mode.ScaleLayoutMode;
 import de.mossgrabers.controller.ableton.push.mode.ScalesMode;
-import de.mossgrabers.controller.ableton.push.mode.configuration.InfoMode;
 import de.mossgrabers.controller.ableton.push.mode.configuration.SetupMode;
 import de.mossgrabers.controller.ableton.push.mode.device.DeviceBrowserMode;
 import de.mossgrabers.controller.ableton.push.mode.device.DeviceChainsMode;
@@ -314,7 +313,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         modeManager.register (Modes.USER, new UserMode (surface, this.model));
         modeManager.register (Modes.WORKSPACE, corePageAdapter);
 
-        modeManager.register (Modes.INFO, new InfoMode (surface, this.model));
+        modeManager.register (Modes.INFO, corePageAdapter);
         modeManager.register (Modes.SETUP, new SetupMode (surface, this.model));
 
         modeManager.register (Modes.REPEAT_NOTE, new NoteRepeatMode (surface, this.model));

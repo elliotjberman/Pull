@@ -1,9 +1,9 @@
 # Pull architecture
 
-Working source: Core API 48, checkpoint schema 6, Bitwig API 25. Migration is incomplete:
+Working source: Core API 49, checkpoint schema 6, Bitwig API 25. Migration is incomplete:
 core owns pages and migrated controls; the inventory below names the remaining shell handlers.
 
-The Session migration is implemented in API 48; exact-build live validation is pending.
+The Session migration is implemented in API 49; exact-build live validation is pending.
 Earlier API 47 evidence remains in the [smoke record](docs/migrations/interaction-lifecycle-live-smoke.md).
 
 ## Assembly
@@ -29,7 +29,7 @@ The shell creates finite proxy topology at startup. Core's complete subscription
 selection gate sampling; unsubscribed domains publish typed empty values. Each `CoreResult`
 replaces desired routes, resources and output. Effects request changes; feedback and dependent
 operations use later read-back. Mutable targets are checked at preparation and application. A shared host guard releases Session
-holds at actual track/scene/window mutation methods, covering core and frozen callers alike.
+holds and revokes captured locations at actual track/scene/window mutation methods, covering core and frozen callers alike.
 
 ## Pages and input
 
@@ -40,12 +40,19 @@ holds at actual track/scene/window mutation methods, covering core and frozen ca
 | `ControllerPages` / `ControllerPageCompositions` | Finite Java declarations composed over actual Session/Drum/Note/VS view instances. |
 | `ControllerView` / `CompiledWorkspace` | Fixed `SurfaceArea` claims, subscriptions, targets, effects and output; reject ownership conflicts. |
 | `InputGestureRouter` / `InteractionLifecycle` | Capture migrated interactions, cancel changed bindings and suppress physical tails until a fresh gesture. |
-| `core.ui.page` | Immutable presentations, pure family renderers and shared styles; no navigation, target lookup or host effects. |
+| `core.ui` | Shared components/styles and pure page renderers over immutable presentations; no navigation, target lookup or host effects. |
 
 Master replaces the parameter page while retaining its active grid and musical views. New core
 pages project through one inert `CorePageMode`; they need no shell enum. Remaining legacy bodies
 request navigation through a bounded 64-entry inbox. Its aliases and `STABLE_ADAPTER_*` facets
 are migration debt, not extension points.
+
+The [UI component library](docs/ui-component-library.md) supplies shared choice, toggle, ring and
+parameter visuals plus an offline catalog. Info owns hardware identity presentation, Info/Setup tabs,
+current-bank row selection and row/display output; Setup remains legacy. `CONTROLLER_HARDWARE`
+samples the existing firmware/board/signed-serial tuple only when requested. Its generation counts
+observed tuple changes, survives core replacement/subscription gaps and resets with the extension.
+It is neither a connection guarantee nor an actuator identity; unsampled changes are unobservable.
 
 See [views](docs/views-api-design.md) for authoring and [interaction lifecycle](docs/interaction-lifecycle.md)
 for target/cleanup contracts. Native `NoteInput`, command arbitration and learned hardware actions
@@ -56,7 +63,7 @@ are separate paths. The shared lifecycle does not make unmigrated shell handlers
 | Surface | Implementation |
 | --- | --- |
 | Project Macros, Track, Volume/Pan, eight Sends, Master/Cue | Core controls, touches/reset, menus, display and lights. Normal Track has a current-bank footer; VS has a Session track strip. |
-| Transport/global pages | Core Play/Record, Mute/Solo, Tap, Undo/Redo, Track/Mix, Master/Frame, Accent, Metronome/Automation and migrated arrows, including feedback. |
+| Transport/global pages | Core Play/Record, Mute/Solo, Tap, Undo/Redo, Track/Mix, Master/Frame, Accent/Info, Metronome/Automation and migrated arrows, including feedback. |
 | Drum / selected Note | Core applicability, Note/Layout, playable-pad pressure/lights, rates/roll, fills, octave/native maps and raw strip policy within installed geometry. |
 | Session | Core grid, scene keys, bank/page/octave navigation, Stop chords, modifiers, create/record/copy/browse and observed blinking lights. Legacy parameter pages retain only horizontal parameter navigation. |
 | Device/Chains/layers, Browser body, Crossfade, Details/Color, settings and editing | Stable handlers/providers. Core page entry/return does not migrate their controls or rendering. |

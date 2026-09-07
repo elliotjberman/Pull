@@ -8,7 +8,7 @@ import de.mossgrabers.pull.core.api.output.*;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import static de.mossgrabers.pull.core.ui.page.PageStyle.*;
+import static de.mossgrabers.pull.core.ui.PageStyle.*;
 import static de.mossgrabers.pull.core.ui.page.MixerPageStyle.PARAMETER_HEIGHT;
 import static de.mossgrabers.pull.core.ui.page.MixerPageStyle.DIM_WHITE;
 

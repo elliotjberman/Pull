@@ -7,7 +7,7 @@ remove_when: remaining Device families have proved exact target identities and c
 
 # Remaining parameter target identity work
 
-The shared [interaction lifecycle](../interaction-lifecycle.md) is integrated in working Core API 48.
+The shared [interaction lifecycle](../interaction-lifecycle.md) is integrated in working Core API 49.
 It cancels when the active target/binding disappears, suppresses the physical tail, and observes
 exact resource retirement. This finding now concerns the remaining host adapters, particularly the
 Device family. It is not a proposal to retain offscreen editing or add pinned pools by default.

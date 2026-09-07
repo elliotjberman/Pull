@@ -12,7 +12,7 @@ start Bitwig. For shared development, hold `tools/with-pull-live --owner LABEL` 
 activation and the complete live test. Checkpoint source before a restart.
 
 [TESTING](TESTING.md) defines offline checks and the opt-in full Push debugger. Current source uses
-Core API 48 and Bitwig controller API 25; [ARCH](ARCH.md) records activation status and links exact
+Core API 49 and Bitwig controller API 25; [ARCH](ARCH.md) records activation status and links exact
 live evidence. Passing a build does not establish controller behavior.
 
 ## Core development

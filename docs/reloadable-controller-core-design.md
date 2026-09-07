@@ -1,6 +1,6 @@
 # Reloadable Controller Core
 
-This is the current runtime and packaging contract for Core API 48, checkpoint schema 6 and
+This is the current runtime and packaging contract for Core API 49, checkpoint schema 6 and
 Bitwig controller API 25. These are three separate versions. [ARCH](../ARCH.md) explains how
 controller behavior is assembled; [the views contract](views-api-design.md) explains authoring;
 [the lifecycle contract](interaction-lifecycle.md) explains target-bound input. Installed-build

@@ -5,14 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Pull · Push 2 Debug Surface</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="push-surface.css?v=aligned-right-panel">
+    <link rel="stylesheet" href="push-surface.css?v=push2-legends">
 </head>
 <body>
     <header class="toolbar">
         <div class="identity">
             <span class="mark" aria-hidden="true"></span>
             <div>
-                <h1>Pull</h1>
+                <h1>Pull <span class="identity-label">/ Push 2</span></h1>
             </div>
         </div>
         <div class="status" aria-live="polite">
@@ -27,42 +27,53 @@
 
     <main>
         <section class="surface-frame" aria-label="Virtual Ableton Push 2 controller">
-            <svg id="push-surface" viewBox="0 0 200 157" role="img" aria-labelledby="surface-title surface-description">
+            <svg id="push-surface" viewBox="0 0 200 161.2" role="img" aria-labelledby="surface-title surface-description">
                 <title id="surface-title">Interactive Push 2 debug surface</title>
                 <desc id="surface-description">A mapped Push 2 controller with 64 pads, display, buttons, encoders, and touch strip.</desc>
                 <defs>
+                    <linearGradient id="panel-gradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0" stop-color="#363637"/>
+                        <stop offset="0.5" stop-color="#303031"/>
+                        <stop offset="1" stop-color="#2a2a2b"/>
+                    </linearGradient>
+                    <filter id="pad-diffuser" x="-20%" y="-25%" width="140%" height="150%">
+                        <feGaussianBlur stdDeviation="0.75"/>
+                    </filter>
                     <linearGradient id="display-gradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0" stop-color="#131b1d"/>
-                        <stop offset="1" stop-color="#071012"/>
+                        <stop offset="0" stop-color="#101011"/>
+                        <stop offset="1" stop-color="#080809"/>
                     </linearGradient>
                     <filter id="panel-shadow" x="-10%" y="-10%" width="120%" height="130%">
-                        <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#000" flood-opacity="0.55"/>
+                        <feDropShadow dx="0" dy="1.4" stdDeviation="1.8" flood-color="#000" flood-opacity="0.4"/>
                     </filter>
                     <filter id="light-glow" x="-80%" y="-80%" width="260%" height="260%">
-                        <feGaussianBlur stdDeviation="1.2" result="blur"/>
+                        <feGaussianBlur stdDeviation="0.35" result="blur"/>
                         <feMerge>
                             <feMergeNode in="blur"/>
                             <feMergeNode in="SourceGraphic"/>
                         </feMerge>
                     </filter>
                     <clipPath id="display-clip">
-                        <rect x="33.25" y="28" width="121.25" height="21"/>
+                        <rect x="36.5" y="27.25" width="120.25" height="20.041667"/>
                     </clipPath>
                 </defs>
 
-                <rect class="panel" x="1" y="1" width="198" height="155" filter="url(#panel-shadow)"/>
+                <rect class="panel" x="1" y="1" width="198" height="159.2" rx="1" filter="url(#panel-shadow)"/>
+                <rect class="panel-edge" x="1.5" y="1.5" width="197" height="158.2" rx="0.65"/>
+                <path aria-hidden="true" fill="none" stroke="#bcbcb6" stroke-width="0.65"
+                    d="M163 5.5v4.7M164.3 5.5v4.7M165.6 5.5v4.7M166.9 5.5v4.7M168.2 5.825h4.7M168.2 7.175h4.7M168.2 8.525h4.7M168.2 9.875h4.7"/>
                 <g id="surface-controls"></g>
 
                 <g id="display" aria-label="Push display">
-                    <rect class="display-bezel" x="33.25" y="26.9" width="121.25" height="23.2"/>
-                    <rect class="display-screen" x="33.25" y="28" width="121.25" height="21"/>
+                    <rect class="display-bezel" x="35.25" y="26" width="122.75" height="22.55"/>
+                    <rect class="display-screen" x="36.5" y="27.25" width="120.25" height="20.041667"/>
                     <g id="display-placeholder" clip-path="url(#display-clip)">
-                        <path class="display-grid" d="M33.25 35h121.25M33.25 42h121.25M48.40625 28v21M63.5625 28v21M78.71875 28v21M93.875 28v21M109.03125 28v21M124.1875 28v21M139.34375 28v21"/>
-                        <text class="display-kicker" x="35.5" y="32.3">PULL</text>
-                        <text class="display-title" x="93.875" y="39.2" text-anchor="middle">DISPLAY · 960 × 160</text>
-                        <text class="display-subtitle" x="93.875" y="44.1" text-anchor="middle">waiting for controller output</text>
+                        <path class="display-grid" d="M36.5 33.93h120.25M36.5 40.61h120.25M51.53125 27.25v20.041667M66.5625 27.25v20.041667M81.59375 27.25v20.041667M96.625 27.25v20.041667M111.65625 27.25v20.041667M126.6875 27.25v20.041667M141.71875 27.25v20.041667"/>
+                        <text class="display-kicker" x="38.75" y="31.55">PULL</text>
+                        <text class="display-title" x="96.625" y="38.45" text-anchor="middle">DISPLAY · 960 × 160</text>
+                        <text class="display-subtitle" x="96.625" y="43.35" text-anchor="middle">waiting for controller output</text>
                     </g>
-                    <image id="display-image" x="33.25" y="28" width="121.25" height="21" preserveAspectRatio="none" clip-path="url(#display-clip)"/>
+                    <image id="display-image" x="36.5" y="27.25" width="120.25" height="20.041667" preserveAspectRatio="xMidYMid meet" clip-path="url(#display-clip)"/>
                 </g>
 
             </svg>
@@ -77,6 +88,6 @@
         </aside>
     </main>
 
-    <script src="push-surface.js?v=event-stream-aligned-right-panel"></script>
+    <script src="push-surface.js?v=push2-legends"></script>
 </body>
 </html>

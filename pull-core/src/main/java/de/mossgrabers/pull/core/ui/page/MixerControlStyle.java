@@ -4,6 +4,9 @@ package de.mossgrabers.pull.core.ui.page;
 
 import de.mossgrabers.pull.core.api.output.MixerControlDisplay;
 import de.mossgrabers.pull.core.api.output.RgbColor;
+import de.mossgrabers.pull.core.api.output.DisplayTextFit;
+import de.mossgrabers.pull.core.ui.component.ParameterValue;
+import de.mossgrabers.pull.core.ui.component.RingMeter;
 
 /** Shared mixer typography, widget geometry and meter thresholds. */
 public final class MixerControlStyle
@@ -15,30 +18,15 @@ public final class MixerControlStyle
     public static final double  LABEL_FONT_SIZE        = 15.0;
     public static final double  LABEL_MIN_FONT_SIZE    = 9.0;
     public static final double  VALUE_TOP              = 36.0;
-    public static final double  VALUE_HEIGHT           = 24.0;
-    public static final double  VALUE_BASELINE         = 55.0;
-    public static final double  VALUE_FONT_SIZE        = 19.0;
-    public static final double  VALUE_MIN_FONT_SIZE    = 11.0;
-    public static final double  UNIT_FONT_SIZE         = 8.5;
-    public static final double  VALUE_FIELD_WIDTH      = 58.0;
-    public static final double  VALUE_UNIT_GAP         = 3.0;
     public static final double  PAN_VALUE_TOP           = 38.0;
-    public static final double  PAN_VALUE_HEIGHT        = 30.0;
-    public static final double  PAN_VALUE_BASELINE      = 64.0;
-    public static final double  PAN_VALUE_FONT_SIZE     = 30.0;
-    public static final double  PAN_VALUE_MIN_FONT_SIZE = 12.0;
-    public static final double  PAN_UNIT_FONT_SIZE      = 14.0;
-    public static final double  PAN_VALUE_FIELD_WIDTH   = 64.0;
+    public static final ParameterValue.Style VALUE = new ParameterValue.Style (COLUMN_WIDTH - 2 * CONTENT_LEFT, 24, 19, 11, 58, 3, 8.5, 55 - VALUE_TOP, DisplayTextFit.SHRINK);
+    public static final ParameterValue.Style LARGE_VALUE = new ParameterValue.Style (COLUMN_WIDTH - 2 * CONTENT_LEFT, 30, 30, 12, 64, 3, 14, 64 - PAN_VALUE_TOP, DisplayTextFit.SHRINK);
     public static final double  CONTROL_CENTER_Y       = 106.0;
     public static final double  PAN_SLIDER_WIDTH       = 82.0;
     public static final double  PAN_RAIL_HEIGHT        = 4.0;
     public static final double  PAN_MARKER_WIDTH       = 3.0;
     public static final double  PAN_MARKER_HEIGHT      = 16.0;
-    public static final double  KNOB_RING_RADIUS       = 25.0;
-    public static final double  KNOB_DOT_RADIUS        = 1.1;
-    public static final double  KNOB_START             = 220.0;
-    public static final double  KNOB_SWEEP             = -260.0;
-    public static final int     KNOB_STEPS             = 200;
+    public static final RingMeter.Style KNOB_RING = new RingMeter.Style (25, 220, -260, 200, 1.1);
     public static final double  FADER_TOP              = 60.0;
     public static final double  FADER_HEIGHT           = 80.0;
     public static final double  METER_WIDTH            = 24.0;

@@ -50,7 +50,7 @@ public final class CoreCapabilities
     /** Replayable input ownership; v8 freezes declared edge/motion companions through physical release. */
     public static final String ROUTING_CONTROLLER_INPUT = "routing.controller-input";
 
-    /** Common bounded controller state; v15 adds observed Session preferences. */
+    /** Common bounded controller state; v16 combines Session preferences and raw attached-controller hardware identity. */
     public static final String SNAPSHOT_CONTROLLER_BRIDGE = "snapshot.controller-bridge";
 
     /** Replayable selection of bounded bridge-state domains to publish and sample. */

@@ -15,12 +15,7 @@ import java.util.stream.IntStream;
 public final class AccentPageView implements ControllerView
 {
     private static final long TIMEOUT_NANOS = 5_000_000_000L;
-    private static final ControlId STOP = PushControlIds.button ("STOP_CLIP");
     private static final List<ControlId> KNOBS = IntStream.rangeClosed (1, 8).mapToObj (i -> PushControlIds.continuous ("KNOB" + i)).toList ();
-    private static final List<ControlId> ROW = IntStream.rangeClosed (1, 8).mapToObj (i -> PushControlIds.button ("ROW1_" + i)).toList ();
-    private static final Set<ControllerActionBinding> ACTIONS = ROW.stream ().map (button -> new ControllerActionBinding (button, InputKind.BUTTON, Set.of (
-        new ControllerActionIntent (ControllerActionId.NAVIGATE_SELECTED_TARGET, Set.of (ControllerStateScope.ACTIVE_PARAMETERS)),
-        new ControllerActionIntent (ControllerActionId.STOP_VISIBLE_SESSION_TRACK, Set.of (ControllerStateScope.SESSION_PLAYBACK))))).collect (java.util.stream.Collectors.toUnmodifiableSet ());
     private static final ViewProfile PROFILE = ViewProfile.fixed ("full-page", Set.of (
         new SurfaceClaim (SurfaceArea.ENCODERS, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
         new SurfaceClaim (SurfaceArea.SOFT_KEYS_UPPER, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
@@ -29,36 +24,33 @@ public final class AccentPageView implements ControllerView
         new SurfaceClaim (SurfaceArea.SOFT_KEYS_LOWER, SurfaceClaim.Kind.OUTPUT),
         new SurfaceClaim (SurfaceArea.DISPLAY_PARAMETERS, SurfaceClaim.Kind.OUTPUT),
         new SurfaceClaim (SurfaceArea.DISPLAY_BOTTOM_STRIP, SurfaceClaim.Kind.OUTPUT)), Set.of ());
-    private final SessionStopGesture stopGesture;
-    private final Gesture[] rows = new Gesture[8];
+    private final CurrentTrackRowSelection rows;
     private final Set<ControlId> touched = new HashSet<> ();
-    private ControllerSnapshot latest;
     private Integer requested;
     private int desired;
     private int observedBeforeRequest;
     private long submittedAt;
     private long submittedRevision;
 
-    public AccentPageView (final SessionStopGesture stopGesture)
+    public AccentPageView (final SessionStopGesture stopGesture, final PageNavigation pages)
     {
-        this.stopGesture = Objects.requireNonNull (stopGesture, "stopGesture");
+        this.rows = new CurrentTrackRowSelection (stopGesture, pages);
     }
 
     @Override public String id () { return "accent-page"; }
     @Override public ViewProfile profile () { return PROFILE; }
-    @Override public Set<ControllerActionBinding> actionBindings () { return ACTIONS; }
+    @Override public Set<ControllerActionBinding> actionBindings () { return CurrentTrackRowSelection.actionBindings (); }
     @Override public Set<BridgeSubscription> bridgeSubscriptions () { return Set.of (BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.CONTROLLER_SETTINGS, BridgeSubscription.ENCODER_CONFIGURATION, BridgeSubscription.CURRENT_TRACK_BANK); }
     @Override public CoreExecutionRequirements executionRequirements () { return new CoreExecutionRequirements (this.requested != null); }
-    @Override public void start (final ControllerSnapshot snapshot) { this.deactivate (); this.latest = snapshot; }
-    @Override public void reconcile (final ControllerSnapshot snapshot) { this.latest = snapshot; }
-    @Override public void deactivate () { Arrays.fill (this.rows, null); this.touched.clear (); this.requested = null; }
+    @Override public void start (final ControllerSnapshot snapshot) { this.deactivate (); this.reconcile (snapshot); }
+    @Override public void reconcile (final ControllerSnapshot snapshot) { this.rows.reconcile (snapshot); }
+    @Override public void deactivate () { this.rows.deactivate (); this.touched.clear (); this.requested = null; }
 
     @Override
     public InputTarget inputTarget (final ControlId control, final InputKind kind, final ControllerSnapshot snapshot)
     {
-        final int index = ROW.indexOf (control);
-        if (kind == InputKind.BUTTON && index >= 0)
-            return TrackInputTargets.row (control, index, snapshot);
+        if (kind == InputKind.BUTTON && CurrentTrackRowSelection.accepts (control))
+            return this.rows.inputTarget (control, snapshot);
         if (KNOBS.contains (control) && (!snapshot.bridge ().controllerSettings ().available () || !snapshot.bridge ().encoderConfiguration ().available ()))
             return null;
         return ControllerView.super.inputTarget (control, kind, snapshot);
@@ -67,8 +59,7 @@ public final class AccentPageView implements ControllerView
     @Override
     public List<CoreEffect> cancel (final ControlId control, final InputKind kind, final InputTarget target, final ControllerSnapshot snapshot)
     {
-        final int index = ROW.indexOf (control);
-        if (index >= 0) this.rows[index] = null;
+        if (kind == InputKind.BUTTON) this.rows.cancel (control);
         this.touched.remove (control);
         return List.of ();
     }
@@ -76,38 +67,14 @@ public final class AccentPageView implements ControllerView
     @Override
     public ResolvedControllerAction resolveAction (final ControllerActionBinding binding, final ControllerInputEvent input, final ControllerSnapshot snapshot)
     {
-        this.latest = snapshot;
-        final int index = ROW.indexOf (input.controlId ());
-        final SessionBankSnapshot session = snapshot.bridge ().sessionBank ();
-        final boolean stop = snapshot.pressedControls ().contains (STOP) && session.shape ().isPresent ();
-        CoreEffect effect = null;
-        if (stop)
-        {
-            this.stopGesture.consume ();
-            if (index < session.tracks ().size () && session.tracks ().get (index).exists ())
-                effect = new StopSessionTrackEffect (session.generation (), session.shape (), index, session.tracks ().get (index).channelId (), true);
-        }
-        else
-        {
-            final var bank = snapshot.bridge ().currentTrackBank ();
-            if (bank.generation () > 0 && index < bank.tracks ().size () && bank.tracks ().get (index).track ().exists ())
-                effect = new CurrentTrackActionEffect (new CurrentTrackTarget (bank.generation (), bank.bankId (), index, bank.tracks ().get (index).track ().channelId ()), CurrentTrackActionEffect.Action.SELECT);
-        }
-        final Gesture gesture = new Gesture (effect, stop);
-        this.rows[index] = gesture;
-        final ResolvedControllerAction action = ResolvedControllerAction.of (binding.intent (stop ? ControllerActionId.STOP_VISIBLE_SESSION_TRACK : ControllerActionId.NAVIGATE_SELECTED_TARGET), () -> {
-            if (this.rows[index] != gesture || gesture.admitted) return List.of ();
-            gesture.admitted = true;
-            return this.drain (index, gesture);
-        });
-        return stop ? action.withImmediateConsumption (input.controlId ()) : action;
+        return this.rows.resolveAction (binding, input, snapshot);
     }
 
     @Override
     public List<CoreEffect> handle (final CoreEvent event, final ControllerSnapshot snapshot)
     {
-        this.latest = snapshot;
         final List<CoreEffect> effects = new ArrayList<> (this.advanceVelocity (snapshot));
+        effects.addAll (this.rows.handle (event, snapshot));
         if (!(event instanceof final ControllerInputEvent input)) return List.copyOf (effects);
         if (KNOBS.contains (input.controlId ()))
         {
@@ -123,25 +90,7 @@ public final class AccentPageView implements ControllerView
                 if (this.requested == null && this.desired != base) effects.add (this.submitVelocity (snapshot));
             }
         }
-        if (input.kind () == InputKind.BUTTON && input.phase () == InputPhase.END)
-        {
-            final int index = ROW.indexOf (input.controlId ());
-            if (index >= 0 && this.rows[index] != null)
-            {
-                this.rows[index].ended = true;
-                effects.addAll (this.drain (index, this.rows[index]));
-            }
-        }
         return List.copyOf (effects);
-    }
-
-    private List<CoreEffect> drain (final int index, final Gesture gesture)
-    {
-        if (!gesture.admitted || !gesture.ended && !gesture.stop) return List.of ();
-        if (gesture.ended) this.rows[index] = null;
-        if (gesture.sent || gesture.effect == null) return List.of ();
-        gesture.sent = true;
-        return List.of (gesture.effect);
     }
 
     private List<CoreEffect> advanceVelocity (final ControllerSnapshot snapshot)
@@ -180,13 +129,4 @@ public final class AccentPageView implements ControllerView
         return new ViewOutput (visuals.lights (), Map.of (), visuals.display ());
     }
 
-    private static final class Gesture
-    {
-        private final CoreEffect effect;
-        private final boolean stop;
-        private boolean admitted;
-        private boolean ended;
-        private boolean sent;
-        private Gesture (final CoreEffect effect, final boolean stop) { this.effect = effect; this.stop = stop; }
-    }
 }

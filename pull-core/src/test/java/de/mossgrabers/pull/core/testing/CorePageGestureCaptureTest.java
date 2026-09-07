@@ -100,6 +100,6 @@ class CorePageGestureCaptureTest
     private static ControllerBridgeSnapshot bridge (final ApplicationUiSnapshot ui)
     {
         final var e = ControllerBridgeSnapshot.empty ();
-        return new ControllerBridgeSnapshot (e.transport (), e.selectedTrack (), e.sessionBank (), e.layout (), e.noteView (), e.noteRepeat (), e.drum (), e.parameters (), e.controllerMappingFeedback (), e.master (), new ProjectSnapshot (true, ui.projectId (), "Project", true, false, false, false), new AutomationSnapshot (ui.projectId (), false, false), e.encoderConfiguration (), e.currentTrackBank (), new TransportSettingsSnapshot (ui.projectId (), false, PreRoll.NONE, false), new ControllerSettingsSnapshot (true, false, "VOLUME", 0, CursorSendBankSnapshot.empty ()), ui, e.controllerPages (), e.browser ());
+        return new ControllerBridgeSnapshot (e.transport (), e.selectedTrack (), e.sessionBank (), e.layout (), e.noteView (), e.noteRepeat (), e.drum (), e.parameters (), e.controllerMappingFeedback (), e.master (), new ProjectSnapshot (true, ui.projectId (), "Project", true, false, false, false), new AutomationSnapshot (ui.projectId (), false, false), e.encoderConfiguration (), e.currentTrackBank (), new TransportSettingsSnapshot (ui.projectId (), false, PreRoll.NONE, false), new ControllerSettingsSnapshot (true, false, "VOLUME", 0, CursorSendBankSnapshot.empty ()), ui, e.controllerPages (), e.browser (), e.controllerHardware ());
     }
 }

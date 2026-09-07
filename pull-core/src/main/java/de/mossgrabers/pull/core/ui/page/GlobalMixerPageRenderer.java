@@ -12,7 +12,7 @@ import java.util.Map;
 import java.util.LinkedHashMap;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.PushControlIds;
-import static de.mossgrabers.pull.core.ui.page.PageStyle.*;
+import static de.mossgrabers.pull.core.ui.PageStyle.*;
 import static de.mossgrabers.pull.core.ui.page.MixerPageStyle.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
