@@ -11,8 +11,9 @@ not in this design document.
 
 [ARCH](../ARCH.md) owns module responsibilities and the migration inventory. Calls are in-process:
 shell publishes immutable observations; core returns complete desired state and ordered effects.
-Core registers no host callbacks, threads or suppliers in the parent graph. Unmigrated handlers
-are frozen; missing/faulted core never revives deleted policy.
+Bitwig callbacks and registrations remain shell-owned. Core configuration loading and background
+work follow the responsiveness, ownership and generation rules in [ARCH](../ARCH.md).
+Unmigrated handlers are frozen; missing/faulted core never revives deleted policy.
 
 ## Current lifecycle
 
