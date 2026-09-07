@@ -64,19 +64,11 @@ Reset restores the default. Complete view fixtures keep their supplied colors.
 Use existing routed behavior tests for submitted effects, later observed state and feedback; a
 catalog fixture is visual evidence, not host/hardware or gesture validation.
 
-Info's hardware snapshot uses Core API 47 / bridge snapshot 15, requiring a shell install and
-restart before its first live smoke. This task did not change the live installation; `11e33477`
-is its historical baseline, not a claim about the machine's current build. Once live validation
-is authorized, use the existing leased debugger/display loop to verify later identity read-back,
-Info/Setup navigation, inherited lower-row action variants and both light rows. A retained identity
-tuple does not prove that Push is still connected; the shell cannot observe a disconnect from these
-fields alone. Keep that live limitation separate from the catalog's explicit unavailable fixture.
-
-Info source validation (2026-09-07): the complete offline package gate with deprecation reporting
-passed 855 tests. The 28 generated catalog SVGs parsed successfully; known, limit and unavailable
-Info scenes were visually checked. Routed tests include deferred tab release across later parameter
-read-back, stale page/bank cancellation, Stop chords and saved legacy-page promotion. Live verification
-remains pending.
+Info's initial source validation passed 855 tests and parsed 28 catalog SVGs. The subsequent
+[API 49 smoke](docs/migrations/session-core-live-smoke.md) verified observed hardware identity,
+its transmitted display and Info/Setup navigation in the integrated build. Deferred row/tab actions,
+stale-target cancellation and unavailable fixtures retain offline coverage. A retained hardware tuple
+cannot prove that Push is still connected; disconnects without a new identity response remain unobservable.
 
 ## Live Push display loop
 

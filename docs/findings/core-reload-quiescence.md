@@ -27,7 +27,7 @@ core. All of this runs serially on the controller thread.
 [ControllerRuntimeEnvironment](../../pull-shell/src/main/java/de/mossgrabers/pull/shell/runtime/ControllerRuntimeEnvironment.java)
 currently permits replacement when the parameter interaction has no pending semantic actions,
 the physical input lifecycle is idle, the controller bridge permits replacement, and the core
-reports no bounded continuation blocking replacement. API 48 uses that last declaration for Session
+reports no bounded continuation blocking replacement. Since API 48, Session uses that last declaration for
 create/record and bank-selection read-back. Other asynchronous owners below remain unaudited.
 [PhysicalInputRouter](../../pull-shell/src/main/java/de/mossgrabers/pull/shell/input/PhysicalInputRouter.java)
 counts core-relevant gestures, queued motion, and deferred stable dispatches as non-idle. This

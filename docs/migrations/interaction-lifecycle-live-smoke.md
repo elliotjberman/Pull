@@ -1,4 +1,4 @@
-# Interaction lifecycle smoke — 2026-09-07
+# API 47 interaction lifecycle smoke — 2026-09-07
 
 The corrected API 47 shell/core passed routed live smoke in `202arp3` under the continuous
 `lifecycle-api47-final-smoke` lease. Earlier runs used `lifecycle-api47-smoke` and found the bugs
@@ -9,7 +9,7 @@ without saving smoke changes and left stopped, with no held controls or paramete
 
 | Item | Identity |
 | --- | --- |
-| Tested production source | `bf5bc4d7`; subsequent edits are documentation only. |
+| Tested production source | `bf5bc4d7`, the production source tested by this API 47 run. |
 | Installed extension SHA-256 | `bf07cba27029bca9287969e0198fc2898dc1cfeb84747af47adcc638802b7f18` |
 | Core before held reload | `20260907T193458Z-fdbd9b0cfabf6f9c7f35c22fe97d9279` |
 | Core left active | `20260907T193849Z-23bb97b20e244e723f9009132986fe42` |
@@ -24,11 +24,12 @@ in ignored `target/live-api47`. Durable archive:
 `df56999e83c4f29e60bd8f9a5f31d46e7b5ada570c082995f8d1b142b535ad91`;
 `manifest-final.json` alongside it records final installed identities and restored project state.
 
-The deprecation-enabled full package passes **858 tests** (403 core, 11 publisher, 444 shell), with
+The deprecation-enabled full package for this build passed **858 tests** (403 core, 11 publisher, 444 shell), with
 no failures/errors/skips and no changed-code deprecations. Six warnings remain in untouched
 `TransportImpl`. Independent read-only review checked the critical live receipts/read-back/output.
-Later two-agent arch-nemesis review reproduced a [Session release-submission regression](session-launcher-location-design.md#current-release-regression)
-outside these smoke scenarios. The P1 remains open; this record is not merge sign-off.
+Later review found a Session release-submission regression outside these scenarios. The subsequent
+[core Session migration](session-launcher-location-design.md) addresses that path; its
+[API 49 verification](session-core-live-smoke.md) is recorded separately.
 
 ## Verified behavior
 
@@ -48,13 +49,13 @@ outside these smoke scenarios. The P1 remains open; this record is not merge sig
 
 ## Bugs and harness limits
 
-Smoke exposed and fixed three gaps: the VS wrapper hid fill target/cancel hooks (now composed
+This API 47 smoke exposed and fixed three gaps: the VS wrapper hid fill target/cancel hooks (now composed
 directly, 60 net lines removed); debugger MIDI cleanup synthesized physical releases (now preserves
 holds); and the stable grid dispatcher sent an old Drum END to Session (now retires its captured
 receiver on binding loss). Each production fix has a deterministic routed regression.
 
 Busy output can exceed the 2 MB trace bound; helpers use complete records and fresh later samples.
-The critical old Drum END and later playback observation were untruncated. Setup/User are stable
+The critical old Drum END and later playback observation were untruncated. At this build, Setup/User used stable
 bindings with no child input event; an initial overly strict harness assertion was corrected to
 use correlated permanent-ingress receipts and later host/UI output, as for Device/Browse.
 

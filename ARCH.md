@@ -3,8 +3,8 @@
 Working source: Core API 49, checkpoint schema 6, Bitwig API 25. Migration is incomplete:
 core owns pages and migrated controls; the inventory below names the remaining shell handlers.
 
-The Session migration is implemented in API 49; exact-build live validation is pending.
-Earlier API 47 evidence remains in the [smoke record](docs/migrations/interaction-lifecycle-live-smoke.md).
+Production `daa75713` / Core API 49 passed the scoped [Session and lifecycle smoke](docs/migrations/session-core-live-smoke.md).
+The record identifies exact builds, observed outcomes and physical-only limits. Earlier API 47 evidence is historical.
 
 ## Assembly
 

@@ -31,4 +31,5 @@ promise completion, arbitrary offscreen retention or guaranteed restoration afte
 Timers and `flush()` do not provide that stronger acknowledgement.
 
 Offline routed behavior and host-boundary tests cover both shapes, modifier variants, delayed host
-read-back, target changes, cleanup ordering and blinking output. Exact API 49 live smoke is pending.
+read-back, target changes, cleanup ordering and blinking output. [API 49 live evidence](session-core-live-smoke.md)
+records the exact tested build and narrower live coverage.
