@@ -66,7 +66,7 @@
         ["CONVERT", "Convert", 4, 63.75, 10.5, 9.75],
         ["UNDO", "Undo", 4, 37.5, 10.5, 10],
         ["DELETE", "Delete", 4, 27.25, 10.5, 10],
-        ["TAP_TEMPO", "Tap tempo", 4, 15.25, 13.25, 6],
+        ["TAP_TEMPO", "Tap Tempo", 4, 15.25, 13.25, 6],
         ["METRONOME", "Metronome", 17.5, 15.25, 13.5, 6],
         ["MUTE", "Mute", 4, 53.5, 9, 6],
         ["SOLO", "Solo", 13.25, 53.5, 9, 6],
@@ -108,7 +108,7 @@
             x: 175.75,
             y: 127.375,
             size: 20.25,
-            icon: "triangle",
+            icon: "page",
             controls: {
                 up: ["OCTAVE_UP", "Octave up"],
                 right: ["PAGE_RIGHT", "Page right"],
@@ -122,6 +122,16 @@
         {prefix: "ROW2_", y: 15.25, label: "Upper"},
         {prefix: "ROW1_", y: 53.5, label: "Lower"}
     ];
+
+    const printedButtonLines = {
+        ADD_EFFECT: ["Add", "Device"],
+        ADD_TRACK: ["Add", "Track"],
+        DOUBLE: ["Double", "Loop"],
+        FIXED_LENGTH: ["Fixed", "Length"],
+        STOP_CLIP: ["Stop", "Clip"]
+    };
+    // Printed hardware legends; input addresses remain SCENE1 through SCENE8.
+    const sceneDivisions = ["1/32t", "1/32", "1/16t", "1/16", "1/8t", "1/8", "1/4t", "1/4"];
 
     const encoders = [
         ["TEMPO", "Tempo", 5.75, 3.75, 8.5, 8.5],
@@ -240,33 +250,42 @@
     }
 
     function createButton([symbolicName, label, x, y, width, height]) {
-        const backlitFace = symbolicName.startsWith("ROW") || symbolicName.startsWith("SCENE");
-        const group = svgElement("g", {class: backlitFace ? "button" : "button button-legend"});
+        const displayRow = symbolicName.startsWith("ROW");
+        const scene = symbolicName.startsWith("SCENE");
+        const group = svgElement("g", {class: displayRow ? "button button-display-row" : scene ? "button button-legend button-scene" : "button button-legend"});
         const face = svgElement("rect", {
             class: "control-face",
             x,
             y,
             width,
             height,
-            rx: 0.45
+            rx: 0.25
         });
         group.append(face);
-        if (symbolicName.startsWith("ROW")) {
-            group.classList.add("button-display-row");
-            group.append(svgElement("rect", {class: "row-light", x: x + 1.25, y: y + height - 1.35, width: width - 2.5, height: 0.4}));
+        if (displayRow) {
+            const lightY = symbolicName.startsWith("ROW1_") ? y + 1.25 : y + height - 1.65;
+            group.append(svgElement("rect", {class: "row-light", x: x + 1.25, y: lightY, width: width - 2.5, height: 0.4}));
         }
-        if (symbolicName === "RECORD")
+        if (scene) {
+            const division = svgElement("text", {class: "scene-division", x: x + 1.1, y: y + 2.65});
+            division.textContent = label;
+            group.append(division, svgElement("path", {
+                class: "direction-icon direction-chevron scene-chevron",
+                d: chevronPath("right", x + width - 2.75, y + height - 3.1, 1.65)
+            }));
+        }
+        else if (symbolicName === "RECORD")
             group.append(svgElement("circle", {
                 class: "transport-icon record-icon",
                 cx: x + width / 2,
                 cy: y + height / 2,
-                r: Math.min(width, height) * 0.2
+                r: Math.min(width, height) * 0.21
             }));
         else if (symbolicName === "PLAY")
         {
             const centerX = x + width / 2 + 0.2;
             const centerY = y + height / 2;
-            const radius = Math.min(width, height) * 0.27;
+            const radius = Math.min(width, height) * 0.24;
             group.append(svgElement("path", {
                 class: "transport-icon play-icon",
                 d: `M ${centerX - radius * 0.75} ${centerY - radius} L ${centerX + radius} ${centerY} L ${centerX - radius * 0.75} ${centerY + radius} Z`
@@ -275,14 +294,19 @@
         else
         {
             const text = svgElement("text", {
-                class: `button-label ${label.length > 9 ? "micro" : label.length > 6 ? "small" : ""}`,
-                x: x + width / 2,
-                y: y + height / 2 + 0.55
+                class: "button-label",
+                x: displayRow ? x + width / 2 : x + 1.1,
+                y: displayRow ? y + height / 2 + 0.55 : y + 2.65
             });
-            text.textContent = label;
+            const lines = printedButtonLines[symbolicName] ?? [label];
+            lines.forEach((line, index) => {
+                const span = svgElement("tspan", {x: text.getAttribute("x"), dy: index === 0 ? 0 : 1.85});
+                span.textContent = line;
+                text.append(span);
+            });
             group.append(text);
         }
-        registerControl(group, buttonAddress(symbolicName), symbolicName, label, "BUTTON");
+        registerControl(group, buttonAddress(symbolicName), symbolicName, scene ? `Scene ${symbolicName.slice(5)} · ${label}` : label, "BUTTON");
     }
 
     function createDirectionalCluster({x, y, size, icon, controls}) {
@@ -302,22 +326,26 @@
         };
         for (const direction of ["up", "right", "down", "left"]) {
             const [symbolicName, label] = controls[direction];
-            const group = svgElement("g", {class: "direction-pad button button-legend"});
+            const pageNavigation = icon === "page";
+            const group = svgElement("g", {class: `direction-pad button button-legend${pageNavigation ? " navigation-page" : ""}`});
             group.append(svgElement("path", {class: "control-face", d: faces[direction]}));
             const [dx, dy] = vectors[direction];
-            const iconX = centerX + dx * size * 0.28;
-            const iconY = centerY + dy * size * 0.28;
-            const radius = size * 0.075;
-            if (icon === "chevron")
-                group.append(svgElement("path", {
-                    class: "direction-icon direction-chevron",
-                    d: chevronPath(direction, iconX, iconY, radius)
-                }));
-            else
-                group.append(svgElement("path", {
-                    class: "direction-icon direction-triangle",
-                    d: trianglePath(direction, iconX, iconY, radius)
-                }));
+            const iconX = centerX + dx * size * (pageNavigation ? 0.14 : 0.28);
+            const iconY = centerY + dy * size * (pageNavigation ? 0.23 : 0.28);
+            group.append(svgElement("path", {
+                class: "direction-icon direction-chevron",
+                d: chevronPath(direction, iconX, iconY, size * (pageNavigation ? 0.045 : 0.075))
+            }));
+            if (pageNavigation) {
+                const caption = svgElement("text", {
+                    class: "navigation-label",
+                    x: dx === 0 ? centerX : dx < 0 ? x + 1.1 : x + size - 1.1,
+                    y: dy < 0 ? y + 2.9 : dy > 0 ? y + size - 1.3 : centerY + 0.55,
+                    "text-anchor": dx === 0 ? "middle" : dx < 0 ? "start" : "end"
+                });
+                caption.textContent = dx === 0 ? "Octave" : "Page";
+                group.append(caption);
+            }
             registerControl(group, buttonAddress(symbolicName), symbolicName, label, "BUTTON");
         }
     }
@@ -330,16 +358,6 @@
         if (direction === "down")
             return `M ${x - radius} ${y - radius * 0.55} L ${x} ${y + radius * 0.55} L ${x + radius} ${y - radius * 0.55}`;
         return `M ${x + radius * 0.55} ${y - radius} L ${x - radius * 0.55} ${y} L ${x + radius * 0.55} ${y + radius}`;
-    }
-
-    function trianglePath(direction, x, y, radius) {
-        if (direction === "up")
-            return `M ${x} ${y - radius} L ${x + radius} ${y + radius * 0.72} L ${x - radius} ${y + radius * 0.72} Z`;
-        if (direction === "right")
-            return `M ${x + radius} ${y} L ${x - radius * 0.72} ${y + radius} L ${x - radius * 0.72} ${y - radius} Z`;
-        if (direction === "down")
-            return `M ${x} ${y + radius} L ${x + radius} ${y - radius * 0.72} L ${x - radius} ${y - radius * 0.72} Z`;
-        return `M ${x - radius} ${y} L ${x + radius * 0.72} ${y + radius} L ${x + radius * 0.72} ${y - radius} Z`;
     }
 
     function createButtonRows() {
@@ -358,7 +376,7 @@
     function createScenes() {
         Array.from({length: grid.rows}, (_, index) => gridRowY(index)).forEach((position, index) => createButton([
             `SCENE${index + 1}`,
-            `Scene ${index + 1}`,
+            sceneDivisions[index],
             162.75,
             position,
             10.5,
@@ -385,7 +403,11 @@
                     y: gridRowY(grid.rows - row - 1) + grid.cellHeight / 2 + 0.45
                 });
                 number.textContent = String(index);
-                group.append(face, number);
+                const sheen = svgElement("rect", {
+                    class: "pad-sheen", x: gridColumnX(column) + 0.9, y: gridRowY(grid.rows - row - 1) + 0.9,
+                    width: grid.cellWidth - 1.8, height: grid.cellHeight - 1.8, rx: 0.5
+                });
+                group.append(face, sheen, number);
                 registerControl(group, `push.pad.${index}`, `PAD${index}`, `Pad ${index}`, "PAD");
             }
         }
@@ -487,11 +509,10 @@
         const y = grid.y;
         const width = 12;
         const height = grid.rows * grid.cellHeight + (grid.rows - 1) * grid.rowGap;
-        group.append(
-            svgElement("rect", {class: "touch-track", x, y, width, height}),
-            svgElement("rect", {class: "touch-fill", x: x + 1.2, y: y + height / 2, width: width - 2.4, height: height / 2 - 1.2}),
-            svgElement("rect", {class: "touch-position", x: x + 1.2, y: y + height / 2 - 0.6, width: width - 2.4, height: 1.2})
-        );
+        const position = svgElement("g", {class: "touch-position"});
+        for (let dot = -2; dot <= 2; dot++)
+            position.append(svgElement("circle", {cx: x + 1.9, cy: dot * 1.4, r: 0.48}));
+        group.append(svgElement("rect", {class: "touch-track", x, y, width, height}), position);
         const text = svgElement("text", {class: "touch-label", x: x + width / 2 - 0.4, y: y + 10});
         text.textContent = "TOUCH STRIP";
         group.append(text);
@@ -549,10 +570,10 @@
         const group = findControl("TOUCHSTRIP");
         const enabled = output && output.mode !== "OFF" && Number.isInteger(output.value) && output.value >= 0 && output.value <= 16383;
         group.querySelector(".touch-position").style.display = enabled ? "" : "none";
-        group.querySelector(".touch-fill").style.display = "none";
         if (enabled) {
             const y = Number(group.dataset.stripY) + Number(group.dataset.stripHeight) * (1 - output.value / 16383);
-            group.querySelector(".touch-position").setAttribute("y", String(y - 0.6));
+            const boundedY = Math.max(Number(group.dataset.stripY) + 3.5, Math.min(Number(group.dataset.stripY) + Number(group.dataset.stripHeight) - 3.5, y));
+            group.querySelector(".touch-position").setAttribute("transform", `translate(0 ${boundedY})`);
         }
         group.dataset.stripMode = enabled ? output.mode : "OFF";
         group.dataset.stripValue = enabled ? String(output.value) : "";

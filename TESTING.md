@@ -109,7 +109,11 @@ Run the dependency-free local Push 2 visualizer with:
 tools/push-debug-surface
 ```
 
-It opens a local SVG surface derived from the measured control bounds in `PushControllerSetup`.
+It opens a local SVG surface following the [official Push 2 control overview](https://ableton-production.imgix.net/live-manual/12/Push2Overview.png).
+Keep proportions, printed legends, glyphs and illumination placement consistent with that reference.
+The eight printed beat divisions retain their `SCENE1`–`SCENE8` addresses; Octave/Page legends retain
+their existing directional addresses. Printed labels do not introduce controller behavior. Font,
+pad diffusion and the touch-strip dot marker are browser approximations of physical materials.
 All 64 pads, physical buttons, continuous controls, and the display have the same canonical
 `push.*` identifiers used by the input bridge. The local server polls the opt-in debugger's bounded
 `surface-state.json`: every successful button-light send and complete successful pad-light send is

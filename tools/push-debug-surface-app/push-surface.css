@@ -190,9 +190,9 @@ main {
 }
 
 .control-face {
-    fill: #252526;
-    stroke: #3d3d3d;
-    stroke-width: 0.25;
+    fill: #0c0c0d;
+    stroke: #19191a;
+    stroke-width: 0.18;
     transition: fill 80ms ease, stroke 80ms ease, transform 80ms ease, filter 80ms ease;
     transform-box: fill-box;
     transform-origin: center;
@@ -204,7 +204,7 @@ main {
 }
 
 .control.is-pressed .control-face {
-    fill: #555552;
+    fill: #29292a;
     stroke: #eeeee9;
     transform: scale(0.96);
 }
@@ -236,20 +236,16 @@ main {
 }
 
 .button-label {
-    font-size: 1.65px;
-}
-
-.button-label.small {
-    font-size: 1.4px;
-}
-
-.button-label.micro {
-    font-size: 1.22px;
+    fill: #bcbcb6;
+    font-size: 1.7px;
+    font-weight: 400;
+    text-anchor: start;
 }
 
 /* Push's display-row buttons have no printed numbers. Keep them on inspection. */
 .button[data-control-id^="push.button.row"] .button-label {
     opacity: 0;
+    text-anchor: middle;
 }
 
 .button[data-control-id^="push.button.row"]:is(:hover, :focus-visible, .is-pressed) .button-label {
@@ -270,23 +266,23 @@ main {
 }
 
 .transport-icon {
-    fill: #c4c4bf;
+    fill: none;
+    stroke: #c4c4bf;
+    stroke-width: 0.45;
+    stroke-linejoin: miter;
     pointer-events: none;
-    transition: fill 80ms ease, transform 80ms ease;
+    transition: stroke 80ms ease, transform 80ms ease;
     transform-box: fill-box;
     transform-origin: center;
 }
 
 .control.is-pressed .transport-icon {
-    fill: white;
+    stroke: white;
     transform: scale(0.9);
 }
 
-.control[data-lit="true"] .transport-icon {
-    fill: white;
-}
-
 .direction-pad .control-face {
+    stroke: #303031;
     stroke-linejoin: round;
 }
 
@@ -302,46 +298,55 @@ main {
     stroke-linejoin: miter;
 }
 
-.direction-triangle {
-    fill: #b9b9b4;
+.scene-division,
+.navigation-label {
+    fill: #9a9a94;
+    font-family: var(--display-font);
+    font-size: 1.7px;
+    font-weight: 400;
+    pointer-events: none;
 }
 
-.direction-pad.is-pressed .direction-chevron {
-    stroke: white;
+.navigation-label {
+    fill: #bcbcb6;
+    font-size: 1.65px;
 }
 
-.direction-pad.is-pressed .direction-triangle,
-.direction-pad[data-lit="true"] .direction-triangle {
-    fill: white;
+.scene-chevron {
+    stroke: #666662;
 }
 
 /* Surrounding buttons illuminate legends; display-row buttons illuminate a thin strip. */
 .button-legend[data-lit="true"] .control-face {
-    fill: #252526;
-    stroke: #484846;
+    fill: #0c0c0d;
+    stroke: #19191a;
     filter: none;
 }
 
 .button-legend.is-pressed .control-face {
-    fill: #444441;
+    fill: #29292a;
 }
 
-.button-legend[data-lit="true"] :is(.button-label, .transport-icon, .direction-triangle) {
+.button-legend[data-lit="true"] .button-label {
     fill: var(--light);
 }
 
-.button-legend[data-lit="true"] .direction-chevron {
+.button-legend[data-lit="true"] :is(.direction-chevron, .transport-icon) {
     stroke: var(--light);
 }
 
+.button-legend.is-pressed :is(.direction-chevron, .transport-icon) {
+    stroke: white;
+}
+
 .button-display-row .row-light {
-    fill: #101011;
+    fill: #242423;
     pointer-events: none;
 }
 
 .button-display-row[data-lit="true"] .control-face {
-    fill: #252526;
-    stroke: #3d3d3d;
+    fill: #0c0c0d;
+    stroke: #19191a;
     filter: none;
 }
 
@@ -351,7 +356,7 @@ main {
 
 .button-display-row.is-pressed .control-face,
 .button-display-row.is-pressed[data-lit="true"] .control-face {
-    fill: #444441;
+    fill: #29292a;
     stroke: #eeeee9;
 }
 
@@ -367,11 +372,11 @@ main {
     animation: transmitted-light-blink 0.5s steps(1, end) infinite;
 }
 
-.button-legend[data-blink="slow"] :is(.button-label, .transport-icon, .direction-triangle) {
+.button-legend[data-blink="slow"] .button-label {
     animation: transmitted-light-blink 1s steps(1, end) infinite;
 }
 
-.button-legend[data-blink="fast"] :is(.button-label, .transport-icon, .direction-triangle) {
+.button-legend[data-blink="fast"] .button-label {
     animation: transmitted-light-blink 0.5s steps(1, end) infinite;
 }
 
@@ -383,11 +388,11 @@ main {
     animation: transmitted-light-blink 0.5s steps(1, end) infinite;
 }
 
-.button-legend[data-blink="slow"] .direction-chevron {
+.button-legend[data-blink="slow"] :is(.direction-chevron, .transport-icon) {
     animation: transmitted-stroke-blink 1s steps(1, end) infinite;
 }
 
-.button-legend[data-blink="fast"] .direction-chevron {
+.button-legend[data-blink="fast"] :is(.direction-chevron, .transport-icon) {
     animation: transmitted-stroke-blink 0.5s steps(1, end) infinite;
 }
 
@@ -426,8 +431,31 @@ main {
 
 .pad .control-face {
     fill: #424240;
-    stroke: #51514e;
-    stroke-width: 0.25;
+    stroke: #3a3a39;
+    stroke-width: 0.15;
+}
+
+.pad-sheen {
+    fill: #fff;
+    filter: url(#pad-diffuser);
+    opacity: 0.025;
+    pointer-events: none;
+    transform-box: fill-box;
+    transform-origin: center;
+    transition: transform 80ms ease;
+}
+
+.pad[data-lit="true"] .pad-sheen {
+    opacity: 0.12;
+}
+
+.pad[data-lit="true"] .control-face {
+    stroke: color-mix(in srgb, var(--light), black 40%);
+    filter: none;
+}
+
+.pad.is-pressed .pad-sheen {
+    transform: scale(0.96);
 }
 
 .pad-number {
@@ -446,7 +474,7 @@ main {
     fill: white;
 }
 
-.pad.is-pressure-target .control-face {
+body:has(#pressure-slider:focus-visible) .pad.is-pressure-target .control-face {
     stroke: #eeeeda;
     stroke-width: 0.7;
 }
@@ -479,19 +507,15 @@ main {
 }
 
 .touch-track {
-    fill: #141415;
-    stroke: #393939;
-    stroke-width: 0.25;
-}
-
-.touch-fill {
-    fill: #0f7046;
-    opacity: 0.42;
+    fill: #070708;
+    stroke: #1a1a1b;
+    stroke-width: 0.18;
 }
 
 .touch-position {
-    fill: var(--accent);
+    fill: #efefea;
     filter: url(#light-glow);
+    pointer-events: none;
 }
 
 .touch-label {

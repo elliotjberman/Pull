@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Pull · Push 2 Debug Surface</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="push-surface.css?v=push2-proportions">
+    <link rel="stylesheet" href="push-surface.css?v=push2-legends">
 </head>
 <body>
     <header class="toolbar">
@@ -32,10 +32,13 @@
                 <desc id="surface-description">A mapped Push 2 controller with 64 pads, display, buttons, encoders, and touch strip.</desc>
                 <defs>
                     <linearGradient id="panel-gradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0" stop-color="#242425"/>
-                        <stop offset="0.3" stop-color="#1b1b1c"/>
-                        <stop offset="1" stop-color="#171718"/>
+                        <stop offset="0" stop-color="#363637"/>
+                        <stop offset="0.5" stop-color="#303031"/>
+                        <stop offset="1" stop-color="#2a2a2b"/>
                     </linearGradient>
+                    <filter id="pad-diffuser" x="-20%" y="-25%" width="140%" height="150%">
+                        <feGaussianBlur stdDeviation="0.75"/>
+                    </filter>
                     <linearGradient id="display-gradient" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0" stop-color="#101011"/>
                         <stop offset="1" stop-color="#080809"/>
@@ -57,6 +60,8 @@
 
                 <rect class="panel" x="1" y="1" width="198" height="159.2" rx="1" filter="url(#panel-shadow)"/>
                 <rect class="panel-edge" x="1.5" y="1.5" width="197" height="158.2" rx="0.65"/>
+                <path aria-hidden="true" fill="none" stroke="#bcbcb6" stroke-width="0.65"
+                    d="M163 5.5v4.7M164.3 5.5v4.7M165.6 5.5v4.7M166.9 5.5v4.7M168.2 5.825h4.7M168.2 7.175h4.7M168.2 8.525h4.7M168.2 9.875h4.7"/>
                 <g id="surface-controls"></g>
 
                 <g id="display" aria-label="Push display">
@@ -83,6 +88,6 @@
         </aside>
     </main>
 
-    <script src="push-surface.js?v=push2-proportions"></script>
+    <script src="push-surface.js?v=push2-legends"></script>
 </body>
 </html>
