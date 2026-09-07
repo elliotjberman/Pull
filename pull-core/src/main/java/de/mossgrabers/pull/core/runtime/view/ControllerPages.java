@@ -58,7 +58,9 @@ public final class ControllerPages
         shared.add (new Page (PageId.MASTER, List.of (retained (new MasterControlView (controls.parameterTouches ()))), Optional.of (otherNavigation), Set.of (ParameterSlot.MASTER_MIX_VOLUME, ParameterSlot.MASTER_MIX_PAN)));
         shared.add (new Page (PageId.FRAME, List.of (retained (new FramePageView ())), otherNavigation));
         shared.add (new Page (PageId.ACCENT, List.of (retained (new AccentPageView (stopGesture, navigation))), otherNavigation));
-        shared.add (new Page (PageId.INFO, List.of (retained (new InfoPageView (stopGesture, navigation))), otherNavigation));
+        shared.add (new Page (PageId.INFO, List.of (retained (new ConfigurationPageView (ConfigurationPageView.Kind.INFO, stopGesture, navigation))), otherNavigation));
+        shared.add (new Page (PageId.SETUP, List.of (retained (new ConfigurationPageView (ConfigurationPageView.Kind.SETUP, stopGesture, navigation))), otherNavigation));
+        shared.add (new Page (PageId.RIBBON, List.of (retained (new RibbonPageView (navigation))), otherNavigation));
         shared.add (new Page (PageId.METRONOME, controls.metronomePage (), otherNavigation));
         shared.add (new Page (PageId.AUTOMATION, controls.automationPage (), otherNavigation));
         shared.add (new Page (PageId.VOLUME, List.of (retained (new GlobalMixerControlsView (GlobalMixerControlsView.Role.VOLUME, controls.parameterTouches (), navigation)), normalFooter), mixerNavigation));

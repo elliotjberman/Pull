@@ -290,61 +290,6 @@ public class PushConfiguration extends AbstractConfiguration implements IGraphic
 
 
     /**
-     * Change the display brightness.
-     *
-     * @param control The control value
-     */
-    public void changeDisplayBrightness (final int control)
-    {
-        this.displayBrightnessSetting.set (this.valueChanger.changeValue (control, this.displayBrightness, -100, 101));
-    }
-
-
-    /**
-     * Change the LED brightness.
-     *
-     * @param control The control value
-     */
-    public void changeLEDBrightness (final int control)
-    {
-        this.ledBrightnessSetting.set (this.valueChanger.changeValue (control, this.ledBrightness, -100, 101));
-    }
-
-
-    /**
-     * Change the pad sensitivity.
-     *
-     * @param control The control value
-     */
-    public void changePadSensitivity (final int control)
-    {
-        this.padSensitivitySetting.set (this.valueChanger.changeValue (control, this.padSensitivityPush2, -100, 11));
-    }
-
-
-    /**
-     * Change the pad gain.
-     *
-     * @param control The control value
-     */
-    public void changePadGain (final int control)
-    {
-        this.padGainSetting.set (this.valueChanger.changeValue (control, this.padGainPush2, -100, 11));
-    }
-
-
-    /**
-     * Change the pad dynamics.
-     *
-     * @param control The control value
-     */
-    public void changePadDynamics (final int control)
-    {
-        this.padDynamicsSetting.set (this.valueChanger.changeValue (control, this.padDynamicsPush2, -100, 11));
-    }
-
-
-    /**
      * Get the display brightness.
      *
      * @return The display brightness.

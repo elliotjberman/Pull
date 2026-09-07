@@ -78,6 +78,9 @@ public final class DisplaySceneComponent implements IComponent
                     circle.radius () * scale,
                     color (circle.color ()));
                 case final DisplayCommand.DottedArc arc -> drawArc (gc, bounds, scaleX, scaleY, scale, arc);
+                case final DisplayCommand.Line line -> gc.drawLine (
+                    x (bounds, line.x1 (), scaleX), y (bounds, line.y1 (), scaleY),
+                    x (bounds, line.x2 (), scaleX), y (bounds, line.y2 (), scaleY), color (line.color ()), line.width () * scale);
                 case final DisplayCommand.TextAt text -> gc.drawTextAt (
                     text.text (),
                     x (bounds, text.x (), scaleX),

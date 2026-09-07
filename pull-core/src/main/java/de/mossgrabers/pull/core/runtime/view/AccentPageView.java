@@ -14,7 +14,6 @@ import java.util.stream.IntStream;
 /** Complete fixed-velocity page, including inherited current-track selection. */
 public final class AccentPageView implements ControllerView
 {
-    private static final long TIMEOUT_NANOS = 5_000_000_000L;
     private static final List<ControlId> KNOBS = IntStream.rangeClosed (1, 8).mapToObj (i -> PushControlIds.continuous ("KNOB" + i)).toList ();
     private static final ViewProfile PROFILE = ViewProfile.fixed ("full-page", Set.of (
         new SurfaceClaim (SurfaceArea.ENCODERS, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
@@ -26,25 +25,22 @@ public final class AccentPageView implements ControllerView
         new SurfaceClaim (SurfaceArea.DISPLAY_BOTTOM_STRIP, SurfaceClaim.Kind.OUTPUT)), Set.of ());
     private final CurrentTrackRowSelection rows;
     private final Set<ControlId> touched = new HashSet<> ();
-    private Integer requested;
-    private int desired;
-    private int observedBeforeRequest;
-    private long submittedAt;
-    private long submittedRevision;
+    private final ControllerIntegerSetting velocity;
 
     public AccentPageView (final SessionStopGesture stopGesture, final PageNavigation pages)
     {
         this.rows = new CurrentTrackRowSelection (stopGesture, pages);
+        this.velocity = new ControllerIntegerSetting (SetControllerIntegerSettingEffect.Setting.ACCENT_VELOCITY, pages);
     }
 
     @Override public String id () { return "accent-page"; }
     @Override public ViewProfile profile () { return PROFILE; }
     @Override public Set<ControllerActionBinding> actionBindings () { return CurrentTrackRowSelection.actionBindings (); }
     @Override public Set<BridgeSubscription> bridgeSubscriptions () { return Set.of (BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.CONTROLLER_SETTINGS, BridgeSubscription.ENCODER_CONFIGURATION, BridgeSubscription.CURRENT_TRACK_BANK); }
-    @Override public CoreExecutionRequirements executionRequirements () { return new CoreExecutionRequirements (this.requested != null); }
+    @Override public CoreExecutionRequirements executionRequirements () { return new CoreExecutionRequirements (this.velocity.pending ()); }
     @Override public void start (final ControllerSnapshot snapshot) { this.deactivate (); this.reconcile (snapshot); }
     @Override public void reconcile (final ControllerSnapshot snapshot) { this.rows.reconcile (snapshot); }
-    @Override public void deactivate () { this.rows.deactivate (); this.touched.clear (); this.requested = null; }
+    @Override public void deactivate () { this.rows.deactivate (); this.touched.clear (); this.velocity.clear (); }
 
     @Override
     public ResolvedControllerAction resolveAction (final ControllerActionBinding binding, final ControllerInputEvent input, final ControllerSnapshot snapshot)
@@ -55,7 +51,10 @@ public final class AccentPageView implements ControllerView
     @Override
     public List<CoreEffect> handle (final CoreEvent event, final ControllerSnapshot snapshot)
     {
-        final List<CoreEffect> effects = new ArrayList<> (this.advanceVelocity (snapshot));
+        final var settings = snapshot.bridge ().controllerSettings ();
+        final List<CoreEffect> effects = new ArrayList<> ();
+        if (settings.available ()) effects.addAll (this.velocity.observe (snapshot, settings.accentVelocity ()));
+        else this.velocity.clear ();
         effects.addAll (this.rows.handle (event, snapshot));
         if (!(event instanceof final ControllerInputEvent input)) return List.copyOf (effects);
         if (KNOBS.contains (input.controlId ()))
@@ -67,36 +66,12 @@ public final class AccentPageView implements ControllerView
             }
             else if (input.kind () == InputKind.RELATIVE && snapshot.bridge ().controllerSettings ().available () && snapshot.bridge ().encoderConfiguration ().available ())
             {
-                final int base = this.requested == null ? snapshot.bridge ().controllerSettings ().accentVelocity () : this.desired;
-                this.desired = (int) Math.max (1, Math.min (127, base + input.value () * snapshot.bridge ().encoderConfiguration ().baseStep () * 0.1));
-                if (this.requested == null && this.desired != base) effects.add (this.submitVelocity (snapshot));
+                final int observed = settings.accentVelocity ();
+                final int desired = (int) Math.max (1, Math.min (127, this.velocity.intended (observed) + input.value () * snapshot.bridge ().encoderConfiguration ().baseStep () * 0.1));
+                effects.addAll (this.velocity.request (snapshot, observed, desired));
             }
         }
         return List.copyOf (effects);
-    }
-
-    private List<CoreEffect> advanceVelocity (final ControllerSnapshot snapshot)
-    {
-        final var settings = snapshot.bridge ().controllerSettings ();
-        if (!settings.available ()) { this.requested = null; return List.of (); }
-        if (this.requested == null) return List.of ();
-        final int observed = settings.accentVelocity ();
-        if (snapshot.revision () > this.submittedRevision && observed == this.requested.intValue ())
-        {
-            this.requested = null;
-            return this.desired == observed ? List.of () : List.of (this.submitVelocity (snapshot));
-        }
-        if (observed != this.observedBeforeRequest || snapshot.monotonicTimeNanos () - this.submittedAt >= TIMEOUT_NANOS) this.requested = null;
-        return List.of ();
-    }
-
-    private CoreEffect submitVelocity (final ControllerSnapshot snapshot)
-    {
-        this.requested = Integer.valueOf (this.desired);
-        this.observedBeforeRequest = snapshot.bridge ().controllerSettings ().accentVelocity ();
-        this.submittedAt = snapshot.monotonicTimeNanos ();
-        this.submittedRevision = snapshot.revision ();
-        return new SetControllerIntegerSettingEffect (SetControllerIntegerSettingEffect.Setting.ACCENT_VELOCITY, this.desired);
     }
 
     @Override

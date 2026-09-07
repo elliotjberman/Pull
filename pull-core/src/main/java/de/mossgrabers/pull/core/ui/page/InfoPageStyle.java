@@ -1,14 +1,9 @@
 // (c) 2026
 // Licensed under LGPLv3 - http://www.gnu.org/licenses/lgpl-3.0.txt
 package de.mossgrabers.pull.core.ui.page;
-
-import de.mossgrabers.pull.core.ui.PageStyle;
-import de.mossgrabers.pull.core.ui.component.ChoiceCell;
-
-/** Info's aligned identity fields and configuration navigation cells. */
+/** Info's aligned identity fields. */
 final class InfoPageStyle
 {
-    static final ChoiceCell.Style CHOICE = new ChoiceCell.Style (PageStyle.COLUMN_WIDTH - 2, 34, 4, 2, 17, 10, PageStyle.DARK);
     static final double INSET = 12;
     static final double LABEL_TOP = 62;
     static final double LABEL_HEIGHT = 22;

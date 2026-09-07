@@ -82,3 +82,27 @@ The cleanup's independent architecture review found no P0/P1/P2 issue or lost re
 coverage. Its stale status paragraph and the size review's remaining isolated-constructor finding
 are corrected. Recommendation remains **merge with tracked debt**. The cleanup is not installed or
 live tested; the physical Push is disconnected and the installed build remains unchanged.
+
+
+## Setup and Ribbon settings continuation
+
+The API 49 source continuation moves Setup (including its physical button) and the Ribbon settings
+page body to shared core rendering and observed preferences. Their old shell policy is deleted;
+physical Ribbon behavior and the broader UI/editing checklist remain open. This continuation was
+validated offline only; Bitwig was owned by another task and was not installed, reloaded or driven.
+
+Two review findings are resolved: retained receivers could flush queued settings after leaving a
+page, and a deferred Ribbon choice could first-submit after an earlier action changed pages in the
+same admission batch. Shared settings now fence unsent intent by exact page/workspace revision;
+Ribbon rechecks its captured origin at completion. Routed regressions cover Setup, Ribbon and Accent
+with held inputs, and delayed read-back admitting Return before a stale preset. This correction does
+not replace the separate shared input lifecycle or async quiescence work.
+
+The two-agent review found no remaining architectural blocker. Duplicate Accent/Ribbon touch and
+feedback probes and a test-only API overload were removed while retaining the stronger routed proof.
+The deprecation-enabled package passed 918 tests (460 core, 11 publisher, 447 shell). Unchanged
+TransportImpl warnings remain; new direct graphics calls were verified against the resolved Bitwig
+API 25 JAR. The shared catalog contains 5 components, 24 component variants and 31 view previews;
+Setup, Ribbon and arbitrary response-curve color were visually checked. Recommendation: merge with
+tracked debt. First live activation/read-back validation remains pending under the user's offline
+constraint; this is not a completion claim for the remaining migration families.

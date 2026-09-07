@@ -1,11 +1,12 @@
 # Pull View Architecture
 
-Status: working source uses Core API 47 and checkpoint schema 6. Core owns typed pages,
+Status: working source uses Core API 49 and checkpoint schema 6. Core owns typed pages,
 navigation/history, exact temporary ownership, composition and presentation; shell supplies bounded
 data/effects and one inert page projection. This UI work builds on the scoped live evidence for
-`11e33477`; later cleanup and the Info migration have **not been deployed or live tested by this task**.
+`11e33477`; later cleanup and the Info, Setup and Ribbon migrations have **not been deployed or live tested by this task**.
 This records build provenance, not the machine's current installation or Push connection state.
-The Info hardware-read-back contract requires a shell install and restart before activation. Exact
+The hardware/settings contracts, Setup binding and line drawing transport require a shell install
+and restart before activation. Exact
 build identities, scoped results and limits are in [the validation record](docs/migrations/core-page-ownership-live-smoke.md).
 
 Read this file before changing controller views, modes, workspaces, input routing, or Session bank
@@ -351,7 +352,23 @@ core-only source changes, not part of the installed/live-tested build cited abov
 Info is now a core page built from the same choice cells and bounded text primitives. It owns
 Info/Setup upper-row navigation, the inherited current-bank lower-row selection variants, its
 full display, and both light rows. Lower-row lights remain off. Unavailable hardware identity
-shows a waiting message while the configuration menu remains navigable; Setup retains its legacy body.
+shows a waiting message while the configuration menu remains navigable. Setup shares that navigation
+and owns all five brightness/pad settings, Delete-touch defaults, knob feedback, calibration graph
+and both rows. Its physical button opens on press and restores the exact underlying page from Setup;
+it remains lit on Info as well. Ribbon owns its CC knob, quick choices, function/repeat rows, both
+return buttons and feedback. Its existing Shift-strip entry and physical strip policy remain frozen
+legacy behavior, independently of the migrated settings page body.
+
+`CONTROLLER_SETTINGS` includes immutable, observed global hardware and Ribbon preferences. The
+hardware value contains five bounded integers (brightness 0–100, pad controls 0–10) and exactly 128
+velocity samples (1–127). It is unavailable before valid configuration read-back; the shell caches
+the curve until an observed setting changes. The three Ribbon values are function 0–5, CC 0–127 and
+repeat mode 0–2. Neither set is project/cursor-scoped. Absolute writes only submit existing setting
+setters; core renders later observed settings and serializes pending writes per setting. Page exit
+retires unsent intent. Setup and Ribbon do not expand the shared physical gesture lifecycle.
+
+The core response-curve component emits bounded line primitives. The shell scales/rasterizes those
+lines inside compiler-owned clips and restores graphics state; SVG previews use the same commands.
 
 `CONTROLLER_HARDWARE` requests one raw identity tuple from the attached Push surface: firmware
 major/minor/build, board revision and the existing signed 32-bit serial field. The bridge samples
@@ -361,9 +378,9 @@ replacement and subscription gaps, and resets with extension reconstruction. It 
 identity or a connection guarantee: disconnects without another identity response and changes
 between samples are unobservable. No project, selected-track or user-pinnable cursor scopes this data.
 
-Working Core API 47 capabilities include bridge snapshot 15, controller output state 4 and
-controller pages 1; parameter targets remain 4, input routing 7, current-track effects 2, transport
-effects 4 and controller-settings/application-UI effects 1. Schema 6 checkpoints retain exact page
+Working Core API 49 capabilities include bridge snapshot 16, controller output state 4, display
+output 5, input routing 9 and controller pages 1; parameter targets remain 4, current-track effects 2,
+transport effects 4, controller-settings effects 2 and application-UI effects 1. Schema 6 checkpoints retain exact page
 references, history, a latched temporary token and Track Mix/I-O/send state. The serialized inbox
 acknowledgement is not authority: startup always rebases it to the parent-owned retired prefix.
 Physical held gestures remain in one generation. This parent-loaded contract requires one shell

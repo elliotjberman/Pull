@@ -63,6 +63,8 @@ final class DisplayRegionComposition
             case final DisplayCommand.Rectangle rectangle -> requireBox (rectangle.x (), rectangle.y (), rectangle.width (), rectangle.height (), width, height);
             case final DisplayCommand.RoundedRectangle rectangle -> requireBox (rectangle.x (), rectangle.y (), rectangle.width (), rectangle.height (), width, height);
             case final DisplayCommand.Circle circle -> requireBox (circle.centerX () - circle.radius (), circle.centerY () - circle.radius (), 2 * circle.radius (), 2 * circle.radius (), width, height);
+            case final DisplayCommand.Line line -> requireBox (Math.min (line.x1 (), line.x2 ()) - line.width () / 2, Math.min (line.y1 (), line.y2 ()) - line.width () / 2,
+                Math.abs (line.x2 () - line.x1 ()) + line.width (), Math.abs (line.y2 () - line.y1 ()) + line.width (), width, height);
             case final DisplayCommand.DottedArc arc -> {
                 final double radius = arc.radius () + arc.dotRadius ();
                 requireBox (arc.centerX () - radius, arc.centerY () - radius, 2 * radius, 2 * radius, width, height);
@@ -83,6 +85,7 @@ final class DisplayRegionComposition
             case final DisplayCommand.Rectangle rectangle -> new DisplayCommand.Rectangle (rectangle.x (), rectangle.y () + offsetY, rectangle.width (), rectangle.height (), rectangle.color ());
             case final DisplayCommand.RoundedRectangle rectangle -> new DisplayCommand.RoundedRectangle (rectangle.x (), rectangle.y () + offsetY, rectangle.width (), rectangle.height (), rectangle.radius (), rectangle.color ());
             case final DisplayCommand.Circle circle -> new DisplayCommand.Circle (circle.centerX (), circle.centerY () + offsetY, circle.radius (), circle.color ());
+            case final DisplayCommand.Line line -> new DisplayCommand.Line (line.x1 (), line.y1 () + offsetY, line.x2 (), line.y2 () + offsetY, line.width (), line.color ());
             case final DisplayCommand.DottedArc arc -> new DisplayCommand.DottedArc (arc.centerX (), arc.centerY () + offsetY, arc.radius (), arc.startDegrees (), arc.sweepDegrees (), arc.steps (), arc.dotRadius (), arc.color ());
             case final DisplayCommand.TextAt text -> new DisplayCommand.TextAt (text.text (), text.x (), text.baselineY () + offsetY, text.color (), text.fontSize ());
             case final DisplayCommand.TextBox text -> new DisplayCommand.TextBox (text.text (), text.x (), text.y () + offsetY, text.width (), text.height (), text.alignment (), text.color (), text.maximumFontSize (), text.minimumFontSize (), text.fit ());

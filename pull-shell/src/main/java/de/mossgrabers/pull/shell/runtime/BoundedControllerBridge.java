@@ -196,7 +196,7 @@ final class BoundedControllerBridge implements ControllerBridge
         this.controllerMappings = controllerMappings;
         this.sessionBank = new SessionBankHost (surface.getSessionBankRegistry ());
         this.currentTrackBank = new CurrentTrackBankHost (model, surface.getSessionBankRegistry ().getBanks ());
-        this.controllerSettings = new ControllerSettingsHost (surface.getConfiguration (), model, surface.getModeManager ());
+        this.controllerSettings = new ControllerSettingsHost (surface.getConfiguration (), model, surface.getModeManager (), surface::createPadSensitivityCurvePush2);
         this.applicationUi = new ApplicationUiHost (model);
         final var nativeBrowser = model.getBrowser ();
         if (nativeBrowser != null)

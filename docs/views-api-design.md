@@ -1,6 +1,6 @@
 # Views API and Composite Workspaces
 
-Status: design contract for Core API 47 and checkpoint schema 6. Production `11e33477` passed the
+Status: design contract for Core API 49 and checkpoint schema 6. Production `11e33477` passed the
 scoped live checks; later cleanup and Info migration are not installed or live tested. The new
 hardware snapshot contract requires a shell install and restart before activation. See
 [the validation record](migrations/core-page-ownership-live-smoke.md). Remaining stable adapters are
@@ -430,10 +430,12 @@ values stay interested; unrequested APPLICATION_UI does no DTO sampling and publ
 Observed flags use absolute setters with later read-back. Native panel toggles lacking visibility
 read-back retain ordinary unselected feedback rather than inventing a selected state.
 
-`InfoPageView` uses the declared core-page composition and shared UI library; its footprint and
+`ConfigurationPageView` uses the declared core-page composition and shared UI library; its footprint and
 subscribed hardware contract are specified in [ARCH](../ARCH.md#core-owned-pages-and-working-contract).
-Info/Setup tabs use exact temporary-page ownership through core navigation. Setup retains its legacy
-body. Restored legacy page references resolve through the current alias catalog, so saved Info state
+Info/Setup tabs and the physical Setup button use exact temporary-page ownership through core
+navigation. Setup and Ribbon settings bodies own their controls and feedback in core; physical
+Ribbon behavior remains frozen legacy policy. Restored legacy page references resolve through the
+current alias catalog, so saved Info/Setup/Ribbon state
 reaches the migrated page without changing opaque core references or temporary tokens.
 
 Four-arrow policy is core-owned for core pages and every VS page. Track/Volume/Pan
@@ -450,9 +452,9 @@ project observations. Later target-project read-back updates the retained scene;
 or workspace change retires that retention. DAW Master selection is reduced by
 `MasterTrackPageNavigation` in core, separate from the shell's raw Master selection observation.
 
-Working API 47 capability versions are bridge snapshot 15, controller output state 4 and controller
-pages 1. Parameter targets remain 4, input routing 7, current-track effects 2, transport effects 4,
-controller-settings effects 1 and application-UI effects 1. Schema 6 stores exact page references,
+Working API 49 capability versions are bridge snapshot 16, controller output state 4, display output 5
+and controller pages 1. Parameter targets remain 4, input routing 9, current-track effects 2, transport
+effects 4, controller-settings effects 2 and application-UI effects 1. Schema 6 stores exact page references,
 history and latched temporary ownership alongside Track Mix/I-O/send and playback-owner state.
 Its stored request acknowledgement is rebased from the shell retired prefix at every startup. It
 never serializes executable continuations or a partially held physical

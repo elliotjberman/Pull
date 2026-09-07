@@ -34,6 +34,7 @@ public final class ControllerLevelViews
     private final ControllerView trackMix;
     private final ControllerView masterButton;
     private final ControllerView accent;
+    private final ControllerView setup;
     private final ControllerView selectedTrackMuteSolo;
     private final RawPitchBendGesture pitchBend = new RawPitchBendGesture ();
     private final ControllerView rawPitchBend = retained (RawPitchBendView.raw (this.pitchBend));
@@ -49,6 +50,7 @@ public final class ControllerLevelViews
         this.trackMix = retained (new TrackMixControlView (navigation));
         this.masterButton = retained (new MasterButtonView (this.pages));
         this.accent = retained (new AccentControlView (this.pages));
+        this.setup = retained (new SetupControlView (navigation));
         final WorkspaceSelection checkedSelection = Objects.requireNonNull (selection, "selection");
         final SelectedTrackBooleanToggles selectedTrackToggles = new SelectedTrackBooleanToggles ();
         this.workspaceSelection = retained (new WorkspaceSelectionView (checkedSelection));
@@ -103,6 +105,7 @@ public final class ControllerLevelViews
         views.add (this.trackMix);
         views.add (this.masterButton);
         views.add (this.accent);
+        views.add (this.setup);
         views.add (this.selectedTrackMuteSolo);
         views.add (rawPitchBend ? this.rawPitchBend : this.legacyPitchBend);
         for (final ControllerView view: checkedWorkspaceViews)
