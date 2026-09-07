@@ -313,6 +313,40 @@ class ControllerRuntimeEnvironmentTest
 
 
     @Test
+    void realCoreSessionDevicePagePassesTheInstalledNavigationBoundary () throws Exception
+    {
+        final var classes = java.nio.file.Path.of ("../pull-core/target/classes").toAbsolutePath ().normalize ();
+        try (final var loader = new java.net.URLClassLoader (new java.net.URL[] {classes.toUri ().toURL ()}, getClass ().getClassLoader ()))
+        {
+            final var provider = (de.mossgrabers.pull.core.api.CoreProvider) loader.loadClass ("de.mossgrabers.pull.core.runtime.PullCoreProvider").getConstructor ().newInstance ();
+            final var core = provider.create ();
+            final var capabilities = provider.descriptor ().requiredCapabilities ();
+            final var empty = de.mossgrabers.pull.core.api.LegacyControllerPageRequests.empty ();
+            core.start (pageCaptureSnapshot (capabilities, 1, Set.of (), empty), Optional.empty ());
+            final var session = PushControlIds.button ("SESSION");
+            final var selected = core.handle (new ControllerInputEvent (2, 2, session, InputKind.BUTTON, InputPhase.BEGIN, 127), pageCaptureSnapshot (capabilities, 2, Set.of (session), empty));
+            final var request = new de.mossgrabers.pull.core.api.LegacyControllerPageRequest (1, selected.desiredControllerState ().page ().revision (), 0, de.mossgrabers.pull.core.api.LegacyControllerPageRequest.Operation.SELECT, "DEVICE_PARAMS");
+            final var result = core.handle (new SnapshotChangedEvent (3, 3), pageCaptureSnapshot (capabilities, 3, Set.of (), new de.mossgrabers.pull.core.api.LegacyControllerPageRequests (List.of (request))));
+            assertEquals ("DEVICE_PARAMS", result.desiredControllerState ().page ().effectivePage ().legacyAlias ());
+            assertTrue (result.desiredControllerState ().workspace ().facets ().contains (ControllerViewFacet.SESSION_GRID_FULL));
+            assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), result.desiredInputRoutes ().mode (PushControlIds.button ("ARROW_UP"), InputKind.BUTTON));
+            final var environment = new ControllerRuntimeEnvironment (host (1), new PassthroughControllerBridge (), new RecordingLog (), () -> 0);
+            environment.setInputRouteValidator (ignored -> true);
+            environment.setControllerActionValidator (ignored -> true);
+            environment.setPhysicalLightOwnerValidator (ignored -> true);
+            assertNotNull (environment.prepare (result));
+            for (final String horizontal: List.of ("ARROW_LEFT", "ARROW_RIGHT"))
+            {
+                final var route = new DesiredInputRoutes (Set.of (new InputRoute (PushControlIds.button (horizontal), InputKind.BUTTON, InputRouteMode.EXCLUSIVE)));
+                final var stolen = new CoreResult (DesiredHardwareOutput.empty (), route, DesiredBridgeSubscriptions.empty (), Map.of (), result.desiredControllerState (), DesiredNoteRepeat.unowned (),
+                    de.mossgrabers.pull.core.api.DesiredControllerActions.empty (), DesiredParameterBanks.empty (), DesiredParameterInteraction.empty (), List.of ());
+                assertThrows (IllegalArgumentException.class, () -> environment.prepare (stolen));
+            }
+        }
+    }
+
+
+    @Test
     void realCoreCancelledFrameReleaseIsInertThroughParentPreparation () throws Exception
     {
         final var classes = java.nio.file.Path.of ("../pull-core/target/classes").toAbsolutePath ().normalize ();

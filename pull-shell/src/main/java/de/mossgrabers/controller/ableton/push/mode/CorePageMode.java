@@ -63,6 +63,13 @@ public class CorePageMode extends BaseMode<IParameter>
             PushControlIds.button ("ARROW_UP").equals (control) || PushControlIds.button ("ARROW_DOWN").equals (control);
     }
 
+    /** Session navigation that is inert independently of the selected parameter page. */
+    public static boolean containsSessionNavigationInput (final ControlId control, final boolean fullSession, final boolean sessionNavigation)
+    {
+        return sessionNavigation && containsNavigationInput (control) || fullSession &&
+            (PushControlIds.button ("ARROW_UP").equals (control) || PushControlIds.button ("ARROW_DOWN").equals (control));
+    }
+
     /** Whether this light belongs to a page soft-key row or navigation arrow. */
     public static boolean containsLight (final ControlId control)
     {

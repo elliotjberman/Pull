@@ -638,10 +638,11 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
             if (!this.inputRouteValidator.test (route))
                 throw new IllegalArgumentException ("Core requested an unregistered controller input route");
             if (route.mode () == de.mossgrabers.pull.core.api.InputRouteMode.EXCLUSIVE && de.mossgrabers.controller.ableton.push.mode.CorePageMode.containsInput (route.controlId (), route.kind ()) &&
-                !(route.kind () == de.mossgrabers.pull.core.api.event.InputKind.BUTTON && de.mossgrabers.controller.ableton.push.mode.CorePageMode.containsNavigationInput (route.controlId ()) &&
-                    result.desiredControllerState ().workspace ().facets ().contains (de.mossgrabers.pull.core.api.ControllerViewFacet.SESSION_NAVIGATION)) &&
+                !(route.kind () == de.mossgrabers.pull.core.api.event.InputKind.BUTTON && de.mossgrabers.controller.ableton.push.mode.CorePageMode.containsSessionNavigationInput (route.controlId (),
+                    result.desiredControllerState ().workspace ().facets ().contains (de.mossgrabers.pull.core.api.ControllerViewFacet.SESSION_GRID_FULL),
+                    result.desiredControllerState ().workspace ().facets ().contains (de.mossgrabers.pull.core.api.ControllerViewFacet.SESSION_NAVIGATION))) &&
                 (this.controllerBridge == null || !this.controllerBridge.supportsPageInput (result.desiredControllerState ().page (), route.controlId (), route.kind ())))
-                throw new IllegalArgumentException ("Exclusive page input requires the declared installed inert adapter footprint");
+                throw new IllegalArgumentException ("Exclusive page input requires the declared installed inert adapter footprint: " + route.controlId ());
         }
         for (final ControllerActionBinding action: result.desiredControllerActions ().bindings ())
         {

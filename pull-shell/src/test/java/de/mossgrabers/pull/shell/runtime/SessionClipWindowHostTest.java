@@ -217,9 +217,12 @@ class SessionClipWindowHostTest
         for (final boolean coreEffect: List.of (true, false))
         {
             final Fixture fixture = new Fixture (4);
+            fixture.firstHasContent = false;
             fixture.host.refresh (true);
             fixture.currentTracks.refresh ();
             final SessionLocation held = fixture.location (7, 0);
+            final var oldLaunch = fixture.host.prepare (new SessionActionEffect (held, SessionActionEffect.Action.LAUNCH));
+            final var oldCreate = fixture.host.prepare (new CreateSessionClipEffect (fixture.location (0, 0), 4));
             fixture.act (held, SessionActionEffect.Action.LAUNCH_ALT);
             if (coreEffect)
                 fixture.currentTracks.apply (fixture.currentTracks.prepare (new CurrentTrackActionEffect (fixture.currentTarget (), CurrentTrackActionEffect.Action.valueOf (operation))));
@@ -230,6 +233,12 @@ class SessionClipWindowHostTest
             final List<String> expected = List.of ("slot:7:0:launch:true:true", "slot:7:0:launch:false:true", "track:0:" + operation.toLowerCase (java.util.Locale.ROOT));
             assertEquals (expected, fixture.requests);
             assertEquals (1, fixture.mutationGuards, "releasing a launcher must not re-enter the mutation guard");
+            assertEquals (SessionBankSnapshot.empty (), fixture.host.snapshot ());
+            fixture.host.refresh (true);
+            assertTrue (fixture.host.snapshot ().generation () > held.generation (), "submission itself revokes old locations before host advancement");
+            fixture.host.apply (oldLaunch);
+            fixture.host.apply (oldCreate);
+            assertEquals (expected, fixture.requests);
             fixture.advanceHost ();
             fixture.host.refresh (true);
             fixture.act (held, SessionActionEffect.Action.RELEASE_ALT);
@@ -310,11 +319,23 @@ class SessionClipWindowHostTest
     void precedingSceneMutationReleasesLaterLocationsBeforeSubmittingTheMutation (final String operation)
     {
         final Fixture fixture = new Fixture (4);
+        fixture.firstHasContent = false;
         fixture.host.refresh (true);
-        fixture.act (fixture.location (7, 3), SessionActionEffect.Action.LAUNCH);
+        final SessionLocation held = fixture.location (7, 3);
+        final int originalOffset = fixture.host.snapshot ().sceneOffset ();
+        final var oldLaunch = fixture.host.prepare (new SessionActionEffect (held, SessionActionEffect.Action.LAUNCH));
+        final var oldCreate = fixture.host.prepare (new CreateSessionClipEffect (fixture.location (0, 0), 4));
+        fixture.act (held, SessionActionEffect.Action.LAUNCH);
         fixture.act (fixture.location (-1, 2), SessionActionEffect.Action.LAUNCH_ALT);
         fixture.act (fixture.location (-1, 0), SessionActionEffect.Action.valueOf (operation));
         assertEquals (List.of ("slot:7:3:launch:true:false", "scene:2:launch:true:true", "slot:7:3:launch:false:false", "scene:2:launch:false:true", "scene:0:" + operation.toLowerCase (java.util.Locale.ROOT)), fixture.requests);
+        assertEquals (SessionBankSnapshot.empty (), fixture.host.snapshot ());
+        fixture.host.refresh (true);
+        assertEquals (originalOffset, fixture.host.snapshot ().sceneOffset ());
+        assertTrue (fixture.host.snapshot ().generation () > held.generation (), "scene edits revoke locations even when all visible positions remain equal");
+        fixture.host.apply (oldLaunch);
+        fixture.host.apply (oldCreate);
+        fixture.act (held, SessionActionEffect.Action.RELEASE);
         fixture.host.releaseOutstanding ();
         assertEquals (5, fixture.requests.size ());
     }
@@ -420,6 +441,7 @@ class SessionClipWindowHostTest
         fixture.host.apply (fixture.host.prepare (new CopySessionClipEffect (fixture.location (1, 1), target)));
         fixture.act (fixture.location (-1, 2), SessionActionEffect.Action.SELECT);
         fixture.act (fixture.location (-1, 2), SessionActionEffect.Action.REMOVE);
+        fixture.host.refresh (true);
         fixture.act (fixture.location (-1, 2), SessionActionEffect.Action.DUPLICATE);
         assertEquals (List.of ("create:0:5:16", "slot:0:0:record", "slot:0:0:paste:1:1", "scene:2:select", "scene:2:remove", "scene:2:duplicate"), fixture.requests);
         fixture.host.refresh (true);
@@ -745,7 +767,7 @@ class SessionClipWindowHostTest
             this.host = new SessionBankHost (new SessionBankRegistry (model, Set.of (shape), shape), () -> this.projectIdentity, this.diagnostics::add);
             nativeHost.setProjectStructureMutationGuard (() -> {
                 this.mutationGuards++;
-                this.host.releaseOutstanding ();
+                this.host.invalidate ();
             });
             this.currentTracks = new CurrentTrackBankHost (model, List.of (bank));
         }

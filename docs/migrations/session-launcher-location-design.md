@@ -13,7 +13,8 @@ sequencing, birds-eye/page navigation, Stop chords, scene variants and colors/bl
 actual launch acquires a matching main/alternate release, captured at BEGIN. Modifier-only actions
 have no orphan release. A normal quick tap retains create/record intent until later host read-back;
 then it submits launch and matching release in order. Pending continuations fence core replacement;
-view or target loss cancels them. Paging selects only after the requested window is observed aligned.
+view or target loss cancels them. Paging selects only after the requested window is observed aligned. A workspace change that alters
+native note translation waits for physical pads to become idle before admitting its bank/layout.
 
 The shell exposes primitive slot/scene operations and absolute bank positions. One shared host
 wrapper installs the bounded press ledger's structural-mutation guard. Actual track, scene and

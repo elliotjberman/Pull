@@ -196,7 +196,7 @@ final class BoundedControllerBridge implements ControllerBridge
         this.controllerState = new ControllerStateHost (selectedTarget, surface.getControllerWorkspaceHost (), this::resetNoteInputMidiState);
         this.controllerMappings = controllerMappings;
         this.sessionBank = new SessionBankHost (surface.getSessionBankRegistry (), model.getProject ()::getIdentity, this.log::warn);
-        surface.getHost ().setProjectStructureMutationGuard (this.sessionBank::releaseOutstanding);
+        surface.getHost ().setProjectStructureMutationGuard (this.sessionBank::invalidate);
         this.currentTrackBank = new CurrentTrackBankHost (model, surface.getSessionBankRegistry ().getBanks ());
         this.controllerSettings = new ControllerSettingsHost (surface.getConfiguration (), model, surface.getModeManager ());
         this.applicationUi = new ApplicationUiHost (model);
@@ -504,8 +504,6 @@ final class BoundedControllerBridge implements ControllerBridge
     @Override
     public void applyControllerState (final DesiredControllerState state)
     {
-        if (!state.workspace ().sessionBankShape ().equals (this.surface.getControllerWorkspaceHost ().getSessionBankShape ()))
-            this.sessionBank.invalidate ();
         this.parameterTargets.releaseIndicationsExcept (state.page ().parameterIndications ());
         this.surface.getModeManager ().apply (state.page ());
         this.controllerState.apply (state);
