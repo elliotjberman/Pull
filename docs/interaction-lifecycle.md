@@ -66,12 +66,12 @@ Two concrete adapter constraints remain visible:
    abandons/reports that exact lease rather than touching its replacement. Touch-lease retirement
    means resource retirement, not proof that Bitwig acknowledged every earlier parameter write.
 
-There are no replacement timeouts, pinned offscreen pools, synthetic release events, or stable
-product-policy additions. Full Device identity and Session grid/scenes release guarantees still need
+There are no replacement timeouts, pinned offscreen pools, or stable product-policy additions.
+Core cancellation never manufactures ordinary END events. Full Device identity and Session grid/scenes release guarantees still need
 proof when those remaining families migrate; a shared lifecycle does not create missing host APIs.
 
-Offline validation: `mvn -o -Dmaven.compiler.showDeprecation=true package` passes 856 tests
-(402 core, 11 publisher, 443 shell), with no deprecation warnings in changed code.
+Offline validation: `mvn -o -Dmaven.compiler.showDeprecation=true package` passes 858 tests
+(403 core, 11 publisher, 444 shell), with no deprecation warnings in changed code.
 The six existing warnings in untouched `TransportImpl` remain outside this change. The routed regressions
 cover page/core/legacy transitions, parameter rebinding, modifiers, direct/aggregate pressure, clip
 owner retirement, project/selected-track changes during global button gestures, and delayed host

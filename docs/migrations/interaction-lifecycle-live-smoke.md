@@ -4,7 +4,9 @@ Validation is in progress on `202arp3`, under one uninterrupted `lifecycle-api47
 The original project file remains unchanged: SHA-256
 `80e5cb6f30bfee568eb33c588926042491259faede2a2ae7a879720572cf4bf9`.
 Raw request receipts, host snapshots, controller output and failed attempts are retained locally
-in `target/live-api47`; only completed cases below count as evidence.
+in `target/live-api47`; only completed cases below count as evidence. A durable archive is at
+`~/.drivenbymoss/pull/test-evidence/lifecycle-api47-20260907/evidence.tar.gz` (SHA-256
+`0a99e7ccc653b83fff907cc5b031b6f92181987119228a383b97aa558be6f01b`).
 
 ## Completed checks
 
@@ -19,8 +21,10 @@ in `target/live-api47`; only completed cases below count as evidence.
 | `4325a2da` | VS fill: exact active owner/target, cancellation on track loss, later owner retirement, no revival on return, fresh acquisition and later release retirement. |
 
 The drum rate/pressure run exposed an inherited grid-release leak and is **not** a clean workflow
-pass: an old Drum PAD END reached the temporary Session handler and started playback. Final matched
-build validation and held-input hot reload remain pending until that routing defect is fixed.
+pass: an old Drum PAD END reached the temporary Session handler and started playback. Commit
+`bf5bc4d7` fixes this centrally and passes the full 858-test package (403 core, 11 publisher, 444
+shell; only unchanged `TransportImpl` deprecations). The Mac locked before its install. Final matched
+build validation and held-input hot reload remain pending; the installed shell is still `4325a2da`.
 
 ## Findings and shortcuts
 
@@ -29,6 +33,9 @@ build validation and held-input hot reload remain pending until that routing def
   the fix and passes afterward.
 - Fixed: debugger target cleanup synthesized physical releases, masking lifecycle bugs. Native
   MIDI neutralization now preserves physical holds; terminal/core invalidation still retires them.
+- Fixed offline: the common grid dispatcher now captures its receiver at DOWN and invalidates it
+  on view/target loss. Orphan LONG/UP cannot reach another view or revive on return. The routed
+  regression also proves ordinary Session DOWN/UP still launches normally.
 - Existing debug traces are bounded to 2 MB. Busy meter/Drum output can truncate the tail. Smoke
   helpers retain only complete records and use separate later host samples; missing required input
   evidence fails the case. Faster client polling reduces idle collection before the actual input.
