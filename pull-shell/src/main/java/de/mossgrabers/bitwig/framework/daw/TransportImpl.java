@@ -22,11 +22,9 @@ import de.mossgrabers.bitwig.framework.daw.data.Util;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.IApplication;
 import de.mossgrabers.framework.daw.ITransport;
-import de.mossgrabers.framework.daw.constants.AutomationMode;
 import de.mossgrabers.framework.daw.constants.LaunchQuantization;
 import de.mossgrabers.framework.daw.constants.PostRecordingAction;
 import de.mossgrabers.framework.daw.constants.TransportConstants;
-import de.mossgrabers.framework.parameter.AutomationModeParameter;
 import de.mossgrabers.framework.parameter.IParameter;
 import de.mossgrabers.framework.utils.StringUtils;
 
@@ -49,13 +47,6 @@ public class TransportImpl implements ITransport
 
     private static final String              ACTION_JUMP_TO_END      = "jump_to_end_of_arrangement";
 
-    private static final AutomationMode []   AUTOMATION_MODES        = new AutomationMode []
-    {
-        AutomationMode.READ,
-        AutomationMode.LATCH,
-        AutomationMode.TOUCH,
-        AutomationMode.WRITE
-    };
 
     private static final BeatTimeFormatter   BEAT_POSITION_FORMATTER = formatAsBeats (1);
     private static final BeatTimeFormatter   BEAT_LENGTH_FORMATTER   = formatAsBeats (0);
@@ -87,7 +78,6 @@ public class TransportImpl implements ITransport
 
     private final IParameter     crossfadeParameter;
     private final IParameter     metronomeVolumeParameter;
-    private final IParameter     automationModeParameter;
     private final Arranger       bwArranger;
 
 
@@ -110,10 +100,8 @@ public class TransportImpl implements ITransport
         this.transport.isPlaying ().markInterested ();
         this.transport.isArrangerRecordEnabled ().markInterested ();
         this.transport.isArrangerOverdubEnabled ().markInterested ();
-        this.transport.isClipLauncherAutomationWriteEnabled ().markInterested ();
         this.transport.isClipLauncherOverdubEnabled ().markInterested ();
         this.transport.isArrangerAutomationWriteEnabled ().markInterested ();
-        this.transport.automationWriteMode ().markInterested ();
         this.transport.isArrangerLoopEnabled ().markInterested ();
         this.transport.isPunchInEnabled ().markInterested ();
         this.transport.isPunchOutEnabled ().markInterested ();
@@ -134,7 +122,6 @@ public class TransportImpl implements ITransport
 
         this.crossfadeParameter = new ParameterImpl (valueChanger, this.transport.crossfade ());
         this.metronomeVolumeParameter = new MetronomeVolumeParameterImpl (valueChanger, this.transport.metronomeVolume ());
-        this.automationModeParameter = new AutomationModeParameter (valueChanger, this);
         this.transport.tempo ().markInterested ();
 
         final TimeSignatureValue ts = this.transport.timeSignature ();
@@ -151,10 +138,8 @@ public class TransportImpl implements ITransport
         Util.setIsSubscribed (this.transport.isPlaying (), enable);
         Util.setIsSubscribed (this.transport.isArrangerRecordEnabled (), enable);
         Util.setIsSubscribed (this.transport.isArrangerOverdubEnabled (), enable);
-        Util.setIsSubscribed (this.transport.isClipLauncherAutomationWriteEnabled (), enable);
         Util.setIsSubscribed (this.transport.isClipLauncherOverdubEnabled (), enable);
         Util.setIsSubscribed (this.transport.isArrangerAutomationWriteEnabled (), enable);
-        Util.setIsSubscribed (this.transport.automationWriteMode (), enable);
         Util.setIsSubscribed (this.transport.isArrangerLoopEnabled (), enable);
         Util.setIsSubscribed (this.transport.isPunchInEnabled (), enable);
         Util.setIsSubscribed (this.transport.isPunchOutEnabled (), enable);
@@ -435,14 +420,6 @@ public class TransportImpl implements ITransport
 
     /** {@inheritDoc} */
     @Override
-    public boolean isWritingClipLauncherAutomation ()
-    {
-        return this.transport.isClipLauncherAutomationWriteEnabled ().get ();
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
     public boolean isWritingArrangerAutomation ()
     {
         return this.transport.isArrangerAutomationWriteEnabled ().get ();
@@ -451,68 +428,9 @@ public class TransportImpl implements ITransport
 
     /** {@inheritDoc} */
     @Override
-    public IParameter getAutomationModeParameter ()
-    {
-        return this.automationModeParameter;
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public AutomationMode [] getAutomationWriteModes ()
-    {
-        return AUTOMATION_MODES;
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public AutomationMode getAutomationWriteMode ()
-    {
-        if (this.isWritingArrangerAutomation () || this.isWritingClipLauncherAutomation ())
-            return AutomationMode.lookup (this.transport.automationWriteMode ().get ());
-        return AutomationMode.READ;
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void setAutomationWriteMode (final AutomationMode mode)
-    {
-        switch (mode)
-        {
-            case TRIM_READ, READ:
-                this.transport.isArrangerAutomationWriteEnabled ().set (false);
-                this.transport.isClipLauncherAutomationWriteEnabled ().set (false);
-                break;
-
-            case WRITE, TOUCH, LATCH, LATCH_PREVIEW:
-                this.transport.isArrangerAutomationWriteEnabled ().set (true);
-                this.transport.isClipLauncherAutomationWriteEnabled ().set (true);
-                final String identifier = mode == AutomationMode.LATCH_PREVIEW ? AutomationMode.LATCH.getIdentifier () : mode.getIdentifier ();
-                this.transport.automationWriteMode ().set (identifier);
-                break;
-
-            default:
-                // Not used
-                break;
-        }
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
     public void toggleWriteArrangerAutomation ()
     {
         this.transport.toggleWriteArrangerAutomation ();
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void toggleWriteClipLauncherAutomation ()
-    {
-        this.transport.toggleWriteClipLauncherAutomation ();
     }
 
 
