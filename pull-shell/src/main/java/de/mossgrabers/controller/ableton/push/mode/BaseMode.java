@@ -122,8 +122,6 @@ public abstract class BaseMode<B extends IItem> extends AbstractParameterMode<Pu
         final ITransport transport = this.model.getTransport ();
         if (transport.isWritingArrangerAutomation ())
             transport.toggleWriteArrangerAutomation ();
-        if (transport.isWritingClipLauncherAutomation ())
-            transport.toggleWriteClipLauncherAutomation ();
     }
 
 
