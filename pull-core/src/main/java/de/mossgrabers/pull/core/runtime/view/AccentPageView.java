@@ -54,6 +54,26 @@ public final class AccentPageView implements ControllerView
     @Override public void deactivate () { Arrays.fill (this.rows, null); this.touched.clear (); this.requested = null; }
 
     @Override
+    public InputTarget inputTarget (final ControlId control, final InputKind kind, final ControllerSnapshot snapshot)
+    {
+        final int index = ROW.indexOf (control);
+        if (kind == InputKind.BUTTON && index >= 0)
+            return TrackInputTargets.row (control, index, snapshot);
+        if (KNOBS.contains (control) && (!snapshot.bridge ().controllerSettings ().available () || !snapshot.bridge ().encoderConfiguration ().available ()))
+            return null;
+        return ControllerView.super.inputTarget (control, kind, snapshot);
+    }
+
+    @Override
+    public List<CoreEffect> cancel (final ControlId control, final InputKind kind, final InputTarget target, final ControllerSnapshot snapshot)
+    {
+        final int index = ROW.indexOf (control);
+        if (index >= 0) this.rows[index] = null;
+        this.touched.remove (control);
+        return List.of ();
+    }
+
+    @Override
     public ResolvedControllerAction resolveAction (final ControllerActionBinding binding, final ControllerInputEvent input, final ControllerSnapshot snapshot)
     {
         this.latest = snapshot;
@@ -121,17 +141,6 @@ public final class AccentPageView implements ControllerView
         if (gesture.ended) this.rows[index] = null;
         if (gesture.sent || gesture.effect == null) return List.of ();
         gesture.sent = true;
-        if (gesture.effect instanceof final CurrentTrackActionEffect action)
-        {
-            final var target = action.target ();
-            final var bank = this.latest.bridge ().currentTrackBank ();
-            if (bank.generation () != target.generation () || !bank.bankId ().equals (target.bankId ()) || index >= bank.tracks ().size () || !bank.tracks ().get (index).track ().channelId ().equals (target.channelId ())) return List.of ();
-        }
-        else if (gesture.effect instanceof final StopSessionTrackEffect action)
-        {
-            final var bank = this.latest.bridge ().sessionBank ();
-            if (bank.generation () != action.targetGeneration () || !bank.shape ().equals (action.shape ()) || index >= bank.tracks ().size () || !bank.tracks ().get (index).channelId ().equals (action.channelId ())) return List.of ();
-        }
         return List.of (gesture.effect);
     }
 

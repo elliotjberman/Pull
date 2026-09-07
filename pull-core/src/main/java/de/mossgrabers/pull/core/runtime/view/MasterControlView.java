@@ -46,7 +46,6 @@ import java.util.Set;
 /** Core-owned policy, input, lights, and display for the Master page. */
 public final class MasterControlView implements ControllerView
 {
-    private final ParameterTouchControls touches;
 
     private static final double PARAMETER_STEP_SIZE = 10.0;
     private static final ControlId ENGINE = row (2, 5);
@@ -81,47 +80,11 @@ public final class MasterControlView implements ControllerView
         Set.of ());
 
 
-    public MasterControlView ()
-    {
-        this (new ParameterTouchSession ());
-    }
-
-
-    public MasterControlView (final ParameterTouchSession session)
-    {
-        this.touches = new ParameterTouchControls (session);
-    }
-
-
-    @Override
-    public void start (final ControllerSnapshot snapshot)
-    {
-        this.touches.clear ();
-    }
-
-
-    @Override
-    public void deactivate ()
-    {
-        this.touches.clear ();
-    }
-
-
-    @Override
-    public void reconcile (final ControllerSnapshot snapshot)
-    {
-        this.touches.reconcile (snapshot);
-        this.touches.retainTargets (ParameterAlignment.references (snapshot));
-    }
-
-
     @Override
     public String id ()
     {
         return "master-controls";
     }
-
-
 
 
     @Override
@@ -162,15 +125,10 @@ public final class MasterControlView implements ControllerView
     @Override
     public List<CoreEffect> handle (final CoreEvent event, final ControllerSnapshot snapshot)
     {
-        if (!(event instanceof final ControllerInputEvent input))
+        if (!(event instanceof final ControllerInputEvent input) || input.kind () != InputKind.RELATIVE)
             return List.of ();
-        final ParameterSlot slot = PARAMETER_BINDINGS.get (input.controlId ());
-        final ParameterTargetSnapshot target = slot == null ? null : ParameterAlignment.target (snapshot, slot);
-        if (input.kind () == InputKind.TOUCH && input.phase () == de.mossgrabers.pull.core.api.event.InputPhase.BEGIN && (!ParameterAlignment.masterContextAligned (snapshot) || ParameterAlignment.contradicts (snapshot, slot)))
-            return List.of ();
-        if (input.kind () == InputKind.RELATIVE)
-            return target == null ? List.of () : List.of (new AdjustParameterValueEffect (target.target (), input.value () * PARAMETER_STEP_SIZE));
-        return input.kind () == InputKind.TOUCH ? this.touches.handle (input, target, snapshot) : List.of ();
+        final ParameterTargetSnapshot target = ParameterAlignment.target (snapshot, PARAMETER_BINDINGS.get (input.controlId ()));
+        return target == null ? List.of () : List.of (new AdjustParameterValueEffect (target.target (), input.value () * PARAMETER_STEP_SIZE));
     }
 
 
@@ -196,9 +154,27 @@ public final class MasterControlView implements ControllerView
 
 
     @Override
-    public de.mossgrabers.pull.core.api.DesiredParameterTouches parameterTouches (final ControllerSnapshot snapshot)
+    public de.mossgrabers.pull.core.view.InputTarget inputTarget (final ControlId control, final InputKind kind, final ControllerSnapshot snapshot)
     {
-        return this.touches.desired ();
+        if (kind == InputKind.TOUCH)
+        {
+            final ParameterSlot slot = PARAMETER_BINDINGS.get (control);
+            if (!ParameterAlignment.masterContextAligned (snapshot) || ParameterAlignment.contradicts (snapshot, slot)) return null;
+        }
+        if (kind == InputKind.BUTTON && ACTION_BINDINGS.stream ().anyMatch (action -> action.controlId ().equals (control)))
+        {
+            final MasterSnapshot master = snapshot.bridge ().master ();
+            return ParameterAlignment.masterContextAligned (snapshot)
+                ? new de.mossgrabers.pull.core.view.InputTarget.Context (control, "project", master.projectIdentity (), 0) : null;
+        }
+        return ControllerView.super.inputTarget (control, kind, snapshot);
+    }
+
+
+    @Override
+    public Set<ControlId> parameterTouchControls (final ControllerSnapshot snapshot)
+    {
+        return SurfaceArea.ENCODER_TOUCHES.controls ();
     }
 
 

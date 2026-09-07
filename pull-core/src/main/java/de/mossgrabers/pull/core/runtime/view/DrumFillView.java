@@ -19,15 +19,16 @@ import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
+import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.view.ControllerView;
+import de.mossgrabers.pull.core.view.InputTarget;
 import de.mossgrabers.pull.core.view.SurfaceArea;
 import de.mossgrabers.pull.core.view.SurfaceClaim;
 import de.mossgrabers.pull.core.view.ViewOutput;
 import de.mossgrabers.pull.core.view.ViewProfile;
 
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -61,7 +62,6 @@ public final class DrumFillView implements ControllerView
         new SurfaceClaim (SurfaceArea.DRUM_FILL_LIGHTS, SurfaceClaim.Kind.OUTPUT));
     private static final ViewProfile PROFILE = ViewProfile.fixed ("default", CLAIMS, Set.of ());
 
-    private Set<ControlId>               previousPressedControls = Set.of ();
     private Map<ControlId, ClipTargetId> desiredBindings = Map.of ();
 
 
@@ -93,8 +93,7 @@ public final class DrumFillView implements ControllerView
     @Override
     public void start (final ControllerSnapshot snapshot)
     {
-        this.desiredBindings = desiredBindings (snapshot, snapshot.pressedControls ());
-        this.previousPressedControls = snapshot.pressedControls ();
+        this.reconcile (snapshot);
     }
 
 
@@ -102,10 +101,22 @@ public final class DrumFillView implements ControllerView
     @Override
     public void reconcile (final ControllerSnapshot snapshot)
     {
-        final Set<ControlId> continuingPresses = new LinkedHashSet<> (snapshot.pressedControls ());
-        continuingPresses.retainAll (this.previousPressedControls);
-        this.desiredBindings = desiredBindings (snapshot, continuingPresses);
-        this.previousPressedControls = snapshot.pressedControls ();
+        this.desiredBindings = ownsFillPads (snapshot) ? canonicalBindings (snapshot) : Map.of ();
+    }
+
+
+    @Override
+    public InputTarget inputTarget (final ControlId control, final InputKind kind, final ControllerSnapshot snapshot)
+    {
+        final ClipTargetId target = this.desiredBindings.get (control);
+        return target == null || !isReady (snapshot, this.desiredBindings, control) ? null : new InputTarget.Clip (target);
+    }
+
+
+    @Override
+    public List<CoreEffect> cancel (final ControlId control, final InputKind kind, final InputTarget target, final ControllerSnapshot snapshot)
+    {
+        return List.of (new ReleaseClipTargetsEffect (control));
     }
 
 
@@ -155,34 +166,6 @@ public final class DrumFillView implements ControllerView
     private static boolean ownsFillPads (final ControllerSnapshot snapshot)
     {
         return snapshot.bridge ().layout ().drumLayoutActive () && snapshot.bridge ().layout ().drumControllerEngaged ();
-    }
-
-
-    private static Map<ControlId, ClipTargetId> desiredBindings (final ControllerSnapshot snapshot, final Set<ControlId> controlsToPreserve)
-    {
-        final Map<ControlId, ClipTargetId> bindings = canonicalBindings (snapshot);
-        for (final ControlId control: CoreControls.DRUM_FILLS)
-        {
-            if (!controlsToPreserve.contains (control))
-                continue;
-
-            final ClipTargetId armedTarget = snapshot.armedClipTargets ().get (control);
-            if (armedTarget == null)
-                continue;
-
-            bindings.entrySet ().removeIf (entry -> !control.equals (entry.getKey ()) && armedTarget.equals (entry.getValue ()));
-            bindings.put (control, armedTarget);
-        }
-
-        final Set<ClipTargetId> catalogTargets = new LinkedHashSet<> ();
-        snapshot.clipCatalog ().clips ().forEach (clip -> catalogTargets.add (clip.targetId ()));
-        for (final Map.Entry<ControlId, ClipTargetId> retained: snapshot.clipLaunchSessionTargets ().entrySet ())
-        {
-            bindings.entrySet ().removeIf (entry -> !retained.getKey ().equals (entry.getKey ()) && retained.getValue ().equals (entry.getValue ()));
-            if (catalogTargets.contains (retained.getValue ()))
-                bindings.put (retained.getKey (), retained.getValue ());
-        }
-        return Map.copyOf (bindings);
     }
 
 

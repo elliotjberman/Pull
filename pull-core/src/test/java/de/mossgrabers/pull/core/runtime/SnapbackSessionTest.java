@@ -184,14 +184,14 @@ class SnapbackSessionTest
         final SnapbackSession session = new SnapbackSession ();
         final ParameterBridgeSnapshot retained = new ParameterBridgeSnapshot (
             parameters (40, 200).slots (),
-            Map.of (FIRST, 100.0));
+            Map.of (FIRST, 100.0), java.util.Set.of ());
         session.start (snapshot (retained, Set.of ()));
 
         session.handle (tick (1), snapshot (retained, Set.of ()), null);
         final SnapbackSession.Update restore = session.handle (tick (2), snapshot (retained, Set.of ()), null);
         assertEquals (List.of (new SetParameterValueEffect (FIRST, 100)), restore.effects ());
 
-        final ParameterBridgeSnapshot restored = new ParameterBridgeSnapshot (parameters (100, 200).slots (), Map.of (FIRST, 100.0));
+        final ParameterBridgeSnapshot restored = new ParameterBridgeSnapshot (parameters (100, 200).slots (), Map.of (FIRST, 100.0), java.util.Set.of ());
         session.handle (tick (3), snapshot (restored, Set.of ()), null);
         session.handle (tick (4), snapshot (restored, Set.of ()), null);
         assertTrue (session.decorate (CoreResult.empty (), List.of ()).desiredParameterInteraction ().baselines ().isEmpty ());
@@ -301,7 +301,7 @@ class SnapbackSessionTest
     {
         return new ParameterBridgeSnapshot (Map.of (
             ParameterSlot.active (0), new ParameterTargetSnapshot (FIRST, first, 0.5),
-            ParameterSlot.active (1), new ParameterTargetSnapshot (SECOND, second, 0.5)), Map.of ());
+            ParameterSlot.active (1), new ParameterTargetSnapshot (SECOND, second, 0.5)), Map.of (), java.util.Set.of ());
     }
 
 

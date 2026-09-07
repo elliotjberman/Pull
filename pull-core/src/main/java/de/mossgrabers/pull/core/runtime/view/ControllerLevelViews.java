@@ -4,7 +4,6 @@
 package de.mossgrabers.pull.core.runtime.view;
 
 import de.mossgrabers.pull.core.view.ControllerView;
-import de.mossgrabers.pull.core.view.RetainedControllerView;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,40 +23,37 @@ public final class ControllerLevelViews
     private final ButtonGestureConsumption buttonGestures = new ButtonGestureConsumption (java.util.Set.of (de.mossgrabers.pull.core.api.PushControlIds.button ("RECORD")));
     private final ControllerPageTransitions pages;
     private final AuthoritativeBooleanToggle<String> metronomeToggle = new AuthoritativeBooleanToggle<> ();
-    private final ControllerView tapTempo = retained (new TapTempoView (this.metronomeToggle));
+    private final ControllerView tapTempo = new TapTempoView (this.metronomeToggle);
     private final ControllerView metronome;
     private final AutomationControlState automationState = new AutomationControlState ();
     private final ControllerView automation;
-    private final List<ControllerView> metronomePage = List.of (retained (new TransportSettingsPageView (false, this.automationState)));
-    private final List<ControllerView> automationPage = List.of (retained (new TransportSettingsPageView (true, this.automationState)));
-    private final ControllerView undoRedo = retained (new UndoRedoView ());
+    private final List<ControllerView> metronomePage = List.of (new TransportSettingsPageView (false, this.automationState));
+    private final List<ControllerView> automationPage = List.of (new TransportSettingsPageView (true, this.automationState));
+    private final ControllerView undoRedo = new UndoRedoView ();
     private final ControllerView trackMix;
     private final ControllerView masterButton;
     private final ControllerView accent;
     private final ControllerView selectedTrackMuteSolo;
-    private final RawPitchBendGesture pitchBend = new RawPitchBendGesture ();
-    private final ControllerView rawPitchBend = retained (RawPitchBendView.raw (this.pitchBend));
-    private final ControllerView legacyPitchBend = retained (RawPitchBendView.legacyContinuation (this.pitchBend));
-    private final ParameterTouchSession parameterTouches = new ParameterTouchSession ();
+    private final ControllerView rawPitchBend = new RawPitchBendView ();
 
 
     public ControllerLevelViews (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator, final PageNavigation navigation)
     {
         this.pages = new ControllerPageTransitions (navigation);
-        this.metronome = retained (new MetronomeControlView (this.metronomeToggle, this.pages));
-        this.automation = retained (new AutomationControlView (this.automationState, this.pages));
-        this.trackMix = retained (new TrackMixControlView (navigation));
-        this.masterButton = retained (new MasterButtonView (this.pages));
-        this.accent = retained (new AccentControlView (this.pages));
+        this.metronome = new MetronomeControlView (this.metronomeToggle, this.pages);
+        this.automation = new AutomationControlView (this.automationState, this.pages);
+        this.trackMix = new TrackMixControlView (navigation);
+        this.masterButton = new MasterButtonView (this.pages);
+        this.accent = new AccentControlView (this.pages);
         final WorkspaceSelection checkedSelection = Objects.requireNonNull (selection, "selection");
         final SelectedTrackBooleanToggles selectedTrackToggles = new SelectedTrackBooleanToggles ();
-        this.workspaceSelection = retained (new WorkspaceSelectionView (checkedSelection));
-        this.noteViewController = retained (new NoteViewControllerView (checkedSelection));
-        this.globalParameters = retained (new GlobalParameterControlsView ());
-        this.transport = retained (new TransportControlView (
+        this.workspaceSelection = new WorkspaceSelectionView (checkedSelection);
+        this.noteViewController = new NoteViewControllerView (checkedSelection);
+        this.globalParameters = new GlobalParameterControlsView ();
+        this.transport = new TransportControlView (
             Objects.requireNonNull (playbackCoordinator, "playbackCoordinator"),
-            selectedTrackToggles, this.buttonGestures));
-        this.selectedTrackMuteSolo = retained (new SelectedTrackMuteSoloView (selectedTrackToggles));
+            selectedTrackToggles, this.buttonGestures);
+        this.selectedTrackMuteSolo = new SelectedTrackMuteSoloView (selectedTrackToggles);
     }
 
 
@@ -80,7 +76,7 @@ public final class ControllerLevelViews
     }
 
 
-    /** Select the fixed raw strip profile while retaining its gesture across every page. */
+    /** Include raw strip behavior only in compositions that declare that binding. */
     public List<ControllerView> composeWithRawPitchBend (final List<? extends ControllerView> workspaceViews, final boolean noteController)
     {
         return this.compose (workspaceViews, noteController, true);
@@ -104,7 +100,8 @@ public final class ControllerLevelViews
         views.add (this.masterButton);
         views.add (this.accent);
         views.add (this.selectedTrackMuteSolo);
-        views.add (rawPitchBend ? this.rawPitchBend : this.legacyPitchBend);
+        if (rawPitchBend)
+            views.add (this.rawPitchBend);
         for (final ControllerView view: checkedWorkspaceViews)
             views.add (Objects.requireNonNull (view, "workspaceView"));
         final boolean hasNavigation = checkedWorkspaceViews.stream ().flatMap (view -> view.claims ().stream ()).anyMatch (claim -> claim.area () == de.mossgrabers.pull.core.view.SurfaceArea.NAVIGATION_ARROWS);
@@ -126,16 +123,4 @@ public final class ControllerLevelViews
 
     /** Fixed full-display page sharing the retained controller-level Automation Write lane. */
     public List<ControllerView> automationPage () { return this.automationPage; }
-
-
-    public ParameterTouchSession parameterTouches ()
-    {
-        return this.parameterTouches;
-    }
-
-
-    private static ControllerView retained (final ControllerView view)
-    {
-        return new RetainedControllerView (view);
-    }
 }

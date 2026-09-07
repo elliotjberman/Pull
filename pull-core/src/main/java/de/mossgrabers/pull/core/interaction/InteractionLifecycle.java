@@ -17,7 +17,7 @@ import java.util.Set;
  *
  * <p>Use one instance per externally assigned generation; never reuse a generation. C and T must
  * be immutable value identities. T identifies an exact target incarnation, never a moving slot.
- * This class is developed in isolation and is not yet connected to production input routing.</p>
+ * Physical routing and target observation adapters use the same cancellation and retirement rules.</p>
  *
  * @param <C> Logical physical control identity (all companion events share this identity)
  * @param <T> Exact target identity, including its generation where applicable
@@ -82,6 +82,21 @@ public final class InteractionLifecycle<C, T>
         this.sessions.put (id, new Session (interaction));
         this.held.put (control, Optional.of (id));
         return new Begin<> (Admission.STARTED, Optional.of (interaction));
+    }
+
+    /** The owning view/route departed even if the same host target remains available. */
+    public void cancel (final C control)
+    {
+        this.requireControl (control);
+        this.held.getOrDefault (control, Optional.empty ()).map (this.sessions::get)
+            .ifPresent (session -> this.end (session, EndReason.BINDING_CHANGED));
+    }
+
+    /** Includes rejected/cancelled physical tails, until an explicit release arrives. */
+    public boolean isHeld (final C control)
+    {
+        this.requireControl (control);
+        return this.held.containsKey (control);
     }
 
     /** Resolves companion motion to this physical gesture, never to the replacement binding. */

@@ -16,6 +16,7 @@ import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.view.ControllerView;
+import de.mossgrabers.pull.core.view.InputTarget;
 import de.mossgrabers.pull.core.view.SurfaceArea;
 import de.mossgrabers.pull.core.view.SurfaceClaim;
 import de.mossgrabers.pull.core.view.ViewOutput;
@@ -38,7 +39,6 @@ public final class UndoRedoView implements ControllerView
         new SurfaceClaim (SurfaceArea.UNDO_BUTTON, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
         new SurfaceClaim (SurfaceArea.UNDO_BUTTON, SurfaceClaim.Kind.OUTPUT),
         new SurfaceClaim (SurfaceArea.SHIFT_MODIFIER, SurfaceClaim.Kind.OBSERVE_INPUT)), Set.of ());
-    private boolean held;
 
 
     @Override
@@ -54,20 +54,18 @@ public final class UndoRedoView implements ControllerView
 
 
     @Override
+    public InputTarget inputTarget (final ControlId control, final InputKind kind, final ControllerSnapshot snapshot)
+    {
+        return UNDO.equals (control) ? new InputTarget.Context (control, "project", snapshot.bridge ().project ().projectIdentity (), 0)
+            : ControllerView.super.inputTarget (control, kind, snapshot);
+    }
+
+    @Override
     public List<CoreEffect> handle (final CoreEvent event, final ControllerSnapshot snapshot)
     {
         if (!(event instanceof final ControllerInputEvent input) || !UNDO.equals (input.controlId ()) || input.kind () != InputKind.BUTTON)
             return List.of ();
-        if (input.phase () == InputPhase.BEGIN)
-        {
-            this.held = true;
-            return List.of ();
-        }
-        if (input.phase () != InputPhase.END)
-            return List.of ();
-        final boolean acquired = this.held;
-        this.held = false;
-        if (!acquired || !available (snapshot))
+        if (input.phase () != InputPhase.END || !available (snapshot))
             return List.of ();
         return List.of (new ProjectHistoryEffect (snapshot.bridge ().project ().projectIdentity (), snapshot.pressedControls ().contains (SHIFT) ? ProjectHistoryAction.REDO : ProjectHistoryAction.UNDO));
     }

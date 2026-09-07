@@ -19,12 +19,12 @@ import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.view.ControllerView;
+import de.mossgrabers.pull.core.view.InputTarget;
 import de.mossgrabers.pull.core.view.SurfaceArea;
 import de.mossgrabers.pull.core.view.SurfaceClaim;
 import de.mossgrabers.pull.core.view.ViewOutput;
 import de.mossgrabers.pull.core.view.ViewProfile;
 
-import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -54,7 +54,6 @@ public final class DrumRateView implements ControllerView
     private final boolean [] padsDown = new boolean [RATE_PADS.size ()];
     private final long [] pressOrder = new long [RATE_PADS.size ()];
     private long pressCounter;
-    private long targetGeneration = -1;
 
 
     @Override
@@ -79,23 +78,23 @@ public final class DrumRateView implements ControllerView
 
 
     @Override
-    public void reconcile (final ControllerSnapshot snapshot)
+    public InputTarget inputTarget (final ControlId control, final InputKind kind, final ControllerSnapshot snapshot)
     {
-        final long generation = snapshot.bridge ().selectedTrack ().generation ();
-        if (generation != this.targetGeneration || !isEnabled (snapshot))
+        final var selected = snapshot.bridge ().selectedTrack ();
+        return isEnabled (snapshot) ? new InputTarget.Context (control, "drum-roll", selected.channelId (), selected.generation ()) : null;
+    }
+
+
+    @Override
+    public List<de.mossgrabers.pull.core.api.effect.CoreEffect> cancel (final ControlId control, final InputKind kind, final de.mossgrabers.pull.core.view.InputTarget target, final ControllerSnapshot snapshot)
+    {
+        final int index = RATE_PADS.indexOf (control);
+        if (kind == InputKind.PAD && index >= 0)
         {
-            this.reset ();
-            this.targetGeneration = generation;
-            return;
+            this.padsDown[index] = false;
+            this.pressOrder[index] = 0;
         }
-        for (int index = 0; index < RATE_PADS.size (); index++)
-        {
-            if (!snapshot.pressedControls ().contains (RATE_PADS.get (index)))
-            {
-                this.padsDown[index] = false;
-                this.pressOrder[index] = 0;
-            }
-        }
+        return List.of ();
     }
 
 
@@ -187,11 +186,4 @@ public final class DrumRateView implements ControllerView
         return BETWEEN_RATES[Math.min (primary, secondary)];
     }
 
-
-    private void reset ()
-    {
-        Arrays.fill (this.padsDown, false);
-        Arrays.fill (this.pressOrder, 0);
-        this.pressCounter = 0;
-    }
 }

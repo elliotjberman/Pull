@@ -3,7 +3,7 @@
 This document defines class loading, publication, runtime transactions and the stable shell/core
 boundary. [ARCH](../ARCH.md) is the canonical current capability inventory; the
 [views contract](views-api-design.md) defines pages and input-owner lifetimes. Working source uses
-Core API 46 and checkpoint schema 6, separately from Bitwig controller API 25. Installed-build and
+Core API 47 and checkpoint schema 6, separately from Bitwig controller API 25. Installed-build and
 live-verification status belong to the [validation record](migrations/core-page-ownership-live-smoke.md).
 
 Primary goal: make ordinary controller development possible without restarting Bitwig.
@@ -433,13 +433,14 @@ The parent freezes each edge's route and core generation at BEGIN through LONG/E
 consumed-button handling. Replacement waits for core-relevant gestures, pending motion and
 deferred stable callbacks; a stable-only NONE gesture without a semantic action does not fence it.
 Within one core generation, the [view contract](views-api-design.md)
-defines original-receiver capture across page changes. These are complementary ownership levels.
+defines target-bound cancellation when the original binding disappears. These are complementary
+ownership levels.
 
-Motion retains its existing per-sample route. Relative deltas sum; absolute and pressure samples
-keep the latest value until the controller tick. Pending motion is emitted in physical order and
-touch END flushes that control's motion first. Later legacy rebinding occurs behind the same
-callback. General touch→motion and pad→pressure association is
-[not yet guaranteed](findings/core-continuous-input-capture.md).
+Relative deltas sum; absolute and pressure samples keep the latest value until the controller
+tick. TOUCH→RELATIVE/ABSOLUTE and PAD→POLY_PRESSURE companions inherit the held edge's route and
+generation, and flush before END. Later legacy rebinding remains behind that same callback. Core
+cancels changed targets and suppresses the remaining physical tail; see the
+[lifecycle contract](interaction-lifecycle.md).
 
 ### Semantic action and parameter barriers
 

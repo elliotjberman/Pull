@@ -34,31 +34,27 @@ public final class GlobalMixerControlsView implements ControllerView
     private final Role role;
     private final int sendIndex;
     private final ParameterBankId bank;
-    private final ParameterTouchSession touchSession;
     private final List<AuthoritativeBooleanToggle<ParameterTargetRef>> enabled = IntStream.range (0, 8).mapToObj (ignored -> new AuthoritativeBooleanToggle<ParameterTargetRef> ()).toList ();
-    private final ParameterTouchControls touches;
     private final Map<ControlId, ParameterSlot> bindings;
     private final ViewProfile profile;
     private final PageNavigation pages;
 
-    public GlobalMixerControlsView (final Role role, final ParameterTouchSession touchSession, final PageNavigation pages)
+    public GlobalMixerControlsView (final Role role, final PageNavigation pages)
     {
-        this (role, -1, touchSession, pages);
+        this (role, -1, pages);
     }
 
-    public static GlobalMixerControlsView send (final int sendIndex, final ParameterTouchSession touchSession, final PageNavigation pages)
+    public static GlobalMixerControlsView send (final int sendIndex, final PageNavigation pages)
     {
-        return new GlobalMixerControlsView (Role.SEND, sendIndex, touchSession, pages);
+        return new GlobalMixerControlsView (Role.SEND, sendIndex, pages);
     }
 
-    private GlobalMixerControlsView (final Role role, final int sendIndex, final ParameterTouchSession touchSession, final PageNavigation pages)
+    private GlobalMixerControlsView (final Role role, final int sendIndex, final PageNavigation pages)
     {
         this.role = Objects.requireNonNull (role, "role");
         this.pages = Objects.requireNonNull (pages, "pages");
         this.sendIndex = sendIndex;
         this.bank = role == Role.SEND ? ParameterBankId.trackSend (sendIndex) : role == Role.VOLUME ? ParameterBankId.TRACK_VOLUME : ParameterBankId.TRACK_PAN;
-        this.touchSession = Objects.requireNonNull (touchSession, "touchSession");
-        this.touches = new ParameterTouchControls (touchSession, false);
         final Map<ControlId, ParameterSlot> slots = new LinkedHashMap<> ();
         for (int index = 0; index < 8; index++) slots.put (PushControlIds.continuous ("KNOB" + (index + 1)), this.slot (index));
         this.bindings = Map.copyOf (slots);
@@ -88,10 +84,8 @@ public final class GlobalMixerControlsView implements ControllerView
     @Override public void start (final ControllerSnapshot snapshot) { this.deactivate (); this.reconcile (snapshot); }
     @Override public void reconcile (final ControllerSnapshot snapshot)
     {
-        this.touches.reconcile (snapshot);
-        this.touches.retainTargets (IntStream.range (0, 8).mapToObj (index -> this.alignedTarget (snapshot, index)).filter (Objects::nonNull).map (ParameterTargetSnapshot::target).collect (Collectors.toUnmodifiableSet ()));
     }
-    @Override public void deactivate () { this.touches.clear (); this.enabled.forEach (AuthoritativeBooleanToggle::clear); }
+    @Override public void deactivate () { this.enabled.forEach (AuthoritativeBooleanToggle::clear); }
 
     @Override
     public List<CoreEffect> handle (final CoreEvent event, final ControllerSnapshot snapshot)
@@ -108,8 +102,7 @@ public final class GlobalMixerControlsView implements ControllerView
             else if (input.kind () == InputKind.TOUCH)
             {
                 if (input.phase () == InputPhase.BEGIN && target == null && snapshot.bridge ().parameters ().slots ().containsKey (slot)) return List.copyOf (effects);
-                final boolean begin = input.phase () == InputPhase.BEGIN && !this.touchSession.contains (input.controlId ());
-                effects.addAll (this.touches.handle (input, target, snapshot));
+                final boolean begin = input.phase () == InputPhase.BEGIN;
                 if (begin && this.role == Role.SEND && snapshot.pressedControls ().containsAll (Set.of (SHIFT, SELECT)))
                 {
                     // Preserve inherited cumulative ordering: Delete reset, touch, then enabled.
@@ -150,9 +143,21 @@ public final class GlobalMixerControlsView implements ControllerView
     }
 
     @Override
-    public de.mossgrabers.pull.core.api.DesiredParameterTouches parameterTouches (final ControllerSnapshot snapshot)
+    public de.mossgrabers.pull.core.view.InputTarget inputTarget (final ControlId control, final InputKind kind, final ControllerSnapshot snapshot)
     {
-        return this.touches.desired ();
+        if (kind == InputKind.TOUCH)
+        {
+            final ParameterSlot slot = this.bindings.get (control);
+            if (slot != null && snapshot.bridge ().parameters ().slots ().containsKey (slot) && this.alignedTarget (snapshot, slot.index ()) == null) return null;
+        }
+        return ControllerView.super.inputTarget (control, kind, snapshot);
+    }
+
+
+    @Override
+    public Set<ControlId> parameterTouchControls (final ControllerSnapshot snapshot)
+    {
+        return SurfaceArea.ENCODER_TOUCHES.controls ();
     }
 
 

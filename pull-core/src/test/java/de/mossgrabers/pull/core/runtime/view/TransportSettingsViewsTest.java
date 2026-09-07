@@ -8,6 +8,7 @@ import de.mossgrabers.pull.core.api.event.*;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.runtime.PullCoreProvider;
 import de.mossgrabers.pull.core.view.CompiledWorkspace;
+import de.mossgrabers.pull.core.view.RoutedWorkspace;
 import de.mossgrabers.pull.core.view.ControllerView;
 import de.mossgrabers.pull.core.view.ResolvedControllerAction;
 import org.junit.jupiter.api.Test;
@@ -39,6 +40,41 @@ class TransportSettingsViewsTest
         assertEquals (new RgbColor (60, 60, 60), release.desiredOutput ().lights ().get (PushControlIds.button ("METRONOME")));
         f.metronome = true;
         assertEquals (new RgbColor (255, 255, 255), f.tick ().desiredOutput ().lights ().get (PushControlIds.button ("METRONOME")));
+    }
+
+    @Test
+    void projectChangeCancelsHeldAndDeferredGlobalControlsWithoutRevival ()
+    {
+        for (final String button: List.of ("AUTOMATION", "METRONOME", "TAP_TEMPO", "UNDO"))
+        {
+            final Fixture f = new Fixture (pages -> List.of (new AutomationControlView (new AutomationControlState (), pages),
+                new MetronomeControlView (new AuthoritativeBooleanToggle<> (), pages), new TapTempoView (), new UndoRedoView ()));
+            f.pressed.add (PushControlIds.button ("SHIFT"));
+            f.edge (button, InputPhase.BEGIN);
+            f.project = "project-b";
+            assertTrue (f.tick ().effects ().isEmpty (), button);
+            f.project = "project-a";
+            assertTrue (f.edge (button, InputPhase.END).effects ().isEmpty (), button + " cannot revive on returning to project A");
+        }
+        for (final String button: List.of ("AUTOMATION", "METRONOME"))
+        {
+            final Fixture f = new Fixture (pages -> List.of (new AutomationControlView (new AutomationControlState (), pages),
+                new MetronomeControlView (new AuthoritativeBooleanToggle<> (), pages)));
+            final var deferred = f.resolve (button);
+            f.edge (button, InputPhase.LONG);
+            f.edge (button, InputPhase.END);
+            f.project = "project-b";
+            f.tick ();
+            f.project = "project-a";
+            assertTrue (f.dispatch (deferred).effects ().isEmpty ());
+            assertEquals ("TRACK", f.navigation.legacyAlias (), "cancelled delayed action cannot open its page");
+            f.edge (button, InputPhase.BEGIN);
+            f.edge (button, InputPhase.LONG);
+            assertEquals (button.equals ("METRONOME") ? "TRANSPORT" : "AUTOMATION", f.navigation.legacyAlias ());
+            f.project = "project-b";
+            f.tick ();
+            assertEquals ("TRACK", f.navigation.legacyAlias (), "cancelled active interaction relinquishes its temporary page");
+        }
     }
 
     @Test
@@ -228,7 +264,7 @@ class TransportSettingsViewsTest
     private static final class Fixture
     {
         private final PageNavigation navigation = PageNavigation.defaults ();
-        private final CompiledWorkspace workspace;
+        private final RoutedWorkspace workspace;
         private final Set<ControlId> pressed = new HashSet<> ();
         private long sequence;
         private long generation = 1;
@@ -242,7 +278,7 @@ class TransportSettingsViewsTest
         private Map<ParameterSlot, ParameterTargetSnapshot> parameters = Map.of ();
         private final CoreResult initial;
         private Fixture (final ControllerView... views) { this (pages -> List.of (views)); }
-        private Fixture (final java.util.function.Function<ControllerPageTransitions, List<ControllerView>> factory) { this.workspace = CompiledWorkspace.compile ("test", factory.apply (new ControllerPageTransitions (this.navigation))); this.initial = this.workspace.start (this.snapshot ()); }
+        private Fixture (final java.util.function.Function<ControllerPageTransitions, List<ControllerView>> factory) { this.workspace = new RoutedWorkspace (CompiledWorkspace.compile ("test", factory.apply (new ControllerPageTransitions (this.navigation)))); this.initial = this.workspace.start (this.snapshot ()); }
         private CoreResult edge (final String button, final InputPhase phase)
         {
             final ControlId id = PushControlIds.button (button);
@@ -250,8 +286,7 @@ class TransportSettingsViewsTest
             if (phase == InputPhase.END) this.pressed.remove (id);
             this.sequence++;
             final var input = new ControllerInputEvent (this.sequence, this.sequence, id, InputKind.BUTTON, phase, phase == InputPhase.END ? 0 : 127);
-            final var action = this.workspace.resolveAction (input, this.snapshot ());
-            return action == null ? this.workspace.handle (input, this.snapshot ()) : this.dispatch (action);
+            return this.workspace.handle (input, this.snapshot ());
         }
         private ResolvedControllerAction resolve (final String button)
         {
@@ -265,7 +300,7 @@ class TransportSettingsViewsTest
         private CoreResult turn (final String knob, final long delta) { this.sequence++; return this.workspace.handle (new ControllerInputEvent (this.sequence, this.sequence, PushControlIds.continuous (knob), InputKind.RELATIVE, InputPhase.UPDATE, delta), this.snapshot ()); }
         private ControllerSnapshot snapshot ()
         {
-            final ControllerBridgeSnapshot bridge = new ControllerBridgeSnapshot (new TransportSnapshot (true, true, false, false, false, false, false, this.metronome, false, 120, 0, 4, 4), SelectedTrackSnapshot.empty (), SessionBankSnapshot.empty (), new ControllerLayoutSnapshot (this.generation, "PLAY", this.mode, false, false, 0, GridPressureConfiguration.OFF, DesiredNoteInputTranslation.unowned (), this.temporary ? "TRACK" : this.mode, "TRACK", this.temporary), NoteViewSnapshot.empty (), NoteRepeatSnapshot.empty (), DrumContextSnapshot.empty (), new ParameterBridgeSnapshot (this.parameters, Map.of ()), ControllerMappingFeedbackSnapshot.empty (), MasterSnapshot.empty (), new ProjectSnapshot (true, this.project, "Project", true, false, false, false), new AutomationSnapshot (this.project, this.writing, false, this.automationMode), new EncoderConfigurationSnapshot (true, 1024, 1, 0, -50), CurrentTrackBankSnapshot.empty (), new TransportSettingsSnapshot (this.project, this.ticks, PreRoll.NONE, false));
+            final ControllerBridgeSnapshot bridge = new ControllerBridgeSnapshot (new TransportSnapshot (true, true, false, false, false, false, false, this.metronome, false, 120, 0, 4, 4), SelectedTrackSnapshot.empty (), SessionBankSnapshot.empty (), new ControllerLayoutSnapshot (this.generation, "PLAY", this.mode, false, false, 0, GridPressureConfiguration.OFF, DesiredNoteInputTranslation.unowned (), this.temporary ? "TRACK" : this.mode, "TRACK", this.temporary), NoteViewSnapshot.empty (), NoteRepeatSnapshot.empty (), DrumContextSnapshot.empty (), new ParameterBridgeSnapshot (this.parameters, Map.of (), java.util.Set.of ()), ControllerMappingFeedbackSnapshot.empty (), MasterSnapshot.empty (), new ProjectSnapshot (true, this.project, "Project", true, false, false, false), new AutomationSnapshot (this.project, this.writing, false, this.automationMode), new EncoderConfigurationSnapshot (true, 1024, 1, 0, -50), CurrentTrackBankSnapshot.empty (), new TransportSettingsSnapshot (this.project, this.ticks, PreRoll.NONE, false));
             return new ControllerSnapshot (this.sequence, this.sequence, new PullCoreProvider ().descriptor ().requiredCapabilities (), bridge, ClipCatalogSnapshot.empty (), Map.of (), Map.of (), Optional.empty (), this.pressed, Set.of ());
         }
     }

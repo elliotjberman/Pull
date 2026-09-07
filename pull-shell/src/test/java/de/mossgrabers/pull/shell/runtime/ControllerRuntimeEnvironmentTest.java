@@ -152,11 +152,11 @@ class ControllerRuntimeEnvironmentTest
         assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_STATE));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_NOTE_VIEW_PREFERENCE));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_NOTE_REPEAT));
-        assertEquals (Integer.valueOf (7), initial.capabilities ().versions ().get (CoreCapabilities.ROUTING_CONTROLLER_INPUT));
+        assertEquals (Integer.valueOf (8), initial.capabilities ().versions ().get (CoreCapabilities.ROUTING_CONTROLLER_INPUT));
         assertEquals (Integer.valueOf (14), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE));
         assertEquals (Integer.valueOf (3), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_SESSION_BANK));
         assertEquals (Integer.valueOf (3), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_CONTROLLER_BUTTON_CONSUMPTION));
-        assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_PARAMETER_TARGETS));
+        assertEquals (Integer.valueOf (5), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_PARAMETER_TARGETS));
         assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_PARAMETER_TARGET));
         assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_CONTROLLER_MAPPING_FEEDBACK));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_MASTER));
@@ -322,7 +322,7 @@ class ControllerRuntimeEnvironmentTest
 
 
     @Test
-    void realCoreOriginalFrameReleaseKeepsDependenciesThroughParentPreparation () throws Exception
+    void realCoreCancelledFrameReleaseIsInertThroughParentPreparation () throws Exception
     {
         final var classes = java.nio.file.Path.of ("../pull-core/target/classes").toAbsolutePath ().normalize ();
         try (final var loader = new java.net.URLClassLoader (new java.net.URL[] {classes.toUri ().toURL ()}, getClass ().getClassLoader ()))
@@ -338,8 +338,8 @@ class ControllerRuntimeEnvironmentTest
             core.handle (new de.mossgrabers.pull.core.api.event.SnapshotChangedEvent (3, 3), pageCaptureSnapshot (capabilities, 3, Set.of (row), new de.mossgrabers.pull.core.api.LegacyControllerPageRequests (List.of (request))));
             final var released = core.handle (new ControllerInputEvent (4, 4, row, InputKind.BUTTON, InputPhase.END, 0), pageCaptureSnapshot (capabilities, 4, Set.of (), new de.mossgrabers.pull.core.api.LegacyControllerPageRequests (1, List.of ())));
             assertEquals ("TRACK", released.desiredControllerState ().page ().effectivePage ().legacyAlias ());
-            assertEquals (1, released.effects ().stream ().filter (de.mossgrabers.pull.core.api.effect.ToggleApplicationPanelEffect.class::isInstance).count ());
-            assertTrue (released.desiredBridgeSubscriptions ().includes (BridgeSubscription.APPLICATION_UI));
+            assertEquals (0, released.effects ().stream ().filter (de.mossgrabers.pull.core.api.effect.ToggleApplicationPanelEffect.class::isInstance).count ());
+            assertFalse (released.desiredBridgeSubscriptions ().includes (BridgeSubscription.APPLICATION_UI));
             final var environment = new ControllerRuntimeEnvironment (host (1), new PassthroughControllerBridge (), new RecordingLog (), () -> 0);
             environment.setInputRouteValidator (ignored -> true);
             environment.setControllerActionValidator (ignored -> true);
@@ -359,7 +359,7 @@ class ControllerRuntimeEnvironmentTest
 
 
     @Test
-    void legacyPageMayContinueOnlyTheAlreadyAppliedExactCapturedTouch ()
+    void departingPageCannotRetainATouchWithoutCurrentExclusiveOwnership ()
     {
         final PassthroughControllerBridge bridge = new PassthroughControllerBridge ();
         bridge.recordTouches = true;
@@ -367,27 +367,15 @@ class ControllerRuntimeEnvironmentTest
         environment.setInputRouteValidator (ignored -> true);
         final ControlId knob = PushControlIds.continuous ("KNOB1");
         final ParameterTargetRef target = new ParameterTargetRef (ParameterTargetKind.LIVE, "original-parameter", 1);
-        final java.util.concurrent.atomic.AtomicBoolean captured = new java.util.concurrent.atomic.AtomicBoolean (true);
-        environment.setActiveTouchOwner (control -> control.equals (knob) && captured.get ());
         environment.controllerInput (knob, InputKind.TOUCH, InputPhase.BEGIN, 127);
         final var touch = new DesiredParameterTouches (Map.of (knob, target));
-        final CoreResult begin = touchContinuationResult (touch, new DesiredInputRoutes (Set.of (new InputRoute (knob, InputKind.TOUCH, InputRouteMode.EXCLUSIVE))), new DesiredControllerState (DesiredControllerWorkspace.empty (), DesiredNotePerformance.inactive (), corePage ()));
-        final CoreResult continuation = touchContinuationResult (touch, DesiredInputRoutes.empty (), DesiredControllerState.empty ());
-        assertThrows (IllegalArgumentException.class, () -> environment.prepare (continuation), "a physical capture alone cannot acquire an unadmitted target");
+        final CoreResult begin = touchResult (touch, new DesiredInputRoutes (Set.of (new InputRoute (knob, InputKind.TOUCH, InputRouteMode.EXCLUSIVE))), new DesiredControllerState (DesiredControllerWorkspace.empty (), DesiredNotePerformance.inactive (), corePage ()));
         environment.commit (1, environment.prepare (begin));
         environment.apply (1);
-        environment.commit (1, environment.prepare (continuation));
-        environment.apply (1);
-        final var other = new DesiredParameterTouches (Map.of (knob, new ParameterTargetRef (ParameterTargetKind.LIVE, "another-parameter", 2)));
-        assertThrows (IllegalArgumentException.class, () -> environment.prepare (touchContinuationResult (other, DesiredInputRoutes.empty (), DesiredControllerState.empty ())));
-        captured.set (false);
-        assertThrows (IllegalArgumentException.class, () -> environment.prepare (continuation), "release retires the continuation permission");
-        captured.set (true);
-        environment.invalidate (1);
-        assertThrows (IllegalArgumentException.class, () -> environment.prepare (continuation), "core invalidation retires applied touch ownership");
+        assertThrows (IllegalArgumentException.class, () -> environment.prepare (touchResult (touch, DesiredInputRoutes.empty (), DesiredControllerState.empty ())), "a previously acquired lease grants no offscreen continuation permission");
     }
 
-    private static CoreResult touchContinuationResult (final DesiredParameterTouches touches, final DesiredInputRoutes routes, final DesiredControllerState state)
+    private static CoreResult touchResult (final DesiredParameterTouches touches, final DesiredInputRoutes routes, final DesiredControllerState state)
     {
         return new CoreResult (DesiredHardwareOutput.empty (), routes, new DesiredBridgeSubscriptions (Set.of (BridgeSubscription.PARAMETERS)), Map.of (), state,
             DesiredNoteRepeat.unowned (), de.mossgrabers.pull.core.api.DesiredControllerActions.empty (), new DesiredParameterBanks (Set.of (ParameterBankId.PROJECT_REMOTE)),

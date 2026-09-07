@@ -12,14 +12,14 @@ workflow. Do not add new policy to frozen stable adapters.
 the controls listed below. It does **not** complete the shell-to-core migration. This document is
 the continuation checklist; owning navigation to a legacy page does not migrate that page's body.
 
-Working contract: Core API 46, checkpoint schema 6, Bitwig API 25. The latest installed/live-tested
+Working contract: Core API 47, checkpoint schema 6, Bitwig API 25. The latest installed/live-tested
 production source is `11e33477`; subsequent cleanup has not been deployed or live tested.
 [The validation record](migrations/core-page-ownership-live-smoke.md) separates those states.
 
 | Slice | Current boundary |
 | --- | --- |
 | Page ownership | Core `PageId`/`Page`, navigation/history, exact temporary tokens, retained backgrounds, presentation models/renderers/styles. One inert shell footprint projects arbitrary core pages; frozen callers use a 64-request sequenced inbox. |
-| Original-view release | Core captures edge receivers and deferred action ownership. Current pages render; retained owners supply only continuation data, ticks and exact touches. General motion association remains an [active finding](findings/core-continuous-input-capture.md). |
+| Target lifecycle | Shared binding-loss cancellation, companion motion capture, suppressed physical tails and observed resource retirement are integrated. [Contract and validation boundary](interaction-lifecycle.md). |
 | Mixer pages | Project Macros, normal/VS Track, Volume, Pan, eight Sends and Master use named parameters, exact touches, read-back, core menus/footers and output. |
 | Global controls/pages | Play/Record, Mute/Solo, Tap Tempo, Undo/Redo, Track/Mix, Master/Frame, Accent, Metronome/Automation, migrated arrows and their feedback are core-owned. |
 | Drum/Note | Selected-track applicability and Note/Layout policy, playable-pad pressure/lights, rates/roll, fills, octave/native maps and raw strip behavior are core-owned within the installed geometry. |
@@ -50,8 +50,8 @@ a shell build and restart. Behavior inside the installed canopy reloads in core.
 ## Remaining work and prerequisites
 
 The [UI and editing handoff](migrations/ui-and-editing-handoff.md) scopes a separate migration PR.
-Shared [interaction lifecycle work](interaction-lifecycle.md) is being proved in isolation first;
-its cancellation-on-binding-loss policy is not yet integrated into production routing.
+Shared [interaction lifecycle work](interaction-lifecycle.md) is integrated in working API 47 source;
+live validation of the matched shell/core build remains pending. Use its target/cancellation contract for new slices.
 
 Keep these items open until their complete behavior and feedback live in core and the corresponding
 stable policy is deleted. The sections below record the prerequisites and known limits.

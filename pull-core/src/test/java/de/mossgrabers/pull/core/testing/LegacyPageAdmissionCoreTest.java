@@ -69,6 +69,6 @@ class LegacyPageAdmissionCoreTest
     private static ControllerBridgeSnapshot bridge (final double value, final List<LegacyControllerPageRequest> requests)
     {
         final var e = ControllerBridgeSnapshot.empty ();
-        return new ControllerBridgeSnapshot (e.transport (), e.selectedTrack (), e.sessionBank (), e.layout (), e.noteView (), e.noteRepeat (), e.drum (), new ParameterBridgeSnapshot (Map.of (ParameterSlot.TEMPO, new ParameterTargetSnapshot (TARGET, value, 0)), Map.of ()), e.controllerMappingFeedback (), e.master (), e.project (), e.automation (), e.encoderConfiguration (), e.currentTrackBank (), e.transportSettings (), e.controllerSettings (), e.applicationUi (), new LegacyControllerPageRequests (requests), e.browser ());
+        return new ControllerBridgeSnapshot (e.transport (), e.selectedTrack (), e.sessionBank (), e.layout (), e.noteView (), e.noteRepeat (), e.drum (), new ParameterBridgeSnapshot (Map.of (ParameterSlot.TEMPO, new ParameterTargetSnapshot (TARGET, value, 0)), Map.of (), java.util.Set.of ()), e.controllerMappingFeedback (), e.master (), e.project (), e.automation (), e.encoderConfiguration (), e.currentTrackBank (), e.transportSettings (), e.controllerSettings (), e.applicationUi (), new LegacyControllerPageRequests (requests), e.browser ());
     }
 }

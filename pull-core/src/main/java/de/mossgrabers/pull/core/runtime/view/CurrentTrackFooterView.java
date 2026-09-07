@@ -67,6 +67,24 @@ public final class CurrentTrackFooterView implements ControllerView
     public Set<ControllerActionBinding> actionBindings () { return ACTIONS; }
 
     @Override
+    public InputTarget inputTarget (final ControlId control, final InputKind kind, final ControllerSnapshot snapshot)
+    {
+        final int index = BUTTONS.indexOf (control);
+        if (kind != InputKind.BUTTON || index < 0)
+            return ControllerView.super.inputTarget (control, kind, snapshot);
+        return TrackInputTargets.row (control, index, snapshot);
+    }
+
+    @Override
+    public List<CoreEffect> cancel (final ControlId control, final InputKind kind, final de.mossgrabers.pull.core.view.InputTarget target, final ControllerSnapshot snapshot)
+    {
+        final int index = BUTTONS.indexOf (control);
+        if (kind == InputKind.BUTTON && index >= 0)
+            this.gestures[index] = null;
+        return List.of ();
+    }
+
+    @Override
     public CoreExecutionRequirements executionRequirements ()
     {
         return new CoreExecutionRequirements (this.arms.stream ().anyMatch (AuthoritativeBooleanToggle::pending) || this.groups.stream ().anyMatch (AuthoritativeBooleanToggle::pending));

@@ -29,7 +29,7 @@ import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.runtime.PullCoreProvider;
 import de.mossgrabers.pull.core.view.CompiledWorkspace;
-import de.mossgrabers.pull.core.view.RetainedControllerView;
+import de.mossgrabers.pull.core.view.RoutedWorkspace;
 
 import org.junit.jupiter.api.Test;
 
@@ -148,7 +148,7 @@ class TapTempoViewTest
 
     private static final class Fixture
     {
-        private final CompiledWorkspace workspace = CompiledWorkspace.compile ("tap", List.of (new RetainedControllerView (new TapTempoView ())));
+        private final RoutedWorkspace workspace = new RoutedWorkspace (CompiledWorkspace.compile ("tap", List.of (new TapTempoView ())));
         private final Set<ControlId> pressed = new HashSet<> ();
         private String project = "project-a";
         private boolean engine = true;

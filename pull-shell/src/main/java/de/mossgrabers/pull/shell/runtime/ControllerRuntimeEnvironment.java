@@ -107,7 +107,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         Map.entry (CoreCapabilities.OUTPUT_NOTE_REPEAT, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.OUTPUT_TOUCH_STRIP, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.INPUT_CONTROLLER, Integer.valueOf (1)),
-        Map.entry (CoreCapabilities.ROUTING_CONTROLLER_INPUT, Integer.valueOf (7)),
+        Map.entry (CoreCapabilities.ROUTING_CONTROLLER_INPUT, Integer.valueOf (8)),
         Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE, Integer.valueOf (14)),
         Map.entry (CoreCapabilities.SUBSCRIPTION_CONTROLLER_BRIDGE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_TRANSPORT, Integer.valueOf (4)),
@@ -121,7 +121,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         Map.entry (CoreCapabilities.EFFECT_CONTROLLER_BUTTON_CONSUMPTION, Integer.valueOf (3)),
         Map.entry (CoreCapabilities.EFFECT_DRUM_PAD, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.EFFECT_NOTE_INPUT_MIDI, Integer.valueOf (2)),
-        Map.entry (CoreCapabilities.SNAPSHOT_PARAMETER_TARGETS, Integer.valueOf (4)),
+        Map.entry (CoreCapabilities.SNAPSHOT_PARAMETER_TARGETS, Integer.valueOf (5)),
         Map.entry (CoreCapabilities.EFFECT_PARAMETER_TARGET, Integer.valueOf (4)),
         Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_MAPPING_FEEDBACK, Integer.valueOf (4)),
         Map.entry (CoreCapabilities.EFFECT_CONTROLLER_MAPPING_STORAGE, Integer.valueOf (1)),
@@ -145,8 +145,6 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     private Map<ControlId, ClipTargetId> armedClipTargets;
     private FillSessionView lastObservedSession;
     private CommittedState committedState = CommittedState.initial ();
-    private DesiredParameterTouches appliedParameterTouches = DesiredParameterTouches.empty ();
-    private Predicate<ControlId> activeTouchOwner = control -> false;
     private Predicate<de.mossgrabers.pull.core.api.InputRoute> inputRouteValidator = route -> false;
     private Predicate<ControllerActionBinding> controllerActionValidator = action -> false;
     private Predicate<ControlId> physicalLightOwnerValidator = ControllerRuntimeEnvironment::isPreviouslyInstalledLightOwner;
@@ -555,13 +553,6 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
-    /** Install the parent router's exact, generation-fenced physical touch ownership query. */
-    void setActiveTouchOwner (final Predicate<ControlId> owner)
-    {
-        this.activeTouchOwner = Objects.requireNonNull (owner, "owner");
-    }
-
-
     /**
      * Install validation against the fixed physical registry before the runtime starts.
      *
@@ -688,9 +679,8 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
             throw new IllegalArgumentException ("Parameter touches require the parameter capability and subscription");
         for (final ControlId control: parameterTouches.targets ().keySet ())
         {
-            final boolean continuing = this.touchedControls.contains (control) && parameterTouches.targets ().get (control).equals (this.appliedParameterTouches.targets ().get (control)) && this.activeTouchOwner.test (control);
-            if (!result.desiredInputRoutes ().ownsExclusively (control, InputKind.TOUCH) && !continuing)
-                throw new IllegalArgumentException ("Parameter touch requires exclusive input ownership or continuation of its exact captured gesture");
+            if (!result.desiredInputRoutes ().ownsExclusively (control, InputKind.TOUCH))
+                throw new IllegalArgumentException ("Parameter touch requires current exclusive input ownership");
         }
         for (final CoreEffect effect: result.effects ())
         {
@@ -700,7 +690,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         final Map<ControlId, ControllerBridge.ParameterTouchLease> preparedParameterTouches = this.controllerBridge == null ? Map.of () : this.controllerBridge.prepareParameterTouches (parameterTouches, sampledParameterBanks);
         final Map<ParameterTargetRef, ControllerBridge.ParameterLease> preparedParameterLeases = this.controllerBridge == null ? Map.of () : this.controllerBridge.prepareParameterLeases (parameterInteraction, sampledParameterBanks);
         final List<PreparedAction> preparedActions = this.prepareEffects (result.effects (), preparedBindings, preparedParameterLeases);
-        return new PreparedResult (preparedOutput, result.desiredOutput ().lights ().keySet (), result.desiredInputRoutes (), result.desiredBridgeSubscriptions (), preparedControllerState, preparedNoteRepeat, result.desiredControllerActions (), parameterBanks, parameterInteraction, executionRequirements, preparedParameterLeases, preparedParameterTouches, parameterTouches, this.clipCatalog.generation (), preparedBindings, preparedActions);
+        return new PreparedResult (preparedOutput, result.desiredOutput ().lights ().keySet (), result.desiredInputRoutes (), result.desiredBridgeSubscriptions (), preparedControllerState, preparedNoteRepeat, result.desiredControllerActions (), parameterBanks, parameterInteraction, executionRequirements, preparedParameterLeases, preparedParameterTouches, this.clipCatalog.generation (), preparedBindings, preparedActions);
     }
 
 
@@ -755,9 +745,6 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         }
         if (this.controllerBridge != null)
             this.controllerBridge.acquireParameterTouches (prepared.parameterTouches ());
-        // A foreign host callback may have invalidated or replaced this result during apply.
-        if (this.committedState == applied)
-            this.appliedParameterTouches = prepared.desiredParameterTouches ();
         this.recordSessionChange ();
         this.appliedResultRevision++;
     }
@@ -768,7 +755,6 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     public void invalidate (final long generation)
     {
         this.committedState = CommittedState.invalidated (generation);
-        this.appliedParameterTouches = DesiredParameterTouches.empty ();
 
         if (this.controllerBridge != null)
         {
@@ -1473,7 +1459,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     }
 
 
-    private record PreparedResult (DesiredHardwareOutput output, Set<ControlId> explicitLightOwners, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, DesiredControllerState desiredControllerState, DesiredNoteRepeat desiredNoteRepeat, DesiredControllerActions desiredControllerActions, DesiredParameterBanks desiredParameterBanks, DesiredParameterInteraction desiredParameterInteraction, CoreExecutionRequirements executionRequirements, Map<ParameterTargetRef, ControllerBridge.ParameterLease> parameterLeases, Map<ControlId, ControllerBridge.ParameterTouchLease> parameterTouches, DesiredParameterTouches desiredParameterTouches, long catalogGeneration, Map<ControlId, ClipTargetId> desiredClipBindings, List<PreparedAction> actions) implements PreparedCoreResult
+    private record PreparedResult (DesiredHardwareOutput output, Set<ControlId> explicitLightOwners, DesiredInputRoutes desiredInputRoutes, DesiredBridgeSubscriptions desiredBridgeSubscriptions, DesiredControllerState desiredControllerState, DesiredNoteRepeat desiredNoteRepeat, DesiredControllerActions desiredControllerActions, DesiredParameterBanks desiredParameterBanks, DesiredParameterInteraction desiredParameterInteraction, CoreExecutionRequirements executionRequirements, Map<ParameterTargetRef, ControllerBridge.ParameterLease> parameterLeases, Map<ControlId, ControllerBridge.ParameterTouchLease> parameterTouches, long catalogGeneration, Map<ControlId, ClipTargetId> desiredClipBindings, List<PreparedAction> actions) implements PreparedCoreResult
     {
         private PreparedResult
         {
@@ -1489,7 +1475,6 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
             executionRequirements = Objects.requireNonNull (executionRequirements, "executionRequirements");
             parameterLeases = Map.copyOf (parameterLeases);
             parameterTouches = Map.copyOf (parameterTouches);
-            desiredParameterTouches = Objects.requireNonNull (desiredParameterTouches, "desiredParameterTouches");
             desiredClipBindings = Map.copyOf (desiredClipBindings);
             actions = List.copyOf (actions);
         }

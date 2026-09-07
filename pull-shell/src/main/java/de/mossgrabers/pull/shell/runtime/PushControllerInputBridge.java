@@ -111,7 +111,7 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
         this.stableActions = new StableControllerActionResolver (surface);
         this.physicalPads = physicalPads (surface);
         this.registry = this.createRegistry ();
-        this.router = new PhysicalInputRouter<> (this.registry, this::resolveRoute, this.eventSink, Objects.requireNonNull (stableActionBarrier, "stableActionBarrier"), System::nanoTime, Objects.requireNonNull (activeGeneration, "activeGeneration"), this.registry.contains (PushControlIds.continuous ("TOUCHSTRIP"), InputKind.TOUCH) && this.registry.contains (PushControlIds.continuous ("TOUCHSTRIP"), InputKind.ABSOLUTE) ? Map.of (PushControlIds.continuous ("TOUCHSTRIP"), InputKind.ABSOLUTE) : Map.of ());
+        this.router = new PhysicalInputRouter<> (this.registry, this::resolveRoute, this.eventSink, Objects.requireNonNull (stableActionBarrier, "stableActionBarrier"), System::nanoTime, Objects.requireNonNull (activeGeneration, "activeGeneration"), this.edgeMotionInputs ());
         this.installWrappers ();
         this.mappingActivation = new HardwareMappingActivationHost (
             Objects.requireNonNull (physicalPadButtons, "physicalPadButtons"),
@@ -145,13 +145,6 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
     DesiredControllerMappings activeControllerMappings ()
     {
         return this.mappingActivation.activeMappings ();
-    }
-
-
-    /** Parent-owned evidence for continuing an already admitted exact touch lease. */
-    boolean ownsActiveTouch (final ControlId control)
-    {
-        return this.router.ownsActiveGesture (control, InputKind.TOUCH);
     }
 
 
@@ -362,6 +355,28 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
     }
 
 
+    private Map<PhysicalInputAddress<ControlId>, PhysicalInputAddress<ControlId>> edgeMotionInputs ()
+    {
+        final Map<PhysicalInputAddress<ControlId>, PhysicalInputAddress<ControlId>> relations = new java.util.LinkedHashMap<> ();
+        for (final PhysicalInputAddress<ControlId> input: this.registry.inputs ())
+        {
+            final InputKind edgeKind = switch (input.kind ())
+            {
+                case RELATIVE, ABSOLUTE -> InputKind.TOUCH;
+                case POLY_PRESSURE -> InputKind.PAD;
+                default -> null;
+            };
+            if (edgeKind != null && this.registry.contains (input.control (), edgeKind))
+            {
+                final PhysicalInputAddress<ControlId> edge = this.registry.require (input.control (), edgeKind);
+                if (relations.put (edge, input) != null)
+                    throw new IllegalStateException ("Physical edge has multiple companion motion inputs: " + edge);
+            }
+        }
+        return Map.copyOf (relations);
+    }
+
+
     private void installWrappers ()
     {
         for (final Map.Entry<ButtonID, IHwButton> entry: this.surface.getButtons ().entrySet ())
@@ -403,16 +418,8 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
 
             if (control.getTouchCommand () != null)
             {
-                control.installTouchEventArbitrator ( (event, velocity, stableDispatch) -> {
-                    if (event == ButtonEvent.UP)
-                    {
-                        if (isRelative)
-                            this.router.flush (controlID, InputKind.RELATIVE);
-                        if (isAbsolute)
-                            this.router.flush (controlID, InputKind.ABSOLUTE);
-                    }
-                    this.router.route (controlID, InputKind.TOUCH, toShellPhase (event), velocity, stableDispatch);
-                });
+                control.installTouchEventArbitrator ( (event, velocity, stableDispatch) ->
+                    this.router.route (controlID, InputKind.TOUCH, toShellPhase (event), velocity, stableDispatch));
             }
         }
     }

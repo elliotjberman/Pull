@@ -70,16 +70,17 @@ final class PullControllerCore implements ControllerCore
         this.browserPage.reconcile (snapshot.bridge ().browser ());
         this.activateSelectedWorkspace (snapshot);
         this.gestures.reconcile (this.workspace, snapshot);
-        // Capture physical edges before any deferred or host-driven page action can change owners.
+        // Capture edges and their companion motion before deferred page actions can change owners.
         final boolean edge = event instanceof final ControllerInputEvent input && input.kind ().isEdge () || event instanceof ButtonInputEvent || event instanceof TouchInputEvent;
-        final InputGestureRouter.Dispatch captured = edge ? this.gestures.capture (event, this.workspace) : null;
-        final ResolvedControllerAction capturedAction = captured == null ? null : this.gestures.resolveAction (captured, snapshot);
+        final InputGestureRouter.Dispatch captured = this.gestures.capture (event, this.workspace);
+        final ResolvedControllerAction capturedAction = this.gestures.resolveAction (captured, snapshot);
         final ParameterSlot mutationSlot;
-        if (event instanceof final ParameterMutationEvent mutation) mutationSlot = this.workspace.parameterSlotOrNull (mutation.controlId (), snapshot);
+        if (captured.suppressed ()) mutationSlot = null;
+        else if (event instanceof final ParameterMutationEvent mutation) mutationSlot = this.workspace.parameterSlotOrNull (mutation.controlId (), snapshot);
         else if (event instanceof final ControllerInputEvent input && input.kind () == InputKind.RELATIVE) mutationSlot = this.workspace.parameterSlotOrNull (input.controlId (), snapshot);
         else mutationSlot = null;
         final List<CoreEffect> effects = new ArrayList<> ();
-        SnapbackSession.Update update = this.drainReleased (this.snapback.handle (event, snapshot, mutationSlot), snapshot, effects);
+        SnapbackSession.Update update = this.drainReleased (captured.suppressed () ? new SnapbackSession.Update (true, List.of (), List.of ()) : this.snapback.handle (event, snapshot, mutationSlot), snapshot, effects);
         final boolean eventIntercepted = update.intercepted ();
 
         // Legacy callbacks and host-driven page selection use the same parameter-restoration
@@ -103,7 +104,7 @@ final class PullControllerCore implements ControllerCore
         }
 
         final ResolvedControllerAction action;
-        if (captured != null) action = capturedAction;
+        if (edge) action = capturedAction;
         else if (event instanceof final ControllerActionEvent semantic) action = ResolvedControllerAction.stable (semantic.intent ());
         else action = null;
         CoreResult currentResult;
@@ -116,10 +117,10 @@ final class PullControllerCore implements ControllerCore
         }
         else
         {
-            final List<CoreEffect> routed = eventIntercepted ? List.of () : this.gestures.dispatch (captured != null ? captured : this.gestures.capture (event, this.workspace), snapshot);
+            final List<CoreEffect> routed = eventIntercepted ? List.of () : this.gestures.dispatch (captured, snapshot);
             currentResult = withEffects (this.gestures.activate (this.workspace, snapshot), routed);
         }
-        this.gestures.finish (captured, this.workspace);
+        this.gestures.finish (captured, snapshot);
         currentResult = this.transitionToSelectedWorkspace (currentResult, snapshot);
         effects.addAll (currentResult.effects ());
         return this.completeResult (this.snapback.decorate (withEffects (currentResult, effects), update.effects ()), snapshot);
@@ -158,7 +159,7 @@ final class PullControllerCore implements ControllerCore
     {
         final CompiledWorkspace selected = this.desiredWorkspace (snapshot);
         if (selected == this.workspace) return;
-        this.gestures.transition (this.workspace, selected);
+        this.gestures.transition (this.workspace, selected, snapshot);
         this.workspace = selected;
         this.gestures.activate (this.workspace, snapshot);
     }
@@ -175,7 +176,7 @@ final class PullControllerCore implements ControllerCore
     {
         final CompiledWorkspace selected = this.desiredWorkspace (snapshot);
         if (selected == this.workspace) return result;
-        this.gestures.transition (this.workspace, selected);
+        this.gestures.transition (this.workspace, selected, snapshot);
         this.workspace = selected;
         return transitionTo (result.effects (), this.gestures.activate (this.workspace, snapshot));
     }

@@ -94,7 +94,7 @@ class MasterButtonViewTest
     {
         private final PageNavigation navigation = PageNavigation.defaults ();
         private final MasterButtonView view = new MasterButtonView (new ControllerPageTransitions (this.navigation));
-        private final RetainedControllerView retained = new RetainedControllerView (this.view);
+        private final ControllerView retained = this.view;
         private final CompiledWorkspace workspace = CompiledWorkspace.compile ("master-button", List.of (this.retained));
         private String mode = "TRACK";
         private boolean temporary;

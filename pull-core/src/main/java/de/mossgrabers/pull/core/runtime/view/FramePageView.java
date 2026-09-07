@@ -10,7 +10,6 @@ import de.mossgrabers.pull.core.ui.page.FramePageRenderer;
 import de.mossgrabers.pull.core.view.*;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -29,14 +28,20 @@ public final class FramePageView implements ControllerView
         new SurfaceClaim (SurfaceArea.SOFT_KEYS_UPPER, SurfaceClaim.Kind.OUTPUT),
         new SurfaceClaim (SurfaceArea.DISPLAY_PARAMETERS, SurfaceClaim.Kind.OUTPUT),
         new SurfaceClaim (SurfaceArea.DISPLAY_BOTTOM_STRIP, SurfaceClaim.Kind.OUTPUT)), Set.of ());
-    private final Map<ControlId, ApplicationUiContext> presses = new HashMap<> ();
     private final List<AuthoritativeBooleanToggle<ApplicationUiContext>> toggles = java.util.stream.IntStream.range (0, 7).mapToObj (index -> new AuthoritativeBooleanToggle<ApplicationUiContext> ()).toList ();
 
     @Override public String id () { return "frame-page"; }
     @Override public ViewProfile profile () { return PROFILE; }
     @Override public Set<BridgeSubscription> bridgeSubscriptions () { return Set.of (BridgeSubscription.APPLICATION_UI); }
     @Override public CoreExecutionRequirements executionRequirements () { return new CoreExecutionRequirements (this.toggles.stream ().anyMatch (AuthoritativeBooleanToggle::pending)); }
-    @Override public void deactivate () { this.presses.clear (); this.toggles.forEach (AuthoritativeBooleanToggle::clear); }
+    @Override public void deactivate () { this.toggles.forEach (AuthoritativeBooleanToggle::clear); }
+
+    @Override
+    public InputTarget inputTarget (final ControlId control, final InputKind kind, final ControllerSnapshot snapshot)
+    {
+        final ApplicationUiSnapshot state = snapshot.bridge ().applicationUi ();
+        return state.available () ? new InputTarget.Context (control, "application-ui:" + state.panelLayout (), state.projectId (), state.generation ()) : null;
+    }
 
     @Override
     public List<CoreEffect> handle (final CoreEvent event, final ControllerSnapshot snapshot)
@@ -51,9 +56,7 @@ public final class FramePageView implements ControllerView
         int toggle = -1;
         if (event instanceof final ControllerInputEvent input && input.kind () == InputKind.BUTTON && (SurfaceArea.SOFT_KEYS_LOWER.controls ().contains (input.controlId ()) || SurfaceArea.SOFT_KEYS_UPPER.controls ().contains (input.controlId ())))
         {
-            if (input.phase () == InputPhase.BEGIN)
-                this.presses.putIfAbsent (input.controlId (), state.context ());
-            else if (input.phase () == InputPhase.END && state.context ().equals (this.presses.remove (input.controlId ())))
+            if (input.phase () == InputPhase.END)
             {
                 final int lower = index (input.controlId (), false);
                 final int upper = index (input.controlId (), true);

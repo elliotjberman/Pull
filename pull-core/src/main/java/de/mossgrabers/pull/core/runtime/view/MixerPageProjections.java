@@ -10,7 +10,6 @@ import de.mossgrabers.pull.core.api.MixerControlRole;
 import de.mossgrabers.pull.core.api.MixerControlSnapshot;
 import de.mossgrabers.pull.core.api.ParameterSlot;
 import de.mossgrabers.pull.core.api.ParameterTargetSnapshot;
-import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
 import de.mossgrabers.pull.core.api.output.DisplayIcon;
 import de.mossgrabers.pull.core.ui.page.GlobalMixerPagePresentation;
@@ -41,7 +40,7 @@ final class MixerPageProjections
             final String displayed = target.displayedValue ();
             final MacroPagePresentation.Widget widget = "On".equalsIgnoreCase (displayed.trim ()) ? MacroPagePresentation.Widget.TOGGLE_ON : "Off".equalsIgnoreCase (displayed.trim ()) ? MacroPagePresentation.Widget.TOGGLE_OFF : MacroPagePresentation.Widget.RING;
             controls.add (new MacroPagePresentation.Control (index, target.name (), displayed,
-                ratio ((target.modulatedValue () == -1 ? target.value () : target.modulatedValue ()) / PARAMETER_UPPER_BOUND), widget, touched (snapshot, index)));
+                ratio ((target.modulatedValue () == -1 ? target.value () : target.modulatedValue ()) / PARAMETER_UPPER_BOUND), widget, touched (snapshot, target)));
         }
         return new MacroPagePresentation (controls);
     }
@@ -77,7 +76,7 @@ final class MixerPageProjections
                     parameter.modulatedValue () == -1 ? -1 : ratio (parameter.modulatedValue () / range),
                     normalProfile && index == 1 ? formatPan (parameter.value () / range) : parameter.displayedValue (),
                     MixerControlRole.HOST_COLORED, selected.activated () && parameter.enabled ().orElse (Boolean.TRUE).booleanValue (),
-                    touched (snapshot, index), Optional.of (selected.color ()), index == 0 ? metered.vuLeft () : 0, index == 0 ? metered.vuRight () : 0));
+                    touched (snapshot, parameter), Optional.of (selected.color ()), index == 0 ? metered.vuLeft () : 0, index == 0 ? metered.vuRight () : 0));
             }
         }
         return new TrackMixerPagePresentation (io, left, right, normalProfile && selected.exists () ? Optional.of (selected.color ()) : Optional.empty (), metadata, controls);
@@ -96,7 +95,7 @@ final class MixerPageProjections
             if (parameter == null) continue;
             controls.add (new MixerControlSnapshot (index, index == 0 ? MixerControlKind.VOLUME : index == 1 ? MixerControlKind.PAN : MixerControlKind.KNOB, labels.get (index),
                 ratio (parameter.value () / PARAMETER_UPPER_BOUND), parameter.modulatedValue () == -1 ? -1 : ratio (parameter.modulatedValue () / PARAMETER_UPPER_BOUND),
-                parameter.displayedValue (), MixerControlRole.HOST_COLORED, index >= 2 || master.trackActive (), touched (snapshot, index), Optional.of (master.trackColor ()),
+                parameter.displayedValue (), MixerControlRole.HOST_COLORED, index >= 2 || master.trackActive (), touched (snapshot, parameter), Optional.of (master.trackColor ()),
                 index == 0 ? ratio (master.vuLeft () / PARAMETER_UPPER_BOUND) : 0, index == 0 ? ratio (master.vuRight () / PARAMETER_UPPER_BOUND) : 0));
         }
         return new MasterPagePresentation (controls, new MasterPagePresentation.TrackFooter (master.trackName (), master.cursorPinned () ? DisplayIcon.PIN : DisplayIcon.MASTER,
@@ -143,7 +142,7 @@ final class MixerPageProjections
         return new GlobalMixerPagePresentation (menu.stream ().map (entry -> new GlobalMixerPagePresentation.MenuItem (entry.text (), entry.selected (), entry.arrow ())).toList (), controls);
     }
 
-    private static boolean touched (final ControllerSnapshot snapshot, final int column) { return snapshot.touchedControls ().contains (PushControlIds.continuous ("KNOB" + (column + 1))); }
+    private static boolean touched (final ControllerSnapshot snapshot, final ParameterTargetSnapshot target) { return snapshot.bridge ().parameters ().touchLeases ().contains (target.target ()); }
     private static double ratio (final double value) { return Math.max (0, Math.min (1, value)); }
 
     private static String formatPan (final double normalized)

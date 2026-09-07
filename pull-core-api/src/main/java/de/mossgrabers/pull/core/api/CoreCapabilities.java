@@ -47,7 +47,7 @@ public final class CoreCapabilities
     /** Normalized bounded Push controller inputs. */
     public static final String INPUT_CONTROLLER = "input.controller";
 
-    /** Replayable input ownership; v6 freezes related continuous motion for a held touch. */
+    /** Replayable input ownership; v8 freezes declared edge/motion companions through physical release. */
     public static final String ROUTING_CONTROLLER_INPUT = "routing.controller-input";
 
     /** Common bounded controller state; v12 adds current-bank tracks, encoder preferences, and project history readback. */
@@ -88,7 +88,7 @@ public final class CoreCapabilities
     /** Stateful raw MIDI sent through Bitwig's ordinary permanent controller note input. */
     public static final String EFFECT_NOTE_INPUT_MIDI = "effect.note-input-midi";
 
-    /** Pre-mutation events and authoritative bounded parameter-target snapshots. */
+    /** Pre-mutation events and bounded parameter-target snapshots; v5 reports shell-owned touch leases. */
     public static final String SNAPSHOT_PARAMETER_TARGETS = "snapshot.parameter-targets";
 
     /** Replayable exact parameter leases and generation-fenced absolute effects. */

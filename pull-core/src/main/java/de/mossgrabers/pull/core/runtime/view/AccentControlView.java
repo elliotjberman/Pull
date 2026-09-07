@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** Retained Accent toggle and temporary-page gesture, with observed configuration feedback. */
+/** Accent toggle and temporary-page gesture, with observed configuration feedback. */
 public final class AccentControlView implements ControllerView
 {
     private static final ControlId BUTTON = PushControlIds.button ("ACCENT");
@@ -40,13 +40,26 @@ public final class AccentControlView implements ControllerView
     @Override public void deactivate () { this.pending.forEach (gesture -> this.pages.cancel (gesture.page)); this.admission.clear (); this.held = null; this.pending.clear (); this.enabled.clear (); }
 
     @Override
+    public InputTarget inputTarget (final ControlId control, final InputKind kind, final ControllerSnapshot snapshot)
+    {
+        return snapshot.bridge ().controllerSettings ().available () ? ControllerView.super.inputTarget (control, kind, snapshot) : null;
+    }
+
+    @Override
+    public List<CoreEffect> cancel (final ControlId control, final InputKind kind, final InputTarget target, final ControllerSnapshot snapshot)
+    {
+        return this.held == null ? List.of () : this.cancelGesture (this.held);
+    }
+
+    @Override
     public ResolvedControllerAction resolveAction (final ControllerActionBinding binding, final ControllerInputEvent input, final ControllerSnapshot snapshot)
     {
         this.latest = snapshot;
         final Gesture gesture = new Gesture (this.admission.begin (), this.pages.origin ());
         this.pending.add (gesture);
         this.held = gesture;
-        return this.admission.action (gesture.ticket, binding.intent (), () -> this.advance (gesture, this.latest));
+        return this.admission.action (gesture.ticket, binding.intent (), () -> this.advance (gesture, this.latest))
+            .onCancellation (() -> this.cancelGesture (gesture));
     }
 
     @Override
@@ -90,6 +103,14 @@ public final class AccentControlView implements ControllerView
     {
         this.pending.remove (gesture);
         this.admission.finish (gesture.ticket);
+    }
+
+    private List<CoreEffect> cancelGesture (final Gesture gesture)
+    {
+        this.pages.relinquish (gesture.page);
+        this.finish (gesture);
+        if (this.held == gesture) this.held = null;
+        return List.of ();
     }
 
     private List<CoreEffect> toggle (final ControllerSnapshot snapshot, final boolean press)

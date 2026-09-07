@@ -19,12 +19,15 @@ import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.view.ControllerView;
+import de.mossgrabers.pull.core.view.InputTarget;
 import de.mossgrabers.pull.core.view.ResolvedControllerAction;
 import de.mossgrabers.pull.core.view.SurfaceArea;
 import de.mossgrabers.pull.core.view.SurfaceClaim;
 import de.mossgrabers.pull.core.view.ViewProfile;
 
 import java.util.List;
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -50,6 +53,7 @@ public final class WorkspaceSelectionView implements ControllerView
         Set.of ());
 
     private final WorkspaceSelection selection;
+    private final Map<WorkspaceSelection.Gesture, SelectionRequest> held = new EnumMap<> (WorkspaceSelection.Gesture.class);
 
 
     /**
@@ -95,6 +99,24 @@ public final class WorkspaceSelectionView implements ControllerView
     }
 
 
+    @Override
+    public InputTarget inputTarget (final ControlId control, final InputKind kind, final ControllerSnapshot snapshot)
+    {
+        if (!NOTE_BUTTON.equals (control)) return ControllerView.super.inputTarget (control, kind, snapshot);
+        final var selected = snapshot.bridge ().selectedTrack ();
+        final var note = snapshot.bridge ().noteView ();
+        return new InputTarget.Note (control, selected.generation (), selected.channelId (), note.targetGeneration (),
+            note.targetChannelId (), note.trackPosition (), note.drumControllerApplicable ());
+    }
+
+    @Override
+    public List<CoreEffect> cancel (final ControlId control, final InputKind kind, final InputTarget target, final ControllerSnapshot snapshot)
+    {
+        if (!NOTE_BUTTON.equals (control) && !SESSION_BUTTON.equals (control)) return List.of ();
+        final SelectionRequest request = this.held.get (NOTE_BUTTON.equals (control) ? WorkspaceSelection.Gesture.NOTE : WorkspaceSelection.Gesture.SESSION);
+        return request == null ? List.of () : this.cancelRequest (request);
+    }
+
     /** {@inheritDoc} */
     @Override
     public ResolvedControllerAction resolveAction (final ControllerActionBinding binding, final ControllerInputEvent input, final ControllerSnapshot snapshot)
@@ -130,13 +152,18 @@ public final class WorkspaceSelectionView implements ControllerView
         }
         else
             throw new IllegalArgumentException ("Unsupported workspace action input " + input.controlId ());
+        final SelectionRequest request = new SelectionRequest (gesture);
+        this.held.put (gesture, request);
         return ResolvedControllerAction.of (binding.intent (), () -> {
             if (!this.selection.beginGesture (gesture, target, destination, snapshot.bridge ().layout (), switched))
                 return List.of ();
+            request.admitted = true;
             if (!effects.isEmpty ())
                 this.selection.requestPreferredNoteView (snapshot.bridge ().noteView (), ControllerNoteView.DRUM_PAD);
+            if (request.temporary) this.selection.makeTemporary (gesture);
+            if (request.ended) this.selection.endGesture (gesture, snapshot.bridge ().layout ());
             return effects;
-        });
+        }).onCancellation (() -> this.cancelRequest (request));
     }
 
 
@@ -152,10 +179,36 @@ public final class WorkspaceSelectionView implements ControllerView
             gesture = WorkspaceSelection.Gesture.SESSION;
         else
             return List.of ();
+        final SelectionRequest request = this.held.get (gesture);
+        if (request == null) return List.of ();
         if (input.phase () == InputPhase.LONG)
-            this.selection.makeTemporary (gesture);
+        {
+            request.temporary = true;
+            if (request.admitted) this.selection.makeTemporary (gesture);
+        }
         else if (input.phase () == InputPhase.END)
-            this.selection.endGesture (gesture, snapshot.bridge ().layout ());
+        {
+            request.ended = true;
+            this.held.remove (gesture);
+            if (request.admitted) this.selection.endGesture (gesture, snapshot.bridge ().layout ());
+        }
         return List.of ();
+    }
+
+    private List<CoreEffect> cancelRequest (final SelectionRequest request)
+    {
+        this.held.remove (request.gesture, request);
+        if (request.admitted && !request.ended) this.selection.cancelGesture (request.gesture);
+        return List.of ();
+    }
+
+    /** The temporary/latched meaning of a resolved selection survives delayed action admission. */
+    private static final class SelectionRequest
+    {
+        private final WorkspaceSelection.Gesture gesture;
+        private boolean admitted;
+        private boolean temporary;
+        private boolean ended;
+        private SelectionRequest (final WorkspaceSelection.Gesture gesture) { this.gesture = gesture; }
     }
 }

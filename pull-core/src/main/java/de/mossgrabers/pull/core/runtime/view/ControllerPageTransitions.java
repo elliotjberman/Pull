@@ -75,6 +75,14 @@ final class ControllerPageTransitions
         if (request == null) return;
         if (this.current == request) this.current = null;
     }
+    /** Cancel pending intent, or relinquish only the exact temporary page already acquired. */
+    void relinquish (final Request request)
+    {
+        if (!this.current (request)) return;
+        if (request.submitted && request.operation == Operation.TEMPORARY && request.temporaryToken != 0)
+            this.navigation.releaseTemporary (request.temporaryToken);
+        this.cancel (request);
+    }
     private boolean current (final Request request) { return request != null && request == this.current; }
     private enum Operation { SELECT, TEMPORARY, RESTORE }
     static final class Request

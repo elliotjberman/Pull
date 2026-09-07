@@ -1,6 +1,6 @@
 # Views API and Composite Workspaces
 
-Status: design contract for Core API 46 and checkpoint schema 6. Production `11e33477` passed the
+Status: design contract for Core API 47 and checkpoint schema 6. Production `11e33477` passed the
 scoped live checks; later cleanup passes offline checks but is not installed or live tested. See
 [the validation record](migrations/core-page-ownership-live-smoke.md). Remaining stable adapters are
 explicit in claims and [ARCH](../ARCH.md); this contract does not claim every inherited body migrated.
@@ -154,29 +154,22 @@ Examples:
   `NavigationView`; full Session over a legacy page declares `FrozenSessionArrowsView`. These
   profiles keep page buttons and sequencer navigation outside the four-arrow cutover.
 
-## Physical edge ownership across page changes
+## Target-bound input across page changes
 
-`InputGestureRouter` belongs to one reloadable core generation and captures the exact receiver list
-and semantic action owner at BEGIN. LONG and END return to that capture, including observers;
-unknown/duplicate completions are inert. A new press resolves against the current composition.
-The bounded capture set has capacity 256, matching the permanent Push input registry's bound.
+`InputGestureRouter` uses the shared [interaction lifecycle](interaction-lifecycle.md). BEGIN captures
+receivers, per-view target contexts and semantic intent. Binding loss cancels centrally; only required
+cleanup runs, and motion/pressure/LONG/END cannot reach a replacement. Unchanged visible bindings
+survive page overlays. Hidden views have no continuation routes, ticks or parameter touches.
 
-A departing view remains alive until its last physical edge ends and any already-resolved deferred
-action dispatches. Current and retained views reconcile in deterministic identity order; retained
-views can request data, parameter banks and ticks. Only the current composition renders the display
-and lights or declares new input routes. `ControllerView.parameterTouches(snapshot)` supplies the
-narrow nonvisual exact-touch continuation, without rendering a hidden page. Last-release effects
-retain their owner's declared data/bank dependencies through the result that submits those effects;
-the following result can omit them.
+Parameter touches are declared by views and owned once by the router. Shell touch-lease retirement
+and clip-owner retirement are later observed facts; they are independent of physical UP. Deferred
+intent cancellation is addressed to the original resolved action. Cleanup-only effects retain their
+required domains for that result. Cancelled controls also disappear from the core view's modifier
+projection; aggregate pressure sees only admitted pads.
 
-The shell permits an offscreen touch lease only for an already-applied exact target whose exclusive
-physical TOUCH still belongs to the active core generation. This grants no new route or target.
-Generation disposal remains the cancellation path on failure/replacement; this does not introduce
-an independent queued-action cancellation API or solve general host-operation quiescence.
-
-Continuous events keep their existing transport policy. General encoder-touch/motion and
-pad/pressure pairing is recorded in `findings/core-continuous-input-capture.md`; the edge guarantee
-must not be described as a guarantee about every continuous input.
+The parent freezes every declared encoder/strip/pad companion's disposition and core generation.
+Core replacement still respects the existing physical/deferred ingress fence. This is not the
+separately parked application-wide asynchronous-operation drain.
 
 ## Native musical ownership and parameter touches
 
@@ -346,9 +339,9 @@ time and stops the track without selecting it. Full Session also mechanically co
 stable lower-row release. Both paths consume the shared Stop gesture so release cannot become a
 plain selected-track Stop.
 
-Page and Master overlays reuse retained instances of the underlying grid views. A compiled overlay
-may start independently, but it reconciles an already-started retained view instead of restarting
-it, so held-pad and other BEGIN-to-END state survives the page replacement.
+Page and Master overlays reuse exact instances of the underlying grid views. The central router
+starts each identity once. A held interaction survives only while its original binding remains
+visible; removing that binding cancels it before deactivating the view.
 
 Master is resolved from the exact selected composition, not only its top-level workspace ID. Its
 page therefore retains standalone Drum views and mapping leases, full Session and Stop ownership,
@@ -442,7 +435,7 @@ project observations. Later target-project read-back updates the retained scene;
 or workspace change retires that retention. DAW Master selection is reduced by
 `MasterTrackPageNavigation` in core, separate from the shell's raw Master selection observation.
 
-Working API 46 capability versions are bridge snapshot 14, controller output state 4 and controller
+Working API 47 capability versions are bridge snapshot 14, controller output state 4 and controller
 pages 1. Parameter targets remain 4, input routing 7, current-track effects 2, transport effects 4,
 controller-settings effects 1 and application-UI effects 1. Schema 6 stores exact page references,
 history and latched temporary ownership alongside Track Mix/I-O/send and playback-owner state.

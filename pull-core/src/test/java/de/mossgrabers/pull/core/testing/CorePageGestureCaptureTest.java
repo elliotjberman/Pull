@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Real core page replacements must preserve the original physical interaction's receiver. */
+/** Routed page transitions cancel lost bindings and preserve exact temporary-page ownership. */
 class CorePageGestureCaptureTest
 {
     private static final ControlId NOTE_EDITOR = PushControlIds.button ("ROW1_4");
@@ -48,7 +48,7 @@ class CorePageGestureCaptureTest
     }
 
     @Test
-    void frameReleaseReturnsToItsOriginalViewWithoutRestoringTheOldPage ()
+    void leavingFrameCancelsItsReleaseAndRetiresItsSubscriptionsImmediately ()
     {
         final FakeCoreHost host = host ();
         host.requestPage (LegacyControllerPageRequest.Operation.SELECT, "FRAME");
@@ -56,23 +56,17 @@ class CorePageGestureCaptureTest
         host.requestPage (LegacyControllerPageRequest.Operation.SELECT, "TRACK");
         host.controllerTick ();
         assertEquals ("TRACK", page (host));
-        assertTrue (host.effects ().desiredBridgeSubscriptions ().domains ().contains (BridgeSubscription.APPLICATION_UI), "the held Frame receiver still needs authoritative context");
-        assertTrue (panelEffects (host).isEmpty (), "a BEGIN is not an applied release action");
-
+        assertFalse (host.effects ().desiredBridgeSubscriptions ().includes (BridgeSubscription.APPLICATION_UI));
         host.controllerButton (NOTE_EDITOR, false);
-        assertEquals (List.of (new ToggleApplicationPanelEffect (ui (1, "project-a").context (), ToggleApplicationPanelEffect.Panel.NOTE_EDITOR)), panelEffects (host));
-        assertEquals ("TRACK", page (host), "handling the old release cannot reactivate its old display");
-        assertTrue (host.effects ().desiredBridgeSubscriptions ().domains ().contains (BridgeSubscription.APPLICATION_UI), "the release result still needs its emitted effect's declared dependency");
-        host.controllerTick ();
-        assertFalse (host.effects ().desiredBridgeSubscriptions ().domains ().contains (BridgeSubscription.APPLICATION_UI), "the next result retires the completed receiver's subscription");
-        host.controllerButton (NOTE_EDITOR, false);
+        assertTrue (panelEffects (host).isEmpty (), "cancellation cannot toggle the old Frame panel");
+        host.requestPage (LegacyControllerPageRequest.Operation.SELECT, "FRAME");
         host.controllerButton (NOTE_EDITOR, true);
         host.controllerButton (NOTE_EDITOR, false);
-        assertEquals (1, panelEffects (host).size (), "neither duplicate release nor a new Track press may invoke old Frame behavior");
+        assertEquals (List.of (new ToggleApplicationPanelEffect (ui (1, "project-a").context (), ToggleApplicationPanelEffect.Panel.NOTE_EDITOR)), panelEffects (host));
     }
 
     @Test
-    void retainingTheOriginalViewDoesNotBypassItsHostTargetFence ()
+    void cancelledPageInputCannotAffectAReplacementProject ()
     {
         final FakeCoreHost host = host ();
         host.requestPage (LegacyControllerPageRequest.Operation.SELECT, "FRAME");
@@ -106,6 +100,6 @@ class CorePageGestureCaptureTest
     private static ControllerBridgeSnapshot bridge (final ApplicationUiSnapshot ui)
     {
         final var e = ControllerBridgeSnapshot.empty ();
-        return new ControllerBridgeSnapshot (e.transport (), e.selectedTrack (), e.sessionBank (), e.layout (), e.noteView (), e.noteRepeat (), e.drum (), e.parameters (), e.controllerMappingFeedback (), e.master (), e.project (), e.automation (), e.encoderConfiguration (), e.currentTrackBank (), e.transportSettings (), e.controllerSettings (), ui, e.controllerPages (), e.browser ());
+        return new ControllerBridgeSnapshot (e.transport (), e.selectedTrack (), e.sessionBank (), e.layout (), e.noteView (), e.noteRepeat (), e.drum (), e.parameters (), e.controllerMappingFeedback (), e.master (), new ProjectSnapshot (true, ui.projectId (), "Project", true, false, false, false), new AutomationSnapshot (ui.projectId (), false, false), e.encoderConfiguration (), e.currentTrackBank (), new TransportSettingsSnapshot (ui.projectId (), false, PreRoll.NONE, false), new ControllerSettingsSnapshot (true, false, "VOLUME", 0, CursorSendBankSnapshot.empty ()), ui, e.controllerPages (), e.browser ());
     }
 }

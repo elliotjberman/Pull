@@ -9,9 +9,14 @@ import de.mossgrabers.controller.ableton.push.PushConfiguration;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.command.core.TriggerCommand;
+import de.mossgrabers.framework.command.core.ContinuousCommand;
 import de.mossgrabers.framework.controller.ButtonID;
+import de.mossgrabers.framework.controller.ContinuousID;
 import de.mossgrabers.framework.controller.hardware.AbstractHwButton;
 import de.mossgrabers.framework.controller.hardware.BindType;
+import de.mossgrabers.framework.controller.hardware.ButtonEventArbitrator;
+import de.mossgrabers.framework.controller.hardware.ContinuousValueArbitrator;
+import de.mossgrabers.framework.controller.hardware.IHwRelativeKnob;
 import de.mossgrabers.framework.controller.hardware.IHwAbsoluteControl;
 import de.mossgrabers.framework.controller.hardware.IHwButton;
 import de.mossgrabers.framework.controller.hardware.IHwLight;
@@ -46,6 +51,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -305,6 +311,76 @@ class PushControllerInputBridgeTest
     }
 
 
+    @Test
+    void installedEncoderRelationshipKeepsHeldMotionOutOfTheReplacementLegacyPage ()
+    {
+        final Fixture fixture = new Fixture ();
+        final ControlId knob = PushControlIds.continuous ("KNOB1");
+        fixture.routes.set (routes (knob, InputKind.TOUCH, InputKind.RELATIVE));
+        final AtomicInteger legacy = new AtomicInteger ();
+        fixture.knob.touch.arbitrate (ButtonEvent.DOWN, 127, legacy::incrementAndGet);
+        fixture.knob.value.arbitrate (2, legacy::incrementAndGet);
+        fixture.routes.set (DesiredInputRoutes.empty ());
+        fixture.generation.set (2);
+        fixture.knob.value.arbitrate (3, legacy::incrementAndGet);
+        fixture.knob.touch.arbitrate (ButtonEvent.UP, 0, legacy::incrementAndGet);
+
+        assertEquals (0, legacy.get ());
+        assertEquals (List.of (InputPhase.BEGIN, InputPhase.CHANGE, InputPhase.END), fixture.phases ());
+        assertEquals (5, fixture.events.get (1).value ());
+        assertTrue (fixture.events.stream ().allMatch (event -> event.ownerGeneration () == 1));
+        assertTrue (fixture.bridge.isIdle ());
+
+        fixture.knob.touch.arbitrate (ButtonEvent.DOWN, 127, legacy::incrementAndGet);
+        fixture.knob.value.arbitrate (1, legacy::incrementAndGet);
+        fixture.knob.touch.arbitrate (ButtonEvent.UP, 0, legacy::incrementAndGet);
+        assertEquals (3, legacy.get ());
+        assertEquals (3, fixture.events.size ());
+    }
+
+
+    @Test
+    void installedPadRelationshipFlushesPressureBeforeReleaseWithoutLeakingToLegacy ()
+    {
+        final Fixture fixture = new Fixture ();
+        final ControlId pad = CoreControls.DRUM_RATES.getFirst ();
+        final int note = Fixture.GRID_START_NOTE + 4;
+        fixture.routes.set (routes (pad, InputKind.PAD, InputKind.POLY_PRESSURE));
+        final AtomicInteger legacyPressure = new AtomicInteger ();
+        fixture.bridge.routeMidi (0x90, note, 100, () -> {});
+        fixture.bridge.routeMidi (0xA0, note, 50, legacyPressure::incrementAndGet);
+        fixture.routes.set (DesiredInputRoutes.empty ());
+        fixture.generation.set (2);
+        fixture.bridge.routeMidi (0xA0, note, 90, legacyPressure::incrementAndGet);
+        fixture.bridge.routeMidi (0x80, note, 0, () -> {});
+
+        assertEquals (0, legacyPressure.get ());
+        assertEquals (List.of (InputPhase.BEGIN, InputPhase.CHANGE, InputPhase.END), fixture.phases ());
+        assertEquals (90, fixture.events.get (1).value ());
+        assertTrue (fixture.events.stream ().allMatch (event -> event.ownerGeneration () == 1));
+        assertTrue (fixture.bridge.isIdle ());
+
+        // Unheld pressure retains the current route; native NoteInput is a separate MIDI path.
+        fixture.bridge.routeMidi (0xA0, note, 0, legacyPressure::incrementAndGet);
+        assertEquals (1, legacyPressure.get ());
+        fixture.bridge.routeMidi (0x90, note, 100, () -> {});
+        fixture.routes.set (routes (pad, InputKind.PAD, InputKind.POLY_PRESSURE));
+        fixture.bridge.routeMidi (0xA0, note, 64, legacyPressure::incrementAndGet);
+        fixture.bridge.routeMidi (0x80, note, 0, () -> {});
+        fixture.bridge.flush ();
+        assertEquals (2, legacyPressure.get ());
+        assertEquals (3, fixture.events.size ());
+    }
+
+
+    private static DesiredInputRoutes routes (final ControlId control, final InputKind edge, final InputKind motion)
+    {
+        return new DesiredInputRoutes (Set.of (
+            new InputRoute (control, de.mossgrabers.pull.core.api.event.InputKind.valueOf (edge.name ()), InputRouteMode.EXCLUSIVE),
+            new InputRoute (control, de.mossgrabers.pull.core.api.event.InputKind.valueOf (motion.name ()), InputRouteMode.EXCLUSIVE)));
+    }
+
+
     private static final class Fixture
     {
         private static final int GRID_START_NOTE = 36;
@@ -320,6 +396,7 @@ class PushControllerInputBridgeTest
         private final List<PhysicalInputEvent<ControlId>> events = new ArrayList<> ();
         private final Map<ControlId, TestButton> physicalPads = new LinkedHashMap<> ();
         private final Map<ControllerMappingId, AbsoluteHarness> semanticControls = new LinkedHashMap<> ();
+        private final KnobHarness knob = new KnobHarness ();
         private final PushControlSurface surface;
         private final TestButton pad;
         private final PushControllerInputBridge bridge;
@@ -333,6 +410,7 @@ class PushControllerInputBridgeTest
             {
                 case "createButton" -> arguments[1] instanceof ButtonID ? new TestButton (hostRef[0], (String) arguments[2]) : relaxedValue (method.getReturnType ());
                 case "createLight" -> relaxedProxy (IHwLight.class);
+                case "createRelativeKnob" -> this.knob.control;
                 default -> relaxedValue (method.getReturnType ());
             });
             hostRef[0] = proxy (IHost.class, (proxy, method, arguments) -> "createSurfaceFactory".equals (method.getName ()) ? factory : relaxedValue (method.getReturnType ()));
@@ -359,6 +437,7 @@ class PushControllerInputBridgeTest
                 relaxedProxy (ITrack.class),
                 () -> false,
                 new ReloadableControllerRuntime (relaxedProxy (ControllerHost.class)));
+            this.surface.createRelativeKnob (ContinuousID.KNOB1, "Knob 1");
             this.surface.createButton (ButtonID.BROWSE, "Browse").bind ((event, velocity) -> {});
             this.surface.createButton (ButtonID.FOOTSWITCH2, "Footswitch 2").bind ((event, velocity) -> {});
             this.pad = (TestButton) this.surface.getButton (ButtonID.get (ButtonID.PAD1, 28));
@@ -582,6 +661,32 @@ class PushControllerInputBridgeTest
             if (this.releaseMatcher)
                 this.trigger (ButtonEvent.UP, 0);
         }
+    }
+
+
+    private static final class KnobHarness
+    {
+        private ContinuousValueArbitrator value;
+        private ButtonEventArbitrator touch;
+        private final IHwRelativeKnob control = proxy (IHwRelativeKnob.class, (proxy, method, arguments) -> {
+            switch (method.getName ())
+            {
+                case "getCommand":
+                    return (ContinuousCommand) ignored -> {};
+                case "getTouchCommand":
+                    return (TriggerCommand) (event, velocity) -> {};
+                case "getPitchbendCommand":
+                    return null;
+                case "installValueArbitrator":
+                    this.value = (ContinuousValueArbitrator) arguments[0];
+                    return null;
+                case "installTouchEventArbitrator":
+                    this.touch = (ButtonEventArbitrator) arguments[0];
+                    return null;
+                default:
+                    return relaxedValue (method.getReturnType ());
+            }
+        });
     }
 
 

@@ -20,6 +20,7 @@ import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.view.ControllerView;
+import de.mossgrabers.pull.core.view.InputTarget;
 import de.mossgrabers.pull.core.view.SurfaceArea;
 import de.mossgrabers.pull.core.view.SurfaceClaim;
 import de.mossgrabers.pull.core.view.ViewOutput;
@@ -27,7 +28,6 @@ import de.mossgrabers.pull.core.view.ViewProfile;
 import de.mossgrabers.pull.core.ui.page.SettingsPagePresentation;
 import de.mossgrabers.pull.core.ui.page.SettingsPageRenderer;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -50,7 +50,6 @@ final class TransportSettingsPageView implements ControllerView
     private final AutomationControlState automation;
     private final boolean automationPage;
     private final AuthoritativeBooleanToggle<String> preRollMetronome = new AuthoritativeBooleanToggle<> ();
-    private final Map<ControlId, String> presses = new HashMap<> ();
 
     TransportSettingsPageView (final boolean automationPage, final AutomationControlState automation)
     {
@@ -64,7 +63,16 @@ final class TransportSettingsPageView implements ControllerView
     @Override public Set<ParameterBankId> parameterBanks () { return this.automationPage ? Set.of () : Set.of (ParameterBankId.GLOBAL); }
     @Override public Map<ControlId, ParameterSlot> parameterBindings () { return this.automationPage ? Map.of () : Map.of (VOLUME, ParameterSlot.METRONOME_VOLUME); }
     @Override public CoreExecutionRequirements executionRequirements () { return new CoreExecutionRequirements (this.automationPage ? this.automation.pending () : this.preRollMetronome.pending ()); }
-    @Override public void deactivate () { this.presses.clear (); this.preRollMetronome.clear (); }
+    @Override public void deactivate () { this.preRollMetronome.clear (); }
+
+    @Override
+    public InputTarget inputTarget (final ControlId control, final InputKind kind, final ControllerSnapshot snapshot)
+    {
+        if (kind != InputKind.BUTTON || !SurfaceArea.SOFT_KEYS_LOWER.controls ().contains (control))
+            return ControllerView.super.inputTarget (control, kind, snapshot);
+        final String identity = this.automationPage ? snapshot.bridge ().automation ().projectIdentity () : snapshot.bridge ().transportSettings ().projectIdentity ();
+        return identity.isBlank () ? null : new InputTarget.Context (control, "project-transport-settings", identity, 0);
+    }
 
     @Override
     public List<CoreEffect> handle (final CoreEvent event, final ControllerSnapshot snapshot)
@@ -82,8 +90,7 @@ final class TransportSettingsPageView implements ControllerView
             }
             if (input.kind () == InputKind.BUTTON && SurfaceArea.SOFT_KEYS_LOWER.controls ().contains (input.controlId ()))
             {
-                if (input.phase () == InputPhase.BEGIN && !identity.isBlank ()) this.presses.putIfAbsent (input.controlId (), identity);
-                else if (input.phase () == InputPhase.END && identity.equals (this.presses.remove (input.controlId ())) && !identity.isBlank ())
+                if (input.phase () == InputPhase.END && !identity.isBlank ())
                 {
                     final int index = lowerKeys ().indexOf (input.controlId ());
                     if (index >= 0 && index < 4)

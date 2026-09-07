@@ -65,7 +65,7 @@ class CurrentTrackFooterViewTest
     }
 
     @Test
-    void modifiersAndTargetAreCapturedAtReleaseRatherThanBegin ()
+    void changedVisibleTrackCancelsReleaseInsteadOfSelectingItsReplacement ()
     {
         final Fixture f = new Fixture ();
         f.press ("DUPLICATE");
@@ -73,6 +73,8 @@ class CurrentTrackFooterViewTest
         f.pressed.clear ();
         f.channel = "new-visible";
         f.bankGeneration++;
+        assertTrue (f.edge (InputPhase.END).isEmpty ());
+        f.begin (false);
         assertEquals (List.of (new CurrentTrackActionEffect (f.target (0), CurrentTrackActionEffect.Action.SELECT)), f.edge (InputPhase.END));
     }
 
@@ -265,7 +267,7 @@ class CurrentTrackFooterViewTest
         final SessionStopGesture stop = new SessionStopGesture ();
         final PageNavigation pages = PageNavigation.defaults ();
         final CurrentTrackFooterView view = new CurrentTrackFooterView (this.consumption, this.stop, this.pages);
-        final CompiledWorkspace workspace;
+        final RoutedWorkspace workspace;
         SessionBankSnapshot session = SessionBankSnapshot.empty ();
         final Set<ControlId> pressed = new HashSet<> ();
         ControlId row = ROW;
@@ -293,7 +295,7 @@ class CurrentTrackFooterViewTest
                 public ViewProfile profile () { return ViewProfile.fixed ("default", Set.of (new SurfaceClaim (SurfaceArea.DISPLAY_PARAMETERS, SurfaceClaim.Kind.OUTPUT)), Set.of ()); }
                 public ViewOutput render (final ControllerSnapshot snapshot) { return new ViewOutput (Map.of (), Map.of (), new ControllerDisplayScene (960, 143, List.of (new DisplayCommand.Rectangle (0, 0, 960, 143, new RgbColor (0, 0, 0))))); }
             };
-            this.workspace = CompiledWorkspace.compile ("footer", List.of (top, this.view));
+            this.workspace = new RoutedWorkspace (CompiledWorkspace.compile ("footer", List.of (top, this.view)));
             this.workspace.start (this.snapshot ());
         }
         void press (final String button) { this.pressed.add (PushControlIds.button (button)); }

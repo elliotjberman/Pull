@@ -141,7 +141,7 @@ final class ParameterTargetHost
                 this.releaseTouch (touched);
             }
         }
-        final ParameterBridgeSnapshot refreshed = !banks.banks ().isEmpty () || !this.retainedTargets.isEmpty () ? this.captureSnapshot () : ParameterBridgeSnapshot.empty ();
+        final ParameterBridgeSnapshot refreshed = !banks.banks ().isEmpty () || !this.retainedTargets.isEmpty () || !this.touchedTargets.isEmpty () ? this.captureSnapshot () : ParameterBridgeSnapshot.empty ();
         if (refreshed.equals (this.snapshot))
         {
             this.reconcileIndications ();
@@ -253,7 +253,7 @@ final class ParameterTargetHost
                 throw new IllegalStateException ("Prepared parameter lease changed before commit");
         });
         this.retainedTargets = checkedPrepared;
-        final ParameterBridgeSnapshot refreshed = !this.requestedBanks.banks ().isEmpty () || !this.retainedTargets.isEmpty () ? this.captureSnapshot () : ParameterBridgeSnapshot.empty ();
+        final ParameterBridgeSnapshot refreshed = !this.requestedBanks.banks ().isEmpty () || !this.retainedTargets.isEmpty () || !this.touchedTargets.isEmpty () ? this.captureSnapshot () : ParameterBridgeSnapshot.empty ();
         if (refreshed.equals (this.snapshot))
             return false;
         this.snapshot = refreshed;
@@ -826,7 +826,7 @@ final class ParameterTargetHost
 
         final Map<ParameterTargetRef, Double> baselines = new LinkedHashMap<> ();
         this.retainedTargets.forEach ( (target, retained) -> baselines.put (target, Double.valueOf (retained.baseline)));
-        return new ParameterBridgeSnapshot (slots, baselines);
+        return new ParameterBridgeSnapshot (slots, baselines, this.touchedTargets.keySet ());
     }
 
 

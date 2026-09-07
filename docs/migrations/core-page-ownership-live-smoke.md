@@ -59,7 +59,8 @@ receipts were not used as substitutes for later host read-back.
   no direct Bitwig touch read-back. Debug input enters after native learned-MIDI matching.
 - No audible playback/recording pass is claimed. The user attributed audio-engine errors to their
   changes and asked that they be ignored; audio configuration was left alone.
-- General touch→motion and pad→pressure capture remains [separate work](../findings/core-continuous-input-capture.md).
+- General touch→motion and pad→pressure capture was separate from this build; see the later
+  [API 47 lifecycle integration](../interaction-lifecycle.md), which has its own validation boundary.
   Release success does not prove a general asynchronous reload drain.
 - Restored values do not mean identical in-memory history: dirty/undo flags and expected opaque
   handles/generations changed. The project remained unsaved; no history was cleared to hide this.

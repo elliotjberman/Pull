@@ -21,6 +21,7 @@ import de.mossgrabers.pull.core.api.effect.StopSessionTrackEffect;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.view.ControllerView;
+import de.mossgrabers.pull.core.view.InputTarget;
 import de.mossgrabers.pull.core.view.ResolvedControllerAction;
 import de.mossgrabers.pull.core.view.SurfaceArea;
 import de.mossgrabers.pull.core.view.SurfaceClaim;
@@ -101,6 +102,14 @@ public final class TrackSelectionStripView implements ControllerView
     public Set<ControllerActionBinding> actionBindings ()
     {
         return ACTION_BINDINGS;
+    }
+
+
+    @Override
+    public InputTarget inputTarget (final ControlId control, final InputKind kind, final ControllerSnapshot snapshot)
+    {
+        final int index = TRACK_BUTTONS.indexOf (control);
+        return kind == InputKind.BUTTON && index >= 0 ? TrackInputTargets.sessionRow (control, index, snapshot) : ControllerView.super.inputTarget (control, kind, snapshot);
     }
 
 

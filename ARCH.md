@@ -1,6 +1,6 @@
 # Pull View Architecture
 
-Status: working source uses Core API 46 and checkpoint schema 6. Core owns typed pages,
+Status: working source uses Core API 47 and checkpoint schema 6. Core owns typed pages,
 navigation/history, exact temporary ownership, composition and presentation; shell supplies bounded
 data/effects and one inert page projection. Latest installed/live-tested production is `11e33477`.
 Later cleanup is **not deployed or live tested**; the Push is disconnected. Exact build identities,
@@ -114,7 +114,7 @@ pad geometry is not yet a core-authored view capability.
 
 ### Parameter banks, effects, and snapback
 
-Core API 46 exposes named, view-independent banks for the inherited active encoder window, project
+Core API 47 exposes named, view-independent banks for the inherited active encoder window, project
 remotes, the selected-device remote page, selected-track volume/pan and sends, visible-track volume,
 pan and eight send columns, project-scoped Master/Cue controls, and fixed globals. A bank
 declaration is latent configuration; stable samples and publishes only the declared banks while
@@ -342,7 +342,7 @@ shared/family styles and return `PageVisuals` (display scene and row lights). Th
 host targets, mutate parameters, navigate or emit effects. This keeps geometry, typography, color,
 formatting and input policy independently testable without building a universal UI schema.
 
-Working Core API 46 capabilities include bridge snapshot 14, controller output state 4 and
+Working Core API 47 capabilities include bridge snapshot 14, controller output state 4 and
 controller pages 1; parameter targets remain 4, input routing 7, current-track effects 2, transport
 effects 4 and controller-settings/application-UI effects 1. Schema 6 checkpoints retain exact page
 references, history, a latched temporary token and Track Mix/I-O/send state. The serialized inbox
@@ -396,8 +396,9 @@ is rejected.
 Reloadable core:
 
 - `CompiledWorkspace`: claim validation, route declarations, deterministic composition.
-- `InputGestureRouter`: bounded original-view edge capture, deferred-action lifetimes and offscreen
-  data/touch continuation; only the current composition renders output.
+- `InteractionLifecycle` / `InputGestureRouter`: bounded target capture, binding-loss cancellation,
+  suppressed physical tails and independently observed resource retirement. Only active views run;
+  see [the lifecycle contract](docs/interaction-lifecycle.md).
 - `ControllerLevelViews`: retained global selection, transport, parameter, and selected-track policy.
 - `ControllerPageCompositions`: finite declared page/background pairs reusing the exact retained
   Session/Drum/Note/ribbon instances; page ownership follows committed core navigation state.
@@ -407,9 +408,9 @@ Reloadable core:
 - `ControllerPages`: fixed standalone/VS grid declarations, the declared 8x4 Session bank, and
   independent typed page definitions.
 - `BrowserPageNavigation`: core reduction of raw browser activity into exact temporary ownership.
-- `ProjectMacroControlsView`: relative encoders, exact touch leases, Delete reset, automation
-  release policy, and parameter display. `InputGestureRouter` retains original edge receivers across page
-  replacement while the shell retains the exact parameter actuator.
+- `ProjectMacroControlsView`: relative encoder mappings and parameter display. `InputGestureRouter`
+  owns exact touch leases, Delete reset and automation cleanup; page/target loss cancels the input
+  while the shell retires the exact parameter actuator.
 - `TrackMixerControlsView`: Mix/I-O selection, send paging, encoder turns/touches, send enable,
   upper-row feedback, and the parameter body. Named selected-track banks keep this independent of
   legacy physical parameter providers; normal Track response and VS Live response remain distinct.
@@ -429,8 +430,8 @@ Reloadable core:
 - `DrumPlayPadView`: shared playable lower-grid RGB and pressure policy.
 - `DrumControllerView`: composite selected-track Note-route and complete native-map policy.
 - `DrumOctaveView`: octave gestures, bounds, bank requests, read-back-gated notifications, and lights.
-- `RawPitchBendView`: raw 14-bit gesture, release neutralization, and complete touch-strip output;
-  its retained gesture continues across page replacement.
+- `RawPitchBendView`: raw 14-bit gesture, release/cancellation neutralization, and complete strip
+  output. Removing its binding centres once and suppresses the physical tail.
 - `DrumRateView`: four exclusive rate-pad gestures, RGB output, and desired note-repeat state.
 - `DrumFillView`: fill selection, launch lifecycle, bindings, and eight RGB lights.
 - `DrumControlPadView`: four exclusive physical control-pad routes, a complete
@@ -516,7 +517,7 @@ Remaining product-policy families and installed capacities are maintained in
   frozen migration debt; core page compatibility does not migrate their behavior.
 - Native learned mappings remain bounded V1: 128 historical track banks per document, no tombstone
   reuse and acknowledged context latency. See [the lifecycle finding](docs/findings/track-scoped-midi-learn-lifecycle.md).
-- General continuous capture, facet/claim coupling, semantic parameter identity and explicitly
+- Facet/claim coupling, remaining semantic parameter identity and explicitly
   parked async quiescence retain [active findings](docs/findings/README.md).
 - YAML/JSON, user-authored workspaces, dynamic facet negotiation, richer checkpointed navigation and
   general overlays remain deferred. Current compositions are statically declared Java.

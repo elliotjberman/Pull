@@ -24,11 +24,11 @@ any document their work resolves.
 ## Active
 
 - [Snapback Parameters V1](snapback-v1-limitations.md)
-- [Parameter Targets Are Coupled to Proxy Slots](parameter-target-proxy-coupling.md)
+- [Remaining Parameter Target Identity Work](parameter-target-proxy-coupling.md)
 - [Physical Inputs Are Coupled To Semantic Consequences](physical-input-semantic-action-coupling.md)
 - [Logical Timer DTOs Have No Production Executor](logical-timer-production-gap.md)
+- [Interaction Lifecycle Live Validation](core-continuous-input-capture.md)
 - [Core Reload Does Not Account For Every Pending Operation](core-reload-quiescence.md)
-- [Edge Ownership Does Not Yet Imply Continuous-Motion Ownership](core-continuous-input-capture.md)
 - [Live Test Provenance Is Not Authoritative](live-test-provenance-gap.md)
 - [Custom Musical Surface Geometry Is Not Installed](custom-musical-surface-geometry.md)
 - [Stable Facets Are Not Yet Bidirectionally Coupled To Claims](stable-facet-claim-coupling.md)

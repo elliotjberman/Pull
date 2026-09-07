@@ -3,8 +3,12 @@
 This is work for a later session: migrate the remaining UI pages and musical editing behavior
 into reloadable core. It is not an implementation or a promise that these families are independent
 of input and target capabilities. [Migration part 1, PR #40](https://github.com/elliotjberman/Pull/pull/40)
-merged as `8659c2d1`; its current source contract is Core API 46 / Bitwig API 25.
+merged as `8659c2d1` with Core API 46 / Bitwig API 25.
 Installed-build provenance remains in the [validation record](core-page-ownership-live-smoke.md).
+
+Lifecycle integration now uses working API 47; rebase onto it before using the new
+[InputTarget, cancellation and parameter-touch contract](../interaction-lifecycle.md). It removes
+the per-page touch sessions and start-once view wrappers; do not recreate them.
 
 ## Scope and starting points
 
@@ -28,11 +32,11 @@ Choose a complete small slice first, preferably a settings page whose required s
 already available. Keep a checklist in the PR; split subsequent slices when their capability or
 live-validation requirements differ. Do not claim the whole inventory as one mechanical port.
 
-## Shared interaction work: decision versus shipping behavior
+## Shared interaction contract
 
-Concurrent work is an **isolated, offline-testable shared interaction lifecycle**, not integrated
-production routing. Part 1 still ships its existing edge capture and target fences. Do not assume
-the new lifecycle is available because its source or tests exist.
+The working API 47 source integrates the shared lifecycle into production routing. It is offline
+validated only; the installed Bitwig build still uses the previous routing. Rebase onto the
+integration before using it and keep exact-build live validation separate.
 
 The user's chosen policy for that work is: **cancel an interaction when its target leaves the
 active binding; suppress the remaining physical interaction until a fresh gesture starts**.
@@ -42,9 +46,9 @@ definition of gesture end for each input kind before relying on it.
 
 A captured view is not proof that a Bitwig proxy still addresses its old target. Cancellation also
 does not authorize cleanup through a rebound proxy. Keep target validation and required touch/MIDI
-neutralization explicit. The [continuous-input finding](../findings/core-continuous-input-capture.md)
-and [target finding](../findings/parameter-target-proxy-coupling.md) describe current gaps; older
-retention proposals there are not permission to override the user's cancellation decision.
+neutralization explicit. The [lifecycle contract](../interaction-lifecycle.md) describes the integrated
+input boundary; the [target finding](../findings/parameter-target-proxy-coupling.md) records remaining
+host identity gaps. Earlier retention proposals do not override the cancellation decision.
 
 ## Capability dependencies and boundaries
 

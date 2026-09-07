@@ -223,14 +223,6 @@ public final class CompiledWorkspace
     }
 
 
-    /** Activate through the router's event-scoped identity reconciliation. */
-    CoreResult activate (final ControllerSnapshot snapshot, final java.util.function.BiConsumer<ControllerView, Boolean> reconciler)
-    {
-        final boolean starting = !this.started;
-        this.started = true;
-        for (final CompiledView view: this.views) reconciler.accept (view.view (), Boolean.valueOf (starting));
-        return this.render (snapshot, List.of ());
-    }
 
 
     /**
@@ -317,7 +309,7 @@ public final class CompiledWorkspace
     }
 
 
-    private Map<ControlId, ParameterSlot> parameterSlots (final ControllerSnapshot snapshot)
+    Map<ControlId, ParameterSlot> parameterSlots (final ControllerSnapshot snapshot)
     {
         final Map<ControlId, ParameterSlot> bindings = new LinkedHashMap<> ();
         for (final CompiledView view: this.views)
@@ -351,7 +343,6 @@ public final class CompiledWorkspace
         this.parameterSlots (snapshot);
         final Map<ControlId, RgbColor> lights = new LinkedHashMap<> ();
         final Map<ControlId, ClipTargetId> clipBindings = new LinkedHashMap<> ();
-        final Map<ControlId, ParameterTargetRef> parameterTouches = new LinkedHashMap<> ();
         final Set<ControllerMappingBinding> controllerMappingBindings = new LinkedHashSet<> ();
         final Set<ControlId> mappedPhysicalControls = new LinkedHashSet<> ();
         final Set<ControllerMappingId> mappingIds = new LinkedHashSet<> ();
@@ -369,15 +360,6 @@ public final class CompiledWorkspace
                 validateLightOwner (view, control);
             mergeUnique (lights, output.lights (), "light", view.id ());
             mergeUnique (clipBindings, output.clipBindings (), "clip binding", view.id ());
-            final DesiredParameterTouches touches = Objects.requireNonNull (view.view ().parameterTouches (snapshot), "view parameter touches");
-            for (final ControlId control: touches.targets ().keySet ())
-            {
-                final boolean ownsTouch = view.profile ().claims ().stream ().anyMatch (claim ->
-                    claim.kind () == SurfaceClaim.Kind.EXCLUSIVE_INPUT && claim.area ().controls ().contains (control) && claim.area ().inputKinds ().contains (InputKind.TOUCH));
-                if (!ownsTouch)
-                    throw new IllegalStateException ("view " + view.id () + " touches a parameter outside its exclusive touch claims");
-            }
-            mergeUnique (parameterTouches, touches.targets (), "parameter touch", view.id ());
             for (final ControllerMappingBinding binding: output.controllerMappings ().bindings ())
             {
                 validateControllerMapping (view, binding);
@@ -460,7 +442,7 @@ public final class CompiledWorkspace
             this.desiredControllerActions,
             this.desiredParameterBanks,
             DesiredParameterInteraction.empty (),
-            new DesiredParameterTouches (parameterTouches),
+            DesiredParameterTouches.empty (),
             new CoreExecutionRequirements (this.views.stream ().anyMatch (view -> view.view ().executionRequirements ().ticksRequested ())),
             effects);
     }

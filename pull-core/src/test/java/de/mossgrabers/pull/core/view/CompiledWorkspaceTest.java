@@ -250,7 +250,7 @@ class CompiledWorkspaceTest
             "test footer",
             SurfaceArea.DISPLAY_BOTTOM_STRIP,
             new ControllerDisplayScene (960, 17, List.of (new DisplayCommand.Rectangle (0, 0, 960, 17, new RgbColor (0, 0, 0)))));
-        final CompiledWorkspace workspace = CompiledWorkspace.compile ("macros", List.of (new ProjectMacroControlsView (), footer));
+        final RoutedWorkspace workspace = new RoutedWorkspace (CompiledWorkspace.compile ("macros", List.of (new ProjectMacroControlsView (), footer)));
         final CoreResult result = workspace.start (parameterSnapshot ());
         final ControlId firstKnob = PushControlIds.continuous ("KNOB1");
 
@@ -266,14 +266,18 @@ class CompiledWorkspaceTest
         assertTrue (result.desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.RoundedRectangle rectangle && new RgbColor (66, 107, 128).equals (rectangle.color ())));
         assertFalse (result.desiredOutput ().display ().commands ().stream ().anyMatch (DisplayCommand.DottedArc.class::isInstance));
 
+        workspace.handle (new ControllerInputEvent (1, 1, firstKnob, InputKind.TOUCH, InputPhase.BEGIN, 127), parameterSnapshot (Set.of (firstKnob)));
         final CoreResult adjusted = workspace.handle (
-            new ControllerInputEvent (1, 1, firstKnob, InputKind.RELATIVE, InputPhase.UPDATE, 3),
+            new ControllerInputEvent (2, 2, firstKnob, InputKind.RELATIVE, InputPhase.UPDATE, 3),
             parameterSnapshot (Set.of (firstKnob)));
         assertEquals (List.of (new AdjustParameterValueEffect (PROJECT_TARGET, 30)), adjusted.effects ());
-        assertTrue (adjusted.desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextAt text && "Macro 1".equals (text.text ()) && new RgbColor (190, 235, 247).equals (text.color ())));
+        assertFalse (adjusted.desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextAt text && "Macro 1".equals (text.text ()) && new RgbColor (190, 235, 247).equals (text.color ())));
+        final CoreResult acknowledged = workspace.activate (parameterSnapshot (Set.of (firstKnob), Set.of (PROJECT_TARGET)));
+        assertTrue (acknowledged.desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextAt text && "Macro 1".equals (text.text ()) && new RgbColor (190, 235, 247).equals (text.color ())));
 
+        workspace.handle (new ControllerInputEvent (3, 3, firstKnob, InputKind.TOUCH, InputPhase.END, 0), parameterSnapshot ());
         final CoreResult decreased = workspace.handle (
-            new ControllerInputEvent (2, 2, firstKnob, InputKind.RELATIVE, InputPhase.UPDATE, -2),
+            new ControllerInputEvent (4, 4, firstKnob, InputKind.RELATIVE, InputPhase.UPDATE, -2),
             parameterSnapshot ());
         assertEquals (List.of (new AdjustParameterValueEffect (PROJECT_TARGET, -20)), decreased.effects ());
     }
@@ -441,25 +445,27 @@ class CompiledWorkspaceTest
         final ControlId shift = PushControlIds.button ("SHIFT");
         final ControlId session = PushControlIds.button ("SESSION");
         final WorkspaceSelection selection = new WorkspaceSelection (WorkspaceSelection.Id.DEFAULT);
-        final CompiledWorkspace workspace = CompiledWorkspace.compile ("workspace action", List.of (new WorkspaceSelectionView (selection)));
+        final RoutedWorkspace workspace = new RoutedWorkspace (CompiledWorkspace.compile ("workspace action", List.of (new WorkspaceSelectionView (selection))));
         final ControllerSnapshot shifted = snapshot (Set.of (shift));
         workspace.start (shifted);
 
         final ResolvedControllerAction action = workspace.resolveAction (new ControllerInputEvent (1, 0, session, InputKind.BUTTON, InputPhase.BEGIN, 127), shifted);
+        workspace.handle (new ControllerInputEvent (2, 1, session, InputKind.BUTTON, InputPhase.END, 0), snapshot ());
         workspace.handleAction (action, snapshot ());
-
         assertEquals (WorkspaceSelection.Id.VS_LIVE, selection.active ());
+        workspace.handle (new ControllerInputEvent (3, 2, session, InputKind.BUTTON, InputPhase.BEGIN, 127), snapshot ());
+        assertEquals (WorkspaceSelection.Id.DEFAULT, selection.active (), "a delayed completed tap must not retain a held selection");
     }
 
 
     @Test
-    void resolvedTrackSelectionRetainsItsBeginTimeBankIdentity ()
+    void resolvedTrackSelectionCancelsWhenItsBeginTimeBankLeavesView ()
     {
         final ControllerView upper = displayRegionView (
             "upper",
             SurfaceArea.DISPLAY_PARAMETERS,
             new ControllerDisplayScene (960, 143, List.of (new DisplayCommand.Rectangle (0, 0, 960, 143, new RgbColor (0, 0, 0)))));
-        final CompiledWorkspace workspace = CompiledWorkspace.compile ("tracks", List.of (upper, new TrackSelectionStripView ()));
+        final RoutedWorkspace workspace = new RoutedWorkspace (CompiledWorkspace.compile ("tracks", List.of (upper, new TrackSelectionStripView ())));
         final ControllerSnapshot begin = sessionSnapshot (7, "track-a");
         workspace.start (begin);
 
@@ -468,19 +474,23 @@ class CompiledWorkspaceTest
             begin);
         final CoreResult result = workspace.handleAction (action, sessionSnapshot (8, "track-b"));
 
-        assertEquals (List.of (new SelectSessionTrackEffect (7, new SessionBankShape (8, 4), 0, "track-a")), result.effects ());
+        assertTrue (result.effects ().isEmpty ());
+        final ControllerSnapshot next = sessionSnapshot (8, "track-b");
+        workspace.handle (new ControllerInputEvent (2, 0, PushControlIds.button ("ROW1_1"), InputKind.BUTTON, InputPhase.END, 0), next);
+        final CoreResult fresh = workspace.handle (new ControllerInputEvent (3, 0, PushControlIds.button ("ROW1_1"), InputKind.BUTTON, InputPhase.BEGIN, 127), next);
+        assertEquals (List.of (new SelectSessionTrackEffect (8, new SessionBankShape (8, 4), 0, "track-b")), fresh.effects ());
     }
 
 
     @Test
-    void resolvedTrackStopRetainsItsBeginTimeBankIdentity ()
+    void resolvedTrackStopCancelsWhenItsBeginTimeBankLeavesView ()
     {
         final ControllerView upper = displayRegionView (
             "upper",
             SurfaceArea.DISPLAY_PARAMETERS,
             new ControllerDisplayScene (960, 143, List.of (new DisplayCommand.Rectangle (0, 0, 960, 143, new RgbColor (0, 0, 0)))));
         final SessionStopGesture stopGesture = new SessionStopGesture ();
-        final CompiledWorkspace workspace = CompiledWorkspace.compile ("tracks", new SessionBankShape (8, 4), List.of (upper, SessionView.upper (true, stopGesture), new TrackSelectionStripView (stopGesture)));
+        final RoutedWorkspace workspace = new RoutedWorkspace (CompiledWorkspace.compile ("tracks", new SessionBankShape (8, 4), List.of (upper, SessionView.upper (true, stopGesture), new TrackSelectionStripView (stopGesture))));
         final ControlId stop = PushControlIds.button ("STOP_CLIP");
         final ControllerSnapshot begin = sessionSnapshot (7, "track-a", Set.of (stop));
         workspace.start (begin);
@@ -490,7 +500,11 @@ class CompiledWorkspaceTest
             begin);
         final CoreResult result = workspace.handleAction (action, sessionSnapshot (8, "track-b"));
 
-        assertEquals (List.of (new StopSessionTrackEffect (7, new SessionBankShape (8, 4), 0, "track-a", true)), result.effects ());
+        assertTrue (result.effects ().isEmpty ());
+        final ControllerSnapshot next = sessionSnapshot (8, "track-b", Set.of (stop));
+        workspace.handle (new ControllerInputEvent (2, 0, PushControlIds.button ("ROW1_1"), InputKind.BUTTON, InputPhase.END, 0), next);
+        final CoreResult fresh = workspace.handle (new ControllerInputEvent (3, 0, PushControlIds.button ("ROW1_1"), InputKind.BUTTON, InputPhase.BEGIN, 127), next);
+        assertEquals (List.of (new StopSessionTrackEffect (8, new SessionBankShape (8, 4), 0, "track-b", true)), fresh.effects ());
     }
 
 
@@ -788,9 +802,15 @@ class CompiledWorkspaceTest
 
     private static ControllerSnapshot parameterSnapshot (final Set<ControlId> touchedControls)
     {
+        return parameterSnapshot (touchedControls, Set.of ());
+    }
+
+
+    private static ControllerSnapshot parameterSnapshot (final Set<ControlId> touchedControls, final Set<ParameterTargetRef> touchLeases)
+    {
         final ParameterBridgeSnapshot parameters = new ParameterBridgeSnapshot (
             Map.of (ParameterSlot.projectRemote (0), new ParameterTargetSnapshot (PROJECT_TARGET, "Macro 1", 64, 64, "On", -1, 0.5, java.util.Optional.empty (), new de.mossgrabers.pull.core.api.ParameterTargetIdentitySnapshot ("project-remote", "project", 0, 0))),
-            Map.of ());
+            Map.of (), touchLeases);
         final ControllerBridgeSnapshot bridge = new ControllerBridgeSnapshot (
             TransportSnapshot.empty (),
             SelectedTrackSnapshot.empty (),

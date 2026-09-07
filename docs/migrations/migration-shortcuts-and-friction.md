@@ -19,7 +19,7 @@ and exact-build evidence in [the smoke record](core-page-ownership-live-smoke.md
 | BEGIN admission | A button that may change page on LONG enters the parameter barrier at BEGIN; short taps can therefore wait too. Preserve early modifier consumption separately from deferred host effects. |
 | Summed relative input | Packet order is lost: at a clamp, `+1,-1` can differ from net zero. Accent follows the installed sum contract; Crossfade/MIDI-channel callback-count behavior is still unresolved. |
 | Preserved mixer quirks | Shift-arrow feedback reads bank-scroll flags while its action swaps the cursor. Selected Track and global mixer send menus have different pagination thresholds. Send widget type still derives from name: Volume fader, Pan/Panning slider, otherwise ring. Change these only as explicit product behavior. |
-| Original-view edge completion | One bounded core router retains original receivers and nonvisual state. General touch→turn and pad→pressure association is [separate debt](../findings/core-continuous-input-capture.md). Generation disposal is cancellation; there is no independent queued-action cancel API. |
+| Interaction lifetime | The later [API 47 integration](../interaction-lifecycle.md) replaces offscreen retention with central cancellation and touch→motion / pad→pressure capture. Deferred cleanup belongs to the exact resolved intent. Its remaining adapter constraints and validation are recorded there. |
 | Snapback precision | Baselines/setters still use controller resolution for inherited paths. An equal opposite encoder step does not prove raw restoration; retain the [precision finding](../findings/snapback-v1-limitations.md). |
 
 Master deliberately replaces the page over the exact selected composition; it no longer selects

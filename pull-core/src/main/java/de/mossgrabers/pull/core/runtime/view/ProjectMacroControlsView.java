@@ -38,7 +38,6 @@ import java.util.Set;
  */
 public final class ProjectMacroControlsView implements ControllerView
 {
-    private final ParameterTouchControls touches;
 
     private static final double PARAMETER_STEP_SIZE = 10.0;
     private static final Map<ControlId, ParameterSlot> PARAMETER_BINDINGS = projectParameterBindings ();
@@ -49,18 +48,6 @@ public final class ProjectMacroControlsView implements ControllerView
             new SurfaceClaim (SurfaceArea.ENCODER_TOUCHES, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
             new SurfaceClaim (SurfaceArea.DISPLAY_PARAMETERS, SurfaceClaim.Kind.OUTPUT)),
         Set.of ());
-
-
-    public ProjectMacroControlsView ()
-    {
-        this (new ParameterTouchSession ());
-    }
-
-
-    public ProjectMacroControlsView (final ParameterTouchSession touchSession)
-    {
-        this.touches = new ParameterTouchControls (touchSession);
-    }
 
 
     /** {@inheritDoc} */
@@ -103,52 +90,31 @@ public final class ProjectMacroControlsView implements ControllerView
 
 
     @Override
-    public void start (final ControllerSnapshot snapshot)
-    {
-        // Normal core replacement waits for physical gestures; a fresh view never invents BEGIN.
-        this.touches.clear ();
-    }
-
-
-    @Override
-    public void deactivate ()
-    {
-        this.touches.clear ();
-    }
-
-
-    @Override
-    public void reconcile (final ControllerSnapshot snapshot)
-    {
-        this.touches.reconcile (snapshot);
-        this.touches.retainTargets (ParameterAlignment.references (snapshot));
-    }
-
-
-    @Override
     public List<CoreEffect> handle (final CoreEvent event, final ControllerSnapshot snapshot)
     {
-        if (!(event instanceof final ControllerInputEvent input))
+        if (!(event instanceof final ControllerInputEvent input) || input.kind () != InputKind.RELATIVE)
             return List.of ();
-        final ParameterSlot slot = PARAMETER_BINDINGS.get (input.controlId ());
-        if (slot == null)
-            return List.of ();
-        final ParameterTargetSnapshot target = ParameterAlignment.target (snapshot, slot);
-        if (input.kind () == InputKind.TOUCH && input.phase () == de.mossgrabers.pull.core.api.event.InputPhase.BEGIN && ParameterAlignment.contradicts (snapshot, slot))
-            return List.of ();
-        if (input.kind () == InputKind.RELATIVE)
-            return target == null ? List.of () : List.of (new AdjustParameterValueEffect (target.target (), input.value () * PARAMETER_STEP_SIZE));
-        if (input.kind () != InputKind.TOUCH)
-            return List.of ();
-
-        return this.touches.handle (input, target, snapshot);
+        final ParameterTargetSnapshot target = ParameterAlignment.target (snapshot, PARAMETER_BINDINGS.get (input.controlId ()));
+        return target == null ? List.of () : List.of (new AdjustParameterValueEffect (target.target (), input.value () * PARAMETER_STEP_SIZE));
     }
 
 
     @Override
-    public de.mossgrabers.pull.core.api.DesiredParameterTouches parameterTouches (final ControllerSnapshot snapshot)
+    public de.mossgrabers.pull.core.view.InputTarget inputTarget (final ControlId control, final InputKind kind, final ControllerSnapshot snapshot)
     {
-        return this.touches.desired ();
+        if (kind == InputKind.TOUCH)
+        {
+            final ParameterSlot slot = PARAMETER_BINDINGS.get (control);
+            if (ParameterAlignment.contradicts (snapshot, slot)) return null;
+        }
+        return ControllerView.super.inputTarget (control, kind, snapshot);
+    }
+
+
+    @Override
+    public Set<ControlId> parameterTouchControls (final ControllerSnapshot snapshot)
+    {
+        return SurfaceArea.ENCODER_TOUCHES.controls ();
     }
 
 

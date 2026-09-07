@@ -23,6 +23,7 @@ import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.view.ControllerView;
+import de.mossgrabers.pull.core.view.InputTarget;
 import de.mossgrabers.pull.core.view.SurfaceArea;
 import de.mossgrabers.pull.core.view.SurfaceClaim;
 import de.mossgrabers.pull.core.view.ViewFacet;
@@ -107,6 +108,21 @@ public final class SessionView implements ControllerView
     public Set<BridgeSubscription> bridgeSubscriptions ()
     {
         return SUBSCRIPTIONS;
+    }
+
+
+    @Override
+    public InputTarget inputTarget (final ControlId control, final InputKind kind, final ControllerSnapshot snapshot)
+    {
+        return STOP_CLIP.equals (control) ? TrackInputTargets.stop (control, snapshot) : ControllerView.super.inputTarget (control, kind, snapshot);
+    }
+
+
+    @Override
+    public List<CoreEffect> cancel (final ControlId control, final InputKind kind, final InputTarget target, final ControllerSnapshot snapshot)
+    {
+        if (STOP_CLIP.equals (control)) this.stopGesture.takeConsumed ();
+        return List.of ();
     }
 
 
