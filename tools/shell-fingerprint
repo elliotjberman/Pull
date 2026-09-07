@@ -11,7 +11,7 @@ calculate_fingerprint ()
     git -C "$repository_dir" ls-files --cached --others --exclude-standard -- \
         pull-core-api/pom.xml \
         pull-core-api/src/main |
-        LC_ALL=C sort |
+        LC_ALL=C sort -u |
         while IFS= read -r path
         do
             [[ -f "$repository_dir/$path" ]] || continue
