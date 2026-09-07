@@ -26,8 +26,16 @@ parameters settles and restores them before dispatching the captured semantic ac
 exists, later actions cannot overtake it. If Shift remains held after the barrier, a fresh session
 can begin. Views do not carry their own Snapback modifier checks or rebinding-button lists.
 
-Settlement waits for two stable value observations, bounded to eight controller ticks. Restoration
-submits the captured baseline through the exact retained target, then requires two consecutive
+Settlement waits for two stable value observations, bounded to eight controller ticks. Bitwig's
+controller settings expose Control Return → Time (0–2,000 ms, default 0). Zero restores
+immediately after settlement. Curve selects Linear (default) or cubic Ease-out,
+which starts faster and slows toward the baseline. Custom evaluates the bounded [YAML keyframe curve](../control-return.md). Positive duration returns from the settled
+observed value on monotonic controller ticks. Duration and curve are captured at release. Navigation shortens the return to
+an immediate restore; target loss drops only that exact capture. Returning targets reject new
+mutations, and core requests ticks and blocks replacement through final acknowledgement or timeout.
+The interpolation retains controller-resolution precision and physical automation-touch behavior.
+
+After the timed return, restoration submits the captured baseline through the exact retained target, then requires two consecutive
 baseline observations. A later changed value resets confirmation and requests another restore
 after two retry ticks. These are controller-tick limits, not wall-clock timing guarantees.
 
@@ -40,7 +48,7 @@ by restoration to the earlier baseline; this remains the chosen momentary-change
 Stable code owns exact actuator validation, baseline leases and best-effort fault/exit restoration.
 `IParameter` restoration uses its immediate setter so takeover mode cannot reject the return.
 Normal core startup can hydrate retained baselines from the shell snapshot. The existing input and
-action gates are separate from the [unimplemented general reload drain](core-reload-quiescence.md).
+action gates and this bounded return fence are separate from the [unimplemented general reload drain](core-reload-quiescence.md).
 Full Device remotes remain excluded until their [identity contract](parameter-target-proxy-coupling.md)
 is proved; a bank's existence alone does not make its targets safe.
 

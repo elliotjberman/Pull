@@ -9,6 +9,9 @@ import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
+import de.mossgrabers.pull.core.api.ControllerSettingsSnapshot;
+import de.mossgrabers.pull.core.api.CursorSendBankSnapshot;
+import de.mossgrabers.pull.core.api.SessionSettingsSnapshot;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ControllerActionId;
 import de.mossgrabers.pull.core.api.ControllerActionIntent;
@@ -35,7 +38,8 @@ import de.mossgrabers.pull.shell.input.PhysicalControlRegistry;
 import de.mossgrabers.pull.shell.input.PhysicalInputEvent;
 import de.mossgrabers.pull.shell.input.PhysicalInputRouter;
 
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
@@ -53,6 +57,7 @@ import java.util.jar.JarOutputStream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 
 /** End-to-end asynchronous snapback lifecycle across the child-core and stable shell boundary. */
@@ -62,10 +67,31 @@ class ParameterSnapbackIntegrationTest
     private static final ControlId PAGE_RIGHT = PushControlIds.button ("PAGE_RIGHT");
 
 
-    @Test
-    void waitsForAuthoritativeRestoreBeforeStableNavigationOrCoreReplacement (@TempDir final Path temporaryDirectory) throws Exception
+    @org.junit.jupiter.api.io.TempDir
+    Path configurationDirectory;
+    private String previousConfigurationPath;
+
+    @org.junit.jupiter.api.BeforeEach
+    void isolateConfiguration ()
+    {
+        this.previousConfigurationPath = System.getProperty ("pull.core.config.file");
+        System.setProperty ("pull.core.config.file", this.configurationDirectory.resolve ("config.yaml").toString ());
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void restoreConfigurationPath ()
+    {
+        if (this.previousConfigurationPath == null) System.clearProperty ("pull.core.config.file");
+        else System.setProperty ("pull.core.config.file", this.previousConfigurationPath);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0, Linear", "1000, Linear", "0, Ease-out", "1000, Ease-out"})
+    void waitsForAuthoritativeRestoreBeforeStableNavigationOrCoreReplacement (final int duration, final String curve, @TempDir final Path temporaryDirectory) throws Exception
     {
         final AsyncParameterBridge bridge = new AsyncParameterBridge ();
+        bridge.returnMillis = duration;
+        bridge.returnCurve = curve;
         final ControllerRuntimeEnvironment environment = new ControllerRuntimeEnvironment (new EmptyClipHost (), bridge, NoOpLog.INSTANCE, new IncrementingClock ());
         environment.setInputRouteValidator (ignored -> true);
         environment.setControllerActionValidator (ignored -> true);
@@ -143,6 +169,103 @@ class ParameterSnapbackIntegrationTest
     }
 
 
+    @ParameterizedTest
+    @CsvSource({"Linear, 55, 70", "Ease-out, 74.6875, 92.5", "Custom, 115, 94"})
+    void returnUsesElapsedTimeAndLaterReadbackBeforeReplacement (final String curve, final double quarterValue, final double halfValue, @TempDir final Path temporaryDirectory) throws Exception
+    {
+        final AsyncParameterBridge bridge = new AsyncParameterBridge ();
+        bridge.returnMillis = 1000;
+        bridge.returnCurve = curve;
+        final IncrementingClock clock = new IncrementingClock ();
+        final ControllerRuntimeEnvironment environment = new ControllerRuntimeEnvironment (new EmptyClipHost (), bridge, NoOpLog.INSTANCE, clock);
+        environment.setInputRouteValidator (ignored -> true);
+        environment.setControllerActionValidator (ignored -> true);
+        environment.setPhysicalLightOwnerValidator (ignored -> true);
+        final RuntimeManager manager = new RuntimeManager (environment, NoOpLog.INSTANCE);
+        final PhysicalInputRouter<ControlId> inputs = inputRouter (environment, manager);
+        environment.setInputLifecycleIdle (inputs::isIdle);
+        manager.start ();
+        final Path coreJar = createCoreJar (temporaryDirectory.resolve ("pull-core.jar"));
+        final Path configuration = this.configurationDirectory.resolve ("config.yaml");
+        Files.writeString (configuration, "control_return:\n  curve:\n    interpolation: smooth\n    keyframes: [[0, 1], [0.25, -0.25], [0.5, 0.1], [0.8, -0.03], [1, 0]]\n");
+        final CoreJarLoader configuredLoader = new CoreJarLoader ();
+        assertEquals (ActivationResult.State.ACTIVE, manager.activate ("unpublished", configuredLoader.load (coreJar), () -> true).state ());
+        final ReloadableControllerRuntime runtime = new ReloadableControllerRuntime (environment, NoOpLog.INSTANCE, event -> manager.handle (manager.activeGeneration (), event));
+        runtime.start ();
+        route (inputs, SHIFT, InputPhase.BEGIN, () -> {});
+        runtime.tick ();
+        runtime.handleParameterMutation (ContinuousID.KNOB1, bridge.control, () -> bridge.submit (40));
+        bridge.advanceHost ();
+        runtime.tick ();
+        route (inputs, SHIFT, InputPhase.END, () -> {});
+        runtime.tick ();
+        runtime.tick ();
+        assertNull (bridge.submittedValue, "settlement must precede the ramp");
+        assertTrue (environment.ticksRequested ());
+        assertFalse (manager.canReplaceActiveCore (), "released Shift does not end the return");
+        assertEquals (ActivationResult.State.BLOCKED, manager.activate ("unpublished", new CoreJarLoader ().load (coreJar), () -> true).state ());
+
+        clock.value += 250_000_000;
+        runtime.tick ();
+        assertEquals (quarterValue, bridge.submittedValue, 0.001);
+        assertEquals (40, bridge.authoritativeValue, "submitted interpolation is not observed host state");
+        bridge.advanceHost ();
+        bridge.returnMillis = 0; // Setting changes affect the next release, not this trajectory.
+        bridge.returnCurve = "Linear".equals (curve) ? "Ease-out" : "Linear";
+        clock.value += 250_000_000;
+        runtime.tick ();
+        assertEquals (halfValue, bridge.submittedValue, 0.001);
+        route (inputs, SHIFT, InputPhase.BEGIN, () -> {});
+        runtime.handleParameterMutation (ContinuousID.KNOB1, bridge.control, () -> bridge.submit (5));
+        assertEquals (halfValue, bridge.submittedValue, 0.001, "repress cannot mutate a restoring target");
+        route (inputs, SHIFT, InputPhase.END, () -> {});
+        bridge.advanceHost ();
+        clock.value += 900_000_000; // A delayed tick goes straight to the endpoint.
+        runtime.tick ();
+        assertEquals (100, bridge.submittedValue);
+        assertEquals (halfValue, bridge.authoritativeValue, 0.001);
+        assertFalse (manager.canReplaceActiveCore ());
+        bridge.advanceHost ();
+        runtime.tick ();
+        assertFalse (manager.canReplaceActiveCore (), "one baseline observation is not confirmation");
+        runtime.tick ();
+        assertTrue (manager.canReplaceActiveCore ());
+        assertEquals (ActivationResult.State.ACTIVE, manager.activate ("unpublished", new CoreJarLoader ().load (coreJar), () -> true).state ());
+        final long activeGeneration = manager.activeGeneration ();
+        Files.writeString (configuration, "control_return: {curve: broken}");
+        final ActivationResult rejected = manager.activate ("unpublished", configuredLoader.load (coreJar), () -> true);
+        assertEquals (ActivationResult.State.ACTIVE, rejected.state (), "invalid YAML activates the Linear fallback");
+        assertTrue (manager.activeGeneration () > activeGeneration);
+        if ("Custom".equals (curve))
+        {
+            // Keep malformed YAML: this full routed return must use the Linear fallback.
+            bridge.returnCurve = "Custom";
+            bridge.returnMillis = 1000;
+            route (inputs, SHIFT, InputPhase.BEGIN, () -> {});
+            runtime.tick ();
+            runtime.handleParameterMutation (ContinuousID.KNOB1, bridge.control, () -> bridge.submit (40));
+            bridge.advanceHost ();
+            runtime.tick ();
+            route (inputs, SHIFT, InputPhase.END, () -> {});
+            runtime.tick ();
+            runtime.tick ();
+            clock.value += 500_000_000;
+            runtime.tick ();
+            assertEquals (70, bridge.submittedValue, 0.001, "same JAR reload falls back to Linear for invalid YAML without restarting the host");
+            bridge.advanceHost ();
+            clock.value += 500_000_000;
+            runtime.tick ();
+            bridge.advanceHost ();
+            runtime.tick ();
+            runtime.tick ();
+            assertEquals (100, bridge.authoritativeValue);
+            assertTrue (manager.canReplaceActiveCore ());
+        }
+        runtime.close ();
+        manager.close ();
+    }
+
+
     private static PhysicalInputRouter<ControlId> inputRouter (final ControllerRuntimeEnvironment environment, final RuntimeManager manager)
     {
         final PhysicalControlRegistry<ControlId> registry = PhysicalControlRegistry.<ControlId>builder (2)
@@ -202,6 +325,15 @@ class ParameterSnapbackIntegrationTest
                 Files.copy (file, jar);
                 jar.closeEntry ();
             }
+            try (var dependencies = new java.util.jar.JarFile (Path.of ("..", "pull-core", "target", "pull-core.jar").toFile ()))
+            {
+                for (final var entry: dependencies.stream ().filter (entry -> entry.getName ().startsWith ("org/snakeyaml/") && !entry.isDirectory ()).toList ())
+                {
+                    jar.putNextEntry (new JarEntry (entry.getName ()));
+                    try (var input = dependencies.getInputStream (entry)) { input.transferTo (jar); }
+                    jar.closeEntry ();
+                }
+            }
         }
         return destination;
     }
@@ -222,11 +354,15 @@ class ParameterSnapbackIntegrationTest
         private Double submittedValue;
         private boolean resolveMutations = true;
         private boolean requireResolvedMutation;
+        private int returnMillis;
+        private String returnCurve = "Linear";
+        private DesiredBridgeSubscriptions lastSubscriptions = DesiredBridgeSubscriptions.empty ();
 
 
         @Override
         public boolean refresh (final long monotonicTimeNanos, final DesiredBridgeSubscriptions subscriptions, final DesiredParameterBanks parameterBanks)
         {
+            this.lastSubscriptions = subscriptions;
             final boolean requested = subscriptions.includes (BridgeSubscription.PARAMETERS) || !this.retained.isEmpty ();
             final ParameterBridgeSnapshot parameters;
             if (requested)
@@ -242,10 +378,12 @@ class ParameterSnapbackIntegrationTest
 
             final ControllerBridgeSnapshot refreshed = new ControllerBridgeSnapshot (
                 this.snapshot.transport (),
-                this.snapshot.selectedTrack (),
-                this.snapshot.layout (),
-                this.snapshot.drum (),
-                parameters);
+                this.snapshot.selectedTrack (), this.snapshot.sessionBank (),
+                this.snapshot.layout (), this.snapshot.noteView (), this.snapshot.noteRepeat (),
+                this.snapshot.drum (), parameters, this.snapshot.controllerMappingFeedback (),
+                this.snapshot.master (), this.snapshot.project (), this.snapshot.automation (),
+                this.snapshot.encoderConfiguration (), this.snapshot.currentTrackBank (), this.snapshot.transportSettings (),
+                subscriptions.includes (BridgeSubscription.CONTROLLER_SETTINGS) ? new ControllerSettingsSnapshot (true, false, "VOLUME", 0, CursorSendBankSnapshot.empty (), false, 127, SessionSettingsSnapshot.empty (), this.returnMillis, this.returnCurve) : ControllerSettingsSnapshot.empty ());
             if (refreshed.equals (this.snapshot))
                 return false;
             this.snapshot = refreshed;
@@ -299,8 +437,7 @@ class ParameterSnapbackIntegrationTest
         {
             this.retained = Map.copyOf (prepared);
             this.lastAppliedBanks = parameterBanks;
-            final DesiredBridgeSubscriptions subscriptions = parameterBanks.banks ().isEmpty () && prepared.isEmpty () ? DesiredBridgeSubscriptions.empty () : new DesiredBridgeSubscriptions (java.util.Set.of (BridgeSubscription.PARAMETERS));
-            return this.refresh (0, subscriptions, parameterBanks);
+            return this.refresh (0, this.lastSubscriptions, parameterBanks);
         }
 
 
@@ -335,6 +472,8 @@ class ParameterSnapbackIntegrationTest
         @Override
         public PreparedAction prepare (final CoreEffect effect, final Map<ParameterTargetRef, ParameterLease> parameterLeases)
         {
+            if (effect instanceof final de.mossgrabers.pull.core.api.effect.ShowHostNotificationEffect notification)
+                return new Notification (notification.text ());
             if (!(effect instanceof final SetParameterValueEffect set) || !parameterLeases.containsKey (set.target ()))
                 return null;
             return new SetValue (set.value ());
@@ -344,6 +483,7 @@ class ParameterSnapbackIntegrationTest
         @Override
         public void apply (final PreparedAction action)
         {
+            if (action instanceof Notification) return;
             this.submittedValue = Double.valueOf (((SetValue) action).value);
         }
 
@@ -391,6 +531,8 @@ class ParameterSnapbackIntegrationTest
         {
         }
 
+
+        private record Notification (String text) implements PreparedAction {}
 
         private record SetValue (double value) implements PreparedAction
         {

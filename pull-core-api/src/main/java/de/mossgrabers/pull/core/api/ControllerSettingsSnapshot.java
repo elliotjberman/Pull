@@ -5,17 +5,38 @@ package de.mossgrabers.pull.core.api;
 import java.util.Objects;
 
 /** Observed controller preferences and existing model-cursor send metadata, sampled only on request. */
-public record ControllerSettingsSnapshot (boolean available, boolean vuMetersEnabled, String globalMixMode, int mixSendOffset, CursorSendBankSnapshot cursorSends, boolean accentEnabled, int accentVelocity, SessionSettingsSnapshot session, ControllerHardwareSettingsSnapshot hardware, RibbonSettingsSnapshot ribbon)
+public record ControllerSettingsSnapshot (boolean available, boolean vuMetersEnabled, String globalMixMode, int mixSendOffset, CursorSendBankSnapshot cursorSends, boolean accentEnabled, int accentVelocity, SessionSettingsSnapshot session, ControllerHardwareSettingsSnapshot hardware, RibbonSettingsSnapshot ribbon, int parameterReturnMillis, String parameterReturnCurve)
 {
     public ControllerSettingsSnapshot
     {
+        parameterReturnCurve = Objects.requireNonNull (parameterReturnCurve, "parameterReturnCurve");
         session = Objects.requireNonNull (session, "session");
         globalMixMode = Objects.requireNonNull (globalMixMode, "globalMixMode");
         cursorSends = Objects.requireNonNull (cursorSends, "cursorSends");
         hardware = Objects.requireNonNull (hardware, "hardware");
         ribbon = Objects.requireNonNull (ribbon, "ribbon");
-        if (mixSendOffset < 0 || mixSendOffset > 4 || available && (globalMixMode.isBlank () || accentVelocity < 1 || accentVelocity > 127) || !available && (accentEnabled || accentVelocity != 0 || hardware.available () || ribbon.available ()))
+        if (parameterReturnMillis < 0 || parameterReturnMillis > 2000 || mixSendOffset < 0 || mixSendOffset > 4 || available && (globalMixMode.isBlank () || accentVelocity < 1 || accentVelocity > 127) || !available && (accentEnabled || accentVelocity != 0 || hardware.available () || ribbon.available ()))
             throw new IllegalArgumentException ("invalid controller settings");
+    }
+
+    public ControllerSettingsSnapshot (final boolean available, final boolean vuMetersEnabled, final String globalMixMode, final int mixSendOffset, final CursorSendBankSnapshot cursorSends, final boolean accentEnabled, final int accentVelocity, final SessionSettingsSnapshot session, final ControllerHardwareSettingsSnapshot hardware, final RibbonSettingsSnapshot ribbon, final int parameterReturnMillis)
+    {
+        this (available, vuMetersEnabled, globalMixMode, mixSendOffset, cursorSends, accentEnabled, accentVelocity, session, hardware, ribbon, parameterReturnMillis, "Linear");
+    }
+
+    public ControllerSettingsSnapshot (final boolean available, final boolean vuMetersEnabled, final String globalMixMode, final int mixSendOffset, final CursorSendBankSnapshot cursorSends, final boolean accentEnabled, final int accentVelocity, final SessionSettingsSnapshot session, final int parameterReturnMillis, final String parameterReturnCurve)
+    {
+        this (available, vuMetersEnabled, globalMixMode, mixSendOffset, cursorSends, accentEnabled, accentVelocity, session, ControllerHardwareSettingsSnapshot.empty (), RibbonSettingsSnapshot.empty (), parameterReturnMillis, parameterReturnCurve);
+    }
+
+    public ControllerSettingsSnapshot (final boolean available, final boolean vuMetersEnabled, final String globalMixMode, final int mixSendOffset, final CursorSendBankSnapshot cursorSends, final boolean accentEnabled, final int accentVelocity, final SessionSettingsSnapshot session, final ControllerHardwareSettingsSnapshot hardware, final RibbonSettingsSnapshot ribbon)
+    {
+        this (available, vuMetersEnabled, globalMixMode, mixSendOffset, cursorSends, accentEnabled, accentVelocity, session, hardware, ribbon, 0);
+    }
+
+    public ControllerSettingsSnapshot (final boolean available, final boolean vuMetersEnabled, final String globalMixMode, final int mixSendOffset, final CursorSendBankSnapshot cursorSends, final boolean accentEnabled, final int accentVelocity, final SessionSettingsSnapshot session, final int parameterReturnMillis)
+    {
+        this (available, vuMetersEnabled, globalMixMode, mixSendOffset, cursorSends, accentEnabled, accentVelocity, session, ControllerHardwareSettingsSnapshot.empty (), RibbonSettingsSnapshot.empty (), parameterReturnMillis);
     }
 
     public ControllerSettingsSnapshot (final boolean available, final boolean vuMetersEnabled, final String globalMixMode, final int mixSendOffset, final CursorSendBankSnapshot cursorSends, final boolean accentEnabled, final int accentVelocity)

@@ -257,6 +257,45 @@ class SnapbackSessionTest
     }
 
 
+    @Test
+    void returnMovesBothDirectionsDropsLostTargetsAndShortensForNavigation ()
+    {
+        final SnapbackSession session = startedSession (parameters (100, 200));
+        session.handle (relative (2, KNOB1, -60), snapshot (parameters (100, 200), Set.of (SHIFT)), ParameterSlot.active (0));
+        session.handle (relative (3, KNOB2, 60), snapshot (parameters (40, 200), Set.of (SHIFT)), ParameterSlot.active (1));
+        session.handle (button (4, SHIFT, InputPhase.END), timedSnapshot (parameters (40, 260), 0), null);
+        session.handle (tick (5), timedSnapshot (parameters (40, 260), 10), null);
+        session.handle (tick (6), timedSnapshot (parameters (40, 260), 20), null);
+        assertEquals (List.of (new SetParameterValueEffect (FIRST, 70), new SetParameterValueEffect (SECOND, 230)),
+            session.handle (tick (7), timedSnapshot (parameters (40, 260), 520), null).effects ());
+
+        final ParameterTargetRef replacement = new ParameterTargetRef (ParameterTargetKind.LIVE, "replacement", 3);
+        final ParameterBridgeSnapshot rebound = new ParameterBridgeSnapshot (Map.of (
+            ParameterSlot.active (0), new ParameterTargetSnapshot (replacement, 10, 0.5),
+            ParameterSlot.active (1), new ParameterTargetSnapshot (SECOND, 230, 0.5)), Map.of (), Set.of ());
+        assertEquals (List.of (new SetParameterValueEffect (SECOND, 224)),
+            session.handle (tick (8), timedSnapshot (rebound, 620), null).effects ());
+        final ResolvedControllerAction navigation = action (9, NAVIGATION);
+        assertTrue (session.handleAction (navigation, timedSnapshot (rebound, 620)).intercepted ());
+        assertEquals (List.of (new SetParameterValueEffect (SECOND, 200)),
+            session.handle (tick (10), timedSnapshot (rebound, 630), null).effects ());
+        assertTrue (session.handle (tick (11), timedSnapshot (parameters (10, 200), 640), null).releasedActions ().isEmpty ());
+        assertEquals (List.of (navigation), session.handle (tick (12), timedSnapshot (parameters (10, 200), 650), null).releasedActions ());
+        assertFalse (session.decorate (CoreResult.empty (), List.of ()).executionRequirements ().replacementBlocked ());
+    }
+
+
+    private static ControllerSnapshot timedSnapshot (final ParameterBridgeSnapshot parameters, final long millis)
+    {
+        final ControllerBridgeSnapshot base = snapshot (parameters, Set.of ()).bridge ();
+        final ControllerBridgeSnapshot bridge = new ControllerBridgeSnapshot (
+            base.transport (), base.selectedTrack (), base.sessionBank (), base.layout (), base.noteView (), base.noteRepeat (), base.drum (), parameters,
+            base.controllerMappingFeedback (), base.master (), base.project (), base.automation (), base.encoderConfiguration (), base.currentTrackBank (), base.transportSettings (),
+            new de.mossgrabers.pull.core.api.ControllerSettingsSnapshot (true, false, "VOLUME", 0, de.mossgrabers.pull.core.api.CursorSendBankSnapshot.empty (), false, 127, de.mossgrabers.pull.core.api.SessionSettingsSnapshot.empty (), 1000));
+        return new ControllerSnapshot (0, millis * 1_000_000, ShellCapabilities.empty (), bridge, ClipCatalogSnapshot.empty (), Map.of (), Map.of (), Optional.empty (), Set.of (), Set.of ());
+    }
+
+
     private static SnapbackSession startedSession (final ParameterBridgeSnapshot parameters)
     {
         final SnapbackSession session = new SnapbackSession ();
