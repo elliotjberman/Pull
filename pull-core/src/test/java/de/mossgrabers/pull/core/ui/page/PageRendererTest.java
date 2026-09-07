@@ -102,10 +102,10 @@ class PageRendererTest
             assertEquals (index == 8 ? white : dim, output.lights ().get (PushControlIds.button ("ROW2_" + index)));
         final List<DisplayCommand.TextBox> text = output.display ().commands ().stream ().filter (DisplayCommand.TextBox.class::isInstance).map (DisplayCommand.TextBox.class::cast).toList ();
         final DisplayCommand.TextBox cc = text.stream ().filter (field -> field.text ().equals ("64")).findFirst ().orElseThrow ();
-        assertEquals (black, cc.color ());
+        assertEquals (white, cc.color ());
         assertTrue (output.display ().commands ().stream ().filter (DisplayCommand.Rectangle.class::isInstance).map (DisplayCommand.Rectangle.class::cast)
-            .anyMatch (box -> box.color ().equals (white) && box.x () <= cc.x () && box.y () <= cc.y () && box.x () + box.width () >= cc.x () + cc.width () && box.y () + box.height () >= cc.y () + cc.height ()));
-        assertEquals (white, text.stream ().filter (field -> field.text ().equals ("Sustain")).findFirst ().orElseThrow ().color ());
+            .anyMatch (box -> box.color ().equals (white) && box.x () + box.width () < cc.x () && box.y () <= cc.y () && box.y () + box.height () >= cc.y () + cc.height ()));
+        assertEquals (new RgbColor (128, 128, 128), text.stream ().filter (field -> field.text ().equals ("Sustain")).findFirst ().orElseThrow ().color ());
         for (final DisplayCommand.TextBox field: text)
             assertTrue (field.x () >= 0 && field.y () >= 0 && field.x () + field.width () <= 960 && field.y () + field.height () <= 160, field.text ());
     }

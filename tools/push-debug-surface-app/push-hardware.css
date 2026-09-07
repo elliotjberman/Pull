@@ -1,0 +1,26 @@
+/* Mechanical hardware appearance; interaction and debugger state stay with the live surface. */
+:root {
+    --push-hardware-face: #0c0c0d;
+    --push-hardware-edge: #19191a;
+}
+
+.control-face {
+    fill: var(--push-hardware-face);
+    stroke: var(--push-hardware-edge);
+    stroke-width: 0.18;
+}
+
+.button-display-row .row-light {
+    fill: #242423;
+    pointer-events: none;
+}
+
+.button-display-row[data-lit="true"] .row-light {
+    fill: var(--light);
+}
+
+.display-bezel {
+    fill: #060607;
+    stroke: #09090a;
+    stroke-width: 0.65;
+}

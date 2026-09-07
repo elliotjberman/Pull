@@ -5,7 +5,7 @@
     const XLINK_NS = "http://www.w3.org/1999/xlink";
     const controlsRoot = document.querySelector("#surface-controls");
     const status = document.querySelector("#event-status");
-    const displayImage = document.querySelector("#display-image");
+    const displayImage = PushHardware.mountScreen(document.querySelector("#display"));
     const displayPlaceholder = document.querySelector("#display-placeholder");
     const pressureSlider = document.querySelector("#pressure-slider");
     const pressureValue = document.querySelector("#pressure-value");
@@ -46,9 +46,9 @@
         y: 63.75,
         columns: 8,
         rows: 8,
-        cellWidth: 13.5,
+        cellWidth: PushHardware.BUTTON_WIDTH,
         cellHeight: 10.25,
-        columnGap: 1.75,
+        columnGap: PushHardware.COLUMN_PITCH - PushHardware.BUTTON_WIDTH,
         rowGap: 1.375
     });
     const gridColumnX = column => grid.x + column * (grid.cellWidth + grid.columnGap);
@@ -252,20 +252,11 @@
     function createButton([symbolicName, label, x, y, width, height]) {
         const displayRow = symbolicName.startsWith("ROW");
         const scene = symbolicName.startsWith("SCENE");
-        const group = svgElement("g", {class: displayRow ? "button button-display-row" : scene ? "button button-legend button-scene" : "button button-legend"});
-        const face = svgElement("rect", {
-            class: "control-face",
-            x,
-            y,
-            width,
-            height,
-            rx: 0.25
-        });
-        group.append(face);
-        if (displayRow) {
-            const lightY = symbolicName.startsWith("ROW1_") ? y + 1.25 : y + height - 1.65;
-            group.append(svgElement("rect", {class: "row-light", x: x + 1.25, y: lightY, width: width - 2.5, height: 0.4}));
-        }
+        const group = displayRow
+            ? PushHardware.createRowButton({x, y, width, height, row: symbolicName.startsWith("ROW1_") ? 1 : 2})
+            : svgElement("g", {class: scene ? "button button-legend button-scene" : "button button-legend"});
+        if (!displayRow)
+            group.append(svgElement("rect", {class: "control-face", x, y, width, height, rx: 0.25}));
         if (scene) {
             const division = svgElement("text", {class: "scene-division", x: x + 1.1, y: y + 2.65});
             division.textContent = label;
@@ -368,7 +359,7 @@
                 x,
                 row.y,
                 grid.cellWidth,
-                6
+                PushHardware.BUTTON_HEIGHT
             ]));
         }
     }
