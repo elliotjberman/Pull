@@ -14,7 +14,6 @@ import de.mossgrabers.pull.core.api.ParameterTargetSnapshot;
 import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.StateEnvelope;
-import de.mossgrabers.pull.core.api.TimerId;
 import de.mossgrabers.pull.core.api.TransportSnapshot;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
@@ -24,7 +23,6 @@ import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.event.ParameterMutationEvent;
 import de.mossgrabers.pull.core.api.event.SnapshotChangedEvent;
-import de.mossgrabers.pull.core.api.event.TimerElapsedEvent;
 import de.mossgrabers.pull.core.api.event.TouchInputEvent;
 
 import java.time.Duration;
@@ -39,7 +37,6 @@ import java.util.Set;
  */
 final class FakeCoreHost
 {
-    private static final int MAX_TIMER_DISPATCHES_PER_ADVANCE = 10_000;
 
     private final ControllerCore core;
     private final FakeMonotonicTime time = new FakeMonotonicTime ();
@@ -461,30 +458,10 @@ final class FakeCoreHost
     }
 
 
-    /**
-     * Advance fake time and serially deliver timers due at the resulting time. Each event is
-     * stamped with the final advanced time, and effects are applied before selecting the next
-     * timer so callbacks may cancel or replace one another.
-     *
-     * @param duration The duration
-     */
+    /** Advance fake time without delivering controller events. */
     void advance (final Duration duration)
     {
         this.time.advance (duration);
-        int dispatchCount = 0;
-        while (true)
-        {
-            final Optional<TimerId> timerId = this.effectExecutor.takeNextDueTimer (this.time.nowNanos ());
-            if (timerId.isEmpty ())
-                return;
-            if (dispatchCount >= MAX_TIMER_DISPATCHES_PER_ADVANCE)
-                throw new IllegalStateException ("Timer dispatch limit exceeded");
-
-            dispatchCount++;
-            this.revision++;
-            this.eventSequence++;
-            this.effectExecutor.apply (this.core.handle (new TimerElapsedEvent (this.eventSequence, this.time.nowNanos (), timerId.get ()), this.snapshot ()));
-        }
     }
 
 

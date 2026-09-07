@@ -55,7 +55,6 @@ import de.mossgrabers.pull.core.api.ParameterBankId;
 import de.mossgrabers.pull.core.api.ParameterTargetKind;
 import de.mossgrabers.pull.core.api.ParameterTargetRef;
 import de.mossgrabers.pull.core.api.SessionBankShape;
-import de.mossgrabers.pull.core.api.TimerId;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchMode;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
@@ -65,7 +64,6 @@ import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.ResetParameterEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
-import de.mossgrabers.pull.core.api.effect.ScheduleTimerEffect;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
@@ -1287,7 +1285,6 @@ class ControllerRuntimeEnvironmentTest
         assertThrows (IllegalArgumentException.class, () -> environment.prepare (result (Map.of (), Map.of (FIRST, FIRST_TARGET, SECOND, FIRST_TARGET), List.of ())));
         assertThrows (IllegalArgumentException.class, () -> environment.prepare (result (Map.of (), Map.of (), List.of (new PressClipTargetEffect (FIRST, 1, FIRST_TARGET, LAUNCH_POLICY)))));
         assertThrows (IllegalArgumentException.class, () -> environment.prepare (result (Map.of (), Map.of (FIRST, SECOND_TARGET), List.of (new PressClipTargetEffect (FIRST, 1, FIRST_TARGET, LAUNCH_POLICY)))));
-        assertThrows (IllegalArgumentException.class, () -> environment.prepare (result (Map.of (), Map.of (), List.of (new ScheduleTimerEffect (new TimerId ("timer"), 1)))));
         assertThrows (IllegalArgumentException.class, () -> environment.prepare (result (
             Map.of (),
             Map.of (FIRST, FIRST_TARGET),

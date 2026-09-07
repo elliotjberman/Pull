@@ -401,7 +401,6 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
         this.touchStripOutput = new TouchStripOutputHost (this::transmitTouchStrip);
         this.noteTranslation = new NoteInputTranslationArbiter (super::setKeyTranslationTable, super::setVelocityTranslationTable);
         this.controllerWorkspaceHost = new ControllerWorkspaceHost (this);
-        this.notifyViewChange = false;
         this.pushPadGrid = (PushPadGrid) this.padGrid;
         if (this.reloadableRuntime != null)
         {

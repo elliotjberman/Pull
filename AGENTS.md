@@ -217,8 +217,7 @@
   display regions compose through claims.
 - Stable adapter facets and other remaining debt listed in `ARCH.md`
   are not extension points. Missing/faulted core output
-  stays blank or inert instead of reviving deleted policy. Logical timer DTOs have no production
-  executor and must not be emitted while `docs/findings/logical-timer-production-gap.md` is active.
+  stays blank or inert instead of reviving deleted policy.
 
 ## Bitwig controller API compatibility
 

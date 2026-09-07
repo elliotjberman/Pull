@@ -26,7 +26,6 @@ any document their work resolves.
 - [Snapback Restoration Limits](snapback-v1-limitations.md)
 - [Remaining Parameter Target Identity Work](parameter-target-proxy-coupling.md)
 - [Physical Inputs Are Coupled To Semantic Consequences](physical-input-semantic-action-coupling.md)
-- [Logical Timer DTOs Have No Production Executor](logical-timer-production-gap.md)
 - [Core Reload Does Not Account For Every Pending Operation](core-reload-quiescence.md)
 - [Live Test Provenance Is Not Authoritative](live-test-provenance-gap.md)
 - [Custom Musical Surface Geometry Is Not Installed](custom-musical-surface-geometry.md)

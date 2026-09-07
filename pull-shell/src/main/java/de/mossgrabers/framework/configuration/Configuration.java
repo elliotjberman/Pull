@@ -9,7 +9,6 @@ import java.util.List;
 import de.mossgrabers.framework.daw.constants.Resolution;
 import de.mossgrabers.framework.daw.midi.ArpeggiatorMode;
 import de.mossgrabers.framework.observer.ISettingObserver;
-import de.mossgrabers.framework.view.Views;
 
 
 /**
@@ -437,18 +436,6 @@ public interface Configuration
      * @param midiChannel The MIDI channel, 0-15
      */
     void setMidiEditChannel (int midiChannel);
-    /**
-     * Get the preferred note view.
-     *
-     * @return The preferred note view
-     */
-    Views getStartupView ();
-    /**
-     * Get the preferred audio view.
-     *
-     * @return The preferred note view
-     */
-    Views getPreferredAudioView ();
     /**
      * Should played chords be displayed?
      *

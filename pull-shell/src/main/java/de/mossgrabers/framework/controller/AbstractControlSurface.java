@@ -37,7 +37,6 @@ import de.mossgrabers.framework.controller.hardware.IHwSurfaceFactory;
 import de.mossgrabers.framework.controller.valuechanger.ISensitivityCallback;
 import de.mossgrabers.framework.controller.valuechanger.RelativeEncoding;
 import de.mossgrabers.framework.daw.IHost;
-import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.midi.IMidiInput;
 import de.mossgrabers.framework.daw.midi.IMidiOutput;
 import de.mossgrabers.framework.daw.midi.INoteInput;
@@ -47,7 +46,6 @@ import de.mossgrabers.framework.featuregroup.ModeManager;
 import de.mossgrabers.framework.featuregroup.ViewManager;
 import de.mossgrabers.framework.graphics.IBitmap;
 import de.mossgrabers.framework.utils.ButtonEvent;
-import de.mossgrabers.framework.view.Views;
 
 
 /**
@@ -86,7 +84,6 @@ public abstract class AbstractControlSurface<C extends Configuration> implements
 
     protected final IPadGrid                              padGrid;
     protected ILightGuide                                 lightGuide;
-    protected boolean                                     notifyViewChange               = true;
 
     private final Map<Integer, IView>                       gridReceivers                  = new HashMap<> ();
 
@@ -269,25 +266,6 @@ public abstract class AbstractControlSurface<C extends Configuration> implements
     public ViewManager getViewManager ()
     {
         return this.viewManager;
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void recallPreferredView (final ITrack track)
-    {
-        if (!track.doesExist ())
-            return;
-
-        Views preferredView = this.viewManager.getPreferredView (track.getPosition ());
-        if (preferredView == null)
-            preferredView = track.canHoldNotes () ? this.configuration.getStartupView () : this.configuration.getPreferredAudioView ();
-        final IView view = this.viewManager.get (preferredView);
-        if (view == null)
-            return;
-        this.viewManager.setActive (preferredView);
-        if (this.notifyViewChange)
-            this.getDisplay ().notify (view.getName ());
     }
 
 

@@ -17,7 +17,6 @@ import de.mossgrabers.framework.daw.IHost;
 import de.mossgrabers.framework.daw.midi.ArpeggiatorMode;
 import de.mossgrabers.framework.graphics.IGraphicsConfiguration;
 import de.mossgrabers.framework.mode.Modes;
-import de.mossgrabers.framework.view.Views;
 
 
 /**
@@ -124,8 +123,6 @@ public class PushConfiguration extends AbstractConfiguration implements IGraphic
     public PushConfiguration (final IHost host, final IValueChanger valueChanger, final List<ArpeggiatorMode> arpeggiatorModes)
     {
         super (host, valueChanger, arpeggiatorModes);
-
-        this.preferredAudioView = Views.CLIP_LENGTH;
 
         // Each pad callback uploads the complete pad configuration. Let PAD_PUSH2_SENSITIVITY
         // perform the one initial upload; later changes still notify normally.
