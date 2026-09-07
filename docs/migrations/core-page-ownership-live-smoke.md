@@ -83,4 +83,4 @@ and surface-server checks. The final part-1 handoff changes documentation only.
 
 Earlier API-45 smoke history is superseded by this scoped record. Its reentrant cleanup failure
 and resolved review history remain in Git; current compromises are in the
-[shortcuts ledger](migration-shortcuts-and-friction.md).
+[current architecture](../../ARCH.md).

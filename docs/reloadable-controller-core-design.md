@@ -9,33 +9,10 @@ not in this design document.
 
 ## Runtime boundary
 
-The stable shell owns initialization-created Bitwig proxies, observers, MIDI/USB resources,
-physical callbacks, validation and effect execution. The reloadable core owns controller policy:
-views, pages, input meanings, composition, navigation, colors and display content. The shared API
-carries immutable data and lifecycle interfaces; it exposes no Bitwig objects or shell callbacks.
-
-```text
-Bitwig / Push -> permanent shell callbacks -> events + authoritative snapshots
-                                              |
-                                              v
-                                         active core
-                                              |
-                                              v
-                      complete desired state + ordered one-shot effects
-                                              |
-                                              v
-                     shell validation -> resource/effect/output application
-```
-
-These are in-process calls, not a network protocol. Core returns values instead of registering
-observers, hardware callbacks, threads or suppliers into the parent graph. Replacing the child
-classloader therefore permits new core classes, fields and methods without reconstructing Bitwig's
-initialization-owned resources.
-
-Unmigrated stable adapters remain frozen behavior. They are not extension points or fallbacks for
-controls already owned by core. A missing capability requires a bounded shell/API expansion and
-the complete consuming core slice; missing or faulted core must not revive deleted behavior.
-The [migration roadmap](reloadable-core-migration-roadmap.md) lists the remaining families.
+[ARCH](../ARCH.md) owns module responsibilities and the migration inventory. Calls are in-process:
+shell publishes immutable observations; core returns complete desired state and ordered effects.
+Core registers no host callbacks, threads or suppliers in the parent graph. Unmigrated handlers
+are frozen; missing/faulted core never revives deleted policy.
 
 ## Current lifecycle
 
@@ -94,20 +71,10 @@ suppresses the stable command for a completely migrated control. Exclusive suppr
 before any semantic-action barrier can queue a stable callback. Native `NoteInput` is separate
 from this command arbitration.
 
-The core's `InputGestureRouter` applies the shared rule: binding or target loss cancels, performs
-required cleanup, and suppresses the old physical tail until release and a fresh BEGIN. Returning
-to the old view does not revive it. The common stable grid dispatcher also captures its original
-receiver; view/target invalidation retires that receiver and held-key state without sending an
-ordinary release into another view. This closes the frozen-adapter boundary without migrating its
-product policy. The detailed admission, observer and cleanup contract is in
-[interaction lifecycle](interaction-lifecycle.md).
-
-`ParameterBridgeSnapshot.touchLeases` and `clipLaunchSessionTargets` expose actual retained resource
-ownership for later retirement checks. Resource retirement is distinct from DAW write completion.
-If external proxy rebinding makes cleanup unreachable, the shell abandons/reports that exact lease
-rather than mutating the replacement target. Device identity and restoration precision remain
-separate [target](findings/parameter-target-proxy-coupling.md) and
-[Snapback](findings/snapback-v1-limitations.md) constraints.
+The [interaction lifecycle](interaction-lifecycle.md) specifies migrated core cancellation and
+resource retirement. Stable Session has an unresolved [release-loss defect](migrations/session-launcher-location-design.md#current-release-regression);
+capturing its receiver alone did not migrate cleanup ownership. Native musical routing below is
+independent from both command dispatch and Session launcher actions.
 
 ## Selected-track musical routing
 
@@ -212,14 +179,6 @@ classloaders rather than relying on a child shutdown callback for host-resource 
 
 ## Classloading and packaging
 
-| Module | Runtime role |
-| --- | --- |
-| `pull-core-api` | Parent-loaded contracts shared with each child. |
-| `pull-core` | Reloadable implementation; the API dependency is `provided`. |
-| `pull-core-bundle` | Resource-only packaging edge containing `META-INF/pull/core/pull-core.jar`. |
-| `pull-shell` | Stable extension, API and embedded bundle; no ordinary core implementation dependency. |
-| `pull-core-publisher` | Development publication and exact-build acknowledgement client. |
-
 The resource-only bundle orders core packaging before shell packaging without exposing child
 classes on the shell classpath. Build steps purge stale nested/direct copies before packaging;
 the shell extracts the embedded core JAR for loading.
@@ -255,23 +214,11 @@ and a reason. The client accepts only matching requested/active IDs and ignores 
 A client timeout is not cancellation of a still-pending candidate. Published immutable artifacts
 remain available for diagnostics; the protocol does not provide automatic bounded pruning.
 
-## Restart matrix
+## Activation and terminal limits
 
-| Change | Required activation |
-| --- | --- |
-| Core policy using installed data, effects, input and output | Build/publish core and verify exact activation. |
-| Parent API content/version or dependency contract | Build/install shell and restart Bitwig. |
-| Bitwig proxy, interested property, observer or bank capacity | Build/install shell and restart Bitwig. |
-| Permanent MIDI/USB binding, metadata, or output transport/ownership | Build/install shell and restart Bitwig. |
-| Other shell implementation change | Rebuild/install/restart to execute that change, even if core compatibility is unchanged. |
-
-## Testing and terminal limits
-
-[TESTING](../TESTING.md) owns commands, exact-build provenance and debugger procedure. Exercise
-real routing, requested operations, separately advanced host read-back and resulting controller
-output. A fake that makes a void release synchronously acknowledge itself cannot prove production
-safety. Live evidence must distinguish hardware transmission, authoritative host state and audible
-or physical-only behavior.
+Use [ARCH's restart boundary](../ARCH.md) and [TESTING](../TESTING.md) for build, live-lease and
+verification procedures. A compatible core fingerprint does not activate changed shell code:
+any shell implementation change still needs installation and restart.
 
 Whole-extension disable/exit is different from child replacement. API 25 offers no post-exit
 asynchronous completion/grace contract. Shell cleanup can submit best-effort restoration and MIDI

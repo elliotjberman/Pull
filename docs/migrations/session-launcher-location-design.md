@@ -1,33 +1,48 @@
-# Session launcher release boundary
+# Session migration boundary
 
-The grid/scene action and feedback owner remains the frozen Session adapter. Optional
-`SESSION_CLIPS` publishes bounded observation only; it has no production product consumer.
+Session grid/scene/page handlers and their feedback still live in the frozen adapter. Core can
+observe bounded 8×8 or 8×4 slot/scene state but cannot yet perform the complete Session feature.
+The shared [interaction lifecycle](../interaction-lifecycle.md) supplies capture, cancellation and
+suppressed tails once a core view declares its actual location target and required cleanup.
 
-The chosen policy is [cancellation on binding loss](../interaction-lifecycle.md), including
-controller-driven bank/view changes. Continuing offscreen editing is not required. The former
-66-cursor proposal is not an installed capability or a required architecture.
+## Missing installed capability
 
-## Decision still needed
+- Location-fenced slot/scene main and alternate launch/release; select, delete, copy, browse,
+  create and record; absolute bank positioning for birds-eye navigation. Current Session effects
+  cover track selection and Stop. Drum fill effects serve fixed owners and cannot replace these.
+- Observed Session select-on-launch, armed-empty-pad action, clip length and record-stripe settings.
+- Cleanup execution before controller-driven bank/window rebinding. `ControllerRuntimeEnvironment`
+  currently applies controller state before ordinary effects; returning a release from `cancel()`
+  alone therefore cannot guarantee correct order. Parameter touches already release before state.
+- Exclusive admission for migrated pads/scene/page controls and complete native-note silence.
+- Reusable blink color/rate output: core pad RGB output currently clears the stable Session blink.
 
-A launcher location is a track channel identity plus absolute scene index, not a durable clip ID.
-Scene insertion/deletion and identical content defeat name-based identity; a mutable display slot
-cannot authorize delayed cleanup after rebinding.
+Add these bounded mechanisms, put every Session recipe and its feedback in core, then delete the
+stable handlers/facet claims. This needs a shell/API build and restart, not arbitrary offscreen
+retention, the old 66-cursor proposal, or a general asynchronous reload drain.
 
-API 25 `launchRelease()` and `launchReleaseAlt()` return void. Configured release can leave playback
-unchanged, so neither return nor unchanged playing state proves completion. Fill's busy → non-busy
-Return barrier covers its specific configuration, not arbitrary Session release settings.
-`flush()`, `requestFlush()` and `scheduleTask()` supply no documented DAW-command fence.
+## Release contract
 
-Before exclusive migration, establish when a release actuator can safely be retired/reused, or
-explicitly agree a narrower location-addressed **release submission** contract. Cancellation alone
-does not answer that question. Do not reserve an unbounded pool, retain forever, or invent an ACK
-from a delay. General [reload quiescence](../findings/core-reload-quiescence.md) is separate; extension
-exit has no asynchronous grace period.
+Current stable Session submits `launchRelease()` / `launchReleaseAlt()` on release; it does not
+observe their completion. API 25 returns void and configured release can leave playback unchanged.
+A migration can preserve correctly targeted **release submission** without first proving a stronger
+completion/reuse guarantee. Neither a timer nor `flush()` supplies that stronger acknowledgement.
 
-## Cutover evidence
+Capture a launcher location: project/bank context, track channel identity and absolute scene index
+in a ready/aligned window. It is not a durable clip-content ID. Controller navigation must submit
+required cleanup through the old valid location before rebinding. External scene edits or proxy
+rebinding may remove that addressability first; fail closed and report unavailable cleanup rather
+than mutate a replacement. Guaranteed restoration after arbitrary external edits is separate work.
 
-Preserve the complete modifier/configuration, clipboard, create/record and main/alternate release
-behavior together with feedback. Use bounded identity/readiness and primitive operations; verify
-exact API 25 overloads before implementation and avoid deprecated copy APIs. Test bank/scene/target
-changes, release before readiness, exhaustion, delayed host advancement, fault and reload through
-real routing. Require matched-build live proof before replacing the frozen owner.
+Preserve all modifiers/settings, clipboard source lifetime, create/record sequencing, main/alternate
+release and feedback together. Characterize Shift changes between press/release and scene
+Select/Delete/Duplicate release behavior. Verify API 25 overloads and nondeprecated copy operations;
+prove routed target changes, cleanup order, later read-back and matched-build live behavior.
+
+## Current release regression
+
+At `cc1c6264`, selected-track generation changes call `BoundedControllerBridge.resetNoteInputMidiState`,
+which clears every stable grid receiver. Session DOWN → unrelated track selection → UP then loses
+its `launch(false)` submission even when the slot remains visible. Review reproduced this with the
+real routed Session handler; the earlier live smoke omitted it. This P1 remains open. Separate
+selected-note neutralization from actual Session binding loss; do not synthesize END on a new view.

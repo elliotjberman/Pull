@@ -27,8 +27,8 @@ in ignored `target/live-api47`. Durable archive:
 The deprecation-enabled full package passes **858 tests** (403 core, 11 publisher, 444 shell), with
 no failures/errors/skips and no changed-code deprecations. Six warnings remain in untouched
 `TransportImpl`. Independent read-only review checked the critical live receipts/read-back/output.
-The separate two-agent arch-nemesis finishing review has not run for this integration; the earlier
-attempt hit the agent limit. This record does not claim that review passed.
+Later two-agent arch-nemesis review reproduced a [Session release-submission regression](session-launcher-location-design.md#current-release-regression)
+outside these smoke scenarios. The P1 remains open; this record is not merge sign-off.
 
 ## Verified behavior
 

@@ -63,16 +63,9 @@ new Page(PageId.TRACK,
 owns arrows omits the page's optional navigation. It retains the actual Session/Drum/Note/ribbon
 instances so a page replacement does not restart an unchanged musical view.
 
-The supported backgrounds include Note, Drum, full Session and VS Live. Plain Session declares
-8×8; VS declares an upper 8×4 Session bank plus lower Drum views. The shell eagerly registers
-exactly those Session shapes, preserves offsets on a switch and grants launcher feedback only
-to the active bank. An undeclared shape fails before activation and needs a shell expansion.
-
-VS initially combines Project Macros, the Session track-selection footer, upper Session grid and
-scene keys, Drum play/octave/rate/fill/mapping views, musical route and raw pitch bend. Drum does
-not own lower scene keys. `DrumFillView` participates directly in the composition so its target
-and cancellation hooks are visible to the router. Other pages replace the parameter region.
-There is no YAML loader, dynamic view plugin registry or arbitrary callback mapping layer.
+[ARCH](../ARCH.md) inventories installed backgrounds and geometry. The shell preserves Session
+offsets across its two shapes and gives launcher feedback only to the active bank. `DrumFillView`
+is directly composed so the router sees its target/cancel hooks. No runtime plugin/YAML loader exists.
 
 `CompiledWorkspace` expands profiles/facets, validates claims and parameter/action bindings,
 merges subscriptions and installed-bank requests, and produces one complete `CoreResult`.
@@ -81,38 +74,22 @@ temporary whole-grid/display overlays use explicit separate planes, not implicit
 
 ## Target-bound input
 
-`InputGestureRouter` applies the shared [interaction lifecycle](interaction-lifecycle.md).
-BEGIN captures each receiver's target and semantic intent. A changed or missing binding cancels
-that receiver before deactivation. Cancellation emits required cleanup, never an ordinary END.
-Motion, pressure, LONG and END from that physical tail cannot reach a replacement or revive after
-returning to the old binding. An unchanged visible binding survives a page overlay.
+Follow the [interaction lifecycle](interaction-lifecycle.md): declare exact targets and cleanup;
+unchanged bindings survive overlays, changed bindings cancel without ordinary END dispatch.
+Views declare `parameterTouchControls`; named slots supply aligned parameter targets. Only active
+views receive normal reconciliation/input/output. The shared contract handles companion motion,
+modifier filtering and cleanup observation; it does not create missing host capabilities.
 
-Only active views receive ordinary reconciliation/input/rendering. Cleanup effects retain their
-needed subscriptions/banks through submission; resource retirement retains just its required
-observations. Deferred actions capture their exact cancellation function, so an older canceled
-action cannot clean up a newer gesture on the same control. The view's input projection excludes
-canceled controls from modifiers and pressure. Raw host values remain unchanged.
-
-Views declare `parameterTouchControls`; the router owns touch/reset/automation-release lifetime.
-Mapped controls resolve through the compiler's aligned named parameter slots. Other controls
-provide immutable `InputTarget` contexts; unavailable targets reject admission. The shell freezes
-physical disposition and core generation through each edge and its motion/pressure companions.
-A core replacement waits for the existing input/deferred-action fences; it does not inherit a
-partially held physical gesture. This is not a general asynchronous-operation drain.
+Deferred semantic actions capture intent at BEGIN. A LONG-triggered navigation control may enter
+the parameter barrier at BEGIN, so its short tap can wait too. Physical modifier consumption must
+remain immediate and separate from deferred host effects.
 
 ## Parameters and native music
 
-Named parameters carry an opaque reference plus classified domain, owner, page and slot/role.
-A Java wrapper surviving navigation is not a target identity. Current-bank and selected-track
-views join parameter ownership to independently sampled track/project state before rendering,
-writing or touching. Temporary disagreement stays blank/inert until later observations align.
-
-Core returns the complete desired parameter-touch set. The shell releases omitted exact leases
-before effects and acquires new touches afterward, so Delete reset precedes touch. The ordered
-`AcquireParameterTouchEffect` also supports reset → touch → send-enable. A later `touchLeases`
-sample proves resource retirement. Cleanup may address a retained exact actuator, but must abandon
-and report it if an external rebind made that actuator point elsewhere. It may never clean up the
-replacement. Touch retirement does not acknowledge every earlier parameter write.
+Named parameter targets and cleanup addressability follow the
+[target contract](findings/parameter-target-proxy-coupling.md). Contradictory independently sampled
+owner/page state cannot authorize display, touch or writes. The runtime releases omitted touches
+before effects, then acquires desired touches; ordered acquisition supports reset → touch → enable.
 
 Snapback captures an authoritative baseline and restores before navigation through the semantic
 parameter barrier. The router resolves the gesture's intent at BEGIN. Frozen legacy commands
