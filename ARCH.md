@@ -3,10 +3,9 @@
 Working source: Core API 50, checkpoint schema 6, Bitwig API 25. Migration is incomplete:
 core owns pages and migrated controls; the inventory below names the remaining shell handlers.
 
-Production `daa75713` / Core API 49 passed the scoped [Session and lifecycle smoke](docs/migrations/session-core-live-smoke.md).
-The record identifies exact builds, observed outcomes and physical-only limits. The later merge of
-Setup/Ribbon settings, arrow navigation and light refresh passes 1,018 offline package tests. API 50 requires
-a matching shell install/restart and a scoped live check; the user has resumed Bitwig.
+Production `2fa63736` / Core API 50 is installed and passed scoped Setup/Info and plain/Shift track-arrow checks.
+The source passes 1,018 offline package tests. The [smoke record](docs/migrations/session-core-live-smoke.md)
+identifies exact builds and limits; Session and reload coverage remains the earlier API 49 evidence.
 
 ## Assembly
 

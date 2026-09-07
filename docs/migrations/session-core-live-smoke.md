@@ -46,7 +46,26 @@ API 25 release is submission, not completion. This smoke does not prove audible/
 physical feel or exhaustive editing variants; create-clip preference variants retain offline coverage.
 General asynchronous reload draining and remaining shell adapters stay explicitly tracked.
 
-After this smoke, master merged Setup/Ribbon settings, arrow navigation and light refresh.
-The combined API 50 source passes the deprecation-enabled package: 1,018 tests (522 core, 485 shell,
-11 publisher), no failures/errors/skips or changed-code deprecations. It was not installed after the user
-resumed Bitwig. This API 49 record does not establish live coverage for those later integrations.
+## API 50 installation and scoped follow-up
+
+The combined source, including Setup/Ribbon settings, arrow navigation and light refresh, passes
+1,018 package tests (522 core, 485 shell, 11 publisher), with no failures/errors/skips or changed-code deprecations.
+It was installed and activated on 2026-09-07:
+
+| Identity | Value |
+| --- | --- |
+| Source | `2fa6373650b168b150088965a9df1658c6dc578b` |
+| Installed shell SHA-256 | `2cde489640cf876f533526181855be4bb5bf377372a337f3018b6dd822f99dc8` |
+| Active core | `20260907T223632Z-c638c37020505beae7d7becd85c4ef89` |
+| Core SHA-256 | `37840df6919ae5725d97979462d2f36e40adf2c8a85f2bd55f7c498a356de104` |
+
+`api50-settings` passed physical Setup/Info entry and hardware read-back, held-encoder cancellation
+across tabs, a fresh brightness edit with later value/display read-back and exact restoration, and
+plain/Shift track arrows with restored bank/selection. It ended on Track with no held inputs.
+Ribbon, Session and reload were not rerun on API 50; their earlier evidence is not an API 50 pass.
+
+The working project is in the normal `202arp3 - Session core` folder; its saved SHA-256 is
+`cc9bad4232c03b738eea35ecea9c97ec8991ff71e66f8443a131907721262872`.
+The archive is `~/.drivenbymoss/pull/test-evidence/session-core-api50-20260907/evidence.tar.gz`
+(SHA-256 `05f4673eb8067c03d2203c526863303c22f7cfbdba2cebbaa1e071d5c8ffcadd`);
+`exact-install.json`, `activation.log`, `settings.log` and `api50-settings-verified.json` identify the evidence.

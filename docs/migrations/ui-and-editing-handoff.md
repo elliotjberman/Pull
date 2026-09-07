@@ -29,7 +29,7 @@ dependent slice unready rather than inventing a name/slot-based identity.
   `ControllerPageCompositions`. New core pages need no stable enum or page-specific adapter.
 - Use the [shared UI library and catalog](../ui-component-library.md): `core.ui.PageStyle`,
   `core.ui.component` choices/toggles/rings/parameter values, and pure `core.ui.page` families.
-  Info, Setup and Ribbon settings use these components; Setup/Ribbon still need integrated live validation. Extend the production
+  Info, Setup and Ribbon settings use these components. Setup/Info passed the API 50 live check; Ribbon was not rerun. Extend the production
   visual catalog with normal and awkward states when adding a repeated pattern. Browser lists and
   sequencers need suitable models, not a universal configurable UI schema.
 

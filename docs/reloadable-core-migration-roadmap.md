@@ -17,9 +17,9 @@ handler bodies. Use the [capability audit](reloadable-core-migration-guide.md) f
 The [UI/editing handoff](migrations/ui-and-editing-handoff.md) scopes those separate tasks.
 The migration ends when no frozen product-policy adapter remains.
 
-Setup and Ribbon settings are migrated in source; integrated API 50 live verification is pending.
-Session passed the [API 49 smoke](migrations/session-core-live-smoke.md); its bounded location/release limits are recorded in the
-[Session contract](migrations/session-launcher-location-design.md).
+API 50 is installed: Setup/Info and plain/Shift track arrows passed the [scoped live check](migrations/session-core-live-smoke.md).
+Ribbon, Session and reload were not rerun on API 50; earlier Session evidence and its
+[bounded location/release limits](migrations/session-launcher-location-design.md) remain applicable only to the recorded builds.
 
 ## Device, chain and layer
 
