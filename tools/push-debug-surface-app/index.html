@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Pull · Push 2 Debug Surface</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="push-surface.css?v=push2-legends">
+    <link rel="stylesheet" href="push-hardware.css?v=shared-display">
+    <link rel="stylesheet" href="push-surface.css?v=shared-display">
 </head>
 <body>
     <header class="toolbar">
@@ -39,10 +40,6 @@
                     <filter id="pad-diffuser" x="-20%" y="-25%" width="140%" height="150%">
                         <feGaussianBlur stdDeviation="0.75"/>
                     </filter>
-                    <linearGradient id="display-gradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0" stop-color="#101011"/>
-                        <stop offset="1" stop-color="#080809"/>
-                    </linearGradient>
                     <filter id="panel-shadow" x="-10%" y="-10%" width="120%" height="130%">
                         <feDropShadow dx="0" dy="1.4" stdDeviation="1.8" flood-color="#000" flood-opacity="0.4"/>
                     </filter>
@@ -53,9 +50,6 @@
                             <feMergeNode in="SourceGraphic"/>
                         </feMerge>
                     </filter>
-                    <clipPath id="display-clip">
-                        <rect x="36.5" y="27.25" width="120.25" height="20.041667"/>
-                    </clipPath>
                 </defs>
 
                 <rect class="panel" x="1" y="1" width="198" height="159.2" rx="1" filter="url(#panel-shadow)"/>
@@ -65,15 +59,12 @@
                 <g id="surface-controls"></g>
 
                 <g id="display" aria-label="Push display">
-                    <rect class="display-bezel" x="35.25" y="26" width="122.75" height="22.55"/>
-                    <rect class="display-screen" x="36.5" y="27.25" width="120.25" height="20.041667"/>
                     <g id="display-placeholder" clip-path="url(#display-clip)">
                         <path class="display-grid" d="M36.5 33.93h120.25M36.5 40.61h120.25M51.53125 27.25v20.041667M66.5625 27.25v20.041667M81.59375 27.25v20.041667M96.625 27.25v20.041667M111.65625 27.25v20.041667M126.6875 27.25v20.041667M141.71875 27.25v20.041667"/>
                         <text class="display-kicker" x="38.75" y="31.55">PULL</text>
                         <text class="display-title" x="96.625" y="38.45" text-anchor="middle">DISPLAY · 960 × 160</text>
                         <text class="display-subtitle" x="96.625" y="43.35" text-anchor="middle">waiting for controller output</text>
                     </g>
-                    <image id="display-image" x="36.5" y="27.25" width="120.25" height="20.041667" preserveAspectRatio="xMidYMid meet" clip-path="url(#display-clip)"/>
                 </g>
 
             </svg>
@@ -88,6 +79,7 @@
         </aside>
     </main>
 
-    <script src="push-surface.js?v=push2-legends"></script>
+    <script src="push-hardware.js?v=shared-display"></script>
+    <script src="push-surface.js?v=shared-display"></script>
 </body>
 </html>
