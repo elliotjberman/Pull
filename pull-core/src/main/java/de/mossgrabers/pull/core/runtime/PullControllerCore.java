@@ -2,6 +2,8 @@
 // Licensed under LGPLv3 - http://www.gnu.org/licenses/lgpl-3.0.txt
 package de.mossgrabers.pull.core.runtime;
 
+import de.mossgrabers.pull.core.runtime.curve.ReturnCurve;
+
 import de.mossgrabers.pull.core.api.*;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.event.*;
@@ -29,7 +31,18 @@ final class PullControllerCore implements ControllerCore
     private BrowserPageNavigation browserPage;
     private CompiledWorkspace workspace;
     private ProjectPlaybackCoordinator playbackCoordinator;
-    private final SnapbackSession snapback = new SnapbackSession ();
+    private final SnapbackSession snapback;
+    private final String configurationWarning;
+
+    public PullControllerCore () { this (InterpolationCurve.LINEAR); }
+
+    PullControllerCore (final ReturnCurve curve) { this (curve, null); }
+
+    PullControllerCore (final ReturnCurve curve, final String configurationWarning)
+    {
+        this.snapback = new SnapbackSession (curve);
+        this.configurationWarning = configurationWarning;
+    }
     private final InputGestureRouter gestures = new InputGestureRouter ();
     private Lifecycle lifecycle = Lifecycle.NEW;
 
@@ -57,7 +70,9 @@ final class PullControllerCore implements ControllerCore
         this.workspace = this.desiredWorkspace (snapshot);
         this.lifecycle = Lifecycle.RUNNING;
         this.snapback.start (snapshot);
-        return this.completeResult (this.snapback.decorate (this.gestures.activate (this.workspace, snapshot), List.of ()), snapshot);
+        final List<CoreEffect> configurationEffects = this.configurationWarning == null ? List.of () : List.of (
+            new de.mossgrabers.pull.core.api.effect.ShowHostNotificationEffect (this.configurationWarning));
+        return this.completeResult (this.snapback.decorate (this.gestures.activate (this.workspace, snapshot), configurationEffects), snapshot);
     }
 
     @Override

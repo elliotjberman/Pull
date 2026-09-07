@@ -46,7 +46,7 @@ final class ControllerSettingsHost
     {
         final SessionSettingsSnapshot session = new SessionSettingsSnapshot (true, this.configuration.isSelectClipOnLaunch (), this.configuration.getActionForRecArmedPad (), this.configuration.getNewClipLenghthInBeats (this.model.getTransport ().getQuartersPerMeasure ()), this.configuration.isDrawRecordStripe ());
         final RibbonSettingsSnapshot ribbon = new RibbonSettingsSnapshot (true, this.configuration.getRibbonMode (), this.configuration.getRibbonModeCCVal (), this.configuration.getRibbonNoteRepeat ());
-        return new ControllerSettingsSnapshot (true, this.configuration.isEnableVUMeters (), this.configuration.getGlobalMixMode ().name (), this.configuration.getMixSendOffset (), this.cursorSends (), this.configuration.isAccentActive (), this.configuration.getFixedAccentValue (), session, this.hardwareSettings (), ribbon);
+        return new ControllerSettingsSnapshot (true, this.configuration.isEnableVUMeters (), this.configuration.getGlobalMixMode ().name (), this.configuration.getMixSendOffset (), this.cursorSends (), this.configuration.isAccentActive (), this.configuration.getFixedAccentValue (), session, this.hardwareSettings (), ribbon, this.configuration.getParameterReturnMillis (), this.configuration.getParameterReturnCurve ());
     }
 
     private ControllerHardwareSettingsSnapshot hardwareSettings ()

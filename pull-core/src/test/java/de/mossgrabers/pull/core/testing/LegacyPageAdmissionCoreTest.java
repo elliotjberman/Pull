@@ -56,9 +56,36 @@ class LegacyPageAdmissionCoreTest
         assertEquals (0, host.effects ().desiredParameterInteraction ().pendingActionCount ());
         assertTrue (host.effects ().desiredParameterInteraction ().acceptsMutations ());
         assertEquals (Map.of (TARGET, 100.0), host.effects ().desiredParameterInteraction ().baselines ());
+        final var release = new LegacyControllerPageRequest (2, page.revision (), page.temporaryToken (), END_TEMPORARY, "", ControllerPageRef.none (), 1);
+        host.bridge (bridge (40, List.of (request, release)));
+        assertEquals (2, host.effects ().desiredControllerPage ().acknowledgedRequestSequence ());
+        assertEquals (0, host.effects ().desiredParameterInteraction ().pendingActionCount (), "release of the rejected Scale Layout cannot force instant restoration");
         host.controllerTick ();
         host.controllerTick ();
         assertTrue (host.effects ().desiredParameterInteraction ().acceptsMutations ());
+        assertEquals (Map.of (TARGET, 100.0), host.effects ().desiredParameterInteraction ().baselines ());
+    }
+
+    @Test
+    void actualTemporaryReturnStillWaitsForParameterRestoration ()
+    {
+        final var host = capturedShift ();
+        final var page = host.effects ().desiredControllerPage ();
+        final var begin = new LegacyControllerPageRequest (1, page.revision (), page.temporaryToken (), BEGIN_TEMPORARY, "SCALES");
+        host.bridge (bridge (100, List.of (begin)));
+        for (int tick = 0; tick < 4; tick++) host.controllerTick ();
+        assertEquals ("SCALES", host.effects ().desiredControllerPage ().effectivePage ().legacyAlias ());
+        host.parameterMutation (PushControlIds.continuous ("TEMPO"), new ParameterTargetSnapshot (TARGET, 100, 0));
+        final var release = new LegacyControllerPageRequest (2, host.effects ().desiredControllerPage ().revision (), host.effects ().desiredControllerPage ().temporaryToken (), END_TEMPORARY, "", ControllerPageRef.none (), 1);
+        host.bridge (bridge (40, List.of (begin, release)));
+        assertEquals (1, host.effects ().desiredParameterInteraction ().pendingActionCount ());
+        host.controllerTick ();
+        host.controllerTick ();
+        assertEquals ("SCALES", host.effects ().desiredControllerPage ().effectivePage ().legacyAlias ());
+        host.bridge (bridge (100, List.of (begin, release)));
+        host.controllerTick ();
+        host.controllerTick ();
+        assertEquals ("TRACK", host.effects ().desiredControllerPage ().effectivePage ().legacyAlias ());
     }
 
     @Test

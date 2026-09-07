@@ -58,10 +58,14 @@ class ControllerSettingsHostTest
         fixture.configuration.vu = true;
         fixture.configuration.offset = 4;
         fixture.configuration.mode = Modes.PAN;
+        fixture.configuration.returnMillis = 10000;
+        fixture.configuration.returnCurve = "Ease-out";
         final var after = fixture.host.snapshot ();
         assertTrue (after.vuMetersEnabled ());
         assertEquals (4, after.mixSendOffset ());
         assertEquals ("PAN", after.globalMixMode ());
+        assertEquals (10000, after.parameterReturnMillis ());
+        assertEquals ("Ease-out", after.parameterReturnCurve ());
     }
 
     @Test
@@ -213,6 +217,8 @@ class ControllerSettingsHostTest
         private boolean accent;
         private int velocity = 127;
         private int offset;
+        private int returnMillis;
+        private String returnCurve = "Linear";
         private Modes mode = Modes.VOLUME;
         private int display = 100;
         private int leds = 100;
@@ -223,6 +229,8 @@ class ControllerSettingsHostTest
         private int ribbonCc = 1;
         private int ribbonRepeat = 1;
         private Configuration () { super (proxy (IHost.class, (method, args) -> null), new TwosComplementValueChanger (1024, 10), List.of ()); }
+        @Override public String getParameterReturnCurve () { return this.returnCurve; }
+        @Override public int getParameterReturnMillis () { return this.returnMillis; }
         @Override public boolean isAccentActive () { return this.accent; }
         @Override public int getFixedAccentValue () { return this.velocity; }
         @Override public void setAccentEnabled (final boolean enabled) { this.commands.add ("accent:" + enabled); }
