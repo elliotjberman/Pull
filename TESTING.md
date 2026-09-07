@@ -55,9 +55,9 @@ deprecation reporting before the live smoke test.
 
 Run `tools/ui-component-catalog` to generate a local HTML gallery from production components and
 page renderers. The command prints the output path under `pull-core/target/ui-component-catalog`;
-open that HTML to compare the 28 normal, selected, touched, unavailable and long-text fixtures with
-their row lights, including Info's known identity, transport limits and waiting state. This requires
-neither Bitwig nor the Push debugger. See the
+open that HTML to inspect individual Components and complete Views, including normal, selected,
+touched, unavailable and long-text fixtures with their actual row lights. Lato is loaded from the
+installed Bitwig resources or `PULL_UI_FONT_DIR`; neither Bitwig nor the Push debugger needs to run. See the
 [component library](docs/ui-component-library.md) for component contracts and preview limitations.
 Use existing routed behavior tests for submitted effects, later observed state and feedback; a
 catalog fixture is visual evidence, not host/hardware or gesture validation.

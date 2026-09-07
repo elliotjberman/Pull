@@ -17,23 +17,24 @@ import java.util.Base64;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
-/** Offline command replay. Geometry and icon assets are real; host font rasterization is approximate. */
+/** Offline command replay. Geometry, icons and Lato font data are real; host rasterization is approximate. */
 final class DisplaySceneSvg
 {
     private static final FontRenderContext METRICS = new FontRenderContext (new AffineTransform (), true, true);
     private final Path icons;
+    private final CatalogTypography typography;
     private final StringBuilder svg = new StringBuilder ();
     private int nextId;
     private boolean clipped;
 
-    private DisplaySceneSvg (final Path icons) { this.icons = icons; }
+    private DisplaySceneSvg (final Path icons, final CatalogTypography typography) { this.icons = icons; this.typography = typography; }
 
-    static String render (final ControllerDisplayScene scene, final Path icons) throws IOException
+    static String render (final ControllerDisplayScene scene, final Path icons, final CatalogTypography typography) throws IOException
     {
-        final DisplaySceneSvg renderer = new DisplaySceneSvg (icons);
+        final DisplaySceneSvg renderer = new DisplaySceneSvg (icons, typography);
         renderer.svg.append ("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"").append (scene.width ())
             .append ("\" height=\"").append (scene.height ()).append ("\" viewBox=\"0 0 ").append (scene.width ())
-            .append (' ').append (scene.height ()).append ("\" font-family=\"sans-serif\">\n");
+            .append (' ').append (scene.height ()).append ("\" font-family=\"").append (CatalogTypography.FAMILY).append ("\" font-weight=\"400\">\n<style>").append (typography.displayCss ()).append ("</style>\n");
         for (final DisplayCommand command: scene.commands ()) renderer.draw (command);
         if (renderer.clipped) throw new IllegalArgumentException ("Unclosed display clip");
         return renderer.svg.append ("</svg>\n").toString ();
@@ -107,7 +108,7 @@ final class DisplaySceneSvg
         this.svg.append ("</g>\n");
     }
 
-    private static double fittingSize (final String text, final DisplayCommand.TextBox box)
+    private double fittingSize (final String text, final DisplayCommand.TextBox box)
     {
         double fit = -1;
         for (double size = box.minimumFontSize (); size < box.maximumFontSize () + 1; size++)
@@ -118,7 +119,7 @@ final class DisplaySceneSvg
         return fit;
     }
 
-    private static String ellipsize (final String text, final double width, final double size)
+    private String ellipsize (final String text, final double width, final double size)
     {
         for (int count = text.codePointCount (0, text.length ()) - 1; count > 0; count--)
         {
@@ -165,8 +166,8 @@ final class DisplaySceneSvg
         return Double.parseDouble (matcher.group (1));
     }
 
-    private static Font font (final double size) { return new Font (Font.SANS_SERIF, Font.PLAIN, 1).deriveFont ((float) size); }
-    private static double textWidth (final String text, final double size) { return font (size).getStringBounds (text, METRICS).getWidth (); }
+    private Font font (final double size) { return this.typography.regular (size); }
+    private double textWidth (final String text, final double size) { return font (size).getStringBounds (text, METRICS).getWidth (); }
     static String color (final RgbColor color) { return String.format (Locale.ROOT, "#%02x%02x%02x", color.red (), color.green (), color.blue ()); }
     static String escape (final String text) { return text.replace ("&", "&amp;").replace ("<", "&lt;").replace (">", "&gt;").replace ("\"", "&quot;"); }
 }

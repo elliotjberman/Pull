@@ -49,6 +49,20 @@ complete action/output footprint through a view. Add a new component only when r
 justify it. Browser lists and sequencer grids may establish their own families without a universal
 UI schema. Keep meaning in the feature view and reusable drawing in the library.
 
+## Typography
+
+UI text uses Lato. The installed Bitwig 6.1 bitmap renderer supplies Lato Regular to Pull's drawing
+context; pages choose sizes through their family styles and do not override the face. The catalog's
+`CatalogTypography` loads the same Lato Regular file for text measurement and embeds it in every
+SVG, including standalone exports. Catalog headings use Lato Semibold; other gallery text uses
+Regular. This replaces the former mix of logical Sans Serif, browser defaults and system UI fonts.
+
+Font files are read from the installed Bitwig resources without launching Bitwig. For another
+installation location, set `PULL_UI_FONT_DIR` to a directory containing `Lato-Regular.ttf` and
+`Lato-Semibold.ttf`. Missing or mismatched font files stop generation instead of silently changing
+the measurement font. Font data is embedded only in generated output, so previews remain usable
+without that installation afterward. Host rasterization may still differ from browser rendering.
+
 ## Offline catalog
 
 Run from the worktree root:
@@ -58,7 +72,10 @@ tools/ui-component-catalog
 ```
 
 The command builds offline and prints a local HTML path under `pull-core/target/ui-component-catalog`.
-Its 28 examples use production renderers with value fixtures and show their display output and row lights.
+**Components** shows individual choice cells, toggles, rings and parameter values at their own size.
+**Views** shows complete known screens, including Master, Track mix, global mixer, project macros
+and settings, with their actual display output and row lights. Future custom plugin views belong
+here once they have a production renderer; their reusable controls belong in Components.
 Use it to inspect long names, missing values, unavailable/selected choices, touched controls and
 value extremes before a live smoke. The catalog is a visual preview; its font rasterization and
 fixture data do not establish Bitwig read-back, hardware pixels or gesture behavior.
