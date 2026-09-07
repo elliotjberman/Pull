@@ -7,17 +7,14 @@ import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
-import de.mossgrabers.pull.core.api.ControllerActionIntent;
 import de.mossgrabers.pull.core.api.ControllerCore;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.ParameterTargetSnapshot;
 import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.StateEnvelope;
-import de.mossgrabers.pull.core.api.TransportSnapshot;
 import de.mossgrabers.pull.core.api.event.ButtonInputEvent;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
-import de.mossgrabers.pull.core.api.event.ControllerActionEvent;
 import de.mossgrabers.pull.core.api.event.ControllerTickEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
@@ -309,19 +306,6 @@ final class FakeCoreHost
         this.bridge = new ControllerBridgeSnapshot (b.transport (), b.selectedTrack (), b.sessionBank (), b.layout (), b.noteView (), b.noteRepeat (), b.drum (), b.parameters (), b.controllerMappingFeedback (), b.master (), b.project (), b.automation (), b.encoderConfiguration (), b.currentTrackBank (), b.transportSettings (), b.controllerSettings (), b.applicationUi (), new de.mossgrabers.pull.core.api.LegacyControllerPageRequests (requests), b.browser (), b.controllerHardware ());
     }
 
-    /** Deliver one stable semantic action with the authoritative post-command bridge state. */
-    void controllerAction (final ControllerActionIntent intent, final ControllerBridgeSnapshot bridge)
-    {
-        this.bridge = Objects.requireNonNull (bridge, "bridge");
-        this.revision++;
-        this.eventSequence++;
-        this.effectExecutor.apply (this.core.handle (new ControllerActionEvent (
-            this.eventSequence,
-            this.time.nowNanos (),
-            Objects.requireNonNull (intent, "intent")), this.snapshot ()));
-    }
-
-
     /**
      * Deliver a touch transition after updating authoritative held state.
      *
@@ -402,29 +386,6 @@ final class FakeCoreHost
 
 
     /**
-     * Replace authoritative transport state and notify the core.
-     *
-     * @param transport Transport state
-     */
-    void transport (final TransportSnapshot transport)
-    {
-        this.bridge = new ControllerBridgeSnapshot (
-            Objects.requireNonNull (transport, "transport"),
-            this.bridge.selectedTrack (),
-            this.bridge.sessionBank (),
-            this.bridge.layout (),
-            this.bridge.noteView (),
-            this.bridge.noteRepeat (),
-            this.bridge.drum (),
-            this.bridge.parameters (),
-            this.bridge.controllerMappingFeedback (),
-            this.bridge.master (),
-            this.bridge.project ());
-        this.snapshotChanged ();
-    }
-
-
-    /**
      * Replace the complete bounded controller bridge and notify the core.
      *
      * @param bridge New bridge state
@@ -432,20 +393,6 @@ final class FakeCoreHost
     void bridge (final ControllerBridgeSnapshot bridge)
     {
         this.bridge = Objects.requireNonNull (bridge, "bridge");
-        this.snapshotChanged ();
-    }
-
-
-    /**
-     * Replace the complete authoritative clip-launch session and notify the core.
-     *
-     * @param clipLaunchSessionTargets Retained targets by owner
-     * @param activeClipLaunchOwner Active owner, if the session is non-empty
-     */
-    void clipLaunchSession (final Map<ControlId, ClipTargetId> clipLaunchSessionTargets, final Optional<ControlId> activeClipLaunchOwner)
-    {
-        this.clipLaunchSessionTargets = Map.copyOf (Objects.requireNonNull (clipLaunchSessionTargets, "clipLaunchSessionTargets"));
-        this.activeClipLaunchOwner = Objects.requireNonNull (activeClipLaunchOwner, "activeClipLaunchOwner");
         this.snapshotChanged ();
     }
 
@@ -483,17 +430,6 @@ final class FakeCoreHost
     RecordingEffectExecutor effects ()
     {
         return this.effectExecutor;
-    }
-
-
-    /**
-     * Get current fake time.
-     *
-     * @return Monotonic nanoseconds
-     */
-    long nowNanos ()
-    {
-        return this.time.nowNanos ();
     }
 
 

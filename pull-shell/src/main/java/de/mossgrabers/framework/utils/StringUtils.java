@@ -4,7 +4,6 @@
 
 package de.mossgrabers.framework.utils;
 
-import java.nio.ByteBuffer;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.Locale;
@@ -36,130 +35,6 @@ public class StringUtils
     private StringUtils ()
     {
         // Intentionally empty
-    }
-
-
-    /**
-     * Pad the given text with the space character until it reaches the given length.
-     *
-     * @param str The text to pad
-     * @param length The maximum length
-     * @return The padded text
-     */
-    public static String pad (final String str, final int length)
-    {
-        return pad (str, length, ' ');
-    }
-
-
-    /**
-     * Pad the given text with the given character until it reaches the given length.
-     *
-     * @param str The text to pad
-     * @param length The maximum length
-     * @param character The character to use for padding
-     * @return The padded text
-     */
-    public static String pad (final String str, final int length, final char character)
-    {
-        final String text = str == null ? "" : str;
-        final int diff = length - text.length ();
-        if (diff == 0)
-            return text;
-        if (diff < 0)
-            return text.substring (0, length);
-        final StringBuilder sb = new StringBuilder (text.length () + diff).append (text);
-        for (int i = 0; i < diff; i++)
-            sb.append (character);
-        return sb.toString ();
-    }
-
-
-    /**
-     * Replace umlauts and other non-ASCII characters with alternative writing.
-     *
-     * @param text The string to check
-     * @return The string with replaced characters, might be longer than the original!
-     */
-    public static String fixASCII (final String text)
-    {
-        if (text == null)
-            return "";
-        final StringBuilder str = new StringBuilder ();
-        for (int i = 0; i < text.length (); i++)
-        {
-            final char c = text.charAt (i);
-            if (c > 127)
-            {
-                switch (c)
-                {
-                    case 'Ä':
-                        str.append ("Ae");
-                        break;
-                    case 'ä':
-                        str.append ("ae");
-                        break;
-                    case 'Ö', '\u0152':
-                        str.append ("Oe");
-                        break;
-                    case 'ö', '\u0153':
-                        str.append ("oe");
-                        break;
-                    case 'Ü':
-                        str.append ("Ue");
-                        break;
-                    case 'ü':
-                        str.append ("ue");
-                        break;
-                    case 'ß':
-                        str.append ("ss");
-                        break;
-                    case 'é', 'ê':
-                        str.append ("e");
-                        break;
-                    case 'ī', 'ï':
-                        str.append ("i");
-                        break;
-                    case 'ā':
-                        str.append ("a");
-                        break;
-                    case '→':
-                        str.append ("->");
-                        break;
-                    case '♯':
-                        str.append ("#");
-                        break;
-                    case '\u2013':
-                        str.append ("-");
-                        break;
-                    case '¼':
-                        str.append ("1/4");
-                        break;
-                    case '⅕':
-                        str.append ("1/5");
-                        break;
-                    case '⅙':
-                        str.append ("1/6");
-                        break;
-                    case '’':
-                        str.append ("'");
-                        break;
-                    case '±':
-                        str.append ("+-");
-                        break;
-                    // superscript p
-                    case '\u1d3e':
-                        str.append ("p");
-                        break;
-                    default:
-                        str.append ("?");
-                        break;
-                }
-            }
-            else
-                str.append (c);
-        }
-        return str.toString ();
     }
 
 
@@ -264,37 +139,6 @@ public class StringUtils
 
 
     /**
-     * Convert the bytes to a hex string. Rewinds the buffer and adds the bytes from the beginning
-     * till the capacity.
-     *
-     * @param data The data to convert
-     * @return The hex string
-     */
-    public static String toHexStr (final ByteBuffer data)
-    {
-        final StringBuilder sysex = new StringBuilder ();
-        while (data.position () < data.limit ())
-            sysex.append (toHexStr (Byte.toUnsignedInt (data.get ()))).append (' ');
-        return sysex.toString ();
-    }
-
-
-    /**
-     * Convert the bytes to a hex string
-     *
-     * @param data The data to convert
-     * @return The hex string
-     */
-    public static String toHexStr (final byte [] data)
-    {
-        final StringBuilder sysex = new StringBuilder ();
-        for (final byte d: data)
-            sysex.append (toHexStr (Byte.toUnsignedInt (d))).append (' ');
-        return sysex.toString ();
-    }
-
-
-    /**
      * Convert the byte to a hex string
      *
      * @param number The value to convert
@@ -303,20 +147,6 @@ public class StringUtils
     public static String toHexStr (final int number)
     {
         return String.format ("%02X", Integer.valueOf (number));
-    }
-
-
-    /**
-     * Parse a byte from an hex encoded string. A byte has 2 digits in the string.
-     *
-     * @param data The data in hex
-     * @param index The index of the byte
-     * @return The parsed byte as integer
-     */
-    public static int fromHexStr (final String data, final int index)
-    {
-        final int pos = index * 2;
-        return Integer.parseInt (data.substring (pos, pos + 2), 16);
     }
 
 
@@ -385,20 +215,6 @@ public class StringUtils
     public static String formatMeasuresLong (final int quartersPerMeasure, final double beats, final int startOffset, final boolean includeFrames)
     {
         return formatMeasures (quartersPerMeasure, beats, startOffset, includeFrames, "%03d.%d.%d", "%d.%02d.%02d:%02d");
-    }
-
-
-    /**
-     * Format the given time as hours.minutes.seconds / hours.minutes.seconds.millis.
-     *
-     * @param tempo The tempo
-     * @param beats The beats to format as time
-     * @param includeFrames Add the frames (ticks) if true
-     * @return The formatted text
-     */
-    public static String formatTime (final double tempo, final double beats, final boolean includeFrames)
-    {
-        return formatTime (tempo, beats, includeFrames, "%d.%d.%d", "%d.%d.%d:%03d");
     }
 
 

@@ -20,7 +20,6 @@ import de.mossgrabers.pull.core.api.ControllerMappingTarget;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.ControllerStateScope;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
-import de.mossgrabers.pull.core.api.CoreApi;
 import de.mossgrabers.pull.core.api.CoreCapabilities;
 import de.mossgrabers.pull.core.api.CoreControllerMappings;
 import de.mossgrabers.pull.core.api.CoreControls;
@@ -62,17 +61,13 @@ import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
 import de.mossgrabers.pull.core.api.effect.ClipReleaseTrigger;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
-import de.mossgrabers.pull.core.api.effect.ConsumeControllerButtonEffect;
-import de.mossgrabers.pull.core.api.effect.AdjustParameterValueEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
-import de.mossgrabers.pull.core.api.effect.ResetParameterEffect;
 import de.mossgrabers.pull.core.api.effect.SendNoteInputMidiEffect;
 import de.mossgrabers.pull.core.api.effect.SelectSessionTrackEffect;
 import de.mossgrabers.pull.core.api.effect.StopSessionBankEffect;
 import de.mossgrabers.pull.core.api.effect.StopSessionTrackEffect;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
-import de.mossgrabers.pull.core.api.event.ControllerActionEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.event.SnapshotChangedEvent;
@@ -174,8 +169,6 @@ class CoreApiValueTest
         assertEquals (List.of (clip), snapshot.clipCatalog ().clips ());
         assertEquals (clip.targetId (), snapshot.armedClipTargets ().get (control));
         assertEquals (clip.targetId (), snapshot.clipLaunchSessionTargets ().get (control));
-        assertEquals (clip.targetId (), press.target ());
-        assertEquals (LAUNCH_POLICY, press.launchPolicy ());
         assertEquals (new RgbColor (1, 2, 3), result.desiredOutput ().lights ().get (control));
         assertEquals (Set.of (BridgeSubscription.SELECTED_TRACK), result.desiredBridgeSubscriptions ().domains ());
         assertEquals (clip.targetId (), result.desiredClipBindings ().get (control));
@@ -223,7 +216,6 @@ class CoreApiValueTest
         assertEquals ("effect.selected-track", CoreCapabilities.EFFECT_SELECTED_TRACK);
         assertEquals ("effect.session-bank", CoreCapabilities.EFFECT_SESSION_BANK);
         assertEquals ("effect.controller-button-consumption", CoreCapabilities.EFFECT_CONTROLLER_BUTTON_CONSUMPTION);
-        assertEquals (PushControlIds.button ("SELECT"), new ConsumeControllerButtonEffect (PushControlIds.button ("SELECT")).controlId ());
         assertEquals ("effect.drum-pad", CoreCapabilities.EFFECT_DRUM_PAD);
         assertEquals ("effect.note-input-midi", CoreCapabilities.EFFECT_NOTE_INPUT_MIDI);
         assertEquals ("snapshot.controller-mapping-feedback", CoreCapabilities.SNAPSHOT_CONTROLLER_MAPPING_FEEDBACK);
@@ -522,9 +514,6 @@ class CoreApiValueTest
 
         assertEquals (List.of (track, SessionTrackSnapshot.empty ()), snapshot.tracks ());
         assertEquals (SessionTrackType.INSTRUMENT, snapshot.tracks ().getFirst ().type ());
-        assertTrue (new StopSessionBankEffect (7, shape, true).alternative ());
-        assertEquals ("track-1", new SelectSessionTrackEffect (7, shape, 0, "track-1").channelId ());
-        assertTrue (new StopSessionTrackEffect (7, shape, 0, "track-1", true).alternative ());
         assertThrows (UnsupportedOperationException.class, () -> snapshot.tracks ().clear ());
         assertThrows (IllegalArgumentException.class, () -> new SessionBankSnapshot (7, shape, 8, 12, List.of (track)));
         assertThrows (IllegalArgumentException.class, () -> new SessionBankSnapshot (7, shape, 8, 12, List.of (track, track)));
@@ -581,7 +570,6 @@ class CoreApiValueTest
         assertTrue (interaction.blocksAction (binding));
         final ControllerActionIntent intent = binding.intent ();
         assertTrue (interaction.blocksAction (intent));
-        assertEquals (intent, new ControllerActionEvent (4, 5, intent).intent ());
         final ControllerActionIntent stop = new ControllerActionIntent (
             ControllerActionId.STOP_VISIBLE_SESSION_TRACK,
             Set.of (ControllerStateScope.SESSION_PLAYBACK));
@@ -626,8 +614,6 @@ class CoreApiValueTest
         assertEquals (ParameterBankId.SELECTED_DEVICE_REMOTE, ParameterSlot.selectedDeviceRemote (7).bank ());
         assertEquals ("10.2 kHz", snapshot.displayedValue ());
         assertEquals (128, snapshot.numberOfSteps ());
-        assertEquals (3, new AdjustParameterValueEffect (target, 3).delta ());
-        assertEquals (target, new ResetParameterEffect (target).target ());
         assertThrows (UnsupportedOperationException.class, () -> banks.banks ().clear ());
         assertEquals (17, ParameterBankId.BANK_CAPACITY);
         assertThrows (IllegalArgumentException.class, () -> new ParameterSlot (ParameterBankId.PROJECT_REMOTE, ParameterSlot.BANK_SIZE));

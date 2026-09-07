@@ -42,17 +42,10 @@ public record ParameterTargetSnapshot (ParameterTargetRef target, String name, d
     }
 
 
-    /** Compatibility constructor without classified semantic owner metadata. */
-    public ParameterTargetSnapshot (final ParameterTargetRef target, final String name, final double value, final double modulatedValue, final String displayedValue, final int numberOfSteps, final double tolerance, final Optional<Boolean> enabled)
-    {
-        this (target, name, value, modulatedValue, displayedValue, numberOfSteps, tolerance, enabled, ParameterTargetIdentitySnapshot.empty ());
-    }
-
-
     /** Compatibility constructor without optional parameter enablement. */
     public ParameterTargetSnapshot (final ParameterTargetRef target, final String name, final double value, final double modulatedValue, final String displayedValue, final int numberOfSteps, final double tolerance)
     {
-        this (target, name, value, modulatedValue, displayedValue, numberOfSteps, tolerance, Optional.empty ());
+        this (target, name, value, modulatedValue, displayedValue, numberOfSteps, tolerance, Optional.empty (), ParameterTargetIdentitySnapshot.empty ());
     }
 
 

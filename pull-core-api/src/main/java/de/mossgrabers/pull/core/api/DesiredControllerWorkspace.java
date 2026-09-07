@@ -41,14 +41,6 @@ public record DesiredControllerWorkspace (String name, Set<ControllerViewFacet> 
     }
 
 
-    /** Transitional source compatibility; page identity lives in DesiredControllerState.page. */
-    public DesiredControllerWorkspace (final String name, final Set<ControllerViewFacet> facets, final SessionBankShape sessionBankShape, final String ignoredInstalledModeId)
-    {
-        this (name, facets, sessionBankShape);
-        Objects.requireNonNull (ignoredInstalledModeId, "ignoredInstalledModeId");
-    }
-
-
     /**
      * Get the empty workspace, which leaves the stable controller layout active.
      *

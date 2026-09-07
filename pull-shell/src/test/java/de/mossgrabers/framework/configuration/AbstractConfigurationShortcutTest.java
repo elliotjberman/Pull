@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import java.lang.reflect.Proxy;
 import java.util.List;
 
+import static de.mossgrabers.pull.shell.testing.TestProxies.defaultValue;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -61,28 +62,6 @@ class AbstractConfigurationShortcutTest
             case "getAudioEffectMetadata" -> effects;
             default -> defaultValue (method.getReturnType ());
         });
-    }
-
-
-    private static Object defaultValue (final Class<?> type)
-    {
-        if (!type.isPrimitive () || void.class.equals (type))
-            return null;
-        if (boolean.class.equals (type))
-            return Boolean.FALSE;
-        if (char.class.equals (type))
-            return Character.valueOf ('\0');
-        if (byte.class.equals (type))
-            return Byte.valueOf ((byte) 0);
-        if (short.class.equals (type))
-            return Short.valueOf ((short) 0);
-        if (int.class.equals (type))
-            return Integer.valueOf (0);
-        if (long.class.equals (type))
-            return Long.valueOf (0L);
-        if (float.class.equals (type))
-            return Float.valueOf (0.0F);
-        return Double.valueOf (0.0);
     }
 
 

@@ -4,12 +4,15 @@
 
 package de.mossgrabers.bitwig.framework.midi;
 
+import static de.mossgrabers.pull.shell.testing.TestProxies.defaultValue;
+import static de.mossgrabers.pull.shell.testing.TestProxies.proxy;
+import static de.mossgrabers.pull.shell.testing.TestProxies.relaxedProxy;
+import static de.mossgrabers.pull.shell.testing.TestProxies.relaxedValue;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
-import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -276,48 +279,5 @@ class NoteInputImplTest
             Integer.valueOf (0),
             Boolean.TRUE
         }, cursorArguments.get ());
-    }
-    private static <T> T proxy (final Class<T> type, final java.lang.reflect.InvocationHandler handler)
-    {
-        return type.cast (Proxy.newProxyInstance (type.getClassLoader (), new Class<?> []
-        {
-            type
-        }, handler));
-    }
-
-
-    private static <T> T relaxedProxy (final Class<T> type)
-    {
-        return proxy (type, (proxy, method, arguments) -> relaxedValue (method.getReturnType ()));
-    }
-
-
-    private static Object relaxedValue (final Class<?> type)
-    {
-        if (type.isInterface ())
-            return relaxedProxy (type);
-        return defaultValue (type);
-    }
-
-
-    private static Object defaultValue (final Class<?> type)
-    {
-        if (!type.isPrimitive () || void.class.equals (type))
-            return null;
-        if (boolean.class.equals (type))
-            return Boolean.FALSE;
-        if (char.class.equals (type))
-            return Character.valueOf ('\0');
-        if (byte.class.equals (type))
-            return Byte.valueOf ((byte) 0);
-        if (short.class.equals (type))
-            return Short.valueOf ((short) 0);
-        if (int.class.equals (type))
-            return Integer.valueOf (0);
-        if (long.class.equals (type))
-            return Long.valueOf (0L);
-        if (float.class.equals (type))
-            return Float.valueOf (0.0F);
-        return Double.valueOf (0.0);
     }
 }

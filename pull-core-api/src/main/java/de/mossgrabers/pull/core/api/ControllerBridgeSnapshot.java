@@ -57,59 +57,24 @@ public record ControllerBridgeSnapshot (TransportSnapshot transport, SelectedTra
     }
 
 
-    /** Compatibility constructor without controller hardware identity. */
-    public ControllerBridgeSnapshot (final TransportSnapshot transport, final SelectedTrackSnapshot selectedTrack, final SessionBankSnapshot sessionBank, final ControllerLayoutSnapshot layout, final NoteViewSnapshot noteView, final NoteRepeatSnapshot noteRepeat, final DrumContextSnapshot drum, final ParameterBridgeSnapshot parameters, final ControllerMappingFeedbackSnapshot controllerMappingFeedback, final MasterSnapshot master, final ProjectSnapshot project, final AutomationSnapshot automation, final EncoderConfigurationSnapshot encoderConfiguration, final CurrentTrackBankSnapshot currentTrackBank, final TransportSettingsSnapshot transportSettings, final ControllerSettingsSnapshot controllerSettings, final ApplicationUiSnapshot applicationUi, final LegacyControllerPageRequests controllerPages, final BrowserSnapshot browser)
-    {
-        this (transport, selectedTrack, sessionBank, layout, noteView, noteRepeat, drum, parameters, controllerMappingFeedback, master, project, automation, encoderConfiguration, currentTrackBank, transportSettings, controllerSettings, applicationUi, controllerPages, browser, ControllerHardwareSnapshot.empty ());
-    }
-
-
-    /** Compatibility constructor without raw browser activity. */
-    public ControllerBridgeSnapshot (final TransportSnapshot transport, final SelectedTrackSnapshot selectedTrack, final SessionBankSnapshot sessionBank, final ControllerLayoutSnapshot layout, final NoteViewSnapshot noteView, final NoteRepeatSnapshot noteRepeat, final DrumContextSnapshot drum, final ParameterBridgeSnapshot parameters, final ControllerMappingFeedbackSnapshot controllerMappingFeedback, final MasterSnapshot master, final ProjectSnapshot project, final AutomationSnapshot automation, final EncoderConfigurationSnapshot encoderConfiguration, final CurrentTrackBankSnapshot currentTrackBank, final TransportSettingsSnapshot transportSettings, final ControllerSettingsSnapshot controllerSettings, final ApplicationUiSnapshot applicationUi, final LegacyControllerPageRequests controllerPages)
-    {
-        this (transport, selectedTrack, sessionBank, layout, noteView, noteRepeat, drum, parameters, controllerMappingFeedback, master, project, automation, encoderConfiguration, currentTrackBank, transportSettings, controllerSettings, applicationUi, controllerPages, BrowserSnapshot.empty ());
-    }
-
-
-    /** Compatibility constructor without legacy page requests. */
-    public ControllerBridgeSnapshot (final TransportSnapshot transport, final SelectedTrackSnapshot selectedTrack, final SessionBankSnapshot sessionBank, final ControllerLayoutSnapshot layout, final NoteViewSnapshot noteView, final NoteRepeatSnapshot noteRepeat, final DrumContextSnapshot drum, final ParameterBridgeSnapshot parameters, final ControllerMappingFeedbackSnapshot controllerMappingFeedback, final MasterSnapshot master, final ProjectSnapshot project, final AutomationSnapshot automation, final EncoderConfigurationSnapshot encoderConfiguration, final CurrentTrackBankSnapshot currentTrackBank, final TransportSettingsSnapshot transportSettings, final ControllerSettingsSnapshot controllerSettings, final ApplicationUiSnapshot applicationUi)
-    {
-        this (transport, selectedTrack, sessionBank, layout, noteView, noteRepeat, drum, parameters, controllerMappingFeedback, master, project, automation, encoderConfiguration, currentTrackBank, transportSettings, controllerSettings, applicationUi, LegacyControllerPageRequests.empty ());
-    }
-
-
     /** Compatibility constructor without native application UI state. */
     public ControllerBridgeSnapshot (final TransportSnapshot transport, final SelectedTrackSnapshot selectedTrack, final SessionBankSnapshot sessionBank, final ControllerLayoutSnapshot layout, final NoteViewSnapshot noteView, final NoteRepeatSnapshot noteRepeat, final DrumContextSnapshot drum, final ParameterBridgeSnapshot parameters, final ControllerMappingFeedbackSnapshot controllerMappingFeedback, final MasterSnapshot master, final ProjectSnapshot project, final AutomationSnapshot automation, final EncoderConfigurationSnapshot encoderConfiguration, final CurrentTrackBankSnapshot currentTrackBank, final TransportSettingsSnapshot transportSettings, final ControllerSettingsSnapshot controllerSettings)
     {
-        this (transport, selectedTrack, sessionBank, layout, noteView, noteRepeat, drum, parameters, controllerMappingFeedback, master, project, automation, encoderConfiguration, currentTrackBank, transportSettings, controllerSettings, ApplicationUiSnapshot.empty ());
-    }
-
-
-    /** Compatibility constructor without controller preferences and cursor send metadata. */
-    public ControllerBridgeSnapshot (final TransportSnapshot transport, final SelectedTrackSnapshot selectedTrack, final SessionBankSnapshot sessionBank, final ControllerLayoutSnapshot layout, final NoteViewSnapshot noteView, final NoteRepeatSnapshot noteRepeat, final DrumContextSnapshot drum, final ParameterBridgeSnapshot parameters, final ControllerMappingFeedbackSnapshot controllerMappingFeedback, final MasterSnapshot master, final ProjectSnapshot project, final AutomationSnapshot automation, final EncoderConfigurationSnapshot encoderConfiguration, final CurrentTrackBankSnapshot currentTrackBank, final TransportSettingsSnapshot transportSettings)
-    {
-        this (transport, selectedTrack, sessionBank, layout, noteView, noteRepeat, drum, parameters, controllerMappingFeedback, master, project, automation, encoderConfiguration, currentTrackBank, transportSettings, ControllerSettingsSnapshot.empty ());
+        this (transport, selectedTrack, sessionBank, layout, noteView, noteRepeat, drum, parameters, controllerMappingFeedback, master, project, automation, encoderConfiguration, currentTrackBank, transportSettings, controllerSettings, ApplicationUiSnapshot.empty (), LegacyControllerPageRequests.empty (), BrowserSnapshot.empty (), ControllerHardwareSnapshot.empty ());
     }
 
 
     /** Compatibility constructor without extended transport settings. */
     public ControllerBridgeSnapshot (final TransportSnapshot transport, final SelectedTrackSnapshot selectedTrack, final SessionBankSnapshot sessionBank, final ControllerLayoutSnapshot layout, final NoteViewSnapshot noteView, final NoteRepeatSnapshot noteRepeat, final DrumContextSnapshot drum, final ParameterBridgeSnapshot parameters, final ControllerMappingFeedbackSnapshot controllerMappingFeedback, final MasterSnapshot master, final ProjectSnapshot project, final AutomationSnapshot automation, final EncoderConfigurationSnapshot encoderConfiguration, final CurrentTrackBankSnapshot currentTrackBank)
     {
-        this (transport, selectedTrack, sessionBank, layout, noteView, noteRepeat, drum, parameters, controllerMappingFeedback, master, project, automation, encoderConfiguration, currentTrackBank, TransportSettingsSnapshot.empty ());
-    }
-
-
-    /** Compatibility constructor without current-track-bank state. */
-    public ControllerBridgeSnapshot (final TransportSnapshot transport, final SelectedTrackSnapshot selectedTrack, final SessionBankSnapshot sessionBank, final ControllerLayoutSnapshot layout, final NoteViewSnapshot noteView, final NoteRepeatSnapshot noteRepeat, final DrumContextSnapshot drum, final ParameterBridgeSnapshot parameters, final ControllerMappingFeedbackSnapshot controllerMappingFeedback, final MasterSnapshot master, final ProjectSnapshot project, final AutomationSnapshot automation, final EncoderConfigurationSnapshot encoderConfiguration)
-    {
-        this (transport, selectedTrack, sessionBank, layout, noteView, noteRepeat, drum, parameters, controllerMappingFeedback, master, project, automation, encoderConfiguration, CurrentTrackBankSnapshot.empty ());
+        this (transport, selectedTrack, sessionBank, layout, noteView, noteRepeat, drum, parameters, controllerMappingFeedback, master, project, automation, encoderConfiguration, currentTrackBank, TransportSettingsSnapshot.empty (), ControllerSettingsSnapshot.empty ());
     }
 
 
     /** Compatibility constructor without encoder calibration. */
     public ControllerBridgeSnapshot (final TransportSnapshot transport, final SelectedTrackSnapshot selectedTrack, final SessionBankSnapshot sessionBank, final ControllerLayoutSnapshot layout, final NoteViewSnapshot noteView, final NoteRepeatSnapshot noteRepeat, final DrumContextSnapshot drum, final ParameterBridgeSnapshot parameters, final ControllerMappingFeedbackSnapshot controllerMappingFeedback, final MasterSnapshot master, final ProjectSnapshot project, final AutomationSnapshot automation)
     {
-        this (transport, selectedTrack, sessionBank, layout, noteView, noteRepeat, drum, parameters, controllerMappingFeedback, master, project, automation, EncoderConfigurationSnapshot.empty ());
+        this (transport, selectedTrack, sessionBank, layout, noteView, noteRepeat, drum, parameters, controllerMappingFeedback, master, project, automation, EncoderConfigurationSnapshot.empty (), CurrentTrackBankSnapshot.empty ());
     }
 
 
@@ -145,13 +110,6 @@ public record ControllerBridgeSnapshot (TransportSnapshot transport, SelectedTra
     public ControllerBridgeSnapshot (final TransportSnapshot transport, final SelectedTrackSnapshot selectedTrack, final ControllerLayoutSnapshot layout, final DrumContextSnapshot drum, final ParameterBridgeSnapshot parameters, final MasterSnapshot master, final ProjectSnapshot project)
     {
         this (transport, selectedTrack, SessionBankSnapshot.empty (), layout, NoteViewSnapshot.empty (), NoteRepeatSnapshot.empty (), drum, parameters, ControllerMappingFeedbackSnapshot.empty (), master, project);
-    }
-
-
-    /** Compatibility constructor for snapshots without lightweight project state. */
-    public ControllerBridgeSnapshot (final TransportSnapshot transport, final SelectedTrackSnapshot selectedTrack, final ControllerLayoutSnapshot layout, final DrumContextSnapshot drum, final ParameterBridgeSnapshot parameters, final MasterSnapshot master)
-    {
-        this (transport, selectedTrack, SessionBankSnapshot.empty (), layout, NoteViewSnapshot.empty (), NoteRepeatSnapshot.empty (), drum, parameters, ControllerMappingFeedbackSnapshot.empty (), master, ProjectSnapshot.empty ());
     }
 
 

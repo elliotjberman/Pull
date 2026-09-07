@@ -3,6 +3,9 @@
 
 package de.mossgrabers.pull.core.testing;
 
+import de.mossgrabers.pull.core.api.BrowserSnapshot;
+import de.mossgrabers.pull.core.api.ControllerHardwareSnapshot;
+import de.mossgrabers.pull.core.api.LegacyControllerPageRequests;
 import java.util.function.LongFunction;
 import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
@@ -2853,7 +2856,8 @@ class PullControllerCoreTest
         final ControllerLayoutSnapshot layout = base.layout ();
         return new ControllerBridgeSnapshot (base.transport (), base.selectedTrack (), base.sessionBank (),
             new ControllerLayoutSnapshot (layout.generation (), layout.viewId (), layout.modeId (), layout.drumLayoutActive (), layout.drumControllerEngaged (), layout.drumBaseMidiNote (), layout.gridPressure (), layout.appliedNoteTranslation (), activeMode, previousMode, temporary),
-            base.noteView (), base.noteRepeat (), base.drum (), base.parameters (), base.controllerMappingFeedback (), base.master (), base.project (), base.automation (), base.encoderConfiguration (), base.currentTrackBank (), base.transportSettings (), base.controllerSettings (), base.applicationUi ());
+            base.noteView (), base.noteRepeat (), base.drum (), base.parameters (), base.controllerMappingFeedback (), base.master (), base.project (), base.automation (), base.encoderConfiguration (), base.currentTrackBank (), base.transportSettings (), base.controllerSettings (), base.applicationUi (),
+            LegacyControllerPageRequests.empty (), BrowserSnapshot.empty (), ControllerHardwareSnapshot.empty ());
     }
 
 
@@ -3100,7 +3104,8 @@ class PullControllerCoreTest
     private static ControllerBridgeSnapshot withBaselineControllerSettings (final ControllerBridgeSnapshot base)
     {
         return new ControllerBridgeSnapshot (base.transport (), base.selectedTrack (), base.sessionBank (), base.layout (), base.noteView (), base.noteRepeat (), base.drum (), base.parameters (), base.controllerMappingFeedback (), base.master (), base.project (), base.automation (), base.encoderConfiguration (), base.currentTrackBank (), base.transportSettings (),
-            new de.mossgrabers.pull.core.api.ControllerSettingsSnapshot (true, false, "VOLUME", 0, de.mossgrabers.pull.core.api.CursorSendBankSnapshot.empty (), false, 127), base.applicationUi ());
+            new de.mossgrabers.pull.core.api.ControllerSettingsSnapshot (true, false, "VOLUME", 0, de.mossgrabers.pull.core.api.CursorSendBankSnapshot.empty (), false, 127), base.applicationUi (),
+            LegacyControllerPageRequests.empty (), BrowserSnapshot.empty (), ControllerHardwareSnapshot.empty ());
     }
 
 

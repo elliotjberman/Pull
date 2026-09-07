@@ -75,6 +75,7 @@ class BrowserPageCoreIntegrationTest
     private static ControllerBridgeSnapshot bridge (final long generation, final boolean active, final double value)
     {
         final var e = ControllerBridgeSnapshot.empty ();
-        return new ControllerBridgeSnapshot (e.transport (), e.selectedTrack (), e.sessionBank (), e.layout (), e.noteView (), e.noteRepeat (), e.drum (), new ParameterBridgeSnapshot (Map.of (ParameterSlot.TEMPO, new ParameterTargetSnapshot (TARGET, value, 0)), Map.of (), java.util.Set.of ()), e.controllerMappingFeedback (), e.master (), e.project (), e.automation (), e.encoderConfiguration (), e.currentTrackBank (), e.transportSettings (), e.controllerSettings (), e.applicationUi (), e.controllerPages (), new BrowserSnapshot (generation, active));
+        return new ControllerBridgeSnapshot (e.transport (), e.selectedTrack (), e.sessionBank (), e.layout (), e.noteView (), e.noteRepeat (), e.drum (), new ParameterBridgeSnapshot (Map.of (ParameterSlot.TEMPO, new ParameterTargetSnapshot (TARGET, value, 0)), Map.of (), java.util.Set.of ()), e.controllerMappingFeedback (), e.master (), e.project (), e.automation (), e.encoderConfiguration (), e.currentTrackBank (), e.transportSettings (), e.controllerSettings (), e.applicationUi (), e.controllerPages (), new BrowserSnapshot (generation, active),
+            ControllerHardwareSnapshot.empty ());
     }
 }

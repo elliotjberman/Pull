@@ -418,7 +418,7 @@ class ControllerRuntimeEnvironmentTest
         final DesiredInputRoutes routes = new DesiredInputRoutes (Set.of (new InputRoute (knob, InputKind.TOUCH, InputRouteMode.EXCLUSIVE)));
         final CoreResult result = new CoreResult (
             DesiredHardwareOutput.empty (), routes, new DesiredBridgeSubscriptions (Set.of (BridgeSubscription.PARAMETERS)), Map.of (),
-            new DesiredControllerState (new DesiredControllerWorkspace ("Track", Set.of (ControllerViewFacet.TRACK_MIXER_PAGE), SessionBankShape.empty (), "TRACK"), DesiredNotePerformance.inactive (), corePage ()),
+            new DesiredControllerState (new DesiredControllerWorkspace ("Track", Set.of (ControllerViewFacet.TRACK_MIXER_PAGE), SessionBankShape.empty ()), DesiredNotePerformance.inactive (), corePage ()),
             DesiredNoteRepeat.unowned (), de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
             new DesiredParameterBanks (Set.of (ParameterBankId.SELECTED_TRACK, ParameterBankId.SELECTED_TRACK_SENDS)), DesiredParameterInteraction.empty (),
             new DesiredParameterTouches (Map.of (knob, target)), CoreExecutionRequirements.empty (), List.of (
@@ -446,7 +446,7 @@ class ControllerRuntimeEnvironmentTest
         final ControllerRuntimeEnvironment environment = new ControllerRuntimeEnvironment (host (1), bridge, new RecordingLog (), () -> 0);
         final ControlId previous = PushControlIds.button ("ROW2_7");
         final ControllerDisplayScene display = new ControllerDisplayScene (960, 160, List.of (new DisplayCommand.Rectangle (0, 0, 960, 160, OFF)));
-        final DesiredControllerWorkspace workspace = new DesiredControllerWorkspace ("Master", Set.of (ControllerViewFacet.MASTER_CONTROLS), SessionBankShape.empty (), "MASTER");
+        final DesiredControllerWorkspace workspace = new DesiredControllerWorkspace ("Master", Set.of (ControllerViewFacet.MASTER_CONTROLS), SessionBankShape.empty ());
         final CoreResult masterResult = new CoreResult (
             new DesiredHardwareOutput (Map.of (previous, BRIGHT_RED), display),
             DesiredInputRoutes.empty (),
@@ -724,7 +724,7 @@ class ControllerRuntimeEnvironmentTest
             true,
             Map.of (new PadGridPosition (0, 0), new RgbColor (160, 48, 255)));
         final CoreResult result = new CoreResult (
-            new DesiredHardwareOutput (Map.of (), ControllerDisplayScene.empty (), overlay),
+            new DesiredHardwareOutput (Map.of (), ControllerDisplayScene.empty (), overlay, ControllerDisplayOverlay.inactive ()),
             DesiredInputRoutes.empty (),
             DesiredBridgeSubscriptions.empty (),
             Map.of (),
@@ -784,7 +784,7 @@ class ControllerRuntimeEnvironmentTest
         final ControllerDisplayScene display = new ControllerDisplayScene (960, 160, List.of (new DisplayCommand.Rectangle (0, 0, 960, 160, OFF)));
         final ControllerPadGridOverlay padOverlay = new ControllerPadGridOverlay (true, Map.of (new PadGridPosition (0, 0), BRIGHT_RED));
         final ControllerDisplayOverlay displayOverlay = new ControllerDisplayOverlay (true, new ControllerDisplayScene (960, 160, List.of (new DisplayCommand.Rectangle (0, 0, 960, 160, BRIGHT_RED))));
-        final DesiredControllerWorkspace workspace = new DesiredControllerWorkspace ("Master", Set.of (ControllerViewFacet.MASTER_CONTROLS), SessionBankShape.empty (), "MASTER");
+        final DesiredControllerWorkspace workspace = new DesiredControllerWorkspace ("Master", Set.of (ControllerViewFacet.MASTER_CONTROLS), SessionBankShape.empty ());
         final ControlId ratePad = CoreControls.DRUM_RATES.get (0);
         final ControlId tap = PushControlIds.button ("TAP_TEMPO");
         final ControlId undo = PushControlIds.button ("UNDO");

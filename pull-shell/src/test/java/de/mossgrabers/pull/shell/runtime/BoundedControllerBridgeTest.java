@@ -3,6 +3,7 @@
 
 package de.mossgrabers.pull.shell.runtime;
 
+import de.mossgrabers.pull.shell.testing.TestProxies;
 import de.mossgrabers.controller.ableton.push.PushConfiguration;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
@@ -43,6 +44,7 @@ import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.scale.Scales;
 import de.mossgrabers.framework.view.Views;
 import de.mossgrabers.pull.core.api.BridgeSubscription;
+import de.mossgrabers.pull.core.api.BrowserSnapshot;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
 import de.mossgrabers.pull.core.api.ControllerHardwareSnapshot;
 import de.mossgrabers.pull.core.api.ControllerMappingContext;
@@ -97,6 +99,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
+import static de.mossgrabers.pull.shell.testing.TestProxies.proxy;
+import static de.mossgrabers.pull.shell.testing.TestProxies.relaxedProxy;
+import static de.mossgrabers.pull.shell.testing.TestProxies.relaxedValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -1278,7 +1283,8 @@ class BoundedControllerBridgeTest
         {
             final var base = this.fixture.bridge.snapshot ();
             final var bridge = new ControllerBridgeSnapshot (base.transport (), base.selectedTrack (), base.sessionBank (), base.layout (), base.noteView (), base.noteRepeat (), base.drum (),
-                new de.mossgrabers.pull.core.api.ParameterBridgeSnapshot (Map.of (ParameterSlot.TEMPO, this.parameter ()), Map.of (), Set.of ()), base.controllerMappingFeedback (), base.master (), base.project (), base.automation (), base.encoderConfiguration (), base.currentTrackBank (), base.transportSettings (), base.controllerSettings (), base.applicationUi (), base.controllerPages ());
+                new de.mossgrabers.pull.core.api.ParameterBridgeSnapshot (Map.of (ParameterSlot.TEMPO, this.parameter ()), Map.of (), Set.of ()), base.controllerMappingFeedback (), base.master (), base.project (), base.automation (), base.encoderConfiguration (), base.currentTrackBank (), base.transportSettings (), base.controllerSettings (), base.applicationUi (), base.controllerPages (),
+                BrowserSnapshot.empty (), ControllerHardwareSnapshot.empty ());
             return new de.mossgrabers.pull.core.api.ControllerSnapshot (this.revision, this.revision, this.capabilities, bridge, de.mossgrabers.pull.core.api.ClipCatalogSnapshot.empty (), Map.of (), Map.of (), java.util.Optional.empty (), this.pressed, Set.of ());
         }
         @Override public PreparedCoreResult prepare (final de.mossgrabers.pull.core.api.CoreResult result)
@@ -1558,7 +1564,7 @@ class BoundedControllerBridgeTest
 
         private IProject proxy ()
         {
-            return BoundedControllerBridgeTest.proxy (IProject.class, (proxy, method, arguments) -> switch (method.getName ())
+            return TestProxies.proxy (IProject.class, (proxy, method, arguments) -> switch (method.getName ())
             {
                 case "getIdentity" -> this.identity;
                 case "getName" -> "Show";
@@ -1590,7 +1596,7 @@ class BoundedControllerBridgeTest
 
         private IApplication proxy ()
         {
-            return BoundedControllerBridgeTest.proxy (IApplication.class, (proxy, method, arguments) -> switch (method.getName ())
+            return TestProxies.proxy (IApplication.class, (proxy, method, arguments) -> switch (method.getName ())
             {
                 case "getPanelLayout" -> this.panelLayout;
                 case "setPanelLayout" -> { this.panelRequests.add ((String) arguments[0]); yield null; }
@@ -1626,7 +1632,7 @@ class BoundedControllerBridgeTest
 
         private ITransport proxy ()
         {
-            return BoundedControllerBridgeTest.proxy (ITransport.class, (proxy, method, arguments) -> {
+            return TestProxies.proxy (ITransport.class, (proxy, method, arguments) -> {
                 switch (method.getName ())
                 {
                     case "isPlaying":
@@ -2003,7 +2009,7 @@ class BoundedControllerBridgeTest
 
         private INoteRepeat proxy ()
         {
-            return BoundedControllerBridgeTest.proxy (INoteRepeat.class, (proxy, method, arguments) -> switch (method.getName ())
+            return TestProxies.proxy (INoteRepeat.class, (proxy, method, arguments) -> switch (method.getName ())
             {
                 case "isActive" -> Boolean.valueOf (this.active);
                 case "setActive" -> {
@@ -2076,45 +2082,6 @@ class BoundedControllerBridgeTest
                 this.shuffleTogglePending = false;
             }
         }
-    }
-
-
-    private static <T> T proxy (final Class<T> type, final java.lang.reflect.InvocationHandler handler)
-    {
-        return type.cast (Proxy.newProxyInstance (type.getClassLoader (), new Class<?> []
-        {
-            type
-        }, handler));
-    }
-
-
-    private static <T> T relaxedProxy (final Class<T> type)
-    {
-        return proxy (type, (proxy, method, arguments) -> relaxedValue (method.getReturnType ()));
-    }
-
-
-    private static Object relaxedValue (final Class<?> type)
-    {
-        if (type.isInterface ())
-            return relaxedProxy (type);
-        if (!type.isPrimitive () || void.class.equals (type))
-            return null;
-        if (boolean.class.equals (type))
-            return Boolean.FALSE;
-        if (char.class.equals (type))
-            return Character.valueOf ('\0');
-        if (byte.class.equals (type))
-            return Byte.valueOf ((byte) 0);
-        if (short.class.equals (type))
-            return Short.valueOf ((short) 0);
-        if (int.class.equals (type))
-            return Integer.valueOf (0);
-        if (long.class.equals (type))
-            return Long.valueOf (0L);
-        if (float.class.equals (type))
-            return Float.valueOf (0.0F);
-        return Double.valueOf (0.0);
     }
 
 
