@@ -15,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Base64;
 import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 /** Offline command replay. Geometry, icons and Lato font data are real; host rasterization is approximate. */
@@ -23,15 +24,28 @@ final class DisplaySceneSvg
     private static final FontRenderContext METRICS = new FontRenderContext (new AffineTransform (), true, true);
     private final Path icons;
     private final CatalogTypography typography;
+    private final String idPrefix;
+    private final Map<RgbColor, String> colorBindings;
     private final StringBuilder svg = new StringBuilder ();
     private int nextId;
     private boolean clipped;
 
-    private DisplaySceneSvg (final Path icons, final CatalogTypography typography) { this.icons = icons; this.typography = typography; }
+    private DisplaySceneSvg (final Path icons, final CatalogTypography typography, final String idPrefix, final Map<RgbColor, String> colorBindings)
+    {
+        this.icons = icons;
+        this.typography = typography;
+        this.idPrefix = idPrefix;
+        this.colorBindings = Map.copyOf (colorBindings);
+    }
 
     static String render (final ControllerDisplayScene scene, final Path icons, final CatalogTypography typography) throws IOException
     {
-        final DisplaySceneSvg renderer = new DisplaySceneSvg (icons, typography);
+        return render (scene, icons, typography, "", Map.of ());
+    }
+
+    static String render (final ControllerDisplayScene scene, final Path icons, final CatalogTypography typography, final String idPrefix, final Map<RgbColor, String> colorBindings) throws IOException
+    {
+        final DisplaySceneSvg renderer = new DisplaySceneSvg (icons, typography, idPrefix, colorBindings);
         renderer.svg.append ("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"").append (scene.width ())
             .append ("\" height=\"").append (scene.height ()).append ("\" viewBox=\"0 0 ").append (scene.width ())
             .append (' ').append (scene.height ()).append ("\" font-family=\"").append (CatalogTypography.FAMILY).append ("\" font-weight=\"400\">\n<style>").append (typography.displayCss ()).append ("</style>\n");
@@ -72,18 +86,18 @@ final class DisplaySceneSvg
 
     private void rect (final double x, final double y, final double width, final double height, final double radius, final RgbColor color)
     {
-        this.svg.append (String.format (Locale.ROOT, "<rect x=\"%.3f\" y=\"%.3f\" width=\"%.3f\" height=\"%.3f\" rx=\"%.3f\" fill=\"%s\"/>\n", x, y, width, height, radius, color (color)));
+        this.svg.append (String.format (Locale.ROOT, "<rect x=\"%.3f\" y=\"%.3f\" width=\"%.3f\" height=\"%.3f\" rx=\"%.3f\" fill=\"%s\"/>\n", x, y, width, height, radius, this.paint (color)));
     }
 
     private void circle (final double x, final double y, final double radius, final RgbColor color)
     {
-        this.svg.append (String.format (Locale.ROOT, "<circle cx=\"%.3f\" cy=\"%.3f\" r=\"%.3f\" fill=\"%s\"/>\n", x, y, radius, color (color)));
+        this.svg.append (String.format (Locale.ROOT, "<circle cx=\"%.3f\" cy=\"%.3f\" r=\"%.3f\" fill=\"%s\"/>\n", x, y, radius, this.paint (color)));
     }
 
     private void openClip (final double x, final double y, final double width, final double height)
     {
-        final int id = this.nextId++;
-        this.svg.append (String.format (Locale.ROOT, "<defs><clipPath id=\"c%d\"><rect x=\"%.3f\" y=\"%.3f\" width=\"%.3f\" height=\"%.3f\"/></clipPath></defs><g clip-path=\"url(#c%d)\">\n", id, x, y, width, height, id));
+        final String id = escape (this.idPrefix + "c" + this.nextId++);
+        this.svg.append (String.format (Locale.ROOT, "<defs><clipPath id=\"%s\"><rect x=\"%.3f\" y=\"%.3f\" width=\"%.3f\" height=\"%.3f\"/></clipPath></defs><g clip-path=\"url(#%s)\">\n", id, x, y, width, height, id));
     }
 
     private void textBox (final DisplayCommand.TextBox box)
@@ -131,7 +145,7 @@ final class DisplaySceneSvg
 
     private void text (final String value, final double x, final double baseline, final double size, final RgbColor color)
     {
-        this.svg.append (String.format (Locale.ROOT, "<text x=\"%.3f\" y=\"%.3f\" font-size=\"%.3f\" fill=\"%s\">%s</text>\n", x, baseline, size, color (color), escape (value)));
+        this.svg.append (String.format (Locale.ROOT, "<text x=\"%.3f\" y=\"%.3f\" font-size=\"%.3f\" fill=\"%s\">%s</text>\n", x, baseline, size, this.paint (color), escape (value)));
     }
 
     private void icon (final DisplayCommand.Icon icon) throws IOException
@@ -153,8 +167,8 @@ final class DisplaySceneSvg
         final String root = source.substring (source.indexOf ("<svg"), source.indexOf ('>', source.indexOf ("<svg")));
         final double width = dimension (root, "width");
         final double height = dimension (root, "height");
-        final int id = this.nextId++;
-        this.svg.append (String.format (Locale.ROOT, "<defs><mask id=\"i%d\" maskUnits=\"userSpaceOnUse\" style=\"mask-type:alpha\" x=\"%.3f\" y=\"%.3f\" width=\"%.3f\" height=\"%.3f\"><image x=\"%.3f\" y=\"%.3f\" width=\"%.3f\" height=\"%.3f\" href=\"data:image/svg+xml;base64,%s\"/></mask></defs><g mask=\"url(#i%d)\">\n", id, icon.x (), icon.y (), icon.width (), icon.height (), icon.x () + (icon.width () - width) / 2, icon.y () + (icon.height () - height) / 2, width, height, Base64.getEncoder ().encodeToString (bytes), id));
+        final String id = escape (this.idPrefix + "i" + this.nextId++);
+        this.svg.append (String.format (Locale.ROOT, "<defs><mask id=\"%s\" maskUnits=\"userSpaceOnUse\" style=\"mask-type:alpha\" x=\"%.3f\" y=\"%.3f\" width=\"%.3f\" height=\"%.3f\"><image x=\"%.3f\" y=\"%.3f\" width=\"%.3f\" height=\"%.3f\" href=\"data:image/svg+xml;base64,%s\"/></mask></defs><g mask=\"url(#%s)\">\n", id, icon.x (), icon.y (), icon.width (), icon.height (), icon.x () + (icon.width () - width) / 2, icon.y () + (icon.height () - height) / 2, width, height, Base64.getEncoder ().encodeToString (bytes), id));
         this.rect (icon.x (), icon.y (), icon.width (), icon.height (), 0, icon.color ());
         this.svg.append ("</g>\n");
     }
@@ -168,6 +182,7 @@ final class DisplaySceneSvg
 
     private Font font (final double size) { return this.typography.regular (size); }
     private double textWidth (final String text, final double size) { return font (size).getStringBounds (text, METRICS).getWidth (); }
+    private String paint (final RgbColor color) { return escape (this.colorBindings.getOrDefault (color, color (color))); }
     static String color (final RgbColor color) { return String.format (Locale.ROOT, "#%02x%02x%02x", color.red (), color.green (), color.blue ()); }
     static String escape (final String text) { return text.replace ("&", "&amp;").replace ("<", "&lt;").replace (">", "&gt;").replace ("\"", "&quot;"); }
 }

@@ -35,6 +35,7 @@ public final class UiComponentCatalog
     private static final RgbColor ORANGE = new RgbColor (255, 145, 35);
     private static final RgbColor GREEN = new RgbColor (60, 205, 125);
     private static final RgbColor WHITE = new RgbColor (255, 255, 255);
+    private static final Map<RgbColor, String> COMPONENT_COLORS = Map.of (BLUE, "var(--component-color," + DisplaySceneSvg.color (BLUE) + ")");
     private static final List<Boolean> ALTERNATING = List.of (true, false, true, false, false, true, false, true);
 
     private UiComponentCatalog () { }
@@ -47,13 +48,15 @@ public final class UiComponentCatalog
         final Path icons = Path.of (args[1]).resolve ("pull-shell/src/main/resources/images");
         Files.createDirectories (output);
         final CatalogTypography typography = CatalogTypography.load ();
+        final String displayFont = "<style>" + typography.displayCss () + "</style>";
         final StringBuilder html = new StringBuilder (HEADER.replace ("/* typography */", typography.catalogCss ()).replace ("$FONT_FAMILY", CatalogTypography.FAMILY));
         final List<Component> components = components ();
         final List<Example> examples = examples ();
         html.append ("<nav class=\"sections\" aria-label=\"Catalog sections\"><a href=\"#components\">Components <span>").append (components.size ())
             .append ("</span></a><a href=\"#views\">Views <span>").append (examples.size ()).append ("</span></a></nav><main>");
         html.append ("<section id=\"components\" aria-labelledby=\"components-title\"><div class=\"section-heading\"><small>Building blocks</small><h2 id=\"components-title\">Components</h2>")
-            .append ("<p>Individual controls at their native size, with state, value and color variants. These are the same drawing components used in the views below.</p></div>");
+            .append ("<p>Individual controls at their native size. Compare states and values with your own color, using the same drawing components as the views below.</p></div>")
+            .append (COLOR_CONTROLS.replace ("$DEFAULT_COLOR", DisplaySceneSvg.color (BLUE)));
         int specimens = 0;
         for (final Component component: components)
         {
@@ -62,9 +65,10 @@ public final class UiComponentCatalog
             for (final Variant variant: component.variants ())
             {
                 final String file = component.id () + "-" + variant.id () + ".svg";
-                Files.writeString (output.resolve (file), DisplaySceneSvg.render (variant.display (), icons, typography));
+                final String svg = DisplaySceneSvg.render (variant.display (), icons, typography, component.id () + "-" + variant.id () + "-", component.colors ());
+                Files.writeString (output.resolve (file), svg);
                 html.append ("<figure><div class=\"specimen-display\">");
-                image (html, file, component.title () + " · " + variant.title (), variant.display ());
+                html.append (svg.replace (displayFont, "").replace ("<svg ", "<svg role=\"img\" aria-label=\"" + DisplaySceneSvg.escape (component.title () + " · " + variant.title ()) + "\" "));
                 html.append ("</div><figcaption><span>").append (variant.title ()).append ("</span><a href=\"").append (file).append ("\" aria-label=\"Open ")
                     .append (component.title ()).append (' ').append (variant.title ()).append (" SVG\">SVG ↗</a></figcaption>");
                 variant.light ().ifPresent (color -> html.append ("<div class=\"choice-light\"><i style=\"--light:").append (DisplaySceneSvg.color (color))
@@ -94,7 +98,7 @@ public final class UiComponentCatalog
                 .append (example.visuals ().display ().width ()).append (" × ").append (example.visuals ().display ().height ())
                 .append (" logical pixels</footer></article>\n");
         }
-        Files.writeString (output.resolve ("index.html"), html.append ("</section></main>").append (FOOTER).toString ());
+        Files.writeString (output.resolve ("index.html"), html.append ("</section></main><template id=\"display-font\">").append (displayFont).append ("</template>").append (FOOTER).toString ());
         System.out.println ("UI component catalog: " + output.resolve ("index.html"));
         System.out.println (components.size () + " components (" + specimens + " isolated variants) and " + examples.size () + " view previews generated from production renderer output.");
     }
@@ -189,19 +193,15 @@ public final class UiComponentCatalog
             choice ("selected-long", "Selected · long label", new ChoiceCell ("Very long selected label", true, true), choiceStyle),
             choice ("unavailable", "Unavailable", new ChoiceCell ("Unavailable", false, true), choiceStyle),
             choice ("empty", "Empty label", new ChoiceCell ("", true, true), choiceStyle)));
-        final RgbColor dim = MacroPageStyle.brightness (BLUE, false);
         final Component toggles = new Component ("component-toggle", "Toggle", "One on/off shape with a supplied color. The consuming view determines state and brightness.", "Toggle", List.of (
-            toggle ("on-blue", "On · blue", true, BLUE), toggle ("off-blue", "Off · blue", false, BLUE),
-            toggle ("on-orange", "On · orange", true, ORANGE), toggle ("off-orange", "Off · orange", false, ORANGE),
-            toggle ("on-dim", "On · dim blue", true, dim), toggle ("off-dim", "Off · dim blue", false, dim)));
+            toggle ("on", "On", true, BLUE), toggle ("off", "Off", false, BLUE)), COMPONENT_COLORS);
         final Component rings = new Component ("component-ring", "Ring meter", "A value and separate track/value colors, drawn with the shared macro-family geometry. Each ring stands on its own.", "RingMeter / MacroPageStyle.RING", List.of (
-            ring ("minimum", "Minimum · 0%", 0, BLUE), ring ("midpoint", "Midpoint · 50%", 0.5, BLUE), ring ("maximum", "Maximum · 100%", 1, BLUE),
-            ring ("orange", "Midpoint · orange", 0.5, ORANGE), ring ("dim", "Midpoint · dim blue", 0.5, dim)));
+            ring ("minimum", "Minimum · 0%", 0, BLUE), ring ("midpoint", "Midpoint · 50%", 0.5, BLUE), ring ("maximum", "Maximum · 100%", 1, BLUE)), COMPONENT_COLORS);
         final Component parameters = new Component ("component-parameter", "Parameter value", "Value and unit fields are fitted independently. These samples isolate typography from the meter, using the shared macro-family style.", "ParameterValue / MacroPageStyle.VALUE", List.of (
             parameter ("minimum", "Minimum", "0.00", "%", BLUE), parameter ("maximum", "Maximum", "100", "%", BLUE),
-            parameter ("frequency", "Value + unit", "1.25", "kHz", ORANGE), parameter ("long-number", "Long number", "123456.789", "Hz", GREEN),
-            parameter ("long-text", "Text value", "A very long textual value", "", BLUE), parameter ("long-unit", "Long unit", "−∞", "VeryLongUnit", ORANGE),
-            parameter ("unicode", "Unicode", "−∞", "dB", dim), parameter ("empty", "Absent value", "", "", BLUE)));
+            parameter ("frequency", "Value + unit", "1.25", "kHz", BLUE), parameter ("long-number", "Long number", "123456.789", "Hz", BLUE),
+            parameter ("long-text", "Text value", "A very long textual value", "", BLUE), parameter ("long-unit", "Long unit", "−∞", "VeryLongUnit", BLUE),
+            parameter ("unicode", "Unicode", "−∞", "dB", BLUE), parameter ("empty", "Absent value", "", "", BLUE)), COMPONENT_COLORS);
         return List.of (choices, toggles, rings, parameters);
     }
 
@@ -274,7 +274,11 @@ public final class UiComponentCatalog
         { this (id, group, title, description, renderer, new PageVisuals (Map.of (), display)); }
     }
 
-    private record Component (String id, String title, String description, String renderer, List<Variant> variants) { }
+    private record Component (String id, String title, String description, String renderer, List<Variant> variants, Map<RgbColor, String> colors)
+    {
+        private Component (final String id, final String title, final String description, final String renderer, final List<Variant> variants)
+        { this (id, title, description, renderer, variants, Map.of ()); }
+    }
 
     private record Variant (String id, String title, ControllerDisplayScene display, Optional<RgbColor> light)
     {
@@ -299,12 +303,17 @@ public final class UiComponentCatalog
         .surface{background:#07080b;padding:12px;border-radius:7px;overflow:auto}.surface img{display:block;max-width:100%;height:auto;margin:8px auto}
         .lights{display:grid;grid-template-columns:repeat(8,1fr);gap:2px;max-width:960px;margin:0 auto}.lights span{display:block;padding:0 10px}
         .lights i,.choice-light i{display:block;height:5px;background:var(--light);border:1px solid #3a404a;border-radius:2px}.lights .unowned i{border-style:dashed;opacity:.4}
-        .specimens{display:grid;grid-template-columns:repeat(auto-fit,minmax(138px,1fr));gap:12px}.specimens figure{margin:0;min-width:0}
+        .specimens{display:grid;grid-template-columns:repeat(auto-fill,minmax(138px,1fr));gap:12px}.specimens figure{margin:0;min-width:0}
         .specimen-display{height:96px;display:flex;align-items:center;justify-content:center;background:#000;border:1px solid #2a303a;border-radius:7px}
-        .specimen-display img{display:block;flex:none}.specimens figcaption{display:flex;justify-content:space-between;gap:5px;margin-top:8px;font-size:12px}
+        .specimen-display svg{display:block;flex:none}.specimens figcaption{display:flex;justify-content:space-between;gap:5px;margin-top:8px;font-size:12px}
         .specimens figcaption a{font-size:11px;color:#8599af}.choice-light{display:flex;gap:6px;align-items:center;color:#818e9e;font-size:10px;margin-top:5px}
         .choice-light i{width:18px;height:6px}.choice-light span{margin-left:auto}article footer{color:#747f90;font-size:12px;margin-top:16px}
         code{font:inherit;color:#9aa9bd}body>footer{color:#818e9e;font-size:13px}[hidden]{display:none!important}
+        .component-controls{display:flex;align-items:center;flex-wrap:wrap;gap:10px;position:sticky;top:12px;z-index:1;padding:12px 16px;margin-bottom:24px;background:#202630;border:1px solid #3b4655;border-radius:9px;box-shadow:0 6px 20px #0006}
+        .component-controls label{font-weight:600}.component-controls input{font:inherit;border:1px solid #526074;border-radius:5px;background:#101216;color:inherit;height:36px}
+        .component-controls input[type=color]{width:42px;padding:3px;cursor:pointer}.component-controls input[type=text]{width:100px;padding:5px 9px;font-variant-numeric:tabular-nums}
+        .component-controls button{padding:5px 12px}.component-controls p{margin:0;font-size:12px}.component-controls [aria-invalid=true]{border-color:#ff9b9b}
+        #color-error{color:#ffb1b1;flex-basis:100%}:focus-visible{outline:2px solid #a4d0ff;outline-offset:3px}
         @media(max-width:700px){body{padding:24px 12px}article{padding:15px}.surface{padding:6px}article header{align-items:start}h1{font-size:30px}.lights span{padding:0 4px}}
         </style></head><body><div class="intro"><small>Pull / Reloadable UI</small><h1>UI library</h1>
         <p>Explore the individual building blocks, then preview the views built from them. Everything here uses production drawing commands with supplied values. No Bitwig or Push connection is needed.</p>
@@ -312,8 +321,58 @@ public final class UiComponentCatalog
         <p class="notes">View previews: top swatches are ROW2, bottom swatches ROW1. Dashed swatches are unowned; solid black is owned and off.</p></div>
         """;
 
+    private static final String COLOR_CONTROLS = """
+        <div class="component-controls" role="group" aria-label="Component preview controls">
+        <label for="component-color">Component color</label><input id="component-color" type="color" value="$DEFAULT_COLOR">
+        <input id="component-color-hex" type="text" value="$DEFAULT_COLOR" aria-label="Hex color" aria-describedby="color-error" spellcheck="false" maxlength="7">
+        <button id="reset-color" type="button">Reset</button><p>Toggle, ring and parameter value</p>
+        <p id="color-error" role="status" hidden>Use six hex digits, for example #3ea0ff.</p></div>
+        """;
+
     private static final String FOOTER = """
         <footer>Regenerate with <code>tools/ui-component-catalog</code>. Fixture source: <code>pull-core/src/test/java/de/mossgrabers/pull/core/testing/UiComponentCatalog.java</code>.<br>Offline visual review does not prove host acknowledgements, interaction routing, or live hardware output.</footer>
-        <script>for(const button of document.querySelectorAll('[data-filter]'))button.addEventListener('click',()=>{for(const other of document.querySelectorAll('[data-filter]'))other.setAttribute('aria-pressed',String(other===button));for(const example of document.querySelectorAll('#views article'))example.hidden=button.dataset.filter!=='All'&&example.dataset.group!==button.dataset.filter;});</script></body></html>
+        <script>
+        const components = document.querySelector('#components');
+        const picker = document.querySelector('#component-color');
+        const hex = document.querySelector('#component-color-hex');
+        const error = document.querySelector('#color-error');
+        const defaultColor = picker.value;
+        const exportFont = new Blob([document.querySelector('#display-font').innerHTML]);
+        const exports = Array.from(components.querySelectorAll('figure'), figure => ({
+          svg: figure.querySelector('svg').cloneNode(true), link: figure.querySelector('a'), url: null
+        }));
+        function applyColor(color) {
+          picker.value = color;
+          components.style.setProperty('--component-color', color);
+          hex.removeAttribute('aria-invalid');
+          error.hidden = true;
+          // Keep native open/save-link actions in sync, sharing the font bytes across exports.
+          for (const specimen of exports) {
+            specimen.svg.style.setProperty('--component-color', color);
+            const source = new XMLSerializer().serializeToString(specimen.svg);
+            const end = source.lastIndexOf('</svg>');
+            const previous = specimen.url;
+            specimen.url = URL.createObjectURL(new Blob([source.slice(0, end), exportFont, source.slice(end)], {type: 'image/svg+xml'}));
+            specimen.link.href = specimen.url;
+            if (previous) URL.revokeObjectURL(previous);
+          }
+        }
+        picker.addEventListener('input', () => { applyColor(picker.value); hex.value = picker.value; });
+        hex.addEventListener('input', () => {
+          const value = hex.value.trim().replace(/^#/, '');
+          if (/^[0-9a-f]{6}$/i.test(value)) applyColor('#' + value.toLowerCase());
+        });
+        hex.addEventListener('blur', () => {
+          const valid = /^#?[0-9a-f]{6}$/i.test(hex.value.trim());
+          hex.setAttribute('aria-invalid', String(!valid));
+          error.hidden = valid;
+          if (valid) hex.value = picker.value;
+        });
+        document.querySelector('#reset-color').addEventListener('click', () => { applyColor(defaultColor); hex.value = defaultColor; });
+        for (const button of document.querySelectorAll('[data-filter]')) button.addEventListener('click', () => {
+          for (const other of document.querySelectorAll('[data-filter]')) other.setAttribute('aria-pressed', String(other === button));
+          for (const example of document.querySelectorAll('#views article')) example.hidden = button.dataset.filter !== 'All' && example.dataset.group !== button.dataset.filter;
+        });
+        </script></body></html>
         """;
 }

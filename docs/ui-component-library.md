@@ -73,6 +73,11 @@ tools/ui-component-catalog
 
 The command builds offline and prints a local HTML path under `pull-core/target/ui-component-catalog`.
 **Components** shows individual choice cells, toggles, rings and parameter values at their own size.
+One shared color picker (or six-digit hex input) changes the supplied color for toggles, rings and
+parameter values. Examples vary state, value and text rather than duplicating each possible color.
+Choice cells retain their neutral selection palette, and ring tracks retain their family color.
+The SVG link opens the component with the current color and embedded Lato font. These controls work
+in the generated HTML without a server; complete view fixtures retain their supplied colors.
 **Views** shows complete known screens, including Master, Track mix, global mixer, project macros
 and settings, with their actual display output and row lights. Future custom plugin views belong
 here once they have a production renderer; their reusable controls belong in Components.
@@ -84,9 +89,10 @@ examples to this same catalog.
 
 This catalog is the shared offline visual validation path. The mixer text-stress regression and
 catalog use the same input fixture; the former separate mixer PNG renderer has been removed.
-The live debugger remains unchanged and continues to show actual hardware output. Future catalog
-work may add Storybook-style inputs for track color, names, values and state, feeding these same
-Java presentations. Interactive controls and debugger integration are deliberately deferred.
+The catalog replays production drawing commands, binding only the explicit component color input
+to a CSS property; it does not redraw component geometry in JavaScript. Inline SVG IDs are scoped
+per specimen so text clipping and icon masks cannot cross between previews. Additional inputs for
+complete view presentations and debugger integration remain future work in this same catalog.
 
 Keep representative fixtures with their production consumers. Test observable requests, later
 host read-back and feedback through the existing routed tests; avoid snapshot hashes that merely

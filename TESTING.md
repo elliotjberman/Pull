@@ -59,6 +59,8 @@ open that HTML to inspect individual Components and complete Views, including no
 touched, unavailable and long-text fixtures with their actual row lights. Lato is loaded from the
 installed Bitwig resources or `PULL_UI_FONT_DIR`; neither Bitwig nor the Push debugger needs to run. See the
 [component library](docs/ui-component-library.md) for component contracts and preview limitations.
+Use the shared Components color picker or hex field to compare states in arbitrary RGB colors;
+Reset restores the default. Complete view fixtures keep their supplied colors.
 Use existing routed behavior tests for submitted effects, later observed state and feedback; a
 catalog fixture is visual evidence, not host/hardware or gesture validation.
 
