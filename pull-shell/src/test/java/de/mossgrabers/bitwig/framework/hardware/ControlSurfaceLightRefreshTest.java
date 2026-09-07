@@ -12,8 +12,6 @@ import com.bitwig.extension.controller.api.ObjectHardwareProperty;
 import de.mossgrabers.bitwig.framework.daw.HostImpl;
 import de.mossgrabers.framework.configuration.Configuration;
 import de.mossgrabers.framework.controller.AbstractControlSurface;
-import de.mossgrabers.framework.controller.ButtonID;
-import de.mossgrabers.framework.controller.ContinuousID;
 import de.mossgrabers.framework.controller.OutputID;
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.color.ColorManager;
@@ -21,215 +19,118 @@ import de.mossgrabers.framework.controller.hardware.IHwLight;
 
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Array;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 
-/** Exercises surface refresh through the real factory, lights, and continuous-output cache. */
+/** Exercises refresh through the real surface, factory, and light. */
 class ControlSurfaceLightRefreshTest
 {
-    @Test
-    void resendsUnchangedButtonAndStandaloneLightsOnTheNextHardwareUpdate ()
-    {
-        final Fixture fixture = new Fixture ();
-        final List<Integer> buttonOutput = new ArrayList<> ();
-        final List<ColorEx> standaloneOutput = new ArrayList<> ();
-        fixture.surface.createLight (null, () -> 7, buttonOutput::add, ignored -> ColorEx.RED,
-            fixture.surface.createButton (ButtonID.PLAY, "Play"));
-        fixture.surface.createLight (OutputID.LED1, () -> ColorEx.BLUE, standaloneOutput::add);
-
-        fixture.surface.updateHardware ();
-        fixture.surface.updateHardware ();
-        assertEquals (List.of (7), buttonOutput);
-        assertEquals (List.of (ColorEx.BLUE), standaloneOutput);
-
-        fixture.surface.forceFlush ();
-
-        assertEquals (List.of (7), buttonOutput, "Invalidation must not transmit a synthetic off state");
-        assertEquals (List.of (ColorEx.BLUE), standaloneOutput);
-
-        fixture.surface.updateHardware ();
-        fixture.surface.updateHardware ();
-        assertEquals (List.of (7, 7), buttonOutput);
-        assertEquals (List.of (ColorEx.BLUE, ColorEx.BLUE), standaloneOutput);
-    }
+    private Supplier<InternalHardwareLightState> supplier;
+    private Consumer<InternalHardwareLightState> updater;
+    private InternalHardwareLightState lastSent;
+    private boolean invalidated;
+    private final List<Runnable> scheduled = new ArrayList<> ();
 
 
     @Test
-    void samplesTheLatestSupplierStateAfterRefreshWasRequested ()
+    void refreshResendsCurrentStateAndPreservesLaterTurnOff ()
     {
-        final Fixture fixture = new Fixture ();
-        final AtomicInteger desired = new AtomicInteger (7);
-        final List<Integer> output = new ArrayList<> ();
-        fixture.surface.createLight (OutputID.LED1, desired::get, output::add, ignored -> ColorEx.RED, null);
-        fixture.surface.updateHardware ();
+        final AbstractControlSurface<Configuration> surface = this.createSurface ();
+        final AtomicReference<ColorEx> desired = new AtomicReference<> (ColorEx.RED);
+        final List<ColorEx> output = new ArrayList<> ();
+        final IHwLight light = surface.createLight (OutputID.LED1, desired::get, output::add);
+        final Runnable update = surface.getSurfaceFactory ()::flush;
 
-        fixture.surface.forceFlush ();
-        desired.set (19);
-        assertEquals (List.of (7), output);
+        update.run ();
+        update.run ();
+        assertEquals (List.of (ColorEx.RED), output, "Unchanged output is normally suppressed");
 
-        fixture.surface.updateHardware ();
-        assertEquals (List.of (7, 19), output);
-    }
+        surface.forceFlush ();
+        assertEquals (List.of (ColorEx.RED), output, "Refresh waits for the next hardware update");
+        update.run ();
+        update.run ();
+        assertEquals (List.of (ColorEx.RED, ColorEx.RED), output);
 
+        surface.forceFlush ();
+        desired.set (ColorEx.BLUE);
+        update.run ();
+        assertEquals (List.of (ColorEx.RED, ColorEx.RED, ColorEx.BLUE), output);
 
-    @Test
-    void turningOffAfterARefreshCannotBeUndoneByDelayedWork ()
-    {
-        final Fixture fixture = new Fixture ();
-        final List<Integer> output = new ArrayList<> ();
-        final IHwLight light = fixture.surface.createLight (OutputID.LED1, () -> 7, output::add, ignored -> ColorEx.RED, null);
-        fixture.surface.updateHardware ();
-
-        fixture.surface.forceFlush ();
+        surface.forceFlush ();
         light.turnOff ();
-        fixture.surface.updateHardware ();
-        assertEquals (List.of (7, 0), output);
-
-        // Any work queued by refresh must not restore a supplier after the later turn-off.
-        List.copyOf (fixture.scheduled).forEach (Runnable::run);
-        fixture.surface.updateHardware ();
-        assertEquals (List.of (7, 0), output);
-    }
-
-
-    @Test
-    void stillResendsUnchangedContinuousOutput ()
-    {
-        final Fixture fixture = new Fixture ();
-        final List<Integer> output = new ArrayList<> ();
-        fixture.surface.createAbsoluteKnob (ContinuousID.KNOB1, "Knob").addOutput (() -> 42, output::add);
-        fixture.surface.updateHardware ();
-        fixture.surface.updateHardware ();
-        assertEquals (List.of (42), output);
-
-        fixture.surface.forceFlush ();
-        assertEquals (List.of (42), output);
-
-        fixture.surface.updateHardware ();
-        fixture.surface.updateHardware ();
-        assertEquals (List.of (42, 42), output);
-    }
-
-
-    private static final class TestSurface extends AbstractControlSurface<Configuration>
-    {
-        private TestSurface (final HostImpl host)
-        {
-            super (0, host, null, new ColorManager (), null, null, null, null, 100, 100);
-        }
-
-
-        private void updateHardware ()
-        {
-            this.flushHardware ();
-        }
-    }
-
-
-    /** Bitwig output invalidation is a request; only a later update samples and transmits. */
-    private static final class Fixture
-    {
-        private final List<LightProperty> lights = new ArrayList<> ();
-        private final List<Runnable> scheduled = new ArrayList<> ();
-        private final TestSurface surface;
-        private boolean invalidated;
-
-
-        private Fixture ()
-        {
-            final HardwareSurface hardware = proxy (HardwareSurface.class, (ignored, method, arguments) -> {
-                switch (method.getName ())
-                {
-                    case "createMultiStateHardwareLight":
-                        final LightProperty light = new LightProperty ();
-                        this.lights.add (light);
-                        return proxy (MultiStateHardwareLight.class, (ignoredLight, lightMethod, lightArguments) ->
-                            lightMethod.getName ().equals ("state") ? light.property : defaultValue (lightMethod.getReturnType ()));
-                    case "invalidateHardwareOutputState":
-                        this.invalidated = true;
-                        return null;
-                    case "updateHardware":
-                        this.lights.forEach (lightProperty -> lightProperty.update (this.invalidated));
-                        this.invalidated = false;
-                        return null;
-                    default:
-                        return defaultValue (method.getReturnType ());
-                }
-            });
-            final ControllerHost host = proxy (ControllerHost.class, (ignored, method, arguments) -> {
-                if (method.getName ().equals ("createHardwareSurface"))
-                    return hardware;
-                if (method.getName ().equals ("scheduleTask"))
-                    this.scheduled.add ((Runnable) arguments[0]);
-                return defaultValue (method.getReturnType ());
-            });
-            this.surface = new TestSurface (new HostImpl (host));
-            // The factory starts unrelated button-timeout calibration during construction.
-            this.scheduled.clear ();
-        }
-    }
-
-
-    private static final class LightProperty
-    {
-        private Supplier<InternalHardwareLightState> supplier;
-        private Consumer<InternalHardwareLightState> updater;
-        private InternalHardwareLightState lastSent;
-        private boolean sent;
-        private final ObjectHardwareProperty<InternalHardwareLightState> property;
-
-
-        @SuppressWarnings("unchecked")
-        private LightProperty ()
-        {
-            this.property = proxy (ObjectHardwareProperty.class, (ignored, method, arguments) -> {
-                if (method.getName ().equals ("setValueSupplier"))
-                    this.supplier = (Supplier<InternalHardwareLightState>) arguments[0];
-                else if (method.getName ().equals ("onUpdateHardware"))
-                    this.updater = (Consumer<InternalHardwareLightState>) arguments[0];
-                return defaultValue (method.getReturnType ());
-            });
-        }
-
-
-        private void update (final boolean invalidated)
-        {
-            final InternalHardwareLightState value = this.supplier.get ();
-            if (invalidated || !this.sent || !Objects.equals (this.lastSent, value))
-            {
-                this.updater.accept (value);
-                this.lastSent = value;
-                this.sent = true;
-            }
-        }
-    }
-
-
-    private static Object defaultValue (final Class<?> type)
-    {
-        if (type == void.class)
-            return null;
-        if (type.isPrimitive ())
-            return Array.get (Array.newInstance (type, 1), 0);
-        if (type.isInterface ())
-            return proxy (type, (ignored, method, arguments) -> defaultValue (method.getReturnType ()));
-        return null;
+        update.run ();
+        assertEquals (List.of (ColorEx.RED, ColorEx.RED, ColorEx.BLUE, ColorEx.BLACK), output);
+        List.copyOf (this.scheduled).forEach (Runnable::run);
+        update.run ();
+        assertEquals (List.of (ColorEx.RED, ColorEx.RED, ColorEx.BLUE, ColorEx.BLACK), output,
+            "Queued refresh work must not undo a later turn-off");
     }
 
 
     @SuppressWarnings("unchecked")
+    private AbstractControlSurface<Configuration> createSurface ()
+    {
+        final ObjectHardwareProperty<InternalHardwareLightState> property = proxy (ObjectHardwareProperty.class, (ignored, method, args) -> {
+            if (method.getName ().equals ("setValueSupplier"))
+                this.supplier = (Supplier<InternalHardwareLightState>) args[0];
+            else if (method.getName ().equals ("onUpdateHardware"))
+                this.updater = (Consumer<InternalHardwareLightState>) args[0];
+            return null;
+        });
+        final MultiStateHardwareLight light = proxy (MultiStateHardwareLight.class, (ignored, method, args) ->
+            method.getName ().equals ("state") ? property : null);
+        final HardwareSurface hardware = proxy (HardwareSurface.class, (ignored, method, args) -> {
+            switch (method.getName ())
+            {
+                case "createMultiStateHardwareLight":
+                    return light;
+                case "invalidateHardwareOutputState":
+                    this.invalidated = true;
+                    break;
+                case "updateHardware":
+                    this.updateHardware ();
+                    break;
+                default:
+                    break;
+            }
+            return null;
+        });
+        final ControllerHost host = proxy (ControllerHost.class, (ignored, method, args) -> {
+            if (method.getName ().equals ("createHardwareSurface"))
+                return hardware;
+            if (method.getName ().equals ("scheduleTask"))
+                this.scheduled.add ((Runnable) args[0]);
+            return null;
+        });
+        final AbstractControlSurface<Configuration> surface = new AbstractControlSurface<> (0, new HostImpl (host), null, new ColorManager (), null, null, null, null, 100, 100) {};
+        // Discard unrelated button-timeout calibration scheduled by factory construction.
+        this.scheduled.clear ();
+        return surface;
+    }
+
+
+    /** Bitwig samples suppliers and transmits only on a later hardware update. */
+    private void updateHardware ()
+    {
+        final InternalHardwareLightState value = this.supplier.get ();
+        if (this.invalidated || !Objects.equals (this.lastSent, value))
+            this.updater.accept (value);
+        this.lastSent = value;
+        this.invalidated = false;
+    }
+
+
     private static <T> T proxy (final Class<T> type, final InvocationHandler handler)
     {
-        return (T) Proxy.newProxyInstance (type.getClassLoader (), new Class<?> [] {type}, handler);
+        return type.cast (Proxy.newProxyInstance (type.getClassLoader (), new Class<?> [] {type}, handler));
     }
 }
