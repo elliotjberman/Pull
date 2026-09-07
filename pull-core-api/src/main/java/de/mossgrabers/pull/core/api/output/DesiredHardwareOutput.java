@@ -63,13 +63,6 @@ public record DesiredHardwareOutput (Map<ControlId, RgbColor> lights, Controller
     }
 
 
-    /** Compatibility constructor without a display overlay. */
-    public DesiredHardwareOutput (final Map<ControlId, RgbColor> lights, final ControllerDisplayScene display, final ControllerPadGridOverlay padGridOverlay)
-    {
-        this (lights, display, padGridOverlay, ControllerDisplayOverlay.inactive ());
-    }
-
-
     /** Compatibility constructor without temporary overlays. */
     public DesiredHardwareOutput (final Map<ControlId, RgbColor> lights, final ControllerDisplayScene display)
     {
