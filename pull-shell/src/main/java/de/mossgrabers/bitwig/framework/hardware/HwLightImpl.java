@@ -23,8 +23,7 @@ import de.mossgrabers.framework.daw.IHost;
  */
 public class HwLightImpl extends AbstractHwControl implements IHwLight
 {
-    final MultiStateHardwareLight                      hardwareLight;
-    private final Supplier<InternalHardwareLightState> valueSupplier;
+    final MultiStateHardwareLight hardwareLight;
 
 
     /**
@@ -40,22 +39,11 @@ public class HwLightImpl extends AbstractHwControl implements IHwLight
         super (host, null);
 
         this.hardwareLight = hardwareLight;
-        this.valueSupplier = valueSupplier;
 
         final ObjectHardwareProperty<InternalHardwareLightState> state = hardwareLight.state ();
         state.setValueSupplier (valueSupplier);
         state.onUpdateHardware (hardwareUpdater);
     }
-
-    /** {@inheritDoc} */
-    @Override
-    public void forceFlush ()
-    {
-        // Workaround for missing clear cache method
-        this.turnOff ();
-        this.host.scheduleTask ( () -> this.hardwareLight.state ().setValueSupplier (this.valueSupplier), 100);
-    }
-
 
     /** {@inheritDoc} */
     @Override
