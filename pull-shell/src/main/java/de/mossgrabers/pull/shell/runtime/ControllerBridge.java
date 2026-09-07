@@ -90,9 +90,10 @@ interface ControllerBridge
         Objects.requireNonNull (idle, "idle");
     }
 
-    default void setInputLifecycleCleanup (final Runnable cleanup)
+    default void setInputLifecycleCleanup (final Runnable cleanup, final Runnable neutralizeNoteInput)
     {
         Objects.requireNonNull (cleanup, "cleanup");
+        Objects.requireNonNull (neutralizeNoteInput, "neutralizeNoteInput");
     }
 
     default DesiredControllerState prepareControllerState (final DesiredControllerState state)

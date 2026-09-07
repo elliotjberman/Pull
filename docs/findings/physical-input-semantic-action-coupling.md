@@ -31,7 +31,7 @@ movable Bitwig proxy may already address a replacement target by then.
 
 ## Current Mitigation
 
-Core API 37 carries `ControllerActionIntent` separately from physical input. Core-owned views
+The shared API carries `ControllerActionIntent` separately from physical input. Core-owned views
 resolve complete executable intents at gesture `BEGIN`; deferred execution therefore cannot
 reinterpret a released modifier or a replacement workspace. Existing stable-only commands remain
 frozen migration debt, but `StableControllerActionResolver` examines the actual installed command
@@ -44,11 +44,10 @@ This removes the core-side physical navigation table. It does not yet satisfy th
 - The Master page now owns its encoder turns and both button rows in core, including exact
   project-identity payloads for project navigation, file actions, and absolute engine state.
 - Master owns its complete short page replacement and long Frame gesture in core. The stable
-  binding is inert. API 46 uses `PageNavigation` for exact page/history/temporary ownership; Browser
+  binding is inert. `PageNavigation` owns exact page/history/temporary ownership; Browser
   edge rules and returns no longer depend on mode effects or native mode acknowledgement. The
-  resolved findings are in the [review ledger](../migrations/migration-shortcuts-and-friction.md).
-  [Exact-build validation](../migrations/core-page-ownership-live-smoke.md) covers production
-  `11e33477`; subsequent cleanup has not been deployed or live tested.
+  current ownership is in [ARCH](../../ARCH.md); exact-build coverage is in the
+  [current smoke record](../migrations/interaction-lifecycle-live-smoke.md).
 - Play is a core-exclusive edge with an inert stable command. Core retains the engine-owning
   project identity and emits one exact origin/target project-transport payload. Stable validates
   the live origin and owns the complete bounded tab visit, authoritative transport readback, and

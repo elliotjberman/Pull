@@ -163,6 +163,13 @@ public final class WorkspaceSelection
     }
 
 
+    /** Discard a cancelled input's temporary-return intent without performing its release action. */
+    public void cancelGesture (final Gesture gesture)
+    {
+        this.heldSelections.remove (Objects.requireNonNull (gesture, "gesture"));
+    }
+
+
     /** Keep a requested per-track preference active until stable read-back acknowledges it. */
     public void requestPreferredNoteView (final NoteViewSnapshot target, final ControllerNoteView view)
     {

@@ -22,20 +22,22 @@ public final class ResolvedControllerAction
 {
     private final ControllerActionIntent intent;
     private final Supplier<List<CoreEffect>> dispatch;
+    private final Supplier<List<CoreEffect>> cancellation;
     private final List<ConsumeControllerButtonEffect> immediateEffects;
 
 
     private ResolvedControllerAction (final ControllerActionIntent intent, final Supplier<List<CoreEffect>> dispatch)
     {
-        this (intent, dispatch, List.of ());
+        this (intent, dispatch, List.of (), List::of);
     }
 
 
-    private ResolvedControllerAction (final ControllerActionIntent intent, final Supplier<List<CoreEffect>> dispatch, final List<ConsumeControllerButtonEffect> immediateEffects)
+    private ResolvedControllerAction (final ControllerActionIntent intent, final Supplier<List<CoreEffect>> dispatch, final List<ConsumeControllerButtonEffect> immediateEffects, final Supplier<List<CoreEffect>> cancellation)
     {
         this.intent = Objects.requireNonNull (intent, "intent");
         this.dispatch = Objects.requireNonNull (dispatch, "dispatch");
         this.immediateEffects = List.copyOf (immediateEffects);
+        this.cancellation = Objects.requireNonNull (cancellation, "cancellation");
     }
 
 
@@ -74,7 +76,21 @@ public final class ResolvedControllerAction
             throw new IllegalArgumentException ("one action may consume at most eight button gestures");
         final List<ConsumeControllerButtonEffect> effects = new ArrayList<> (distinct.size ());
         distinct.forEach (control -> effects.add (new ConsumeControllerButtonEffect (control)));
-        return new ResolvedControllerAction (this.intent, this.dispatch, effects);
+        return new ResolvedControllerAction (this.intent, this.dispatch, effects, this.cancellation);
+    }
+
+
+    /** Cleanup of this exact deferred intent, even if its physical press has already ended. */
+    public ResolvedControllerAction onCancellation (final Supplier<List<CoreEffect>> cleanup)
+    {
+        return new ResolvedControllerAction (this.intent, this.dispatch, this.immediateEffects, cleanup);
+    }
+
+
+    /** Called once by the routing owner; never resolve a new gesture here. */
+    List<CoreEffect> cancel ()
+    {
+        return List.copyOf (Objects.requireNonNull (this.cancellation.get (), "cancelled action effects"));
     }
 
 

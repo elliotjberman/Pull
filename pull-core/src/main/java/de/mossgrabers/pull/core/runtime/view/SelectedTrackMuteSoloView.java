@@ -16,6 +16,7 @@ import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.view.ControllerView;
+import de.mossgrabers.pull.core.view.InputTarget;
 import de.mossgrabers.pull.core.view.SurfaceArea;
 import de.mossgrabers.pull.core.view.SurfaceClaim;
 import de.mossgrabers.pull.core.view.ViewOutput;
@@ -83,6 +84,14 @@ public final class SelectedTrackMuteSoloView implements ControllerView
     public Set<BridgeSubscription> bridgeSubscriptions ()
     {
         return Set.of (BridgeSubscription.SELECTED_TRACK);
+    }
+
+
+    @Override
+    public InputTarget inputTarget (final ControlId control, final InputKind kind, final ControllerSnapshot snapshot)
+    {
+        final SelectedTrackSnapshot selected = snapshot.bridge ().selectedTrack ();
+        return selected.exists () ? new InputTarget.Context (control, "selected-track", selected.channelId (), selected.generation ()) : null;
     }
 
 

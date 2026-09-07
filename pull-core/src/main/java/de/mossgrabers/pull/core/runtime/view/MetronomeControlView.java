@@ -21,6 +21,7 @@ import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.view.ControllerView;
+import de.mossgrabers.pull.core.view.InputTarget;
 import de.mossgrabers.pull.core.view.ResolvedControllerAction;
 import de.mossgrabers.pull.core.view.SurfaceArea;
 import de.mossgrabers.pull.core.view.SurfaceClaim;
@@ -64,12 +65,34 @@ public final class MetronomeControlView implements ControllerView
     @Override public void reconcile (final ControllerSnapshot snapshot) { this.latest = snapshot; this.pages.observe (); }
 
     @Override
+    public InputTarget inputTarget (final ControlId control, final InputKind kind, final ControllerSnapshot snapshot)
+    {
+        return BUTTON.equals (control) ? new InputTarget.Composite (List.of (new InputTarget.Context (control, "project", snapshot.bridge ().project ().projectIdentity (), 0), new InputTarget.Context (control, "transport-settings-project", snapshot.bridge ().transportSettings ().projectIdentity (), 0))) : ControllerView.super.inputTarget (control, kind, snapshot);
+    }
+
+    @Override
+    public List<CoreEffect> cancel (final ControlId control, final InputKind kind, final InputTarget target, final ControllerSnapshot snapshot)
+    {
+        return BUTTON.equals (control) && this.held != null ? this.cancelGesture (this.held) : List.of ();
+    }
+
+    private List<CoreEffect> cancelGesture (final Gesture gesture)
+    {
+        this.pages.relinquish (gesture.page);
+        this.pending.remove (gesture);
+        this.admission.finish (gesture.ticket);
+        if (this.held == gesture) this.held = null;
+        if (this.lastEntry == gesture.page) this.lastEntry = null;
+        return List.of ();
+    }
+
+    @Override
     public ResolvedControllerAction resolveAction (final ControllerActionBinding binding, final ControllerInputEvent input, final ControllerSnapshot snapshot)
     {
         final Gesture gesture = new Gesture (this.admission.begin ());
         this.pending.add (gesture);
         this.held = gesture;
-        return this.admission.action (gesture.ticket, binding.intent (), () -> this.advance (gesture, this.latest));
+        return this.admission.action (gesture.ticket, binding.intent (), () -> this.advance (gesture, this.latest)).onCancellation (() -> this.cancelGesture (gesture));
     }
     @Override public Set<BridgeSubscription> bridgeSubscriptions () { return Set.of (BridgeSubscription.PROJECT, BridgeSubscription.TRANSPORT, BridgeSubscription.TRANSPORT_SETTINGS); }
     @Override public CoreExecutionRequirements executionRequirements () { return new CoreExecutionRequirements (this.metronome.pending () || this.ticks.pending ()); }

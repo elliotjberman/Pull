@@ -25,7 +25,8 @@ import java.util.function.Predicate;
  * EXCLUSIVE press remains exclusive across a core reload or route-map change, so its release can
  * never leak into a stable command which did not receive the press. The active core generation is
  * captured with that ownership, so a gesture cannot complete against a core loaded after its
- * press. Motion is bounded to one
+ * press. Declared companion motion retains its own BEGIN-time route and the same generation.
+ * Motion is bounded to one
  * pending sample per registered control-and-kind pair: relative deltas are summed and absolute
  * values keep only their latest sample. Deferred stable edge commands are bounded separately and
  * preserve physical order until their semantic-action barrier releases.
@@ -51,8 +52,8 @@ public final class PhysicalInputRouter<C>
     private final LongSupplier ownerGeneration;
     private final Map<PhysicalInputAddress<C>, GestureBinding> gestureBindings;
     private final Map<PhysicalInputAddress<C>, PhysicalInputEvent<C>> pendingMotion;
-    private final Map<PhysicalInputAddress<C>, PhysicalInputAddress<C>> touchMotionInputs;
-    private final Map<PhysicalInputAddress<C>, MotionBinding> touchMotionBindings;
+    private final Map<PhysicalInputAddress<C>, PhysicalInputAddress<C>> edgeMotionInputs;
+    private final Map<PhysicalInputAddress<C>, MotionBinding> motionBindings;
     private final ArrayDeque<DeferredStableDispatch<C>> deferredStableDispatches = new ArrayDeque<> (MAX_DEFERRED_STABLE_DISPATCHES);
     private long nextSequence = 1;
 
@@ -108,13 +109,13 @@ public final class PhysicalInputRouter<C>
 
 
     /**
-     * Create a router with explicitly installed same-control motion/touch relationships. Each
-     * declared motion route and generation is frozen at TOUCH BEGIN until END. Undeclared motion
-     * retains the existing per-sample routing behavior.
+     * Create a router with explicitly installed edge-to-motion relationships. Each declared
+     * companion route and generation is frozen at its edge BEGIN until END. Motion without an
+     * active related edge retains its existing per-sample routing behavior.
      *
-     * @param touchMotionKinds Bounded registered controls and their associated non-edge input kind
+     * @param edgeMotionInputs Bounded registered edge addresses and their companion motion address
      */
-    public PhysicalInputRouter (final PhysicalControlRegistry<C> registry, final BiFunction<? super C, ? super InputKind, InputRoute> routeResolver, final Consumer<? super PhysicalInputEvent<C>> eventSink, final StableActionBarrier<? super C> stableDispatchBarrier, final LongSupplier nanoTime, final LongSupplier ownerGeneration, final Map<C, InputKind> touchMotionKinds)
+    public PhysicalInputRouter (final PhysicalControlRegistry<C> registry, final BiFunction<? super C, ? super InputKind, InputRoute> routeResolver, final Consumer<? super PhysicalInputEvent<C>> eventSink, final StableActionBarrier<? super C> stableDispatchBarrier, final LongSupplier nanoTime, final LongSupplier ownerGeneration, final Map<PhysicalInputAddress<C>, PhysicalInputAddress<C>> edgeMotionInputs)
     {
         this.registry = Objects.requireNonNull (registry, "registry");
         this.routeResolver = Objects.requireNonNull (routeResolver, "routeResolver");
@@ -125,13 +126,16 @@ public final class PhysicalInputRouter<C>
         this.gestureBindings = new HashMap<> (registry.capacity ());
         this.pendingMotion = new HashMap<> (registry.capacity ());
         final Map<PhysicalInputAddress<C>, PhysicalInputAddress<C>> relations = new HashMap<> ();
-        Objects.requireNonNull (touchMotionKinds, "touchMotionKinds").forEach ( (control, kind) -> {
-            if (Objects.requireNonNull (kind, "motion kind").isEdge ())
-                throw new IllegalArgumentException ("touch-related input must be motion");
-            relations.put (registry.require (control, InputKind.TOUCH), registry.require (control, kind));
+        Objects.requireNonNull (edgeMotionInputs, "edgeMotionInputs").forEach ( (edge, motion) -> {
+            if (!edge.kind ().isEdge () || motion.kind ().isEdge ())
+                throw new IllegalArgumentException ("Companion input requires an edge and a motion address");
+            final PhysicalInputAddress<C> registeredMotion = registry.require (motion.control (), motion.kind ());
+            if (relations.containsValue (registeredMotion))
+                throw new IllegalArgumentException ("Companion motion must have exactly one edge owner");
+            relations.put (registry.require (edge.control (), edge.kind ()), registeredMotion);
         });
-        this.touchMotionInputs = Map.copyOf (relations);
-        this.touchMotionBindings = new HashMap<> (relations.size ());
+        this.edgeMotionInputs = Map.copyOf (relations);
+        this.motionBindings = new HashMap<> (relations.size ());
     }
 
 
@@ -256,15 +260,7 @@ public final class PhysicalInputRouter<C>
      */
     public boolean isIdle ()
     {
-        return this.gestureBindings.values ().stream ().noneMatch (GestureBinding::crossesCoreGeneration) && this.touchMotionBindings.values ().stream ().noneMatch (binding -> binding.route () != InputRoute.NONE) && this.pendingMotion.isEmpty () && this.deferredStableDispatches.isEmpty ();
-    }
-
-
-    /** Whether this exact held edge belongs exclusively to the currently active core generation. */
-    public boolean ownsActiveGesture (final C control, final InputKind kind)
-    {
-        final GestureBinding binding = this.gestureBindings.get (new PhysicalInputAddress<> (control, kind));
-        return binding != null && binding.route () == InputRoute.EXCLUSIVE && binding.generation () == this.ownerGeneration.getAsLong ();
+        return this.gestureBindings.values ().stream ().noneMatch (GestureBinding::crossesCoreGeneration) && this.motionBindings.values ().stream ().noneMatch (binding -> binding.route () != InputRoute.NONE) && this.pendingMotion.isEmpty () && this.deferredStableDispatches.isEmpty ();
     }
 
 
@@ -286,46 +282,46 @@ public final class PhysicalInputRouter<C>
 
     private InputRoute routeEdge (final PhysicalInputAddress<C> input, final InputPhase phase, final long value, final ControllerActionIntent stableAction, final Runnable stableCommand)
     {
-        final PhysicalInputAddress<C> relatedMotion = this.touchMotionInputs.get (input);
-        if (relatedMotion != null && (phase == InputPhase.BEGIN || phase == InputPhase.END))
-            this.flush (relatedMotion.control (), relatedMotion.kind ());
-        final GestureBinding binding;
-        if (phase == InputPhase.BEGIN)
-        {
-            final GestureBinding existing = this.gestureBindings.get (input);
-            if (existing == null)
-            {
-                final InputRoute route = this.resolveRoute (input);
-                // An exclusive route owns the physical gesture itself. Carrying the stable
-                // command's semantic label would discard that physical identity when the event
-                // crosses into core, which makes distinct row buttons look identical.
-                final ControllerActionIntent routedStableAction = route == InputRoute.EXCLUSIVE ? null : stableAction;
-                final StableDispatch stableDispatch = route == InputRoute.EXCLUSIVE ? StableDispatch.SUPPRESS :
-                    this.stableDispatchBarrier.test (input.control (), input.kind (), routedStableAction) ? StableDispatch.DEFER : StableDispatch.RUN;
-                binding = new GestureBinding (route, this.ownerGeneration.getAsLong (), routedStableAction, stableDispatch);
-                this.gestureBindings.put (input, binding);
-                if (relatedMotion != null)
-                    this.touchMotionBindings.put (relatedMotion, new MotionBinding (this.resolveRoute (relatedMotion), binding.generation ()));
-            }
-            else
-                binding = existing;
-        }
-        else
-            binding = this.gestureBindings.getOrDefault (input, GestureBinding.NONE);
-
-        final PhysicalInputEvent<C> event = this.newEvent (input, phase, value, binding.generation (), binding.stableAction ());
+        final PhysicalInputAddress<C> relatedMotion = this.edgeMotionInputs.get (input);
         try
         {
+            if (relatedMotion != null && (phase == InputPhase.BEGIN || phase == InputPhase.END))
+                this.flush (relatedMotion.control (), relatedMotion.kind ());
+            final GestureBinding binding;
+            if (phase == InputPhase.BEGIN)
+            {
+                final GestureBinding existing = this.gestureBindings.get (input);
+                if (existing == null)
+                {
+                    final InputRoute route = this.resolveRoute (input);
+                    // An exclusive route owns the physical gesture itself. Carrying the stable
+                    // command's semantic label would discard that physical identity when the event
+                    // crosses into core, which makes distinct row buttons look identical.
+                    final ControllerActionIntent routedStableAction = route == InputRoute.EXCLUSIVE ? null : stableAction;
+                    final StableDispatch stableDispatch = route == InputRoute.EXCLUSIVE ? StableDispatch.SUPPRESS :
+                        this.stableDispatchBarrier.test (input.control (), input.kind (), routedStableAction) ? StableDispatch.DEFER : StableDispatch.RUN;
+                    binding = new GestureBinding (route, this.ownerGeneration.getAsLong (), routedStableAction, stableDispatch);
+                    this.gestureBindings.put (input, binding);
+                    if (relatedMotion != null)
+                        this.motionBindings.put (relatedMotion, new MotionBinding (this.resolveRoute (relatedMotion), binding.generation ()));
+                }
+                else
+                    binding = existing;
+            }
+            else
+                binding = this.gestureBindings.getOrDefault (input, GestureBinding.NONE);
+
+            final PhysicalInputEvent<C> event = this.newEvent (input, phase, value, binding.generation (), binding.stableAction ());
             this.deliverEdge (binding, event, stableCommand);
             return binding.route ();
         }
         finally
         {
-            if (event.phase () == InputPhase.END)
+            if (phase == InputPhase.END)
             {
                 this.gestureBindings.remove (input);
                 if (relatedMotion != null)
-                    this.touchMotionBindings.remove (relatedMotion);
+                    this.motionBindings.remove (relatedMotion);
             }
         }
     }
@@ -333,7 +329,7 @@ public final class PhysicalInputRouter<C>
 
     private InputRoute routeMotion (final PhysicalInputAddress<C> input, final InputPhase phase, final long value, final Runnable stableCommand)
     {
-        final MotionBinding binding = this.touchMotionBindings.get (input);
+        final MotionBinding binding = this.motionBindings.get (input);
         final InputRoute route = binding == null ? this.resolveRoute (input) : binding.route ();
         if (route != InputRoute.EXCLUSIVE)
             stableCommand.run ();

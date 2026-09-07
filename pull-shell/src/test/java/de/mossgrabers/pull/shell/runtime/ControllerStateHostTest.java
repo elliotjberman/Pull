@@ -25,7 +25,6 @@ import de.mossgrabers.pull.shell.input.PhysicalInputRouter;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.IOException;
@@ -38,7 +37,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -53,48 +51,42 @@ class ControllerStateHostTest
     Path debugDirectory;
 
 
-    @ParameterizedTest
-    @EnumSource (ReleaseLane.class)
-    void selectedNoteRouteCleanupSurvivesSynchronousRoutedDebugRelease (final ReleaseLane lane) throws IOException
+    @Test
+    void selectedNoteRouteNeutralizationPreservesRoutedBrowserHolds () throws IOException
     {
         final RoutedCleanupFixture fixture = new RoutedCleanupFixture (this.debugDirectory);
         fixture.host.apply (state (ControllerNoteView.PLAY, 1, "track-a"));
         fixture.edge (RoutedCleanupFixture.MASTER, "BEGIN");
-        fixture.edge (RoutedCleanupFixture.ROW, "BEGIN");
         fixture.target.generation = 2;
         fixture.target.channelID = "track-b";
-
-        switch (lane)
-        {
-            case INVALIDATION -> fixture.host.refresh ();
-            case END -> fixture.edge (RoutedCleanupFixture.ROW, "END");
-            case EXPIRY -> {
-                fixture.time.set (TimeUnit.SECONDS.toNanos (6));
-                fixture.debug.tick ();
-            }
-        }
-        fixture.debug.tick ();
+        // The real routed BEGIN refreshes the selected target synchronously, as live ROW1 does.
+        fixture.edge (RoutedCleanupFixture.ROW, "BEGIN");
 
         assertFalse (fixture.target.routeActive);
         assertFalse (fixture.host.state ().submittedRoute ().active ());
         assertEquals (DesiredControllerLayout.neutral (), fixture.host.state ().commandedLayout ());
         assertEquals (DesiredNoteInputTranslation.silent (), fixture.surface.translation);
-        assertTrue (fixture.held.isEmpty ());
+        assertEquals (Set.of (RoutedCleanupFixture.MASTER, RoutedCleanupFixture.ROW), fixture.held);
+        assertEquals (List.of (RoutedCleanupFixture.MASTER + ":BEGIN", RoutedCleanupFixture.ROW + ":BEGIN"), fixture.routedEdges);
+        fixture.edge (RoutedCleanupFixture.MASTER, "KEEPALIVE");
+        fixture.edge (RoutedCleanupFixture.ROW, "KEEPALIVE");
+        fixture.edge (RoutedCleanupFixture.ROW, "END");
+        fixture.edge (RoutedCleanupFixture.MASTER, "END");
+        assertTrue (fixture.inputs.isIdle ());
+        assertFalse (fixture.admissionActive);
+
+        fixture.host.apply (state (ControllerNoteView.DRUM_PAD, 2, "track-b"));
+        assertTrue (fixture.target.routeActive);
+        fixture.edge (RoutedCleanupFixture.ROW, "BEGIN");
+        fixture.debug.cancelActive ("core invalidated");
+        fixture.debug.tick ();
+        assertTrue (fixture.held.isEmpty (), "terminal invalidation still releases the exact browser gesture");
         assertTrue (fixture.inputs.isIdle ());
         assertFalse (fixture.admissionActive);
         assertEquals (List.of (
             RoutedCleanupFixture.MASTER + ":BEGIN", RoutedCleanupFixture.ROW + ":BEGIN",
-            (lane == ReleaseLane.EXPIRY ? RoutedCleanupFixture.MASTER : RoutedCleanupFixture.ROW) + ":END",
-            (lane == ReleaseLane.EXPIRY ? RoutedCleanupFixture.ROW : RoutedCleanupFixture.MASTER) + ":END"), fixture.routedEdges);
-
-        // A later aligned request must recover after the exact old route and all debug edges retire.
-        fixture.host.apply (state (ControllerNoteView.DRUM_PAD, 2, "track-b"));
-        assertTrue (fixture.target.routeActive);
-        assertEquals (DesiredControllerLayout.note (ControllerNoteView.DRUM_PAD), fixture.host.state ().commandedLayout ());
-        fixture.edge (RoutedCleanupFixture.ROW, "BEGIN");
-        fixture.edge (RoutedCleanupFixture.ROW, "END");
-        assertTrue (fixture.inputs.isIdle ());
-        assertFalse (fixture.admissionActive);
+            RoutedCleanupFixture.ROW + ":END", RoutedCleanupFixture.MASTER + ":END",
+            RoutedCleanupFixture.ROW + ":BEGIN", RoutedCleanupFixture.ROW + ":END"), fixture.routedEdges);
     }
 
 
@@ -396,10 +388,7 @@ class ControllerStateHostTest
     }
 
 
-    private enum ReleaseLane { INVALIDATION, END, EXPIRY }
-
-
-    /** The real router feeds refresh back into the host whose neutralizer cancels debug edges. */
+    /** The real router refreshes the note-route host during an admitted browser gesture. */
     private static final class RoutedCleanupFixture implements PushDebugInputHost.InputSurface, PushDebugNavigationHost.GestureAdmission
     {
         private static final ControlId MASTER = PushControlIds.button ("MASTERTRACK");
@@ -439,7 +428,7 @@ class ControllerStateHostTest
         private void neutralize ()
         {
             this.events.add ("midi:neutral");
-            this.debug.cancelActive ("selected note route invalidated");
+            this.debug.neutralizeNoteInput ();
         }
 
 

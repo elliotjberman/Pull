@@ -19,6 +19,7 @@ import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.view.ControllerView;
+import de.mossgrabers.pull.core.view.InputTarget;
 import de.mossgrabers.pull.core.view.ResolvedControllerAction;
 import de.mossgrabers.pull.core.view.SurfaceArea;
 import de.mossgrabers.pull.core.view.SurfaceClaim;
@@ -70,6 +71,28 @@ public final class AutomationControlView implements ControllerView
     }
 
     @Override
+    public InputTarget inputTarget (final ControlId control, final InputKind kind, final ControllerSnapshot snapshot)
+    {
+        return BUTTON.equals (control) ? new InputTarget.Context (control, "automation-project", snapshot.bridge ().automation ().projectIdentity (), 0) : ControllerView.super.inputTarget (control, kind, snapshot);
+    }
+
+    @Override
+    public List<CoreEffect> cancel (final ControlId control, final InputKind kind, final InputTarget target, final ControllerSnapshot snapshot)
+    {
+        return BUTTON.equals (control) && this.held != null ? this.cancelGesture (this.held) : List.of ();
+    }
+
+    private List<CoreEffect> cancelGesture (final Gesture gesture)
+    {
+        this.pages.relinquish (gesture.page);
+        this.pending.remove (gesture);
+        this.admission.finish (gesture.ticket);
+        if (this.held == gesture) this.held = null;
+        if (this.lastEntry == gesture.page) this.lastEntry = null;
+        return List.of ();
+    }
+
+    @Override
     public ResolvedControllerAction resolveAction (final ControllerActionBinding binding, final ControllerInputEvent input, final ControllerSnapshot snapshot)
     {
         final boolean deleting = snapshot.pressedControls ().contains (DELETE);
@@ -80,7 +103,7 @@ public final class AutomationControlView implements ControllerView
             gesture.reset = new ResetAutomationOverridesEffect (snapshot.bridge ().automation ().projectIdentity ());
         this.pending.add (gesture);
         this.held = gesture;
-        final var action = this.admission.action (gesture.ticket, binding.intent (), () -> this.advance (gesture, this.latest));
+        final var action = this.admission.action (gesture.ticket, binding.intent (), () -> this.advance (gesture, this.latest)).onCancellation (() -> this.cancelGesture (gesture));
         // Delete's physical release can precede admission, so consume it at the original BEGIN.
         return deleting ? action.withImmediateConsumption (DELETE) : action;
     }

@@ -25,6 +25,7 @@ import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.runtime.PullCoreProvider;
 import de.mossgrabers.pull.core.view.CompiledWorkspace;
+import de.mossgrabers.pull.core.view.RoutedWorkspace;
 
 import org.junit.jupiter.api.Test;
 
@@ -80,6 +81,17 @@ class UndoRedoViewTest
 
 
     @Test
+    void projectChangeCancelsReleaseUntilFreshPress ()
+    {
+        final Fixture fixture = new Fixture ();
+        fixture.edge (InputPhase.BEGIN);
+        fixture.project = "project-b";
+        assertTrue (fixture.edge (InputPhase.END).effects ().isEmpty ());
+        fixture.edge (InputPhase.BEGIN);
+        assertEquals (List.of (new ProjectHistoryEffect ("project-b", ProjectHistoryAction.UNDO)), fixture.edge (InputPhase.END).effects ());
+    }
+
+    @Test
     void pendingProjectNavigationDisablesActionAndFeedback ()
     {
         final Fixture fixture = new Fixture ();
@@ -93,11 +105,12 @@ class UndoRedoViewTest
 
     private static final class Fixture
     {
-        private final CompiledWorkspace workspace = CompiledWorkspace.compile ("history", List.of (new UndoRedoView ()));
+        private final RoutedWorkspace workspace = new RoutedWorkspace (CompiledWorkspace.compile ("history", List.of (new UndoRedoView ())));
         private final Set<ControlId> pressed = new HashSet<> ();
         private boolean canUndo = true;
         private boolean canRedo = true;
         private boolean pending;
+        private String project = "project-a";
         private long sequence;
         private final CoreResult initial = this.workspace.start (this.snapshot ());
 
@@ -115,7 +128,7 @@ class UndoRedoViewTest
 
         private ControllerSnapshot snapshot ()
         {
-            final ProjectSnapshot project = new ProjectSnapshot (true, "project-a", "Project", false, false, false, this.pending, this.canUndo, this.canRedo);
+            final ProjectSnapshot project = new ProjectSnapshot (true, this.project, "Project", false, false, false, this.pending, this.canUndo, this.canRedo);
             final ControllerBridgeSnapshot bridge = new ControllerBridgeSnapshot (TransportSnapshot.empty (), SelectedTrackSnapshot.empty (), ControllerLayoutSnapshot.empty (), DrumContextSnapshot.empty (), ParameterBridgeSnapshot.empty (), MasterSnapshot.empty (), project);
             return new ControllerSnapshot (this.sequence, this.sequence, new PullCoreProvider ().descriptor ().requiredCapabilities (), bridge, ClipCatalogSnapshot.empty (), Map.of (), Map.of (), Optional.empty (), this.pressed, Set.of ());
         }

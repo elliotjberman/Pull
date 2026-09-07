@@ -61,6 +61,24 @@ public final class RibbonPageView implements ControllerView
     @Override public CoreExecutionRequirements executionRequirements () { return new CoreExecutionRequirements (this.settings.values ().stream ().anyMatch (ControllerIntegerSetting::pending)); }
     @Override public void start (final ControllerSnapshot snapshot) { this.deactivate (); this.reconcile (snapshot); }
     @Override public void deactivate () { this.admission.clear (); this.rows.clear (); this.settings.values ().forEach (ControllerIntegerSetting::clear); }
+
+    @Override
+    public InputTarget inputTarget (final ControlId control, final InputKind kind, final ControllerSnapshot snapshot)
+    {
+        final int lower = LOWER.indexOf (control);
+        if (!snapshot.bridge ().controllerSettings ().ribbon ().available () &&
+            (CC_KNOB.equals (control) || kind == InputKind.BUTTON && (lower >= 0 && lower < 6 || UPPER.indexOf (control) > 0)))
+            return null;
+        return ControllerView.super.inputTarget (control, kind, snapshot);
+    }
+
+    @Override
+    public List<CoreEffect> cancel (final ControlId control, final InputKind kind, final InputTarget target, final ControllerSnapshot snapshot)
+    {
+        if (kind == InputKind.BUTTON) this.finish (control);
+        return List.of ();
+    }
+
     @Override public void reconcile (final ControllerSnapshot snapshot)
     {
         this.latest = snapshot;

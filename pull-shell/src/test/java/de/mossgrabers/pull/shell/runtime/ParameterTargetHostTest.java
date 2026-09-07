@@ -386,16 +386,23 @@ class ParameterTargetHostTest
         final var prepared = fixture.host.prepareTouches (new DesiredParameterTouches (Map.of (
             PushControlIds.continuous ("KNOB1"), fixture.target,
             PushControlIds.continuous ("KNOB2"), fixture.target)), fixture.banks);
+        assertTrue (fixture.host.snapshot ().touchLeases ().isEmpty (), "preparation cannot publish an acquired touch");
         fixture.host.releaseTouchesExcept (prepared);
         fixture.host.apply (fixture.host.prepare (new ResetParameterEffect (fixture.target)));
         fixture.host.acquireTouches (prepared);
         fixture.host.acquireTouches (prepared);
         assertEquals (List.of ("reset", "touch:true"), fixture.parameter.events);
+        assertTrue (fixture.host.snapshot ().touchLeases ().isEmpty (), "acquisition is published at the next shell sample");
+        fixture.host.refresh (fixture.banks);
+        assertEquals (Set.of (fixture.target), fixture.host.snapshot ().touchLeases ());
         final var oneOwner = fixture.host.prepareTouches (new DesiredParameterTouches (Map.of (PushControlIds.continuous ("KNOB2"), fixture.target)), fixture.banks);
         fixture.host.releaseTouchesExcept (oneOwner);
         fixture.host.acquireTouches (oneOwner);
         assertEquals (List.of ("reset", "touch:true"), fixture.parameter.events);
-        fixture.host.invalidate ();
+        fixture.host.releaseTouches ();
+        assertEquals (Set.of (fixture.target), fixture.host.snapshot ().touchLeases (), "the last published sample is not overwritten by submission");
+        fixture.host.refresh (fixture.banks);
+        assertTrue (fixture.host.snapshot ().touchLeases ().isEmpty ());
         fixture.host.invalidate ();
         assertEquals (List.of ("reset", "touch:true", "touch:false"), fixture.parameter.events);
     }

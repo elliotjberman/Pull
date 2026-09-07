@@ -43,6 +43,24 @@ public final class AccentPageView implements ControllerView
     @Override public void deactivate () { this.rows.deactivate (); this.touched.clear (); this.velocity.clear (); }
 
     @Override
+    public InputTarget inputTarget (final ControlId control, final InputKind kind, final ControllerSnapshot snapshot)
+    {
+        if (kind == InputKind.BUTTON && CurrentTrackRowSelection.accepts (control))
+            return this.rows.inputTarget (control, snapshot);
+        if (KNOBS.contains (control) && (!snapshot.bridge ().controllerSettings ().available () || !snapshot.bridge ().encoderConfiguration ().available ()))
+            return null;
+        return ControllerView.super.inputTarget (control, kind, snapshot);
+    }
+
+    @Override
+    public List<CoreEffect> cancel (final ControlId control, final InputKind kind, final InputTarget target, final ControllerSnapshot snapshot)
+    {
+        if (kind == InputKind.BUTTON) this.rows.cancel (control);
+        this.touched.remove (control);
+        return List.of ();
+    }
+
+    @Override
     public ResolvedControllerAction resolveAction (final ControllerActionBinding binding, final ControllerInputEvent input, final ControllerSnapshot snapshot)
     {
         return this.rows.resolveAction (binding, input, snapshot);

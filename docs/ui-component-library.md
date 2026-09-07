@@ -108,13 +108,13 @@ host read-back and feedback through the existing routed tests; avoid snapshot ha
 freeze a renderer's command list. Follow [TESTING](../TESTING.md) for live evidence. The initial
 library extraction was core-only; Info, Setup and Ribbon add parent-loaded hardware/settings contracts
 and the response curve adds line transport. See
-[ARCH](../ARCH.md) for the current source API, required restart, and unchanged installed-build status.
+[ARCH](../ARCH.md) for the current source API, required restart, and scoped installed-build status.
 
 ## Next migration boundary
 
 The [UI/editing handoff](migrations/ui-and-editing-handoff.md) remains the checklist. Info's complete
 action/feedback slice now lives in core, with the subscribed hardware tuple described
-in [ARCH](../ARCH.md#core-owned-pages-and-working-contract). The tuple does not guarantee physical
+in [ARCH](../ARCH.md#pages-and-input). The tuple does not guarantee physical
 connection or recover values discarded by the existing hardware parser. Setup and Ribbon settings
 now consume shared components too. Their offline cutover does not migrate the remaining physical
 Ribbon behavior, Scales/Scale Layout, Repeat or User. Fixed Length additionally depends on Session create/launch/overdub

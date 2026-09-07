@@ -193,7 +193,8 @@ class ControllerSettingsHostTest
             final ISendBank bank = proxy (ISendBank.class, (method, args) -> switch (method) { case "getPageSize" -> 12; case "getScrollPosition" -> this.offset; case "getItem" -> sends.get ((Integer) args[0]); default -> null; });
             final ICursorTrack cursor = proxy (ICursorTrack.class, (method, args) -> switch (method) { case "doesExist" -> this.exists; case "getChannelID" -> this.channel; case "getSendBank" -> bank; default -> null; });
             final IProject project = proxy (IProject.class, (method, args) -> "getIdentity".equals (method) ? "project" : null);
-            final IModel model = proxy (IModel.class, (method, args) -> switch (method) { case "getCursorTrack" -> cursor; case "getProject" -> project; default -> null; });
+            final de.mossgrabers.framework.daw.ITransport transport = proxy (de.mossgrabers.framework.daw.ITransport.class, (method, args) -> "getQuartersPerMeasure".equals (method) ? 4 : null);
+            final IModel model = proxy (IModel.class, (method, args) -> switch (method) { case "getCursorTrack" -> cursor; case "getProject" -> project; case "getTransport" -> transport; default -> null; });
             final ModeManager modes = new ModeManager ();
             modes.register (Modes.VOLUME, proxy (IMode.class, (method, args) -> null));
             modes.register (Modes.PAN, proxy (IMode.class, (method, args) -> null));

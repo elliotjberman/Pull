@@ -1,6 +1,7 @@
 // (c) 2026
 // Licensed under LGPLv3 - http://www.gnu.org/licenses/lgpl-3.0.txt
 package de.mossgrabers.pull.core.runtime.view;
+import de.mossgrabers.pull.core.view.RoutedWorkspace;
 
 import de.mossgrabers.pull.core.api.*;
 import de.mossgrabers.pull.core.api.effect.*;
@@ -46,24 +47,16 @@ class SendMixerControlsViewTest
     }
 
     @Test
-    void absentSendStillConsumesBothModifiersAndAutomationReleaseSurvivesPageDeparture ()
+    void absentSendStillConsumesModifiersAndCancellationStopsAutomationWithoutAReleaseAction ()
     {
         final Fixture f = new Fixture (0);
         f.missing.add (0);
         f.writing = true;
         f.pressed = Set.of (DELETE, SHIFT, SELECT);
-        final var router = new de.mossgrabers.pull.core.view.InputGestureRouter ();
-        f.touched.add (knob (0));
-        final var begin = router.capture (f.input (knob (0), InputKind.TOUCH, InputPhase.BEGIN, 127), f.workspace);
-        assertEquals (List.of (new ConsumeControllerButtonEffect (DELETE), new ConsumeControllerButtonEffect (SELECT)), router.dispatch (begin, f.snapshot ()));
-        router.finish (begin, f.workspace);
-        final var next = CompiledWorkspace.compile ("replacement-page", List.of ());
-        router.transition (f.workspace, next);
-        next.start (f.snapshot ());
-        f.touched.clear ();
-        final var end = router.capture (f.input (knob (0), InputKind.TOUCH, InputPhase.END, 0), next);
-        assertEquals (List.of (new SetAutomationWriteEffect ("project-a", false)), router.dispatch (end, f.snapshot ()));
-        router.finish (end, next);
+        assertEquals (List.of (new ConsumeControllerButtonEffect (DELETE), new ConsumeControllerButtonEffect (SELECT)), f.touch (0, InputPhase.BEGIN).effects ());
+        final var cancelled = f.workspace.activate (CompiledWorkspace.compile ("replacement-page", List.of ()), f.snapshot ());
+        assertEquals (List.of (new SetAutomationWriteEffect ("project-a", false)), cancelled.effects ());
+        assertTrue (f.touch (0, InputPhase.END).effects ().isEmpty ());
     }
 
     @Test
@@ -168,9 +161,9 @@ class SendMixerControlsViewTest
     {
         private final PageNavigation pages = PageNavigation.defaults ();
         private final int sendIndex;
-        private final ParameterTouchSession session = new ParameterTouchSession ();
+
         private final GlobalMixerControlsView view;
-        private final CompiledWorkspace workspace;
+        private final RoutedWorkspace workspace;
         private final Set<Integer> missing = new HashSet<> ();
         private final Set<ControlId> touched = new HashSet<> ();
         private Set<ControlId> pressed = Set.of ();
@@ -186,9 +179,9 @@ class SendMixerControlsViewTest
         private Fixture (final int sendIndex)
         {
             this.sendIndex = sendIndex;
-            this.view = GlobalMixerControlsView.send (sendIndex, this.session, this.pages);
+            this.view = GlobalMixerControlsView.send (sendIndex, this.pages);
             this.pages.select (this.pages.resolve ("SEND" + (sendIndex + 1)));
-            this.workspace = CompiledWorkspace.compile ("send", List.of (this.view, new CurrentTrackFooterView (new ButtonGestureConsumption (Set.of (PushControlIds.button ("RECORD"))), new SessionStopGesture (), this.pages)));
+            this.workspace = new RoutedWorkspace (CompiledWorkspace.compile ("send", List.of (this.view, new CurrentTrackFooterView (new ButtonGestureConsumption (Set.of (PushControlIds.button ("RECORD"))), new SessionStopGesture (), this.pages))));
             this.workspace.start (this.snapshot ());
         }
         private ParameterTargetRef target (final int track) { return new ParameterTargetRef (ParameterTargetKind.LIVE, "send-" + this.sendIndex + "-track-" + track, this.targetEpoch); }
@@ -208,7 +201,7 @@ class SendMixerControlsViewTest
             }
             final var bank = new CurrentTrackBankSnapshot (1, "main", 0, tracks, "track-0", false, 0, false);
             final var settings = new ControllerSettingsSnapshot (true, true, "SEND" + (this.sendIndex + 1), this.menuOffset, new CursorSendBankSnapshot (1, "cursor", 0, IntStream.range (0, 8).mapToObj (index -> new CursorSendBankSnapshot.Send (true, "FX " + index)).toList ()));
-            final var bridge = new ControllerBridgeSnapshot (e.transport (), e.selectedTrack (), e.sessionBank (), new ControllerLayoutSnapshot (this.layoutGeneration, "PLAY", "SEND" + (this.sendIndex + 1), false, false, 0, GridPressureConfiguration.OFF), e.noteView (), e.noteRepeat (), e.drum (), new ParameterBridgeSnapshot (slots, Map.of ()), e.controllerMappingFeedback (), e.master (), new ProjectSnapshot (true, "project-a", "A", true, false, false, false), new AutomationSnapshot ("project-a", this.writing, true), new EncoderConfigurationSnapshot (true, 1024, 10, 0, -90), bank, e.transportSettings (), settings);
+            final var bridge = new ControllerBridgeSnapshot (e.transport (), e.selectedTrack (), e.sessionBank (), new ControllerLayoutSnapshot (this.layoutGeneration, "PLAY", "SEND" + (this.sendIndex + 1), false, false, 0, GridPressureConfiguration.OFF), e.noteView (), e.noteRepeat (), e.drum (), new ParameterBridgeSnapshot (slots, Map.of (), java.util.Set.of ()), e.controllerMappingFeedback (), e.master (), new ProjectSnapshot (true, "project-a", "A", true, false, false, false), new AutomationSnapshot ("project-a", this.writing, true), new EncoderConfigurationSnapshot (true, 1024, 10, 0, -90), bank, e.transportSettings (), settings);
             return new ControllerSnapshot (this.sequence, this.sequence, new PullCoreProvider ().descriptor ().requiredCapabilities (), bridge, ClipCatalogSnapshot.empty (), Map.of (), Map.of (), Optional.empty (), this.pressed, this.touched);
         }
     }

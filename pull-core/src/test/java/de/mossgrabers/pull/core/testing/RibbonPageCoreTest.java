@@ -178,6 +178,25 @@ class RibbonPageCoreTest
     }
 
     @Test
+    void settingsLossCancelsHeldChoiceAndKnobUntilFreshGestures ()
+    {
+        final var host = ribbon (state (0, 74, 0), ENCODERS);
+        edge (host, "ROW1_2", true);
+        host.controllerTouch (knob (1), true);
+        observe (host, RibbonSettingsSnapshot.empty ());
+        observe (host, state (0, 74, 0));
+        edge (host, "ROW1_2", false);
+        host.controllerMotion (knob (1), InputKind.RELATIVE, 1);
+        host.controllerTouch (knob (1), false);
+        assertTrue (writes (host).isEmpty ());
+        click (host, "ROW1_2");
+        host.controllerTouch (knob (1), true);
+        host.controllerMotion (knob (1), InputKind.RELATIVE, 1);
+        assertEquals (List.of (new SetControllerIntegerSettingEffect (RIBBON_FUNCTION, 1), new SetControllerIntegerSettingEffect (RIBBON_CC, 75)), writes (host));
+        host.controllerTouch (knob (1), false);
+    }
+
+    @Test
     void unavailableSettingsCannotAcquireAChoiceAndMissingCalibrationBlocksOnlyTurns ()
     {
         final var host = ribbon (RibbonSettingsSnapshot.empty (), ENCODERS);
@@ -216,7 +235,7 @@ class RibbonPageCoreTest
 
     private static ControllerBridgeSnapshot bridgeWithTempo (final double value)
     {
-        return bridge (state (0, 74, 0), ENCODERS, new ParameterBridgeSnapshot (Map.of (ParameterSlot.TEMPO, new ParameterTargetSnapshot (TEMPO, value, 0)), Map.of ()));
+        return bridge (state (0, 74, 0), ENCODERS, new ParameterBridgeSnapshot (Map.of (ParameterSlot.TEMPO, new ParameterTargetSnapshot (TEMPO, value, 0)), Map.of (), Set.of ()));
     }
 
     private static ControllerBridgeSnapshot bridge (final RibbonSettingsSnapshot ribbon, final EncoderConfigurationSnapshot encoders, final ParameterBridgeSnapshot parameters)

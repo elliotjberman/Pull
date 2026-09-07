@@ -11,6 +11,7 @@ import de.mossgrabers.framework.featuregroup.ModeManager;
 import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.pull.core.api.ControllerHardwareSettingsSnapshot;
 import de.mossgrabers.pull.core.api.ControllerSettingsSnapshot;
+import de.mossgrabers.pull.core.api.SessionSettingsSnapshot;
 import de.mossgrabers.pull.core.api.CursorSendBankSnapshot;
 import de.mossgrabers.pull.core.api.RibbonSettingsSnapshot;
 import de.mossgrabers.pull.core.api.effect.SetControllerBooleanSettingEffect;
@@ -43,8 +44,9 @@ final class ControllerSettingsHost
 
     ControllerSettingsSnapshot snapshot ()
     {
+        final SessionSettingsSnapshot session = new SessionSettingsSnapshot (true, this.configuration.isSelectClipOnLaunch (), this.configuration.getActionForRecArmedPad (), this.configuration.getNewClipLenghthInBeats (this.model.getTransport ().getQuartersPerMeasure ()), this.configuration.isDrawRecordStripe ());
         final RibbonSettingsSnapshot ribbon = new RibbonSettingsSnapshot (true, this.configuration.getRibbonMode (), this.configuration.getRibbonModeCCVal (), this.configuration.getRibbonNoteRepeat ());
-        return new ControllerSettingsSnapshot (true, this.configuration.isEnableVUMeters (), this.configuration.getGlobalMixMode ().name (), this.configuration.getMixSendOffset (), this.cursorSends (), this.configuration.isAccentActive (), this.configuration.getFixedAccentValue (), this.hardwareSettings (), ribbon);
+        return new ControllerSettingsSnapshot (true, this.configuration.isEnableVUMeters (), this.configuration.getGlobalMixMode ().name (), this.configuration.getMixSendOffset (), this.cursorSends (), this.configuration.isAccentActive (), this.configuration.getFixedAccentValue (), session, this.hardwareSettings (), ribbon);
     }
 
     private ControllerHardwareSettingsSnapshot hardwareSettings ()

@@ -297,10 +297,75 @@ class PushDebugInputHostTest
             "push.pad.5:POLY_PRESSURE:CHANGE:91",
             "push.pad.5:POLY_PRESSURE:CHANGE:0",
             "push.pad.5:PAD:END:0"), this.surface.events);
-        assertEquals (this.surface.events, this.surface.noteInputEvents);
+        assertEquals (List.of (
+            "push.pad.5:PAD:BEGIN:100", "push.pad.5:POLY_PRESSURE:CHANGE:91",
+            "push.pad.5:PAD:END:0", "push.pad.5:POLY_PRESSURE:CHANGE:0"), this.surface.noteInputEvents);
         assertTrue (this.surface.active.isEmpty ());
         assertFalse (this.admission.debugActive);
         assertEquals (1, this.admission.completionCount);
+    }
+
+
+    @Test
+    void midiNeutralizationRetiresRawResourcesWithoutReleasingBrowserGestures () throws IOException
+    {
+        this.request (this.host, "knob-down", KNOB, InputKind.TOUCH, "BEGIN", 127);
+        this.host.tick ();
+        this.request (this.host, "pad-down", PAD, InputKind.PAD, "BEGIN", 100);
+        this.host.tick ();
+        this.request (this.host, "pressure", PAD, InputKind.POLY_PRESSURE, "CHANGE", 91);
+        this.host.tick ();
+        final List<String> physicalBefore = List.copyOf (this.surface.events);
+
+        this.host.neutralizeNoteInput ();
+        this.host.neutralizeNoteInput ();
+
+        assertEquals (physicalBefore, this.surface.events, "target loss does not manufacture physical input");
+        final List<String> retiredMidi = List.of (
+            "push.pad.5:PAD:BEGIN:100", "push.pad.5:POLY_PRESSURE:CHANGE:91",
+            "push.pad.5:POLY_PRESSURE:CHANGE:0", "push.pad.5:PAD:END:0");
+        assertEquals (retiredMidi, this.surface.noteInputEvents);
+        for (final InputKind kind: List.of (InputKind.TOUCH, InputKind.PAD))
+        {
+            this.request (this.host, "keep-" + kind, kind == InputKind.TOUCH ? KNOB : PAD, kind, "KEEPALIVE", 0);
+            this.host.tick ();
+            assertTrue (this.status ().contains ("\"state\":\"APPLIED\""));
+        }
+        this.request (this.host, "tail-turn", KNOB, InputKind.RELATIVE, "CHANGE", 2);
+        this.host.tick ();
+        this.request (this.host, "tail-pressure", PAD, InputKind.POLY_PRESSURE, "CHANGE", 52);
+        this.host.tick ();
+        assertEquals (retiredMidi, this.surface.noteInputEvents, "held raw pressure cannot retarget after neutralization");
+        assertTrue (this.surface.events.contains ("push.continuous.knob1:RELATIVE:CHANGE:2"));
+        assertTrue (this.surface.events.contains ("push.pad.5:POLY_PRESSURE:CHANGE:52"), "core must receive and cancel the real physical tail");
+        this.request (this.host, "pad-up", PAD, InputKind.PAD, "END", 0);
+        this.host.tick ();
+        this.request (this.host, "knob-up", KNOB, InputKind.TOUCH, "END", 0);
+        this.host.tick ();
+        assertEquals (retiredMidi, this.surface.noteInputEvents, "physical END cannot repeat the retired native note-off");
+        assertTrue (this.surface.active.isEmpty ());
+        assertFalse (this.admission.debugActive);
+
+        this.request (this.host, "fresh-pad-down", PAD, InputKind.PAD, "BEGIN", 80);
+        this.host.tick ();
+        this.host.cancelActive ("core invalidated");
+        assertEquals (List.of ("push.pad.5:PAD:BEGIN:80", "push.pad.5:PAD:END:0"), this.surface.noteInputEvents.subList (4, 6));
+        assertTrue (this.surface.active.isEmpty (), "terminal invalidation still releases the physical edge");
+    }
+
+
+    @Test
+    void targetLossDuringPadBeginCannotSubmitANoteAfterNeutralization () throws IOException
+    {
+        this.surface.onBegin = this.host::neutralizeNoteInput;
+        this.request (this.host, "pad-down", PAD, InputKind.PAD, "BEGIN", 100);
+        this.host.tick ();
+        assertTrue (this.surface.isActive (PAD, InputKind.PAD));
+        assertTrue (this.surface.noteInputEvents.isEmpty (), "synchronous target loss preceded the raw note-on");
+        this.request (this.host, "pad-up", PAD, InputKind.PAD, "END", 0);
+        this.host.tick ();
+        assertTrue (this.surface.noteInputEvents.isEmpty (), "there was no raw note-on to clean up");
+        assertFalse (this.admission.debugActive);
     }
 
 
@@ -517,6 +582,7 @@ class PushDebugInputHostTest
         private final Set<String> active = new HashSet<> ();
         private ControlId failNextEnd;
         private Runnable onNeutralPressure = () -> { };
+        private Runnable onBegin = () -> { };
 
 
         @Override
@@ -545,6 +611,8 @@ class PushDebugInputHostTest
             else if (phase == InputPhase.END)
                 this.active.remove (address);
             this.events.add (address + ":" + phase.name () + ":" + value);
+            if (phase == InputPhase.BEGIN)
+                this.onBegin.run ();
             if (kind == InputKind.POLY_PRESSURE && value == 0)
                 this.onNeutralPressure.run ();
             // Hardware state and routed ownership are updated before a downstream callback can fail.

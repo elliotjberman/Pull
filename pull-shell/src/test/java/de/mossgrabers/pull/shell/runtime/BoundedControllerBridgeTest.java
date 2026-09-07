@@ -202,7 +202,8 @@ class BoundedControllerBridgeTest
         for (int index = 1; index <= 8; index++)
             fixture.bridge.apply (fixture.bridge.prepare (new ConsumeControllerButtonEffect (PushControlIds.button ("ROW1_" + index))));
 
-        assertThrows (IllegalArgumentException.class, () -> fixture.bridge.prepare (new ConsumeControllerButtonEffect (PushControlIds.button ("BROWSE"))));
+        fixture.bridge.apply (fixture.bridge.prepare (new ConsumeControllerButtonEffect (PushControlIds.button ("BROWSE"))));
+        fixture.bridge.apply (fixture.bridge.prepare (new ConsumeControllerButtonEffect (PushControlIds.button ("STOP_CLIP"))));
         assertThrows (IllegalArgumentException.class, () -> fixture.bridge.prepare (new ConsumeControllerButtonEffect (PushControlIds.button ("ROW2_1"))));
     }
 
@@ -221,6 +222,49 @@ class BoundedControllerBridgeTest
         assertFalse (fixture.bridge.supportsPageLight (page, PushControlIds.button ("PLAY")), "page projection cannot acquire controller-level output");
         assertThrows (IllegalArgumentException.class, () -> fixture.surface.getModeManager ().prepare (
             pageState (2, de.mossgrabers.pull.core.api.ControllerPageRef.legacy ("DEVICE_PARAMS"), 0)));
+    }
+
+
+    @Test
+    void pendingMusicalWorkspaceKeepsSessionGenerationUntilPhysicalReleaseAdmitsTheBank ()
+    {
+        final BridgeFixture fixture = new BridgeFixture (true, new MutableMixWindow ());
+        fixture.surface.getViewManager ().register (Views.SESSION, relaxedProxy (IView.class));
+        fixture.surface.getViewManager ().register (Views.WORKSPACE, (IView) Proxy.newProxyInstance (IView.class.getClassLoader (),
+            new Class<?>[] { IView.class, de.mossgrabers.controller.ableton.push.workspace.WorkspaceFacetAdapter.class },
+            (ignored, method, args) -> relaxedValue (method.getReturnType ())));
+        final var fullShape = new SessionBankShape (8, 8);
+        final var upperShape = new SessionBankShape (8, 4);
+        final var inactive = de.mossgrabers.pull.core.api.DesiredNotePerformance.inactive ();
+        final var full = new de.mossgrabers.pull.core.api.DesiredControllerState (
+            new de.mossgrabers.pull.core.api.DesiredControllerWorkspace ("Session", Set.of (de.mossgrabers.pull.core.api.ControllerViewFacet.SESSION_GRID_FULL), fullShape), inactive);
+        fixture.bridge.applyControllerState (fixture.bridge.prepareControllerState (full));
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.SESSION_BANK), DesiredParameterBanks.empty ());
+        final long originalGeneration = fixture.bridge.snapshot ().sessionBank ().generation ();
+
+        final List<Integer> keys = new ArrayList<> (de.mossgrabers.pull.core.api.DesiredNoteInputTranslation.silent ().keyTranslation ());
+        keys.set (36, Integer.valueOf (48));
+        final var translation = new de.mossgrabers.pull.core.api.DesiredNoteInputTranslation (true, keys, de.mossgrabers.pull.core.api.DesiredNoteInputTranslation.silent ().velocityTranslation ());
+        final var upper = new de.mossgrabers.pull.core.api.DesiredControllerState (
+            new de.mossgrabers.pull.core.api.DesiredControllerWorkspace ("Upper", Set.of (de.mossgrabers.pull.core.api.ControllerViewFacet.SESSION_CLIP_GRID_UPPER, de.mossgrabers.pull.core.api.ControllerViewFacet.DRUM_CONTROLLER_LOWER), upperShape),
+            new de.mossgrabers.pull.core.api.DesiredNotePerformance (inactive.layout (), de.mossgrabers.pull.core.api.DesiredNoteInputRoute.selectedTrack (fixture.selected.getGeneration (), fixture.selected.getChannelID ()), translation));
+        final var idle = new java.util.concurrent.atomic.AtomicBoolean (false);
+        fixture.bridge.setNoteInputLifecycleIdle (idle::get);
+        for (int tick = 2; tick <= 4; tick++)
+        {
+            fixture.bridge.applyControllerState (fixture.bridge.prepareControllerState (upper));
+            fixture.bridge.refresh (tick, subscriptions (BridgeSubscription.SESSION_BANK), DesiredParameterBanks.empty ());
+            assertEquals (fullShape, fixture.bridge.snapshot ().sessionBank ().shape ());
+            assertEquals (originalGeneration, fixture.bridge.snapshot ().sessionBank ().generation (), "a queued translation change cannot invalidate an unchanged bank on every replay");
+        }
+
+        idle.set (true);
+        fixture.bridge.refresh (5, subscriptions (BridgeSubscription.SESSION_BANK), DesiredParameterBanks.empty ());
+        assertEquals (upperShape, fixture.bridge.snapshot ().sessionBank ().shape ());
+        assertEquals (originalGeneration + 1, fixture.bridge.snapshot ().sessionBank ().generation ());
+        fixture.bridge.applyControllerState (fixture.bridge.prepareControllerState (upper));
+        fixture.bridge.refresh (6, subscriptions (BridgeSubscription.SESSION_BANK), DesiredParameterBanks.empty ());
+        assertEquals (originalGeneration + 1, fixture.bridge.snapshot ().sessionBank ().generation ());
     }
 
 
@@ -993,18 +1037,32 @@ class BoundedControllerBridgeTest
 
 
     @Test
-    void neutralizesStatefulMidiWhenTheSelectedTargetChanges ()
+    void selectedTargetLossNeutralizesMidiWhileOnlyTerminalBoundariesCancelDebugEdges ()
     {
-        final BridgeFixture fixture = new BridgeFixture ();
-        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.SELECTED_TRACK), DesiredParameterBanks.empty ());
-        applyMidi (fixture, 0xB1, 1, 127);
+        for (final String terminal: List.of ("invalidate", "abandon", "generation"))
+        {
+            final BridgeFixture fixture = new BridgeFixture ();
+            fixture.surface.getViewManager ().register (Views.SESSION, relaxedProxy (IView.class));
+            final List<String> debugLifecycle = new ArrayList<> ();
+            fixture.bridge.setInputLifecycleCleanup (() -> debugLifecycle.add ("edges:end"), () -> debugLifecycle.add ("midi:neutral"));
+            fixture.bridge.refresh (1, subscriptions (BridgeSubscription.SELECTED_TRACK), DesiredParameterBanks.empty ());
+            fixture.bridge.activateCoreGeneration (1);
+            applyMidi (fixture, 0xB1, 1, 127);
 
-        fixture.selected.switchTo (2, "track-b");
-        fixture.bridge.refresh (2, DesiredBridgeSubscriptions.empty (), DesiredParameterBanks.empty ());
+            fixture.selected.switchTo (2, "track-b");
+            fixture.bridge.refresh (2, DesiredBridgeSubscriptions.empty (), DesiredParameterBanks.empty ());
 
-        assertEquals (List.of (
-            new MidiMessage (0xB1, 1, 127),
-            new MidiMessage (0xB1, 1, 0)), fixture.noteInputMidiMessages);
+            assertEquals (List.of ("midi:neutral"), debugLifecycle, "selected-target loss cannot synthesize a physical END");
+            assertEquals (List.of (new MidiMessage (0xB1, 1, 127), new MidiMessage (0xB1, 1, 0)), fixture.noteInputMidiMessages);
+            debugLifecycle.clear ();
+            switch (terminal)
+            {
+                case "invalidate" -> fixture.bridge.invalidate ();
+                case "abandon" -> fixture.bridge.abandonActiveCore ();
+                default -> fixture.bridge.activateCoreGeneration (2);
+            }
+            assertEquals (List.of ("edges:end", "midi:neutral"), debugLifecycle, terminal);
+        }
     }
 
 
@@ -1220,7 +1278,7 @@ class BoundedControllerBridgeTest
         {
             final var base = this.fixture.bridge.snapshot ();
             final var bridge = new ControllerBridgeSnapshot (base.transport (), base.selectedTrack (), base.sessionBank (), base.layout (), base.noteView (), base.noteRepeat (), base.drum (),
-                new de.mossgrabers.pull.core.api.ParameterBridgeSnapshot (Map.of (ParameterSlot.TEMPO, this.parameter ()), Map.of ()), base.controllerMappingFeedback (), base.master (), base.project (), base.automation (), base.encoderConfiguration (), base.currentTrackBank (), base.transportSettings (), base.controllerSettings (), base.applicationUi (), base.controllerPages ());
+                new de.mossgrabers.pull.core.api.ParameterBridgeSnapshot (Map.of (ParameterSlot.TEMPO, this.parameter ()), Map.of (), Set.of ()), base.controllerMappingFeedback (), base.master (), base.project (), base.automation (), base.encoderConfiguration (), base.currentTrackBank (), base.transportSettings (), base.controllerSettings (), base.applicationUi (), base.controllerPages ());
             return new de.mossgrabers.pull.core.api.ControllerSnapshot (this.revision, this.revision, this.capabilities, bridge, de.mossgrabers.pull.core.api.ClipCatalogSnapshot.empty (), Map.of (), Map.of (), java.util.Optional.empty (), this.pressed, Set.of ());
         }
         @Override public PreparedCoreResult prepare (final de.mossgrabers.pull.core.api.CoreResult result)
@@ -1308,7 +1366,7 @@ class BoundedControllerBridgeTest
             final de.mossgrabers.framework.daw.IArranger arrangerProxy = relaxedProxy (de.mossgrabers.framework.daw.IArranger.class);
             final de.mossgrabers.framework.daw.IMixer mixerProxy = relaxedProxy (de.mossgrabers.framework.daw.IMixer.class);
             final ITrackBank fullBank = mixWindow == null ? relaxedProxy (ITrackBank.class) : mixWindow.bank;
-            final ITrackBank upperBank = relaxedProxy (ITrackBank.class);
+            final ITrackBank upperBank = mixWindow == null ? relaxedProxy (ITrackBank.class) : new MutableMixWindow ().bank;
             final ITrackBank effectBank = relaxedProxy (ITrackBank.class);
             final var browser = proxy (de.mossgrabers.framework.daw.IBrowser.class, (ignored, method, arguments) -> {
                 if (method.getName ().equals ("isActive")) return Boolean.valueOf (browserInitiallyActive);

@@ -20,6 +20,7 @@ import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.view.ControllerView;
+import de.mossgrabers.pull.core.view.InputTarget;
 import de.mossgrabers.pull.core.view.SurfaceArea;
 import de.mossgrabers.pull.core.view.SurfaceClaim;
 import de.mossgrabers.pull.core.view.ViewOutput;
@@ -44,7 +45,6 @@ public final class TapTempoView implements ControllerView
         new SurfaceClaim (SurfaceArea.TAP_TEMPO_BUTTON, SurfaceClaim.Kind.OUTPUT),
         new SurfaceClaim (SurfaceArea.SHIFT_MODIFIER, SurfaceClaim.Kind.OBSERVE_INPUT)), Set.of ());
     private final AuthoritativeBooleanToggle<String> metronome;
-    private boolean held;
     private String noticeProject;
 
     public TapTempoView () { this (new AuthoritativeBooleanToggle<> ()); }
@@ -75,6 +75,13 @@ public final class TapTempoView implements ControllerView
 
 
     @Override
+    public InputTarget inputTarget (final ControlId control, final InputKind kind, final ControllerSnapshot snapshot)
+    {
+        return TAP.equals (control) ? new InputTarget.Context (control, "project", snapshot.bridge ().project ().projectIdentity (), 0)
+            : ControllerView.super.inputTarget (control, kind, snapshot);
+    }
+
+    @Override
     public List<CoreEffect> handle (final CoreEvent event, final ControllerSnapshot snapshot)
     {
         final boolean shifted = snapshot.pressedControls ().contains (SHIFT);
@@ -82,16 +89,8 @@ public final class TapTempoView implements ControllerView
         boolean toggle = false;
         if (event instanceof final ControllerInputEvent input && TAP.equals (input.controlId ()) && input.kind () == InputKind.BUTTON)
         {
-            if (input.phase () == InputPhase.BEGIN && !this.held)
-            {
-                this.held = true;
-                tap = !shifted;
-            }
-            else if (input.phase () == InputPhase.END)
-            {
-                toggle = this.held && shifted;
-                this.held = false;
-            }
+            tap = input.phase () == InputPhase.BEGIN && !shifted;
+            toggle = input.phase () == InputPhase.END && shifted;
         }
         final var project = snapshot.bridge ().project ();
         final var transport = snapshot.bridge ().transport ();

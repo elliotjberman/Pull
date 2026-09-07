@@ -5,10 +5,11 @@ package de.mossgrabers.pull.core.api;
 import java.util.Objects;
 
 /** Observed controller preferences and existing model-cursor send metadata, sampled only on request. */
-public record ControllerSettingsSnapshot (boolean available, boolean vuMetersEnabled, String globalMixMode, int mixSendOffset, CursorSendBankSnapshot cursorSends, boolean accentEnabled, int accentVelocity, ControllerHardwareSettingsSnapshot hardware, RibbonSettingsSnapshot ribbon)
+public record ControllerSettingsSnapshot (boolean available, boolean vuMetersEnabled, String globalMixMode, int mixSendOffset, CursorSendBankSnapshot cursorSends, boolean accentEnabled, int accentVelocity, SessionSettingsSnapshot session, ControllerHardwareSettingsSnapshot hardware, RibbonSettingsSnapshot ribbon)
 {
     public ControllerSettingsSnapshot
     {
+        session = Objects.requireNonNull (session, "session");
         globalMixMode = Objects.requireNonNull (globalMixMode, "globalMixMode");
         cursorSends = Objects.requireNonNull (cursorSends, "cursorSends");
         hardware = Objects.requireNonNull (hardware, "hardware");
@@ -19,7 +20,17 @@ public record ControllerSettingsSnapshot (boolean available, boolean vuMetersEna
 
     public ControllerSettingsSnapshot (final boolean available, final boolean vuMetersEnabled, final String globalMixMode, final int mixSendOffset, final CursorSendBankSnapshot cursorSends, final boolean accentEnabled, final int accentVelocity)
     {
-        this (available, vuMetersEnabled, globalMixMode, mixSendOffset, cursorSends, accentEnabled, accentVelocity, ControllerHardwareSettingsSnapshot.empty (), RibbonSettingsSnapshot.empty ());
+        this (available, vuMetersEnabled, globalMixMode, mixSendOffset, cursorSends, accentEnabled, accentVelocity, SessionSettingsSnapshot.empty (), ControllerHardwareSettingsSnapshot.empty (), RibbonSettingsSnapshot.empty ());
+    }
+
+    public ControllerSettingsSnapshot (final boolean available, final boolean vuMetersEnabled, final String globalMixMode, final int mixSendOffset, final CursorSendBankSnapshot cursorSends, final boolean accentEnabled, final int accentVelocity, final SessionSettingsSnapshot session)
+    {
+        this (available, vuMetersEnabled, globalMixMode, mixSendOffset, cursorSends, accentEnabled, accentVelocity, session, ControllerHardwareSettingsSnapshot.empty (), RibbonSettingsSnapshot.empty ());
+    }
+
+    public ControllerSettingsSnapshot (final boolean available, final boolean vuMetersEnabled, final String globalMixMode, final int mixSendOffset, final CursorSendBankSnapshot cursorSends, final boolean accentEnabled, final int accentVelocity, final ControllerHardwareSettingsSnapshot hardware, final RibbonSettingsSnapshot ribbon)
+    {
+        this (available, vuMetersEnabled, globalMixMode, mixSendOffset, cursorSends, accentEnabled, accentVelocity, SessionSettingsSnapshot.empty (), hardware, ribbon);
     }
 
     /** Compatibility constructor for observations without Accent settings. */

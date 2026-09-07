@@ -21,6 +21,20 @@ import de.mossgrabers.framework.usb.UsbException;
  */
 public interface IHost
 {
+    /** Run parent-owned cleanup before a project structure or visible bank mutation. */
+    default void beforeProjectStructureMutation ()
+    {
+        // Hosts without mutable launcher resources need no cleanup.
+    }
+
+
+    /** Install the extension's single parent-owned structural mutation guard during initialization. */
+    default void setProjectStructureMutationGuard (final Runnable guard)
+    {
+        throw new UnsupportedOperationException ("Project structure mutation guard is unavailable");
+    }
+
+
     /**
      * Get the hosts name.
      *

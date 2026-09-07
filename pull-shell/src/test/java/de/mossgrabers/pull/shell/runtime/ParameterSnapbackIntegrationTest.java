@@ -235,7 +235,7 @@ class ParameterSnapbackIntegrationTest
                 this.retained.forEach ( (target, lease) -> baselines.put (target, ((Lease) lease).baseline));
                 parameters = new ParameterBridgeSnapshot (
                     Map.of (ParameterSlot.active (0), this.targetSnapshot ()),
-                    baselines);
+                    baselines, java.util.Set.of ());
             }
             else
                 parameters = ParameterBridgeSnapshot.empty ();

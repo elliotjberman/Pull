@@ -46,7 +46,15 @@ public class SceneBankImpl extends AbstractItemBankImpl<SceneBank, IScene> imple
 
         final SceneBank sb = this.bank.get ();
         for (int i = 0; i < this.getPageSize (); i++)
-            this.items.add (new SceneImpl (sb.getItemAt (i), i));
+            this.items.add (new SceneImpl (host, sb.getItemAt (i), i));
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    protected void beforeWindowMutation ()
+    {
+        this.host.beforeProjectStructureMutation ();
     }
 
 

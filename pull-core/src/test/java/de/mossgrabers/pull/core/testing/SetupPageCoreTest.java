@@ -170,6 +170,25 @@ class SetupPageCoreTest
     }
 
     @Test
+    void settingsLossCancelsHeldTouchUntilAFreshGesture ()
+    {
+        final var host = setup (HARDWARE, ENCODERS);
+        final var untouched = host.effects ().desiredOutput ().display ();
+        host.controllerTouch (knob (2), true);
+        assertNotEquals (untouched, host.effects ().desiredOutput ().display ());
+        observe (host, ControllerHardwareSettingsSnapshot.empty ());
+        observe (host, HARDWARE);
+        assertEquals (untouched, host.effects ().desiredOutput ().display ());
+        turn (host, 2, 1);
+        host.controllerTouch (knob (2), false);
+        assertTrue (writes (host).isEmpty ());
+        host.controllerTouch (knob (2), true);
+        turn (host, 2, 1);
+        assertEquals (List.of (new SetControllerIntegerSettingEffect (SetControllerIntegerSettingEffect.Setting.DISPLAY_BRIGHTNESS, 41)), writes (host));
+        host.controllerTouch (knob (2), false);
+    }
+
+    @Test
     void unavailableReadBackPreventsWritesButKeepsTabsAndDeleteConsumptionAvailable ()
     {
         final var host = setup (ControllerHardwareSettingsSnapshot.empty (), ENCODERS);

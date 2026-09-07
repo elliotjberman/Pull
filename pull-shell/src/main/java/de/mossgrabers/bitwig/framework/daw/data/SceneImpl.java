@@ -8,6 +8,7 @@ import com.bitwig.extension.controller.api.Scene;
 import com.bitwig.extension.controller.api.SettableColorValue;
 
 import de.mossgrabers.framework.controller.color.ColorEx;
+import de.mossgrabers.framework.daw.IHost;
 import de.mossgrabers.framework.daw.data.AbstractItemImpl;
 import de.mossgrabers.framework.daw.data.IScene;
 import de.mossgrabers.framework.observer.IValueObserver;
@@ -20,19 +21,22 @@ import de.mossgrabers.framework.observer.IValueObserver;
  */
 public class SceneImpl extends AbstractItemImpl implements IScene
 {
+    private final IHost host;
     private final Scene scene;
 
 
     /**
      * Constructor.
      *
+     * @param host The host
      * @param scene The scene
      * @param index The index of the scene
      */
-    public SceneImpl (final Scene scene, final int index)
+    public SceneImpl (final IHost host, final Scene scene, final int index)
     {
         super (index);
 
+        this.host = host;
         this.scene = scene;
 
         scene.exists ().markInterested ();
@@ -131,6 +135,7 @@ public class SceneImpl extends AbstractItemImpl implements IScene
     @Override
     public void duplicate ()
     {
+        this.host.beforeProjectStructureMutation ();
         this.scene.nextSceneInsertionPoint ().copySlotsOrScenes (this.scene);
     }
 
@@ -139,6 +144,7 @@ public class SceneImpl extends AbstractItemImpl implements IScene
     @Override
     public void remove ()
     {
+        this.host.beforeProjectStructureMutation ();
         this.scene.deleteObject ();
     }
 

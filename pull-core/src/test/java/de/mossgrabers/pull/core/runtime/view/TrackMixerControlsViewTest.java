@@ -8,6 +8,7 @@ import de.mossgrabers.pull.core.api.event.*;
 import de.mossgrabers.pull.core.api.output.DisplayCommand;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.view.CompiledWorkspace;
+import de.mossgrabers.pull.core.view.RoutedWorkspace;
 import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -142,7 +143,8 @@ class TrackMixerControlsViewTest
     private static ControllerInputEvent touch (final ControlId control, final InputPhase phase) { return new ControllerInputEvent (1, 1, control, InputKind.TOUCH, phase, phase == InputPhase.END ? 0 : 127); }
     private static ControllerInputEvent relative (final ControlId control, final long value) { return new ControllerInputEvent (1, 1, control, InputKind.RELATIVE, InputPhase.UPDATE, value); }
     private static ParameterTargetRef target (final ParameterSlot slot) { return new ParameterTargetRef (ParameterTargetKind.LIVE, slot.bank ().name () + slot.index (), 1); }
-    private static ControllerSnapshot snapshot (final boolean enabled, final int sends, final Set<ControlId> touched, final Set<ControlId> pressed)
+    private long revision;
+    private ControllerSnapshot snapshot (final boolean enabled, final int sends, final Set<ControlId> touched, final Set<ControlId> pressed)
     {
         final Map<ParameterSlot, ParameterTargetSnapshot> parameters = new LinkedHashMap<> ();
         for (final ParameterSlot slot: List.of (ParameterSlot.SELECTED_TRACK_VOLUME, ParameterSlot.SELECTED_TRACK_PAN))
@@ -158,18 +160,20 @@ class TrackMixerControlsViewTest
         for (int index = 1; index < 8; index++) tracks.add (CurrentTrackSnapshot.empty ());
         final CurrentTrackBankSnapshot bank = new CurrentTrackBankSnapshot (1, "main", 0, tracks, "track-a", false, 1, true);
         final ControllerBridgeSnapshot empty = ControllerBridgeSnapshot.empty ();
-        final ControllerBridgeSnapshot bridge = new ControllerBridgeSnapshot (empty.transport (), selected, empty.sessionBank (), empty.layout (), empty.noteView (), empty.noteRepeat (), empty.drum (), new ParameterBridgeSnapshot (parameters, Map.of ()), empty.controllerMappingFeedback (), empty.master (), empty.project (), new AutomationSnapshot ("project-a", false, true), CONFIG, bank);
-        return new ControllerSnapshot (1, 1, new ShellCapabilities (Map.of ()), bridge, ClipCatalogSnapshot.empty (), Map.of (), Map.of (), Optional.empty (), pressed, touched);
+        final ControllerBridgeSnapshot bridge = new ControllerBridgeSnapshot (empty.transport (), selected, empty.sessionBank (), empty.layout (), empty.noteView (), empty.noteRepeat (), empty.drum (), new ParameterBridgeSnapshot (parameters, Map.of (), java.util.Set.of ()), empty.controllerMappingFeedback (), empty.master (), empty.project (), new AutomationSnapshot ("project-a", false, true), CONFIG, bank);
+        return new ControllerSnapshot (++this.revision, this.revision, new ShellCapabilities (Map.of ()), bridge, ClipCatalogSnapshot.empty (), Map.of (), Map.of (), Optional.empty (), pressed, touched);
     }
     private static final class Fixture
     {
         private final TrackMixerPageState state = new TrackMixerPageState ();
-        private final CompiledWorkspace workspace;
-        private Fixture (final boolean normal) { this.workspace = CompiledWorkspace.compile ("Track", List.of (new TrackMixerControlsView (this.state, new ParameterTouchSession (), normal), new TrackSelectionStripView ())); }
+        private final RoutedWorkspace workspace;
+        private Fixture (final boolean normal) { this.workspace = new RoutedWorkspace (CompiledWorkspace.compile ("Track", List.of (new TrackMixerControlsView (this.state, normal), new TrackSelectionStripView ()))); }
         private CoreResult page (final int index, final ControllerSnapshot snapshot)
         {
             final var event = new ControllerInputEvent (1, 1, upper (index), InputKind.BUTTON, InputPhase.BEGIN, 127);
-            return this.workspace.handleAction (this.workspace.resolveAction (event, snapshot), snapshot);
+            final CoreResult result = this.workspace.handle (event, snapshot);
+            this.workspace.handle (new ControllerInputEvent (2, 2, upper (index), InputKind.BUTTON, InputPhase.END, 0), snapshot);
+            return result;
         }
     }
 }

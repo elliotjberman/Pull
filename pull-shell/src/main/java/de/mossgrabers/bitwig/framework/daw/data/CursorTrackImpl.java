@@ -138,6 +138,7 @@ public class CursorTrackImpl extends TrackImpl implements ICursorTrack
         if (position == 0)
             return;
         final Track prevTrack = this.largeTrackBank.getItemAt (position - 1);
+        this.host.beforeProjectStructureMutation ();
         this.track.afterTrackInsertionPoint ().moveTracks (prevTrack);
         prevTrack.selectInEditor ();
     }
@@ -154,6 +155,7 @@ public class CursorTrackImpl extends TrackImpl implements ICursorTrack
         if (position >= NUM_TRACKS_LARGE_BANK - 1)
             return;
         final Track nextTrack = this.largeTrackBank.getItemAt (position + 1);
+        this.host.beforeProjectStructureMutation ();
         this.track.beforeTrackInsertionPoint ().moveTracks (nextTrack);
         nextTrack.selectInEditor ();
     }

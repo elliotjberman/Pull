@@ -18,8 +18,9 @@ import java.util.Objects;
  * @param displayOverlay Temporary complete scene above the current display page
  * @param controllerMappings Physical-to-semantic host-learned action projections
  * @param touchStrip Complete explicitly owned touch-strip output
+ * @param lightBlinks Optional blink state for explicitly owned base lights
  */
-public record DesiredHardwareOutput (Map<ControlId, RgbColor> lights, ControllerDisplayScene display, ControllerPadGridOverlay padGridOverlay, ControllerDisplayOverlay displayOverlay, DesiredControllerMappings controllerMappings, DesiredTouchStrip touchStrip)
+public record DesiredHardwareOutput (Map<ControlId, RgbColor> lights, ControllerDisplayScene display, ControllerPadGridOverlay padGridOverlay, ControllerDisplayOverlay displayOverlay, DesiredControllerMappings controllerMappings, DesiredTouchStrip touchStrip, Map<ControlId, LightBlink> lightBlinks)
 {
     private static final DesiredHardwareOutput EMPTY = new DesiredHardwareOutput (Map.of (), ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), DesiredControllerMappings.empty ());
 
@@ -35,6 +36,16 @@ public record DesiredHardwareOutput (Map<ControlId, RgbColor> lights, Controller
         displayOverlay = Objects.requireNonNull (displayOverlay, "displayOverlay");
         controllerMappings = Objects.requireNonNull (controllerMappings, "controllerMappings");
         touchStrip = Objects.requireNonNull (touchStrip, "touchStrip");
+        lightBlinks = Map.copyOf (Objects.requireNonNull (lightBlinks, "lightBlinks"));
+        if (!lights.keySet ().containsAll (lightBlinks.keySet ()))
+            throw new IllegalArgumentException ("Blink output requires an owned base light");
+    }
+
+
+    /** Constructor without blinking output. */
+    public DesiredHardwareOutput (final Map<ControlId, RgbColor> lights, final ControllerDisplayScene display, final ControllerPadGridOverlay padGridOverlay, final ControllerDisplayOverlay displayOverlay, final DesiredControllerMappings controllerMappings, final DesiredTouchStrip touchStrip)
+    {
+        this (lights, display, padGridOverlay, displayOverlay, controllerMappings, touchStrip, Map.of ());
     }
 
 

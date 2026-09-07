@@ -41,6 +41,7 @@ import de.mossgrabers.pull.core.api.event.TouchInputEvent;
 import de.mossgrabers.pull.core.api.output.DesiredHardwareOutput;
 import de.mossgrabers.pull.core.api.output.DesiredTouchStrip;
 import de.mossgrabers.pull.core.api.output.RgbColor;
+import de.mossgrabers.pull.core.api.output.LightBlink;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
@@ -223,14 +224,6 @@ public final class CompiledWorkspace
     }
 
 
-    /** Activate through the router's event-scoped identity reconciliation. */
-    CoreResult activate (final ControllerSnapshot snapshot, final java.util.function.BiConsumer<ControllerView, Boolean> reconciler)
-    {
-        final boolean starting = !this.started;
-        this.started = true;
-        for (final CompiledView view: this.views) reconciler.accept (view.view (), Boolean.valueOf (starting));
-        return this.render (snapshot, List.of ());
-    }
 
 
     /**
@@ -317,7 +310,7 @@ public final class CompiledWorkspace
     }
 
 
-    private Map<ControlId, ParameterSlot> parameterSlots (final ControllerSnapshot snapshot)
+    Map<ControlId, ParameterSlot> parameterSlots (final ControllerSnapshot snapshot)
     {
         final Map<ControlId, ParameterSlot> bindings = new LinkedHashMap<> ();
         for (final CompiledView view: this.views)
@@ -350,8 +343,8 @@ public final class CompiledWorkspace
     {
         this.parameterSlots (snapshot);
         final Map<ControlId, RgbColor> lights = new LinkedHashMap<> ();
+        final Map<ControlId, LightBlink> lightBlinks = new LinkedHashMap<> ();
         final Map<ControlId, ClipTargetId> clipBindings = new LinkedHashMap<> ();
-        final Map<ControlId, ParameterTargetRef> parameterTouches = new LinkedHashMap<> ();
         final Set<ControllerMappingBinding> controllerMappingBindings = new LinkedHashSet<> ();
         final Set<ControlId> mappedPhysicalControls = new LinkedHashSet<> ();
         final Set<ControllerMappingId> mappingIds = new LinkedHashSet<> ();
@@ -368,16 +361,11 @@ public final class CompiledWorkspace
             for (final ControlId control: output.lights ().keySet ())
                 validateLightOwner (view, control);
             mergeUnique (lights, output.lights (), "light", view.id ());
+            for (final ControlId control: output.lightBlinks ().keySet ())
+                if (!SurfaceArea.GRID_UPPER.controls ().contains (control) && !SurfaceArea.GRID_LOWER.controls ().contains (control))
+                    throw new IllegalStateException ("view " + view.id () + " emits blinking output without a supported pad transport: " + control);
+            mergeUnique (lightBlinks, output.lightBlinks (), "light blink", view.id ());
             mergeUnique (clipBindings, output.clipBindings (), "clip binding", view.id ());
-            final DesiredParameterTouches touches = Objects.requireNonNull (view.view ().parameterTouches (snapshot), "view parameter touches");
-            for (final ControlId control: touches.targets ().keySet ())
-            {
-                final boolean ownsTouch = view.profile ().claims ().stream ().anyMatch (claim ->
-                    claim.kind () == SurfaceClaim.Kind.EXCLUSIVE_INPUT && claim.area ().controls ().contains (control) && claim.area ().inputKinds ().contains (InputKind.TOUCH));
-                if (!ownsTouch)
-                    throw new IllegalStateException ("view " + view.id () + " touches a parameter outside its exclusive touch claims");
-            }
-            mergeUnique (parameterTouches, touches.targets (), "parameter touch", view.id ());
             for (final ControllerMappingBinding binding: output.controllerMappings ().bindings ())
             {
                 validateControllerMapping (view, binding);
@@ -451,7 +439,7 @@ public final class CompiledWorkspace
             display = DisplayRegionComposition.compose (displayRegions);
 
         return new CoreResult (
-            new DesiredHardwareOutput (lights, display, padGridOverlay, displayOverlay, new DesiredControllerMappings (controllerMappingBindings), touchStrip),
+            new DesiredHardwareOutput (lights, display, padGridOverlay, displayOverlay, new DesiredControllerMappings (controllerMappingBindings), touchStrip, lightBlinks),
             this.desiredInputRoutes,
             this.desiredBridgeSubscriptions,
             clipBindings,
@@ -460,8 +448,8 @@ public final class CompiledWorkspace
             this.desiredControllerActions,
             this.desiredParameterBanks,
             DesiredParameterInteraction.empty (),
-            new DesiredParameterTouches (parameterTouches),
-            new CoreExecutionRequirements (this.views.stream ().anyMatch (view -> view.view ().executionRequirements ().ticksRequested ())),
+            DesiredParameterTouches.empty (),
+            this.views.stream ().map (view -> view.view ().executionRequirements ()).reduce (CoreExecutionRequirements.empty (), CoreExecutionRequirements::merge),
             effects);
     }
 

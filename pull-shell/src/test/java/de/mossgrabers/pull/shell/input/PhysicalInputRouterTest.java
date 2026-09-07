@@ -35,28 +35,6 @@ class PhysicalInputRouterTest
 
 
     @Test
-    void continuationOwnershipUsesTheCapturedDispositionAndGenerationUntilRelease ()
-    {
-        final AtomicLong generation = new AtomicLong (7);
-        final AtomicReference<InputRoute> route = new AtomicReference<> (InputRoute.EXCLUSIVE);
-        final PhysicalInputRouter<String> router = new PhysicalInputRouter<> (registry (), (control, kind) -> route.get (), event -> { }, new IncrementingClock (), generation::get);
-        assertFalse (router.ownsActiveGesture (BUTTON, InputKind.BUTTON));
-        router.route (BUTTON, InputKind.BUTTON, InputPhase.BEGIN, 127, () -> { });
-        route.set (InputRoute.NONE);
-        assertTrue (router.ownsActiveGesture (BUTTON, InputKind.BUTTON));
-        assertFalse (router.ownsActiveGesture (BUTTON, InputKind.TOUCH));
-        generation.set (8);
-        assertFalse (router.ownsActiveGesture (BUTTON, InputKind.BUTTON));
-        generation.set (7);
-        router.route (BUTTON, InputKind.BUTTON, InputPhase.END, 0, () -> { });
-        assertFalse (router.ownsActiveGesture (BUTTON, InputKind.BUTTON));
-        route.set (InputRoute.OBSERVE);
-        router.route (BUTTON, InputKind.BUTTON, InputPhase.BEGIN, 127, () -> { });
-        assertFalse (router.ownsActiveGesture (BUTTON, InputKind.BUTTON));
-    }
-
-
-    @Test
     void unclaimedInputRunsStableCommandExactlyOncePerEdge ()
     {
         final AtomicInteger stableCalls = new AtomicInteger ();
@@ -464,7 +442,7 @@ class PhysicalInputRouterTest
         final PhysicalInputRouter<String> router = new PhysicalInputRouter<> (
             registry, (control, kind) -> kind == InputKind.TOUCH ? InputRoute.NONE : InputRoute.EXCLUSIVE,
             events::add, (control, kind, action) -> false, new IncrementingClock (), () -> 4,
-            Map.of (RIBBON, InputKind.ABSOLUTE));
+            Map.of (new PhysicalInputAddress<> (RIBBON, InputKind.TOUCH), new PhysicalInputAddress<> (RIBBON, InputKind.ABSOLUTE)));
 
         router.route (RIBBON, InputKind.TOUCH, InputPhase.BEGIN, 127, () -> { });
         assertFalse (router.isIdle ());
@@ -497,12 +475,40 @@ class PhysicalInputRouterTest
     }
 
 
+    @Test
+    void releasedGestureDoesNotFenceReplacementWhenItsLastMotionDeliveryFails ()
+    {
+        final AtomicReference<InputRoute> route = new AtomicReference<> (InputRoute.EXCLUSIVE);
+        final List<PhysicalInputEvent<String>> events = new ArrayList<> ();
+        final PhysicalInputRouter<String> router = new PhysicalInputRouter<> (
+            touchRegistry (), (control, kind) -> route.get (), event -> {
+                if (event.kind () == InputKind.ABSOLUTE)
+                    throw new IllegalStateException ("consumer failed");
+                events.add (event);
+            }, (control, kind, action) -> false, new IncrementingClock (), () -> 1,
+            Map.of (new PhysicalInputAddress<> (RIBBON, InputKind.TOUCH), new PhysicalInputAddress<> (RIBBON, InputKind.ABSOLUTE)));
+        final AtomicInteger legacyCalls = new AtomicInteger ();
+        router.route (RIBBON, InputKind.TOUCH, InputPhase.BEGIN, 127, legacyCalls::incrementAndGet);
+        router.route (RIBBON, InputKind.ABSOLUTE, InputPhase.CHANGE, 42, legacyCalls::incrementAndGet);
+        route.set (InputRoute.NONE);
+        assertThrows (IllegalStateException.class, () -> router.route (RIBBON, InputKind.TOUCH, InputPhase.END, 0, legacyCalls::incrementAndGet));
+        assertTrue (router.isIdle ());
+        assertEquals (0, legacyCalls.get ());
+
+        router.route (RIBBON, InputKind.TOUCH, InputPhase.BEGIN, 127, legacyCalls::incrementAndGet);
+        router.route (RIBBON, InputKind.ABSOLUTE, InputPhase.CHANGE, 43, legacyCalls::incrementAndGet);
+        router.route (RIBBON, InputKind.TOUCH, InputPhase.END, 0, legacyCalls::incrementAndGet);
+        assertEquals (3, legacyCalls.get ());
+        assertEquals (1, events.size ());
+    }
+
+
     private static PhysicalInputRouter<String> touchRouter (final AtomicReference<InputRoute> route, final AtomicLong generation, final List<PhysicalInputEvent<String>> events)
     {
         return new PhysicalInputRouter<> (
             touchRegistry (), (control, kind) -> route.get (), events::add,
             (control, kind, action) -> false, new IncrementingClock (), generation::get,
-            Map.of (RIBBON, InputKind.ABSOLUTE));
+            Map.of (new PhysicalInputAddress<> (RIBBON, InputKind.TOUCH), new PhysicalInputAddress<> (RIBBON, InputKind.ABSOLUTE)));
     }
 
 

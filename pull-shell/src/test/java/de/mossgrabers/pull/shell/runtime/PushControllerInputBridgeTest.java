@@ -9,9 +9,14 @@ import de.mossgrabers.controller.ableton.push.PushConfiguration;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.command.core.TriggerCommand;
+import de.mossgrabers.framework.command.core.ContinuousCommand;
 import de.mossgrabers.framework.controller.ButtonID;
+import de.mossgrabers.framework.controller.ContinuousID;
 import de.mossgrabers.framework.controller.hardware.AbstractHwButton;
 import de.mossgrabers.framework.controller.hardware.BindType;
+import de.mossgrabers.framework.controller.hardware.ButtonEventArbitrator;
+import de.mossgrabers.framework.controller.hardware.ContinuousValueArbitrator;
+import de.mossgrabers.framework.controller.hardware.IHwRelativeKnob;
 import de.mossgrabers.framework.controller.hardware.IHwAbsoluteControl;
 import de.mossgrabers.framework.controller.hardware.IHwButton;
 import de.mossgrabers.framework.controller.hardware.IHwLight;
@@ -19,6 +24,9 @@ import de.mossgrabers.framework.controller.hardware.IHwSurfaceFactory;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.controller.valuechanger.TwosComplementValueChanger;
 import de.mossgrabers.framework.daw.IHost;
+import de.mossgrabers.framework.featuregroup.IView;
+import de.mossgrabers.framework.utils.KeyManager;
+import de.mossgrabers.framework.view.Views;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.midi.IMidiInput;
 import de.mossgrabers.framework.daw.midi.IMidiOutput;
@@ -46,6 +54,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -76,7 +85,7 @@ class PushControllerInputBridgeTest
         assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("SESSION"), InputKind.BUTTON));
         assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("NOTE"), InputKind.BUTTON));
         assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("LAYOUT"), InputKind.BUTTON));
-        assertFalse (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("STOP_CLIP"), InputKind.BUTTON));
+        assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("STOP_CLIP"), InputKind.BUTTON));
         assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("MUTE"), InputKind.BUTTON));
         assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("SOLO"), InputKind.BUTTON));
         assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("OCTAVE_DOWN"), InputKind.BUTTON));
@@ -91,10 +100,12 @@ class PushControllerInputBridgeTest
         assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.continuous ("TOUCHSTRIP"), InputKind.TOUCH));
         assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.continuous ("TOUCHSTRIP"), InputKind.ABSOLUTE));
         assertFalse (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.continuous ("TOUCHSTRIP"), InputKind.RELATIVE));
-        for (final var control: CoreControls.DRUM_CONTROL_PADS)
+        for (int pad = 1; pad <= 64; pad++)
         {
+            final ControlId control = PushControlIds.pad (pad);
             assertTrue (PushControllerInputBridge.isCoreOwnedInput (control, InputKind.PAD));
-            assertFalse (PushControllerInputBridge.isCoreOwnedInput (control, InputKind.POLY_PRESSURE));
+            assertTrue (PushControllerInputBridge.isCoreOwnedInput (control, InputKind.POLY_PRESSURE));
+            assertFalse (PushControllerInputBridge.isCoreOwnedInput (control, InputKind.RELATIVE));
         }
     }
 
@@ -305,6 +316,143 @@ class PushControllerInputBridgeTest
     }
 
 
+    @Test
+    void installedEncoderRelationshipKeepsHeldMotionOutOfTheReplacementLegacyPage ()
+    {
+        final Fixture fixture = new Fixture ();
+        final ControlId knob = PushControlIds.continuous ("KNOB1");
+        fixture.routes.set (routes (knob, InputKind.TOUCH, InputKind.RELATIVE));
+        final AtomicInteger legacy = new AtomicInteger ();
+        fixture.knob.touch.arbitrate (ButtonEvent.DOWN, 127, legacy::incrementAndGet);
+        fixture.knob.value.arbitrate (2, legacy::incrementAndGet);
+        fixture.routes.set (DesiredInputRoutes.empty ());
+        fixture.generation.set (2);
+        fixture.knob.value.arbitrate (3, legacy::incrementAndGet);
+        fixture.knob.touch.arbitrate (ButtonEvent.UP, 0, legacy::incrementAndGet);
+
+        assertEquals (0, legacy.get ());
+        assertEquals (List.of (InputPhase.BEGIN, InputPhase.CHANGE, InputPhase.END), fixture.phases ());
+        assertEquals (5, fixture.events.get (1).value ());
+        assertTrue (fixture.events.stream ().allMatch (event -> event.ownerGeneration () == 1));
+        assertTrue (fixture.bridge.isIdle ());
+
+        fixture.knob.touch.arbitrate (ButtonEvent.DOWN, 127, legacy::incrementAndGet);
+        fixture.knob.value.arbitrate (1, legacy::incrementAndGet);
+        fixture.knob.touch.arbitrate (ButtonEvent.UP, 0, legacy::incrementAndGet);
+        assertEquals (3, legacy.get ());
+        assertEquals (3, fixture.events.size ());
+    }
+
+
+    @Test
+    void installedPadRelationshipFlushesPressureBeforeReleaseWithoutLeakingToLegacy ()
+    {
+        final Fixture fixture = new Fixture ();
+        final ControlId pad = CoreControls.DRUM_RATES.getFirst ();
+        final int note = Fixture.GRID_START_NOTE + 4;
+        fixture.routes.set (routes (pad, InputKind.PAD, InputKind.POLY_PRESSURE));
+        final AtomicInteger legacyPressure = new AtomicInteger ();
+        fixture.bridge.routeMidi (0x90, note, 100, () -> {});
+        fixture.bridge.routeMidi (0xA0, note, 50, legacyPressure::incrementAndGet);
+        fixture.routes.set (DesiredInputRoutes.empty ());
+        fixture.generation.set (2);
+        fixture.bridge.routeMidi (0xA0, note, 90, legacyPressure::incrementAndGet);
+        fixture.bridge.routeMidi (0x80, note, 0, () -> {});
+
+        assertEquals (0, legacyPressure.get ());
+        assertEquals (List.of (InputPhase.BEGIN, InputPhase.CHANGE, InputPhase.END), fixture.phases ());
+        assertEquals (90, fixture.events.get (1).value ());
+        assertTrue (fixture.events.stream ().allMatch (event -> event.ownerGeneration () == 1));
+        assertTrue (fixture.bridge.isIdle ());
+
+        // Unheld pressure retains the current route; native NoteInput is a separate MIDI path.
+        fixture.bridge.routeMidi (0xA0, note, 0, legacyPressure::incrementAndGet);
+        assertEquals (1, legacyPressure.get ());
+        fixture.bridge.routeMidi (0x90, note, 100, () -> {});
+        fixture.routes.set (routes (pad, InputKind.PAD, InputKind.POLY_PRESSURE));
+        fixture.bridge.routeMidi (0xA0, note, 64, legacyPressure::incrementAndGet);
+        fixture.bridge.routeMidi (0x80, note, 0, () -> {});
+        fixture.bridge.flush ();
+        assertEquals (2, legacyPressure.get ());
+        assertEquals (3, fixture.events.size ());
+    }
+
+
+    @Test
+    void departedGridReceiverCannotReachReplacementOrReviveWhenItsViewReturns ()
+    {
+        for (final boolean observed: List.of (true, false))
+        {
+            final Fixture fixture = new Fixture ();
+            final ControlId pad = PushControlIds.pad (1);
+            fixture.routes.set (!observed ? DesiredInputRoutes.empty () : new DesiredInputRoutes (Set.of (
+                new InputRoute (pad, de.mossgrabers.pull.core.api.event.InputKind.PAD, InputRouteMode.OBSERVE))));
+            final List<Integer> played = new ArrayList<> ();
+            final List<Integer> replacementEvents = new ArrayList<> ();
+            final KeyManager keys = new KeyManager (null, null, null);
+            final IView notes = gridReceiver (keys, played);
+            fixture.surface.getViewManager ().register (Views.PLAY, notes);
+            fixture.surface.getViewManager ().register (Views.SESSION, gridReceiver (new KeyManager (null, null, null), replacementEvents));
+            fixture.surface.getViewManager ().setActive (Views.PLAY);
+
+            fixture.bridge.triggerDebugPad (pad, InputPhase.BEGIN, 100);
+            assertTrue (keys.isKeyPressed (36));
+            fixture.surface.getViewManager ().setActive (Views.SESSION);
+            assertFalse (keys.isKeyPressed (36), "departure clears captured view resources without a release action");
+            assertFalse (fixture.bridge.musicalInputLifecycleIdle (), "cancellation must retain the physical hold");
+            fixture.bridge.triggerDebugPad (pad, InputPhase.END, 0);
+            assertEquals (List.of (), replacementEvents, "the old release must not reach a replacement receiver");
+            assertEquals (List.of (100), played, "cancellation must not synthesize an ordinary release into the old view");
+
+            fixture.surface.getViewManager ().setActive (Views.PLAY);
+            fixture.bridge.triggerDebugPad (pad, InputPhase.BEGIN, 90);
+            fixture.surface.getViewManager ().setActive (Views.SESSION);
+            fixture.surface.getViewManager ().setActive (Views.PLAY);
+            fixture.bridge.triggerDebugPad (pad, InputPhase.END, 0);
+            assertEquals (List.of (100, 90), played, "returning to the same receiver cannot revive its old hold");
+
+            fixture.bridge.triggerDebugPad (pad, InputPhase.BEGIN, 80);
+            fixture.surface.cancelGridGestures ();
+            fixture.bridge.triggerDebugPad (pad, InputPhase.END, 0);
+            assertEquals (List.of (100, 90, 80), played, "target invalidation also cancels an unchanged view");
+            assertFalse (keys.isKeyPressed (36));
+
+            fixture.bridge.triggerDebugPad (pad, InputPhase.BEGIN, 70);
+            fixture.bridge.triggerDebugPad (pad, InputPhase.END, 0);
+            assertEquals (List.of (100, 90, 80, 70, 0), played, "a fresh gesture is usable after cancellation");
+            fixture.surface.getViewManager ().setActive (Views.SESSION);
+            fixture.bridge.triggerDebugPad (pad, InputPhase.BEGIN, 100);
+            fixture.bridge.triggerDebugPad (pad, InputPhase.END, 0);
+            assertEquals (List.of (100, 0), replacementEvents, "an unchanged receiver must retain both physical phases");
+            assertTrue (fixture.bridge.musicalInputLifecycleIdle ());
+        }
+    }
+
+
+    private static IView gridReceiver (final KeyManager keys, final List<Integer> events)
+    {
+        return proxy (IView.class, (proxy, method, arguments) -> {
+            if (method.getName ().equals ("getKeyManager"))
+                return keys;
+            if (method.getName ().equals ("onGridNote"))
+            {
+                final int velocity = (Integer) arguments[1];
+                keys.setKeyPressed ((Integer) arguments[0], velocity);
+                events.add (velocity);
+            }
+            return relaxedValue (method.getReturnType ());
+        });
+    }
+
+
+    private static DesiredInputRoutes routes (final ControlId control, final InputKind edge, final InputKind motion)
+    {
+        return new DesiredInputRoutes (Set.of (
+            new InputRoute (control, de.mossgrabers.pull.core.api.event.InputKind.valueOf (edge.name ()), InputRouteMode.EXCLUSIVE),
+            new InputRoute (control, de.mossgrabers.pull.core.api.event.InputKind.valueOf (motion.name ()), InputRouteMode.EXCLUSIVE)));
+    }
+
+
     private static final class Fixture
     {
         private static final int GRID_START_NOTE = 36;
@@ -320,6 +468,7 @@ class PushControllerInputBridgeTest
         private final List<PhysicalInputEvent<ControlId>> events = new ArrayList<> ();
         private final Map<ControlId, TestButton> physicalPads = new LinkedHashMap<> ();
         private final Map<ControllerMappingId, AbsoluteHarness> semanticControls = new LinkedHashMap<> ();
+        private final KnobHarness knob = new KnobHarness ();
         private final PushControlSurface surface;
         private final TestButton pad;
         private final PushControllerInputBridge bridge;
@@ -333,6 +482,7 @@ class PushControllerInputBridgeTest
             {
                 case "createButton" -> arguments[1] instanceof ButtonID ? new TestButton (hostRef[0], (String) arguments[2]) : relaxedValue (method.getReturnType ());
                 case "createLight" -> relaxedProxy (IHwLight.class);
+                case "createRelativeKnob" -> this.knob.control;
                 default -> relaxedValue (method.getReturnType ());
             });
             hostRef[0] = proxy (IHost.class, (proxy, method, arguments) -> "createSurfaceFactory".equals (method.getName ()) ? factory : relaxedValue (method.getReturnType ()));
@@ -359,6 +509,7 @@ class PushControllerInputBridgeTest
                 relaxedProxy (ITrack.class),
                 () -> false,
                 new ReloadableControllerRuntime (relaxedProxy (ControllerHost.class)));
+            this.surface.createRelativeKnob (ContinuousID.KNOB1, "Knob 1");
             this.surface.createButton (ButtonID.BROWSE, "Browse").bind ((event, velocity) -> {});
             this.surface.createButton (ButtonID.FOOTSWITCH2, "Footswitch 2").bind ((event, velocity) -> {});
             this.pad = (TestButton) this.surface.getButton (ButtonID.get (ButtonID.PAD1, 28));
@@ -582,6 +733,32 @@ class PushControllerInputBridgeTest
             if (this.releaseMatcher)
                 this.trigger (ButtonEvent.UP, 0);
         }
+    }
+
+
+    private static final class KnobHarness
+    {
+        private ContinuousValueArbitrator value;
+        private ButtonEventArbitrator touch;
+        private final IHwRelativeKnob control = proxy (IHwRelativeKnob.class, (proxy, method, arguments) -> {
+            switch (method.getName ())
+            {
+                case "getCommand":
+                    return (ContinuousCommand) ignored -> {};
+                case "getTouchCommand":
+                    return (TriggerCommand) (event, velocity) -> {};
+                case "getPitchbendCommand":
+                    return null;
+                case "installValueArbitrator":
+                    this.value = (ContinuousValueArbitrator) arguments[0];
+                    return null;
+                case "installTouchEventArbitrator":
+                    this.touch = (ButtonEventArbitrator) arguments[0];
+                    return null;
+                default:
+                    return relaxedValue (method.getReturnType ());
+            }
+        });
     }
 
 

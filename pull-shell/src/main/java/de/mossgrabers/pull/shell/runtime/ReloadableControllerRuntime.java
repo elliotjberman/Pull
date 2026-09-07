@@ -24,6 +24,7 @@ import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.event.ParameterMutationEvent;
 import de.mossgrabers.pull.shell.input.PhysicalInputEvent;
 import de.mossgrabers.pull.core.api.output.RgbColor;
+import de.mossgrabers.pull.core.api.output.LightBlink;
 import de.mossgrabers.pull.core.api.output.DesiredTouchStrip;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
@@ -83,6 +84,13 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         if (this.environment == null || this.closed)
             return OFF;
         return this.environment.lightColor (Objects.requireNonNull (control, "control"));
+    }
+
+
+    /** Get the applied optional blink state, or null for a steady light. */
+    public LightBlink lightBlink (final ControlId control)
+    {
+        return this.environment == null || this.closed ? null : this.environment.lightBlink (Objects.requireNonNull (control, "control"));
     }
 
 
@@ -247,7 +255,6 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             this::handleControllerInput,
             () -> this.supervisor == null ? 0 : this.supervisor.activeGeneration ());
         this.environment.setInputRouteValidator (this.inputBridge::supports);
-        this.environment.setActiveTouchOwner (this.inputBridge::ownsActiveTouch);
         this.environment.setControllerActionValidator (this.inputBridge::supports);
         this.environment.setPhysicalLightOwnerValidator (this.inputBridge::supportsLight);
         this.environment.setDeferredInputRelease (this.inputBridge::releaseDeferredStableDispatches);
@@ -260,6 +267,9 @@ public final class ReloadableControllerRuntime implements AutoCloseable
                 this.debugInputs.cancelActive ("core-owned input route is being invalidated");
             if (this.debugNavigation != null)
                 this.debugNavigation.cancelActiveProbe ("core-owned input route is being invalidated");
+        }, () -> {
+            if (this.debugInputs != null)
+                this.debugInputs.neutralizeNoteInput ();
         });
     }
 

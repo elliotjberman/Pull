@@ -1,4 +1,8 @@
-# API 46 validation record
+# Migration part 1: historical API 46 validation
+
+This records PR #40 only. [Current activation and lifecycle evidence](interaction-lifecycle-live-smoke.md)
+supersede its deployment status. The original-release/offscreen-touch cases below describe the
+then-current policy; API 47 uses cancellation on binding loss.
 
 ## Tested production source
 
@@ -48,7 +52,7 @@ The `202arp3` audit checked 97 completed traces and 332 result-bearing rows with
 same-generation application evidence and no failure/overflow/truncation markers. Application
 receipts were not used as substitutes for later host read-back.
 
-## Limits and current candidate
+## Limits and part-1 cleanup
 
 - `202arp` had no named project remotes; its macro-write scenario stopped before input.
   `202arp3` closes only the mapped **Boolean** macro gap. Arbitrary continuous precision,
@@ -59,15 +63,15 @@ receipts were not used as substitutes for later host read-back.
   no direct Bitwig touch read-back. Debug input enters after native learned-MIDI matching.
 - No audible playback/recording pass is claimed. The user attributed audio-engine errors to their
   changes and asked that they be ignored; audio configuration was left alone.
-- General touch→motion and pad→pressure capture remains [separate work](../findings/core-continuous-input-capture.md).
+- General touch→motion and pad→pressure capture was separate from this build; see the later
+  [API 47 lifecycle integration](../interaction-lifecycle.md), which has its own validation boundary.
   Release success does not prove a general asynchronous reload drain.
 - Restored values do not mean identical in-memory history: dirty/undo flags and expected opaque
   handles/generations changed. The project remained unsaved; no history was cleared to hide this.
 
-**Post-cleanup live test: not performed.** Later code/document reduction changes the candidate
-(including its shell fingerprint) but has not been installed or reloaded. The Push is disconnected;
-the installed production build and the evidence above remain `11e33477`. Offline cleanup checks
-must be reported separately and must not inherit this live pass.
+**At the part-1 handoff, post-cleanup live testing had not been performed.** The cleanup candidate
+had not been installed or reloaded, and the installed source was `11e33477`. These historical
+checks do not imply live coverage for that cleanup or for later lifecycle changes.
 
 The cleanup code at `862c4db6` passed a fresh module-clean deprecation-enabled package: **826 tests**
 (375 core, 11 publisher, 440 shell), no failures/errors/skips and no changed-code deprecations.
@@ -78,4 +82,5 @@ GitHub's Java tests workflow also passed for that commit, including the debugger
 and surface-server checks. The final part-1 handoff changes documentation only.
 
 Earlier API-45 smoke history is superseded by this scoped record. Its reentrant cleanup failure
-and other durable lessons remain in the [review/shortcuts ledger](migration-shortcuts-and-friction.md).
+and resolved review history remain in Git; current compromises are in the
+[current architecture](../../ARCH.md).

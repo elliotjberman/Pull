@@ -32,6 +32,7 @@ import java.util.List;
 public class BitwigSetupFactory implements ISetupFactory
 {
     private final ControllerHost               controllerHost;
+    private final HostImpl host;
 
     private static final List<ArpeggiatorMode> ARP_MODES = Arrays.asList (ArpeggiatorMode.values ());
 
@@ -41,9 +42,10 @@ public class BitwigSetupFactory implements ISetupFactory
      *
      * @param controllerHost The DAW host
      */
-    public BitwigSetupFactory (final ControllerHost controllerHost)
+    public BitwigSetupFactory (final HostImpl host)
     {
-        this.controllerHost = controllerHost;
+        this.host = host;
+        this.controllerHost = host.getControllerHost ();
     }
 
 
@@ -51,7 +53,7 @@ public class BitwigSetupFactory implements ISetupFactory
     @Override
     public IModel createModel (final Configuration configuration, final ColorManager colorManager, final IValueChanger valueChanger, final Scales scales, final ModelSetup modelSetup)
     {
-        final DataSetup dataSetup = new DataSetup (new HostImpl (this.controllerHost), valueChanger, colorManager);
+        final DataSetup dataSetup = new DataSetup (this.host, valueChanger, colorManager);
         return new ModelImpl (modelSetup, dataSetup, this.controllerHost, scales);
     }
 
@@ -60,7 +62,7 @@ public class BitwigSetupFactory implements ISetupFactory
     @Override
     public IMidiAccess createMidiAccess ()
     {
-        return new MidiDeviceImpl (this.controllerHost);
+        return new MidiDeviceImpl (this.host);
     }
 
 

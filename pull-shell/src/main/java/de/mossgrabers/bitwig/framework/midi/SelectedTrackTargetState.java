@@ -41,6 +41,7 @@ final class SelectedTrackTargetState implements ISelectedTrackNoteTarget
     static final String DRUM_DEVICE_CURSOR_ID   = "PULL_PADS_DRUM_DEVICE";
     static final String DRUM_DEVICE_CURSOR_NAME = "Pull Pads Drum Device";
 
+    private final de.mossgrabers.bitwig.framework.daw.HostImpl frameworkHost;
     private final CursorTrack target;
     private final StringValue targetID;
     private final BooleanValue targetExists;
@@ -80,8 +81,10 @@ final class SelectedTrackTargetState implements ISelectedTrackNoteTarget
      * @param target The private selection-following target
      * @param noteInput The permanent controller note input
      */
-    SelectedTrackTargetState (final ControllerHost host, final CursorTrack target, final NoteInputImpl noteInput)
+    SelectedTrackTargetState (final de.mossgrabers.bitwig.framework.daw.HostImpl frameworkHost, final CursorTrack target, final NoteInputImpl noteInput)
     {
+        this.frameworkHost = Objects.requireNonNull (frameworkHost, "frameworkHost");
+        final ControllerHost host = frameworkHost.getControllerHost ();
         final CursorTrack checkedTarget = Objects.requireNonNull (target, "target");
 
         this.target = checkedTarget;
@@ -247,7 +250,10 @@ final class SelectedTrackTargetState implements ISelectedTrackNoteTarget
     public void setGroupExpanded (final boolean expanded)
     {
         if (this.doesExist () && this.targetGroup.get ())
+        {
+            this.frameworkHost.beforeProjectStructureMutation ();
             this.targetGroupExpanded.set (expanded);
+        }
     }
 
 

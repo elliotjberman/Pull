@@ -27,6 +27,7 @@ import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.view.CompiledWorkspace;
+import de.mossgrabers.pull.core.view.RoutedWorkspace;
 import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashMap;
@@ -49,7 +50,7 @@ class MasterParameterTouchTest
         for (int index = 0; index < 8; index++)
         {
             final ControlId knob = knob (index);
-            final CompiledWorkspace master = CompiledWorkspace.compile ("Master", List.of (new MasterControlView ()));
+            final RoutedWorkspace master = new RoutedWorkspace (CompiledWorkspace.compile ("Master", List.of (new MasterControlView ())));
             final CoreResult initial = master.start (snapshot (Set.of (), Set.of ()));
             assertEquals (InputRouteMode.EXCLUSIVE, initial.desiredInputRoutes ().modeOrNull (knob, InputKind.TOUCH));
             assertTrue (initial.desiredParameterBanks ().includes (ParameterBankId.MASTER));
@@ -83,6 +84,23 @@ class MasterParameterTouchTest
         assertEquals (before, view.render (snapshot (Set.of (knob (0)), Set.of ())).display ());
     }
 
+    @Test
+    void delayedProjectActionIsCancelledAcrossProjectChangeAndCannotRevive ()
+    {
+        final ControlId engine = PushControlIds.button ("ROW2_5");
+        final ControllerInputEvent begin = new ControllerInputEvent (1, 1, engine, InputKind.BUTTON, InputPhase.BEGIN, 1);
+        final RoutedWorkspace workspace = new RoutedWorkspace (CompiledWorkspace.compile ("Master", List.of (new MasterControlView ())));
+        final ControllerSnapshot original = snapshot (Set.of (), Set.of (engine));
+        workspace.start (original);
+        final var delayed = workspace.resolveAction (begin, original);
+        workspace.activate (snapshot ("project-b", Set.of (), Set.of (engine)));
+        workspace.activate (original);
+        assertTrue (workspace.dispatchAction (delayed, original).isEmpty ());
+        assertTrue (workspace.handle (begin, original).effects ().isEmpty ());
+        workspace.handle (new ControllerInputEvent (2, 2, engine, InputKind.BUTTON, InputPhase.END, 0), snapshot (Set.of (), Set.of ()));
+        assertEquals (List.of (new de.mossgrabers.pull.core.api.effect.SetProjectEngineEffect ("project-a", false)), workspace.handle (begin, original).effects ());
+    }
+
     private static ControllerInputEvent touch (final ControlId knob, final InputPhase phase)
     {
         return new ControllerInputEvent (1, 1, knob, InputKind.TOUCH, phase, phase == InputPhase.END ? 0 : 127);
@@ -100,12 +118,17 @@ class MasterParameterTouchTest
 
     private static ControllerSnapshot snapshot (final Set<ControlId> touched, final Set<ControlId> pressed)
     {
+        return snapshot ("project-a", touched, pressed);
+    }
+
+    private static ControllerSnapshot snapshot (final String project, final Set<ControlId> touched, final Set<ControlId> pressed)
+    {
         final Map<ParameterSlot, ParameterTargetSnapshot> slots = new LinkedHashMap<> ();
         for (int index = 0; index < 4; index++)
-            slots.put (SLOTS.get (index), new ParameterTargetSnapshot (target (index), "Parameter " + index, 64, 64, "64", 128, 0, Optional.empty (), new ParameterTargetIdentitySnapshot ("project-master", "project-a", 0, index)));
+            slots.put (SLOTS.get (index), new ParameterTargetSnapshot (target (index), "Parameter " + index, 64, 64, "64", 128, 0, Optional.empty (), new ParameterTargetIdentitySnapshot ("project-master", project, 0, index)));
         final ControllerBridgeSnapshot empty = ControllerBridgeSnapshot.empty ();
-        final MasterSnapshot master = new MasterSnapshot (true, "project-a", "Project", true, false, false, false, false, "Master", new RgbColor (0, 100, 255), true, true, false, 0, 0);
-        final ControllerBridgeSnapshot bridge = new ControllerBridgeSnapshot (empty.transport (), empty.selectedTrack (), empty.sessionBank (), empty.layout (), empty.noteView (), empty.noteRepeat (), empty.drum (), new ParameterBridgeSnapshot (slots, Map.of ()), empty.controllerMappingFeedback (), master, empty.project (), new AutomationSnapshot ("project-a", true, true));
+        final MasterSnapshot master = new MasterSnapshot (true, project, "Project", true, false, false, false, false, "Master", new RgbColor (0, 100, 255), true, true, false, 0, 0);
+        final ControllerBridgeSnapshot bridge = new ControllerBridgeSnapshot (empty.transport (), empty.selectedTrack (), empty.sessionBank (), empty.layout (), empty.noteView (), empty.noteRepeat (), empty.drum (), new ParameterBridgeSnapshot (slots, Map.of (), java.util.Set.of ()), empty.controllerMappingFeedback (), master, empty.project (), new AutomationSnapshot (project, true, true));
         return new ControllerSnapshot (1, 1, new ShellCapabilities (Map.of ()), bridge, new ClipCatalogSnapshot (0, List.of ()), Map.of (), Map.of (), Optional.empty (), pressed, touched);
     }
 }

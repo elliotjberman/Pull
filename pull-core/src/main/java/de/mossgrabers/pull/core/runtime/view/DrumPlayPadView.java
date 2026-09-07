@@ -16,8 +16,10 @@ import de.mossgrabers.pull.core.api.effect.SendNoteInputMidiEffect;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
+import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.view.ControllerView;
+import de.mossgrabers.pull.core.view.InputTarget;
 import de.mossgrabers.pull.core.view.SurfaceArea;
 import de.mossgrabers.pull.core.view.SurfaceClaim;
 import de.mossgrabers.pull.core.view.ViewOutput;
@@ -57,6 +59,10 @@ public final class DrumPlayPadView implements ControllerView
         Set.of ());
 
 
+    // MIDI state already submitted by each admitted pad, not another physical lifetime owner.
+    private final Map<ControlId, MidiAddress> pressureState = new LinkedHashMap<> ();
+
+
     @Override
     public String id ()
     {
@@ -79,11 +85,33 @@ public final class DrumPlayPadView implements ControllerView
 
 
     @Override
+    public InputTarget inputTarget (final ControlId control, final InputKind kind, final ControllerSnapshot snapshot)
+    {
+        final int index = playPadIndex (control);
+        if (index < 0) return ControllerView.super.inputTarget (control, kind, snapshot);
+        if (!DrumOctaveView.mappingApplied (snapshot)) return null;
+        final DrumContextSnapshot drum = snapshot.bridge ().drum ();
+        final int note = drum.baseMidiNote () + index;
+        if (note > 127) return null;
+        return new InputTarget.DrumPad (control, drum.targetGeneration (), drum.targetChannelId (), drum.generation (), drum.deviceId (), note, snapshot.bridge ().layout ().gridPressure ());
+    }
+
+
+    @Override
+    public List<CoreEffect> cancel (final ControlId control, final InputKind kind, final InputTarget target, final ControllerSnapshot snapshot)
+    {
+        return this.releasePressure (control);
+    }
+
+
+    @Override
     public List<CoreEffect> handle (final CoreEvent event, final ControllerSnapshot snapshot)
     {
         if (!(event instanceof final ControllerInputEvent input))
             return List.of ();
 
+        if (input.kind () == InputKind.PAD && input.phase () == InputPhase.END)
+            return this.releasePressure (input.controlId ());
         final ControllerLayoutSnapshot layout = snapshot.bridge ().layout ();
         if (!DrumOctaveView.mappingApplied (snapshot))
             return List.of ();
@@ -93,10 +121,10 @@ public final class DrumPlayPadView implements ControllerView
             final int padIndex = playPadIndex (input.controlId ());
             if (padIndex < 0)
                 return List.of ();
-            return pressureEffects (layout.gridPressure (), layout.drumBaseMidiNote () + padIndex, (int) input.value ());
+            return this.pressureEffects (input.controlId (), layout.gridPressure (), layout.drumBaseMidiNote () + padIndex, (int) input.value ());
         }
         if (input.kind () == InputKind.CHANNEL_PRESSURE)
-            return channelPressureEffects ((int) input.value (), snapshot, layout);
+            return this.channelPressureEffects ((int) input.value (), snapshot, layout);
         return List.of ();
     }
 
@@ -142,30 +170,50 @@ public final class DrumPlayPadView implements ControllerView
     }
 
 
-    private static List<CoreEffect> channelPressureEffects (final int value, final ControllerSnapshot snapshot, final ControllerLayoutSnapshot layout)
+    private List<CoreEffect> channelPressureEffects (final int value, final ControllerSnapshot snapshot, final ControllerLayoutSnapshot layout)
     {
-        if (layout.gridPressure ().mode () != GridPressureConfiguration.Mode.POLY_AFTERTOUCH)
-            return pressureEffects (layout.gridPressure (), -1, value);
-
+        // The router projects only this view's admitted PAD interactions for aggregate pressure.
         final List<CoreEffect> effects = new ArrayList<> ();
         for (int padIndex = 0; padIndex < PLAY_COLUMNS * PLAY_ROWS; padIndex++)
         {
-            if (snapshot.pressedControls ().contains (playPadControl (padIndex)))
-                effects.addAll (pressureEffects (layout.gridPressure (), layout.drumBaseMidiNote () + padIndex, value));
+            final ControlId control = playPadControl (padIndex);
+            if (snapshot.pressedControls ().contains (control))
+                effects.addAll (this.pressureEffects (control, layout.gridPressure (), layout.drumBaseMidiNote () + padIndex, value));
         }
-        return List.copyOf (effects);
+        return effects.stream ().distinct ().toList ();
     }
 
 
-    private static List<CoreEffect> pressureEffects (final GridPressureConfiguration configuration, final int midiNote, final int value)
+    private List<CoreEffect> pressureEffects (final ControlId control, final GridPressureConfiguration configuration, final int midiNote, final int value)
     {
-        return switch (configuration.mode ())
+        final MidiAddress address = switch (configuration.mode ())
         {
-            case OFF -> List.of ();
-            case POLY_AFTERTOUCH -> midiNote < 0 || midiNote > 127 ? List.of () : List.of (new SendNoteInputMidiEffect (MIDI_POLY_PRESSURE, midiNote, value));
-            case CHANNEL_AFTERTOUCH -> List.of (new SendNoteInputMidiEffect (MIDI_CHANNEL_PRESSURE, value, 0));
-            case CONTROL_CHANGE -> List.of (new SendNoteInputMidiEffect (MIDI_CC, configuration.controller (), value));
+            case OFF -> null;
+            case POLY_AFTERTOUCH -> midiNote < 0 || midiNote > 127 ? null : new MidiAddress (MIDI_POLY_PRESSURE, midiNote);
+            case CHANNEL_AFTERTOUCH -> new MidiAddress (MIDI_CHANNEL_PRESSURE, 0);
+            case CONTROL_CHANGE -> new MidiAddress (MIDI_CC, configuration.controller ());
         };
+        if (address == null) return List.of ();
+        if (value == 0) this.pressureState.remove (control);
+        else this.pressureState.put (control, address);
+        return List.of (address.message (value));
+    }
+
+
+    private List<CoreEffect> releasePressure (final ControlId control)
+    {
+        final MidiAddress address = this.pressureState.remove (control);
+        // Channel pressure and CC may still belong to another admitted pad.
+        return address == null || this.pressureState.containsValue (address) ? List.of () : List.of (address.message (0));
+    }
+
+
+    private record MidiAddress (int status, int data1)
+    {
+        private SendNoteInputMidiEffect message (final int value)
+        {
+            return this.status == MIDI_CHANNEL_PRESSURE ? new SendNoteInputMidiEffect (this.status, value, 0) : new SendNoteInputMidiEffect (this.status, this.data1, value);
+        }
     }
 
 

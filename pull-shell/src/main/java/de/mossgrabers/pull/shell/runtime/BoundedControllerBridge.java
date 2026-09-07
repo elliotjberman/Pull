@@ -159,6 +159,9 @@ final class BoundedControllerBridge implements ControllerBridge
     private Runnable inputLifecycleCleanup = () -> {
         // No debugger input is active unless the optional debugger installs one.
     };
+    private Runnable debugNoteInputCleanup = () -> {
+        // Browser MIDI exists only when the optional debugger is installed.
+    };
     private DesiredNoteRepeat desiredNoteRepeat = DesiredNoteRepeat.unowned ();
     private NoteRepeatLease noteRepeatLease;
     private boolean noteRepeatActiveReleasePending;
@@ -194,7 +197,8 @@ final class BoundedControllerBridge implements ControllerBridge
         this.masterCommands = new MasterCommandHost (model, log);
         this.controllerState = new ControllerStateHost (selectedTarget, surface.getControllerWorkspaceHost (), this::resetNoteInputMidiState);
         this.controllerMappings = controllerMappings;
-        this.sessionBank = new SessionBankHost (surface.getSessionBankRegistry ());
+        this.sessionBank = new SessionBankHost (surface.getSessionBankRegistry (), model.getProject ()::getIdentity, this.log::warn);
+        surface.getHost ().setProjectStructureMutationGuard (this.sessionBank::invalidate);
         this.currentTrackBank = new CurrentTrackBankHost (model, surface.getSessionBankRegistry ().getBanks ());
         this.controllerSettings = new ControllerSettingsHost (surface.getConfiguration (), model, surface.getModeManager (), surface::createPadSensitivityCurvePush2);
         this.applicationUi = new ApplicationUiHost (model);
@@ -323,6 +327,8 @@ final class BoundedControllerBridge implements ControllerBridge
             throw new IllegalArgumentException ("generation must not be negative");
         if (this.activeCoreGeneration != 0 && generation != this.activeCoreGeneration)
         {
+            this.sessionBank.invalidate ();
+            this.inputLifecycleCleanup.run ();
             this.resetNoteInputMidiState ();
             this.parameterTargets.releaseTouches ();
         }
@@ -338,6 +344,8 @@ final class BoundedControllerBridge implements ControllerBridge
     @Override
     public void invalidate ()
     {
+        this.sessionBank.invalidate ();
+        this.inputLifecycleCleanup.run ();
         this.resetNoteInputMidiState ();
         this.surface.getModeManager ().invalidate ();
         this.controllerState.invalidate ();
@@ -357,9 +365,10 @@ final class BoundedControllerBridge implements ControllerBridge
 
 
     @Override
-    public void setInputLifecycleCleanup (final Runnable cleanup)
+    public void setInputLifecycleCleanup (final Runnable cleanup, final Runnable neutralizeNoteInput)
     {
         this.inputLifecycleCleanup = Objects.requireNonNull (cleanup, "cleanup");
+        this.debugNoteInputCleanup = Objects.requireNonNull (neutralizeNoteInput, "neutralizeNoteInput");
     }
 
 
@@ -368,8 +377,24 @@ final class BoundedControllerBridge implements ControllerBridge
     {
         try
         {
+            this.sessionBank.invalidate ();
+        }
+        catch (final RuntimeException failure)
+        {
+            this.log.warn ("Session launch quarantine cleanup failed: " + failure.getMessage ());
+        }
+        try
+        {
+            this.inputLifecycleCleanup.run ();
+        }
+        catch (final RuntimeException failure)
+        {
+            this.log.warn ("Debug input quarantine cleanup failed: " + failure.getMessage ());
+        }
+        try
+        {
             this.surface.getModeManager ().invalidate ();
-        this.controllerState.invalidate ();
+            this.controllerState.invalidate ();
         }
         catch (final RuntimeException failure)
         {
@@ -623,6 +648,14 @@ final class BoundedControllerBridge implements ControllerBridge
             return this.applicationUi.prepare (ui);
         if (effect instanceof final de.mossgrabers.pull.core.api.effect.SetMixerBooleanEffect ui)
             return this.applicationUi.prepare (ui);
+        if (effect instanceof final de.mossgrabers.pull.core.api.effect.SessionActionEffect action)
+            return this.sessionBank.prepare (action);
+        if (effect instanceof final de.mossgrabers.pull.core.api.effect.CopySessionClipEffect action)
+            return this.sessionBank.prepare (action);
+        if (effect instanceof final de.mossgrabers.pull.core.api.effect.CreateSessionClipEffect action)
+            return this.sessionBank.prepare (action);
+        if (effect instanceof final de.mossgrabers.pull.core.api.effect.SetSessionBankPositionEffect action)
+            return this.sessionBank.prepare (action);
         if (effect instanceof final StopSessionBankEffect action)
             return this.sessionBank.prepare (action);
         if (effect instanceof final SelectSessionTrackEffect action)
@@ -793,6 +826,14 @@ final class BoundedControllerBridge implements ControllerBridge
             this.currentTrackBank.apply (parent);
         else if (action instanceof final CurrentTrackBankHost.PreparedNavigation navigation)
             this.currentTrackBank.apply (navigation);
+        else if (action instanceof final SessionBankHost.PreparedLauncherAction sessionAction)
+            this.sessionBank.apply (sessionAction);
+        else if (action instanceof final SessionBankHost.PreparedCopy sessionAction)
+            this.sessionBank.apply (sessionAction);
+        else if (action instanceof final SessionBankHost.PreparedCreate sessionAction)
+            this.sessionBank.apply (sessionAction);
+        else if (action instanceof final SessionBankHost.PreparedPosition sessionAction)
+            this.sessionBank.apply (sessionAction);
         else if (action instanceof final SessionBankHost.PreparedStop sessionAction)
             this.sessionBank.apply (sessionAction);
         else if (action instanceof final SessionBankHost.PreparedSelection sessionSelection)
@@ -1289,7 +1330,9 @@ final class BoundedControllerBridge implements ControllerBridge
 
     private void resetNoteInputMidiState ()
     {
-        this.inputLifecycleCleanup.run ();
+        // A target or note-route change retires receivers and musical state, not physical holds.
+        this.surface.cancelGridGestures ();
+        this.debugNoteInputCleanup.run ();
         if (this.noteInputMidiState.isEmpty ())
             return;
 
@@ -1561,6 +1604,8 @@ final class BoundedControllerBridge implements ControllerBridge
     {
         final Map<ControlId, ButtonID> buttons = new LinkedHashMap<> ();
         buttons.put (PushControlIds.button (ButtonID.SELECT.name ()), ButtonID.SELECT);
+        buttons.put (PushControlIds.button (ButtonID.BROWSE.name ()), ButtonID.BROWSE);
+        buttons.put (PushControlIds.button (ButtonID.STOP_CLIP.name ()), ButtonID.STOP_CLIP);
         buttons.put (PushControlIds.button (ButtonID.DELETE.name ()), ButtonID.DELETE);
         buttons.put (PushControlIds.button (ButtonID.DUPLICATE.name ()), ButtonID.DUPLICATE);
         buttons.put (PushControlIds.button (ButtonID.RECORD.name ()), ButtonID.RECORD);

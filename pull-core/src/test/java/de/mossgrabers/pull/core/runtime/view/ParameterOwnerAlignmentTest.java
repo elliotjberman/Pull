@@ -9,6 +9,7 @@ import de.mossgrabers.pull.core.api.event.*;
 import de.mossgrabers.pull.core.api.output.DisplayCommand;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.view.CompiledWorkspace;
+import de.mossgrabers.pull.core.view.RoutedWorkspace;
 import de.mossgrabers.pull.core.view.ControllerView;
 import org.junit.jupiter.api.Test;
 
@@ -54,7 +55,7 @@ class ParameterOwnerAlignmentTest
 
 
     @Test
-    void oldExactTouchIsRetiredOnContradictionButItsPhysicalEndStillFinishesTheAdmittedProject ()
+    void contradictionCancelsTouchAndFinishesItsAutomationBeforePhysicalRelease ()
     {
         for (final Page page: Page.values ())
         {
@@ -62,9 +63,11 @@ class ParameterOwnerAlignmentTest
             fixture.workspace.start (snapshot (page, "a", "a", false, false, false));
             final CoreResult begin = fixture.workspace.handle (touch (InputPhase.BEGIN), snapshot (page, "a", "a", true, false, false));
             assertEquals (Map.of (KNOB, target (page, "a")), begin.desiredParameterTouches ().targets ());
-            assertTrue (fixture.workspace.activate (snapshot (page, "a", "b", true, false, false)).desiredParameterTouches ().targets ().isEmpty ());
+            final CoreResult cancelled = fixture.workspace.activate (snapshot (page, "a", "b", true, false, false));
+            assertTrue (cancelled.desiredParameterTouches ().targets ().isEmpty ());
+            assertEquals (List.of (new SetAutomationWriteEffect ("project-a", false)), cancelled.effects (), page.name ());
             final CoreResult end = fixture.workspace.handle (touch (InputPhase.END), snapshot (page, "a", "b", false, false, false));
-            assertEquals (List.of (new SetAutomationWriteEffect ("project-a", false)), end.effects (), page.name ());
+            assertTrue (end.effects ().isEmpty (), page.name ());
             assertTrue (fixture.workspace.handle (touch (InputPhase.END), snapshot (page, "a", "b", false, false, false)).effects ().isEmpty ());
         }
     }
@@ -101,7 +104,7 @@ class ParameterOwnerAlignmentTest
         assertTrue (fixture.workspace.handle (new ControllerInputEvent (1, 1, emptyKnob, InputKind.TOUCH, InputPhase.END, 0), wrongAutomation).effects ().isEmpty ());
         final ParameterTargetSnapshot volume = bridge.parameters ().slots ().get (Page.MASTER.slot);
         final ParameterTargetSnapshot wrongRole = new ParameterTargetSnapshot (volume.target (), volume.name (), volume.value (), volume.modulatedValue (), volume.displayedValue (), volume.numberOfSteps (), volume.tolerance (), volume.enabled (), new ParameterTargetIdentitySnapshot ("project-master", "project-a", 0, 1));
-        assertNull (fixture.workspace.parameterSlotOrNull (KNOB, copy (coherent, new ParameterBridgeSnapshot (Map.of (Page.MASTER.slot, wrongRole), Map.of ()), bridge.automation ())));
+        assertNull (fixture.workspace.parameterSlotOrNull (KNOB, copy (coherent, new ParameterBridgeSnapshot (Map.of (Page.MASTER.slot, wrongRole), Map.of (), java.util.Set.of ()), bridge.automation ())));
     }
 
 
@@ -126,7 +129,7 @@ class ParameterOwnerAlignmentTest
         final SelectedTrackSnapshot selected = new SelectedTrackSnapshot (1, "track-" + ownerEpoch, "Track", 0, "Instrument", true, false, false, true, false, true, false, TrackMonitorMode.AUTO, false, false, false, false, 0.5, 0.5, COLOR);
         final MasterSnapshot master = new MasterSnapshot (true, "project-" + ownerEpoch, "Project", true, false, false, false, false, "Master", COLOR, true, true, false, 0, 0);
         final ControllerBridgeSnapshot empty = ControllerBridgeSnapshot.empty ();
-        final ControllerBridgeSnapshot bridge = new ControllerBridgeSnapshot (empty.transport (), selected, empty.sessionBank (), empty.layout (), empty.noteView (), empty.noteRepeat (), empty.drum (), new ParameterBridgeSnapshot (Map.of (page.slot, parameter), Map.of ()), empty.controllerMappingFeedback (), master, empty.project (), new AutomationSnapshot ("project-" + ownerEpoch, true, true));
+        final ControllerBridgeSnapshot bridge = new ControllerBridgeSnapshot (empty.transport (), selected, empty.sessionBank (), empty.layout (), empty.noteView (), empty.noteRepeat (), empty.drum (), new ParameterBridgeSnapshot (Map.of (page.slot, parameter), Map.of (), java.util.Set.of ()), empty.controllerMappingFeedback (), master, empty.project (), new AutomationSnapshot ("project-" + ownerEpoch, true, true));
         return new ControllerSnapshot (1, 1, new ShellCapabilities (Map.of ()), bridge, ClipCatalogSnapshot.empty (), Map.of (), Map.of (), Optional.empty (), modifiers ? MODIFIERS : Set.of (), touched ? Set.of (KNOB) : Set.of ());
     }
 
@@ -150,16 +153,16 @@ class ParameterOwnerAlignmentTest
 
     private static final class Fixture
     {
-        private final CompiledWorkspace workspace;
+        private final RoutedWorkspace workspace;
         private Fixture (final Page page)
         {
             final ControllerView view = switch (page)
             {
-                case TRACK -> new TrackMixerControlsView (new TrackMixerPageState (), new ParameterTouchSession (), false);
+                case TRACK -> new TrackMixerControlsView (new TrackMixerPageState (), false);
                 case PROJECT -> new ProjectMacroControlsView ();
                 case MASTER -> new MasterControlView ();
             };
-            this.workspace = CompiledWorkspace.compile (page.name (), page == Page.MASTER ? List.of (view) : List.of (view, new TrackSelectionStripView ()));
+            this.workspace = new RoutedWorkspace (CompiledWorkspace.compile (page.name (), page == Page.MASTER ? List.of (view) : List.of (view, new TrackSelectionStripView ())));
         }
     }
 }

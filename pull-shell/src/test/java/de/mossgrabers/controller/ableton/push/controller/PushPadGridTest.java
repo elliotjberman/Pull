@@ -11,6 +11,7 @@ import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
 import de.mossgrabers.pull.core.api.output.PadGridPosition;
 import de.mossgrabers.pull.core.api.output.RgbColor;
+import de.mossgrabers.pull.core.api.output.LightBlink;
 
 import org.junit.jupiter.api.Test;
 
@@ -93,7 +94,7 @@ class PushPadGridTest
         final ControlId firstPad = PushControlIds.pad (1);
         final AtomicReference<Set<ControlId>> owners = new AtomicReference<> (Set.of (firstPad));
         final RgbColor purple = new RgbColor (160, 48, 255);
-        grid.setCoreLightSupplier (control -> owners.get ().contains (control), ignored -> purple);
+        grid.setCoreLightSupplier (control -> owners.get ().contains (control), ignored -> purple, ignored -> null);
         grid.light (36, 10);
 
         assertEquals (colors.getColorIndex (ColorEx.fromRGB (purple.red (), purple.green (), purple.blue ())), grid.getLightInfo (36).getColor ());
@@ -104,13 +105,56 @@ class PushPadGridTest
 
 
     @Test
+    void coreBlinkOutputTransmitsBothColorsAndBecomesSteadyWhenOmitted ()
+    {
+        final List<MidiNote> sent = new ArrayList<> ();
+        final PushColorManager colors = new PushColorManager ();
+        final PushPadGrid grid = new PushPadGrid (colors, recordingOutput (sent));
+        final ControlId pad = PushControlIds.pad (1);
+        final RgbColor green = new RgbColor (0, 255, 0);
+        final RgbColor red = new RgbColor (255, 0, 0);
+        final int greenIndex = colors.getColorIndex (ColorEx.GREEN);
+        final int redIndex = colors.getColorIndex (ColorEx.RED);
+        final AtomicReference<LightBlink> blink = new AtomicReference<> (new LightBlink (red, true));
+        grid.setCoreLightSupplier (pad::equals, ignored -> green, ignored -> blink.get ());
+
+        grid.sendState (36);
+        assertEquals (List.of (new MidiNote (0, 36, greenIndex), new MidiNote (14, 36, redIndex)), sent);
+        blink.set (new LightBlink (red, false));
+        grid.sendState (36);
+        assertEquals (new MidiNote (10, 36, redIndex), sent.getLast ());
+        blink.set (null);
+        grid.sendState (36);
+        assertEquals (5, sent.size (), "a steady base write clears the hardware blink without replaying its old alternate");
+        assertEquals (new MidiNote (0, 36, greenIndex), sent.getLast ());
+        assertEquals (0, grid.getLightInfo (36).getBlinkColor ());
+    }
+
+
+    @Test
+    void explicitOffAlternateBlinksThroughTheHardwareOffPhase ()
+    {
+        final List<MidiNote> sent = new ArrayList<> ();
+        final PushColorManager colors = new PushColorManager ();
+        final PushPadGrid grid = new PushPadGrid (colors, recordingOutput (sent));
+        final RgbColor red = new RgbColor (255, 0, 0);
+        grid.setCoreLightSupplier (PushControlIds.pad (1)::equals, ignored -> red, ignored -> new LightBlink (new RgbColor (0, 0, 0), false));
+
+        grid.sendState (36);
+
+        assertEquals (List.of (new MidiNote (0, 36, 0), new MidiNote (10, 36, colors.getColorIndex (ColorEx.RED))), sent);
+    }
+
+
+    @Test
     void sparseOverlayFreezesTheCoreOwnedBaseUntilTheOverlayCloses ()
     {
         final PushColorManager colors = new PushColorManager ();
         final PushPadGrid grid = new PushPadGrid (colors, relaxedOutput ());
         final AtomicReference<RgbColor> coreColor = new AtomicReference<> (new RgbColor (160, 48, 255));
+        final AtomicReference<LightBlink> coreBlink = new AtomicReference<> (new LightBlink (new RgbColor (255, 0, 0), true));
         final AtomicReference<ControllerPadGridOverlay> overlay = new AtomicReference<> (ControllerPadGridOverlay.inactive ());
-        grid.setCoreLightSupplier (PushControlIds.pad (1)::equals, ignored -> coreColor.get ());
+        grid.setCoreLightSupplier (PushControlIds.pad (1)::equals, ignored -> coreColor.get (), ignored -> coreBlink.get ());
         grid.setOverlaySupplier (overlay::get);
 
         final int purple = colors.getColorIndex (ColorEx.fromRGB (160, 48, 255));
@@ -120,10 +164,14 @@ class PushPadGridTest
         overlay.set (new ControllerPadGridOverlay (true, Map.of (new PadGridPosition (1, 0), new RgbColor (255, 0, 0))));
         assertEquals (purple, grid.getLightInfo (36).getColor ());
         coreColor.set (new RgbColor (0, 255, 0));
+        coreBlink.set (null);
         assertEquals (purple, grid.getLightInfo (36).getColor ());
+        assertEquals (colors.getColorIndex (ColorEx.RED), grid.getLightInfo (36).getBlinkColor ());
+        assertEquals (true, grid.getLightInfo (36).isFast ());
 
         overlay.set (ControllerPadGridOverlay.inactive ());
         assertEquals (green, grid.getLightInfo (36).getColor ());
+        assertEquals (0, grid.getLightInfo (36).getBlinkColor ());
     }
 
 

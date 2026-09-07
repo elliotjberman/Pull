@@ -432,8 +432,6 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         this.addButton (ButtonID.MASTERTRACK, "Mastertrack", CORE_OWNED_BUTTON_COMMAND, PushControlSurface.PUSH_BUTTON_MASTER, () -> PushColorManager.resolveCoreButtonColor (this.colorManager, ButtonID.MASTERTRACK, this.reloadableRuntime.lightColor (PushControlIds.button ("MASTERTRACK"))));
         this.addButton (ButtonID.PAGE_LEFT, "Page Left", new PageLeftCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_DEVICE_LEFT, () -> {
 
-            if (viewManager.isActive (Views.SESSION))
-                return this.model.getCurrentTrackBank ().canScrollPageBackwards ();
             final IView activeView = viewManager.getActive ();
             final INoteClip clip = activeView instanceof final AbstractSequencerView<?, ?> sequencerView && !(activeView instanceof ClipLengthView) ? sequencerView.getClip () : null;
             return clip != null && clip.doesExist () && clip.canScrollStepsBackwards ();
@@ -441,8 +439,6 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         }, ColorManager.BUTTON_STATE_OFF, ColorManager.BUTTON_STATE_ON);
         this.addButton (ButtonID.PAGE_RIGHT, "Page Right", new PageRightCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_DEVICE_RIGHT, () -> {
 
-            if (viewManager.isActive (Views.SESSION))
-                return this.model.getCurrentTrackBank ().canScrollPageForwards ();
             final IView activeView = viewManager.getActive ();
             final INoteClip clip = activeView instanceof final AbstractSequencerView<?, ?> sequencerView && !(activeView instanceof ClipLengthView) ? sequencerView.getClip () : null;
             return clip != null && clip.doesExist () && clip.canScrollStepsForwards ();

@@ -8,7 +8,7 @@ import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerActionBinding;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.CoreExecutionRequirements;
-import de.mossgrabers.pull.core.api.DesiredParameterTouches;
+import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.ParameterBankId;
 import de.mossgrabers.pull.core.api.ParameterSlot;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
@@ -125,7 +125,7 @@ public interface ControllerView
     /** Relinquish page-local state when this compiled composition departs. */
     default void deactivate ()
     {
-        // Retained controller-level views keep their independent gesture continuations.
+        // The central input lifecycle cancels departing bindings before this callback.
     }
 
 
@@ -161,10 +161,24 @@ public interface ControllerView
     }
 
 
-    /** Nonvisual exact-target touches retained while this view finishes a captured gesture. */
-    default DesiredParameterTouches parameterTouches (final ControllerSnapshot snapshot)
+    /** Physical parameter touches whose reset/automation policy is owned centrally. */
+    default Set<ControlId> parameterTouchControls (final ControllerSnapshot snapshot)
     {
-        return DesiredParameterTouches.empty ();
+        return Set.of ();
+    }
+
+
+    /** Exact semantic context for a non-parameter input; null means currently unavailable. */
+    default InputTarget inputTarget (final ControlId control, final InputKind kind, final ControllerSnapshot snapshot)
+    {
+        return new InputTarget.Local (control);
+    }
+
+
+    /** Required cleanup on cancellation. Never implement this by dispatching an ordinary END. */
+    default List<CoreEffect> cancel (final ControlId control, final InputKind kind, final de.mossgrabers.pull.core.view.InputTarget target, final ControllerSnapshot snapshot)
+    {
+        return List.of ();
     }
 
 

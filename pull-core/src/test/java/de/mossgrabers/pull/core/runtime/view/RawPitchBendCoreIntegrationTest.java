@@ -34,6 +34,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 
 /** Exercise actual production composition selection rather than only constructing the views. */
@@ -69,7 +70,7 @@ class RawPitchBendCoreIntegrationTest
         fixture.changed ();
         final CoreResult held = fixture.input (InputKind.ABSOLUTE, InputPhase.UPDATE, 12289);
         assertTrue (held.effects ().isEmpty ());
-        assertEquals (DesiredTouchStrip.unowned (), held.desiredOutput ().touchStrip ());
+        assertEquals (DesiredTouchStrip.pitchBend (8192), held.desiredOutput ().touchStrip ());
         assertTrue (fixture.input (InputKind.TOUCH, InputPhase.END, 0).effects ().isEmpty ());
         fixture.input (InputKind.TOUCH, InputPhase.BEGIN, 127);
         assertEquals (List.of (new SendNoteInputMidiEffect (0xE0, 127, 127)), fixture.input (InputKind.ABSOLUTE, InputPhase.UPDATE, 16383).effects ());
@@ -87,7 +88,7 @@ class RawPitchBendCoreIntegrationTest
 
 
     @Test
-    void actualCoreKeepsRawGestureAcrossEngagementAndPageChanges ()
+    void removingRawStripCancelsOnceAndSuppressesItsPhysicalTailEvenIfItReturns ()
     {
         final Fixture fixture = new Fixture ("DRUM_PAD", true, true);
         fixture.start ();
@@ -96,11 +97,16 @@ class RawPitchBendCoreIntegrationTest
         fixture.mode = "MASTER";
         assertEquals (DesiredTouchStrip.pitchBend (13000), fixture.changed ().desiredOutput ().touchStrip ());
         fixture.engaged = false;
-        assertEquals (DesiredTouchStrip.pitchBend (13000), fixture.changed ().desiredOutput ().touchStrip ());
-        final CoreResult release = fixture.input (InputKind.TOUCH, InputPhase.END, 0);
-        assertTrue (release.effects ().contains (new SendNoteInputMidiEffect (0xE0, 0, 64)));
-        assertEquals (DesiredTouchStrip.pitchBend (8192), release.desiredOutput ().touchStrip ());
-        assertLegacy (fixture.changed ());
+        final CoreResult cancelled = fixture.changed ();
+        assertEquals (List.of (new SendNoteInputMidiEffect (0xE0, 0, 64)), cancelled.effects ());
+        assertLegacy (cancelled);
+        assertTrue (fixture.input (InputKind.ABSOLUTE, InputPhase.UPDATE, 14000).effects ().isEmpty ());
+        fixture.engaged = true;
+        assertRaw (fixture.changed ());
+        assertTrue (fixture.input (InputKind.ABSOLUTE, InputPhase.UPDATE, 15000).effects ().isEmpty ());
+        assertTrue (fixture.input (InputKind.TOUCH, InputPhase.END, 0).effects ().isEmpty ());
+        fixture.input (InputKind.TOUCH, InputPhase.BEGIN, 127);
+        assertEquals (List.of (new SendNoteInputMidiEffect (0xE0, 127, 127)), fixture.input (InputKind.ABSOLUTE, InputPhase.UPDATE, 16383).effects ());
     }
 
 
@@ -130,7 +136,8 @@ class RawPitchBendCoreIntegrationTest
 
     private static void assertLegacy (final CoreResult result)
     {
-        assertEquals (InputRouteMode.OBSERVE, result.desiredInputRoutes ().modeOrNull (STRIP, InputKind.TOUCH));
+        assertNull (result.desiredInputRoutes ().modeOrNull (STRIP, InputKind.TOUCH));
+        assertNull (result.desiredInputRoutes ().modeOrNull (STRIP, InputKind.ABSOLUTE));
         assertEquals (DesiredTouchStrip.unowned (), result.desiredOutput ().touchStrip ());
     }
 

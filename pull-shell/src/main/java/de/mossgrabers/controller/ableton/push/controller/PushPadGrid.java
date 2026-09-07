@@ -20,6 +20,7 @@ import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
 import de.mossgrabers.pull.core.api.output.PadGridPosition;
 import de.mossgrabers.pull.core.api.output.RgbColor;
+import de.mossgrabers.pull.core.api.output.LightBlink;
 
 
 /**
@@ -34,10 +35,13 @@ final class PushPadGrid extends PadGridImpl
     private final LightInfo [] corePadStates = new LightInfo [NUM_NOTES];
     private final PadColor [] requestedCoreColors = new PadColor [NUM_NOTES];
     private final int [] resolvedCoreColors = new int [NUM_NOTES];
+    private final PadColor [] requestedCoreBlinkColors = new PadColor [NUM_NOTES];
+    private final int [] resolvedCoreBlinkColors = new int [NUM_NOTES];
 
     private Supplier<ControllerPadGridOverlay> overlaySupplier = ControllerPadGridOverlay::inactive;
     private Predicate<ControlId> coreLightOwner = ignored -> false;
     private Function<ControlId, RgbColor> coreLightColor = ignored -> new RgbColor (0, 0, 0);
+    private Function<ControlId, LightBlink> coreLightBlink = ignored -> null;
     private boolean overlayActive;
     private int debugObservedNote = -1;
     private boolean debugObservedSend;
@@ -81,10 +85,11 @@ final class PushPadGrid extends PadGridImpl
 
 
     /** Install the permanent explicit core-light ownership plane beneath temporary overlays. */
-    void setCoreLightSupplier (final Predicate<ControlId> owner, final Function<ControlId, RgbColor> color)
+    void setCoreLightSupplier (final Predicate<ControlId> owner, final Function<ControlId, RgbColor> color, final Function<ControlId, LightBlink> blink)
     {
         this.coreLightOwner = Objects.requireNonNull (owner, "owner");
         this.coreLightColor = Objects.requireNonNull (color, "color");
+        this.coreLightBlink = Objects.requireNonNull (blink, "blink");
     }
 
 
@@ -204,7 +209,22 @@ final class PushPadGrid extends PadGridImpl
             this.resolvedCoreColors[note] = this.resolveColor (color);
         }
         final LightInfo coreState = this.corePadStates[note];
-        coreState.setColors (this.resolvedCoreColors[note], 0, false);
+        final LightBlink blink = this.coreLightBlink.apply (control);
+        if (blink == null)
+            coreState.setColors (this.resolvedCoreColors[note], 0, false);
+        else
+        {
+            final RgbColor alternate = blink.alternateColor ();
+            final PadColor blinkColor = PadColor.rgbOrOff (ColorEx.fromRGB (alternate.red (), alternate.green (), alternate.blue ()));
+            if (!blinkColor.equals (this.requestedCoreBlinkColors[note]))
+            {
+                this.requestedCoreBlinkColors[note] = blinkColor;
+                this.resolvedCoreBlinkColors[note] = this.resolveColor (blinkColor);
+            }
+            final int alternateIndex = this.resolvedCoreBlinkColors[note];
+            // Palette zero disables the hardware blink channel. Exchange phases for an off alternate.
+            coreState.setColors (alternateIndex == 0 ? 0 : this.resolvedCoreColors[note], alternateIndex == 0 ? this.resolvedCoreColors[note] : alternateIndex, blink.fast ());
+        }
         return coreState;
     }
 

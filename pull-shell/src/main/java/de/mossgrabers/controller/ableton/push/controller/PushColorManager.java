@@ -17,7 +17,7 @@ import de.mossgrabers.framework.featuregroup.AbstractFeatureGroup;
 import de.mossgrabers.framework.featuregroup.AbstractMode;
 import de.mossgrabers.framework.scale.Scales;
 import de.mossgrabers.framework.view.AbstractPlayView;
-import de.mossgrabers.framework.view.AbstractSessionView;
+import de.mossgrabers.framework.featuregroup.AbstractView;
 import de.mossgrabers.framework.view.sequencer.AbstractDrumView;
 import de.mossgrabers.framework.view.sequencer.AbstractSequencerView;
 import de.mossgrabers.framework.view.sequencer.ClipLengthView;
@@ -331,9 +331,9 @@ public class PushColorManager extends ColorManager
         this.registerColorIndex (ClipLengthView.COLOR_OUTSIDE, PUSH2_COLOR_BLACK);
         this.registerColorIndex (ClipLengthView.COLOR_PART, PUSH2_COLOR2_OCEAN_HI);
 
-        this.registerColorIndex (AbstractSessionView.COLOR_SCENE, PUSH2_COLOR_SCENE_GREEN);
-        this.registerColorIndex (AbstractSessionView.COLOR_SELECTED_SCENE, PUSH2_COLOR_SCENE_GREEN_HI);
-        this.registerColorIndex (AbstractSessionView.COLOR_SCENE_OFF, PUSH2_COLOR2_BLACK);
+        this.registerColorIndex (AbstractView.COLOR_SCENE, PUSH2_COLOR_SCENE_GREEN);
+        this.registerColorIndex (AbstractView.COLOR_SELECTED_SCENE, PUSH2_COLOR_SCENE_GREEN_HI);
+        this.registerColorIndex (AbstractView.COLOR_SCENE_OFF, PUSH2_COLOR2_BLACK);
 
 
         this.registerColorIndex (IPadGrid.GRID_OFF, PUSH2_COLOR2_BLACK);

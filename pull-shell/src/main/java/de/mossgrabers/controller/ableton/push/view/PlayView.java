@@ -15,7 +15,7 @@ import de.mossgrabers.framework.daw.data.bank.ISceneBank;
 import de.mossgrabers.framework.featuregroup.AbstractFeatureGroup;
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.framework.view.AbstractPlayView;
-import de.mossgrabers.framework.view.AbstractSessionView;
+import de.mossgrabers.framework.featuregroup.AbstractView;
 import de.mossgrabers.framework.view.Views;
 
 
@@ -92,8 +92,8 @@ public class PlayView extends AbstractPlayView<PushControlSurface, PushConfigura
         final int scene = buttonID.ordinal () - ButtonID.SCENE1.ordinal ();
         final IScene s = sceneBank.getItem (scene);
         if (s.doesExist ())
-            return s.isSelected () ? AbstractSessionView.COLOR_SELECTED_SCENE : AbstractSessionView.COLOR_SCENE;
-        return AbstractSessionView.COLOR_SCENE_OFF;
+            return s.isSelected () ? AbstractView.COLOR_SELECTED_SCENE : AbstractView.COLOR_SCENE;
+        return AbstractView.COLOR_SCENE_OFF;
     }
 
 

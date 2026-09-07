@@ -6,6 +6,11 @@ package de.mossgrabers.controller.ableton.push.view;
 
 import de.mossgrabers.controller.ableton.push.PushConfiguration;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
+import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
+import de.mossgrabers.framework.controller.grid.IPadGrid;
+import de.mossgrabers.framework.controller.grid.PadColor;
+import de.mossgrabers.framework.controller.grid.PadLight;
+import de.mossgrabers.framework.daw.data.ISlot;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.clip.INoteClip;
@@ -30,6 +35,41 @@ public class DrumXoXView extends AbstractDrumXoXView<PushControlSurface, PushCon
     public DrumXoXView (final PushControlSurface surface, final IModel model)
     {
         super (Views.NAME_DRUM_XOX, surface, model, 8);
+    }
+
+
+    /** Retained legacy sequencer clip feedback, independent of the migrated Session adapter. */
+    @Override
+    protected void drawPages (final INoteClip clip, final boolean isActive)
+    {
+        final IPadGrid padGrid = this.surface.getPadGrid ();
+        final boolean isRecArmed = this.model.getCursorTrack ().isRecArm ();
+        for (int x = 0; x < this.slotBank.getPageSize (); x++)
+        {
+            final PadLight color = this.clipLight (this.slotBank.getItem (x), isRecArmed);
+            padGrid.lightEx (x % this.numColumns, x / this.numColumns, color.color (), color.blinkColor (), color.fast ());
+        }
+    }
+
+
+    private PadLight clipLight (final ISlot slot, final boolean isArmed)
+    {
+        final PadColor clipColor = PadColor.rgb (slot.getColor ());
+        if (slot.isRecordingQueued ())
+            return new PadLight (PadColor.indexed (PushColorManager.PUSH2_COLOR2_ROSE), PadColor.indexed (0), true);
+        if (slot.isRecording ())
+            return new PadLight (clipColor, PadColor.indexed (PushColorManager.PUSH2_COLOR2_ROSE), false);
+        if (slot.isPlayingQueued () || slot.isStopQueued ())
+            return new PadLight (clipColor, PadColor.indexed (PushColorManager.PUSH2_COLOR2_GREEN), true);
+        if (slot.isPlaying ())
+            return new PadLight (clipColor, PadColor.indexed (PushColorManager.PUSH2_COLOR2_GREEN), false);
+        if (slot.hasContent ())
+        {
+            if (slot.isMuted ())
+                return new PadLight (PadColor.indexed (PushColorManager.PUSH2_COLOR2_GREY_LO));
+            return new PadLight (clipColor, slot.isSelected () ? PadColor.indexed (PushColorManager.PUSH2_COLOR2_WHITE) : null, false);
+        }
+        return new PadLight (PadColor.indexed (slot.doesExist () && isArmed && this.surface.getConfiguration ().isDrawRecordStripe () ? PushColorManager.PUSH2_COLOR2_RECORD_ARMED_DIM : 0));
     }
 
 

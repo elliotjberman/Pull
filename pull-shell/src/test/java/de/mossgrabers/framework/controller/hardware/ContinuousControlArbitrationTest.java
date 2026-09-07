@@ -14,6 +14,7 @@ import de.mossgrabers.pull.shell.input.InputPhase;
 import de.mossgrabers.pull.shell.input.InputRoute;
 import de.mossgrabers.pull.shell.input.PhysicalControlRegistry;
 import de.mossgrabers.pull.shell.input.PhysicalInputEvent;
+import de.mossgrabers.pull.shell.input.PhysicalInputAddress;
 import de.mossgrabers.pull.shell.input.PhysicalInputRouter;
 
 import org.junit.jupiter.api.Test;
@@ -21,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -96,6 +98,44 @@ class ContinuousControlArbitrationTest
         assertEquals (List.of (3L), coreEvents.stream ().map (PhysicalInputEvent::value).toList ());
         assertEquals (1, control.activeHardwareBindings);
         assertEquals (2, control.hardwareTargetChanges);
+    }
+
+
+    @Test
+    void heldCoreEncoderCannotMutateAReboundLegacyParameterUntilANewTouch ()
+    {
+        final FakeRelativeControl control = new FakeRelativeControl ();
+        final AtomicReference<InputRoute> route = new AtomicReference<> (InputRoute.EXCLUSIVE);
+        final AtomicInteger replacementDelta = new AtomicInteger ();
+        final List<PhysicalInputEvent<String>> events = new ArrayList<> ();
+        final PhysicalControlRegistry<String> registry = PhysicalControlRegistry.<String>builder (2)
+            .register (ENCODER, InputKind.TOUCH).register (ENCODER, InputKind.RELATIVE).build ();
+        final PhysicalInputRouter<String> router = new PhysicalInputRouter<> (
+            registry, (ignoredControl, ignoredKind) -> route.get (), events::add,
+            (ignoredControl, ignoredKind, ignoredAction) -> false, System::nanoTime, () -> 1,
+            Map.of (new PhysicalInputAddress<> (ENCODER, InputKind.TOUCH), new PhysicalInputAddress<> (ENCODER, InputKind.RELATIVE)));
+        control.bind (value -> {});
+        control.bindTouch ((event, velocity) -> {}, null, null, 0, 0);
+        control.installValueArbitrator ((value, legacy) -> router.route (ENCODER, InputKind.RELATIVE, InputPhase.CHANGE, decodeTwosComplement (value), legacy));
+        control.installTouchEventArbitrator ((event, velocity, legacy) -> router.route (ENCODER, InputKind.TOUCH, phase (event), velocity, legacy));
+
+        control.triggerTouch (true);
+        control.emit (2);
+        control.bind (parameter (replacementDelta));
+        route.set (InputRoute.NONE);
+        control.emit (3);
+        control.triggerTouch (false);
+        assertEquals (0, replacementDelta.get ());
+        assertEquals (List.of (InputPhase.BEGIN, InputPhase.CHANGE, InputPhase.END), events.stream ().map (PhysicalInputEvent::phase).toList ());
+        assertEquals (5, events.get (1).value ());
+        assertFalse (control.isTouched ());
+
+        control.triggerTouch (true);
+        control.emit (4);
+        control.triggerTouch (false);
+        assertEquals (4, replacementDelta.get ());
+        assertEquals (3, events.size ());
+        assertEquals (1, control.activeHardwareBindings);
     }
 
 

@@ -38,13 +38,6 @@ public class PageRightCommand extends AbstractTriggerCommand<PushControlSurface,
     public void execute (final ButtonEvent event, final int velocity)
     {
         final ViewManager viewManager = this.surface.getViewManager ();
-        if (this.surface.isSessionLayoutActive ())
-        {
-            if (event == ButtonEvent.DOWN)
-                this.model.getCurrentTrackBank ().selectNextPage ();
-            return;
-        }
-
         final IView activeView = viewManager.getActive ();
         if (activeView instanceof final AbstractSequencerView<?, ?> sequencerView)
             sequencerView.onRight (event);

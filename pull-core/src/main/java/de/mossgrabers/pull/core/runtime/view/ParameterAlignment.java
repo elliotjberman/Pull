@@ -5,13 +5,10 @@ package de.mossgrabers.pull.core.runtime.view;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.ParameterSlot;
-import de.mossgrabers.pull.core.api.ParameterTargetRef;
 import de.mossgrabers.pull.core.api.ParameterTargetSnapshot;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 
 /** Joins independently sampled parameter and owner domains before admitting new work or feedback. */
@@ -80,9 +77,4 @@ final class ParameterAlignment
         return Map.copyOf (result);
     }
 
-
-    static Set<ParameterTargetRef> references (final ControllerSnapshot snapshot)
-    {
-        return targets (snapshot).values ().stream ().map (ParameterTargetSnapshot::target).collect (Collectors.toUnmodifiableSet ());
-    }
 }

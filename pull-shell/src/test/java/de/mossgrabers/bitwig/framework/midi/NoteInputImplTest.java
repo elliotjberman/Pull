@@ -90,7 +90,7 @@ class NoteInputImplTest
             default -> relaxedValue (method.getReturnType ());
         });
         final ControllerHost host = proxy (ControllerHost.class, (proxy, method, arguments) -> "getMidiInPort".equals (method.getName ()) ? midiIn : relaxedValue (method.getReturnType ()));
-        final MidiInputImpl input = new MidiInputImpl (0, host, null, null);
+        final MidiInputImpl input = new MidiInputImpl (0, new de.mossgrabers.bitwig.framework.daw.HostImpl (host), null, null);
         final HwButtonImpl button = new HwButtonImpl (new HostImpl (host), hardwareButton, "Semantic Control");
 
         button.bind (input, BindType.NOTE, 2, 64);
@@ -145,7 +145,7 @@ class NoteInputImplTest
         });
         final MidiIn midiIn = relaxedProxy (MidiIn.class);
         final ControllerHost host = proxy (ControllerHost.class, (proxy, method, arguments) -> "getMidiInPort".equals (method.getName ()) ? midiIn : relaxedValue (method.getReturnType ()));
-        final MidiInputImpl input = new MidiInputImpl (0, host, null, null);
+        final MidiInputImpl input = new MidiInputImpl (0, new de.mossgrabers.bitwig.framework.daw.HostImpl (host), null, null);
 
         input.unbindRelease (new HwButtonImpl (new HostImpl (host), hardwareButton, "Pad"));
 
@@ -235,7 +235,7 @@ class NoteInputImplTest
             return relaxedValue (method.getReturnType ());
         });
 
-        final MidiInputImpl input = new MidiInputImpl (0, host, "Pull Pads", new String []
+        final MidiInputImpl input = new MidiInputImpl (0, new de.mossgrabers.bitwig.framework.daw.HostImpl (host), "Pull Pads", new String []
         {
             "80????",
             "90????"

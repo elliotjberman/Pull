@@ -73,6 +73,29 @@ public final class ConfigurationPageView implements ControllerView
     @Override public void deactivate () { this.rows.deactivate (); this.admission.clear (); Arrays.fill (this.tabs, null); this.touched.clear (); this.settings.values ().forEach (ControllerIntegerSetting::clear); }
 
     @Override
+    public InputTarget inputTarget (final ControlId control, final InputKind kind, final ControllerSnapshot snapshot)
+    {
+        if (kind == InputKind.BUTTON && CurrentTrackRowSelection.accepts (control))
+            return this.rows.inputTarget (control, snapshot);
+        if (this.kind == Kind.SETUP && KNOBS.contains (control))
+            return new InputTarget.Context (control, "setup-hardware", "", snapshot.bridge ().controllerSettings ().hardware ().available () ? 1 : 0);
+        return ControllerView.super.inputTarget (control, kind, snapshot);
+    }
+
+    @Override
+    public List<CoreEffect> cancel (final ControlId control, final InputKind kind, final InputTarget target, final ControllerSnapshot snapshot)
+    {
+        if (kind == InputKind.BUTTON)
+        {
+            this.rows.cancel (control);
+            final int index = TABS.indexOf (control);
+            if (index >= 0) this.finish (index);
+        }
+        if (kind == InputKind.TOUCH) this.touched.remove (KNOBS.indexOf (control));
+        return List.of ();
+    }
+
+    @Override
     public void reconcile (final ControllerSnapshot snapshot)
     {
         this.rows.reconcile (snapshot);

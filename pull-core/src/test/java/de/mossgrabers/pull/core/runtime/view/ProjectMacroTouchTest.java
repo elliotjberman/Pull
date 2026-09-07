@@ -27,6 +27,7 @@ import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.output.DisplayCommand;
 import de.mossgrabers.pull.core.api.output.DisplayTextFit;
 import de.mossgrabers.pull.core.view.CompiledWorkspace;
+import de.mossgrabers.pull.core.view.RoutedWorkspace;
 import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
@@ -47,28 +48,29 @@ class ProjectMacroTouchTest
     void claimsCompleteTouchAndResetsBeforeRequestingExactTouch ()
     {
         final Fixture fixture = new Fixture ();
-        final CoreResult initial = fixture.project.start (snapshot (TARGET, WRITING, false, false));
+        final CoreResult initial = fixture.project.start (snapshot (TARGET, WRITING, false, false, Set.of ()));
         assertEquals (InputRouteMode.EXCLUSIVE, initial.desiredInputRoutes ().modeOrNull (KNOB, InputKind.TOUCH));
         assertTrue (initial.desiredBridgeSubscriptions ().includes (BridgeSubscription.AUTOMATION));
-        final CoreResult begin = fixture.project.handle (touch (InputPhase.BEGIN), snapshot (TARGET, WRITING, true, true));
+        final CoreResult begin = fixture.project.handle (touch (InputPhase.BEGIN), snapshot (TARGET, WRITING, true, true, Set.of ()));
         assertEquals (List.of (new ConsumeControllerButtonEffect (DELETE), new ResetParameterEffect (TARGET)), begin.effects ());
         assertEquals (Map.of (KNOB, TARGET), begin.desiredParameterTouches ().targets ());
-        final CoreResult release = fixture.project.handle (touch (InputPhase.END), snapshot (TARGET, WRITING, false, false));
+        final CoreResult release = fixture.project.handle (touch (InputPhase.END), snapshot (TARGET, WRITING, false, false, Set.of ()));
         assertTrue (release.desiredParameterTouches ().targets ().isEmpty ());
         assertEquals (List.of (new SetAutomationWriteEffect ("project-a", false)), release.effects ());
-        assertTrue (fixture.project.handle (touch (InputPhase.END), snapshot (TARGET, WRITING, false, false)).effects ().isEmpty ());
+        assertTrue (fixture.project.handle (touch (InputPhase.END), snapshot (TARGET, WRITING, false, false, Set.of ())).effects ().isEmpty ());
     }
 
     @Test
     void touchEmphasisAndParameterValueFollowTheSnapshotInsteadOfTheRequestedEffect ()
     {
         final ProjectMacroControlsView view = new ProjectMacroControlsView ();
-        final ControllerSnapshot untouched = snapshot (TARGET, WRITING, false, false);
+        final ControllerSnapshot untouched = snapshot (TARGET, WRITING, false, false, Set.of ());
         view.start (untouched);
         final var before = view.render (untouched).display ();
-        view.handle (touch (InputPhase.BEGIN), snapshot (TARGET, WRITING, false, true));
+        view.handle (touch (InputPhase.BEGIN), snapshot (TARGET, WRITING, false, true, Set.of ()));
         assertEquals (before, view.render (untouched).display ());
-        assertNotEquals (before, view.render (snapshot (TARGET, WRITING, true, false)).display ());
+        assertEquals (before, view.render (snapshot (TARGET, WRITING, true, false, Set.of ())).display (), "physical touch is not a lease acknowledgement");
+        assertNotEquals (before, view.render (snapshot (TARGET, WRITING, true, false, Set.of (TARGET))).display ());
         assertEquals (64, untouched.bridge ().parameters ().slots ().get (ParameterSlot.projectRemote (0)).value ());
     }
 
@@ -102,9 +104,9 @@ class ProjectMacroTouchTest
         for (final AutomationSnapshot automation: List.of (new AutomationSnapshot ("project-a", true, false), new AutomationSnapshot ("project-a", false, true), AutomationSnapshot.empty ()))
         {
             final Fixture fixture = new Fixture ();
-            fixture.project.start (snapshot (TARGET, WRITING, false, false));
-            fixture.project.handle (touch (InputPhase.BEGIN), snapshot (TARGET, WRITING, true, false));
-            assertTrue (fixture.project.handle (touch (InputPhase.END), snapshot (TARGET, automation, false, false)).effects ().isEmpty ());
+            fixture.project.start (snapshot (TARGET, WRITING, false, false, Set.of ()));
+            fixture.project.handle (touch (InputPhase.BEGIN), snapshot (TARGET, WRITING, true, false, Set.of ()));
+            assertTrue (fixture.project.handle (touch (InputPhase.END), snapshot (TARGET, automation, false, false, Set.of ())).effects ().isEmpty ());
         }
     }
 
@@ -112,11 +114,11 @@ class ProjectMacroTouchTest
     void absentParameterStillConsumesDeleteAndPreservesReleasePreference ()
     {
         final Fixture fixture = new Fixture ();
-        fixture.project.start (snapshot (null, WRITING, false, false));
-        final CoreResult begin = fixture.project.handle (touch (InputPhase.BEGIN), snapshot (null, WRITING, true, true));
+        fixture.project.start (snapshot (null, WRITING, false, false, Set.of ()));
+        final CoreResult begin = fixture.project.handle (touch (InputPhase.BEGIN), snapshot (null, WRITING, true, true, Set.of ()));
         assertEquals (List.of (new ConsumeControllerButtonEffect (DELETE)), begin.effects ());
         assertTrue (begin.desiredParameterTouches ().targets ().isEmpty ());
-        assertEquals (List.of (new SetAutomationWriteEffect ("project-a", false)), fixture.project.handle (touch (InputPhase.END), snapshot (null, WRITING, false, false)).effects ());
+        assertEquals (List.of (new SetAutomationWriteEffect ("project-a", false)), fixture.project.handle (touch (InputPhase.END), snapshot (null, WRITING, false, false, Set.of ())).effects ());
     }
 
     private static ControllerInputEvent touch (final InputPhase phase)
@@ -124,22 +126,27 @@ class ProjectMacroTouchTest
         return new ControllerInputEvent (1, 1, KNOB, InputKind.TOUCH, phase, phase == InputPhase.END ? 0 : 127);
     }
 
-    private static ControllerSnapshot snapshot (final ParameterTargetRef target, final AutomationSnapshot automation, final boolean touched, final boolean delete)
+    private static ControllerSnapshot snapshot (final ParameterTargetRef target, final AutomationSnapshot automation, final boolean touched, final boolean delete, final Set<ParameterTargetRef> leases)
     {
-        return snapshot (target, automation, touched, delete, "Cutoff", "64 units");
+        return snapshot (target, automation, touched, delete, leases, "Cutoff", "64 units");
     }
 
     private static ControllerSnapshot snapshot (final ParameterTargetRef target, final AutomationSnapshot automation, final boolean touched, final boolean delete, final String label, final String displayedValue)
     {
+        return snapshot (target, automation, touched, delete, Set.of (), label, displayedValue);
+    }
+
+    private static ControllerSnapshot snapshot (final ParameterTargetRef target, final AutomationSnapshot automation, final boolean touched, final boolean delete, final Set<ParameterTargetRef> leases, final String label, final String displayedValue)
+    {
         final ControllerBridgeSnapshot empty = ControllerBridgeSnapshot.empty ();
-        final ParameterBridgeSnapshot parameters = target == null ? ParameterBridgeSnapshot.empty () : new ParameterBridgeSnapshot (Map.of (ParameterSlot.projectRemote (0), new ParameterTargetSnapshot (target, label, 64, 65, displayedValue, 128, 0, Optional.empty (), new ParameterTargetIdentitySnapshot ("project-remote", "project-a", 0, 0))), Map.of ());
+        final ParameterBridgeSnapshot parameters = target == null ? ParameterBridgeSnapshot.empty () : new ParameterBridgeSnapshot (Map.of (ParameterSlot.projectRemote (0), new ParameterTargetSnapshot (target, label, 64, 65, displayedValue, 128, 0, Optional.empty (), new ParameterTargetIdentitySnapshot ("project-remote", "project-a", 0, 0))), Map.of (), leases);
         final ControllerBridgeSnapshot bridge = new ControllerBridgeSnapshot (empty.transport (), empty.selectedTrack (), empty.sessionBank (), empty.layout (), empty.noteView (), empty.noteRepeat (), empty.drum (), parameters, empty.controllerMappingFeedback (), empty.master (), empty.project (), automation);
         return new ControllerSnapshot (1, 1, new ShellCapabilities (Map.of ()), bridge, new ClipCatalogSnapshot (0, List.of ()), Map.of (), Map.of (), Optional.empty (), delete ? Set.of (DELETE) : Set.of (), touched ? Set.of (KNOB) : Set.of ());
     }
 
     private static final class Fixture
     {
-        private final ParameterTouchSession session = new ParameterTouchSession ();
-        private final CompiledWorkspace project = CompiledWorkspace.compile ("project", List.of (new ProjectMacroControlsView (this.session), new TrackSelectionStripView ()));
+
+        private final RoutedWorkspace project = new RoutedWorkspace (CompiledWorkspace.compile ("project", List.of (new ProjectMacroControlsView (), new TrackSelectionStripView ())));
     }
 }

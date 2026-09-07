@@ -149,12 +149,76 @@ class AccentViewsTest
         assertEquals (1, f.view.render (f.snapshot ()).display ().commands ().size ());
     }
 
+    @Test
+    void unavailableAccentCancelsTouchAndDoesNotResumeWhenSettingsReturn ()
+    {
+        final Fixture f = new Fixture (true);
+        final var untouched = f.view.render (f.snapshot ()).display ();
+        f.touch (8, InputPhase.BEGIN);
+        f.available = false;
+        f.tick ();
+        f.available = true;
+        f.tick ();
+        assertTrue (f.turn (8, 1).effects ().isEmpty ());
+        assertEquals (untouched, f.view.render (f.snapshot ()).display ());
+        f.touch (8, InputPhase.END);
+        f.touch (8, InputPhase.BEGIN);
+        assertEquals (List.of (new SetControllerIntegerSettingEffect (SetControllerIntegerSettingEffect.Setting.ACCENT_VELOCITY, 65)), f.turn (8, 1).effects ());
+    }
+
+    @Test
+    void unavailableAccentCancelsToggleAndRelinquishesOnlyAnAlreadyOpenedTemporaryPage ()
+    {
+        final Fixture f = new Fixture (false);
+        f.edge ("ACCENT", InputPhase.BEGIN);
+        f.available = false;
+        f.tick ();
+        f.available = true;
+        f.tick ();
+        assertTrue (f.edge ("ACCENT", InputPhase.END).effects ().isEmpty ());
+        f.edge ("ACCENT", InputPhase.BEGIN);
+        f.edge ("ACCENT", InputPhase.LONG);
+        assertEquals ("ACCENT", f.navigation.legacyAlias ());
+        f.available = false;
+        f.tick ();
+        assertEquals ("TRACK", f.navigation.legacyAlias ());
+        f.available = true;
+        f.tick ();
+        f.edge ("ACCENT", InputPhase.END);
+        assertEquals ("TRACK", f.navigation.legacyAlias ());
+        f.edge ("ACCENT", InputPhase.BEGIN);
+        assertEquals (List.of (new SetControllerBooleanSettingEffect (SetControllerBooleanSettingEffect.Setting.ACCENT_ENABLED, true)), f.edge ("ACCENT", InputPhase.END).effects ());
+    }
+
+    @Test
+    void deferredAccentCannotOpenAfterItsSettingsDisappear ()
+    {
+        final Fixture f = new Fixture (false);
+        final ResolvedControllerAction action = f.resolve ("ACCENT");
+        f.edge ("ACCENT", InputPhase.LONG);
+        f.edge ("ACCENT", InputPhase.END);
+        f.available = false;
+        f.tick ();
+        f.available = true;
+        f.tick ();
+        assertEquals ("TRACK", f.navigation.legacyAlias ());
+        f.edge ("ACCENT", InputPhase.BEGIN);
+        f.edge ("ACCENT", InputPhase.LONG);
+        assertEquals ("ACCENT", f.navigation.legacyAlias ());
+        assertTrue (f.dispatch (action).effects ().isEmpty ());
+        assertEquals ("ACCENT", f.navigation.legacyAlias ());
+        f.edge ("ACCENT", InputPhase.END);
+        assertEquals ("TRACK", f.navigation.legacyAlias ());
+        f.edge ("ACCENT", InputPhase.BEGIN);
+        assertEquals (List.of (new SetControllerBooleanSettingEffect (SetControllerBooleanSettingEffect.Setting.ACCENT_ENABLED, true)), f.edge ("ACCENT", InputPhase.END).effects ());
+    }
+
     private static final class Fixture
     {
         private final PageNavigation navigation = PageNavigation.defaults ();
         private final SessionStopGesture fullStop = new SessionStopGesture ();
         private final ControllerView view;
-        private final CompiledWorkspace workspace;
+        private final RoutedWorkspace workspace;
         private final SessionBankShape sessionShape;
         private final Set<ControlId> pressed = new HashSet<> ();
         private long sequence;
@@ -168,7 +232,7 @@ class AccentViewsTest
         {
             this.sessionShape = sessionShape;
             this.view = page ? new AccentPageView (this.fullStop, this.navigation) : new AccentControlView (new ControllerPageTransitions (this.navigation));
-            this.workspace = CompiledWorkspace.compile ("test", sessionShape, sessionShape.isPresent () ? List.of (this.view, scenesView (sessionShape, this.fullStop)) : List.of (this.view));
+            this.workspace = new RoutedWorkspace (CompiledWorkspace.compile ("test", sessionShape, sessionShape.isPresent () ? List.of (this.view, scenesView (sessionShape, this.fullStop)) : List.of (this.view)));
             this.workspace.start (this.snapshot ());
         }
         private static ControllerView scenesView (final SessionBankShape shape, final SessionStopGesture stop) { return shape.scenes () == 8 ? SessionView.full (stop) : SessionView.upper (true, stop); }
@@ -181,10 +245,10 @@ class AccentViewsTest
             if (phase == InputPhase.BEGIN) this.pressed.add (control);
             if (phase == InputPhase.END) this.pressed.remove (control);
             final var input = this.input (control, InputKind.BUTTON, phase, phase == InputPhase.END ? 0 : 127);
-            final var action = this.workspace.resolveAction (input, this.snapshot ());
-            return action == null ? this.workspace.handle (input, this.snapshot ()) : this.dispatch (action);
+            return this.workspace.handle (input, this.snapshot ());
         }
         private CoreResult turn (final int knob, final long value) { return this.workspace.handle (this.input (PushControlIds.continuous ("KNOB" + knob), InputKind.RELATIVE, InputPhase.UPDATE, value), this.snapshot ()); }
+        private CoreResult touch (final int knob, final InputPhase phase) { return this.workspace.handle (this.input (PushControlIds.continuous ("KNOB" + knob), InputKind.TOUCH, phase, phase == InputPhase.END ? 0 : 127), this.snapshot ()); }
         private CoreResult tick () { this.sequence++; return this.workspace.handle (new ControllerTickEvent (this.sequence, this.sequence), this.snapshot ()); }
         private String displayedValue () { return ((DisplayCommand.TextBox) this.view.render (this.snapshot ()).display ().commands ().get (2)).text (); }
         private ControllerSnapshot snapshot ()

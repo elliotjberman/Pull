@@ -31,6 +31,10 @@ import de.mossgrabers.framework.utils.KeyManager;
  */
 public abstract class AbstractView<S extends IControlSurface<C>, C extends Configuration> extends AbstractFeatureGroup<S, C> implements IView
 {
+    public static final String COLOR_SCENE = "COLOR_SCENE";
+    public static final String COLOR_SELECTED_SCENE = "COLOR_SELECTED_SCENE";
+    public static final String COLOR_SCENE_OFF = "COLOR_SELECTED_OFF";
+
     protected static final int [] EMPTY_TABLE = Scales.getEmptyMatrix ();
 
     protected final Scales        scales;

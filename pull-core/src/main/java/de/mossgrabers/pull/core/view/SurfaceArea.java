@@ -63,6 +63,10 @@ public enum SurfaceArea
     SCENE_KEYS_LOWER (range (ElementType.BUTTON, 204, 4), buttonControls ("SCENE", 5, 4), Set.of (InputKind.BUTTON)),
     /** Four directional arrow keys. */
     NAVIGATION_ARROWS (range (ElementType.BUTTON, 300, 4), namedButtonControls ("ARROW_LEFT", "ARROW_RIGHT", "ARROW_UP", "ARROW_DOWN"), Set.of (InputKind.BUTTON)),
+    /** Horizontal parameter-page arrows, independent of vertical scene navigation. */
+    NAVIGATION_HORIZONTAL (range (ElementType.BUTTON, 300, 2), namedButtonControls ("ARROW_LEFT", "ARROW_RIGHT"), Set.of (InputKind.BUTTON)),
+    /** Vertical scene-navigation arrows. */
+    NAVIGATION_VERTICAL (range (ElementType.BUTTON, 302, 2), namedButtonControls ("ARROW_UP", "ARROW_DOWN"), Set.of (InputKind.BUTTON)),
     /** Page-left and page-right buttons. */
     NAVIGATION_PAGE (range (ElementType.BUTTON, 304, 2), namedButtonControls ("PAGE_LEFT", "PAGE_RIGHT"), Set.of (InputKind.BUTTON)),
     /** Octave-down and octave-up buttons. */

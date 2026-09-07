@@ -5,6 +5,7 @@ package de.mossgrabers.pull.core.runtime.view;
 import de.mossgrabers.pull.core.api.*;
 import de.mossgrabers.pull.core.api.effect.*;
 import de.mossgrabers.pull.core.api.event.*;
+import de.mossgrabers.pull.core.view.InputTarget;
 import de.mossgrabers.pull.core.view.ResolvedControllerAction;
 import java.util.*;
 import java.util.stream.IntStream;
@@ -31,6 +32,19 @@ final class CurrentTrackRowSelection
 
     static Set<ControllerActionBinding> actionBindings () { return ACTIONS; }
     static boolean accepts (final ControlId control) { return ROW.contains (control); }
+
+    InputTarget inputTarget (final ControlId control, final ControllerSnapshot snapshot)
+    {
+        return TrackInputTargets.row (control, ROW.indexOf (control), snapshot);
+    }
+
+    void cancel (final ControlId control)
+    {
+        final int index = ROW.indexOf (control);
+        if (index < 0 || this.rows[index] == null) return;
+        this.admission.finish (this.rows[index].ticket);
+        this.rows[index] = null;
+    }
 
     ResolvedControllerAction resolveAction (final ControllerActionBinding binding, final ControllerInputEvent input, final ControllerSnapshot snapshot)
     {

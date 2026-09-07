@@ -14,13 +14,14 @@ import java.util.Set;
  *
  * @param slots Current slot-to-target bindings
  * @param retainedBaselines Core-requested actuator leases and restoration baselines
+ * @param touchLeases Exact touch actuators still owned by the shell at this sample; not a DAW write acknowledgement
  */
-public record ParameterBridgeSnapshot (Map<ParameterSlot, ParameterTargetSnapshot> slots, Map<ParameterTargetRef, Double> retainedBaselines)
+public record ParameterBridgeSnapshot (Map<ParameterSlot, ParameterTargetSnapshot> slots, Map<ParameterTargetRef, Double> retainedBaselines, Set<ParameterTargetRef> touchLeases)
 {
     /** Total number of simultaneously addressable installed targets. */
     public static final int TARGET_CAPACITY = ParameterSlot.INSTALLED_TARGET_CAPACITY;
 
-    private static final ParameterBridgeSnapshot EMPTY = new ParameterBridgeSnapshot (Map.of (), Map.of ());
+    private static final ParameterBridgeSnapshot EMPTY = new ParameterBridgeSnapshot (Map.of (), Map.of (), Set.of ());
 
 
     /**
@@ -30,6 +31,9 @@ public record ParameterBridgeSnapshot (Map<ParameterSlot, ParameterTargetSnapsho
     {
         slots = Map.copyOf (Objects.requireNonNull (slots, "slots"));
         retainedBaselines = Map.copyOf (Objects.requireNonNull (retainedBaselines, "retainedBaselines"));
+        touchLeases = Set.copyOf (Objects.requireNonNull (touchLeases, "touchLeases"));
+        if (touchLeases.size () > DesiredParameterTouches.CAPACITY)
+            throw new IllegalArgumentException ("parameter touch leases exceed their capacity");
         if (slots.size () > TARGET_CAPACITY)
             throw new IllegalArgumentException ("parameter bridge exceeds its installed target capacity");
         if (retainedBaselines.size () > ParameterSlot.INTERACTION_TARGET_CAPACITY)

@@ -22,6 +22,7 @@ import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.view.ControllerView;
+import de.mossgrabers.pull.core.view.InputTarget;
 import de.mossgrabers.pull.core.view.SurfaceArea;
 import de.mossgrabers.pull.core.view.SurfaceClaim;
 import de.mossgrabers.pull.core.view.ViewProfile;
@@ -104,6 +105,23 @@ public final class TransportControlView implements ControllerView
         return SUBSCRIPTIONS;
     }
 
+
+    @Override
+    public InputTarget inputTarget (final ControlId control, final InputKind kind, final ControllerSnapshot snapshot)
+    {
+        if (!RECORD_BUTTON.equals (control)) return ControllerView.super.inputTarget (control, kind, snapshot);
+        final SelectedTrackSnapshot track = snapshot.bridge ().selectedTrack ();
+        return new InputTarget.Composite (List.of (
+            new InputTarget.Context (control, "selected-track", track.channelId (), track.generation ()),
+            new InputTarget.Context (control, "project", snapshot.bridge ().project ().projectIdentity (), 0)));
+    }
+
+    @Override
+    public List<CoreEffect> cancel (final ControlId control, final InputKind kind, final InputTarget target, final ControllerSnapshot snapshot)
+    {
+        if (RECORD_BUTTON.equals (control)) this.buttonGestures.takeConsumed (RECORD_BUTTON);
+        return List.of ();
+    }
 
     /** {@inheritDoc} */
     @Override

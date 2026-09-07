@@ -42,6 +42,7 @@ import de.mossgrabers.framework.daw.midi.MidiSysExCallback;
  */
 public class MidiInputImpl implements IMidiInput
 {
+    private final de.mossgrabers.bitwig.framework.daw.HostImpl frameworkHost;
     private static final String SELECTED_TRACK_CURSOR_ID = "PULL_PADS_SELECTED_TRACK";
 
     private final ControllerHost host;
@@ -62,10 +63,11 @@ public class MidiInputImpl implements IMidiInput
      *            {@null}, a standard filter will be used to forward note-related messages on
      *            channel 1 (0).
      */
-    public MidiInputImpl (final int portNumber, final ControllerHost host, final String name, final String [] filters)
+    public MidiInputImpl (final int portNumber, final de.mossgrabers.bitwig.framework.daw.HostImpl frameworkHost, final String name, final String [] filters)
     {
-        this.host = host;
-        this.port = host.getMidiInPort (portNumber);
+        this.frameworkHost = frameworkHost;
+        this.host = frameworkHost.getControllerHost ();
+        this.port = this.host.getMidiInPort (portNumber);
 
         if (name != null)
         {
@@ -127,7 +129,7 @@ public class MidiInputImpl implements IMidiInput
 
         this.selectedTrackTarget = createSelectedTrackTargetCursor (this.host);
         this.defaultNoteInput.excludeFromAllInputs ();
-        return new SelectedTrackTargetState (this.host, this.selectedTrackTarget, this.defaultNoteInput);
+        return new SelectedTrackTargetState (this.frameworkHost, this.selectedTrackTarget, this.defaultNoteInput);
     }
 
 

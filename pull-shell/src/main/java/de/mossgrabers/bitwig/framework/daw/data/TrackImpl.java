@@ -55,7 +55,7 @@ public class TrackImpl extends ChannelImpl implements ITrack
     private final ISlotBank          slotBank;
     private final int []             noteCache         = new int [128];
     private final Set<INoteObserver> noteObservers     = new CopyOnWriteArraySet<> ();
-    private final IHost              host;
+    protected final IHost            host;
     private final IParameter         crossfadeParameter;
     private final Device             drumMachineDevice;
 
@@ -147,6 +147,24 @@ public class TrackImpl extends ChannelImpl implements ITrack
 
     /** {@inheritDoc} */
     @Override
+    public void remove ()
+    {
+        this.host.beforeProjectStructureMutation ();
+        super.remove ();
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void duplicate ()
+    {
+        this.host.beforeProjectStructureMutation ();
+        super.duplicate ();
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
     public void enter ()
     {
         // Only group tracks can be entered
@@ -156,14 +174,21 @@ public class TrackImpl extends ChannelImpl implements ITrack
         // If this track is already the cursor track, enter it straight away
         if (this.isSelected ())
         {
-            this.cursorTrack.selectFirstChild ();
+            this.selectFirstChild ();
             return;
         }
 
         // Make the track cursor track
         this.select ();
         // Delay the child selection a bit to ensure the track is selected
-        this.host.scheduleTask (this.cursorTrack::selectFirstChild, 100);
+        this.host.scheduleTask (this::selectFirstChild, 100);
+    }
+
+
+    private void selectFirstChild ()
+    {
+        this.host.beforeProjectStructureMutation ();
+        this.cursorTrack.selectFirstChild ();
     }
 
 
@@ -204,6 +229,7 @@ public class TrackImpl extends ChannelImpl implements ITrack
     @Override
     public void setGroupExpanded (final boolean isExpanded)
     {
+        this.host.beforeProjectStructureMutation ();
         this.track.isGroupExpanded ().set (isExpanded);
     }
 
@@ -212,6 +238,7 @@ public class TrackImpl extends ChannelImpl implements ITrack
     @Override
     public void toggleGroupExpanded ()
     {
+        this.host.beforeProjectStructureMutation ();
         this.track.isGroupExpanded ().toggle ();
     }
 

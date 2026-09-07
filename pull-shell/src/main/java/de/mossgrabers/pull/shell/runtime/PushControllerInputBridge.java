@@ -111,7 +111,7 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
         this.stableActions = new StableControllerActionResolver (surface);
         this.physicalPads = physicalPads (surface);
         this.registry = this.createRegistry ();
-        this.router = new PhysicalInputRouter<> (this.registry, this::resolveRoute, this.eventSink, Objects.requireNonNull (stableActionBarrier, "stableActionBarrier"), System::nanoTime, Objects.requireNonNull (activeGeneration, "activeGeneration"), this.registry.contains (PushControlIds.continuous ("TOUCHSTRIP"), InputKind.TOUCH) && this.registry.contains (PushControlIds.continuous ("TOUCHSTRIP"), InputKind.ABSOLUTE) ? Map.of (PushControlIds.continuous ("TOUCHSTRIP"), InputKind.ABSOLUTE) : Map.of ());
+        this.router = new PhysicalInputRouter<> (this.registry, this::resolveRoute, this.eventSink, Objects.requireNonNull (stableActionBarrier, "stableActionBarrier"), System::nanoTime, Objects.requireNonNull (activeGeneration, "activeGeneration"), this.edgeMotionInputs ());
         this.installWrappers ();
         this.mappingActivation = new HardwareMappingActivationHost (
             Objects.requireNonNull (physicalPadButtons, "physicalPadButtons"),
@@ -145,13 +145,6 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
     DesiredControllerMappings activeControllerMappings ()
     {
         return this.mappingActivation.activeMappings ();
-    }
-
-
-    /** Parent-owned evidence for continuing an already admitted exact touch lease. */
-    boolean ownsActiveTouch (final ControlId control)
-    {
-        return this.router.ownsActiveGesture (control, InputKind.TOUCH);
     }
 
 
@@ -362,6 +355,28 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
     }
 
 
+    private Map<PhysicalInputAddress<ControlId>, PhysicalInputAddress<ControlId>> edgeMotionInputs ()
+    {
+        final Map<PhysicalInputAddress<ControlId>, PhysicalInputAddress<ControlId>> relations = new java.util.LinkedHashMap<> ();
+        for (final PhysicalInputAddress<ControlId> input: this.registry.inputs ())
+        {
+            final InputKind edgeKind = switch (input.kind ())
+            {
+                case RELATIVE, ABSOLUTE -> InputKind.TOUCH;
+                case POLY_PRESSURE -> InputKind.PAD;
+                default -> null;
+            };
+            if (edgeKind != null && this.registry.contains (input.control (), edgeKind))
+            {
+                final PhysicalInputAddress<ControlId> edge = this.registry.require (input.control (), edgeKind);
+                if (relations.put (edge, input) != null)
+                    throw new IllegalStateException ("Physical edge has multiple companion motion inputs: " + edge);
+            }
+        }
+        return Map.copyOf (relations);
+    }
+
+
     private void installWrappers ()
     {
         for (final Map.Entry<ButtonID, IHwButton> entry: this.surface.getButtons ().entrySet ())
@@ -403,16 +418,8 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
 
             if (control.getTouchCommand () != null)
             {
-                control.installTouchEventArbitrator ( (event, velocity, stableDispatch) -> {
-                    if (event == ButtonEvent.UP)
-                    {
-                        if (isRelative)
-                            this.router.flush (controlID, InputKind.RELATIVE);
-                        if (isAbsolute)
-                            this.router.flush (controlID, InputKind.ABSOLUTE);
-                    }
-                    this.router.route (controlID, InputKind.TOUCH, toShellPhase (event), velocity, stableDispatch);
-                });
+                control.installTouchEventArbitrator ( (event, velocity, stableDispatch) ->
+                    this.router.route (controlID, InputKind.TOUCH, toShellPhase (event), velocity, stableDispatch));
             }
         }
     }
@@ -440,13 +447,11 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
         final java.util.LinkedHashSet<PhysicalInputAddress<ControlId>> inputs = new java.util.LinkedHashSet<> ();
         for (final ButtonID button: List.of (ButtonID.PLAY, ButtonID.RECORD, ButtonID.NOTE, ButtonID.SESSION, ButtonID.LAYOUT, ButtonID.MUTE, ButtonID.SOLO, ButtonID.OCTAVE_DOWN, ButtonID.OCTAVE_UP, ButtonID.ARROW_LEFT, ButtonID.ARROW_RIGHT, ButtonID.ARROW_UP, ButtonID.ARROW_DOWN))
             inputs.add (new PhysicalInputAddress<> (PushControlIds.button (button.name ()), InputKind.BUTTON));
-        for (final ControlId control: CoreControls.DRUM_RATES)
+        for (int index = 1; index <= 64; index++)
         {
-            inputs.add (new PhysicalInputAddress<> (control, InputKind.PAD));
-            inputs.add (new PhysicalInputAddress<> (control, InputKind.POLY_PRESSURE));
+            inputs.add (new PhysicalInputAddress<> (PushControlIds.pad (index), InputKind.PAD));
+            inputs.add (new PhysicalInputAddress<> (PushControlIds.pad (index), InputKind.POLY_PRESSURE));
         }
-        for (final ControlId control: CoreControls.DRUM_CONTROL_PADS)
-            inputs.add (new PhysicalInputAddress<> (control, InputKind.PAD));
         for (int index = 1; index <= 8; index++)
         {
             inputs.add (new PhysicalInputAddress<> (PushControlIds.button ("ROW1_" + index), InputKind.BUTTON));
@@ -457,6 +462,10 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
             inputs.add (new PhysicalInputAddress<> (PushControlIds.continuous ("KNOB" + index), InputKind.RELATIVE));
             inputs.add (new PhysicalInputAddress<> (PushControlIds.continuous ("KNOB" + index), InputKind.TOUCH));
         }
+        for (int index = 1; index <= 8; index++)
+            inputs.add (new PhysicalInputAddress<> (PushControlIds.button ("SCENE" + index), InputKind.BUTTON));
+        for (final String button: List.of ("STOP_CLIP", "PAGE_LEFT", "PAGE_RIGHT"))
+            inputs.add (new PhysicalInputAddress<> (PushControlIds.button (button), InputKind.BUTTON));
         inputs.add (new PhysicalInputAddress<> (PushControlIds.button ("TAP_TEMPO"), InputKind.BUTTON));
         inputs.add (new PhysicalInputAddress<> (PushControlIds.button ("METRONOME"), InputKind.BUTTON));
         inputs.add (new PhysicalInputAddress<> (PushControlIds.button ("AUTOMATION"), InputKind.BUTTON));

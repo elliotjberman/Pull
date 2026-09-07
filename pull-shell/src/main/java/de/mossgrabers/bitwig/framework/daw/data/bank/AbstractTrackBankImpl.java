@@ -79,6 +79,14 @@ public abstract class AbstractTrackBankImpl extends AbstractChannelBankImpl<Trac
 
     /** {@inheritDoc} */
     @Override
+    protected void beforeWindowMutation ()
+    {
+        this.host.beforeProjectStructureMutation ();
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
     public void enableObservers (final boolean enable)
     {
         super.enableObservers (enable);
@@ -216,6 +224,7 @@ public abstract class AbstractTrackBankImpl extends AbstractChannelBankImpl<Trac
             if (color != null)
                 this.cursorTrack.setColor (color);
 
+            this.beforeWindowMutation ();
             this.bank.get ().scrollIntoView (this.cursorTrack.getPosition ());
 
             for (final IDeviceMetadata device: devices)

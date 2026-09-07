@@ -32,7 +32,6 @@ public final class TrackMixControlView implements ControllerView
     // Value-only continuations, bounded by the semantic-action queue plus the currently held edge.
     private final List<Gesture> continuations = new ArrayList<> ();
     private Gesture held;
-    private long epoch;
     private final PageNavigation navigation;
 
     public TrackMixControlView (final PageNavigation navigation) { this.navigation = java.util.Objects.requireNonNull (navigation, "navigation"); }
@@ -43,7 +42,32 @@ public final class TrackMixControlView implements ControllerView
     @Override public Set<BridgeSubscription> bridgeSubscriptions () { return Set.of (BridgeSubscription.CONTROLLER_SETTINGS, BridgeSubscription.CURRENT_TRACK_BANK); }
     @Override public CoreExecutionRequirements executionRequirements () { return new CoreExecutionRequirements (this.vuToggle.pending () || !this.continuations.isEmpty ()); }
     @Override public void start (final ControllerSnapshot snapshot) { this.deactivate (); }
-    @Override public void deactivate () { this.epoch++; this.held = null; this.continuations.clear (); this.vuToggle.clear (); }
+    @Override public void deactivate () { this.held = null; this.continuations.clear (); this.vuToggle.clear (); }
+
+    @Override
+    public InputTarget inputTarget (final ControlId control, final InputKind kind, final ControllerSnapshot snapshot)
+    {
+        if (!BUTTON.equals (control)) return ControllerView.super.inputTarget (control, kind, snapshot);
+        if (!snapshot.bridge ().controllerSettings ().available ()) return null;
+        final var bank = snapshot.bridge ().currentTrackBank ();
+        final String first = bank.tracks ().isEmpty () ? "" : bank.tracks ().getFirst ().track ().channelId ();
+        return new InputTarget.Composite (List.of (
+            new InputTarget.Context (control, "current-track-bank", bank.bankId (), bank.generation ()),
+            new InputTarget.Context (control, "first-track", first, bank.generation ())));
+    }
+
+    @Override
+    public List<CoreEffect> cancel (final ControlId control, final InputKind kind, final InputTarget target, final ControllerSnapshot snapshot)
+    {
+        return BUTTON.equals (control) && this.held != null ? this.cancelGesture (this.held) : List.of ();
+    }
+
+    private List<CoreEffect> cancelGesture (final Gesture gesture)
+    {
+        this.continuations.remove (gesture);
+        if (this.held == gesture) this.held = null;
+        return List.of ();
+    }
 
     @Override
     public ResolvedControllerAction resolveAction (final ControllerActionBinding binding, final ControllerInputEvent input, final ControllerSnapshot snapshot)
@@ -53,17 +77,17 @@ public final class TrackMixControlView implements ControllerView
         final var settings = snapshot.bridge ().controllerSettings ();
         final String destination = "TRACK".equals (visible) ? settings.globalMixMode () : "TRACK";
         final ControllerPageRef previous = !"TRACK".equals (visible) && !GLOBAL_MODES.contains (visible) ? this.navigation.state ().selected () : ControllerPageRef.none ();
-        final Gesture gesture = new Gesture (this.epoch, shift, this.navigation.origin (), destination, previous, firstUnselectedTrack (snapshot));
+        final Gesture gesture = new Gesture (shift, this.navigation.origin (), destination, previous, firstUnselectedTrack (snapshot));
         this.held = gesture;
         // Capture the variant and every target before Snapback can defer dispatch. LONG and END
         // mutate only this gesture's lifetime; a later modifier or selection cannot retarget it.
         final var intent = binding.intent (shift ? ControllerActionId.SET_CONTROLLER_PREFERENCE : ControllerActionId.SWITCH_PARAMETER_CONTEXT);
-        return ResolvedControllerAction.of (intent, () -> this.dispatch (gesture, snapshot));
+        return ResolvedControllerAction.of (intent, () -> this.dispatch (gesture, snapshot)).onCancellation (() -> this.cancelGesture (gesture));
     }
 
     private List<CoreEffect> dispatch (final Gesture gesture, final ControllerSnapshot origin)
     {
-        if (gesture.epoch != this.epoch || gesture.dispatched)
+        if (gesture.dispatched)
             return List.of ();
         gesture.dispatched = true;
         if (gesture.preference)
@@ -134,7 +158,6 @@ public final class TrackMixControlView implements ControllerView
 
     private static final class Gesture
     {
-        private final long epoch;
         private final boolean preference;
         private final PageNavigation.Origin origin;
         private final String destination;
@@ -144,9 +167,8 @@ public final class TrackMixControlView implements ControllerView
         private boolean longPress;
         private boolean ended;
 
-        private Gesture (final long epoch, final boolean preference, final PageNavigation.Origin origin, final String destination, final ControllerPageRef previous, final CurrentTrackTarget firstTrack)
+        private Gesture (final boolean preference, final PageNavigation.Origin origin, final String destination, final ControllerPageRef previous, final CurrentTrackTarget firstTrack)
         {
-            this.epoch = epoch;
             this.preference = preference;
             this.origin = origin;
             this.destination = destination;

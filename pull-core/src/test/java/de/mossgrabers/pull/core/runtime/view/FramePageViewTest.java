@@ -9,6 +9,7 @@ import de.mossgrabers.pull.core.api.output.DisplayCommand;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.runtime.PullCoreProvider;
 import de.mossgrabers.pull.core.view.CompiledWorkspace;
+import de.mossgrabers.pull.core.view.RoutedWorkspace;
 import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
@@ -99,7 +100,7 @@ class FramePageViewTest
         fixture.generation++;
         assertTrue (fixture.edge (false, 4, InputPhase.END).effects ().isEmpty ());
         fixture.edge (false, 0, InputPhase.BEGIN);
-        fixture.view.deactivate ();
+        fixture.available = false;
         assertTrue (fixture.edge (false, 0, InputPhase.END).effects ().isEmpty ());
     }
 
@@ -146,7 +147,7 @@ class FramePageViewTest
     private static final class Fixture
     {
         private final FramePageView view = new FramePageView ();
-        private final CompiledWorkspace workspace = CompiledWorkspace.compile ("Frame", List.of (this.view));
+        private final RoutedWorkspace workspace = new RoutedWorkspace (CompiledWorkspace.compile ("Frame", List.of (this.view)));
         private String project = "project-a";
         private String layout;
         private long generation = 1;

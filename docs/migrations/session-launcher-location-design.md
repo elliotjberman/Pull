@@ -1,57 +1,35 @@
-# Session launcher location and release boundary
+# Session launcher contract
 
-Design only. The installed optional `SESSION_CLIPS` observation domain has no production consumer;
-the grid/scene action and feedback owner remains the frozen Session adapter.
+Core API 50 moves Session actions and feedback into the reloadable `SessionView`, using the shared
+interaction lifecycle. Shell Session/Workspace views retain only neutral hardware and bank setup.
+The installed windows are 8×8 and 8×4, with at most 64 slot and eight scene launch presses.
 
-## Exact location and proposed capacity
+A launcher location contains project identity, bank generation/shape, track channel identity and
+absolute scene position. It is an address in a ready, aligned window, not a durable clip-content ID.
+Selected-track changes alone do not invalidate it. Prepare and apply both verify live addressability.
 
-A launcher location is a track channel identity plus absolute scene index, not a durable clip ID.
-Capture Session generation/shape, visible slot, channel and observed content; recheck before proxy
-acquisition. A display-bank wrapper cannot safely address delayed release after scrolling.
-Identical content and scene insertion/deletion prevent name/content matching from proving clip identity.
+Core owns modifiers, select-on-launch, armed-empty-pad preferences, copy-source lifetime, create/record
+sequencing, birds-eye/page navigation, Stop chords, scene variants and colors/blink rates. Only an
+actual launch acquires a matching main/alternate release, captured at BEGIN. Modifier-only actions
+have no orphan release. A normal quick tap retains create/record intent until later host read-back;
+then it submits launch and matching release in order. Pending continuations fence core replacement;
+view or target loss cancels them. Paging selects only after the requested window is observed aligned. A workspace change that alters
+native note translation waits for physical pads to become idle before admitting its bank/layout.
 
-A candidate `LauncherLocationHost` would install private non-selection-following cursor tracks with
-one slot each: at most 64 held/pending pad gestures plus two retained clipboard locations, or 66
-cursors. This is a proposed ceiling, not installed capacity. Validate initialization/parking cost
-live before adoption.
+The shell exposes primitive slot/scene operations and absolute bank positions. One shared host
+wrapper installs the bounded press ledger's structural-mutation guard. Actual track, scene and
+bank proxy methods enter it before Bitwig submission, so core and frozen callers inherit the same
+cleanup. Opaque application edits, history and project navigation conservatively end outstanding
+holds before submission, even when the eventual edit affects something else. Ordinary selection,
+arming and parameter writes preserve holds. Handlers do not call Session cleanup. The ledger also
+releases on core replacement, fault or exit. External scene edits or proxy rebinding can remove addressability
+first; cleanup then retires with a diagnostic and never mutates a replacement target.
 
-Acquisition would unpin, select the exact channel, pin and scroll to the captured scene. Later
-existence/channel/pin/scene/slot read-back must prove readiness. Publish bounded opaque lease IDs
-and PARKING/READY/INVALID state; replay must not repark a ready lease. Invalidate stale acquisition,
-report exhaustion and never silently reuse a launched actuator for another press.
+API 25 `launchRelease()` / `launchReleaseAlt()` are void submissions. Configured release can leave
+playback unchanged. This contract preserves correctly targeted release submission; it does not
+promise completion, arbitrary offscreen retention or guaranteed restoration after external edits.
+Timers and `flush()` do not provide that stronger acknowledgement.
 
-Core would own modifier precedence, clipboard and pending intent. Generic effects would act on
-leased locations for select/delete/create/record, main/alternate launch/release and copy. Dependent
-create/select/launch waits for host read-back. Original-view edge capture does not itself preserve
-an actuator or prove host completion.
-
-## Decision blocking cutover
-
-API 25 `launchRelease()` and `launchReleaseAlt()` return void and expose no generic receipt.
-Configured release can leave playback unchanged; unchanged playing state cannot acknowledge it.
-Fill-specific busy → non-busy Return logic does not cover arbitrary Session release settings.
-`flush()` flushes controller output, `requestFlush()` requests that callback, and `scheduleTask()`
-delays execution: none is a documented DAW-command fence.
-
-A finite pool needs a defensible retirement/reuse point. Retaining forever exhausts it; reusing
-after a delay assumes submission equals completion. Exclusive cutover remains blocked until a
-supported lifetime/receipt mechanism is proved, or the user explicitly accepts a narrow
-location-addressed **release submission** contract that distinguishes completion.
-
-This is separate from [parked general reload quiescence](../findings/core-reload-quiescence.md).
-API 25 gives extension exit no asynchronous cleanup grace period.
-
-## API and acceptance constraints
-
-The local API-25 source JAR was checked for cursor-track creation, channel selection/pinning,
-one-slot launcher banks, select/record/create/browse, main/alternate launch/release, and
-`destination.replaceInsertionPoint().copySlotsOrScenes(source)`. Deprecated `copyFrom` must not be
-introduced. Reverify exact overloads when implementing. The existing fill adapter demonstrates
-parking shape, not a generic Session release acknowledgement.
-
-Preserve all legacy modifier/configuration variants and action/feedback ownership. Freezing the
-release lane at BEGIN, removing duplicate record requests, or canceling a short tap before parking
-are explicit behavior decisions. Tests must distinguish acquisition, readiness, submission,
-advancement, output, release and retirement; cover 64 holds, exhaustion, bank/scene/selection
-changes, clipboard replacement, page departure, faults and reload. Require exact-build routed live
-proof before replacing the frozen owner.
+Offline routed behavior and host-boundary tests cover both shapes, modifier variants, delayed host
+read-back, target changes, cleanup ordering and blinking output. [API 49 live evidence](session-core-live-smoke.md)
+records the exact tested build and narrower live coverage.

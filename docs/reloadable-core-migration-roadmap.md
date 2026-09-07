@@ -1,154 +1,62 @@
-# Reloadable-core migration roadmap
+# Remaining core migration
 
-The goal is to move controller behavior into core while keeping initialization-owned Bitwig
-resources in a bounded shell. [ARCH](../ARCH.md) inventories the current implementation;
-[the views contract](views-api-design.md) defines composition and page ownership;
-[the migration guide](reloadable-core-migration-guide.md) defines the capability audit and cutover
-workflow. Do not add new policy to frozen stable adapters.
+[ARCH](../ARCH.md) is the current ownership/capacity inventory. Core API 50 includes Session, Setup/Ribbon settings and shared
+interaction cancellation; page entry/return and input lifecycle ownership do not migrate remaining
+handler bodies. Use the [capability audit](reloadable-core-migration-guide.md) for each complete slice.
 
-## Migration part 1
+## Checklist
 
-[PR #40](https://github.com/elliotjberman/Pull/pull/40) establishes core page ownership and migrates
-the controls listed below. It does **not** complete the shell-to-core migration. This document is
-the continuation checklist; owning navigation to a legacy page does not migrate that page's body.
+- [ ] Device, chain and layer controls with verified target identities.
+- [ ] Browser filtering/results/audition/operations; navigation lifecycle is already core-owned.
+- [ ] Crossfade, Track/Layer Details and Color.
+- [ ] Scales/Layout, Repeat, Fixed Length, User, remaining physical Ribbon behavior and remaining musical layouts.
+- [ ] Clip/note/sequencer editing and scene/clip-length workflows.
+- [ ] Delete each family's stable policy, providers, facet claims and aliases/inbox callers as its
+      complete action/feedback behavior moves. Keep generic resources and transport.
 
-Working contract: Core API 49, bridge snapshot 16, checkpoint schema 6, Bitwig API 25. Scoped live evidence available to this task covers `11e33477`; subsequent cleanup and
-Info/Setup/Ribbon migrations have not been deployed or live tested by this task. This is build
-provenance, not a claim about the machine’s current installation. The hardware/settings contracts and drawing transport require a shell install and restart
-before activation.
-[The validation record](migrations/core-page-ownership-live-smoke.md) separates those states.
+The [UI/editing handoff](migrations/ui-and-editing-handoff.md) scopes those separate tasks.
+The migration ends when no frozen product-policy adapter remains.
 
-| Slice | Current boundary |
-| --- | --- |
-| Page ownership | Core `PageId`/`Page`, navigation/history, exact temporary tokens, retained backgrounds, presentation models/renderers/styles. One inert shell footprint projects arbitrary core pages; frozen callers use a 64-request sequenced inbox. |
-| Original-view release | Core captures edge receivers and deferred action ownership. Current pages render; retained owners supply only continuation data, ticks and exact touches. General motion association remains an [active finding](findings/core-continuous-input-capture.md). |
-| Mixer pages | Project Macros, normal/VS Track, Volume, Pan, eight Sends and Master use named parameters, exact touches, read-back, core menus/footers and output. |
-| Global controls/pages | Play/Record, Mute/Solo, Tap Tempo, Undo/Redo, Track/Mix, Master/Frame, Accent, Metronome/Automation, migrated arrows and their feedback are core-owned. |
-| Info | Hardware identity presentation, Info/Setup menu, inherited lower-row current-bank action variants, full display and row lights are core-owned. The subscribed one-surface hardware tuple is a new candidate canopy expansion, not installed production capability. |
-| Setup / Ribbon settings | Setup owns the physical button, five preferences, resets, calibration graph, shared Info tabs and lower-row variants. Ribbon owns its complete settings page; physical strip behavior and Shift-strip entry remain frozen legacy policy. Both are offline source candidates. |
-| Drum/Note | Selected-track applicability and Note/Layout policy, playable-pad pressure/lights, rates/roll, fills, octave/native maps and raw strip behavior are core-owned within the installed geometry. |
-| Session | Grid, scenes and page-button mechanics remain frozen adapters. Stop remains OBSERVE for the adapted Stop-plus-pad chord; its direct stable command is inert. |
-| Optional Session observation | `SESSION_CLIPS` is installed and useful, but has no production product consumer. It publishes a bounded slot/scene window only when explicitly subscribed; it does not establish action ownership or a release acknowledgement. |
-| Other legacy families | Device/Chains/layers, Browser body, Crossfade, Details/Color, remaining configuration, note/clip/sequencer editing and remaining providers remain migration work. Page compatibility is not their migration. |
+API 50 is installed: Setup/Info and plain/Shift track arrows passed the [scoped live check](migrations/session-core-live-smoke.md).
+Ribbon, Session and reload were not rerun on API 50; earlier Session evidence and its
+[bounded location/release limits](migrations/session-launcher-location-design.md) remain applicable only to the recorded builds.
 
-## Installed capacity is not arbitrary project access
+## Device, chain and layer
 
-The shell eagerly creates its physical registry, interested values and finite proxy topology.
-Subscriptions gate snapshot work, not resource construction. Current reusable capacity includes:
+`SpecificDeviceImpl.getID()` returns blank in production, excluding selected-device remote targets.
+API 25 supplies channel IDs and proxy equality observations, not a device UUID. Names, positions,
+wrappers and Drum candidate paths cannot substitute. A retained cursor/equality recipe is unproved;
+test pinning, ownership, duplicate names, replacement, deletion and page rebinding before adopting it.
 
-- Session shapes 8 tracks × 8 scenes and 8 × 4; current-bank observation admits the two installed
-  main windows and effect bank, at most three registered banks with eight visible tracks each.
-- Seventeen named parameter banks, at most 131 slots: ACTIVE compatibility, project/device remotes,
-  selected-track volume/pan and eight sends, visible-track volume/pan/eight send columns, Master/Cue
-  and globals. Snapback's ten-target bound is a separate interaction limit.
-- Device framework windows: eight siblings, eight displayed remote-page names, eight remotes,
-  eight layers, sixteen drum pads and eight sends per layer/pad. Reordering additionally uses a
-  100-device channel bank; nested correctness still needs characterization.
-- Complete base display, temporary grid/display overlays, generic registered-button and pad lights,
-  native key/velocity maps within declared physical footprints, and permanent semantic MIDI
-  mapping endpoints. These transports grant no product ownership on their own.
+Installed windows include eight siblings, displayed remote-page names, remotes, layers and sends
+per layer/pad, sixteen drum pads, and a 100-device reorder bank. Nested correctness still needs
+characterization. After identity is proven, expose subscribed contexts, named layer parameter roles
+and primitive navigation/Boolean/UI operations. Include Params/Chains, rows, preferences, touches,
+pin/window controls, feedback and held return. Trace permanent parameter bindings as well as mode
+callbacks. [Target identity and removal criteria](findings/parameter-target-proxy-coupling.md).
 
-New banks, observers, permanent bindings, capacities, parent API shapes or output ownership require
-a shell build and restart. Behavior inside the installed canopy reloads in core.
-The Info candidate adds one subscribed raw hardware identity tuple from the attached surface;
-[ARCH](../ARCH.md#core-owned-pages-and-working-contract) records its revision and observation limits.
+## Other families
 
-## Remaining work and prerequisites
+Crossfade/MIDI-channel controls historically step per callback. Summed motion loses count and
+ordering at clamps (`+1,-1` may differ from zero); resolve the input contract or explicitly change
+behavior. Details need monitoring state separately from mode, absolute writes, pinning and MIDI
+edit-channel read-back. Compare action and rendering targets under pinning; Track Details touches
+are intentionally inert. Color needs a target-bound grid, native-note suppression and exact return.
 
-The [UI/editing handoff](migrations/ui-and-editing-handoff.md) makes the reusable
-[component library](ui-component-library.md) an explicit deliverable of each UI slice. The current
-library serves existing core pages; it does not mark the remaining legacy families complete.
+Browser needs bounded filters/results/selection and primitive operations with an exact insertion
+or replacement destination. Reuse existing entry/return ownership. Configuration storage may stay
+mechanical in shell. Musical editing needs bounded note/step/clip windows, target identity, read-back
+and reusable edits. [Custom geometry](findings/custom-musical-surface-geometry.md) needs a complete
+native-note/pressure/feedback capability expansion.
 
-Keep these items open until their complete behavior and feedback live in core and the corresponding
-stable policy is deleted. The sections below record the prerequisites and known limits.
+## Separate limits and acceptance
 
-- [ ] Session grid, scene and page-button behavior, including Stop-plus-pad and launcher retirement.
-- [ ] Device, chain and layer pages: establish exact target identity before migrating their controls.
-- [ ] Browser contents and operations; its page entry/return lifecycle is already core-owned.
-- [ ] Crossfade, Track/Layer Details and Color workflows.
-- [x] Info, Setup and Ribbon settings page bodies (source cutover; live evidence pending).
-- [ ] Scales/Scale Layout, Repeat, Fixed Length and User; remaining musical layouts and clip/note/sequencer editing.
-- [ ] Remaining physical Ribbon behavior, including target-fenced Last Touched.
-- [ ] Remove the remaining facet adapters, legacy page aliases/inbox consumers and parameter
-  providers as their last behavior migrates. Keep generic resource and transport mechanisms.
+[General async reload draining](findings/core-reload-quiescence.md) is explicitly parked. Other
+[active findings](findings/README.md) own unresolved parameter precision/addressability, MIDI-learn
+lifecycle, facet/claim validation, logical timers and live provenance. Update or delete them when
+their removal criteria are met; do not duplicate their investigations in a feature diary.
 
-### Session actions and retirement
-
-Keep the optional observation domain and frozen grid owner until the complete pad/scene action and
-feedback slice is ready. Preserve configured empty-slot behavior, modifier precedence, main/alternate
-launch and release, record/create sequencing, duplicate source lifetime, birds-eye navigation,
-Stop chords, scene variants and read-back-driven lights.
-
-The unresolved issue is reuse of an exact launcher actuator after release: API 25 release calls
-return void and may leave playback unchanged. Neither a tick nor `requestFlush()` acknowledges
-DAW completion. [The bounded location design](migrations/session-launcher-location-design.md)
-records the proposed pool and the decision required before exclusive cutover.
-
-### Device, chain, layer and Browser families
-
-First establish a bounded device handle with acquisition/read-back and live equality fences.
-Production `SpecificDeviceImpl.getID()` returns blank; `SELECTED_DEVICE_REMOTE` consequently excludes
-those targets. API 25 exposes channel IDs and proxy equality observations, not a device-instance
-UUID. A name, position, Java wrapper or Drum candidate-path ID cannot replace that identity.
-
-A private retained cursor with initialization-created equality observations is a candidate, not a
-proven guarantee. Verify pinning, actual channel ownership, duplicate names, replacement/deletion,
-remote-page rebinding and acquisition latency live before relying on it. A cursor's creation channel
-does not prove the owner of a separately pinned device. See the
-[parameter-target finding](findings/parameter-target-proxy-coupling.md).
-
-Then expose subscribed Device context, sibling/page and layer/pad windows; named layer parameter
-roles; and primitive identity-fenced navigation, Boolean and UI effects. Migrate the complete entry,
-held return, Params/Chains subpages, row actions, layer preferences, pin/window controls, display
-and lights together. Follow actual hardware parameter bindings: a no-op `onKnobValue` does not
-prove that a bound Device Chains encoder is inert. Characterize its existing subpage/light-index
-quirks before changing them. Browser navigation lifecycle is core-owned, but filtering/results,
-audition and insertion policy still live in its legacy body.
-
-### Crossfade, Details and Color
-
-Crossfade and MIDI-channel controls historically step once per callback. Summed relative input
-loses callback count and ordering around clamps. Agree a reusable bounded input contract or an
-explicit behavior change before migrating them; sign-of-sum is not exact parity.
-
-Track/Layer Details need actual monitoring state separately from monitor mode, absolute Boolean
-writes, cursor pin, and observed MIDI edit-channel settings. Their action target and rendered cursor
-can disagree under pinning; expose both and fail closed. Track Details touches are intentionally
-inert. Color selection is a full-grid workflow with target, native-note silencing and exact return
-ownership; do not hide it behind a feature-shaped stable callback.
-
-### Configuration, musical layouts and editing
-
-Migrate Scale/Scales Layout, Repeat, Fixed Length, User, the remaining physical Ribbon behavior and
-remaining note-layout settings as complete action/feedback slices. Configuration persistence may stay mechanical in shell.
-Arbitrary musical geometry needs the [documented canopy expansion](findings/custom-musical-surface-geometry.md).
-Info, Setup and the Ribbon settings page are completed source slices; their capability expansion
-and live activation remain separate from the installed-build evidence. Fixed Length still depends on complete
-Session create/launch/overdub behavior and cannot be treated as an eight-choice settings port.
-
-Clip and sequencer editing requires bounded note/step/clip windows, selection/page identity,
-read-back and primitive edits. Reuse those capabilities across Drum, melodic, polyphonic, scene and
-clip-length workflows; do not expose the inherited mode object graph or unbounded project scans.
-
-## Cross-cutting work
-
-- General async reload quiescence and shared gesture lifecycle are being handled in a separate task. Keep the
-  [active investigation](findings/core-reload-quiescence.md); existing gesture and Snapback gates do
-  not cover every queued toggle or operation. Do not treat this cleanup as implementing a drain.
-- Parameter target identity/addressability, Snapback precision, learned-MIDI lifecycle, musical
-  geometry, facet/claim coupling, logical timer execution and live provenance retain their
-  [active findings and removal criteria](findings/README.md).
-- Migrate `WorkspaceView`/facet adapters, legacy command/mode/view policy, physical parameter-provider
-  recipes and setup/surface suppliers only as their complete semantic slices move. Generic input,
-  proxy, validation, effect and hardware transport remains stable.
-- Keep compatibility costs and explicit product deviations in the
-  [shortcuts/review ledger](migrations/migration-shortcuts-and-friction.md), not separate audit diaries.
-
-## Completion
-
-For each slice, audit reachable inputs and feedback, identify missing generic capability, then
-implement core policy and delete its stable policy together. Test command submission separately
-from later host advancement; cover target changes, release, deferred work, fault and replacement.
-Verify exact Bitwig API methods and deprecations, then run the required package and leased live
-checks described in [TESTING](../TESTING.md). An unverified or deliberately deferred variant stays
-explicitly out of scope. The migration ends when no frozen product-policy adapter remains.
+Follow [TESTING](../TESTING.md): routed behavior, separately advanced host state and output; target
+changes, cleanup, faults and replacement. New API/proxy/input/output capability requires a matched
+shell build and restart. Core-only behavior uses hot reload. Report exact candidate coverage and
+pending checks in the [smoke record](migrations/session-core-live-smoke.md).

@@ -77,6 +77,10 @@ class InfoPageCoreTest
         edge (host, "ROW1_3", true);
         edge (host, "ROW1_3", false);
         assertEquals (1, effects (host, CurrentTrackActionEffect.class).size (), "a fresh gesture can acquire the current target");
+        edge (host, otherTab, true);
+        assertEquals (page, page (host));
+        edge (host, otherTab, false);
+        assertEquals (page.equals ("INFO") ? "SETUP" : "INFO", page (host), "a fresh tab gesture can navigate after cancellation");
     }
 
     @ParameterizedTest

@@ -62,22 +62,18 @@ public final class TrackMixerControlsView implements ControllerView
         pageAction (0), pageAction (1), pageAction (6), pageAction (7));
 
     private final TrackMixerPageState page;
-    private final ParameterTouchSession touchSession;
-    private final ParameterTouchControls touches;
     private final boolean normalResponse;
     private final List<AuthoritativeBooleanToggle<ParameterTargetRef>> sendEnabled = java.util.stream.IntStream.range (0, ParameterSlot.BANK_SIZE).mapToObj (ignored -> new AuthoritativeBooleanToggle<ParameterTargetRef> ()).toList ();
     private long pageRevision;
 
     public TrackMixerControlsView ()
     {
-        this (new TrackMixerPageState (), new ParameterTouchSession (), false);
+        this (new TrackMixerPageState (), false);
     }
 
-    public TrackMixerControlsView (final TrackMixerPageState page, final ParameterTouchSession touchSession, final boolean normalResponse)
+    public TrackMixerControlsView (final TrackMixerPageState page, final boolean normalResponse)
     {
         this.page = Objects.requireNonNull (page, "page");
-        this.touchSession = Objects.requireNonNull (touchSession, "touchSession");
-        this.touches = new ParameterTouchControls (touchSession);
         this.normalResponse = normalResponse;
     }
 
@@ -109,7 +105,6 @@ public final class TrackMixerControlsView implements ControllerView
     @Override
     public void deactivate ()
     {
-        this.touches.clear ();
         this.sendEnabled.forEach (AuthoritativeBooleanToggle::clear);
     }
 
@@ -124,8 +119,6 @@ public final class TrackMixerControlsView implements ControllerView
             this.deactivate ();
             this.pageRevision = this.page.revision ();
         }
-        this.touches.reconcile (snapshot);
-        this.touches.retainTargets (ParameterAlignment.references (snapshot));
         for (int index = 0; index < ParameterSlot.BANK_SIZE; index++)
             if (ParameterAlignment.target (snapshot, ParameterSlot.selectedTrackSend (index)) == null)
                 this.sendEnabled.get (index).clear ();
@@ -149,8 +142,7 @@ public final class TrackMixerControlsView implements ControllerView
         {
             if (input.phase () == InputPhase.BEGIN && ParameterAlignment.contradicts (snapshot, slot))
                 return List.copyOf (effects);
-            final boolean begin = input.phase () == InputPhase.BEGIN && !this.touchSession.contains (input.controlId ());
-            effects.addAll (this.touches.handle (input, target, snapshot));
+            final boolean begin = input.phase () == InputPhase.BEGIN;
             if (begin && snapshot.pressedControls ().containsAll (Set.of (SHIFT, SELECT)) && slot != null && slot.bank () == ParameterBankId.SELECTED_TRACK_SENDS)
             {
                 if (target != null && target.enabled ().isPresent ())
@@ -186,9 +178,21 @@ public final class TrackMixerControlsView implements ControllerView
     }
 
     @Override
-    public de.mossgrabers.pull.core.api.DesiredParameterTouches parameterTouches (final ControllerSnapshot snapshot)
+    public de.mossgrabers.pull.core.view.InputTarget inputTarget (final ControlId control, final InputKind kind, final ControllerSnapshot snapshot)
     {
-        return this.touches.desired ();
+        if (kind == InputKind.TOUCH)
+        {
+            final ParameterSlot slot = this.page.inputOutputSelected () ? null : createParameterBindings (this.page.sendOffset ()).get (control);
+            if (ParameterAlignment.contradicts (snapshot, slot)) return null;
+        }
+        return ControllerView.super.inputTarget (control, kind, snapshot);
+    }
+
+
+    @Override
+    public Set<ControlId> parameterTouchControls (final ControllerSnapshot snapshot)
+    {
+        return SurfaceArea.ENCODER_TOUCHES.controls ();
     }
 
 

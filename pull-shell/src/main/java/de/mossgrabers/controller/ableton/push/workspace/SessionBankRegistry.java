@@ -72,6 +72,7 @@ public final class SessionBankRegistry
             return;
         }
 
+        this.model.getHost ().beforeProjectStructureMutation ();
         final int trackPosition = this.activeBank.getScrollPosition ();
         if (trackPosition >= 0)
             nextBank.scrollTo (trackPosition, false);

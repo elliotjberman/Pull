@@ -146,7 +146,7 @@ class SessionBankHostTest
                 default -> defaultValue (method.getReturnType ());
             });
             final IModel model = proxy (IModel.class, (ignored, method, arguments) -> "getTrackBank".equals (method.getName ()) ? this.bank : defaultValue (method.getReturnType ()));
-            this.host = new SessionBankHost (new SessionBankRegistry (model, Set.of (SHAPE), SHAPE));
+            this.host = new SessionBankHost (new SessionBankRegistry (model, Set.of (SHAPE), SHAPE), () -> "project", message -> { });
         }
     }
 

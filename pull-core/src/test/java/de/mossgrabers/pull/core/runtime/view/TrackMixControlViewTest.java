@@ -70,7 +70,7 @@ class TrackMixControlViewTest
     }
 
     @Test
-    void selectsExactSlotZeroOnlyWhenThereIsNoCurrentBankSelection ()
+    void delayedSlotZeroSelectionCancelsWhenItsBankChanges ()
     {
         final Fixture f = new Fixture ();
         f.selected = false;
@@ -80,7 +80,11 @@ class TrackMixControlViewTest
         f.channel = "later-track";
         f.shift = true;
         final var effects = f.dispatch (action).effects ();
-        assertEquals (List.of (new CurrentTrackActionEffect (new CurrentTrackTarget (7, "main", 0, "track-a"), CurrentTrackActionEffect.Action.SELECT)), effects);
+        assertTrue (effects.isEmpty ());
+        assertEquals ("TRACK", f.navigation.legacyAlias (), "cancelled selection cannot also change page");
+        f.edge (InputPhase.END);
+        f.shift = false;
+        assertEquals (List.of (new CurrentTrackActionEffect (new CurrentTrackTarget (9, "main", 0, "later-track"), CurrentTrackActionEffect.Action.SELECT)), f.edge (InputPhase.BEGIN).effects ());
         final Fixture empty = new Fixture ();
         empty.bankAvailable = false;
         assertTrue (empty.edge (InputPhase.BEGIN).effects ().isEmpty ());
@@ -136,8 +140,7 @@ class TrackMixControlViewTest
     {
         private final PageNavigation navigation = PageNavigation.defaults ();
         private final TrackMixControlView view = new TrackMixControlView (this.navigation);
-        private final RetainedControllerView retained = new RetainedControllerView (this.view);
-        private final CompiledWorkspace workspace = CompiledWorkspace.compile ("mix", List.of (this.retained));
+        private final RoutedWorkspace workspace = new RoutedWorkspace (CompiledWorkspace.compile ("mix", List.of (this.view)));
         private String mode = "TRACK";
         private String activeMode = "TRACK";
         private boolean temporary;
