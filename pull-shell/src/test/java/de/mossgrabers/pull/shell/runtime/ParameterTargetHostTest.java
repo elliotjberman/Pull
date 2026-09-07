@@ -3,10 +3,10 @@
 
 package de.mossgrabers.pull.shell.runtime;
 
+import de.mossgrabers.pull.shell.testing.TestProxies;
 import de.mossgrabers.controller.ableton.push.PushConfiguration;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
-import de.mossgrabers.framework.parameter.AbstractParameterWrapper;
 import de.mossgrabers.framework.controller.ContinuousID;
 import de.mossgrabers.framework.controller.hardware.IHwButton;
 import de.mossgrabers.framework.controller.hardware.IHwLight;
@@ -45,7 +45,6 @@ import de.mossgrabers.pull.core.api.effect.SetParameterValueEffect;
 
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Proxy;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -54,6 +53,9 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static de.mossgrabers.pull.shell.testing.TestProxies.proxy;
+import static de.mossgrabers.pull.shell.testing.TestProxies.relaxedProxy;
+import static de.mossgrabers.pull.shell.testing.TestProxies.relaxedValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -346,7 +348,7 @@ class ParameterTargetHostTest
         assertNull (host.resolveMutation (knob));
         assertTrue (host.requiresResolvedMutation (knob));
 
-        knob.bind (new AbstractParameterWrapper (selectedParameter) { });
+        knob.bind (proxy (IParameter.class, (wrapper, method, arguments) -> method.invoke (selectedParameter, arguments)));
         host.refresh (banks);
         assertNull (host.resolveMutation (knob));
         assertNull (host.snapshot ().slots ().get (ParameterSlot.active (0)));
@@ -583,7 +585,7 @@ class ParameterTargetHostTest
 
         private ICursorDevice proxy ()
         {
-            return ParameterTargetHostTest.proxy (ICursorDevice.class, (proxy, method, arguments) -> switch (method.getName ())
+            return TestProxies.proxy (ICursorDevice.class, (proxy, method, arguments) -> switch (method.getName ())
             {
                 case "doesExist" -> Boolean.TRUE;
                 case "getID" -> this.id;
@@ -611,7 +613,7 @@ class ParameterTargetHostTest
 
         private IParameter proxy ()
         {
-            return ParameterTargetHostTest.proxy (IParameter.class, (proxy, method, arguments) -> switch (method.getName ())
+            return TestProxies.proxy (IParameter.class, (proxy, method, arguments) -> switch (method.getName ())
             {
                 case "doesExist" -> Boolean.TRUE;
                 case "getName" -> "Cutoff";
@@ -657,7 +659,7 @@ class ParameterTargetHostTest
 
         private IHwRelativeKnob proxy ()
         {
-            return ParameterTargetHostTest.proxy (IHwRelativeKnob.class, (proxy, method, arguments) -> {
+            return TestProxies.proxy (IHwRelativeKnob.class, (proxy, method, arguments) -> {
                 if ("bind".equals (method.getName ()) && arguments != null && arguments.length == 1 && (arguments[0] == null || arguments[0] instanceof IParameter))
                 {
                     this.parameter = (IParameter) arguments[0];
@@ -675,41 +677,4 @@ class ParameterTargetHostTest
     }
 
 
-    private static <T> T proxy (final Class<T> type, final java.lang.reflect.InvocationHandler handler)
-    {
-        return type.cast (Proxy.newProxyInstance (type.getClassLoader (), new Class<?> []
-        {
-            type
-        }, handler));
-    }
-
-
-    private static <T> T relaxedProxy (final Class<T> type)
-    {
-        return proxy (type, (proxy, method, arguments) -> relaxedValue (method.getReturnType ()));
-    }
-
-
-    private static Object relaxedValue (final Class<?> type)
-    {
-        if (type.isInterface ())
-            return relaxedProxy (type);
-        if (!type.isPrimitive () || void.class.equals (type))
-            return null;
-        if (boolean.class.equals (type))
-            return Boolean.FALSE;
-        if (char.class.equals (type))
-            return Character.valueOf ('\0');
-        if (byte.class.equals (type))
-            return Byte.valueOf ((byte) 0);
-        if (short.class.equals (type))
-            return Short.valueOf ((short) 0);
-        if (int.class.equals (type))
-            return Integer.valueOf (0);
-        if (long.class.equals (type))
-            return Long.valueOf (0L);
-        if (float.class.equals (type))
-            return Float.valueOf (0.0F);
-        return Double.valueOf (0.0);
-    }
 }
