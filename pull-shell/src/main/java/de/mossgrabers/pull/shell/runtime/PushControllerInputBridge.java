@@ -447,13 +447,11 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
         final java.util.LinkedHashSet<PhysicalInputAddress<ControlId>> inputs = new java.util.LinkedHashSet<> ();
         for (final ButtonID button: List.of (ButtonID.PLAY, ButtonID.RECORD, ButtonID.NOTE, ButtonID.SESSION, ButtonID.LAYOUT, ButtonID.MUTE, ButtonID.SOLO, ButtonID.OCTAVE_DOWN, ButtonID.OCTAVE_UP, ButtonID.ARROW_LEFT, ButtonID.ARROW_RIGHT, ButtonID.ARROW_UP, ButtonID.ARROW_DOWN))
             inputs.add (new PhysicalInputAddress<> (PushControlIds.button (button.name ()), InputKind.BUTTON));
-        for (final ControlId control: CoreControls.DRUM_RATES)
+        for (int index = 1; index <= 64; index++)
         {
-            inputs.add (new PhysicalInputAddress<> (control, InputKind.PAD));
-            inputs.add (new PhysicalInputAddress<> (control, InputKind.POLY_PRESSURE));
+            inputs.add (new PhysicalInputAddress<> (PushControlIds.pad (index), InputKind.PAD));
+            inputs.add (new PhysicalInputAddress<> (PushControlIds.pad (index), InputKind.POLY_PRESSURE));
         }
-        for (final ControlId control: CoreControls.DRUM_CONTROL_PADS)
-            inputs.add (new PhysicalInputAddress<> (control, InputKind.PAD));
         for (int index = 1; index <= 8; index++)
         {
             inputs.add (new PhysicalInputAddress<> (PushControlIds.button ("ROW1_" + index), InputKind.BUTTON));
@@ -464,6 +462,10 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
             inputs.add (new PhysicalInputAddress<> (PushControlIds.continuous ("KNOB" + index), InputKind.RELATIVE));
             inputs.add (new PhysicalInputAddress<> (PushControlIds.continuous ("KNOB" + index), InputKind.TOUCH));
         }
+        for (int index = 1; index <= 8; index++)
+            inputs.add (new PhysicalInputAddress<> (PushControlIds.button ("SCENE" + index), InputKind.BUTTON));
+        for (final String button: List.of ("STOP_CLIP", "PAGE_LEFT", "PAGE_RIGHT"))
+            inputs.add (new PhysicalInputAddress<> (PushControlIds.button (button), InputKind.BUTTON));
         inputs.add (new PhysicalInputAddress<> (PushControlIds.button ("TAP_TEMPO"), InputKind.BUTTON));
         inputs.add (new PhysicalInputAddress<> (PushControlIds.button ("METRONOME"), InputKind.BUTTON));
         inputs.add (new PhysicalInputAddress<> (PushControlIds.button ("AUTOMATION"), InputKind.BUTTON));

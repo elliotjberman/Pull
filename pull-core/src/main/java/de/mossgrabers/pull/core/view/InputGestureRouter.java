@@ -14,7 +14,7 @@ public final class InputGestureRouter
     public static final int CAPACITY = 256;
     private static final Set<Key> CONTROLS = footprint ();
     // IDs never cross this core instance. Host execution is fenced by parent-owned target refs.
-    private final InteractionLifecycle<Key, InputTarget> lifecycle = new InteractionLifecycle<> (0, CONTROLS, CAPACITY, CAPACITY);
+    private final InteractionLifecycle<Key, InputTarget> lifecycle = new InteractionLifecycle<> (0, CONTROLS, CAPACITY);
     private final Map<InteractionLifecycle.Id, Gesture> gestures = new LinkedHashMap<> ();
     private final Map<ResolvedControllerAction, PendingAction> actions = new IdentityHashMap<> ();
     private final Set<ControllerView> started = Collections.newSetFromMap (new IdentityHashMap<> ());
@@ -249,7 +249,7 @@ public final class InputGestureRouter
         final List<CoreEffect> effects = new ArrayList<> (result.effects ());
         effects.addAll (this.cleanup);
         this.cleanup.clear ();
-        return new CoreResult (result.desiredOutput (), result.desiredInputRoutes (), new DesiredBridgeSubscriptions (subscriptions), result.desiredClipBindings (), result.desiredControllerState (), result.desiredNoteRepeat (), result.desiredControllerActions (), new DesiredParameterBanks (banks), result.desiredParameterInteraction (), new DesiredParameterTouches (touches), new CoreExecutionRequirements (result.executionRequirements ().ticksRequested () || awaitingCleanup), effects);
+        return new CoreResult (result.desiredOutput (), result.desiredInputRoutes (), new DesiredBridgeSubscriptions (subscriptions), result.desiredClipBindings (), result.desiredControllerState (), result.desiredNoteRepeat (), result.desiredControllerActions (), new DesiredParameterBanks (banks), result.desiredParameterInteraction (), new DesiredParameterTouches (touches), result.executionRequirements ().merge (new CoreExecutionRequirements (awaitingCleanup)), effects);
     }
 
     private static Binding binding (final CompiledWorkspace current, final Key key, final Map<ControlId, ParameterSlot> slots, final ControllerSnapshot snapshot)

@@ -15,45 +15,36 @@ import java.util.Objects;
  */
 public final class ControllerLevelViews
 {
-    private final ControllerView frozenSessionArrows = new FrozenSessionArrowsView ();
-    private final ControllerView workspaceSelection;
+    private final List<ControllerView> controllerViews;
     private final ControllerView noteViewController;
-    private final ControllerView globalParameters;
-    private final ControllerView transport;
     private final ButtonGestureConsumption buttonGestures = new ButtonGestureConsumption (java.util.Set.of (de.mossgrabers.pull.core.api.PushControlIds.button ("RECORD")));
-    private final ControllerPageTransitions pages;
-    private final AuthoritativeBooleanToggle<String> metronomeToggle = new AuthoritativeBooleanToggle<> ();
-    private final ControllerView tapTempo = new TapTempoView (this.metronomeToggle);
-    private final ControllerView metronome;
-    private final AutomationControlState automationState = new AutomationControlState ();
-    private final ControllerView automation;
-    private final List<ControllerView> metronomePage = List.of (new TransportSettingsPageView (false, this.automationState));
-    private final List<ControllerView> automationPage = List.of (new TransportSettingsPageView (true, this.automationState));
-    private final ControllerView undoRedo = new UndoRedoView ();
-    private final ControllerView trackMix;
-    private final ControllerView masterButton;
-    private final ControllerView accent;
-    private final ControllerView selectedTrackMuteSolo;
+    private final List<ControllerView> metronomePage;
+    private final List<ControllerView> automationPage;
     private final ControllerView rawPitchBend = new RawPitchBendView ();
 
 
     public ControllerLevelViews (final WorkspaceSelection selection, final ProjectPlaybackCoordinator playbackCoordinator, final PageNavigation navigation)
     {
-        this.pages = new ControllerPageTransitions (navigation);
-        this.metronome = new MetronomeControlView (this.metronomeToggle, this.pages);
-        this.automation = new AutomationControlView (this.automationState, this.pages);
-        this.trackMix = new TrackMixControlView (navigation);
-        this.masterButton = new MasterButtonView (this.pages);
-        this.accent = new AccentControlView (this.pages);
+        final ControllerPageTransitions pages = new ControllerPageTransitions (navigation);
+        final AuthoritativeBooleanToggle<String> metronomeToggle = new AuthoritativeBooleanToggle<> ();
+        final AutomationControlState automationState = new AutomationControlState ();
         final WorkspaceSelection checkedSelection = Objects.requireNonNull (selection, "selection");
         final SelectedTrackBooleanToggles selectedTrackToggles = new SelectedTrackBooleanToggles ();
-        this.workspaceSelection = new WorkspaceSelectionView (checkedSelection);
         this.noteViewController = new NoteViewControllerView (checkedSelection);
-        this.globalParameters = new GlobalParameterControlsView ();
-        this.transport = new TransportControlView (
-            Objects.requireNonNull (playbackCoordinator, "playbackCoordinator"),
-            selectedTrackToggles, this.buttonGestures);
-        this.selectedTrackMuteSolo = new SelectedTrackMuteSoloView (selectedTrackToggles);
+        this.metronomePage = List.of (new TransportSettingsPageView (false, automationState));
+        this.automationPage = List.of (new TransportSettingsPageView (true, automationState));
+        this.controllerViews = List.of (
+            new WorkspaceSelectionView (checkedSelection),
+            new GlobalParameterControlsView (),
+            new TransportControlView (Objects.requireNonNull (playbackCoordinator, "playbackCoordinator"), selectedTrackToggles, this.buttonGestures),
+            new TapTempoView (metronomeToggle),
+            new MetronomeControlView (metronomeToggle, pages),
+            new AutomationControlView (automationState, pages),
+            new UndoRedoView (),
+            new TrackMixControlView (navigation),
+            new MasterButtonView (pages),
+            new AccentControlView (pages),
+            new SelectedTrackMuteSoloView (selectedTrackToggles));
     }
 
 
@@ -86,27 +77,13 @@ public final class ControllerLevelViews
     private List<ControllerView> compose (final List<? extends ControllerView> workspaceViews, final boolean noteController, final boolean rawPitchBend)
     {
         final List<? extends ControllerView> checkedWorkspaceViews = Objects.requireNonNull (workspaceViews, "workspaceViews");
-        final List<ControllerView> views = new ArrayList<> (checkedWorkspaceViews.size () + 5);
-        views.add (this.workspaceSelection);
+        final List<ControllerView> views = new ArrayList<> (this.controllerViews);
         if (noteController)
-            views.add (this.noteViewController);
-        views.add (this.globalParameters);
-        views.add (this.transport);
-        views.add (this.tapTempo);
-        views.add (this.metronome);
-        views.add (this.automation);
-        views.add (this.undoRedo);
-        views.add (this.trackMix);
-        views.add (this.masterButton);
-        views.add (this.accent);
-        views.add (this.selectedTrackMuteSolo);
+            views.add (1, this.noteViewController);
         if (rawPitchBend)
             views.add (this.rawPitchBend);
         for (final ControllerView view: checkedWorkspaceViews)
             views.add (Objects.requireNonNull (view, "workspaceView"));
-        final boolean hasNavigation = checkedWorkspaceViews.stream ().flatMap (view -> view.claims ().stream ()).anyMatch (claim -> claim.area () == de.mossgrabers.pull.core.view.SurfaceArea.NAVIGATION_ARROWS);
-        if (!hasNavigation && checkedWorkspaceViews.stream ().anyMatch (view -> view.profile ().controllerFacets ().contains (de.mossgrabers.pull.core.api.ControllerViewFacet.SESSION_GRID_FULL)))
-            views.add (this.frozenSessionArrows);
         return List.copyOf (views);
     }
 

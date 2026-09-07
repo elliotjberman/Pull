@@ -15,7 +15,6 @@ import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.IControlSurface;
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.grid.IPadGrid;
-import de.mossgrabers.framework.controller.grid.PadLight;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.clip.INoteClip;
 import de.mossgrabers.framework.daw.clip.ISessionAlternative;
@@ -28,8 +27,6 @@ import de.mossgrabers.framework.daw.data.bank.IDrumPadBank;
 import de.mossgrabers.framework.daw.data.bank.ISlotBank;
 import de.mossgrabers.framework.scale.Scales;
 import de.mossgrabers.framework.utils.ButtonEvent;
-import de.mossgrabers.framework.view.AbstractSessionView;
-import de.mossgrabers.framework.view.Views;
 
 
 /**
@@ -137,23 +134,6 @@ public abstract class AbstractDrumXoXView<S extends IControlSurface<C>, C extend
         this.clipsOffset = this.numStepRows + this.numDrumPadRows;
 
         this.slotBank = this.model.getSlotBank (NUM_CLIPS);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    protected void drawPages (final INoteClip clip, final boolean isActive)
-    {
-        // Clips area
-        final AbstractSessionView<?, ?> view = AbstractSessionView.class.cast (this.surface.getViewManager ().get (Views.SESSION));
-        final IPadGrid padGrid = this.surface.getPadGrid ();
-        final boolean isRecArmed = this.model.getCursorTrack ().isRecArm ();
-        for (int x = 0; x < this.slotBank.getPageSize (); x++)
-        {
-            final ISlot slot = this.slotBank.getItem (x);
-            final PadLight color = view.getPadColor (slot, isRecArmed);
-            padGrid.lightEx (x % this.numColumns, x / this.numColumns, color.color (), color.blinkColor (), color.fast ());
-        }
     }
 
 

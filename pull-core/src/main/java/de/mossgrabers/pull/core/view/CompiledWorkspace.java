@@ -41,6 +41,7 @@ import de.mossgrabers.pull.core.api.event.TouchInputEvent;
 import de.mossgrabers.pull.core.api.output.DesiredHardwareOutput;
 import de.mossgrabers.pull.core.api.output.DesiredTouchStrip;
 import de.mossgrabers.pull.core.api.output.RgbColor;
+import de.mossgrabers.pull.core.api.output.LightBlink;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
@@ -342,6 +343,7 @@ public final class CompiledWorkspace
     {
         this.parameterSlots (snapshot);
         final Map<ControlId, RgbColor> lights = new LinkedHashMap<> ();
+        final Map<ControlId, LightBlink> lightBlinks = new LinkedHashMap<> ();
         final Map<ControlId, ClipTargetId> clipBindings = new LinkedHashMap<> ();
         final Set<ControllerMappingBinding> controllerMappingBindings = new LinkedHashSet<> ();
         final Set<ControlId> mappedPhysicalControls = new LinkedHashSet<> ();
@@ -359,6 +361,10 @@ public final class CompiledWorkspace
             for (final ControlId control: output.lights ().keySet ())
                 validateLightOwner (view, control);
             mergeUnique (lights, output.lights (), "light", view.id ());
+            for (final ControlId control: output.lightBlinks ().keySet ())
+                if (!SurfaceArea.GRID_UPPER.controls ().contains (control) && !SurfaceArea.GRID_LOWER.controls ().contains (control))
+                    throw new IllegalStateException ("view " + view.id () + " emits blinking output without a supported pad transport: " + control);
+            mergeUnique (lightBlinks, output.lightBlinks (), "light blink", view.id ());
             mergeUnique (clipBindings, output.clipBindings (), "clip binding", view.id ());
             for (final ControllerMappingBinding binding: output.controllerMappings ().bindings ())
             {
@@ -433,7 +439,7 @@ public final class CompiledWorkspace
             display = DisplayRegionComposition.compose (displayRegions);
 
         return new CoreResult (
-            new DesiredHardwareOutput (lights, display, padGridOverlay, displayOverlay, new DesiredControllerMappings (controllerMappingBindings), touchStrip),
+            new DesiredHardwareOutput (lights, display, padGridOverlay, displayOverlay, new DesiredControllerMappings (controllerMappingBindings), touchStrip, lightBlinks),
             this.desiredInputRoutes,
             this.desiredBridgeSubscriptions,
             clipBindings,
@@ -443,7 +449,7 @@ public final class CompiledWorkspace
             this.desiredParameterBanks,
             DesiredParameterInteraction.empty (),
             DesiredParameterTouches.empty (),
-            new CoreExecutionRequirements (this.views.stream ().anyMatch (view -> view.view ().executionRequirements ().ticksRequested ())),
+            this.views.stream ().map (view -> view.view ().executionRequirements ()).reduce (CoreExecutionRequirements.empty (), CoreExecutionRequirements::merge),
             effects);
     }
 

@@ -34,14 +34,15 @@ public final class ControllerPages
         final ControllerView drumControls = new DrumControlPadView ();
         // One physical Stop gesture crosses page and grid replacements; every consumer shares it.
         final SessionStopGesture stopGesture = new SessionStopGesture ();
-        final ControllerView sessionGrid = SessionView.full (stopGesture);
+        final SessionView sessionGrid = SessionView.full (stopGesture);
         final List<ControllerView> drumViews = List.of (new DrumPlayPadView (), new DrumOctaveView (), new DrumFillView (), drumControls, new DrumRateView ());
         final List<ControllerView> legacyPage = List.of (new StableParameterControlsView ());
         this.note = background ("Pull", SessionBankShape.empty (), List.of (), true, false, legacyPage);
         this.drum = background ("Pull Drum", SessionBankShape.empty (), drumViews, true, true, legacyPage);
         this.drumLegacy = background ("Pull Drum", SessionBankShape.empty (), drumViews, true, false, legacyPage);
-        this.session = background ("Session", FULL_SESSION_BANK, List.of (sessionGrid), true, true, legacyPage);
-        this.sessionPending = background ("Session destination", FULL_SESSION_BANK, List.of (new SessionTemporarySelectionView (selection), sessionGrid), false, true, legacyPage);
+        final List<ControllerView> sessionLegacyPage = List.of (new StableParameterControlsView (), sessionGrid.legacyPageNavigation ());
+        this.session = background ("Session", FULL_SESSION_BANK, List.of (sessionGrid), true, true, sessionLegacyPage);
+        this.sessionPending = background ("Session destination", FULL_SESSION_BANK, List.of (new SessionTemporarySelectionView (selection), sessionGrid), false, true, sessionLegacyPage);
         this.vsLive = background (VS_LIVE_NAME, VS_LIVE_BANK, List.of (new SessionNavigationView (), SessionView.upper (true, stopGesture), new DrumPlayPadView (), new DrumOctaveView (), new DrumFillView (), new DrumControllerView (), drumControls, new DrumRateView ()), false, true, List.of ());
 
         final ControllerView mixerNavigation = new NavigationView (NavigationView.Horizontal.MIXER);

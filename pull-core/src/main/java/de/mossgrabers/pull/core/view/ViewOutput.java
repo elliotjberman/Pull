@@ -9,6 +9,7 @@ import de.mossgrabers.pull.core.api.DesiredControllerMappings;
 import de.mossgrabers.pull.core.api.DesiredNotePerformance;
 import de.mossgrabers.pull.core.api.DesiredNoteRepeat;
 import de.mossgrabers.pull.core.api.output.RgbColor;
+import de.mossgrabers.pull.core.api.output.LightBlink;
 import de.mossgrabers.pull.core.api.output.DesiredTouchStrip;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
@@ -31,8 +32,9 @@ import java.util.Objects;
  * @param noteRepeat Complete replayable note-repeat ownership and state
  * @param controllerMappings Physical-to-semantic host-learned action projections
  * @param touchStrip Complete replayable touch-strip hardware output
+ * @param lightBlinks Optional blink state for the view's owned base lights
  */
-public record ViewOutput (Map<ControlId, RgbColor> lights, Map<ControlId, ClipTargetId> clipBindings, ControllerDisplayScene display, ControllerPadGridOverlay padGridOverlay, ControllerDisplayOverlay displayOverlay, DesiredNotePerformance notePerformance, DesiredNoteRepeat noteRepeat, DesiredControllerMappings controllerMappings, DesiredTouchStrip touchStrip)
+public record ViewOutput (Map<ControlId, RgbColor> lights, Map<ControlId, ClipTargetId> clipBindings, ControllerDisplayScene display, ControllerPadGridOverlay padGridOverlay, ControllerDisplayOverlay displayOverlay, DesiredNotePerformance notePerformance, DesiredNoteRepeat noteRepeat, DesiredControllerMappings controllerMappings, DesiredTouchStrip touchStrip, Map<ControlId, LightBlink> lightBlinks)
 {
     private static final ViewOutput EMPTY = new ViewOutput (Map.of (), Map.of (), ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), DesiredNotePerformance.inactive (), DesiredNoteRepeat.unowned (), DesiredControllerMappings.empty ());
 
@@ -51,6 +53,23 @@ public record ViewOutput (Map<ControlId, RgbColor> lights, Map<ControlId, ClipTa
         noteRepeat = Objects.requireNonNull (noteRepeat, "noteRepeat");
         controllerMappings = Objects.requireNonNull (controllerMappings, "controllerMappings");
         touchStrip = Objects.requireNonNull (touchStrip, "touchStrip");
+        lightBlinks = Map.copyOf (Objects.requireNonNull (lightBlinks, "lightBlinks"));
+        if (!lights.keySet ().containsAll (lightBlinks.keySet ()))
+            throw new IllegalArgumentException ("Blink output requires the view to own its base light");
+    }
+
+
+    /** Constructor without blinking output. */
+    public ViewOutput (final Map<ControlId, RgbColor> lights, final Map<ControlId, ClipTargetId> clipBindings, final ControllerDisplayScene display, final ControllerPadGridOverlay padGridOverlay, final ControllerDisplayOverlay displayOverlay, final DesiredNotePerformance notePerformance, final DesiredNoteRepeat noteRepeat, final DesiredControllerMappings controllerMappings, final DesiredTouchStrip touchStrip)
+    {
+        this (lights, clipBindings, display, padGridOverlay, displayOverlay, notePerformance, noteRepeat, controllerMappings, touchStrip, Map.of ());
+    }
+
+
+    /** Replace this view's complete optional blink contribution. */
+    public ViewOutput withLightBlinks (final Map<ControlId, LightBlink> blinks)
+    {
+        return new ViewOutput (this.lights, this.clipBindings, this.display, this.padGridOverlay, this.displayOverlay, this.notePerformance, this.noteRepeat, this.controllerMappings, this.touchStrip, blinks);
     }
 
 

@@ -46,6 +46,7 @@ import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
 import de.mossgrabers.pull.core.api.output.ControllerPadGridOverlay;
 import de.mossgrabers.pull.core.api.output.DisplayCommand;
 import de.mossgrabers.pull.core.api.output.RgbColor;
+import de.mossgrabers.pull.core.api.output.LightBlink;
 import de.mossgrabers.pull.core.runtime.view.ProjectMacroControlsView;
 import de.mossgrabers.pull.core.runtime.view.SessionView;
 import de.mossgrabers.pull.core.runtime.view.SessionStopGesture;
@@ -111,6 +112,41 @@ class CompiledWorkspaceTest
 
         final IllegalStateException failure = assertThrows (IllegalStateException.class, () -> workspace.start (snapshot ()));
         assertTrue (failure.getMessage ().contains ("outside its output claims"));
+    }
+
+
+    @Test
+    void composesBlinkingPadsAndReplacesTheirCompleteOutput ()
+    {
+        final ControlId upperPad = PushControlIds.pad (33);
+        final ControlId lowerPad = PushControlIds.pad (1);
+        final RgbColor base = new RgbColor (20, 40, 60);
+        final LightBlink blink = new LightBlink (new RgbColor (255, 0, 0), true);
+        final var upper = new java.util.concurrent.atomic.AtomicReference<> (new ViewOutput (Map.of (upperPad, base), Map.of ()).withLightBlinks (Map.of (upperPad, blink)));
+        final ControllerView upperView = lightView ("upper", SurfaceArea.GRID_UPPER, upper::get);
+        final ControllerView lowerView = lightView ("lower", SurfaceArea.GRID_LOWER, () -> new ViewOutput (Map.of (lowerPad, base), Map.of ()).withLightBlinks (Map.of (lowerPad, blink)));
+        final CompiledWorkspace workspace = CompiledWorkspace.compile ("lights", List.of (upperView, lowerView));
+
+        assertEquals (Map.of (upperPad, blink, lowerPad, blink), workspace.start (snapshot ()).desiredOutput ().lightBlinks ());
+        upper.set (new ViewOutput (Map.of (upperPad, base), Map.of ()));
+        final var output = workspace.render (snapshot (), List.of ()).desiredOutput ();
+        assertEquals (Map.of (upperPad, base, lowerPad, base), output.lights ());
+        assertEquals (Map.of (lowerPad, blink), output.lightBlinks (), "omitted blinking state becomes steady without disturbing another owner");
+    }
+
+
+    @Test
+    void blinkingRequiresTheSameViewsBaseLightAndSupportedOutputClaim ()
+    {
+        final ControlId pad = PushControlIds.pad (1);
+        final ControlId play = PushControlIds.button ("PLAY");
+        final RgbColor base = new RgbColor (0, 255, 0);
+        final LightBlink blink = new LightBlink (new RgbColor (255, 0, 0), false);
+        assertThrows (IllegalArgumentException.class, () -> ViewOutput.empty ().withLightBlinks (Map.of (pad, blink)));
+        final ControllerView unsupported = lightView ("unsupported", SurfaceArea.PLAY_BUTTON, () -> new ViewOutput (Map.of (play, base), Map.of ()).withLightBlinks (Map.of (play, blink)));
+        final ControllerView unclaimed = lightView ("unclaimed", SurfaceArea.GRID_UPPER, () -> new ViewOutput (Map.of (pad, base), Map.of ()).withLightBlinks (Map.of (pad, blink)));
+        assertThrows (IllegalStateException.class, () -> CompiledWorkspace.compile ("unsupported", List.of (unsupported)).start (snapshot ()));
+        assertThrows (IllegalStateException.class, () -> CompiledWorkspace.compile ("unclaimed", List.of (unclaimed)).start (snapshot ()));
     }
 
 
@@ -238,7 +274,7 @@ class CompiledWorkspaceTest
 
         assertEquals (Set.of (SessionView.SCENE_LAUNCH), workspace.profiles ().get (session.id ()).enabledFacets ());
         assertEquals (Set.of (ControllerViewFacet.SESSION_CLIP_GRID_UPPER, ControllerViewFacet.SESSION_SCENE_KEYS_UPPER), workspace.desiredControllerWorkspace ().facets ());
-        assertTrue (session.claims ().contains (new SurfaceClaim (SurfaceArea.STOP_CLIP_BUTTON, SurfaceClaim.Kind.OBSERVE_INPUT)));
+        assertTrue (session.claims ().contains (new SurfaceClaim (SurfaceArea.STOP_CLIP_BUTTON, SurfaceClaim.Kind.EXCLUSIVE_INPUT)));
         assertTrue (session.claims ().contains (new SurfaceClaim (SurfaceArea.STOP_CLIP_BUTTON, SurfaceClaim.Kind.OUTPUT)));
     }
 
@@ -853,6 +889,22 @@ class CompiledWorkspaceTest
             de.mossgrabers.pull.core.api.MasterSnapshot.empty (),
             de.mossgrabers.pull.core.api.ProjectSnapshot.empty ());
         return new ControllerSnapshot (0, 0, ShellCapabilities.empty (), bridge, ClipCatalogSnapshot.empty (), Map.of (), Map.of (), java.util.Optional.empty (), pressedControls, Set.of ());
+    }
+
+
+    private static ControllerView lightView (final String id, final SurfaceArea area, final java.util.function.Supplier<ViewOutput> output)
+    {
+        return new ControllerView ()
+        {
+            @Override
+            public String id () { return id; }
+
+            @Override
+            public ViewProfile profile () { return ViewProfile.fixed (id, Set.of (claim (area, SurfaceClaim.Kind.OUTPUT)), Set.of ()); }
+
+            @Override
+            public ViewOutput render (final ControllerSnapshot ignored) { return output.get (); }
+        };
     }
 
 

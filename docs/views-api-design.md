@@ -1,6 +1,6 @@
 # Views, pages and composition
 
-This is the current Core API 47 / checkpoint schema 6 view contract. [ARCH](../ARCH.md) maps the
+This is the current Core API 48 / checkpoint schema 6 view contract. [ARCH](../ARCH.md) maps the
 implementation and records live activation status. The [roadmap](reloadable-core-migration-roadmap.md)
 identifies remaining stable families; page ownership does not imply their bodies have migrated.
 

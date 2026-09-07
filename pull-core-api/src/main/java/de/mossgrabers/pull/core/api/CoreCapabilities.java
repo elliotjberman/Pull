@@ -26,7 +26,7 @@ public final class CoreCapabilities
     /** Single-active momentary clip-session effects with a frozen launch policy per target. */
     public static final String EFFECT_CLIP_LAUNCH_HOLD = "effect.clip-launch-hold";
 
-    /** Hardware-independent RGB light output; v6 admits every registered Push button and grid pad. */
+    /** Hardware-independent RGB light output; v7 adds a second pad colour and hardware blink rate. */
     public static final String OUTPUT_RGB_LIGHT = "output.rgb-light";
 
     /** Replayable projection onto bounded semantic host-learnable controller endpoints. */
@@ -50,7 +50,7 @@ public final class CoreCapabilities
     /** Replayable input ownership; v8 freezes declared edge/motion companions through physical release. */
     public static final String ROUTING_CONTROLLER_INPUT = "routing.controller-input";
 
-    /** Common bounded controller state; v12 adds current-bank tracks, encoder preferences, and project history readback. */
+    /** Common bounded controller state; v15 adds observed Session preferences. */
     public static final String SNAPSHOT_CONTROLLER_BRIDGE = "snapshot.controller-bridge";
 
     /** Replayable selection of bounded bridge-state domains to publish and sample. */
@@ -65,7 +65,7 @@ public final class CoreCapabilities
     /** Generation-fenced selected-track state, value, and action effects. */
     public static final String EFFECT_SELECTED_TRACK = "effect.selected-track";
 
-    /** Generation-fenced actions against the active bounded Session bank; v2 adds selection and v3 exact-track Stop. */
+    /** Generation-fenced actions against the active bounded Session bank; v4 adds exact launcher locations and primitive clip/scene operations. */
     public static final String EFFECT_SESSION_BANK = "effect.session-bank";
     /** Exact bounded current-bank track actions and main-bank parent navigation. */
     public static final String EFFECT_CURRENT_TRACK_BANK = "effect.current-track-bank";
@@ -79,7 +79,7 @@ public final class CoreCapabilities
     /** Bounded application layout, panel, Arranger, and Mixer UI operations. */
     public static final String EFFECT_APPLICATION_UI = "effect.application-ui";
 
-    /** Mechanical consumption of a stable compatibility button release; v3 admits lower-row, Record, and Duplicate gesture consumption. */
+    /** Mechanical consumption of a stable compatibility button release; v4 also admits Browse and Stop Clip gesture consumption. */
     public static final String EFFECT_CONTROLLER_BUTTON_CONSUMPTION = "effect.controller-button-consumption";
 
     /** Generation-fenced drum-pad state, selection, and absolute bank-position effects. */

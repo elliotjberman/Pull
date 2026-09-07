@@ -158,7 +158,7 @@ class SelectedTrackTargetStateTest
             };
         });
         final ControllerHost host = proxy (ControllerHost.class, (proxy, method, arguments) -> "createBitwigDeviceMatcher".equals (method.getName ()) ? drumMatcher : relaxedValue (method.getReturnType ()));
-        final SelectedTrackTargetState state = new SelectedTrackTargetState (host, target, new NoteInputImpl (relaxedProxy (NoteInput.class)));
+        final SelectedTrackTargetState state = new SelectedTrackTargetState (new de.mossgrabers.bitwig.framework.daw.HostImpl (host), target, new NoteInputImpl (relaxedProxy (NoteInput.class)));
 
         final SelectedTrackNoteTargetSnapshot snapshot = state.snapshot ();
         assertEquals (1, snapshot.generation ());
@@ -318,7 +318,7 @@ class SelectedTrackTargetStateTest
             return relaxedValue (method.getReturnType ());
         });
 
-        final SelectedTrackTargetState state = new SelectedTrackTargetState (host, target, new NoteInputImpl (relaxedProxy (NoteInput.class)));
+        final SelectedTrackTargetState state = new SelectedTrackTargetState (new de.mossgrabers.bitwig.framework.daw.HostImpl (host), target, new NoteInputImpl (relaxedProxy (NoteInput.class)));
 
         assertArrayEquals (new Object []
         {

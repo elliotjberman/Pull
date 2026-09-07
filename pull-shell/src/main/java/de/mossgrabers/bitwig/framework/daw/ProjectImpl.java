@@ -28,6 +28,7 @@ import com.bitwig.extension.controller.api.Track;
  */
 public class ProjectImpl implements IProject
 {
+    private final IHost host;
     private final Project        project;
     private final Application    application;
     private final StringValue    projectIdentity;
@@ -48,6 +49,7 @@ public class ProjectImpl implements IProject
      */
     public ProjectImpl (final IHost host, final IValueChanger valueChanger, final Project project, final Application application, final int numParamPages, final int numParams)
     {
+        this.host = host;
         this.project = project;
         this.application = application;
 
@@ -114,6 +116,7 @@ public class ProjectImpl implements IProject
     @Override
     public void previous ()
     {
+        this.host.beforeProjectStructureMutation ();
         this.application.previousProject ();
     }
 
@@ -122,6 +125,7 @@ public class ProjectImpl implements IProject
     @Override
     public void next ()
     {
+        this.host.beforeProjectStructureMutation ();
         this.application.nextProject ();
     }
 
@@ -130,6 +134,7 @@ public class ProjectImpl implements IProject
     @Override
     public void createScene ()
     {
+        this.host.beforeProjectStructureMutation ();
         this.project.createScene ();
     }
 
@@ -138,6 +143,7 @@ public class ProjectImpl implements IProject
     @Override
     public void createSceneFromPlayingLauncherClips ()
     {
+        this.host.beforeProjectStructureMutation ();
         this.project.createSceneFromPlayingLauncherClips ();
     }
 
@@ -166,7 +172,10 @@ public class ProjectImpl implements IProject
     {
         final Action action = this.application.getAction ("Open");
         if (action != null)
+        {
+            this.host.beforeProjectStructureMutation ();
             action.invoke ();
+        }
     }
 
 

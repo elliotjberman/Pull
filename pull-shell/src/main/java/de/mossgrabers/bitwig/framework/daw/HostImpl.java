@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -50,6 +51,8 @@ public class HostImpl implements IHost
     private static final List<IDeviceMetadata> AUDIO_EFFECTS_METADATA = new ArrayList<> ();
     private final ControllerHost   host;
     private final List<IUsbDevice> usbDevices = new ArrayList<> ();
+    private Runnable projectStructureMutationGuard = () -> { };
+    private boolean projectStructureMutationGuardInstalled;
 
 
     /**
@@ -62,6 +65,25 @@ public class HostImpl implements IHost
         this.host = host;
 
         readDeviceFiles ();
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void setProjectStructureMutationGuard (final Runnable guard)
+    {
+        if (this.projectStructureMutationGuardInstalled)
+            throw new IllegalStateException ("Project structure mutation guard is already installed");
+        this.projectStructureMutationGuard = Objects.requireNonNull (guard, "guard");
+        this.projectStructureMutationGuardInstalled = true;
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
+    public void beforeProjectStructureMutation ()
+    {
+        this.projectStructureMutationGuard.run ();
     }
 
 

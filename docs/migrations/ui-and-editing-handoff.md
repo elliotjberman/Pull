@@ -1,6 +1,6 @@
 # UI and editing migration handoff
 
-Start from Core API 47 / Bitwig API 25. Follow the [capability audit](../reloadable-core-migration-guide.md)
+Start from Core API 48 / Bitwig API 25. Follow the [capability audit](../reloadable-core-migration-guide.md)
 and [remaining checklist](../reloadable-core-migration-roadmap.md); core-owned page entry/return
 does not imply the page body has migrated. Choose one complete action-and-feedback slice per PR.
 

@@ -1,6 +1,6 @@
 # Reloadable Controller Core
 
-This is the current runtime and packaging contract for Core API 47, checkpoint schema 6 and
+This is the current runtime and packaging contract for Core API 48, checkpoint schema 6 and
 Bitwig controller API 25. These are three separate versions. [ARCH](../ARCH.md) explains how
 controller behavior is assembled; [the views contract](views-api-design.md) explains authoring;
 [the lifecycle contract](interaction-lifecycle.md) explains target-bound input. Installed-build
@@ -72,9 +72,9 @@ before any semantic-action barrier can queue a stable callback. Native `NoteInpu
 from this command arbitration.
 
 The [interaction lifecycle](interaction-lifecycle.md) specifies migrated core cancellation and
-resource retirement. Stable Session has an unresolved [release-loss defect](migrations/session-launcher-location-design.md#current-release-regression);
-capturing its receiver alone did not migrate cleanup ownership. Native musical routing below is
-independent from both command dispatch and Session launcher actions.
+resource retirement. [Session](migrations/session-launcher-location-design.md) captures launcher
+locations independently of selected-track changes; shared host mutation guards release outstanding
+presses before controller-driven rebinding. Native musical routing below has separate ownership.
 
 ## Selected-track musical routing
 
@@ -133,10 +133,10 @@ default must be Return. Bitwig exposes a release lane, not a direct “restore t
 Core renders active-fill feedback only from the acquired owner's observed playback state.
 
 Shell-owned catalog/actuator/session state survives child replacement; a candidate hydrates from
-read-back without synthesizing presses. Structural clip insertion/reordering can still defeat
-scene-addressed proxies because API 25 has no durable clip ID. General Session grid/scenes release
-and actuator reuse remain [unproved migration work](migrations/session-launcher-location-design.md).
-They do not inherit the fill contract merely by using the same lifecycle primitive.
+read-back without synthesizing presses. External structural edits can still defeat scene-addressed
+proxies because API 25 has no durable clip ID. [Session launcher cleanup](migrations/session-launcher-location-design.md)
+preserves matching release submission within its addressable window; it does not inherit the fill
+playback barrier merely by using the same lifecycle primitive.
 
 ## Transactional reload
 

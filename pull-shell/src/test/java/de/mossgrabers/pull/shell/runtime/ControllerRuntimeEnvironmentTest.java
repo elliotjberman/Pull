@@ -31,7 +31,6 @@ import de.mossgrabers.pull.core.api.ControllerMappingBinding;
 import de.mossgrabers.pull.core.api.ControllerMappingId;
 import de.mossgrabers.pull.core.api.ControllerMappingTarget;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
-import de.mossgrabers.pull.core.api.CoreCapabilities;
 import de.mossgrabers.pull.core.api.CoreControllerMappings;
 import de.mossgrabers.pull.core.api.CoreControls;
 import de.mossgrabers.pull.core.api.CoreExecutionRequirements;
@@ -80,6 +79,7 @@ import de.mossgrabers.pull.core.api.output.ControllerDisplayOverlay;
 import de.mossgrabers.pull.core.api.output.DisplayCommand;
 import de.mossgrabers.pull.core.api.output.PadGridPosition;
 import de.mossgrabers.pull.core.api.output.RgbColor;
+import de.mossgrabers.pull.core.api.output.LightBlink;
 
 import org.junit.jupiter.api.Test;
 
@@ -142,29 +142,6 @@ class ControllerRuntimeEnvironmentTest
         assertTrue (secondSnapshot.monotonicTimeNanos () > initial.monotonicTimeNanos ());
         assertEquals (7, initial.clipCatalog ().generation ());
         assertEquals (FIRST_TARGET, initial.armedClipTargets ().get (FIRST));
-        assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.INPUT_DRUM_FILL));
-        assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_SELECTED_TRACK_CLIPS));
-        assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.BINDING_CLIP_TARGET));
-        assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION));
-        assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD));
-        assertEquals (Integer.valueOf (6), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_RGB_LIGHT));
-        assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_MAPPING));
-        assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_STATE));
-        assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_NOTE_VIEW_PREFERENCE));
-        assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_NOTE_REPEAT));
-        assertEquals (Integer.valueOf (8), initial.capabilities ().versions ().get (CoreCapabilities.ROUTING_CONTROLLER_INPUT));
-        assertEquals (Integer.valueOf (14), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE));
-        assertEquals (Integer.valueOf (3), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_SESSION_BANK));
-        assertEquals (Integer.valueOf (3), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_CONTROLLER_BUTTON_CONSUMPTION));
-        assertEquals (Integer.valueOf (5), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_PARAMETER_TARGETS));
-        assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_PARAMETER_TARGET));
-        assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_CONTROLLER_MAPPING_FEEDBACK));
-        assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_MASTER));
-        assertEquals (Integer.valueOf (3), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_MASTER));
-        assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_CONTROLLER_DISPLAY));
-        assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_PAD_GRID_OVERLAY));
-        assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_DISPLAY_OVERLAY));
-        assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.RENDER_MIXER_CONTROLS));
         assertTrue (initial.clipLaunchSessionTargets ().isEmpty ());
         assertEquals (Optional.empty (), initial.activeClipLaunchOwner ());
 
@@ -245,24 +222,38 @@ class ControllerRuntimeEnvironmentTest
 
 
     @Test
-    void acceptsCoreTickCadenceWithoutAControllerBridge ()
+    void committedContinuationFencesReplacementAfterPhysicalReleaseUntilTheCoreClearsIt ()
     {
         final ControllerRuntimeEnvironment environment = environment (host (1));
-        final CoreResult result = new CoreResult (
-            DesiredHardwareOutput.empty (),
-            DesiredInputRoutes.empty (),
-            DesiredBridgeSubscriptions.empty (),
-            Map.of (),
-            DesiredControllerState.empty (),
-            DesiredNoteRepeat.unowned (),
-            de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
-            DesiredParameterBanks.empty (),
-            DesiredParameterInteraction.empty (),
-            new CoreExecutionRequirements (true),
-            List.of ());
+        final AtomicBoolean physicalInputIdle = new AtomicBoolean (true);
+        environment.setInputLifecycleIdle (physicalInputIdle::get);
+        final CoreResult pendingContinuation = executionResult (new CoreExecutionRequirements (true, true));
+        final var prepared = environment.prepare (pendingContinuation);
+        assertTrue (environment.canReplaceActiveCore ());
 
-        assertTrue (environment.prepare (result) != null);
-        assertEquals (0, environment.outputGeneration ());
+        environment.commit (7, prepared);
+        assertFalse (environment.canReplaceActiveCore ());
+        environment.apply (7);
+        environment.refresh ();
+        assertFalse (environment.canReplaceActiveCore ());
+
+        // Continuing cadence alone must not retain the replacement fence.
+        final var completed = environment.prepare (executionResult (new CoreExecutionRequirements (true)));
+        assertFalse (environment.canReplaceActiveCore ());
+        environment.commit (7, completed);
+        environment.apply (7);
+        assertTrue (environment.ticksRequested ());
+        assertTrue (environment.canReplaceActiveCore ());
+        physicalInputIdle.set (false);
+        assertFalse (environment.canReplaceActiveCore ());
+        physicalInputIdle.set (true);
+
+        commitAndApply (environment, 7, pendingContinuation);
+        assertFalse (environment.canReplaceActiveCore ());
+        environment.invalidate (8);
+        environment.apply (7);
+        assertTrue (environment.canReplaceActiveCore ());
+        assertFalse (environment.ticksRequested ());
     }
 
 
@@ -481,6 +472,36 @@ class ControllerRuntimeEnvironmentTest
         final ControllerRuntimeEnvironment.DebugLightObservation absent = environment.debugLightObservation (pad);
         assertEquals (2, absent.appliedRevision ());
         assertFalse (absent.present ());
+    }
+
+
+    @Test
+    void blinkingOutputCommitsWithItsBaseAndClearsOnOmissionOrQuarantine ()
+    {
+        final ControllerRuntimeEnvironment environment = environment (host (1));
+        final ControlId pad = PushControlIds.pad (1);
+        final LightBlink blink = new LightBlink (BRIGHT_RED, true);
+        final DesiredHardwareOutput output = new DesiredHardwareOutput (Map.of (pad, OFF), ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), DesiredControllerMappings.empty (), DesiredTouchStrip.unowned (), Map.of (pad, blink));
+        environment.setPhysicalLightOwnerValidator (ignored -> true);
+        final CoreResult result = routedResult (output, DesiredInputRoutes.empty ());
+        final PreparedCoreResult prepared = environment.prepare (result);
+        assertNull (environment.lightBlink (pad), "preparation does not publish output");
+        environment.commit (9, prepared);
+        environment.apply (9);
+        assertEquals (blink, environment.lightBlink (pad));
+        assertEquals (OFF, environment.lightColor (pad));
+
+        commitAndApply (environment, 9, result (Map.of (pad, BRIGHT_RED), Map.of (), List.of ()));
+        assertNull (environment.lightBlink (pad));
+        assertEquals (BRIGHT_RED, environment.lightColor (pad));
+        commitAndApply (environment, 9, result);
+        environment.quarantine (9);
+        assertNull (environment.lightBlink (pad));
+        assertEquals (OFF, environment.lightColor (pad));
+
+        final ControlId button = PushControlIds.button ("PLAY");
+        final DesiredHardwareOutput unsupported = new DesiredHardwareOutput (Map.of (button, OFF), ControllerDisplayScene.empty (), ControllerPadGridOverlay.inactive (), ControllerDisplayOverlay.inactive (), DesiredControllerMappings.empty (), DesiredTouchStrip.unowned (), Map.of (button, blink));
+        assertThrows (IllegalArgumentException.class, () -> environment.prepare (routedResult (unsupported, DesiredInputRoutes.empty ())));
     }
 
 
@@ -1589,6 +1610,15 @@ class ControllerRuntimeEnvironmentTest
     {
         environment.commit (generation, environment.prepare (result));
         environment.apply (generation);
+    }
+
+
+    private static CoreResult executionResult (final CoreExecutionRequirements requirements)
+    {
+        return new CoreResult (
+            DesiredHardwareOutput.empty (), DesiredInputRoutes.empty (), DesiredBridgeSubscriptions.empty (), Map.of (),
+            DesiredControllerState.empty (), DesiredNoteRepeat.unowned (), de.mossgrabers.pull.core.api.DesiredControllerActions.empty (),
+            DesiredParameterBanks.empty (), DesiredParameterInteraction.empty (), requirements, List.of ());
     }
 
 

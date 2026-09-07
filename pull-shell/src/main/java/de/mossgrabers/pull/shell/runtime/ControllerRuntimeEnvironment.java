@@ -100,7 +100,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         Map.entry (CoreCapabilities.BINDING_CLIP_TARGET, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.SNAPSHOT_CLIP_LAUNCH_SESSION, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_CLIP_LAUNCH_HOLD, Integer.valueOf (4)),
-        Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (6)),
+        Map.entry (CoreCapabilities.OUTPUT_RGB_LIGHT, Integer.valueOf (7)),
         Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_MAPPING, Integer.valueOf (4)),
         Map.entry (CoreCapabilities.OUTPUT_CONTROLLER_STATE, Integer.valueOf (4)),
         Map.entry (CoreCapabilities.EFFECT_NOTE_VIEW_PREFERENCE, Integer.valueOf (1)),
@@ -108,7 +108,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         Map.entry (CoreCapabilities.OUTPUT_TOUCH_STRIP, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.INPUT_CONTROLLER, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.ROUTING_CONTROLLER_INPUT, Integer.valueOf (8)),
-        Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE, Integer.valueOf (14)),
+        Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE, Integer.valueOf (15)),
         Map.entry (CoreCapabilities.SUBSCRIPTION_CONTROLLER_BRIDGE, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_TRANSPORT, Integer.valueOf (4)),
         Map.entry (CoreCapabilities.EFFECT_HOST_NOTIFICATION, Integer.valueOf (1)),
@@ -117,8 +117,8 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         Map.entry (CoreCapabilities.CONTROLLER_PAGES, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_CONTROLLER_SETTINGS, Integer.valueOf (1)),
         Map.entry (CoreCapabilities.EFFECT_APPLICATION_UI, Integer.valueOf (1)),
-        Map.entry (CoreCapabilities.EFFECT_SESSION_BANK, Integer.valueOf (3)),
-        Map.entry (CoreCapabilities.EFFECT_CONTROLLER_BUTTON_CONSUMPTION, Integer.valueOf (3)),
+        Map.entry (CoreCapabilities.EFFECT_SESSION_BANK, Integer.valueOf (4)),
+        Map.entry (CoreCapabilities.EFFECT_CONTROLLER_BUTTON_CONSUMPTION, Integer.valueOf (4)),
         Map.entry (CoreCapabilities.EFFECT_DRUM_PAD, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.EFFECT_NOTE_INPUT_MIDI, Integer.valueOf (2)),
         Map.entry (CoreCapabilities.SNAPSHOT_PARAMETER_TARGETS, Integer.valueOf (5)),
@@ -143,6 +143,8 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
 
     private ClipCatalogSnapshot clipCatalog;
     private Map<ControlId, ClipTargetId> armedClipTargets;
+    private static final Set<ControlId> PHYSICAL_PADS = java.util.stream.IntStream.rangeClosed (1, 64).mapToObj (de.mossgrabers.pull.core.api.PushControlIds::pad).collect (java.util.stream.Collectors.toUnmodifiableSet ());
+
     private FillSessionView lastObservedSession;
     private CommittedState committedState = CommittedState.initial ();
     private Predicate<de.mossgrabers.pull.core.api.InputRoute> inputRouteValidator = route -> false;
@@ -434,7 +436,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
     @Override
     public boolean canReplaceActiveCore ()
     {
-        return this.committedState.desiredParameterInteraction ().pendingActionCount () == 0 &&
+        return !this.committedState.executionRequirements ().replacementBlocked () && this.committedState.desiredParameterInteraction ().pendingActionCount () == 0 &&
             this.inputLifecycleIdle.getAsBoolean () &&
             (this.controllerBridge == null || this.controllerBridge.canReplaceActiveCore ());
     }
@@ -482,6 +484,12 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
 
 
     /** Get one replayable controller light color, defaulting to off. */
+    de.mossgrabers.pull.core.api.output.LightBlink lightBlink (final ControlId owner)
+    {
+        return this.committedState.output ().lightBlinks ().get (Objects.requireNonNull (owner, "owner"));
+    }
+
+
     RgbColor lightColor (final ControlId owner)
     {
         return this.committedState.output ().lights ().getOrDefault (Objects.requireNonNull (owner, "light owner"), OFF);
@@ -848,6 +856,9 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
             final RgbColor requested = Objects.requireNonNull (light.getValue (), "light color");
             colors.put (owner, new RgbColor (requested.red (), requested.green (), requested.blue ()));
         }
+        for (final ControlId owner: result.desiredOutput ().lightBlinks ().keySet ())
+            if (!PHYSICAL_PADS.contains (owner) || !this.physicalLightOwnerValidator.test (owner))
+                throw new IllegalArgumentException ("Blink output requires an installed physical pad");
         final ControllerDisplayScene display = result.desiredOutput ().display ();
         if (display.isPresent () && (display.width () != 960 || display.height () != 160))
             throw new IllegalArgumentException ("Controller display output must use the 960x160 Push viewport");
@@ -873,7 +884,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
         }
         if (displayOverlay.active () && (displayOverlay.scene ().width () != 960 || displayOverlay.scene ().height () != 160))
             throw new IllegalArgumentException ("Controller display overlay must use the 960x160 Push viewport");
-        return new DesiredHardwareOutput (colors, display, overlay, displayOverlay, controllerMappings, result.desiredOutput ().touchStrip ());
+        return new DesiredHardwareOutput (colors, display, overlay, displayOverlay, controllerMappings, result.desiredOutput ().touchStrip (), result.desiredOutput ().lightBlinks ());
     }
 
 
@@ -994,7 +1005,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
 
     private static boolean isSessionBankEffect (final CoreEffect effect)
     {
-        return effect instanceof StopSessionBankEffect || effect instanceof SelectSessionTrackEffect || effect instanceof StopSessionTrackEffect;
+        return effect instanceof StopSessionBankEffect || effect instanceof SelectSessionTrackEffect || effect instanceof StopSessionTrackEffect || effect instanceof de.mossgrabers.pull.core.api.effect.SessionActionEffect || effect instanceof de.mossgrabers.pull.core.api.effect.CopySessionClipEffect || effect instanceof de.mossgrabers.pull.core.api.effect.CreateSessionClipEffect || effect instanceof de.mossgrabers.pull.core.api.effect.SetSessionBankPositionEffect;
     }
 
 

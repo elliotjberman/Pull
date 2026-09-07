@@ -1,11 +1,10 @@
 # Pull architecture
 
-Working source: Core API 47, checkpoint schema 6, Bitwig API 25. Migration is incomplete:
+Working source: Core API 48, checkpoint schema 6, Bitwig API 25. Migration is incomplete:
 core owns pages and migrated controls; the inventory below names the remaining shell handlers.
 
-Production `bf5bc4d7` passed [scoped live checks](docs/migrations/interaction-lifecycle-live-smoke.md).
-Later review reproduced a [lost Session release](docs/migrations/session-launcher-location-design.md#current-release-regression).
-That defect remains unresolved; the live checks did not cover it.
+The Session migration is implemented in API 48; exact-build live validation is pending.
+Earlier API 47 evidence remains in the [smoke record](docs/migrations/interaction-lifecycle-live-smoke.md).
 
 ## Assembly
 
@@ -29,7 +28,8 @@ Push / Bitwig -> shell callbacks and observed snapshots -> core behavior
 The shell creates finite proxy topology at startup. Core's complete subscriptions and named-bank
 selection gate sampling; unsubscribed domains publish typed empty values. Each `CoreResult`
 replaces desired routes, resources and output. Effects request changes; feedback and dependent
-operations use later read-back. Mutable targets are checked at preparation and application.
+operations use later read-back. Mutable targets are checked at preparation and application. A shared host guard releases Session
+holds at actual track/scene/window mutation methods, covering core and frozen callers alike.
 
 ## Pages and input
 
@@ -58,7 +58,7 @@ are separate paths. The shared lifecycle does not make unmigrated shell handlers
 | Project Macros, Track, Volume/Pan, eight Sends, Master/Cue | Core controls, touches/reset, menus, display and lights. Normal Track has a current-bank footer; VS has a Session track strip. |
 | Transport/global pages | Core Play/Record, Mute/Solo, Tap, Undo/Redo, Track/Mix, Master/Frame, Accent, Metronome/Automation and migrated arrows, including feedback. |
 | Drum / selected Note | Core applicability, Note/Layout, playable-pad pressure/lights, rates/roll, fills, octave/native maps and raw strip policy within installed geometry. |
-| Session | Frozen grid, scenes and page-button handlers. Core owns VS arrows and Stop policy; Stop remains OBSERVE for the inherited Stop-plus-pad chord. |
+| Session | Core grid, scene keys, bank/page/octave navigation, Stop chords, modifiers, create/record/copy/browse and observed blinking lights. Legacy parameter pages retain only horizontal parameter navigation. |
 | Device/Chains/layers, Browser body, Crossfade, Details/Color, settings and editing | Stable handlers/providers. Core page entry/return does not migrate their controls or rendering. |
 
 Plain Session uses 8×8; Shift+Session selects VS with an upper 8×4 Session bank, Project Macros,
@@ -74,7 +74,7 @@ Toggle lanes serialize dependent writes across host read-back.
 
 | Capability | Capacity / identity |
 | --- | --- |
-| Session | 8×8 and 8×4, offsets preserved between shapes; only the active bank owns launcher feedback. |
+| Session | 8×8 and 8×4; exact project/channel/scene locations, at most 72 acquired launch presses. Cleanup precedes controller bank rebind; external loss fails closed. |
 | Current-track banks | Two main windows and one effect bank, eight tracks each; track identity plus navigation generation. |
 | Named parameters | Seventeen banks, at most 131 slots: ACTIVE legacy, project/device remotes, selected mix/sends, current-bank Volume/Pan/eight Sends, Master/Cue and globals. |
 | Drum | Canonical 16-pad window and bounded device candidates; a separate 64-pad proxy serves legacy Drum64. |

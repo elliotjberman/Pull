@@ -18,9 +18,7 @@ public final class SessionNavigationView extends NavigationView
         Set.of (
             new SurfaceClaim (SurfaceArea.NAVIGATION_ARROWS, SurfaceClaim.Kind.EXCLUSIVE_INPUT),
             new SurfaceClaim (SurfaceArea.NAVIGATION_ARROWS, SurfaceClaim.Kind.OUTPUT),
-            new SurfaceClaim (SurfaceArea.SHIFT_MODIFIER, SurfaceClaim.Kind.OBSERVE_INPUT),
-            new SurfaceClaim (SurfaceArea.NAVIGATION_PAGE, SurfaceClaim.Kind.STABLE_ADAPTER_INPUT),
-            new SurfaceClaim (SurfaceArea.NAVIGATION_PAGE, SurfaceClaim.Kind.STABLE_ADAPTER_OUTPUT)),
+            new SurfaceClaim (SurfaceArea.SHIFT_MODIFIER, SurfaceClaim.Kind.OBSERVE_INPUT)),
         Set.of (ControllerViewFacet.SESSION_NAVIGATION));
 
     public SessionNavigationView () { super (Horizontal.SESSION); }

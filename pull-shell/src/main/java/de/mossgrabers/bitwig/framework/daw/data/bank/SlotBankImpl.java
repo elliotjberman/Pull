@@ -56,6 +56,14 @@ public class SlotBankImpl extends AbstractItemBankImpl<ClipLauncherSlotBank, ISl
 
     /** {@inheritDoc} */
     @Override
+    protected void beforeWindowMutation ()
+    {
+        this.host.beforeProjectStructureMutation ();
+    }
+
+
+    /** {@inheritDoc} */
+    @Override
     public Optional<ISlot> getEmptySlot (final int startFrom)
     {
         final int start = startFrom >= 0 ? startFrom : 0;
@@ -80,6 +88,7 @@ public class SlotBankImpl extends AbstractItemBankImpl<ClipLauncherSlotBank, ISl
         final int index = sel.isEmpty () ? 0 : sel.get ().getIndex () + 1;
         if (index == this.getPageSize ())
         {
+            this.beforeWindowMutation ();
             this.sceneBank.scrollPageForwards ();
             this.selectNextPage ();
         }
@@ -98,6 +107,7 @@ public class SlotBankImpl extends AbstractItemBankImpl<ClipLauncherSlotBank, ISl
         final int index = sel.isEmpty () ? 0 : sel.get ().getIndex () - 1;
         if (index == -1)
         {
+            this.beforeWindowMutation ();
             this.sceneBank.scrollPageBackwards ();
             this.selectPreviousPage ();
         }

@@ -92,7 +92,7 @@ public class ModelImpl extends AbstractModel
         final Application bwApplication = controllerHost.createApplication ();
         final Arranger bwArranger = controllerHost.createArranger ();
 
-        this.application = new ApplicationImpl (bwApplication, bwArranger, this.valueChanger);
+        this.application = new ApplicationImpl (this.host, bwApplication, bwArranger, this.valueChanger);
         final Project proj = controllerHost.getProject ();
         this.rootTrackGroup = proj.getRootTrackGroup ();
         this.project = new ProjectImpl (this.host, this.valueChanger, proj, bwApplication, numParamPages, numParams);

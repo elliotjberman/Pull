@@ -3,6 +3,7 @@
 
 package de.mossgrabers.pull.shell.runtime;
 
+import de.mossgrabers.bitwig.framework.daw.data.SlotImpl;
 import de.mossgrabers.controller.ableton.push.workspace.SessionBankRegistry;
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.daw.data.ITrack;
@@ -16,33 +17,48 @@ import de.mossgrabers.pull.core.api.BankNavigationSnapshot;
 import de.mossgrabers.pull.core.api.SessionBankShape;
 import de.mossgrabers.pull.core.api.SessionBankSnapshot;
 import de.mossgrabers.pull.core.api.SessionClipWindowSnapshot;
+import de.mossgrabers.pull.core.api.SessionLocation;
 import de.mossgrabers.pull.core.api.SessionSceneSnapshot;
 import de.mossgrabers.pull.core.api.SessionSlotSnapshot;
 import de.mossgrabers.pull.core.api.SessionTrackSnapshot;
 import de.mossgrabers.pull.core.api.SessionTrackType;
 import de.mossgrabers.pull.core.api.effect.SelectSessionTrackEffect;
+import de.mossgrabers.pull.core.api.effect.SessionActionEffect;
+import de.mossgrabers.pull.core.api.effect.CopySessionClipEffect;
+import de.mossgrabers.pull.core.api.effect.CreateSessionClipEffect;
+import de.mossgrabers.pull.core.api.effect.SetSessionBankPositionEffect;
 import de.mossgrabers.pull.core.api.effect.StopSessionBankEffect;
 import de.mossgrabers.pull.core.api.effect.StopSessionTrackEffect;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 
 /** Bounded authoritative state and generation-fenced effects for the active Session bank. */
 final class SessionBankHost
 {
     private final SessionBankRegistry registry;
+    private final Supplier<String> projectIdentity;
+    private final Consumer<String> cleanupDiagnostic;
+    private final Map<SessionLocation, Boolean> outstandingLaunches = new LinkedHashMap<> ();
 
     private SessionBankSnapshot snapshot = SessionBankSnapshot.empty ();
     private TargetIdentity identity;
     private long generation;
+    private PendingPosition pendingPosition;
 
 
-    SessionBankHost (final SessionBankRegistry registry)
+    SessionBankHost (final SessionBankRegistry registry, final Supplier<String> projectIdentity, final Consumer<String> cleanupDiagnostic)
     {
         this.registry = Objects.requireNonNull (registry, "registry");
+        this.projectIdentity = Objects.requireNonNull (projectIdentity, "projectIdentity");
+        this.cleanupDiagnostic = Objects.requireNonNull (cleanupDiagnostic, "cleanupDiagnostic");
     }
 
 
@@ -57,8 +73,11 @@ final class SessionBankHost
     boolean refresh (final boolean clipsRequested)
     {
         final TargetIdentity currentIdentity = this.captureIdentity ();
+        if (this.pendingPosition != null && (!this.pendingPosition.projectIdentity ().equals (currentIdentity.projectIdentity ()) || !this.pendingPosition.shape ().equals (currentIdentity.shape ())))
+            this.pendingPosition = null;
         if (!currentIdentity.equals (this.identity))
         {
+            this.releaseOutstanding ();
             this.identity = currentIdentity;
             this.generation++;
         }
@@ -74,6 +93,215 @@ final class SessionBankHost
     SessionBankSnapshot snapshot ()
     {
         return this.snapshot;
+    }
+
+
+    PreparedLauncherAction prepare (final SessionActionEffect effect)
+    {
+        Objects.requireNonNull (effect, "effect");
+        return new PreparedLauncherAction (effect, this.locationIsCurrent (effect.target (), !effect.isRelease ()));
+    }
+
+
+    PreparedCopy prepare (final CopySessionClipEffect effect)
+    {
+        Objects.requireNonNull (effect, "effect");
+        return new PreparedCopy (effect, this.locationIsCurrent (effect.source (), true) && this.locationIsCurrent (effect.target (), true));
+    }
+
+
+    PreparedCreate prepare (final CreateSessionClipEffect effect)
+    {
+        Objects.requireNonNull (effect, "effect");
+        return new PreparedCreate (effect, this.locationIsCurrent (effect.target (), true));
+    }
+
+
+    PreparedPosition prepare (final SetSessionBankPositionEffect effect)
+    {
+        Objects.requireNonNull (effect, "effect");
+        return new PreparedPosition (effect, this.positionIsCurrent (effect));
+    }
+
+
+    void apply (final PreparedLauncherAction prepared)
+    {
+        final SessionActionEffect effect = prepared.effect ();
+        final SessionLocation target = effect.target ();
+        final SessionActionEffect.Action action = effect.action ();
+        if (effect.isRelease ())
+        {
+            final Boolean acquired = this.outstandingLaunches.get (target);
+            if (acquired == null || acquired.booleanValue () != (action == SessionActionEffect.Action.RELEASE_ALT))
+                return;
+            this.outstandingLaunches.remove (target);
+        }
+        if (!prepared.valid () || !this.locationIsCurrent (target, false))
+        {
+            if (effect.isRelease ())
+                this.cleanupDiagnostic.accept ("Session release unavailable: " + target + ", " + action);
+            return;
+        }
+        final int row = target.scenePosition () - this.snapshot.sceneOffset ();
+        final boolean alternate = action == SessionActionEffect.Action.LAUNCH_ALT || action == SessionActionEffect.Action.RELEASE_ALT;
+        if (target.isScene ())
+        {
+            final IScene scene = this.registry.getActiveBank ().getSceneBank ().getItem (row);
+            switch (action)
+            {
+                case LAUNCH, LAUNCH_ALT -> scene.launch (true, alternate);
+                case RELEASE, RELEASE_ALT -> scene.launch (false, alternate);
+                case SELECT -> scene.select ();
+                case REMOVE -> scene.remove ();
+                case DUPLICATE -> scene.duplicate ();
+                default -> throw new IllegalArgumentException ("Operation requires a Session slot");
+            }
+        }
+        else
+        {
+            final ISlot slot = this.slot (target);
+            switch (action)
+            {
+                case LAUNCH, LAUNCH_ALT -> slot.launch (true, alternate);
+                case RELEASE, RELEASE_ALT -> slot.launch (false, alternate);
+                case SELECT -> slot.select ();
+                case REMOVE -> slot.remove ();
+                case DUPLICATE -> throw new IllegalArgumentException ("Operation requires a Session scene");
+                case START_RECORDING -> slot.startRecording ();
+                case BROWSE -> ((SlotImpl) slot).getSlot ().replaceInsertionPoint ().browse ();
+            }
+        }
+        if (action == SessionActionEffect.Action.LAUNCH || action == SessionActionEffect.Action.LAUNCH_ALT)
+            this.outstandingLaunches.put (target, Boolean.valueOf (alternate));
+    }
+
+
+    void apply (final PreparedCopy prepared)
+    {
+        final CopySessionClipEffect effect = prepared.effect ();
+        if (prepared.valid () && this.locationIsCurrent (effect.source (), false) && this.locationIsCurrent (effect.target (), false))
+        {
+            final ISlot source = this.slot (effect.source ());
+            if (source.hasContent ())
+                this.slot (effect.target ()).paste (source);
+        }
+    }
+
+
+    void apply (final PreparedCreate prepared)
+    {
+        final CreateSessionClipEffect effect = prepared.effect ();
+        if (prepared.valid () && this.locationIsCurrent (effect.target (), false) && !this.slot (effect.target ()).hasContent ())
+            this.registry.getActiveBank ().getItem (effect.target ().trackIndex ()).createClip (effect.target ().scenePosition () - this.snapshot.sceneOffset (), effect.lengthBeats ());
+    }
+
+
+    void apply (final PreparedPosition prepared)
+    {
+        final SetSessionBankPositionEffect effect = prepared.effect ();
+        if (!prepared.valid () || !this.positionIsCurrent (effect))
+            return;
+        final ITrackBank bank = this.registry.getActiveBank ();
+        final PendingPosition pending = new PendingPosition (this.identity.projectIdentity (), effect.shape (), effect.trackPosition () < 0 ? this.identity.trackOffset () : effect.trackPosition (), effect.scenePosition () < 0 ? this.identity.sceneOffset () : effect.scenePosition ());
+        try
+        {
+            if (effect.trackPosition () >= 0)
+                bank.scrollTo (effect.trackPosition (), false);
+            if (effect.scenePosition () >= 0)
+                bank.getSceneBank ().scrollTo (effect.scenePosition (), false);
+        }
+        finally
+        {
+            this.pendingPosition = pending;
+            this.generation++;
+            this.snapshot = SessionBankSnapshot.empty ();
+        }
+    }
+
+
+    /** Submit exact releases before rebinding; a void API return is not playback acknowledgement. */
+    void releaseOutstanding ()
+    {
+        final Map<SessionLocation, Boolean> releases = new LinkedHashMap<> (this.outstandingLaunches);
+        RuntimeException failure = null;
+        for (final Map.Entry<SessionLocation, Boolean> entry: releases.entrySet ())
+        {
+            final SessionActionEffect effect = new SessionActionEffect (entry.getKey (), entry.getValue ().booleanValue () ? SessionActionEffect.Action.RELEASE_ALT : SessionActionEffect.Action.RELEASE);
+            try
+            {
+                this.apply (new PreparedLauncherAction (effect, true));
+            }
+            catch (final RuntimeException exception)
+            {
+                if (failure == null)
+                    failure = exception;
+                else
+                    failure.addSuppressed (exception);
+            }
+        }
+        if (failure != null)
+            throw failure;
+    }
+
+
+    /** Retire abandoned host requests even if best-effort release submission fails. */
+    void invalidate ()
+    {
+        try
+        {
+            this.releaseOutstanding ();
+        }
+        finally
+        {
+            this.pendingPosition = null;
+            this.identity = null;
+            this.generation++;
+            this.snapshot = SessionBankSnapshot.empty ();
+        }
+    }
+
+
+    private boolean bankIsCurrent (final long generation, final SessionBankShape shape)
+    {
+        final ITrackBank bank = this.registry.getActiveBank ();
+        return this.pendingPosition == null && this.identity != null && !this.identity.projectIdentity ().isBlank () && generation == this.generation && shape.equals (this.snapshot.shape ()) && bank.getScrollPosition () >= 0 && bank.getSceneBank ().getScrollPosition () >= 0 && this.captureIdentity ().equals (this.identity);
+    }
+
+
+    private boolean positionIsCurrent (final SetSessionBankPositionEffect effect)
+    {
+        final ITrackBank bank = this.registry.getActiveBank ();
+        return effect.trackPosition () < bank.getItemCount () && effect.scenePosition () < bank.getSceneBank ().getItemCount () && this.bankIsCurrent (effect.generation (), effect.shape ());
+    }
+
+
+    private boolean locationIsCurrent (final SessionLocation target, final boolean requireObservedWindow)
+    {
+        if (!this.bankIsCurrent (target.generation (), target.shape ()) || !target.projectIdentity ().equals (this.identity.projectIdentity ()) || requireObservedWindow && !this.snapshot.clips ().aligned ())
+            return false;
+        final int row = target.scenePosition () - this.snapshot.sceneOffset ();
+        if (row < 0 || row >= target.shape ().scenes ())
+            return false;
+        final ITrackBank bank = this.registry.getActiveBank ();
+        if (target.isScene ())
+        {
+            final IScene scene = bank.getSceneBank ().getItem (row);
+            return scene.doesExist () && scene.getPosition () == target.scenePosition ();
+        }
+        final ITrack track = bank.getItem (target.trackIndex ());
+        if (!track.doesExist () || !target.channelId ().equals (track.getChannelID ()) || track.getPosition () != this.snapshot.trackOffset () + target.trackIndex ())
+            return false;
+        final ISlotBank slots = track.getSlotBank ();
+        if (slots.getScrollPosition () != this.snapshot.sceneOffset ())
+            return false;
+        final ISlot slot = slots.getItem (row);
+        return slot.getPosition () == target.scenePosition () || !slot.doesExist () && slot.getPosition () < 0;
+    }
+
+
+    private ISlot slot (final SessionLocation target)
+    {
+        return this.registry.getActiveBank ().getItem (target.trackIndex ()).getSlotBank ().getItem (target.scenePosition () - this.snapshot.sceneOffset ());
     }
 
 
@@ -210,7 +438,7 @@ final class SessionBankHost
             final SessionTrackSnapshot track = tracks.get (column);
             final ISlotBank slotBank = track.exists () ? bank.getItem (column).getSlotBank () : null;
             if (track.exists ())
-                aligned &= track.position () == currentIdentity.trackOffset () + column;
+                aligned &= track.position () == currentIdentity.trackOffset () + column && slotBank.getScrollPosition () == currentIdentity.sceneOffset ();
             for (int row = 0; row < shape.scenes (); row++)
             {
                 final ISlot slot = slotBank == null ? null : slotBank.getItem (row);
@@ -226,6 +454,13 @@ final class SessionBankHost
                 else
                     slots.add (new SessionSlotSnapshot (true, position, slot.getName (128), slot.hasContent (), slot.isSelected (), slot.isMuted (), slot.isPlaying (), slot.isRecording (), slot.isPlayingQueued (), slot.isRecordingQueued (), slot.isStopQueued (), toRgb (slot.getColor ())));
             }
+        }
+        if (this.pendingPosition != null)
+        {
+            if (aligned && this.pendingPosition.trackOffset () == currentIdentity.trackOffset () && this.pendingPosition.sceneOffset () == currentIdentity.sceneOffset ())
+                this.pendingPosition = null;
+            else
+                aligned = false;
         }
         return new SessionClipWindowSnapshot (shape, aligned, slots, scenes, captureNavigation (bank), captureNavigation (sceneBank));
     }
@@ -247,7 +482,7 @@ final class SessionBankHost
             final ITrack track = bank.getItem (index);
             channelIds.add (track.doesExist () ? track.getChannelID () : "");
         }
-        return new TargetIdentity (shape, Math.max (0, bank.getScrollPosition ()), Math.max (0, bank.getSceneBank ().getScrollPosition ()), channelIds);
+        return new TargetIdentity (Objects.requireNonNullElse (this.projectIdentity.get (), ""), shape, Math.max (0, bank.getScrollPosition ()), Math.max (0, bank.getSceneBank ().getScrollPosition ()), channelIds);
     }
 
 
@@ -305,7 +540,18 @@ final class SessionBankHost
     }
 
 
-    private record TargetIdentity (SessionBankShape shape, int trackOffset, int sceneOffset, List<String> channelIds)
+    record PreparedLauncherAction (SessionActionEffect effect, boolean valid) implements ControllerBridge.PreparedAction { }
+
+    record PreparedCopy (CopySessionClipEffect effect, boolean valid) implements ControllerBridge.PreparedAction { }
+
+    record PreparedCreate (CreateSessionClipEffect effect, boolean valid) implements ControllerBridge.PreparedAction { }
+
+    record PreparedPosition (SetSessionBankPositionEffect effect, boolean valid) implements ControllerBridge.PreparedAction { }
+
+    private record PendingPosition (String projectIdentity, SessionBankShape shape, int trackOffset, int sceneOffset) { }
+
+
+    private record TargetIdentity (String projectIdentity, SessionBankShape shape, int trackOffset, int sceneOffset, List<String> channelIds)
     {
         private TargetIdentity
         {

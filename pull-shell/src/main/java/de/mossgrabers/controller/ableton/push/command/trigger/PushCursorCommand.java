@@ -54,7 +54,8 @@ public class PushCursorCommand extends CursorCommand<PushControlSurface, PushCon
 
     private boolean isCoreNavigationAdapter ()
     {
-        return this.surface.getModeManager ().getActive () instanceof CorePageMode || this.surface.isSessionNavigationActive ();
+        return this.surface.getModeManager ().getActive () instanceof CorePageMode || this.surface.isSessionNavigationActive () ||
+            this.surface.isSessionLayoutActive () && (this.direction == Direction.UP || this.direction == Direction.DOWN);
     }
 
 

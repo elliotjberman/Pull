@@ -5,25 +5,19 @@ package de.mossgrabers.controller.ableton.push.view;
 
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.workspace.WorkspaceFacetAdapter;
-import de.mossgrabers.framework.controller.ButtonID;
-import de.mossgrabers.framework.controller.grid.IPadGrid;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
-import de.mossgrabers.framework.featuregroup.AbstractFeatureGroup;
-import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.pull.core.api.ControllerViewFacet;
 import de.mossgrabers.pull.core.api.SessionBankShape;
 
 
 /**
- * Stable grid adapter which realizes fixed Session and Drum workspace facets.
+ * Structural bank and Drum indication adapter for fixed core-owned workspace facets.
  */
 public final class WorkspaceView extends SessionView implements WorkspaceFacetAdapter
 {
     /** Session bank shape supported by the current upper-grid adapter. */
     public static final SessionBankShape SESSION_BANK_SHAPE = new SessionBankShape (8, 4);
-
-    private static final int SESSION_ROWS = SESSION_BANK_SHAPE.scenes ();
 
     private final DrumPadControls controls;
 
@@ -37,7 +31,7 @@ public final class WorkspaceView extends SessionView implements WorkspaceFacetAd
      */
     public WorkspaceView (final PushControlSurface surface, final IModel model, final DrumPadControls controls)
     {
-        super ("Workspace", surface, model, SESSION_ROWS, 0);
+        super ("Workspace", surface, model);
         this.controls = controls;
 
         final ITrackBank trackBank = model.getTrackBank ();
@@ -81,111 +75,6 @@ public final class WorkspaceView extends SessionView implements WorkspaceFacetAd
     {
         this.controls.deactivate ();
         super.onDeactivate ();
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void onGridNote (final int note, final int velocity)
-    {
-        if (this.hasFacet (ControllerViewFacet.DRUM_CONTROLLER_LOWER) && this.controls.ownsGridNote (note))
-            return;
-        if (this.hasFacet (ControllerViewFacet.SESSION_CLIP_GRID_UPPER))
-            super.onGridNote (note, velocity);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void onGridPressure (final int note, final int value)
-    {
-        // The reloadable DrumControllerView owns pressure policy for this composite adapter.
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void drawGrid ()
-    {
-        final IPadGrid padGrid = this.surface.getPadGrid ();
-        for (int y = 0; y < padGrid.getRows (); y++)
-        {
-            for (int x = 0; x < padGrid.getCols (); x++)
-                padGrid.lightEx (x, y, IPadGrid.GRID_OFF);
-        }
-
-        if (this.hasFacet (ControllerViewFacet.SESSION_CLIP_GRID_UPPER))
-            super.drawGrid ();
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void updateNoteMapping ()
-    {
-        // Neutral legacy baseline. Composite Drum translation is a complete core-owned value.
-        super.updateNoteMapping ();
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void onButton (final ButtonID buttonID, final ButtonEvent event, final int velocity)
-    {
-        final int sceneIndex = buttonID.ordinal () - ButtonID.SCENE1.ordinal ();
-        if (this.hasFacet (ControllerViewFacet.SESSION_SCENE_KEYS_UPPER) && sceneIndex >= 0 && sceneIndex < SESSION_ROWS)
-            super.onButton (buttonID, event, velocity);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public String getButtonColorID (final ButtonID buttonID)
-    {
-        final int sceneIndex = buttonID.ordinal () - ButtonID.SCENE1.ordinal ();
-        if (!this.hasFacet (ControllerViewFacet.SESSION_SCENE_KEYS_UPPER) || sceneIndex < 0 || sceneIndex >= SESSION_ROWS)
-            return AbstractFeatureGroup.BUTTON_COLOR_OFF;
-        return super.getButtonColorID (buttonID);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void onOctaveDown (final ButtonEvent event)
-    {
-        // Inert permanent command: the fixed core Drum profile owns octave policy.
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void onOctaveUp (final ButtonEvent event)
-    {
-        // Inert permanent command: the fixed core Drum profile owns octave policy.
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public boolean isOctaveUpButtonOn ()
-    {
-        return false;
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public boolean isOctaveDownButtonOn ()
-    {
-        return false;
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void resetOctave ()
-    {
-        // This framework callback has no caller for composite workspace views.
     }
 
 

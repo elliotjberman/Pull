@@ -31,6 +31,12 @@ public sealed interface InputTarget
         public Clip { Objects.requireNonNull (reference, "reference"); }
     }
 
+    /** Exact launcher location; selected-track changes do not alter this target. */
+    record SessionLocation (de.mossgrabers.pull.core.api.SessionLocation reference) implements InputTarget
+    {
+        public SessionLocation { Objects.requireNonNull (reference, "reference"); }
+    }
+
     /** One interaction depends on all these independently observed contexts. */
     record Composite (List<InputTarget> targets) implements InputTarget
     {

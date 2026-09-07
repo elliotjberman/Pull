@@ -38,7 +38,8 @@ public class Push2ControllerExtensionDefinition extends AbstractControllerExtens
     protected IControllerSetup getControllerSetup (final ControllerHost host)
     {
         final ReloadableControllerRuntime runtime = new ReloadableControllerRuntime (host);
-        final IControllerSetup setup = new PushControllerSetup (new HostImpl (host), new BitwigSetupFactory (host), new SettingsUIImpl (host, host.getPreferences ()), new SettingsUIImpl (host, host.getDocumentState ()), runtime);
+        final HostImpl frameworkHost = new HostImpl (host);
+        final IControllerSetup setup = new PushControllerSetup (frameworkHost, new BitwigSetupFactory (frameworkHost), new SettingsUIImpl (host, host.getPreferences ()), new SettingsUIImpl (host, host.getDocumentState ()), runtime);
         return new ReloadableControllerSetup (setup, runtime);
     }
 

@@ -3,13 +3,9 @@
 
 package de.mossgrabers.controller.ableton.push;
 
-import de.mossgrabers.controller.ableton.push.command.trigger.PageLeftCommand;
-import de.mossgrabers.controller.ableton.push.command.trigger.PageRightCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.PushCursorCommand;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
-import de.mossgrabers.controller.ableton.push.view.SessionView;
-import de.mossgrabers.controller.ableton.push.view.WorkspaceView;
 import de.mossgrabers.controller.ableton.push.workspace.SessionBankRegistry;
 import de.mossgrabers.controller.ableton.push.workspace.WorkspaceFacetAdapter;
 import de.mossgrabers.framework.command.trigger.Direction;
@@ -50,12 +46,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
-/** Changed Session navigation ownership; unchanged clip-grid migration is outside this suite. */
-class SessionBehaviorCharacterizationTest
+/** Frozen legacy-page arrow behavior while the Session grid and page buttons are core-owned. */
+class SessionLegacyNavigationTest
 {
     @ParameterizedTest
     @ValueSource(ints = { 4, 8 })
-    void legacyFullSessionArrowsAndFrozenPageActionsRemainWhileCompositeArrowsAreCoreOwned (final int rows)
+    void legacyPageArrowsRemainWhileCompositeArrowsAreCoreOwned (final int rows)
     {
         final Fixture fixture = new Fixture (rows);
         final PushCursorCommand left = new PushCursorCommand (Direction.LEFT, fixture.model, fixture.surface);
@@ -68,7 +64,7 @@ class SessionBehaviorCharacterizationTest
         down.execute (ButtonEvent.DOWN, 127);
         left.execute (ButtonEvent.LONG, 127);
         left.execute (ButtonEvent.UP, 0);
-        assertEquals (rows == 4 ? List.of () : List.of ("mode:selectPreviousItemPage", "mode:selectNextItemPage", "scenes:scrollBackwards", "scenes:scrollForwards"), fixture.requests,
+        assertEquals (rows == 4 ? List.of () : List.of ("mode:selectPreviousItemPage", "mode:selectNextItemPage"), fixture.requests,
             "VS arrow policy and feedback are now exercised through core NavigationView tests");
 
         fixture.requests.clear ();
@@ -77,30 +73,27 @@ class SessionBehaviorCharacterizationTest
         right.execute (ButtonEvent.DOWN, 127);
         up.execute (ButtonEvent.DOWN, 127);
         down.execute (ButtonEvent.DOWN, 127);
-        new PageLeftCommand (fixture.model, fixture.surface).execute (ButtonEvent.DOWN, 127);
-        new PageRightCommand (fixture.model, fixture.surface).execute (ButtonEvent.DOWN, 127);
-        assertEquals (rows == 4 ? List.of ("tracks:selectPreviousPage", "tracks:selectNextPage") :
-            List.of ("mode:selectPreviousItemPage", "mode:selectNextItemPage", "scenes:selectPreviousPage", "scenes:selectNextPage", "tracks:selectPreviousPage", "tracks:selectNextPage"), fixture.requests);
+        assertEquals (rows == 4 ? List.of () :
+            List.of ("mode:selectPreviousItemPage", "mode:selectNextItemPage"), fixture.requests);
     }
 
 
     @Test
-    void navigationFeedbackAndSceneOctavePagingRemainAuthoritative ()
+    void sessionVerticalRoutingIsInertWithoutDisablingOtherLegacyViews ()
     {
         final Fixture fixture = new Fixture (8);
         final PushCursorCommand down = new PushCursorCommand (Direction.DOWN, fixture.model, fixture.surface);
         assertFalse (down.canScroll ());
         down.execute (ButtonEvent.DOWN, 127);
-        assertFalse (down.canScroll (), "a submitted scroll does not change availability");
         fixture.canScrollScenes = true;
+        assertFalse (down.canScroll ());
+        assertEquals (List.of (), fixture.requests);
+
+        fixture.surface.getViewManager ().register (Views.PLAY, emptyProxy (IView.class));
+        fixture.surface.getViewManager ().setActive (Views.PLAY);
         assertTrue (down.canScroll ());
-        fixture.requests.clear ();
-        fixture.view.onOctaveDown (ButtonEvent.DOWN);
-        fixture.view.onOctaveUp (ButtonEvent.DOWN);
-        fixture.view.onOctaveUp (ButtonEvent.UP);
-        assertEquals (List.of ("scenes:selectNextPage", "scenes:selectPreviousPage"), fixture.requests);
-        assertTrue (fixture.view.isOctaveUpButtonOn ());
-        assertTrue (fixture.view.isOctaveDownButtonOn ());
+        down.execute (ButtonEvent.DOWN, 127);
+        assertEquals (List.of ("scenes:scrollForwards"), fixture.requests);
     }
 
 
@@ -126,7 +119,6 @@ class SessionBehaviorCharacterizationTest
         private final List<String> requests = new ArrayList<> ();
         private final Surface surface = new Surface ();
         private final IModel model;
-        private final SessionView view;
         private boolean canScrollScenes;
         private boolean modeCanPreviousPage;
         private boolean modeCanPreviousItem;
@@ -174,7 +166,6 @@ class SessionBehaviorCharacterizationTest
             this.surface.getControllerWorkspaceHost ().apply (new DesiredControllerWorkspace ("characterization",
                 rows == 8 ? Set.of (ControllerViewFacet.SESSION_GRID_FULL) : Set.of (ControllerViewFacet.SESSION_CLIP_GRID_UPPER,
                     ControllerViewFacet.SESSION_SCENE_KEYS_UPPER, ControllerViewFacet.SESSION_NAVIGATION), shape));
-            this.view = rows == 8 ? new SessionView (this.surface, this.model) : new WorkspaceView (this.surface, this.model, null);
             this.requests.clear ();
         }
 

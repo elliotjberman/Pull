@@ -3,7 +3,6 @@
 package de.mossgrabers.pull.core.interaction;
 
 import org.junit.jupiter.api.Test;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -23,21 +22,13 @@ class InteractionLifecycleTest
     @Test
     void cutoffToVolumeCancelsOnceAndSwallowsMotionUntilAFreshTouch ()
     {
-        final var lifecycle = lifecycle (4, 4);
-        final var host = new ParameterHost (lifecycle);
+        final var lifecycle = lifecycle (4);
         lifecycle.replaceBindings (Map.of (KNOB, CUTOFF));
         final var cutoff = started (lifecycle, KNOB);
-        final var write = host.submit (cutoff.id (), 0.75);
-        assertEquals (0.0, host.observed (CUTOFF));
 
         lifecycle.replaceBindings (Map.of (KNOB, VOLUME));
         assertTrue (lifecycle.current (KNOB).isEmpty ());
-        assertTrue (lifecycle.beginOperation (cutoff.id ()).isEmpty ());
         assertEquals (Admission.ALREADY_HELD, lifecycle.begin (KNOB).admission ());
-        assertTrue (lifecycle.readyToFinish ().isEmpty (), "cleanup waits for the submitted write");
-        host.advance (write);
-        assertEquals (0.75, host.observed (CUTOFF));
-        assertEquals (0.0, host.observed (VOLUME));
         final var finish = lifecycle.beginFinish (cutoff.id ()).orElseThrow ();
         assertEquals (new Finish<> (cutoff.id (), CUTOFF, EndReason.BINDING_CHANGED), finish);
         assertTrue (lifecycle.beginFinish (cutoff.id ()).isEmpty (), "no duplicate cleanup");
@@ -51,29 +42,20 @@ class InteractionLifecycleTest
         lifecycle.replaceBindings (Map.of (KNOB, VOLUME));
         lifecycle.release (KNOB);
         assertTrue (lifecycle.isIdle ());
-        final var volume = started (lifecycle, KNOB);
-        host.advance (host.submit (volume.id (), 0.4));
-        assertEquals (0.4, host.observed (VOLUME));
-        assertEquals (0.75, host.observed (CUTOFF));
+        assertEquals (VOLUME, started (lifecycle, KNOB).target ());
     }
 
     @Test
-    void physicalReleaseDoesNotFinishHostWorkOrAuthorizeEarlyReuse ()
+    void physicalReleaseDoesNotCompleteCleanupOrAuthorizeEarlyReuse ()
     {
-        final var lifecycle = lifecycle (4, 4);
+        final var lifecycle = lifecycle (4);
         lifecycle.replaceBindings (Map.of (KNOB, CUTOFF, PAD, CUTOFF));
         final var edit = started (lifecycle, KNOB);
-        final var first = lifecycle.beginOperation (edit.id ()).orElseThrow ();
-        final var second = lifecycle.beginOperation (edit.id ()).orElseThrow ();
         lifecycle.release (KNOB);
         assertFalse (lifecycle.completeFinish (edit.id ()), "cannot complete cleanup before it starts");
         assertFalse (lifecycle.isIdle ());
         assertEquals (Admission.TARGET_BUSY, lifecycle.begin (PAD).admission ());
 
-        assertTrue (lifecycle.completeOperation (second.id ()));
-        assertFalse (lifecycle.completeOperation (second.id ()), "duplicate receipts cannot drain other work");
-        assertTrue (lifecycle.readyToFinish ().isEmpty ());
-        lifecycle.completeOperation (first.id ());
         assertEquals (EndReason.RELEASED, lifecycle.beginFinish (edit.id ()).orElseThrow ().reason ());
         assertEquals (Admission.TARGET_BUSY, lifecycle.begin (KNOB).admission ());
         lifecycle.completeFinish (edit.id ());
@@ -86,25 +68,23 @@ class InteractionLifecycleTest
     @Test
     void lateOldCleanupCannotEndANewInteractionOnAnotherTarget ()
     {
-        final var lifecycle = lifecycle (4, 4);
+        final var lifecycle = lifecycle (4);
         lifecycle.replaceBindings (Map.of (KNOB, CUTOFF));
         final var old = started (lifecycle, KNOB);
         lifecycle.replaceBindings (Map.of (KNOB, VOLUME));
         lifecycle.release (KNOB);
         final var next = started (lifecycle, KNOB);
-        final var operation = lifecycle.beginOperation (next.id ()).orElseThrow ();
         lifecycle.beginFinish (old.id ()).orElseThrow ();
         lifecycle.completeFinish (old.id ());
         assertFalse (lifecycle.completeFinish (old.id ()));
         assertEquals (next, lifecycle.current (KNOB).orElseThrow ());
-        assertEquals (VOLUME, operation.target ());
         assertTrue (lifecycle.hasTargetWork (VOLUME));
     }
 
     @Test
     void cancellationOverridesNormalReleaseThatHasNotYetBeenDispatched ()
     {
-        final var lifecycle = lifecycle (4, 4);
+        final var lifecycle = lifecycle (4);
         lifecycle.replaceBindings (Map.of (PAD, CLIP));
         final var gesture = started (lifecycle, PAD);
         lifecycle.release (PAD);
@@ -114,30 +94,9 @@ class InteractionLifecycleTest
     }
 
     @Test
-    void lostTargetNeverTurnsIntoCleanupOfTheReplacement ()
-    {
-        final var lifecycle = lifecycle (4, 4);
-        lifecycle.replaceBindings (Map.of (KNOB, CUTOFF));
-        final var gesture = started (lifecycle, KNOB);
-        final var operation = lifecycle.beginOperation (gesture.id ()).orElseThrow ();
-        lifecycle.targetLost (CUTOFF);
-        final var replacement = new Target (CUTOFF.identity (), 2);
-        lifecycle.replaceBindings (Map.of (KNOB, replacement));
-        assertTrue (lifecycle.current (KNOB).isEmpty ());
-        assertTrue (lifecycle.readyToFinish ().isEmpty (), "loss is not a receipt for in-flight work");
-        lifecycle.completeOperation (operation.id ()); // executor explicitly reports terminal target loss
-        final var finish = lifecycle.beginFinish (gesture.id ()).orElseThrow ();
-        assertEquals (EndReason.TARGET_LOST, finish.reason ());
-        assertEquals (CUTOFF, finish.target ());
-        lifecycle.completeFinish (finish.interaction ()); // executor reports abandonment; no host write
-        lifecycle.release (KNOB);
-        assertEquals (replacement, started (lifecycle, KNOB).target ());
-    }
-
-    @Test
     void unchangedBindingReplayPreservesOnlyTheActualHeldInteraction ()
     {
-        final var lifecycle = lifecycle (4, 4);
+        final var lifecycle = lifecycle (4);
         lifecycle.replaceBindings (Map.of (KNOB, CUTOFF));
         final var edit = started (lifecycle, KNOB);
         lifecycle.replaceBindings (Map.of (KNOB, new Target (CUTOFF.identity (), 1)));
@@ -151,7 +110,7 @@ class InteractionLifecycleTest
     @Test
     void visibilityAtAnotherControlDoesNotTransferTheGesture ()
     {
-        final var lifecycle = lifecycle (4, 4);
+        final var lifecycle = lifecycle (4);
         lifecycle.replaceBindings (Map.of (KNOB, CUTOFF));
         final var edit = started (lifecycle, KNOB);
         lifecycle.replaceBindings (Map.of (PAD, CUTOFF));
@@ -163,7 +122,7 @@ class InteractionLifecycleTest
     @Test
     void changingOneBindingDoesNotCancelOtherControls ()
     {
-        final var lifecycle = lifecycle (4, 4);
+        final var lifecycle = lifecycle (4);
         lifecycle.replaceBindings (Map.of (KNOB, CUTOFF, PAD, CLIP, STRIP, VOLUME));
         final var knob = started (lifecycle, KNOB);
         final var pad = started (lifecycle, PAD);
@@ -178,7 +137,7 @@ class InteractionLifecycleTest
     @Test
     void unboundPressStaysSuppressedEvenWhenATargetAppears ()
     {
-        final var lifecycle = lifecycle (4, 4);
+        final var lifecycle = lifecycle (4);
         assertEquals (Admission.UNBOUND, lifecycle.begin (KNOB).admission ());
         lifecycle.replaceBindings (Map.of (KNOB, CUTOFF));
         assertEquals (Admission.ALREADY_HELD, lifecycle.begin (KNOB).admission ());
@@ -191,14 +150,11 @@ class InteractionLifecycleTest
     @Test
     void boundedCapacityRejectsNewWorkWithoutLosingCleanup ()
     {
-        final var lifecycle = lifecycle (1, 1);
+        final var lifecycle = lifecycle (1);
         lifecycle.replaceBindings (Map.of (KNOB, CUTOFF, PAD, CLIP));
         final var edit = started (lifecycle, KNOB);
-        final var operation = lifecycle.beginOperation (edit.id ()).orElseThrow ();
-        assertTrue (lifecycle.beginOperation (edit.id ()).isEmpty ());
         assertEquals (Admission.CAPACITY_EXHAUSTED, lifecycle.begin (PAD).admission ());
         lifecycle.replaceBindings (Map.of (PAD, CLIP));
-        lifecycle.completeOperation (operation.id ());
         lifecycle.beginFinish (edit.id ()).orElseThrow ();
         lifecycle.completeFinish (edit.id ());
         assertEquals (Admission.ALREADY_HELD, lifecycle.begin (PAD).admission ());
@@ -207,65 +163,28 @@ class InteractionLifecycleTest
     }
 
     @Test
-    void operationBudgetIsSharedAcrossControlsAndRecoversOnlyOnRealCompletion ()
+    void staleGenerationCannotBeginOrCompleteCleanupInTheReplacement ()
     {
-        final var lifecycle = lifecycle (3, 1);
-        lifecycle.replaceBindings (Map.of (KNOB, CUTOFF, PAD, CLIP));
-        final var knob = started (lifecycle, KNOB);
-        final var pad = started (lifecycle, PAD);
-        final var operation = lifecycle.beginOperation (knob.id ()).orElseThrow ();
-        assertTrue (lifecycle.beginOperation (pad.id ()).isEmpty ());
-        lifecycle.release (KNOB);
-        assertTrue (lifecycle.beginOperation (pad.id ()).isEmpty ());
-        lifecycle.completeOperation (operation.id ());
-        assertEquals (CLIP, lifecycle.beginOperation (pad.id ()).orElseThrow ().target ());
-    }
-
-    @Test
-    void stopClosesAdmissionButStillWaitsForInputAndHostCleanup ()
-    {
-        final var lifecycle = lifecycle (4, 4);
-        lifecycle.replaceBindings (Map.of (KNOB, CUTOFF, PAD, CLIP));
-        final var edit = started (lifecycle, KNOB);
-        final var operation = lifecycle.beginOperation (edit.id ()).orElseThrow ();
-        lifecycle.stop ();
-        lifecycle.stop ();
-        assertTrue (lifecycle.beginOperation (edit.id ()).isEmpty ());
-        assertEquals (Admission.STOPPED, lifecycle.begin (PAD).admission ());
-        assertTrue (lifecycle.readyToFinish ().isEmpty ());
-        lifecycle.release (KNOB);
-        lifecycle.release (PAD);
-        lifecycle.completeOperation (operation.id ());
-        assertEquals (EndReason.STOPPED, lifecycle.beginFinish (edit.id ()).orElseThrow ().reason ());
-        assertFalse (lifecycle.isIdle ());
-        lifecycle.completeFinish (edit.id ());
-        assertTrue (lifecycle.isIdle ());
-    }
-
-    @Test
-    void staleGenerationCannotSubmitOrCompleteWorkInTheReplacement ()
-    {
-        final var old = lifecycle (4, 4);
-        final var replacement = new InteractionLifecycle<String, Target> (2, Set.of (KNOB), 4, 4);
+        final var old = lifecycle (4);
+        final var replacement = new InteractionLifecycle<String, Target> (2, Set.of (KNOB), 4);
         old.replaceBindings (Map.of (KNOB, CUTOFF));
         replacement.replaceBindings (Map.of (KNOB, CUTOFF));
         final var before = started (old, KNOB);
-        final var stale = old.beginOperation (before.id ()).orElseThrow ();
         final var after = started (replacement, KNOB);
-        final var current = replacement.beginOperation (after.id ()).orElseThrow ();
-        assertTrue (replacement.beginOperation (before.id ()).isEmpty ());
-        assertFalse (replacement.completeOperation (stale.id ()));
+        assertTrue (replacement.beginFinish (before.id ()).isEmpty ());
         assertFalse (replacement.completeFinish (before.id ()));
         replacement.release (KNOB);
-        assertTrue (replacement.readyToFinish ().isEmpty ());
-        replacement.completeOperation (current.id ());
         assertEquals (List.of (after.id ()), replacement.readyToFinish ());
+        replacement.beginFinish (after.id ()).orElseThrow ();
+        assertFalse (replacement.completeFinish (before.id ()));
+        assertTrue (replacement.hasTargetWork (CUTOFF));
+        assertTrue (replacement.completeFinish (after.id ()));
     }
 
     @Test
     void unknownControlsCannotExpandTheFootprintOrPartiallyReplaceBindings ()
     {
-        final var lifecycle = lifecycle (4, 4);
+        final var lifecycle = lifecycle (4);
         lifecycle.replaceBindings (Map.of (KNOB, CUTOFF));
         final var edit = started (lifecycle, KNOB);
         assertThrows (IllegalArgumentException.class, () -> lifecycle.begin ("unknown"));
@@ -273,9 +192,9 @@ class InteractionLifecycleTest
         assertEquals (edit, lifecycle.current (KNOB).orElseThrow ());
     }
 
-    private static InteractionLifecycle<String, Target> lifecycle (final int interactions, final int operations)
+    private static InteractionLifecycle<String, Target> lifecycle (final int interactions)
     {
-        return new InteractionLifecycle<> (1, Set.of (KNOB, PAD, STRIP), interactions, operations);
+        return new InteractionLifecycle<> (1, Set.of (KNOB, PAD, STRIP), interactions);
     }
 
     private static Interaction<String, Target> started (final InteractionLifecycle<String, Target> lifecycle, final String control)
@@ -283,29 +202,5 @@ class InteractionLifecycleTest
         final var result = lifecycle.begin (control);
         assertEquals (Admission.STARTED, result.admission ());
         return result.interaction ().orElseThrow ();
-    }
-
-    /** Deliberately separates submitting a write from applying it and publishing its receipt. */
-    private static final class ParameterHost
-    {
-        private record Write (Operation<Target> operation, double value) {}
-        private final InteractionLifecycle<String, Target> lifecycle;
-        private final Map<OperationId, Write> submitted = new LinkedHashMap<> ();
-        private final Map<Target, Double> values = new LinkedHashMap<> ();
-
-        private ParameterHost (final InteractionLifecycle<String, Target> lifecycle) { this.lifecycle = lifecycle; }
-        private double observed (final Target target) { return this.values.getOrDefault (target, 0.0); }
-        private OperationId submit (final Id interaction, final double value)
-        {
-            final var operation = this.lifecycle.beginOperation (interaction).orElseThrow ();
-            this.submitted.put (operation.id (), new Write (operation, value));
-            return operation.id ();
-        }
-        private void advance (final OperationId id)
-        {
-            final var write = this.submitted.remove (id);
-            this.values.put (write.operation ().target (), write.value ());
-            assertTrue (this.lifecycle.completeOperation (id));
-        }
     }
 }

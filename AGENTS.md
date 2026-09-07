@@ -174,6 +174,10 @@
   parent-owned MIDI state, and then detaching. Selection disagreement and core failure detach and
   fail closed. Replaying an unchanged core result must not churn the route. Bitwig tracks explicitly
   configured for the named `Pads` input remain outside this selected-only controller guarantee.
+- Controller-driven track/scene/window mutations must pass the shared host structural-mutation
+  guard at the actual Bitwig proxy submission. Keep core and frozen callers on those guarded model
+  methods; do not add handler-specific release calls or raw mutation bypasses. Opaque application
+  edits conservatively end outstanding Session launch holds before submission.
 - Parent-own cleanup for stateful raw MIDI sent through the permanent `NoteInput`. Neutralize
   outstanding poly-pressure, CC, channel-pressure, and pitch-bend state when the active core
   generation changes, selection changes as a conservative safety boundary, or the extension shuts
@@ -194,7 +198,7 @@
 - A core-only change inside the installed API/canopy hot reloads. Changing a parent-loaded API
   contract, adding a Bitwig proxy/property/observer, changing a permanent binding or proxy capacity,
   or broadening hardware output ownership requires a shell build/install and Bitwig restart.
-- Core API 46 is the working composition contract; `ARCH.md` records live activation status. Each view contributes fixed claims,
+- Core API 48 is the working composition contract; `ARCH.md` records live activation status. Each view contributes fixed claims,
   facets, state subscriptions, semantic actions, musical routing, and owned output; workspaces may
   merge only disjoint contributions. `ARCH.md` is the canonical current inventory and
   `docs/views-api-design.md` is the detailed contract—do not duplicate or extend product policy in
@@ -203,7 +207,7 @@
   identities while all 64 raw PAD actions remain ordinary-dispatch-only; generic button/grid light
   arbitration grants no semantic ownership by itself; display producers stay within compiler-owned
   clip scopes; and unclaimed light/display behavior remains frozen legacy policy.
-- Session Stop stays `OBSERVE` until the adapted Stop-plus-pad chord migrates. Plain Stop targets the
+- Session controls are core-exclusive, including Stop-plus-pad. Plain Stop targets the
   private selected track, Shift/Select Stop targets the exact bounded Session bank, and
   Stop-plus-track captures and stops the exact visible bank track without changing selection. Mute/Solo and
   Record/overdub toggles must serialize dependent writes across later authoritative read-back.
@@ -211,7 +215,7 @@
   screen. It must retain the active Session/Drum/Note routes and view lifecycles. The temporary
   full-grid/full-display overlay plane remains an explicit whole-surface carveout; ordinary base
   display regions compose through claims.
-- Stable adapter facets, Session grid mechanics, and other remaining debt listed in `ARCH.md`
+- Stable adapter facets and other remaining debt listed in `ARCH.md`
   are not extension points. Missing/faulted core output
   stays blank or inert instead of reviving deleted policy. Logical timer DTOs have no production
   executor and must not be emitted while `docs/findings/logical-timer-production-gap.md` is active.

@@ -4,6 +4,7 @@
 package de.mossgrabers.controller.ableton.push.workspace;
 
 import de.mossgrabers.framework.daw.IModel;
+import de.mossgrabers.framework.daw.IHost;
 import de.mossgrabers.framework.daw.data.bank.ISceneBank;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
 import de.mossgrabers.pull.core.api.SessionBankShape;
@@ -79,10 +80,13 @@ class SessionBankRegistryTest
 
         private ModelProbe (final Map<SessionBankShape, ITrackBank> banks)
         {
+            final IHost host = (IHost) Proxy.newProxyInstance (IHost.class.getClassLoader (), new Class<?>[] { IHost.class }, (proxy, method, args) -> defaultValue (method.getReturnType ()));
             this.model = (IModel) Proxy.newProxyInstance (IModel.class.getClassLoader (), new Class<?> []
             {
                 IModel.class
             }, (proxy, method, args) -> {
+                if (method.getName ().equals ("getHost"))
+                    return host;
                 if (method.getName ().equals ("getTrackBank") && args != null && args.length == 2)
                     return banks.get (new SessionBankShape (((Integer) args[0]).intValue (), ((Integer) args[1]).intValue ()));
                 if (method.getName ().equals ("setCurrentMainTrackBank"))

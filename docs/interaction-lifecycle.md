@@ -1,6 +1,6 @@
 # Target-bound interaction lifecycle
 
-Core API 47 / Bitwig API 25. `InputGestureRouter` applies the host-independent
+Core API 48 / Bitwig API 25. `InputGestureRouter` applies the host-independent
 `InteractionLifecycle` to migrated core views. [ARCH](../ARCH.md) identifies the remaining shell
 handlers; they do not inherit this contract merely because their page navigation moved to core.
 
@@ -18,9 +18,8 @@ Other targets include the project, track, bank, device and generation required b
 Each receiver's target is captured independently; view order cannot bypass another target fence.
 
 The router retains at most 256 interactions, 256 view instances and 64 pending semantic actions.
-IDs are local to that core; shell ingress fences core generations. The standalone lifecycle also
-contains operation/stop/target-loss APIs with no production callers; those tests do not establish
-a production asynchronous completion gate.
+IDs are local to that core; shell ingress fences core generations. Unused operation tracking and
+its synthetic tests have been removed; this lifecycle owns input and final cleanup.
 
 ## Dispatch and cleanup
 
@@ -45,12 +44,13 @@ resource retirement nor a void host call proves every earlier DAW write complete
 Snapback and toggle executors retain their own authoritative barriers; the
 [general reload drain](findings/core-reload-quiescence.md) remains parked.
 
-## Remaining boundary
+## Session
 
-Stable grid receiver capture prevents delivery to a different view, but selected-note cleanup
-currently discards unrelated Session releases. See the [confirmed defect and Session capability audit](migrations/session-launcher-location-design.md).
-A Session migration needs its own exact location binding and release execution before rebinding;
-the shared lifecycle supplies orchestration, not missing host operations.
+Session uses exact launcher locations with the shared capture/cancel/tail contract. Its shell ledger
+submits captured main/alternate releases before controller bank rebinding, replacement or shutdown.
+A quick-tap create/record intent survives UP until later host acknowledgement, then submits its
+matched launch/release; active pending continuations block replacement. Location loss cancels them.
+This is a bounded Session continuation, not a general asynchronous operation drain.
 
-[Live evidence](migrations/interaction-lifecycle-live-smoke.md) records tested build identities and
-physical-only limits. It does not cover the later review's Session release regression.
+See the [Session contract](migrations/session-launcher-location-design.md) and
+[live evidence](migrations/interaction-lifecycle-live-smoke.md).

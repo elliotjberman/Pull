@@ -54,6 +54,13 @@ public abstract class AbstractItemBankImpl<B extends Bank<?>, T extends IItem> e
     }
 
 
+    /** Called only before an actual bank window write. */
+    protected void beforeWindowMutation ()
+    {
+        // Most banks do not address tracks or launcher scenes.
+    }
+
+
     /** {@inheritDoc} */
     @Override
     public void enableObservers (final boolean enable)
@@ -93,7 +100,10 @@ public abstract class AbstractItemBankImpl<B extends Bank<?>, T extends IItem> e
     public void scrollBackwards ()
     {
         if (this.bank.isPresent ())
+        {
+            this.beforeWindowMutation ();
             this.bank.get ().scrollBackwards ();
+        }
     }
 
 
@@ -102,7 +112,10 @@ public abstract class AbstractItemBankImpl<B extends Bank<?>, T extends IItem> e
     public void scrollForwards ()
     {
         if (this.bank.isPresent ())
+        {
+            this.beforeWindowMutation ();
             this.bank.get ().scrollForwards ();
+        }
     }
 
 
@@ -112,7 +125,10 @@ public abstract class AbstractItemBankImpl<B extends Bank<?>, T extends IItem> e
     protected void scrollPageBackwards ()
     {
         if (this.bank.isPresent ())
+        {
+            this.beforeWindowMutation ();
             this.bank.get ().scrollPageBackwards ();
+        }
     }
 
 
@@ -122,7 +138,10 @@ public abstract class AbstractItemBankImpl<B extends Bank<?>, T extends IItem> e
     protected void scrollPageForwards ()
     {
         if (this.bank.isPresent ())
+        {
+            this.beforeWindowMutation ();
             this.bank.get ().scrollPageForwards ();
+        }
     }
 
 
@@ -155,7 +174,10 @@ public abstract class AbstractItemBankImpl<B extends Bank<?>, T extends IItem> e
     public void scrollTo (final int position, final boolean adjustPage)
     {
         if (this.bank.isPresent () && position >= 0 && position < this.getItemCount ())
+        {
+            this.beforeWindowMutation ();
             this.bank.get ().scrollPosition ().set (position);
+        }
     }
 
 
@@ -217,6 +239,9 @@ public abstract class AbstractItemBankImpl<B extends Bank<?>, T extends IItem> e
     public void setSkipDisabledItems (final boolean shouldSkip)
     {
         if (this.bank.isPresent ())
+        {
+            this.beforeWindowMutation ();
             this.bank.get ().setSkipDisabledItems (shouldSkip);
+        }
     }
 }

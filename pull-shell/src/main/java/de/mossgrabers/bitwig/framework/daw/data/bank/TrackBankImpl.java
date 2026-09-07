@@ -46,6 +46,7 @@ public class TrackBankImpl extends AbstractTrackBankImpl
     @Override
     public void selectParent ()
     {
+        this.host.beforeProjectStructureMutation ();
         ((CursorTrack) this.cursorTrack.getTrack ()).selectParent ();
     }
 

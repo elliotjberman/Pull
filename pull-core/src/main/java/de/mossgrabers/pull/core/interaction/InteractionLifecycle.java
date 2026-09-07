@@ -3,7 +3,6 @@
 package de.mossgrabers.pull.core.interaction;
 
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -13,7 +12,7 @@ import java.util.Set;
 /**
  * Bounded, single-threaded lifecycle for target-bound input. No hardware, host, timers or callbacks.
  * A changed binding cancels an interaction; its physical tail stays suppressed until release.
- * Submitted operations and final cleanup have independent lifetimes and explicit completion.
+ * Final cleanup remains tracked until its executor reports explicit completion.
  *
  * <p>Use one instance per externally assigned generation; never reuse a generation. C and T must
  * be immutable value identities. T identifies an exact target incarnation, never a moving slot.
@@ -25,33 +24,28 @@ import java.util.Set;
 public final class InteractionLifecycle<C, T>
 {
     public record Id (long generation, long sequence) {}
-    public record OperationId (Id interaction, long sequence) {}
     public record Interaction<C, T> (Id id, C control, T target) {}
-    public record Operation<T> (OperationId id, T target) {}
-    public enum Admission { STARTED, ALREADY_HELD, UNBOUND, TARGET_BUSY, CAPACITY_EXHAUSTED, STOPPED }
+    public enum Admission { STARTED, ALREADY_HELD, UNBOUND, TARGET_BUSY, CAPACITY_EXHAUSTED }
     public record Begin<C, T> (Admission admission, Optional<Interaction<C, T>> interaction) {}
-    public enum EndReason { RELEASED, BINDING_CHANGED, TARGET_LOST, STOPPED }
+    public enum EndReason { RELEASED, BINDING_CHANGED }
     public record Finish<T> (Id interaction, T target, EndReason reason) {}
 
     private final long generation;
     private final Set<C> controls;
     private final int maxInteractions;
-    private final int maxOperations;
     private final Map<Id, Session> sessions = new LinkedHashMap<> ();
     // Empty means the press was rejected. A retired ID still suppresses its physical tail.
     private final Map<C, Optional<Id>> held = new LinkedHashMap<> ();
     private Map<C, T> bindings = Map.of ();
     private long nextInteraction;
-    private boolean stopped;
 
-    public InteractionLifecycle (final long generation, final Set<C> controls, final int maxInteractions, final int maxOperations)
+    public InteractionLifecycle (final long generation, final Set<C> controls, final int maxInteractions)
     {
-        if (generation < 0 || maxInteractions <= 0 || maxOperations <= 0)
-            throw new IllegalArgumentException ("Nonnegative generation and positive capacities required");
+        if (generation < 0 || maxInteractions <= 0)
+            throw new IllegalArgumentException ("Nonnegative generation and positive capacity required");
         this.generation = generation;
         this.controls = Set.copyOf (controls);
         this.maxInteractions = maxInteractions;
-        this.maxOperations = maxOperations;
     }
 
     /** Complete current bindings. Replaying a binding does not restart or revive any interaction. */
@@ -71,7 +65,6 @@ public final class InteractionLifecycle<C, T>
         this.requireControl (control);
         if (this.held.containsKey (control)) return rejected (Admission.ALREADY_HELD);
         this.held.put (control, Optional.empty ());
-        if (this.stopped) return rejected (Admission.STOPPED);
         final T target = this.bindings.get (control);
         if (target == null) return rejected (Admission.UNBOUND);
         if (this.hasTargetWork (target)) return rejected (Admission.TARGET_BUSY);
@@ -107,59 +100,13 @@ public final class InteractionLifecycle<C, T>
             .filter (session -> session.reason == null).map (session -> session.interaction);
     }
 
-    /**
-     * Admit immediately before submitting an operation, not while preparing/queueing intent.
-     * The executor must also validate the captured target against the live host at application.
-     * Empty means cancelled, stale or at capacity; no host request is authorized in that case.
-     * A rejected submission must still report a terminal outcome via completeOperation.
-     */
-    public Optional<Operation<T>> beginOperation (final Id interaction)
-    {
-        final Session session = this.sessions.get (interaction);
-        if (session == null || session.reason != null || this.sessions.values ().stream ().mapToInt (s -> s.operations.size ()).sum () >= this.maxOperations)
-            return Optional.empty ();
-        session.nextOperation = Math.incrementExact (session.nextOperation);
-        final OperationId operation = new OperationId (interaction, session.nextOperation);
-        session.operations.add (operation);
-        return Optional.of (new Operation<> (operation, session.interaction.target ()));
-    }
-
-    /** Later authoritative completion or explicit terminal failure; a void submission is neither. */
-    public boolean completeOperation (final OperationId operation)
-    {
-        final Session session = this.sessions.get (operation.interaction ());
-        return session != null && session.operations.remove (operation);
-    }
-
-    /** Ends input only. Already submitted work and cleanup remain tracked independently. */
+    /** Ends physical input. Final cleanup remains tracked until explicit completion. */
     public void release (final C control)
     {
         this.requireControl (control);
         final Optional<Id> interaction = this.held.remove (control);
         if (interaction != null)
             interaction.map (this.sessions::get).ifPresent (session -> this.end (session, EndReason.RELEASED));
-    }
-
-    /**
-     * Addressability was lost externally. Never request cleanup through a replacement target.
-     * Outstanding operations still need terminal outcomes; target loss does not fabricate them.
-     * A later binding publication may offer only authoritatively valid target incarnations.
-     */
-    public void targetLost (final T target)
-    {
-        Objects.requireNonNull (target, "target");
-        final Map<C, T> remaining = new LinkedHashMap<> (this.bindings);
-        remaining.values ().removeIf (target::equals);
-        this.bindings = Map.copyOf (remaining);
-        for (final Session session: this.sessions.values ())
-            if (target.equals (session.interaction.target ())) this.end (session, EndReason.TARGET_LOST);
-    }
-
-    /** Close admission and cancel existing interactions, without pretending input/work has ended. */
-    public void stop ()
-    {
-        this.stopped = true;
-        for (final Session session: this.sessions.values ()) this.end (session, EndReason.STOPPED);
     }
 
     /** Candidate IDs only; beginFinish must recheck them immediately before cleanup submission. */
@@ -169,10 +116,8 @@ public final class InteractionLifecycle<C, T>
     }
 
     /**
-     * Exactly one finalization per interaction, after all its submitted work has settled.
+     * Exactly one finalization per ended interaction.
      * RELEASED permits ordinary release behavior; cancellation permits required cleanup only.
-     * TARGET_LOST permits reporting/abandonment only, never a write to the lost/replacement target.
-     * Cleanup has reserved capacity independent of the ordinary operation budget.
      */
     public Optional<Finish<T>> beginFinish (final Id interaction)
     {
@@ -191,7 +136,7 @@ public final class InteractionLifecycle<C, T>
         return true;
     }
 
-    /** No physical tails, submitted operations, or unfinished cleanup owned by this manager. */
+    /** No physical tails or unfinished cleanup owned by this manager. */
     public boolean isIdle ()
     {
         return this.held.isEmpty () && this.sessions.isEmpty ();
@@ -206,8 +151,8 @@ public final class InteractionLifecycle<C, T>
 
     private void end (final Session session, final EndReason reason)
     {
-        // Cancellation dominates a not-yet-submitted normal release; loss dominates all cleanup.
-        if (session.reason == null || reason == EndReason.TARGET_LOST || session.reason == EndReason.RELEASED && reason != EndReason.RELEASED)
+        // Cancellation dominates a not-yet-submitted normal release.
+        if (session.reason == null || reason == EndReason.BINDING_CHANGED)
             session.reason = reason;
     }
 
@@ -225,12 +170,10 @@ public final class InteractionLifecycle<C, T>
     private final class Session
     {
         private final Interaction<C, T> interaction;
-        private final Set<OperationId> operations = new LinkedHashSet<> ();
-        private long nextOperation;
         private EndReason reason;
         private boolean finishing;
 
         private Session (final Interaction<C, T> interaction) { this.interaction = interaction; }
-        private boolean ready () { return this.reason != null && this.operations.isEmpty () && !this.finishing; }
+        private boolean ready () { return this.reason != null && !this.finishing; }
     }
 }

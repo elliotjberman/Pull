@@ -19,7 +19,7 @@ import de.mossgrabers.framework.featuregroup.ModeManager;
 import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.framework.view.AbstractDrum64View;
-import de.mossgrabers.framework.view.AbstractSessionView;
+import de.mossgrabers.framework.featuregroup.AbstractView;
 
 
 /**
@@ -132,9 +132,9 @@ public class Drum64View extends AbstractDrum64View<PushControlSurface, PushConfi
         final int scene = buttonID.ordinal () - ButtonID.SCENE1.ordinal ();
         final IScene s = sceneBank.getItem (scene);
         if (s.doesExist ())
-            return s.isSelected () ? AbstractSessionView.COLOR_SELECTED_SCENE : AbstractSessionView.COLOR_SCENE;
+            return s.isSelected () ? AbstractView.COLOR_SELECTED_SCENE : AbstractView.COLOR_SCENE;
 
-        return AbstractSessionView.COLOR_SCENE_OFF;
+        return AbstractView.COLOR_SCENE_OFF;
     }
 
 

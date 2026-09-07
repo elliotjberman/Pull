@@ -146,6 +146,34 @@ class ApplicationUiHostTest
         assertEquals (ApplicationUiSnapshot.empty (), f.host.refresh (true));
     }
 
+    @Test
+    void opaqueEditsDrainResourcesBeforeNativeSubmissionButUiChangesDoNot ()
+    {
+        final Fixture f = new Fixture ();
+        f.frameworkHost.setProjectStructureMutationGuard (() -> f.writes.add ("release"));
+        final List<Runnable> edits = List.of (f.application::duplicate, f.application::deleteSelection,
+            f.application::undo, f.application::redo, f.application::addAudioTrack,
+            f.application::addEffectTrack, f.application::addInstrumentTrack, () -> f.application.invokeAction ("opaque"));
+        final List<String> commands = List.of ("duplicate", "remove", "undo", "redo", "createAudioTrack",
+            "createEffectTrack", "createInstrumentTrack", "invoke");
+        for (int index = 0; index < edits.size (); index++)
+        {
+            f.writes.clear ();
+            edits.get (index).run ();
+            assertEquals (List.of ("release", commands.get (index)), f.writes);
+        }
+        f.writes.clear ();
+        f.application.setPanelLayout ("MIX");
+        assertEquals (List.of ("layout:MIX"), f.writes, "a presentation change preserves launcher holds");
+        f.application.invokeAction ("missing");
+        assertEquals (List.of ("layout:MIX"), f.writes, "an unavailable action has no mutation to guard");
+
+        final Fixture failed = new Fixture ();
+        failed.frameworkHost.setProjectStructureMutationGuard (() -> { throw new IllegalStateException ("cleanup failed"); });
+        assertThrows (IllegalStateException.class, failed.application::deleteSelection);
+        assertTrue (failed.writes.isEmpty (), "failed cleanup must prevent the destructive submission");
+    }
+
     private static final class Fixture
     {
         final Map<String, NativeBoolean> values = new LinkedHashMap<> ();
@@ -160,7 +188,15 @@ class ApplicationUiHostTest
             if (method.getName ().equals ("get")) { this.reads++; return this.panelLayout; }
             return defaultValue (method.getReturnType ());
         });
+        final de.mossgrabers.bitwig.framework.daw.HostImpl frameworkHost = new de.mossgrabers.bitwig.framework.daw.HostImpl (null);
         final Application nativeApplication = proxy (Application.class, (ignored, method, args) -> {
+            if (List.of ("duplicate", "remove", "undo", "redo", "createAudioTrack", "createEffectTrack", "createInstrumentTrack").contains (method.getName ()))
+            { this.writes.add (method.getName ()); return null; }
+            if (method.getName ().equals ("getAction"))
+                return "missing".equals (args[0]) ? null : proxy (com.bitwig.extension.controller.api.Action.class, (action, actionMethod, arguments) -> {
+                    if (actionMethod.getName ().equals ("invoke")) this.writes.add ("invoke");
+                    return defaultValue (actionMethod.getReturnType ());
+                });
             if (method.getName ().equals ("panelLayout")) return this.nativeLayout;
             if (method.getName ().equals ("setPanelLayout"))
             {
@@ -172,7 +208,7 @@ class ApplicationUiHostTest
             if (method.getName ().startsWith ("toggle")) { this.writes.add (method.getName ()); return null; }
             return defaultValue (method.getReturnType ());
         });
-        IApplication application = new ApplicationImpl (this.nativeApplication, this.nativeArranger, new TwosComplementValueChanger (128, 1));
+        IApplication application = new ApplicationImpl (this.frameworkHost, this.nativeApplication, this.nativeArranger, new TwosComplementValueChanger (128, 1));
         IArranger arranger = new ArrangerImpl (this.nativeArranger);
         IMixer mixer = new MixerImpl (this.nativeMixer);
         final IProject project = proxy (IProject.class, (ignored, method, args) -> {

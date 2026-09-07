@@ -8,7 +8,7 @@ import de.mossgrabers.framework.daw.midi.IMidiAccess;
 import de.mossgrabers.framework.daw.midi.IMidiInput;
 import de.mossgrabers.framework.daw.midi.IMidiOutput;
 
-import com.bitwig.extension.controller.api.ControllerHost;
+import de.mossgrabers.bitwig.framework.daw.HostImpl;
 
 
 /**
@@ -18,7 +18,7 @@ import com.bitwig.extension.controller.api.ControllerHost;
  */
 public class MidiDeviceImpl implements IMidiAccess
 {
-    private final ControllerHost host;
+    private final HostImpl host;
 
 
     /**
@@ -26,7 +26,7 @@ public class MidiDeviceImpl implements IMidiAccess
      *
      * @param host The Bitwig host
      */
-    public MidiDeviceImpl (final ControllerHost host)
+    public MidiDeviceImpl (final HostImpl host)
     {
         this.host = host;
     }
@@ -36,7 +36,7 @@ public class MidiDeviceImpl implements IMidiAccess
     @Override
     public IMidiOutput createOutput ()
     {
-        return new MidiOutputImpl (this.host);
+        return new MidiOutputImpl (this.host.getControllerHost ());
     }
 
 
@@ -44,7 +44,7 @@ public class MidiDeviceImpl implements IMidiAccess
     @Override
     public IMidiOutput createOutput (final int index)
     {
-        return new MidiOutputImpl (this.host, index);
+        return new MidiOutputImpl (this.host.getControllerHost (), index);
     }
 
 

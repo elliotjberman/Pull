@@ -10,6 +10,7 @@ import de.mossgrabers.framework.daw.data.bank.ISendBank;
 import de.mossgrabers.framework.featuregroup.ModeManager;
 import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.pull.core.api.ControllerSettingsSnapshot;
+import de.mossgrabers.pull.core.api.SessionSettingsSnapshot;
 import de.mossgrabers.pull.core.api.CursorSendBankSnapshot;
 import de.mossgrabers.pull.core.api.effect.SetControllerBooleanSettingEffect;
 import de.mossgrabers.pull.core.api.effect.SetControllerIntegerSettingEffect;
@@ -36,7 +37,7 @@ final class ControllerSettingsHost
 
     ControllerSettingsSnapshot snapshot ()
     {
-        return new ControllerSettingsSnapshot (true, this.configuration.isEnableVUMeters (), this.configuration.getGlobalMixMode ().name (), this.configuration.getMixSendOffset (), this.cursorSends (), this.configuration.isAccentActive (), this.configuration.getFixedAccentValue ());
+        return new ControllerSettingsSnapshot (true, this.configuration.isEnableVUMeters (), this.configuration.getGlobalMixMode ().name (), this.configuration.getMixSendOffset (), this.cursorSends (), this.configuration.isAccentActive (), this.configuration.getFixedAccentValue (), new SessionSettingsSnapshot (true, this.configuration.isSelectClipOnLaunch (), this.configuration.getActionForRecArmedPad (), this.configuration.getNewClipLenghthInBeats (this.model.getTransport ().getQuartersPerMeasure ()), this.configuration.isDrawRecordStripe ()));
     }
 
     private CursorSendBankSnapshot cursorSends ()

@@ -24,6 +24,7 @@ import de.mossgrabers.framework.parameter.ZoomParameter;
  */
 public class ApplicationImpl implements IApplication
 {
+    private final de.mossgrabers.framework.daw.IHost host;
     private final Application   application;
     private final Arranger      arranger;
     private final ZoomParameter horizontalZoomParameter;
@@ -37,8 +38,9 @@ public class ApplicationImpl implements IApplication
      * @param arranger The arranger
      * @param valueChanger The value changer
      */
-    public ApplicationImpl (final Application application, final Arranger arranger, final IValueChanger valueChanger)
+    public ApplicationImpl (final de.mossgrabers.framework.daw.IHost host, final Application application, final Arranger arranger, final IValueChanger valueChanger)
     {
+        this.host = java.util.Objects.requireNonNull (host, "host");
         this.application = application;
         this.arranger = arranger;
 
@@ -221,6 +223,7 @@ public class ApplicationImpl implements IApplication
     @Override
     public void duplicate ()
     {
+        this.host.beforeProjectStructureMutation ();
         this.application.duplicate ();
     }
 
@@ -229,6 +232,7 @@ public class ApplicationImpl implements IApplication
     @Override
     public void deleteSelection ()
     {
+        this.host.beforeProjectStructureMutation ();
         this.application.remove ();
     }
 
@@ -245,6 +249,7 @@ public class ApplicationImpl implements IApplication
     @Override
     public void undo ()
     {
+        this.host.beforeProjectStructureMutation ();
         this.application.undo ();
     }
 
@@ -261,6 +266,7 @@ public class ApplicationImpl implements IApplication
     @Override
     public void redo ()
     {
+        this.host.beforeProjectStructureMutation ();
         this.application.redo ();
     }
 
@@ -269,6 +275,7 @@ public class ApplicationImpl implements IApplication
     @Override
     public void addAudioTrack ()
     {
+        this.host.beforeProjectStructureMutation ();
         this.application.createAudioTrack (-1);
     }
 
@@ -277,6 +284,7 @@ public class ApplicationImpl implements IApplication
     @Override
     public void addEffectTrack ()
     {
+        this.host.beforeProjectStructureMutation ();
         this.application.createEffectTrack (-1);
     }
 
@@ -285,6 +293,7 @@ public class ApplicationImpl implements IApplication
     @Override
     public void addInstrumentTrack ()
     {
+        this.host.beforeProjectStructureMutation ();
         this.application.createInstrumentTrack (-1);
     }
 
@@ -449,7 +458,10 @@ public class ApplicationImpl implements IApplication
     {
         final Action action = this.getAction (id);
         if (action != null)
+        {
+            this.host.beforeProjectStructureMutation ();
             action.invoke ();
+        }
     }
 
 
