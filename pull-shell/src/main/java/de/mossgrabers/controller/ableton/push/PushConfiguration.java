@@ -88,21 +88,6 @@ public class PushConfiguration extends AbstractConfiguration implements IGraphic
         "Length"
     };
 
-    private static final Views []   PREFERRED_NOTE_VIEWS                       =
-    {
-        Views.PLAY,
-        Views.CHORDS,
-        Views.PIANO,
-        Views.DRUM64,
-        Views.DRUM,
-        Views.DRUM4,
-        Views.DRUM8,
-        Views.DRUM_XOX,
-        Views.SEQUENCER,
-        Views.RAINDROPS,
-        Views.POLY_SEQUENCER
-    };
-
     /** What does the ribbon send? **/
     private int                   ribbonMode                   = RIBBON_MODE_PITCH;
     private int                   ribbonModeCCVal              = 1;
@@ -178,7 +163,6 @@ public class PushConfiguration extends AbstractConfiguration implements IGraphic
         this.activateAccentActiveSetting (globalSettings);
         this.activateAccentValueSetting (globalSettings);
         this.activateQuantizeAmountSetting (globalSettings);
-        this.activateStartupViewSetting (globalSettings, PREFERRED_NOTE_VIEWS);
         this.activateMidiEditChannelSetting (documentSettings);
         this.activateTurnOffScalePadsSetting (globalSettings);
         this.activateShowPlayedChordsSetting (globalSettings);
