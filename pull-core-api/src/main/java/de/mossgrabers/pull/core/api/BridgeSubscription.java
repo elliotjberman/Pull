@@ -33,6 +33,9 @@ public enum BridgeSubscription
     /** Controller preferences and the existing model-cursor send metadata window. */
     CONTROLLER_SETTINGS,
 
+    /** Raw identity read-back for the one attached controller surface. */
+    CONTROLLER_HARDWARE,
+
     /** State of the private selection-following track target. */
     SELECTED_TRACK,
 

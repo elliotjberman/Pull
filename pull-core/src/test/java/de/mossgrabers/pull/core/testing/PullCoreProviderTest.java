@@ -25,10 +25,8 @@ import de.mossgrabers.pull.core.runtime.PullCoreProvider;
 
 import org.junit.jupiter.api.Test;
 
-import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -80,7 +78,7 @@ class PullCoreProviderTest
             Map.entry (CoreCapabilities.OUTPUT_TOUCH_STRIP, Integer.valueOf (1)),
             Map.entry (CoreCapabilities.INPUT_CONTROLLER, Integer.valueOf (1)),
             Map.entry (CoreCapabilities.ROUTING_CONTROLLER_INPUT, Integer.valueOf (7)),
-            Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE, Integer.valueOf (14)),
+            Map.entry (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE, Integer.valueOf (15)),
             Map.entry (CoreCapabilities.SUBSCRIPTION_CONTROLLER_BRIDGE, Integer.valueOf (1)),
             Map.entry (CoreCapabilities.EFFECT_TRANSPORT, Integer.valueOf (4)),
             Map.entry (CoreCapabilities.EFFECT_HOST_NOTIFICATION, Integer.valueOf (1)),
@@ -116,45 +114,39 @@ class PullCoreProviderTest
 
 
     @Test
-    void stressFitsMixerTextAndRemovesPositiveNumericSignsWithoutAHost () throws IOException
+    void stressFitsMixerTextAndRemovesPositiveNumericSignsWithoutAHost ()
     {
         final ControllerCore core = new PullCoreProvider ().create ();
-        final RgbColor accent = new RgbColor (10, 80, 140);
-        final MixerControlsDisplay display = core.renderMixerControls (new MixerControlsSnapshot (List.of (
-            hostControl (0, MixerControlKind.VOLUME, "", 0.5, "+3.0 dB", accent, 0.25, 0.5),
-            hostControl (1, MixerControlKind.PAN, "", 0.75, "23 R", accent, 0, 0),
-            projectMacro (2, "Very Long Project Macro Name", 0.6, "-123.456 dB"),
-            projectMacro (3, "Positive Decimal Decibels", 0.4, "+123.456 dB"),
-            projectMacro (4, "Very Long Frequency Parameter", 0.7, "+12345.678 kHz"),
-            projectMacro (5, "Very Long Millisecond Value", 0.3, "-9876.543 ms"),
-            projectMacro (6, "Fine Tune Hundredths", 0.8, "+100.000 ct"),
-            projectMacro (7, "Boolean Macro With Long Name", 1, "On"))));
+        final RgbColor accent = MixerTextStressFixture.ACCENT;
+        final MixerControlsDisplay display = core.renderMixerControls (MixerTextStressFixture.snapshot ());
         final List<DisplayCommand> commands = display.controls ().stream ().flatMap (control -> control.scene ().commands ().stream ()).toList ();
         final List<DisplayCommand> volumeCommands = display.controls ().get (0).scene ().commands ();
         final List<DisplayCommand> wideKnobCommands = display.controls ().get (2).scene ().commands ();
         final Set<String> fittedText = commands.stream ().filter (DisplayCommand.TextBox.class::isInstance).map (DisplayCommand.TextBox.class::cast).map (DisplayCommand.TextBox::text).collect (Collectors.toSet ());
-        final Set<String> unitText = commands.stream ().filter (DisplayCommand.TextAt.class::isInstance).map (DisplayCommand.TextAt.class::cast).map (DisplayCommand.TextAt::text).collect (Collectors.toSet ());
 
         assertTrue (commands.contains (new DisplayCommand.Rectangle (63, 83, 6, 2, accent)));
         assertTrue (commands.contains (new DisplayCommand.Rectangle (69, 83, 2, 40, accent)));
         assertTrue (commands.stream ().anyMatch (command -> command instanceof final DisplayCommand.Rectangle rectangle && rectangle.width () == 3 && rectangle.height () == 16 && rectangle.color ().equals (accent)));
         assertTrue (commands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "Volume".equals (text.text ())));
         assertTrue (volumeCommands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "3.0".equals (text.text ()) && text.width () == 58 && text.maximumFontSize () == 19 && text.fit () == DisplayTextFit.SHRINK));
-        assertTrue (volumeCommands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextAt text && "dB".equals (text.text ())));
+        assertTrue (volumeCommands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "dB".equals (text.text ())));
         assertTrue (commands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "Pan".equals (text.text ())));
         assertTrue (commands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "23".equals (text.text ())));
-        assertTrue (commands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextAt text && "R".equals (text.text ())));
+        assertTrue (commands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "R".equals (text.text ())));
         assertTrue (commands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "Very Long Project Macro Name".equals (text.text ()) && text.maximumFontSize () == 15 && text.minimumFontSize () == 9 && text.fit () == DisplayTextFit.SHRINK_ELLIPSIS));
         assertTrue (wideKnobCommands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "-123.456".equals (text.text ()) && text.width () == 64 && text.maximumFontSize () == 30 && text.minimumFontSize () == 12 && text.fit () == DisplayTextFit.SHRINK));
-        assertTrue (wideKnobCommands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextAt text && "dB".equals (text.text ())));
+        assertTrue (wideKnobCommands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "dB".equals (text.text ())));
         assertTrue (fittedText.containsAll (Set.of ("3.0", "23", "-123.456", "123.456", "12345.678", "-9876.543", "100.000", "On")));
-        assertTrue (unitText.containsAll (Set.of ("dB", "R", "kHz", "ms", "ct")));
+        assertTrue (fittedText.containsAll (Set.of ("dB", "R", "kHz", "ms", "ct")));
         assertFalse (commands.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && text.text ().startsWith ("+")));
         assertTrue (commands.stream ().anyMatch (command -> command instanceof DisplayCommand.DottedArc));
 
-        final BufferedImage proof = MixerDisplayStressImage.write (display, Path.of ("target", "display-text-fit-stress.png"));
-        assertEquals (960, proof.getWidth ());
-        assertEquals (160, proof.getHeight ());
+        assertEquals (8, display.controls ().size ());
+        for (final var control: display.controls ())
+        {
+            assertEquals (120, control.scene ().width ());
+            assertEquals (126, control.scene ().height ());
+        }
     }
 
 
@@ -167,18 +159,6 @@ class PullCoreProviderTest
 
         assertTrue (touched.controls ().getFirst ().scene ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.DottedArc arc && arc.color ().equals (new RgbColor (132, 214, 255))));
         assertTrue (untouched.controls ().getFirst ().scene ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.DottedArc arc && arc.color ().equals (new RgbColor (80, 80, 80))));
-    }
-
-
-    private static MixerControlSnapshot hostControl (final int column, final MixerControlKind kind, final String label, final double value, final String displayedValue, final RgbColor accent, final double vuLeft, final double vuRight)
-    {
-        return new MixerControlSnapshot (column, kind, label, value, -1, displayedValue, MixerControlRole.HOST_COLORED, true, false, Optional.of (accent), vuLeft, vuRight);
-    }
-
-
-    private static MixerControlSnapshot projectMacro (final int column, final String label, final double value, final String displayedValue)
-    {
-        return projectMacro (column, label, value, displayedValue, true);
     }
 
 

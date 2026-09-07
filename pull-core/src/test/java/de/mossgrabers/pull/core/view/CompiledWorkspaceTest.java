@@ -262,7 +262,7 @@ class CompiledWorkspaceTest
         assertTrue (result.desiredBridgeSubscriptions ().includes (BridgeSubscription.PARAMETERS));
         assertTrue (result.desiredOutput ().display ().isPresent ());
         assertFalse (result.desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "Project".equals (text.text ())));
-        assertTrue (result.desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextAt text && "Macro 1".equals (text.text ()) && new RgbColor (95, 118, 124).equals (text.color ())));
+        assertTrue (result.desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "Macro 1".equals (text.text ()) && new RgbColor (95, 118, 124).equals (text.color ())));
         assertTrue (result.desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.RoundedRectangle rectangle && new RgbColor (66, 107, 128).equals (rectangle.color ())));
         assertFalse (result.desiredOutput ().display ().commands ().stream ().anyMatch (DisplayCommand.DottedArc.class::isInstance));
 
@@ -270,7 +270,7 @@ class CompiledWorkspaceTest
             new ControllerInputEvent (1, 1, firstKnob, InputKind.RELATIVE, InputPhase.UPDATE, 3),
             parameterSnapshot (Set.of (firstKnob)));
         assertEquals (List.of (new AdjustParameterValueEffect (PROJECT_TARGET, 30)), adjusted.effects ());
-        assertTrue (adjusted.desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextAt text && "Macro 1".equals (text.text ()) && new RgbColor (190, 235, 247).equals (text.color ())));
+        assertTrue (adjusted.desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "Macro 1".equals (text.text ()) && new RgbColor (190, 235, 247).equals (text.color ())));
 
         final CoreResult decreased = workspace.handle (
             new ControllerInputEvent (2, 2, firstKnob, InputKind.RELATIVE, InputPhase.UPDATE, -2),

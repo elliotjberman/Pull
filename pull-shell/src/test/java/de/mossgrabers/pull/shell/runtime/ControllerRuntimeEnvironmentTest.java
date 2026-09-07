@@ -153,7 +153,7 @@ class ControllerRuntimeEnvironmentTest
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_NOTE_VIEW_PREFERENCE));
         assertEquals (Integer.valueOf (1), initial.capabilities ().versions ().get (CoreCapabilities.OUTPUT_NOTE_REPEAT));
         assertEquals (Integer.valueOf (7), initial.capabilities ().versions ().get (CoreCapabilities.ROUTING_CONTROLLER_INPUT));
-        assertEquals (Integer.valueOf (14), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE));
+        assertEquals (Integer.valueOf (15), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_CONTROLLER_BRIDGE));
         assertEquals (Integer.valueOf (3), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_SESSION_BANK));
         assertEquals (Integer.valueOf (3), initial.capabilities ().versions ().get (CoreCapabilities.EFFECT_CONTROLLER_BUTTON_CONSUMPTION));
         assertEquals (Integer.valueOf (4), initial.capabilities ().versions ().get (CoreCapabilities.SNAPSHOT_PARAMETER_TARGETS));
@@ -353,7 +353,7 @@ class ControllerRuntimeEnvironmentTest
         final var e = de.mossgrabers.pull.core.api.ControllerBridgeSnapshot.empty ();
         final var layout = new de.mossgrabers.pull.core.api.ControllerLayoutSnapshot (1, "", "FRAME", false, false, 0, de.mossgrabers.pull.core.api.GridPressureConfiguration.OFF);
         final var ui = new de.mossgrabers.pull.core.api.ApplicationUiSnapshot (1, "project", "ARRANGE", de.mossgrabers.pull.core.api.ArrangerUiSnapshot.empty (), de.mossgrabers.pull.core.api.MixerUiSnapshot.empty ());
-        final var bridge = new de.mossgrabers.pull.core.api.ControllerBridgeSnapshot (e.transport (), e.selectedTrack (), e.sessionBank (), layout, e.noteView (), e.noteRepeat (), e.drum (), e.parameters (), e.controllerMappingFeedback (), e.master (), e.project (), e.automation (), e.encoderConfiguration (), e.currentTrackBank (), e.transportSettings (), e.controllerSettings (), ui, requests, e.browser ());
+        final var bridge = new de.mossgrabers.pull.core.api.ControllerBridgeSnapshot (e.transport (), e.selectedTrack (), e.sessionBank (), layout, e.noteView (), e.noteRepeat (), e.drum (), e.parameters (), e.controllerMappingFeedback (), e.master (), e.project (), e.automation (), e.encoderConfiguration (), e.currentTrackBank (), e.transportSettings (), e.controllerSettings (), ui, requests, e.browser (), e.controllerHardware ());
         return new ControllerSnapshot (sequence, sequence, capabilities, bridge, ClipCatalogSnapshot.empty (), Map.of (), Map.of (), Optional.empty (), pressed, Set.of ());
     }
 

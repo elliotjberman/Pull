@@ -5,11 +5,13 @@ package de.mossgrabers.pull.core.ui.page;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.output.*;
+import de.mossgrabers.pull.core.ui.component.ParameterValue;
+import de.mossgrabers.pull.core.ui.component.RingMeter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import static de.mossgrabers.pull.core.ui.page.PageStyle.*;
+import static de.mossgrabers.pull.core.ui.PageStyle.*;
 import static de.mossgrabers.pull.core.ui.page.MacroPageStyle.*;
 
 /** Fixed-velocity graphics; the complete scene is derived from observed presentation values. */
@@ -31,10 +33,9 @@ public final class AccentPageRenderer
         {
             final double left = 7 * COLUMN_WIDTH + CONTENT_LEFT;
             final RgbColor text = brightness (METER_TEXT, state.touched ());
-            commands.add (new DisplayCommand.TextAt ("Accent", left, LABEL_BASELINE, text, LABEL_FONT));
-            commands.add (new DisplayCommand.TextAt (Integer.toString (state.velocity ()), left, VALUE_BASELINE, text, VALUE_FONT));
-            commands.add (new DisplayCommand.DottedArc (left + RING_RADIUS, RING_CENTER_Y, RING_RADIUS, RING_START, RING_SWEEP, RING_STEPS, RING_DOT_RADIUS, brightness (METER_OFF, state.touched ())));
-            commands.add (new DisplayCommand.DottedArc (left + RING_RADIUS, RING_CENTER_Y, RING_RADIUS, RING_START, RING_SWEEP * state.position (), Math.max (2, (int) Math.ceil (RING_STEPS * state.position ())), RING_DOT_RADIUS, brightness (METER_ON, state.touched ())));
+            commands.add (new DisplayCommand.TextBox ("Accent", left, LABEL_TOP, CONTENT_WIDTH, LABEL_HEIGHT, DisplayTextAlignment.LEFT, text, LABEL_FONT, LABEL_MIN_FONT, DisplayTextFit.SHRINK_ELLIPSIS));
+            ParameterValue.append (commands, new ParameterValue.Content (Integer.toString (state.velocity ()), ""), left, VALUE_TOP, text, VALUE);
+            RingMeter.append (commands, left + RING.radius (), RING_CENTER_Y, state.position (), brightness (METER_OFF, state.touched ()), brightness (METER_ON, state.touched ()), RING);
         }
         return new PageVisuals (lights, new ControllerDisplayScene (WIDTH, HEIGHT, commands));
     }

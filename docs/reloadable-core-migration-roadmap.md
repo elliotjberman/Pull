@@ -12,8 +12,10 @@ workflow. Do not add new policy to frozen stable adapters.
 the controls listed below. It does **not** complete the shell-to-core migration. This document is
 the continuation checklist; owning navigation to a legacy page does not migrate that page's body.
 
-Working contract: Core API 46, checkpoint schema 6, Bitwig API 25. The latest installed/live-tested
-production source is `11e33477`; subsequent cleanup has not been deployed or live tested.
+Working contract: Core API 47, bridge snapshot 15, checkpoint schema 6, Bitwig API 25. The latest
+installed/live-tested production source is `11e33477`; subsequent cleanup and Info migration have
+not been deployed or live tested. The new hardware snapshot requires a shell install and restart
+before activation.
 [The validation record](migrations/core-page-ownership-live-smoke.md) separates those states.
 
 | Slice | Current boundary |
@@ -22,10 +24,11 @@ production source is `11e33477`; subsequent cleanup has not been deployed or liv
 | Original-view release | Core captures edge receivers and deferred action ownership. Current pages render; retained owners supply only continuation data, ticks and exact touches. General motion association remains an [active finding](findings/core-continuous-input-capture.md). |
 | Mixer pages | Project Macros, normal/VS Track, Volume, Pan, eight Sends and Master use named parameters, exact touches, read-back, core menus/footers and output. |
 | Global controls/pages | Play/Record, Mute/Solo, Tap Tempo, Undo/Redo, Track/Mix, Master/Frame, Accent, Metronome/Automation, migrated arrows and their feedback are core-owned. |
+| Info | Hardware identity presentation, Info/Setup menu, inherited lower-row current-bank action variants, full display and row lights are core-owned. The subscribed one-surface hardware tuple is a new candidate canopy expansion, not installed production capability. |
 | Drum/Note | Selected-track applicability and Note/Layout policy, playable-pad pressure/lights, rates/roll, fills, octave/native maps and raw strip behavior are core-owned within the installed geometry. |
 | Session | Grid, scenes and page-button mechanics remain frozen adapters. Stop remains OBSERVE for the adapted Stop-plus-pad chord; its direct stable command is inert. |
 | Optional Session observation | `SESSION_CLIPS` is installed and useful, but has no production product consumer. It publishes a bounded slot/scene window only when explicitly subscribed; it does not establish action ownership or a release acknowledgement. |
-| Other legacy families | Device/Chains/layers, Browser body, Crossfade, Details/Color, configuration, note/clip/sequencer editing and remaining providers remain migration work. Page compatibility is not their migration. |
+| Other legacy families | Device/Chains/layers, Browser body, Crossfade, Details/Color, remaining configuration, note/clip/sequencer editing and remaining providers remain migration work. Page compatibility is not their migration. |
 
 ## Installed capacity is not arbitrary project access
 
@@ -46,8 +49,14 @@ Subscriptions gate snapshot work, not resource construction. Current reusable ca
 
 New banks, observers, permanent bindings, capacities, parent API shapes or output ownership require
 a shell build and restart. Behavior inside the installed canopy reloads in core.
+The Info candidate adds one subscribed raw hardware identity tuple from the attached surface;
+[ARCH](../ARCH.md#core-owned-pages-and-working-contract) records its revision and observation limits.
 
 ## Remaining work and prerequisites
+
+The [UI/editing handoff](migrations/ui-and-editing-handoff.md) makes the reusable
+[component library](ui-component-library.md) an explicit deliverable of each UI slice. The current
+library serves existing core pages; it does not mark the remaining legacy families complete.
 
 Keep these items open until their complete behavior and feedback live in core and the corresponding
 stable policy is deleted. The sections below record the prerequisites and known limits.
@@ -107,9 +116,12 @@ ownership; do not hide it behind a feature-shaped stable callback.
 
 ### Configuration, musical layouts and editing
 
-Migrate Scale/Scales Layout, Repeat/Ribbon, Fixed Length, Setup/Info, User and remaining note-layout
+Migrate Scale/Scales Layout, Repeat/Ribbon, Fixed Length, Setup, User and remaining note-layout
 settings as complete action/feedback slices. Configuration persistence may stay mechanical in shell.
 Arbitrary musical geometry needs the [documented canopy expansion](findings/custom-musical-surface-geometry.md).
+Info is the first completed configuration slice in source; its capability expansion and live
+activation remain separate from the installed-build evidence. Fixed Length still depends on complete
+Session create/launch/overdub behavior and cannot be treated as an eight-choice settings port.
 
 Clip and sequencer editing requires bounded note/step/clip windows, selection/page identity,
 read-back and primitive edits. Reuse those capabilities across Drum, melodic, polyphonic, scene and

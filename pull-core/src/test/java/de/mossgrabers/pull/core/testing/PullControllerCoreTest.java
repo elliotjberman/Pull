@@ -727,11 +727,11 @@ class PullControllerCoreTest
         for (final String label: List.of ("Audio Engine", "Project"))
             assertTrue (host.effects ().desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextAt text && label.equals (text.text ())));
         assertTrue (host.effects ().desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "8".equals (text.text ())));
-        assertTrue (host.effects ().desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextAt text && "L".equals (text.text ())));
+        assertTrue (host.effects ().desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "L".equals (text.text ())));
         assertTrue (host.effects ().desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "Previous".equals (text.text ())));
         assertTrue (host.effects ().desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "Next".equals (text.text ())));
         assertTrue (host.effects ().desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "second_test".equals (text.text ())));
-        assertFalse (host.effects ().desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextAt text && "st".equals (text.text ())));
+        assertFalse (host.effects ().desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "st".equals (text.text ())));
         assertTrue (host.effects ().desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.RoundedRectangle rectangle && new RgbColor (55, 185, 64).equals (rectangle.color ())));
 
         final ControlId previous = PushControlIds.button ("ROW2_7");

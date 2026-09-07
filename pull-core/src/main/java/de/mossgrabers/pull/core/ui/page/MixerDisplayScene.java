@@ -14,6 +14,8 @@ import de.mossgrabers.pull.core.api.output.DisplayTextFit;
 import de.mossgrabers.pull.core.api.output.MixerControlDisplay;
 import de.mossgrabers.pull.core.api.output.MixerControlsDisplay;
 import de.mossgrabers.pull.core.api.output.RgbColor;
+import de.mossgrabers.pull.core.ui.component.ParameterValue;
+import de.mossgrabers.pull.core.ui.component.RingMeter;
 
 import java.util.ArrayList;
 import static de.mossgrabers.pull.core.ui.page.MixerControlStyle.*;
@@ -106,29 +108,8 @@ public final class MixerDisplayScene
         if (text == null || text.isBlank ())
             return;
         final Matcher matcher = VALUE_UNIT_PATTERN.matcher (text.trim ());
-        if (matcher.matches ())
-        {
-            drawFittedValue (commands, left, top, normalizePositiveSign (matcher.group (1)), large, large ? PAN_VALUE_FIELD_WIDTH : VALUE_FIELD_WIDTH, color);
-            commands.add (new DisplayCommand.TextAt (matcher.group (2), left + CONTENT_LEFT + (large ? PAN_VALUE_FIELD_WIDTH : VALUE_FIELD_WIDTH) + VALUE_UNIT_GAP, top + (large ? PAN_VALUE_BASELINE : VALUE_BASELINE), color, large ? PAN_UNIT_FONT_SIZE : UNIT_FONT_SIZE));
-            return;
-        }
-        drawFittedValue (commands, left, top, normalizePositiveSign (text), large, COLUMN_WIDTH - 2 * CONTENT_LEFT, color);
-    }
-
-
-    private static void drawFittedValue (final List<DisplayCommand> commands, final double left, final double top, final String text, final boolean large, final double width, final RgbColor color)
-    {
-        commands.add (new DisplayCommand.TextBox (
-            text,
-            left + CONTENT_LEFT,
-            top + (large ? PAN_VALUE_TOP : VALUE_TOP),
-            width,
-            large ? PAN_VALUE_HEIGHT : VALUE_HEIGHT,
-            DisplayTextAlignment.LEFT,
-            color,
-            large ? PAN_VALUE_FONT_SIZE : VALUE_FONT_SIZE,
-            large ? PAN_VALUE_MIN_FONT_SIZE : VALUE_MIN_FONT_SIZE,
-            DisplayTextFit.SHRINK));
+        final ParameterValue.Content value = matcher.matches () ? new ParameterValue.Content (normalizePositiveSign (matcher.group (1)), matcher.group (2)) : new ParameterValue.Content (normalizePositiveSign (text), "");
+        ParameterValue.append (commands, value, left + CONTENT_LEFT, top + (large ? PAN_VALUE_TOP : VALUE_TOP), color, large ? LARGE_VALUE : VALUE);
     }
 
 
@@ -192,18 +173,10 @@ public final class MixerDisplayScene
 
     private static void drawKnobAt (final List<DisplayCommand> commands, final double left, final double top, final double value, final RgbColor accent, final boolean active)
     {
-        final double centerX = left + CONTENT_LEFT + KNOB_RING_RADIUS;
+        final double centerX = left + CONTENT_LEFT + KNOB_RING.radius ();
         final double centerY = top + CONTROL_CENTER_Y;
         final RgbColor background = active ? DARKER_GRAY : dimToGray (DARKER_GRAY);
-        commands.add (arc (centerX, centerY, KNOB_SWEEP, background));
-        commands.add (arc (centerX, centerY, KNOB_SWEEP * value, accent));
-    }
-
-
-    private static DisplayCommand.DottedArc arc (final double centerX, final double centerY, final double sweep, final RgbColor color)
-    {
-        final int steps = Math.max (2, (int) Math.ceil (KNOB_STEPS * Math.abs (sweep) / Math.abs (KNOB_SWEEP)));
-        return new DisplayCommand.DottedArc (centerX, centerY, KNOB_RING_RADIUS, KNOB_START, sweep, steps, KNOB_DOT_RADIUS, color);
+        RingMeter.append (commands, centerX, centerY, value, background, accent, KNOB_RING);
     }
 
 

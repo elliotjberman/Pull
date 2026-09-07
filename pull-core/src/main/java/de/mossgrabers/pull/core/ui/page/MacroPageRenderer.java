@@ -3,13 +3,20 @@
 
 package de.mossgrabers.pull.core.ui.page;
 
+import de.mossgrabers.pull.core.ui.PageStyle;
+
 import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
 import de.mossgrabers.pull.core.api.output.DisplayCommand;
+import de.mossgrabers.pull.core.api.output.DisplayTextAlignment;
+import de.mossgrabers.pull.core.api.output.DisplayTextFit;
 import de.mossgrabers.pull.core.api.output.RgbColor;
+import de.mossgrabers.pull.core.ui.component.ParameterValue;
+import de.mossgrabers.pull.core.ui.component.RingMeter;
+import de.mossgrabers.pull.core.ui.component.Toggle;
 
 import java.util.ArrayList;
 import static de.mossgrabers.pull.core.ui.page.MacroPageStyle.*;
-import static de.mossgrabers.pull.core.ui.page.PageStyle.BLACK;
+import static de.mossgrabers.pull.core.ui.PageStyle.BLACK;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -45,15 +52,14 @@ public final class MacroPageRenderer
         final RgbColor meterOff = brightness (METER_OFF, control.touched ());
         final RgbColor meterOn = brightness (METER_ON, control.touched ());
         final RgbColor meterText = brightness (METER_TEXT, control.touched ());
-        commands.add (new DisplayCommand.TextAt (control.label (), left + CONTENT_LEFT, LABEL_BASELINE, meterText, LABEL_FONT));
+        commands.add (new DisplayCommand.TextBox (control.label (), left + CONTENT_LEFT, LABEL_TOP, CONTENT_WIDTH, LABEL_HEIGHT, DisplayTextAlignment.LEFT, meterText, LABEL_FONT, LABEL_MIN_FONT, DisplayTextFit.SHRINK_ELLIPSIS));
         drawValue (commands, left, control.displayedValue (), meterText);
         if (control.widget () != MacroPagePresentation.Widget.RING)
         {
-            ToggleRenderer.append (commands, left + CONTENT_LEFT, RING_CENTER_Y, control.widget () == MacroPagePresentation.Widget.TOGGLE_ON, meterOn);
+            Toggle.append (commands, left + CONTENT_LEFT, RING_CENTER_Y, control.widget () == MacroPagePresentation.Widget.TOGGLE_ON, meterOn);
             return;
         }
-        commands.add (arc (left, RING_SWEEP, meterOff));
-        commands.add (arc (left, RING_SWEEP * control.value (), meterOn));
+        RingMeter.append (commands, left + CONTENT_LEFT + RING.radius (), RING_CENTER_Y, control.value (), meterOff, meterOn, RING);
     }
 
 
@@ -62,21 +68,8 @@ public final class MacroPageRenderer
         if (displayedValue == null || displayedValue.isBlank ())
             return;
         final Matcher matcher = VALUE_UNIT_PATTERN.matcher (displayedValue.trim ());
-        if (matcher.matches ())
-        {
-            commands.add (new DisplayCommand.TextAt (matcher.group (1).trim (), left + CONTENT_LEFT, VALUE_BASELINE, color, VALUE_FONT));
-            commands.add (new DisplayCommand.TextAt (matcher.group (2), left + CONTENT_LEFT + VALUE_FIELD_WIDTH + VALUE_UNIT_GAP, VALUE_BASELINE, color, UNIT_FONT_SIZE));
-            return;
-        }
-        commands.add (new DisplayCommand.TextAt (displayedValue, left + CONTENT_LEFT, VALUE_BASELINE, color, VALUE_FONT));
-    }
-
-
-
-    private static DisplayCommand.DottedArc arc (final double columnLeft, final double sweep, final RgbColor color)
-    {
-        final int steps = Math.max (2, (int) Math.ceil (RING_STEPS * Math.abs (sweep) / Math.abs (RING_SWEEP)));
-        return new DisplayCommand.DottedArc (columnLeft + CONTENT_LEFT + RING_RADIUS, RING_CENTER_Y, RING_RADIUS, RING_START, sweep, steps, RING_DOT_RADIUS, color);
+        final ParameterValue.Content value = matcher.matches () ? new ParameterValue.Content (matcher.group (1).trim (), matcher.group (2)) : new ParameterValue.Content (displayedValue, "");
+        ParameterValue.append (commands, value, left + CONTENT_LEFT, VALUE_TOP, color, VALUE);
     }
 
 

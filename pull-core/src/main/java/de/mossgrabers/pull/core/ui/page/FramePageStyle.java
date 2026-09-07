@@ -2,6 +2,10 @@
 // Licensed under LGPLv3 - http://www.gnu.org/licenses/lgpl-3.0.txt
 package de.mossgrabers.pull.core.ui.page;
 
+import de.mossgrabers.pull.core.ui.PageStyle;
+
+import de.mossgrabers.pull.core.ui.component.ChoiceCell;
+
 /** Frame's original large option rows and section headings. */
 final class FramePageStyle
 {
@@ -15,6 +19,7 @@ final class FramePageStyle
     static final double HEADING_FONT = 22.5;
     static final double HEADING_MIN_FONT = 14;
     static final double OPTION_MIN_FONT = 10;
+    static final ChoiceCell.Style CHOICE = new ChoiceCell.Style (OPTION_WIDTH, OPTION_HEIGHT, 0, 0, OPTION_HEIGHT / 2, OPTION_MIN_FONT, PageStyle.DARK);
 
     private FramePageStyle () { }
 }

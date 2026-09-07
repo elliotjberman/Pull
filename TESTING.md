@@ -51,6 +51,33 @@ mvn -o -pl pull-shell -am test
 For changes touching Bitwig API objects, follow `AGENTS.md` and run the complete package build with
 deprecation reporting before the live smoke test.
 
+## Offline UI catalog
+
+Run `tools/ui-component-catalog` to generate a local HTML gallery from production components and
+page renderers. The command prints the output path under `pull-core/target/ui-component-catalog`;
+open that HTML to inspect individual Components and complete Views, including normal, selected,
+touched, unavailable and long-text fixtures with their actual row lights. Lato is loaded from the
+installed Bitwig resources or `PULL_UI_FONT_DIR`; neither Bitwig nor the Push debugger needs to run. See the
+[component library](docs/ui-component-library.md) for component contracts and preview limitations.
+Use the shared Components color picker or hex field to compare states in arbitrary RGB colors;
+Reset restores the default. Complete view fixtures keep their supplied colors.
+Use existing routed behavior tests for submitted effects, later observed state and feedback; a
+catalog fixture is visual evidence, not host/hardware or gesture validation.
+
+Info's hardware snapshot uses Core API 47 / bridge snapshot 15, requiring a shell install and
+restart before its first live smoke. This task did not change the live installation; `11e33477`
+is its historical baseline, not a claim about the machine's current build. Once live validation
+is authorized, use the existing leased debugger/display loop to verify later identity read-back,
+Info/Setup navigation, inherited lower-row action variants and both light rows. A retained identity
+tuple does not prove that Push is still connected; the shell cannot observe a disconnect from these
+fields alone. Keep that live limitation separate from the catalog's explicit unavailable fixture.
+
+Info source validation (2026-09-07): the complete offline package gate with deprecation reporting
+passed 855 tests. The 28 generated catalog SVGs parsed successfully; known, limit and unavailable
+Info scenes were visually checked. Routed tests include deferred tab release across later parameter
+read-back, stale page/bank cancellation, Stop chords and saved legacy-page promotion. Live verification
+remains pending.
+
 ## Live Push display loop
 
 Bitwig, its loaded Pull shell/core, and the physical Push form one shared live environment. Acquire
@@ -85,7 +112,11 @@ Run the dependency-free local Push 2 visualizer with:
 tools/push-debug-surface
 ```
 
-It opens a local SVG surface derived from the measured control bounds in `PushControllerSetup`.
+It opens a local SVG surface following the [official Push 2 control overview](https://ableton-production.imgix.net/live-manual/12/Push2Overview.png).
+Keep proportions, printed legends, glyphs and illumination placement consistent with that reference.
+The eight printed beat divisions retain their `SCENE1`–`SCENE8` addresses; Octave/Page legends retain
+their existing directional addresses. Printed labels do not introduce controller behavior. Font,
+pad diffusion and the touch-strip dot marker are browser approximations of physical materials.
 All 64 pads, physical buttons, continuous controls, and the display have the same canonical
 `push.*` identifiers used by the input bridge. The local server polls the opt-in debugger's bounded
 `surface-state.json`: every successful button-light send and complete successful pad-light send is
