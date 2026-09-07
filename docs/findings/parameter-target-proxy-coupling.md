@@ -7,6 +7,12 @@ remove_when: views bind controls to semantic targets and mutations use generatio
 
 # Parameter Targets Are Coupled to Proxy Slots
 
+The 2026-09-07 user decision is to cancel target-bound edits when their active binding disappears,
+not retain offscreen editing. The [shared lifecycle](../interaction-lifecycle.md) is tested in
+isolation; production adoption and exact host target recognition remain pending. Pinned pools
+described below are possible mechanisms for required cleanup, not a requirement to preserve hidden
+gestures. Reassess their necessity under cancellation before adding stable resources.
+
 ## Observation
 
 Bitwig does not know or depend on the Push layout. Controller extensions submit semantic operations

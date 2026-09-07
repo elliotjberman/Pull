@@ -49,6 +49,10 @@ a shell build and restart. Behavior inside the installed canopy reloads in core.
 
 ## Remaining work and prerequisites
 
+The [UI and editing handoff](migrations/ui-and-editing-handoff.md) scopes a separate migration PR.
+Shared [interaction lifecycle work](interaction-lifecycle.md) is being proved in isolation first;
+its cancellation-on-binding-loss policy is not yet integrated into production routing.
+
 Keep these items open until their complete behavior and feedback live in core and the corresponding
 stable policy is deleted. The sections below record the prerequisites and known limits.
 

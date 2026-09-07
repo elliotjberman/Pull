@@ -3,6 +3,11 @@
 Design only. The installed optional `SESSION_CLIPS` observation domain has no production consumer;
 the grid/scene action and feedback owner remains the frozen Session adapter.
 
+The user now chooses [cancellation on binding loss](../interaction-lifecycle.md). Reassess the
+retained-cursor proposal below against ending gestures before controller-driven bank changes;
+continuing an offscreen gesture is no longer required. Cancellation still does not acknowledge an
+already submitted launch/release, so the retirement proof remains an adapter integration question.
+
 ## Exact location and proposed capacity
 
 A launcher location is a track channel identity plus absolute scene index, not a durable clip ID.
