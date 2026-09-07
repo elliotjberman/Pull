@@ -9,15 +9,19 @@ import de.mossgrabers.framework.daw.data.ISend;
 import de.mossgrabers.framework.daw.data.bank.ISendBank;
 import de.mossgrabers.framework.featuregroup.ModeManager;
 import de.mossgrabers.framework.mode.Modes;
+import de.mossgrabers.pull.core.api.ControllerHardwareSettingsSnapshot;
 import de.mossgrabers.pull.core.api.ControllerSettingsSnapshot;
 import de.mossgrabers.pull.core.api.SessionSettingsSnapshot;
 import de.mossgrabers.pull.core.api.CursorSendBankSnapshot;
+import de.mossgrabers.pull.core.api.RibbonSettingsSnapshot;
 import de.mossgrabers.pull.core.api.effect.SetControllerBooleanSettingEffect;
 import de.mossgrabers.pull.core.api.effect.SetControllerIntegerSettingEffect;
 import de.mossgrabers.pull.core.api.effect.SetControllerModeSettingEffect;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 /** Mechanical access to installed preferences and the existing eight-send model cursor window. */
 final class ControllerSettingsHost
@@ -25,19 +29,42 @@ final class ControllerSettingsHost
     private final PushConfiguration configuration;
     private final IModel model;
     private final ModeManager modes;
+    private final Supplier<int[]> velocityCurve;
+    private ControllerHardwareSettingsSnapshot hardware = ControllerHardwareSettingsSnapshot.empty ();
     private CursorIdentity cursorIdentity;
     private long generation;
 
-    ControllerSettingsHost (final PushConfiguration configuration, final IModel model, final ModeManager modes)
+    ControllerSettingsHost (final PushConfiguration configuration, final IModel model, final ModeManager modes, final Supplier<int[]> velocityCurve)
     {
         this.configuration = Objects.requireNonNull (configuration, "configuration");
         this.model = Objects.requireNonNull (model, "model");
         this.modes = Objects.requireNonNull (modes, "modes");
+        this.velocityCurve = Objects.requireNonNull (velocityCurve, "velocityCurve");
     }
 
     ControllerSettingsSnapshot snapshot ()
     {
-        return new ControllerSettingsSnapshot (true, this.configuration.isEnableVUMeters (), this.configuration.getGlobalMixMode ().name (), this.configuration.getMixSendOffset (), this.cursorSends (), this.configuration.isAccentActive (), this.configuration.getFixedAccentValue (), new SessionSettingsSnapshot (true, this.configuration.isSelectClipOnLaunch (), this.configuration.getActionForRecArmedPad (), this.configuration.getNewClipLenghthInBeats (this.model.getTransport ().getQuartersPerMeasure ()), this.configuration.isDrawRecordStripe ()));
+        final SessionSettingsSnapshot session = new SessionSettingsSnapshot (true, this.configuration.isSelectClipOnLaunch (), this.configuration.getActionForRecArmedPad (), this.configuration.getNewClipLenghthInBeats (this.model.getTransport ().getQuartersPerMeasure ()), this.configuration.isDrawRecordStripe ());
+        final RibbonSettingsSnapshot ribbon = new RibbonSettingsSnapshot (true, this.configuration.getRibbonMode (), this.configuration.getRibbonModeCCVal (), this.configuration.getRibbonNoteRepeat ());
+        return new ControllerSettingsSnapshot (true, this.configuration.isEnableVUMeters (), this.configuration.getGlobalMixMode ().name (), this.configuration.getMixSendOffset (), this.cursorSends (), this.configuration.isAccentActive (), this.configuration.getFixedAccentValue (), session, this.hardwareSettings (), ribbon);
+    }
+
+    private ControllerHardwareSettingsSnapshot hardwareSettings ()
+    {
+        final int display = this.configuration.getDisplayBrightness ();
+        final int leds = this.configuration.getLedBrightness ();
+        final int sensitivity = this.configuration.getPadSensitivityPush2 ();
+        final int gain = this.configuration.getPadGainPush2 ();
+        final int dynamics = this.configuration.getPadDynamicsPush2 ();
+        // Legacy pre-observer brightness values use transport units, outside the settings range.
+        if (display < 0 || display > 100 || leds < 0 || leds > 100 || sensitivity < 0 || sensitivity > 10 || gain < 0 || gain > 10 || dynamics < 0 || dynamics > 10)
+        {
+            if (this.hardware.available ()) this.hardware = ControllerHardwareSettingsSnapshot.empty ();
+            return this.hardware;
+        }
+        if (!this.hardware.available () || this.hardware.displayBrightness () != display || this.hardware.ledBrightness () != leds || this.hardware.sensitivity () != sensitivity || this.hardware.gain () != gain || this.hardware.dynamics () != dynamics)
+            this.hardware = new ControllerHardwareSettingsSnapshot (true, display, leds, sensitivity, gain, dynamics, Arrays.stream (this.velocityCurve.get ()).boxed ().toList ());
+        return this.hardware;
     }
 
     private CursorSendBankSnapshot cursorSends ()
@@ -88,6 +115,14 @@ final class ControllerSettingsHost
         {
             case MIX_SEND_OFFSET -> this.configuration.setMixSendOffset (prepared.effect ().value ());
             case ACCENT_VELOCITY -> this.configuration.setFixedAccentValue (prepared.effect ().value ());
+            case DISPLAY_BRIGHTNESS -> this.configuration.setDisplayBrightness (prepared.effect ().value ());
+            case LED_BRIGHTNESS -> this.configuration.setLEDBrightness (prepared.effect ().value ());
+            case PAD_SENSITIVITY -> this.configuration.setPadSensitivityPush2 (prepared.effect ().value ());
+            case PAD_GAIN -> this.configuration.setPadGainPush2 (prepared.effect ().value ());
+            case PAD_DYNAMICS -> this.configuration.setPadDynamicsPush2 (prepared.effect ().value ());
+            case RIBBON_FUNCTION -> this.configuration.setRibbonMode (prepared.effect ().value ());
+            case RIBBON_CC -> this.configuration.setRibbonModeCC (prepared.effect ().value ());
+            case RIBBON_NOTE_REPEAT -> this.configuration.setRibbonNoteRepeat (prepared.effect ().value ());
         }
     }
 

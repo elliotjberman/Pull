@@ -1,6 +1,6 @@
 # Session launcher contract
 
-Core API 49 moves Session actions and feedback into the reloadable `SessionView`, using the shared
+Core API 50 moves Session actions and feedback into the reloadable `SessionView`, using the shared
 interaction lifecycle. Shell Session/Workspace views retain only neutral hardware and bank setup.
 The installed windows are 8×8 and 8×4, with at most 64 slot and eight scene launch presses.
 

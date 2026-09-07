@@ -37,7 +37,7 @@ class ControllerCheckpointNavigationTest
         final var started = core.start (snapshot (0, LegacyControllerPageRequests.empty ()), Optional.of (saved));
 
         assertEquals (LegacyPageAliases.resolve ("INFO"), started.desiredControllerState ().page ().selected ());
-        assertEquals (ControllerPageRef.legacy ("SETUP"), started.desiredControllerState ().page ().effectivePage ());
+        assertEquals (LegacyPageAliases.resolve ("SETUP"), started.desiredControllerState ().page ().effectivePage ());
         assertEquals (29, started.desiredControllerState ().page ().temporaryToken ());
         final var requests = new LegacyControllerPageRequests (List.of (new LegacyControllerPageRequest (1, 17, 29, LegacyControllerPageRequest.Operation.RESTORE, "")));
         final var returned = core.handle (new ControllerTickEvent (1, 1), snapshot (1, requests));

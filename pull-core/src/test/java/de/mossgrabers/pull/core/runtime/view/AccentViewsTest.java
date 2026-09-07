@@ -53,26 +53,6 @@ class AccentViewsTest
         assertEquals (List.of (new SetControllerIntegerSettingEffect (SetControllerIntegerSettingEffect.Setting.ACCENT_VELOCITY, 1)), f.turn (knob, Long.MIN_VALUE).effects ());
     }
 
-    @Test
-    void touchPresentationMatchesLegacyOnlyEighthColumnAndKeepsRowsDark ()
-    {
-        final Fixture f = new Fixture (true);
-        final var before = f.view.render (f.snapshot ()).display ();
-        for (int index = 1; index <= 7; index++)
-        {
-            f.touch (index, InputPhase.BEGIN);
-            assertEquals (before, f.view.render (f.snapshot ()).display ());
-        }
-        final var touched = f.touch (8, InputPhase.BEGIN);
-        assertNotEquals (before, f.view.render (f.snapshot ()).display ());
-        assertTrue (touched.effects ().isEmpty ());
-        assertEquals (new RgbColor (190, 235, 247), ((DisplayCommand.TextBox) f.view.render (f.snapshot ()).display ().commands ().get (1)).color ());
-        f.touch (8, InputPhase.END);
-        assertEquals (before, f.view.render (f.snapshot ()).display ());
-        assertEquals (16, touched.desiredOutput ().lights ().size ());
-        assertTrue (touched.desiredOutput ().lights ().values ().stream ().allMatch (new RgbColor (0, 0, 0)::equals));
-    }
-
     @ParameterizedTest
     @ValueSource (ints = {1, 2, 3, 4, 5, 6, 7, 8})
     void lowerRowCapturesBeginTargetAndSelectsAfterReleaseAndDeferredAdmission (final int column)

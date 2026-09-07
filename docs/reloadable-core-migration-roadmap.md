@@ -1,6 +1,6 @@
 # Remaining core migration
 
-[ARCH](../ARCH.md) is the current ownership/capacity inventory. Core API 49 includes Session and shared
+[ARCH](../ARCH.md) is the current ownership/capacity inventory. Core API 50 includes Session, Setup/Ribbon settings and shared
 interaction cancellation; page entry/return and input lifecycle ownership do not migrate remaining
 handler bodies. Use the [capability audit](reloadable-core-migration-guide.md) for each complete slice.
 
@@ -9,7 +9,7 @@ handler bodies. Use the [capability audit](reloadable-core-migration-guide.md) f
 - [ ] Device, chain and layer controls with verified target identities.
 - [ ] Browser filtering/results/audition/operations; navigation lifecycle is already core-owned.
 - [ ] Crossfade, Track/Layer Details and Color.
-- [ ] Scales/Layout, Repeat/Ribbon, Fixed Length, Setup, User and remaining musical layouts.
+- [ ] Scales/Layout, Repeat, Fixed Length, User, remaining physical Ribbon behavior and remaining musical layouts.
 - [ ] Clip/note/sequencer editing and scene/clip-length workflows.
 - [ ] Delete each family's stable policy, providers, facet claims and aliases/inbox callers as its
       complete action/feedback behavior moves. Keep generic resources and transport.
@@ -17,7 +17,8 @@ handler bodies. Use the [capability audit](reloadable-core-migration-guide.md) f
 The [UI/editing handoff](migrations/ui-and-editing-handoff.md) scopes those separate tasks.
 The migration ends when no frozen product-policy adapter remains.
 
-Session is implemented in core; its bounded location/release limits are recorded in the
+Setup and Ribbon settings are migrated in source; integrated API 50 live verification is pending.
+Session passed the [API 49 smoke](migrations/session-core-live-smoke.md); its bounded location/release limits are recorded in the
 [Session contract](migrations/session-launcher-location-design.md).
 
 ## Device, chain and layer
@@ -58,4 +59,4 @@ their removal criteria are met; do not duplicate their investigations in a featu
 Follow [TESTING](../TESTING.md): routed behavior, separately advanced host state and output; target
 changes, cleanup, faults and replacement. New API/proxy/input/output capability requires a matched
 shell build and restart. Core-only behavior uses hot reload. Report exact candidate coverage and
-pending checks in the [smoke record](migrations/interaction-lifecycle-live-smoke.md).
+pending checks in the [smoke record](migrations/session-core-live-smoke.md).

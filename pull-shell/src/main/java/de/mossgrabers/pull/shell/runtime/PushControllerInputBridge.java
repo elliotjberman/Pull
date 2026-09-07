@@ -472,6 +472,7 @@ final class PushControllerInputBridge implements PushDebugNavigationHost.Gesture
         inputs.add (new PhysicalInputAddress<> (PushControlIds.button ("TRACK"), InputKind.BUTTON));
         inputs.add (new PhysicalInputAddress<> (PushControlIds.button ("MASTERTRACK"), InputKind.BUTTON));
         inputs.add (new PhysicalInputAddress<> (PushControlIds.button ("ACCENT"), InputKind.BUTTON));
+        inputs.add (new PhysicalInputAddress<> (PushControlIds.button ("SETUP"), InputKind.BUTTON));
         inputs.add (new PhysicalInputAddress<> (PushControlIds.button ("UNDO"), InputKind.BUTTON));
         inputs.add (new PhysicalInputAddress<> (PushControlIds.continuous ("TOUCHSTRIP"), InputKind.TOUCH));
         inputs.add (new PhysicalInputAddress<> (PushControlIds.continuous ("TOUCHSTRIP"), InputKind.ABSOLUTE));

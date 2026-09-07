@@ -351,6 +351,42 @@ class CompiledWorkspaceTest
 
 
     @Test
+    void composesFooterLineWithItsStrokeAndCompilerOwnedClip ()
+    {
+        final RgbColor color = new RgbColor (10, 20, 30);
+        final ControllerView upper = displayRegionView ("upper", SurfaceArea.DISPLAY_PARAMETERS,
+            new ControllerDisplayScene (960, 143, List.of (new DisplayCommand.Rectangle (0, 0, 960, 143, color))));
+        final ControllerView footer = displayRegionView ("footer", SurfaceArea.DISPLAY_BOTTOM_STRIP,
+            new ControllerDisplayScene (960, 17, List.of (new DisplayCommand.Line (1, 1, 959, 16, 2, color))));
+
+        final ControllerDisplayScene composed = CompiledWorkspace.compile ("line regions", List.of (upper, footer)).start (snapshot ()).desiredOutput ().display ();
+        final DisplayCommand.Line line = composed.commands ().stream ().filter (DisplayCommand.Line.class::isInstance).map (DisplayCommand.Line.class::cast).findFirst ().orElseThrow ();
+        assertEquals (new DisplayCommand.Line (1, 144, 959, 159, 2, color), line);
+        final int index = composed.commands ().indexOf (line);
+        assertEquals (new DisplayCommand.PushClip (0, 143, 960, 17), composed.commands ().get (index - 1));
+        assertTrue (composed.commands ().get (index + 1) instanceof DisplayCommand.PopClip);
+    }
+
+
+    @Test
+    void rejectsLineStrokeThatCrossesAnyOwnedRegionEdgeEvenWhenItsEndpointsAreInside ()
+    {
+        final RgbColor color = new RgbColor (10, 20, 30);
+        final ControllerView upper = displayRegionView ("upper", SurfaceArea.DISPLAY_PARAMETERS,
+            new ControllerDisplayScene (960, 143, List.of (new DisplayCommand.Rectangle (0, 0, 960, 143, color))));
+        for (final DisplayCommand.Line line: List.of (
+            new DisplayCommand.Line (0.75, 2, 20, 15, 2, color),
+            new DisplayCommand.Line (20, 2, 959.25, 15, 2, color),
+            new DisplayCommand.Line (20, 0.75, 30, 15, 2, color),
+            new DisplayCommand.Line (20, 2, 30, 16.25, 2, color)))
+        {
+            final ControllerView footer = displayRegionView ("footer", SurfaceArea.DISPLAY_BOTTOM_STRIP, new ControllerDisplayScene (960, 17, List.of (line)));
+            assertThrows (IllegalStateException.class, () -> CompiledWorkspace.compile ("overflowing line", List.of (upper, footer)).start (snapshot ()), line.toString ());
+        }
+    }
+
+
+    @Test
     void rejectsPartialOrOverflowingDisplayRegionComposition ()
     {
         final ControllerView partial = displayRegionView (

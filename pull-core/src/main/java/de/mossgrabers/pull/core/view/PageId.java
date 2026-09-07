@@ -15,6 +15,8 @@ public record PageId (String value)
     public static final PageId METRONOME = new PageId ("metronome");
     public static final PageId AUTOMATION = new PageId ("automation");
     public static final PageId ACCENT = new PageId ("accent");
+    public static final PageId SETUP = new PageId ("setup");
+    public static final PageId RIBBON = new PageId ("ribbon");
     public static final PageId INFO = new PageId ("info");
     public static final PageId FRAME = new PageId ("frame");
 

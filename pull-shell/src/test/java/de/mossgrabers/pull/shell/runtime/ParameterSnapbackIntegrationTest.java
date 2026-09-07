@@ -69,6 +69,7 @@ class ParameterSnapbackIntegrationTest
         final ControllerRuntimeEnvironment environment = new ControllerRuntimeEnvironment (new EmptyClipHost (), bridge, NoOpLog.INSTANCE, new IncrementingClock ());
         environment.setInputRouteValidator (ignored -> true);
         environment.setControllerActionValidator (ignored -> true);
+        environment.setPhysicalLightOwnerValidator (ignored -> true);
 
         final RuntimeManager manager = new RuntimeManager (environment, NoOpLog.INSTANCE);
         final PhysicalInputRouter<ControlId> inputs = inputRouter (environment, manager);

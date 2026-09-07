@@ -71,6 +71,9 @@ final class DisplaySceneSvg
             case final DisplayCommand.Rectangle r -> this.rect (r.x (), r.y (), r.width (), r.height (), 0, r.color ());
             case final DisplayCommand.RoundedRectangle r -> this.rect (r.x (), r.y (), r.width (), r.height (), r.radius (), r.color ());
             case final DisplayCommand.Circle c -> this.circle (c.centerX (), c.centerY (), c.radius (), c.color ());
+            case final DisplayCommand.Line line -> this.svg.append (String.format (Locale.ROOT,
+                "<line x1=\"%.3f\" y1=\"%.3f\" x2=\"%.3f\" y2=\"%.3f\" stroke=\"%s\" stroke-width=\"%.3f\"/>\n",
+                line.x1 (), line.y1 (), line.x2 (), line.y2 (), this.paint (line.color ()), line.width ()));
             case final DisplayCommand.DottedArc arc -> {
                 for (int step = 0; step <= arc.steps (); step++)
                 {

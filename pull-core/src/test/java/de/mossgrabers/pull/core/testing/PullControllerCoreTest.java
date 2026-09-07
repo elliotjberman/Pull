@@ -2749,7 +2749,7 @@ class PullControllerCoreTest
 
 
     @Test
-    void nativeMixerPagesRestoreTheOriginalArrowNavigationThroughCoreRouting ()
+    void nativeMixerPagesScrollTracksAndShiftPagesThroughCoreRouting ()
     {
         for (final String mode: List.of ("TRACK", "VOLUME", "PAN", "SEND1", "SEND2", "SEND3", "SEND4", "SEND5", "SEND6", "SEND7", "SEND8"))
         {
@@ -2759,12 +2759,12 @@ class PullControllerCoreTest
             assertEquals (mode, host.effects ().desiredControllerPage ().effectivePage ().legacyAlias ());
             assertEquals (InputRouteMode.EXCLUSIVE, host.effects ().desiredInputRoutes ().modeOrNull (PushControlIds.button ("ARROW_LEFT"), InputKind.BUTTON));
             host.controllerButton (PushControlIds.button ("ARROW_LEFT"), true);
-            assertEquals (de.mossgrabers.pull.core.api.effect.CurrentTrackNavigationEffect.Operation.TRACK_PAGE_PREVIOUS,
+            assertEquals (de.mossgrabers.pull.core.api.effect.CurrentTrackNavigationEffect.Operation.TRACK_SCROLL_PREVIOUS,
                 assertInstanceOf (de.mossgrabers.pull.core.api.effect.CurrentTrackNavigationEffect.class, host.effects ().executionOrder ().getLast ()).operation ());
             host.controllerButton (PushControlIds.button ("ARROW_LEFT"), false);
             host.controllerButton (SHIFT_BUTTON, true);
             host.controllerButton (PushControlIds.button ("ARROW_RIGHT"), true);
-            assertEquals (de.mossgrabers.pull.core.api.effect.CurrentTrackNavigationEffect.Operation.CURSOR_SWAP_NEXT,
+            assertEquals (de.mossgrabers.pull.core.api.effect.CurrentTrackNavigationEffect.Operation.TRACK_PAGE_NEXT,
                 assertInstanceOf (de.mossgrabers.pull.core.api.effect.CurrentTrackNavigationEffect.class, host.effects ().executionOrder ().getLast ()).operation ());
         }
     }

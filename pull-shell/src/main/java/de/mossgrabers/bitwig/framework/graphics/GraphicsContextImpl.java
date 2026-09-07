@@ -66,6 +66,20 @@ public class GraphicsContextImpl implements IGraphicsContext
         this.gc.stroke ();
     }
 
+    /** Draw an explicit-width primitive without changing later drawing state. */
+    @Override
+    public void drawLine (final double x1, final double y1, final double x2, final double y2, final ColorEx color, final double lineWidth)
+    {
+        this.gc.save ();
+        try
+        {
+            this.gc.setLineWidth (lineWidth);
+            this.drawLine (x1, y1, x2, y2, color);
+        }
+        finally { this.gc.restore (); }
+    }
+
+
 
     /** {@inheritDoc} */
     @Override

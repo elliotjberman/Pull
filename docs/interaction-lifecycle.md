@@ -1,6 +1,6 @@
 # Target-bound interaction lifecycle
 
-Core API 49 / Bitwig API 25. `InputGestureRouter` applies the host-independent
+Core API 50 / Bitwig API 25. `InputGestureRouter` applies the host-independent
 `InteractionLifecycle` to migrated core views. [ARCH](../ARCH.md) identifies the remaining shell
 handlers; they do not inherit this contract merely because their page navigation moved to core.
 

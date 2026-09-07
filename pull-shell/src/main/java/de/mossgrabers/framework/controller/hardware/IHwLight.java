@@ -15,10 +15,4 @@ public interface IHwLight extends IHwControl
      * Switch off the light.
      */
     void turnOff ();
-
-
-    /**
-     * Clear the light cache state.
-     */
-    void forceFlush ();
 }

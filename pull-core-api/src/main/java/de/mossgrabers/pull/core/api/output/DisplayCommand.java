@@ -7,9 +7,24 @@ import java.util.Objects;
 
 
 /** One hardware-independent primitive in a reloadable controller display scene. */
-public sealed interface DisplayCommand permits DisplayCommand.PushClip, DisplayCommand.PopClip, DisplayCommand.Rectangle, DisplayCommand.RoundedRectangle, DisplayCommand.Circle, DisplayCommand.DottedArc, DisplayCommand.TextAt, DisplayCommand.TextBox, DisplayCommand.Icon
+public sealed interface DisplayCommand permits DisplayCommand.PushClip, DisplayCommand.PopClip, DisplayCommand.Rectangle, DisplayCommand.RoundedRectangle, DisplayCommand.Circle, DisplayCommand.DottedArc, DisplayCommand.Line, DisplayCommand.TextAt, DisplayCommand.TextBox, DisplayCommand.Icon
 {
     double MAX_ABSOLUTE_ANGLE = 360000.0;
+
+    /** Straight segment with an explicit stroke width. */
+    record Line (double x1, double y1, double x2, double y2, double width, RgbColor color) implements DisplayCommand
+    {
+        public Line
+        {
+            requirePosition (x1, "x1");
+            requirePosition (y1, "y1");
+            requirePosition (x2, "x2");
+            requirePosition (y2, "y2");
+            requireSize (width, "width");
+            if (width == 0) throw new IllegalArgumentException ("line width must be positive");
+            color = Objects.requireNonNull (color, "color");
+        }
+    }
 
     /** Begin one non-nested rectangular clip scope. */
     record PushClip (double x, double y, double width, double height) implements DisplayCommand

@@ -16,6 +16,7 @@ import de.mossgrabers.pull.core.ui.page.*;
 import de.mossgrabers.pull.core.ui.component.ChoiceCell;
 import de.mossgrabers.pull.core.ui.component.ParameterValue;
 import de.mossgrabers.pull.core.ui.component.RingMeter;
+import de.mossgrabers.pull.core.ui.component.ResponseCurve;
 import de.mossgrabers.pull.core.ui.component.Toggle;
 import de.mossgrabers.pull.core.ui.PageStyle;
 import java.io.IOException;
@@ -27,6 +28,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.IntStream;
 
 /** Generate a static review catalog from production renderers, with no host, input or effect path. */
 public final class UiComponentCatalog
@@ -125,6 +128,14 @@ public final class UiComponentCatalog
         result.add (new Example ("info-maximum", "Info", "Info · identity value limits", "Firmware and board limits plus the longest signed serial in the observed transport range remain inside their fields without manual spacing or overlap.", "InfoPageRenderer", InfoPageRenderer.render (new InfoPagePresentation (true, "127.127 Build 16383", "127", "-2147483648"))));
         result.add (new Example ("info-unavailable", "Info", "Info · awaiting hardware identity", "Unknown hardware shows an explicit waiting state. Info remains selected and Setup remains available; lower-row lights stay off.", "InfoPageRenderer", InfoPageRenderer.render (new InfoPagePresentation (false, "", "", ""))));
 
+        result.add (new Example ("setup-known", "Setup", "Setup · brightness and pad response", "Display and LED brightness, three pad settings, and supplied velocity samples. Display and Gain are touched; the observed values remain authoritative.", "SetupPageRenderer", SetupPageRenderer.render (new SetupPagePresentation (true, 75, 60, 5, 5, 5, Set.of (1, 5), IntStream.range (0, 128).map (value -> Math.max (1, value)).boxed ().toList ()))));
+        result.add (new Example ("setup-limits", "Setup", "Setup · setting limits", "Zero and maximum settings retain their physical columns. The curve contains supplied endpoint samples; it is not recomputed from these fixture settings.", "SetupPageRenderer", SetupPageRenderer.render (new SetupPagePresentation (true, 0, 100, 0, 10, 10, Set.of (2, 4, 6), IntStream.range (0, 128).map (value -> value < 64 ? 1 : 127).boxed ().toList ()))));
+        result.add (new Example ("setup-unavailable", "Setup", "Setup · awaiting settings", "Unavailable read-back shows a waiting state while Info/Setup navigation remains available. Retained touch flags cannot invent parameter values or a curve.", "SetupPageRenderer", SetupPageRenderer.render (new SetupPagePresentation (false, -1, -1, -1, -1, -1, Set.of (1, 4), List.of ()))));
+
+        result.add (new Example ("ribbon-known", "Ribbon", "Ribbon · CC and repeat settings", "CC 1 is displayed as the editable value; Modulation remains an unselected quick action. The observed CC function and Period repeat role determine their own selection and lights.", "RibbonPageRenderer", RibbonPageRenderer.render (new RibbonPagePresentation (true, 1, 1, 1))));
+        result.add (new Example ("ribbon-limits", "Ribbon", "Ribbon · maximum CC and final choices", "CC 127, Last Touched and Length. The numeric cell is selected on screen with its physical light off; the final two lower cells remain blank and off.", "RibbonPageRenderer", RibbonPageRenderer.render (new RibbonPagePresentation (true, 5, 127, 2))));
+        result.add (new Example ("ribbon-unavailable", "Ribbon", "Ribbon · unavailable settings", "Retained function, CC and repeat values cannot render choices or lights without available read-back.", "RibbonPageRenderer", RibbonPageRenderer.render (new RibbonPagePresentation (false, 5, 127, 2))));
+
         result.add (new Example ("macros-stress", "Macros", "Project macros · text and touch", "Normal, touched, minimum and maximum rings; on/off toggles; long labels and values; an absent eighth control.", "MacroPageRenderer", MacroPageRenderer.render (new MacroPagePresentation (List.of (
             macro (0, "Cutoff", "1.25 kHz", 0.45, MacroPagePresentation.Widget.RING, false),
             macro (1, "Cutoff", "1.25 kHz", 0.45, MacroPagePresentation.Widget.RING, true),
@@ -175,7 +186,7 @@ public final class UiComponentCatalog
             footer (4, "Open group", DisplayIcon.GROUP_TRACK_OPEN, WHITE, true, true, false),
             footer (5, "Group", DisplayIcon.GROUP_TRACK, ORANGE, false, true, false),
             footer (6, "Pinned", DisplayIcon.PIN, GREEN, false, true, false))))));
-        final List<String> families = List.of ("Master", "Track mix", "Global mixer", "Macros", "Settings", "Frame", "Info", "Accent", "Track footer");
+        final List<String> families = List.of ("Master", "Track mix", "Global mixer", "Macros", "Settings", "Frame", "Info", "Setup", "Ribbon", "Accent", "Track footer");
         result.sort (Comparator.comparingInt (example -> {
             final int index = families.indexOf (example.group ());
             return index < 0 ? families.size () : index;
@@ -202,7 +213,11 @@ public final class UiComponentCatalog
             parameter ("frequency", "Value + unit", "1.25", "kHz", BLUE), parameter ("long-number", "Long number", "123456.789", "Hz", BLUE),
             parameter ("long-text", "Text value", "A very long textual value", "", BLUE), parameter ("long-unit", "Long unit", "−∞", "VeryLongUnit", BLUE),
             parameter ("unicode", "Unicode", "−∞", "dB", BLUE), parameter ("empty", "Absent value", "", "", BLUE)), COMPONENT_COLORS);
-        return List.of (choices, toggles, rings, parameters);
+        final Component curves = new Component ("component-curve", "Response curve", "Supplied samples joined inside a bounded area. Empty data draws nothing; the shared color input changes the curve stroke.", "ResponseCurve", List.of (
+            curve ("linear", "Linear", IntStream.range (0, 128).mapToObj (value -> value / 127.0).toList ()),
+            curve ("minimum", "Minimum", List.of (0.0, 0.0)), curve ("maximum", "Maximum", List.of (1.0, 1.0)),
+            curve ("step", "Endpoint step", List.of (0.0, 0.0, 1.0, 1.0)), curve ("empty", "Unavailable", List.of ())), COMPONENT_COLORS);
+        return List.of (choices, toggles, rings, parameters, curves);
     }
 
     private static Variant choice (final String id, final String title, final ChoiceCell cell, final ChoiceCell.Style style)
@@ -237,6 +252,16 @@ public final class UiComponentCatalog
         final int height = (int) MacroPageStyle.VALUE.height () + 16;
         final List<DisplayCommand> commands = background (width, height);
         ParameterValue.append (commands, new ParameterValue.Content (value, unit), 8, 8, color, MacroPageStyle.VALUE);
+        return new Variant (id, title, new ControllerDisplayScene (width, height, commands));
+    }
+
+    private static Variant curve (final String id, final String title, final List<Double> samples)
+    {
+        final ResponseCurve.Style style = new ResponseCurve.Style (90, 34, 1);
+        final int width = (int) style.width () + 16;
+        final int height = (int) style.height () + 16;
+        final List<DisplayCommand> commands = background (width, height);
+        ResponseCurve.append (commands, samples, 8, 8, BLUE, style);
         return new Variant (id, title, new ControllerDisplayScene (width, height, commands));
     }
 
@@ -325,7 +350,7 @@ public final class UiComponentCatalog
         <div class="component-controls" role="group" aria-label="Component preview controls">
         <label for="component-color">Component color</label><input id="component-color" type="color" value="$DEFAULT_COLOR">
         <input id="component-color-hex" type="text" value="$DEFAULT_COLOR" aria-label="Hex color" aria-describedby="color-error" spellcheck="false" maxlength="7">
-        <button id="reset-color" type="button">Reset</button><p>Toggle, ring and parameter value</p>
+        <button id="reset-color" type="button">Reset</button><p>Toggle, ring, parameter value and response curve</p>
         <p id="color-error" role="status" hidden>Use six hex digits, for example #3ea0ff.</p></div>
         """;
 

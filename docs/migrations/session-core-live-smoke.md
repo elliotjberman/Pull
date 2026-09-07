@@ -45,3 +45,8 @@ live traces show routed effects and later state, not an independent log of each 
 API 25 release is submission, not completion. This smoke does not prove audible/native learned MIDI,
 physical feel or exhaustive editing variants; create-clip preference variants retain offline coverage.
 General asynchronous reload draining and remaining shell adapters stay explicitly tracked.
+
+After this smoke, master merged Setup/Ribbon settings, arrow navigation and light refresh.
+The combined API 50 source passes the deprecation-enabled package: 1,018 tests (522 core, 485 shell,
+11 publisher), no failures/errors/skips or changed-code deprecations. It was not installed after the user
+resumed Bitwig. This API 49 record does not establish live coverage for those later integrations.

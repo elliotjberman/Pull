@@ -72,6 +72,9 @@ cannot prove that Push is still connected; disconnects without a new identity re
 
 ## Live Push display loop
 
+For startup light-refresh changes, verify button/pad output before the separate ten-second macOS
+resend, then check that shutdown leaves the lights off. Offline tests cannot prove physical replay.
+
 Bitwig, its loaded Pull shell/core, and the physical Push form one shared live environment. Acquire
 its machine-wide lease before installing, reloading, restarting, or driving debug input, and keep
 the lease through the complete smoke test:

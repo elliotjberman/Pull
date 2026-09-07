@@ -719,28 +719,14 @@ public abstract class AbstractControlSurface<C extends Configuration> implements
     @Override
     public void forceFlush ()
     {
-        this.flushButtonLEDs ();
+        // Resend current hardware state without replacing light suppliers.
+        this.clearCache ();
 
         // Refresh all knob/fader LEDs
         this.continuous.forEach ( (id, control) -> control.forceFlush ());
 
-        // Flush additional lights which are not assigned to a button
-        this.lights.forEach ( (outputID, light) -> light.forceFlush ());
-
         if (this.lightGuide != null)
             this.lightGuide.forceFlush ();
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void flushButtonLEDs ()
-    {
-        this.buttons.forEach ( (id, button) -> {
-            final IHwLight light = button.getLight ();
-            if (light != null)
-                light.forceFlush ();
-        });
     }
 
 

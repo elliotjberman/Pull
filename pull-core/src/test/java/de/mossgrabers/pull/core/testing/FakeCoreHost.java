@@ -221,6 +221,26 @@ final class FakeCoreHost
     }
 
 
+    /** Deliver a physical controller-touch edge with authoritative touched state. */
+    void controllerTouch (final ControlId controlId, final boolean touched)
+    {
+        if (touched)
+            this.touchedControls.add (controlId);
+        else
+            this.touchedControls.remove (controlId);
+
+        this.revision++;
+        this.eventSequence++;
+        this.effectExecutor.apply (this.core.handle (new ControllerInputEvent (
+            this.eventSequence,
+            this.time.nowNanos (),
+            controlId,
+            InputKind.TOUCH,
+            touched ? InputPhase.BEGIN : InputPhase.END,
+            touched ? 127 : 0), this.snapshot ()));
+    }
+
+
     /**
      * Deliver one normalized controller motion sample.
      *

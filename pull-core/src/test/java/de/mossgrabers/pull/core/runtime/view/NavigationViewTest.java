@@ -20,23 +20,23 @@ import static org.junit.jupiter.api.Assertions.*;
 class NavigationViewTest
 {
     @Test
-    void mixerArrowsPageNormallyAndShiftSwapsTheModelCursor ()
+    void mixerArrowsScrollOneTrackAndShiftPagesWithoutReordering ()
     {
         final Fixture fixture = new Fixture (NavigationView.Horizontal.MIXER);
-        assertEquals (Operation.TRACK_PAGE_PREVIOUS, fixture.press ("LEFT", false));
-        assertEquals (Operation.TRACK_PAGE_NEXT, fixture.press ("RIGHT", false));
-        assertEquals (Operation.CURSOR_SWAP_PREVIOUS, fixture.press ("LEFT", true));
-        assertEquals (Operation.CURSOR_SWAP_NEXT, fixture.press ("RIGHT", true));
+        assertEquals (Operation.TRACK_SCROLL_PREVIOUS, fixture.press ("LEFT", false));
+        assertEquals (Operation.TRACK_SCROLL_NEXT, fixture.press ("RIGHT", false));
+        assertEquals (Operation.TRACK_PAGE_PREVIOUS, fixture.press ("LEFT", true));
+        assertEquals (Operation.TRACK_PAGE_NEXT, fixture.press ("RIGHT", true));
     }
 
     @Test
-    void vsLiveArrowsPageNormallyAndShiftScrollsWithoutSwapping ()
+    void vsLiveArrowsScrollOneTrackAndShiftPages ()
     {
         final Fixture fixture = new Fixture (NavigationView.Horizontal.SESSION);
-        assertEquals (Operation.TRACK_PAGE_PREVIOUS, fixture.press ("LEFT", false));
-        assertEquals (Operation.TRACK_PAGE_NEXT, fixture.press ("RIGHT", false));
-        assertEquals (Operation.TRACK_SCROLL_PREVIOUS, fixture.press ("LEFT", true));
-        assertEquals (Operation.TRACK_SCROLL_NEXT, fixture.press ("RIGHT", true));
+        assertEquals (Operation.TRACK_SCROLL_PREVIOUS, fixture.press ("LEFT", false));
+        assertEquals (Operation.TRACK_SCROLL_NEXT, fixture.press ("RIGHT", false));
+        assertEquals (Operation.TRACK_PAGE_PREVIOUS, fixture.press ("LEFT", true));
+        assertEquals (Operation.TRACK_PAGE_NEXT, fixture.press ("RIGHT", true));
     }
 
     @Test
@@ -56,21 +56,24 @@ class NavigationViewTest
     }
 
     @Test
-    void lightsUseObservedScrollFlagsEvenWhenSwapApplicabilityDiffers ()
+    void lightsFollowObservedItemOrPageAvailabilityForTheCurrentModifier ()
     {
-        final Fixture fixture = new Fixture (NavigationView.Horizontal.MIXER);
-        fixture.trackNavigation = new BankNavigationSnapshot (16, false, true, true, false);
-        fixture.sceneNavigation = new BankNavigationSnapshot (16, true, false, false, true);
-        final RgbColor on = new RgbColor (60, 60, 60);
-        final RgbColor off = new RgbColor (0, 0, 0);
-        assertEquals (Map.of (button ("LEFT"), on, button ("RIGHT"), off, button ("UP"), on, button ("DOWN"), off), fixture.workspace.activate (fixture.snapshot (false)).desiredOutput ().lights ());
-        assertEquals (Map.of (button ("LEFT"), off, button ("RIGHT"), on, button ("UP"), off, button ("DOWN"), on), fixture.workspace.activate (fixture.snapshot (true)).desiredOutput ().lights ());
-        // Input is still submitted at the bank edge; a light is feedback, not command permission.
-        assertEquals (Operation.CURSOR_SWAP_PREVIOUS, fixture.press ("LEFT", true));
-        assertEquals (off, fixture.workspace.activate (fixture.snapshot (true)).desiredOutput ().lights ().get (button ("LEFT")));
-        // Only a later explicit host observation changes the output.
-        fixture.trackNavigation = new BankNavigationSnapshot (16, true, false, true, false);
-        assertEquals (on, fixture.workspace.activate (fixture.snapshot (true)).desiredOutput ().lights ().get (button ("LEFT")));
+        for (final NavigationView.Horizontal mode: List.of (NavigationView.Horizontal.MIXER, NavigationView.Horizontal.SESSION))
+        {
+            final Fixture fixture = new Fixture (mode);
+            fixture.trackNavigation = new BankNavigationSnapshot (16, false, true, true, false);
+            fixture.sceneNavigation = new BankNavigationSnapshot (16, true, false, false, true);
+            final RgbColor on = new RgbColor (60, 60, 60);
+            final RgbColor off = new RgbColor (0, 0, 0);
+            assertEquals (Map.of (button ("LEFT"), off, button ("RIGHT"), on, button ("UP"), on, button ("DOWN"), off), fixture.workspace.activate (fixture.snapshot (false)).desiredOutput ().lights ());
+            assertEquals (Map.of (button ("LEFT"), on, button ("RIGHT"), off, button ("UP"), off, button ("DOWN"), on), fixture.workspace.activate (fixture.snapshot (true)).desiredOutput ().lights ());
+            // Input is still submitted at the bank edge; a light is feedback, not command permission.
+            assertEquals (Operation.TRACK_SCROLL_PREVIOUS, fixture.press ("LEFT", false));
+            assertEquals (off, fixture.workspace.activate (fixture.snapshot (false)).desiredOutput ().lights ().get (button ("LEFT")));
+            // Only a later explicit host observation changes the output.
+            fixture.trackNavigation = new BankNavigationSnapshot (16, true, false, true, false);
+            assertEquals (on, fixture.workspace.activate (fixture.snapshot (false)).desiredOutput ().lights ().get (button ("LEFT")));
+        }
     }
 
     @Test
@@ -82,7 +85,7 @@ class NavigationViewTest
         assertEquals (Set.of (ControllerStateScope.ACTIVE_PARAMETERS), action.intent ().invalidates ());
         fixture.navigationGeneration = 22;
         final var effects = fixture.workspace.dispatchAction (action, fixture.snapshot (false));
-        assertEquals (List.of (new CurrentTrackNavigationEffect (11, "bank-a", Operation.CURSOR_SWAP_PREVIOUS)), effects);
+        assertEquals (List.of (new CurrentTrackNavigationEffect (11, "bank-a", Operation.TRACK_PAGE_PREVIOUS)), effects);
     }
 
     @Test

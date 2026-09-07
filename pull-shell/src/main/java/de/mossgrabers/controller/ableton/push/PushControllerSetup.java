@@ -24,7 +24,6 @@ import de.mossgrabers.controller.ableton.push.command.trigger.PushQuantizeComman
 import de.mossgrabers.controller.ableton.push.command.trigger.RasteredKnobCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.ScalesCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.SelectCommand;
-import de.mossgrabers.controller.ableton.push.command.trigger.SetupCommand;
 import de.mossgrabers.controller.ableton.push.command.trigger.ShiftCommand;
 import de.mossgrabers.controller.ableton.push.controller.Push2Display;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
@@ -35,10 +34,8 @@ import de.mossgrabers.controller.ableton.push.mode.GrooveMode;
 import de.mossgrabers.controller.ableton.push.mode.NoteMode;
 import de.mossgrabers.controller.ableton.push.mode.NoteRepeatMode;
 import de.mossgrabers.controller.ableton.push.mode.QuantizeMode;
-import de.mossgrabers.controller.ableton.push.mode.RibbonMode;
 import de.mossgrabers.controller.ableton.push.mode.ScaleLayoutMode;
 import de.mossgrabers.controller.ableton.push.mode.ScalesMode;
-import de.mossgrabers.controller.ableton.push.mode.configuration.SetupMode;
 import de.mossgrabers.controller.ableton.push.mode.device.DeviceBrowserMode;
 import de.mossgrabers.controller.ableton.push.mode.device.DeviceChainsMode;
 import de.mossgrabers.controller.ableton.push.mode.device.DeviceLayerDetailsMode;
@@ -306,7 +303,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         modeManager.register (Modes.SCALES, new ScalesMode (surface, this.model));
         modeManager.register (Modes.SCALE_LAYOUT, new ScaleLayoutMode (surface, this.model));
         modeManager.register (Modes.FIXED, new FixedMode (surface, this.model));
-        modeManager.register (Modes.RIBBON, new RibbonMode (surface, this.model));
+        modeManager.register (Modes.RIBBON, corePageAdapter);
 
         modeManager.register (Modes.AUTOMATION, corePageAdapter);
         modeManager.register (Modes.TRANSPORT, corePageAdapter);
@@ -314,7 +311,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         modeManager.register (Modes.WORKSPACE, corePageAdapter);
 
         modeManager.register (Modes.INFO, corePageAdapter);
-        modeManager.register (Modes.SETUP, new SetupMode (surface, this.model));
+        modeManager.register (Modes.SETUP, corePageAdapter);
 
         modeManager.register (Modes.REPEAT_NOTE, new NoteRepeatMode (surface, this.model));
         modeManager.register (Modes.ADD_TRACK, new AddTrackMode (surface, this.model));
@@ -480,7 +477,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         this.addButton (ButtonID.FOOTSWITCH2, "Foot Controller", new FootswitchCommand<> (this.model, surface, 0), PushControlSurface.PUSH_FOOTSWITCH2);
 
         this.addButton (ButtonID.LAYOUT, "Layout", CORE_OWNED_BUTTON_COMMAND, PushControlSurface.PUSH_BUTTON_LAYOUT);
-        this.addButton (ButtonID.SETUP, "Setup", new SetupCommand (this.model, surface), PushControlSurface.PUSH_BUTTON_SETUP, () -> modeManager.isActive (Modes.SETUP, Modes.INFO));
+        this.addButton (ButtonID.SETUP, "Setup", CORE_OWNED_BUTTON_COMMAND, PushControlSurface.PUSH_BUTTON_SETUP, () -> PushColorManager.resolveCoreButtonColor (this.colorManager, ButtonID.SETUP, this.reloadableRuntime.lightColor (PushControlIds.button ("SETUP"))));
         this.addButton (ButtonID.CONVERT, "Convert", new ConvertCommand<> (this.model, surface), PushControlSurface.PUSH_BUTTON_CONVERT, () -> {
             if (!this.model.canConvertClip ())
                 return 0;
