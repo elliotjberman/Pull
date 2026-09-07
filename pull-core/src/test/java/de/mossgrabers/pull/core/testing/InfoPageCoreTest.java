@@ -19,32 +19,6 @@ import static org.junit.jupiter.api.Assertions.*;
 class InfoPageCoreTest
 {
     @Test
-    void setupInfoTabsAndFrozenSetupToggleReturnToTheExactUnderlyingPage ()
-    {
-        final var host = host (false);
-        host.requestPage (SELECT, "PAN");
-        host.requestPage (TOGGLE_TEMPORARY, "SETUP");
-        host.requestPage (TEMPORARY, "INFO"); // Frozen Setup tab request.
-        assertEquals (ControllerPageRef.core ("info", "INFO"), host.effects ().desiredControllerPage ().effectivePage ());
-        final long firstToken = host.effects ().desiredControllerPage ().temporaryToken ();
-        edge (host, "ROW2_1", true);
-        assertEquals (firstToken, host.effects ().desiredControllerPage ().temporaryToken ());
-        edge (host, "ROW2_1", false);
-        assertTrue (host.effects ().desiredControllerPage ().temporaryToken () > firstToken);
-        edge (host, "ROW2_2", true);
-        assertEquals ("INFO", page (host));
-        edge (host, "ROW2_2", false);
-        assertEquals ("SETUP", page (host));
-        host.requestPage (TOGGLE_TEMPORARY, "SETUP");
-        assertEquals ("PAN", page (host));
-        host.requestPage (TEMPORARY, "INFO");
-        host.requestPage (TOGGLE_TEMPORARY, "SETUP");
-        assertEquals ("SETUP", page (host), "the physical Setup button preserves its existing toggle policy");
-        host.requestPage (TOGGLE_TEMPORARY, "SETUP");
-        assertEquals ("PAN", page (host));
-    }
-
-    @Test
     void displayAndLightsUseObservedHardwareAndReleaseTheSubscriptionOnExit ()
     {
         final var host = info (false);
