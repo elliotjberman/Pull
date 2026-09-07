@@ -65,7 +65,8 @@ Use existing routed behavior tests for submitted effects, later observed state a
 catalog fixture is visual evidence, not host/hardware or gesture validation.
 
 Info's hardware snapshot uses Core API 47 / bridge snapshot 15, requiring a shell install and
-restart before its first live smoke. Installed `11e33477` remains unchanged. Once live validation
+restart before its first live smoke. This task did not change the live installation; `11e33477`
+is its historical baseline, not a claim about the machine's current build. Once live validation
 is authorized, use the existing leased debugger/display loop to verify later identity read-back,
 Info/Setup navigation, inherited lower-row action variants and both light rows. A retained identity
 tuple does not prove that Push is still connected; the shell cannot observe a disconnect from these

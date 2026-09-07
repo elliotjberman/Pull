@@ -2,8 +2,9 @@
 
 Status: working source uses Core API 47 and checkpoint schema 6. Core owns typed pages,
 navigation/history, exact temporary ownership, composition and presentation; shell supplies bounded
-data/effects and one inert page projection. Latest installed/live-tested production is `11e33477`.
-Later cleanup and the Info migration are **not deployed or live tested**; the Push is disconnected.
+data/effects and one inert page projection. This UI work builds on the scoped live evidence for
+`11e33477`; later cleanup and the Info migration have **not been deployed or live tested by this task**.
+This records build provenance, not the machine's current installation or Push connection state.
 The Info hardware-read-back contract requires a shell install and restart before activation. Exact
 build identities, scoped results and limits are in [the validation record](docs/migrations/core-page-ownership-live-smoke.md).
 

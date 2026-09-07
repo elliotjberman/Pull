@@ -364,26 +364,14 @@ main {
     fill: var(--light);
 }
 
-.control[data-blink="slow"] .control-face {
-    animation: transmitted-light-blink 1s steps(1, end) infinite;
-}
-
-.control[data-blink="fast"] .control-face {
-    animation: transmitted-light-blink 0.5s steps(1, end) infinite;
-}
-
-.button-legend[data-blink="slow"] .button-label {
-    animation: transmitted-light-blink 1s steps(1, end) infinite;
-}
-
-.button-legend[data-blink="fast"] .button-label {
-    animation: transmitted-light-blink 0.5s steps(1, end) infinite;
-}
-
+.control[data-blink="slow"] .control-face,
+.button-legend[data-blink="slow"] .button-label,
 .button-display-row[data-blink="slow"] .row-light {
     animation: transmitted-light-blink 1s steps(1, end) infinite;
 }
 
+.control[data-blink="fast"] .control-face,
+.button-legend[data-blink="fast"] .button-label,
 .button-display-row[data-blink="fast"] .row-light {
     animation: transmitted-light-blink 0.5s steps(1, end) infinite;
 }
