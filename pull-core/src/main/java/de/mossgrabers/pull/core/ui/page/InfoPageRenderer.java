@@ -3,9 +3,7 @@
 package de.mossgrabers.pull.core.ui.page;
 
 import de.mossgrabers.pull.core.api.ControlId;
-import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.output.*;
-import de.mossgrabers.pull.core.ui.component.ChoiceCell;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -22,13 +20,7 @@ public final class InfoPageRenderer
         final Map<ControlId, RgbColor> lights = new LinkedHashMap<> ();
         final List<DisplayCommand> commands = new ArrayList<> ();
         commands.add (new DisplayCommand.Rectangle (0, 0, WIDTH, HEIGHT, BLACK));
-        for (int index = 0; index < COLUMNS; index++)
-        {
-            final ChoiceCell choice = new ChoiceCell (index == 0 ? "Info" : index == 1 ? "Setup" : "", true, index == 0);
-            choice.append (commands, index * COLUMN_WIDTH, 0, InfoPageStyle.CHOICE);
-            lights.put (PushControlIds.button ("ROW1_" + (index + 1)), BLACK);
-            lights.put (PushControlIds.button ("ROW2_" + (index + 1)), choice.lightColor ());
-        }
+        ConfigurationTabs.append (commands, lights, false);
         if (state.hardwareAvailable ())
         {
             field (commands, 0, 3, "Firmware", state.firmware ());

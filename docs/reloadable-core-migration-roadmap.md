@@ -12,9 +12,9 @@ workflow. Do not add new policy to frozen stable adapters.
 the controls listed below. It does **not** complete the shell-to-core migration. This document is
 the continuation checklist; owning navigation to a legacy page does not migrate that page's body.
 
-Working contract: Core API 47, bridge snapshot 15, checkpoint schema 6, Bitwig API 25. The latest
-installed/live-tested production source is `11e33477`; subsequent cleanup and Info migration have
-not been deployed or live tested. The new hardware snapshot requires a shell install and restart
+Working contract: Core API 49, bridge snapshot 16, checkpoint schema 6, Bitwig API 25. Scoped live evidence available to this task covers `11e33477`; subsequent cleanup and
+Info/Setup/Ribbon migrations have not been deployed or live tested by this task. This is build
+provenance, not a claim about the machine’s current installation. The hardware/settings contracts and drawing transport require a shell install and restart
 before activation.
 [The validation record](migrations/core-page-ownership-live-smoke.md) separates those states.
 
@@ -25,6 +25,7 @@ before activation.
 | Mixer pages | Project Macros, normal/VS Track, Volume, Pan, eight Sends and Master use named parameters, exact touches, read-back, core menus/footers and output. |
 | Global controls/pages | Play/Record, Mute/Solo, Tap Tempo, Undo/Redo, Track/Mix, Master/Frame, Accent, Metronome/Automation, migrated arrows and their feedback are core-owned. |
 | Info | Hardware identity presentation, Info/Setup menu, inherited lower-row current-bank action variants, full display and row lights are core-owned. The subscribed one-surface hardware tuple is a new candidate canopy expansion, not installed production capability. |
+| Setup / Ribbon settings | Setup owns the physical button, five preferences, resets, calibration graph, shared Info tabs and lower-row variants. Ribbon owns its complete settings page; physical strip behavior and Shift-strip entry remain frozen legacy policy. Both are offline source candidates. |
 | Drum/Note | Selected-track applicability and Note/Layout policy, playable-pad pressure/lights, rates/roll, fills, octave/native maps and raw strip behavior are core-owned within the installed geometry. |
 | Session | Grid, scenes and page-button mechanics remain frozen adapters. Stop remains OBSERVE for the adapted Stop-plus-pad chord; its direct stable command is inert. |
 | Optional Session observation | `SESSION_CLIPS` is installed and useful, but has no production product consumer. It publishes a bounded slot/scene window only when explicitly subscribed; it does not establish action ownership or a release acknowledgement. |
@@ -65,7 +66,9 @@ stable policy is deleted. The sections below record the prerequisites and known 
 - [ ] Device, chain and layer pages: establish exact target identity before migrating their controls.
 - [ ] Browser contents and operations; its page entry/return lifecycle is already core-owned.
 - [ ] Crossfade, Track/Layer Details and Color workflows.
-- [ ] Configuration screens, remaining musical layouts, and clip/note/sequencer editing.
+- [x] Info, Setup and Ribbon settings page bodies (source cutover; live evidence pending).
+- [ ] Scales/Scale Layout, Repeat, Fixed Length and User; remaining musical layouts and clip/note/sequencer editing.
+- [ ] Remaining physical Ribbon behavior, including target-fenced Last Touched.
 - [ ] Remove the remaining facet adapters, legacy page aliases/inbox consumers and parameter
   providers as their last behavior migrates. Keep generic resource and transport mechanisms.
 
@@ -116,11 +119,11 @@ ownership; do not hide it behind a feature-shaped stable callback.
 
 ### Configuration, musical layouts and editing
 
-Migrate Scale/Scales Layout, Repeat/Ribbon, Fixed Length, Setup, User and remaining note-layout
-settings as complete action/feedback slices. Configuration persistence may stay mechanical in shell.
+Migrate Scale/Scales Layout, Repeat, Fixed Length, User, the remaining physical Ribbon behavior and
+remaining note-layout settings as complete action/feedback slices. Configuration persistence may stay mechanical in shell.
 Arbitrary musical geometry needs the [documented canopy expansion](findings/custom-musical-surface-geometry.md).
-Info is the first completed configuration slice in source; its capability expansion and live
-activation remain separate from the installed-build evidence. Fixed Length still depends on complete
+Info, Setup and the Ribbon settings page are completed source slices; their capability expansion
+and live activation remain separate from the installed-build evidence. Fixed Length still depends on complete
 Session create/launch/overdub behavior and cannot be treated as an eight-choice settings port.
 
 Clip and sequencer editing requires bounded note/step/clip windows, selection/page identity,
@@ -129,7 +132,7 @@ clip-length workflows; do not expose the inherited mode object graph or unbounde
 
 ## Cross-cutting work
 
-- General async reload quiescence is **explicitly parked by the user**. Keep the
+- General async reload quiescence and shared gesture lifecycle are being handled in a separate task. Keep the
   [active investigation](findings/core-reload-quiescence.md); existing gesture and Snapback gates do
   not cover every queued toggle or operation. Do not treat this cleanup as implementing a drain.
 - Parameter target identity/addressability, Snapback precision, learned-MIDI lifecycle, musical

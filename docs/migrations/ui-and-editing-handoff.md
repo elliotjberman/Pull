@@ -4,8 +4,8 @@ Migrate the remaining UI pages and musical editing behavior into reloadable core
 a clear, reusable UI component library. Each slice must make later UI improvements shared and easy
 to inspect. This is a completion checklist, not a claim that the remaining families have migrated
 or that they are independent of input and target capabilities. [Migration part 1, PR #40](https://github.com/elliotjberman/Pull/pull/40)
-merged as `8659c2d1` with Core API 46 / Bitwig API 25. The current Info candidate advances the
-parent-loaded contract to Core API 47 / bridge snapshot 15; Bitwig API remains 25.
+merged as `8659c2d1` with Core API 46 / Bitwig API 25. PR #42 supplied the shared library and Info. The Setup/Ribbon continuation uses Core API 49 /
+bridge snapshot 16; Bitwig API remains 25.
 Installed-build provenance remains in the [validation record](core-page-ownership-live-smoke.md).
 
 ## Scope and starting points
@@ -30,9 +30,10 @@ Choose a complete small slice first, preferably a settings page whose required s
 already available. Keep a checklist in the PR; split subsequent slices when their capability or
 live-validation requirements differ. Do not claim the whole inventory as one mechanical port.
 
-Info is now migrated in source and represented in the central offline catalog. [ARCH](../../ARCH.md#core-owned-pages-and-working-contract)
+Info, Setup and the Ribbon settings page are migrated in source and represented in the central offline catalog. [ARCH](../../ARCH.md#core-owned-pages-and-working-contract)
 defines its complete footprint and hardware observation limits; [activation status](../../ARCH.md)
-records the required shell restart and pending live verification. Setup remains in the checklist.
+records the required shell restart and pending live verification. Scales/Scale Layout, Repeat,
+Fixed Length, User and the remaining physical Ribbon behavior remain on the checklist.
 
 ## Shared interaction work: decision versus shipping behavior
 

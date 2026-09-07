@@ -82,3 +82,18 @@ The cleanup's independent architecture review found no P0/P1/P2 issue or lost re
 coverage. Its stale status paragraph and the size review's remaining isolated-constructor finding
 are corrected. Recommendation remains **merge with tracked debt**. The cleanup is not installed or
 live tested; the physical Push is disconnected and the installed build remains unchanged.
+
+
+## Setup and Ribbon settings continuation
+
+Two review findings are resolved: retained receivers could flush queued settings after leaving a
+page, and a deferred Ribbon choice could first-submit after earlier navigation in the same admission
+batch. Shared settings fence unsent intent by exact page/workspace revision; Ribbon rechecks that
+origin at completion. Routed tests cover both defects. This does not replace the separate input
+lifecycle or async quiescence work.
+
+The two-agent review found no remaining architectural blocker. Duplicate tests and a test-only API
+overload were removed; scope and remaining debt are in the [handoff](ui-and-editing-handoff.md).
+Validation remains offline: the deprecation-enabled package and shared gallery passed, with no
+changed-code deprecation warnings. First live activation/read-back is pending; Bitwig was owned by
+another task and was not installed, reloaded or driven.

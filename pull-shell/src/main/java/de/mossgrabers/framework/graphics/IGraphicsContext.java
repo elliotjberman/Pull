@@ -222,6 +222,9 @@ public interface IGraphicsContext
      */
     void drawLine (double x1, double y1, double x2, double y2, ColorEx lineColor);
 
+    /** Draw one line with explicit stroke width. */
+    void drawLine (double x1, double y1, double x2, double y2, ColorEx lineColor, double lineWidth);
+
 
     /**
      * Draws text at a specific baseline.

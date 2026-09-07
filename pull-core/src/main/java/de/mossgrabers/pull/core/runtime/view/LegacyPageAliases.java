@@ -42,6 +42,8 @@ public final class LegacyPageAliases
         result.put ("ACCENT", PageId.ACCENT);
         result.put ("FRAME", PageId.FRAME);
         result.put ("INFO", PageId.INFO);
+        result.put ("SETUP", PageId.SETUP);
+        result.put ("RIBBON", PageId.RIBBON);
         for (int index = 0; index < 8; index++)
             result.put ("SEND" + (index + 1), PageId.send (index));
         return java.util.Collections.unmodifiableMap (result);

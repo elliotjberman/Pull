@@ -8,40 +8,16 @@ import de.mossgrabers.pull.core.api.event.InputKind;
 import de.mossgrabers.pull.core.api.output.*;
 import de.mossgrabers.pull.core.runtime.PullCoreProvider;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import java.util.*;
 import java.util.stream.IntStream;
 import static de.mossgrabers.pull.core.api.LegacyControllerPageRequest.Operation.*;
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Exercises Info through the production core router and later authoritative read-back. */
+/** Exercises the configuration pages through the production core router and later read-back. */
 class InfoPageCoreTest
 {
-    @Test
-    void setupInfoTabsAndFrozenSetupToggleReturnToTheExactUnderlyingPage ()
-    {
-        final var host = host (false);
-        host.requestPage (SELECT, "PAN");
-        host.requestPage (TOGGLE_TEMPORARY, "SETUP");
-        host.requestPage (TEMPORARY, "INFO"); // Frozen Setup tab request.
-        assertEquals (ControllerPageRef.core ("info", "INFO"), host.effects ().desiredControllerPage ().effectivePage ());
-        final long firstToken = host.effects ().desiredControllerPage ().temporaryToken ();
-        edge (host, "ROW2_1", true);
-        assertEquals (firstToken, host.effects ().desiredControllerPage ().temporaryToken ());
-        edge (host, "ROW2_1", false);
-        assertTrue (host.effects ().desiredControllerPage ().temporaryToken () > firstToken);
-        edge (host, "ROW2_2", true);
-        assertEquals ("INFO", page (host));
-        edge (host, "ROW2_2", false);
-        assertEquals ("SETUP", page (host));
-        host.requestPage (TOGGLE_TEMPORARY, "SETUP");
-        assertEquals ("PAN", page (host));
-        host.requestPage (TEMPORARY, "INFO");
-        host.requestPage (TOGGLE_TEMPORARY, "SETUP");
-        assertEquals ("SETUP", page (host), "the physical Setup button preserves its existing toggle policy");
-        host.requestPage (TOGGLE_TEMPORARY, "SETUP");
-        assertEquals ("PAN", page (host));
-    }
-
     @Test
     void displayAndLightsUseObservedHardwareAndReleaseTheSubscriptionOnExit ()
     {
@@ -62,12 +38,13 @@ class InfoPageCoreTest
         assertFalse (host.effects ().desiredBridgeSubscriptions ().domains ().contains (BridgeSubscription.CONTROLLER_HARDWARE));
     }
 
-    @Test
-    void everyLowerRowSelectsOnlyItsCapturedTrackOnReleaseDespiteModifiers ()
+    @ParameterizedTest
+    @ValueSource (strings = { "INFO", "SETUP" })
+    void everyLowerRowSelectsOnlyItsCapturedTrackOnReleaseDespiteModifiers (final String page)
     {
         for (int index = 0; index < 8; index++)
         {
-            final var host = info (false);
+            final var host = configuration (false, page);
             for (final String modifier: List.of ("SHIFT", "DELETE", "SELECT", "RECORD")) edge (host, modifier, true);
             edge (host, "ROW1_" + (index + 1), true);
             assertTrue (effects (host, CurrentTrackActionEffect.class).isEmpty ());
@@ -78,32 +55,35 @@ class InfoPageCoreTest
         }
     }
 
-    @Test
-    void leavingAndReturningToThePageOrBankCannotReviveAHeldRowOrTab ()
+    @ParameterizedTest
+    @ValueSource (strings = { "INFO", "SETUP" })
+    void leavingAndReturningToThePageOrBankCannotReviveAHeldRowOrTab (final String page)
     {
-        final var host = info (false);
+        final var host = configuration (false, page);
         edge (host, "ROW1_3", true);
         host.bridge (bridge (false, 2, ControllerHardwareSnapshot.empty ()));
         host.bridge (bridge (false, 1, ControllerHardwareSnapshot.empty ()));
         edge (host, "ROW1_3", false);
         assertTrue (effects (host, CurrentTrackActionEffect.class).isEmpty ());
         edge (host, "ROW1_3", true);
-        edge (host, "ROW2_2", true);
+        final String otherTab = page.equals ("INFO") ? "ROW2_2" : "ROW2_1";
+        edge (host, otherTab, true);
         host.requestPage (SELECT, "PAN");
-        host.requestPage (TEMPORARY, "INFO");
+        host.requestPage (TEMPORARY, page);
         edge (host, "ROW1_3", false);
-        edge (host, "ROW2_2", false);
-        assertEquals ("INFO", page (host));
+        edge (host, otherTab, false);
+        assertEquals (page, page (host));
         assertTrue (effects (host, CurrentTrackActionEffect.class).isEmpty ());
         edge (host, "ROW1_3", true);
         edge (host, "ROW1_3", false);
         assertEquals (1, effects (host, CurrentTrackActionEffect.class).size (), "a fresh gesture can acquire the current target");
     }
 
-    @Test
-    void stopChordStopsVisibleSessionTrackOnBeginAndConsumesPlainStop ()
+    @ParameterizedTest
+    @ValueSource (strings = { "INFO", "SETUP" })
+    void stopChordStopsVisibleSessionTrackOnBeginAndConsumesPlainStop (final String page)
     {
-        final var host = info (true);
+        final var host = configuration (true, page);
         edge (host, "STOP_CLIP", true);
         edge (host, "ROW1_3", true);
         assertEquals (List.of (new StopSessionTrackEffect (3, new SessionBankShape (8, 8), 2, "track-2", true)), effects (host, StopSessionTrackEffect.class));
@@ -115,17 +95,18 @@ class InfoPageCoreTest
         assertTrue (effects (host, StopSessionBankEffect.class).isEmpty ());
     }
 
-    @Test
-    void bothTabAndUnusedUpperRowConsumeSessionStopWhileTabsStillNavigate ()
+    @ParameterizedTest
+    @ValueSource (strings = { "INFO", "SETUP" })
+    void bothTabAndUnusedUpperRowConsumeSessionStopWhileTabsStillNavigate (final String page)
     {
         for (final String button: List.of ("ROW2_1", "ROW2_2", "ROW2_8"))
         {
-            final var host = info (true);
+            final var host = configuration (true, page);
             edge (host, "STOP_CLIP", true);
             edge (host, button, true);
             edge (host, button, false);
             edge (host, "STOP_CLIP", false);
-            assertEquals (button.equals ("ROW2_2") ? "SETUP" : "INFO", page (host));
+            assertEquals (button.equals ("ROW2_1") ? "INFO" : button.equals ("ROW2_2") ? "SETUP" : page, page (host));
             assertTrue (effects (host, SelectedTrackActionEffect.class).isEmpty ());
             assertTrue (effects (host, StopSessionTrackEffect.class).isEmpty ());
         }
@@ -140,9 +121,9 @@ class InfoPageCoreTest
         for (int index = 1; index <= 8; index++)
         {
             final ControlId knob = PushControlIds.continuous ("KNOB" + index);
-            host.touch (knob, true);
+            host.controllerTouch (knob, true);
             host.controllerMotion (knob, InputKind.RELATIVE, 10);
-            host.touch (knob, false);
+            host.controllerTouch (knob, false);
         }
         assertEquals (before, host.effects ().executionOrder ().size ());
         edge (host, "STOP_CLIP", true);
@@ -152,7 +133,8 @@ class InfoPageCoreTest
         assertTrue (effects (host, StopSessionTrackEffect.class).isEmpty ());
     }
 
-    private static FakeCoreHost info (final boolean session) { final var host = host (session); host.requestPage (TEMPORARY, "INFO"); return host; }
+    private static FakeCoreHost info (final boolean session) { return configuration (session, "INFO"); }
+    private static FakeCoreHost configuration (final boolean session, final String page) { final var host = host (session); host.requestPage (TEMPORARY, page); return host; }
     private static FakeCoreHost host (final boolean session)
     {
         final var provider = new PullCoreProvider ();

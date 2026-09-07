@@ -176,7 +176,7 @@ class PageNavigationTest
         this.pages.restoreState (new DesiredControllerPageState (17, ControllerPageRef.legacy ("INFO"), setup,
             Optional.of (new ControllerTemporaryPage (29, ControllerPageRef.legacy ("INFO"))), 12, Set.of (ParameterSlot.TEMPO)));
 
-        assertEquals (new DesiredControllerPageState (17, info, setup, Optional.of (new ControllerTemporaryPage (29, info)), 12, Set.of (ParameterSlot.TEMPO)), this.pages.state ());
+        assertEquals (new DesiredControllerPageState (17, info, this.pages.resolve ("SETUP"), Optional.of (new ControllerTemporaryPage (29, info)), 12, Set.of (ParameterSlot.TEMPO)), this.pages.state ());
         assertFalse (this.pages.releaseTemporary (28));
         assertTrue (this.pages.releaseTemporary (29));
         assertEquals (info, this.pages.visible ());

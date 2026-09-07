@@ -9,9 +9,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import com.bitwig.extension.api.graphics.GraphicsOutput;
+import de.mossgrabers.bitwig.framework.graphics.GraphicsContextImpl;
+import de.mossgrabers.framework.controller.color.ColorEx;
 
 import de.mossgrabers.framework.graphics.DefaultBounds;
 import de.mossgrabers.framework.graphics.DefaultGraphicsDimensions;
@@ -55,6 +60,48 @@ class DisplaySceneComponentTest
         assertEquals (1, calls.stream ().filter (call -> "popClip".equals (call.method ())).count ());
         assertEquals (4, calls.stream ().filter (call -> "fillCircle".equals (call.method ())).count ());
         assertEquals (new DisplaySceneComponent (scene), new DisplaySceneComponent (scene));
+    }
+
+
+    @Test
+    void transmitsScaledLinesAndTheirClipWithoutLeakingStrokeWidthIntoLaterDrawing ()
+    {
+        final RgbColor color = new RgbColor (62, 160, 255);
+        final ControllerDisplayScene scene = new ControllerDisplayScene (960, 160, List.of (
+            new DisplayCommand.PushClip (0, 0, 960, 143),
+            new DisplayCommand.Line (20, 30, 60, 70, 4, color),
+            new DisplayCommand.PopClip (),
+            new DisplayCommand.Line (20, 144, 60, 159, 2, color)));
+        final List<NativeStroke> strokes = new ArrayList<> ();
+        final Deque<NativeState> saved = new ArrayDeque<> ();
+        final NativeState[] state = {new NativeState (7, null)};
+        final RectangleCall[] pathRectangle = new RectangleCall[1];
+        final double[] path = new double[4];
+        final GraphicsOutput output = (GraphicsOutput) Proxy.newProxyInstance (GraphicsOutput.class.getClassLoader (), new Class<?> [] {GraphicsOutput.class}, (proxy, method, arguments) -> {
+            switch (method.getName ())
+            {
+                case "save" -> saved.push (state[0]);
+                case "restore" -> state[0] = saved.pop ();
+                case "setLineWidth" -> state[0] = new NativeState (((Number) arguments[0]).doubleValue (), state[0].clip ());
+                case "rectangle" -> pathRectangle[0] = rectangle (arguments);
+                case "clip" -> state[0] = new NativeState (state[0].width (), pathRectangle[0]);
+                case "moveTo" -> { path[0] = ((Number) arguments[0]).doubleValue (); path[1] = ((Number) arguments[1]).doubleValue (); }
+                case "lineTo" -> { path[2] = ((Number) arguments[0]).doubleValue (); path[3] = ((Number) arguments[1]).doubleValue (); }
+                case "stroke" -> strokes.add (new NativeStroke (path[0], path[1], path[2], path[3], state[0].width (), state[0].clip ()));
+                default -> { }
+            }
+            return relaxedValue (method.getReturnType ());
+        });
+        final GraphicsContextImpl context = new GraphicsContextImpl (GraphicsOutput.AntialiasMode.OFF, output);
+
+        new DisplaySceneComponent (scene).draw (new DefaultGraphicsInfo (context, null, new DefaultGraphicsDimensions (960, 160, 1024), new DefaultBounds (7, 11, 480, 320)));
+        context.drawLine (1, 2, 3, 4, ColorEx.WHITE);
+
+        assertEquals (List.of (
+            new NativeStroke (17, 71, 37, 151, 2, new RectangleCall (7, 11, 480, 286)),
+            new NativeStroke (17, 299, 37, 329, 1, null),
+            new NativeStroke (1, 2, 3, 4, 7, null)), strokes);
+        assertTrue (saved.isEmpty ());
     }
 
 
@@ -203,6 +250,11 @@ class DisplaySceneComponentTest
         final double fitted = Math.min (maximumFontSize, width / (text.length () * 0.6));
         return fitted < minimumFontSize ? -1 : fitted;
     }
+
+
+    private record NativeState (double width, RectangleCall clip) { }
+
+    private record NativeStroke (double x1, double y1, double x2, double y2, double width, RectangleCall clip) { }
 
 
     private record RectangleCall (double x, double y, double width, double height)

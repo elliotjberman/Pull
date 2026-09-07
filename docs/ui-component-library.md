@@ -9,7 +9,7 @@ the offline catalog renders those same components and pages.
 | Layer | Owns | Does not own |
 | --- | --- | --- |
 | `core.ui.PageStyle` | Shared display dimensions, column geometry and neutral palette | Page selection or host state |
-| `core.ui.component` | Choice cells, toggles, ring meters and bounded parameter-value drawing | Physical input, host lookup, target acquisition or effects |
+| `core.ui.component` | Choice cells, toggles, ring meters, response curves and bounded parameter-value drawing | Physical input, host lookup, target acquisition or effects |
 | `core.ui.page` | Family presentation records, styles, page assembly and track footers | Navigation, gesture lifetime or mutable host objects |
 | Feature `ControllerView` | Fixed surface claims, observed-state projection, exact input targets and requested effects | A second private copy of shared rendering |
 | Workspace compiler | Disjoint composition and display clip scopes | Arbitrary control remapping |
@@ -24,10 +24,11 @@ does not integrate or replace production input routing.
 
 | Component | Contract | Consumers |
 | --- | --- | --- |
-| `ChoiceCell` | Label, availability and observed selection produce one fitted cell and matching light color. Empty/unavailable choices are blank and off. | Automation, Metronome, Frame and Info |
+| `ChoiceCell` | Label, availability and observed selection produce one fitted cell and matching light color. Empty/unavailable choices are blank and off. | Automation, Metronome, Frame, Info, Setup and Ribbon |
 | `Toggle` | One shared on/off geometry, with page-supplied position and resolved color | Macro Boolean parameters and Master audio engine |
-| `RingMeter` | Normalized value and explicit family geometry/colors produce a dotted meter | Mixer, Macro and Accent |
-| `ParameterValue` | Typed value/unit content fits within explicit separate fields | Mixer, Macro and Accent |
+| `RingMeter` | Normalized value and explicit family geometry/colors produce a dotted meter | Mixer, Macro, Accent and Setup |
+| `ParameterValue` | Typed value/unit content fits within explicit separate fields | Mixer, Macro, Accent and Setup |
+| `ResponseCurve` | Bounded normalized samples with explicit width, height, stroke and supplied color | Setup calibration graph |
 | `MixerDisplayScene` | Parameter-cell assembly, including knob/fader/pan and observed modulation | Track, global Volume/Pan/Sends, Master and Metronome |
 | `TrackFooterRenderer` | Track label/icon, selection contrast and inactive treatment, plus observed row feedback | Current-bank footer, Session footer and Master |
 
@@ -41,7 +42,10 @@ Info composes shared choice cells for its configuration menu and bounded text pr
 firmware, board revision and serial number. Aligned three/two/three-column fields replace manual
 spacing. Its feature view formats raw observed hardware values; the renderer receives only the
 presentation strings and availability. Missing identity shows a waiting message while Info/Setup
-navigation remains available. This field layout does not introduce a separate widget framework.
+navigation remains available. This field layout does not introduce a separate widget framework. Setup uses the same configuration
+tabs and shared parameter/ring drawing, plus a response curve from observed hardware settings.
+Ribbon uses the shared choice cells and option-row geometry; its numeric CC cell and quick-select
+actions preserve the existing distinctions between display selection and physical light feedback.
 
 To add a page, first complete the [capability audit](reloadable-core-migration-guide.md). Project
 its subscribed values into a family presentation, assemble existing components, and declare the
@@ -72,8 +76,8 @@ tools/ui-component-catalog
 ```
 
 The command builds offline and prints a local HTML path under `pull-core/target/ui-component-catalog`.
-**Components** shows individual choice cells, toggles, rings and parameter values at their own size.
-One shared color picker (or six-digit hex input) changes the supplied color for toggles, rings and
+**Components** shows individual choice cells, toggles, rings, response curves and parameter values at their own size.
+One shared color picker (or six-digit hex input) changes the supplied color for toggles, rings, response curves and
 parameter values. Examples vary state, value and text rather than duplicating each possible color.
 Choice cells retain their neutral selection palette, and ring tracks retain their family color.
 The SVG link opens the component with the current color and embedded Lato font. These controls work
@@ -85,7 +89,7 @@ Use it to inspect long names, missing values, unavailable/selected choices, touc
 value extremes before a live smoke. The catalog is a visual preview; its font rasterization and
 fixture data do not establish Bitwig read-back, hardware pixels or gesture behavior.
 Info adds known identity, observed transport limits (including a signed serial), and waiting-state
-examples to this same catalog.
+examples to this same catalog. Setup and Ribbon add normal, limit and unavailable examples here too.
 
 This catalog is the shared offline visual validation path. The mixer text-stress regression and
 catalog use the same input fixture; the former separate mixer PNG renderer has been removed.
@@ -97,7 +101,8 @@ complete view presentations and debugger integration remain future work in this 
 Keep representative fixtures with their production consumers. Test observable requests, later
 host read-back and feedback through the existing routed tests; avoid snapshot hashes that merely
 freeze a renderer's command list. Follow [TESTING](../TESTING.md) for live evidence. The initial
-library extraction was core-only; Info adds a parent-loaded hardware contract. See
+library extraction was core-only; Info, Setup and Ribbon add parent-loaded hardware/settings contracts
+and the response curve adds line transport. See
 [ARCH](../ARCH.md) for the current source API, required restart, and unchanged installed-build status.
 
 ## Next migration boundary
@@ -105,7 +110,8 @@ library extraction was core-only; Info adds a parent-loaded hardware contract. S
 The [UI/editing handoff](migrations/ui-and-editing-handoff.md) remains the checklist. Info's complete
 action/feedback slice now lives in core, with the subscribed hardware tuple described
 in [ARCH](../ARCH.md#core-owned-pages-and-working-contract). The tuple does not guarantee physical
-connection or recover values discarded by the existing hardware parser. Setup and the other legacy
-pages still need capability audits. Fixed Length additionally depends on Session create/launch/overdub
+connection or recover values discarded by the existing hardware parser. Setup and Ribbon settings
+now consume shared components too. Their offline cutover does not migrate the remaining physical
+Ribbon behavior, Scales/Scale Layout, Repeat or User. Fixed Length additionally depends on Session create/launch/overdub
 behavior; it cannot be treated as an eight-choice settings port. These are prerequisites, not
 capabilities supplied by this library.
