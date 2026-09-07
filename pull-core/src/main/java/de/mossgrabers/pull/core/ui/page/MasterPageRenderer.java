@@ -6,6 +6,7 @@ package de.mossgrabers.pull.core.ui.page;
 
 
 import de.mossgrabers.pull.core.api.ControlId;
+import de.mossgrabers.pull.core.ui.component.Toggle;
 import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
 import de.mossgrabers.pull.core.api.output.DisplayCommand;
@@ -42,7 +43,7 @@ public final class MasterPageRenderer
         drawFooter (commands, 2, "Cue", null, FOOTER_GRAY, false, true);
         appendControl (commands, page, 3);
         drawLabel (commands, 4, "Audio Engine");
-        ToggleRenderer.append (commands, left (4) + CONTENT_LEFT, RING_CENTER_Y, page.engineActive (), page.engineActive () ? TOGGLE_ON : GRAY);
+        Toggle.append (commands, left (4) + CONTENT_LEFT, RING_CENTER_Y, page.engineActive (), page.engineActive () ? TOGGLE_ON : GRAY);
         drawLabel (commands, 5, "Project");
         drawStatusValue (commands, 5, page.projectName ());
         drawHeader (commands, 6, "Previous", page.canPrevious ());

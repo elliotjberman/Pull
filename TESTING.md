@@ -51,6 +51,16 @@ mvn -o -pl pull-shell -am test
 For changes touching Bitwig API objects, follow `AGENTS.md` and run the complete package build with
 deprecation reporting before the live smoke test.
 
+## Offline UI catalog
+
+Run `tools/ui-component-catalog` to generate a local HTML gallery from production components and
+page renderers. The command prints the output path under `pull-core/target/ui-component-catalog`;
+open that HTML to compare normal, selected, touched, unavailable and long-text fixtures with their
+row lights. This requires neither Bitwig nor the Push debugger. See the
+[component library](docs/ui-component-library.md) for component contracts and preview limitations.
+Use existing routed behavior tests for submitted effects, later observed state and feedback; a
+catalog fixture is visual evidence, not host/hardware or gesture validation.
+
 ## Live Push display loop
 
 Bitwig, its loaded Pull shell/core, and the physical Push form one shared live environment. Acquire

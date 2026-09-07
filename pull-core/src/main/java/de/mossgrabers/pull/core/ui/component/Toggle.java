@@ -1,18 +1,18 @@
 // (c) 2026
 // Licensed under LGPLv3 - http://www.gnu.org/licenses/lgpl-3.0.txt
-package de.mossgrabers.pull.core.ui.page;
+package de.mossgrabers.pull.core.ui.component;
 
 import de.mossgrabers.pull.core.api.output.DisplayCommand;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import java.util.List;
-import static de.mossgrabers.pull.core.ui.page.PageStyle.*;
+import static de.mossgrabers.pull.core.ui.PageStyle.*;
 
 /** Shared toggle geometry; each page supplies its position and resolved color. */
-final class ToggleRenderer
+public final class Toggle
 {
-    private ToggleRenderer () { }
+    private Toggle () { }
 
-    static void append (final List<DisplayCommand> commands, final double left, final double centerY, final boolean on, final RgbColor color)
+    public static void append (final List<DisplayCommand> commands, final double left, final double centerY, final boolean on, final RgbColor color)
     {
         final double top = centerY - TOGGLE_HEIGHT / 2.0;
         final double radius = TOGGLE_HEIGHT / 2.0;

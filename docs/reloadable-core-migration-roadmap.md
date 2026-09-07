@@ -49,6 +49,10 @@ a shell build and restart. Behavior inside the installed canopy reloads in core.
 
 ## Remaining work and prerequisites
 
+The [UI/editing handoff](migrations/ui-and-editing-handoff.md) makes the reusable
+[component library](ui-component-library.md) an explicit deliverable of each UI slice. The current
+library serves existing core pages; it does not mark the remaining legacy families complete.
+
 Keep these items open until their complete behavior and feedback live in core and the corresponding
 stable policy is deleted. The sections below record the prerequisites and known limits.
 

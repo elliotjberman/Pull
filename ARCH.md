@@ -341,6 +341,10 @@ into immutable family-specific models in `core.ui.page`. Pure renderers consume 
 shared/family styles and return `PageVisuals` (display scene and row lights). They cannot choose
 host targets, mutate parameters, navigate or emit effects. This keeps geometry, typography, color,
 formatting and input policy independently testable without building a universal UI schema.
+Renderers assemble shared choice, toggle, ring and parameter-value components in `core.ui.component`;
+`core.ui.PageStyle` supplies common geometry and palette. The [component library](docs/ui-component-library.md)
+records their real consumers and offline visual catalog. Its Macro text fitting improvements are
+core-only source changes, not part of the installed/live-tested build cited above.
 
 Working Core API 46 capabilities include bridge snapshot 14, controller output state 4 and
 controller pages 1; parameter targets remain 4, input routing 7, current-track effects 2, transport
@@ -403,7 +407,8 @@ Reloadable core:
   Session/Drum/Note/ribbon instances; page ownership follows committed core navigation state.
 - `PageNavigation` and `LegacyPageAliases`: exact selected/previous/temporary ownership and a frozen
   compatibility translation, separate from host layout read-back.
-- `core.ui.page`: typed presentation models, pure family renderers and shared/family styles.
+- `core.ui`: common display geometry/palette; `component`: pure reusable UI components;
+  `page`: typed presentation models, family renderers/styles and footer assembly.
 - `ControllerPages`: fixed standalone/VS grid declarations, the declared 8x4 Session bank, and
   independent typed page definitions.
 - `BrowserPageNavigation`: core reduction of raw browser activity into exact temporary ownership.

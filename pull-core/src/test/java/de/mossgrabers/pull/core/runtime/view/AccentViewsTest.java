@@ -66,7 +66,7 @@ class AccentViewsTest
         final var touched = f.touch (8, InputPhase.BEGIN);
         assertNotEquals (before, f.view.render (f.snapshot ()).display ());
         assertTrue (touched.effects ().isEmpty ());
-        assertEquals (new RgbColor (190, 235, 247), ((DisplayCommand.TextAt) f.view.render (f.snapshot ()).display ().commands ().get (1)).color ());
+        assertEquals (new RgbColor (190, 235, 247), ((DisplayCommand.TextBox) f.view.render (f.snapshot ()).display ().commands ().get (1)).color ());
         f.touch (8, InputPhase.END);
         assertEquals (before, f.view.render (f.snapshot ()).display ());
         assertEquals (16, touched.desiredOutput ().lights ().size ());
@@ -123,7 +123,7 @@ class AccentViewsTest
         private CoreResult turn (final int knob, final long value) { return this.workspace.handle (this.input (PushControlIds.continuous ("KNOB" + knob), InputKind.RELATIVE, InputPhase.UPDATE, value), this.snapshot ()); }
         private CoreResult touch (final int knob, final InputPhase phase) { return this.workspace.handle (this.input (PushControlIds.continuous ("KNOB" + knob), InputKind.TOUCH, phase, phase == InputPhase.END ? 0 : 127), this.snapshot ()); }
         private CoreResult tick () { this.sequence++; return this.workspace.handle (new ControllerTickEvent (this.sequence, this.sequence), this.snapshot ()); }
-        private String displayedValue () { return ((DisplayCommand.TextAt) this.view.render (this.snapshot ()).display ().commands ().get (2)).text (); }
+        private String displayedValue () { return ((DisplayCommand.TextBox) this.view.render (this.snapshot ()).display ().commands ().get (2)).text (); }
         private ControllerSnapshot snapshot ()
         {
             final var tracks = IntStream.range (0, 8).mapToObj (i -> new SessionTrackSnapshot ("track-" + i, i, "Track " + i, true, i == 0, true, false, false, false, false, SessionTrackType.AUDIO, new RgbColor (255, 255, 255))).toList ();

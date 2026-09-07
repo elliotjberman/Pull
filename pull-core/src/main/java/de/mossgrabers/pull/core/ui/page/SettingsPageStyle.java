@@ -2,6 +2,10 @@
 // Licensed under LGPLv3 - http://www.gnu.org/licenses/lgpl-3.0.txt
 package de.mossgrabers.pull.core.ui.page;
 
+import de.mossgrabers.pull.core.ui.PageStyle;
+
+import de.mossgrabers.pull.core.ui.component.ChoiceCell;
+
 /** Typography and geometry of the original pre-roll/automation option cells. */
 final class SettingsPageStyle
 {
@@ -13,12 +17,9 @@ final class SettingsPageStyle
     static final double TEXT_MIN_FONT = 9;
     static final double OPTION_TOP = 108;
     static final double OPTION_HEIGHT = 28;
-    static final double LABEL_LEFT = 12;
-    static final double LABEL_TOP = 110;
-    static final double LABEL_WIDTH = 96;
-    static final double LABEL_HEIGHT = 24;
     static final double LABEL_FONT = 14;
     static final double LABEL_MIN_FONT = 10;
+    static final ChoiceCell.Style CHOICE = new ChoiceCell.Style (CONTENT_WIDTH, OPTION_HEIGHT, 4, 2, LABEL_FONT, LABEL_MIN_FONT, PageStyle.GREY);
     static final double METRONOME_HEADING_TOP = 25;
     static final double METRONOME_HEADING_FONT = 14;
 

@@ -334,7 +334,8 @@ workspace facets changes grid ownership; it does not consult an inherited page h
 
 Feature views project authoritative data and controller-local state into typed immutable models
 in `de.mossgrabers.pull.core.ui.page`. Family renderers consume those models and `PageStyle` plus
-family styles, returning only `PageVisuals` (scene and row lights). Input policy, target resolution,
+family styles, assembling the [shared UI components](ui-component-library.md) and returning only
+`PageVisuals` (scene and row lights). Input policy, target resolution,
 identity alignment, effects and touch ownership stay in feature views. Renderers perform no host
 lookup, navigation, effect emission or parameter acquisition. This separation covers Macro,
 Track, Master, Volume/Pan/Send, Accent, Frame and transport/automation pages; shared drawing

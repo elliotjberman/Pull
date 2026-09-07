@@ -3,6 +3,8 @@
 
 package de.mossgrabers.pull.core.ui.page;
 
+import de.mossgrabers.pull.core.ui.PageStyle;
+
 import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
 import de.mossgrabers.pull.core.api.output.DisplayCommand;
 import de.mossgrabers.pull.core.api.output.DisplayIcon;
@@ -16,7 +18,7 @@ import java.util.Map;
 import java.util.LinkedHashMap;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.PushControlIds;
-import static de.mossgrabers.pull.core.ui.page.PageStyle.*;
+import static de.mossgrabers.pull.core.ui.PageStyle.*;
 import static de.mossgrabers.pull.core.ui.page.TrackFooterStyle.*;
 import static de.mossgrabers.pull.core.ui.page.MixerPageStyle.dim;
 

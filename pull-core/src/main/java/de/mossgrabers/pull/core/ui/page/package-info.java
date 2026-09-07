@@ -5,6 +5,8 @@
  * records. Renderers accept only those values and produce display primitives and light values;
  * they do not resolve parameters, navigate pages, submit effects or mutate controller state.
  * Family styles share typography, geometry and palettes without introducing a configurable UI schema.
+ * Page renderers assemble reusable {@code core.ui.component} controls; common geometry and palette
+ * live in {@code core.ui.PageStyle}. The offline catalog renders these production consumers.
  *
  * <p>The shared mixer primitive also accepts the existing value-only MixerControlSnapshot DTO used
  * by frozen legacy data adapters. That DTO carries normalized display values, never live actuators.

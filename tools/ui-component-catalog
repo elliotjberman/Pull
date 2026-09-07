@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_dir="$(cd "$(dirname "$0")/.." && pwd)"
+output_dir="${1:-${repo_dir}/pull-core/target/ui-component-catalog}"
+if [[ "$#" -gt 1 || "${1:-}" == "--help" ]]; then
+    echo "Usage: tools/ui-component-catalog [output-directory]"
+    echo "Compile offline and generate static HTML/SVG from production UI renderers. No Bitwig required."
+    exit "$(( $# > 1 ))"
+fi
+
+if [[ -n "${JAVA_HOME:-}" && -x "${JAVA_HOME}/bin/java" ]]; then
+    java_command="${JAVA_HOME}/bin/java"
+elif command -v java >/dev/null 2>&1 && java -version >/dev/null 2>&1; then
+    java_command="$(command -v java)"
+else
+    maven_java_home="$(mvn -v | awk -F'runtime: ' '/^Java version:/ { print $2; exit }')"
+    java_command="${maven_java_home}/bin/java"
+    if [[ ! -x "$java_command" ]]; then
+        echo "Could not locate the JDK used by Maven. Set JAVA_HOME and retry." >&2
+        exit 2
+    fi
+fi
+
+mvn -o -q -f "${repo_dir}/pom.xml" -pl pull-core -am test-compile
+exec "$java_command" -Djava.awt.headless=true \
+    -cp "${repo_dir}/pull-core/target/test-classes:${repo_dir}/pull-core/target/classes:${repo_dir}/pull-core-api/target/classes" \
+    de.mossgrabers.pull.core.testing.UiComponentCatalog "$output_dir" "$repo_dir"
