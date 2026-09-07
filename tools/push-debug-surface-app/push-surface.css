@@ -156,7 +156,7 @@ main {
 }
 
 .surface-frame {
-    width: min(100%, max(580px, calc((100svh - 174px) * 1.274)));
+    width: min(100%, max(580px, calc((100svh - 174px) * 1.241)));
     margin: 0 auto;
     padding: 1px;
 }
@@ -165,7 +165,7 @@ main {
     display: block;
     width: 100%;
     height: auto;
-    aspect-ratio: 200 / 157;
+    aspect-ratio: 200 / 161.2;
     margin: auto;
     user-select: none;
     touch-action: none;
@@ -315,7 +315,7 @@ main {
     fill: white;
 }
 
-/* The surrounding buttons illuminate their legends; row buttons and pads diffuse light. */
+/* Surrounding buttons illuminate legends; display-row buttons illuminate a thin strip. */
 .button-legend[data-lit="true"] .control-face {
     fill: #252526;
     stroke: #484846;
@@ -334,6 +334,31 @@ main {
     stroke: var(--light);
 }
 
+.button-display-row .row-light {
+    fill: #101011;
+    pointer-events: none;
+}
+
+.button-display-row[data-lit="true"] .control-face {
+    fill: #252526;
+    stroke: #3d3d3d;
+    filter: none;
+}
+
+.button-display-row:is(:hover, :focus-visible) .control-face {
+    stroke: #aaa9a3;
+}
+
+.button-display-row.is-pressed .control-face,
+.button-display-row.is-pressed[data-lit="true"] .control-face {
+    fill: #444441;
+    stroke: #eeeee9;
+}
+
+.button-display-row[data-lit="true"] .row-light {
+    fill: var(--light);
+}
+
 .control[data-blink="slow"] .control-face {
     animation: transmitted-light-blink 1s steps(1, end) infinite;
 }
@@ -350,6 +375,14 @@ main {
     animation: transmitted-light-blink 0.5s steps(1, end) infinite;
 }
 
+.button-display-row[data-blink="slow"] .row-light {
+    animation: transmitted-light-blink 1s steps(1, end) infinite;
+}
+
+.button-display-row[data-blink="fast"] .row-light {
+    animation: transmitted-light-blink 0.5s steps(1, end) infinite;
+}
+
 .button-legend[data-blink="slow"] .direction-chevron {
     animation: transmitted-stroke-blink 1s steps(1, end) infinite;
 }
@@ -358,7 +391,7 @@ main {
     animation: transmitted-stroke-blink 0.5s steps(1, end) infinite;
 }
 
-.button-legend:is([data-blink="slow"], [data-blink="fast"]) .control-face {
+:is(.button-legend, .button-display-row):is([data-blink="slow"], [data-blink="fast"]) .control-face {
     animation: none;
 }
 
@@ -419,9 +452,9 @@ main {
 }
 
 .encoder-ring {
-    fill: #101011;
-    stroke: #383839;
-    stroke-width: 0.35;
+    fill: #171718;
+    stroke: #242425;
+    stroke-width: 0.15;
 }
 
 .encoder {
@@ -429,9 +462,8 @@ main {
 }
 
 .encoder .control-face {
-    fill: url(#encoder-gradient);
-    stroke: #525250;
-    stroke-width: 0.25;
+    fill: #1d1d1e;
+    stroke: none;
 }
 
 .encoder.is-touched .encoder-ring,
@@ -439,13 +471,6 @@ main {
 .touchstrip.is-touched .touch-track {
     stroke: var(--accent);
     filter: url(#light-glow);
-}
-
-.encoder-tick {
-    stroke: #bcbcb5;
-    stroke-width: 0.45;
-    stroke-linecap: round;
-    pointer-events: none;
 }
 
 .encoder-label {
@@ -473,6 +498,17 @@ main {
     fill: #777773;
     font-size: 1.1px;
     writing-mode: vertical-rl;
+}
+
+.encoder-label,
+.touch-label {
+    opacity: 0;
+    transition: opacity 80ms ease;
+}
+
+.encoder:is(:hover, :focus-visible, .is-touched, .is-turning) .encoder-label,
+.touchstrip:is(:hover, :focus-visible, .is-touched) .touch-label {
+    opacity: 1;
 }
 
 .display-bezel {
@@ -513,7 +549,7 @@ main {
 }
 
 .pressure-control {
-    width: min(100%, max(580px, calc((100svh - 174px) * 1.274)));
+    width: min(100%, max(580px, calc((100svh - 174px) * 1.241)));
     margin: 14px auto 0;
     padding: 12px 0;
     border-top: 1px solid var(--line);

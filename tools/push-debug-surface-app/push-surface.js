@@ -39,61 +39,63 @@
     let pendingPressure = 0;
     let relativeFrame = null;
 
+    // Proportions from Ableton's Push 2 overview, normalized to a 200 × 161.2 face.
+    // https://ableton-production.imgix.net/live-manual/12/Push2Overview.png
     const grid = Object.freeze({
-        x: 33.25,
-        y: 59.25,
+        x: 36.5,
+        y: 63.75,
         columns: 8,
         rows: 8,
-        cellWidth: 12.75,
-        cellHeight: 10,
-        columnGap: 2.75,
-        rowGap: 1.75
+        cellWidth: 13.5,
+        cellHeight: 10.25,
+        columnGap: 1.75,
+        rowGap: 1.375
     });
     const gridColumnX = column => grid.x + column * (grid.cellWidth + grid.columnGap);
     const gridRowY = row => grid.y + row * (grid.cellHeight + grid.rowGap);
 
     const buttons = [
-        ["PLAY", "Play", 4.75, 142.75, 10, 8.5],
-        ["RECORD", "Record", 4.75, 132.25, 10, 8.5],
-        ["NEW", "New", 4.75, 121.75, 10, 8.5],
-        ["DUPLICATE", "Duplicate", 4.75, 111.25, 10, 8.5],
-        ["AUTOMATION", "Automate", 4.75, 100.75, 10, 8.5],
-        ["FIXED_LENGTH", "Fixed length", 4.75, 90.25, 10, 8.5],
-        ["QUANTIZE", "Quantize", 4.75, 79.75, 10, 8.5],
-        ["DOUBLE", "Double loop", 4.75, 69.25, 10, 8.5],
-        ["CONVERT", "Convert", 4.75, 58.75, 10, 8.5],
-        ["UNDO", "Undo", 4.5, 39.5, 10, 10],
-        ["DELETE", "Delete", 4.5, 28.25, 10, 10],
-        ["TAP_TEMPO", "Tap tempo", 4.5, 20.25, 11.25, 5.5],
-        ["METRONOME", "Metronome", 17.5, 20.25, 11.25, 5.5],
-        ["MUTE", "Mute", 4.5, 51, 8.25, 5.5],
-        ["SOLO", "Solo", 12.5, 51, 8.25, 5.5],
-        ["STOP_CLIP", "Stop clip", 21, 51, 8.25, 5.5],
+        ["PLAY", "Play", 4, 145.75, 10.5, 9.75],
+        ["RECORD", "Record", 4, 135.5, 10.5, 9.75],
+        ["AUTOMATION", "Automate", 4, 125.25, 10.5, 9.75],
+        ["FIXED_LENGTH", "Fixed length", 4, 115, 10.5, 9.75],
+        ["NEW", "New", 4, 104.75, 10.5, 9.75],
+        ["DUPLICATE", "Duplicate", 4, 94.5, 10.5, 9.75],
+        ["QUANTIZE", "Quantize", 4, 84.25, 10.5, 9.75],
+        ["DOUBLE", "Double loop", 4, 74, 10.5, 9.75],
+        ["CONVERT", "Convert", 4, 63.75, 10.5, 9.75],
+        ["UNDO", "Undo", 4, 37.5, 10.5, 10],
+        ["DELETE", "Delete", 4, 27.25, 10.5, 10],
+        ["TAP_TEMPO", "Tap tempo", 4, 15.25, 13.25, 6],
+        ["METRONOME", "Metronome", 17.5, 15.25, 13.5, 6],
+        ["MUTE", "Mute", 4, 53.5, 9, 6],
+        ["SOLO", "Solo", 13.25, 53.5, 9, 6],
+        ["STOP_CLIP", "Stop clip", 22.5, 53.5, 8.5, 6],
 
-        ["SETUP", "Setup", 173.5, 20.5, 10, 6.25],
-        ["USER", "User", 185.5, 20.5, 10, 6.25],
-        ["ADD_EFFECT", "Add device", 159.75, 30, 10, 8.75],
-        ["DEVICE", "Device", 173.5, 30, 10, 8.75],
-        ["TRACK", "Mix", 185.5, 30, 10, 8.75],
-        ["ADD_TRACK", "Add track", 159.75, 40.75, 10, 8.75],
-        ["BROWSE", "Browse", 173.5, 40.75, 10, 8.75],
-        ["CLIP", "Clip", 185.5, 40.75, 10, 8.75],
-        ["MASTERTRACK", "Master", 159.75, 51.5, 10, 5],
-        ["REPEAT", "Repeat", 173.5, 93.75, 10, 6.25],
-        ["ACCENT", "Accent", 185.5, 93.75, 10, 6.25],
-        ["SCALES", "Scale", 173.5, 105.75, 10, 6.25],
-        ["LAYOUT", "Layout", 185.5, 105.75, 10, 6.25],
-        ["NOTE", "Note", 173.5, 113.75, 10, 6.25],
-        ["SESSION", "Session", 185.5, 113.75, 10, 6.25],
-        ["SHIFT", "Shift", 173.5, 145, 10, 6],
-        ["SELECT", "Select", 185.5, 145, 10, 6]
+        ["SETUP", "Setup", 175.75, 15.25, 10, 6],
+        ["USER", "User", 186, 15.25, 10, 6],
+        ["ADD_EFFECT", "Add device", 162.75, 27.25, 10.5, 10],
+        ["DEVICE", "Device", 175.75, 27.25, 10, 10],
+        ["TRACK", "Mix", 186, 27.25, 10, 10],
+        ["ADD_TRACK", "Add track", 162.75, 37.5, 10.5, 10],
+        ["BROWSE", "Browse", 175.75, 37.5, 10, 10],
+        ["CLIP", "Clip", 186, 37.5, 10, 10],
+        ["MASTERTRACK", "Master", 162.75, 53.5, 10.5, 6],
+        ["REPEAT", "Repeat", 175.75, 98.625, 10, 10.25],
+        ["ACCENT", "Accent", 186, 98.625, 10, 10.25],
+        ["SCALES", "Scale", 175.75, 110.25, 10, 6],
+        ["LAYOUT", "Layout", 186, 110.25, 10, 6],
+        ["NOTE", "Note", 175.75, 116.5, 10, 10],
+        ["SESSION", "Session", 186, 116.5, 10, 10],
+        ["SHIFT", "Shift", 175.75, 149.375, 10, 6],
+        ["SELECT", "Select", 186, 149.375, 10, 6]
     ];
 
     const directionalClusters = [
         {
-            x: 173.5,
-            y: 51.5,
-            size: 22,
+            x: 175.75,
+            y: 53.5,
+            size: 20.25,
             icon: "chevron",
             controls: {
                 up: ["ARROW_UP", "Arrow up"],
@@ -103,9 +105,9 @@
             }
         },
         {
-            x: 173.5,
-            y: 122,
-            size: 22,
+            x: 175.75,
+            y: 127.375,
+            size: 20.25,
             icon: "triangle",
             controls: {
                 up: ["OCTAVE_UP", "Octave up"],
@@ -117,22 +119,22 @@
     ];
 
     const buttonRows = [
-        {prefix: "ROW2_", y: 20.25, label: "Upper"},
-        {prefix: "ROW1_", y: 51.25, label: "Lower"}
+        {prefix: "ROW2_", y: 15.25, label: "Upper"},
+        {prefix: "ROW1_", y: 53.5, label: "Lower"}
     ];
 
     const encoders = [
-        ["TEMPO", "Tempo", 4, 5.75, 10, 10],
-        ["PLAY_POSITION", "Swing", 17.75, 5.75, 10, 10],
+        ["TEMPO", "Tempo", 5.75, 3.75, 8.5, 8.5],
+        ["PLAY_POSITION", "Swing", 21.25, 3.75, 8.5, 8.5],
         ...Array.from({length: 8}, (_, index) => [
             `KNOB${index + 1}`,
             `${index + 1}`,
-            gridColumnX(index) + (grid.cellWidth - 10) / 2,
-            5.75,
-            10,
-            10
+            gridColumnX(index) + (grid.cellWidth - 8.5) / 2,
+            3.75,
+            8.5,
+            8.5
         ]),
-        ["MASTER_KNOB", "Master", 179.5, 5.75, 10, 10]
+        ["MASTER_KNOB", "Master", 181.625, 3.75, 8.5, 8.5]
     ];
 
     function svgElement(name, attributes = {}) {
@@ -249,6 +251,10 @@
             rx: 0.45
         });
         group.append(face);
+        if (symbolicName.startsWith("ROW")) {
+            group.classList.add("button-display-row");
+            group.append(svgElement("rect", {class: "row-light", x: x + 1.25, y: y + height - 1.35, width: width - 2.5, height: 0.4}));
+        }
         if (symbolicName === "RECORD")
             group.append(svgElement("circle", {
                 class: "transport-icon record-icon",
@@ -344,7 +350,7 @@
                 x,
                 row.y,
                 grid.cellWidth,
-                5.5
+                6
             ]));
         }
     }
@@ -353,10 +359,10 @@
         Array.from({length: grid.rows}, (_, index) => gridRowY(index)).forEach((position, index) => createButton([
             `SCENE${index + 1}`,
             `Scene ${index + 1}`,
-            159.75,
+            162.75,
             position,
-            10,
-            10
+            10.5,
+            grid.cellHeight
         ]));
     }
 
@@ -390,15 +396,8 @@
         const centerX = x + width / 2;
         const centerY = y + height / 2;
         group.append(
-            svgElement("circle", {class: "encoder-ring", cx: centerX, cy: centerY, r: 4.55}),
-            svgElement("circle", {class: "control-face", cx: centerX, cy: centerY, r: 3.82}),
-            svgElement("line", {
-                class: "encoder-tick",
-                x1: centerX,
-                y1: centerY - 2.65,
-                x2: centerX,
-                y2: centerY - 3.55
-            })
+            svgElement("circle", {class: "encoder-ring", cx: centerX, cy: centerY, r: 4.1}),
+            svgElement("circle", {class: "control-face", cx: centerX, cy: centerY, r: 3.8})
         );
         const text = svgElement("text", {
             class: "encoder-label",
@@ -409,10 +408,10 @@
         group.append(text);
         const address = continuousAddress(symbolicName);
         registerControl(group, address, symbolicName, label, "TOUCH");
-        registerEncoderTurn(group, address, symbolicName, centerX, centerY);
+        registerEncoderTurn(group, address, symbolicName);
     }
 
-    function registerEncoderTurn(group, address, debugName, centerX, centerY) {
+    function registerEncoderTurn(group, address, debugName) {
         group.addEventListener("pointerdown", event => {
             if (event.button !== 0)
                 return;
@@ -421,7 +420,7 @@
                 finishEncoderDrag(activeEncoderDrag.pointerId);
             group.setPointerCapture(event.pointerId);
             group.classList.add("is-turning");
-            activeEncoderDrag = {pointerId: event.pointerId, group, address, debugName, centerX, centerY, lastY: event.clientY, remainder: 0};
+            activeEncoderDrag = {pointerId: event.pointerId, group, address, debugName, lastY: event.clientY, remainder: 0};
         });
         group.addEventListener("pointermove", event => {
             const drag = activeEncoderDrag;
@@ -436,7 +435,7 @@
             drag.lastY = event.clientY;
             drag.remainder = distance - delta * 3;
             if (delta !== 0)
-                scheduleEncoderTurn(drag.group, drag.address, drag.debugName, delta, drag.centerX, drag.centerY);
+                scheduleEncoderTurn(drag.address, drag.debugName, delta);
         });
         const endDrag = event => finishEncoderDrag(event.pointerId);
         group.addEventListener("pointerup", endDrag);
@@ -454,14 +453,14 @@
             setTouched(drag.address, false);
     }
 
-    function scheduleEncoderTurn(group, address, debugName, delta, centerX, centerY) {
+    function scheduleEncoderTurn(address, debugName, delta) {
         if (!Number.isInteger(delta) || delta === 0)
             return;
         const pending = pendingRelative.get(address);
         if (pending)
             pending.delta += delta;
         else
-            pendingRelative.set(address, {group, address, debugName, delta, centerX, centerY});
+            pendingRelative.set(address, {address, debugName, delta});
         if (relativeFrame !== null)
             return;
         relativeFrame = window.requestAnimationFrame(() => {
@@ -469,10 +468,6 @@
             for (const turn of pendingRelative.values()) {
                 if (turn.delta === 0)
                     continue;
-                const angle = Number(turn.group.dataset.encoderAngle ?? 0) + turn.delta * 12;
-                turn.group.dataset.encoderAngle = String(angle);
-                turn.group.querySelector(".encoder-tick")?.setAttribute(
-                    "transform", `rotate(${angle} ${turn.centerX} ${turn.centerY})`);
                 status.textContent = `${turn.debugName} · RELATIVE ${turn.delta > 0 ? "+" : ""}${turn.delta} · ${turn.address}`;
                 liveState.lastInputAt = performance.now();
                 let remaining = turn.delta;
@@ -488,7 +483,7 @@
 
     function createTouchStrip() {
         const group = svgElement("g", {class: "touchstrip"});
-        const x = 17.75;
+        const x = 19.25;
         const y = grid.y;
         const width = 12;
         const height = grid.rows * grid.cellHeight + (grid.rows - 1) * grid.rowGap;
