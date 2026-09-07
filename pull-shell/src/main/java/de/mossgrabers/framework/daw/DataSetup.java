@@ -71,17 +71,6 @@ public class DataSetup
 
 
     /**
-     * Set the transport.
-     *
-     * @param transport The transport
-     */
-    public void setTransport (final ITransport transport)
-    {
-        this.transport = transport;
-    }
-
-
-    /**
      * Get the transport.
      *
      * @return The transport

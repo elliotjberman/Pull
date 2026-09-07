@@ -194,22 +194,6 @@ public class ColorEx
 
 
     /**
-     * Convert the internal color state to 3 integer RGB values.
-     *
-     * @return The 3 integer (0-127) values
-     */
-    public int [] toIntRGB127 ()
-    {
-        return new int []
-        {
-            (int) Math.round (this.redValue * 127.0),
-            (int) Math.round (this.greenValue * 127.0),
-            (int) Math.round (this.blueValue * 127.0)
-        };
-    }
-
-
-    /**
      * Convert the internal color state to 3 double RGB values.
      *
      * @return The 3 integer (0-1) values
@@ -389,19 +373,6 @@ public class ColorEx
 
 
     /**
-     * Calculate the color from the palette which is the closest to the given color.
-     *
-     * @param color The color
-     * @param palette The palette to pick one color from
-     * @return The closest color from the palette
-     */
-    public static ColorEx getClosestColor (final ColorEx color, final ColorEx [] palette)
-    {
-        return palette[getClosestColorIndex (color, palette)];
-    }
-
-
-    /**
      * Calculate the color from the palette which is the closest to the given color and return the
      * index.
      *
@@ -555,17 +526,6 @@ public class ColorEx
     public double getBlue ()
     {
         return this.blueValue;
-    }
-
-
-    /**
-     * Is this a gray value?
-     *
-     * @return True if all RGB values contain the same value
-     */
-    public boolean isGrayscale ()
-    {
-        return this.redValue == this.greenValue && this.greenValue == this.blueValue;
     }
 
 

@@ -84,7 +84,6 @@ public abstract class AbstractSequencerView<S extends IControlSurface<C>, C exte
 
     protected int                 numSequencerRows;
     protected final Configuration configuration;
-    protected boolean             isNoteEdited                 = false;
     private boolean               isSequencerActive;
 
 
@@ -234,15 +233,6 @@ public abstract class AbstractSequencerView<S extends IControlSurface<C>, C exte
 
 
     /**
-     * Signal that a note has been edited.
-     */
-    public void setNoteEdited ()
-    {
-        this.isNoteEdited = true;
-    }
-
-
-    /**
      * Checks if the given number is in the current display.
      *
      * @param x The index to check
@@ -368,8 +358,6 @@ public abstract class AbstractSequencerView<S extends IControlSurface<C>, C exte
             return true;
         }
 
-        if (this.isNoteEdited)
-            this.isNoteEdited = false;
         return true;
     }
 
@@ -463,7 +451,6 @@ public abstract class AbstractSequencerView<S extends IControlSurface<C>, C exte
      */
     protected void exitEditMode ()
     {
-        this.isNoteEdited = false;
         this.surface.getDisplay ().notify ("Edit Notes: Off");
 
         // Clear all edit notes

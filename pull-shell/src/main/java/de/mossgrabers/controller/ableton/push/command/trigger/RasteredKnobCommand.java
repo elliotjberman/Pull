@@ -9,7 +9,6 @@ import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.mode.device.DeviceBrowserMode;
 import de.mossgrabers.framework.command.TempoCommand;
 import de.mossgrabers.framework.controller.ButtonID;
-import de.mossgrabers.framework.daw.GrooveParameterID;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.featuregroup.ModeManager;
 import de.mossgrabers.framework.mode.Modes;
@@ -23,9 +22,6 @@ import de.mossgrabers.framework.utils.ButtonEvent;
  */
 public class RasteredKnobCommand extends TempoCommand<PushControlSurface, PushConfiguration>
 {
-    private boolean isTempoMode = true;
-
-
     /**
      * Constructor.
      *
@@ -59,17 +55,9 @@ public class RasteredKnobCommand extends TempoCommand<PushControlSurface, PushCo
             return;
         }
 
-        if (this.isTempoMode)
-        {
-            // Shift owns momentary snapback on Push, so tempo keeps its normal encoder response.
-            this.transport.changeTempo (this.model.getValueChanger ().isIncrease (value), false);
-            this.mvHelper.notifyTempo ();
-        }
-        else
-        {
-            this.model.getGroove ().getParameter (GrooveParameterID.SHUFFLE_AMOUNT).changeValue (value);
-            this.mvHelper.notifyShuffle ();
-        }
+        // Shift owns momentary snapback on Push, so tempo keeps its normal encoder response.
+        this.transport.changeTempo (this.model.getValueChanger ().isIncrease (value), false);
+        this.mvHelper.notifyTempo ();
     }
 
 
@@ -92,17 +80,9 @@ public class RasteredKnobCommand extends TempoCommand<PushControlSurface, PushCo
         if (this.model.getBrowser ().isActive ())
             return;
 
-        if (this.isTempoMode)
-        {
-            this.transport.setTempoIndication (activate);
-            if (activate)
-                this.mvHelper.notifyTempo ();
-        }
-        else
-        {
-            if (activate)
-                this.mvHelper.notifyShuffle ();
-        }
+        this.transport.setTempoIndication (activate);
+        if (activate)
+            this.mvHelper.notifyTempo ();
     }
 
 
@@ -114,18 +94,8 @@ public class RasteredKnobCommand extends TempoCommand<PushControlSurface, PushCo
         if (this.model.getBrowser ().isActive ())
             return;
 
-        if (this.isTempoMode)
-            this.mvHelper.notifyTempo ();
-        else
-            this.mvHelper.notifyShuffle ();
+        this.mvHelper.notifyTempo ();
     }
 
 
-    /**
-     * Toggle mode between tempo and swing change.
-     */
-    public void toggleMode ()
-    {
-        this.isTempoMode = !this.isTempoMode;
-    }
 }

@@ -132,16 +132,4 @@ public class ScrollStates
     }
 
 
-    /**
-     * Set all states to the given state.
-     *
-     * @param enable True to activate all states
-     */
-    public void setAll (final boolean enable)
-    {
-        this.canScrollLeft = enable;
-        this.canScrollRight = enable;
-        this.canScrollUp = enable;
-        this.canScrollDown = enable;
-    }
 }

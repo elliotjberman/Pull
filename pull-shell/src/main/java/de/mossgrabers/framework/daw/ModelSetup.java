@@ -105,17 +105,6 @@ public class ModelSetup
 
 
     /**
-     * Set the number of tracks to monitor (per track bank page).
-     *
-     * @param numTracks The number of track to monitor (per track bank page)
-     */
-    public void setNumTracks (final int numTracks)
-    {
-        this.numTracks = numTracks;
-    }
-
-
-    /**
      * Get the number of FX tracks to monitor (size of a track FX bank page). If not explicitly set,
      * returns the same as getNumTracks().
      *
@@ -128,17 +117,6 @@ public class ModelSetup
 
 
     /**
-     * Set the number of Fx tracks to monitor (per track bank page).
-     *
-     * @param numFxTracks The number of Fx tracks to monitor (per track bank page)
-     */
-    public void setNumFxTracks (final int numFxTracks)
-    {
-        this.numFxTracks = numFxTracks;
-    }
-
-
-    /**
      * Get the number of scenes to monitor (per scene bank).
      *
      * @return The number of scenes to monitor (per scene bank)
@@ -146,17 +124,6 @@ public class ModelSetup
     public int getNumScenes ()
     {
         return this.numScenes;
-    }
-
-
-    /**
-     * Set the number of scenes to monitor (per scene bank).
-     *
-     * @param numScenes The number of scenes to monitor (per scene bank)
-     */
-    public void setNumScenes (final int numScenes)
-    {
-        this.numScenes = numScenes;
     }
 
 
@@ -194,17 +161,6 @@ public class ModelSetup
 
 
     /**
-     * Set the number of parameter pages of a device to monitor.
-     *
-     * @param numParamPages The number of parameter pages of a device to monitor
-     */
-    public void setNumParamPages (final int numParamPages)
-    {
-        this.numParamPages = numParamPages;
-    }
-
-
-    /**
      * Get the number of parameter of a device to monitor.
      *
      * @return The number of parameter of a device to monitor
@@ -212,17 +168,6 @@ public class ModelSetup
     public int getNumParams ()
     {
         return this.numParams;
-    }
-
-
-    /**
-     * Set the number of parameter of a device to monitor.
-     *
-     * @param numParams The number of parameter of a device to monitor
-     */
-    public void setNumParams (final int numParams)
-    {
-        this.numParams = numParams;
     }
 
 
@@ -238,17 +183,6 @@ public class ModelSetup
 
 
     /**
-     * Set the number of devices to monitor.
-     *
-     * @param numDevicesInBank The number of devices to monitor
-     */
-    public void setNumDevicesInBank (final int numDevicesInBank)
-    {
-        this.numDevicesInBank = numDevicesInBank;
-    }
-
-
-    /**
      * Get the number of parameter of a device to monitor.
      *
      * @return The number of parameter of a device to monitor
@@ -260,17 +194,6 @@ public class ModelSetup
 
 
     /**
-     * Set the number of device layers to monitor.
-     *
-     * @param numDeviceLayers The number of device layers to monitor
-     */
-    public void setNumDeviceLayers (final int numDeviceLayers)
-    {
-        this.numDeviceLayers = numDeviceLayers;
-    }
-
-
-    /**
      * Get the number of drum pad layers to monitor.
      *
      * @return The number of drum pad layers to monitor
@@ -278,17 +201,6 @@ public class ModelSetup
     public int getNumDrumPadLayers ()
     {
         return this.numDrumPadLayers;
-    }
-
-
-    /**
-     * Set the number of drum pad layers to monitor.
-     *
-     * @param numDrumPadLayers The number of drum pad layers to monitor
-     */
-    public void setNumDrumPadLayers (final int numDrumPadLayers)
-    {
-        this.numDrumPadLayers = numDrumPadLayers;
     }
 
 
@@ -366,18 +278,6 @@ public class ModelSetup
     public boolean hasFullFlatTrackList ()
     {
         return this.hasFullFlatTrackList;
-    }
-
-
-    /**
-     * Set if the track navigation should include effect and master tracks if flat.
-     *
-     * @param hasFullFlatTrackList True if the track navigation should include effect and master
-     *            tracks if flat
-     */
-    public void setHasFullFlatTrackList (final boolean hasFullFlatTrackList)
-    {
-        this.hasFullFlatTrackList = hasFullFlatTrackList;
     }
 
 

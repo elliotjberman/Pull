@@ -4,13 +4,11 @@
 
 package de.mossgrabers.framework.featuregroup;
 
-import de.mossgrabers.framework.command.core.AbstractTriggerCommand;
 import de.mossgrabers.framework.configuration.AbstractConfiguration;
 import de.mossgrabers.framework.configuration.Configuration;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.IControlSurface;
 import de.mossgrabers.framework.controller.grid.PadColor;
-import de.mossgrabers.framework.controller.hardware.IHwButton;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.IScene;
 import de.mossgrabers.framework.daw.data.ITrack;
@@ -228,51 +226,6 @@ public abstract class AbstractView<S extends IControlSurface<C>, C extends Confi
             if (matrix.length == 128)
                 this.surface.setKeyTranslationTable (this.scales.translateMatrixToGrid (matrix));
         }, 6);
-    }
-
-
-    /**
-     * Simulate pressing a button by sending a button down and up event to the execute method.
-     *
-     * @param buttonID The ID of the button to trigger
-     * @param velocity The velocity to use
-     */
-    protected void simulateButtonPress (final ButtonID buttonID, final int velocity)
-    {
-        final IHwButton button = this.surface.getButton (buttonID);
-        final AbstractTriggerCommand<?, ?> triggerCommand = (AbstractTriggerCommand<?, ?>) button.getCommand ();
-        triggerCommand.execute (ButtonEvent.DOWN, velocity);
-        if (velocity != 0)
-            triggerCommand.execute (ButtonEvent.UP, 0);
-    }
-
-
-    /**
-     * Simulate pressing a button by sending a button down and up event to the executeNormal method.
-     *
-     * @param buttonID The ID of the button to trigger
-     */
-    protected void simulateNormalButtonPress (final ButtonID buttonID)
-    {
-        final IHwButton button = this.surface.getButton (buttonID);
-        final AbstractTriggerCommand<?, ?> triggerCommand = (AbstractTriggerCommand<?, ?>) button.getCommand ();
-        triggerCommand.executeNormal (ButtonEvent.DOWN);
-        triggerCommand.executeNormal (ButtonEvent.UP);
-    }
-
-
-    /**
-     * Simulate pressing a button with combination of the shift button by sending a button down and
-     * up event.
-     *
-     * @param buttonID The ID of the button to trigger
-     */
-    protected void simulateShiftedButtonPress (final ButtonID buttonID)
-    {
-        final IHwButton button = this.surface.getButton (buttonID);
-        final AbstractTriggerCommand<?, ?> triggerCommand = (AbstractTriggerCommand<?, ?>) button.getCommand ();
-        triggerCommand.executeShifted (ButtonEvent.DOWN);
-        triggerCommand.executeShifted (ButtonEvent.UP);
     }
 
 

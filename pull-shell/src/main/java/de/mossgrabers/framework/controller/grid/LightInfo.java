@@ -99,18 +99,6 @@ public final class LightInfo
 
 
     /**
-     * Set the blink color.
-     *
-     * @param blinkColor The new blink color
-     */
-    public void setBlinkColor (final int blinkColor)
-    {
-        this.blinkColor = blinkColor;
-        this.encode ();
-    }
-
-
-    /**
      * Blink fast or slow?
      *
      * @return True if fast
@@ -118,18 +106,6 @@ public final class LightInfo
     public boolean isFast ()
     {
         return this.fast;
-    }
-
-
-    /**
-     * Set to blink fast or slow.
-     *
-     * @param fast True to blink fast
-     */
-    public void setFast (final boolean fast)
-    {
-        this.fast = fast;
-        this.encode ();
     }
 
 

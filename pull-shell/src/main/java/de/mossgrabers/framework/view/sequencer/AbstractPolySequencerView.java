@@ -4,7 +4,6 @@
 
 package de.mossgrabers.framework.view.sequencer;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -518,20 +517,6 @@ public abstract class AbstractPolySequencerView<S extends IControlSurface<C>, C 
         }
         result.setMuted (isMuted);
         return result;
-    }
-
-
-    protected List<NotePosition> getStepNotePositions (final INoteClip clip)
-    {
-        final List<NotePosition> positions = new ArrayList<> ();
-        final NotePosition notePosition = new NotePosition ();
-        for (int row = 0; row < 128; row++)
-        {
-            notePosition.setNote (row);
-            if (clip.getStep (notePosition).getState () == StepState.START)
-                positions.add (new NotePosition (notePosition));
-        }
-        return positions;
     }
 
 

@@ -38,7 +38,6 @@ public abstract class AbstractPlayView<S extends IControlSurface<C>, C extends C
     protected final int []     defaultVelocity;
     protected final boolean    useTrackColor;
 
-    protected int              blockNotes   = 0;
 
 
     /**
@@ -75,17 +74,6 @@ public abstract class AbstractPlayView<S extends IControlSurface<C>, C extends C
         final ITrackBank tb = model.getTrackBank ();
         tb.addSelectionObserver ( (index, isSelected) -> this.keyManager.clearPressedKeys ());
         tb.addNoteObserver (this.keyManager::call);
-    }
-
-
-    /**
-     * Blocks the number of notes from the bottom and shifts the rest up by this number.
-     *
-     * @param blockNotes The number of notes to block
-     */
-    public void setBlockedNotes (final int blockNotes)
-    {
-        this.blockNotes = blockNotes;
     }
 
 
@@ -233,7 +221,7 @@ public abstract class AbstractPlayView<S extends IControlSurface<C>, C extends C
 
 
     /**
-     * Get the scale matrix to apply to the mapping table. Allows to block specific notes.
+     * Get the scale matrix to apply to the mapping table.
      *
      * @return The matrix (size of 127)
      */
@@ -242,18 +230,7 @@ public abstract class AbstractPlayView<S extends IControlSurface<C>, C extends C
         if (!this.model.canSelectedTrackHoldNotes ())
             return EMPTY_TABLE;
 
-        final int [] noteMatrix = this.getScaleMatrix ();
-
-        if (this.blockNotes > 0)
-        {
-            final int startNote = this.scales.getStartNote ();
-            final int endNote = this.scales.getEndNote ();
-            final int length = endNote - startNote - this.blockNotes;
-            System.arraycopy (noteMatrix, startNote, noteMatrix, startNote + this.blockNotes, length);
-            Arrays.fill (noteMatrix, startNote, startNote + 8, -1);
-        }
-
-        return noteMatrix;
+        return this.getScaleMatrix ();
     }
 
 

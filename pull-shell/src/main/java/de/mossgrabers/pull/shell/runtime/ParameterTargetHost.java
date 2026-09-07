@@ -626,7 +626,7 @@ final class ParameterTargetHost
         this.currentTargets.put (tempo.reference, tempo);
 
         final IHwContinuousControl masterControl = this.surface.getContinuous (ContinuousID.MASTER_KNOB);
-        if (masterControl != null && masterControl.getCommand () instanceof final PushMasterVolumeCommand command && command.isMasterVolumeMode () && !this.surface.isSelectPressed ())
+        if (masterControl != null && masterControl.getCommand () instanceof final PushMasterVolumeCommand command && !this.surface.isSelectPressed ())
         {
             final IParameter parameter = this.model.getMasterTrack ().getVolumeParameter ();
             if (parameter.doesExist ())
@@ -636,7 +636,7 @@ final class ParameterTargetHost
                     masterControl,
                     parameter,
                     masterControl.getBindingGeneration (),
-                    () -> parameter.doesExist () && masterControl.getCommand () == command && command.isMasterVolumeMode () && !this.surface.isSelectPressed ());
+                    () -> parameter.doesExist () && masterControl.getCommand () == command && !this.surface.isSelectPressed ());
                 this.currentTargets.put (master.reference, master);
             }
         }

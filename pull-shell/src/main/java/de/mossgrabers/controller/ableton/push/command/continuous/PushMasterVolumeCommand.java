@@ -11,15 +11,12 @@ import de.mossgrabers.framework.daw.IModel;
 
 
 /**
- * Command to change the Master Volume and Cue Volume.
+ * Command to change Master Volume or, with Select held, zoom.
  *
  * @author Jürgen Moßgraber
  */
 public class PushMasterVolumeCommand extends AbstractContinuousCommand<PushControlSurface, PushConfiguration>
 {
-    private boolean isMasterVolumeMode = true;
-
-
     /**
      * Constructor.
      *
@@ -42,30 +39,7 @@ public class PushMasterVolumeCommand extends AbstractContinuousCommand<PushContr
             return;
         }
 
-        if (this.isMasterVolumeMode)
-            this.model.getMasterTrack ().changeVolume (value);
-        else
-            this.model.getProject ().changeCueVolume (value);
-    }
-
-
-    /**
-     * Toggle between the master volume and cue volume control.
-     */
-    public void toggleMasterVolumeAndCue ()
-    {
-        this.isMasterVolumeMode = !this.isMasterVolumeMode;
-    }
-
-
-    /**
-     * Test whether the encoder currently controls master rather than cue volume.
-     *
-     * @return True for master-volume mode
-     */
-    public boolean isMasterVolumeMode ()
-    {
-        return this.isMasterVolumeMode;
+        this.model.getMasterTrack ().changeVolume (value);
     }
 
 
@@ -74,6 +48,6 @@ public class PushMasterVolumeCommand extends AbstractContinuousCommand<PushContr
      */
     public void notifyMode ()
     {
-        this.surface.getDisplay ().notify (this.isMasterVolumeMode ? "Master Volume" : "Cue Volume");
+        this.surface.getDisplay ().notify ("Master Volume");
     }
 }

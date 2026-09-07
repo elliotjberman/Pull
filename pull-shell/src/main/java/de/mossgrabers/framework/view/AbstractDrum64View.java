@@ -378,17 +378,6 @@ public abstract class AbstractDrum64View<S extends IControlSurface<C>, C extends
 
 
     /**
-     * Get the drum octave.
-     *
-     * @return The drum octave
-     */
-    public int getDrumOctave ()
-    {
-        return this.drumOctave;
-    }
-
-
-    /**
      * The callback function for playing note changes.
      *
      * @param trackIndex The index of the track on which the note is playing

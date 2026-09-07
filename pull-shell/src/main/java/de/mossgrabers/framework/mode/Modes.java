@@ -133,9 +133,6 @@ public enum Modes
 
     private static final Set<Modes> TRACK_MODES        = EnumSet.of (TRACK, TRACK_DETAILS, VOLUME, PAN, CROSSFADER, REC_ARM, SEND1, SEND2, SEND3, SEND4, SEND5, SEND6, SEND7, SEND8);
     private static final Set<Modes> LAYER_MODES        = EnumSet.of (DEVICE_LAYER, DEVICE_LAYER_VOLUME, DEVICE_LAYER_PAN, DEVICE_LAYER_SEND1, DEVICE_LAYER_SEND2, DEVICE_LAYER_SEND3, DEVICE_LAYER_SEND4, DEVICE_LAYER_SEND5, DEVICE_LAYER_SEND6, DEVICE_LAYER_SEND7, DEVICE_LAYER_SEND8, DEVICE_LAYER_DETAILS);
-    private static final Set<Modes> SEND_MODES         = EnumSet.range (SEND1, SEND8);
-    private static final Set<Modes> LAYER_SEND_MODES   = EnumSet.range (DEVICE_LAYER_SEND1, DEVICE_LAYER_SEND8);
-    private static final Set<Modes> MIX_MODES          = EnumSet.copyOf (TRACK_MODES);
     private static final Set<Modes> MASTER_MODES       = EnumSet.of (MASTER, MASTER_TEMP, FRAME);
 
 
@@ -145,18 +142,6 @@ public enum Modes
     private Modes ()
     {
         // Intentionally empty
-    }
-
-
-    /**
-     * Returns true if the given mode ID is one of the send modes.
-     *
-     * @param modeId The mode ID to test
-     * @return True if it is a send mode
-     */
-    public static boolean isSendMode (final Modes modeId)
-    {
-        return SEND_MODES.contains (modeId);
     }
 
 
@@ -173,18 +158,6 @@ public enum Modes
 
 
     /**
-     * Returns true if the given mode ID is one of the mix modes.
-     *
-     * @param modeId The mode ID to test
-     * @return True if it is a mix mode
-     */
-    public static boolean isMixMode (final Modes modeId)
-    {
-        return MIX_MODES.contains (modeId);
-    }
-
-
-    /**
      * Returns true if the given mode ID is one of the device layer modes.
      *
      * @param modeId The mode ID to test
@@ -193,18 +166,6 @@ public enum Modes
     public static boolean isLayerMode (final Modes modeId)
     {
         return LAYER_MODES.contains (modeId);
-    }
-
-
-    /**
-     * Returns true if the given mode ID is one of the layer send modes.
-     *
-     * @param modeId The mode ID to test
-     * @return True if it is a layer send mode
-     */
-    public static boolean isLayerSendMode (final Modes modeId)
-    {
-        return LAYER_SEND_MODES.contains (modeId);
     }
 
 

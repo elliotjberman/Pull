@@ -76,17 +76,6 @@ public class Pair<T1, T2>
 
 
     /**
-     * Set the key value.
-     *
-     * @param key The key
-     */
-    public void setKey (final T1 key)
-    {
-        this.key = key;
-    }
-
-
-    /**
      * Set the value.
      *
      * @param value The value
