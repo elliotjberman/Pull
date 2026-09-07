@@ -93,12 +93,10 @@ public class NavigationView implements ControllerView
             operation = shift ? Operation.SCENE_PAGE_NEXT : Operation.SCENE_SCROLL_NEXT;
         else if (this.horizontal == Horizontal.INERT)
             return List.of ();
-        else if (!shift)
+        else if (shift)
             operation = LEFT.equals (control) ? Operation.TRACK_PAGE_PREVIOUS : Operation.TRACK_PAGE_NEXT;
-        else if (this.horizontal == Horizontal.SESSION)
-            operation = LEFT.equals (control) ? Operation.TRACK_SCROLL_PREVIOUS : Operation.TRACK_SCROLL_NEXT;
         else
-            operation = LEFT.equals (control) ? Operation.CURSOR_SWAP_PREVIOUS : Operation.CURSOR_SWAP_NEXT;
+            operation = LEFT.equals (control) ? Operation.TRACK_SCROLL_PREVIOUS : Operation.TRACK_SCROLL_NEXT;
         return List.of (new CurrentTrackNavigationEffect (bank.navigationGeneration (), bank.bankId (), operation));
     }
 
@@ -109,11 +107,9 @@ public class NavigationView implements ControllerView
         final boolean shift = snapshot.pressedControls ().contains (SHIFT);
         final BankNavigationSnapshot tracks = bank.trackNavigation ();
         final BankNavigationSnapshot scenes = bank.sceneNavigation ();
-        // Mixer Shift lights historically report scroll availability, even though the action swaps
-        // the model cursor. Keep that visible behavior separate from actuator validation.
         return new ViewOutput (Map.of (
-            LEFT, color (this.horizontal != Horizontal.INERT && (shift ? tracks.previousItem () : tracks.previousPage ())),
-            RIGHT, color (this.horizontal != Horizontal.INERT && (shift ? tracks.nextItem () : tracks.nextPage ())),
+            LEFT, color (this.horizontal != Horizontal.INERT && (shift ? tracks.previousPage () : tracks.previousItem ())),
+            RIGHT, color (this.horizontal != Horizontal.INERT && (shift ? tracks.nextPage () : tracks.nextItem ())),
             UP, color (shift ? scenes.previousPage () : scenes.previousItem ()),
             DOWN, color (shift ? scenes.nextPage () : scenes.nextItem ())), Map.of ());
     }
