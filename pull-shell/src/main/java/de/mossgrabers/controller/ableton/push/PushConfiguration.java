@@ -91,6 +91,8 @@ public class PushConfiguration extends AbstractConfiguration implements IGraphic
     private int                   ribbonMode                   = RIBBON_MODE_PITCH;
     private int                   ribbonModeCCVal              = 1;
     private int                   ribbonModeNoteRepeat         = NOTE_REPEAT_PERIOD;
+    private String                parameterReturnCurve = "Linear";
+    private int                   parameterReturnMillis;
     private boolean               drumControllerRoll          = true;
 
     private boolean               stopAutomationOnKnobRelease  = false;
@@ -180,6 +182,10 @@ public class PushConfiguration extends AbstractConfiguration implements IGraphic
         this.activateStopAutomationOnKnobReleaseSetting (globalSettings);
         this.activateNewClipLengthSetting (globalSettings);
         this.activateKnobSpeedSetting (globalSettings);
+        // Bitwig fixes enum choices at controller initialization. YAML supplies one curve behind
+        // Custom; reloading core changes that curve, not this option list.
+        globalSettings.getEnumSetting ("Curve", "Control Return", new String [] { "Linear", "Ease-out", "Custom" }, "Linear").addValueObserver (value -> this.parameterReturnCurve = value);
+        globalSettings.getRangeSetting ("Time", "Control Return", 0, 10000, 10, "ms", 0).addValueObserver (value -> this.parameterReturnMillis = value.intValue ());
 
         ///////////////////////////
         // Add Track - Device Shortcuts
@@ -564,6 +570,13 @@ public class PushConfiguration extends AbstractConfiguration implements IGraphic
     {
         return this.drumControllerRoll;
     }
+
+
+    /** Observed duration preference; interpolation policy belongs to core. */
+    public int getParameterReturnMillis () { return this.parameterReturnMillis; }
+
+    /** Observed curve choice; curve math belongs to core. */
+    public String getParameterReturnCurve () { return this.parameterReturnCurve; }
 
 
     /**

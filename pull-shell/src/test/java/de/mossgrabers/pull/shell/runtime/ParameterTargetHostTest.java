@@ -70,6 +70,29 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ParameterTargetHostTest
 {
     @Test
+    void parameterWritesClampOvershootToTheInstalledRange ()
+    {
+        final MutableParameter parameter = new MutableParameter (64);
+        final MutableRemoteDevice device = new MutableRemoteDevice (parameter.proxy ());
+        final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
+        final PushControlSurface surface = createSurface (new MutableContinuous (), valueChanger);
+        surface.createRelativeKnob (ContinuousID.KNOB1, "Knob 1").bind (device.parameter);
+        final ParameterTargetHost host = new ParameterTargetHost (surface, model (device, valueChanger), silentLog ());
+        final DesiredParameterBanks banks = new DesiredParameterBanks (Set.of (ParameterBankId.ACTIVE));
+        host.refresh (banks);
+        final ParameterTargetRef target = host.snapshot ().slots ().get (ParameterSlot.active (0)).target ();
+        final var leases = host.prepareLeases (new DesiredParameterInteraction (1, false, Map.of (target, 64.0), Set.of (), Set.of (), 0), banks);
+        host.applyLeases (leases, banks);
+        host.apply (host.prepare (new SetParameterValueEffect (target, -100), leases));
+        host.refresh (banks);
+        assertEquals (0, host.snapshot ().targetOrNull (target).value ());
+        host.apply (host.prepare (new SetParameterValueEffect (target, 500), leases));
+        host.refresh (banks);
+        assertEquals (127, host.snapshot ().targetOrNull (target).value ());
+    }
+
+
+    @Test
     void rejectsLeaseWhenBitwigRebindsTheSameWrapperToAnotherDevice ()
     {
         final MutableParameter parameter = new MutableParameter (64);

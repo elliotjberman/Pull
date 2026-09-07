@@ -3,11 +3,14 @@
 
 package de.mossgrabers.pull.core.runtime;
 
+import de.mossgrabers.pull.core.runtime.curve.ReturnCurve;
+
 import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
 import de.mossgrabers.pull.core.api.ControllerStateScope;
 import de.mossgrabers.pull.core.api.CoreResult;
+import de.mossgrabers.pull.core.api.CoreExecutionRequirements;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
 import de.mossgrabers.pull.core.api.ParameterBridgeSnapshot;
@@ -58,6 +61,17 @@ final class SnapbackSession
     private long nextInteractionId = 1;
     private int settleTicks;
     private int restoreTicks;
+    private long returnDurationNanos;
+    private long returnStartedAt;
+    private ReturnCurve returnCurve = InterpolationCurve.LINEAR;
+    private final ReturnCurve customCurve;
+
+    SnapbackSession () { this (InterpolationCurve.LINEAR); }
+
+    SnapbackSession (final ReturnCurve customCurve)
+    {
+        this.customCurve = java.util.Objects.requireNonNull (customCurve);
+    }
 
 
     /** Restore any stable-retained leases inherited across a core hot reload. */
@@ -93,13 +107,13 @@ final class SnapbackSession
 
         boolean intercepted = false;
         if (checkedEvent instanceof final ControllerInputEvent input && isShift (input))
-            this.handleShift (input, parameters);
+            this.handleShift (input, snapshot);
         else if (checkedEvent instanceof final ControllerInputEvent input && input.kind () == InputKind.RELATIVE && mutationSlot != null)
             intercepted = !this.captureControllerMutation (mutationSlot, parameters);
         else if (checkedEvent instanceof final ParameterMutationEvent mutation)
             this.capture (mutation, mutationSlot, parameters);
         else if (checkedEvent instanceof ControllerTickEvent)
-            effects.addAll (this.advance (parameters));
+            effects.addAll (this.advance (parameters, snapshot.monotonicTimeNanos ()));
 
         return this.finishUpdate (intercepted, effects);
     }
@@ -113,6 +127,7 @@ final class SnapbackSession
             return this.finishUpdate (false, List.of ());
 
         this.enqueue (checkedAction);
+        this.returnDurationNanos = 0;
         if (this.state == State.ACTIVE)
             this.beginSettlement (Objects.requireNonNull (snapshot, "snapshot").bridge ().parameters ());
         return this.finishUpdate (true, List.of ());
@@ -124,6 +139,7 @@ final class SnapbackSession
     {
         final CoreResult base = Objects.requireNonNull (workspaceResult, "workspaceResult");
         final Set<BridgeSubscription> subscriptions = new LinkedHashSet<> (base.desiredBridgeSubscriptions ().domains ());
+        subscriptions.add (BridgeSubscription.CONTROLLER_SETTINGS);
         if (this.triggerHeld || !this.captures.isEmpty ())
             subscriptions.add (BridgeSubscription.PARAMETERS);
 
@@ -156,13 +172,14 @@ final class SnapbackSession
             base.desiredParameterBanks (),
             interaction,
             base.desiredParameterTouches (),
-            base.executionRequirements (),
+            base.executionRequirements ().merge (new CoreExecutionRequirements (this.isRestoring (), this.isRestoring ())),
             effects);
     }
 
 
-    private void handleShift (final ControllerInputEvent input, final ParameterBridgeSnapshot parameters)
+    private void handleShift (final ControllerInputEvent input, final ControllerSnapshot snapshot)
     {
+        final ParameterBridgeSnapshot parameters = snapshot.bridge ().parameters ();
         if (input.phase () == InputPhase.BEGIN)
         {
             this.triggerHeld = true;
@@ -183,7 +200,11 @@ final class SnapbackSession
                     this.interactionId = 0;
                 }
                 else
+                {
                     this.beginSettlement (parameters);
+                    this.returnDurationNanos = snapshot.bridge ().controllerSettings ().parameterReturnMillis () * 1_000_000L;
+                    this.returnCurve = "Custom".equals (snapshot.bridge ().controllerSettings ().parameterReturnCurve ()) ? this.customCurve : InterpolationCurve.fromSetting (snapshot.bridge ().controllerSettings ().parameterReturnCurve ());
+                }
             }
         }
     }
@@ -237,18 +258,19 @@ final class SnapbackSession
     }
 
 
-    private List<CoreEffect> advance (final ParameterBridgeSnapshot parameters)
+    private List<CoreEffect> advance (final ParameterBridgeSnapshot parameters, final long now)
     {
         return switch (this.state)
         {
-            case SETTLING -> this.advanceSettlement (parameters);
+            case SETTLING -> this.advanceSettlement (parameters, now);
+            case RETURNING -> this.advanceReturn (parameters, now);
             case RESTORING -> this.advanceRestoration (parameters);
             default -> List.of ();
         };
     }
 
 
-    private List<CoreEffect> advanceSettlement (final ParameterBridgeSnapshot parameters)
+    private List<CoreEffect> advanceSettlement (final ParameterBridgeSnapshot parameters, final long now)
     {
         boolean settled = true;
         for (final java.util.Iterator<Capture> iterator = this.captures.values ().iterator (); iterator.hasNext ();)
@@ -277,6 +299,37 @@ final class SnapbackSession
         if (!settled && ++this.settleTicks < MAX_SETTLE_TICKS)
             return List.of ();
 
+        if (this.returnDurationNanos > 0)
+        {
+            this.state = State.RETURNING;
+            this.returnStartedAt = now;
+            return List.of ();
+        }
+        return this.beginRestoration ();
+    }
+
+
+    private List<CoreEffect> advanceReturn (final ParameterBridgeSnapshot parameters, final long now)
+    {
+        this.captures.keySet ().removeIf (target -> parameters.targetOrNull (target) == null);
+        if (this.captures.isEmpty ())
+        {
+            this.state = State.COMPLETED;
+            return List.of ();
+        }
+        final double progress = this.returnDurationNanos == 0 ? 1 : Math.min (1, Math.max (0, (double) (now - this.returnStartedAt) / this.returnDurationNanos));
+        if (progress >= 1)
+            return this.beginRestoration ();
+        final List<CoreEffect> effects = new ArrayList<> (this.captures.size ());
+        final double eased = this.returnCurve.apply (progress);
+        for (final Capture capture: this.captures.values ())
+            effects.add (new SetParameterValueEffect (capture.target, capture.lastObservedValue + (capture.baseline - capture.lastObservedValue) * eased));
+        return effects;
+    }
+
+
+    private List<CoreEffect> beginRestoration ()
+    {
         this.state = State.RESTORING;
         this.restoreTicks = 0;
         final List<CoreEffect> effects = new ArrayList<> (this.captures.size ());
@@ -330,8 +383,9 @@ final class SnapbackSession
 
     private void beginSettlement (final ParameterBridgeSnapshot parameters)
     {
-        if (this.state == State.SETTLING || this.state == State.RESTORING)
+        if (this.isRestoring ())
             return;
+        this.returnDurationNanos = 0;
         this.state = State.SETTLING;
         this.settleTicks = 0;
         this.restoreTicks = 0;
@@ -406,7 +460,7 @@ final class SnapbackSession
 
     private boolean isRestoring ()
     {
-        return this.state == State.SETTLING || this.state == State.RESTORING;
+        return this.state == State.SETTLING || this.state == State.RETURNING || this.state == State.RESTORING;
     }
 
 
@@ -463,6 +517,7 @@ final class SnapbackSession
         IDLE,
         ACTIVE,
         SETTLING,
+        RETURNING,
         RESTORING,
         COMPLETED
     }

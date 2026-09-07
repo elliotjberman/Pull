@@ -1,11 +1,13 @@
 # Pull architecture
 
-Working source: Core API 52, checkpoint schema 6, Bitwig API 25. Migration is incomplete:
+Working source: Core API 53, checkpoint schema 6, Bitwig API 25. Migration is incomplete:
 core owns pages and migrated controls; the inventory below names the remaining shell handlers.
 
-The last recorded live build is `2fa63736` / Core API 50. Source API 52 has not been installed
-or live tested. The [smoke record](docs/migrations/session-core-live-smoke.md) identifies exact
-builds, covered scenarios and pending checks; it is not blanket validation of current source.
+The combined API 53 source has not been installed or live tested. The
+[Session smoke record](docs/migrations/session-core-live-smoke.md) identifies earlier exact builds
+and scoped coverage. Control Return's earlier feature build verified spring baseline crossings
+and invalid-YAML fallback; that evidence does not validate the combined source or establish what
+is currently loaded in Bitwig. See [Control Return](docs/control-return.md) for configuration.
 
 ## Assembly
 

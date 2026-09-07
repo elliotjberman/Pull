@@ -16,6 +16,11 @@
 
     <dependencies>
         <dependency>
+            <groupId>org.snakeyaml</groupId>
+            <artifactId>snakeyaml-engine</artifactId>
+            <version>3.0.1</version>
+        </dependency>
+        <dependency>
             <groupId>de.mossgrabers</groupId>
             <artifactId>pull-core-api</artifactId>
             <version>${project.version}</version>

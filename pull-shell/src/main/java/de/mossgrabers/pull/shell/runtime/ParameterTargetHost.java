@@ -370,7 +370,10 @@ final class ParameterTargetHost
         final RetainedTarget retained = Objects.requireNonNull (preparedLeases, "preparedLeases").get (checkedEffect.target ());
         if (retained == null)
             throw new IllegalArgumentException ("Parameter effects require an exact lease in the same core result");
-        return new PreparedSet (retained.target, checkedEffect.value ());
+        final double value = retained.target.parameter == null
+            ? Math.clamp (checkedEffect.value (), de.mossgrabers.framework.daw.constants.TransportConstants.MIN_TEMPO, de.mossgrabers.framework.daw.constants.TransportConstants.MAX_TEMPO)
+            : Math.clamp (checkedEffect.value (), 0, this.model.getValueChanger ().getUpperBound () - 1);
+        return new PreparedSet (retained.target, value);
     }
 
 

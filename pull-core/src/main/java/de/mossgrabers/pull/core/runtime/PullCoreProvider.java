@@ -3,6 +3,7 @@
 
 package de.mossgrabers.pull.core.runtime;
 
+
 import de.mossgrabers.pull.core.api.ControllerCore;
 import de.mossgrabers.pull.core.api.CoreApi;
 import de.mossgrabers.pull.core.api.CoreCapabilities;
@@ -76,6 +77,15 @@ public final class PullCoreProvider implements CoreProvider
     @Override
     public ControllerCore create ()
     {
-        return new PullControllerCore ();
+        try
+        {
+            return new PullControllerCore (de.mossgrabers.pull.core.runtime.curve.ControlReturnConfiguration.parse (
+                de.mossgrabers.pull.core.runtime.curve.CoreConfigurationFile.read (de.mossgrabers.pull.core.runtime.curve.CoreConfigurationFile.defaultPath ())));
+        }
+        catch (final java.io.IOException | IllegalArgumentException failure)
+        {
+            final String warning = "Control return: invalid config.yaml; Custom uses Linear. " + failure.getMessage ();
+            return new PullControllerCore (InterpolationCurve.LINEAR, warning.substring (0, Math.min (256, warning.length ())));
+        }
     }
 }

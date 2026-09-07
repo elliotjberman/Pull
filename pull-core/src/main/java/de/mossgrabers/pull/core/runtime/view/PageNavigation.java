@@ -149,7 +149,11 @@ public final class PageNavigation
             // deferred page action still keeps this request behind the same FIFO barrier; the
             // condition is checked again after that action actually selects its page.
             final boolean rejectedEntry = request.operation () == LegacyControllerPageRequest.Operation.BEGIN_TEMPORARY && request.capturedTarget ().isPresent () && !request.capturedTarget ().equals (this.visible ());
-            final Set<ControllerStateScope> invalidates = rejectedEntry ? Set.of () : Set.of (ControllerStateScope.ACTIVE_PARAMETERS);
+            // A release for a rejected/replaced temporary owner cannot change the page. A deferred
+            // entry still keeps its release behind the existing FIFO barrier until dispatch.
+            final boolean inertReturn = request.operation () == LegacyControllerPageRequest.Operation.CANCEL_TEMPORARY ||
+                request.operation () == LegacyControllerPageRequest.Operation.END_TEMPORARY && !Objects.equals (this.legacyTemporaryOwners.get (Long.valueOf (request.temporaryRequestSequence ())), Long.valueOf (this.state.temporaryToken ()));
+            final Set<ControllerStateScope> invalidates = rejectedEntry || inertReturn ? Set.of () : Set.of (ControllerStateScope.ACTIVE_PARAMETERS);
             actions.add (ResolvedControllerAction.of (new ControllerActionIntent (ControllerActionId.SWITCH_PARAMETER_CONTEXT, invalidates), () -> {
                 if (epoch != this.admissionEpoch || request.sequence () <= this.state.acknowledgedRequestSequence ()) return List.of ();
                 if (request.sequence () != this.state.acknowledgedRequestSequence () + 1)
