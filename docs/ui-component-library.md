@@ -95,6 +95,9 @@ examples to this same catalog. Setup and Ribbon add normal, limit and unavailabl
 
 This catalog is the shared offline visual validation path. The mixer text-stress regression and
 catalog use the same input fixture; the former separate mixer PNG renderer has been removed.
+Hardware buttons and screen frames use the debugger's shared `push-hardware.js` and
+`push-hardware.css`. The generator embeds these presentational helpers, keeping the gallery
+standalone without loading debugger input or live-state code.
 The catalog replays production drawing commands, binding only the explicit component color input
 to a CSS property; it does not redraw component geometry in JavaScript. Inline SVG IDs are scoped
 per specimen so text clipping and icon masks cannot cross between previews. Additional inputs for

@@ -190,9 +190,6 @@ main {
 }
 
 .control-face {
-    fill: #0c0c0d;
-    stroke: #19191a;
-    stroke-width: 0.18;
     transition: fill 80ms ease, stroke 80ms ease, transform 80ms ease, filter 80ms ease;
     transform-box: fill-box;
     transform-origin: center;
@@ -318,8 +315,8 @@ main {
 
 /* Surrounding buttons illuminate legends; display-row buttons illuminate a thin strip. */
 .button-legend[data-lit="true"] .control-face {
-    fill: #0c0c0d;
-    stroke: #19191a;
+    fill: var(--push-hardware-face);
+    stroke: var(--push-hardware-edge);
     filter: none;
 }
 
@@ -339,14 +336,9 @@ main {
     stroke: white;
 }
 
-.button-display-row .row-light {
-    fill: #242423;
-    pointer-events: none;
-}
-
 .button-display-row[data-lit="true"] .control-face {
-    fill: #0c0c0d;
-    stroke: #19191a;
+    fill: var(--push-hardware-face);
+    stroke: var(--push-hardware-edge);
     filter: none;
 }
 
@@ -358,10 +350,6 @@ main {
 .button-display-row.is-pressed[data-lit="true"] .control-face {
     fill: #29292a;
     stroke: #eeeee9;
-}
-
-.button-display-row[data-lit="true"] .row-light {
-    fill: var(--light);
 }
 
 .control[data-blink="slow"] .control-face,
@@ -521,16 +509,6 @@ body:has(#pressure-slider:focus-visible) .pad.is-pressure-target .control-face {
 .encoder:is(:hover, :focus-visible, .is-touched, .is-turning) .encoder-label,
 .touchstrip:is(:hover, :focus-visible, .is-touched) .touch-label {
     opacity: 1;
-}
-
-.display-bezel {
-    fill: #060607;
-    stroke: #09090a;
-    stroke-width: 0.65;
-}
-
-.display-screen {
-    fill: url(#display-gradient);
 }
 
 .display-grid {

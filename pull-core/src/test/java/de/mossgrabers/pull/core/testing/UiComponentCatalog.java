@@ -49,10 +49,12 @@ public final class UiComponentCatalog
         if (args.length != 2) throw new IllegalArgumentException ("Expected output directory and repository root");
         final Path output = Path.of (args[0]).toAbsolutePath ();
         final Path icons = Path.of (args[1]).resolve ("pull-shell/src/main/resources/images");
+        final Path hardware = Path.of (args[1]).resolve ("tools/push-debug-surface-app");
         Files.createDirectories (output);
         final CatalogTypography typography = CatalogTypography.load ();
         final String displayFont = "<style>" + typography.displayCss () + "</style>";
-        final StringBuilder html = new StringBuilder (HEADER.replace ("/* typography */", typography.catalogCss ()).replace ("$FONT_FAMILY", CatalogTypography.FAMILY));
+        final StringBuilder html = new StringBuilder (HEADER.replace ("/* typography */", typography.catalogCss ())
+            .replace ("/* hardware */", Files.readString (hardware.resolve ("push-hardware.css"))).replace ("$FONT_FAMILY", CatalogTypography.FAMILY));
         final List<Component> components = components ();
         final List<Example> examples = examples ();
         html.append ("<nav class=\"sections\" aria-label=\"Catalog sections\"><a href=\"#components\">Components <span>").append (components.size ())
@@ -74,8 +76,8 @@ public final class UiComponentCatalog
                 html.append (svg.replace (displayFont, "").replace ("<svg ", "<svg role=\"img\" aria-label=\"" + DisplaySceneSvg.escape (component.title () + " · " + variant.title ()) + "\" "));
                 html.append ("</div><figcaption><span>").append (variant.title ()).append ("</span><a href=\"").append (file).append ("\" aria-label=\"Open ")
                     .append (component.title ()).append (' ').append (variant.title ()).append (" SVG\">SVG ↗</a></figcaption>");
-                variant.light ().ifPresent (color -> html.append ("<div class=\"choice-light\"><i style=\"--light:").append (DisplaySceneSvg.color (color))
-                    .append ("\"></i>Button light <span>").append (DisplaySceneSvg.color (color)).append ("</span></div>"));
+                variant.light ().ifPresent (color -> html.append ("<div class=\"choice-light\"><svg role=\"img\" aria-label=\"Hardware button light\" data-row=\"2\" data-colors=\"").append (DisplaySceneSvg.color (color))
+                    .append ("\"></svg>Button light <span>").append (DisplaySceneSvg.color (color)).append ("</span></div>"));
                 html.append ("</figure>");
                 specimens++;
             }
@@ -103,7 +105,8 @@ public final class UiComponentCatalog
                 .append (example.visuals ().display ().width ()).append (" × ").append (example.visuals ().display ().height ())
                 .append (" logical pixels</footer></article>\n");
         }
-        Files.writeString (output.resolve ("index.html"), html.append ("</section></main><template id=\"display-font\">").append (displayFont).append ("</template>").append (FOOTER).toString ());
+        Files.writeString (output.resolve ("index.html"), html.append ("</section></main><template id=\"display-font\">").append (displayFont)
+            .append ("</template><script>").append (Files.readString (hardware.resolve ("push-hardware.js"))).append ("</script>").append (FOOTER).toString ());
         System.out.println ("UI component catalog: " + output.resolve ("index.html"));
         System.out.println (components.size () + " components (" + specimens + " isolated variants) and " + examples.size () + " view previews generated from production renderer output.");
     }
@@ -286,15 +289,15 @@ public final class UiComponentCatalog
     {
         final String label = row == 2 ? "Upper" : "Lower";
         html.append ("<div class=\"hardware-row\"><div class=\"surface-label\">").append (label)
-            .append (" hardware buttons</div><div class=\"lights\" aria-label=\"").append (label).append (" hardware button lights\">");
+            .append (" hardware buttons</div><svg class=\"lights\" role=\"img\" aria-label=\"").append (label)
+            .append (" hardware button lights\" data-row=\"").append (row).append ("\" data-colors=\"");
         for (int column = 1; column <= 8; column++)
         {
             final RgbColor color = visuals.lights ().get (PushControlIds.button ("ROW" + row + "_" + column));
-            html.append ("<span class=\"").append (color == null ? "unowned" : "owned").append ("\" style=\"--light:")
-                .append (color == null ? "transparent" : DisplaySceneSvg.color (color)).append ("\" title=\"").append (label).append (" button ").append (column)
-                .append (": ").append (color == null ? "no light state from this view" : DisplaySceneSvg.color (color)).append ("\"><i></i></span>");
+            if (column > 1) html.append (',');
+            if (color != null) html.append (DisplaySceneSvg.color (color));
         }
-        html.append ("</div></div>");
+        html.append ("\"></svg></div>");
     }
 
     private record Example (String id, String group, String title, String description, String renderer, PageVisuals visuals)
@@ -319,6 +322,7 @@ public final class UiComponentCatalog
         <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
         <title>Pull · UI library</title><style>
         /* typography */
+        /* hardware */
         :root{color-scheme:dark;font:15px/1.5 "$FONT_FAMILY",sans-serif;font-synthesis:none;background:#101216;color:#e7eaf0}
         *{box-sizing:border-box}body{max-width:1100px;margin:0 auto;padding:44px 30px 80px}h1{font-size:36px;letter-spacing:-1px;margin:4px 0 12px}
         h1,h2,h3,strong{font-weight:600}h2{font-size:28px;margin:2px 0}h3{font-size:20px;margin:2px 0}p{color:#aeb6c3;max-width:860px;margin:8px 0 18px}
@@ -331,22 +335,20 @@ public final class UiComponentCatalog
         article header{display:flex;justify-content:space-between;align-items:center;gap:20px}a{color:#a4d0ff;text-decoration:none;white-space:nowrap;font-size:13px}a:hover{text-decoration:underline}
         .surface{background:#24262b;padding:18px;border:1px solid #34373d;border-radius:7px;overflow:auto}.surface img{display:block;max-width:100%;height:auto;margin:0 auto}
         .hardware-row,.screen-area{max-width:960px;margin:0 auto}.surface-label{color:#9298a2;font-size:10px;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px}
-        .screen-area{margin:20px auto}.screen{background:#000;outline:5px solid #111216;border-radius:2px;overflow:hidden}
-        .lights{display:grid;grid-template-columns:repeat(8,1fr);gap:2px}.lights span{display:block;padding:0 10px}
-        .lights i{display:block;height:18px;background:var(--light);border:1px solid #484c53;border-radius:3px;box-shadow:0 2px 0 #111216}.lights .unowned i{border-style:dashed;opacity:.4}
-        .choice-light i{display:block;background:var(--light);border:1px solid #3a404a;border-radius:2px}
+        .screen-area{margin:22px auto}.screen-area .surface-label{margin-bottom:14px}.screen svg,.lights{display:block;width:100%;height:auto;overflow:visible}
+        .lights .unowned .control-face{stroke:#777;stroke-dasharray:.5 .5}.lights .unowned .row-light{fill:none}
         .specimens{display:grid;grid-template-columns:repeat(auto-fill,minmax(138px,1fr));gap:12px}.specimens figure{margin:0;min-width:0}
         .specimen-display{height:96px;display:flex;align-items:center;justify-content:center;background:#000;border:1px solid #2a303a;border-radius:7px}
         .specimen-display svg{display:block;flex:none}.specimens figcaption{display:flex;justify-content:space-between;gap:5px;margin-top:8px;font-size:12px}
         .specimens figcaption a{font-size:11px;color:#8599af}.choice-light{display:flex;gap:6px;align-items:center;color:#818e9e;font-size:10px;margin-top:5px}
-        .choice-light i{width:18px;height:6px}.choice-light span{margin-left:auto}article footer{color:#747f90;font-size:12px;margin-top:16px}
+        .choice-light svg{display:block;width:24px;height:auto;flex-shrink:0;overflow:visible}.choice-light span{margin-left:auto}article footer{color:#747f90;font-size:12px;margin-top:16px}
         code{font:inherit;color:#9aa9bd}body>footer{color:#818e9e;font-size:13px}[hidden]{display:none!important}
         .component-controls{display:flex;align-items:center;flex-wrap:wrap;gap:10px;position:sticky;top:12px;z-index:1;padding:12px 16px;margin-bottom:24px;background:#202630;border:1px solid #3b4655;border-radius:9px;box-shadow:0 6px 20px #0006}
         .component-controls label{font-weight:600}.component-controls input{font:inherit;border:1px solid #526074;border-radius:5px;background:#101216;color:inherit;height:36px}
         .component-controls input[type=color]{width:42px;padding:3px;cursor:pointer}.component-controls input[type=text]{width:100px;padding:5px 9px;font-variant-numeric:tabular-nums}
         .component-controls button{padding:5px 12px}.component-controls p{margin:0;font-size:12px}.component-controls [aria-invalid=true]{border-color:#ff9b9b}
         #color-error{color:#ffb1b1;flex-basis:100%}:focus-visible{outline:2px solid #a4d0ff;outline-offset:3px}
-        @media(max-width:700px){body{padding:24px 12px}article{padding:15px}.surface{padding:6px}article header{align-items:start}h1{font-size:30px}.lights span{padding:0 4px}}
+        @media(max-width:700px){body{padding:24px 12px}article{padding:15px}.surface{padding:14px}article header{align-items:start}h1{font-size:30px}}
         </style></head><body><div class="intro"><small>Pull / Reloadable UI</small><h1>UI library</h1>
         <p>Explore the individual building blocks, then preview the views built from them. Everything here uses production drawing commands with supplied values. No Bitwig or Push connection is needed.</p>
         <p class="notes">All UI text uses Lato. Display previews are measured with the same Lato Regular font data embedded in each SVG; catalog headings use Lato Semibold. Host rasterization can still differ; verify final typography on Push.</p>
@@ -364,6 +366,30 @@ public final class UiComponentCatalog
     private static final String FOOTER = """
         <footer>Regenerate with <code>tools/ui-component-catalog</code>. Fixture source: <code>pull-core/src/test/java/de/mossgrabers/pull/core/testing/UiComponentCatalog.java</code>.<br>Offline visual review does not prove host acknowledgements, interaction routing, or live hardware output.</footer>
         <script>
+        for (const row of document.querySelectorAll('svg[data-colors]')) {
+          const colors = row.dataset.colors.split(',');
+          row.setAttribute('viewBox', `0 0 ${colors.length === 1 ? PushHardware.BUTTON_WIDTH : PushHardware.ROW_WIDTH} ${PushHardware.BUTTON_HEIGHT}`);
+          colors.forEach((color, index) => {
+            const button = PushHardware.createRowButton({x: index * PushHardware.COLUMN_PITCH, y: 0, row: Number(row.dataset.row)});
+            button.dataset.lit = String(Boolean(color));
+            button.style.setProperty('--light', color || 'transparent');
+            button.classList.toggle('unowned', !color);
+            const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+            title.textContent = `Button ${index + 1}: ${color || 'no light state from this view'}`;
+            button.append(title);
+            row.append(button);
+          });
+        }
+        for (const image of document.querySelectorAll('.screen img')) {
+          const screen = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          const width = PushHardware.ROW_WIDTH;
+          const height = width * Number(image.getAttribute('height')) / Number(image.getAttribute('width'));
+          screen.setAttribute('viewBox', `0 0 ${width} ${height}`);
+          screen.setAttribute('role', 'img');
+          screen.setAttribute('aria-label', image.alt);
+          PushHardware.mountScreen(screen, {id: image.closest('article').id + '-screen', x: 0, y: 0, width, height, href: image.getAttribute('src')});
+          image.replaceWith(screen);
+        }
         const components = document.querySelector('#components');
         const picker = document.querySelector('#component-color');
         const hex = document.querySelector('#component-color-hex');
