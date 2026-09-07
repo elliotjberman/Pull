@@ -1,11 +1,14 @@
 # Pull architecture
 
-Working source: Core API 50, checkpoint schema 6, Bitwig API 25. Migration is incomplete:
+Working source: Core API 51, checkpoint schema 6, Bitwig API 25. Migration is incomplete:
 core owns pages and migrated controls; the inventory below names the remaining shell handlers.
 
 Production `2fa63736` / Core API 50 is installed and passed scoped Setup/Info and plain/Shift track-arrow checks.
-The source passes 1,018 offline package tests. The [smoke record](docs/migrations/session-core-live-smoke.md)
+The prior API 50 source passed 1,018 offline package tests. The [smoke record](docs/migrations/session-core-live-smoke.md)
 identifies exact builds and limits; Session and reload coverage remains the earlier API 49 evidence.
+
+API 51 removes the unused logical timer contract. It requires a matching shell install and
+restart; this cleanup has not been installed or live tested.
 
 ## Assembly
 

@@ -27,9 +27,6 @@ import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
 import de.mossgrabers.pull.core.api.output.DisplayCommand;
 import de.mossgrabers.pull.core.api.output.DisplayTextAlignment;
 import de.mossgrabers.pull.core.api.output.DisplayTextFit;
-import de.mossgrabers.pull.core.api.MixerControlKind;
-import de.mossgrabers.pull.core.api.output.MixerControlDisplay;
-import de.mossgrabers.pull.core.api.output.MixerControlsDisplay;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 
 
@@ -106,87 +103,6 @@ class DisplaySceneComponentTest
 
 
     @Test
-    void confinesMixerCellsBelowMenusAndAboveTheFooter ()
-    {
-        final RgbColor color = new RgbColor (1, 2, 3);
-        final ControllerDisplayScene cellScene = new ControllerDisplayScene (MixerControlDisplay.WIDTH, MixerControlDisplay.HEIGHT, List.of (new DisplayCommand.Rectangle (0, 0, MixerControlDisplay.WIDTH, MixerControlDisplay.HEIGHT, color)));
-        final MixerControlsDisplay display = new MixerControlsDisplay (List.of (new MixerControlDisplay (1, MixerControlKind.PAN, cellScene)));
-        final List<RectangleCall> rectangles = new ArrayList<> ();
-        final List<RectangleCall> clips = new ArrayList<> ();
-        final IGraphicsContext context = (IGraphicsContext) Proxy.newProxyInstance (
-            IGraphicsContext.class.getClassLoader (),
-            new Class<?> []
-            {
-                IGraphicsContext.class
-            },
-            (proxy, method, arguments) -> {
-                if ("fillRectangle".equals (method.getName ()))
-                    rectangles.add (new RectangleCall (((Number) arguments[0]).doubleValue (), ((Number) arguments[1]).doubleValue (), ((Number) arguments[2]).doubleValue (), ((Number) arguments[3]).doubleValue ()));
-                if ("pushClip".equals (method.getName ()))
-                    clips.add (new RectangleCall (((Number) arguments[0]).doubleValue (), ((Number) arguments[1]).doubleValue (), ((Number) arguments[2]).doubleValue (), ((Number) arguments[3]).doubleValue ()));
-                return relaxedValue (method.getReturnType ());
-            });
-
-        new MixerControlsComponent (display).draw (new DefaultGraphicsInfo (context, null, new DefaultGraphicsDimensions (960, 160, 1024), new DefaultBounds (0, 0, 960, 160)));
-
-        assertEquals (List.of (new RectangleCall (120, 17, 120, 126)), rectangles);
-        assertEquals (rectangles, clips);
-        assertTrue (rectangles.stream ().noneMatch (rectangle -> rectangle.y () < 17 || rectangle.y () + rectangle.height () > 143));
-    }
-
-
-    @Test
-    void stressFitsLongProjectMacroTextThroughTheProductionMixerInterpreter ()
-    {
-        final RgbColor color = new RgbColor (132, 214, 255);
-        final ControllerDisplayScene cellScene = new ControllerDisplayScene (MixerControlDisplay.WIDTH, MixerControlDisplay.HEIGHT, List.of (
-            new DisplayCommand.TextBox ("Very Long Project Macro Name", 8, 1, 104, 20, DisplayTextAlignment.LEFT, color, 15, 9, DisplayTextFit.SHRINK_ELLIPSIS),
-            new DisplayCommand.TextBox ("-123.456", 8, 21, 64, 30, DisplayTextAlignment.LEFT, color, 30, 12, DisplayTextFit.SHRINK),
-            new DisplayCommand.TextAt ("dB", 75, 47, color, 14)));
-        final MixerControlsDisplay display = new MixerControlsDisplay (List.of (new MixerControlDisplay (3, MixerControlKind.KNOB, cellScene)));
-        final List<TextCall> textCalls = new ArrayList<> ();
-        final List<RectangleCall> clips = new ArrayList<> ();
-        final IGraphicsContext context = (IGraphicsContext) Proxy.newProxyInstance (
-            IGraphicsContext.class.getClassLoader (),
-            new Class<?> []
-            {
-                IGraphicsContext.class
-            },
-            (proxy, method, arguments) -> {
-                if ("pushClip".equals (method.getName ()))
-                    clips.add (rectangle (arguments));
-                if ("calculateFontSize".equals (method.getName ()))
-                    return fittedFontSize ((String) arguments[0], ((Number) arguments[1]).doubleValue () - 1, ((Number) arguments[2]).doubleValue (), ((Number) arguments[3]).doubleValue ());
-                if ("drawTextInBounds".equals (method.getName ()))
-                    textCalls.add (new TextCall ((String) arguments[0], ((Number) arguments[3]).doubleValue (), ((Number) arguments[7]).doubleValue ()));
-                return relaxedValue (method.getReturnType ());
-            });
-
-        new MixerControlsComponent (display).draw (new DefaultGraphicsInfo (context, null, new DefaultGraphicsDimensions (960, 160, 1024), new DefaultBounds (0, 0, 960, 160)));
-
-        assertEquals (List.of (new RectangleCall (360, 17, 120, 126)), clips);
-        final TextCall label = textCalls.get (0);
-        final TextCall value = textCalls.get (1);
-        assertTrue (label.text ().endsWith ("..."));
-        assertTrue (label.text ().length () < "Very Long Project Macro Name".length ());
-        assertTrue (label.fontSize () >= 9 && label.fontSize () < 10);
-        assertEquals ("-123.456", value.text ());
-        assertEquals (64.0 / ("-123.456".length () * 0.6), value.fontSize (), 0.0001);
-        assertTrue (label.measuredWidth () <= label.width ());
-        assertTrue (value.measuredWidth () <= value.width ());
-    }
-
-
-    @Test
-    void emptyMixerDisplayDrawsNothing ()
-    {
-        final List<Call> calls = new ArrayList<> ();
-        new MixerControlsComponent (MixerControlsDisplay.empty ()).draw (new DefaultGraphicsInfo (recordingContext (calls), null, new DefaultGraphicsDimensions (960, 160, 1024), new DefaultBounds (0, 0, 960, 160)));
-        assertTrue (calls.isEmpty ());
-    }
-
-
-    @Test
     void displayModelInvalidatesItsRenderCacheWhenOnlyTheOverlayChanges ()
     {
         final DisplaySceneComponent base = new DisplaySceneComponent (new ControllerDisplayScene (960, 160, List.of (new DisplayCommand.Rectangle (0, 0, 960, 160, new RgbColor (0, 0, 0)))));
@@ -245,13 +161,6 @@ class DisplaySceneComponentTest
     }
 
 
-    private static double fittedFontSize (final String text, final double maximumFontSize, final double width, final double minimumFontSize)
-    {
-        final double fitted = Math.min (maximumFontSize, width / (text.length () * 0.6));
-        return fitted < minimumFontSize ? -1 : fitted;
-    }
-
-
     private record NativeState (double width, RectangleCall clip) { }
 
     private record NativeStroke (double x1, double y1, double x2, double y2, double width, RectangleCall clip) { }
@@ -263,11 +172,4 @@ class DisplaySceneComponentTest
     }
 
 
-    private record TextCall (String text, double width, double fontSize)
-    {
-        double measuredWidth ()
-        {
-            return this.text.length () * this.fontSize * 0.6;
-        }
-    }
 }

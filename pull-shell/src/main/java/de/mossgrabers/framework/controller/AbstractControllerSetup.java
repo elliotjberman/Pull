@@ -1195,7 +1195,6 @@ public abstract class AbstractControllerSetup<S extends IControlSurface<C>, C ex
      */
     protected void updateView ()
     {
-        this.recallLastView ();
         this.resetDrumOctave ();
     }
 
@@ -1212,17 +1211,6 @@ public abstract class AbstractControllerSetup<S extends IControlSurface<C>, C ex
             activeView.updateNoteMapping ();
         else if (activeView instanceof final AbstractDrum64View<?, ?> drum64View)
             drum64View.resetOctave ();
-    }
-
-
-    /**
-     * Recall last used view (if we are not in session, mix or a composite workspace).
-     */
-    protected void recallLastView ()
-    {
-        final S surface = this.getSurface ();
-        if (!surface.getViewManager ().isActive (Views.SESSION, Views.MIX, Views.WORKSPACE))
-            surface.recallPreferredView (this.model.getCursorTrack ());
     }
 
 

@@ -117,8 +117,6 @@ public abstract class AbstractConfiguration implements Configuration
     public static final Integer      FOOTSWITCH_3                    = Integer.valueOf (44);
     /** Setting for the foot-switch functionality. */
     public static final Integer      FOOTSWITCH_4                    = Integer.valueOf (45);
-    /** Preferred view. */
-    public static final Integer      STARTUP_VIEW                    = Integer.valueOf (46);
 
     // Implementation IDs start at 100
     protected static final int       NEXT_SETTING_ID                 = 100;
@@ -324,9 +322,6 @@ public abstract class AbstractConfiguration implements Configuration
     private final List<ArpeggiatorMode>               arpeggiatorModes;
 
     private boolean                                   excludeDeactivatedItems             = false;
-
-    private Views                                     startupView                         = Views.PLAY;
-    protected Views                                   preferredAudioView                  = Views.PLAY;
 
     private boolean                                   showPlayedChords                    = true;
 
@@ -1239,26 +1234,6 @@ public abstract class AbstractConfiguration implements Configuration
 
 
     /**
-     * Activate the preferred startup view setting.
-     *
-     * @param settingsUI The settings
-     * @param views The available views for selection
-     */
-    protected void activateStartupViewSetting (final ISettingsUI settingsUI, final Views [] views)
-    {
-        final String [] labels = new String [views.length];
-        for (int i = 0; i < views.length; i++)
-            labels[i] = Views.getViewName (views[i]);
-
-        final IEnumSetting startupViewSetting = settingsUI.getEnumSetting ("Startup view", CATEGORY_PLAY_AND_SEQUENCE, labels, labels[0]);
-        startupViewSetting.addValueObserver (value -> {
-            this.startupView = Views.getViewByName (value);
-            this.notifyObservers (STARTUP_VIEW);
-        });
-
-        this.isSettingActive.add (STARTUP_VIEW);
-    }
-    /**
      * Activate the setting to display played chords.
      *
      * @param settingsUI The settings
@@ -1369,18 +1344,6 @@ public abstract class AbstractConfiguration implements Configuration
     public List<ArpeggiatorMode> getArpeggiatorModes ()
     {
         return this.arpeggiatorModes;
-    }
-    /** {@inheritDoc} */
-    @Override
-    public Views getStartupView ()
-    {
-        return this.startupView;
-    }
-    /** {@inheritDoc} */
-    @Override
-    public Views getPreferredAudioView ()
-    {
-        return this.preferredAudioView;
     }
 
 

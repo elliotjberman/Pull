@@ -55,9 +55,9 @@ read-back. Neither the debugger's `APPLIED` transaction record nor a successful 
 proves the DAW completed a write, launch or release. Separately sampled domains can disagree; views
 join their explicit identities and stay blank/inert while target and rendering state are misaligned.
 
-Logical timer DTOs still exist, but production has no executor for them. They must not be emitted;
-see the [timer finding](findings/logical-timer-production-gap.md). Controller-cycle observation is
-requested through the installed execution-requirements contract instead.
+Fake hosts must not grant capabilities absent from the production shell. There is no logical
+timer effect/event contract. Time-driven behavior requests controller-cycle observation through
+the installed execution-requirements contract.
 
 ## Permanent input and gesture ownership
 

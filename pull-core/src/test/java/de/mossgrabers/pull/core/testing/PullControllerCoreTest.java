@@ -83,7 +83,6 @@ import de.mossgrabers.pull.core.api.effect.NavigateProjectEffect;
 import de.mossgrabers.pull.core.api.effect.ProjectFileAction;
 import de.mossgrabers.pull.core.api.effect.ProjectFileActionEffect;
 import de.mossgrabers.pull.core.api.effect.ProjectNavigationDirection;
-import de.mossgrabers.pull.core.api.effect.ScheduleTimerEffect;
 import de.mossgrabers.pull.core.api.effect.SetProjectEngineEffect;
 import de.mossgrabers.pull.core.api.effect.SetProjectTransportStateEffect;
 import de.mossgrabers.pull.core.api.effect.SetParameterValueEffect;
@@ -622,7 +621,6 @@ class PullControllerCoreTest
 
         host.controllerButton (PLAY_BUTTON, true);
         assertTrue (host.effects ().executionRequirements ().ticksRequested ());
-        assertFalse (host.effects ().executionOrder ().stream ().anyMatch (ScheduleTimerEffect.class::isInstance));
         ControllerPadGridOverlay overlay = host.effects ().desiredOutput ().padGridOverlay ();
         assertTrue (overlay.active ());
         assertEquals (64, overlay.colors ().size ());

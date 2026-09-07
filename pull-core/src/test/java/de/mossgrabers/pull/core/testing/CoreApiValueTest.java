@@ -57,7 +57,6 @@ import de.mossgrabers.pull.core.api.SessionTrackSnapshot;
 import de.mossgrabers.pull.core.api.SessionTrackType;
 import de.mossgrabers.pull.core.api.ShellCapabilities;
 import de.mossgrabers.pull.core.api.StateEnvelope;
-import de.mossgrabers.pull.core.api.TimerId;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchMode;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
@@ -68,7 +67,6 @@ import de.mossgrabers.pull.core.api.effect.AdjustParameterValueEffect;
 import de.mossgrabers.pull.core.api.effect.PressClipTargetEffect;
 import de.mossgrabers.pull.core.api.effect.ReleaseClipTargetsEffect;
 import de.mossgrabers.pull.core.api.effect.ResetParameterEffect;
-import de.mossgrabers.pull.core.api.effect.ScheduleTimerEffect;
 import de.mossgrabers.pull.core.api.effect.SendNoteInputMidiEffect;
 import de.mossgrabers.pull.core.api.effect.SelectSessionTrackEffect;
 import de.mossgrabers.pull.core.api.effect.StopSessionBankEffect;
@@ -698,7 +696,6 @@ class CoreApiValueTest
     void rejectsInvalidBoundaryValues ()
     {
         assertThrows (IllegalArgumentException.class, () -> new ControlId (" "));
-        assertThrows (IllegalArgumentException.class, () -> new TimerId (""));
         assertThrows (IllegalArgumentException.class, () -> new ClipTargetId (-1));
         assertThrows (NullPointerException.class, () -> new CatalogClip (null, "clip"));
         assertThrows (NullPointerException.class, () -> new CatalogClip (new ClipTargetId (0), null));
@@ -729,6 +726,5 @@ class CoreApiValueTest
         assertThrows (IllegalArgumentException.class, () -> new SnapshotChangedEvent (0, -1));
         assertThrows (IllegalArgumentException.class, () -> new ShellCapabilities (Map.of ("lights", Integer.valueOf (0))));
         assertThrows (IllegalArgumentException.class, () -> new RgbColor (256, 0, 0));
-        assertEquals (3, new ScheduleTimerEffect (new TimerId ("timer"), 3).deadlineNanos ());
     }
 }
