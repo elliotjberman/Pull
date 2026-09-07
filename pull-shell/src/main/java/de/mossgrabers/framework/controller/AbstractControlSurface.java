@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -86,6 +87,8 @@ public abstract class AbstractControlSurface<C extends Configuration> implements
     protected final IPadGrid                              padGrid;
     protected ILightGuide                                 lightGuide;
     protected boolean                                     notifyViewChange               = true;
+
+    private final Map<Integer, IView>                       gridReceivers                  = new HashMap<> ();
 
     private int []                                        keyTranslationTable;
 
@@ -167,6 +170,8 @@ public abstract class AbstractControlSurface<C extends Configuration> implements
         this.input = input;
         if (this.input != null)
             this.input.setMidiCallback (this::handleMidi);
+
+        this.viewManager.addChangeListener ((previous, current) -> this.cancelGridGestures ());
 
         this.createPads ();
         this.createLightGuide ();
@@ -1063,13 +1068,34 @@ public abstract class AbstractControlSurface<C extends Configuration> implements
      */
     protected void handleGridNote (final ButtonEvent event, final int note, final int velocity)
     {
-        final IView view = this.viewManager.getActive ();
-        if (view == null)
+        final IView view;
+        if (event == ButtonEvent.DOWN)
+        {
+            view = this.viewManager.getActive ();
+            if (view != null)
+                this.gridReceivers.put (Integer.valueOf (note), view);
+        }
+        else
+            view = event == ButtonEvent.UP ? this.gridReceivers.remove (Integer.valueOf (note)) : this.gridReceivers.get (Integer.valueOf (note));
+        if (view == null || view != this.viewManager.getActive ())
             return;
         if (event == ButtonEvent.LONG)
             view.onGridNoteLongPress (note);
         else
             view.onGridNote (note, velocity);
+    }
+
+
+    /**
+     * Retire stable grid receivers when their view or target disappears. The physical holds stay
+     * owned by input arbitration until release; no ordinary release action is sent to another view.
+     */
+    public void cancelGridGestures ()
+    {
+        final List<IView> receivers = List.copyOf (this.gridReceivers.values ());
+        this.gridReceivers.clear ();
+        for (final IView receiver: receivers)
+            receiver.getKeyManager ().clearPressedKeys ();
     }
 
 

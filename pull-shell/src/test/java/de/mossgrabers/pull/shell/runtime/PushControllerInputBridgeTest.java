@@ -12,6 +12,7 @@ import de.mossgrabers.framework.command.core.TriggerCommand;
 import de.mossgrabers.framework.command.core.ContinuousCommand;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.ContinuousID;
+import de.mossgrabers.framework.controller.display.IGraphicDisplay;
 import de.mossgrabers.framework.controller.hardware.AbstractHwButton;
 import de.mossgrabers.framework.controller.hardware.BindType;
 import de.mossgrabers.framework.controller.hardware.ButtonEventArbitrator;
@@ -24,6 +25,14 @@ import de.mossgrabers.framework.controller.hardware.IHwSurfaceFactory;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.controller.valuechanger.TwosComplementValueChanger;
 import de.mossgrabers.framework.daw.IHost;
+import de.mossgrabers.framework.daw.IModel;
+import de.mossgrabers.framework.daw.data.ISlot;
+import de.mossgrabers.framework.daw.data.bank.ISlotBank;
+import de.mossgrabers.framework.daw.data.bank.ITrackBank;
+import de.mossgrabers.framework.featuregroup.IView;
+import de.mossgrabers.framework.utils.KeyManager;
+import de.mossgrabers.framework.view.AbstractSessionView;
+import de.mossgrabers.framework.view.Views;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.midi.IMidiInput;
 import de.mossgrabers.framework.daw.midi.IMidiOutput;
@@ -370,6 +379,88 @@ class PushControllerInputBridgeTest
         fixture.bridge.flush ();
         assertEquals (2, legacyPressure.get ());
         assertEquals (3, fixture.events.size ());
+    }
+
+
+    @Test
+    void departedGridReceiverCannotLaunchSessionOrReviveWhenItsViewReturns ()
+    {
+        for (final boolean observed: List.of (true, false))
+        {
+            final Fixture fixture = new Fixture ();
+            final ControlId pad = PushControlIds.pad (1);
+            fixture.routes.set (!observed ? DesiredInputRoutes.empty () : new DesiredInputRoutes (Set.of (
+                new InputRoute (pad, de.mossgrabers.pull.core.api.event.InputKind.PAD, InputRouteMode.OBSERVE))));
+            final List<Integer> played = new ArrayList<> ();
+            final List<Boolean> clipLaunches = new ArrayList<> ();
+            final KeyManager keys = new KeyManager (null, null, null);
+            final IView notes = proxy (IView.class, (proxy, method, arguments) -> {
+                if (method.getName ().equals ("getKeyManager"))
+                    return keys;
+                if (method.getName ().equals ("onGridNote"))
+                {
+                    final int velocity = (Integer) arguments[1];
+                    keys.setKeyPressed ((Integer) arguments[0], velocity);
+                    played.add (velocity);
+                }
+                return relaxedValue (method.getReturnType ());
+            });
+            fixture.surface.getViewManager ().register (Views.PLAY, notes);
+            fixture.surface.getViewManager ().register (Views.SESSION, sessionView (fixture.surface, clipLaunches));
+            fixture.surface.getViewManager ().setActive (Views.PLAY);
+
+            fixture.bridge.triggerDebugPad (pad, InputPhase.BEGIN, 100);
+            assertTrue (keys.isKeyPressed (36));
+            fixture.surface.getViewManager ().setActive (Views.SESSION);
+            assertFalse (keys.isKeyPressed (36), "departure clears captured view resources without a release action");
+            assertFalse (fixture.bridge.musicalInputLifecycleIdle (), "cancellation must retain the physical hold");
+            fixture.bridge.triggerDebugPad (pad, InputPhase.END, 0);
+            assertEquals (List.of (), clipLaunches, "the old release must not launch a Session clip");
+            assertEquals (List.of (100), played, "cancellation must not synthesize an ordinary release into the old view");
+
+            fixture.surface.getViewManager ().setActive (Views.PLAY);
+            fixture.bridge.triggerDebugPad (pad, InputPhase.BEGIN, 90);
+            fixture.surface.getViewManager ().setActive (Views.SESSION);
+            fixture.surface.getViewManager ().setActive (Views.PLAY);
+            fixture.bridge.triggerDebugPad (pad, InputPhase.END, 0);
+            assertEquals (List.of (100, 90), played, "returning to the same receiver cannot revive its old hold");
+
+            fixture.bridge.triggerDebugPad (pad, InputPhase.BEGIN, 80);
+            fixture.surface.cancelGridGestures ();
+            fixture.bridge.triggerDebugPad (pad, InputPhase.END, 0);
+            assertEquals (List.of (100, 90, 80), played, "target invalidation also cancels an unchanged view");
+            assertFalse (keys.isKeyPressed (36));
+
+            fixture.bridge.triggerDebugPad (pad, InputPhase.BEGIN, 70);
+            fixture.bridge.triggerDebugPad (pad, InputPhase.END, 0);
+            assertEquals (List.of (100, 90, 80, 70, 0), played, "a fresh gesture is usable after cancellation");
+            fixture.surface.getViewManager ().setActive (Views.SESSION);
+            fixture.bridge.triggerDebugPad (pad, InputPhase.BEGIN, 100);
+            fixture.bridge.triggerDebugPad (pad, InputPhase.END, 0);
+            assertEquals (List.of (true, false), clipLaunches, "unchanged Session must retain both launch phases");
+            assertTrue (fixture.bridge.musicalInputLifecycleIdle ());
+        }
+    }
+
+
+    private static IView sessionView (final PushControlSurface surface, final List<Boolean> launches)
+    {
+        surface.addGraphicsDisplay (relaxedProxy (IGraphicDisplay.class));
+        final ISlot slot = proxy (ISlot.class, (proxy, method, arguments) -> {
+            if (method.getName ().equals ("launch"))
+                launches.add ((Boolean) arguments[0]);
+            return relaxedValue (method.getReturnType ());
+        });
+        final ISlotBank slots = proxy (ISlotBank.class, (proxy, method, arguments) -> method.getName ().equals ("getItem") ? slot : relaxedValue (method.getReturnType ()));
+        final ITrack track = proxy (ITrack.class, (proxy, method, arguments) -> switch (method.getName ())
+        {
+            case "doesExist" -> true;
+            case "getSlotBank" -> slots;
+            default -> relaxedValue (method.getReturnType ());
+        });
+        final ITrackBank tracks = proxy (ITrackBank.class, (proxy, method, arguments) -> method.getName ().equals ("getItem") ? track : relaxedValue (method.getReturnType ()));
+        final IModel model = proxy (IModel.class, (proxy, method, arguments) -> method.getName ().equals ("getCurrentTrackBank") ? tracks : relaxedValue (method.getReturnType ()));
+        return new AbstractSessionView<PushControlSurface, PushConfiguration> ("Session", surface, model, 8, 8, false) {};
     }
 
 

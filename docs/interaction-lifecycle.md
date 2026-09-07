@@ -1,8 +1,8 @@
 # Target-bound interaction lifecycle
 
 Working source: Core API 47 / Bitwig API 25. The standalone lifecycle is now used by production
-`InputGestureRouter`. This change has not been installed or live tested; the previously installed
-Bitwig build is untouched. UI/editing migration remains a [separate task](migrations/ui-and-editing-handoff.md).
+`InputGestureRouter`. Matched builds are undergoing [live validation](migrations/interaction-lifecycle-live-smoke.md)
+in `202arp3`. UI/editing migration remains a [separate task](migrations/ui-and-editing-handoff.md).
 
 ## One rule
 

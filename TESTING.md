@@ -179,10 +179,15 @@ Wait for `input ready`, then validate the supported layers separately:
 - In Session or an engaged Drum layout, drag the strip through several positions and release.
   Check later `touchStrip` output for `PITCH_BEND` and the exact 14-bit position, then center 8192.
   With a sounding instrument, verify audible pitch and release centering independently. Hold the
-  strip while changing the page/layout, verify that the gesture continues until release, and then
-  verify that the next gesture uses the newly selected layout. A raw `ABSOLUTE` request without an
+  strip through a page replacement retaining the same raw-strip view: the bend must remain held.
+  Leave that view: verify immediate centering and an inert physical tail, including after returning.
+  Only a fresh touch may bend again. A raw `ABSOLUTE` request without an
   exact active browser TOUCH lease must fail. The generic `/api/input` endpoint can submit these
   values for repeatable checks; it retains the same live lease and session-token requirements.
+
+Ordinary target/view changes neutralize debugger-injected native MIDI without synthesizing physical
+releases. Keep renewing the original edge, then send its real END to test cancellation faithfully.
+Core invalidation/replacement, expiry, and shutdown still retire debugger-owned physical leases.
 
 The bounded files below make those distinctions inspectable without browser developer tools:
 

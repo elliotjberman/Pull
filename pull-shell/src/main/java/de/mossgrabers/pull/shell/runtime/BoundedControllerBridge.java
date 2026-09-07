@@ -1283,7 +1283,8 @@ final class BoundedControllerBridge implements ControllerBridge
 
     private void resetNoteInputMidiState ()
     {
-        // A target or note-route change retires musical state, not the physical gestures.
+        // A target or note-route change retires receivers and musical state, not physical holds.
+        this.surface.cancelGridGestures ();
         this.debugNoteInputCleanup.run ();
         if (this.noteInputMidiState.isEmpty ())
             return;
