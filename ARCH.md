@@ -24,7 +24,7 @@ Push / Bitwig -> shell callbacks and observed snapshots -> core behavior
 | Module | Responsibility |
 | --- | --- |
 | `pull-core-api` | Parent-loaded immutable events, snapshots, desired state and effects. No Bitwig/framework objects. |
-| `pull-core` | Child-loaded controller policy and UI; bounded synchronous handlers, no host callbacks, threads or I/O. |
+| `pull-core` | Child-loaded controller policy, UI and configuration; bounded controller callbacks. |
 | `pull-shell` | Initialization-owned proxies, observers, hardware bindings, resources, validation and output transport; also the unmigrated handlers below. |
 | `pull-core-bundle` | Embeds the core JAR as a resource without exposing its classes to shell. |
 | `pull-core-publisher` | Publishes candidates and waits for exact activation through `tools/reload-core`. |
@@ -35,13 +35,18 @@ replaces desired routes, resources and output. Effects request changes; feedback
 operations use later read-back. Mutable targets are checked at preparation and application. A shared host guard releases Session
 holds and revokes captured locations at actual track/scene/window mutation methods, covering core and frozen callers alike.
 
+Core may parse configuration, including YAML, and read bundled or external data. Keep potentially
+blocking external I/O off the controller callback path. Streams, watchers and background tasks need
+explicit ownership and cleanup; results from a retired core generation must not alter controller
+state. Adding background work includes implementing its reload and failure lifecycle.
+
 ## Pages and input
 
 | Owner | Responsibility |
 | --- | --- |
 | `PageId` / `Page` | Immutable page identity, fixed views, optional navigation and parameter indications. |
 | `PageNavigation` | Current/previous page and one replaceable temporary owner with an exact return token. |
-| `ControllerPages` / `ControllerPageCompositions` | Finite Java declarations composed over actual Session/Drum/Note/VS view instances. |
+| `ControllerPages` / `ControllerPageCompositions` | Validated page declarations composed over actual Session/Drum/Note/VS view instances. |
 | `ControllerView` / `CompiledWorkspace` | Fixed `SurfaceArea` claims, subscriptions, targets, effects and output; reject ownership conflicts. |
 | `InputGestureRouter` / `InteractionLifecycle` | Capture migrated interactions, cancel changed bindings and suppress physical tails until a fresh gesture. |
 | `core.ui` | Shared components/styles and pure page renderers over immutable presentations; no navigation, target lookup or host effects. |
@@ -108,9 +113,10 @@ frozen support; device remotes are excluded while production device identity is 
 [target limits](docs/findings/parameter-target-proxy-coupling.md) and the
 [mapping contract](pull-core-api/src/main/java/de/mossgrabers/pull/core/api/CONTROLLER_MAPPING_IDENTITY.md).
 
-Core behavior inside this installed capability set hot reloads. Parent API, proxies/observers,
-capacity, permanent bindings, settings schema and output-transport changes need shell installation
-and restart. [Runtime](docs/reloadable-controller-core-design.md) owns activation and host barriers;
+Core behavior and configuration schemas using installed capabilities can change with a core reload.
+Changes to parent-loaded code/API, startup-created Bitwig preferences or proxies, proxy capacity,
+permanent bindings or output transport need shell installation and restart.
+[Runtime](docs/reloadable-controller-core-design.md) owns activation and host barriers;
 [TESTING](TESTING.md) owns verification. Use the [migration audit](docs/reloadable-core-migration-guide.md),
 [remaining checklist](docs/reloadable-core-migration-roadmap.md) and [active findings](docs/findings/README.md)
 before extending a family. New product policy belongs in core; action and feedback migrate together.

@@ -31,8 +31,8 @@ end-to-end authoring capability.
 - A new geometry must audit its footprint, pressure, feedback, and target route independently;
   gaps outside the installed bounded capability still require a shell change and restart.
   Neither RGB ownership nor `EXCLUSIVE` controller routing grants native musical translation.
-- There is no dynamic class/config registration contract; authored views are currently source
-  changes compiled into `pull-core`.
+- Views are currently registered in core Java code. A configuration loader may construct the same
+  validated definitions; it still needs the installed musical input, pressure and feedback capabilities.
 
 ## Required Design
 

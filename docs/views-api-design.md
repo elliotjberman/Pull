@@ -17,7 +17,7 @@ The source interfaces are the authority:
   subscriptions, parameter banks/bindings, semantic actions, targets, lifecycle and output.
 - [`ViewProfile`](../pull-core/src/main/java/de/mossgrabers/pull/core/view/ViewProfile.java) and
   [`SurfaceArea`](../pull-core/src/main/java/de/mossgrabers/pull/core/view/SurfaceArea.java): fixed
-  claims and physical regions. View/profile IDs are strings; no separate runtime registration language exists.
+  claims and physical regions. View/profile IDs are strings.
 - [`Page`](../pull-core/src/main/java/de/mossgrabers/pull/core/view/Page.java): immutable page
   definition, separate from navigation state and presentation values.
 
@@ -49,7 +49,7 @@ surface claim; each receiving view sees only its own admitted pads.
 
 ## Declaring pages and backgrounds
 
-`ControllerPages` declares supported compositions in Java. For example, the ordinary Track page
+`ControllerPages` currently declares supported compositions in Java. For example, the ordinary Track page
 is assembled from a parameter body and current-bank footer:
 
 ```java
@@ -65,7 +65,9 @@ instances so a page replacement does not restart an unchanged musical view.
 
 [ARCH](../ARCH.md) inventories installed backgrounds and geometry. The shell preserves Session
 offsets across its two shapes and gives launcher feedback only to the active bank. `DrumFillView`
-is directly composed so the router sees its target/cancel hooks. No runtime plugin/YAML loader exists.
+is directly composed so the router sees its target/cancel hooks. Configuration such as YAML may
+construct the same page and view definitions, with the same claim, target and lifecycle validation.
+No configuration loader is implemented yet.
 
 `CompiledWorkspace` expands profiles/facets, validates claims and parameter/action bindings,
 merges subscriptions and installed-bank requests, and produces one complete `CoreResult`.
