@@ -17,7 +17,7 @@ TODO: migrate Color pad drawing/selection together once Note/Drum→Color native
 | Family | Include | Prerequisite |
 | --- | --- | --- |
 | Browser | Filter/result actions, selection, audition, commit/cancel; reuse `BrowserPageNavigation`. Display already uses shared lists. | Bounded operations with exact insertion/replacement destination; display observations grant no actuator authority. |
-| Settings/pages | Scales/Layout, Repeat, Fixed Length, User, physical Ribbon behavior, Crossfade and Track/Layer Details actions/providers/lights. Ordinary displays already use core components. | Missing state/effects and exact targets from the roadmap. Persistence may remain mechanical in shell. |
+| Settings/pages | Scales/Layout, Repeat, Fixed Length, physical Ribbon behavior, Crossfade and Track/Layer Details actions/providers/lights. Ordinary displays already use core components. | Missing state/effects and exact targets from the roadmap. Persistence may remain mechanical in shell. |
 | Color | Deferred together: pad drawing, target selection, grid workflow, confirm/cancel and exact return. Existing behavior stays unchanged. | Target alignment, Note/Drum→Color handoff and native-note suppression; exclusive command ownership does not silence `NoteInput`. |
 | Musical layouts/editing | Note/Clip and melodic/polyphonic/Drum sequencer gestures; paging, selections, edits, playing feedback, pressure, scenes and clip length. | Exact identities and reusable edits over bounded windows. Ordinary Note display already reads host values separately from the optimistic legacy working copy. |
 

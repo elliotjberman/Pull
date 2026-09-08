@@ -6,7 +6,6 @@ package de.mossgrabers.controller.ableton.push;
 import de.mossgrabers.controller.ableton.push.command.trigger.PushCursorCommand;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
-import de.mossgrabers.controller.ableton.push.mode.device.UserMode;
 import de.mossgrabers.controller.ableton.push.mode.CorePageMode;
 import de.mossgrabers.controller.ableton.push.workspace.SessionBankRegistry;
 import de.mossgrabers.framework.command.trigger.mode.ButtonRowModeCommand;
@@ -27,7 +26,6 @@ import de.mossgrabers.framework.daw.IProject;
 import de.mossgrabers.framework.daw.data.ICursorTrack;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.IParameterBank;
-import de.mossgrabers.framework.daw.data.bank.IParameterPageBank;
 import de.mossgrabers.framework.daw.data.bank.ISceneBank;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
 import de.mossgrabers.framework.daw.midi.IMidiInput;
@@ -36,7 +34,6 @@ import de.mossgrabers.framework.daw.midi.ISelectedTrackNoteTarget;
 import de.mossgrabers.framework.featuregroup.IMode;
 import de.mossgrabers.framework.featuregroup.IView;
 import de.mossgrabers.framework.mode.Modes;
-import de.mossgrabers.framework.parameter.IParameter;
 import de.mossgrabers.framework.scale.Scales;
 import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.framework.view.Views;
@@ -214,83 +211,6 @@ class PushBehaviorParityTest
             assertEquals (127, PushColorManager.resolveCoreButtonColor (colors, button, new RgbColor (255, 255, 255)));
             assertEquals (0, PushColorManager.resolveCoreButtonColor (colors, button, new RgbColor (0, 0, 0)));
         }
-    }
-
-
-    @Test
-    void userModeBottomMenuAndButtonAddressTheSameTrack ()
-    {
-        final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
-        final IParameter parameter = relaxedProxy (IParameter.class);
-        final List<Integer> selectedParameterPages = new ArrayList<> ();
-        final IParameterPageBank parameterPageBank = proxy (IParameterPageBank.class, (proxy, method, arguments) -> switch (method.getName ())
-        {
-            case "getItem" -> "Page " + (((Integer) arguments[0]).intValue () + 1);
-            case "selectPage" -> {
-                selectedParameterPages.add ((Integer) arguments[0]);
-                yield null;
-            }
-            default -> relaxedValue (method.getReturnType ());
-        });
-        final IParameterBank parameterBank = proxy (IParameterBank.class, (proxy, method, arguments) -> switch (method.getName ())
-        {
-            case "getPageSize" -> Integer.valueOf (8);
-            case "getItem" -> parameter;
-            case "getPageBank" -> parameterPageBank;
-            default -> relaxedValue (method.getReturnType ());
-        });
-        final List<Integer> selectedTrackIndices = new ArrayList<> ();
-        final ITrack [] tracks = new ITrack [8];
-        for (int index = 0; index < tracks.length; index++)
-        {
-            final int trackIndex = index;
-            tracks[index] = proxy (ITrack.class, (proxy, method, arguments) -> switch (method.getName ())
-            {
-                case "doesExist" -> Boolean.TRUE;
-                case "getName" -> "Track " + (trackIndex + 1);
-                case "getChannelID" -> "track-" + trackIndex;
-                case "getType" -> de.mossgrabers.framework.daw.resource.ChannelType.INSTRUMENT;
-                case "getColor" -> ColorEx.BLUE;
-                case "select" -> {
-                    selectedTrackIndices.add (Integer.valueOf (trackIndex));
-                    yield null;
-                }
-                default -> relaxedValue (method.getReturnType ());
-            });
-        }
-        final ICursorTrack cursorTrack = proxy (ICursorTrack.class, (proxy, method, arguments) -> "getParameterBank".equals (method.getName ()) ? parameterBank : relaxedValue (method.getReturnType ()));
-        final ITrackBank trackBank = proxy (ITrackBank.class, (proxy, method, arguments) -> switch (method.getName ())
-        {
-            case "getPageSize" -> 8;
-            case "getItem" -> tracks[((Integer) arguments[0]).intValue ()];
-            case "getSelectedItem" -> Optional.empty ();
-            default -> relaxedValue (method.getReturnType ());
-        });
-        final IProject project = proxy (IProject.class, (proxy, method, arguments) -> "getParameterBank".equals (method.getName ()) ? parameterBank : relaxedValue (method.getReturnType ()));
-        final PushColorManager colorManager = new PushColorManager ();
-        final IModel model = proxy (IModel.class, (proxy, method, arguments) -> switch (method.getName ())
-        {
-            case "getColorManager" -> colorManager;
-            case "getCursorTrack" -> cursorTrack;
-            case "getCurrentTrackBank" -> trackBank;
-            case "getProject" -> project;
-            case "getValueChanger" -> valueChanger;
-            default -> relaxedValue (method.getReturnType ());
-        });
-        final PushControlSurface surface = createSurface (valueChanger, relaxedProxy (ISelectedTrackNoteTarget.class), cursorTrack);
-        for (int index = 1; index <= 8; index++)
-            surface.createAbsoluteKnob (de.mossgrabers.framework.controller.ContinuousID.valueOf ("KNOB" + index), "Knob " + index);
-        final UserMode mode = new UserMode (surface, model);
-        surface.getModeManager ().register (Modes.USER, mode);
-        surface.getModeManager ().apply (new de.mossgrabers.pull.core.api.DesiredControllerPageState (1, de.mossgrabers.pull.core.api.ControllerPageRef.legacy ("USER"), de.mossgrabers.pull.core.api.ControllerPageRef.none (), Optional.empty (), 0));
-        final var observed = de.mossgrabers.pull.shell.runtime.PushDevicePageObserver.capture (surface, model);
-        mode.onFirstRow (3, ButtonEvent.DOWN);
-        mode.onFirstRow (3, ButtonEvent.UP);
-
-        assertEquals ("Track 4", observed.channels ().get (3).name ());
-        assertEquals ("track-3", observed.channels ().get (3).id ());
-        assertEquals (List.of (Integer.valueOf (3)), selectedTrackIndices);
-        assertEquals (List.of (), selectedParameterPages);
     }
 
 

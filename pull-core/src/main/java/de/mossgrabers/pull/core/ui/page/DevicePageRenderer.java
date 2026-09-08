@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import static de.mossgrabers.pull.core.ui.PageStyle.*;
 
-/** Complete core-owned image for frozen Device/User/channel pages, shared with the offline catalog. */
+/** Complete core-owned image for frozen Device/channel pages, shared with the offline catalog. */
 public final class DevicePageRenderer
 {
     private static final ChoiceCell.Style MENU = new ChoiceCell.Style (COLUMN_WIDTH - 2, 17, 5, 0, 13, 9, DisplayTextFit.SHRINK);

@@ -26,7 +26,7 @@ class DevicePageRendererTest
     {
         final var original = DevicePageGallery.sample (Kind.LAYER_SEND);
         assertEquals ("Up", DevicePageProjector.project (original).upper ().get (7).label ());
-        final var touch = new Selection (false, false, true, true, true, 8, 3, 0, false, true, false, 0, "");
+        final var touch = new Selection (false, true, true, true, 8, 3, 0, false, true, false, 0, "");
         final var touched = new DevicePageState (original.kind (), original.device (), original.channels (), original.selectedChannel (), original.parameters (), original.sends (), touch);
         final var page = DevicePageProjector.project (touched);
         assertEquals ("Echo", page.upper ().get (7).label ()); assertTrue (page.upper ().get (7).selected ());

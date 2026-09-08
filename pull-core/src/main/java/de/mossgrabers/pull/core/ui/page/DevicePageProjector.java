@@ -84,12 +84,6 @@ public final class DevicePageProjector
                     }
                     if (!device.exists () && state.kind () == Kind.CHAINS) message = "Please select a device or press 'Add Device'...";
                 }
-                case USER ->
-                {
-                    upper.set (0, choice ("Project", selection.projectParameters ()));
-                    upper.set (1, choice (state.selectedChannel ().exists () ? state.selectedChannel ().name () : "None", !selection.projectParameters ()));
-                    footer.addAll (footer (state));
-                }
                 case LAYER, LAYER_VOLUME, LAYER_PAN, LAYER_SEND ->
                 {
                     if (!device.exists ()) message = "Please select a device or press 'Add Device'...";
@@ -119,14 +113,13 @@ public final class DevicePageProjector
                     final boolean selectedLayer = state.kind () == Kind.LAYER;
                     final boolean perChannel = state.kind () == Kind.LAYER_VOLUME || state.kind () == Kind.LAYER_PAN || state.kind () == Kind.LAYER_SEND || state.kind () == Kind.CROSSFADE;
                     final Channel channel = perChannel && index < state.channels ().size () ? state.channels ().get (index) : state.selectedChannel ();
-                    final boolean project = state.kind () == Kind.USER && selection.projectParameters ();
                     final RgbColor color = channel.exists () ? channel.color () : WHITE;
                     final String label = state.kind () == Kind.CROSSFADE ? "Crossfader" : TextContent.candidate (parameter.name (), 24);
                     controls.add (new MixerControlSnapshot (index, kind, label.isBlank () ? "Parameter" : label,
                         parameter.value (), parameter.modulatedValue (), TextContent.candidate (parameter.displayedValue (), 48),
-                        project ? MixerControlRole.PROJECT_MACRO : MixerControlRole.HOST_COLORED,
+                        MixerControlRole.HOST_COLORED,
                         parameter.enabled () && (!(selectedLayer || perChannel) || channel.active ()), parameter.touched (),
-                        project ? Optional.empty () : Optional.of (color), channel.vuLeft (), channel.vuRight ()));
+                        Optional.of (color), channel.vuLeft (), channel.vuRight ()));
                 }
         }
         return new DevicePagePresentation (upper, lower, new TrackFooterPresentation (footer), controls, heading, message, toggles);

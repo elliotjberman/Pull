@@ -29,18 +29,15 @@ public final class DevicePageGallery
                     "Observed values through the core component library. Input handlers and physical row lights remain frozen legacy behavior.", sample (kind)));
         final DevicePageState parameters = sample (Kind.PARAMETERS);
         result.add (new Example ("device-parameter-banks", "Device · parameter banks", "Page names and cursor-device options retain their physical row positions.",
-            selection (parameters, new Selection (false, false, false, true, true, 0, 0, 0, false, false, true, 0, ""))));
-        final DevicePageState user = sample (Kind.USER);
-        result.add (new Example ("user-pinned-track", "User · pinned track controls", "The parameter owner names the pinned model cursor; the current track-bank footer remains an independent selection row.",
-            selection (user, new Selection (false, false, false, true, true, 0, 0, 0, false, false, true, 15, ""))));
+            selection (parameters, new Selection (false, false, true, true, 0, 0, 0, false, false, true, 0, ""))));
         final DevicePageState layer = sample (Kind.LAYER_SEND);
         result.add (new Example ("device-layer-shift", "Layer · fourth send with Shift", "Shift or touched knob eight reveals the fourth send in place of Up.",
-            selection (layer, new Selection (false, false, true, true, true, 8, 3, 0, true, false, false, 0, ""))));
+            selection (layer, new Selection (false, true, true, true, 8, 3, 0, true, false, false, 0, ""))));
         result.add (new Example ("device-bank-unavailable", "Device · bank propagation", "A bank mismatch renders a waiting state instead of pairing new parameters with old channel labels.",
-            selection (layer, new Selection (false, false, true, true, false, 8, 3, 0, false, false, false, 0, ""))));
+            selection (layer, new Selection (false, true, true, false, 8, 3, 0, false, false, false, 0, ""))));
         final DevicePageState details = sample (Kind.TRACK_DETAILS);
         result.add (new Example ("track-details-target-mismatch", "Track · target mismatch", "Frozen buttons target the selected bank track or master. Core hides cursor details while those observed identities disagree; physical lights remain frozen migration debt.",
-            selection (details, new Selection (false, false, false, true, true, 0, 0, 0, false, false, true, 0, "other-selected-track"))));
+            selection (details, new Selection (false, false, true, true, 0, 0, 0, false, false, true, 0, "other-selected-track"))));
         result.add (new Example ("device-absent", "Device · absent", "No device state invents parameters or chain names; the existing Up affordance remains visible.",
             new DevicePageState (Kind.LAYER, Device.empty (), List.of (), Channel.empty (), List.of (), List.of (), Selection.empty ())));
         final DevicePageState longNames = sample (Kind.PARAMETERS);
@@ -65,14 +62,14 @@ public final class DevicePageGallery
             List.of ("Note Grid", "Polymer", "EQ+", "Delay+", "Tool", "", "", ""),
             List.of ("Oscillator", "Filter", "Envelope", "Modulation", "FX", "Macros", "", ""), 2, List.of ("Note FX", "Audio FX", "Feedback"));
         return new DevicePageState (kind, device, channels, channels.get (1), parameters, sends,
-            new Selection (true, true, layer, true, true, layer ? 8 : 0, 2, 4, false, false, !layer, 9, kind == Kind.TRACK_DETAILS ? channels.get (1).id () : ""));
+            new Selection (true, layer, true, true, layer ? 8 : 0, 2, 4, false, false, !layer, 9, kind == Kind.TRACK_DETAILS ? channels.get (1).id () : ""));
     }
 
     private static DevicePageState selection (final DevicePageState state, final Selection selection)
     { return new DevicePageState (state.kind (), state.device (), state.channels (), state.selectedChannel (), state.parameters (), state.sends (), selection); }
     private static String title (final Kind kind)
     {
-        return switch (kind) { case PARAMETERS -> "Device · parameters"; case CHAINS -> "Device · slot chains"; case USER -> "User · project controls";
+        return switch (kind) { case PARAMETERS -> "Device · parameters"; case CHAINS -> "Device · slot chains";
             case LAYER -> "Layer · selected channel"; case LAYER_VOLUME -> "Layers · volume"; case LAYER_PAN -> "Layers · pan"; case LAYER_SEND -> "Layers · send";
             case TRACK_DETAILS -> "Track · details"; case LAYER_DETAILS -> "Layer · details"; case CROSSFADE -> "Tracks · crossfade"; default -> "Device"; };
     }

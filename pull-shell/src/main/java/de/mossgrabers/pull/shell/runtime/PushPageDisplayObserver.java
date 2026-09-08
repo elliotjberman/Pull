@@ -20,7 +20,7 @@ final class PushPageDisplayObserver
             case DEVICE_PARAMS, DEVICE_CHAINS, DEVICE_LAYER, DEVICE_LAYER_VOLUME, DEVICE_LAYER_PAN,
                 DEVICE_LAYER_SEND1, DEVICE_LAYER_SEND2, DEVICE_LAYER_SEND3, DEVICE_LAYER_SEND4,
                 DEVICE_LAYER_SEND5, DEVICE_LAYER_SEND6, DEVICE_LAYER_SEND7, DEVICE_LAYER_SEND8,
-                DEVICE_LAYER_DETAILS, TRACK_DETAILS, CROSSFADER, USER -> PushDevicePageObserver.capture (surface, model);
+                DEVICE_LAYER_DETAILS, TRACK_DETAILS, CROSSFADER -> PushDevicePageObserver.capture (surface, model);
             case CLIP, NOTE, REC_ARM, GROOVE -> this.editing.capture (surface, model);
             default -> new ControllerPageDisplayState.Empty ();
         };

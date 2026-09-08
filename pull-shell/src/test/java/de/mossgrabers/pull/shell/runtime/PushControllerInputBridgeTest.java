@@ -73,6 +73,7 @@ class PushControllerInputBridgeTest
         assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("RECORD"), InputKind.BUTTON));
         assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("TAP_TEMPO"), InputKind.BUTTON));
         assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("UNDO"), InputKind.BUTTON));
+        assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("USER"), InputKind.BUTTON));
         assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("METRONOME"), InputKind.BUTTON));
         assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("AUTOMATION"), InputKind.BUTTON));
         assertTrue (PushControllerInputBridge.isCoreOwnedInput (PushControlIds.button ("TRACK"), InputKind.BUTTON));
