@@ -125,23 +125,28 @@ public final class UiComponentCatalog
         html.append ("<div class=\"animation-controls\" role=\"group\" aria-label=\"Ripple previews\">");
         for (final var animation: animations)
         {
-            final List<String> files = new ArrayList<> ();
-            for (int frame = 0; frame < animation.frames ().size (); frame++)
+            final List<String> runs = new ArrayList<> ();
+            for (int run = 0; run < animation.runs ().size (); run++)
             {
-                final String file = frameFile (animation, frame);
-                // Ripple frames contain only rectangles, so embedding font data adds no visual content.
-                Files.writeString (output.resolve (file), DisplaySceneSvg.render (animation.frames ().get (frame), icons, typography).replace (displayFont, ""));
-                files.add (file);
+                final List<String> files = new ArrayList<> ();
+                final var frames = animation.runs ().get (run);
+                for (int frame = 0; frame < frames.size (); frame++)
+                {
+                    final String file = frameFile (animation, run, frame);
+                    Files.writeString (output.resolve (file), DisplaySceneSvg.render (frames.get (frame), icons, typography).replace (displayFont, ""));
+                    files.add (file);
+                }
+                runs.add (String.join (",", files));
             }
             html.append ("<button type=\"button\" data-animation=\"").append (animation.id ()).append ("\" data-duration=\"").append (animation.durationMillis ())
-                .append ("\" data-frames=\"").append (String.join (",", files)).append ("\">").append (animation.title ()).append ("</button>");
+                .append ("\" data-frames=\"").append (String.join (";", runs)).append ("\">").append (animation.title ()).append ("</button>");
         }
         html.append ("<span class=\"animation-status sr-only\" role=\"status\"></span></div>");
     }
 
-    private static String frameFile (final UiLibraryCompletionFixtures.Animation animation, final int frame)
+    private static String frameFile (final UiLibraryCompletionFixtures.Animation animation, final int run, final int frame)
     {
-        return UiLibraryCompletionFixtures.RIPPLE_STORY_ID + "-" + animation.id () + "-" + frame + ".svg";
+        return UiLibraryCompletionFixtures.RIPPLE_STORY_ID + "-" + animation.id () + "-" + run + "-" + frame + ".svg";
     }
 
     private static void story (final StringBuilder html, final String id, final String kind, final String group, final String title)
@@ -199,7 +204,8 @@ public final class UiComponentCatalog
             unique (files, example.id () + ".svg", "artifact filename");
         }
         for (final var animation: animations)
-            for (int frame = 0; frame < animation.frames ().size (); frame++) unique (files, frameFile (animation, frame), "artifact filename");
+            for (int run = 0; run < animation.runs ().size (); run++)
+                for (int frame = 0; frame < animation.runs ().get (run).size (); frame++) unique (files, frameFile (animation, run, frame), "artifact filename");
     }
 
     private static void unique (final Set<String> values, final String value, final String kind)

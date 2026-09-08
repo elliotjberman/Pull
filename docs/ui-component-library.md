@@ -149,3 +149,7 @@ Remaining physical Ribbon behavior is frozen. Ordinary Scales/Layout, Repeat, Us
 displays now use the library while their controls remain frozen. Fixed Length action migration
 still depends on Session create/launch/overdub behavior. Rendering a page does not supply those
 effects or prove its targets.
+
+Ripple preview buttons replay production-rendered frames with eight seeded texture variations,
+without repeating the previous choice. The live renderer seeds Perlin noise from each animation
+start time and holds it fixed across the 250 ms ripple. Both retain the original 24×20 display pixels.

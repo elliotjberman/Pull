@@ -23,8 +23,8 @@ public final class PlaybackRippleRenderer
     private static final int DISPLAY_PIXEL_WIDTH = 24;
     private static final int DISPLAY_PIXEL_HEIGHT = 20;
     private static final double DISPLAY_NOISE_EXPONENT = 1.35;
-    private static final double DISPLAY_TRAIL_WIDTH = 224;
-    private static final double DISPLAY_FRONT_WIDTH = 48;
+    private static final double DISPLAY_TRAIL_WIDTH = 3.5;
+    private static final double DISPLAY_FRONT_WIDTH = 0.65;
 
     private static final RgbColor OFF = new RgbColor (0, 0, 0);
 
@@ -40,12 +40,12 @@ public final class PlaybackRippleRenderer
     }
 
     /** The complete display overlay; progress one clears the last animation frame. */
-    public static ControllerDisplayScene display (final double progress, final RgbColor color)
+    public static ControllerDisplayScene display (final double progress, final RgbColor color, final long seed)
     {
         validate (progress, color);
         final List<DisplayCommand> commands = new ArrayList<> (321);
         commands.add (new DisplayCommand.Rectangle (0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT, OFF));
-        if (progress < 1) addDisplayRipple (commands, progress, color);
+        if (progress < 1) addDisplayRipple (commands, progress, color, Long.hashCode (seed));
         return new ControllerDisplayScene (DISPLAY_WIDTH, DISPLAY_HEIGHT, commands);
     }
 
@@ -75,23 +75,25 @@ public final class PlaybackRippleRenderer
     }
 
 
-    private static void addDisplayRipple (final List<DisplayCommand> commands, final double progress, final RgbColor baseColor)
+    private static void addDisplayRipple (final List<DisplayCommand> commands, final double progress, final RgbColor baseColor, final int seed)
     {
         final double easedProgress = cubicBezier (progress, 0.15, 0.85);
-        final double head = easedProgress * (DISPLAY_WIDTH + DISPLAY_TRAIL_WIDTH);
-        final double endFade = 1.0 - 0.45 * smoothStep (clamp ((progress - 0.7) / 0.3));
+        final double radius = easedProgress * (PAD_MAX_DISTANCE + DISPLAY_TRAIL_WIDTH);
+        final double endFade = 1.0 - smoothStep ((progress - 0.65) / 0.35);
         final int columns = DISPLAY_WIDTH / DISPLAY_PIXEL_WIDTH;
         final int rows = DISPLAY_HEIGHT / DISPLAY_PIXEL_HEIGHT;
         for (int row = 0; row < rows; row++)
         {
             for (int column = 0; column < columns; column++)
             {
-                final double centerX = column * DISPLAY_PIXEL_WIDTH + DISPLAY_PIXEL_WIDTH / 2.0;
-                final double envelope = rippleIntensity (head, centerX, DISPLAY_TRAIL_WIDTH, DISPLAY_FRONT_WIDTH);
+                // Normalize both axes to the pad grid, with the display origin at bottom-left.
+                final double x = (column + 0.5) / columns * 7;
+                final double y = (rows - row - 0.5) / rows * 7;
+                final double envelope = rippleIntensity (radius, Math.hypot (x, y), DISPLAY_TRAIL_WIDTH, DISPLAY_FRONT_WIDTH);
                 if (envelope <= 0)
                     continue;
 
-                final double noise = 0.22 + 0.78 * perlin (column * 0.31, row * 0.47);
+                final double noise = 0.22 + 0.78 * perlin (column * 0.31, row * 0.47, seed);
                 final double intensity = Math.pow (envelope * noise, DISPLAY_NOISE_EXPONENT) * endFade;
                 if (intensity < 0.025)
                     continue;
@@ -148,27 +150,27 @@ public final class PlaybackRippleRenderer
     }
 
 
-    private static double perlin (final double x, final double y)
+    private static double perlin (final double x, final double y, final int seed)
     {
         final int x0 = (int) Math.floor (x);
         final int y0 = (int) Math.floor (y);
         final double localX = x - x0;
         final double localY = y - y0;
         final double top = interpolate (
-            gradientDot (x0, y0, localX, localY),
-            gradientDot (x0 + 1, y0, localX - 1, localY),
+            gradientDot (x0, y0, localX, localY, seed),
+            gradientDot (x0 + 1, y0, localX - 1, localY, seed),
             perlinFade (localX));
         final double bottom = interpolate (
-            gradientDot (x0, y0 + 1, localX, localY - 1),
-            gradientDot (x0 + 1, y0 + 1, localX - 1, localY - 1),
+            gradientDot (x0, y0 + 1, localX, localY - 1, seed),
+            gradientDot (x0 + 1, y0 + 1, localX - 1, localY - 1, seed),
             perlinFade (localX));
         return clamp (0.5 + 0.5 * interpolate (top, bottom, perlinFade (localY)));
     }
 
 
-    private static double gradientDot (final int x, final int y, final double offsetX, final double offsetY)
+    private static double gradientDot (final int x, final int y, final double offsetX, final double offsetY, final int seed)
     {
-        int hash = x * 0x1f123bb5 ^ y * 0x5f356495;
+        int hash = x * 0x1f123bb5 ^ y * 0x5f356495 ^ seed;
         hash ^= hash >>> 15;
         hash *= 0x2c1b3c6d;
         hash ^= hash >>> 12;

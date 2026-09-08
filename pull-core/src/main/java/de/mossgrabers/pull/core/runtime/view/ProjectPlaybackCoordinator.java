@@ -102,7 +102,7 @@ public final class ProjectPlaybackCoordinator
 
     ControllerDisplayOverlay displayOverlay ()
     {
-        return this.waveActive ? new ControllerDisplayOverlay (true, PlaybackRippleRenderer.display (this.waveProgress, this.waveBaseColor)) : ControllerDisplayOverlay.inactive ();
+        return this.waveActive ? new ControllerDisplayOverlay (true, PlaybackRippleRenderer.display (this.waveProgress, this.waveBaseColor, this.waveStartedNanos)) : ControllerDisplayOverlay.inactive ();
     }
 
 

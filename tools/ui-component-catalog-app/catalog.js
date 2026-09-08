@@ -139,10 +139,15 @@
     const image = story.querySelector(".screen image");
     const status = story.querySelector(".animation-status");
     const restingFrame = image.getAttribute("href");
-    const frames = button.dataset.frames.split(",");
-    let ready;
+    const runs = button.dataset.frames.split(";").map(run => run.split(","));
+    const loaded = new Map();
+    let previous = -1;
     button.addEventListener("click", async () => {
       stopPlayback();
+      const choices = runs.map((_, index) => index).filter(index => index !== previous);
+      const run = choices[Math.floor(Math.random() * choices.length)];
+      previous = run;
+      const frames = runs[run];
       let cancelled = false;
       let request;
       stopPlayback = () => {
@@ -154,14 +159,14 @@
       status.classList.add("sr-only");
       status.textContent = "Loading preview";
       try {
-        ready ||= Promise.all(frames.map(src => {
+        if (!loaded.has(run)) loaded.set(run, Promise.all(frames.map(src => {
           const frame = new Image();
           frame.src = src;
           return frame.decode().then(() => frame);
-        }));
-        await ready;
+        })));
+        await loaded.get(run);
       } catch {
-        ready = null;
+        loaded.delete(run);
         if (!cancelled) {
           status.classList.remove("sr-only");
           status.textContent = "Preview could not load. Try again.";
