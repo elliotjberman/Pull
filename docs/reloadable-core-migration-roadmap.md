@@ -1,6 +1,6 @@
 # Remaining core migration
 
-[ARCH](../ARCH.md) is the current ownership/capacity inventory. Working Core API 54 renders all
+[ARCH](../ARCH.md) is the current ownership/capacity inventory. Working Core API 55 renders all
 ordinary Push display pages through shared core components and bounded raw observations. The
 optional Clip piano roll remains unchanged. Core also owns Session, Setup/Ribbon settings and shared
 interaction cancellation. Display, page entry/return and input lifecycle ownership do not migrate
@@ -14,7 +14,7 @@ for each complete behavior slice.
 - [ ] Browser filtering/results/audition/operations; navigation lifecycle is already core-owned.
 - [ ] Crossfade and Track/Layer Details actions, including exact targets and return.
 - [ ] Color pad drawing and selection together; deferred unchanged under the [handoff TODO](migrations/ui-and-editing-handoff.md).
-- [ ] Scales/Layout, Repeat, Fixed Length, User, remaining physical Ribbon behavior and remaining musical layouts.
+- [ ] Scales/Layout, Repeat, Fixed Length, remaining physical Ribbon behavior and remaining musical layouts.
 - [ ] Clip/note/sequencer editing and scene/clip-length workflows, including Chords/Piano/Program
       Change, Raindrops and alternate drum layouts.
 - [ ] Specialized piano-roll rendering, explicitly deferred in the [handoff](migrations/ui-and-editing-handoff.md).

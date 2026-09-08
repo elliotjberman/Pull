@@ -53,7 +53,7 @@ public final class PushDevicePageObserver
         final boolean deviceFamily = mode instanceof DeviceParamsMode || mode instanceof DeviceLayerMode;
         final IChannel actionTarget = kind == Kind.TRACK_DETAILS ? model.getMasterTrack ().isSelected () ? model.getMasterTrack () : selected instanceof IChannel channel ? channel : null : null;
         final Selection selection = new Selection (mode instanceof DeviceParamsMode params && params.isShowDevices (),
-            mode instanceof UserMode user && user.isProjectMode (), drum, bank.hasExistingItems (), aligned, offset,
+            drum, bank.hasExistingItems (), aligned, offset,
             mode instanceof DeviceLayerSendMode send ? send.getSendIndex () : 0,
             surface.getConfiguration ().getMixSendOffset (), surface.isShiftPressed (), mode.isKnobTouched (7),
             model.getCursorTrack ().isPinned (), surface.getConfiguration ().getMidiEditChannel (),
@@ -66,7 +66,6 @@ public final class PushDevicePageObserver
     {
         if (mode instanceof DeviceChainsMode) return Kind.CHAINS;
         if (mode instanceof DeviceParamsMode) return Kind.PARAMETERS;
-        if (mode instanceof UserMode) return Kind.USER;
         if (mode instanceof DeviceLayerVolumeMode) return Kind.LAYER_VOLUME;
         if (mode instanceof DeviceLayerPanMode) return Kind.LAYER_PAN;
         if (mode instanceof DeviceLayerSendMode) return Kind.LAYER_SEND;

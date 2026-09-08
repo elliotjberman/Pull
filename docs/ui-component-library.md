@@ -105,7 +105,7 @@ their intended colors.
 The SVG link opens the component with the current color and embedded Lato font. These controls work
 in the generated HTML without a server; complete view fixtures retain their supplied colors.
 **Views** shows complete known screens: Master, Track/global mixer, project macros, settings,
-Device/Chains/layers, User, Browser, Scales/Layout, Fixed Length, Repeat, Add Track and ordinary editing
+Device/Chains/layers, Browser, Scales/Layout, Fixed Length, Repeat, Add Track and ordinary editing
 pages. Display content is separated from labeled upper/lower hardware-button rows. Button
 lights align to the display columns; dashed buttons have no light state from the view, while black
 buttons are off. Partial display regions retain their own height. Future custom plugin views belong
@@ -147,7 +147,7 @@ and the explicit piano-roll deferral. Info, Setup and Ribbon settings already ow
 core control slices. Info's subscribed hardware tuple is described in
 [ControllerHardwareSnapshot](../pull-core-api/src/main/java/de/mossgrabers/pull/core/api/ControllerHardwareSnapshot.java);
 it does not guarantee physical connection or recover values discarded by the existing parser.
-Remaining physical Ribbon behavior is frozen. Ordinary Scales/Layout, Repeat, User and Fixed Length
+Remaining physical Ribbon behavior is frozen. Ordinary Scales/Layout, Repeat and Fixed Length
 displays now use the library while their controls remain frozen. Fixed Length action migration
 still depends on Session create/launch/overdub behavior. Rendering a page does not supply those
 effects or prove its targets.

@@ -1,8 +1,14 @@
 # Pull architecture
 
-Working source: Core API 54, checkpoint schema 6, Bitwig API 25. Migration is incomplete:
+Working source: Core API 55, checkpoint schema 6, Bitwig API 25. Migration is incomplete:
 core owns ordinary Push display pages and migrated controls; the inventory below names the
 remaining shell handlers. The optional Clip piano roll is deferred unchanged.
+
+API 55 removes the legacy User handler and its raw page state. User selects the same Project
+Macros view as Shift+Session while retaining the current grid. The button action and light are
+core-owned; Shift+User remains inert. The matching shell was installed and restarted with the
+legacy display cleanup; the [User view smoke record](docs/migrations/user-view-live-smoke.md)
+records the exact combined build and matching captured macro output.
 
 API 54 adds bounded raw page observations and moves remaining ordinary page drawing into core
 components. Its matching shell was installed and restarted; the [display cutover validation](docs/migrations/ui-library-completion.md#validation)
@@ -83,11 +89,11 @@ are separate paths. The shared lifecycle does not make unmigrated shell handlers
 
 | Surface | Implementation |
 | --- | --- |
-| Project Macros, Track, Volume/Pan, eight Sends, Master/Cue | Core page controls, touches/reset, menus, display and lights. The physical Master encoder is separately listed below. |
+| Project Macros (User), Track, Volume/Pan, eight Sends, Master/Cue | Core page controls, touches/reset, menus, display and lights. The physical Master encoder is separately listed below. |
 | Transport/global pages | Core Play/Record, Mute/Solo, Tap, Undo/Redo, Track/Mix, Master/Frame, Accent/Info/Setup, Ribbon settings, Metronome/Automation and migrated arrows, including feedback. |
 | Drum / selected Note | Core applicability, Note/Layout, playable-pad pressure/lights, rates/roll, fills, octave/native maps and raw strip policy within installed geometry. |
 | Session | Core grid, scene keys, bank/page/octave navigation, Stop chords, modifiers, create/record/copy/browse and observed blinking lights. Within the Session navigation slice, legacy parameter pages retain horizontal parameter navigation. |
-| Device/Chains/layers, User, Browser, Scales/Layout, Repeat, Fixed Length, Add Track, Crossfade, Track/Layer Details, Clip/Note/Quantize/Groove | Core components render ordinary displays from raw observations. Actions, parameter providers, modifiers and hardware lights remain frozen stable behavior. |
+| Device/Chains/layers, Browser, Scales/Layout, Repeat, Fixed Length, Add Track, Crossfade, Track/Layer Details, Clip/Note/Quantize/Groove | Core components render ordinary displays from raw observations. Actions, parameter providers, modifiers and hardware lights remain frozen stable behavior. |
 | Color chooser | Physical pad drawing, target selection and click/return remain unchanged in the stable implementation; migration is explicitly deferred. |
 | Optional Clip piano roll | Specialized rendering is deferred unchanged. |
 | Clip/note editing gestures, clip length, Chords/Piano/Program Change, sequencers, Raindrops and alternate drum layouts | Remaining stable musical/editing controls and non-page feedback; core Note/Layout selection does not migrate the selected implementation. |

@@ -7,15 +7,12 @@ import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.mode.BaseMode;
 import de.mossgrabers.controller.ableton.push.mode.device.DeviceLayerMode;
 import de.mossgrabers.controller.ableton.push.mode.device.DeviceParamsMode;
-import de.mossgrabers.controller.ableton.push.mode.device.UserMode;
 import de.mossgrabers.controller.ableton.push.mode.track.TrackDetailsMode;
-import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.ContinuousID;
 import de.mossgrabers.framework.controller.color.ColorEx;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
 import de.mossgrabers.framework.controller.valuechanger.TwosComplementValueChanger;
 import de.mossgrabers.framework.daw.IModel;
-import de.mossgrabers.framework.daw.IProject;
 import de.mossgrabers.framework.daw.ITransport;
 import de.mossgrabers.framework.daw.data.*;
 import de.mossgrabers.framework.daw.data.bank.*;
@@ -33,36 +30,6 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class PushDevicePageObserverTest
 {
-    @Test
-    void userDisplayReadsTheActualSelectedProviderAndKeepsCursorOwnerSeparateFromFooter ()
-    {
-        final Fixture fixture = new Fixture ();
-        final UserMode mode = new UserMode (fixture.surface, fixture.model);
-        fixture.activate (Modes.USER, mode);
-        final var project = fixture.capture ();
-        assertTrue (project.selection ().projectParameters ());
-        assertEquals (32.0 / 127, project.parameters ().get (0).value (), 0.00001);
-        assertEquals (fixture.longName, project.parameters ().get (0).name (), "transport observation must not use font-specific getName(limit)");
-        final int light = mode.getButtonColor (ButtonID.ROW2_1);
-        mode.getParameterProvider ().get (0).inc (4);
-        assertEquals (List.of ("project:4.0"), fixture.requests);
-        assertEquals (project, fixture.capture (), "parameter submission must not confirm itself");
-        assertEquals (light, mode.getButtonColor (ButtonID.ROW2_1), "sampling cannot mutate frozen lights");
-        fixture.projectValue = 76;
-        assertEquals (76.0 / 127, fixture.capture ().parameters ().get (0).value (), 0.00001);
-        mode.onSecondRow (1, ButtonEvent.UP);
-        final var track = fixture.capture ();
-        assertFalse (track.selection ().projectParameters ());
-        assertEquals (96.0 / 127, track.parameters ().get (0).value (), 0.00001);
-        assertEquals ("pinned-cursor", track.selectedChannel ().id ());
-        assertEquals ("visible-0", track.channels ().get (0).id ());
-        mode.onKnobTouch (0, true);
-        assertTrue (fixture.capture ().parameters ().get (0).touched ());
-        assertEquals ("track:touch:true", fixture.requests.getLast ());
-        mode.onKnobTouch (0, false);
-        assertFalse (fixture.capture ().parameters ().get (0).touched ());
-    }
-
     @Test
     void trackDetailsKeepCursorReadbackAndFrozenBankOrMasterActionIdentitySeparate ()
     {
@@ -118,7 +85,6 @@ class PushDevicePageObserverTest
 
     private static final class Fixture
     {
-        private int projectValue = 32;
         private boolean cursorMuted;
         private boolean selectedMuted;
         private boolean masterSelected;
@@ -128,10 +94,8 @@ class PushDevicePageObserverTest
         private final List<String> requests = new ArrayList<> ();
         private final TwosComplementValueChanger changer = new TwosComplementValueChanger (128, 1);
         private final PushControlSurface surface = ParameterTargetHostTest.emptySurface (this.changer);
-        private final IParameter projectParameter = this.parameter (true);
-        private final IParameter trackParameter = this.parameter (false);
+        private final IParameter trackParameter = this.parameter ();
         private final IParameterPageBank pages = proxy (IParameterPageBank.class, (method, args) -> switch (method) { case "getPageSize" -> 8; case "getItem" -> "Host page " + args[0]; case "getSelectedItemIndex" -> 2; default -> null; });
-        private final IParameterBank projectBank = this.parameters (this.projectParameter);
         private final IParameterBank trackParameters = this.parameters (this.trackParameter);
         private final ISendBank sends = proxy (ISendBank.class, (method, args) -> switch (method) { case "getPageSize" -> 8; case "getItem" -> this.send ((int) args[0]); default -> null; });
         private final ICursorTrack cursor = proxy (ICursorTrack.class, (method, args) -> this.channel (this.cursorId, false, method, args));
@@ -151,7 +115,6 @@ class PushDevicePageObserverTest
             case "getValueChanger" -> this.changer; case "getColorManager" -> new PushColorManager (); case "getCurrentTrackBank", "getTrackBank" -> this.trackBank;
             case "getCursorTrack" -> this.cursor; case "getCursorDevice" -> this.device;
             case "getMasterTrack" -> proxy (IMasterTrack.class, (name, values) -> "isSelected".equals (name) ? this.masterSelected : this.channel ("master", false, name, values));
-            case "getProject" -> proxy (IProject.class, (name, values) -> "getParameterBank".equals (name) ? this.projectBank : null);
             case "getTransport" -> proxy (ITransport.class, (name, values) -> null); default -> null;
         });
 
@@ -195,14 +158,14 @@ class PushDevicePageObserverTest
                 default -> null;
             };
         }
-        private IParameter parameter (final boolean project)
+        private IParameter parameter ()
         {
             return proxy (IParameter.class, (method, args) -> switch (method) {
                 case "doesExist" -> true; case "getName" -> { assertTrue (args == null || args.length == 0, "observer must not request display truncation"); yield this.longName; }
-                case "getValue", "getModulatedValue" -> project ? this.projectValue : 96;
-                case "getDisplayedValue" -> project ? this.projectValue + " dB" : "96 dB";
-                case "inc" -> { this.requests.add ((project ? "project:" : "track:") + args[0]); yield null; }
-                case "touchValue" -> { this.requests.add ((project ? "project:" : "track:") + "touch:" + args[0]); yield null; }
+                case "getValue", "getModulatedValue" -> 96;
+                case "getDisplayedValue" -> "96 dB";
+                case "inc" -> { this.requests.add ("track:" + args[0]); yield null; }
+                case "touchValue" -> { this.requests.add ("track:" + "touch:" + args[0]); yield null; }
                 default -> null;
             });
         }

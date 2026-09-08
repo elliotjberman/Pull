@@ -1846,6 +1846,105 @@ class PullControllerCoreTest
 
 
     @Test
+    void userAndShiftSessionRenderTheSameObservedProjectMacros ()
+    {
+        final ControlId user = PushControlIds.button ("USER");
+        final FakeCoreHost standalone = host (ClipCatalogSnapshot.empty ());
+        final FakeCoreHost vs = host (ClipCatalogSnapshot.empty ());
+        standalone.start (Optional.empty ());
+        vs.start (Optional.empty ());
+        final var bridge = withParameters (layoutBridge ("SESSION", "TRACK"), parameter (ParameterSlot.projectRemote (0), "Enabled", 0, "Off"));
+        standalone.bridge (bridge);
+        vs.bridge (bridge);
+        final var grid = standalone.effects ().desiredControllerWorkspace ().sessionBankShape ();
+        standalone.controllerButton (user, true);
+        standalone.controllerButton (user, false);
+        enterVsLive (vs);
+
+        assertPage (standalone, "WORKSPACE");
+        assertEquals (grid, standalone.effects ().desiredControllerWorkspace ().sessionBankShape ());
+        assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), standalone.effects ().desiredInputRoutes ().mode (user, InputKind.BUTTON));
+        assertEquals (WHITE, standalone.effects ().desiredOutput ().lights ().get (user));
+        assertEquals (WHITE, vs.effects ().desiredOutput ().lights ().get (user));
+        final var standaloneMacros = macroCommands (standalone);
+        assertEquals (macroCommands (vs), standaloneMacros);
+        assertTrue (standaloneMacros.stream ().anyMatch (command -> command instanceof DisplayCommand.Circle));
+        assertFalse (standaloneMacros.stream ().anyMatch (command -> command instanceof DisplayCommand.DottedArc));
+        assertFalse (standaloneMacros.stream ().anyMatch (command -> command instanceof DisplayCommand.TextBox text && "Project".equals (text.text ())));
+
+        final ControlId knob = PushControlIds.continuous ("KNOB1");
+        standalone.controllerMotion (knob, InputKind.RELATIVE, 1);
+        assertEquals (new AdjustParameterValueEffect (parameterTarget (ParameterSlot.projectRemote (0)), 10), standalone.effects ().executionOrder ().getLast ());
+        assertEquals (standaloneMacros, macroCommands (standalone), "submitted writes cannot change displayed host values");
+        standalone.bridge (withParameters (bridge, parameter (ParameterSlot.projectRemote (0), "Enabled", 1024, "On")));
+        assertFalse (standaloneMacros.equals (macroCommands (standalone)), "later host read-back changes the toggle");
+        vs.bridge (withParameters (bridge, parameter (ParameterSlot.projectRemote (0), "Enabled", 1024, "On")));
+        assertEquals (macroCommands (vs), macroCommands (standalone));
+    }
+
+    @Test
+    void userRetainsTheVsGridAndShiftUserRemainsInert ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.start (Optional.empty ());
+        enterVsLive (host);
+        final ControlId user = PushControlIds.button ("USER");
+        host.controllerButton (PushControlIds.button ("MASTERTRACK"), true);
+        host.controllerButton (PushControlIds.button ("MASTERTRACK"), false);
+        assertPage (host, "MASTER");
+        host.controllerButton (SHIFT_BUTTON, true);
+        host.controllerButton (user, true);
+        host.controllerButtonLong (user);
+        host.controllerButton (user, false);
+        host.controllerButton (SHIFT_BUTTON, false);
+        assertPage (host, "MASTER");
+        assertEquals (new RgbColor (60, 60, 60), host.effects ().desiredOutput ().lights ().get (user));
+        host.controllerButton (user, true);
+        host.controllerButtonLong (user);
+        host.controllerButton (user, false);
+        assertVsLive (host.effects ().desiredControllerWorkspace ());
+        assertPage (host, "WORKSPACE");
+        host.controllerButton (user, true);
+        host.controllerButton (user, false);
+        assertPage (host, "WORKSPACE");
+    }
+
+    @Test
+    void shiftedAndAlreadySelectedUserDoNotRestoreParameters ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        prepareProjectMacroSnapback (host);
+        final var baseline = host.effects ().desiredParameterInteraction ().baselines ();
+        final var effects = List.copyOf (host.effects ().executionOrder ());
+        final ControlId user = PushControlIds.button ("USER");
+        pressAndRelease (host, user);
+        host.controllerButton (SHIFT_BUTTON, true);
+        pressAndRelease (host, user);
+        host.controllerButton (SHIFT_BUTTON, false);
+        assertEquals (0, host.effects ().desiredParameterInteraction ().pendingActionCount ());
+        assertEquals (baseline, host.effects ().desiredParameterInteraction ().baselines ());
+        assertEquals (effects, host.effects ().executionOrder ());
+    }
+
+    private static List<DisplayCommand> macroCommands (final FakeCoreHost host)
+    {
+        final List<DisplayCommand> commands = new ArrayList<> ();
+        boolean parameters = false;
+        for (final DisplayCommand command: host.effects ().desiredOutput ().display ().commands ())
+        {
+            if (command instanceof final DisplayCommand.PushClip clip)
+                parameters = clip.y () == 0 && clip.height () == 143;
+            else if (command instanceof DisplayCommand.PopClip)
+                parameters = false;
+            else if (parameters)
+                commands.add (command);
+        }
+        assertFalse (commands.isEmpty (), "parameter view must own its display region");
+        return List.copyOf (commands);
+    }
+
+
+    @Test
     void shiftSessionSelectsVsLiveAndPlainSessionReturnsToTheStableWorkspace ()
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());

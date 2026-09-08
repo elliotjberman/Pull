@@ -45,6 +45,7 @@ public final class ControllerLevelViews
             new MasterButtonView (pages),
             new AccentControlView (pages),
             new SetupControlView (navigation),
+            new UserControlView (navigation),
             new SelectedTrackMuteSoloView (selectedTrackToggles));
     }
 

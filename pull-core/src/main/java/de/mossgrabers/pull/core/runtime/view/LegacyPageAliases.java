@@ -16,6 +16,9 @@ public final class LegacyPageAliases
 
     public static ControllerPageRef resolve (final String alias)
     {
+        // Promote saved User pages to the canonical reference, including its projection alias.
+        if ("USER".equals (alias))
+            return reference (PageId.PROJECT_MACROS);
         if (alias.isEmpty ())
             return reference (PageId.TRACK);
         final PageId page = CORE_PAGES.get (alias);

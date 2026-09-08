@@ -168,13 +168,14 @@ class PageNavigationTest
         assertEquals ("TRACK", this.pages.legacyAlias ());
     }
 
-    @Test
-    void hydrationPromotesLegacySelectedAndTemporaryInfoWithoutChangingTheirOwnership ()
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource (strings = {"INFO", "USER"})
+    void hydrationPromotesLegacyPagesWithoutChangingTheirOwnership (final String alias)
     {
         final var setup = ControllerPageRef.legacy ("SETUP");
-        final var info = this.pages.resolve ("INFO");
-        this.pages.restoreState (new DesiredControllerPageState (17, ControllerPageRef.legacy ("INFO"), setup,
-            Optional.of (new ControllerTemporaryPage (29, ControllerPageRef.legacy ("INFO"))), 12, Set.of (ParameterSlot.TEMPO)));
+        final var info = this.pages.resolve (alias);
+        this.pages.restoreState (new DesiredControllerPageState (17, ControllerPageRef.legacy (alias), setup,
+            Optional.of (new ControllerTemporaryPage (29, ControllerPageRef.legacy (alias))), 12, Set.of (ParameterSlot.TEMPO)));
 
         assertEquals (new DesiredControllerPageState (17, info, this.pages.resolve ("SETUP"), Optional.of (new ControllerTemporaryPage (29, info)), 12, Set.of (ParameterSlot.TEMPO)), this.pages.state ());
         assertFalse (this.pages.releaseTemporary (28));

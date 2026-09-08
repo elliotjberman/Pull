@@ -6,12 +6,12 @@ import de.mossgrabers.pull.core.api.output.RgbColor;
 import java.util.List;
 import java.util.Objects;
 
-/** Bounded observations for frozen Device/User/channel handlers. No layout or actuator authority. */
+/** Bounded observations for frozen Device/channel handlers. No layout or actuator authority. */
 public record DevicePageState (Kind kind, Device device, List<Channel> channels, Channel selectedChannel,
                                List<Parameter> parameters, List<Send> sends, Selection selection)
     implements ControllerPageDisplayState
 {
-    public enum Kind { NONE, PARAMETERS, CHAINS, USER, LAYER, LAYER_VOLUME, LAYER_PAN, LAYER_SEND, TRACK_DETAILS, LAYER_DETAILS, CROSSFADE }
+    public enum Kind { NONE, PARAMETERS, CHAINS, LAYER, LAYER_VOLUME, LAYER_PAN, LAYER_SEND, TRACK_DETAILS, LAYER_DETAILS, CROSSFADE }
 
     public DevicePageState
     {
@@ -25,7 +25,7 @@ public record DevicePageState (Kind kind, Device device, List<Channel> channels,
     }
 
     /** Legacy local selection and physical observations, not successful host writes. */
-    public record Selection (boolean showDevices, boolean projectParameters, boolean drumPadBank,
+    public record Selection (boolean showDevices, boolean drumPadBank,
                              boolean bankHasItems, boolean bankAligned, int bankOffset, int sendIndex,
                              int mixSendOffset, boolean shift, boolean knobEightTouched,
                              boolean trackPinned, int midiEditChannel, String actionTargetId)
@@ -37,7 +37,7 @@ public record DevicePageState (Kind kind, Device device, List<Channel> channels,
                 mixSendOffset < 0 || mixSendOffset > 4 || midiEditChannel < 0 || midiEditChannel > 15)
                 throw new IllegalArgumentException ("Invalid observed selection");
         }
-        public static Selection empty () { return new Selection (false, false, false, false, true, 0, 0, 0, false, false, false, 0, ""); }
+        public static Selection empty () { return new Selection (false, false, false, true, 0, 0, 0, false, false, false, 0, ""); }
     }
 
     public record Device (boolean exists, String name, boolean enabled, boolean expanded,

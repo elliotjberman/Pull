@@ -1164,7 +1164,7 @@ class BoundedControllerBridgeTest
     {
         final BridgeFixture fixture = new BridgeFixture ();
         final var pages = fixture.surface.getModeManager ();
-        for (final Modes mode: List.of (Modes.DEVICE_PARAMS, Modes.USER)) pages.register (mode, relaxedProxy (IMode.class));
+        for (final Modes mode: List.of (Modes.DEVICE_PARAMS, Modes.CLIP)) pages.register (mode, relaxedProxy (IMode.class));
         final var classes = java.nio.file.Path.of ("../pull-core/target/classes").toAbsolutePath ().normalize ();
         try (final var loader = new java.net.URLClassLoader (new java.net.URL[] {classes.toUri ().toURL ()}, getClass ().getClassLoader ()))
         {
@@ -1190,7 +1190,7 @@ class BoundedControllerBridgeTest
             pages.setActive (Modes.DEVICE_PARAMS);
             environment.tick (manager);
             assertEquals (1, pages.requests (true).retiredSequence ());
-            final Runnable preReplacement = pages.freezeRequestOrigin (() -> pages.setActive (Modes.USER));
+            final Runnable preReplacement = pages.freezeRequestOrigin (() -> pages.setActive (Modes.CLIP));
             final var incompatible = new de.mossgrabers.pull.core.api.CoreProvider () {
                 @Override public de.mossgrabers.pull.core.api.CoreDescriptor descriptor () {
                     final var original = provider.descriptor ();
@@ -1208,12 +1208,12 @@ class BoundedControllerBridgeTest
             preReplacement.run ();
             assertTrue (pages.requests (true).requests ().isEmpty ());
             environment.includePageRequests = true;
-            pages.setActive (Modes.USER);
+            pages.setActive (Modes.CLIP);
             environment.tick (manager);
-            assertEquals (Modes.USER, pages.getActiveID ());
+            assertEquals (Modes.CLIP, pages.getActiveID ());
             assertEquals (2, pages.requests (true).retiredSequence ());
 
-            final Runnable preFault = pages.freezeRequestOrigin (() -> pages.setActive (Modes.USER));
+            final Runnable preFault = pages.freezeRequestOrigin (() -> pages.setActive (Modes.CLIP));
             pages.setActive (Modes.DEVICE_PARAMS);
             assertFalse (manager.canReplaceActiveCore ());
             environment.failNextPrepare = true;
@@ -1221,9 +1221,9 @@ class BoundedControllerBridgeTest
             assertFalse (manager.handle (manager.activeGeneration (), new de.mossgrabers.pull.core.api.event.ControllerTickEvent (++environment.sequence, environment.sequence)));
             assertTrue (environment.quarantined);
             assertEquals (3, pages.requests (true).retiredSequence ());
-            for (int count = 0; count < 100; count++) pages.setActive (Modes.USER);
+            for (int count = 0; count < 100; count++) pages.setActive (Modes.CLIP);
             preFault.run ();
-            final Runnable duringFault = pages.freezeRequestOrigin (() -> pages.setActive (Modes.USER));
+            final Runnable duringFault = pages.freezeRequestOrigin (() -> pages.setActive (Modes.CLIP));
             assertTrue (pages.requests (true).requests ().isEmpty ());
             assertFalse (manager.canReplaceActiveCore (), "quarantine retirement must be sampled before replacement");
             environment.includePageRequests = false;

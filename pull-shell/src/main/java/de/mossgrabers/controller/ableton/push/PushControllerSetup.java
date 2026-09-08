@@ -44,7 +44,6 @@ import de.mossgrabers.controller.ableton.push.mode.device.DeviceLayerPanMode;
 import de.mossgrabers.controller.ableton.push.mode.device.DeviceLayerSendMode;
 import de.mossgrabers.controller.ableton.push.mode.device.DeviceLayerVolumeMode;
 import de.mossgrabers.controller.ableton.push.mode.device.DeviceParamsMode;
-import de.mossgrabers.controller.ableton.push.mode.device.UserMode;
 import de.mossgrabers.controller.ableton.push.mode.track.AddTrackMode;
 import de.mossgrabers.controller.ableton.push.mode.track.ClipMode;
 import de.mossgrabers.controller.ableton.push.mode.track.CrossfadeMode;
@@ -296,7 +295,6 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
 
         modeManager.register (Modes.AUTOMATION, corePageAdapter);
         modeManager.register (Modes.TRANSPORT, corePageAdapter);
-        modeManager.register (Modes.USER, new UserMode (surface, this.model));
         modeManager.register (Modes.WORKSPACE, corePageAdapter);
 
         modeManager.register (Modes.INFO, corePageAdapter);
@@ -472,7 +470,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
                 return 0;
             return surface.getButton (ButtonID.CONVERT).isPressed () ? 2 : 1;
         }, ColorManager.BUTTON_STATE_OFF, ColorManager.BUTTON_STATE_ON, ColorManager.BUTTON_STATE_HI);
-        this.addButton (ButtonID.USER, "User", new de.mossgrabers.controller.ableton.push.command.trigger.PushModeSelectCommand (this.model, surface, Modes.USER), PushControlSurface.PUSH_BUTTON_USER_MODE, () -> modeManager.isActive (Modes.USER));
+        this.addButton (ButtonID.USER, "User", CORE_OWNED_BUTTON_COMMAND, PushControlSurface.PUSH_BUTTON_USER_MODE, () -> PushColorManager.resolveCoreButtonColor (this.colorManager, ButtonID.USER, this.reloadableRuntime.lightColor (PushControlIds.button ("USER"))));
 
         this.addButton (ButtonID.BROWSE, "Browse", new BrowserCommand<> (this.model, surface), PushControlSurface.PUSH_BUTTON_BROWSE, () -> this.model.getBrowser ().isActive ());
     }
