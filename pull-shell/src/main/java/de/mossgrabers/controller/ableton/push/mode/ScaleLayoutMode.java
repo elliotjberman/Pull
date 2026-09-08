@@ -6,7 +6,6 @@ package de.mossgrabers.controller.ableton.push.mode;
 
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.controller.ButtonID;
-import de.mossgrabers.framework.controller.display.IGraphicDisplay;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.IItem;
 import de.mossgrabers.framework.featuregroup.AbstractFeatureGroup;
@@ -78,18 +77,5 @@ public class ScaleLayoutMode extends BaseMode<IItem>
     }
 
 
-    /** {@inheritDoc} */
-    @Override
-    public void updateDisplay2 (final IGraphicDisplay display)
-    {
-        final int sl = this.scales.getScaleLayout ().ordinal ();
-        final int pos = sl / 2;
-        final String [] names = ScaleLayout.getNames ();
 
-        for (int i = 0; i < names.length; i += 2)
-            display.addOptionElement ("", "", false, i == 0 ? "Scale layout" : "", names[i].replace (" ^", ""), pos == i / 2, false);
-
-        display.addOptionElement ("", "", false, "", "", false, false);
-        display.addOptionElement ("", "", false, "", sl % 2 == 0 ? "Horizontal" : "Vertical", false, false);
-    }
 }

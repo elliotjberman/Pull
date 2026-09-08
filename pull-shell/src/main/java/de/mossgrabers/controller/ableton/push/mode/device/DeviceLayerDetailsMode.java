@@ -8,7 +8,6 @@ import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.mode.BaseMode;
 import de.mossgrabers.framework.controller.ButtonID;
-import de.mossgrabers.framework.controller.display.IGraphicDisplay;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.IChannel;
 import de.mossgrabers.framework.daw.data.ICursorDevice;
@@ -175,34 +174,4 @@ public class DeviceLayerDetailsMode extends BaseMode<ILayer>
     }
 
 
-    /** {@inheritDoc} */
-    @Override
-    public void updateDisplay2 (final IGraphicDisplay display)
-    {
-        final Optional<ILayer> channelOpt = this.bank.getSelectedItem ();
-        if (channelOpt.isEmpty ())
-        {
-            display.setMessage (3, "Please select a layer...");
-            return;
-        }
-
-        final IChannel channel = channelOpt.get ();
-
-        display.addOptionElement ("Layer: " + channel.getName (), "", false, "", "Active", channel.isActivated (), false);
-        display.addEmptyElement ();
-        display.addOptionElement ("", "", false, "", "Mute", channel.isMute (), false);
-        display.addOptionElement ("", "", false, "", "Solo", channel.isSolo (), false);
-        display.addEmptyElement ();
-        display.addEmptyElement ();
-        if (this.bank instanceof IDrumPadBank)
-        {
-            display.addOptionElement ("", "Clear Mute", false, "", "", false, false);
-            display.addOptionElement ("", "Clear Solo", false, "", "Select Color", false, false);
-        }
-        else
-        {
-            display.addEmptyElement ();
-            display.addEmptyElement ();
-        }
-    }
 }

@@ -630,7 +630,12 @@ class PullControllerCoreTest
         assertEquals (Map.of (new PadGridPosition (0, 0), WHITE), nonBlackPads (overlay));
         assertTrue (host.effects ().desiredOutput ().displayOverlay ().active ());
         assertTrue (host.effects ().desiredOutput ().displayOverlay ().scene ().commands ().contains (new DisplayCommand.Rectangle (0, 0, 960, 160, OFF)));
-        assertTrue (host.effects ().desiredOutput ().displayOverlay ().scene ().commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.Rectangle rectangle && rectangle.x () > 0 && rectangle.color ().red () == rectangle.color ().green () && rectangle.color ().green () == rectangle.color ().blue () && rectangle.color ().blue () > 0));
+        final RgbColor origin = ripplePixel (host, 12, 155);
+        assertTrue (origin.blue () > 0);
+        assertEquals (origin.red (), origin.green ());
+        assertEquals (origin.green (), origin.blue ());
+        assertEquals (OFF, ripplePixel (host, 12, 5));
+        assertEquals (OFF, ripplePixel (host, 948, 5));
 
         for (int frame = 1; frame < 10; frame++)
         {
@@ -647,7 +652,12 @@ class PullControllerCoreTest
                 assertTrue (wave.containsKey (new PadGridPosition (3, 0)));
                 assertFalse (wave.containsKey (new PadGridPosition (3, 3)));
                 assertTrue (wave.get (new PadGridPosition (0, 3)).blue () > wave.get (new PadGridPosition (0, 2)).blue ());
+                assertTrue (ripplePixel (host, 480, 155).blue () > 0);
+                assertTrue (ripplePixel (host, 12, 80).blue () > 0);
+                assertEquals (OFF, ripplePixel (host, 480, 80));
+                assertTrue (ripplePixel (host, 12, 155).blue () < ripplePixel (host, 480, 155).blue ());
             }
+            if (frame == 7) assertTrue (ripplePixel (host, 948, 5).blue () > 0);
         }
 
         host.advance (Duration.ofNanos (25_000_000L));
@@ -657,6 +667,19 @@ class PullControllerCoreTest
 
         assertFalse (host.effects ().desiredOutput ().padGridOverlay ().active ());
         assertFalse (host.effects ().executionRequirements ().ticksRequested ());
+    }
+
+
+    private static RgbColor ripplePixel (final FakeCoreHost host, final int x, final int y)
+    {
+        RgbColor color = OFF;
+        for (final DisplayCommand command: host.effects ().desiredOutput ().displayOverlay ().scene ().commands ())
+        {
+            if (command instanceof final DisplayCommand.Rectangle rectangle && x >= rectangle.x () && y >= rectangle.y () &&
+                x < rectangle.x () + rectangle.width () && y < rectangle.y () + rectangle.height ())
+                color = rectangle.color ();
+        }
+        return color;
     }
 
 

@@ -12,12 +12,9 @@ import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.ITransport;
 import de.mossgrabers.framework.daw.clip.IClip;
 import de.mossgrabers.framework.daw.clip.INoteClip;
-import de.mossgrabers.framework.daw.data.ITrack;
-import de.mossgrabers.framework.daw.data.bank.ITrackBank;
 import de.mossgrabers.framework.featuregroup.IView;
 import de.mossgrabers.framework.featuregroup.ViewManager;
 import de.mossgrabers.framework.utils.ButtonEvent;
-import de.mossgrabers.framework.utils.StringUtils;
 import de.mossgrabers.framework.view.ColorSelectMode;
 import de.mossgrabers.framework.view.ColorView;
 import de.mossgrabers.framework.view.Views;
@@ -112,43 +109,30 @@ public class ClipMode extends AbstractTrackMode
 
     /** {@inheritDoc} */
     @Override
-    public void updateDisplay2 (final IGraphicDisplay display)
+    public void updateDisplay ()
     {
+        if (!this.displayMidiNotes)
+        {
+            super.updateDisplay ();
+            return;
+        }
+        // TODO: Elliot never used this so deferring how to migrate it to the new framework
+        final IGraphicDisplay display = this.surface.getGraphicsDisplay ();
         final IClip clip = this.getMidiClip ();
         if (!clip.doesExist ())
         {
             display.addEmptyElement ();
             display.notify (PLEASE_SELECT_A_CLIP_PUSH2);
-            return;
         }
-
-        if (this.displayMidiNotes)
-        {
+        else
             display.setMidiClipElement ((INoteClip) clip, this.transport.getQuartersPerMeasure (), null);
-            return;
-        }
-
-        final ITrackBank tb = this.model.getCurrentTrackBank ();
-        final ITrack t0 = tb.getItem (0);
-        final ITrack t1 = tb.getItem (1);
-        final ITrack t2 = tb.getItem (2);
-        final ITrack t3 = tb.getItem (3);
-        final ITrack t4 = tb.getItem (4);
-        final ITrack t5 = tb.getItem (5);
-        final ITrack t6 = tb.getItem (6);
-        final ITrack t7 = tb.getItem (7);
-
-        final boolean isPinned = clip instanceof final INoteClip noteClip && noteClip.isPinned ();
-
-        display.addParameterElement ("Pin clip", isPinned, t0.getName (), this.updateType (t0), t0.getColor (), t0.isSelected (), "Play Start", -1, this.formatMeasures (clip.getPlayStart (), 1), this.isKnobTouched (0), -1);
-        display.addParameterElement ("", false, t1.getName (), this.updateType (t1), t1.getColor (), t1.isSelected (), "Play End", -1, this.formatMeasures (clip.getPlayEnd (), 1), this.isKnobTouched (1), -1);
-        display.addParameterElement ("", false, t2.getName (), this.updateType (t2), t2.getColor (), t2.isSelected (), "Loop Start", -1, this.formatMeasures (clip.getLoopStart (), 1), this.isKnobTouched (2), -1);
-        display.addParameterElement ("", false, t3.getName (), this.updateType (t3), t3.getColor (), t3.isSelected (), "Loop Lngth", -1, this.formatMeasures (clip.getLoopLength (), 0), this.isKnobTouched (3), -1);
-        display.addParameterElement ("", false, t4.getName (), this.updateType (t4), t4.getColor (), t4.isSelected (), "Loop", -1, clip.isLoopEnabled () ? "On" : "Off", this.isKnobTouched (4), -1);
-        display.addParameterElement ("", false, t5.getName (), this.updateType (t5), t5.getColor (), t5.isSelected (), "", -1, "", false, -1);
-        display.addParameterElement ("", false, t6.getName (), this.updateType (t6), t6.getColor (), t6.isSelected (), "Shuffle", -1, clip.isShuffleEnabled () ? "On" : "Off", this.isKnobTouched (6), -1);
-        display.addParameterElement ("Select color", false, t7.getName (), this.updateType (t7), t7.getColor (), t7.isSelected (), "Accent", -1, clip.getFormattedAccent (), this.isKnobTouched (7), -1);
+        display.send ();
     }
+
+
+    /** Existing editor selection, exposed only for bounded observation. */
+    public boolean isDisplayingMidiNotes () { return this.displayMidiNotes; }
+    public IClip getObservedClip () { return this.getMidiClip (); }
 
 
     /** {@inheritDoc} */
@@ -209,12 +193,6 @@ public class ClipMode extends AbstractTrackMode
     public void togglePianoRoll ()
     {
         this.displayMidiNotes = !this.displayMidiNotes;
-    }
-
-
-    private String formatMeasures (final double time, final int startOffset)
-    {
-        return StringUtils.formatMeasures (this.transport.getQuartersPerMeasure (), time, startOffset, false);
     }
 
 

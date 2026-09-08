@@ -3,6 +3,7 @@
 package de.mossgrabers.pull.core.runtime.view;
 
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
+import de.mossgrabers.pull.core.api.EditingPageState;
 import de.mossgrabers.pull.core.api.ControllerPageRef;
 import de.mossgrabers.pull.core.api.ParameterSlot;
 import de.mossgrabers.pull.core.api.SessionBankShape;
@@ -36,14 +37,15 @@ public final class ControllerPages
         final SessionStopGesture stopGesture = new SessionStopGesture ();
         final SessionView sessionGrid = SessionView.full (stopGesture);
         final List<ControllerView> drumViews = List.of (new DrumPlayPadView (), new DrumOctaveView (), new DrumFillView (), drumControls, new DrumRateView ());
-        final List<ControllerView> legacyPage = List.of (new StableParameterControlsView ());
+        final ControllerView legacyDisplay = new LegacyPageDisplayView (navigation);
+        final List<ControllerView> legacyPage = List.of (new StableParameterControlsView (), legacyDisplay);
         this.note = background ("Pull", SessionBankShape.empty (), List.of (), true, false, legacyPage);
         this.drum = background ("Pull Drum", SessionBankShape.empty (), drumViews, true, true, legacyPage);
         this.drumLegacy = background ("Pull Drum", SessionBankShape.empty (), drumViews, true, false, legacyPage);
-        final List<ControllerView> sessionLegacyPage = List.of (new StableParameterControlsView (), sessionGrid.legacyPageNavigation ());
+        final List<ControllerView> sessionLegacyPage = List.of (new StableParameterControlsView (), sessionGrid.legacyPageNavigation (), legacyDisplay);
         this.session = background ("Session", FULL_SESSION_BANK, List.of (sessionGrid), true, true, sessionLegacyPage);
         this.sessionPending = background ("Session destination", FULL_SESSION_BANK, List.of (new SessionTemporarySelectionView (selection), sessionGrid), false, true, sessionLegacyPage);
-        this.vsLive = background (VS_LIVE_NAME, VS_LIVE_BANK, List.of (new SessionNavigationView (), SessionView.upper (true, stopGesture), new DrumPlayPadView (), new DrumOctaveView (), new DrumFillView (), new DrumControllerView (), drumControls, new DrumRateView ()), false, true, List.of ());
+        this.vsLive = background (VS_LIVE_NAME, VS_LIVE_BANK, List.of (new SessionNavigationView (), SessionView.upper (true, stopGesture), new DrumPlayPadView (), new DrumOctaveView (), new DrumFillView (), new DrumControllerView (), drumControls, new DrumRateView ()), false, true, List.of (legacyDisplay));
 
         final ControllerView mixerNavigation = new NavigationView (NavigationView.Horizontal.MIXER);
         final ControllerView otherNavigation = new NavigationView (NavigationView.Horizontal.INERT);
@@ -80,7 +82,11 @@ public final class ControllerPages
     public CompiledWorkspace select (final ControllerPageRef page, final WorkspaceSelection selection, final ControllerSnapshot snapshot)
     {
         final var background = this.background (selection, snapshot);
-        return page.kind () == ControllerPageRef.Kind.CORE ? this.compositions.select (new PageId (page.id ()), background) : this.compositions.legacy (background);
+        if (page.kind () == ControllerPageRef.Kind.CORE) return this.compositions.select (new PageId (page.id ()), background);
+        final var observed = snapshot.bridge ().pageDisplay ();
+        if ("CLIP".equals (page.id ()) && "CLIP".equals (observed.modeId ()) && observed.state () instanceof final EditingPageState.Clip clip && clip.pianoRoll ())
+            return this.compositions.pianoRoll (background);
+        return this.compositions.legacy (background);
     }
 
     public Set<ParameterSlot> indications (final ControllerPageRef page, final WorkspaceSelection selection, final ControllerSnapshot snapshot)

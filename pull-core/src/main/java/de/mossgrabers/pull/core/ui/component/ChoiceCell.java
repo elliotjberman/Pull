@@ -17,7 +17,12 @@ public record ChoiceCell (String label, boolean available, boolean selected)
 
     /** Geometry is local to the cell; the consuming page chooses its position and physical button. */
     public record Style (double width, double height, double insetX, double insetY, double fontSize,
-                         double minimumFontSize) { }
+                         double minimumFontSize, DisplayTextFit fit)
+    {
+        public Style (final double width, final double height, final double insetX, final double insetY,
+                      final double fontSize, final double minimumFontSize)
+        { this (width, height, insetX, insetY, fontSize, minimumFontSize, DisplayTextFit.SHRINK_ELLIPSIS); }
+    }
 
     public RgbColor lightColor ()
     {
@@ -27,12 +32,18 @@ public record ChoiceCell (String label, boolean available, boolean selected)
 
     public void append (final List<DisplayCommand> commands, final double left, final double top, final Style style)
     {
+        this.append (commands, left, top, style, WHITE, UNSELECTED);
+    }
+
+    /** Caller-supplied colors retain the shared marker and fitting geometry. */
+    public void append (final List<DisplayCommand> commands, final double left, final double top, final Style style, final RgbColor selectedColor, final RgbColor unselectedColor)
+    {
         if (!this.visible ()) return;
-        final RgbColor color = this.selected ? WHITE : UNSELECTED;
+        final RgbColor color = this.selected ? selectedColor : unselectedColor;
         commands.add (new DisplayCommand.Rectangle (left, top, MARKER_WIDTH, style.height (), color));
         commands.add (new DisplayCommand.TextBox (this.label, left + MARKER_WIDTH + style.insetX (), top + style.insetY (),
             style.width () - MARKER_WIDTH - 2 * style.insetX (), style.height () - 2 * style.insetY (), DisplayTextAlignment.LEFT,
-            color, style.fontSize (), style.minimumFontSize (), DisplayTextFit.SHRINK_ELLIPSIS));
+            color, style.fontSize (), style.minimumFontSize (), style.fit ()));
     }
 
     private boolean visible ()

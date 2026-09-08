@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>UI library · Pull</title>
+  <style>{{TYPOGRAPHY_CSS}}</style>
+  <style>{{HARDWARE_CSS}}</style>
+  <style>{{APP_CSS}}</style>
+</head>
+<body>
+  <button class="nav-backdrop" id="nav-backdrop" aria-label="Close navigation" hidden></button>
+  <aside class="sidebar" id="library-navigation" aria-label="UI library navigation">
+    <div class="brand"><span class="brand-mark">P</span><div><strong>Pull</strong><span>UI library</span></div></div>
+    <div class="section-switch" role="group" aria-label="Browse library">
+      <button type="button" data-section="components" aria-pressed="true">Components <span>{{COMPONENT_COUNT}}</span></button>
+      <button type="button" data-section="views" aria-pressed="false">Views <span>{{VIEW_COUNT}}</span></button>
+    </div>
+    <div class="search-field"><label class="sr-only" for="story-search">Search stories</label><input id="story-search" type="search" placeholder="Search stories…" autocomplete="off" spellcheck="false"><kbd>/</kbd></div>
+    <nav class="story-navigation" id="story-navigation" aria-label="Stories">{{NAVIGATION}}</nav>
+    <p class="no-results" id="no-results" role="status" hidden>No matching stories.</p>
+  </aside>
+  <main class="main-panel" id="main-panel">
+    <header class="toolbar">
+      <button class="nav-toggle" id="nav-toggle" type="button" aria-controls="library-navigation" aria-expanded="false">Browse</button>
+      <div class="story-heading"><div class="breadcrumb" id="story-group">Components</div><h1 id="story-title">UI library</h1></div>
+      <a class="permalink" id="story-permalink" href="#" aria-label="Link to selected story">Permalink ↗</a>
+    </header>
+    <div class="story-workspace" id="story-workspace">
+      <div class="color-controls" id="color-controls" role="group" aria-label="Component color">
+        <div class="color-fields"><label for="component-color">Color</label><input id="component-color" type="color" value="{{DEFAULT_COLOR}}"><input id="component-color-hex" type="text" value="{{DEFAULT_COLOR}}" aria-label="Hex color" aria-describedby="color-error" spellcheck="false" maxlength="7"><button id="reset-color" type="button">Reset</button></div>
+        <p id="color-error" role="status" hidden>Use six hex digits, for example #3ea0ff.</p>
+      </div>
+      <div class="stories" id="stories">{{STORIES}}</div>
+    </div>
+  </main>
+  <template id="display-font">{{DISPLAY_FONT}}</template>
+  <script>{{HARDWARE_JS}}</script>
+  <script>{{APP_JS}}</script>
+</body>
+</html>

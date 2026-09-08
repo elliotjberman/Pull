@@ -45,6 +45,9 @@ public class CursorClipImpl implements INoteClip
     private final int                numRows;
 
     private final IStepInfo [] [] [] launcherData;
+    // Preserve the last host value only where a legacy edit has changed its working copy.
+    private final java.util.Map<Integer, IStepInfo> observedBeforeEdits = new java.util.LinkedHashMap<> ();
+
     private final PinnableCursorClip launcherClip;
     private int                      editPage        = 0;
     private double                   stepLength;
@@ -423,6 +426,15 @@ public class CursorClipImpl implements INoteClip
         }
     }
 
+
+    @Override
+    public IStepInfo getObservedStep (final NotePosition position)
+    {
+        if (position.getChannel () < 0 || position.getChannel () >= 16 || position.getStep () < 0 || position.getStep () >= this.numSteps || position.getNote () < 0 || position.getNote () >= this.numRows)
+            return EmptyStepInfo.INSTANCE;
+        final IStepInfo value = this.observedBeforeEdits.get (observedKey (position));
+        return value == null ? this.getStep (position) : value;
+    }
 
     /** {@inheritDoc} */
     @Override
@@ -1274,17 +1286,37 @@ public class CursorClipImpl implements INoteClip
         final int channel = noteStep.channel ();
         final int step = noteStep.x ();
         final int note = noteStep.y ();
-
+        if (channel < 0 || channel >= 16 || step < 0 || step >= this.numSteps || note < 0 || note >= this.numRows)
+            return;
+        final int observedKey = (step * 128 + note) * 16 + channel;
         for (final NotePosition editStep: this.editSteps)
         {
             // Is the note among the currently edited ones?
             if (editStep.getChannel () == channel && editStep.getStep () == step && editStep.getNote () == note)
+            {
+                final StepInfoImpl observed = new StepInfoImpl ();
+                observed.updateData (noteStep);
+                this.observedBeforeEdits.put (observedKey, observed);
                 return;
+            }
         }
 
-        this.getUpdateableStep (new NotePosition (channel, step, note)).updateData (noteStep);
+        this.getWorkingStep (new NotePosition (channel, step, note)).updateData (noteStep);
+        this.observedBeforeEdits.remove (observedKey);
     }
 
+
+    private static int observedKey (final NotePosition position)
+    {
+        return (position.getStep () * 128 + position.getNote ()) * 16 + position.getChannel ();
+    }
+
+    private StepInfoImpl getUpdateableStep (final NotePosition position)
+    {
+        if (position.getChannel () >= 0 && position.getChannel () < 16 && position.getStep () >= 0 && position.getStep () < this.numSteps && position.getNote () >= 0 && position.getNote () < this.numRows)
+            this.observedBeforeEdits.computeIfAbsent (observedKey (position), key -> this.getStep (position).createCopy ());
+        return this.getWorkingStep (position);
+    }
 
     /**
      * Get the step at the given position. If the position still contains the Empty Step Info object
@@ -1293,7 +1325,7 @@ public class CursorClipImpl implements INoteClip
      * @param notePosition The position of the note
      * @return The updatable step info
      */
-    private StepInfoImpl getUpdateableStep (final NotePosition notePosition)
+    private StepInfoImpl getWorkingStep (final NotePosition notePosition)
     {
         final int channel = notePosition.getChannel ();
         final int step = notePosition.getStep ();

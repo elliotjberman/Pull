@@ -4,8 +4,6 @@
 
 package de.mossgrabers.controller.ableton.push.mode.device;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Optional;
 
 import de.mossgrabers.controller.ableton.push.PushConfiguration;
@@ -14,26 +12,15 @@ import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.mode.BaseMode;
 import de.mossgrabers.controller.ableton.push.parameterprovider.PushSelectedLayerOrDrumPadParameterProvider;
 import de.mossgrabers.framework.controller.ButtonID;
-import de.mossgrabers.framework.controller.color.ColorEx;
-import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.IChannel;
 import de.mossgrabers.framework.daw.data.ICursorDevice;
 import de.mossgrabers.framework.daw.data.ILayer;
 import de.mossgrabers.framework.daw.data.ISend;
-import de.mossgrabers.framework.daw.data.bank.ILayerBank;
 import de.mossgrabers.framework.daw.data.bank.ISendBank;
-import de.mossgrabers.framework.daw.resource.ChannelType;
 import de.mossgrabers.framework.featuregroup.ModeManager;
-import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent;
-import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.MenuData;
-import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.ParameterData;
-import de.mossgrabers.framework.graphics.canvas.component.TrackMixerComponent.TrackData;
 import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.utils.ButtonEvent;
-import de.mossgrabers.framework.utils.Pair;
-import de.mossgrabers.framework.utils.StringUtils;
 
 
 /**
@@ -43,7 +30,6 @@ import de.mossgrabers.framework.utils.StringUtils;
  */
 public class DeviceLayerMode extends BaseMode<ILayer>
 {
-    protected final List<Pair<String, Boolean>> menu = new ArrayList<> ();
     protected final ICursorDevice               cursorDevice;
     protected final PushConfiguration           configuration;
 
@@ -77,8 +63,7 @@ public class DeviceLayerMode extends BaseMode<ILayer>
         this.cursorDevice = this.model.getCursorDevice ();
         this.cursorDevice.addHasDrumPadsObserver (hasDrumPads -> this.switchBanks (this.cursorDevice.hasDrumPads () ? this.cursorDevice.getDrumPadBank () : this.cursorDevice.getLayerBank ()));
 
-        for (int i = 0; i < 8; i++)
-            this.menu.add (new Pair<> (" ", Boolean.FALSE));
+
     }
 
 
@@ -294,139 +279,6 @@ public class DeviceLayerMode extends BaseMode<ILayer>
         final Modes si = Modes.get (Modes.DEVICE_LAYER_SEND1, sendIndex);
         final ModeManager modeManager = this.surface.getModeManager ();
         this.setMode (modeManager.isActive (si) ? Modes.DEVICE_LAYER : si);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void updateDisplay2 (final IGraphicDisplay display)
-    {
-        if (!this.cursorDevice.doesExist ())
-        {
-            for (int i = 0; i < 8; i++)
-                display.addOptionElement (i == 2 ? "Please select a device or press 'Add Device'..." : "", i == 7 ? "Up" : "", true, "", "", false, true);
-            return;
-        }
-
-        if (this.checkLayerExistance (display))
-            this.updateDisplayElements (display, this.bank.getSelectedItem ());
-    }
-
-
-    /**
-     * Check if the cursor device has layers and at least one. Otherwise a message is displayed
-     *
-     * @param display The display where to show the message
-     * @return True if layers exist
-     */
-    protected boolean checkLayerExistance (final IGraphicDisplay display)
-    {
-        if (!this.cursorDevice.hasLayers ())
-        {
-            for (int i = 0; i < 8; i++)
-                display.addOptionElement (i == 3 ? "This device does not have layers." : "", i == 7 ? "Up" : "", true, "", "", false, true);
-            return false;
-        }
-
-        if (this.bank.hasExistingItems ())
-            return true;
-
-        for (int i = 0; i < 8; i++)
-        {
-            final String label;
-            if (i == 3)
-                label = "Please create a " + (this.cursorDevice.hasDrumPads () ? "Drum Pad..." : "Device Layer...");
-            else
-                label = "";
-            display.addOptionElement (label, i == 7 ? "Up" : "", true, "", "", false, true);
-        }
-        return false;
-    }
-
-
-    /**
-     * Update all 8 elements.
-     *
-     * @param display The display
-     * @param l The channel data
-     */
-    protected void updateDisplayElements (final IGraphicDisplay display, final Optional<ILayer> l)
-    {
-        // Drum Pad Bank has size of 16, layers only 8
-        final int offset = this.getDrumPadIndex ();
-        this.updateMenuItems (-1);
-
-        final List<MenuData> menus = new ArrayList<> (8);
-        final List<ParameterData> parameters = new ArrayList<> (8);
-        final List<TrackData> layers = new ArrayList<> (8);
-        for (int i = 0; i < 8; i++)
-        {
-            final IChannel layer = this.bank.getItem (offset + i);
-            final Pair<String, Boolean> pair = this.menu.get (i);
-            menus.add (new MenuData (pair.getKey ().trim (), pair.getValue ().booleanValue ()));
-            parameters.add (new ParameterData ("", -1, -1, "", false));
-            layers.add (new TrackData (layer.doesExist () ? layer.getName (12) : "", ChannelType.LAYER, layer.getColor (), layer.isSelected (), layer.isActivated (), false));
-        }
-
-        final IValueChanger valueChanger = this.model.getValueChanger ();
-        int vuLeft = 0;
-        int vuRight = 0;
-        ColorEx controlColor = ColorEx.WHITE;
-        if (l.isPresent ())
-        {
-            final ILayer layer = l.get ();
-            final boolean isActive = layer.isActivated ();
-            controlColor = layer.getColor ();
-            parameters.set (0, new ParameterData ("Layer Volume", valueChanger.toDisplayValue (layer.getVolume ()), valueChanger.toDisplayValue (layer.getModulatedVolume ()), layer.getVolumeStr (8), isActive));
-            parameters.set (1, new ParameterData ("Pan", valueChanger.toDisplayValue (layer.getPan ()), valueChanger.toDisplayValue (layer.getModulatedPan ()), this.formatPanValue (layer.getPan ()), isActive));
-
-            final ISendBank sendBank = layer.getSendBank ();
-            for (int i = 0; i < 4; i++)
-            {
-                final ISend send = sendBank.getItem (i);
-                if (send.doesExist ())
-                    parameters.set (4 + i, new ParameterData (send.getName (), valueChanger.toDisplayValue (send.getValue ()), valueChanger.toDisplayValue (send.getModulatedValue ()), send.getDisplayedValue (8), isActive && send.isEnabled ()));
-            }
-
-            if (this.configuration.isEnableVUMeters ())
-            {
-                vuLeft = valueChanger.toDisplayValue (layer.getVuLeft ());
-                vuRight = valueChanger.toDisplayValue (layer.getVuRight ());
-            }
-        }
-
-        display.addElement (new TrackMixerComponent (menus, parameters, layers, vuLeft, vuRight, controlColor));
-    }
-
-
-    protected String formatPanValue (final int value)
-    {
-        final double bipolarValue = 2.0 * this.model.getValueChanger ().toNormalizedValue (value) - 1.0;
-        final int amount = (int) Math.round (100.0 * Math.abs (bipolarValue));
-        if (amount == 0)
-            return "C";
-        return (bipolarValue < 0 ? "L " : "R ") + amount;
-    }
-
-
-    protected void updateMenuItems (final int selectedMenu)
-    {
-        this.menu.get (0).set ("Volume", Boolean.valueOf (selectedMenu - 1 == 0));
-        this.menu.get (1).set ("Pan", Boolean.valueOf (selectedMenu - 1 == 1));
-        this.menu.get (2).set (" ", Boolean.FALSE);
-
-        final ILayerBank layerBank = (ILayerBank) this.bank;
-        final int start = Math.max (0, layerBank.getItem (0).getSendBank ().getItem (0).getPosition ()) + 1;
-        this.menu.get (3).set (String.format ("Sends %d-%d", Integer.valueOf (start), Integer.valueOf (start + 3)), Boolean.FALSE);
-
-        for (int i = 0; i < 4; i++)
-        {
-            final String sendName = StringUtils.optimizeName (layerBank.getEditSendName (i), 12);
-            this.menu.get (4 + i).set (sendName.isEmpty () ? " " : sendName, Boolean.valueOf (4 + i == selectedMenu - 1));
-        }
-
-        if (!this.surface.isShiftPressed () && !this.isKnobTouched (7))
-            this.menu.get (7).set ("Up", Boolean.TRUE);
     }
 
 

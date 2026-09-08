@@ -85,6 +85,8 @@ public class ColorView<S extends IControlSurface<C>, C extends Configuration> ex
     }
 
 
+    // TODO(UI migration): Move Color drawing and selection together after the Note/Drum route
+    // handoff supports native-note suppression and exact return; keep this behavior unchanged.
     /** {@inheritDoc} */
     @Override
     public void drawGrid ()

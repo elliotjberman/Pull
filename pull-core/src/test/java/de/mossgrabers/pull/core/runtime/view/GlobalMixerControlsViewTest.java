@@ -180,7 +180,7 @@ class GlobalMixerControlsViewTest
         final var meters = fixture.workspace.activate (fixture.snapshot ()).desiredOutput ().display ();
         assertNotEquals (enabled.desiredOutput ().display (), meters);
         assertEquals (8, meters.commands ().stream ().filter (command -> command instanceof DisplayCommand.Rectangle rectangle && rectangle.width () == 13 && rectangle.height () == 1).count ());
-        assertFalse (enabled.desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof DisplayCommand.TextAt text && "Volume".equals (text.text ())));
+        assertEquals (1, texts (enabled).stream ().filter ("Volume"::equals).count (), "Volume appears only in the page menu, not repeated over every track");
     }
 
     @Test
@@ -208,9 +208,9 @@ class GlobalMixerControlsViewTest
         final Fixture fixture = new Fixture (GlobalMixerControlsView.Role.PAN);
         fixture.value = 0;
         final CoreResult result = fixture.workspace.activate (fixture.snapshot ());
-        assertEquals (8, result.desiredOutput ().display ().commands ().stream ().filter (command -> command instanceof DisplayCommand.TextAt text && "L 100".equals (text.text ()) && text.baselineY () == 55).count ());
+        assertEquals (8, texts (result).stream ().filter ("L 100"::equals).count ());
         assertEquals (8, result.desiredOutput ().display ().commands ().stream ().filter (command -> command instanceof DisplayCommand.RoundedRectangle rectangle && rectangle.width () == 5 && rectangle.height () == 16).count ());
-        assertFalse (result.desiredOutput ().display ().commands ().stream ().anyMatch (command -> command instanceof DisplayCommand.TextAt text && "Pan".equals (text.text ())));
+        assertEquals (1, texts (result).stream ().filter ("Pan"::equals).count (), "Pan appears only in the page menu, not repeated over every track");
         fixture.value = 1023;
         assertTrue (texts (fixture.workspace.activate (fixture.snapshot ())).contains ("R 100"));
     }

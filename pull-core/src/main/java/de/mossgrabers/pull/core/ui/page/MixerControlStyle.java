@@ -7,6 +7,9 @@ import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.api.output.DisplayTextFit;
 import de.mossgrabers.pull.core.ui.component.ParameterValue;
 import de.mossgrabers.pull.core.ui.component.RingMeter;
+import de.mossgrabers.pull.core.ui.component.VerticalMeter;
+import de.mossgrabers.pull.core.ui.component.FaderMarker;
+import de.mossgrabers.pull.core.ui.component.BipolarSlider;
 
 /** Shared mixer typography, widget geometry and meter thresholds. */
 public final class MixerControlStyle
@@ -44,6 +47,10 @@ public final class MixerControlStyle
     public static final RgbColor ORANGE      = new RgbColor (255, 80, 0);
     public static final RgbColor RED         = new RgbColor (255, 0, 0);
     public static final RgbColor PROJECT_MACRO = new RgbColor (132, 214, 255);
+
+    public static final VerticalMeter.Style LEVEL_METER = new VerticalMeter.Style (METER_WIDTH, FADER_HEIGHT);
+    public static final FaderMarker.Style VOLUME_FADER = new FaderMarker.Style (FADER_HEIGHT, FADER_MARKER_WIDTH, FADER_LINE_WIDTH, 0);
+    public static final BipolarSlider.Style PAN_SLIDER = new BipolarSlider.Style (PAN_SLIDER_WIDTH, PAN_RAIL_HEIGHT, PAN_MARKER_WIDTH, PAN_MARKER_HEIGHT, 0, 0);
 
     private MixerControlStyle () { }
 }

@@ -7,7 +7,6 @@ package de.mossgrabers.controller.ableton.push.mode;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.controller.ButtonID;
-import de.mossgrabers.framework.controller.display.IGraphicDisplay;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.IItem;
 import de.mossgrabers.framework.featuregroup.AbstractFeatureGroup;
@@ -108,22 +107,6 @@ public class ScalesMode extends BaseMode<IItem>
         else
             this.scales.setScaleOffsetByIndex (index + 5);
         this.update ();
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void updateDisplay2 (final IGraphicDisplay display)
-    {
-        final int selIndex = this.scales.getScale ().ordinal ();
-        display.addListElement (6, Scale.getNames (), selIndex);
-
-        final int offset = this.scales.getScaleOffsetIndex ();
-        final String rangeText = this.scales.getRangeText ();
-        for (int i = 0; i < 6; i++)
-            display.addOptionElement (i == 3 ? "Note range: " + rangeText : "", Scales.BASES.get (6 + i), offset == 6 + i, "", Scales.BASES.get (i), offset == i, false);
-
-        display.addOptionElement ("", this.scales.isChromatic () ? "Chromatc" : "In Key", this.scales.isChromatic (), "", "", false, false);
     }
 
 

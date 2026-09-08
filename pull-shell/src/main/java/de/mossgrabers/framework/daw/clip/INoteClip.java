@@ -56,6 +56,11 @@ public interface INoteClip extends IClip, IPinnable
      */
     IStepInfo getStep (NotePosition position);
 
+    /** Last subscribed host read-back, independent of the legacy editable working copy. */
+    default IStepInfo getObservedStep (final NotePosition position)
+    {
+        return de.mossgrabers.framework.daw.data.empty.EmptyStepInfo.INSTANCE;
+    }
 
     /**
      * Toggle a note at a step.

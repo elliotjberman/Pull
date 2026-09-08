@@ -7,10 +7,8 @@ import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.ContinuousID;
 import de.mossgrabers.framework.controller.color.ColorEx;
-import de.mossgrabers.framework.controller.display.IGraphicDisplay;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.empty.EmptyParameter;
-import de.mossgrabers.framework.graphics.canvas.component.IComponent;
 import de.mossgrabers.framework.parameter.IParameter;
 import de.mossgrabers.framework.parameterprovider.IParameterProvider;
 import de.mossgrabers.framework.parameterprovider.special.EmptyParameterProvider;
@@ -30,10 +28,6 @@ import java.util.Objects;
 public class CorePageMode extends BaseMode<IParameter>
 {
     private static final IParameterProvider EMPTY_PARAMETERS = new EmptyParameterProvider (8);
-    private static final IComponent BLANK_DISPLAY = info -> {
-        final var bounds = info.getBounds ();
-        info.getContext ().fillRectangle (bounds.left (), bounds.top (), bounds.width (), bounds.height (), ColorEx.BLACK);
-    };
     private final ReloadableControllerRuntime runtime;
 
     public CorePageMode (final String name, final PushControlSurface surface, final IModel model, final ReloadableControllerRuntime runtime)
@@ -111,9 +105,4 @@ public class CorePageMode extends BaseMode<IParameter>
         return super.getButtonColor (button);
     }
 
-    @Override
-    public final void updateDisplay2 (final IGraphicDisplay display)
-    {
-        display.addElement (BLANK_DISPLAY);
-    }
 }

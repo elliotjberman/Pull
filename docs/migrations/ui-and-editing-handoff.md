@@ -1,17 +1,25 @@
 # UI and editing migration handoff
 
-Start from Core API 50 / Bitwig API 25. Follow the [capability audit](../reloadable-core-migration-guide.md)
-and [remaining checklist](../reloadable-core-migration-roadmap.md); core-owned page entry/return
-does not imply the page body has migrated. Choose one complete action-and-feedback slice per PR.
+Working source is Core API 54 / Bitwig API 25. All ordinary Push display pages now use the shared
+core UI library; the remaining display families consume bounded raw `CONTROLLER_PAGE_DISPLAY`
+observations. Legacy actions,
+parameter providers, modifiers and lights remain where not already migrated. Follow the
+[capability audit](../reloadable-core-migration-guide.md) and [remaining checklist](../reloadable-core-migration-roadmap.md)
+for each remaining complete behavior slice.
+
+The specialized Clip piano roll remains unchanged. TODO: Elliot never used this so deferring how to migrate it to the new framework
+
+Physical Color pad drawing and selection remain unchanged in the existing implementation.
+TODO: migrate Color pad drawing/selection together once Note/Drum→Color native-note suppression and exact return handoff can be owned.
 
 ## Work to migrate
 
 | Family | Include | Prerequisite |
 | --- | --- | --- |
-| Browser | Filters, results, selection, audition, commit/cancel; reuse `BrowserPageNavigation`. | Bounded observations and operations; exact insertion/replacement destination. Raw activity alone is insufficient. |
-| Settings/pages | Scales/Layout, Repeat, Fixed Length, User, remaining physical Ribbon behavior, Crossfade, Track/Layer Details; preferences, modifiers, touches, rows, display and lights. | Missing state/effects from the roadmap. Persistence may remain mechanical in shell. |
-| Color | Target, inherited grid workflow, confirm/cancel and exact return. | Target alignment and native-note suppression; exclusive command ownership does not silence `NoteInput`. |
-| Musical layouts/editing | Note/Clip and melodic/polyphonic/Drum sequencers; paging, selections, edits, playing feedback, pressure, scenes and clip length. | Bounded note/step/clip windows, identities, read-back and primitive edits reusable across layouts. |
+| Browser | Filter/result actions, selection, audition, commit/cancel; reuse `BrowserPageNavigation`. Display already uses shared lists. | Bounded operations with exact insertion/replacement destination; display observations grant no actuator authority. |
+| Settings/pages | Scales/Layout, Repeat, Fixed Length, User, physical Ribbon behavior, Crossfade and Track/Layer Details actions/providers/lights. Ordinary displays already use core components. | Missing state/effects and exact targets from the roadmap. Persistence may remain mechanical in shell. |
+| Color | Deferred together: pad drawing, target selection, grid workflow, confirm/cancel and exact return. Existing behavior stays unchanged. | Target alignment, Note/Drum→Color handoff and native-note suppression; exclusive command ownership does not silence `NoteInput`. |
+| Musical layouts/editing | Note/Clip and melodic/polyphonic/Drum sequencer gestures; paging, selections, edits, playing feedback, pressure, scenes and clip length. | Exact identities and reusable edits over bounded windows. Ordinary Note display already reads host values separately from the optimistic legacy working copy. |
 
 Crossfade/MIDI-channel callback count and clamp order cannot be recovered from summed motion.
 Resolve the shared input contract or agree a behavior change before migrating those controls.
@@ -28,10 +36,11 @@ dependent slice unready rather than inventing a name/slot-based identity.
 - Follow [views and composition](../views-api-design.md): `Page`, `PageNavigation`, fixed claims and
   `ControllerPageCompositions`. New core pages need no stable enum or page-specific adapter.
 - Use the [shared UI library and catalog](../ui-component-library.md): `core.ui.PageStyle`,
-  `core.ui.component` choices/toggles/rings/parameter values, and pure `core.ui.page` families.
-  Info, Setup and Ribbon settings use these components. Setup/Info passed the API 50 live check; Ribbon was not rerun. Extend the production
-  visual catalog with normal and awkward states when adding a repeated pattern. Browser lists and
-  sequencers need suitable models, not a universal configurable UI schema.
+  `core.ui.component` choices/lists/toggles/meters/parameter values, and pure `core.ui.page` families.
+  Extend the same searchable component/view catalog with normal and awkward observations, keeping
+  individual specimens separate from complete screens and linking stories by their hash. Custom plugin
+  views belong there when they have production renderers; no parallel debugger or preview harness
+  is needed. See the [display cutover audit](ui-library-completion.md) for current bounds.
 
 ## Acceptance
 
@@ -44,3 +53,6 @@ binding changes, cancellation, fresh gestures, delayed read-back and replacement
 Bitwig methods against the API 25 JAR and run the deprecation-enabled package. Any required shell
 expansion needs matched-build live validation under the uninterrupted live lease. An earlier
 build's smoke pass cannot validate a later migration.
+
+API 54's matching shell installation and scoped live validation are recorded in the
+[display cutover audit](ui-library-completion.md#validation).

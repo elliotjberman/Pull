@@ -1,15 +1,18 @@
 # Pull UI component library
 
-The reloadable core owns a reusable UI library so layout, legibility and feedback can improve
-across pages together. Components are actual production consumers of immutable presentation data;
-the offline catalog renders those same components and pages.
+The reloadable core owns ordinary Push page rendering through a reusable UI library. Components
+consume immutable presentation data; the offline catalog renders those same components and pages.
+The optional Clip piano roll remains unchanged and deferred. Rendering migration does not transfer
+the remaining legacy actions, parameter providers or hardware-light behavior.
+The physical Color picker also remains unchanged; its drawing and selection must migrate together
+under the [handoff TODO](migrations/ui-and-editing-handoff.md).
 
 ## Responsibilities
 
 | Layer | Owns | Does not own |
 | --- | --- | --- |
 | `core.ui.PageStyle` | Shared display dimensions, column geometry and neutral palette | Page selection or host state |
-| `core.ui.component` | Choice cells, toggles, ring meters, response curves and bounded parameter-value drawing | Physical input, host lookup, target acquisition or effects |
+| `core.ui.component` | Choices, lists, toggles, meters, sliders, response curves and bounded text/value drawing | Physical input, host lookup, target acquisition or effects |
 | `core.ui.page` | Family presentation records, styles, page assembly and track footers | Navigation, gesture lifetime or mutable host objects |
 | Feature `ControllerView` | Fixed surface claims, observed-state projection, exact input targets and requested effects | A second private copy of shared rendering |
 | Workspace compiler | Disjoint composition and display clip scopes | Arbitrary control remapping |
@@ -24,13 +27,16 @@ does not integrate or replace production input routing.
 
 | Component | Contract | Consumers |
 | --- | --- | --- |
-| `ChoiceCell` | Left-aligned label and 3 px full-height marker: white selected, dimmed unselected, no background fill. Physical light feedback remains white/dim/off; empty or unavailable choices are blank and off. | Automation, Metronome, Frame, Info, Setup and Ribbon |
-| `Toggle` | One shared on/off geometry, with page-supplied position and resolved color | Macro Boolean parameters and Master audio engine |
-| `RingMeter` | Normalized value and explicit family geometry/colors produce a dotted meter | Mixer, Macro, Accent and Setup |
-| `ParameterValue` | Typed value/unit content fits within explicit separate fields | Mixer, Macro, Accent and Setup |
+| `ChoiceCell` / `OptionColumn` | Left-aligned label and 3 px full-height marker; selected/dim colors, no background fill. Empty or unavailable choices stay blank. Display selection is independent of each page's physical light policy. | Settings, Browser, Scales/Layout, Fixed Length, Add Track, Device and editing menus |
+| `TextList` | Up to eight visible rows, bounded text, observed selection and optional trailing detail field | Browser results/filter counts, Scales and Note Repeat |
+| `Toggle` | One shared on/off geometry, with supplied position and resolved color | Macro Boolean parameters, Master audio engine and editing Boolean values |
+| `RingMeter` | Normalized value and explicit family geometry/colors produce a dotted meter | Mixer, Macro, Accent, Setup, Note Repeat, Device and editing controls |
+| `ParameterValue` | Typed value/unit content fits within explicit separate fields | Mixer, Macro, settings, Device and editing controls |
+| `VerticalMeter`, `FaderMarker`, `BipolarSlider` | Supplied levels, positions, bands and colors within explicit bounds | Global mixer and shared mixer cells |
 | `ResponseCurve` | Bounded normalized samples with explicit width, height, stroke and supplied color | Setup calibration graph |
 | `MixerDisplayScene` | Parameter-cell assembly, including knob/fader/pan and observed modulation | Track, global Volume/Pan/Sends, Master and Metronome |
 | `TrackFooterRenderer` | Track label/icon, selection contrast and inactive treatment, plus observed row feedback | Current-bank footer, Session footer and Master |
+| `PlaybackRippleRenderer` | Pure display/pad drawing from supplied progress and color | Existing project-playback animation and catalog frames |
 
 Family styles retain intentional differences in geometry and color. Macro and mixer display-string
 interpretation remains explicit in those families; sharing a drawing component does not make a
@@ -47,11 +53,22 @@ tabs and shared parameter/ring drawing, plus a response curve from observed hard
 Ribbon uses the shared choice cells and option-row geometry; its numeric CC cell and quick-select
 actions preserve the existing distinctions between display selection and physical light feedback.
 
+For the remaining ordinary pages, API 54's `CONTROLLER_PAGE_DISPLAY` subscription carries raw
+Device, Option and Editing observations under the observed mode ID. Core projectors format those
+values and assemble complete pages; no host objects or actuator authority cross this rendering
+boundary. In particular, note feedback reads host-observed values separately from the optimistic
+working copy used by legacy note editing.
+
+Track Details also observes the selected bank track or Master's raw `actionTargetId`. Its display
+shows “Waiting for track target...” when that identity is missing or differs from the displayed
+cursor, including a pinned cursor. The frozen physical lights still read that cursor; this display
+check does not change their policy or migrate the legacy actions.
+
 To add a page, first complete the [capability audit](reloadable-core-migration-guide.md). Project
 its subscribed values into a family presentation, assemble existing components, and declare the
 complete action/output footprint through a view. Add a new component only when real repeated needs
-justify it. Browser lists and sequencer grids may establish their own families without a universal
-UI schema. Keep meaning in the feature view and reusable drawing in the library.
+justify it. Reuse the established list, mixer and editing families without adding a universal UI
+schema. Keep meaning in core projection and reusable drawing in the library.
 
 ## Typography
 
@@ -76,25 +93,37 @@ tools/ui-component-catalog
 ```
 
 The command builds offline and prints a local HTML path under `pull-core/target/ui-component-catalog`.
-**Components** shows individual choice cells, toggles, rings, response curves and parameter values at their own size.
-One shared color picker (or six-digit hex input) changes the supplied color for toggles, rings, response curves and
-parameter values. Examples vary state, value and text rather than duplicating each possible color.
-Choice cells retain their neutral selection palette, and ring tracks retain their family color.
+The searchable sidebar keeps **Components** and **Views** separate and shows one selected story.
+Each story has a hash permalink; browser back/forward returns to previous selections. Search filters
+the current section, and the mobile Browse control opens the same navigation.
+
+**Components** shows individual choices, lists, toggles, meters, sliders, curves and parameter values
+at their intrinsic size. Related meter, fader and slider states appear together for comparison.
+The nearby shared color picker (or six-digit hex input) changes supplied component colors. Examples vary
+state, value and text rather than duplicating every color. Neutral choices and ring tracks retain
+their intended colors.
 The SVG link opens the component with the current color and embedded Lato font. These controls work
 in the generated HTML without a server; complete view fixtures retain their supplied colors.
-**Views** shows complete known screens, including Master, Track mix, global mixer, project macros
-and settings, with display content separated from labeled upper/lower hardware-button rows. Button
+**Views** shows complete known screens: Master, Track/global mixer, project macros, settings,
+Device/Chains/layers, User, Browser, Scales/Layout, Fixed Length, Repeat, Add Track and ordinary editing
+pages. Display content is separated from labeled upper/lower hardware-button rows. Button
 lights align to the display columns; dashed buttons have no light state from the view, while black
 buttons are off. Partial display regions retain their own height. Future custom plugin views belong
 here once they have a production renderer; their reusable controls belong in Components.
 Use it to inspect long names, missing values, unavailable/selected choices, touched controls and
 value extremes before a live smoke. The catalog is a visual preview; its font rasterization and
 fixture data do not establish Bitwig read-back, hardware pixels or gesture behavior.
-Info adds known identity, observed transport limits (including a signed serial), and waiting-state
-examples to this same catalog. Setup and Ribbon add normal, limit and unavailable examples here too.
+Fixtures include normal and unavailable observations, value limits, long browser names with retained
+hit counts, channel/device variants, editing pages and observed hardware identity.
+
+Ripple preview buttons replay production-rendered frames with eight seeded texture variations,
+without repeating the previous choice. The live renderer seeds Perlin noise from each animation
+start time and holds it fixed across the 250 ms ripple. Both retain the original 24×20 display pixels.
 
 This catalog is the shared offline visual validation path. The mixer text-stress regression and
 catalog use the same input fixture; the former separate mixer PNG renderer has been removed.
+The gallery shell lives in `tools/ui-component-catalog-app/index.html`, `catalog.css` and `catalog.js`;
+the generator embeds them in the standalone artifact alongside the production-rendered stories.
 Hardware buttons and screen frames use the debugger's shared `push-hardware.js` and
 `push-hardware.css`. The generator embeds these presentational helpers, keeping the gallery
 standalone without loading debugger input or live-state code.
@@ -106,17 +135,19 @@ complete view presentations and debugger integration remain future work in this 
 Keep representative fixtures with their production consumers. Test observable requests, later
 host read-back and feedback through the existing routed tests; avoid snapshot hashes that merely
 freeze a renderer's command list. Follow [TESTING](../TESTING.md) for live evidence. The initial
-library extraction was core-only; Info, Setup and Ribbon add parent-loaded hardware/settings contracts
-and the response curve adds line transport. See
-[ARCH](../ARCH.md) for the current source API, required restart, and scoped installed-build status.
+library extraction was core-only; Info, Setup and Ribbon added parent-loaded hardware/settings
+contracts, and API 54 adds the bounded raw page observations. Final integrated package and live
+validation are recorded in the [display cutover audit](migrations/ui-library-completion.md#validation).
+See [ARCH](../ARCH.md) for the current ownership and activation contract.
 
 ## Next migration boundary
 
-The [UI/editing handoff](migrations/ui-and-editing-handoff.md) remains the checklist. Info's complete
-action/feedback slice now lives in core, with the subscribed hardware tuple described
-in [ControllerHardwareSnapshot](../pull-core-api/src/main/java/de/mossgrabers/pull/core/api/ControllerHardwareSnapshot.java). The tuple does not guarantee physical
-connection or recover values discarded by the existing hardware parser. Setup and Ribbon settings
-now consume shared components too. Their offline cutover does not migrate the remaining physical
-Ribbon behavior, Scales/Scale Layout, Repeat or User. Fixed Length additionally depends on Session create/launch/overdub
-behavior; it cannot be treated as an eight-choice settings port. These are prerequisites, not
-capabilities supplied by this library.
+The [UI/editing handoff](migrations/ui-and-editing-handoff.md) tracks remaining actions/providers/lights
+and the explicit piano-roll deferral. Info, Setup and Ribbon settings already own their complete
+core control slices. Info's subscribed hardware tuple is described in
+[ControllerHardwareSnapshot](../pull-core-api/src/main/java/de/mossgrabers/pull/core/api/ControllerHardwareSnapshot.java);
+it does not guarantee physical connection or recover values discarded by the existing parser.
+Remaining physical Ribbon behavior is frozen. Ordinary Scales/Layout, Repeat, User and Fixed Length
+displays now use the library while their controls remain frozen. Fixed Length action migration
+still depends on Session create/launch/overdub behavior. Rendering a page does not supply those
+effects or prove its targets.

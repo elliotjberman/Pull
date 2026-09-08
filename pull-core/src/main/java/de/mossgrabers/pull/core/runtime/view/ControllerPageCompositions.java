@@ -3,6 +3,9 @@
 package de.mossgrabers.pull.core.runtime.view;
 
 import de.mossgrabers.pull.core.api.SessionBankShape;
+import de.mossgrabers.pull.core.api.BridgeSubscription;
+import de.mossgrabers.pull.core.view.ViewProfile;
+import java.util.Set;
 import de.mossgrabers.pull.core.view.CompiledWorkspace;
 import de.mossgrabers.pull.core.view.ControllerView;
 import de.mossgrabers.pull.core.view.Page;
@@ -18,6 +21,13 @@ import java.util.Objects;
 /** Compiles typed pages over retained grids without consulting a stable mode registry. */
 public final class ControllerPageCompositions
 {
+    private static final ControllerView PIANO_ROLL_OBSERVATION = new ControllerView ()
+    {
+        @Override public String id () { return "deferred-piano-roll"; }
+        @Override public ViewProfile profile () { return ViewProfile.fixed ("deferred-piano-roll", Set.of (), Set.of ()); }
+        @Override public Set<BridgeSubscription> bridgeSubscriptions () { return Set.of (BridgeSubscription.CONTROLLER_PAGE_DISPLAY); }
+    };
+
     /** A fixed grid/musical profile. All page variants reuse these exact view instances. */
     public record Background (String name, SessionBankShape sessionBank, List<ControllerView> views, boolean noteController, boolean rawPitchBend, List<ControllerView> legacyPageViews)
     {
@@ -32,6 +42,7 @@ public final class ControllerPageCompositions
 
     private final Map<Background, Map<PageId, Entry>> pages = new LinkedHashMap<> ();
     private final Map<Background, CompiledWorkspace> legacy = new LinkedHashMap<> ();
+    private final Map<Background, CompiledWorkspace> pianoRoll = new LinkedHashMap<> ();
 
     /** Declare all page variants of a background once, validating every physical composition. */
     public void register (final ControllerLevelViews controllerViews, final Background background, final List<Page> definitions)
@@ -53,6 +64,8 @@ public final class ControllerPageCompositions
         }
         this.pages.put (background, Map.copyOf (compiled));
         this.legacy.put (background, compile (controllerViews, background, "legacy", background.legacyPageViews ()));
+        // The explicitly deferred piano roll keeps its original unclaimed stable display.
+        this.pianoRoll.put (background, compile (controllerViews, background, "piano-roll", background.legacyPageViews ().stream ().map (view -> view instanceof LegacyPageDisplayView ? PIANO_ROLL_OBSERVATION : view).toList ()));
     }
 
     public CompiledWorkspace select (final PageId page, final Background background)
@@ -68,6 +81,11 @@ public final class ControllerPageCompositions
     public CompiledWorkspace legacy (final Background background)
     {
         return Objects.requireNonNull (this.legacy.get (background), "Declared background");
+    }
+
+    public CompiledWorkspace pianoRoll (final Background background)
+    {
+        return Objects.requireNonNull (this.pianoRoll.get (background), "Declared background");
     }
 
     private Entry entry (final PageId page, final Background background)

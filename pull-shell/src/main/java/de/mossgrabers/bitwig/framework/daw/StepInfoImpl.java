@@ -64,6 +64,7 @@ public class StepInfoImpl extends DefaultStepInfo
         this.isMuted = stepInfo.isMuted ();
         this.duration = stepInfo.duration ();
         this.velocity = stepInfo.velocity ();
+        this.velocitySpread = stepInfo.velocitySpread ();
         this.releaseVelocity = stepInfo.releaseVelocity ();
         this.pressure = stepInfo.pressure ();
         this.timbre = stepInfo.timbre ();
