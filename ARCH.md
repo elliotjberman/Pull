@@ -6,8 +6,9 @@ remaining shell handlers. The optional Clip piano roll is deferred unchanged.
 
 API 55 removes the legacy User handler and its raw page state. User selects the same Project
 Macros view as Shift+Session while retaining the current grid. The button action and light are
-core-owned; Shift+User remains inert. A matching shell install/restart and first live smoke are
-pending. The last recorded installation below is API 54.
+core-owned; Shift+User remains inert. The matching shell was installed and restarted with the
+legacy display cleanup; the [User view smoke record](docs/migrations/user-view-live-smoke.md)
+records the exact combined build and matching captured macro output.
 
 API 54 adds bounded raw page observations and moves remaining ordinary page drawing into core
 components. Its matching shell was installed and restarted; the [display cutover validation](docs/migrations/ui-library-completion.md#validation)
