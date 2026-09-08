@@ -1520,7 +1520,7 @@ class ControllerRuntimeEnvironmentTest
     {
         private TestSceneDisplay (final IHost host, final Supplier<ControllerDisplayScene> scene)
         {
-            super (host, (IGraphicsConfiguration) Proxy.newProxyInstance (IGraphicsConfiguration.class.getClassLoader (), new Class<?> [] { IGraphicsConfiguration.class }, (ignored, method, arguments) -> displayDefault (method.getReturnType ())), new DefaultGraphicsDimensions (960, 160, 1024));
+            super (host, (IGraphicsConfiguration) Proxy.newProxyInstance (IGraphicsConfiguration.class.getClassLoader (), new Class<?> [] { IGraphicsConfiguration.class }, (ignored, method, arguments) -> displayDefault (method.getReturnType ())), new DefaultGraphicsDimensions (960, 160));
             this.setFullScreenBaseSupplier ( () -> scene.get ().isPresent () ? new DisplaySceneComponent (scene.get ()) : null);
         }
 

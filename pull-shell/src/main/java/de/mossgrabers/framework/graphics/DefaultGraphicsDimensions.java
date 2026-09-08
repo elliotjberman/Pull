@@ -17,25 +17,8 @@ public class DefaultGraphicsDimensions implements IGraphicsDimensions
     private final int           width;
     private final int           height;
 
-    /** A drawing 'unit'. */
-    private final double        unit;
-
-    /** 2 units. */
-    private final double        doubleUnit;
-
-    /** Half a unit. */
-    private final double        halfUnit;
-
     /** The height of the menu on top. */
     private final double        menuHeight;
-
-    /** Insets on the top and bottom of the element. */
-    private final double        inset;
-
-    /** Where the controls drawing area starts. */
-    private final double        controlsTop;
-
-    private final int           maxParameterValue;
 
 
     /**
@@ -43,21 +26,14 @@ public class DefaultGraphicsDimensions implements IGraphicsDimensions
      *
      * @param width The full width of the drawing area
      * @param height The full height of the drawing area
-     * @param maxParameterValue
      */
-    public DefaultGraphicsDimensions (final int width, final int height, final int maxParameterValue)
+    public DefaultGraphicsDimensions (final int width, final int height)
     {
         this.width = width;
         this.height = height;
 
-        this.unit = height / 12.0;
-        this.doubleUnit = 2.0 * this.unit;
-        this.halfUnit = this.unit / 2.0;
-        this.menuHeight = this.unit + 2.0 * SEPARATOR_SIZE;
-        this.inset = SEPARATOR_SIZE / 2.0 + this.halfUnit;
-        this.controlsTop = this.menuHeight + this.inset;
+        this.menuHeight = height / 12.0 + 2.0 * SEPARATOR_SIZE;
 
-        this.maxParameterValue = maxParameterValue;
     }
 
 
@@ -93,50 +69,4 @@ public class DefaultGraphicsDimensions implements IGraphicsDimensions
     }
 
 
-    /** {@inheritDoc} */
-    @Override
-    public double getUnit ()
-    {
-        return this.unit;
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public double getHalfUnit ()
-    {
-        return this.halfUnit;
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public double getDoubleUnit ()
-    {
-        return this.doubleUnit;
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public double getControlsTop ()
-    {
-        return this.controlsTop;
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public double getInset ()
-    {
-        return this.inset;
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public int getParameterUpperBound ()
-    {
-        return this.maxParameterValue;
-    }
 }

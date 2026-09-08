@@ -49,7 +49,7 @@ class DisplaySceneComponentTest
         final List<Call> calls = new ArrayList<> ();
         final IGraphicsContext context = recordingContext (calls);
 
-        new DisplaySceneComponent (scene).draw (new DefaultGraphicsInfo (context, null, new DefaultGraphicsDimensions (960, 160, 1024), new DefaultBounds (0, 0, 960, 160)));
+        new DisplaySceneComponent (scene).draw (new DefaultGraphicsInfo (context, null, new DefaultGraphicsDimensions (960, 160), new DefaultBounds (0, 0, 960, 160)));
 
         assertTrue (calls.contains (new Call ("drawTextAt", "Pan")));
         assertTrue (calls.contains (new Call ("drawTextInBounds", "second_test")));
@@ -91,7 +91,7 @@ class DisplaySceneComponentTest
         });
         final GraphicsContextImpl context = new GraphicsContextImpl (GraphicsOutput.AntialiasMode.OFF, output);
 
-        new DisplaySceneComponent (scene).draw (new DefaultGraphicsInfo (context, null, new DefaultGraphicsDimensions (960, 160, 1024), new DefaultBounds (7, 11, 480, 320)));
+        new DisplaySceneComponent (scene).draw (new DefaultGraphicsInfo (context, null, new DefaultGraphicsDimensions (960, 160), new DefaultBounds (7, 11, 480, 320)));
         context.drawLine (1, 2, 3, 4, ColorEx.WHITE);
 
         assertEquals (List.of (

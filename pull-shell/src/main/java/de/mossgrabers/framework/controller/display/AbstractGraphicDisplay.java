@@ -19,7 +19,6 @@ import de.mossgrabers.framework.controller.hardware.IHwGraphicsDisplay;
 import de.mossgrabers.framework.daw.IHost;
 import de.mossgrabers.framework.daw.clip.INoteClip;
 import de.mossgrabers.framework.daw.clip.NotePosition;
-import de.mossgrabers.framework.daw.resource.ChannelType;
 import de.mossgrabers.framework.daw.resource.ResourceHandler;
 import de.mossgrabers.framework.graphics.Align;
 import de.mossgrabers.framework.graphics.DefaultGraphicsInfo;
@@ -27,15 +26,10 @@ import de.mossgrabers.framework.graphics.IBitmap;
 import de.mossgrabers.framework.graphics.IGraphicsConfiguration;
 import de.mossgrabers.framework.graphics.IGraphicsDimensions;
 import de.mossgrabers.framework.graphics.IGraphicsInfo;
-import de.mossgrabers.framework.graphics.canvas.component.GraphOverlayComponent;
 import de.mossgrabers.framework.graphics.canvas.component.IComponent;
-import de.mossgrabers.framework.graphics.canvas.component.LabelComponent.LabelLayout;
-import de.mossgrabers.framework.graphics.canvas.component.ListComponent;
 import de.mossgrabers.framework.graphics.canvas.component.MidiClipComponent;
-import de.mossgrabers.framework.graphics.canvas.component.OptionsComponent;
-import de.mossgrabers.framework.graphics.canvas.component.ParameterComponent;
+import de.mossgrabers.framework.graphics.canvas.component.MessageComponent;
 import de.mossgrabers.framework.graphics.display.ModelInfo;
-import de.mossgrabers.framework.utils.Pair;
 
 
 /**
@@ -52,7 +46,6 @@ public abstract class AbstractGraphicDisplay implements IGraphicDisplay
     private final Object                   counterSync                     = new Object ();
 
     private final List<IComponent>         columns                         = new ArrayList<> (8);
-    private final List<IComponent>         overlays                        = new ArrayList<> ();
     private final AtomicReference<String>  notificationMessage             = new AtomicReference<> ();
     private ModelInfo                      info                            = new ModelInfo (null, Collections.emptyList (), Collections.emptyList ());
     private Supplier<IComponent>           fullScreenOverlaySupplier       = () -> null;
@@ -145,14 +138,7 @@ public abstract class AbstractGraphicDisplay implements IGraphicDisplay
             final IComponent fullScreenBase = this.fullScreenBaseSupplier.get ();
             final List<IComponent> renderedColumns = fullScreenBase == null ? this.columns : List.of (fullScreenBase);
             final IComponent fullScreenOverlay = this.fullScreenOverlaySupplier.get ();
-            final List<IComponent> renderedOverlays;
-            if (fullScreenOverlay == null)
-                renderedOverlays = this.overlays;
-            else
-            {
-                renderedOverlays = new ArrayList<> (this.overlays);
-                renderedOverlays.add (fullScreenOverlay);
-            }
+            final List<IComponent> renderedOverlays = fullScreenOverlay == null ? List.of () : List.of (fullScreenOverlay);
             final ModelInfo newInfo = new ModelInfo (fullScreenOverlay == null ? notification : null, renderedColumns, renderedOverlays);
 
             // Only render image if there is a change in the data
@@ -165,7 +151,6 @@ public abstract class AbstractGraphicDisplay implements IGraphicDisplay
         finally
         {
             this.columns.clear ();
-            this.overlays.clear ();
         }
 
         this.send (this.image);
@@ -225,7 +210,7 @@ public abstract class AbstractGraphicDisplay implements IGraphicDisplay
     public IGraphicDisplay setMessage (final int column, final String text)
     {
         for (int i = 0; i < 8; i++)
-            this.addOptionElement (column == i ? text : "", "", false, "", "", false, false);
+            this.addElement (new MessageComponent (column == i ? text : ""));
         return this;
     }
 
@@ -234,98 +219,7 @@ public abstract class AbstractGraphicDisplay implements IGraphicDisplay
     @Override
     public void addEmptyElement ()
     {
-        this.addOptionElement ("", "", false, "", "", false, false);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void addEmptyElement (final boolean hasSmallEmptyMenu)
-    {
-        this.addOptionElement ("", " ", false, "", "", false, true);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void addParameterElement (final String parameterName, final int parameterValue, final String parameterValueStr, final boolean parameterIsActive, final int parameterModulatedValue)
-    {
-        this.addParameterElement ("", false, "", (ChannelType) null, ColorEx.BLACK, false, parameterName, parameterValue, parameterValueStr, parameterIsActive, parameterModulatedValue);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void addParameterElement (final String topMenu, final boolean isTopMenuOn, final String bottomMenu, final ChannelType type, final ColorEx bottomMenuColor, final boolean isBottomMenuOn, final String parameterName, final int parameterValue, final String parameterValueStr, final boolean parameterIsActive, final int parameterModulatedValue)
-    {
-        this.addElement (new ParameterComponent (topMenu, isTopMenuOn, bottomMenu, type, bottomMenuColor, isBottomMenuOn, parameterName, parameterValue, parameterModulatedValue, parameterValueStr, parameterIsActive));
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void addParameterElementWithPlainMenu (final String topMenu, final boolean isTopMenuOn, final String bottomMenu, final ColorEx bottomMenuColor, final boolean isBottomMenuOn, final String parameterName, final int parameterValue, final String parameterValueStr, final boolean parameterIsActive, final int parameterModulatedValue)
-    {
-        this.addElement (new ParameterComponent (topMenu, isTopMenuOn, bottomMenu, null, bottomMenuColor, isBottomMenuOn, parameterName, parameterValue, parameterModulatedValue, parameterValueStr, parameterIsActive, LabelLayout.PLAIN));
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void addParameterElement (final String topMenu, final boolean isTopMenuOn, final String bottomMenu, final String deviceName, final ColorEx bottomMenuColor, final boolean isBottomMenuOn, final String parameterName, final int parameterValue, final String parameterValueStr, final boolean parameterIsActive, final int parameterModulatedValue)
-    {
-        this.addElement (new ParameterComponent (topMenu, isTopMenuOn, bottomMenu, deviceName, bottomMenuColor, isBottomMenuOn, parameterName, parameterValue, parameterModulatedValue, parameterValueStr, parameterIsActive));
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void addOptionElement (final String headerTopName, final String menuTopName, final boolean isMenuTopSelected, final String headerBottomName, final String menuBottomName, final boolean isMenuBottomSelected, final boolean useSmallTopMenu)
-    {
-        this.addOptionElement (headerTopName, menuTopName, isMenuTopSelected, null, headerBottomName, menuBottomName, isMenuBottomSelected, null, useSmallTopMenu);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void addOptionElement (final String headerTopName, final String menuTopName, final boolean isMenuTopSelected, final ColorEx menuTopColor, final String headerBottomName, final String menuBottomName, final boolean isMenuBottomSelected, final ColorEx menuBottomColor, final boolean useSmallTopMenu)
-    {
-        this.addOptionElement (headerTopName, menuTopName, isMenuTopSelected, menuTopColor, headerBottomName, menuBottomName, isMenuBottomSelected, menuBottomColor, useSmallTopMenu, false);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void addOptionElement (final String headerTopName, final String menuTopName, final boolean isMenuTopSelected, final ColorEx menuTopColor, final String headerBottomName, final String menuBottomName, final boolean isMenuBottomSelected, final ColorEx menuBottomColor, final boolean useSmallTopMenu, final boolean isBottomHeaderSelected)
-    {
-        this.addElement (new OptionsComponent (headerTopName, menuTopName, isMenuTopSelected, menuTopColor, headerBottomName, menuBottomName, isMenuBottomSelected, menuBottomColor, useSmallTopMenu, isBottomHeaderSelected));
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void addListElement (final int displaySize, final String [] elements, final int selectedIndex)
-    {
-        final List<Pair<String, Boolean>> menu = new ArrayList<> ();
-        final int startIndex = Math.max (0, Math.min (selectedIndex, elements.length - displaySize));
-        for (int i = 0; i < displaySize; i++)
-        {
-            final int pos = startIndex + i;
-            final String itemName = pos < elements.length ? elements[pos] : "";
-            menu.add (new Pair<> (itemName, Boolean.valueOf (pos == selectedIndex)));
-        }
-        this.addElement (new ListComponent (menu));
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void addListElement (final String [] items, final boolean [] selected)
-    {
-        final List<Pair<String, Boolean>> menu = new ArrayList<> ();
-        for (int i = 0; i < items.length; i++)
-            menu.add (new Pair<> (items[i], Boolean.valueOf (selected[i])));
-        this.addElement (new ListComponent (menu));
+        this.addElement (new MessageComponent (""));
     }
 
 
@@ -334,14 +228,6 @@ public abstract class AbstractGraphicDisplay implements IGraphicDisplay
     public void addElement (final IComponent component)
     {
         this.columns.add (component);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void addGraphOverlay (final int x, final int y, final int width, final int height, final ColorEx color, final int [] data, final int maxValue)
-    {
-        this.overlays.add (new GraphOverlayComponent (x, y, width, height, color, data, maxValue));
     }
 
 
