@@ -19,7 +19,6 @@
     <div class="search-field"><label class="sr-only" for="story-search">Search stories</label><input id="story-search" type="search" placeholder="Search stories…" autocomplete="off" spellcheck="false"><kbd>/</kbd></div>
     <nav class="story-navigation" id="story-navigation" aria-label="Stories">{{NAVIGATION}}</nav>
     <p class="no-results" id="no-results" role="status" hidden>No matching stories.</p>
-    <details class="about"><summary>About this library</summary><p>Production renderers, supplied values. No Bitwig or Push connection needed.</p><p>Regenerate with <code>tools/ui-component-catalog</code>.</p><p>Display text uses embedded Lato. Host rasterization can differ; final hardware validation remains separate.</p></details>
   </aside>
   <main class="main-panel" id="main-panel">
     <header class="toolbar">
@@ -30,7 +29,6 @@
     <div class="story-workspace" id="story-workspace">
       <div class="color-controls" id="color-controls" role="group" aria-label="Component color">
         <div class="color-fields"><label for="component-color">Color</label><input id="component-color" type="color" value="{{DEFAULT_COLOR}}"><input id="component-color-hex" type="text" value="{{DEFAULT_COLOR}}" aria-label="Hex color" aria-describedby="color-error" spellcheck="false" maxlength="7"><button id="reset-color" type="button">Reset</button></div>
-        <p>Lists, rings, meters, faders, sliders, toggles, values and curves use the supplied color. Warning bands retain their colors.</p>
         <p id="color-error" role="status" hidden>Use six hex digits, for example #3ea0ff.</p>
       </div>
       <div class="stories" id="stories">{{STORIES}}</div>

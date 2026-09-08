@@ -177,23 +177,6 @@ button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible {
   font-size:13px;
   margin:16px 10px;
 }
-.about {
-  border-top:1px solid var(--line);
-  padding:14px 9px 0;
-  color:#8793a3;
-  font-size:11px;
-}
-.about summary {
-  cursor:pointer;
-  color:#9eacbd;
-}
-.about p {
-  margin:10px 0 0;
-}
-.about code {
-  color:#bed4ef;
-  font:inherit;
-}
 .main-panel {
   height:100dvh;
   min-width:0;
@@ -303,16 +286,9 @@ button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible {
   max-width:1140px;
   margin:0 auto;
 }
-.story-description {
-  font-size:14px;
-  line-height:1.6;
-  color:#9eacbd;
-  max-width:900px;
-  margin:0 0 23px;
-}
 .story-meta {
   display:flex;
-  justify-content:space-between;
+  justify-content:flex-end;
   align-items:center;
   gap:14px;
   margin-bottom:12px;
@@ -422,34 +398,6 @@ button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible {
 .lights .unowned .row-light {
   fill:none;
 }
-.hardware-key {
-  display:flex;
-  gap:16px;
-  flex-wrap:wrap;
-  margin:12px 0 0;
-  color:#7e8a99;
-  font-size:10px;
-}
-.source-details {
-  margin-top:26px;
-  border-top:1px solid var(--line);
-  padding-top:14px;
-  color:#8290a1;
-  font-size:12px;
-}
-.source-details summary {
-  cursor:pointer;
-  width:max-content;
-  max-width:100%;
-}
-.source-details p {
-  margin:10px 0 0;
-  line-height:1.7;
-}
-.source-details code {
-  font:inherit;
-  color:#a1b8d2;
-}
 .nav-toggle {
   display:none;
 }
@@ -554,15 +502,26 @@ button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible {
   .screen-area {
     margin:20px auto;
   }
-  .hardware-key {
-    gap:8px;
-  }
-  .story-description {
-    font-size:13px;
-  }
 }
 @media(prefers-reduced-motion:reduce) {
   .sidebar {
     transition:none;
   }
+}
+
+.animation-controls {
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  margin-bottom:20px;
+}
+.animation-controls button {
+  padding:9px 14px;
+  border:1px solid #465368;
+  border-radius:5px;
+  background:#222c39;
+  color:#c8e2ff;
+}
+.animation-controls button:hover {
+  background:#303e50;
 }

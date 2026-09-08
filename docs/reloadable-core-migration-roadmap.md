@@ -10,10 +10,10 @@ for each complete behavior slice.
 ## Checklist
 
 - [x] Ordinary page displays, reusable components and one offline component/view catalog.
-- [x] Color palette grid output; the inherited color-selection gesture remains stable.
 - [ ] Device, chain and layer controls/providers/lights with verified target identities.
 - [ ] Browser filtering/results/audition/operations; navigation lifecycle is already core-owned.
-- [ ] Crossfade, Track/Layer Details and Color actions, including exact targets and return.
+- [ ] Crossfade and Track/Layer Details actions, including exact targets and return.
+- [ ] Color pad drawing and selection together; deferred unchanged under the [handoff TODO](migrations/ui-and-editing-handoff.md).
 - [ ] Scales/Layout, Repeat, Fixed Length, User, remaining physical Ribbon behavior and remaining musical layouts.
 - [ ] Clip/note/sequencer editing and scene/clip-length workflows, including Chords/Piano/Program
       Change, Raindrops and alternate drum layouts.
@@ -32,10 +32,8 @@ The migration ends when no frozen product-policy adapter remains.
 The Session smoke record includes API 50: Setup/Info and plain/Shift track arrows passed the [scoped live check](migrations/session-core-live-smoke.md).
 Ribbon, Session and reload were not rerun on API 50; earlier Session evidence and its
 [bounded location/release limits](migrations/session-launcher-location-design.md) remain applicable only to the recorded builds.
-API 54 requires a matching shell install and restart later. No install or live check has been
-performed for this cutover. The UI checkpoint passed 1,038 offline package tests before integration.
-Combined-source validation remains pending. The physical Color route handoff remains unresolved,
-so this checkpoint is not ready for installation.
+API 54 requires a matching shell install and restart. Final integrated package and live validation
+remain pending; [ARCH](../ARCH.md) records current validation and activation status.
 
 ## Device, chain and layer
 
@@ -59,7 +57,8 @@ ordering at clamps (`+1,-1` may differ from zero); resolve the input contract or
 behavior. Details need monitoring state separately from mode, absolute writes, pinning and MIDI
 edit-channel read-back. Track Details display now waits when its observed bank/Master action target
 is missing or differs from the cursor; frozen physical lights still read that cursor, and touches
-remain intentionally inert. Color needs a target-bound grid, native-note suppression and exact return.
+remain intentionally inert. Color drawing and selection remain unchanged until its target-bound
+grid, Note/Drum transition, native-note suppression and exact return can migrate together.
 
 Browser display uses bounded filters/results/selection; its action migration still needs primitive
 operations with an exact insertion or replacement destination. Reuse existing entry/return

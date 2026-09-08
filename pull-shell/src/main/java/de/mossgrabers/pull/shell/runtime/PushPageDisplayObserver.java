@@ -4,11 +4,7 @@ package de.mossgrabers.pull.shell.runtime;
 
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.daw.IModel;
-import de.mossgrabers.framework.daw.DAWColor;
-import de.mossgrabers.framework.view.ColorView;
-import de.mossgrabers.framework.view.Views;
 import de.mossgrabers.pull.core.api.*;
-import java.util.Arrays;
 
 /** Copies only the active installed page's bounded state; never invokes its drawing or input. */
 final class PushPageDisplayObserver
@@ -28,9 +24,6 @@ final class PushPageDisplayObserver
             case CLIP, NOTE, REC_ARM, GROOVE -> this.editing.capture (surface, model);
             default -> new ControllerPageDisplayState.Empty ();
         };
-        final var view = surface.getViewManager ();
-        final ColorPaletteSnapshot palette = view.getActiveID () == Views.COLOR && view.getActive () instanceof final ColorView<?, ?> color ?
-            new ColorPaletteSnapshot (color.getPage (), Arrays.stream (DAWColor.values ()).map (value -> SessionBankHost.toRgb (value.getColor ())).toList ()) : ColorPaletteSnapshot.empty ();
-        return new ControllerPageDisplaySnapshot (mode == null ? "" : mode.name (), state, palette);
+        return new ControllerPageDisplaySnapshot (mode == null ? "" : mode.name (), state);
     }
 }

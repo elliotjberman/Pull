@@ -20,6 +20,7 @@ import java.util.Map;
 /** Offline cases for shared bank controls and the remote-project playback overlay. */
 public final class UiLibraryCompletionFixtures
 {
+    public static final String RIPPLE_STORY_ID = "playback-ripple";
     public static final RgbColor BLUE = new RgbColor (62, 160, 255);
     private static final RgbColor BLACK = new RgbColor (0, 0, 0);
     private static final RgbColor DARK = new RgbColor (32, 32, 32);
@@ -28,6 +29,7 @@ public final class UiLibraryCompletionFixtures
     public record Example (String id, String title, String description, PageVisuals visuals) { }
     public record Component (String id, String title, String description, String renderer, List<Variant> variants) { }
     public record Variant (String id, String title, ControllerDisplayScene display) { }
+    public record Animation (String id, String title, int durationMillis, List<ControllerDisplayScene> frames) { }
 
     private UiLibraryCompletionFixtures () { }
 
@@ -35,9 +37,20 @@ public final class UiLibraryCompletionFixtures
     {
         return List.of (
             new Example ("global-mixer-extremes", "Global mixer · observed extremes", "Shared choices, values, faders, meters, pan and rings; VU observations differ from parameter values. The final column is unavailable.", GlobalMixerPageRenderer.render (globalMixer ())),
-            new Example ("playback-ripple-start", "Playback ripple · early", "The production display overlay at 8% progress, before the head reaches the far side.", new PageVisuals (Map.of (), PlaybackRippleRenderer.display (0.08, WHITE))),
-            new Example ("playback-ripple-middle", "Playback ripple · playing", "The production purple playing wave at 40% progress.", new PageVisuals (Map.of (), PlaybackRippleRenderer.display (0.4, new RgbColor (185, 125, 255)))),
-            new Example ("playback-ripple-clear", "Playback ripple · cleared", "The complete final black frame at 100% progress.", new PageVisuals (Map.of (), PlaybackRippleRenderer.display (1, WHITE))));
+            new Example (RIPPLE_STORY_ID, "Remote playback ripple", "Preview the purple playing ripple or white stopped ripple. Each button replays the production animation and clears the display when it finishes.", new PageVisuals (Map.of (), PlaybackRippleRenderer.display (1, WHITE))));
+    }
+
+    /** Match ProjectPlaybackCoordinator's 250ms wave and playing/stopped colors; all frames use its renderer. */
+    public static List<Animation> rippleAnimations ()
+    {
+        return List.of (ripple ("playing", "Play start ripple", new RgbColor (160, 48, 255)), ripple ("stopped", "Play stop ripple", WHITE));
+    }
+
+    private static Animation ripple (final String id, final String title, final RgbColor color)
+    {
+        final List<ControllerDisplayScene> frames = new ArrayList<> (16);
+        for (int frame = 0; frame <= 15; frame++) frames.add (PlaybackRippleRenderer.display (frame / 15.0, color));
+        return new Animation (id, title, 250, List.copyOf (frames));
     }
 
     public static GlobalMixerPagePresentation globalMixer ()

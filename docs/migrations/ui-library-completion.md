@@ -3,8 +3,8 @@
 Core API 54 moves all ordinary Push page rendering into the reloadable UI library. The shell
 observes its bounded model and legacy page-local selection; core assembles the complete 960×160
 display. Legacy actions, navigation, modifiers, parameter providers and hardware lights remain
-frozen. Color additionally moves its palette grid output into core while retaining its click
-gesture. Neither rendering change grants new input or actuator authority.
+frozen. The physical Color picker remains unchanged. This display cutover grants no new input or
+actuator authority.
 
 The optional Clip piano roll stays unchanged. TODO: Elliot never used this so deferring how to migrate it to the new framework
 
@@ -24,9 +24,7 @@ The optional Clip piano roll stays unchanged. TODO: Elliot never used this so de
 - **Lifecycle:** capture/render are synchronous and value-only. This adds no gestures, effects,
   timers, actuator leases or handoff policy. General asynchronous replacement work is separate.
 - **Activation:** the new parent-loaded state/subscription contract requires a shell installation
-  and Bitwig restart later. Nothing has been installed or live tested for this cutover, and the
-  clean offline package passes 1,038 tests (539 core, 11 publisher, 488 shell). No changed code
-  produces a deprecation warning. Installation remains blocked by the Color handoff below.
+  and Bitwig restart. Final integrated package and matched-build live validation remain pending.
 
 ## Device and editing families
 
@@ -73,22 +71,15 @@ published selected row until the host reports it. The legacy nearest-resolution 
 for Note Repeat; free-running means Sync is unselected, and shuffle and groove enablement remain
 independent. Display selection is not used to infer hardware-light policy.
 
-The color chooser is a physical-pad specimen. `ColorPaletteSnapshot` carries the observed page and
-up to 128 host colors (two 64-pad pages). `ColorPaletteRenderer` starts the visible page at bottom
-left and explicitly clears unused pads. Its core view claims both grid halves for output; Push's
-adapter retains the inherited color-selection gesture and stops drawing the grid. The color
-background excludes competing Session/Drum grid claims. Missing observations clear all 64 pads.
+## Deferred Color picker
 
-**Unresolved handoff:** entering Color from an active Note/Drum route drops note performance. The
-existing lifecycle applies neutral layout during detach, selecting Session and closing Color. The
-Session-only composition test does not cover this transition. The physical Color slice must either
-be deferred unchanged or receive a complete route handoff fix after the user chooses its scope;
-this checkpoint must not be installed with the known transition defect.
+Physical pad drawing, target selection and return remain together in the existing implementation.
+The display cutover adds no Color palette observation, renderer or catalog specimen.
+TODO: migrate Color pad drawing/selection together once Note/Drum→Color native-note suppression and exact return handoff can be owned.
 
 ## Validation
 
 Use the existing [offline catalog](../ui-component-library.md#offline-catalog) for production
 components and known pages, and [TESTING](../../TESTING.md) for routed behavior and live evidence.
-The rebased API 54 source passes the offline package gate: 560 core, 11 publisher and 496 shell tests.
-No changed code emits deprecation warnings. Exact-build installation remains pending the Color
-scope decision above; no earlier build's live evidence validates this source.
+Final integrated package and matched-build live validation remain pending. See [ARCH](../../ARCH.md)
+for current validation and activation status; no earlier build's live evidence validates this source.

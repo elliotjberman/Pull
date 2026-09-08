@@ -11,6 +11,8 @@
   const remembered = {};
   let section = "components";
   let activeId;
+  let stopPlayback = () => {};
+  const aliases = new Map(["start", "middle", "clear"].map(state => ["playback-ripple-" + state, "playback-ripple"]));
 
   function filterNavigation() {
     const query = search.value.trim().toLowerCase();
@@ -31,6 +33,7 @@
   }
 
   function showStory(id) {
+    id = aliases.get(id) || id;
     const requestedSection = id === "views" || id === "components" ? id : null;
     const story = requestedSection
       ? byId.get(remembered[requestedSection]) || stories.find(item => item.dataset.kind === requestedSection)
@@ -48,7 +51,7 @@
     document.querySelector("#story-permalink").href = "#" + story.id;
     document.title = story.dataset.title + " · Pull UI library";
     colorControls.hidden = section !== "components";
-    if (activeId !== story.id) workspace.scrollTop = 0;
+    if (activeId !== story.id) { stopPlayback(); workspace.scrollTop = 0; }
     activeId = story.id;
     const activeLink = links.find(link => link.dataset.storyLink === story.id);
     if (activeLink && !activeLink.dataset.search.includes(search.value.trim().toLowerCase())) search.value = "";
@@ -131,6 +134,54 @@
     image.replaceWith(screen);
   }
 
+  for (const button of document.querySelectorAll("[data-animation]")) {
+    const story = button.closest(".story");
+    const image = story.querySelector(".screen image");
+    const status = story.querySelector(".animation-status");
+    const restingFrame = image.getAttribute("href");
+    const frames = button.dataset.frames.split(",");
+    let ready;
+    button.addEventListener("click", async () => {
+      stopPlayback();
+      let cancelled = false;
+      let request;
+      stopPlayback = () => {
+        cancelled = true;
+        cancelAnimationFrame(request);
+        image.setAttribute("href", restingFrame);
+        status.textContent = "";
+      };
+      status.classList.add("sr-only");
+      status.textContent = "Loading preview";
+      try {
+        ready ||= Promise.all(frames.map(src => {
+          const frame = new Image();
+          frame.src = src;
+          return frame.decode().then(() => frame);
+        }));
+        await ready;
+      } catch {
+        ready = null;
+        if (!cancelled) {
+          status.classList.remove("sr-only");
+          status.textContent = "Preview could not load. Try again.";
+        }
+        return;
+      }
+      if (cancelled) return;
+      status.textContent = "Playing preview";
+      const start = performance.now();
+      function draw(now) {
+        if (cancelled) return;
+        const progress = Math.min(1, (now - start) / Number(button.dataset.duration));
+        image.setAttribute("href", frames[Math.floor(progress * (frames.length - 1))]);
+        if (progress < 1) request = requestAnimationFrame(draw);
+        else status.textContent = "Preview complete";
+      }
+      draw(start);
+    });
+  }
+
   const picker = document.querySelector("#component-color");
   const hex = document.querySelector("#component-color-hex");
   const error = document.querySelector("#color-error");
@@ -168,6 +219,7 @@
   document.querySelector("#reset-color").addEventListener("click", () => { applyColor(defaultColor); hex.value = defaultColor; });
   applyColor(defaultColor);
   const initial = readHash();
-  if (!byId.has(initial) && !["components", "views"].includes(initial) && stories[0]) history.replaceState(null, "", "#" + stories[0].id);
+  if (aliases.has(initial)) history.replaceState(null, "", "#" + aliases.get(initial));
+  else if (!byId.has(initial) && !["components", "views"].includes(initial) && stories[0]) history.replaceState(null, "", "#" + stories[0].id);
   showStory(readHash());
 })();

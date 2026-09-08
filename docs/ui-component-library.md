@@ -4,6 +4,8 @@ The reloadable core owns ordinary Push page rendering through a reusable UI libr
 consume immutable presentation data; the offline catalog renders those same components and pages.
 The optional Clip piano roll remains unchanged and deferred. Rendering migration does not transfer
 the remaining legacy actions, parameter providers or hardware-light behavior.
+The physical Color picker also remains unchanged; its drawing and selection must migrate together
+under the [handoff TODO](migrations/ui-and-editing-handoff.md).
 
 ## Responsibilities
 
@@ -34,7 +36,6 @@ does not integrate or replace production input routing.
 | `ResponseCurve` | Bounded normalized samples with explicit width, height, stroke and supplied color | Setup calibration graph |
 | `MixerDisplayScene` | Parameter-cell assembly, including knob/fader/pan and observed modulation | Track, global Volume/Pan/Sends, Master and Metronome |
 | `TrackFooterRenderer` | Track label/icon, selection contrast and inactive treatment, plus observed row feedback | Current-bank footer, Session footer and Master |
-| `ColorPaletteRenderer` | Complete 8×8 physical-pad output from the observed palette/page; unused pads are off | Color chooser and its pad-grid catalog specimen |
 | `PlaybackRippleRenderer` | Pure display/pad drawing from supplied progress and color | Existing project-playback animation and catalog frames |
 
 Family styles retain intentional differences in geometry and color. Macro and mixer display-string
@@ -56,8 +57,7 @@ For the remaining ordinary pages, API 54's `CONTROLLER_PAGE_DISPLAY` subscriptio
 Device, Option and Editing observations under the observed mode ID. Core projectors format those
 values and assemble complete pages; no host objects or actuator authority cross this rendering
 boundary. In particular, note feedback reads host-observed values separately from the optimistic
-working copy used by legacy note editing. Color sampling supplies palette data only; its core view
-owns grid output while the inherited selection gesture remains unchanged.
+working copy used by legacy note editing.
 
 Track Details also observes the selected bank track or Master's raw `actionTargetId`. Its display
 shows “Waiting for track target...” when that identity is missing or differs from the displayed
@@ -99,10 +99,9 @@ the current section, and the mobile Browse control opens the same navigation.
 
 **Components** shows individual choices, lists, toggles, meters, sliders, curves and parameter values
 at their intrinsic size. Related meter, fader and slider states appear together for comparison.
-The Color picker specimen depicts physical pads, not an LCD page.
 The nearby shared color picker (or six-digit hex input) changes supplied component colors. Examples vary
-state, value and text rather than duplicating every color. Neutral choices, ring tracks and the
-observed host color palette retain their intended colors.
+state, value and text rather than duplicating every color. Neutral choices and ring tracks retain
+their intended colors.
 The SVG link opens the component with the current color and embedded Lato font. These controls work
 in the generated HTML without a server; complete view fixtures retain their supplied colors.
 **Views** shows complete known screens: Master, Track/global mixer, project macros, settings,
@@ -133,11 +132,10 @@ Keep representative fixtures with their production consumers. Test observable re
 host read-back and feedback through the existing routed tests; avoid snapshot hashes that merely
 freeze a renderer's command list. Follow [TESTING](../TESTING.md) for live evidence. The initial
 library extraction was core-only; Info, Setup and Ribbon added parent-loaded hardware/settings
-contracts, and API 54 adds the bounded raw page observations. The UI checkpoint passed 1,038 offline
-package tests before integration with the newer source; combined-source validation remains pending.
+contracts, and API 54 adds the bounded raw page observations. Final integrated package and live
+validation remain pending.
 Gallery review covers persistent navigation, search, direct links, component colors and tall
-specimens on desktop and a 390px viewport. No API 54 shell installation or live validation has
-occurred; the physical Color migration remains blocked on its route handoff decision. See
+specimens on desktop and a 390px viewport. See
 [ARCH](../ARCH.md) for the current source API, required restart, and scoped installed-build status.
 
 ## Next migration boundary

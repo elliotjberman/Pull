@@ -24,7 +24,6 @@ public final class ControllerPages
     public static final SessionBankShape FULL_SESSION_BANK = new SessionBankShape (8, 8);
     private final ControllerPageCompositions compositions = new ControllerPageCompositions ();
     private final ControllerPageCompositions.Background note;
-    private final ControllerPageCompositions.Background color;
     private final ControllerPageCompositions.Background drum;
     private final ControllerPageCompositions.Background drumLegacy;
     private final ControllerPageCompositions.Background session;
@@ -40,7 +39,6 @@ public final class ControllerPages
         final List<ControllerView> drumViews = List.of (new DrumPlayPadView (), new DrumOctaveView (), new DrumFillView (), drumControls, new DrumRateView ());
         final ControllerView legacyDisplay = new LegacyPageDisplayView (navigation);
         final List<ControllerView> legacyPage = List.of (new StableParameterControlsView (), legacyDisplay);
-        this.color = background ("Color", SessionBankShape.empty (), List.of (new ColorPaletteView ()), false, false, legacyPage);
         this.note = background ("Pull", SessionBankShape.empty (), List.of (), true, false, legacyPage);
         this.drum = background ("Pull Drum", SessionBankShape.empty (), drumViews, true, true, legacyPage);
         this.drumLegacy = background ("Pull Drum", SessionBankShape.empty (), drumViews, true, false, legacyPage);
@@ -74,7 +72,7 @@ public final class ControllerPages
         final List<Page> normal = new ArrayList<> (shared);
         normal.add (normalTrack);
         normal.add (normalMacros);
-        for (final var background: List.of (this.note, this.drum, this.drumLegacy, this.session, this.sessionPending, this.color))
+        for (final var background: List.of (this.note, this.drum, this.drumLegacy, this.session, this.sessionPending))
             this.compositions.register (controls, background, normal);
         shared.add (vsTrack);
         shared.add (vsMacros);
@@ -98,7 +96,6 @@ public final class ControllerPages
 
     private ControllerPageCompositions.Background background (final WorkspaceSelection selection, final ControllerSnapshot snapshot)
     {
-        if ("COLOR".equals (snapshot.bridge ().layout ().viewId ())) return this.color;
         if (selection.active () == WorkspaceSelection.Id.VS_LIVE) return this.vsLive;
         if (selection.pendingDestination () == WorkspaceSelection.Destination.SESSION) return this.sessionPending;
         if (selection.pendingDestination () == WorkspaceSelection.Destination.NOTE) return this.note;

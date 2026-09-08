@@ -11,11 +11,9 @@ and invalid-YAML fallback; that evidence does not validate the combined source o
 is currently loaded in Bitwig. See [Control Return](docs/control-return.md) for configuration.
 
 API 54 adds bounded raw page observations and moves remaining ordinary page drawing into core
-components. A matching shell installation and restart are required. Before integration with the
-newer source, the UI checkpoint passed 1,038 offline package tests (539 core, 11 publisher, 488 shell)
-without deprecation warnings in changed code; combined-source validation remains pending. The physical
-Color migration is not ready: entering it from an active Note/Drum route currently triggers Session
-neutralization. Its routing/defer decision is pending; do not install this checkpoint.
+components. A matching shell installation and restart are required. Final integrated package and
+live validation remain pending. Physical Color drawing and selection are deferred together and
+retain their existing implementation; see the [handoff TODO](docs/migrations/ui-and-editing-handoff.md).
 
 ## Assembly
 
@@ -73,8 +71,7 @@ Ribbon behavior and Shift-strip entry remain partly in frozen handlers.
 state. `ControllerPageDisplaySnapshot` fences that state by observed mode; core owns formatting
 and full-page assembly. Missing or mismatched observations clear the owned display. Browser
 selection and note values come from host read-back; note observation is separate from the legacy
-editor's optimistic working copy. Color uses the same subscription for its observed palette and
-page, with core owning grid output only. Its inherited selection gesture is unchanged. See the
+editor's optimistic working copy. See the
 [display cutover audit](docs/migrations/ui-library-completion.md) for bounds and the piano-roll deferral.
 
 Track Details observes the selected bank track or Master's `actionTargetId` separately from the
@@ -95,7 +92,7 @@ are separate paths. The shared lifecycle does not make unmigrated shell handlers
 | Drum / selected Note | Core applicability, Note/Layout, playable-pad pressure/lights, rates/roll, fills, octave/native maps and raw strip policy within installed geometry. |
 | Session | Core grid, scene keys, bank/page/octave navigation, Stop chords, modifiers, create/record/copy/browse and observed blinking lights. Within the Session navigation slice, legacy parameter pages retain horizontal parameter navigation. |
 | Device/Chains/layers, User, Browser, Scales/Layout, Repeat, Fixed Length, Add Track, Crossfade, Track/Layer Details, Clip/Note/Quantize/Groove | Core components render ordinary displays from raw observations. Actions, parameter providers, modifiers and hardware lights remain frozen stable behavior. |
-| Color chooser | Core renders the complete physical pad palette; inherited target selection and click/return behavior remain stable. |
+| Color chooser | Physical pad drawing, target selection and click/return remain unchanged in the stable implementation; migration is explicitly deferred. |
 | Optional Clip piano roll | Specialized rendering is deferred unchanged. |
 | Clip/note editing gestures, clip length, Chords/Piano/Program Change, sequencers, Raindrops and alternate drum layouts | Remaining stable musical/editing controls and non-page feedback; core Note/Layout selection does not migrate the selected implementation. |
 | Global knobs and standalone commands | Stable Tempo/Master/play-position variants and touch notifications; New, Duplicate, Delete, Double, Quantize, Convert and footswitch commands. Core handling of a modifier chord does not migrate its standalone command. |
@@ -121,7 +118,7 @@ Shift pages eight. Light refresh is a single end-of-flush pass, so observer burs
 | Drum | Canonical 16-pad window and bounded device candidates; a separate 64-pad proxy serves legacy Drum64. |
 | Native maps | Complete 128-entry key/velocity tables; enabled notes restricted to claimed physical Push pads 36–99. |
 | Output | 960×160 display, claimed regions, explicit temporary overlays, button/grid lights and touch strip. |
-| Page presentation | Active mode only: Device/Editing windows of at most eight slots; Browser seven filters and 48 visible items; color palette at most 128 colors over two 64-pad pages. No new actuator authority. |
+| Page presentation | Active mode only: Device/Editing windows of at most eight slots; Browser seven filters and 48 visible items. No new actuator authority. |
 | Learned controls | 128 banks of four permanent semantic endpoints, allocated per document to track UUIDs. All 64 physical PAD actions remain ordinary-dispatch-only. |
 
 Parameter references fence domain, owner, page, slot/role and generation. Selected/current/rendered

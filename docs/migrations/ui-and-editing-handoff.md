@@ -9,13 +9,16 @@ for each remaining complete behavior slice.
 
 The specialized Clip piano roll remains unchanged. TODO: Elliot never used this so deferring how to migrate it to the new framework
 
+Physical Color pad drawing and selection remain unchanged in the existing implementation.
+TODO: migrate Color pad drawing/selection together once Note/Drum→Color native-note suppression and exact return handoff can be owned.
+
 ## Work to migrate
 
 | Family | Include | Prerequisite |
 | --- | --- | --- |
 | Browser | Filter/result actions, selection, audition, commit/cancel; reuse `BrowserPageNavigation`. Display already uses shared lists. | Bounded operations with exact insertion/replacement destination; display observations grant no actuator authority. |
 | Settings/pages | Scales/Layout, Repeat, Fixed Length, User, physical Ribbon behavior, Crossfade and Track/Layer Details actions/providers/lights. Ordinary displays already use core components. | Missing state/effects and exact targets from the roadmap. Persistence may remain mechanical in shell. |
-| Color | Target, inherited grid workflow, confirm/cancel and exact return. Palette output is core-owned; its click gesture is not. | Target alignment and native-note suppression; exclusive command ownership does not silence `NoteInput`. |
+| Color | Deferred together: pad drawing, target selection, grid workflow, confirm/cancel and exact return. Existing behavior stays unchanged. | Target alignment, Note/Drum→Color handoff and native-note suppression; exclusive command ownership does not silence `NoteInput`. |
 | Musical layouts/editing | Note/Clip and melodic/polyphonic/Drum sequencer gestures; paging, selections, edits, playing feedback, pressure, scenes and clip length. | Exact identities and reusable edits over bounded windows. Ordinary Note display already reads host values separately from the optimistic legacy working copy. |
 
 Crossfade/MIDI-channel callback count and clamp order cannot be recovered from summed motion.
@@ -51,7 +54,5 @@ Bitwig methods against the API 25 JAR and run the deprecation-enabled package. A
 expansion needs matched-build live validation under the uninterrupted live lease. An earlier
 build's smoke pass cannot validate a later migration.
 
-API 54 requires a matching shell installation and restart later. This cutover has neither been
-installed nor live tested. The clean offline package passes 1,038 tests. The physical Color
-route handoff remains unresolved; this checkpoint is not ready for installation. The existing
-API 50 Setup/Info smoke remains evidence only for that recorded build.
+API 54 requires a matching shell installation and restart. Final integrated package and live
+validation remain pending; [ARCH](../../ARCH.md) records current validation and activation status.

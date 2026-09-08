@@ -56,7 +56,8 @@ public final class UiComponentCatalog
         final Path app = root.resolve ("tools/ui-component-catalog-app");
         final List<Component> components = components ();
         final List<Example> examples = examples ();
-        validateUniqueArtifacts (components, examples);
+        final var animations = UiLibraryCompletionFixtures.rippleAnimations ();
+        validateUniqueArtifacts (components, examples, animations);
         final CatalogTypography typography = CatalogTypography.load ();
         final String displayFont = "<style>" + typography.displayCss () + "</style>";
         Files.createDirectories (output);
@@ -64,8 +65,8 @@ public final class UiComponentCatalog
         int specimens = 0;
         for (final Component component: components)
         {
-            story (stories, component.id (), "components", componentGroup (component), component.title (), component.description ());
-            stories.append ("<div class=\"story-meta\"><span>").append (component.variants ().size ()).append (component.variants ().size () == 1 ? " variant" : " variants").append (" · Native logical pixels</span></div><div class=\"specimens\">");
+            story (stories, component.id (), "components", componentGroup (component), component.title ());
+            stories.append ("<div class=\"specimens\">");
             for (final Variant variant: component.variants ())
             {
                 final String file = component.id () + "-" + variant.id () + ".svg";
@@ -82,7 +83,6 @@ public final class UiComponentCatalog
                 specimens++;
             }
             stories.append ("</div>");
-            source (stories, component.renderer (), "Components are shown at their native size. SVG exports include the selected color and embedded display font.");
             stories.append ("</article>");
         }
         for (final Example example: examples)
@@ -90,16 +90,16 @@ public final class UiComponentCatalog
             final String file = example.id () + ".svg";
             final ControllerDisplayScene display = example.visuals ().display ();
             Files.writeString (output.resolve (file), DisplaySceneSvg.render (display, icons, typography));
-            story (stories, example.id (), "views", example.group (), example.title (), example.description ());
-            stories.append ("<div class=\"story-meta\"><span>").append (display.width ()).append (" × ").append (display.height ())
-                .append (" logical pixels</span><a href=\"").append (file).append ("\" download=\"").append (file).append ("\">Export display SVG ↓</a></div><div class=\"surface\">");
+            story (stories, example.id (), "views", example.group (), example.title ());
+            if (UiLibraryCompletionFixtures.RIPPLE_STORY_ID.equals (example.id ()))
+                animationControls (stories, animations, output, icons, typography, displayFont);
+            stories.append ("<div class=\"story-meta\"><a href=\"").append (file).append ("\" download=\"").append (file).append ("\">Export display SVG ↓</a></div><div class=\"surface\">");
             lights (stories, example.visuals (), 2);
             stories.append ("<div class=\"screen-area\"><div class=\"surface-label\">Display</div><div class=\"screen\">");
             image (stories, file, example.title (), display);
             stories.append ("</div></div>");
             lights (stories, example.visuals (), 1);
-            stories.append ("</div><div class=\"hardware-key\"><span>Dashed: no light state from this view</span><span>Black: button off</span></div>");
-            source (stories, example.renderer (), "The screen and hardware buttons use the same presentation assets as the Push debugger.");
+            stories.append ("</div>");
             stories.append ("</article>");
         }
         final String html = Files.readString (app.resolve ("index.html"))
@@ -119,17 +119,35 @@ public final class UiComponentCatalog
         System.out.println (components.size () + " components (" + specimens + " isolated variants) and " + examples.size () + " view previews generated from production renderer output.");
     }
 
-    private static void story (final StringBuilder html, final String id, final String kind, final String group, final String title, final String description)
+    private static void animationControls (final StringBuilder html, final List<UiLibraryCompletionFixtures.Animation> animations,
+        final Path output, final Path icons, final CatalogTypography typography, final String displayFont) throws IOException
     {
-        html.append ("<article class=\"story\" id=\"").append (id).append ("\" data-kind=\"").append (kind).append ("\" data-group=\"")
-            .append (DisplaySceneSvg.escape (group)).append ("\" data-title=\"").append (DisplaySceneSvg.escape (title)).append ("\" hidden><p class=\"story-description\">")
-            .append (DisplaySceneSvg.escape (description)).append ("</p>");
+        html.append ("<div class=\"animation-controls\" role=\"group\" aria-label=\"Ripple previews\">");
+        for (final var animation: animations)
+        {
+            final List<String> files = new ArrayList<> ();
+            for (int frame = 0; frame < animation.frames ().size (); frame++)
+            {
+                final String file = frameFile (animation, frame);
+                // Ripple frames contain only rectangles, so embedding font data adds no visual content.
+                Files.writeString (output.resolve (file), DisplaySceneSvg.render (animation.frames ().get (frame), icons, typography).replace (displayFont, ""));
+                files.add (file);
+            }
+            html.append ("<button type=\"button\" data-animation=\"").append (animation.id ()).append ("\" data-duration=\"").append (animation.durationMillis ())
+                .append ("\" data-frames=\"").append (String.join (",", files)).append ("\">").append (animation.title ()).append ("</button>");
+        }
+        html.append ("<span class=\"animation-status sr-only\" role=\"status\"></span></div>");
     }
 
-    private static void source (final StringBuilder html, final String renderer, final String note)
+    private static String frameFile (final UiLibraryCompletionFixtures.Animation animation, final int frame)
     {
-        html.append ("<details class=\"source-details\"><summary>Source and preview details</summary><p><code>")
-            .append (DisplaySceneSvg.escape (renderer)).append ("</code><br>").append (DisplaySceneSvg.escape (note)).append ("</p></details>");
+        return UiLibraryCompletionFixtures.RIPPLE_STORY_ID + "-" + animation.id () + "-" + frame + ".svg";
+    }
+
+    private static void story (final StringBuilder html, final String id, final String kind, final String group, final String title)
+    {
+        html.append ("<article class=\"story\" id=\"").append (id).append ("\" data-kind=\"").append (kind).append ("\" data-group=\"")
+            .append (DisplaySceneSvg.escape (group)).append ("\" data-title=\"").append (DisplaySceneSvg.escape (title)).append ("\" hidden>");
     }
 
     private static String navigation (final List<Component> components, final List<Example> examples)
@@ -160,13 +178,13 @@ public final class UiComponentCatalog
         return switch (component.id ())
         {
             case "component-choice", "component-toggle", "component-option-column" -> "Selection";
-            case "component-list", "component-color-palette" -> "Content";
+            case "component-list" -> "Content";
             default -> "Meters and parameters";
         };
     }
 
     /** Check the complete plan before writing any artifact; component variants and views share a directory. */
-    private static void validateUniqueArtifacts (final List<Component> components, final List<Example> examples)
+    private static void validateUniqueArtifacts (final List<Component> components, final List<Example> examples, final List<UiLibraryCompletionFixtures.Animation> animations)
     {
         final Set<String> ids = new HashSet<> (Set.of ("library-navigation", "story-navigation", "story-search", "main-panel", "story-group", "story-title", "story-permalink", "story-workspace", "color-controls", "component-color", "component-color-hex", "reset-color", "color-error", "stories", "display-font", "no-results", "nav-toggle", "nav-backdrop"));
         final Set<String> files = new HashSet<> (Set.of ("index.html"));
@@ -180,6 +198,8 @@ public final class UiComponentCatalog
             unique (ids, example.id (), "story ID");
             unique (files, example.id () + ".svg", "artifact filename");
         }
+        for (final var animation: animations)
+            for (int frame = 0; frame < animation.frames ().size (); frame++) unique (files, frameFile (animation, frame), "artifact filename");
     }
 
     private static void unique (final Set<String> values, final String value, final String kind)
@@ -311,7 +331,6 @@ public final class UiComponentCatalog
             {
                 case "component-list" -> "TextList";
                 case "component-option-column" -> "OptionColumn";
-                case "component-color-palette" -> "ColorPaletteRenderer";
                 default -> throw new IllegalStateException ("Unknown component fixture: " + example.id ());
             };
             result.add (new Component (example.id (), example.title (), example.description (), renderer, List.of (new Variant ("default", "Default", example.scene ())), COMPONENT_COLORS));
