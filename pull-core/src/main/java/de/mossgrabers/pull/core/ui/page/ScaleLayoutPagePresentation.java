@@ -5,7 +5,7 @@ package de.mossgrabers.pull.core.ui.page;
 import java.util.List;
 
 /** The six layout families and the separately observed orientation. */
-public record ScaleLayoutPagePresentation (boolean available, List<String> layouts, int selected, boolean vertical)
+public record ScaleLayoutPagePresentation (List<String> layouts, int selected, boolean vertical)
 {
     public ScaleLayoutPagePresentation { layouts = List.copyOf (layouts); if (layouts.size () > 6) throw new IllegalArgumentException ("Six layout families maximum"); }
 }

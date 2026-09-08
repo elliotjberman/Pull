@@ -6,7 +6,7 @@ import de.mossgrabers.pull.core.api.output.RgbColor;
 import java.util.List;
 
 /** Track/device kinds and observed shortcut names with caller-resolved colors. */
-public record AddTrackPagePresentation (boolean available, List<Kind> kinds, String selectedKind, String primaryAction, RgbColor selectedColor, List<String> shortcuts)
+public record AddTrackPagePresentation (List<Kind> kinds, String selectedKind, String primaryAction, RgbColor selectedColor, List<String> shortcuts)
 {
     public record Kind (int column, String label, RgbColor color) { }
     public AddTrackPagePresentation

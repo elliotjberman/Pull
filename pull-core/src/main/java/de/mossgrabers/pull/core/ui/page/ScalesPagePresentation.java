@@ -5,7 +5,7 @@ package de.mossgrabers.pull.core.ui.page;
 import java.util.List;
 
 /** Scale list, twelve root names, range and chromatic state read back by the consuming view. */
-public record ScalesPagePresentation (boolean available, List<String> scales, int selectedScale, List<String> roots, int selectedRoot, boolean chromatic, String range)
+public record ScalesPagePresentation (List<String> scales, int selectedScale, List<String> roots, int selectedRoot, boolean chromatic, String range)
 {
     public ScalesPagePresentation
     {

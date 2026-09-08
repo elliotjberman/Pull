@@ -26,9 +26,9 @@ public final class OptionPageRenderer
         return switch (state)
         {
             case final OptionPageState.Empty ignored -> OptionPageLayout.scene (OptionPageLayout.background ());
-            case final OptionPageState.FixedLength value -> FixedLengthPageRenderer.render (new FixedLengthPagePresentation (true, LENGTHS, value.selected ()));
-            case final OptionPageState.Scales value -> ScalesPageRenderer.render (new ScalesPagePresentation (true, value.names (), value.selectedScale (), value.roots (), value.selectedRoot (), value.chromatic (), value.range ()));
-            case final OptionPageState.ScaleLayout value -> ScaleLayoutPageRenderer.render (new ScaleLayoutPagePresentation (true, IntStream.range (0, value.names ().size ()).filter (index -> index % 2 == 0).mapToObj (index -> value.names ().get (index).replace (" ^", "")).toList (), value.selected () / 2, value.selected () % 2 != 0));
+            case final OptionPageState.FixedLength value -> FixedLengthPageRenderer.render (new FixedLengthPagePresentation (LENGTHS, value.selected ()));
+            case final OptionPageState.Scales value -> ScalesPageRenderer.render (new ScalesPagePresentation (value.names (), value.selectedScale (), value.roots (), value.selectedRoot (), value.chromatic (), value.range ()));
+            case final OptionPageState.ScaleLayout value -> ScaleLayoutPageRenderer.render (new ScaleLayoutPagePresentation (IntStream.range (0, value.names ().size ()).filter (index -> index % 2 == 0).mapToObj (index -> value.names ().get (index).replace (" ^", "")).toList (), value.selected () / 2, value.selected () % 2 != 0));
             case final OptionPageState.AddTrack value -> addTrack (value);
             case final OptionPageState.Browser value -> browser (value);
             case final OptionPageState.NoteRepeat value -> repeat (value);
@@ -38,7 +38,7 @@ public final class OptionPageRenderer
     {
         final int index = switch (state.mode ()) { case "AUDIO" -> 1; case "EFFECT" -> 2; case "DEVICE" -> 3; default -> 0; };
         final var kind = KINDS.get (index);
-        return AddTrackPageRenderer.render (new AddTrackPagePresentation (true, KINDS, kind.label (), index == 3 ? "Browse" : "Empty", kind.color (), state.shortcuts ()));
+        return AddTrackPageRenderer.render (new AddTrackPagePresentation (KINDS, kind.label (), index == 3 ? "Browse" : "Empty", kind.color (), state.shortcuts ()));
     }
     private static ControllerDisplayScene browser (final OptionPageState.Browser state)
     {

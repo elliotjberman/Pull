@@ -9,12 +9,12 @@ import de.mossgrabers.framework.daw.IHost;
 import de.mossgrabers.framework.daw.clip.NotePosition;
 import de.mossgrabers.framework.daw.clip.StepState;
 import org.junit.jupiter.api.Test;
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.*;
+import static de.mossgrabers.pull.shell.testing.TestProxies.proxy;
+import static de.mossgrabers.pull.shell.testing.TestProxies.defaultValue;
 
 class CursorClipObservedStateTest
 {
@@ -66,16 +66,9 @@ class CursorClipObservedStateTest
         observer.get ().noteStepChanged (note);
         assertEquals (StepState.OFF, clip.getObservedStep (position).getState ());
     }
-    @SuppressWarnings ("unchecked")
-    private static <T> T proxy (final Class<T> type, final InvocationHandler handler) { return (T) Proxy.newProxyInstance (type.getClassLoader (), new Class<?>[] {type}, handler); }
     private static Object empty (final Class<?> type)
     {
-        if (type == boolean.class) return false;
-        if (type == int.class) return 0;
-        if (type == long.class) return 0L;
-        if (type == double.class) return 0.0;
-        if (type == float.class) return 0f;
         if (type == String.class) return "";
-        return type.isInterface () ? proxy (type, (p, method, args) -> empty (method.getReturnType ())) : null;
+        return type.isInterface () ? proxy (type, (p, method, args) -> empty (method.getReturnType ())) : defaultValue (type);
     }
 }

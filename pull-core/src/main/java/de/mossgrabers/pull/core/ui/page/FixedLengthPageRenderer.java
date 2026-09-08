@@ -12,12 +12,9 @@ public final class FixedLengthPageRenderer
     public static ControllerDisplayScene render (final FixedLengthPagePresentation state)
     {
         final List<DisplayCommand> commands = background ();
-        if (state.available ())
-        {
-            for (int index = 0; index < state.lengths ().size (); index++) column (commands, index, choice (state.lengths ().get (index), false), choice (state.lengths ().get (index), index == state.selected ()));
-            heading (commands, "Create Clip (length not stored)", 0, 8, false);
-            heading (commands, "New Clip Length", 0, 8, true);
-        }
+        for (int index = 0; index < state.lengths ().size (); index++) column (commands, index, choice (state.lengths ().get (index), false), choice (state.lengths ().get (index), index == state.selected ()));
+        heading (commands, "Create Clip (length not stored)", 0, 8, false);
+        heading (commands, "New Clip Length", 0, 8, true);
         return scene (commands);
     }
 }

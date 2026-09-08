@@ -12,12 +12,9 @@ public final class ScaleLayoutPageRenderer
     public static ControllerDisplayScene render (final ScaleLayoutPagePresentation state)
     {
         final List<DisplayCommand> commands = background ();
-        if (state.available ())
-        {
-            for (int index = 0; index < state.layouts ().size (); index++) column (commands, index, blank (), choice (state.layouts ().get (index), index == state.selected ()));
-            column (commands, 7, blank (), choice (state.vertical () ? "Vertical" : "Horizontal", false));
-            heading (commands, "Scale layout", 0, 6, true);
-        }
+        for (int index = 0; index < state.layouts ().size (); index++) column (commands, index, blank (), choice (state.layouts ().get (index), index == state.selected ()));
+        column (commands, 7, blank (), choice (state.vertical () ? "Vertical" : "Horizontal", false));
+        heading (commands, "Scale layout", 0, 6, true);
         return scene (commands);
     }
 }

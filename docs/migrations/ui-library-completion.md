@@ -85,21 +85,10 @@ Session-only composition test does not cover this transition. The physical Color
 be deferred unchanged or receive a complete route handoff fix after the user chooses its scope;
 this checkpoint must not be installed with the known transition defect.
 
-## Validation path
+## Validation
 
-`ListAndOptionCatalogFixtures` contributes production-rendered view and component specimens to the
-existing central catalog alongside `DevicePageGallery`, `EditingPageGallery` and shared mixer/playback
-fixtures. Individual controls and known views stay separate. There is no extra preview server,
-debugger path, or page-specific harness.
-The [catalog](../ui-component-library.md#offline-catalog) uses a searchable Components/Views sidebar,
-one selected story with a hash permalink, nearby component color controls and intrinsic specimen
-sizes. Its embedded gallery assets and debugger hardware presentation serve the same static artifact.
-Renderer tests cover native bounds, the complete long-name browser window, empty/unavailable state,
-observed fixed-length selection, independent repeat indicators and physical palette orientation.
-A core composition test enters Color from Session, checks the observed palette without acquiring
-pad inputs, clears unavailable colors and restores Session output/routes. The existing Push
-behavior suite drives a browser request,
-checks that observation is unchanged before host advancement, then checks the later selected item
-and the 48-item bound. The clean offline gate passes. Gallery browser checks cover search/section navigation, single-story
-selection, direct links, supplied colors and tall specimen bounds at desktop and narrow widths.
-Follow [TESTING](../../TESTING.md) for the central offline gate and any later authorized live smoke.
+Use the existing [offline catalog](../ui-component-library.md#offline-catalog) for production
+components and known pages, and [TESTING](../../TESTING.md) for routed behavior and live evidence.
+The rebased API 54 source passes the offline package gate: 560 core, 11 publisher and 496 shell tests.
+No changed code emits deprecation warnings. Exact-build installation remains pending the Color
+scope decision above; no earlier build's live evidence validates this source.

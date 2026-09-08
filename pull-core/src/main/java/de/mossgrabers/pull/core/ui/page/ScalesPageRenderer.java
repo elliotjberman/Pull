@@ -14,13 +14,10 @@ public final class ScalesPageRenderer
     public static ControllerDisplayScene render (final ScalesPagePresentation state)
     {
         final List<DisplayCommand> commands = background ();
-        if (state.available ())
-        {
-            TextList.append (commands, TextList.window (state.scales (), state.selectedScale (), 6, WHITE), 0, 0, COLUMN_WIDTH, HEIGHT, 6);
-            for (int index = 0; index < 6; index++) column (commands, index + 1, choice (state.roots ().get (index + 6), state.selectedRoot () == index + 6), choice (state.roots ().get (index), state.selectedRoot () == index));
-            column (commands, 7, choice (state.chromatic () ? "Chromatic" : "In Key", state.chromatic ()), blank ());
-            heading (commands, "Note range: " + state.range (), 4, 4, false);
-        }
+        TextList.append (commands, TextList.window (state.scales (), state.selectedScale (), 6, WHITE), 0, 0, COLUMN_WIDTH, HEIGHT, 6);
+        for (int index = 0; index < 6; index++) column (commands, index + 1, choice (state.roots ().get (index + 6), state.selectedRoot () == index + 6), choice (state.roots ().get (index), state.selectedRoot () == index));
+        column (commands, 7, choice (state.chromatic () ? "Chromatic" : "In Key", state.chromatic ()), blank ());
+        heading (commands, "Note range: " + state.range (), 4, 4, false);
         return scene (commands);
     }
 }
