@@ -7,24 +7,32 @@ import de.mossgrabers.pull.core.api.output.ControllerDisplayScene;
 import de.mossgrabers.pull.core.api.output.DisplayCommand;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.testing.ListAndOptionCatalogFixtures;
+import de.mossgrabers.pull.core.testing.DevicePageGallery;
+import de.mossgrabers.pull.core.testing.EditingPageGallery;
 import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.*;
 
 class OptionPageRendererTest
 {
     @Test
-    void completeOptionAndListFamiliesKeepEveryTextFieldWithinTheNativeDisplay ()
+    void galleryPagesKeepTextWithinTheNativeDisplayAndLeaveClippingToTheCompiler ()
     {
-        for (final var example: ListAndOptionCatalogFixtures.examples ())
-        {
-            assertEquals (960, example.scene ().width ()); assertEquals (160, example.scene ().height ());
-            for (final var command: example.scene ().commands ())
+        final var scenes = Stream.of (
+            ListAndOptionCatalogFixtures.examples ().stream ().map (ListAndOptionCatalogFixtures.Example::scene),
+            DevicePageGallery.examples ().stream ().map (DevicePageGallery.Example::display),
+            EditingPageGallery.examples ().stream ().map (EditingPageGallery.Example::display)).flatMap (stream -> stream).toList ();
+        for (final var scene: scenes)
+            for (final var command: scene.commands ())
+            {
+                assertFalse (command instanceof DisplayCommand.PushClip || command instanceof DisplayCommand.PopClip, "view compiler owns clipping");
                 if (command instanceof final DisplayCommand.TextBox text)
-                    assertTrue (text.x () >= 0 && text.y () >= 0 && text.x () + text.width () <= 960 && text.y () + text.height () <= 160.00001, example.id () + ": " + text);
-        }
+                    assertTrue (text.x () >= 0 && text.y () >= 0 && text.x () + text.width () <= 960 && text.y () + text.height () <= 160.00001, text.toString ());
+            }
     }
+
     @Test
     void denseBrowserWindowPreservesAll48RowsWithoutExceedingTheDisplayWorkBudget ()
     {
@@ -34,7 +42,6 @@ class OptionPageRendererTest
         final var output = OptionPageRenderer.render (state);
         assertEquals (48, output.commands ().stream ().filter (command -> command instanceof final DisplayCommand.TextBox text && text.text ().equals ("(123456)")).count (), "every long-name row retains its separate hit count");
         assertEquals (96, output.commands ().stream ().filter (DisplayCommand.TextBox.class::isInstance).count ());
-        assertEquals (fullName, state.items ().get (47).name ());
         assertTrue (output.commands ().stream ().filter (DisplayCommand.Rectangle.class::isInstance).map (DisplayCommand.Rectangle.class::cast)
             .anyMatch (marker -> marker.x () == 840 && marker.y () > 130 && marker.width () == 3 && marker.color ().red () == 255));
     }

@@ -12,14 +12,6 @@ import static org.junit.jupiter.api.Assertions.*;
 class EditingPageRendererTest
 {
     @Test
-    void allEditingTabsKeepTheirLabelsInsideTheNativeDisplay ()
-    {
-        for (final var example: EditingPageGallery.examples ())
-            for (final var command: example.display ().commands ())
-                if (command instanceof final DisplayCommand.TextBox text)
-                    assertTrue (text.x () >= 0 && text.y () >= 0 && text.x () + text.width () <= 960 && text.y () + text.height () <= 160, example.id () + ": " + text);
-    }
-    @Test
     void noteEditorKeepsTheExistingMidiOctaveNames ()
     {
         final var expected = java.util.Map.of (0, "C-2", 60, "C3", 127, "G8");

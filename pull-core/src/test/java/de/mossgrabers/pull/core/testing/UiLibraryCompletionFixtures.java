@@ -27,7 +27,7 @@ public final class UiLibraryCompletionFixtures
     private static final RgbColor WHITE = new RgbColor (255, 255, 255);
 
     public record Example (String id, String title, String description, PageVisuals visuals) { }
-    public record Component (String id, String title, String description, String renderer, List<Variant> variants) { }
+    public record Component (String id, String title, String description, List<Variant> variants) { }
     public record Variant (String id, String title, ControllerDisplayScene display) { }
     public record Animation (String id, String title, int durationMillis, List<List<ControllerDisplayScene>> runs) { }
 
@@ -103,9 +103,9 @@ public final class UiLibraryCompletionFixtures
             sliders.add (new Variant (id, title, new ControllerDisplayScene (90, 24, pan)));
         }
         return List.of (
-            new Component ("component-vertical-meter", "Vertical meter", "A supplied level color with fixed orange and red warning bands.", "VerticalMeter", List.copyOf (meters)),
-            new Component ("component-fader-marker", "Fader marker", "Observed parameter marker and filled stem.", "FaderMarker", List.copyOf (faders)),
-            new Component ("component-bipolar-slider", "Bipolar slider", "Center reference, filled excursion and observed position.", "BipolarSlider", List.copyOf (sliders)));
+            new Component ("component-vertical-meter", "Vertical meter", "A supplied level color with fixed orange and red warning bands.", List.copyOf (meters)),
+            new Component ("component-fader-marker", "Fader marker", "Observed parameter marker and filled stem.", List.copyOf (faders)),
+            new Component ("component-bipolar-slider", "Bipolar slider", "Center reference, filled excursion and observed position.", List.copyOf (sliders)));
     }
 
     private static List<DisplayCommand> background (final int width, final int height)
