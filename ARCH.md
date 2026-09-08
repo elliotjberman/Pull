@@ -4,15 +4,11 @@ Working source: Core API 54, checkpoint schema 6, Bitwig API 25. Migration is in
 core owns ordinary Push display pages and migrated controls; the inventory below names the
 remaining shell handlers. The optional Clip piano roll is deferred unchanged.
 
-The combined API 54 source has not been installed or live tested. The
-[Session smoke record](docs/migrations/session-core-live-smoke.md) identifies earlier exact builds
-and scoped coverage. Control Return's earlier feature build verified spring baseline crossings
-and invalid-YAML fallback; that evidence does not validate the combined source or establish what
-is currently loaded in Bitwig. See [Control Return](docs/control-return.md) for configuration.
-
 API 54 adds bounded raw page observations and moves remaining ordinary page drawing into core
-components. A matching shell installation and restart are required. Final integrated package and
-live validation remain pending. Physical Color drawing and selection are deferred together and
+components. Its matching shell was installed and restarted; the [display cutover validation](docs/migrations/ui-library-completion.md#validation)
+records exact build identities, passed page checks and remaining live coverage. The
+[Session smoke record](docs/migrations/session-core-live-smoke.md) and [Control Return](docs/control-return.md)
+retain their separate scoped evidence. Physical Color drawing and selection are deferred together and
 retain their existing implementation; see the [handoff TODO](docs/migrations/ui-and-editing-handoff.md).
 
 ## Assembly

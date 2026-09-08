@@ -32,8 +32,8 @@ The migration ends when no frozen product-policy adapter remains.
 The Session smoke record includes API 50: Setup/Info and plain/Shift track arrows passed the [scoped live check](migrations/session-core-live-smoke.md).
 Ribbon, Session and reload were not rerun on API 50; earlier Session evidence and its
 [bounded location/release limits](migrations/session-launcher-location-design.md) remain applicable only to the recorded builds.
-API 54 requires a matching shell install and restart. Final integrated package and live validation
-remain pending; [ARCH](../ARCH.md) records current validation and activation status.
+API 54's matching shell installation and scoped live validation are recorded in the
+[display cutover audit](migrations/ui-library-completion.md#validation).
 
 ## Device, chain and layer
 

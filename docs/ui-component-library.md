@@ -116,6 +116,10 @@ fixture data do not establish Bitwig read-back, hardware pixels or gesture behav
 Fixtures include normal and unavailable observations, value limits, long browser names with retained
 hit counts, channel/device variants, editing pages and observed hardware identity.
 
+Ripple preview buttons replay production-rendered frames with eight seeded texture variations,
+without repeating the previous choice. The live renderer seeds Perlin noise from each animation
+start time and holds it fixed across the 250 ms ripple. Both retain the original 24×20 display pixels.
+
 This catalog is the shared offline visual validation path. The mixer text-stress regression and
 catalog use the same input fixture; the former separate mixer PNG renderer has been removed.
 The gallery shell lives in `tools/ui-component-catalog-app/index.html`, `catalog.css` and `catalog.js`;
@@ -133,10 +137,8 @@ host read-back and feedback through the existing routed tests; avoid snapshot ha
 freeze a renderer's command list. Follow [TESTING](../TESTING.md) for live evidence. The initial
 library extraction was core-only; Info, Setup and Ribbon added parent-loaded hardware/settings
 contracts, and API 54 adds the bounded raw page observations. Final integrated package and live
-validation remain pending.
-Gallery review covers persistent navigation, search, direct links, component colors and tall
-specimens on desktop and a 390px viewport. See
-[ARCH](../ARCH.md) for the current source API, required restart, and scoped installed-build status.
+validation are recorded in the [display cutover audit](migrations/ui-library-completion.md#validation).
+See [ARCH](../ARCH.md) for the current ownership and activation contract.
 
 ## Next migration boundary
 
@@ -149,7 +151,3 @@ Remaining physical Ribbon behavior is frozen. Ordinary Scales/Layout, Repeat, Us
 displays now use the library while their controls remain frozen. Fixed Length action migration
 still depends on Session create/launch/overdub behavior. Rendering a page does not supply those
 effects or prove its targets.
-
-Ripple preview buttons replay production-rendered frames with eight seeded texture variations,
-without repeating the previous choice. The live renderer seeds Perlin noise from each animation
-start time and holds it fixed across the 250 ms ripple. Both retain the original 24×20 display pixels.

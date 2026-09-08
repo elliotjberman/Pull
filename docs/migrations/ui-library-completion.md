@@ -24,7 +24,7 @@ The optional Clip piano roll stays unchanged. TODO: Elliot never used this so de
 - **Lifecycle:** capture/render are synchronous and value-only. This adds no gestures, effects,
   timers, actuator leases or handoff policy. General asynchronous replacement work is separate.
 - **Activation:** the new parent-loaded state/subscription contract requires a shell installation
-  and Bitwig restart. Final integrated package and matched-build live validation remain pending.
+  and Bitwig restart. The matched installation and scoped live checks are recorded below.
 
 ## Device and editing families
 
@@ -79,7 +79,33 @@ TODO: migrate Color pad drawing/selection together once Note/Drum→Color native
 
 ## Validation
 
-Use the existing [offline catalog](../ui-component-library.md#offline-catalog) for production
-components and known pages, and [TESTING](../../TESTING.md) for routed behavior and live evidence.
-Final integrated package and matched-build live validation remain pending. See [ARCH](../../ARCH.md)
-for current validation and activation status; no earlier build's live evidence validates this source.
+Validated runtime source `62d36d0eaf1e81a01594c9db7c0f183931a97232` on 2026-09-08 UTC,
+Core API 54 / Bitwig API 25. The deprecation-enabled package passed 1,064 tests (557 core,
+11 publisher, 496 shell), with no deprecation warnings in changed code. The eight debugger-server
+tests and JavaScript parse check passed. The [catalog](../ui-component-library.md#offline-catalog)
+contains 10 components, 35 variants and 72 view stories; desktop and 390px review covered navigation,
+search, direct links, colors and tall specimens.
+
+| Activated artifact | Identity |
+| --- | --- |
+| Installed shell SHA-256 | `21e411359ff42f289dc943ffec75a6737e9f9ee3ab7d2327b00d6ec036a9b124` |
+| Active core build | `20260908T034033Z-0a52783d6e366a6b2e3b693154c9a28e` |
+| Active core SHA-256 | `f816f69f6859cae4a958869016309f257a44aec0cb45c2dfe750522912785978` |
+| API fingerprint | `7a1c433c42bf85e118c49704c2756a946bcd85f9` |
+
+The shell was built at `4ac66e3a`; its parent-loaded code is unchanged in the validated runtime
+source. Restart, exact core activation and live testing held one uninterrupted live lease.
+Existing debugger input drove Track, Master, Device, User, Clip, Scales, Scale Layout, Fixed Length,
+Add Track, Quantize, Groove and Note Repeat. Later raw observations and transmitted display captures
+confirmed their pages. Host Browse showed its overview and actual result names. Clip loop encoder
+changes produced separately observed host `false` then `true` states and matching transmitted
+toggles, restoring the original enabled state.
+
+Remote Play from a second project produced later engine-owner `playing=true` read-back and
+transmitted Perlin frames expanding from the bottom-left, with the original 24×20 pixels and a
+fading trail. A second Play restored `playing=false`; closing the temporary project returned to
+the original engine owner with no pending command. The display returned to its underlying page.
+
+Other page variants have offline coverage only. These checks do not migrate remaining actions,
+providers or lights, or validate the deferred Color picker and piano roll. Follow
+[TESTING](../../TESTING.md) for further routed and live coverage.

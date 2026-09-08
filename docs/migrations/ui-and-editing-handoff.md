@@ -54,5 +54,5 @@ Bitwig methods against the API 25 JAR and run the deprecation-enabled package. A
 expansion needs matched-build live validation under the uninterrupted live lease. An earlier
 build's smoke pass cannot validate a later migration.
 
-API 54 requires a matching shell installation and restart. Final integrated package and live
-validation remain pending; [ARCH](../../ARCH.md) records current validation and activation status.
+API 54's matching shell installation and scoped live validation are recorded in the
+[display cutover audit](ui-library-completion.md#validation).

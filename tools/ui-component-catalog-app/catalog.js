@@ -134,6 +134,7 @@
     image.replaceWith(screen);
   }
 
+  let previousRun = -1;
   for (const button of document.querySelectorAll("[data-animation]")) {
     const story = button.closest(".story");
     const image = story.querySelector(".screen image");
@@ -141,12 +142,11 @@
     const restingFrame = image.getAttribute("href");
     const runs = button.dataset.frames.split(";").map(run => run.split(","));
     const loaded = new Map();
-    let previous = -1;
     button.addEventListener("click", async () => {
       stopPlayback();
-      const choices = runs.map((_, index) => index).filter(index => index !== previous);
+      const choices = runs.map((_, index) => index).filter(index => index !== previousRun);
       const run = choices[Math.floor(Math.random() * choices.length)];
-      previous = run;
+      previousRun = run;
       const frames = runs[run];
       let cancelled = false;
       let request;
