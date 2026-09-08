@@ -57,13 +57,42 @@ class AbstractGraphicDisplayTest
     }
 
 
+    @Test
+    void startupMessageKeepsItsColumnGeometryAndBlankColumnsDrawNoText ()
+    {
+        final List<List<Object>> text = new ArrayList<> ();
+        final TestDisplay display = new TestDisplay (host (text), configuration ());
+        try
+        {
+            display.setMessage (3, "Please start Bitwig to play...");
+            display.send ();
+            assertEquals (1, text.size ());
+            final List<Object> call = text.getFirst ();
+            assertEquals ("Please start Bitwig to play...", call.get (0));
+            assertEquals (361.0, (Double) call.get (1), 0.00001);
+            assertEquals (34.6666667, (Double) call.get (2), 0.00001);
+            assertEquals (45.3333333, (Double) call.get (3), 0.00001);
+            assertEquals (ColorEx.calcContrastColor (ColorEx.BLACK), call.get (4));
+            assertEquals (22.6666667, (Double) call.get (5), 0.00001);
+            display.setMessage (3, "Please start Bitwig to play...");
+            display.send ();
+            assertEquals (1, text.size (), "unchanged startup output does not redraw");
+            for (int index = 0; index < 8; index++) display.addEmptyElement ();
+            display.send ();
+            assertEquals (1, text.size (), "piano-roll filler columns remain blank");
+        }
+        finally { display.shutdown (); }
+    }
+
     private static IComponent component (final List<String> draws, final String name)
     {
         return ignored -> draws.add (name);
     }
 
 
-    private static IHost host ()
+    private static IHost host () { return host (new ArrayList<> ()); }
+
+    private static IHost host (final List<List<Object>> text)
     {
         final IImage image = (IImage) Proxy.newProxyInstance (IImage.class.getClassLoader (), new Class<?> []
         {
@@ -72,7 +101,10 @@ class AbstractGraphicDisplayTest
         final IGraphicsContext context = (IGraphicsContext) Proxy.newProxyInstance (IGraphicsContext.class.getClassLoader (), new Class<?> []
         {
             IGraphicsContext.class
-        }, (ignored, method, arguments) -> defaultValue (method.getReturnType ()));
+        }, (ignored, method, arguments) -> {
+            if (method.getName ().equals ("drawTextInHeight")) text.add (List.of (arguments));
+            return defaultValue (method.getReturnType ());
+        });
         final IBitmap bitmap = new IBitmap ()
         {
             @Override
@@ -127,7 +159,7 @@ class AbstractGraphicDisplayTest
     {
         private TestDisplay (final IHost host, final IGraphicsConfiguration configuration)
         {
-            super (host, configuration, new DefaultGraphicsDimensions (960, 160, 1024));
+            super (host, configuration, new DefaultGraphicsDimensions (960, 160));
         }
 
 

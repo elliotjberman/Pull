@@ -42,6 +42,10 @@ replaces desired routes, resources and output. Effects request changes; feedback
 operations use later read-back. Mutable targets are checked at preparation and application. A shared host guard releases Session
 holds and revokes captured locations at actual track/scene/window mutation methods, covering core and frozen callers alike.
 
+The shell graphics layer retains the core scene interpreter, frame/overlay transport, the frozen
+startup message and optional Clip piano roll. Unused parameter, mixer, list, graph and menu
+renderers and their factories are removed; their active replacements live in `core.ui`.
+
 Core may parse configuration, including YAML, and read bundled or external data. Keep potentially
 blocking external I/O off the controller callback path. Streams, watchers and background tasks need
 explicit ownership and cleanup; results from a retired core generation must not alter controller

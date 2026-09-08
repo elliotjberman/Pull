@@ -37,14 +37,13 @@ public class Push2Display extends AbstractGraphicDisplay
      * cells (0-7).
      *
      * @param host The host
-     * @param maxParameterValue The maximum parameter value (upper bound)
      * @param configuration The Push configuration
      * @param displaySupplier Reloadable complete base display state
      * @param displayOverlaySupplier Reloadable temporary complete display-overlay state
      */
-    public Push2Display (final IHost host, final int maxParameterValue, final PushConfiguration configuration, final Supplier<ControllerDisplayScene> displaySupplier, final Supplier<ControllerDisplayOverlay> displayOverlaySupplier)
+    public Push2Display (final IHost host, final PushConfiguration configuration, final Supplier<ControllerDisplayScene> displaySupplier, final Supplier<ControllerDisplayOverlay> displayOverlaySupplier)
     {
-        super (host, configuration, new DefaultGraphicsDimensions (960, 160, maxParameterValue));
+        super (host, configuration, new DefaultGraphicsDimensions (960, 160));
 
         final Supplier<ControllerDisplayScene> checkedDisplaySupplier = Objects.requireNonNull (displaySupplier, "displaySupplier");
         this.setFullScreenBaseSupplier ( () -> {

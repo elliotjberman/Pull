@@ -238,7 +238,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         surface.setSessionBankRegistry (this.sessionBankRegistry);
         this.reloadableRuntime.connect (this.model, selectedTrackNoteTarget, input::sendRawMidiEvent, surface, this.valueChanger);
 
-        surface.addGraphicsDisplay (new Push2Display (this.host, this.valueChanger.getUpperBound (), this.configuration, this.reloadableRuntime::controllerDisplay, this.reloadableRuntime::displayOverlay));
+        surface.addGraphicsDisplay (new Push2Display (this.host, this.configuration, this.reloadableRuntime::controllerDisplay, this.reloadableRuntime::displayOverlay));
 
         surface.getModeManager ().setDefaultID (Modes.TRACK);
 

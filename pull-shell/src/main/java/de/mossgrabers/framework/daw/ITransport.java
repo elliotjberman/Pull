@@ -6,7 +6,6 @@ package de.mossgrabers.framework.daw;
 
 import java.util.Arrays;
 
-import de.mossgrabers.framework.daw.constants.AutomationMode;
 import de.mossgrabers.framework.daw.constants.LaunchQuantization;
 import de.mossgrabers.framework.daw.constants.PostRecordingAction;
 import de.mossgrabers.framework.observer.IObserverManagement;
@@ -233,14 +232,6 @@ public interface ITransport extends IObserverManagement
 
 
     /**
-     * Returns true if writing clip launcher automation is on.
-     *
-     * @return True if writing clip launcher automation is on
-     */
-    boolean isWritingClipLauncherAutomation ();
-
-
-    /**
      * Returns true if writing arranger automation is on.
      *
      * @return True if writing arranger automation is on
@@ -249,90 +240,9 @@ public interface ITransport extends IObserverManagement
 
 
     /**
-     * Get the automation mode parameter.
-     *
-     * @return The automation mode parameter
-     */
-    IParameter getAutomationModeParameter ();
-
-
-    /**
-     * Get the supported automation modes.
-     *
-     * @return The supported automation modes
-     */
-    AutomationMode [] getAutomationWriteModes ();
-
-
-    /**
-     * Get the automation write mode.
-     *
-     * @return The automation write mode
-     */
-    AutomationMode getAutomationWriteMode ();
-
-
-    /**
-     * Set the automation write mode.
-     *
-     * @param mode The automation write mode
-     */
-    void setAutomationWriteMode (AutomationMode mode);
-
-
-    /**
-     * Select the previous automation write mode.
-     */
-    default void previousAutomationWriteMode ()
-    {
-        final AutomationMode [] automationWriteModes = this.getAutomationWriteModes ();
-        final AutomationMode automationWriteMode = this.getAutomationWriteMode ();
-
-        int pos = Arrays.asList (automationWriteModes).indexOf (automationWriteMode) - 1;
-        if (pos < 0)
-            pos = 0;
-
-        this.setAutomationWriteMode (automationWriteModes[pos]);
-    }
-
-
-    /**
-     * Select the next automation write mode.
-     */
-    default void nextAutomationWriteMode ()
-    {
-        this.nextAutomationWriteMode (true);
-    }
-
-
-    /**
-     * Select the next automation write mode.
-     *
-     * @param wrap If true wrap to first when at the end
-     */
-    default void nextAutomationWriteMode (final boolean wrap)
-    {
-        final AutomationMode [] automationWriteModes = this.getAutomationWriteModes ();
-        final AutomationMode automationWriteMode = this.getAutomationWriteMode ();
-
-        int pos = Arrays.asList (automationWriteModes).indexOf (automationWriteMode) + 1;
-        if (pos >= automationWriteModes.length)
-            pos = wrap ? 0 : automationWriteModes.length - 1;
-
-        this.setAutomationWriteMode (automationWriteModes[pos]);
-    }
-
-
-    /**
      * Toggles the arranger automation write enabled state of the transport.
      */
     void toggleWriteArrangerAutomation ();
-
-
-    /**
-     * Toggles the clip launcher automation write enabled state of the transport.
-     */
-    void toggleWriteClipLauncherAutomation ();
 
 
     /**
