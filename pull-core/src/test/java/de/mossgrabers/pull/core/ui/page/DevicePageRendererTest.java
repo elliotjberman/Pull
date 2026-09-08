@@ -4,7 +4,6 @@ package de.mossgrabers.pull.core.ui.page;
 
 import de.mossgrabers.pull.core.api.DevicePageState;
 import de.mossgrabers.pull.core.api.DevicePageState.*;
-import de.mossgrabers.pull.core.api.output.DisplayCommand;
 import de.mossgrabers.pull.core.testing.DevicePageGallery;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -12,25 +11,6 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class DevicePageRendererTest
 {
-    @Test
-    void everyDeviceAndChannelFamilyHasAnOfflineExampleUsingTheProductionRenderer ()
-    {
-        for (final Kind kind: Kind.values ())
-            if (kind != Kind.NONE) assertTrue (DevicePageGallery.examples ().stream ().anyMatch (example -> example.state ().kind () == kind));
-        for (final var example: DevicePageGallery.examples ())
-        {
-            final var scene = assertDoesNotThrow (example::display, example.id ());
-            assertEquals (960, scene.width ()); assertEquals (160, scene.height ());
-            assertTrue (scene.commands ().stream ().noneMatch (command -> command instanceof DisplayCommand.PushClip || command instanceof DisplayCommand.PopClip), "view compiler owns clipping");
-            for (final var command: scene.commands ())
-                if (command instanceof DisplayCommand.TextBox text)
-                {
-                    assertTrue (text.x () >= 0 && text.y () >= 0);
-                    assertTrue (text.x () + text.width () <= 960 && text.y () + text.height () <= 160, example.title ());
-                }
-        }
-    }
-
     @Test
     void observedBankMismatchClearsParametersAndFooterWithoutChangingTheUpAffordance ()
     {

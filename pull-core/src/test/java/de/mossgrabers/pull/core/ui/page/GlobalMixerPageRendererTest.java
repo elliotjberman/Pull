@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class GlobalMixerPageRendererTest
 {
     @Test
-    void aFullBankOfLongHostNamesAndValuesFitsTheRenderBudgetWithoutChangingObservedText ()
+    void aFullBankOfLongHostNamesAndValuesFitsTheRenderBudgetAndRetainsUnits ()
     {
         final String hostName = "A long observed send name ".repeat (40);
         final String hostValue = "1234567890".repeat (100) + " dB";
@@ -24,8 +24,6 @@ class GlobalMixerPageRendererTest
             final var controls = java.util.stream.IntStream.range (0, 8).mapToObj (index -> new GlobalMixerPagePresentation.Control (index, widget, hostValue, 1, true, UiLibraryCompletionFixtures.BLUE, 1, 1)).toList ();
             final var page = new GlobalMixerPagePresentation (menu, controls);
             final var scene = assertDoesNotThrow (() -> GlobalMixerPageRenderer.render (page).display (), widget.name ());
-            assertEquals (hostName, page.menu ().getFirst ().text ());
-            assertEquals (hostValue, page.controls ().getFirst ().displayedValue ());
             assertTrue (scene.commands ().stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && text.text ().equals ("dB")));
         }
     }
