@@ -1,13 +1,21 @@
 # Pull architecture
 
-Working source: Core API 53, checkpoint schema 6, Bitwig API 25. Migration is incomplete:
-core owns pages and migrated controls; the inventory below names the remaining shell handlers.
+Working source: Core API 54, checkpoint schema 6, Bitwig API 25. Migration is incomplete:
+core owns ordinary Push display pages and migrated controls; the inventory below names the
+remaining shell handlers. The optional Clip piano roll is deferred unchanged.
 
-The combined API 53 source has not been installed or live tested. The
+The combined API 54 source has not been installed or live tested. The
 [Session smoke record](docs/migrations/session-core-live-smoke.md) identifies earlier exact builds
 and scoped coverage. Control Return's earlier feature build verified spring baseline crossings
 and invalid-YAML fallback; that evidence does not validate the combined source or establish what
 is currently loaded in Bitwig. See [Control Return](docs/control-return.md) for configuration.
+
+API 54 adds bounded raw page observations and moves remaining ordinary page drawing into core
+components. A matching shell installation and restart are required. Before integration with the
+newer source, the UI checkpoint passed 1,038 offline package tests (539 core, 11 publisher, 488 shell)
+without deprecation warnings in changed code; combined-source validation remains pending. The physical
+Color migration is not ready: entering it from an active Note/Drum route currently triggers Session
+neutralization. Its routing/defer decision is pending; do not install this checkpoint.
 
 ## Assembly
 
@@ -55,10 +63,24 @@ pages project through one inert `CorePageMode`; they need no shell enum. Remaini
 request navigation through a bounded 64-entry inbox. Its aliases and `STABLE_ADAPTER_*` facets
 are migration debt, not extension points.
 
-The [UI component library](docs/ui-component-library.md) supplies shared components and pure page
-renderers with an offline catalog. Core owns Info, Setup and Ribbon settings-page interactions
-and feedback. Settings writes wait for read-back; page departure retires unsent intent. Physical
+The [UI component library](docs/ui-component-library.md) supplies shared choices, lists, toggles,
+meters, sliders, parameter values and pure page renderers with one offline component/view catalog.
+Core owns Info, Setup and Ribbon settings-page interactions and feedback. Settings writes wait for
+read-back; page departure retires unsent intent. Physical
 Ribbon behavior and Shift-strip entry remain partly in frozen handlers.
+
+`CONTROLLER_PAGE_DISPLAY` samples only the active page's bounded raw Device, Option or Editing
+state. `ControllerPageDisplaySnapshot` fences that state by observed mode; core owns formatting
+and full-page assembly. Missing or mismatched observations clear the owned display. Browser
+selection and note values come from host read-back; note observation is separate from the legacy
+editor's optimistic working copy. Color uses the same subscription for its observed palette and
+page, with core owning grid output only. Its inherited selection gesture is unchanged. See the
+[display cutover audit](docs/migrations/ui-library-completion.md) for bounds and the piano-roll deferral.
+
+Track Details observes the selected bank track or Master's `actionTargetId` separately from the
+cursor used for display. Missing or unequal identities show “Waiting for track target...” instead
+of details for a different target. Its frozen physical lights still read the cursor, including
+when pinned; reconciling those lights belongs to the remaining control migration.
 
 See [views](docs/views-api-design.md) for authoring and [interaction lifecycle](docs/interaction-lifecycle.md)
 for target/cleanup contracts. Native `NoteInput`, command arbitration and learned hardware actions
@@ -72,9 +94,10 @@ are separate paths. The shared lifecycle does not make unmigrated shell handlers
 | Transport/global pages | Core Play/Record, Mute/Solo, Tap, Undo/Redo, Track/Mix, Master/Frame, Accent/Info/Setup, Ribbon settings, Metronome/Automation and migrated arrows, including feedback. |
 | Drum / selected Note | Core applicability, Note/Layout, playable-pad pressure/lights, rates/roll, fills, octave/native maps and raw strip policy within installed geometry. |
 | Session | Core grid, scene keys, bank/page/octave navigation, Stop chords, modifiers, create/record/copy/browse and observed blinking lights. Within the Session navigation slice, legacy parameter pages retain horizontal parameter navigation. |
-| Device/Chains/layers and Browser body | Stable parameter providers, handlers and rendering; page entry/return alone is core-owned. |
-| Crossfade, Track/Layer Details, Color, Scales/Layout, Repeat, Fixed Length, User, Add Track, Groove and Quantize pages | Stable handlers and feedback. |
-| Clip/note editing, clip length, Chords/Piano/Program Change, sequencers, Raindrops and alternate drum layouts | Remaining stable musical/editing behavior; core Note/Layout selection does not migrate the selected implementation. |
+| Device/Chains/layers, User, Browser, Scales/Layout, Repeat, Fixed Length, Add Track, Crossfade, Track/Layer Details, Clip/Note/Quantize/Groove | Core components render ordinary displays from raw observations. Actions, parameter providers, modifiers and hardware lights remain frozen stable behavior. |
+| Color chooser | Core renders the complete physical pad palette; inherited target selection and click/return behavior remain stable. |
+| Optional Clip piano roll | Specialized rendering is deferred unchanged. |
+| Clip/note editing gestures, clip length, Chords/Piano/Program Change, sequencers, Raindrops and alternate drum layouts | Remaining stable musical/editing controls and non-page feedback; core Note/Layout selection does not migrate the selected implementation. |
 | Global knobs and standalone commands | Stable Tempo/Master/play-position variants and touch notifications; New, Duplicate, Delete, Double, Quantize, Convert and footswitch commands. Core handling of a modifier chord does not migrate its standalone command. |
 
 Plain Session uses an 8×8 grid; VS composes upper Session with Project Macros, a track footer
@@ -98,6 +121,7 @@ Shift pages eight. Light refresh is a single end-of-flush pass, so observer burs
 | Drum | Canonical 16-pad window and bounded device candidates; a separate 64-pad proxy serves legacy Drum64. |
 | Native maps | Complete 128-entry key/velocity tables; enabled notes restricted to claimed physical Push pads 36–99. |
 | Output | 960×160 display, claimed regions, explicit temporary overlays, button/grid lights and touch strip. |
+| Page presentation | Active mode only: Device/Editing windows of at most eight slots; Browser seven filters and 48 visible items; color palette at most 128 colors over two 64-pad pages. No new actuator authority. |
 | Learned controls | 128 banks of four permanent semantic endpoints, allocated per document to track UUIDs. All 64 physical PAD actions remain ordinary-dispatch-only. |
 
 Parameter references fence domain, owner, page, slot/role and generation. Selected/current/rendered

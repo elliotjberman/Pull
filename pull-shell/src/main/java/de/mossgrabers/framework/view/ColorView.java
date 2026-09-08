@@ -85,6 +85,10 @@ public class ColorView<S extends IControlSurface<C>, C extends Configuration> ex
     }
 
 
+    /** The observed palette page; no selection mutation. */
+    public int getPage () { return this.page; }
+
+
     /** {@inheritDoc} */
     @Override
     public void drawGrid ()

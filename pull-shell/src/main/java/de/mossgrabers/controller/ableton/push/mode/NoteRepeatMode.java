@@ -6,13 +6,10 @@ package de.mossgrabers.controller.ableton.push.mode;
 
 import de.mossgrabers.controller.ableton.push.PushConfiguration;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
-import de.mossgrabers.framework.configuration.Configuration;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.color.ColorManager;
-import de.mossgrabers.framework.controller.display.IGraphicDisplay;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.GrooveParameterID;
-import de.mossgrabers.framework.daw.IGroove;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.constants.Resolution;
 import de.mossgrabers.framework.daw.data.IItem;
@@ -23,9 +20,7 @@ import de.mossgrabers.framework.featuregroup.AbstractFeatureGroup;
 import de.mossgrabers.framework.featuregroup.AbstractMode;
 import de.mossgrabers.framework.parameter.IParameter;
 import de.mossgrabers.framework.utils.ButtonEvent;
-import de.mossgrabers.framework.utils.StringUtils;
 
-import java.util.List;
 
 
 /**
@@ -250,63 +245,4 @@ public class NoteRepeatMode extends BaseMode<IItem>
     }
 
 
-    /** {@inheritDoc} */
-    @Override
-    public void updateDisplay2 (final IGraphicDisplay display)
-    {
-        if (this.noteRepeat == null)
-            return;
-
-        display.addOptionElement ("Period", "", false, "", "", false, false);
-        final int selPeriodIndex = this.getSelectedPeriodIndex ();
-        display.addListElement (6, Resolution.getNames (), selPeriodIndex);
-
-        display.addOptionElement ("  Length", "", false, "", "", false, false);
-        final int selLengthIndex = this.getSelectedNoteLengthIndex ();
-        display.addListElement (6, Resolution.getNames (), selLengthIndex);
-
-        display.addOptionElement ("", "", false, "", "Latch", this.noteRepeat.isLatchActive (), false);
-
-        final int upperBound = this.model.getValueChanger ().getUpperBound ();
-        final boolean usePressure = this.noteRepeat.usePressure ();
-        final ArpeggiatorMode mode = this.noteRepeat.getMode ();
-        final Configuration configuration = this.surface.getConfiguration ();
-        final List<ArpeggiatorMode> arpeggiatorModes = configuration.getArpeggiatorModes ();
-        final int modeIndex = configuration.lookupArpeggiatorModeIndex (mode);
-        final int modeValue = modeIndex * upperBound / (arpeggiatorModes.size () - 1);
-        display.addParameterElementWithPlainMenu ("", false, "Use Pressure", null, usePressure, "Mode", modeValue, StringUtils.optimizeName (mode.getName (), 8), this.isKnobTouched (5), -1);
-
-        final boolean isSynced = !this.noteRepeat.isFreeRunning ();
-        final int octaves = this.noteRepeat.getOctaves ();
-        final int octaveValue = octaves * upperBound / 8;
-        display.addParameterElementWithPlainMenu ("", false, "Sync", null, isSynced, "Octaves", octaveValue, Integer.toString (octaves), this.isKnobTouched (6), -1);
-
-        final IGroove groove = this.model.getGroove ();
-        final IParameter shuffleParam = groove.getParameter (GrooveParameterID.SHUFFLE_AMOUNT);
-        final IParameter enabledParam = groove.getParameter (GrooveParameterID.ENABLED);
-        final int grooveValue = enabledParam.getValue ();
-        display.addParameterElementWithPlainMenu ("Groove " + enabledParam.getDisplayedValue (8), grooveValue != 0, "Shuffle", null, this.noteRepeat.isShuffle (), shuffleParam.getName (10), shuffleParam.getValue (), shuffleParam.getDisplayedValue (8), this.isKnobTouched (7), -1);
-    }
-
-
-    /**
-     * Get the index of the selected period.
-     *
-     * @return The selected period index
-     */
-    private int getSelectedPeriodIndex ()
-    {
-        return this.noteRepeat == null ? -1 : Resolution.getMatch (this.noteRepeat.getPeriod ());
-    }
-
-
-    /**
-     * Get the index of the selected length.
-     *
-     * @return The selected length index
-     */
-    private int getSelectedNoteLengthIndex ()
-    {
-        return this.noteRepeat == null ? -1 : Resolution.getMatch (this.noteRepeat.getNoteLength ());
-    }
 }

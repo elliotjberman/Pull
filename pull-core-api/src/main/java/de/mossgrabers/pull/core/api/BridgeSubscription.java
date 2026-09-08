@@ -36,6 +36,9 @@ public enum BridgeSubscription
     /** Raw identity read-back for the one attached controller surface. */
     CONTROLLER_HARDWARE,
 
+    /** Active legacy page observations, sampled only while its display is selected. */
+    CONTROLLER_PAGE_DISPLAY,
+
     /** State of the private selection-following track target. */
     SELECTED_TRACK,
 

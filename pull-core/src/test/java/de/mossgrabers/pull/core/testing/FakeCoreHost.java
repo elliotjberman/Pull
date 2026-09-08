@@ -303,7 +303,7 @@ final class FakeCoreHost
         final var requests = new java.util.ArrayList<> (this.bridge.controllerPages ().requests ().stream ().filter (request -> request.sequence () > state.acknowledgedRequestSequence ()).toList ());
         requests.add (new de.mossgrabers.pull.core.api.LegacyControllerPageRequest (sequence, state.revision (), state.temporaryToken (), operation, alias));
         final var b = this.bridge;
-        this.bridge = new ControllerBridgeSnapshot (b.transport (), b.selectedTrack (), b.sessionBank (), b.layout (), b.noteView (), b.noteRepeat (), b.drum (), b.parameters (), b.controllerMappingFeedback (), b.master (), b.project (), b.automation (), b.encoderConfiguration (), b.currentTrackBank (), b.transportSettings (), b.controllerSettings (), b.applicationUi (), new de.mossgrabers.pull.core.api.LegacyControllerPageRequests (requests), b.browser (), b.controllerHardware ());
+        this.bridge = new ControllerBridgeSnapshot (b.transport (), b.selectedTrack (), b.sessionBank (), b.layout (), b.noteView (), b.noteRepeat (), b.drum (), b.parameters (), b.controllerMappingFeedback (), b.master (), b.project (), b.automation (), b.encoderConfiguration (), b.currentTrackBank (), b.transportSettings (), b.controllerSettings (), b.applicationUi (), new de.mossgrabers.pull.core.api.LegacyControllerPageRequests (requests), b.browser (), b.controllerHardware (), b.pageDisplay ());
     }
 
     /**

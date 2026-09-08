@@ -2,7 +2,13 @@
 // Licensed under LGPLv3 - http://www.gnu.org/licenses/lgpl-3.0.txt
 package de.mossgrabers.pull.core.ui.page;
 
-import de.mossgrabers.pull.core.ui.page.MixerDisplayScene;
+import de.mossgrabers.pull.core.ui.component.BipolarSlider;
+import de.mossgrabers.pull.core.ui.component.ChoiceCell;
+import de.mossgrabers.pull.core.ui.component.FaderMarker;
+import de.mossgrabers.pull.core.ui.component.ParameterValue;
+import de.mossgrabers.pull.core.ui.component.RingMeter;
+import de.mossgrabers.pull.core.ui.component.TextContent;
+import de.mossgrabers.pull.core.ui.component.VerticalMeter;
 
 import de.mossgrabers.pull.core.api.output.*;
 
@@ -17,7 +23,7 @@ import static de.mossgrabers.pull.core.ui.page.MixerPageStyle.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Preserved normal global mixer graphics, wholly inside the parameter region above the shared footer. */
+/** Global-bank controls assembled from shared components above the independently composed footer. */
 public final class GlobalMixerPageRenderer
 {
     private static final Pattern VALUE_UNIT = Pattern.compile ("^(.+?)(?:\\s*)(%|dB|kHz|Hz|ms|sec|s|st|ct|BPM|x|L|R)$");
@@ -33,9 +39,7 @@ public final class GlobalMixerPageRenderer
         {
             final GlobalMixerPagePresentation.MenuItem item = page.menu ().get (index);
             lights.put (PushControlIds.button ("ROW2_" + (index + 1)), item.selected () || item.arrow () ? WHITE : BLACK);
-            if (item.text ().isBlank ()) continue;
-            if (item.selected ()) commands.add (new DisplayCommand.Rectangle (index * COLUMN, 0, COLUMN - 2, MENU_HEIGHT - 1, WHITE));
-            commands.add (new DisplayCommand.TextBox (item.text (), index * COLUMN + 8, 0, COLUMN - 16, MENU_HEIGHT, DisplayTextAlignment.LEFT, item.selected () ? BLACK : WHITE, 12, 12, DisplayTextFit.CLIP));
+            new ChoiceCell (TextContent.candidate (item.text (), 24), !item.text ().isBlank (), item.selected ()).append (commands, index * COLUMN, 0, GlobalMixerPageStyle.MENU);
         }
         for (final GlobalMixerPagePresentation.Control control: page.controls ())
         {
@@ -45,17 +49,23 @@ public final class GlobalMixerPageRenderer
             final RgbColor background = control.active () ? DARK : DIM_DARK;
             if (control.widget () == GlobalMixerPagePresentation.Widget.VOLUME)
             {
-                value (commands, left, MENU_HEIGHT + 21, control.displayedValue (), 18, 66, text);
-                volume (commands, left, control.value (), control.vuLeft (), control.vuRight (), accent, background);
+                value (commands, left, MENU_HEIGHT + 3, control.displayedValue (), text, GlobalMixerPageStyle.VOLUME_VALUE);
+                VerticalMeter.append (commands, left + 10, GlobalMixerPageStyle.VOLUME_TOP, control.vuLeft (), accent, background, GlobalMixerPageStyle.VOLUME_METER);
+                VerticalMeter.append (commands, left + 31, GlobalMixerPageStyle.VOLUME_TOP, control.vuRight (), accent, background, GlobalMixerPageStyle.VOLUME_METER);
+                FaderMarker.append (commands, left + 75, GlobalMixerPageStyle.VOLUME_TOP, control.value (), accent, GlobalMixerPageStyle.VOLUME_FADER);
             }
             else
             {
-                value (commands, left, 55, control.displayedValue (), 19, 69, text);
+                value (commands, left, 36, control.displayedValue (), text, GlobalMixerPageStyle.VALUE);
                 switch (control.widget ())
                 {
-                    case SEND_VOLUME -> sendVolume (commands, left, control.value (), accent, background);
-                    case PAN -> pan (commands, left, control.value (), accent, background);
-                    case RING -> ring (commands, left, control.value (), accent, background);
+                    case SEND_VOLUME -> {
+                        VerticalMeter.append (commands, left + 8, 60, 0, accent, background, GlobalMixerPageStyle.SEND_METER);
+                        VerticalMeter.append (commands, left + 36, 60, 0, accent, background, GlobalMixerPageStyle.SEND_METER);
+                        FaderMarker.append (commands, left + 80, 60, control.value (), accent, GlobalMixerPageStyle.SEND_FADER);
+                    }
+                    case PAN -> BipolarSlider.append (commands, left + 8, 106, control.value (), accent, background, GlobalMixerPageStyle.PAN);
+                    case RING -> RingMeter.append (commands, left + 31, 106, control.value (), background, accent, GlobalMixerPageStyle.RING);
                     default -> throw new IllegalStateException ("Volume rendered above");
                 }
             }
@@ -63,62 +73,11 @@ public final class GlobalMixerPageRenderer
         return new PageVisuals (lights, new ControllerDisplayScene (WIDTH, PARAMETER_HEIGHT, commands));
     }
 
-    private static void sendVolume (final List<DisplayCommand> commands, final double left, final double ratio, final RgbColor accent, final RgbColor background)
-    {
-        // Global send pages supplied zero VU to the legacy shared name-selected Volume widget.
-        commands.add (new DisplayCommand.Rectangle (left + 8, 60, 24, 70, background));
-        commands.add (new DisplayCommand.Rectangle (left + 36, 60, 24, 70, background));
-        final double marker = 60 + (1 - ratio) * 70;
-        commands.add (new DisplayCommand.Rectangle (left + 68, marker, 13, 1, accent));
-        commands.add (new DisplayCommand.Rectangle (left + 80, marker, 1, 130 - marker, accent));
-    }
-
-    private static void ring (final List<DisplayCommand> commands, final double left, final double ratio, final RgbColor accent, final RgbColor background)
-    {
-        commands.add (new DisplayCommand.DottedArc (left + 31, 106, 23, 220, -260, 200, 1.1, background));
-        commands.add (new DisplayCommand.DottedArc (left + 31, 106, 23, 220, -260 * ratio, Math.max (2, (int) Math.ceil (200 * ratio)), 1.1, accent));
-    }
-
-    private static void volume (final List<DisplayCommand> commands, final double left, final double ratio, final double vuLeft, final double vuRight, final RgbColor accent, final RgbColor background)
-    {
-        final double top = MENU_HEIGHT + 28;
-        final double height = 160 - 2 * MENU_HEIGHT - top - 5;
-        meter (commands, left + 10, top, height, vuLeft, accent, background);
-        meter (commands, left + 31, top, height, vuRight, accent, background);
-        final double marker = top + (1 - ratio) * height;
-        commands.add (new DisplayCommand.Rectangle (left + 63, marker, 13, 1, accent));
-        commands.add (new DisplayCommand.Rectangle (left + 75, marker, 1, top + height - marker, accent));
-    }
-
-    private static void meter (final List<DisplayCommand> commands, final double left, final double top, final double height, final double value, final RgbColor accent, final RgbColor background)
-    {
-        commands.add (new DisplayCommand.Rectangle (left, top, 18, height, background));
-        final double amount = ratio (value) * height;
-        commands.add (new DisplayCommand.Rectangle (left, top + height - amount, 18, amount, accent));
-    }
-
-    private static void pan (final List<DisplayCommand> commands, final double left, final double ratio, final RgbColor accent, final RgbColor background)
-    {
-        final double start = left + 8;
-        final double center = start + 41;
-        final double marker = start + 2.5 + ratio * 77;
-        commands.add (new DisplayCommand.RoundedRectangle (start, 104, 82, 4, 2, background));
-        commands.add (new DisplayCommand.Rectangle (Math.min (center, marker), 104, Math.abs (marker - center), 4, accent));
-        commands.add (new DisplayCommand.Rectangle (center - 1, 98, 2, 16, background));
-        commands.add (new DisplayCommand.RoundedRectangle (marker - 2.5, 98, 5, 16, 2.5, accent));
-    }
-
-    private static void value (final List<DisplayCommand> commands, final double left, final double baseline, final String text, final double fontSize, final double unitLeft, final RgbColor color)
+    private static void value (final List<DisplayCommand> commands, final double left, final double top, final String text, final RgbColor color, final ParameterValue.Style style)
     {
         if (text.isBlank ()) return;
         final Matcher matcher = VALUE_UNIT.matcher (text.trim ());
-        if (matcher.matches ())
-        {
-            commands.add (new DisplayCommand.TextAt (matcher.group (1).trim (), left + 8, baseline, color, fontSize));
-            commands.add (new DisplayCommand.TextAt (matcher.group (2), left + unitLeft, baseline, color, 8.5));
-        }
-        else commands.add (new DisplayCommand.TextAt (text, left + 8, baseline, color, fontSize));
+        final ParameterValue.Content value = matcher.matches () ? new ParameterValue.Content (TextContent.candidate (matcher.group (1).trim (), 48), matcher.group (2)) : new ParameterValue.Content (TextContent.candidate (text, 48), "");
+        ParameterValue.append (commands, value, left + 8, top, color, style);
     }
-
-    private static double ratio (final double value) { return Math.max (0, Math.min (1, value)); }
 }

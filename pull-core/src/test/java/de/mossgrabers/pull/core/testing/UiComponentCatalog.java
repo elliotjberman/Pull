@@ -25,6 +25,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -38,7 +40,7 @@ public final class UiComponentCatalog
     private static final RgbColor ORANGE = new RgbColor (255, 145, 35);
     private static final RgbColor GREEN = new RgbColor (60, 205, 125);
     private static final RgbColor WHITE = new RgbColor (255, 255, 255);
-    private static final Map<RgbColor, String> COMPONENT_COLORS = Map.of (BLUE, "var(--component-color," + DisplaySceneSvg.color (BLUE) + ")");
+    private static final Map<RgbColor, String> COMPONENT_COLORS = Map.of (BLUE, "var(--component-color," + DisplaySceneSvg.color (BLUE) + ")", new RgbColor (31, 80, 128), "color-mix(in srgb, var(--component-color), black 50%)");
     private static final List<Boolean> ALTERNATING = List.of (true, false, true, false, false, true, false, true);
 
     private UiComponentCatalog () { }
@@ -48,68 +50,144 @@ public final class UiComponentCatalog
     {
         if (args.length != 2) throw new IllegalArgumentException ("Expected output directory and repository root");
         final Path output = Path.of (args[0]).toAbsolutePath ();
-        final Path icons = Path.of (args[1]).resolve ("pull-shell/src/main/resources/images");
-        final Path hardware = Path.of (args[1]).resolve ("tools/push-debug-surface-app");
-        Files.createDirectories (output);
-        final CatalogTypography typography = CatalogTypography.load ();
-        final String displayFont = "<style>" + typography.displayCss () + "</style>";
-        final StringBuilder html = new StringBuilder (HEADER.replace ("/* typography */", typography.catalogCss ())
-            .replace ("/* hardware */", Files.readString (hardware.resolve ("push-hardware.css"))).replace ("$FONT_FAMILY", CatalogTypography.FAMILY));
+        final Path root = Path.of (args[1]);
+        final Path icons = root.resolve ("pull-shell/src/main/resources/images");
+        final Path hardware = root.resolve ("tools/push-debug-surface-app");
+        final Path app = root.resolve ("tools/ui-component-catalog-app");
         final List<Component> components = components ();
         final List<Example> examples = examples ();
-        html.append ("<nav class=\"sections\" aria-label=\"Catalog sections\"><a href=\"#components\">Components <span>").append (components.size ())
-            .append ("</span></a><a href=\"#views\">Views <span>").append (examples.size ()).append ("</span></a></nav><main>");
-        html.append ("<section id=\"components\" aria-labelledby=\"components-title\"><div class=\"section-heading\"><small>Building blocks</small><h2 id=\"components-title\">Components</h2>")
-            .append ("<p>Individual controls at their native size. Compare states and values with your own color, using the same drawing components as the views below.</p></div>")
-            .append (COLOR_CONTROLS.replace ("$DEFAULT_COLOR", DisplaySceneSvg.color (BLUE)));
+        validateUniqueArtifacts (components, examples);
+        final CatalogTypography typography = CatalogTypography.load ();
+        final String displayFont = "<style>" + typography.displayCss () + "</style>";
+        Files.createDirectories (output);
+        final StringBuilder stories = new StringBuilder ();
         int specimens = 0;
         for (final Component component: components)
         {
-            html.append ("<article id=\"").append (component.id ()).append ("\"><h3>").append (component.title ()).append ("</h3><p>")
-                .append (component.description ()).append ("</p><div class=\"specimens\">");
+            story (stories, component.id (), "components", componentGroup (component), component.title (), component.description ());
+            stories.append ("<div class=\"story-meta\"><span>").append (component.variants ().size ()).append (component.variants ().size () == 1 ? " variant" : " variants").append (" · Native logical pixels</span></div><div class=\"specimens\">");
             for (final Variant variant: component.variants ())
             {
                 final String file = component.id () + "-" + variant.id () + ".svg";
                 final String svg = DisplaySceneSvg.render (variant.display (), icons, typography, component.id () + "-" + variant.id () + "-", component.colors ());
                 Files.writeString (output.resolve (file), svg);
-                html.append ("<figure><div class=\"specimen-display\">");
-                html.append (svg.replace (displayFont, "").replace ("<svg ", "<svg role=\"img\" aria-label=\"" + DisplaySceneSvg.escape (component.title () + " · " + variant.title ()) + "\" "));
-                html.append ("</div><figcaption><span>").append (variant.title ()).append ("</span><a href=\"").append (file).append ("\" aria-label=\"Open ")
-                    .append (component.title ()).append (' ').append (variant.title ()).append (" SVG\">SVG ↗</a></figcaption>");
-                variant.light ().ifPresent (color -> html.append ("<div class=\"choice-light\"><svg role=\"img\" aria-label=\"Hardware button light\" data-row=\"2\" data-colors=\"").append (DisplaySceneSvg.color (color))
-                    .append ("\"></svg>Button light <span>").append (DisplaySceneSvg.color (color)).append ("</span></div>"));
-                html.append ("</figure>");
+                stories.append ("<figure><div class=\"specimen-display\">")
+                    .append (svg.replace (displayFont, "").replace ("<svg ", "<svg role=\"img\" aria-label=\"" + DisplaySceneSvg.escape (component.title () + " · " + variant.title ()) + "\" "))
+                    .append ("</div><figcaption><span>").append (DisplaySceneSvg.escape (variant.title ())).append ("</span><a href=\"").append (file)
+                    .append ("\" download=\"").append (file).append ("\" aria-label=\"Export ").append (DisplaySceneSvg.escape (component.title () + " " + variant.title ()))
+                    .append (" SVG\">SVG ↓</a></figcaption>");
+                variant.light ().ifPresent (color -> stories.append ("<div class=\"choice-light\"><svg role=\"img\" aria-label=\"Hardware button light\" data-row=\"2\" data-colors=\"")
+                    .append (DisplaySceneSvg.color (color)).append ("\"></svg>Button light <span>").append (DisplaySceneSvg.color (color)).append ("</span></div>"));
+                stories.append ("</figure>");
                 specimens++;
             }
-            html.append ("</div><footer><code>").append (component.renderer ()).append ("</code> · Native logical pixels; no scaling</footer></article>");
+            stories.append ("</div>");
+            source (stories, component.renderer (), "Components are shown at their native size. SVG exports include the selected color and embedded display font.");
+            stories.append ("</article>");
         }
-        html.append ("</section><section id=\"views\" aria-labelledby=\"views-title\"><div class=\"section-heading\"><small>In context</small><h2 id=\"views-title\">Views</h2>")
-            .append ("<p>Known pages and shared view regions, assembled by their production renderers. Each preview uses supplied values and shows the row lights it owns.</p></div>")
-            .append ("<nav class=\"view-filters\" aria-label=\"View families\"><button aria-pressed=\"true\" data-filter=\"All\">All views</button>");
-        examples.stream ().map (Example::group).distinct ().forEach (group -> html.append ("<button aria-pressed=\"false\" data-filter=\"")
-            .append (group).append ("\">").append (group).append ("</button>"));
-        html.append ("</nav>");
         for (final Example example: examples)
         {
             final String file = example.id () + ".svg";
-            Files.writeString (output.resolve (file), DisplaySceneSvg.render (example.visuals ().display (), icons, typography));
-            html.append ("<article id=\"").append (example.id ()).append ("\" data-group=\"").append (example.group ()).append ("\"><header><div><small>")
-                .append (example.group ()).append ("</small><h3>").append (DisplaySceneSvg.escape (example.title ())).append ("</h3></div><a href=\"")
-                .append (file).append ("\">Open SVG ↗</a></header><p>").append (DisplaySceneSvg.escape (example.description ())).append ("</p><div class=\"surface\">");
-            lights (html, example.visuals (), 2);
-            html.append ("<div class=\"screen-area\"><div class=\"surface-label\">Display content</div><div class=\"screen\">");
-            image (html, file, example.title (), example.visuals ().display ());
-            html.append ("</div></div>");
-            lights (html, example.visuals (), 1);
-            html.append ("</div><footer><code>").append (example.renderer ()).append ("</code> · ")
-                .append (example.visuals ().display ().width ()).append (" × ").append (example.visuals ().display ().height ())
-                .append (" logical pixels</footer></article>\n");
+            final ControllerDisplayScene display = example.visuals ().display ();
+            Files.writeString (output.resolve (file), DisplaySceneSvg.render (display, icons, typography));
+            story (stories, example.id (), "views", example.group (), example.title (), example.description ());
+            stories.append ("<div class=\"story-meta\"><span>").append (display.width ()).append (" × ").append (display.height ())
+                .append (" logical pixels</span><a href=\"").append (file).append ("\" download=\"").append (file).append ("\">Export display SVG ↓</a></div><div class=\"surface\">");
+            lights (stories, example.visuals (), 2);
+            stories.append ("<div class=\"screen-area\"><div class=\"surface-label\">Display</div><div class=\"screen\">");
+            image (stories, file, example.title (), display);
+            stories.append ("</div></div>");
+            lights (stories, example.visuals (), 1);
+            stories.append ("</div><div class=\"hardware-key\"><span>Dashed: no light state from this view</span><span>Black: button off</span></div>");
+            source (stories, example.renderer (), "The screen and hardware buttons use the same presentation assets as the Push debugger.");
+            stories.append ("</article>");
         }
-        Files.writeString (output.resolve ("index.html"), html.append ("</section></main><template id=\"display-font\">").append (displayFont)
-            .append ("</template><script>").append (Files.readString (hardware.resolve ("push-hardware.js"))).append ("</script>").append (FOOTER).toString ());
+        final String html = Files.readString (app.resolve ("index.html"))
+            .replace ("{{TYPOGRAPHY_CSS}}", typography.catalogCss ())
+            .replace ("{{HARDWARE_CSS}}", Files.readString (hardware.resolve ("push-hardware.css")))
+            .replace ("{{APP_CSS}}", Files.readString (app.resolve ("catalog.css")))
+            .replace ("{{COMPONENT_COUNT}}", Integer.toString (components.size ()))
+            .replace ("{{VIEW_COUNT}}", Integer.toString (examples.size ()))
+            .replace ("{{DEFAULT_COLOR}}", DisplaySceneSvg.color (BLUE))
+            .replace ("{{NAVIGATION}}", navigation (components, examples))
+            .replace ("{{STORIES}}", stories.toString ())
+            .replace ("{{DISPLAY_FONT}}", displayFont)
+            .replace ("{{HARDWARE_JS}}", Files.readString (hardware.resolve ("push-hardware.js")))
+            .replace ("{{APP_JS}}", Files.readString (app.resolve ("catalog.js")));
+        Files.writeString (output.resolve ("index.html"), html);
         System.out.println ("UI component catalog: " + output.resolve ("index.html"));
         System.out.println (components.size () + " components (" + specimens + " isolated variants) and " + examples.size () + " view previews generated from production renderer output.");
     }
+
+    private static void story (final StringBuilder html, final String id, final String kind, final String group, final String title, final String description)
+    {
+        html.append ("<article class=\"story\" id=\"").append (id).append ("\" data-kind=\"").append (kind).append ("\" data-group=\"")
+            .append (DisplaySceneSvg.escape (group)).append ("\" data-title=\"").append (DisplaySceneSvg.escape (title)).append ("\" hidden><p class=\"story-description\">")
+            .append (DisplaySceneSvg.escape (description)).append ("</p>");
+    }
+
+    private static void source (final StringBuilder html, final String renderer, final String note)
+    {
+        html.append ("<details class=\"source-details\"><summary>Source and preview details</summary><p><code>")
+            .append (DisplaySceneSvg.escape (renderer)).append ("</code><br>").append (DisplaySceneSvg.escape (note)).append ("</p></details>");
+    }
+
+    private static String navigation (final List<Component> components, final List<Example> examples)
+    {
+        final Map<String, List<NavigationItem>> groups = new LinkedHashMap<> ();
+        for (final Component component: components)
+        {
+            final String group = componentGroup (component);
+            groups.computeIfAbsent ("components/" + group, ignored -> new ArrayList<> ()).add (new NavigationItem (component.id (), "components", group, component.title (), component.description ()));
+        }
+        for (final Example example: examples)
+            groups.computeIfAbsent ("views/" + example.group (), ignored -> new ArrayList<> ()).add (new NavigationItem (example.id (), "views", example.group (), example.title (), example.description ()));
+        final StringBuilder html = new StringBuilder ();
+        for (final List<NavigationItem> group: groups.values ())
+        {
+            html.append ("<section class=\"nav-group\"><h2>").append (DisplaySceneSvg.escape (group.getFirst ().group ())).append ("</h2>");
+            for (final NavigationItem item: group)
+                html.append ("<a href=\"#").append (item.id ()).append ("\" data-story-link=\"").append (item.id ()).append ("\" data-kind=\"").append (item.kind ())
+                    .append ("\" data-search=\"").append (DisplaySceneSvg.escape ((item.title () + " " + item.group () + " " + item.description ()).toLowerCase (java.util.Locale.ROOT)))
+                    .append ("\">").append (DisplaySceneSvg.escape (item.title ())).append ("</a>");
+            html.append ("</section>");
+        }
+        return html.toString ();
+    }
+
+    private static String componentGroup (final Component component)
+    {
+        return switch (component.id ())
+        {
+            case "component-choice", "component-toggle", "component-option-column" -> "Selection";
+            case "component-list", "component-color-palette" -> "Content";
+            default -> "Meters and parameters";
+        };
+    }
+
+    /** Check the complete plan before writing any artifact; component variants and views share a directory. */
+    private static void validateUniqueArtifacts (final List<Component> components, final List<Example> examples)
+    {
+        final Set<String> ids = new HashSet<> (Set.of ("library-navigation", "story-navigation", "story-search", "main-panel", "story-group", "story-title", "story-permalink", "story-workspace", "color-controls", "component-color", "component-color-hex", "reset-color", "color-error", "stories", "display-font", "no-results", "nav-toggle", "nav-backdrop"));
+        final Set<String> files = new HashSet<> (Set.of ("index.html"));
+        for (final Component component: components)
+        {
+            unique (ids, component.id (), "story ID");
+            for (final Variant variant: component.variants ()) unique (files, component.id () + "-" + variant.id () + ".svg", "artifact filename");
+        }
+        for (final Example example: examples)
+        {
+            unique (ids, example.id (), "story ID");
+            unique (files, example.id () + ".svg", "artifact filename");
+        }
+    }
+
+    private static void unique (final Set<String> values, final String value, final String kind)
+    {
+        if (!values.add (value)) throw new IllegalStateException ("Duplicate catalog " + kind + ": " + value);
+    }
+
+    private record NavigationItem (String id, String kind, String group, String title, String description) { }
 
     private static void image (final StringBuilder html, final String file, final String title, final ControllerDisplayScene display)
     {
@@ -191,6 +269,10 @@ public final class UiComponentCatalog
             footer (4, "Open group", DisplayIcon.GROUP_TRACK_OPEN, WHITE, true, true, false),
             footer (5, "Group", DisplayIcon.GROUP_TRACK, ORANGE, false, true, false),
             footer (6, "Pinned", DisplayIcon.PIN, GREEN, false, true, false))))));
+        for (final var example: ListAndOptionCatalogFixtures.examples ()) result.add (new Example (example.id (), example.family (), example.title (), example.description (), "OptionPageRenderer", example.scene ()));
+        for (final var example: DevicePageGallery.examples ()) result.add (new Example (example.id (), "Devices", example.title (), example.description (), "DevicePageRenderer", example.display ()));
+        for (final var example: EditingPageGallery.examples ()) result.add (new Example (example.id (), "Editing", example.title (), "Production components driven by observed editing state. Frozen physical lights are not part of this display preview.", "EditingPageRenderer", example.display ()));
+        for (final var example: UiLibraryCompletionFixtures.views ()) result.add (new Example (example.id (), "Playback and mixer", example.title (), example.description (), "Shared UI renderers", example.visuals ()));
         final List<String> families = List.of ("Master", "Track mix", "Global mixer", "Macros", "Settings", "Frame", "Info", "Setup", "Ribbon", "Accent", "Track footer");
         result.sort (Comparator.comparingInt (example -> {
             final int index = families.indexOf (example.group ());
@@ -222,7 +304,22 @@ public final class UiComponentCatalog
             curve ("linear", "Linear", IntStream.range (0, 128).mapToObj (value -> value / 127.0).toList ()),
             curve ("minimum", "Minimum", List.of (0.0, 0.0)), curve ("maximum", "Maximum", List.of (1.0, 1.0)),
             curve ("step", "Endpoint step", List.of (0.0, 0.0, 1.0, 1.0)), curve ("empty", "Unavailable", List.of ())), COMPONENT_COLORS);
-        return List.of (choices, toggles, rings, parameters, curves);
+        final List<Component> result = new ArrayList<> (List.of (choices, toggles, rings, parameters, curves));
+        for (final var example: ListAndOptionCatalogFixtures.components ())
+        {
+            final String renderer = switch (example.id ())
+            {
+                case "component-list" -> "TextList";
+                case "component-option-column" -> "OptionColumn";
+                case "component-color-palette" -> "ColorPaletteRenderer";
+                default -> throw new IllegalStateException ("Unknown component fixture: " + example.id ());
+            };
+            result.add (new Component (example.id (), example.title (), example.description (), renderer, List.of (new Variant ("default", "Default", example.scene ())), COMPONENT_COLORS));
+        }
+        for (final var component: UiLibraryCompletionFixtures.components ())
+            result.add (new Component (component.id (), component.title (), component.description (), component.renderer (),
+                component.variants ().stream ().map (variant -> new Variant (variant.id (), variant.title (), variant.display ())).toList (), COMPONENT_COLORS));
+        return result;
     }
 
     private static Variant choice (final String id, final String title, final ChoiceCell cell, final ChoiceCell.Style style)
@@ -318,119 +415,4 @@ public final class UiComponentCatalog
         { this (id, title, display, Optional.empty ()); }
     }
 
-    private static final String HEADER = """
-        <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-        <title>Pull · UI library</title><style>
-        /* typography */
-        /* hardware */
-        :root{color-scheme:dark;font:15px/1.5 "$FONT_FAMILY",sans-serif;font-synthesis:none;background:#101216;color:#e7eaf0}
-        *{box-sizing:border-box}body{max-width:1100px;margin:0 auto;padding:44px 30px 80px}h1{font-size:36px;letter-spacing:-1px;margin:4px 0 12px}
-        h1,h2,h3,strong{font-weight:600}h2{font-size:28px;margin:2px 0}h3{font-size:20px;margin:2px 0}p{color:#aeb6c3;max-width:860px;margin:8px 0 18px}
-        small{color:#82bfff;font-size:11px;text-transform:uppercase;letter-spacing:1.5px}.intro{padding-bottom:8px}.intro p{max-width:850px}
-        .notes{font-size:13px;color:#818e9e}.sections,.view-filters{display:flex;gap:8px;flex-wrap:wrap;margin:20px 0 32px}.sections{border-bottom:1px solid #303641;padding-bottom:26px}
-        .sections a{font:inherit;padding:9px 16px;border:1px solid #3c5069;border-radius:7px;background:#202c3a}.sections span{color:#8babc9;margin-left:12px}
-        .section-heading{margin:32px 0 24px}section{scroll-margin-top:24px}#views{padding-top:12px;border-top:1px solid #303641;margin-top:44px}
-        button{border:1px solid #343c4a;border-radius:7px;background:#1a2029;color:#c2ccd9;padding:8px 14px;cursor:pointer;font:inherit}
-        button[aria-pressed=true]{background:#bddcff;color:#101216;border-color:#bddcff}article{margin:0 0 28px;padding:24px;background:#181c23;border:1px solid #2a303a;border-radius:12px;scroll-margin-top:20px}
-        article header{display:flex;justify-content:space-between;align-items:center;gap:20px}a{color:#a4d0ff;text-decoration:none;white-space:nowrap;font-size:13px}a:hover{text-decoration:underline}
-        .surface{background:#24262b;padding:18px;border:1px solid #34373d;border-radius:7px;overflow:auto}.surface img{display:block;max-width:100%;height:auto;margin:0 auto}
-        .hardware-row,.screen-area{max-width:960px;margin:0 auto}.surface-label{color:#9298a2;font-size:10px;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px}
-        .screen-area{margin:22px auto}.screen-area .surface-label{margin-bottom:14px}.screen svg,.lights{display:block;width:100%;height:auto;overflow:visible}
-        .lights .unowned .control-face{stroke:#777;stroke-dasharray:.5 .5}.lights .unowned .row-light{fill:none}
-        .specimens{display:grid;grid-template-columns:repeat(auto-fill,minmax(138px,1fr));gap:12px}.specimens figure{margin:0;min-width:0}
-        .specimen-display{height:96px;display:flex;align-items:center;justify-content:center;background:#000;border:1px solid #2a303a;border-radius:7px}
-        .specimen-display svg{display:block;flex:none}.specimens figcaption{display:flex;justify-content:space-between;gap:5px;margin-top:8px;font-size:12px}
-        .specimens figcaption a{font-size:11px;color:#8599af}.choice-light{display:flex;gap:6px;align-items:center;color:#818e9e;font-size:10px;margin-top:5px}
-        .choice-light svg{display:block;width:24px;height:auto;flex-shrink:0;overflow:visible}.choice-light span{margin-left:auto}article footer{color:#747f90;font-size:12px;margin-top:16px}
-        code{font:inherit;color:#9aa9bd}body>footer{color:#818e9e;font-size:13px}[hidden]{display:none!important}
-        .component-controls{display:flex;align-items:center;flex-wrap:wrap;gap:10px;position:sticky;top:12px;z-index:1;padding:12px 16px;margin-bottom:24px;background:#202630;border:1px solid #3b4655;border-radius:9px;box-shadow:0 6px 20px #0006}
-        .component-controls label{font-weight:600}.component-controls input{font:inherit;border:1px solid #526074;border-radius:5px;background:#101216;color:inherit;height:36px}
-        .component-controls input[type=color]{width:42px;padding:3px;cursor:pointer}.component-controls input[type=text]{width:100px;padding:5px 9px;font-variant-numeric:tabular-nums}
-        .component-controls button{padding:5px 12px}.component-controls p{margin:0;font-size:12px}.component-controls [aria-invalid=true]{border-color:#ff9b9b}
-        #color-error{color:#ffb1b1;flex-basis:100%}:focus-visible{outline:2px solid #a4d0ff;outline-offset:3px}
-        @media(max-width:700px){body{padding:24px 12px}article{padding:15px}.surface{padding:14px}article header{align-items:start}h1{font-size:30px}}
-        </style></head><body><div class="intro"><small>Pull / Reloadable UI</small><h1>UI library</h1>
-        <p>Explore the individual building blocks, then preview the views built from them. Everything here uses production drawing commands with supplied values. No Bitwig or Push connection is needed.</p>
-        <p class="notes">All UI text uses Lato. Display previews are measured with the same Lato Regular font data embedded in each SVG; catalog headings use Lato Semibold. Host rasterization can still differ; verify final typography on Push.</p>
-        <p class="notes">Each view separates the display content from the physical button lights above and below it. Dashed buttons have no light state from this view; black buttons are off.</p></div>
-        """;
-
-    private static final String COLOR_CONTROLS = """
-        <div class="component-controls" role="group" aria-label="Component preview controls">
-        <label for="component-color">Component color</label><input id="component-color" type="color" value="$DEFAULT_COLOR">
-        <input id="component-color-hex" type="text" value="$DEFAULT_COLOR" aria-label="Hex color" aria-describedby="color-error" spellcheck="false" maxlength="7">
-        <button id="reset-color" type="button">Reset</button><p>Toggle, ring, parameter value and response curve</p>
-        <p id="color-error" role="status" hidden>Use six hex digits, for example #3ea0ff.</p></div>
-        """;
-
-    private static final String FOOTER = """
-        <footer>Regenerate with <code>tools/ui-component-catalog</code>. Fixture source: <code>pull-core/src/test/java/de/mossgrabers/pull/core/testing/UiComponentCatalog.java</code>.<br>Offline visual review does not prove host acknowledgements, interaction routing, or live hardware output.</footer>
-        <script>
-        for (const row of document.querySelectorAll('svg[data-colors]')) {
-          const colors = row.dataset.colors.split(',');
-          row.setAttribute('viewBox', `0 0 ${colors.length === 1 ? PushHardware.BUTTON_WIDTH : PushHardware.ROW_WIDTH} ${PushHardware.BUTTON_HEIGHT}`);
-          colors.forEach((color, index) => {
-            const button = PushHardware.createRowButton({x: index * PushHardware.COLUMN_PITCH, y: 0, row: Number(row.dataset.row)});
-            button.dataset.lit = String(Boolean(color));
-            button.style.setProperty('--light', color || 'transparent');
-            button.classList.toggle('unowned', !color);
-            const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
-            title.textContent = `Button ${index + 1}: ${color || 'no light state from this view'}`;
-            button.append(title);
-            row.append(button);
-          });
-        }
-        for (const image of document.querySelectorAll('.screen img')) {
-          const screen = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-          const width = PushHardware.ROW_WIDTH;
-          const height = width * Number(image.getAttribute('height')) / Number(image.getAttribute('width'));
-          screen.setAttribute('viewBox', `0 0 ${width} ${height}`);
-          screen.setAttribute('role', 'img');
-          screen.setAttribute('aria-label', image.alt);
-          PushHardware.mountScreen(screen, {id: image.closest('article').id + '-screen', x: 0, y: 0, width, height, href: image.getAttribute('src')});
-          image.replaceWith(screen);
-        }
-        const components = document.querySelector('#components');
-        const picker = document.querySelector('#component-color');
-        const hex = document.querySelector('#component-color-hex');
-        const error = document.querySelector('#color-error');
-        const defaultColor = picker.value;
-        const exportFont = new Blob([document.querySelector('#display-font').innerHTML]);
-        const exports = Array.from(components.querySelectorAll('figure'), figure => ({
-          svg: figure.querySelector('svg').cloneNode(true), link: figure.querySelector('a'), url: null
-        }));
-        function applyColor(color) {
-          picker.value = color;
-          components.style.setProperty('--component-color', color);
-          hex.removeAttribute('aria-invalid');
-          error.hidden = true;
-          // Keep native open/save-link actions in sync, sharing the font bytes across exports.
-          for (const specimen of exports) {
-            specimen.svg.style.setProperty('--component-color', color);
-            const source = new XMLSerializer().serializeToString(specimen.svg);
-            const end = source.lastIndexOf('</svg>');
-            const previous = specimen.url;
-            specimen.url = URL.createObjectURL(new Blob([source.slice(0, end), exportFont, source.slice(end)], {type: 'image/svg+xml'}));
-            specimen.link.href = specimen.url;
-            if (previous) URL.revokeObjectURL(previous);
-          }
-        }
-        picker.addEventListener('input', () => { applyColor(picker.value); hex.value = picker.value; });
-        hex.addEventListener('input', () => {
-          const value = hex.value.trim().replace(/^#/, '');
-          if (/^[0-9a-f]{6}$/i.test(value)) applyColor('#' + value.toLowerCase());
-        });
-        hex.addEventListener('blur', () => {
-          const valid = /^#?[0-9a-f]{6}$/i.test(hex.value.trim());
-          hex.setAttribute('aria-invalid', String(!valid));
-          error.hidden = valid;
-          if (valid) hex.value = picker.value;
-        });
-        document.querySelector('#reset-color').addEventListener('click', () => { applyColor(defaultColor); hex.value = defaultColor; });
-        for (const button of document.querySelectorAll('[data-filter]')) button.addEventListener('click', () => {
-          for (const other of document.querySelectorAll('[data-filter]')) other.setAttribute('aria-pressed', String(other === button));
-          for (const example of document.querySelectorAll('#views article')) example.hidden = button.dataset.filter !== 'All' && example.dataset.group !== button.dataset.filter;
-        });
-        </script></body></html>
-        """;
 }

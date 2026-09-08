@@ -61,7 +61,6 @@ import static de.mossgrabers.pull.shell.testing.TestProxies.relaxedValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.assertNull;
 
 
 /**
@@ -249,6 +248,9 @@ class PushBehaviorParityTest
             {
                 case "doesExist" -> Boolean.TRUE;
                 case "getName" -> "Track " + (trackIndex + 1);
+                case "getChannelID" -> "track-" + trackIndex;
+                case "getType" -> de.mossgrabers.framework.daw.resource.ChannelType.INSTRUMENT;
+                case "getColor" -> ColorEx.BLUE;
                 case "select" -> {
                     selectedTrackIndices.add (Integer.valueOf (trackIndex));
                     yield null;
@@ -259,6 +261,7 @@ class PushBehaviorParityTest
         final ICursorTrack cursorTrack = proxy (ICursorTrack.class, (proxy, method, arguments) -> "getParameterBank".equals (method.getName ()) ? parameterBank : relaxedValue (method.getReturnType ()));
         final ITrackBank trackBank = proxy (ITrackBank.class, (proxy, method, arguments) -> switch (method.getName ())
         {
+            case "getPageSize" -> 8;
             case "getItem" -> tracks[((Integer) arguments[0]).intValue ()];
             case "getSelectedItem" -> Optional.empty ();
             default -> relaxedValue (method.getReturnType ());
@@ -274,19 +277,18 @@ class PushBehaviorParityTest
             case "getValueChanger" -> valueChanger;
             default -> relaxedValue (method.getReturnType ());
         });
-        final UserMode mode = new UserMode (createSurface (valueChanger, relaxedProxy (ISelectedTrackNoteTarget.class), cursorTrack), model);
-        final List<String> bottomMenus = new ArrayList<> ();
-        final IGraphicDisplay display = proxy (IGraphicDisplay.class, (proxy, method, arguments) -> {
-            if ("addParameterElement".equals (method.getName ()) && arguments.length == 11)
-                bottomMenus.add ((String) arguments[2]);
-            return relaxedValue (method.getReturnType ());
-        });
-
-        mode.updateDisplay2 (display);
+        final PushControlSurface surface = createSurface (valueChanger, relaxedProxy (ISelectedTrackNoteTarget.class), cursorTrack);
+        for (int index = 1; index <= 8; index++)
+            surface.createAbsoluteKnob (de.mossgrabers.framework.controller.ContinuousID.valueOf ("KNOB" + index), "Knob " + index);
+        final UserMode mode = new UserMode (surface, model);
+        surface.getModeManager ().register (Modes.USER, mode);
+        surface.getModeManager ().apply (new de.mossgrabers.pull.core.api.DesiredControllerPageState (1, de.mossgrabers.pull.core.api.ControllerPageRef.legacy ("USER"), de.mossgrabers.pull.core.api.ControllerPageRef.none (), Optional.empty (), 0));
+        final var observed = de.mossgrabers.pull.shell.runtime.PushDevicePageObserver.capture (surface, model);
         mode.onFirstRow (3, ButtonEvent.DOWN);
         mode.onFirstRow (3, ButtonEvent.UP);
 
-        assertEquals ("Track 4", bottomMenus.get (3));
+        assertEquals ("Track 4", observed.channels ().get (3).name ());
+        assertEquals ("track-3", observed.channels ().get (3).id ());
         assertEquals (List.of (Integer.valueOf (3)), selectedTrackIndices);
         assertEquals (List.of (), selectedParameterPages);
     }
@@ -355,6 +357,57 @@ class PushBehaviorParityTest
         command.execute (ButtonEvent.DOWN, 127);
         command.execute (ButtonEvent.UP, 0);
         assertEquals (List.of ("touch:true", "touch:false"), calls, "a stale projected Browser cannot suppress touch cleanup after the native Browser closes");
+    }
+
+
+    @Test
+    void optionBrowserObservationUsesLaterHostReadBackAndBoundsTheLegacyVisibleWindow ()
+    {
+        final AtomicInteger selected = new AtomicInteger (1);
+        final AtomicInteger requests = new AtomicInteger ();
+        final AtomicBoolean active = new AtomicBoolean (true);
+        final var entries = java.util.stream.IntStream.range (0, 64).mapToObj (index -> proxy (de.mossgrabers.framework.daw.data.IBrowserColumnItem.class, (object, method, args) -> switch (method.getName ())
+        {
+            case "doesExist" -> true;
+            case "getName" -> "Long preset name " + index + " with full observed detail";
+            case "isSelected" -> index == selected.get ();
+            case "getHitCount" -> index + 100;
+            default -> relaxedValue (method.getReturnType ());
+        })).toArray (de.mossgrabers.framework.daw.data.IBrowserColumnItem[]::new);
+        final var browser = proxy (de.mossgrabers.framework.daw.IBrowser.class, (object, method, args) -> switch (method.getName ())
+        {
+            case "isActive" -> active.get ();
+            case "getFilterColumnCount" -> 0;
+            case "getResultColumnItems" -> entries;
+            case "getInfoText", "getSelectedContentType", "getSelectedResult" -> "Observed";
+            case "selectNextResult" -> { requests.incrementAndGet (); yield null; }
+            default -> relaxedValue (method.getReturnType ());
+        });
+        final IModel model = proxy (IModel.class, (object, method, args) -> switch (method.getName ())
+        {
+            case "getBrowser" -> browser;
+            case "getColorManager" -> new PushColorManager ();
+            default -> relaxedValue (method.getReturnType ());
+        });
+        final PushControlSurface surface = createSurface (new TwosComplementValueChanger (128, 1), relaxedProxy (ISelectedTrackNoteTarget.class), relaxedProxy (ICursorTrack.class));
+        final var mode = new de.mossgrabers.controller.ableton.push.mode.device.DeviceBrowserMode (surface, model);
+        surface.getModeManager ().register (Modes.BROWSER, mode);
+        surface.getModeManager ().apply (new de.mossgrabers.pull.core.api.DesiredControllerPageState (1, de.mossgrabers.pull.core.api.ControllerPageRef.legacy ("BROWSER"), de.mossgrabers.pull.core.api.ControllerPageRef.core ("track", "TRACK"), Optional.empty (), 0, Set.of ()));
+        mode.onKnobTouch (7, true);
+        mode.onFirstRow (7, ButtonEvent.DOWN);
+        assertEquals (1, requests.get ());
+        final var before = (de.mossgrabers.pull.core.api.OptionPageState.Browser) de.mossgrabers.pull.shell.runtime.PushOptionPageObserver.capture (surface, model);
+        assertEquals (48, before.items ().size ());
+        assertTrue (before.items ().get (1).selected ());
+        assertFalse (before.items ().get (2).selected (), "request submission must not move the observed selection");
+        selected.set (2);
+        final var after = (de.mossgrabers.pull.core.api.OptionPageState.Browser) de.mossgrabers.pull.shell.runtime.PushOptionPageObserver.capture (surface, model);
+        assertTrue (after.items ().get (2).selected ());
+        assertTrue (after.items ().get (2).name ().endsWith ("full observed detail"));
+        active.set (false);
+        assertTrue (de.mossgrabers.pull.shell.runtime.PushOptionPageObserver.capture (surface, model) instanceof de.mossgrabers.pull.core.api.OptionPageState.Empty);
+        final PushControlSurface unsupported = createSurface (new TwosComplementValueChanger (128, 1), relaxedProxy (ISelectedTrackNoteTarget.class), relaxedProxy (ICursorTrack.class));
+        assertTrue (de.mossgrabers.pull.shell.runtime.PushOptionPageObserver.capture (unsupported, model) instanceof de.mossgrabers.pull.core.api.OptionPageState.Empty);
     }
 
 

@@ -16,6 +16,9 @@ import de.mossgrabers.pull.core.api.output.MixerControlsDisplay;
 import de.mossgrabers.pull.core.api.output.RgbColor;
 import de.mossgrabers.pull.core.ui.component.ParameterValue;
 import de.mossgrabers.pull.core.ui.component.RingMeter;
+import de.mossgrabers.pull.core.ui.component.VerticalMeter;
+import de.mossgrabers.pull.core.ui.component.FaderMarker;
+import de.mossgrabers.pull.core.ui.component.BipolarSlider;
 
 import java.util.ArrayList;
 import static de.mossgrabers.pull.core.ui.page.MixerControlStyle.*;
@@ -130,44 +133,25 @@ public final class MixerDisplayScene
     {
         drawMeter (commands, left + CONTENT_LEFT, top, vuLeft, active);
         drawMeter (commands, left + CONTENT_LEFT + METER_WIDTH + METER_GAP, top, vuRight, active);
-        final double markerY = top + FADER_TOP + (1 - value) * FADER_HEIGHT;
-        final double railX = left + FADER_RAIL_LEFT;
-        commands.add (new DisplayCommand.Rectangle (railX - FADER_MARKER_WIDTH, markerY, FADER_MARKER_WIDTH, FADER_LINE_WIDTH, accent));
-        commands.add (new DisplayCommand.Rectangle (railX, markerY, FADER_LINE_WIDTH, top + FADER_TOP + FADER_HEIGHT - markerY, accent));
+        FaderMarker.append (commands, left + FADER_RAIL_LEFT, top + FADER_TOP, value, accent, VOLUME_FADER);
     }
 
 
     private static void drawMeter (final List<DisplayCommand> commands, final double left, final double top, final double ratio, final boolean active)
     {
-        commands.add (new DisplayCommand.Rectangle (left, top + FADER_TOP, METER_WIDTH, FADER_HEIGHT, active ? DARKER_GRAY : dimToGray (DARKER_GRAY)));
-        drawMeterBand (commands, left, top, ratio, 0, METER_ORANGE_START, active ? GREEN : dimToGray (GREEN));
-        drawMeterBand (commands, left, top, ratio, METER_ORANGE_START, METER_RED_START, active ? ORANGE : dimToGray (ORANGE));
-        drawMeterBand (commands, left, top, ratio, METER_RED_START, 1, active ? RED : dimToGray (RED));
-    }
-
-
-    private static void drawMeterBand (final List<DisplayCommand> commands, final double left, final double top, final double ratio, final double start, final double end, final RgbColor color)
-    {
-        final double filledEnd = Math.min (ratio, end);
-        if (filledEnd <= start)
-            return;
-        final double height = (filledEnd - start) * FADER_HEIGHT;
-        commands.add (new DisplayCommand.Rectangle (left, top + FADER_TOP + FADER_HEIGHT * (1 - filledEnd), METER_WIDTH, height, color));
+        final RgbColor background = active ? DARKER_GRAY : dimToGray (DARKER_GRAY);
+        final List<VerticalMeter.Band> bands = List.of (
+            new VerticalMeter.Band (0, METER_ORANGE_START, active ? GREEN : dimToGray (GREEN)),
+            new VerticalMeter.Band (METER_ORANGE_START, METER_RED_START, active ? ORANGE : dimToGray (ORANGE)),
+            new VerticalMeter.Band (METER_RED_START, 1, active ? RED : dimToGray (RED)));
+        VerticalMeter.append (commands, left, top + FADER_TOP, ratio, background, bands, LEVEL_METER);
     }
 
 
     private static void drawPanAt (final List<DisplayCommand> commands, final double left, final double top, final double value, final RgbColor accent, final boolean active)
     {
-        final double sliderLeft = left + CONTENT_LEFT;
-        final double centerX = sliderLeft + PAN_SLIDER_WIDTH / 2.0;
-        final double markerX = sliderLeft + PAN_MARKER_WIDTH / 2.0 + value * (PAN_SLIDER_WIDTH - PAN_MARKER_WIDTH);
-        final double centerY = top + CONTROL_CENTER_Y;
-        final double railTop = centerY - PAN_RAIL_HEIGHT / 2.0;
         final RgbColor background = active ? DARKER_GRAY : dimToGray (DARKER_GRAY);
-        commands.add (new DisplayCommand.Rectangle (sliderLeft, railTop, PAN_SLIDER_WIDTH, PAN_RAIL_HEIGHT, background));
-        commands.add (new DisplayCommand.Rectangle (Math.min (centerX, markerX), railTop, Math.abs (markerX - centerX), PAN_RAIL_HEIGHT, accent));
-        commands.add (new DisplayCommand.Rectangle (centerX - 1, centerY - PAN_MARKER_HEIGHT / 2.0, 2, PAN_MARKER_HEIGHT, background));
-        commands.add (new DisplayCommand.Rectangle (markerX - PAN_MARKER_WIDTH / 2.0, centerY - PAN_MARKER_HEIGHT / 2.0, PAN_MARKER_WIDTH, PAN_MARKER_HEIGHT, accent));
+        BipolarSlider.append (commands, left + CONTENT_LEFT, top + CONTROL_CENTER_Y, value, accent, background, PAN_SLIDER);
     }
 
 

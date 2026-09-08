@@ -8,12 +8,9 @@ import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.mode.BaseMode;
 import de.mossgrabers.framework.controller.ButtonID;
-import de.mossgrabers.framework.controller.color.ColorEx;
-import de.mossgrabers.framework.controller.display.IGraphicDisplay;
 import de.mossgrabers.framework.daw.IBrowser;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.IBrowserColumn;
-import de.mossgrabers.framework.daw.data.IBrowserColumnItem;
 import de.mossgrabers.framework.daw.data.IItem;
 import de.mossgrabers.framework.featuregroup.AbstractFeatureGroup;
 import de.mossgrabers.framework.featuregroup.AbstractMode;
@@ -165,83 +162,6 @@ public class DeviceBrowserMode extends BaseMode<IItem>
         if (event != ButtonEvent.DOWN)
             return;
         this.selectPrevious (index, 1);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void updateDisplay2 (final IGraphicDisplay display)
-    {
-        final IBrowser browser = this.model.getBrowser ();
-        if (!browser.isActive ())
-            return;
-
-        switch (this.selectionMode)
-        {
-            case DeviceBrowserMode.SELECTION_OFF:
-                String selectedResult = browser.getSelectedResult ();
-                selectedResult = selectedResult == null || selectedResult.isBlank () ? "Selection: None" : "Selection: " + selectedResult;
-                for (int i = 0; i < 7; i++)
-                {
-                    final Optional<IBrowserColumn> column = this.getFilterColumn (i);
-                    final String headerTopName = i == 0 ? browser.getInfoText () : "";
-                    final String headerBottomName = i == 0 ? selectedResult : "";
-                    final String menuBottomName = getColumnName (column);
-                    display.addOptionElement (headerTopName, column.isEmpty () ? "" : column.get ().getName (), i == this.filterColumn, headerBottomName, menuBottomName, !menuBottomName.equals (" "), false);
-                }
-
-                final ColorEx menuBottomColor = browser.isPreviewEnabled () ? ColorEx.ORANGE : ColorEx.GRAY;
-                display.addOptionElement ("", browser.getSelectedContentType (), this.filterColumn == -1, null, "", "Preview", false, menuBottomColor, false);
-                break;
-
-            case DeviceBrowserMode.SELECTION_PRESET:
-                final IBrowserColumnItem [] results = browser.getResultColumnItems ();
-
-                if (!results[0].doesExist ())
-                {
-                    for (int i = 0; i < 8; i++)
-                        display.addOptionElement (i == 3 ? "No results available..." : "", "", false, "", "", false, false);
-                    return;
-                }
-
-                for (int i = 0; i < 8; i++)
-                {
-                    final String [] items = new String [6];
-                    final boolean [] selected = new boolean [6];
-                    for (int item = 0; item < 6; item++)
-                    {
-                        final int pos = i * 6 + item;
-                        items[item] = pos < results.length ? results[pos].getName (14) : "";
-                        selected[item] = pos < results.length && results[pos].isSelected ();
-                    }
-                    display.addListElement (items, selected);
-                }
-                break;
-
-            case DeviceBrowserMode.SELECTION_FILTER:
-                final IBrowserColumnItem [] item = browser.getFilterColumn (this.filterColumn).getItems ();
-                for (int i = 0; i < 8; i++)
-                {
-                    final String [] items = new String [6];
-                    final boolean [] selected = new boolean [6];
-                    for (int itemIndex = 0; itemIndex < 6; itemIndex++)
-                    {
-                        final int pos = i * 6 + itemIndex;
-                        final String hitText = " (" + item[pos].getHitCount () + ")";
-                        String text = item[pos].getName (12 - hitText.length ());
-                        if (!text.isEmpty ())
-                            text = text + hitText;
-                        items[itemIndex] = text;
-                        selected[itemIndex] = item[pos].isSelected ();
-                    }
-                    display.addListElement (items, selected);
-                }
-                break;
-
-            default:
-                // Not used
-                break;
-        }
     }
 
 
@@ -402,13 +322,8 @@ public class DeviceBrowserMode extends BaseMode<IItem>
     }
 
 
-    private static String getColumnName (final Optional<IBrowserColumn> column)
-    {
-        if (column.isEmpty () || !column.get ().doesCursorExist ())
-            return "";
-        final IBrowserColumn browserColumn = column.get ();
-        return browserColumn.getCursorName ().equals (browserColumn.getWildcard ()) ? " " : browserColumn.getCursorName (12);
-    }
-
+    /** Existing local browse selection, exposed only for subscribed read-back. */
+    public int getObservedSelectionMode () { return this.selectionMode; }
+    public int getObservedFilterColumn () { return this.filterColumn; }
 
 }

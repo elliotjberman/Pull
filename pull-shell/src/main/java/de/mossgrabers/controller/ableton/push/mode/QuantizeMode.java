@@ -6,12 +6,10 @@ package de.mossgrabers.controller.ableton.push.mode;
 
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.controller.ButtonID;
-import de.mossgrabers.framework.controller.display.IGraphicDisplay;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.constants.RecordQuantization;
 import de.mossgrabers.framework.daw.data.IItem;
 import de.mossgrabers.framework.daw.data.ITrack;
-import de.mossgrabers.framework.daw.resource.ChannelType;
 import de.mossgrabers.framework.featuregroup.AbstractFeatureGroup;
 import de.mossgrabers.framework.featuregroup.AbstractMode;
 import de.mossgrabers.framework.mode.Modes;
@@ -69,25 +67,6 @@ public class QuantizeMode extends BaseMode<IItem>
             if (index == 7)
                 this.surface.getConfiguration ().resetQuantizeAmount ();
         }
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void updateDisplay2 (final IGraphicDisplay display)
-    {
-        final ITrack cursorTrack = this.model.getCursorTrack ();
-        final RecordQuantization recQuant = cursorTrack.doesExist () ? cursorTrack.getRecordQuantizationGrid () : RecordQuantization.RES_OFF;
-        final RecordQuantization [] values = RecordQuantization.values ();
-        for (int i = 0; i < values.length; i++)
-            display.addOptionElement ("", MENU[i], i == 0, i == 0 ? "Record Quantization" : "", values[i].getName (), values[i] == recQuant, true);
-
-        display.addOptionElement ("", " ", false, null, "Quantize Note Length", "", false, null, true);
-        final boolean isQuantLength = cursorTrack.doesExist () && cursorTrack.isRecordQuantizationNoteLength ();
-        display.addOptionElement ("", " ", false, "", isQuantLength ? "On" : "Off", isQuantLength, true);
-
-        final int quantizeAmount = this.surface.getConfiguration ().getQuantizeAmount ();
-        display.addParameterElement (" ", false, "", (ChannelType) null, null, false, "Qunt Amnt", quantizeAmount * 1023 / 100, quantizeAmount + "%", this.isKnobTouched (0), -1);
     }
 
 

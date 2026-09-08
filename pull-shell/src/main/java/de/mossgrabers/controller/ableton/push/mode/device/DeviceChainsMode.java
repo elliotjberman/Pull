@@ -7,9 +7,6 @@ package de.mossgrabers.controller.ableton.push.mode.device;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.controller.ButtonID;
-import de.mossgrabers.framework.controller.color.ColorEx;
-import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.daw.DAWColor;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.ICursorDevice;
 import de.mossgrabers.framework.mode.Modes;
@@ -92,24 +89,4 @@ public class DeviceChainsMode extends DeviceParamsMode
     }
 
 
-    /** {@inheritDoc} */
-    @Override
-    public void updateDisplay2 (final IGraphicDisplay display)
-    {
-        final ICursorDevice cd = this.model.getCursorDevice ();
-        if (!this.checkExists2 (display, cd))
-            return;
-
-        final String color = this.model.getCurrentTrackBank ().getSelectedChannelColorEntry ();
-        final ColorEx bottomMenuColor = DAWColor.getColorEntry (color);
-        final String [] slotChains = cd.getSlotChains ();
-        for (int i = 0; i < 8; i++)
-        {
-            final boolean isTopMenuOn = this.getTopMenuEnablement (cd, true, i);
-            final String bottomMenu = i < slotChains.length ? slotChains[i] : "";
-            final String bottomMenuIcon = "";
-            final boolean isBottomMenuOn = i < slotChains.length;
-            display.addParameterElement (this.hostMenu[i], isTopMenuOn, bottomMenu, bottomMenuIcon, bottomMenuColor, isBottomMenuOn, "", 0, "", false, -1);
-        }
-    }
 }

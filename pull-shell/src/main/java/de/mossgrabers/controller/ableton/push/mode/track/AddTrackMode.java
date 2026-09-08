@@ -11,14 +11,12 @@ import de.mossgrabers.controller.ableton.push.mode.BaseMode;
 import de.mossgrabers.framework.command.trigger.BrowserCommand;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.color.ColorEx;
-import de.mossgrabers.framework.controller.display.IGraphicDisplay;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.IDeviceMetadata;
 import de.mossgrabers.framework.daw.data.IItem;
 import de.mossgrabers.framework.daw.resource.ChannelType;
 import de.mossgrabers.framework.featuregroup.AbstractFeatureGroup;
 import de.mossgrabers.framework.utils.ButtonEvent;
-import de.mossgrabers.framework.utils.StringUtils;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -43,18 +41,6 @@ public class AddTrackMode extends BaseMode<IItem>
         null,
         null,
         null
-    };
-
-    private static final String []                                      SUB_MENU             =
-    {
-        "Add Track",
-        "",
-        "",
-        "",
-        "Add Device",
-        "",
-        "",
-        ""
     };
 
     private final Map<ColorEx, Integer>                                 buttonColorsHiFirst  = new HashMap<> ();
@@ -183,33 +169,6 @@ public class AddTrackMode extends BaseMode<IItem>
     }
 
 
-    /** {@inheritDoc} */
-    @Override
-    public void updateDisplay2 (final IGraphicDisplay display)
-    {
-        for (int i = 0; i < 8; i++)
-        {
-            final String lowerMenu;
-            String lowerLabel = "";
-            ColorEx lowerMenuColor = null;
-            if (i == 0)
-            {
-                lowerMenu = this.addMode == AddMode.DEVICE ? "Browse" : "Empty";
-                lowerLabel = this.addMode.getLabel ();
-                lowerMenuColor = this.addMode.getColor ();
-            }
-            else
-            {
-                final Optional<IDeviceMetadata> shortcut = this.getShortcut (i - 1);
-                lowerMenu = shortcut.isEmpty () ? "" : StringUtils.limit (shortcut.get ().name (), 13);
-            }
-            final String topLabel = TOP_MENU[i] == null ? "" : TOP_MENU[i].getLabel ();
-            final ColorEx topColor = TOP_MENU[i] == null ? null : TOP_MENU[i].getColor ();
-            display.addOptionElement (SUB_MENU[i], topLabel, false, topColor, lowerLabel, lowerMenu, false, lowerMenuColor, false, false);
-        }
-    }
-
-
     /**
      * Get the selected shortcut depending on the current add mode.
      *
@@ -226,4 +185,8 @@ public class AddTrackMode extends BaseMode<IItem>
             case DEVICE -> conf.getDeviceShortcut (index);
         };
     }
+    /** Existing local chooser state and shortcut metadata, without rendering policy. */
+    public AddMode getObservedAddMode () { return this.addMode; }
+    public Optional<IDeviceMetadata> getObservedShortcut (final int index) { return this.getShortcut (index); }
+
 }

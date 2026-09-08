@@ -8,18 +8,12 @@ import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.mode.BaseMode;
 import de.mossgrabers.framework.controller.ButtonID;
-import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.IModel;
-import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.IParameterBank;
 import de.mossgrabers.framework.daw.data.bank.IParameterPageBank;
-import de.mossgrabers.framework.daw.data.bank.ITrackBank;
 import de.mossgrabers.framework.parameter.IParameter;
 import de.mossgrabers.framework.parameterprovider.device.BankParameterProvider;
 import de.mossgrabers.framework.utils.ButtonEvent;
-
-import java.util.Optional;
 
 
 /**
@@ -29,18 +23,6 @@ import java.util.Optional;
  */
 public class UserMode extends BaseMode<IParameter>
 {
-    private static final String []      TOP_MENU      =
-    {
-        "Project",
-        " ",
-        " ",
-        " ",
-        " ",
-        " ",
-        " ",
-        " "
-    };
-
     private final BankParameterProvider projectParameterProvider;
     private final BankParameterProvider trackParameterProvider;
 
@@ -86,7 +68,7 @@ public class UserMode extends BaseMode<IParameter>
     {
         // TODO(Pull views API): The view/session model should declare the rendered bottom menu and
         // its button actions together. Until then, explicitly keep this row aligned with the track
-        // menu rendered by updateDisplay2 instead of the old parameter-page action.
+        // current-bank footer instead of the old parameter-page action.
         super.onFirstRow (index, event);
     }
 
@@ -135,6 +117,9 @@ public class UserMode extends BaseMode<IParameter>
     }
 
 
+    /** Existing selected parameter bank; observed by the core display bridge. */
+    public boolean isProjectMode () { return this.isProjectMode; }
+
     private void setMode (final boolean isProjectMode)
     {
         this.isProjectMode = isProjectMode;
@@ -144,30 +129,4 @@ public class UserMode extends BaseMode<IParameter>
     }
 
 
-    /** {@inheritDoc} */
-    @Override
-    public void updateDisplay2 (final IGraphicDisplay display)
-    {
-        final IValueChanger valueChanger = this.model.getValueChanger ();
-        final ITrackBank trackBank = this.model.getCurrentTrackBank ();
-        final Optional<ITrack> selectedTrack = trackBank.getSelectedItem ();
-        final String trackHeader = selectedTrack.isEmpty () ? "None" : selectedTrack.get ().getName ();
-
-        for (int i = 0; i < this.bank.getPageSize (); i++)
-        {
-            final IParameter param = this.bank.getItem (i);
-            final boolean exists = param.doesExist ();
-            final String parameterName = exists ? param.getName (16) : "";
-            final int parameterValue = valueChanger.toDisplayValue (exists ? param.getValue () : 0);
-            final String parameterValueStr = exists ? param.getDisplayedValue (8) : "";
-            final boolean parameterIsActive = this.isKnobTouched (i);
-            final int parameterModulatedValue = valueChanger.toDisplayValue (exists ? param.getModulatedValue () : -1);
-
-            final ITrack track = trackBank.getItem (i);
-            final String bottomMenu = track.doesExist () ? track.getName (16) : "";
-            final boolean isTopMenuSelected = i == 0 && this.isProjectMode || i == 1 && !this.isProjectMode;
-
-            display.addParameterElement (i == 1 ? trackHeader : TOP_MENU[i], isTopMenuSelected, bottomMenu, track.getType (), track.getColor (), track.isSelected (), parameterName, parameterValue, parameterValueStr, parameterIsActive, parameterModulatedValue);
-        }
-    }
 }

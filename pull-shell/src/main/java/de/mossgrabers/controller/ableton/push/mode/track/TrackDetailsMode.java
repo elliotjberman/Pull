@@ -9,12 +9,10 @@ import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.mode.BaseMode;
 import de.mossgrabers.framework.controller.ButtonID;
-import de.mossgrabers.framework.controller.display.IGraphicDisplay;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.ICursorTrack;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.framework.daw.data.bank.ITrackBank;
-import de.mossgrabers.framework.daw.resource.ChannelType;
 import de.mossgrabers.framework.featuregroup.AbstractFeatureGroup;
 import de.mossgrabers.framework.featuregroup.ViewManager;
 import de.mossgrabers.framework.utils.ButtonEvent;
@@ -219,36 +217,4 @@ public class TrackDetailsMode extends BaseMode<ITrack>
     }
 
 
-    /** {@inheritDoc} */
-    @Override
-    public void updateDisplay2 (final IGraphicDisplay display)
-    {
-        final ITrack cursorTrack = this.model.getCursorTrack ();
-        if (!cursorTrack.doesExist ())
-        {
-            display.setMessage (3, "Please select a track...");
-            return;
-        }
-
-        display.addOptionElement (getTrackTitle (cursorTrack) + cursorTrack.getName (), "", false, "", "Active", cursorTrack.isActivated (), false);
-        display.addOptionElement ("", "", false, "", "Rec Arm", cursorTrack.isRecArm (), false);
-        display.addOptionElement ("", "", false, "", "Mute", cursorTrack.isMute (), false);
-        display.addOptionElement ("", "", false, "", "Solo", cursorTrack.isSolo (), false);
-        display.addOptionElement ("", "", false, "", "Monitor", cursorTrack.isMonitor (), false);
-        display.addOptionElement ("Midi Insert/Edit Channel:", "", false, "", "Auto Monitor", cursorTrack.isAutoMonitor (), false);
-        display.addOptionElement ("", "", false, "", "Pin Track", this.model.getCursorTrack ().isPinned (), false);
-        display.addOptionElement ("        " + (this.surface.getConfiguration ().getMidiEditChannel () + 1), "", false, "", "Select Color", false, false);
-    }
-
-
-    /**
-     * Get a label for the track.
-     *
-     * @param track The track
-     * @return The label
-     */
-    private static String getTrackTitle (final ITrack track)
-    {
-        return ChannelType.getLabel (track.getType ()) + " Track: ";
-    }
 }

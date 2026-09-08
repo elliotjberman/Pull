@@ -10,16 +10,11 @@ import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.mode.BaseMode;
 import de.mossgrabers.framework.controller.ButtonID;
-import de.mossgrabers.framework.controller.display.IGraphicDisplay;
-import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.ICursorDevice;
 import de.mossgrabers.framework.daw.data.IDevice;
 import de.mossgrabers.framework.daw.data.ITrack;
-import de.mossgrabers.framework.daw.data.bank.IDeviceBank;
-import de.mossgrabers.framework.daw.data.bank.IParameterBank;
 import de.mossgrabers.framework.daw.data.bank.IParameterPageBank;
-import de.mossgrabers.framework.daw.data.bank.ITrackBank;
 import de.mossgrabers.framework.featuregroup.ModeManager;
 import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.parameter.IParameter;
@@ -34,19 +29,6 @@ import de.mossgrabers.framework.utils.ButtonEvent;
  */
 public class DeviceParamsMode extends BaseMode<IParameter>
 {
-    private static final String [] MENU     =
-    {
-        "On",
-        "Parameters",
-        "Expanded",
-        "Chains",
-        "Banks",
-        "Pin Device",
-        "Window",
-        "Up"
-    };
-
-    protected final String []      hostMenu = new String [MENU.length];
     protected boolean              showDevices;
 
 
@@ -64,7 +46,7 @@ public class DeviceParamsMode extends BaseMode<IParameter>
 
         this.setShowDevices (true);
 
-        System.arraycopy (MENU, 0, this.hostMenu, 0, MENU.length);
+
     }
 
 
@@ -406,42 +388,6 @@ public class DeviceParamsMode extends BaseMode<IParameter>
 
     /** {@inheritDoc} */
     @Override
-    public void updateDisplay2 (final IGraphicDisplay display)
-    {
-        final ICursorDevice cd = this.model.getCursorDevice ();
-        final ITrackBank trackBank = this.model.getCurrentTrackBank ();
-        final IDeviceBank deviceBank = cd.getDeviceBank ();
-        final IParameterBank parameterBank = cd.getParameterBank ();
-        final IParameterPageBank parameterPageBank = parameterBank.getPageBank ();
-        final IValueChanger valueChanger = this.model.getValueChanger ();
-        for (int i = 0; i < parameterBank.getPageSize (); i++)
-        {
-            final IParameter param = parameterBank.getItem (i);
-            final boolean exists = param.doesExist ();
-            final String parameterName = exists ? param.getName (16) : "";
-            final int parameterValue = valueChanger.toDisplayValue (exists ? param.getValue () : 0);
-            final String parameterValueStr = exists ? param.getDisplayedValue (8) : "";
-            final boolean parameterIsActive = this.isKnobTouched (i);
-            final int parameterModulatedValue = valueChanger.toDisplayValue (exists ? param.getModulatedValue () : -1);
-
-            if (this.showDevices)
-            {
-                final IDevice device = deviceBank.getItem (i);
-                final ITrack track = trackBank.getItem (i);
-                display.addParameterElement (device.doesExist () ? device.getName (16) : "", device.doesExist () && i == cd.getIndex (), track.doesExist () ? track.getName (16) : "", track.getType (), track.getColor (), track.isSelected (), parameterName, parameterValue, parameterValueStr, parameterIsActive, parameterModulatedValue);
-            }
-            else
-            {
-                final String pageName = parameterPageBank.getItem (i);
-                final ITrack selectedTrack = trackBank.getSelectedItem ().orElse (null);
-                display.addParameterElementWithPlainMenu (this.hostMenu[i], this.getTopMenuEnablement (cd, true, i), pageName, selectedTrack == null ? null : selectedTrack.getColor (), i == parameterPageBank.getSelectedItemIndex (), parameterName, parameterValue, parameterValueStr, parameterIsActive, parameterModulatedValue);
-            }
-        }
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
     public void selectPreviousItem ()
     {
         if (this.showDevices)
@@ -552,39 +498,4 @@ public class DeviceParamsMode extends BaseMode<IParameter>
     }
 
 
-    protected boolean checkExists2 (final IGraphicDisplay display, final ICursorDevice cd)
-    {
-        if (cd.doesExist ())
-            return true;
-        for (int i = 0; i < 8; i++)
-            display.addOptionElement (i == 2 ? "Please select a device or press 'Add Device'..." : "", i == 7 ? "Up" : "", true, "", "", false, true);
-        return false;
-    }
-
-
-    protected boolean getTopMenuEnablement (final ICursorDevice cd, final boolean hasPinning, final int index)
-    {
-        switch (index)
-        {
-            case 0:
-                return cd.isEnabled ();
-            case 1:
-                return cd.isParameterPageSectionVisible ();
-            case 2:
-                return cd.isExpanded ();
-            case 3:
-                return this.surface.getModeManager ().isActive (Modes.DEVICE_CHAINS);
-            case 4:
-                return !this.surface.getModeManager ().isActive (Modes.DEVICE_CHAINS) && !this.showDevices;
-            case 5:
-                return hasPinning && cd.isPinned ();
-            case 6:
-                return cd.isWindowOpen ();
-            case 7:
-                return true;
-            default:
-                // Not used
-                return false;
-        }
-    }
 }

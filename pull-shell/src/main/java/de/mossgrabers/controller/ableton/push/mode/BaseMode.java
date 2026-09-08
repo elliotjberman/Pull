@@ -7,6 +7,8 @@ package de.mossgrabers.controller.ableton.push.mode;
 import de.mossgrabers.controller.ableton.push.PushConfiguration;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.controller.display.IGraphicDisplay;
+import de.mossgrabers.framework.controller.color.ColorEx;
+import de.mossgrabers.framework.graphics.canvas.component.IComponent;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.ITransport;
 import de.mossgrabers.framework.daw.data.IItem;
@@ -24,6 +26,11 @@ import de.mossgrabers.framework.utils.ButtonEvent;
  */
 public abstract class BaseMode<B extends IItem> extends AbstractParameterMode<PushControlSurface, PushConfiguration, B>
 {
+    private static final IComponent BLANK_DISPLAY = info -> {
+        final var bounds = info.getBounds ();
+        info.getContext ().fillRectangle (bounds.left (), bounds.top (), bounds.width (), bounds.height (), ColorEx.BLACK);
+    };
+
     protected static final int SCROLL_RATE     = 8;
 
     private int                movementCounter = 0;
@@ -61,17 +68,9 @@ public abstract class BaseMode<B extends IItem> extends AbstractParameterMode<Pu
     public void updateDisplay ()
     {
         final IGraphicDisplay display = this.surface.getGraphicsDisplay ();
-        this.updateDisplay2 (display);
+        display.addElement (BLANK_DISPLAY);
         display.send ();
     }
-
-
-    /**
-     * Update the display of Push 2.
-     *
-     * @param display The display
-     */
-    public abstract void updateDisplay2 (final IGraphicDisplay display);
 
 
     /** {@inheritDoc} */

@@ -6,13 +6,11 @@ package de.mossgrabers.controller.ableton.push.mode;
 
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.controller.ButtonID;
-import de.mossgrabers.framework.controller.display.IGraphicDisplay;
 import de.mossgrabers.framework.daw.GrooveParameterID;
 import de.mossgrabers.framework.daw.IGroove;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.IItem;
 import de.mossgrabers.framework.daw.data.empty.EmptyParameter;
-import de.mossgrabers.framework.daw.resource.ChannelType;
 import de.mossgrabers.framework.featuregroup.AbstractFeatureGroup;
 import de.mossgrabers.framework.featuregroup.AbstractMode;
 import de.mossgrabers.framework.mode.Modes;
@@ -120,43 +118,6 @@ public class GrooveMode extends BaseMode<IItem>
 
         if (index == 0)
             this.surface.getModeManager ().setActive (Modes.REC_ARM);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void updateDisplay2 (final IGraphicDisplay display)
-    {
-        final IGroove groove = this.model.getGroove ();
-        final IParameter enabledParameter = groove.getParameter (GrooveParameterID.ENABLED);
-
-        String paramText;
-        if (enabledParameter == null)
-            paramText = "";
-        else
-            paramText = enabledParameter.getValue () == 0 ? "Off" : "Enabled";
-
-        display.addOptionElement ("", "Quantize", false, null, "", paramText, enabledParameter != null && enabledParameter.getValue () > 0, null, true);
-        display.addOptionElement ("", TAG_GROOVE, true, null, "      Shuffle", "", false, null, true);
-
-        this.displayParameter (display, GrooveParameterID.SHUFFLE_AMOUNT, 2);
-        this.displayParameter (display, GrooveParameterID.SHUFFLE_RATE, 3);
-
-        final boolean hasAccent = groove.getParameter (GrooveParameterID.ACCENT_AMOUNT) != EmptyParameter.INSTANCE;
-        display.addOptionElement ("", hasAccent ? "" : " ", false, null, hasAccent ? "      Accent" : "", "", false, null, true);
-
-        this.displayParameter (display, GrooveParameterID.ACCENT_AMOUNT, 5);
-        this.displayParameter (display, GrooveParameterID.ACCENT_PHASE, 6);
-        this.displayParameter (display, GrooveParameterID.ACCENT_RATE, 7);
-    }
-
-
-    private void displayParameter (final IGraphicDisplay display, final GrooveParameterID paramID, final int index)
-    {
-        IParameter p = this.model.getGroove ().getParameter (paramID);
-        if (p == null)
-            p = EmptyParameter.INSTANCE;
-        display.addParameterElement (" ", false, "", (ChannelType) null, null, false, p.getName (16), p.getValue (), p.getDisplayedValue (8), this.isKnobTouched (index), -1);
     }
 
 
