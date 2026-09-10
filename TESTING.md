@@ -522,3 +522,16 @@ scanner/actuator unpin-select-repin requests are distinguished; combined request
 submission, not completion. Viewport position is not observed by this trace. Capture the UI
 with timestamps and compare selected-track offscreen scrolling RUN / PAUSE / RUN. The suspected
 cursor-to-viewport side effect remains unproven until that live comparison.
+
+Diagnostic shell checkpoint `68cc6005` passed the complete offline package build with deprecation
+reporting. Its extension SHA-256 is
+`78752e202cec59ccc5331b7e6f1a687015c62d8f350b6628a834c5acf86b423e`; the installed file matched
+after copying with Bitwig closed on 2026-09-10. Bitwig restarted, reopened `202arp3`, and retained
+active core `20260908T165014Z-85a2f31d25899a91688cf48722cb9bf4`. The new request-ID acknowledgement
+and host-sample output verify the diagnostic shell is executing. Initial RUN tracing recorded
+repeated same-track, already-pinned scanner requests. PAUSE retained host observations with no
+scanner requests after the transition. A subsequent ten-second RUN interval restored about 22
+scanner reselection requests per second, with zero dropped entries; the interval expired to OFF
+and normal scanning remained enabled. This proves the diagnostic switch works, not the viewport
+cause. Computer use could not complete the UI comparison: canvas targeting repeatedly failed
+with `windowNotFoundAtPosition` on the external display. The viewport comparison remains pending.
