@@ -7,8 +7,8 @@ remaining shell handlers. The optional Clip piano roll is deferred unchanged.
 API 56 makes selected-track clip scanning an explicit core subscription. The active Drum fill
 view chooses the aligned selected target and cycles its scene pages; other views request no scan.
 The shell observes the requested eight-slot window and keeps the cursor pinned without reselecting
-an already aligned track. Clip discovery remains live as pages are revisited. The matching shell
-installation and Arrange-scroll smoke are pending; see [TESTING](TESTING.md#selected-track-scan-cutover).
+an already aligned track. Clip discovery remains live as pages are revisited. The matched shell/core passed
+live Arrange scrolling, new-clip discovery and fill release; see [TESTING](TESTING.md#selected-track-scan-cutover).
 
 API 55 removes the legacy User handler and its raw page state. User selects the same Project
 Macros view as Shift+Session while retaining the current grid. The button action and light are

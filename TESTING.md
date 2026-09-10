@@ -578,4 +578,33 @@ scan exit. Core coverage checks page acknowledgement, repeated sweeps, scene-gen
 other-target rejection and active-view subscription removal through the real core composition.
 `mvn -o -Dmaven.compiler.showDeprecation=true package` passed 1,072 tests with no failures,
 errors, skips or deprecation warnings in changed code. Independent architecture and code-size
-reviews found no material blockers. Matched live validation is pending.
+reviews found no material blockers.
+
+
+Matched live acceptance (2026-09-10, source `f18c3c059c49bc487dfe82fc4020b519fd63cb59`):
+
+- Installed shell SHA-256 `c34c62d9b9dcae87e52b866e1cd83e10232e9eec7a240cd03af5da27bc6a93e2`,
+  fingerprint `682ad10336957a9313e22d70acb19d3804f342c1`. Restarted after a clean persistent-worktree
+  checkpoint. Exact core `20260910T192442Z-a443551d5d436255560cb5303a376de6` activated;
+  core SHA-256 `51765e8da93f0d68bb544284ebfa7996e44a809ff615e339644754836ea0b787`.
+- In saved project `202arp3`, selected Drum Machine track
+  `e2b0cb23-dd7d-4de1-88e8-dfb9f91b4eed`, generation 4, had 20 scenes. Routed NOTE entered
+  DRUM_PAD. Computer use scrolled the selected track completely out of Arrange at wall-ms
+  `1789068357333`; it remained offscreen at `1789068379453`, including during playback.
+  The retained interval contains 997 scanner observations, 333 page requests (0/8/16), and zero
+  cursor reselections. This tests active traversal, not merely an inactive scanner.
+- Created a temporary clip in existing scene 1, then renamed it `Pull scanner test fill` without
+  selecting another track. Catalog grew 9→10 and armed fills 4→5. No scanner reselection occurred;
+  the newly used fifth actuator pinned once. Deleting the temporary clip restored 9/4. The empty
+  slot and saved project were verified through computer use.
+- Routed physical `push.pad.14` BEGIN/END through `/api/input` at wall-seconds
+  `1789068538.797`/`1789068541.252`. Later host snapshots showed `drum.fill.2` active on target 5;
+  transmitted pad feedback was `F27E00` while held and `A76B22` after release. A separate later
+  snapshot showed no retained launch targets or active owner. The held trace reached its bounded
+  text limit, so the complete after-release state comes from the separate stopped trace. No
+  physical touch or audible comparison is claimed.
+- Routed SESSION removed the request and emptied catalog/armed state. Across 505 host samples
+  (`1789068606494`–`1789068617819`) there were no page or cursor requests. Restored NOTE/DRUM_PAD,
+  removed the test clip, saved the project, left Arrange freely scrolled, and let diagnostics expire
+  to OFF with zero dropped selection entries. Evidence is retained in this worktree's
+  `target/scroll-evidence/`; the new live logs show no controller failure or deprecated API call.
