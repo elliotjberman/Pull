@@ -19,6 +19,7 @@ import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerActions;
 import de.mossgrabers.pull.core.api.DesiredControllerMappings;
 import de.mossgrabers.pull.core.api.DesiredControllerState;
+import de.mossgrabers.pull.core.api.DesiredClipScan;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredNotePerformance;
 import de.mossgrabers.pull.core.api.DesiredNoteInputTranslation;
@@ -352,11 +353,21 @@ public final class CompiledWorkspace
         final Map<SurfaceArea, ControllerDisplayScene> displayRegions = new LinkedHashMap<> ();
         ControllerPadGridOverlay padGridOverlay = ControllerPadGridOverlay.inactive ();
         ControllerDisplayOverlay displayOverlay = ControllerDisplayOverlay.inactive ();
+        DesiredClipScan clipScan = DesiredClipScan.inactive ();
         DesiredNotePerformance notePerformance = DesiredNotePerformance.inactive ();
         DesiredNoteRepeat noteRepeat = DesiredNoteRepeat.unowned ();
         DesiredTouchStrip touchStrip = DesiredTouchStrip.unowned ();
         for (final CompiledView view: this.views)
         {
+            final DesiredClipScan requestedScan = view.view ().desiredClipScan ();
+            if (requestedScan.active ())
+            {
+                if (!view.bridgeSubscriptions ().contains (BridgeSubscription.SELECTED_TRACK_CLIPS))
+                    throw new IllegalStateException ("view " + view.id () + " requests an undeclared clip window");
+                if (clipScan.active ())
+                    throw new IllegalStateException ("multiple views own the selected-track clip window");
+                clipScan = requestedScan;
+            }
             final ViewOutput output = Objects.requireNonNull (view.view ().render (snapshot), "view output");
             for (final ControlId control: output.lights ().keySet ())
                 validateLightOwner (view, control);
@@ -438,10 +449,13 @@ public final class CompiledWorkspace
         if (!display.isPresent () && !displayRegions.isEmpty ())
             display = DisplayRegionComposition.compose (displayRegions);
 
+        final Set<BridgeSubscription> subscriptions = new LinkedHashSet<> (this.desiredBridgeSubscriptions.domains ());
+        if (!clipScan.active ())
+            subscriptions.remove (BridgeSubscription.SELECTED_TRACK_CLIPS);
         return new CoreResult (
             new DesiredHardwareOutput (lights, display, padGridOverlay, displayOverlay, new DesiredControllerMappings (controllerMappingBindings), touchStrip, lightBlinks),
             this.desiredInputRoutes,
-            this.desiredBridgeSubscriptions,
+            new DesiredBridgeSubscriptions (subscriptions, clipScan),
             clipBindings,
             new DesiredControllerState (this.desiredControllerWorkspace, notePerformance),
             noteRepeat,

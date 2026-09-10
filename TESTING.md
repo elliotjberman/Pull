@@ -499,3 +499,60 @@ transition still requires a later authoritative snapshot or output observation.
 Adding or expanding the generic debug bridge is a stable-shell change and needs one extension
 install and Bitwig restart. Frame capture and client-side navigation recipes can then be reused
 across core hot reloads.
+
+## Arrange scrolling diagnostic
+
+Enable the opt-in Push debugger at startup and hold the live lease. Use
+`tools/push-debug-selection run 30` to trace selection and scanner activity, or
+`tools/push-debug-selection pause 30` to suspend scanner selection and paging while tracing.
+Intervals last 1–60 seconds; a new request replaces the interval, expiry resumes scanning,
+and startup ignores stale requests. No core reload is needed.
+
+Pause preserves target invalidation and acquired-fill observation, release and retirement.
+The catalog freezes while paused; avoid starting new fills during the comparison.
+
+`~/.drivenbymoss/pull/debug/selection-status.txt` acknowledges the request ID and reports
+mode and dropped entries. `selection-trace.tsv` distinguishes selection submissions, page
+requests and later host read-back. It retains roughly 1 MB through a bounded 4096-entry queue;
+file I/O runs on the worker. It does not observe viewport position: capture timestamped UI
+observations during RUN / PAUSE / RUN while scrolling the selected track offscreen.
+
+## Selected-track scan cutover
+
+Capability audit: **B — bounded API/shell expansion**, Core API 56, Bitwig API 25 unchanged.
+The existing eight-slot scanner and eight launch actuators suffice. Core owns applicability,
+target choice and paging; shell owns observation, validation and acquired-launch cleanup.
+See [ARCH](ARCH.md) for the capacity and subscription contract. API 56 requires a matched
+shell installation/restart; subsequent scan scheduling changes can hot reload.
+
+Coverage includes delayed host page advancement, two coherent samples before readiness,
+new/renamed/deleted clips, no inactive scanner reads or aligned-track reselection, stale-target
+rejection, exact held cleanup, and request propagation through core composition.
+`mvn -o -Dmaven.compiler.showDeprecation=true package` passed all 1,072 tests with no failures,
+errors, skips or deprecation warnings in changed code. Debug-client, live-lock and all eight
+surface-server tests also passed.
+
+Live acceptance on 2026-09-10 used source `f18c3c059c49bc487dfe82fc4020b519fd63cb59`:
+
+- Shell SHA-256: `c34c62d9b9dcae87e52b866e1cd83e10232e9eec7a240cd03af5da27bc6a93e2`.
+- Shell fingerprint: `682ad10336957a9313e22d70acb19d3804f342c1`.
+- Active core: `20260910T192442Z-a443551d5d436255560cb5303a376de6`.
+- Core SHA-256: `51765e8da93f0d68bb544284ebfa7996e44a809ff615e339644754836ea0b787`.
+
+In `202arp3`, the earlier diagnostic build (`68cc6005`) reproduced snap-back during RUN,
+allowed offscreen scrolling during PAUSE, and snapped back again on resuming RUN without
+mouse input. With the cutover build, the selected Drum Machine track remained offscreen
+for 22 seconds during active scanning and playback: 997 observations, 333 page requests
+across offsets 0/8/16, and zero cursor reselections.
+
+Creating and renaming a temporary clip without changing tracks grew the catalog from 9 to 10
+and armed fills from 4 to 5; deleting it restored 9/4. Routed `push.pad.14` BEGIN/END produced
+later active-fill host state and held/released pad output; a separate later snapshot confirmed
+no retained launch targets or active owner. Switching to Session removed the scan request:
+505 host samples contained no page or cursor requests. The temporary clip was removed,
+the project saved, and diagnostics expired to OFF with zero dropped entries.
+
+The held trace reached its size limit, so complete release state comes from the separate
+stopped trace. Physical touch and audible restoration were not tested. The final seven-line
+removal of redundant pending-page state passed the full offline package; that revised shell
+binary has not been reinstalled or live-tested.

@@ -42,6 +42,9 @@ public enum BridgeSubscription
     /** State of the private selection-following track target. */
     SELECTED_TRACK,
 
+    /** Core-requested page of the private selected-track clip scanner. */
+    SELECTED_TRACK_CLIPS,
+
     /** The active bounded Session bank and its visible track identities. */
     SESSION_BANK,
 

@@ -4,6 +4,7 @@
 package de.mossgrabers.pull.core.runtime.view;
 
 import de.mossgrabers.pull.core.api.CatalogClip;
+import de.mossgrabers.pull.core.api.DesiredClipScan;
 import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
@@ -62,6 +63,8 @@ public final class DrumFillView implements ControllerView
         new SurfaceClaim (SurfaceArea.DRUM_FILL_LIGHTS, SurfaceClaim.Kind.OUTPUT));
     private static final ViewProfile PROFILE = ViewProfile.fixed ("default", CLAIMS, Set.of ());
 
+    private final SelectedTrackClipScanner scanner = new SelectedTrackClipScanner ();
+    private DesiredClipScan desiredScan = DesiredClipScan.inactive ();
     private Map<ControlId, ClipTargetId> desiredBindings = Map.of ();
 
 
@@ -85,7 +88,7 @@ public final class DrumFillView implements ControllerView
     @Override
     public Set<BridgeSubscription> bridgeSubscriptions ()
     {
-        return Set.of (BridgeSubscription.CONTROLLER_LAYOUT);
+        return Set.of (BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.SELECTED_TRACK, BridgeSubscription.DRUM_PADS, BridgeSubscription.SELECTED_TRACK_CLIPS);
     }
 
 
@@ -101,7 +104,17 @@ public final class DrumFillView implements ControllerView
     @Override
     public void reconcile (final ControllerSnapshot snapshot)
     {
-        this.desiredBindings = ownsFillPads (snapshot) ? canonicalBindings (snapshot) : Map.of ();
+        final boolean applicable = ownsFillPads (snapshot);
+        final var selected = snapshot.bridge ().selectedTrack ();
+        this.desiredScan = this.scanner.reconcile (selected.generation (), applicable ? selected.channelId () : "", snapshot.clipCatalog ());
+        this.desiredBindings = applicable && snapshot.clipCatalog ().scan ().matches (this.desiredScan) ? canonicalBindings (snapshot) : Map.of ();
+    }
+
+
+    @Override
+    public DesiredClipScan desiredClipScan ()
+    {
+        return this.desiredScan;
     }
 
 
@@ -165,7 +178,11 @@ public final class DrumFillView implements ControllerView
 
     private static boolean ownsFillPads (final ControllerSnapshot snapshot)
     {
-        return snapshot.bridge ().layout ().drumLayoutActive () && snapshot.bridge ().layout ().drumControllerEngaged ();
+        final var selected = snapshot.bridge ().selectedTrack ();
+        final var drum = snapshot.bridge ().drum ();
+        return snapshot.bridge ().layout ().drumLayoutActive () && snapshot.bridge ().layout ().drumControllerEngaged () &&
+            selected.exists () && selected.canHoldNotes () && selected.generation () > 0 && !selected.channelId ().isEmpty () &&
+            drum.available () && drum.modelAligned () && drum.targetGeneration () == selected.generation () && drum.targetChannelId ().equals (selected.channelId ());
     }
 
 

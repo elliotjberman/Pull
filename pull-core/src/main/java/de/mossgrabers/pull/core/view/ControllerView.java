@@ -4,6 +4,7 @@
 package de.mossgrabers.pull.core.view;
 
 import de.mossgrabers.pull.core.api.BridgeSubscription;
+import de.mossgrabers.pull.core.api.DesiredClipScan;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerActionBinding;
 import de.mossgrabers.pull.core.api.ControllerSnapshot;
@@ -61,6 +62,14 @@ public interface ControllerView
     {
         return Set.of ();
     }
+
+
+    /** Complete request for the single installed selected-track clip window. */
+    default DesiredClipScan desiredClipScan ()
+    {
+        return DesiredClipScan.inactive ();
+    }
+
 
 
     /** Request controller-cycle observations while this view has retained work to reconcile. */

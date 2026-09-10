@@ -101,8 +101,10 @@ controller does not rewrite those settings to make a test appear successful.
 ## Fill session and host barrier
 
 `SelectedTrackFillClipHost` installs one eight-scene scanner and eight private one-slot actuators.
-The scanner sweeps the selected track in finite pages, requires coherent samples and publishes only
-complete catalogs. Selection/scene-topology changes first publish an empty generation fence.
+Core requests pages only for the selected track needed by the active fill view. The shell accepts
+two coherent samples per page and publishes the cumulative catalog of accepted pages. Repeated
+requests leave an aligned cursor pinned. Selection/scene-topology changes first publish an empty
+generation fence.
 Eight is the scan-page size and actuator capacity, not a maximum project scene count.
 
 Core selects up to eight matching fill clips in catalog order. Desired bindings and verified armed

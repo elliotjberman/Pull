@@ -249,7 +249,7 @@ public final class InputGestureRouter
         final List<CoreEffect> effects = new ArrayList<> (result.effects ());
         effects.addAll (this.cleanup);
         this.cleanup.clear ();
-        return new CoreResult (result.desiredOutput (), result.desiredInputRoutes (), new DesiredBridgeSubscriptions (subscriptions), result.desiredClipBindings (), result.desiredControllerState (), result.desiredNoteRepeat (), result.desiredControllerActions (), new DesiredParameterBanks (banks), result.desiredParameterInteraction (), new DesiredParameterTouches (touches), result.executionRequirements ().merge (new CoreExecutionRequirements (awaitingCleanup)), effects);
+        return new CoreResult (result.desiredOutput (), result.desiredInputRoutes (), new DesiredBridgeSubscriptions (subscriptions, result.desiredBridgeSubscriptions ().clipScan ()), result.desiredClipBindings (), result.desiredControllerState (), result.desiredNoteRepeat (), result.desiredControllerActions (), new DesiredParameterBanks (banks), result.desiredParameterInteraction (), new DesiredParameterTouches (touches), result.executionRequirements ().merge (new CoreExecutionRequirements (awaitingCleanup)), effects);
     }
 
     private static Binding binding (final CompiledWorkspace current, final Key key, final Map<ControlId, ParameterSlot> slots, final ControllerSnapshot snapshot)

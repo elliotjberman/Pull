@@ -1,8 +1,14 @@
 # Pull architecture
 
-Working source: Core API 55, checkpoint schema 6, Bitwig API 25. Migration is incomplete:
+Working source: Core API 56, checkpoint schema 6, Bitwig API 25. Migration is incomplete:
 core owns ordinary Push display pages and migrated controls; the inventory below names the
 remaining shell handlers. The optional Clip piano roll is deferred unchanged.
+
+API 56 makes selected-track clip scanning an explicit core subscription. The active Drum fill
+view chooses the aligned selected target and cycles its scene pages; other views request no scan.
+The shell observes the requested eight-slot window and keeps the cursor pinned without reselecting
+an already aligned track. Clip discovery remains live as pages are revisited.
+See [TESTING](TESTING.md#selected-track-scan-cutover) for live evidence and its build scope.
 
 API 55 removes the legacy User handler and its raw page state. User selects the same Project
 Macros view as Shift+Session while retaining the current grid. The button action and light are
@@ -121,6 +127,7 @@ Shift pages eight. Light refresh is a single end-of-flush pass, so observer burs
 | Session | 8×8 and 8×4; exact project/channel/scene locations, at most 72 acquired launch presses. Cleanup precedes controller bank rebind; external loss fails closed. |
 | Current-track banks | Two main windows and one effect bank, eight tracks each; track identity plus navigation generation. |
 | Named parameters | Seventeen banks, at most 131 slots: ACTIVE legacy, project/device remotes, selected mix/sends, current-bank Volume/Pan/eight Sends, Master/Cue and globals. |
+| Selected-track clips | One private eight-slot scanner, eight pinned launch actuators. Core requests target generation/UUID and absolute scene page; no other-track catalog. Accepted pages accumulate clips in scene order for the current target only; selection/existence and scene-count changes invalidate catalog generation/IDs. Two coherent host samples precede page readiness; held actuators retain exact cleanup independent of scanning. |
 | Drum | Canonical 16-pad window and bounded device candidates; a separate 64-pad proxy serves legacy Drum64. |
 | Native maps | Complete 128-entry key/velocity tables; enabled notes restricted to claimed physical Push pads 36–99. |
 | Output | 960×160 display, claimed regions, explicit temporary overlays, button/grid lights and touch strip. |

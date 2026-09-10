@@ -19,6 +19,8 @@ import de.mossgrabers.pull.core.runtime.view.ControllerPages;
 import de.mossgrabers.pull.core.api.CatalogClip;
 import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
+import de.mossgrabers.pull.core.api.ClipScanSnapshot;
+import de.mossgrabers.pull.core.api.DesiredClipScan;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.ControllerBridgeSnapshot;
@@ -171,13 +173,32 @@ class PullControllerCoreTest
 
 
     @Test
+    void scanSubscriptionFollowsTheVisibleFillTargetAndStopsWhenTheViewIsInactive ()
+    {
+        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        startFillCore (host);
+        assertEquals (new DesiredClipScan (7, "track-7", 0), host.effects ().desiredBridgeSubscriptions ().clipScan ());
+        host.clipCatalog (new ClipCatalogSnapshot (1, List.of (), new ClipScanSnapshot (7, "track-7", 18, 0, 8, false)));
+        assertEquals (0, host.effects ().desiredBridgeSubscriptions ().clipScan ().sceneStart ());
+        host.clipCatalog (new ClipCatalogSnapshot (1, List.of (clip (0, "New Fill")), new ClipScanSnapshot (7, "track-7", 18, 0, 8, true)));
+        assertEquals (8, host.effects ().desiredBridgeSubscriptions ().clipScan ().sceneStart ());
+        assertEquals (Map.of (CoreControls.DRUM_FILL_1, new ClipTargetId (0)), host.effects ().desiredClipBindings ());
+        host.clipCatalog (new ClipCatalogSnapshot (2, List.of (clip (1, "Other Fill")), new ClipScanSnapshot (8, "other", 8, 0, 8, true)));
+        assertTrue (host.effects ().desiredClipBindings ().isEmpty ());
+        host.bridge (fillLayoutBridge (false));
+        assertEquals (DesiredClipScan.inactive (), host.effects ().desiredBridgeSubscriptions ().clipScan ());
+        assertFalse (host.effects ().desiredBridgeSubscriptions ().includes (BridgeSubscription.SELECTED_TRACK_CLIPS));
+    }
+
+
+    @Test
     void bindsTheFirstEightCaseInsensitiveFillsInCatalogOrder ()
     {
         final List<CatalogClip> clips = new ArrayList<> ();
         clips.add (clip (100, "verse"));
         for (int index = 0; index < 14; index++)
             clips.add (clip (index, index % 2 == 0 ? "Fill " + index : "prefilled " + index));
-        final FakeCoreHost host = host (new ClipCatalogSnapshot (5, clips));
+        final FakeCoreHost host = host (fillCatalog (5, clips));
 
         startFillCore (host);
 
@@ -198,7 +219,7 @@ class PullControllerCoreTest
     {
         final ClipTargetId first = new ClipTargetId (1);
         final ClipTargetId second = new ClipTargetId (2);
-        final FakeCoreHost host = host (new ClipCatalogSnapshot (41, List.of (
+        final FakeCoreHost host = host (fillCatalog (41, List.of (
             new CatalogClip (first, "Drum Fill"),
             new CatalogClip (second, "FILLER"))));
         startFillCore (host);
@@ -234,7 +255,7 @@ class PullControllerCoreTest
     {
         final ClipTargetId first = new ClipTargetId (1);
         final ClipTargetId second = new ClipTargetId (2);
-        final FakeCoreHost host = host (new ClipCatalogSnapshot (42, List.of (
+        final FakeCoreHost host = host (fillCatalog (42, List.of (
             new CatalogClip (first, "fill one"),
             new CatalogClip (second, "fill two"))));
         startFillCore (host);
@@ -275,7 +296,7 @@ class PullControllerCoreTest
         final ClipTargetId first = new ClipTargetId (1);
         final ClipTargetId second = new ClipTargetId (2);
         final ClipTargetId third = new ClipTargetId (3);
-        final ClipCatalogSnapshot catalog = new ClipCatalogSnapshot (43, List.of (
+        final ClipCatalogSnapshot catalog = fillCatalog (43, List.of (
             new CatalogClip (first, "fill one"),
             new CatalogClip (second, "fill two"),
             new CatalogClip (third, "fill three")));
@@ -298,7 +319,7 @@ class PullControllerCoreTest
     {
         final ClipTargetId first = new ClipTargetId (7);
         final ClipTargetId second = new ClipTargetId (8);
-        final ClipCatalogSnapshot catalog = new ClipCatalogSnapshot (9, List.of (
+        final ClipCatalogSnapshot catalog = fillCatalog (9, List.of (
             new CatalogClip (first, "transition fill"),
             new CatalogClip (second, "another fill")));
         final Map<ControlId, ClipTargetId> armed = Map.of (
@@ -327,7 +348,7 @@ class PullControllerCoreTest
     void activeOwnerStaysHeldWhenItsArmedBindingDisappears ()
     {
         final ClipTargetId target = new ClipTargetId (7);
-        final ClipCatalogSnapshot catalog = new ClipCatalogSnapshot (9, List.of (new CatalogClip (target, "fill")));
+        final ClipCatalogSnapshot catalog = fillCatalog (9, List.of (new CatalogClip (target, "fill")));
         final PullCoreProvider provider = new PullCoreProvider ();
         final FakeCoreHost host = new FakeCoreHost (
             provider.create (),
@@ -371,7 +392,7 @@ class PullControllerCoreTest
     {
         final ClipTargetId first = new ClipTargetId (1);
         final ClipTargetId second = new ClipTargetId (2);
-        final FakeCoreHost host = host (new ClipCatalogSnapshot (1, List.of (
+        final FakeCoreHost host = host (fillCatalog (1, List.of (
             new CatalogClip (first, "fill one"),
             new CatalogClip (second, "fill two"))));
         startFillCore (host);
@@ -384,7 +405,7 @@ class PullControllerCoreTest
         host.button (CoreControls.DRUM_FILL_1, false);
 
         final ClipTargetId replacement = new ClipTargetId (3);
-        host.clipCatalog (new ClipCatalogSnapshot (2, List.of (
+        host.clipCatalog (fillCatalog (2, List.of (
             new CatalogClip (replacement, "replacement fill"),
             new CatalogClip (first, "fill one"),
             new CatalogClip (second, "fill two"))));
@@ -403,7 +424,7 @@ class PullControllerCoreTest
     void aNewDownPressesAgainWhenTheOwnerIsAlreadyInTheShellSession ()
     {
         final ClipTargetId target = new ClipTargetId (1);
-        final ClipCatalogSnapshot catalog = new ClipCatalogSnapshot (2, List.of (new CatalogClip (target, "fill one")));
+        final ClipCatalogSnapshot catalog = fillCatalog (2, List.of (new CatalogClip (target, "fill one")));
         final Map<ControlId, ClipTargetId> armed = Map.of (CoreControls.DRUM_FILL_1, target);
         final PullCoreProvider provider = new PullCoreProvider ();
         final FakeCoreHost host = new FakeCoreHost (
@@ -428,7 +449,7 @@ class PullControllerCoreTest
     {
         final ClipTargetId original = new ClipTargetId (1);
         final ClipTargetId second = new ClipTargetId (2);
-        final FakeCoreHost host = host (new ClipCatalogSnapshot (1, List.of (
+        final FakeCoreHost host = host (fillCatalog (1, List.of (
             new CatalogClip (original, "fill one"),
             new CatalogClip (second, "fill two"))));
         startFillCore (host);
@@ -438,7 +459,7 @@ class PullControllerCoreTest
         host.activeClipLaunchOwner (Optional.of (CoreControls.DRUM_FILL_1));
 
         final ClipTargetId inserted = new ClipTargetId (3);
-        host.clipCatalog (new ClipCatalogSnapshot (2, List.of (
+        host.clipCatalog (fillCatalog (2, List.of (
             new CatalogClip (inserted, "new fill"),
             new CatalogClip (original, "fill one"),
             new CatalogClip (second, "fill two"))));
@@ -467,7 +488,7 @@ class PullControllerCoreTest
     {
         final ClipTargetId desired = new ClipTargetId (1);
         final ClipTargetId stale = new ClipTargetId (2);
-        final ClipCatalogSnapshot catalog = new ClipCatalogSnapshot (3, List.of (new CatalogClip (desired, "fill")));
+        final ClipCatalogSnapshot catalog = fillCatalog (3, List.of (new CatalogClip (desired, "fill")));
         final PullCoreProvider provider = new PullCoreProvider ();
         final FakeCoreHost host = new FakeCoreHost (provider.create (), provider.descriptor ().requiredCapabilities (), catalog, Map.of (CoreControls.DRUM_FILL_1, stale), Set.of ());
         startFillCore (host);
@@ -495,7 +516,7 @@ class PullControllerCoreTest
     @Test
     void unrelatedInputsDoNotAcquireOrReleaseFillLeases ()
     {
-        final FakeCoreHost host = host (new ClipCatalogSnapshot (1, List.of (clip (1, "fill"))));
+        final FakeCoreHost host = host (fillCatalog (1, List.of (clip (1, "fill"))));
         startFillCore (host);
         host.armedClipTargets (host.effects ().desiredClipBindings ());
 
@@ -510,7 +531,7 @@ class PullControllerCoreTest
     @Test
     void melodicNoteRouteRetainsAllPadsWithoutClaimingThePhysicalFillLights ()
     {
-        final FakeCoreHost host = host (new ClipCatalogSnapshot (1, List.of (clip (1, "fill"))));
+        final FakeCoreHost host = host (fillCatalog (1, List.of (clip (1, "fill"))));
         final SelectedTrackSnapshot selected = selectedTrack (8, "drums", 5, true, false);
         final NoteViewSnapshot preference = new NoteViewSnapshot (8, "drums", 5, ControllerNoteView.PLAY, false);
         host.initialBridge (noteBridge (1, "PLAY", selected, preference, DrumContextSnapshot.empty (), NoteRepeatSnapshot.empty ()));
@@ -2182,7 +2203,7 @@ class PullControllerCoreTest
 
         host.controllerPad (PushControlIds.pad (10), false);
         enterVsLive (host);
-        assertEquals (Set.of (BridgeSubscription.CONTROLLER_SETTINGS, BridgeSubscription.CURRENT_TRACK_BANK, BridgeSubscription.TRANSPORT_SETTINGS, BridgeSubscription.AUTOMATION, BridgeSubscription.SELECTED_TRACK, BridgeSubscription.SESSION_BANK, BridgeSubscription.SESSION_CLIPS, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.NOTE_REPEAT, BridgeSubscription.DRUM_PADS, BridgeSubscription.PARAMETERS, BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK, BridgeSubscription.PROJECT, BridgeSubscription.BROWSER, BridgeSubscription.CONTROLLER_PAGES, BridgeSubscription.MASTER), host.effects ().desiredBridgeSubscriptions ().domains ());
+        assertEquals (Set.of (BridgeSubscription.CONTROLLER_SETTINGS, BridgeSubscription.CURRENT_TRACK_BANK, BridgeSubscription.TRANSPORT_SETTINGS, BridgeSubscription.AUTOMATION, BridgeSubscription.SELECTED_TRACK, BridgeSubscription.SESSION_BANK, BridgeSubscription.SESSION_CLIPS, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.NOTE_REPEAT, BridgeSubscription.DRUM_PADS, BridgeSubscription.PARAMETERS, BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK, BridgeSubscription.PROJECT, BridgeSubscription.BROWSER, BridgeSubscription.CONTROLLER_PAGES, BridgeSubscription.MASTER, BridgeSubscription.SELECTED_TRACK_CLIPS), host.effects ().desiredBridgeSubscriptions ().domains ());
         assertEquals (Set.of (ParameterBankId.PROJECT_REMOTE, ParameterBankId.GLOBAL), host.effects ().desiredParameterBanks ().banks ());
         final int defaultEffectCount = host.effects ().executionOrder ().size ();
         host.controllerPad (PushControlIds.pad (10), true);
@@ -3618,6 +3639,12 @@ class PullControllerCoreTest
     private static void assertPage (final FakeCoreHost host, final String alias) { assertEquals (alias, page (host)); }
 
 
+    private static ClipCatalogSnapshot fillCatalog (final long generation, final List<CatalogClip> clips)
+    {
+        return new ClipCatalogSnapshot (generation, clips, new ClipScanSnapshot (7, "track-7", Math.max (8, clips.size ()), 0, 8, true));
+    }
+
+
     private static FakeCoreHost host (final ClipCatalogSnapshot clips)
     {
         final PullCoreProvider provider = new PullCoreProvider ();
@@ -3643,9 +3670,9 @@ class PullControllerCoreTest
     {
         return new ControllerBridgeSnapshot (
             TransportSnapshot.empty (),
-            SelectedTrackSnapshot.empty (),
+            selectedTrack (false),
             new ControllerLayoutSnapshot (generation, active ? "DRUM_PAD" : "PLAY", "TRACK", active, active, 36, GridPressureConfiguration.OFF),
-            DrumContextSnapshot.empty (),
+            drum (selectedTrack (false)),
             ParameterBridgeSnapshot.empty ());
     }
 
