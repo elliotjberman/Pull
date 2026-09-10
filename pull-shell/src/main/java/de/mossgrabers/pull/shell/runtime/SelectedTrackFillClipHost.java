@@ -55,7 +55,6 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
     private Map<ControlId, ClipTargetId> armedClipTargets = Map.of ();
     private DesiredClipScan desiredScan = DesiredClipScan.inactive ();
     private ScannerSample pendingSample;
-    private int pendingPage = -1;
     private long selectedTargetGeneration;
     private final java.util.SortedMap<Integer, SlotSample> observedSlots = new java.util.TreeMap<> ();
     private String selectedTrackId = "";
@@ -235,7 +234,6 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
         this.desiredBindings = Map.of ();
         this.publishedSceneCount = -1;
         this.pendingSample = null;
-        this.pendingPage = -1;
         for (final ActuatorState actuator: this.actuators)
             actuator.selectionChanged ();
         this.updateArmedClipTargets ();
@@ -247,11 +245,6 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
         if (this.selectedTrackId.isEmpty ())
             return;
         final int requestedPage = this.desiredScan.sceneStart ();
-        if (requestedPage != this.pendingPage)
-        {
-            this.pendingPage = requestedPage;
-            this.pendingSample = null;
-        }
         final ScannerSample sample = Objects.requireNonNull (this.adapter.scannerSample (), "scanner sample");
         if (!sample.trackExists () || !sample.pinned () || !this.selectedTrackId.equals (sample.trackId ()))
         {

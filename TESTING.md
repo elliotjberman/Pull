@@ -520,8 +520,8 @@ target and pre-request observations, plus later host samples. It retains roughly
 on an owned worker, never the controller callback. Channel selection/visibility requests and
 scanner/actuator unpin-select-repin requests are distinguished; combined request entries report
 submission, not completion. Viewport position is not observed by this trace. Capture the UI
-with timestamps and compare selected-track offscreen scrolling RUN / PAUSE / RUN. The suspected
-cursor-to-viewport side effect remains unproven until that live comparison.
+with timestamps and compare selected-track offscreen scrolling RUN / PAUSE / RUN. The comparison
+below established the cursor-to-viewport side effect for the original diagnostic build.
 
 Diagnostic shell checkpoint `68cc6005` passed the complete offline package build with deprecation
 reporting. Its extension SHA-256 is
@@ -552,7 +552,8 @@ through the paused scrolling and resumed-scanner snap-back. This establishes tha
 scanner activity causes the viewport interference in this project; it does not isolate which
 individual unpin/select/repin or page movement primitive triggers Bitwig's scroll. The trace
 and UI observations distinguish requests, later unchanged host identity, and actual viewport
-movement. No production scrolling fix is included; normal scanning is restored after the test.
+movement. That diagnostic build contained no production scrolling fix; the selected-track scan
+cutover below removes the repeated cursor retargeting.
 
 
 ## Selected-track scan cutover
@@ -579,6 +580,11 @@ other-target rejection and active-view subscription removal through the real cor
 `mvn -o -Dmaven.compiler.showDeprecation=true package` passed 1,072 tests with no failures,
 errors, skips or deprecation warnings in changed code. Independent architecture and code-size
 reviews found no material blockers.
+
+The finishing PR review removed seven lines of redundant pending-page state and corrected scanner
+documentation. The rebuilt package again passed all 1,072 tests; debug-client, live-lock and all
+eight surface-server tests also passed. The live evidence below predates that state-only deletion;
+the final reviewed shell binary has not been reinstalled or live-tested.
 
 
 Matched live acceptance (2026-09-10, source `f18c3c059c49bc487dfe82fc4020b519fd63cb59`):
