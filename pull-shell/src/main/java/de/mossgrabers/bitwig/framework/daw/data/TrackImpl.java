@@ -20,6 +20,7 @@ import com.bitwig.extension.controller.api.Track;
 
 import de.mossgrabers.bitwig.framework.daw.ApplicationImpl;
 import de.mossgrabers.bitwig.framework.daw.HostImpl;
+import de.mossgrabers.bitwig.framework.daw.GroupNavigationHost;
 import de.mossgrabers.bitwig.framework.daw.ModelImpl;
 import de.mossgrabers.bitwig.framework.daw.data.bank.SlotBankImpl;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
@@ -58,6 +59,8 @@ public class TrackImpl extends ChannelImpl implements ITrack
     protected final IHost            host;
     private final IParameter         crossfadeParameter;
     private final Device             drumMachineDevice;
+
+    private GroupNavigationHost pendingGroupEntry;
 
 
     /**
@@ -117,6 +120,9 @@ public class TrackImpl extends ChannelImpl implements ITrack
     @Override
     public void enableObservers (final boolean enable)
     {
+        if (!enable && this.pendingGroupEntry != null)
+            this.pendingGroupEntry.cancel ();
+
         super.enableObservers (enable);
 
         Util.setIsSubscribed (this.track.trackType (), enable);
@@ -171,18 +177,22 @@ public class TrackImpl extends ChannelImpl implements ITrack
         if (!this.isGroup ())
             return;
 
-        // If this track is already the cursor track, enter it straight away
-        if (this.isSelected ())
-        {
-            this.selectFirstChild ();
+        final String target = this.getChannelID ();
+        if (target.isBlank ())
             return;
-        }
-
-        // Make the track cursor track
-        this.select ();
-        // Delay the child selection a bit to ensure the track is selected
-        this.host.scheduleTask (this::selectFirstChild, 100);
+        if (this.pendingGroupEntry != null)
+            this.pendingGroupEntry.enter (target,
+                () -> this.doesExist () && this.isGroup () && target.equals (this.getChannelID ()),
+                this::select, this::selectFirstChild);
     }
+
+
+    /** Install the model's project fence during initialization. */
+    public void configurePendingOperations (final GroupNavigationHost groupEntry)
+    {
+        this.pendingGroupEntry = groupEntry;
+    }
+
 
 
     private void selectFirstChild ()

@@ -96,12 +96,23 @@ public abstract class AbstractItemBank<T extends IItem> extends AbstractBank<T>
         if (position < 0 || position >= this.getItemCount ())
             return;
         final int ps = this.getPageSize ();
-        this.scrollTo (position / ps * ps);
+        final int offset = position / ps * ps;
+        this.selectAfterScroll (offset, position % ps, true, () -> this.scrollTo (offset));
+    }
+
+
+    /**
+     * Submit a window change and select its destination once the host bank is ready.
+     * Concrete asynchronous banks can fence this continuation with their native owner and item state.
+     */
+    protected void selectAfterScroll (final int offset, final int index, final boolean notifyPage, final Runnable scroll)
+    {
+        scroll.run ();
+        // The generic bank has no native owner/position observation contract.
         this.host.scheduleTask ( () -> {
-
-            this.getItem (position % ps).select ();
-            this.firePageObserver ();
-
+            this.getItem (index).select ();
+            if (notifyPage)
+                this.firePageObserver ();
         }, 75);
     }
 

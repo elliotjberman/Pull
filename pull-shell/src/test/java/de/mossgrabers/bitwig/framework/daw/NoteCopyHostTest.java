@@ -36,7 +36,7 @@ class NoteCopyHostTest
         f.copy.copy (destination, 0, .25, source);
         destination.setStep (5);
         source.setPressure (.99);
-        f.awaitCreation (1);
+        f.awaitCreationSubmission (1);
         f.selectEditor (f.b);
 
         // Twenty controller polls represent 400 ms: elapsed time alone is never an acknowledgement.
@@ -65,14 +65,14 @@ class NoteCopyHostTest
         f.publishCursorState ();
         f.copy.copy (DESTINATION, 0, .25, source ());
         // Initial cursor population can arrive during acquisition, before the copy's setStep request.
-        for (int i = 0; i < 10 && f.creations.isEmpty (); i++)
+        for (int i = 0; i < 10 && f.creationSubmissions == 0; i++)
         {
             f.applyHostCommands ();
             f.publishCursorState ();
             f.publishNotes ();
             f.poll (1);
         }
-        assertEquals (1, f.creations.size ());
+        assertEquals (1, f.creationSubmissions);
         f.poll (20);
         assertTrue (f.expressions.isEmpty (), "a pre-request NoteOn must not unlock expression writes");
         f.applyHostCommands ();
@@ -91,7 +91,7 @@ class NoteCopyHostTest
         {
             final FakeHost f = new FakeHost ();
             f.copy.copy (DESTINATION, 0, .25, source ());
-            f.awaitCreation (1);
+            f.awaitCreationSubmission (1);
             f.applyHostCommands ();
             f.publishCursorState ();
             f.publishNotes ();
@@ -119,7 +119,7 @@ class NoteCopyHostTest
     {
         final FakeHost f = new FakeHost ();
         for (int page = 0; page < 4; page++) f.copy.copy (DESTINATION, page, .25, source ());
-        f.awaitCreation (4);
+        f.awaitCreationSubmission (4);
         f.applyHostCommands ();
         f.publishCursorState ();
         f.publishNotes ();
@@ -131,7 +131,7 @@ class NoteCopyHostTest
         assertEquals (4, f.creations.size (), "a fifth pending window must not silently rebind an occupied cursor");
         f.finish ();
         f.copy.copy (DESTINATION, 5, .25, source ());
-        f.awaitCreation (5);
+        f.awaitCreationSubmission (5);
         f.finish ();
         assertTrue (f.a.notes.containsKey (new Position (0, 42, 60)));
         assertFalse (f.a.notes.containsKey (new Position (0, 34, 60)));
@@ -147,7 +147,7 @@ class NoteCopyHostTest
         unchanged.setVelocity (64 / 127.0);
         // Fake native creation initializes the other expression values to zero, matching this source.
         for (int page = 0; page < 4; page++) f.copy.copy (DESTINATION, page, .25, unchanged);
-        f.awaitCreation (4);
+        f.awaitCreationSubmission (4);
         f.applyHostCommands ();
         f.publishCursorState ();
         f.publishNotes ();
@@ -155,40 +155,28 @@ class NoteCopyHostTest
         assertTrue (f.expressions.isEmpty (), "matching authoritative values need no redundant writes");
         // No further note observer is delivered: no-op native setters need not generate a change.
         f.copy.copy (DESTINATION, 4, .25, unchanged);
-        f.awaitCreation (5);
+        f.awaitCreationSubmission (5);
     }
 
     @Test
-    void sixtyFourNotePatternCompletesOnCapturedClipAfterEditorSelectionChanges ()
-    {
-        final FakeHost f = new FakeHost ();
-        for (int i = 0; i < 64; i++)
-            f.copy.copy (new NotePosition (0, i / 8, 48 + i % 8), 0, .25, source ());
-        f.awaitCreation (64);
-        f.selectEditor (f.b);
-        f.finish ();
-        assertEquals (64, f.a.notes.size (), "pattern duplication must preserve every note, including chords larger than four notes");
-        for (final NativeNote note: f.a.notes.values ())
-            assertEquals (Map.of ("velocity", .63, "gain", .9, "pan", -.25, "pressure", .2,
-                "releaseVelocity", .36, "timbre", .4, "transpose", -7.5), note.values);
-        assertTrue (f.b.notes.isEmpty ());
-        assertTrue (f.expressions.stream ().allMatch (write -> write.clip == f.a));
-    }
-
-    @Test
-    void oneWindowAccepts128NotesWithoutConsumingOtherWindowCapacity ()
+    void fullWindowAndSeparateWindowCompleteAfterEditorSelectionChanges ()
     {
         final FakeHost f = new FakeHost ();
         for (int i = 0; i < 128; i++)
             f.copy.copy (new NotePosition (0, i / 16, 48 + i % 16), 0, .25, source ());
         f.copy.copy (new NotePosition (0, 0, 80), 0, .25, source ());
         f.copy.copy (new NotePosition (0, 0, 81), 1, .25, source ());
-        f.awaitCreation (129);
+        f.awaitCreationSubmission (129);
+        f.selectEditor (f.b);
         f.finish ();
         assertEquals (129, f.a.notes.size ());
         assertFalse (f.a.notes.containsKey (new Position (0, 0, 80)), "a full window must refuse overflow rather than silently consume another cursor");
         assertTrue (f.a.notes.containsKey (new Position (0, 8, 81)), "a separate window can still copy while the first window is full");
-        assertTrue (f.a.notes.values ().stream ().allMatch (note -> Double.valueOf (.2).equals (note.values.get ("pressure"))));
+        for (final NativeNote note: f.a.notes.values ())
+            assertEquals (Map.of ("velocity", .63, "gain", .9, "pan", -.25, "pressure", .2,
+                "releaseVelocity", .36, "timbre", .4, "transpose", -7.5), note.values);
+        assertTrue (f.b.notes.isEmpty ());
+        assertTrue (f.expressions.stream ().allMatch (write -> write.clip == f.a));
     }
 
     @Test
@@ -198,7 +186,7 @@ class NoteCopyHostTest
         final NotePosition survivor = new NotePosition (0, 2, 61);
         f.copy.copy (DESTINATION, 0, .25, source ());
         f.copy.copy (survivor, 0, .25, source ());
-        f.awaitCreation (2);
+        f.awaitCreationSubmission (2);
         f.applyHostCommands ();
         f.publishCursorState ();
         f.publishNotes ();
@@ -221,7 +209,7 @@ class NoteCopyHostTest
     {
         final FakeHost f = new FakeHost ();
         f.copy.copy (DESTINATION, 2, .125, source ());
-        f.awaitCreation (1);
+        f.awaitCreationSubmission (1);
         f.editor.clip.scrollToStep (64);
         f.editor.clip.setStepSize (1.0);
         // (page 2 * 8 + step 2) * .125 equals (page 1 * 8 + step 1) * .25.
@@ -234,11 +222,42 @@ class NoteCopyHostTest
     }
 
     @Test
+    void queuedGeometryIsAppliedBeforeCreationWithoutBecomingNoteAcknowledgement ()
+    {
+        final FakeHost f = new FakeHost ();
+        f.copy.copy (DESTINATION, 2, .125, source ());
+        f.applyHostCommands ();
+        f.publishCursorState ();
+        f.poll (1);
+        // Deliver clip selection and pinning while its geometry commands remain queued.
+        f.commands.remove (0).run ();
+        f.commands.remove (0).run ();
+        f.publishCursorState ();
+        f.poll (2);
+        assertEquals (1, f.creationSubmissions);
+        assertTrue (f.creations.isEmpty (), "submission must not resolve coordinates or apply the note");
+
+        f.applyHostCommands ();
+        final Position expected = new Position (0, 18, 60);
+        assertEquals (expected, f.creations.get (0).position);
+        assertEquals (List.of (.125), f.creationStepSizes);
+        assertTrue (f.a.notes.containsKey (expected));
+        f.poll (1);
+        assertTrue (f.expressions.isEmpty (), "applied geometry and note creation are not observed completion");
+        f.publishCursorState ();
+        f.poll (1);
+        assertTrue (f.expressions.isEmpty (), "matching getters still need a fresh note observation");
+        f.publishNotes ();
+        f.finish ();
+        assertEquals (.2, f.a.notes.get (expected).values.get ("pressure"));
+    }
+
+    @Test
     void projectSwitchCannotReuseMatchingTrackAndSceneIdentity ()
     {
         final FakeHost f = new FakeHost ();
         f.copy.copy (DESTINATION, 0, .25, source ());
-        f.awaitCreation (1);
+        f.awaitCreationSubmission (1);
         f.applyHostCommands ();
         f.publishCursorState ();
         f.publishNotes ();
@@ -269,7 +288,7 @@ class NoteCopyHostTest
     {
         final FakeHost f = new FakeHost ();
         f.copy.copy (DESTINATION, 0, .25, source ());
-        f.awaitCreation (1);
+        f.awaitCreationSubmission (1);
         f.copy.close ();
         f.applyHostCommands ();
         f.publishCursorState ();
@@ -328,6 +347,7 @@ class NoteCopyHostTest
         final List<NativeCursor> cursors = new ArrayList<> ();
         final Map<Object, NativeCursor> nativeCursors = new IdentityHashMap<> ();
         final NativeCursor editor = new NativeCursor ();
+        int creationSubmissions;
         String projectId = "project-a";
         final NoteCopyHost copy;
 
@@ -372,15 +392,15 @@ class NoteCopyHostTest
         void publishCursorState () { this.cursors.forEach (NativeCursor::publish); }
         void publishNotes () { this.cursors.forEach (NativeCursor::notifyNotes); }
 
-        void awaitCreation (final int count)
+        void awaitCreationSubmission (final int count)
         {
-            for (int i = 0; i < 30 && this.creations.size () < count; i++)
+            for (int i = 0; i < 30 && this.creationSubmissions < count; i++)
             {
                 this.applyHostCommands ();
                 this.publishCursorState ();
                 this.poll (1);
             }
-            assertEquals (count, this.creations.size (), "copy did not acquire its target and submit note creation");
+            assertEquals (count, this.creationSubmissions, "copy did not acquire its target and submit note creation");
         }
 
         void finish ()
@@ -450,14 +470,17 @@ class NoteCopyHostTest
 
             void create (final Object [] args)
             {
-                final Position position = this.position (args);
-                final ClipState captured = this.target;
                 final double velocity = ((Integer) args[3]).doubleValue () / 127;
                 final double duration = (Double) args[4];
-                FakeHost.this.creations.add (new Write (captured, position, "create", velocity));
-                FakeHost.this.creationStepSizes.add (this.stepSize);
-                if (!this.requestedNotes.contains (position)) this.requestedNotes.add (position);
-                FakeHost.this.commands.add (() -> { if (captured.exists) captured.notes.put (position, new NativeNote (velocity, duration)); });
+                FakeHost.this.creationSubmissions++;
+                // Bitwig resolves the target and grid on its document thread, after earlier commands.
+                FakeHost.this.commands.add (() -> {
+                    final Position position = this.position (args);
+                    FakeHost.this.creations.add (new Write (this.target, position, "create", velocity));
+                    FakeHost.this.creationStepSizes.add (this.stepSize);
+                    if (!this.requestedNotes.contains (position)) this.requestedNotes.add (position);
+                    if (this.target.exists) this.target.notes.put (position, new NativeNote (velocity, duration));
+                });
             }
 
             NoteStep note (final Position position)

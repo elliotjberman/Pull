@@ -91,6 +91,39 @@ write. The copied-note display and unchanged-note display were inspected. Local 
 are in the dedicated worktree's `target/note-copy-evidence/`; the scratch project is under
 `target/Note Copy Smoke/`. This evidence does not cover other legacy held-note editing gestures.
 
+## Host operation acknowledgements
+
+Capability audit: **B — bounded shell expansion**, Core API 56 and Bitwig API 25 unchanged.
+Existing commands retain their meanings; shell changes execute and validate those commands using
+interested native values. A matching extension install/restart is required. The active migration
+findings remain unresolved; this work does not migrate legacy editing/navigation into core.
+
+| Operation | Completion boundary |
+| --- | --- |
+| Note copy | Retained project/track/clip, fresh created-note observation, then matching expression read-back. Geometry and note creation execute in native submission order; two identity samples are not a geometry acknowledgement. |
+| Sibling-bank page/select | Requested bank offset and every existing row's parent-local position match before selecting the destination row. Project, parent UUID, selected cursor UUID and item count must remain valid. Rapid page requests replace the pending destination. |
+| Group entry | Native cursor UUID matches the requested group before selecting its first child. One owner serializes selection submissions sharing that cursor; intermediate read-back cannot execute obsolete entries. |
+| Stop/rewind | Later subscribed stopped state permits the zero-position write; later position read-back retires it. New transport/seek requests and project changes cancel the continuation. |
+| Master engine/remote playback | Later engine/playback read-back resolves the command. A two-second warning retains the unresolved lane and remote target instead of treating elapsed ticks as success. |
+| Held note expressions | Keep the existing 100 ms send cadence, but fence each edit generation to its observed project/track/scene/page/resolution. Target changes, lost notes and shutdown cannot redirect delayed writes. |
+
+Bank/group/rewind continuations have bounded 150-poll cancellation deadlines with 20 ms requested
+between samples; a deadline never authorizes the next operation. Group and bank replacements retain one submitted operation and one latest intent without
+extending the original deadline. Model cleanup cancels owners;
+no post-exit scheduling is promised.
+
+Retained unchanged: browser insertion waits (open/closed is not correlated with an opening still in
+flight), Add Track/device insertion and native Duplicate (no returned created-object identity),
+device and flattened/filtered-bank paging (no proven offset-to-target identity mapping), and generic
+selection notifications. Musical timing, double-click/long-press windows, periodic flushes, throttles
+and animation intervals are not host-completion acknowledgements and remain timers.
+
+Offline regressions separate command submission, host advancement and subscribed observations.
+They cover delayed/intermediate bank pages, rapid replacement/reversal, group supersession and
+structural guards, shutdown, edited-target changes under both publication orders, retained-copy
+geometry/expressions/capacity, delayed rewind and Master acknowledgements beyond old deadlines.
+Live validation of this combined shell is pending.
+
 ## Offline UI catalog
 
 Run `tools/ui-component-catalog` to generate a local HTML gallery from production components and

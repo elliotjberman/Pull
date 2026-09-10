@@ -6,6 +6,8 @@ package de.mossgrabers.bitwig.framework.daw;
 
 import java.text.DecimalFormat;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Supplier;
 import java.util.TreeMap;
 
 import com.bitwig.extension.controller.api.Arranger;
@@ -34,7 +36,7 @@ import de.mossgrabers.framework.utils.StringUtils;
  *
  * @author Jürgen Moßgraber
  */
-public class TransportImpl implements ITransport
+public class TransportImpl implements ITransport, AutoCloseable
 {
     /** No pre-roll. */
     private static final String              PREROLL_NONE            = "none";
@@ -75,6 +77,12 @@ public class TransportImpl implements ITransport
     private final IApplication   application;
     private final IValueChanger  valueChanger;
     private final Transport      transport;
+    private final Supplier<String> projectIdentity;
+    private PendingRewind pendingRewind;
+    private boolean closed;
+
+    private static final int REWIND_POLL_MILLIS = 20;
+    private static final int REWIND_MAX_POLLS = 150;
 
     private final IParameter     crossfadeParameter;
     private final IParameter     metronomeVolumeParameter;
@@ -88,13 +96,15 @@ public class TransportImpl implements ITransport
      * @param application The application
      * @param bwArranger The Bitwig arranger
      * @param valueChanger The value changer
+     * @param projectIdentity The subscribed current project identity
      */
-    public TransportImpl (final ControllerHost host, final IApplication application, final Arranger bwArranger, final IValueChanger valueChanger)
+    public TransportImpl (final ControllerHost host, final IApplication application, final Arranger bwArranger, final IValueChanger valueChanger, final Supplier<String> projectIdentity)
     {
         this.host = host;
         this.application = application;
         this.valueChanger = valueChanger;
         this.transport = host.createTransport ();
+        this.projectIdentity = Objects.requireNonNull (projectIdentity, "projectIdentity");
         this.bwArranger = bwArranger;
 
         this.transport.isPlaying ().markInterested ();
@@ -135,6 +145,8 @@ public class TransportImpl implements ITransport
     @Override
     public void enableObservers (final boolean enable)
     {
+        if (!enable)
+            this.pendingRewind = null;
         Util.setIsSubscribed (this.transport.isPlaying (), enable);
         Util.setIsSubscribed (this.transport.isArrangerRecordEnabled (), enable);
         Util.setIsSubscribed (this.transport.isArrangerOverdubEnabled (), enable);
@@ -172,6 +184,7 @@ public class TransportImpl implements ITransport
     @Override
     public void play ()
     {
+        this.pendingRewind = null;
         this.transport.play ();
     }
 
@@ -188,6 +201,7 @@ public class TransportImpl implements ITransport
     @Override
     public void restart ()
     {
+        this.pendingRewind = null;
         this.transport.restart ();
     }
 
@@ -196,6 +210,7 @@ public class TransportImpl implements ITransport
     @Override
     public void stop ()
     {
+        this.pendingRewind = null;
         this.transport.stop ();
     }
 
@@ -204,9 +219,70 @@ public class TransportImpl implements ITransport
     @Override
     public void stopAndRewind ()
     {
+        this.pendingRewind = null;
+        if (this.closed)
+            return;
+        final String identity = Objects.requireNonNullElse (this.projectIdentity.get (), "");
         this.transport.stop ();
-        // Delay the position movement to make sure that the playback is really stopped
-        this.host.scheduleTask (() -> this.transport.setPosition (0), 100);
+        if (identity.isBlank ())
+            return;
+        final PendingRewind request = new PendingRewind (identity);
+        this.pendingRewind = request;
+        this.host.scheduleTask (() -> this.advanceRewind (request), REWIND_POLL_MILLIS);
+    }
+
+
+    @Override
+    public void close ()
+    {
+        this.closed = true;
+        this.pendingRewind = null;
+    }
+
+
+    private void advanceRewind (final PendingRewind request)
+    {
+        if (this.pendingRewind != request)
+            return;
+        if (!request.projectIdentity.equals (this.projectIdentity.get ()))
+        {
+            this.pendingRewind = null;
+            return;
+        }
+        if (request.positionSubmitted)
+        {
+            if (this.transport.isPlaying ().get () || this.transport.getPosition ().get () == 0)
+            {
+                this.pendingRewind = null;
+                return;
+            }
+        }
+        else if (!this.transport.isPlaying ().get ())
+        {
+            this.transport.setPosition (0);
+            request.positionSubmitted = true;
+        }
+        if (++request.polls >= REWIND_MAX_POLLS)
+        {
+            this.pendingRewind = null;
+            this.host.errorln ("Stop/rewind was not acknowledged before its deadline; abandoning the pending operation");
+            return;
+        }
+        this.host.scheduleTask (() -> this.advanceRewind (request), REWIND_POLL_MILLIS);
+    }
+
+
+    private static final class PendingRewind
+    {
+        private final String projectIdentity;
+        private boolean positionSubmitted;
+        private int polls;
+
+
+        private PendingRewind (final String projectIdentity)
+        {
+            this.projectIdentity = projectIdentity;
+        }
     }
 
 
@@ -214,6 +290,7 @@ public class TransportImpl implements ITransport
     @Override
     public void startRecording ()
     {
+        this.pendingRewind = null;
         this.transport.record ();
     }
 
@@ -470,6 +547,7 @@ public class TransportImpl implements ITransport
     @Override
     public void setPositionToEnd ()
     {
+        this.pendingRewind = null;
         this.application.invokeAction (ACTION_JUMP_TO_END);
     }
 
@@ -478,6 +556,7 @@ public class TransportImpl implements ITransport
     @Override
     public void setPosition (final double beats)
     {
+        this.pendingRewind = null;
         this.transport.playStartPosition ().set (beats);
         if (this.transport.isPlaying ().get ())
             this.transport.jumpToPlayStartPosition ();
@@ -533,6 +612,7 @@ public class TransportImpl implements ITransport
     @Override
     public void selectLoopStart ()
     {
+        this.pendingRewind = null;
         final double beats = this.transport.arrangerLoopStart ().get ();
         if (beats >= 0)
             this.transport.setPosition (beats);
@@ -551,6 +631,7 @@ public class TransportImpl implements ITransport
     @Override
     public void selectLoopEnd ()
     {
+        this.pendingRewind = null;
         final double pos = this.transport.arrangerLoopStart ().get ();
         if (pos >= 0)
             this.transport.setPosition (pos + this.transport.arrangerLoopDuration ().get ());

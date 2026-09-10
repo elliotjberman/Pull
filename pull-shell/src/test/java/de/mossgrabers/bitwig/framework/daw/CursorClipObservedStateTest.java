@@ -28,6 +28,9 @@ class CursorClipObservedStateTest
         final List<Double> submitted = new ArrayList<> ();
         final List<Double> submittedGainRequests = new ArrayList<> ();
         final List<Runnable> scheduled = new ArrayList<> ();
+        final Track clipTrack = proxy (Track.class, (p, method, args) -> "channelId".equals (method.getName ())
+            ? proxy (StringValue.class, (v, getter, values) -> "get".equals (getter.getName ()) ? "track-a" : empty (getter.getReturnType ()))
+            : empty (method.getReturnType ()));
         final NoteStep note = proxy (NoteStep.class, (p, method, args) -> switch (method.getName ()) {
             case "x", "channel" -> 0;
             case "y" -> 60;
@@ -43,6 +46,8 @@ class CursorClipObservedStateTest
         final PinnableCursorClip nativeClip = proxy (PinnableCursorClip.class, (p, method, args) -> switch (method.getName ()) {
             case "addNoteStepObserver" -> { observer.set ((NoteStepChangedCallback) args[0]); yield null; }
             case "getStep" -> note;
+            case "getTrack" -> clipTrack;
+            case "exists" -> proxy (BooleanValue.class, (v, getter, values) -> "get".equals (getter.getName ()) ? true : empty (getter.getReturnType ()));
             default -> empty (method.getReturnType ());
         });
         final CursorTrack track = proxy (CursorTrack.class, (p, method, args) -> "createLauncherCursorClip".equals (method.getName ()) ? nativeClip : empty (method.getReturnType ()));

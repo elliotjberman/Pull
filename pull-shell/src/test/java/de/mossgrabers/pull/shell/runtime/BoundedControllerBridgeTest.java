@@ -604,6 +604,70 @@ class BoundedControllerBridgeTest
 
 
     @Test
+    void delayedRemoteTransportAcknowledgementRetainsTargetAndNeverUsesTimeoutAsSuccess ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        final DesiredBridgeSubscriptions requested = subscriptions (BridgeSubscription.PROJECT, BridgeSubscription.TRANSPORT);
+        fixture.project.identity = "project-b";
+        fixture.transport.playing = true;
+        fixture.bridge.refresh (0, requested, DesiredParameterBanks.empty ());
+        fixture.bridge.apply (fixture.bridge.prepare (new SetProjectTransportStateEffect (
+            "project-b", "project-a", TransportState.PLAYING, false)));
+        fixture.project.identity = "project-a";
+        fixture.application.engineActive = true;
+        fixture.bridge.refresh (1, requested, DesiredParameterBanks.empty ());
+        fixture.bridge.refresh (2, requested, DesiredParameterBanks.empty ());
+        for (int tick = 0; tick < 32; tick++)
+            fixture.bridge.refresh (3_000_000_000L + tick, requested, DesiredParameterBanks.empty ());
+
+        assertEquals (1, fixture.transport.stopCount, "an unresolved submission is never retried");
+        assertEquals (0, fixture.project.nextCount, "elapsed time does not permit leaving the target");
+        assertTrue (fixture.bridge.snapshot ().project ().commandPending ());
+        assertEquals (1, fixture.warnings.stream ().filter (message -> message.contains ("transport request remains unacknowledged")).count ());
+        fixture.bridge.apply (fixture.bridge.prepare (new SetProjectTransportStateEffect (
+            "project-a", "project-a", TransportState.PLAYING, false)));
+        assertEquals (1, fixture.transport.stopCount, "dependent requests cannot bypass the retained lane");
+
+        fixture.transport.playing = false;
+        fixture.bridge.refresh (4_000_000_000L, requested, DesiredParameterBanks.empty ());
+        assertEquals (1, fixture.project.nextCount, "late authoritative state permits the exact return");
+        fixture.project.identity = "project-b";
+        fixture.application.engineActive = false;
+        fixture.bridge.refresh (4_000_000_001L, requested, DesiredParameterBanks.empty ());
+        fixture.bridge.refresh (4_000_000_002L, requested, DesiredParameterBanks.empty ());
+        assertFalse (fixture.bridge.snapshot ().project ().commandPending ());
+    }
+
+
+    @Test
+    void engineAcknowledgementDeadlineWarnsOnceAndContextChangeAbandonsWithoutRetry ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        final DesiredBridgeSubscriptions requested = subscriptions (BridgeSubscription.MASTER);
+        fixture.bridge.refresh (0, requested, DesiredParameterBanks.empty ());
+        fixture.bridge.apply (fixture.bridge.prepare (new SetProjectEngineEffect ("project-a", true)));
+        fixture.bridge.refresh (3_000_000_000L, requested, DesiredParameterBanks.empty ());
+        fixture.bridge.refresh (4_000_000_000L, requested, DesiredParameterBanks.empty ());
+        assertTrue (fixture.bridge.snapshot ().master ().commandPending ());
+        assertFalse (fixture.bridge.snapshot ().master ().engineActive ());
+        assertEquals (1, fixture.warnings.size ());
+        assertEquals (1, fixture.application.engineWriteCount);
+        fixture.application.engineActive = true;
+        fixture.bridge.refresh (5_000_000_000L, requested, DesiredParameterBanks.empty ());
+        assertFalse (fixture.bridge.snapshot ().master ().commandPending ());
+
+        fixture.bridge.apply (fixture.bridge.prepare (new SetProjectEngineEffect ("project-a", false)));
+        fixture.project.identity = "project-b";
+        fixture.bridge.refresh (6_000_000_000L, requested, DesiredParameterBanks.empty ());
+        assertFalse (fixture.bridge.snapshot ().master ().commandPending ());
+        fixture.application.engineActive = false;
+        fixture.bridge.refresh (7_000_000_000L, requested, DesiredParameterBanks.empty ());
+        assertEquals (2, fixture.application.engineWriteCount, "context loss cannot replay an old request on the new project");
+        assertTrue (fixture.warnings.stream ().anyMatch (message -> message.contains ("abandoned without acknowledgement")));
+    }
+
+
+    @Test
     void timedOutRemoteReturnRetainsTheLaneAndRetriesUntilOriginReadback ()
     {
         final BridgeFixture fixture = new BridgeFixture ();
@@ -1326,6 +1390,7 @@ class BoundedControllerBridgeTest
         private final MutableMappingStorage mappingStorage = new MutableMappingStorage ();
         private final List<MidiMessage> noteInputMidiMessages = new ArrayList<> ();
         private final List<String> notifications = new ArrayList<> ();
+        private final List<String> warnings = new ArrayList<> ();
         private final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
         private final MutableNoteRepeat noteRepeat;
         private final ManualRepeatConfiguration configuration;
@@ -1430,7 +1495,7 @@ class BoundedControllerBridgeTest
                     @Override
                     public void warn (final String message)
                     {
-                        // No test diagnostics.
+                        BridgeFixture.this.warnings.add (message);
                     }
                 },
                 new ControllerMappingHost (this.surface, this.mappingStorageHost));

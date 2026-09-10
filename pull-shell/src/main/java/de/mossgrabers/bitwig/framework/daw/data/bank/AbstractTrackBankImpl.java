@@ -6,12 +6,15 @@ package de.mossgrabers.bitwig.framework.daw.data.bank;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Supplier;
 
 import com.bitwig.extension.controller.api.CursorTrack;
 import com.bitwig.extension.controller.api.Track;
 import com.bitwig.extension.controller.api.TrackBank;
 
 import de.mossgrabers.bitwig.framework.daw.ApplicationImpl;
+import de.mossgrabers.bitwig.framework.daw.PendingHostOperation;
+import de.mossgrabers.bitwig.framework.daw.GroupNavigationHost;
 import de.mossgrabers.bitwig.framework.daw.data.CursorTrackImpl;
 import de.mossgrabers.bitwig.framework.daw.data.TrackImpl;
 import de.mossgrabers.framework.controller.color.ColorEx;
@@ -39,6 +42,13 @@ public abstract class AbstractTrackBankImpl extends AbstractChannelBankImpl<Trac
     protected final CursorTrackImpl cursorTrack;
     protected final Track           rootGroup;
     private int                     currentPage = -1;
+    private final PendingHostOperation pendingSelection;
+    private Track parentTrack;
+    private Supplier<String> projectIdentity;
+    private boolean flatTrackList;
+    private PageSelection pageSelection;
+    private int submittedPageOffset;
+    private boolean submittingPageScroll;
 
 
     /**
@@ -61,11 +71,18 @@ public abstract class AbstractTrackBankImpl extends AbstractChannelBankImpl<Trac
         this.application = application;
         this.cursorTrack = cursorTrack;
         this.rootGroup = rootGroup;
+        this.pendingSelection = new PendingHostOperation (host);
 
         if (this.bank.isEmpty ())
             return;
 
         final TrackBank trackBank = this.bank.get ();
+        if (numTracks > 0)
+        {
+            this.parentTrack = trackBank.getItemAt (0).createParentTrack (0, 0);
+            this.parentTrack.exists ().markInterested ();
+            this.parentTrack.channelId ().markInterested ();
+        }
 
         this.sceneBank = new SceneBankImpl (host, valueChanger, this.numScenes == 0 ? null : trackBank.sceneBank (), this.numScenes, cursorTrack);
 
@@ -81,6 +98,11 @@ public abstract class AbstractTrackBankImpl extends AbstractChannelBankImpl<Trac
     @Override
     protected void beforeWindowMutation ()
     {
+        if (!this.submittingPageScroll)
+        {
+            this.pendingSelection.cancel ();
+            this.pageSelection = null;
+        }
         this.host.beforeProjectStructureMutation ();
     }
 
@@ -89,9 +111,171 @@ public abstract class AbstractTrackBankImpl extends AbstractChannelBankImpl<Trac
     @Override
     public void enableObservers (final boolean enable)
     {
+        if (!enable)
+        {
+            this.pendingSelection.cancel ();
+            this.pageSelection = null;
+        }
         super.enableObservers (enable);
 
-        this.sceneBank.enableObservers (enable);
+        if (this.sceneBank != null)
+            this.sceneBank.enableObservers (enable);
+    }
+
+
+    /** Install the model project fence and bank topology during initialization. */
+    public void configurePendingOperations (final Supplier<String> identity, final boolean flat, final GroupNavigationHost groupEntry)
+    {
+        this.projectIdentity = identity;
+        this.flatTrackList = flat;
+        for (final ITrack item: this.items)
+            ((TrackImpl) item).configurePendingOperations (groupEntry);
+    }
+
+
+    /** Cancel deferred bank selection at model shutdown. */
+    public void closePendingOperations ()
+    {
+        this.pendingSelection.close ();
+        this.pageSelection = null;
+    }
+
+
+    @Override
+    public void selectNextItem ()
+    {
+        this.pendingSelection.cancel ();
+        this.pageSelection = null;
+        super.selectNextItem ();
+    }
+
+
+    @Override
+    public void selectPreviousItem ()
+    {
+        this.pendingSelection.cancel ();
+        this.pageSelection = null;
+        super.selectPreviousItem ();
+    }
+
+
+    @Override
+    public void selectNextPage ()
+    {
+        if (this.flatTrackList || this.pageSelection == null || !this.selectionValid (this.pageSelection))
+            super.selectNextPage ();
+        else if (this.pageSelection.offset < this.pageSelection.count - 1)
+            this.selectAfterScroll (this.getScrollPosition () + this.getPageSize (), 0, false, this::scrollPageForwards);
+    }
+
+
+    @Override
+    public void selectPreviousPage ()
+    {
+        if (this.flatTrackList || this.pageSelection == null || !this.selectionValid (this.pageSelection))
+            super.selectPreviousPage ();
+        else if (this.pageSelection.offset > 0)
+            // Do not clamp this relative request against the stale observed offset.
+            this.selectAfterScroll (this.getScrollPosition () - this.getPageSize (), 0, false, this::scrollPageBackwards);
+    }
+
+
+    @Override
+    protected void selectAfterScroll (final int offset, final int index, final boolean notifyPage, final Runnable scroll)
+    {
+        // Track.position is local to its immediate parent. A flattened/filtered list has no
+        // proven offset-to-position mapping across groups; preserve its existing continuation.
+        if (this.flatTrackList)
+        {
+            super.selectAfterScroll (offset, index, notifyPage, scroll);
+            return;
+        }
+        if (this.projectIdentity == null || this.items.isEmpty () || !this.getItem (0).doesExist ())
+            return;
+        final String project = this.projectIdentity.get ();
+        final String owner = this.navigationOwner ();
+        final String cursor = this.cursorTrack.getChannelID ();
+        final int count = this.getItemCount ();
+        final int oldOffset = this.getScrollPosition ();
+        if (this.pageSelection != null && !this.selectionValid (this.pageSelection))
+            this.pendingSelection.cancel ();
+        final PageSelection previous = this.pageSelection;
+        final int positionBase = previous != null ? previous.positionBase : this.getItem (0).getPosition () - oldOffset;
+        final int expectedOffset = Math.max (0, Math.min (count - 1,
+            !notifyPage && previous != null ? previous.offset + offset - oldOffset : offset));
+        if (owner.isBlank () || project.isBlank () || count <= 0 || index < 0 || index >= this.items.size ())
+            return;
+        this.pageSelection = new PageSelection (project, owner, cursor, count, positionBase, expectedOffset, index, notifyPage);
+        if (previous != null)
+            return;
+        this.submitPageScroll (expectedOffset);
+        // Replacements update only the latest intent; the first request owns the entire deadline.
+        this.pendingSelection.await (
+            () -> this.pageSelection != null && this.selectionValid (this.pageSelection),
+            this::advancePageSelection,
+            () -> {
+                final PageSelection completed = this.pageSelection;
+                this.pageSelection = null;
+                this.getItem (completed.index).select ();
+                if (completed.notifyPage)
+                    this.firePageObserver ();
+            }, () -> this.pageSelection = null);
+    }
+
+
+    private void submitPageScroll (final int offset)
+    {
+        this.submittedPageOffset = offset;
+        this.submittingPageScroll = true;
+        try
+        {
+            this.scrollTo (offset);
+        }
+        finally
+        {
+            this.submittingPageScroll = false;
+        }
+    }
+
+
+    private boolean advancePageSelection ()
+    {
+        final PageSelection latest = this.pageSelection;
+        if (this.getScrollPosition () != this.submittedPageOffset || !this.windowAligned (latest.positionBase + this.submittedPageOffset, 0))
+            return false;
+        if (this.submittedPageOffset != latest.offset)
+        {
+            this.submitPageScroll (latest.offset);
+            return false;
+        }
+        return this.getItem (latest.index).doesExist ();
+    }
+
+    private boolean selectionValid (final PageSelection request)
+    {
+        return request.project.equals (this.projectIdentity.get ()) && request.owner.equals (this.navigationOwner ()) &&
+            request.count == this.getItemCount () && request.cursor.equals (this.cursorTrack.getChannelID ());
+    }
+
+
+    private record PageSelection (String project, String owner, String cursor, int count, int positionBase, int offset, int index, boolean notifyPage) { }
+
+
+    private String navigationOwner ()
+    {
+        return this.parentTrack == null || !this.parentTrack.exists ().get () ? "" : this.parentTrack.channelId ().get ();
+    }
+
+
+    private boolean windowAligned (final int firstPosition, final int selectedIndex)
+    {
+        for (int index = 0; index < this.items.size (); index++)
+        {
+            final ITrack track = this.getItem (index);
+            if (track.doesExist () && (track.getChannelID ().isBlank () || track.getPosition () != firstPosition + index))
+                return false;
+        }
+        return this.getItem (selectedIndex).doesExist ();
     }
 
 

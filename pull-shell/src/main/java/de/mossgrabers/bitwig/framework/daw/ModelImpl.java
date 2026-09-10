@@ -4,7 +4,9 @@
 
 package de.mossgrabers.bitwig.framework.daw;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -30,6 +32,8 @@ import de.mossgrabers.bitwig.framework.daw.data.CursorTrackImpl;
 import de.mossgrabers.bitwig.framework.daw.data.DrumDeviceImpl;
 import de.mossgrabers.bitwig.framework.daw.data.FocusedParameterImpl;
 import de.mossgrabers.bitwig.framework.daw.data.MasterTrackImpl;
+import de.mossgrabers.bitwig.framework.daw.data.TrackImpl;
+import de.mossgrabers.bitwig.framework.daw.data.bank.AbstractTrackBankImpl;
 import de.mossgrabers.bitwig.framework.daw.data.bank.EffectTrackBankImpl;
 import de.mossgrabers.bitwig.framework.daw.data.bank.MarkerBankImpl;
 import de.mossgrabers.bitwig.framework.daw.data.bank.SlotBankImpl;
@@ -69,6 +73,8 @@ public class ModelImpl extends AbstractModel
     private final Map<Integer, ISceneBank> sceneBanks              = HashMap.newHashMap (1);
     private final Map<Integer, ISlotBank>  slotBanks               = HashMap.newHashMap (1);
     private final SceneBank                sceneBank;
+    private final List<AbstractTrackBankImpl> pendingTrackBanks = new ArrayList<> ();
+    private final Map<CursorTrack, GroupNavigationHost> pendingGroupEntries = new IdentityHashMap<> ();
     private FocusedParameterImpl           focusedParameter        = null;
 
 
@@ -97,7 +103,7 @@ public class ModelImpl extends AbstractModel
         this.rootTrackGroup = proj.getRootTrackGroup ();
         this.project = new ProjectImpl (this.host, this.valueChanger, proj, bwApplication, numParamPages, numParams);
 
-        this.transport = new TransportImpl (controllerHost, this.application, bwArranger, this.valueChanger);
+        this.transport = new TransportImpl (controllerHost, this.application, bwArranger, this.valueChanger, this.project::getIdentity);
         this.arranger = new ArrangerImpl (bwArranger);
         final int numMarkers = modelSetup.getNumMarkers ();
         if (numMarkers > 0)
@@ -119,23 +125,29 @@ public class ModelImpl extends AbstractModel
         this.sceneBank = numScenes > 0 ? tb.sceneBank () : null;
 
         this.cursorTrack = new CursorTrackImpl (this, this.host, this.valueChanger, this.bwCursorTrack, this.rootTrackGroup, this.sceneBank, (ApplicationImpl) this.application, numSends, numScenes, numParamPages, numParams);
+        this.configureTrack ((TrackImpl) this.cursorTrack, this.bwCursorTrack);
 
         final MasterTrack master = controllerHost.createMasterTrack (0);
         this.masterTrack = new MasterTrackImpl (this.host, this.valueChanger, master, this.bwCursorTrack, this.rootTrackGroup, (ApplicationImpl) this.application, this.sceneBank);
+        this.configureTrack ((TrackImpl) this.masterTrack, this.bwCursorTrack);
 
         this.trackBank = new TrackBankImpl (this.host, (ApplicationImpl) this.application, this.valueChanger, tb, (CursorTrackImpl) this.cursorTrack, this.rootTrackGroup, numTracks, numScenes, numSends);
+        this.configureTrackBank ((AbstractTrackBankImpl) this.trackBank);
         this.trackBanks.put (new TrackBankPageSize (numTracks, numScenes), this.trackBank);
         for (final TrackBankPageSize pageSize: this.modelSetup.getAdditionalTrackBanks ())
         {
             if (this.trackBanks.containsKey (pageSize))
                 continue;
             final TrackBank additionalBank = this.createTrackBank (pageSize.tracks (), numSends, pageSize.scenes ());
-            this.trackBanks.put (pageSize, new TrackBankImpl (this.host, (ApplicationImpl) this.application, this.valueChanger, additionalBank, (CursorTrackImpl) this.cursorTrack, this.rootTrackGroup, pageSize.tracks (), pageSize.scenes (), numSends));
+            final TrackBankImpl additionalTrackBank = new TrackBankImpl (this.host, (ApplicationImpl) this.application, this.valueChanger, additionalBank, (CursorTrackImpl) this.cursorTrack, this.rootTrackGroup, pageSize.tracks (), pageSize.scenes (), numSends);
+            this.configureTrackBank (additionalTrackBank);
+            this.trackBanks.put (pageSize, additionalTrackBank);
         }
 
         final int numFxTracks = this.modelSetup.getNumFxTracks ();
         final TrackBank effectTrackBank = controllerHost.createEffectTrackBank (numFxTracks, numSends, numScenes);
         this.effectTrackBank = new EffectTrackBankImpl (this.host, this.valueChanger, effectTrackBank, (CursorTrackImpl) this.cursorTrack, this.rootTrackGroup, (ApplicationImpl) this.application, numFxTracks, numScenes, numSends, this.trackBank);
+        this.configureTrackBank ((AbstractTrackBankImpl) this.effectTrackBank);
 
         //////////////////////////////////////////////////////////////////////////////
         // Create devices
@@ -185,6 +197,25 @@ public class ModelImpl extends AbstractModel
     }
 
 
+    private void configureTrackBank (final AbstractTrackBankImpl bank)
+    {
+        bank.configurePendingOperations (this.project::getIdentity, this.modelSetup.hasFlatTrackList () || bank instanceof EffectTrackBankImpl, this.groupEntry (this.bwCursorTrack));
+        this.pendingTrackBanks.add (bank);
+    }
+
+
+    private void configureTrack (final TrackImpl track, final CursorTrack cursor)
+    {
+        track.configurePendingOperations (this.groupEntry (cursor));
+    }
+
+
+    private GroupNavigationHost groupEntry (final CursorTrack cursor)
+    {
+        return this.pendingGroupEntries.computeIfAbsent (cursor, ignored -> new GroupNavigationHost (this.host, cursor, this.project::getIdentity));
+    }
+
+
     private TrackBank createTrackBank (final int numTracks, final int numSends, final int numScenes)
     {
         if (!this.modelSetup.hasFlatTrackList ())
@@ -224,7 +255,10 @@ public class ModelImpl extends AbstractModel
         return this.sceneBanks.computeIfAbsent (Integer.valueOf (numScenes), key -> {
             final TrackBank tb = this.controllerHost.createMainTrackBank (1, this.modelSetup.getNumSends (), numScenes);
             tb.followCursorTrack (this.bwCursorTrack);
-            return new TrackBankImpl (this.host, (ApplicationImpl) this.application, this.valueChanger, tb, (CursorTrackImpl) this.cursorTrack, this.rootTrackGroup, 1, numScenes, 0).getSceneBank ();
+            final TrackBankImpl sceneTracks = new TrackBankImpl (this.host, (ApplicationImpl) this.application, this.valueChanger, tb, (CursorTrackImpl) this.cursorTrack, this.rootTrackGroup, 1, numScenes, 0);
+            sceneTracks.configurePendingOperations (this.project::getIdentity, true, this.groupEntry (this.bwCursorTrack));
+            this.pendingTrackBanks.add (sceneTracks);
+            return sceneTracks.getSceneBank ();
         });
     }
 
@@ -237,6 +271,7 @@ public class ModelImpl extends AbstractModel
 
             final CursorTrack ct = this.controllerHost.createCursorTrack ("CursorTrackID" + numSlots, "Cursor Track for " + numSlots + "Slots", 0, numSlots, true);
             final ICursorTrack cursorTrack = new CursorTrackImpl (this, this.host, this.valueChanger, ct, this.rootTrackGroup, this.sceneBank, (ApplicationImpl) this.application, 0, numSlots, 0, 0);
+            this.configureTrack ((TrackImpl) cursorTrack, ct);
             return new SlotBankImpl (this.host, this.valueChanger, cursorTrack, this.sceneBank, ct.clipLauncherSlotBank (), numSlots);
 
         });
@@ -296,6 +331,9 @@ public class ModelImpl extends AbstractModel
     @Override
     public void cleanup ()
     {
+        this.pendingTrackBanks.forEach (AbstractTrackBankImpl::closePendingOperations);
+        this.pendingGroupEntries.values ().forEach (GroupNavigationHost::close);
+        ((TransportImpl) this.transport).close ();
         this.cursorClips.values ().forEach (clip -> ((CursorClipImpl) clip).close ());
     }
 
