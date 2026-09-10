@@ -532,6 +532,24 @@ and host-sample output verify the diagnostic shell is executing. Initial RUN tra
 repeated same-track, already-pinned scanner requests. PAUSE retained host observations with no
 scanner requests after the transition. A subsequent ten-second RUN interval restored about 22
 scanner reselection requests per second, with zero dropped entries; the interval expired to OFF
-and normal scanning remained enabled. This proves the diagnostic switch works, not the viewport
-cause. Computer use could not complete the UI comparison: canvas targeting repeatedly failed
-with `windowNotFoundAtPosition` on the external display. The viewport comparison remains pending.
+and normal scanning remained enabled. The initial computer-use attempt was blocked by external-display targeting. After moving the
+main Arrange window (separate from the clip-editor window) to the built-in display, the
+2026-09-10 RUN / PAUSE / RUN comparison reproduced the viewport failure:
+
+- RUN request `8c7cf7e66a7d45f180d8398245ce1add`: selected Sub and attempted four pages of
+  downward scrolling; Sub remained visible (UI observation at wall-clock ms `1789063692570`).
+- PAUSE request `758d245154ec42698df76c9c16af90a8`: the same scroll reached SW LFO through
+  Master, with Sub entirely offscreen (`1789063715607`). The trace retained 1056 later host
+  samples and no cursor requests after the transition.
+- RUN request `76c362f5315c4bd5b6cb89850dca1a0e`: without further scrolling input, Sub reappeared
+  at the top (`1789063723602`). A subsequent identical scroll moved away briefly
+  (`1789063728985`), then later observation showed the viewport snapped back (`1789063740850`).
+
+Selected/scanner identity stayed `8685df65-ba82-4527-89ef-f3861b554987` across PAUSE / RUN,
+with the scanner pinned. The resumed interval restored scanner requests; no separate
+ChannelImpl selection/visibility request was recorded in those intervals. Playback continued
+through the paused scrolling and resumed-scanner snap-back. This establishes that catalog
+scanner activity causes the viewport interference in this project; it does not isolate which
+individual unpin/select/repin or page movement primitive triggers Bitwig's scroll. The trace
+and UI observations distinguish requests, later unchanged host identity, and actual viewport
+movement. No production scrolling fix is included; normal scanning is restored after the test.
