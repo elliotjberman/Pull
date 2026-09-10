@@ -499,3 +499,26 @@ transition still requires a later authoritative snapshot or output observation.
 Adding or expanding the generic debug bridge is a stable-shell change and needs one extension
 install and Bitwig restart. Frame capture and client-side navigation recipes can then be reused
 across core hot reloads.
+
+## Arrange scrolling diagnostic
+
+With the opt-in Push debugger enabled at startup, `tools/push-debug-selection run 30`
+records selection requests and later scanner/selected-track read-back for 30 seconds.
+`tools/push-debug-selection pause 30` records the same information while suspending only
+catalog scanner selection and page advancement. Hold the live lease for either command.
+A new command replaces the previous interval; every interval expires within 60 seconds and
+scanning resumes automatically. Restart ignores stale requests. No core hot reload is needed.
+
+The pause keeps actuator observation, active fill release/retirement and target invalidation
+running. The catalog freezes while paused; avoid starting new fills during the scrolling test.
+After resume, a fresh scan starts. This is a diagnostic mechanism, not a product setting.
+
+`~/.drivenbymoss/pull/debug/selection-status.txt` acknowledges the request ID and mode.
+`selection-trace.tsv` contains wall-clock milliseconds, monotonic nanoseconds, request source,
+target and pre-request observations, plus later host samples. It retains roughly the latest
+1 MB with a bounded 4096-entry queue; status reports dropped queue entries. Files are written
+on an owned worker, never the controller callback. Channel selection/visibility requests and
+scanner/actuator unpin-select-repin requests are distinguished; combined request entries report
+submission, not completion. Viewport position is not observed by this trace. Capture the UI
+with timestamps and compare selected-track offscreen scrolling RUN / PAUSE / RUN. The suspected
+cursor-to-viewport side effect remains unproven until that live comparison.

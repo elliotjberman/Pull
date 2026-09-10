@@ -42,6 +42,35 @@ class SelectedTrackFillClipHostTest
         ClipReleaseTrigger.MAIN);
 
     @Test
+    void pauseStopsScannerRequestsButPreservesHeldReleaseAndResumesCatalog ()
+    {
+        final FakeAdapter adapter = new FakeAdapter ();
+        adapter.selectTrack ("track-a", 8);
+        adapter.putClip (1, "Fill A");
+        final java.util.concurrent.atomic.AtomicBoolean paused = new java.util.concurrent.atomic.AtomicBoolean ();
+        final SelectedTrackFillClipHost host = new SelectedTrackFillClipHost (adapter, paused::get);
+        refreshUntil (host, () -> host.clipCatalog ().clips ().size () == 1);
+        final ClipCatalogSnapshot catalog = host.clipCatalog ();
+        final ControlId control = CoreControls.drumFills ().get (0);
+        final ClipTargetId target = catalog.clips ().get (0).targetId ();
+        host.setDesiredBindings (catalog.generation (), Map.of (control, target));
+        refreshUntil (host, () -> host.armedClipTargets ().containsKey (control));
+        final DrumFillClipHost.LaunchTarget held = host.prepare (control, catalog.generation (), target);
+        held.press (LAUNCH_POLICY);
+        paused.set (true);
+        final int moves = adapter.scannerMoves.size ();
+        adapter.putClip (2, "New clip");
+        for (int i = 0; i < 10; i++) host.refresh ();
+        assertEquals (moves, adapter.scannerMoves.size ());
+        assertEquals (catalog, host.clipCatalog ());
+        held.release ();
+        assertEquals (List.of ("track-a:1"), adapter.releases);
+        paused.set (false);
+        refreshUntil (host, () -> host.clipCatalog ().clips ().size () == 2);
+    }
+
+
+    @Test
     void publishesOnlyCompleteAllSceneSweepsInAbsoluteOrder ()
     {
         final FakeAdapter adapter = new FakeAdapter ();

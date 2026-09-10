@@ -3,6 +3,7 @@
 
 package de.mossgrabers.pull.shell.runtime;
 
+import de.mossgrabers.pull.shell.SelectionDebug;
 import com.bitwig.extension.controller.api.ClipLauncherSlot;
 import com.bitwig.extension.controller.api.ClipLauncherSlotBank;
 import com.bitwig.extension.controller.api.ControllerHost;
@@ -54,6 +55,8 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
     private int publishedSceneCount = -1;
     private long nextTargetValue;
     private long generation;
+    private boolean scannerWasPaused;
+    private final java.util.function.BooleanSupplier scannerPaused;
 
 
     /**
@@ -74,6 +77,13 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
      */
     SelectedTrackFillClipHost (final Adapter adapter)
     {
+        this (adapter, SelectionDebug::scannerPaused);
+    }
+
+
+    SelectedTrackFillClipHost (final Adapter adapter, final java.util.function.BooleanSupplier scannerPaused)
+    {
+        this.scannerPaused = Objects.requireNonNull (scannerPaused, "scannerPaused");
         this.adapter = Objects.requireNonNull (adapter, "adapter");
 
         final List<ControlId> controls = CoreControls.drumFills ();
@@ -112,7 +122,17 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
         final Map<ControlId, ClipTargetId> oldArmedTargets = this.armedClipTargets;
 
         this.refreshSelectedTrack ();
-        this.advanceScanner ();
+        final boolean paused = this.scannerPaused.getAsBoolean ();
+        if (!paused)
+        {
+            if (this.scannerWasPaused && !this.selectedTrackId.isEmpty ())
+            {
+                this.scanCycle = new ScanCycle (this.selectedTrackId, -1);
+                this.requestScannerPage (0);
+            }
+            this.advanceScanner ();
+        }
+        this.scannerWasPaused = paused;
         for (final ActuatorState actuator: this.actuators)
             actuator.advance ();
         this.updateArmedClipTargets ();
@@ -296,7 +316,7 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
 
     private void requestScannerPage (final int pageStart)
     {
-        if (this.adapter.selectScannerTrack (this.selectedTrackId))
+        if (!this.scannerPaused.getAsBoolean () && this.adapter.selectScannerTrack (this.selectedTrackId))
             this.adapter.moveScanner (pageStart);
     }
 
@@ -861,6 +881,8 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
         public SelectedTrackSample selectedTrack ()
         {
             final Track track = this.selectedTrack;
+            if (SelectionDebug.recording ())
+                SelectionDebug.record ("HOST_SAMPLE", "selected=" + (track == null ? "" : track.channelId ().get ()) + " scanner=" + this.scanner.channelId ().get () + " exists=" + this.scanner.exists ().get () + " pinned=" + this.scanner.isPinned ().get () + " page=" + this.scannerSlots.scrollPosition ().get () + " paused=" + SelectionDebug.scannerPaused ());
             return track == null ? new SelectedTrackSample ("", false) : new SelectedTrackSample (track.channelId ().get (), track.exists ().get ());
         }
 
@@ -956,6 +978,8 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
             if (track == null || !track.exists ().get () || !expectedTrackId.equals (safe (track.channelId ().get ())))
                 return false;
 
+            if (SelectionDebug.recording ())
+                SelectionDebug.record ("CURSOR_REQUEST", "role=" + (cursor == this.scanner ? "scanner" : "actuator") + " target=" + expectedTrackId + " observed=" + cursor.channelId ().get () + " pinned=" + cursor.isPinned ().get () + " unpin/select/repin");
             cursor.isPinned ().set (false);
             cursor.selectChannel (track);
             cursor.isPinned ().set (true);

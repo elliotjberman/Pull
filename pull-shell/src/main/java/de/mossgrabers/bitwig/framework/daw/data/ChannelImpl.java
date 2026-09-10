@@ -536,6 +536,8 @@ public class ChannelImpl extends AbstractDeviceChainImpl<Channel> implements ICh
     @Override
     public void select ()
     {
+        if (de.mossgrabers.pull.shell.SelectionDebug.recording ())
+            de.mossgrabers.pull.shell.SelectionDebug.record ("CHANNEL_REQUEST", "target=" + this.getChannelID () + " selectInEditor/selectInMixer/makeVisibleInArranger/makeVisibleInMixer");
         this.deviceChain.selectInEditor ();
         this.deviceChain.selectInMixer ();
         this.deviceChain.makeVisibleInArranger ();

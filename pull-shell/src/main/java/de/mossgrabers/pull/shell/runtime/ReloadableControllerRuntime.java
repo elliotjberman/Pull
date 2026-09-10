@@ -70,6 +70,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
     private PushDebugNavigationHost debugNavigation;
     private PushDebugInputHost      debugInputs;
     private PushDebugTraceHost debugTrace;
+    private de.mossgrabers.pull.shell.SelectionDebug selectionDebug;
     private Predicate<CoreEvent> eventHandler = event -> false;
     private final Set<ControlId> rawReleasedGestures = new HashSet<> ();
     private boolean started;
@@ -204,6 +205,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             TransportSettingsHost.create (this.controllerHost, model.getProject ()::getIdentity));
         this.environment = new ControllerRuntimeEnvironment (this.clipHost, controllerBridge, this.log, System::nanoTime);
         this.debugTrace = PushDebugTraceHost.createIfEnabled ();
+        this.selectionDebug = de.mossgrabers.pull.shell.SelectionDebug.createIfEnabled ();
         this.supervisor = new CoreReloadSupervisor (this.environment, this.log, this.debugTrace);
         this.eventHandler = this.supervisor::handle;
     }
@@ -510,6 +512,8 @@ public final class ReloadableControllerRuntime implements AutoCloseable
                     if (this.debugTrace != null)
                         this.debugTrace.close ();
                     this.debugTrace = null;
+                    if (this.selectionDebug != null) this.selectionDebug.close ();
+                    this.selectionDebug = null;
                 }
             }
         }
