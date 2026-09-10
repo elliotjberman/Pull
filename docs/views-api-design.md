@@ -71,6 +71,10 @@ No configuration loader is implemented yet.
 
 `CompiledWorkspace` expands profiles/facets, validates claims and parameter/action bindings,
 merges subscriptions and installed-bank requests, and produces one complete `CoreResult`.
+A view may request the one selected-track clip window through `desiredClipScan()` after declaring
+`SELECTED_TRACK_CLIPS`; competing owners are rejected. The complete subscription includes its
+target generation/UUID and scene offset. Omitting the request stops scanning without discarding
+parent-owned cleanup for a previously launched fill.
 Declaration order cannot decide ownership. A conflicting ordinary owner fails validation;
 temporary whole-grid/display overlays use explicit separate planes, not implicit overlap.
 

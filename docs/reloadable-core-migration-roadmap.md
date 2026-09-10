@@ -1,6 +1,6 @@
 # Remaining core migration
 
-[ARCH](../ARCH.md) is the current ownership/capacity inventory. Working Core API 55 renders all
+[ARCH](../ARCH.md) is the current ownership/capacity inventory. Working Core API 56 renders all
 ordinary Push display pages through shared core components and bounded raw observations. The
 optional Clip piano roll remains unchanged. Core also owns Session, Setup/Ribbon settings and shared
 interaction cancellation. Display, page entry/return and input lifecycle ownership do not migrate

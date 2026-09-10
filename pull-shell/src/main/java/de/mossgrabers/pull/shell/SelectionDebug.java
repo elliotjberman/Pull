@@ -102,17 +102,22 @@ public final class SelectionDebug implements AutoCloseable
                     }
                 }
             }
+            boolean changed = false;
             String entry;
             while ((entry = this.entries.poll ()) != null)
             {
                 if (this.output.length () + entry.length () > 1_000_000)
                     this.output.delete (0, this.output.indexOf ("\n", 250_000) + 1);
+                changed = true;
                 this.output.append (entry).append ('\n');
             }
             final boolean running = this.isRecording ();
-            final Path trace = directory.resolve ("selection-trace.tsv.tmp");
-            Files.writeString (trace, this.output);
-            PushDebugging.replaceAtomically (trace, directory.resolve ("selection-trace.tsv"));
+            if (changed)
+            {
+                final Path trace = directory.resolve ("selection-trace.tsv.tmp");
+                Files.writeString (trace, this.output);
+                PushDebugging.replaceAtomically (trace, directory.resolve ("selection-trace.tsv"));
+            }
             final Path status = directory.resolve ("selection-status.txt.tmp");
             Files.writeString (status, this.requestId + "\t" + (running ? this.mode : "OFF") + "\tdropped=" + this.dropped.get () + "\t" + System.currentTimeMillis () + "\n");
             PushDebugging.replaceAtomically (status, directory.resolve ("selection-status.txt"));

@@ -164,7 +164,7 @@ final class SnapbackSession
         return new CoreResult (
             base.desiredOutput (),
             base.desiredInputRoutes (),
-            new DesiredBridgeSubscriptions (subscriptions),
+            new DesiredBridgeSubscriptions (subscriptions, base.desiredBridgeSubscriptions ().clipScan ()),
             base.desiredClipBindings (),
             base.desiredControllerState (),
             base.desiredNoteRepeat (),

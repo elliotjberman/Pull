@@ -207,7 +207,7 @@ final class PullControllerCore implements ControllerCore
         final DesiredControllerPageState state = this.pages.state ();
         final DesiredControllerPageState page = new DesiredControllerPageState (state.revision (), state.selected (), state.previous (), state.temporary (), state.acknowledgedRequestSequence (), this.catalog.indications (this.pages.visible (), this.selection, snapshot));
         final DesiredControllerState controller = new DesiredControllerState (result.desiredControllerState ().workspace (), result.desiredControllerState ().notePerformance (), page);
-        return new CoreResult (result.desiredOutput (), result.desiredInputRoutes (), new DesiredBridgeSubscriptions (subscriptions), result.desiredClipBindings (), controller, result.desiredNoteRepeat (), result.desiredControllerActions (), result.desiredParameterBanks (), result.desiredParameterInteraction (), result.desiredParameterTouches (), result.executionRequirements ().merge (this.playbackCoordinator.executionRequirements ()), result.effects ());
+        return new CoreResult (result.desiredOutput (), result.desiredInputRoutes (), new DesiredBridgeSubscriptions (subscriptions, result.desiredBridgeSubscriptions ().clipScan ()), result.desiredClipBindings (), controller, result.desiredNoteRepeat (), result.desiredControllerActions (), result.desiredParameterBanks (), result.desiredParameterInteraction (), result.desiredParameterTouches (), result.executionRequirements ().merge (this.playbackCoordinator.executionRequirements ()), result.effects ());
     }
 
     private static CoreResult transitionTo (final List<CoreEffect> departingEffects, final CoreResult activeResult)

@@ -553,3 +553,29 @@ scanner activity causes the viewport interference in this project; it does not i
 individual unpin/select/repin or page movement primitive triggers Bitwig's scroll. The trace
 and UI observations distinguish requests, later unchanged host identity, and actual viewport
 movement. No production scrolling fix is included; normal scanning is restored after the test.
+
+
+## Selected-track scan cutover
+
+Capability audit: **B — bounded API/shell expansion**, Core API 56, Bitwig API 25 unchanged.
+The existing eight-slot scanner and eight launch actuators suffice. Core owns view applicability,
+selected-target choice, page traversal and fill filtering/bindings/lights. Shell owns eager proxies,
+coherent raw observation, target registry/generation validation, idempotent cursor targeting and
+exact acquired-launch cleanup. No input admission, native map or output ownership changes.
+The request is part of complete `DesiredBridgeSubscriptions`; core/router/snapback composition
+must preserve it. No background or other-track sweep remains. API 56 requires one matched shell
+installation/restart; subsequent scan scheduling changes can hot reload.
+
+The resolved `extension-api-25-sources.jar` confirms nondeprecated `CursorChannel.selectChannel(Channel)`,
+`PinnableCursor.isPinned()`, `Scrollable.scrollPosition()` and `Channel.channelId()` signatures.
+The host API does not promise that these operations leave Arrange scrolling untouched; live evidence
+is required. The earlier RUN/PAUSE/RUN result above establishes the regression for the old scanner.
+
+Retained behavior coverage includes explicit requested pages with separately advanced scanner
+read-back, new/renamed/deleted clips, no scanner slot reads while unsubscribed, no same-track scanner
+reselection after alignment, stale selection/prepared-launch rejection, and exact held cleanup after
+scan exit. Core coverage checks page acknowledgement, repeated sweeps, scene-generation reset,
+other-target rejection and active-view subscription removal through the real core composition.
+`mvn -o -Dmaven.compiler.showDeprecation=true package` passed 1,072 tests with no failures,
+errors, skips or deprecation warnings in changed code. Independent architecture and code-size
+reviews found no material blockers. Matched live validation is pending.

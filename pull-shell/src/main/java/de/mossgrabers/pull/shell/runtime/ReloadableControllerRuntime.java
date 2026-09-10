@@ -190,7 +190,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             throw new IllegalStateException ("Reloadable controller runtime has no Bitwig host");
 
         this.clipHost = new SelectedTrackFillClipHost (this.controllerHost);
-        this.clipHost.connect (Objects.requireNonNull (model, "model"));
+        this.clipHost.connect (Objects.requireNonNull (model, "model"), Objects.requireNonNull (selectedTarget, "selectedTarget"));
         this.controllerMappings = new ControllerMappingHost (surface, new ControllerMappingStorageHost (
             this.controllerHost.getDocumentState (), () -> model.getMasterTrack ().getChannelID ()));
         final BoundedControllerBridge controllerBridge = new BoundedControllerBridge (

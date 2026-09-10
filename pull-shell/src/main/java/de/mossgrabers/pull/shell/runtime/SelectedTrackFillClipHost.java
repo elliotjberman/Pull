@@ -12,8 +12,11 @@ import com.bitwig.extension.controller.api.Track;
 
 import de.mossgrabers.bitwig.framework.daw.data.TrackImpl;
 import de.mossgrabers.framework.daw.IModel;
+import de.mossgrabers.framework.daw.midi.ISelectedTrackNoteTarget;
 import de.mossgrabers.framework.daw.data.ITrack;
 import de.mossgrabers.pull.core.api.CatalogClip;
+import de.mossgrabers.pull.core.api.ClipScanSnapshot;
+import de.mossgrabers.pull.core.api.DesiredClipScan;
 import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
@@ -33,7 +36,7 @@ import java.util.Set;
 
 
 /**
- * Maintains a complete clip catalog for the selected track and parks one private, pinned Bitwig
+ * Observes core-requested pages of the selected track and parks one private, pinned Bitwig
  * cursor behind each physical fill control.
  */
 final class SelectedTrackFillClipHost implements DrumFillClipHost
@@ -50,12 +53,15 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
     private Map<ClipTargetId, TargetCoordinate> targets = Map.of ();
     private Map<ControlId, ClipTargetId> desiredBindings = Map.of ();
     private Map<ControlId, ClipTargetId> armedClipTargets = Map.of ();
-    private ScanCycle scanCycle;
+    private DesiredClipScan desiredScan = DesiredClipScan.inactive ();
+    private ScannerSample pendingSample;
+    private int pendingPage = -1;
+    private long selectedTargetGeneration;
+    private final java.util.SortedMap<Integer, SlotSample> observedSlots = new java.util.TreeMap<> ();
     private String selectedTrackId = "";
     private int publishedSceneCount = -1;
     private long nextTargetValue;
     private long generation;
-    private boolean scannerWasPaused;
     private final java.util.function.BooleanSupplier scannerPaused;
 
 
@@ -108,9 +114,9 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
      *
      * @param model Stable model
      */
-    void connect (final IModel model)
+    void connect (final IModel model, final ISelectedTrackNoteTarget selectedTarget)
     {
-        this.adapter.connect (Objects.requireNonNull (model, "model"));
+        this.adapter.connect (Objects.requireNonNull (model, "model"), Objects.requireNonNull (selectedTarget, "selectedTarget"));
     }
 
 
@@ -122,20 +128,15 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
         final Map<ControlId, ClipTargetId> oldArmedTargets = this.armedClipTargets;
 
         this.refreshSelectedTrack ();
-        final boolean paused = this.scannerPaused.getAsBoolean ();
-        if (!paused)
-        {
-            if (this.scannerWasPaused && !this.selectedTrackId.isEmpty ())
-            {
-                this.scanCycle = new ScanCycle (this.selectedTrackId, -1);
-                this.requestScannerPage (0);
-            }
+        if (this.scannerPaused.getAsBoolean ())
+            this.pendingSample = null;
+        else
             this.advanceScanner ();
-        }
-        this.scannerWasPaused = paused;
         for (final ActuatorState actuator: this.actuators)
             actuator.advance ();
         this.updateArmedClipTargets ();
+        if (SelectionDebug.recording ())
+            SelectionDebug.record ("SCAN_SAMPLE", "request=" + this.desiredScan + " observed=" + this.clipCatalog.scan () + " catalogGeneration=" + this.generation + " clips=" + this.clipCatalog.clips ().size () + " armed=" + this.armedClipTargets.size ());
 
         return !oldCatalog.equals (this.clipCatalog) || !oldArmedTargets.equals (this.armedClipTargets);
     }
@@ -203,99 +204,93 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
     }
 
 
-    private void refreshSelectedTrack ()
+    @Override
+    public void setDesiredScan (final DesiredClipScan scan)
     {
-        final SelectedTrackSample selected = Objects.requireNonNull (this.adapter.selectedTrack (), "selected-track sample");
-        final String observedId = selected.exists () ? selected.trackId () : "";
-        if (observedId.equals (this.selectedTrackId))
-            return;
-
-        this.beginGeneration (observedId);
+        this.desiredScan = Objects.requireNonNull (scan, "scan");
     }
 
 
-    private void beginGeneration (final String trackId)
+    private void refreshSelectedTrack ()
+    {
+        final SelectedTrackSample selected = Objects.requireNonNull (this.adapter.selectedTrack (), "selected-track sample");
+        final boolean matches = this.desiredScan.active () && selected.exists () &&
+            selected.generation () == this.desiredScan.targetGeneration () && selected.trackId ().equals (this.desiredScan.channelId ());
+        final String observedId = matches ? selected.trackId () : "";
+        final long targetGeneration = matches ? selected.generation () : 0;
+        if (!observedId.equals (this.selectedTrackId) || targetGeneration != this.selectedTargetGeneration)
+            this.beginGeneration (observedId, targetGeneration);
+    }
+
+
+    private void beginGeneration (final String trackId, final long targetGeneration)
     {
         this.generation = Math.incrementExact (this.generation);
-        this.selectedTrackId = Objects.requireNonNull (trackId, "trackId");
+        this.selectedTrackId = trackId;
+        this.selectedTargetGeneration = targetGeneration;
         this.clipCatalog = new ClipCatalogSnapshot (this.generation, List.of ());
         this.targets = Map.of ();
         this.targetIdsByScene.clear ();
+        this.observedSlots.clear ();
         this.desiredBindings = Map.of ();
         this.publishedSceneCount = -1;
+        this.pendingSample = null;
+        this.pendingPage = -1;
         for (final ActuatorState actuator: this.actuators)
             actuator.selectionChanged ();
         this.updateArmedClipTargets ();
-
-        if (trackId.isEmpty ())
-        {
-            this.scanCycle = null;
-            return;
-        }
-
-        this.scanCycle = new ScanCycle (trackId, -1);
-        this.requestScannerPage (0);
     }
 
 
     private void advanceScanner ()
     {
-        final ScanCycle cycle = this.scanCycle;
-        if (cycle == null || this.selectedTrackId.isEmpty ())
+        if (this.selectedTrackId.isEmpty ())
             return;
-
+        final int requestedPage = this.desiredScan.sceneStart ();
+        if (requestedPage != this.pendingPage)
+        {
+            this.pendingPage = requestedPage;
+            this.pendingSample = null;
+        }
         final ScannerSample sample = Objects.requireNonNull (this.adapter.scannerSample (), "scanner sample");
-        if (!sample.trackExists () || !cycle.trackId ().equals (sample.trackId ()))
+        if (!sample.trackExists () || !sample.pinned () || !this.selectedTrackId.equals (sample.trackId ()))
         {
-            cycle.clearPending ();
-            this.requestScannerPage (cycle.pageStart ());
+            this.pendingSample = null;
+            this.publishScan (sample, false);
+            this.adapter.selectScannerTrack (this.selectedTrackId);
             return;
         }
-
-        final int sceneCount = sample.sceneCount ();
-        if (this.publishedSceneCount >= 0 && sceneCount != this.publishedSceneCount)
+        if (this.publishedSceneCount >= 0 && sample.sceneCount () != this.publishedSceneCount)
         {
-            // Absolute scene coordinates may now identify different clips. Fence all idle state
-            // before beginning the replacement sweep.
-            this.beginGeneration (this.selectedTrackId);
+            // Scene insertions/deletions invalidate absolute coordinates and idle actuators.
+            this.beginGeneration (this.selectedTrackId, this.selectedTargetGeneration);
+            this.publishScan (sample, false);
             return;
         }
-
-        if (cycle.expectedSceneCount () < 0)
-            cycle.setExpectedSceneCount (sceneCount);
-        else if (sceneCount != cycle.expectedSceneCount ())
+        this.publishedSceneCount = sample.sceneCount ();
+        if (!isCoherentPage (sample, requestedPage, sample.sceneCount ()))
         {
-            this.scanCycle = new ScanCycle (this.selectedTrackId, sceneCount);
-            this.requestScannerPage (0);
+            this.pendingSample = null;
+            this.publishScan (sample, false);
+            if (sample.windowStart () != requestedPage)
+                this.adapter.moveScanner (requestedPage);
             return;
         }
-
-        if (!isCoherentPage (sample, cycle.pageStart (), sceneCount))
+        if (!sample.equals (this.pendingSample))
         {
-            cycle.clearPending ();
-            this.requestScannerPage (cycle.pageStart ());
+            this.pendingSample = sample;
+            this.publishScan (sample, false);
             return;
         }
+        if (!this.clipCatalog.scan ().ready () || this.clipCatalog.scan ().sceneStart () != requestedPage)
+            this.publishCatalog (sample);
+    }
 
-        if (!sample.equals (cycle.pendingSample ()))
-        {
-            cycle.setPendingSample (sample);
-            return;
-        }
 
-        cycle.clearPending ();
-        cycle.accept (sample);
-        final int nextPage = cycle.pageStart () + SCANNER_PAGE_SIZE;
-        if (nextPage < sceneCount)
-        {
-            cycle.setPageStart (nextPage);
-            this.requestScannerPage (nextPage);
-            return;
-        }
-
-        this.publishCatalog (cycle);
-        this.scanCycle = new ScanCycle (this.selectedTrackId, sceneCount);
-        this.requestScannerPage (0);
+    private void publishScan (final ScannerSample sample, final boolean ready)
+    {
+        this.clipCatalog = new ClipCatalogSnapshot (this.generation, this.clipCatalog.clips (),
+            new ClipScanSnapshot (this.selectedTargetGeneration, this.selectedTrackId, sample.sceneCount (), Math.max (0, sample.windowStart ()), SCANNER_PAGE_SIZE, ready));
     }
 
 
@@ -314,27 +309,33 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
     }
 
 
-    private void requestScannerPage (final int pageStart)
+    private void publishCatalog (final ScannerSample sample)
     {
-        if (!this.scannerPaused.getAsBoolean () && this.adapter.selectScannerTrack (this.selectedTrackId))
-            this.adapter.moveScanner (pageStart);
-    }
-
-
-    private void publishCatalog (final ScanCycle cycle)
-    {
-        final List<CatalogClip> clips = new ArrayList<> (cycle.observedClips ().size ());
-        final Map<ClipTargetId, TargetCoordinate> publishedTargets = new HashMap<> (cycle.observedClips ().size ());
-        for (final ObservedClip observed: cycle.observedClips ())
+        for (final SlotSample slot: sample.slots ())
+        {
+            if (slot.sceneIndex () < sample.windowStart () || slot.sceneIndex () >= sample.sceneCount ())
+                continue;
+            if (slot.exists () && slot.hasContent ())
+                this.observedSlots.put (Integer.valueOf (slot.sceneIndex ()), slot);
+            else
+            {
+                this.observedSlots.remove (Integer.valueOf (slot.sceneIndex ()));
+                this.targetIdsByScene.remove (Integer.valueOf (slot.sceneIndex ()));
+            }
+        }
+        final List<CatalogClip> clips = new ArrayList<> (this.observedSlots.size ());
+        final Map<ClipTargetId, TargetCoordinate> publishedTargets = new HashMap<> (this.observedSlots.size ());
+        for (final SlotSample observed: this.observedSlots.values ())
         {
             final ClipTargetId targetId = this.targetIdsByScene.computeIfAbsent (Integer.valueOf (observed.sceneIndex ()), ignored -> this.nextTargetId ());
             clips.add (new CatalogClip (targetId, observed.name ()));
-            publishedTargets.put (targetId, new TargetCoordinate (this.generation, cycle.trackId (), observed.sceneIndex (), observed.name ()));
+            publishedTargets.put (targetId, new TargetCoordinate (this.generation, this.selectedTrackId, observed.sceneIndex (), observed.name ()));
         }
-
         this.clipCatalog = new ClipCatalogSnapshot (this.generation, clips);
         this.targets = Map.copyOf (publishedTargets);
-        this.publishedSceneCount = cycle.expectedSceneCount ();
+        this.publishScan (sample, true);
+        if (SelectionDebug.recording ())
+            SelectionDebug.record ("CATALOG_PAGE", "target=" + this.selectedTrackId + " page=" + sample.windowStart () + " slots=" + sample.slots ());
         this.reconcileActuators ();
     }
 
@@ -489,6 +490,11 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
             if (!this.ready || !target.coordinate.equals (this.parked))
                 throw new IllegalStateException ("Prepared clip actuator is no longer armed");
 
+            final SelectedTrackSample selected = SelectedTrackFillClipHost.this.adapter.selectedTrack ();
+            if (!selected.exists () || selected.generation () != SelectedTrackFillClipHost.this.selectedTargetGeneration ||
+                !target.coordinate.trackId ().equals (selected.trackId ()) || target.coordinate.generation () != SelectedTrackFillClipHost.this.generation)
+                throw new IllegalStateException ("Selected clip target changed before launch");
+
             target.pressAttempted = true;
             target.launchPolicy = launchPolicy;
             this.lockOwner = target;
@@ -634,7 +640,7 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
     /** Model-free shell adapter used by the deterministic state-machine tests. */
     interface Adapter
     {
-        default void connect (final IModel model)
+        default void connect (final IModel model, final ISelectedTrackNoteTarget selectedTarget)
         {
             // Model-free adapters do not need a framework model.
         }
@@ -669,7 +675,7 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
 
 
     /** Current framework-selected track identity. */
-    record SelectedTrackSample (String trackId, boolean exists)
+    record SelectedTrackSample (String trackId, boolean exists, long generation)
     {
         SelectedTrackSample
         {
@@ -679,7 +685,7 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
 
 
     /** One complete scanner-bank sample. */
-    record ScannerSample (String trackId, boolean trackExists, int sceneCount, int windowStart, List<SlotSample> slots)
+    record ScannerSample (String trackId, boolean trackExists, boolean pinned, int sceneCount, int windowStart, List<SlotSample> slots)
     {
         ScannerSample
         {
@@ -712,15 +718,6 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
     }
 
 
-    private record ObservedClip (int sceneIndex, String name)
-    {
-        private ObservedClip
-        {
-            name = Objects.requireNonNull (name, "name");
-        }
-    }
-
-
     private record TargetCoordinate (long generation, String trackId, int sceneIndex, String name)
     {
         private TargetCoordinate
@@ -741,90 +738,6 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
     }
 
 
-    private static final class ScanCycle
-    {
-        private final String trackId;
-        private final List<ObservedClip> observedClips = new ArrayList<> ();
-
-        private int expectedSceneCount;
-        private int pageStart;
-        private ScannerSample pendingSample;
-
-
-        private ScanCycle (final String trackId, final int expectedSceneCount)
-        {
-            this.trackId = trackId;
-            this.expectedSceneCount = expectedSceneCount;
-        }
-
-
-        private String trackId ()
-        {
-            return this.trackId;
-        }
-
-
-        private int expectedSceneCount ()
-        {
-            return this.expectedSceneCount;
-        }
-
-
-        private void setExpectedSceneCount (final int expectedSceneCount)
-        {
-            this.expectedSceneCount = expectedSceneCount;
-        }
-
-
-        private int pageStart ()
-        {
-            return this.pageStart;
-        }
-
-
-        private void setPageStart (final int pageStart)
-        {
-            this.pageStart = pageStart;
-        }
-
-
-        private ScannerSample pendingSample ()
-        {
-            return this.pendingSample;
-        }
-
-
-        private void setPendingSample (final ScannerSample sample)
-        {
-            this.pendingSample = sample;
-        }
-
-
-        private void clearPending ()
-        {
-            this.pendingSample = null;
-        }
-
-
-        private List<ObservedClip> observedClips ()
-        {
-            return this.observedClips;
-        }
-
-
-        private void accept (final ScannerSample sample)
-        {
-            final int requiredSlots = Math.min (SCANNER_PAGE_SIZE, Math.max (0, this.expectedSceneCount - this.pageStart));
-            for (int index = 0; index < requiredSlots; index++)
-            {
-                final SlotSample slot = sample.slots ().get (index);
-                if (slot.exists () && slot.hasContent ())
-                    this.observedClips.add (new ObservedClip (slot.sceneIndex (), slot.name ()));
-            }
-        }
-    }
-
-
     /** Live Bitwig adapter. All object proxies are created eagerly in its constructor. */
     private static final class LiveAdapter implements Adapter
     {
@@ -836,6 +749,7 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
         private final List<ClipLauncherSlot> actuatorSlots;
 
         private Track selectedTrack;
+        private ISelectedTrackNoteTarget selectedTarget;
 
 
         private LiveAdapter (final ControllerHost host)
@@ -864,12 +778,13 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
 
         /** {@inheritDoc} */
         @Override
-        public void connect (final IModel model)
+        public void connect (final IModel model, final ISelectedTrackNoteTarget selectedTarget)
         {
             final ITrack frameworkTrack = model.getCursorTrack ();
             if (!(frameworkTrack instanceof final TrackImpl track))
                 throw new IllegalArgumentException ("Selected-track fill scanning requires the Bitwig TrackImpl model");
 
+            this.selectedTarget = Objects.requireNonNull (selectedTarget, "selectedTarget");
             this.selectedTrack = track.getTrack ();
             this.selectedTrack.exists ().markInterested ();
             this.selectedTrack.channelId ().markInterested ();
@@ -883,7 +798,9 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
             final Track track = this.selectedTrack;
             if (SelectionDebug.recording ())
                 SelectionDebug.record ("HOST_SAMPLE", "selected=" + (track == null ? "" : track.channelId ().get ()) + " scanner=" + this.scanner.channelId ().get () + " exists=" + this.scanner.exists ().get () + " pinned=" + this.scanner.isPinned ().get () + " page=" + this.scannerSlots.scrollPosition ().get () + " paused=" + SelectionDebug.scannerPaused ());
-            return track == null ? new SelectedTrackSample ("", false) : new SelectedTrackSample (track.channelId ().get (), track.exists ().get ());
+            final ISelectedTrackNoteTarget target = this.selectedTarget;
+            final boolean aligned = target != null && target.doesExist () && track != null && track.exists ().get () && target.getChannelID ().equals (track.channelId ().get ());
+            return new SelectedTrackSample (target == null ? "" : target.getChannelID (), aligned, target == null ? 0 : target.getGeneration ());
         }
 
 
@@ -899,6 +816,8 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
         @Override
         public void moveScanner (final int sceneStart)
         {
+            if (SelectionDebug.recording ())
+                SelectionDebug.record ("PAGE_REQUEST", "target=" + this.scanner.channelId ().get () + " from=" + this.scannerSlots.scrollPosition ().get () + " to=" + sceneStart);
             this.scannerSlots.scrollPosition ().set (sceneStart);
         }
 
@@ -910,7 +829,7 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
             final List<SlotSample> slots = new ArrayList<> (SCANNER_PAGE_SIZE);
             for (final ClipLauncherSlot slot: this.scannerSlotItems)
                 slots.add (new SlotSample (slot.sceneIndex ().get (), slot.name ().get (), slot.exists ().get (), slot.hasContent ().get ()));
-            return new ScannerSample (this.scanner.channelId ().get (), this.scanner.exists ().get (), Math.max (0, this.scannerSlots.itemCount ().get ()), this.scannerSlots.scrollPosition ().get (), slots);
+            return new ScannerSample (this.scanner.channelId ().get (), this.scanner.exists ().get (), this.scanner.isPinned ().get (), Math.max (0, this.scannerSlots.itemCount ().get ()), this.scannerSlots.scrollPosition ().get (), slots);
         }
 
 
@@ -975,8 +894,12 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
         private boolean selectTrack (final CursorTrack cursor, final String expectedTrackId)
         {
             final Track track = this.selectedTrack;
-            if (track == null || !track.exists ().get () || !expectedTrackId.equals (safe (track.channelId ().get ())))
+            if (track == null || !track.exists ().get () || !expectedTrackId.equals (safe (track.channelId ().get ())) ||
+                this.selectedTarget == null || !this.selectedTarget.doesExist () || !expectedTrackId.equals (this.selectedTarget.getChannelID ()))
                 return false;
+
+            if (cursor.exists ().get () && cursor.isPinned ().get () && expectedTrackId.equals (safe (cursor.channelId ().get ())))
+                return true;
 
             if (SelectionDebug.recording ())
                 SelectionDebug.record ("CURSOR_REQUEST", "role=" + (cursor == this.scanner ? "scanner" : "actuator") + " target=" + expectedTrackId + " observed=" + cursor.channelId ().get () + " pinned=" + cursor.isPinned ().get () + " unpin/select/repin");

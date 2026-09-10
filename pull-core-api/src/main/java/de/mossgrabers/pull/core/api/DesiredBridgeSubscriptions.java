@@ -13,8 +13,9 @@ import java.util.Set;
  * new result replaces the complete subscription set.</p>
  *
  * @param domains Requested state domains
+ * @param clipScan Target-fenced request for the one selected-track clip window
  */
-public record DesiredBridgeSubscriptions (Set<BridgeSubscription> domains)
+public record DesiredBridgeSubscriptions (Set<BridgeSubscription> domains, DesiredClipScan clipScan)
 {
     private static final DesiredBridgeSubscriptions EMPTY = new DesiredBridgeSubscriptions (Set.of ());
 
@@ -24,7 +25,17 @@ public record DesiredBridgeSubscriptions (Set<BridgeSubscription> domains)
      */
     public DesiredBridgeSubscriptions
     {
+        clipScan = Objects.requireNonNull (clipScan, "clipScan");
         domains = Set.copyOf (Objects.requireNonNull (domains, "domains"));
+        if (clipScan.active () && !domains.contains (BridgeSubscription.SELECTED_TRACK_CLIPS))
+            throw new IllegalArgumentException ("Clip scan subscription requires exactly one active window request");
+    }
+
+
+    /** Subscriptions without a selected-track clip window. */
+    public DesiredBridgeSubscriptions (final Set<BridgeSubscription> domains)
+    {
+        this (domains, DesiredClipScan.inactive ());
     }
 
 

@@ -4,6 +4,7 @@
 package de.mossgrabers.pull.shell.runtime;
 
 import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
+import de.mossgrabers.pull.core.api.DesiredClipScan;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
@@ -37,8 +38,15 @@ interface DrumFillClipHost
     boolean refresh ();
 
 
+    /** Replace the requested observation window; applied at the next host sample. */
+    default void setDesiredScan (final DesiredClipScan scan)
+    {
+        // Model-free runtime fixtures may provide their own immutable catalog.
+    }
+
+
     /**
-     * Get the last complete immutable selected-track catalog.
+     * Get the immutable catalog assembled from observed selected-track pages.
      *
      * @return The clip catalog
      */

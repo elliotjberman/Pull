@@ -244,6 +244,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
      */
     boolean refresh ()
     {
+        this.clipHost.setDesiredScan (this.committedState.desiredBridgeSubscriptions ().clipScan ());
         this.clipHost.refresh ();
         this.hostSampleRevision = Math.incrementExact (this.hostSampleRevision);
         this.fillSession.advance (this.hostSampleRevision);
