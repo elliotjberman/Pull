@@ -54,14 +54,19 @@ deprecation reporting before the live smoke test.
 ## Retained note-copy regression
 
 The legacy sequencer Duplicate gesture uses up to four private track/clip cursor pairs per editor
-shape. Each copy freezes the destination, page, resolution and expression values; it waits for
+shape, each retaining one window with up to 128 pending notes for chord/pattern copies. Each copy
+freezes the destination, page, resolution and expression values; it waits for
 observed pin/target alignment, then a fresh note observation before expression writes. A later
 matching observation completes the copy. Selection changes before capture cancel; changes after
-capture cannot redirect it. Lost targets, observed note deletion and a three-second host deadline
-retire the operation. A full pool refuses additional copies. Bitwig exposes no stable note ID, so
+capture cannot redirect it. Lost targets, observed note deletion and a 150-poll host deadline
+(20 ms requested per poll, excluding diagnostic holds) retire the operation. Appending notes does
+not extend that deadline. A full pool/window refuses additional copies. Bitwig exposes no stable
+note ID, so
 an unobserved delete/recreate of the same cell cannot be distinguished from editing that note.
-Copying also converts the framework gain snapshot back to Bitwig’s native scale, preserving source
-gain instead of halving it. These eager private proxies require a shell installation and Bitwig restart.
+Note writes also convert the framework gain snapshot back to Bitwig’s native scale, preserving
+source gain instead of halving it. Ending a legacy note edit restores its last observed state immediately;
+its final submitted write becomes visible only on later host read-back. These eager private proxies
+require a shell installation and Bitwig restart.
 
 In a scratch Launcher project, use real routed Duplicate-plus-pad input on a source note and an
 empty destination. With debugging enabled, `tools/push-debug-selection hold-note-copies 30` holds

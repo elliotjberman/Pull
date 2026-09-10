@@ -23,17 +23,21 @@ class CursorClipObservedStateTest
     {
         final var observer = new AtomicReference<NoteStepChangedCallback> ();
         final var velocity = new AtomicReference<> (.2);
+        final var rawGain = new AtomicReference<> (.4);
         final var state = new AtomicReference<> (NoteStep.State.NoteOn);
         final List<Double> submitted = new ArrayList<> ();
+        final List<Double> submittedRawGains = new ArrayList<> ();
         final List<Runnable> scheduled = new ArrayList<> ();
         final NoteStep note = proxy (NoteStep.class, (p, method, args) -> switch (method.getName ()) {
             case "x", "channel" -> 0;
             case "y" -> 60;
             case "state" -> state.get ();
             case "velocity" -> velocity.get ();
+            case "gain" -> rawGain.get ();
             case "velocitySpread" -> .3;
             case "occurrence" -> NoteOccurrence.values ()[0];
             case "setVelocity" -> { submitted.add ((Double) args[0]); yield null; }
+            case "setGain" -> { submittedRawGains.add ((Double) args[0]); yield null; }
             default -> empty (method.getReturnType ());
         });
         final PinnableCursorClip nativeClip = proxy (PinnableCursorClip.class, (p, method, args) -> switch (method.getName ()) {
@@ -51,17 +55,48 @@ class CursorClipObservedStateTest
         observer.get ().noteStepChanged (note);
         assertEquals (.2, clip.getObservedStep (position).getVelocity ());
         assertEquals (.3, clip.getObservedStep (position).getVelocitySpread ());
+        assertEquals (.2, clip.getObservedStep (position).getGain ());
+        clip.updateStepGain (position, .3);
+        assertEquals (List.of (.6), submittedRawGains, "an immediate normalized gain edit must preserve the native scale");
+        assertEquals (.2, clip.getObservedStep (position).getGain (), "a native gain write cannot acknowledge itself");
+        observer.get ().noteStepChanged (note);
         clip.startEdit (List.of (position));
         submitted.clear ();
+        submittedRawGains.clear ();
         clip.updateStepVelocity (position, .9);
+        clip.updateStepGain (position, .3);
         scheduled.remove (0).run ();
         assertEquals (List.of (.9), submitted);
+        assertEquals (List.of (.6), submittedRawGains, "deferred edits use the same native gain scale");
+        assertEquals (.2, clip.getObservedStep (position).getGain ());
         assertEquals (.2, clip.getObservedStep (position).getVelocity (), "submission is not read-back");
         velocity.set (.75);
+        rawGain.set (.5);
         observer.get ().noteStepChanged (note);
         assertEquals (.9, clip.getStep (position).getVelocity (), "frozen edit working copy remains separate");
         assertEquals (.75, clip.getObservedStep (position).getVelocity (), "host observations survive the legacy edit filter");
+        assertEquals (.3, clip.getStep (position).getGain ());
+        assertEquals (.25, clip.getObservedStep (position).getGain ());
         assertEquals (StepState.OFF, clip.getObservedStep (new NotePosition (16, 0, 59)).getState (), "invalid channels cannot alias another observed note");
+        final var workingCopy = clip.getStep (position);
+        clip.updateStepVelocity (position, .95);
+        submitted.clear ();
+        submittedRawGains.clear ();
+        clip.stopEdit ();
+        assertEquals (List.of (.95), submitted, "stopping submits the final edited value without acknowledging it");
+        assertEquals (List.of (.6), submittedRawGains);
+        assertEquals (.25, clip.getStep (position).getGain (), "stopping exposes the last observed gain until the final write is read back");
+        assertEquals (.75, clip.getStep (position).getVelocity (), "ordinary readers return to the last host value as soon as editing ends");
+        assertEquals (.75, clip.getObservedStep (position).getVelocity ());
+        assertNotSame (workingCopy, clip.getStep (position), "retiring an edit must detach its optimistic working copy");
+        assertEquals (.95, workingCopy.getVelocity ());
+        velocity.set (.8);
+        rawGain.set (.55);
+        observer.get ().noteStepChanged (note);
+        assertEquals (.8, clip.getStep (position).getVelocity (), "a later host update establishes the resulting value");
+        assertEquals (.8, clip.getObservedStep (position).getVelocity ());
+        assertEquals (.275, clip.getStep (position).getGain ());
+        assertEquals (.275, clip.getObservedStep (position).getGain ());
         state.set (NoteStep.State.Empty);
         observer.get ().noteStepChanged (note);
         assertEquals (StepState.OFF, clip.getObservedStep (position).getState ());

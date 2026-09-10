@@ -720,7 +720,7 @@ public class CursorClipImpl implements INoteClip
         final StepInfoImpl stepInfo = this.getUpdateableStep (notePosition);
         stepInfo.setGain (g);
         if (this.editSteps.isEmpty ())
-            this.getNoteStep (notePosition).setGain (g);
+            this.getNoteStep (notePosition).setGain (g * 2.0);
     }
 
 
@@ -1171,6 +1171,23 @@ public class CursorClipImpl implements INoteClip
     {
         for (final NotePosition editStep: this.editSteps)
             this.sendClipData (editStep);
+        // Final writes are still requests. Once editing ends, ordinary readers must see the
+        // latest host observation rather than the working values that were just submitted.
+        for (final NotePosition editStep: this.editSteps)
+        {
+            final IStepInfo observed = this.observedBeforeEdits.remove (observedKey (editStep));
+            if (observed == null)
+                continue;
+            final IStepInfo [] [] [] stepInfos = this.getStepInfos ();
+            synchronized (stepInfos)
+            {
+                final int channel = editStep.getChannel ();
+                final int step = editStep.getStep ();
+                if (stepInfos[channel][step] == null)
+                    stepInfos[channel][step] = new IStepInfo [this.numRows];
+                stepInfos[channel][step][editStep.getNote ()] = observed instanceof StepInfoImpl ? observed.createCopy () : null;
+            }
+        }
         this.editSteps.clear ();
     }
 
@@ -1257,7 +1274,7 @@ public class CursorClipImpl implements INoteClip
         noteInfo.setTimbre (stepInfo.getTimbre ());
         noteInfo.setPan (stepInfo.getPan ());
         noteInfo.setTranspose (stepInfo.getTranspose ());
-        noteInfo.setGain (stepInfo.getGain ());
+        noteInfo.setGain (stepInfo.getGain () * 2.0);
 
         noteInfo.setIsChanceEnabled (stepInfo.isChanceEnabled ());
         noteInfo.setChance (stepInfo.getChance ());

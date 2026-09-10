@@ -115,10 +115,10 @@ class NoteCopyHostTest
     }
 
     @Test
-    void unacknowledgedCopiesBoundCapacityAndAcknowledgedCopiesReleaseIt ()
+    void unacknowledgedWindowsBoundCapacityAndAcknowledgedCopiesReleaseIt ()
     {
         final FakeHost f = new FakeHost ();
-        for (int i = 0; i < 4; i++) f.copy.copy (new NotePosition (0, i, 60), 0, .25, source ());
+        for (int page = 0; page < 4; page++) f.copy.copy (DESTINATION, page, .25, source ());
         f.awaitCreation (4);
         f.applyHostCommands ();
         f.publishCursorState ();
@@ -126,15 +126,15 @@ class NoteCopyHostTest
         f.poll (3);
         assertFalse (f.expressions.isEmpty ());
         // Submitted expressions do not free a lane before their later observed values arrive.
-        f.copy.copy (new NotePosition (0, 4, 60), 0, .25, source ());
+        f.copy.copy (DESTINATION, 4, .25, source ());
         f.poll (10);
-        assertEquals (4, f.creations.size (), "a fifth pending copy must not silently rebind an occupied lane");
+        assertEquals (4, f.creations.size (), "a fifth pending window must not silently rebind an occupied cursor");
         f.finish ();
-        f.copy.copy (new NotePosition (0, 5, 60), 0, .25, source ());
+        f.copy.copy (DESTINATION, 5, .25, source ());
         f.awaitCreation (5);
         f.finish ();
-        assertTrue (f.a.notes.containsKey (new Position (0, 5, 60)));
-        assertFalse (f.a.notes.containsKey (new Position (0, 4, 60)));
+        assertTrue (f.a.notes.containsKey (new Position (0, 42, 60)));
+        assertFalse (f.a.notes.containsKey (new Position (0, 34, 60)));
     }
 
     @Test
@@ -146,7 +146,7 @@ class NoteCopyHostTest
         unchanged.setDuration (.5);
         unchanged.setVelocity (64 / 127.0);
         // Fake native creation initializes the other expression values to zero, matching this source.
-        for (int i = 0; i < 4; i++) f.copy.copy (new NotePosition (0, i, 60), 0, .25, unchanged);
+        for (int page = 0; page < 4; page++) f.copy.copy (DESTINATION, page, .25, unchanged);
         f.awaitCreation (4);
         f.applyHostCommands ();
         f.publishCursorState ();
@@ -154,8 +154,66 @@ class NoteCopyHostTest
         f.poll (3);
         assertTrue (f.expressions.isEmpty (), "matching authoritative values need no redundant writes");
         // No further note observer is delivered: no-op native setters need not generate a change.
-        f.copy.copy (new NotePosition (0, 4, 60), 0, .25, unchanged);
+        f.copy.copy (DESTINATION, 4, .25, unchanged);
         f.awaitCreation (5);
+    }
+
+    @Test
+    void sixtyFourNotePatternCompletesOnCapturedClipAfterEditorSelectionChanges ()
+    {
+        final FakeHost f = new FakeHost ();
+        for (int i = 0; i < 64; i++)
+            f.copy.copy (new NotePosition (0, i / 8, 48 + i % 8), 0, .25, source ());
+        f.awaitCreation (64);
+        f.selectEditor (f.b);
+        f.finish ();
+        assertEquals (64, f.a.notes.size (), "pattern duplication must preserve every note, including chords larger than four notes");
+        for (final NativeNote note: f.a.notes.values ())
+            assertEquals (Map.of ("velocity", .63, "gain", .9, "pan", -.25, "pressure", .2,
+                "releaseVelocity", .36, "timbre", .4, "transpose", -7.5), note.values);
+        assertTrue (f.b.notes.isEmpty ());
+        assertTrue (f.expressions.stream ().allMatch (write -> write.clip == f.a));
+    }
+
+    @Test
+    void oneWindowAccepts128NotesWithoutConsumingOtherWindowCapacity ()
+    {
+        final FakeHost f = new FakeHost ();
+        for (int i = 0; i < 128; i++)
+            f.copy.copy (new NotePosition (0, i / 16, 48 + i % 16), 0, .25, source ());
+        f.copy.copy (new NotePosition (0, 0, 80), 0, .25, source ());
+        f.copy.copy (new NotePosition (0, 0, 81), 1, .25, source ());
+        f.awaitCreation (129);
+        f.finish ();
+        assertEquals (129, f.a.notes.size ());
+        assertFalse (f.a.notes.containsKey (new Position (0, 0, 80)), "a full window must refuse overflow rather than silently consume another cursor");
+        assertTrue (f.a.notes.containsKey (new Position (0, 8, 81)), "a separate window can still copy while the first window is full");
+        assertTrue (f.a.notes.values ().stream ().allMatch (note -> Double.valueOf (.2).equals (note.values.get ("pressure"))));
+    }
+
+    @Test
+    void deletingOnePendingNoteDoesNotCancelItsSurvivingBatchMember ()
+    {
+        final FakeHost f = new FakeHost ();
+        final NotePosition survivor = new NotePosition (0, 2, 61);
+        f.copy.copy (DESTINATION, 0, .25, source ());
+        f.copy.copy (survivor, 0, .25, source ());
+        f.awaitCreation (2);
+        f.applyHostCommands ();
+        f.publishCursorState ();
+        f.publishNotes ();
+        f.a.notes.remove (key (DESTINATION));
+        f.publishCursorState ();
+        f.publishNotes ();
+        f.poll (1);
+        final NativeNote replacement = new NativeNote ((int) (.63 * 127) / 127.0, .5);
+        replacement.values.put ("pressure", .88);
+        f.a.notes.put (key (DESTINATION), replacement);
+        f.selectEditor (f.b);
+        f.finish ();
+        assertEquals (.88, f.a.notes.get (key (DESTINATION)).values.get ("pressure"));
+        assertEquals (.2, f.a.notes.get (key (survivor)).values.get ("pressure"));
+        assertTrue (f.expressions.stream ().noneMatch (write -> write.position.equals (key (DESTINATION))));
     }
 
     @Test
