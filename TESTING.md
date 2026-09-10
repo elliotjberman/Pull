@@ -502,115 +502,57 @@ across core hot reloads.
 
 ## Arrange scrolling diagnostic
 
-With the opt-in Push debugger enabled at startup, `tools/push-debug-selection run 30`
-records selection requests and later scanner/selected-track read-back for 30 seconds.
-`tools/push-debug-selection pause 30` records the same information while suspending only
-catalog scanner selection and page advancement. Hold the live lease for either command.
-A new command replaces the previous interval; every interval expires within 60 seconds and
-scanning resumes automatically. Restart ignores stale requests. No core hot reload is needed.
+Enable the opt-in Push debugger at startup and hold the live lease. Use
+`tools/push-debug-selection run 30` to trace selection and scanner activity, or
+`tools/push-debug-selection pause 30` to suspend scanner selection and paging while tracing.
+Intervals last 1–60 seconds; a new request replaces the interval, expiry resumes scanning,
+and startup ignores stale requests. No core reload is needed.
 
-The pause keeps actuator observation, active fill release/retirement and target invalidation
-running. The catalog freezes while paused; avoid starting new fills during the scrolling test.
-After resume, a fresh scan starts. This is a diagnostic mechanism, not a product setting.
+Pause preserves target invalidation and acquired-fill observation, release and retirement.
+The catalog freezes while paused; avoid starting new fills during the comparison.
 
-`~/.drivenbymoss/pull/debug/selection-status.txt` acknowledges the request ID and mode.
-`selection-trace.tsv` contains wall-clock milliseconds, monotonic nanoseconds, request source,
-target and pre-request observations, plus later host samples. It retains roughly the latest
-1 MB with a bounded 4096-entry queue; status reports dropped queue entries. Files are written
-on an owned worker, never the controller callback. Channel selection/visibility requests and
-scanner/actuator unpin-select-repin requests are distinguished; combined request entries report
-submission, not completion. Viewport position is not observed by this trace. Capture the UI
-with timestamps and compare selected-track offscreen scrolling RUN / PAUSE / RUN. The comparison
-below established the cursor-to-viewport side effect for the original diagnostic build.
-
-Diagnostic shell checkpoint `68cc6005` passed the complete offline package build with deprecation
-reporting. Its extension SHA-256 is
-`78752e202cec59ccc5331b7e6f1a687015c62d8f350b6628a834c5acf86b423e`; the installed file matched
-after copying with Bitwig closed on 2026-09-10. Bitwig restarted, reopened `202arp3`, and retained
-active core `20260908T165014Z-85a2f31d25899a91688cf48722cb9bf4`. The new request-ID acknowledgement
-and host-sample output verify the diagnostic shell is executing. Initial RUN tracing recorded
-repeated same-track, already-pinned scanner requests. PAUSE retained host observations with no
-scanner requests after the transition. A subsequent ten-second RUN interval restored about 22
-scanner reselection requests per second, with zero dropped entries; the interval expired to OFF
-and normal scanning remained enabled. The initial computer-use attempt was blocked by external-display targeting. After moving the
-main Arrange window (separate from the clip-editor window) to the built-in display, the
-2026-09-10 RUN / PAUSE / RUN comparison reproduced the viewport failure:
-
-- RUN request `8c7cf7e66a7d45f180d8398245ce1add`: selected Sub and attempted four pages of
-  downward scrolling; Sub remained visible (UI observation at wall-clock ms `1789063692570`).
-- PAUSE request `758d245154ec42698df76c9c16af90a8`: the same scroll reached SW LFO through
-  Master, with Sub entirely offscreen (`1789063715607`). The trace retained 1056 later host
-  samples and no cursor requests after the transition.
-- RUN request `76c362f5315c4bd5b6cb89850dca1a0e`: without further scrolling input, Sub reappeared
-  at the top (`1789063723602`). A subsequent identical scroll moved away briefly
-  (`1789063728985`), then later observation showed the viewport snapped back (`1789063740850`).
-
-Selected/scanner identity stayed `8685df65-ba82-4527-89ef-f3861b554987` across PAUSE / RUN,
-with the scanner pinned. The resumed interval restored scanner requests; no separate
-ChannelImpl selection/visibility request was recorded in those intervals. Playback continued
-through the paused scrolling and resumed-scanner snap-back. This establishes that catalog
-scanner activity causes the viewport interference in this project; it does not isolate which
-individual unpin/select/repin or page movement primitive triggers Bitwig's scroll. The trace
-and UI observations distinguish requests, later unchanged host identity, and actual viewport
-movement. That diagnostic build contained no production scrolling fix; the selected-track scan
-cutover below removes the repeated cursor retargeting.
-
+`~/.drivenbymoss/pull/debug/selection-status.txt` acknowledges the request ID and reports
+mode and dropped entries. `selection-trace.tsv` distinguishes selection submissions, page
+requests and later host read-back. It retains roughly 1 MB through a bounded 4096-entry queue;
+file I/O runs on the worker. It does not observe viewport position: capture timestamped UI
+observations during RUN / PAUSE / RUN while scrolling the selected track offscreen.
 
 ## Selected-track scan cutover
 
 Capability audit: **B — bounded API/shell expansion**, Core API 56, Bitwig API 25 unchanged.
-The existing eight-slot scanner and eight launch actuators suffice. Core owns view applicability,
-selected-target choice, page traversal and fill filtering/bindings/lights. Shell owns eager proxies,
-coherent raw observation, target registry/generation validation, idempotent cursor targeting and
-exact acquired-launch cleanup. No input admission, native map or output ownership changes.
-The request is part of complete `DesiredBridgeSubscriptions`; core/router/snapback composition
-must preserve it. No background or other-track sweep remains. API 56 requires one matched shell
-installation/restart; subsequent scan scheduling changes can hot reload.
+The existing eight-slot scanner and eight launch actuators suffice. Core owns applicability,
+target choice and paging; shell owns observation, validation and acquired-launch cleanup.
+See [ARCH](ARCH.md) for the capacity and subscription contract. API 56 requires a matched
+shell installation/restart; subsequent scan scheduling changes can hot reload.
 
-The resolved `extension-api-25-sources.jar` confirms nondeprecated `CursorChannel.selectChannel(Channel)`,
-`PinnableCursor.isPinned()`, `Scrollable.scrollPosition()` and `Channel.channelId()` signatures.
-The host API does not promise that these operations leave Arrange scrolling untouched; live evidence
-is required. The earlier RUN/PAUSE/RUN result above establishes the regression for the old scanner.
+Coverage includes delayed host page advancement, two coherent samples before readiness,
+new/renamed/deleted clips, no inactive scanner reads or aligned-track reselection, stale-target
+rejection, exact held cleanup, and request propagation through core composition.
+`mvn -o -Dmaven.compiler.showDeprecation=true package` passed all 1,072 tests with no failures,
+errors, skips or deprecation warnings in changed code. Debug-client, live-lock and all eight
+surface-server tests also passed.
 
-Retained behavior coverage includes explicit requested pages with separately advanced scanner
-read-back, new/renamed/deleted clips, no scanner slot reads while unsubscribed, no same-track scanner
-reselection after alignment, stale selection/prepared-launch rejection, and exact held cleanup after
-scan exit. Core coverage checks page acknowledgement, repeated sweeps, scene-generation reset,
-other-target rejection and active-view subscription removal through the real core composition.
-`mvn -o -Dmaven.compiler.showDeprecation=true package` passed 1,072 tests with no failures,
-errors, skips or deprecation warnings in changed code. Independent architecture and code-size
-reviews found no material blockers.
+Live acceptance on 2026-09-10 used source `f18c3c059c49bc487dfe82fc4020b519fd63cb59`:
 
-The finishing PR review removed seven lines of redundant pending-page state and corrected scanner
-documentation. The rebuilt package again passed all 1,072 tests; debug-client, live-lock and all
-eight surface-server tests also passed. The live evidence below predates that state-only deletion;
-the final reviewed shell binary has not been reinstalled or live-tested.
+- Shell SHA-256: `c34c62d9b9dcae87e52b866e1cd83e10232e9eec7a240cd03af5da27bc6a93e2`.
+- Shell fingerprint: `682ad10336957a9313e22d70acb19d3804f342c1`.
+- Active core: `20260910T192442Z-a443551d5d436255560cb5303a376de6`.
+- Core SHA-256: `51765e8da93f0d68bb544284ebfa7996e44a809ff615e339644754836ea0b787`.
 
+In `202arp3`, the earlier diagnostic build (`68cc6005`) reproduced snap-back during RUN,
+allowed offscreen scrolling during PAUSE, and snapped back again on resuming RUN without
+mouse input. With the cutover build, the selected Drum Machine track remained offscreen
+for 22 seconds during active scanning and playback: 997 observations, 333 page requests
+across offsets 0/8/16, and zero cursor reselections.
 
-Matched live acceptance (2026-09-10, source `f18c3c059c49bc487dfe82fc4020b519fd63cb59`):
+Creating and renaming a temporary clip without changing tracks grew the catalog from 9 to 10
+and armed fills from 4 to 5; deleting it restored 9/4. Routed `push.pad.14` BEGIN/END produced
+later active-fill host state and held/released pad output; a separate later snapshot confirmed
+no retained launch targets or active owner. Switching to Session removed the scan request:
+505 host samples contained no page or cursor requests. The temporary clip was removed,
+the project saved, and diagnostics expired to OFF with zero dropped entries.
 
-- Installed shell SHA-256 `c34c62d9b9dcae87e52b866e1cd83e10232e9eec7a240cd03af5da27bc6a93e2`,
-  fingerprint `682ad10336957a9313e22d70acb19d3804f342c1`. Restarted after a clean persistent-worktree
-  checkpoint. Exact core `20260910T192442Z-a443551d5d436255560cb5303a376de6` activated;
-  core SHA-256 `51765e8da93f0d68bb544284ebfa7996e44a809ff615e339644754836ea0b787`.
-- In saved project `202arp3`, selected Drum Machine track
-  `e2b0cb23-dd7d-4de1-88e8-dfb9f91b4eed`, generation 4, had 20 scenes. Routed NOTE entered
-  DRUM_PAD. Computer use scrolled the selected track completely out of Arrange at wall-ms
-  `1789068357333`; it remained offscreen at `1789068379453`, including during playback.
-  The retained interval contains 997 scanner observations, 333 page requests (0/8/16), and zero
-  cursor reselections. This tests active traversal, not merely an inactive scanner.
-- Created a temporary clip in existing scene 1, then renamed it `Pull scanner test fill` without
-  selecting another track. Catalog grew 9→10 and armed fills 4→5. No scanner reselection occurred;
-  the newly used fifth actuator pinned once. Deleting the temporary clip restored 9/4. The empty
-  slot and saved project were verified through computer use.
-- Routed physical `push.pad.14` BEGIN/END through `/api/input` at wall-seconds
-  `1789068538.797`/`1789068541.252`. Later host snapshots showed `drum.fill.2` active on target 5;
-  transmitted pad feedback was `F27E00` while held and `A76B22` after release. A separate later
-  snapshot showed no retained launch targets or active owner. The held trace reached its bounded
-  text limit, so the complete after-release state comes from the separate stopped trace. No
-  physical touch or audible comparison is claimed.
-- Routed SESSION removed the request and emptied catalog/armed state. Across 505 host samples
-  (`1789068606494`–`1789068617819`) there were no page or cursor requests. Restored NOTE/DRUM_PAD,
-  removed the test clip, saved the project, left Arrange freely scrolled, and let diagnostics expire
-  to OFF with zero dropped selection entries. Evidence is retained in this worktree's
-  `target/scroll-evidence/`; the new live logs show no controller failure or deprecated API call.
+The held trace reached its size limit, so complete release state comes from the separate
+stopped trace. Physical touch and audible restoration were not tested. The final seven-line
+removal of redundant pending-page state passed the full offline package; that revised shell
+binary has not been reinstalled or live-tested.
