@@ -247,7 +247,7 @@ public class ModelImpl extends AbstractModel
     @Override
     public INoteClip getNoteClip (final int cols, final int rows)
     {
-        return this.cursorClips.computeIfAbsent (cols + "-" + rows, k -> new CursorClipImpl (this.host, this.bwCursorTrack, this.valueChanger, cols, rows));
+        return this.cursorClips.computeIfAbsent (cols + "-" + rows, k -> new CursorClipImpl (this.host, this.controllerHost, this.bwCursorTrack, this.valueChanger, cols, rows, this.project::getIdentity));
     }
 
 
@@ -296,7 +296,7 @@ public class ModelImpl extends AbstractModel
     @Override
     public void cleanup ()
     {
-        // Nothing to do
+        this.cursorClips.values ().forEach (clip -> ((CursorClipImpl) clip).close ());
     }
 
 

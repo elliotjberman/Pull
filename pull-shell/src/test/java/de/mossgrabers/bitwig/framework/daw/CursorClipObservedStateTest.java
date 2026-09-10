@@ -46,7 +46,7 @@ class CursorClipObservedStateTest
             if ("scheduleTask".equals (method.getName ())) scheduled.add ((Runnable) args[0]);
             return empty (method.getReturnType ());
         });
-        final CursorClipImpl clip = new CursorClipImpl (host, track, proxy (IValueChanger.class, (p, method, args) -> empty (method.getReturnType ())), 8, 128);
+        final CursorClipImpl clip = new CursorClipImpl (host, (ControllerHost) empty (ControllerHost.class), track, proxy (IValueChanger.class, (p, method, args) -> empty (method.getReturnType ())), 8, 128, () -> "project");
         final NotePosition position = new NotePosition (0, 0, 60);
         observer.get ().noteStepChanged (note);
         assertEquals (.2, clip.getObservedStep (position).getVelocity ());

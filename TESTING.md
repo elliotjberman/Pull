@@ -51,6 +51,27 @@ mvn -o -pl pull-shell -am test
 For changes touching Bitwig API objects, follow `AGENTS.md` and run the complete package build with
 deprecation reporting before the live smoke test.
 
+## Retained note-copy regression
+
+The legacy sequencer Duplicate gesture uses up to four private track/clip cursor pairs per editor
+shape. Each copy freezes the destination, page, resolution and expression values; it waits for
+observed pin/target alignment, then a fresh note observation before expression writes. A later
+matching observation completes the copy. Selection changes before capture cancel; changes after
+capture cannot redirect it. Lost targets, observed note deletion and a three-second host deadline
+retire the operation. A full pool refuses additional copies. Bitwig exposes no stable note ID, so
+an unobserved delete/recreate of the same cell cannot be distinguished from editing that note.
+Copying also converts the framework gain snapshot back to Bitwig’s native scale, preserving source
+gain instead of halving it. These eager private proxies require a shell installation and Bitwig restart.
+
+In a scratch Launcher project, use real routed Duplicate-plus-pad input on a source note and an
+empty destination. With debugging enabled, `tools/push-debug-selection hold-note-copies 30` holds
+only the expression phase; wait for `COPY_CREATED`, select another clip or track, then run
+`tools/push-debug-selection run 30` to release it while retaining the trace. Check later
+`NOTE_OBSERVED role=copy-complete` raw values in `selection-trace.tsv`, reselect both clips and
+verify the destination and unrelated clip independently. Repeat without the hold and with the
+captured clip deleted during the hold. `stop` or the diagnostic deadline also releases the hold.
+The hold is off by default, expires within 60 seconds and does not consume the normal copy deadline.
+
 ## Offline UI catalog
 
 Run `tools/ui-component-catalog` to generate a local HTML gallery from production components and
