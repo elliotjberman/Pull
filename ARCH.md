@@ -30,8 +30,9 @@ unchanged legacy gestures; it does not migrate note editing into core.
 
 The host-acknowledgement changes extend only execution, observation and lifecycle safety beneath
 existing gestures. Core API 56 and Bitwig API 25 are unchanged; the added parent-track observations
-and stable executors require a matched shell installation and restart. See
-[operation contracts](TESTING.md#host-operation-acknowledgements) for coverage and retained waits.
+and stable executors require a matched shell installation and restart. Checkpoint `4566eb79`
+was installed; the scoped live smoke and remaining coverage are recorded in the
+[operation contracts](TESTING.md#host-operation-acknowledgements), alongside retained waits.
 
 ## Assembly
 

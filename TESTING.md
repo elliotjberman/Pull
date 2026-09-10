@@ -122,7 +122,32 @@ Offline regressions separate command submission, host advancement and subscribed
 They cover delayed/intermediate bank pages, rapid replacement/reversal, group supersession and
 structural guards, shutdown, edited-target changes under both publication orders, retained-copy
 geometry/expressions/capacity, delayed rewind and Master acknowledgements beyond old deadlines.
-Live validation of this combined shell is pending.
+The full `mvn -o -Dmaven.compiler.showDeprecation=true package` gate passed all 1,107 tests,
+with no failures, errors, skips or deprecation warnings in changed code. Independent async-lifecycle
+and code-size reviews completed; the browser experiment was reverted and navigation submissions
+were serialized after adversarial rapid-input checks.
+
+Live validation on 2026-09-10 used Bitwig 6.1.1 / API 25, production checkpoint `4566eb79`,
+installed shell SHA-256 `6fb3b264471b3a43913146fd2a1dfdb8adab58d91e26dc97893d7e8ced2186b4`,
+and active core `20260910T221931Z-1a529f49fa74a0b56f652612d435d628`
+(SHA-256 `6f3c236566973525b72de1d5206dc71e63686447e8392908ffd60753e870e57e`).
+
+In the standalone **Host Ack Smoke** project, routed Shift+arrow paging selected positions 0 and
+8 with exact matching track UUIDs and Push output, including the nine-track partial last page and
+opposite page presses. Routed group entry selected its actual first child; paging also selected
+position 8 inside a nine-child group, validating parent-local positions. Temporary groups were
+undone. Master engine off/on read-back cleared pending state after 41/66 ms. From a second empty
+project, routed Play visited the engine-owning project, observed playback true/false, returned to
+the original project, and only then cleared pending state (about 120/111 ms total). No return
+preceded the playback acknowledgement. The second project was closed and the scratch saved.
+
+An ordinary held Note/Common velocity edit produced later native read-back from 70.08% to 89.63%
+in 322 ms. Track changes during a held edit were exercised, but the attempted cross-clip check did
+not establish a clean before/after target comparison; it is not acceptance evidence for that case.
+Cross-clip held-edit cancellation, the footswitch double-click stop/rewind route, and forced host
+delays remain offline-verified only. Retained note-copy live evidence is recorded above for its
+unchanged production implementation. Local traces, request-correlated frames and build provenance
+are retained under `target/host-ack-evidence/` in this dedicated worktree.
 
 ## Offline UI catalog
 
