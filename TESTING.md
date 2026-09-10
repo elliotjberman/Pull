@@ -77,6 +77,20 @@ verify the destination and unrelated clip independently. Repeat without the hold
 captured clip deleted during the hold. `stop` or the diagnostic deadline also releases the hold.
 The hold is off by default, expires within 60 seconds and does not consume the normal copy deadline.
 
+Live validation on 2026-09-10, Bitwig 6.1.1 / controller API 25: production commit `bc7d67c4`,
+installed extension SHA-256 `866242a77d2d95b8eb027a1ecab987e8c86cc9b9b69443aa7fb1d91008c8f8db`,
+active core `20260910T213932Z-9f3a7600d905eea8cbc4b0207b012f13`. The full deprecation-enabled
+package gate passed 1,086 tests, including 12 asynchronous copy regressions. In the standalone
+“Note Copy Smoke” project, routed Duplicate-plus-pad copied seven expression attributes with
+matching later raw host read-back; the ordinary copy completed in 190 ms. Held copies completed
+on their captured clip after switching Launcher clips and after selecting another track. The
+same-position note in the other clip retained its original attributes, confirmed by later copy
+read-back and the Push display. Deleting the captured clip produced an Empty observation and
+cancelled before expression submission; Undo restored the basic note without a late expression
+write. The copied-note display and unchanged-note display were inspected. Local traces and frames
+are in the dedicated worktree's `target/note-copy-evidence/`; the scratch project is under
+`target/Note Copy Smoke/`. This evidence does not cover other legacy held-note editing gestures.
+
 ## Offline UI catalog
 
 Run `tools/ui-component-catalog` to generate a local HTML gallery from production components and
