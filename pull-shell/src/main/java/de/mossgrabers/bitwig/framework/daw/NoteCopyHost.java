@@ -334,8 +334,8 @@ final class NoteCopyHost implements AutoCloseable
                     pending.submittedRevision = pending.revision;
                     pending.phase = NotePhase.WAITING_FOR_EXPRESSIONS;
                     note.setVelocity (value.getVelocity ());
-                    // Framework snapshots store raw Bitwig gain / 2 (StepInfoImpl.updateData).
-                    note.setGain (value.getGain () * 2);
+                    // API 25 reads gain at twice its write scale; StepInfoImpl normalizes it.
+                    note.setGain (value.getGain ());
                     note.setPan (value.getPan ());
                     note.setPressure (value.getPressure ());
                     note.setReleaseVelocity (value.getReleaseVelocity ());

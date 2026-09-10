@@ -720,7 +720,7 @@ public class CursorClipImpl implements INoteClip
         final StepInfoImpl stepInfo = this.getUpdateableStep (notePosition);
         stepInfo.setGain (g);
         if (this.editSteps.isEmpty ())
-            this.getNoteStep (notePosition).setGain (g * 2.0);
+            this.getNoteStep (notePosition).setGain (g);
     }
 
 
@@ -1274,7 +1274,7 @@ public class CursorClipImpl implements INoteClip
         noteInfo.setTimbre (stepInfo.getTimbre ());
         noteInfo.setPan (stepInfo.getPan ());
         noteInfo.setTranspose (stepInfo.getTranspose ());
-        noteInfo.setGain (stepInfo.getGain () * 2.0);
+        noteInfo.setGain (stepInfo.getGain ());
 
         noteInfo.setIsChanceEnabled (stepInfo.isChanceEnabled ());
         noteInfo.setChance (stepInfo.getChance ());

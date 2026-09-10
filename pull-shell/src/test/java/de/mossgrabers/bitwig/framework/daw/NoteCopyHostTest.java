@@ -479,7 +479,8 @@ class NoteCopyHostTest
                                 final ClipState captured = this.target;
                                 final double amount = (Double) args[0];
                                 FakeHost.this.expressions.add (new Write (captured, position, field, amount));
-                                FakeHost.this.commands.add (() -> { final NativeNote note = captured.notes.get (position); if (captured.exists && note != null) note.values.put (field, amount); });
+                                // Live Bitwig calibration: setGain accepts normalized gain; gain() reports twice that value.
+                                FakeHost.this.commands.add (() -> { final NativeNote note = captured.notes.get (position); if (captured.exists && note != null) note.values.put (field, "gain".equals (field) ? amount * 2 : amount); });
                             }
                             yield empty (method.getReturnType ());
                         }

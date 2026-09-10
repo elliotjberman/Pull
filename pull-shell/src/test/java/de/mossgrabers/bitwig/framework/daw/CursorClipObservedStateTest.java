@@ -26,7 +26,7 @@ class CursorClipObservedStateTest
         final var rawGain = new AtomicReference<> (.4);
         final var state = new AtomicReference<> (NoteStep.State.NoteOn);
         final List<Double> submitted = new ArrayList<> ();
-        final List<Double> submittedRawGains = new ArrayList<> ();
+        final List<Double> submittedGainRequests = new ArrayList<> ();
         final List<Runnable> scheduled = new ArrayList<> ();
         final NoteStep note = proxy (NoteStep.class, (p, method, args) -> switch (method.getName ()) {
             case "x", "channel" -> 0;
@@ -37,7 +37,7 @@ class CursorClipObservedStateTest
             case "velocitySpread" -> .3;
             case "occurrence" -> NoteOccurrence.values ()[0];
             case "setVelocity" -> { submitted.add ((Double) args[0]); yield null; }
-            case "setGain" -> { submittedRawGains.add ((Double) args[0]); yield null; }
+            case "setGain" -> { submittedGainRequests.add ((Double) args[0]); yield null; }
             default -> empty (method.getReturnType ());
         });
         final PinnableCursorClip nativeClip = proxy (PinnableCursorClip.class, (p, method, args) -> switch (method.getName ()) {
@@ -57,17 +57,21 @@ class CursorClipObservedStateTest
         assertEquals (.3, clip.getObservedStep (position).getVelocitySpread ());
         assertEquals (.2, clip.getObservedStep (position).getGain ());
         clip.updateStepGain (position, .3);
-        assertEquals (List.of (.6), submittedRawGains, "an immediate normalized gain edit must preserve the native scale");
+        assertEquals (List.of (.3), submittedGainRequests, "setGain accepts the normalized value even though its getter reports twice that value");
         assertEquals (.2, clip.getObservedStep (position).getGain (), "a native gain write cannot acknowledge itself");
+        rawGain.set (submittedGainRequests.get (0) * 2.0);
+        observer.get ().noteStepChanged (note);
+        assertEquals (.3, clip.getObservedStep (position).getGain (), "later host advancement applies the native setter/getter conversion");
+        rawGain.set (.4);
         observer.get ().noteStepChanged (note);
         clip.startEdit (List.of (position));
         submitted.clear ();
-        submittedRawGains.clear ();
+        submittedGainRequests.clear ();
         clip.updateStepVelocity (position, .9);
         clip.updateStepGain (position, .3);
         scheduled.remove (0).run ();
         assertEquals (List.of (.9), submitted);
-        assertEquals (List.of (.6), submittedRawGains, "deferred edits use the same native gain scale");
+        assertEquals (List.of (.3), submittedGainRequests, "deferred edits use the same normalized setter contract");
         assertEquals (.2, clip.getObservedStep (position).getGain ());
         assertEquals (.2, clip.getObservedStep (position).getVelocity (), "submission is not read-back");
         velocity.set (.75);
@@ -81,10 +85,10 @@ class CursorClipObservedStateTest
         final var workingCopy = clip.getStep (position);
         clip.updateStepVelocity (position, .95);
         submitted.clear ();
-        submittedRawGains.clear ();
+        submittedGainRequests.clear ();
         clip.stopEdit ();
         assertEquals (List.of (.95), submitted, "stopping submits the final edited value without acknowledging it");
-        assertEquals (List.of (.6), submittedRawGains);
+        assertEquals (List.of (.3), submittedGainRequests);
         assertEquals (.25, clip.getStep (position).getGain (), "stopping exposes the last observed gain until the final write is read back");
         assertEquals (.75, clip.getStep (position).getVelocity (), "ordinary readers return to the last host value as soon as editing ends");
         assertEquals (.75, clip.getObservedStep (position).getVelocity ());

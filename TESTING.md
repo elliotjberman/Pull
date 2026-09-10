@@ -63,8 +63,8 @@ capture cannot redirect it. Lost targets, observed note deletion and a 150-poll 
 not extend that deadline. A full pool/window refuses additional copies. Bitwig exposes no stable
 note ID, so
 an unobserved delete/recreate of the same cell cannot be distinguished from editing that note.
-Note writes also convert the framework gain snapshot back to Bitwig’s native scale, preserving
-source gain instead of halving it. Ending a legacy note edit restores its last observed state immediately;
+Live API 25 gain reads use twice the setter scale: copy writes keep the existing normalized
+framework value, while completion compares against twice that value. Ending a legacy note edit restores its last observed state immediately;
 its final submitted write becomes visible only on later host read-back. These eager private proxies
 require a shell installation and Bitwig restart.
 
