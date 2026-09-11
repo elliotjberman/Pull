@@ -1268,7 +1268,15 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
                 return;
             }
 
-            this.activePlayback = this.active.target ().playbackState ();
+            try
+            {
+                this.activePlayback = this.active.target ().playbackState ();
+            }
+            catch (final DrumFillClipHost.TargetUnavailableException failure)
+            {
+                this.abandonUnavailableTarget (failure, sampleRevision);
+                return;
+            }
             if (isBusy (this.activePlayback))
                 this.activeObservedBusy = true;
 
@@ -1316,6 +1324,10 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
             {
                 lease.target ().release ();
                 this.pendingRelease = new PendingRelease (lease, sampleRevision);
+            }
+            catch (final DrumFillClipHost.TargetUnavailableException failure)
+            {
+                this.abandonUnavailableTarget (failure, sampleRevision);
             }
             catch (final Throwable failure)
             {
@@ -1376,6 +1388,11 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
                 target.press (requested.launchPolicy ());
                 return true;
             }
+            catch (final DrumFillClipHost.TargetUnavailableException failure)
+            {
+                this.abandonUnavailableTarget (failure, sampleRevision);
+                return false;
+            }
             catch (final Throwable failure)
             {
                 rethrowFatal (failure);
@@ -1383,6 +1400,16 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
                 this.requestActiveReturn ("Partial fill acquisition rollback", sampleRevision);
                 return false;
             }
+        }
+
+
+        private void abandonUnavailableTarget (final DrumFillClipHost.TargetUnavailableException failure, final long sampleRevision)
+        {
+            ControllerRuntimeEnvironment.this.warn ("Fill target became unavailable; exact lease abandoned without playback restoration: " + sanitize (failure));
+            this.pending = null;
+            this.retireActive ();
+            this.launchAfterSample = sampleRevision;
+            this.finishReturn ();
         }
 
 

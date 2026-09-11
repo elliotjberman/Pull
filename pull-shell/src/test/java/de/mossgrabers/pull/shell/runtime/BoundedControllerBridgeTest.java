@@ -844,13 +844,16 @@ class BoundedControllerBridgeTest
 
 
     @Test
-    void immediateParameterReconciliationCarriesIdentityWhenTheCurrentBankSnapshotIsOlder ()
+    void visibleParameterTargetsWaitForIndependentPoolReadbackAfterBankNavigation ()
     {
         final MutableMixWindow window = new MutableMixWindow ();
         final BridgeFixture fixture = new BridgeFixture (true, window);
         final DesiredParameterBanks banks = new DesiredParameterBanks (Set.of (ParameterBankId.TRACK_VOLUME));
         final DesiredBridgeSubscriptions requested = subscriptions (BridgeSubscription.CURRENT_TRACK_BANK, BridgeSubscription.PARAMETERS);
         fixture.bridge.refresh (1, requested, banks);
+        assertTrue (fixture.bridge.snapshot ().parameters ().slots ().isEmpty ());
+        window.advanceAssignments ();
+        fixture.bridge.refresh (2, requested, banks);
         final var before = fixture.bridge.snapshot ();
         assertEquals ("a-0", before.currentTrackBank ().tracks ().getFirst ().track ().channelId ());
         assertEquals ("a-0", before.parameters ().slots ().get (ParameterSlot.trackVolume (0)).identity ().ownerId ());
@@ -859,13 +862,15 @@ class BoundedControllerBridgeTest
         assertTrue (fixture.bridge.applyParameterLeases (Map.of (), banks));
         final var betweenSamples = fixture.bridge.snapshot ();
         assertEquals (before.currentTrackBank (), betweenSamples.currentTrackBank ());
-        assertEquals ("b-0", betweenSamples.parameters ().slots ().get (ParameterSlot.trackVolume (0)).identity ().ownerId ());
-        assertEquals ("channel-volume", betweenSamples.parameters ().slots ().get (ParameterSlot.trackVolume (0)).identity ().domain ());
-        assertNotEquals (betweenSamples.currentTrackBank ().tracks ().getFirst ().track ().channelId (), betweenSamples.parameters ().slots ().get (ParameterSlot.trackVolume (0)).identity ().ownerId (), "the core must be able to reject this mixed-epoch pairing");
+        assertTrue (betweenSamples.parameters ().slots ().isEmpty (), "the rebound bank cannot publish either the old target or an unobserved new assignment");
 
-        fixture.bridge.refresh (2, requested, banks);
+        fixture.bridge.refresh (3, requested, banks);
+        assertTrue (fixture.bridge.snapshot ().parameters ().slots ().isEmpty ());
+        window.advanceAssignments ();
+        fixture.bridge.refresh (4, requested, banks);
         final var after = fixture.bridge.snapshot ();
         assertEquals (after.currentTrackBank ().tracks ().getFirst ().track ().channelId (), after.parameters ().slots ().get (ParameterSlot.trackVolume (0)).identity ().ownerId ());
+        assertEquals ("channel-volume", after.parameters ().slots ().get (ParameterSlot.trackVolume (0)).identity ().domain ());
     }
 
 
@@ -1087,7 +1092,8 @@ class BoundedControllerBridgeTest
     @Test
     void applicationUiIsRequestedReadbackAndSurvivesParameterOnlyPublication ()
     {
-        final BridgeFixture fixture = new BridgeFixture (true, new MutableMixWindow ());
+        final MutableMixWindow window = new MutableMixWindow ();
+        final BridgeFixture fixture = new BridgeFixture (true, window);
         fixture.bridge.refresh (1, DesiredBridgeSubscriptions.empty (), DesiredParameterBanks.empty ());
         assertEquals (de.mossgrabers.pull.core.api.ApplicationUiSnapshot.empty (), fixture.bridge.snapshot ().applicationUi ());
         final var requested = new DesiredBridgeSubscriptions (Set.of (BridgeSubscription.APPLICATION_UI, BridgeSubscription.PARAMETERS));
@@ -1104,9 +1110,12 @@ class BoundedControllerBridgeTest
         fixture.bridge.refresh (4, requested, DesiredParameterBanks.empty ());
         final var observed = fixture.bridge.snapshot ().applicationUi ();
         assertEquals ("MIX", observed.panelLayout ());
-        assertTrue (fixture.bridge.applyParameterLeases (Map.of (), new DesiredParameterBanks (Set.of (ParameterBankId.TRACK_VOLUME))));
+        final var banks = new DesiredParameterBanks (Set.of (ParameterBankId.TRACK_VOLUME));
+        fixture.bridge.refresh (5, requested, banks);
+        window.advanceAssignments ();
+        assertTrue (fixture.bridge.applyParameterLeases (Map.of (), banks));
         assertEquals (observed, fixture.bridge.snapshot ().applicationUi ());
-        fixture.bridge.refresh (5, DesiredBridgeSubscriptions.empty (), DesiredParameterBanks.empty ());
+        fixture.bridge.refresh (6, DesiredBridgeSubscriptions.empty (), DesiredParameterBanks.empty ());
         assertEquals (de.mossgrabers.pull.core.api.ApplicationUiSnapshot.empty (), fixture.bridge.snapshot ().applicationUi ());
         assertThrows (IllegalArgumentException.class, () -> fixture.bridge.prepare (new de.mossgrabers.pull.core.api.effect.ToggleApplicationPanelEffect (observed.context (), de.mossgrabers.pull.core.api.effect.ToggleApplicationPanelEffect.Panel.MIXER)));
     }
@@ -1433,7 +1442,8 @@ class BoundedControllerBridgeTest
                         // No test diagnostics.
                     }
                 },
-                new ControllerMappingHost (this.surface, this.mappingStorageHost));
+                new ControllerMappingHost (this.surface, this.mappingStorageHost), null, null,
+                mixWindow == null ? RetainedTrackParameters.UNAVAILABLE : mixWindow);
         }
 
 
@@ -1483,10 +1493,13 @@ class BoundedControllerBridgeTest
     }
 
 
-    private static final class MutableMixWindow
+    private static final class MutableMixWindow implements RetainedTrackParameters
     {
         private String prefix = "a";
         private final ITrackBank bank;
+        private final Map<String, TrackMix> acquired = new java.util.HashMap<> ();
+        private Set<String> requested = Set.of ();
+        private long generation;
 
         private MutableMixWindow ()
         {
@@ -1519,6 +1532,28 @@ class BoundedControllerBridgeTest
                 case "getItem" -> tracks.get ((Integer) args[0]);
                 default -> relaxedValue (method.getReturnType ());
             });
+        }
+
+        @Override
+        public void requestTracks (final Set<String> trackIds)
+        {
+            this.requested = Set.copyOf (trackIds);
+            this.acquired.keySet ().retainAll (trackIds);
+        }
+
+        @Override public TrackMix lookup (final String trackId) { return this.acquired.get (trackId); }
+
+        private void advanceAssignments ()
+        {
+            for (int index = 0; index < 8; index++)
+            {
+                final ITrack track = this.bank.getItem (index);
+                final String id = track.getChannelID ();
+                if (!this.requested.contains (id) || this.acquired.containsKey (id)) continue;
+                final long assigned = ++this.generation;
+                this.acquired.put (id, new TrackMix (id, assigned, track.getVolumeParameter (), track.getVolumeParameter (),
+                    () -> this.acquired.containsKey (id) && this.acquired.get (id).assignmentGeneration () == assigned));
+            }
         }
     }
 

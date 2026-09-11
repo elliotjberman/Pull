@@ -183,6 +183,12 @@ final class BoundedControllerBridge implements ControllerBridge
 
     BoundedControllerBridge (final IModel model, final ISelectedTrackNoteTarget selectedTarget, final MidiShortCallback noteInputMidiSender, final PushControlSurface surface, final IValueChanger valueChanger, final RuntimeLog log, final ControllerMappingHost controllerMappings, final AutomationHost automation, final TransportSettingsHost transportSettings)
     {
+        this (model, selectedTarget, noteInputMidiSender, surface, valueChanger, log, controllerMappings, automation, transportSettings, RetainedTrackParameters.UNAVAILABLE);
+    }
+
+
+    BoundedControllerBridge (final IModel model, final ISelectedTrackNoteTarget selectedTarget, final MidiShortCallback noteInputMidiSender, final PushControlSurface surface, final IValueChanger valueChanger, final RuntimeLog log, final ControllerMappingHost controllerMappings, final AutomationHost automation, final TransportSettingsHost transportSettings, final RetainedTrackParameters retainedTracks)
+    {
         this.automation = automation;
         this.transportSettings = transportSettings;
         this.model = Objects.requireNonNull (model, "model");
@@ -193,7 +199,7 @@ final class BoundedControllerBridge implements ControllerBridge
         this.valueChanger = Objects.requireNonNull (valueChanger, "valueChanger");
         this.newClipAction = new NewClipAction (model);
         this.log = Objects.requireNonNull (log, "log");
-        this.parameterTargets = new ParameterTargetHost (surface, model, selectedTarget, this.log);
+        this.parameterTargets = new ParameterTargetHost (surface, model, selectedTarget, this.log, retainedTracks);
         this.masterCommands = new MasterCommandHost (model, log);
         this.controllerState = new ControllerStateHost (selectedTarget, surface.getControllerWorkspaceHost (), this::resetNoteInputMidiState);
         this.controllerMappings = controllerMappings;

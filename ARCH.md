@@ -4,6 +4,10 @@ Working source: Core API 56, checkpoint schema 6, Bitwig API 25. Migration is in
 core owns ordinary Push display pages and migrated controls; the inventory below names the
 remaining shell handlers. The optional Clip piano roll is deferred unchanged.
 
+The working tree adds a shared [retained cursor pool](docs/track-cursor-pool/README.md) for named
+track Volume/Pan and fill resources. Its shell installation/live smoke is pending; earlier API 56
+smoke evidence does not validate this new topology.
+
 API 56 makes selected-track clip scanning an explicit core subscription. The active Drum fill
 view chooses the aligned selected target and cycles its scene pages; other views request no scan.
 The shell observes the requested eight-slot window and keeps the cursor pinned without reselecting
@@ -127,7 +131,8 @@ Shift pages eight. Light refresh is a single end-of-flush pass, so observer burs
 | Session | 8×8 and 8×4; exact project/channel/scene locations, at most 72 acquired launch presses. Cleanup precedes controller bank rebind; external loss fails closed. |
 | Current-track banks | Two main windows and one effect bank, eight tracks each; track identity plus navigation generation. |
 | Named parameters | Seventeen banks, at most 131 slots: ACTIVE legacy, project/device remotes, selected mix/sends, current-bank Volume/Pan/eight Sends, Master/Cue and globals. |
-| Selected-track clips | One private eight-slot scanner, eight pinned launch actuators. Core requests target generation/UUID and absolute scene page; no other-track catalog. Accepted pages accumulate clips in scene order for the current target only; selection/existence and scene-count changes invalidate catalog generation/IDs. Two coherent host samples precede page readiness; held actuators retain exact cleanup independent of scanning. |
+| Retained track cursors | 64 slots: 55 mix, one eight-slot clip scanner, eight one-slot launch actuators. Private flat 64-track discovery; explicit overflow, project/UUID/assignment fences, later host readiness, exact retirement. Unrequested pool sampling is idle after its initial catalog. |
+| Selected-track clips | Shared pooled scanner and launch resources. Core requests target generation/UUID and absolute scene page; no other-track catalog. Accepted pages accumulate clips in scene order for the current target only; selection/existence and scene-count changes invalidate catalog generation/IDs. Two coherent host samples precede page readiness; held actuators retain exact cleanup independent of scanning. |
 | Drum | Canonical 16-pad window and bounded device candidates; a separate 64-pad proxy serves legacy Drum64. |
 | Native maps | Complete 128-entry key/velocity tables; enabled notes restricted to claimed physical Push pads 36–99. |
 | Output | 960×160 display, claimed regions, explicit temporary overlays, button/grid lights and touch strip. |
@@ -135,7 +140,9 @@ Shift pages eight. Light refresh is a single end-of-flush pass, so observer burs
 | Learned controls | 128 banks of four permanent semantic endpoints, allocated per document to track UUIDs. All 64 physical PAD actions remain ordinary-dispatch-only. |
 
 Parameter references fence domain, owner, page, slot/role and generation. Selected/current/rendered
-owners must agree. Old cleanup addressability is separate from new-write eligibility. ACTIVE is
+owners must agree. Old cleanup addressability is separate from new-write eligibility. Named selected/visible Volume/Pan
+use pooled UUID actuators; selected mix survives visible-bank paging and exact outgoing touches remain
+addressable. Sends retain existing bank/destination fences. ACTIVE is
 frozen support; device remotes are excluded while production device identity is blank. See
 [target limits](docs/findings/parameter-target-proxy-coupling.md) and the
 [mapping contract](pull-core-api/src/main/java/de/mossgrabers/pull/core/api/CONTROLLER_MAPPING_IDENTITY.md).

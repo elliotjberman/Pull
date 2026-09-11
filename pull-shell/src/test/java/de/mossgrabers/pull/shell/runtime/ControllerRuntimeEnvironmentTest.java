@@ -94,6 +94,7 @@ import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 import java.lang.reflect.Proxy;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -1194,6 +1195,75 @@ class ControllerRuntimeEnvironmentTest
 
 
     @Test
+    void exactTargetLossAbandonsLeaseAndPendingReplacementWithoutAHostWrite ()
+    {
+        for (final boolean launchAcknowledged: List.of (false, true))
+        {
+            final FakeClipHost host = host (5, FIRST_TARGET, SECOND_TARGET);
+            host.arm (FIRST, FIRST_TARGET);
+            host.arm (SECOND, SECOND_TARGET);
+            final RecordingLog log = new RecordingLog ();
+            final ControllerRuntimeEnvironment environment = new ControllerRuntimeEnvironment (host, log, () -> 0);
+            environment.setFillPressed (FIRST, true);
+            commitAndApply (environment, 1, pressResult (5, FIRST, FIRST_TARGET));
+            if (launchAcknowledged)
+                acknowledgeLaunch (host, environment, FIRST);
+            environment.setFillPressed (SECOND, true);
+            commitAndApply (environment, 1, result (Map.of (), Map.of (FIRST, FIRST_TARGET, SECOND, SECOND_TARGET),
+                List.of (new PressClipTargetEffect (SECOND, 5, SECOND_TARGET, LAUNCH_POLICY))));
+            final int releasesBeforeLoss = host.target (FIRST).releaseCount;
+            final String observedPlayback = host.playing ();
+
+            host.target (FIRST).addressable = false;
+            assertDoesNotThrow (environment::refresh);
+            assertDoesNotThrow (environment::refresh);
+
+            assertEquals (releasesBeforeLoss, host.target (FIRST).releaseCount);
+            assertEquals (observedPlayback, host.playing (), "Abandonment is not a playback restoration acknowledgement");
+            assertEquals (1, host.target (FIRST).retireCount);
+            assertEquals (0, host.target (SECOND).prepareCount);
+            assertTrue (environment.snapshot ().clipLaunchSessionTargets ().isEmpty ());
+            assertEquals (Optional.empty (), environment.snapshot ().activeClipLaunchOwner ());
+            assertTrue (log.warnings.stream ().anyMatch (message -> message.contains ("without playback restoration")));
+        }
+    }
+
+
+    @Test
+    void targetLossAtReleaseSubmissionAndBeforePressAlsoRetiresWithoutRetrying ()
+    {
+        final FakeClipHost host = host (5, FIRST_TARGET, SECOND_TARGET);
+        host.arm (FIRST, FIRST_TARGET);
+        host.arm (SECOND, SECOND_TARGET);
+        final ControllerRuntimeEnvironment environment = environment (host);
+        environment.setFillPressed (FIRST, true);
+        commitAndApply (environment, 1, pressResult (5, FIRST, FIRST_TARGET));
+        acknowledgeLaunch (host, environment, FIRST);
+        host.target (FIRST).addressable = false;
+        environment.setFillPressed (SECOND, true);
+        assertDoesNotThrow (() -> commitAndApply (environment, 1, result (Map.of (), Map.of (FIRST, FIRST_TARGET, SECOND, SECOND_TARGET),
+            List.of (new PressClipTargetEffect (SECOND, 5, SECOND_TARGET, LAUNCH_POLICY)))));
+        assertDoesNotThrow (environment::refresh);
+        assertEquals (0, host.target (FIRST).releaseCount);
+        assertEquals (1, host.target (FIRST).retireCount);
+        assertEquals (0, host.target (SECOND).prepareCount);
+        assertTrue (environment.snapshot ().clipLaunchSessionTargets ().isEmpty ());
+
+        final FakeClipHost beforePress = host (5, FIRST_TARGET);
+        beforePress.arm (FIRST, FIRST_TARGET);
+        beforePress.target (FIRST).addressable = false;
+        final ControllerRuntimeEnvironment beforePressEnvironment = environment (beforePress);
+        beforePressEnvironment.setFillPressed (FIRST, true);
+        assertDoesNotThrow (() -> commitAndApply (beforePressEnvironment, 1, pressResult (5, FIRST, FIRST_TARGET)));
+        assertDoesNotThrow (beforePressEnvironment::refresh);
+        assertEquals (0, beforePress.target (FIRST).pressCount);
+        assertEquals (0, beforePress.target (FIRST).releaseCount);
+        assertEquals (1, beforePress.target (FIRST).retireCount);
+        assertTrue (beforePressEnvironment.snapshot ().clipLaunchSessionTargets ().isEmpty ());
+    }
+
+
+    @Test
     void refreshPublishesPlaybackThatChangedBetweenHostSamples ()
     {
         final FakeClipHost host = host (5, FIRST_TARGET);
@@ -2018,6 +2088,7 @@ class ControllerRuntimeEnvironmentTest
         private int releaseAttempts;
         private int releaseCount;
         private int retireCount;
+        private boolean addressable = true;
         private boolean failPressAfterApply;
         private boolean failRelease;
         private boolean pressRequested;
@@ -2044,6 +2115,7 @@ class ControllerRuntimeEnvironmentTest
         @Override
         public void press (final ClipLaunchPolicy launchPolicy)
         {
+            this.requireAddressable ();
             assertEquals (LAUNCH_POLICY, launchPolicy);
             assertEquals ("root", this.host.playing, "A fill must launch from the opaque base");
             this.pressCount++;
@@ -2061,6 +2133,7 @@ class ControllerRuntimeEnvironmentTest
         @Override
         public void release ()
         {
+            this.requireAddressable ();
             this.releaseAttempts++;
             if (this.failRelease)
                 throw new IllegalStateException ("release failed");
@@ -2075,6 +2148,7 @@ class ControllerRuntimeEnvironmentTest
         @Override
         public DrumFillClipHost.PlaybackState playbackState ()
         {
+            this.requireAddressable ();
             final boolean playing = Long.toString (this.targetId.value ()).equals (this.host.playing);
             return new DrumFillClipHost.PlaybackState (playing, false, false);
         }
@@ -2083,9 +2157,17 @@ class ControllerRuntimeEnvironmentTest
         @Override
         public void retire ()
         {
-            assertFalse (this.playbackState ().playing (), "A playing target cannot be retired");
+            if (this.addressable)
+                assertFalse (this.playbackState ().playing (), "A playing target cannot be retired");
             this.retired = true;
             this.retireCount++;
+        }
+
+
+        private void requireAddressable ()
+        {
+            if (!this.addressable)
+                throw new DrumFillClipHost.TargetUnavailableException ("Exact clip proxy was externally retargeted");
         }
     }
 

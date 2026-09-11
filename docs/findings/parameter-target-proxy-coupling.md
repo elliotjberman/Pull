@@ -10,7 +10,8 @@ remove_when: remaining Device families have proved exact target identities and c
 The shared [interaction lifecycle](../interaction-lifecycle.md) is integrated in working Core API 49.
 It cancels when the active target/binding disappears, suppresses the physical tail, and observes
 exact resource retirement. This finding now concerns the remaining host adapters, particularly the
-Device family. It is not a proposal to retain offscreen editing or add pinned pools by default.
+Device family. The [retained track pool](../track-cursor-pool/README.md) now supplies named Volume/Pan actuators;
+Device/chain/layer identity is still unresolved.
 
 ## What the integration resolves
 
@@ -29,7 +30,9 @@ removes its desired touch; the lifecycle waits for a later sample without that e
 reusing the target. Cleanup subscriptions do not keep the old page alive.
 
 The shell distinguishes new-write eligibility from cleanup addressability. It releases an old touch
-only through its still-exact actuator. If an external cursor change has already rebound that proxy,
+only through its still-exact actuator. Named Volume/Pan now retain their exact track UUID independently of Session paging; the old touch
+can be released after its visible binding moves. Sends and remote children still require their
+existing target fences. If an external cursor change has already rebound a nonretained proxy,
 it drops/reports the lease instead of touching the replacement. Retirement is not a DAW write ACK.
 Snapback still waits for observed restoration, with the separate
 [precision limitation](snapback-v1-limitations.md#restoration-precision).

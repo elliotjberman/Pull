@@ -66,7 +66,7 @@ class CurrentTrackParameterBankHostTest
     }
 
     @Test
-    void mutableSlotRebindRejectsBothOrdinaryWritesAndCleanupAgainstTheNewTrack ()
+    void mutableBankSlotRebindRejectsNewWritesAndReleasesOriginalRetainedTouch ()
     {
         final Fixture fixture = new Fixture ();
         fixture.host.refresh (BANKS);
@@ -77,8 +77,8 @@ class CurrentTrackParameterBankHostTest
         assertThrows (IllegalStateException.class, () -> fixture.host.apply (prepared));
         fixture.host.refresh (BANKS);
         fixture.host.releaseTouches ();
-        assertEquals (List.of ("touch:true"), fixture.tracks[0].volume.events);
-        assertNotEquals (target, fixture.target (ParameterSlot.trackVolume (0)));
+        assertEquals (List.of ("touch:true", "touch:false"), fixture.tracks[0].volume.events);
+        assertFalse (fixture.host.snapshot ().slots ().containsKey (ParameterSlot.trackVolume (0)), "the replacement track is not yet acquired");
     }
 
     @Test
@@ -113,7 +113,20 @@ class CurrentTrackParameterBankHostTest
             final IProject projectObject = proxy (IProject.class, (method, args) -> "getIdentity".equals (method) ? this.project.get () : null);
             final ITransport transport = proxy (ITransport.class, (method, args) -> null);
             final IModel model = proxy (IModel.class, (method, args) -> switch (method) { case "getCurrentTrackBank" -> this.current.get (); case "getProject" -> projectObject; case "getValueChanger" -> changer; case "getTransport" -> transport; default -> null; });
-            this.host = new ParameterTargetHost (ParameterTargetHostTest.emptySurface (changer), model, new RuntimeLog () { public void info (final String message) { } public void warn (final String message) { } });
+            // Mix cursors are independent of the mutable visible-bank slots and already acquired.
+            final Map<String, RetainedTrackParameters.TrackMix> acquired = new java.util.HashMap<> ();
+            for (int index = 0; index < this.tracks.length; index++)
+            {
+                final Track track = this.tracks[index];
+                acquired.put (track.channel, new RetainedTrackParameters.TrackMix (track.channel, index + 1, track.volume.parameter, track.pan.parameter,
+                    () -> track.exists && "project".equals (this.project.get ())));
+            }
+            final RetainedTrackParameters retained = new RetainedTrackParameters ()
+            {
+                @Override public void requestTracks (final Set<String> trackIds) { acquired.keySet ().retainAll (trackIds); }
+                @Override public TrackMix lookup (final String trackId) { return acquired.get (trackId); }
+            };
+            this.host = new ParameterTargetHost (ParameterTargetHostTest.emptySurface (changer), model, null, new RuntimeLog () { public void info (final String message) { } public void warn (final String message) { } }, retained);
         }
         private ITrackBank bank () { return proxy (ITrackBank.class, (method, args) -> switch (method) { case "getPageSize" -> 8; case "getItem" -> this.tracks[(Integer) args[0]].track; default -> null; }); }
         private ParameterTargetRef target (final ParameterSlot slot) { return this.host.snapshot ().slots ().get (slot).target (); }

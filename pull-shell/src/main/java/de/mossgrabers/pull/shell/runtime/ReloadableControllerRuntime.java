@@ -63,6 +63,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
     private final ControllerHost controllerHost;
 
     private SelectedTrackFillClipHost clipHost;
+    private RetainedCursorHost retainedCursors;
     private ControllerMappingHost controllerMappings;
     private ControllerRuntimeEnvironment environment;
     private CoreReloadSupervisor supervisor;
@@ -189,7 +190,8 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         if (this.controllerHost == null)
             throw new IllegalStateException ("Reloadable controller runtime has no Bitwig host");
 
-        this.clipHost = new SelectedTrackFillClipHost (this.controllerHost);
+        this.retainedCursors = new RetainedCursorHost (this.controllerHost, valueChanger, model.getProject ()::getIdentity, this.log);
+        this.clipHost = new SelectedTrackFillClipHost (this.retainedCursors);
         this.clipHost.connect (Objects.requireNonNull (model, "model"), Objects.requireNonNull (selectedTarget, "selectedTarget"));
         this.controllerMappings = new ControllerMappingHost (surface, new ControllerMappingStorageHost (
             this.controllerHost.getDocumentState (), () -> model.getMasterTrack ().getChannelID ()));
@@ -202,7 +204,8 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             this.log,
             this.controllerMappings,
             AutomationHost.create (this.controllerHost, model.getProject ()::getIdentity, surface.getConfiguration ()::isStopAutomationOnKnobRelease),
-            TransportSettingsHost.create (this.controllerHost, model.getProject ()::getIdentity));
+            TransportSettingsHost.create (this.controllerHost, model.getProject ()::getIdentity),
+            this.retainedCursors);
         this.environment = new ControllerRuntimeEnvironment (this.clipHost, controllerBridge, this.log, System::nanoTime);
         this.debugTrace = PushDebugTraceHost.createIfEnabled ();
         this.selectionDebug = de.mossgrabers.pull.shell.SelectionDebug.createIfEnabled ();
@@ -285,6 +288,8 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             return;
 
         final long startedAt = System.nanoTime ();
+        if (this.retainedCursors != null)
+            this.retainedCursors.tick ();
         if (this.debugTrace != null && this.debugTrace.needsControllerTick ())
             this.debugTrace.tick (this.supervisor == null ? 0 : this.supervisor.activeGeneration (), this.environment.snapshot ());
         if (this.debugInputs != null)
