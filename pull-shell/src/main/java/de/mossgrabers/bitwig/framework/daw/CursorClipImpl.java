@@ -6,7 +6,11 @@ package de.mossgrabers.bitwig.framework.daw;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Supplier;
 
 import com.bitwig.extension.controller.api.ControllerHost;
 import com.bitwig.extension.controller.api.Clip;
@@ -54,6 +58,14 @@ public class CursorClipImpl implements INoteClip
     private int                      editPage        = 0;
     private double                   stepLength;
     private final List<NotePosition> editSteps       = new ArrayList<> ();
+    private final Set<Integer> removedEditSteps = new HashSet<> ();
+    private final Supplier<String> projectIdentity;
+    private String editProject;
+    private String editTrack;
+    private int editScene;
+    private long editGeneration;
+    private boolean editCancelled;
+    private boolean closed;
 
 
     /**
@@ -67,10 +79,11 @@ public class CursorClipImpl implements INoteClip
      * @param numRows The number of note rows of the clip to monitor
      * @param projectIdentity The observed document identity for pending-copy validation
      */
-    public CursorClipImpl (final IHost host, final ControllerHost controllerHost, final CursorTrack cursorTrack, final IValueChanger valueChanger, final int numSteps, final int numRows, final java.util.function.Supplier<String> projectIdentity)
+    public CursorClipImpl (final IHost host, final ControllerHost controllerHost, final CursorTrack cursorTrack, final IValueChanger valueChanger, final int numSteps, final int numRows, final Supplier<String> projectIdentity)
     {
         this.host = host;
         this.valueChanger = valueChanger;
+        this.projectIdentity = projectIdentity;
 
         this.numSteps = numSteps;
         this.numRows = numRows;
@@ -101,12 +114,29 @@ public class CursorClipImpl implements INoteClip
         this.launcherClip.isPinned ().markInterested ();
 
         this.launcherClip.getTrack ().canHoldNoteData ().markInterested ();
+        // An observed excursion cancels the entire held gesture, even if the cursor returns
+        // before its next throttled write. These are lifecycle fences, not delay-based readiness.
+        this.launcherClip.getTrack ().channelId ().addValueObserver (value -> {
+            if (!Objects.equals (this.editTrack, value))
+                this.cancelEdit ();
+        });
+        this.launcherClip.clipLauncherSlot ().sceneIndex ().addValueObserver (value -> {
+            if (this.editScene != value)
+                this.cancelEdit ();
+        });
+        this.launcherClip.exists ().addValueObserver (value -> {
+            if (!value)
+                this.cancelEdit ();
+        });
     }
 
 
-    /** End retained asynchronous copies before the controller exits. */
+    /** Cancel held edits and retained asynchronous copies before the controller exits. */
     public void close ()
     {
+        this.closed = true;
+        this.cancelEdit ();
+        this.stopEdit ();
         if (this.noteCopies != null)
             this.noteCopies.close ();
     }
@@ -406,6 +436,8 @@ public class CursorClipImpl implements INoteClip
     @Override
     public void setStepLength (final double length)
     {
+        if (Double.compare (this.stepLength, length) != 0)
+            this.cancelEdit ();
         this.stepLength = length;
         this.launcherClip.setStepSize (length);
     }
@@ -1066,6 +1098,8 @@ public class CursorClipImpl implements INoteClip
     @Override
     public void scrollToPage (final int page)
     {
+        if (this.editPage != page)
+            this.cancelEdit ();
         this.getClip ().scrollToStep (page * this.numSteps);
         this.editPage = page;
     }
@@ -1159,9 +1193,21 @@ public class CursorClipImpl implements INoteClip
         // Is there a previous edit, which is not stopped yet?
         this.stopEdit ();
 
-        this.editSteps.addAll (editSteps);
+        if (this.closed)
+            return;
+        this.editProject = this.projectIdentity.get ();
+        this.editTrack = this.launcherClip.getTrack ().channelId ().get ();
+        this.editScene = this.launcherClip.clipLauncherSlot ().sceneIndex ().get ();
+        this.editCancelled = false;
+        this.editGeneration++;
+        this.removedEditSteps.clear ();
+        // The caller's positions are mutable; the physical gesture owns these coordinates.
+        for (final NotePosition step: editSteps)
+            if (step.getChannel () >= 0 && step.getChannel () < 16 && step.getStep () >= 0 && step.getStep () < this.numSteps
+                && step.getNote () >= 0 && step.getNote () < this.numRows)
+                this.editSteps.add (new NotePosition (step.getChannel (), step.getStep (), step.getNote ()));
         for (final NotePosition step: this.editSteps)
-            this.delayedUpdate (step);
+            this.delayedUpdate (step, this.editGeneration);
     }
 
 
@@ -1171,8 +1217,17 @@ public class CursorClipImpl implements INoteClip
     {
         for (final NotePosition editStep: this.editSteps)
             this.sendClipData (editStep);
+        this.editGeneration++;
         // Final writes are still requests. Once editing ends, ordinary readers must see the
         // latest host observation rather than the working values that were just submitted.
+        this.restoreObservedEdits ();
+        this.editSteps.clear ();
+        this.removedEditSteps.clear ();
+    }
+
+
+    private void restoreObservedEdits ()
+    {
         for (final NotePosition editStep: this.editSteps)
         {
             final IStepInfo observed = this.observedBeforeEdits.remove (observedKey (editStep));
@@ -1188,7 +1243,6 @@ public class CursorClipImpl implements INoteClip
                 stepInfos[channel][step][editStep.getNote ()] = observed instanceof StepInfoImpl ? observed.createCopy () : null;
             }
         }
-        this.editSteps.clear ();
     }
 
 
@@ -1244,12 +1298,40 @@ public class CursorClipImpl implements INoteClip
     }
 
 
-    private void delayedUpdate (final NotePosition editStep)
+    private void delayedUpdate (final NotePosition editStep, final long generation)
     {
-        if (this.editSteps.isEmpty ())
+        if (generation != this.editGeneration || !this.validateEditTarget () || this.removedEditSteps.contains (observedKey (editStep)))
             return;
         this.sendClipData (editStep);
-        this.host.scheduleTask ( () -> this.delayedUpdate (new NotePosition (editStep.getChannel (), editStep.getStep (), editStep.getNote ())), 100);
+        this.host.scheduleTask ( () -> this.delayedUpdate (editStep, generation), 100);
+    }
+
+
+    private boolean validateEditTarget ()
+    {
+        if (this.editSteps.isEmpty () || this.editCancelled || this.closed)
+            return false;
+        if (!this.launcherClip.exists ().get () || this.editTrack == null || this.editTrack.isBlank () || this.editScene < 0
+            || !Objects.equals (this.editProject, this.projectIdentity.get ())
+            || !this.editTrack.equals (this.launcherClip.getTrack ().channelId ().get ())
+            || this.editScene != this.launcherClip.clipLauncherSlot ().sceneIndex ().get ())
+        {
+            this.cancelEdit ();
+            return false;
+        }
+        return true;
+    }
+
+
+    private void cancelEdit ()
+    {
+        if (this.editSteps.isEmpty () || this.editCancelled)
+            return;
+        this.editCancelled = true;
+        this.editGeneration++;
+        this.restoreObservedEdits ();
+        // Keep the held gesture present until its release: remaining turn events must not
+        // fall through to ordinary, immediate writes against the newly selected clip.
     }
 
 
@@ -1260,9 +1342,14 @@ public class CursorClipImpl implements INoteClip
      */
     private void sendClipData (final NotePosition notePosition)
     {
-        final NoteStep noteInfo = this.getNoteStep (notePosition);
-        if (noteInfo == null)
+        if (!this.validateEditTarget () || this.removedEditSteps.contains (observedKey (notePosition)))
             return;
+        final NoteStep noteInfo = this.getNoteStep (notePosition);
+        if (noteInfo == null || noteInfo.state () != NoteStep.State.NoteOn)
+        {
+            this.removedEditSteps.add (observedKey (notePosition));
+            return;
+        }
 
         final IStepInfo stepInfo = this.getStep (notePosition);
         noteInfo.setIsMuted (stepInfo.isMuted ());
@@ -1311,8 +1398,12 @@ public class CursorClipImpl implements INoteClip
         for (final NotePosition editStep: this.editSteps)
         {
             // Is the note among the currently edited ones?
-            if (editStep.getChannel () == channel && editStep.getStep () == step && editStep.getNote () == note)
+            if (this.validateEditTarget () && editStep.getChannel () == channel && editStep.getStep () == step && editStep.getNote () == note)
             {
+                if (noteStep.state () == NoteStep.State.Empty)
+                    this.removedEditSteps.add (observedKey);
+                if (this.removedEditSteps.contains (observedKey))
+                    break;
                 final StepInfoImpl observed = new StepInfoImpl ();
                 observed.updateData (noteStep);
                 this.observedBeforeEdits.put (observedKey, observed);
@@ -1332,6 +1423,8 @@ public class CursorClipImpl implements INoteClip
 
     private StepInfoImpl getUpdateableStep (final NotePosition position)
     {
+        if (!this.editSteps.isEmpty () && (!this.validateEditTarget () || this.removedEditSteps.contains (observedKey (position))))
+            return new StepInfoImpl ();
         if (position.getChannel () >= 0 && position.getChannel () < 16 && position.getStep () >= 0 && position.getStep () < this.numSteps && position.getNote () >= 0 && position.getNote () < this.numRows)
             this.observedBeforeEdits.computeIfAbsent (observedKey (position), key -> this.getStep (position).createCopy ());
         return this.getWorkingStep (position);

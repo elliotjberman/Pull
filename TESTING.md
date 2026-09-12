@@ -87,15 +87,16 @@ on their captured clip after switching Launcher clips and after selecting anothe
 same-position note in the other clip retained its original attributes, confirmed by later copy
 read-back and the Push display. Deleting the captured clip produced an Empty observation and
 cancelled before expression submission; Undo restored the basic note without a late expression
-write. Local traces and inspected Push frames are in the dedicated worktree's
-`target/note-copy-evidence/`; the scratch project is under `target/Note Copy Smoke/`.
+write. Local traces, inspected Push frames and the scratch project are archived under
+`.codex-worktrees/acknowledgement-evidence-2026-09-12/note-copy-target/target/`.
 This live evidence applies only to note copying.
 
 On 2026-09-12 the standalone note-copy package gate passed 1,086 tests; stacked on the
 navigation/transport changes it passed 1,105 tests. Both full deprecation-enabled builds included
 the queued-geometry regression and had no failures, errors, skips or deprecation warnings.
 The production note-copy implementation is unchanged from the prior live validation above;
-exact-build live verification of the combined stack remains pending.
+the combined-build smoke below also verifies an ordinary copy; the prior navigation/deletion
+stress evidence remains separately scoped.
 
 ## Host operation acknowledgements
 
@@ -122,7 +123,7 @@ Model cleanup cancels owners; no post-exit scheduling is promised.
 Retained unchanged: browser insertion waits (open/closed is not correlated with an opening still in
 flight), Add Track/device insertion and native Duplicate (no returned created-object identity),
 device and flattened/filtered-bank paging (no proven offset-to-target identity mapping), generic
-selection notifications and held-note expression cadence. Musical timing,
+selection notifications. The held-note expression cadence remains 100 ms. Musical timing,
 double-click/long-press windows, periodic flushes, throttles and animation remain timers.
 
 Offline regressions separate command submission, host advancement and subscribed observations.
@@ -141,10 +142,54 @@ In **Host Ack Smoke**, routed Shift+arrow paging selected positions 0 and 8 with
 UUIDs and Push output, including a nine-track partial last page and opposite page presses. Group
 entry selected its first child; paging also selected position 8 inside a nine-child group. Master
 engine off/on resolved from read-back. Remote Play/Stop observed playback before returning to the
-original project and releasing the command lane. Traces, frames and provenance remain under
-`target/host-ack-evidence/` in the host-acknowledgements worktree. This predates the shared-helper
-refactor: an exact-build live smoke, including the footswitch double-click stop/rewind route,
-remains pending. Forced host delays are verified offline only.
+original project and releasing the command lane. Traces, frames and provenance are archived under
+`.codex-worktrees/acknowledgement-evidence-2026-09-12/host-acknowledgements/target/host-ack-evidence/`.
+This predates the shared-helper
+refactor. The combined-build smoke below covers the corrected paging and routed footswitch
+rewind; group/Master scenarios were not repeated. Forced host delays are verified offline only.
+
+## Held-note edit target safety
+
+The legacy held-note editor keeps its existing 100 ms send cadence. Each gesture captures its
+project, track, Launcher scene, page and resolution; observed target changes or loss cancel
+remaining writes, even if the cursor later returns. Cancellation keeps the gesture inert until
+release. Observed note deletion retires that cell, and model shutdown cancels outstanding edits.
+Working values are restored to the latest host observations on cancellation and release.
+These are execution/lifecycle fences beneath unchanged legacy gestures; core ownership and
+Bitwig API 25 remain unchanged. Added observers require a matching shell install and restart.
+
+Offline regressions distinguish submitted writes from host state and cover target changes in
+both observation orders, page/resolution changes, deleted notes, gesture replacement and shutdown.
+On 2026-09-12 the full stacked deprecation-enabled package gate passed 1,110 tests with no failures,
+errors, skips or deprecation warnings. The clean cross-clip comparison below supersedes the
+earlier `4566eb79` attempt, which established ordinary velocity read-back only.
+
+## Combined acknowledgement smoke — 2026-09-12
+
+Bitwig 6.1.1 / API 25, clean checkpoint `0ed3c03304d5ae0ef72ab49ec9c3550504d77392`,
+installed shell SHA-256 `63cdfb0eb28400d13ee2c1df9e5f1e85efc62f61d7e4f5911cc5bfe9d3392098`,
+active core `20260912T181358Z-2c04a349f50298478d67be795c401ba3`
+(SHA-256 `e6825b8008a3de50c9faab77b3d6368fdc97dbefc6652870a3a3af9f3fb12721`).
+The isolated **Host Ack Smoke** project verified:
+
+- Routed paging with nine and twelve tracks: excess Next retained position 8 and Previous returned
+  position 0, with matching UUIDs and Push output.
+- Footswitch double-click rewind: later stopped state at a nonzero position preceded later zero
+  position. Coalesced telemetry does not establish exact latency.
+- A held velocity edit changed S1 from 55.4% to 35.9%. Native editor navigation to S2 cancelled
+  further held motion; S2 stayed at its independently observed 61.9% during the hold and after
+  release/reselection. S1 retained 35.9%. A fresh gesture on S2 then reached 69.7%.
+- Ordinary Duplicate-plus-pad copied C1 to an empty D1 cell, with all seven requested expression
+  values confirmed by later native read-back in 185 ms and the independently selected D1 display.
+
+Local traces, inspected Push frames, input scripts and provenance are archived under
+`.codex-worktrees/acknowledgement-evidence-2026-09-12/held-note-edit-targets/target/final-smoke-evidence/`.
+Paging endpoint statuses supplement its truncated trace;
+legacy held input is evidenced by the script/log, while traces and displays establish host results.
+Native note callbacks can precede scene-index callbacks during retargeting, so those printed scene
+labels are paired with actual editor selection and active Note-page values. Group/Master and held/
+deleted-copy stress cases retain their earlier scoped evidence. The prior installed shell/core and
+Footswitch 2 setting were restored after testing.
 
 ## Offline UI catalog
 
