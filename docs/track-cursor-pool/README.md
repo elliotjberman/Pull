@@ -138,7 +138,7 @@ Evidence is retained locally under `.live-cursor-pool/evidence`: volume trace
 `pool-9b3de4ffe6d8` / `pool-c0f2e872c1b7`. Large drum snapshots exceeded the text cap; only intact
 records are used for the claims above.
 
-The API 57 integration passed all 1,124 package tests on September 12, 2026, with no
+The API 57 integration passed all 1,118 package tests on September 12, 2026, with no
 failures, errors, skips or deprecation warnings. The staged native tests cover partial/empty pages,
 independent child navigation, later property delivery and outgoing cleanup. The real hardware-button
 regression confirms an empty-slot Delete chord consumes the legacy deletion release. Debug client,
