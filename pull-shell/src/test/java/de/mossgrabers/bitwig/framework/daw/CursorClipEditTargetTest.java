@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static de.mossgrabers.pull.shell.testing.TestProxies.defaultValue;
+import static de.mossgrabers.pull.shell.testing.TestProxies.empty;
 import static de.mossgrabers.pull.shell.testing.TestProxies.proxy;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -225,11 +225,5 @@ class CursorClipEditTargetTest
             this.velocities.put (pitch, velocity);
             this.noteObserver.get ().noteStepChanged (note (pitch));
         }
-    }
-
-    private static Object empty (final Class<?> type)
-    {
-        if (type == String.class) return "";
-        return type.isInterface () ? proxy (type, (p, method, args) -> empty (method.getReturnType ())) : defaultValue (type);
     }
 }

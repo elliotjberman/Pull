@@ -158,7 +158,7 @@ Bitwig API 25 remain unchanged. Added observers require a matching shell install
 
 Offline regressions distinguish submitted writes from host state and cover target changes in
 both observation orders, page/resolution changes, deleted notes, gesture replacement and shutdown.
-On 2026-09-12 the full stacked deprecation-enabled package gate passed 1,109 tests with no failures,
+On 2026-09-12 the full stacked deprecation-enabled package gate passed 1,110 tests with no failures,
 errors, skips or deprecation warnings. A clean live cross-clip cancellation comparison and
 exact-build smoke remain pending. The earlier `4566eb79` smoke established ordinary velocity
 read-back only; its held-edit navigation did not establish a clean target comparison and is not
