@@ -42,6 +42,7 @@ public final class ControllerPageCompositions
 
     private final Map<Background, Map<PageId, Entry>> pages = new LinkedHashMap<> ();
     private final Map<Background, CompiledWorkspace> legacy = new LinkedHashMap<> ();
+    private final Map<Background, CompiledWorkspace> deviceParameters = new LinkedHashMap<> ();
     private final Map<Background, CompiledWorkspace> pianoRoll = new LinkedHashMap<> ();
 
     /** Declare all page variants of a background once, validating every physical composition. */
@@ -64,6 +65,10 @@ public final class ControllerPageCompositions
         }
         this.pages.put (background, Map.copyOf (compiled));
         this.legacy.put (background, compile (controllerViews, background, "legacy", background.legacyPageViews ()));
+        final List<ControllerView> deviceViews = new ArrayList<> (background.legacyPageViews ().stream ()
+            .filter (view -> !(view instanceof StableParameterControlsView) && !(view instanceof LegacyPageDisplayView)).toList ());
+        deviceViews.add (new DeviceRemoteControlsView ());
+        this.deviceParameters.put (background, compile (controllerViews, background, "device-parameters", deviceViews));
         // The explicitly deferred piano roll keeps its original unclaimed stable display.
         this.pianoRoll.put (background, compile (controllerViews, background, "piano-roll", background.legacyPageViews ().stream ().map (view -> view instanceof LegacyPageDisplayView ? PIANO_ROLL_OBSERVATION : view).toList ()));
     }
@@ -81,6 +86,11 @@ public final class ControllerPageCompositions
     public CompiledWorkspace legacy (final Background background)
     {
         return Objects.requireNonNull (this.legacy.get (background), "Declared background");
+    }
+
+    public CompiledWorkspace deviceParameters (final Background background)
+    {
+        return Objects.requireNonNull (this.deviceParameters.get (background), "Declared background");
     }
 
     public CompiledWorkspace pianoRoll (final Background background)

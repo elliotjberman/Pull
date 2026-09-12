@@ -6,6 +6,8 @@ import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.mode.BaseMode;
 import de.mossgrabers.controller.ableton.push.mode.device.DeviceLayerMode;
+import de.mossgrabers.controller.ableton.push.mode.device.DeviceChainsMode;
+import de.mossgrabers.framework.daw.data.empty.EmptyParameter;
 import de.mossgrabers.controller.ableton.push.mode.device.DeviceParamsMode;
 import de.mossgrabers.controller.ableton.push.mode.track.TrackDetailsMode;
 import de.mossgrabers.framework.controller.ContinuousID;
@@ -60,6 +62,7 @@ class PushDevicePageObserverTest
         final Fixture fixture = new Fixture ();
         final DeviceParamsMode mode = new DeviceParamsMode (fixture.surface, fixture.model);
         fixture.activate (Modes.DEVICE_PARAMS, mode);
+        assertTrue (fixture.capture ().parameters ().isEmpty (), "Device remotes come only from retained named targets");
         assertEquals (8, fixture.capture ().device ().siblings ().size ());
         assertEquals (8, fixture.capture ().device ().chains ().size (), "host may report more chains than eight physical choices");
         assertTrue (fixture.capture ().selection ().showDevices ());
@@ -83,8 +86,27 @@ class PushDevicePageObserverTest
         assertTrue (fixture.requests.isEmpty ());
     }
 
+    @Test
+    void migratedDeviceKnobsArePhysicallyInertWhileChainsKeepFrozenBinding ()
+    {
+        final Fixture fixture = new Fixture ();
+        final DeviceParamsMode params = new DeviceParamsMode (fixture.surface, fixture.model);
+        fixture.activate (Modes.DEVICE_PARAMS, params);
+        final var knob = fixture.surface.getContinuous (ContinuousID.KNOB1);
+        assertSame (EmptyParameter.INSTANCE, knob.getBoundParameter ());
+        knob.getBoundParameter ().inc (1);
+        params.onKnobTouch (0, true);
+        params.onKnobTouch (0, false);
+        assertTrue (fixture.requests.isEmpty ());
+        fixture.activate (Modes.DEVICE_CHAINS, new DeviceChainsMode (fixture.surface, fixture.model));
+        assertSame (fixture.trackParameter, knob.getBoundParameter ());
+        knob.getBoundParameter ().inc (1);
+        assertEquals (List.of ("track:1.0"), fixture.requests);
+    }
+
     private static final class Fixture
     {
+        private long pageRevision;
         private boolean cursorMuted;
         private boolean selectedMuted;
         private boolean masterSelected;
@@ -139,7 +161,7 @@ class PushDevicePageObserverTest
         {
             this.surface.getModeManager ().register (id, mode);
             this.surface.getModeManager ().activateConsumer (1);
-            this.surface.getModeManager ().apply (new DesiredControllerPageState (1, ControllerPageRef.legacy (id.name ()), ControllerPageRef.none (), Optional.empty (), 0));
+            this.surface.getModeManager ().apply (new DesiredControllerPageState (++this.pageRevision, ControllerPageRef.legacy (id.name ()), ControllerPageRef.none (), Optional.empty (), 0));
         }
         private DevicePageState capture () { return PushDevicePageObserver.capture (this.surface, this.model); }
         private IParameterBank parameters (final IParameter parameter)
@@ -165,6 +187,7 @@ class PushDevicePageObserverTest
                 case "getValue", "getModulatedValue" -> 96;
                 case "getDisplayedValue" -> "96 dB";
                 case "inc" -> { this.requests.add ("track:" + args[0]); yield null; }
+                case "resetValue" -> { this.requests.add ("track:reset"); yield null; }
                 case "touchValue" -> { this.requests.add ("track:" + "touch:" + args[0]); yield null; }
                 default -> null;
             });

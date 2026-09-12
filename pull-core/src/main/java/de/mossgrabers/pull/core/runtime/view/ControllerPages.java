@@ -83,6 +83,7 @@ public final class ControllerPages
     {
         final var background = this.background (selection, snapshot);
         if (page.kind () == ControllerPageRef.Kind.CORE) return this.compositions.select (new PageId (page.id ()), background);
+        if ("DEVICE_PARAMS".equals (page.id ())) return this.compositions.deviceParameters (background);
         final var observed = snapshot.bridge ().pageDisplay ();
         if ("CLIP".equals (page.id ()) && "CLIP".equals (observed.modeId ()) && observed.state () instanceof final EditingPageState.Clip clip && clip.pianoRoll ())
             return this.compositions.pianoRoll (background);

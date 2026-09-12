@@ -79,6 +79,8 @@ final class RetainedCursorHost implements RetainedCursorPool.Host, RetainedTrack
         profiles.add (Profile.CLIP_SCAN);
         for (int index = 0; index < 8; index++)
             profiles.add (Profile.CLIP_ACTUATOR);
+        profiles.add (Profile.DEVICE_PAGE);
+        profiles.add (Profile.DEVICE_PAGE);
         while (profiles.size () < CAPACITY)
             profiles.add (Profile.MIX);
         final List<Resource> slots = new ArrayList<> (CAPACITY);
@@ -102,6 +104,16 @@ final class RetainedCursorHost implements RetainedCursorPool.Host, RetainedTrack
     RetainedCursorPool pool ()
     {
         return this.pool;
+    }
+
+    /** Native child topology is created once during initialization, never at lookup or effect time. */
+    Map<Integer, CursorTrack> deviceTracks ()
+    {
+        final Map<Integer, CursorTrack> tracks = new LinkedHashMap<> ();
+        for (int index = 0; index < this.resources.size (); index++)
+            if (this.resources.get (index).profile == Profile.DEVICE_PAGE)
+                tracks.put (Integer.valueOf (index), this.resources.get (index).track);
+        return Map.copyOf (tracks);
     }
 
     /** Called once by the controller tick, never by input or effect preparation. */
@@ -292,7 +304,7 @@ final class RetainedCursorHost implements RetainedCursorPool.Host, RetainedTrack
             resource.propertiesGeneration = handle.assignmentGeneration ();
     }
 
-    private static boolean sameParameter (final Parameter left, final Parameter right)
+    static boolean sameParameter (final Parameter left, final Parameter right)
     {
         return left.exists ().get () == right.exists ().get () && Objects.equals (left.name ().get (), right.name ().get ()) &&
             Double.compare (left.value ().get (), right.value ().get ()) == 0 &&
@@ -301,7 +313,7 @@ final class RetainedCursorHost implements RetainedCursorPool.Host, RetainedTrack
             left.discreteValueCount ().get () == right.discreteValueCount ().get ();
     }
 
-    private static void markParameter (final Parameter parameter)
+    static void markParameter (final Parameter parameter)
     {
         parameter.exists ().markInterested ();
         parameter.name ().markInterested ();

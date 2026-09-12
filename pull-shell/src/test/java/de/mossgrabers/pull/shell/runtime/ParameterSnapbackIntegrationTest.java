@@ -346,7 +346,9 @@ class ParameterSnapbackIntegrationTest
         private final IHwContinuousControl control = proxyControl ();
         private ControllerBridgeSnapshot snapshot = new ControllerBridgeSnapshot (
             de.mossgrabers.pull.core.api.TransportSnapshot.empty (), de.mossgrabers.pull.core.api.SelectedTrackSnapshot.empty (),
-            new de.mossgrabers.pull.core.api.ControllerLayoutSnapshot (1, "PLAY", "DEVICE_PARAMS", false, false, 0, de.mossgrabers.pull.core.api.GridPressureConfiguration.OFF),
+            // Chains retains the ACTIVE parameter mutation path exercised here. Device remotes
+            // now use named targets and exclusively owned gestures, covered by their routed tests.
+            new de.mossgrabers.pull.core.api.ControllerLayoutSnapshot (1, "PLAY", "DEVICE_CHAINS", false, false, 0, de.mossgrabers.pull.core.api.GridPressureConfiguration.OFF),
             de.mossgrabers.pull.core.api.DrumContextSnapshot.empty (), ParameterBridgeSnapshot.empty ());
         private Map<ParameterTargetRef, ParameterLease> retained = Map.of ();
         private DesiredParameterBanks lastAppliedBanks = DesiredParameterBanks.empty ();

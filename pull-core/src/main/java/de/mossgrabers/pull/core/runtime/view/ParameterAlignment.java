@@ -35,11 +35,22 @@ final class ParameterAlignment
         {
             case SELECTED_TRACK -> slot.index () < 2 && snapshot.bridge ().selectedTrack ().exists () && matches (target, slot.index () == 0 ? "channel-volume" : "channel-pan", snapshot.bridge ().selectedTrack ().channelId ());
             case SELECTED_TRACK_SENDS -> snapshot.bridge ().selectedTrack ().exists () && matches (target, "channel-send", snapshot.bridge ().selectedTrack ().channelId ());
+            case SELECTED_DEVICE_REMOTE -> deviceMatches (snapshot, target, slot.index ());
             case PROJECT_REMOTE -> snapshot.bridge ().automation ().available () && matches (target, "project-remote", snapshot.bridge ().automation ().projectIdentity ());
             case MASTER -> masterContextAligned (snapshot) && matches (target, "project-master", snapshot.bridge ().master ().projectIdentity ()) && target.identity ().index () == slot.index ();
             default -> false;
         };
         return aligned ? target : null;
+    }
+
+
+    private static boolean deviceMatches (final ControllerSnapshot snapshot, final ParameterTargetSnapshot target, final int index)
+    {
+        final var state = DeviceRemoteControlsView.observedPage (snapshot);
+        // The frozen menu publishes ParameterPageBankImpl's index within its eight-page window.
+        // The opaque owner fences the full page; the retained target keeps its absolute index.
+        return state != null && state.device ().exists () && matches (target, "retained-device-remote", state.parameterOwnerId ()) &&
+            target.identity ().page () % ParameterSlot.BANK_SIZE == state.device ().selectedPage () && target.identity ().index () == index;
     }
 
 

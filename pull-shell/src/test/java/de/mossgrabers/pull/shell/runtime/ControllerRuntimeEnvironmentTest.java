@@ -1750,7 +1750,9 @@ class ControllerRuntimeEnvironmentTest
         @Override
         public boolean supportsPageInput (final de.mossgrabers.pull.core.api.DesiredControllerPageState page, final ControlId control, final InputKind kind)
         {
-            return page.effectivePage ().kind () == de.mossgrabers.pull.core.api.ControllerPageRef.Kind.CORE && de.mossgrabers.controller.ableton.push.mode.CorePageMode.containsInput (control, kind);
+            return de.mossgrabers.controller.ableton.push.mode.CorePageMode.containsInput (control, kind) &&
+                (page.effectivePage ().kind () == de.mossgrabers.pull.core.api.ControllerPageRef.Kind.CORE ||
+                    "DEVICE_PARAMS".equals (page.effectivePage ().legacyAlias ()) && (kind == InputKind.RELATIVE || kind == InputKind.TOUCH));
         }
 
         @Override

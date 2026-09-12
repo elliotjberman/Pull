@@ -8,7 +8,12 @@ import de.mossgrabers.controller.ableton.push.PushConfiguration;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.workspace.SessionBankRegistry;
+import de.mossgrabers.framework.command.core.TriggerCommand;
+import de.mossgrabers.framework.command.trigger.application.DeleteCommand;
+import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.controller.color.ColorEx;
+import de.mossgrabers.framework.controller.hardware.AbstractHwButton;
+import de.mossgrabers.framework.controller.hardware.BindType;
 import de.mossgrabers.framework.controller.hardware.IHwButton;
 import de.mossgrabers.framework.controller.hardware.IHwLight;
 import de.mossgrabers.framework.controller.hardware.IHwSurfaceFactory;
@@ -42,6 +47,7 @@ import de.mossgrabers.framework.featuregroup.IMode;
 import de.mossgrabers.framework.featuregroup.IView;
 import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.scale.Scales;
+import de.mossgrabers.framework.utils.ButtonEvent;
 import de.mossgrabers.framework.view.Views;
 import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.api.BrowserSnapshot;
@@ -214,6 +220,27 @@ class BoundedControllerBridgeTest
 
 
     @Test
+    void coreConsumedDeleteChordSuppressesTheRealLegacyReleaseWithoutDisablingTheNextPress ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.surface.getViewManager ().register (Views.SESSION, relaxedProxy (IView.class));
+        fixture.surface.getViewManager ().setActive (Views.SESSION);
+        fixture.surface.addGraphicsDisplay (relaxedProxy (de.mossgrabers.framework.controller.display.IGraphicDisplay.class));
+        final IModel model = proxy (IModel.class, (ignored, method, arguments) -> method.getName ().equals ("getApplication") ? fixture.application.proxy () : relaxedValue (method.getReturnType ()));
+        final IHwButton delete = fixture.surface.createButton (ButtonID.DELETE, "Delete");
+        delete.bind (new DeleteCommand<> (model, fixture.surface));
+
+        delete.trigger (ButtonEvent.DOWN);
+        fixture.bridge.apply (fixture.bridge.prepare (new ConsumeControllerButtonEffect (PushControlIds.button ("DELETE"))));
+        delete.trigger (ButtonEvent.UP);
+        assertEquals (0, fixture.application.deleteRequests, "a Device reset chord must not fall through to deleting the DAW selection");
+
+        delete.trigger ();
+        assertEquals (1, fixture.application.deleteRequests, "a fresh standalone press still runs the unchanged Delete command");
+    }
+
+
+    @Test
     void opaqueCorePageProjectionDoesNotNeedAnInstalledModeWhileLegacyPagesDo ()
     {
         final BridgeFixture fixture = new BridgeFixture ();
@@ -227,6 +254,28 @@ class BoundedControllerBridgeTest
         assertFalse (fixture.bridge.supportsPageLight (page, PushControlIds.button ("PLAY")), "page projection cannot acquire controller-level output");
         assertThrows (IllegalArgumentException.class, () -> fixture.surface.getModeManager ().prepare (
             pageState (2, de.mossgrabers.pull.core.api.ControllerPageRef.legacy ("DEVICE_PARAMS"), 0)));
+    }
+
+
+    @Test
+    void retainedDevicePageAdmitsOnlyItsInertEncoderFootprint ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        final var device = pageState (1, de.mossgrabers.pull.core.api.ControllerPageRef.legacy ("DEVICE_PARAMS"), 0);
+        final var chains = pageState (2, de.mossgrabers.pull.core.api.ControllerPageRef.legacy ("DEVICE_CHAINS"), 0);
+        for (int index = 1; index <= 8; index++)
+        {
+            final var knob = PushControlIds.continuous ("KNOB" + index);
+            for (final var kind: List.of (de.mossgrabers.pull.core.api.event.InputKind.RELATIVE, de.mossgrabers.pull.core.api.event.InputKind.TOUCH))
+            {
+                assertTrue (fixture.bridge.supportsPageInput (device, knob, kind));
+                assertFalse (fixture.bridge.supportsPageInput (chains, knob, kind), "The frozen Chains parameter binding is a separate control slice");
+            }
+            assertFalse (fixture.bridge.supportsPageInput (device, PushControlIds.button ("ROW1_" + index), de.mossgrabers.pull.core.api.event.InputKind.BUTTON));
+            assertFalse (fixture.bridge.supportsPageInput (device, PushControlIds.button ("ROW2_" + index), de.mossgrabers.pull.core.api.event.InputKind.BUTTON));
+        }
+        assertFalse (fixture.bridge.supportsPageInput (device, PushControlIds.button ("ARROW_RIGHT"), de.mossgrabers.pull.core.api.event.InputKind.BUTTON));
+        assertFalse (fixture.bridge.supportsPageLight (device, PushControlIds.button ("ROW1_1")));
     }
 
 
@@ -1627,6 +1676,7 @@ class BoundedControllerBridgeTest
         private boolean canRedo;
         private final List<String> historyRequests = new ArrayList<> ();
         private int engineWriteCount;
+        private int deleteRequests;
 
 
         private IApplication proxy ()
@@ -1638,6 +1688,7 @@ class BoundedControllerBridgeTest
                 case "isEngineActive" -> Boolean.valueOf (this.engineActive);
                 case "canUndo" -> Boolean.valueOf (this.canUndo);
                 case "canRedo" -> Boolean.valueOf (this.canRedo);
+                case "deleteSelection" -> { this.deleteRequests++; yield null; }
                 case "undo", "redo" -> {
                     this.historyRequests.add (method.getName ());
                     yield null;
@@ -1906,7 +1957,7 @@ class BoundedControllerBridgeTest
         final IHwLight light = relaxedProxy (IHwLight.class);
         final IHwSurfaceFactory surfaceFactory = proxy (IHwSurfaceFactory.class, (proxy, method, arguments) -> switch (method.getName ())
         {
-            case "createButton" -> button;
+            case "createButton" -> arguments[1] == ButtonID.DELETE ? new CommandButton () : button;
             case "createLight" -> light;
             case "installMappedAbsoluteFeedback" -> {
                 ((BiConsumer<Boolean, Double>) arguments[1]).accept (Boolean.FALSE, Double.valueOf (0.8));
@@ -1933,6 +1984,21 @@ class BoundedControllerBridgeTest
         };
         surface.getModeManager ().installCoreAdapter (relaxedProxy (IMode.class));
         return surface;
+    }
+
+
+    /** Uses the production edge and consumption lifecycle; only the native MIDI binding is absent. */
+    private static final class CommandButton extends AbstractHwButton
+    {
+        private CommandButton () { super (relaxedProxy (IHost.class), "Delete"); }
+        @Override public void bind (final TriggerCommand command) { this.command = command; }
+        @Override public void bind (final IMidiInput input, final BindType type, final int channel, final int control) { }
+        @Override public void bind (final IMidiInput input, final BindType type, final int channel, final int control, final int value) { }
+        @Override public void unbind () { }
+        @Override public void unbindPress () { }
+        @Override public void unbindRelease () { }
+        @Override public void rebind () { }
+        @Override public void setBounds (final double x, final double y, final double width, final double height) { }
     }
 
 

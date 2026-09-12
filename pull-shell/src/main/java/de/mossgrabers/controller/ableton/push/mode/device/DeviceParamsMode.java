@@ -18,7 +18,7 @@ import de.mossgrabers.framework.daw.data.bank.IParameterPageBank;
 import de.mossgrabers.framework.featuregroup.ModeManager;
 import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.parameter.IParameter;
-import de.mossgrabers.framework.parameterprovider.device.BankParameterProvider;
+import de.mossgrabers.framework.parameterprovider.special.EmptyParameterProvider;
 import de.mossgrabers.framework.utils.ButtonEvent;
 
 
@@ -42,11 +42,9 @@ public class DeviceParamsMode extends BaseMode<IParameter>
     {
         super ("Parameters", surface, model, model.getCursorDevice ().getParameterBank ());
 
-        this.setParameterProvider (new BankParameterProvider (this.model.getCursorDevice ().getParameterBank ()));
+        this.setParameterProvider (new EmptyParameterProvider (8));
 
         this.setShowDevices (true);
-
-
     }
 
 
@@ -76,17 +74,7 @@ public class DeviceParamsMode extends BaseMode<IParameter>
     @Override
     public void onKnobTouch (final int index, final boolean isTouched)
     {
-        this.setTouchedKnob (index, isTouched);
-
-        final ICursorDevice cd = this.model.getCursorDevice ();
-        final IParameter param = cd.getParameterBank ().getItem (index);
-        if (isTouched && this.surface.isDeletePressed ())
-        {
-            this.surface.setTriggerConsumed (ButtonID.DELETE);
-            param.resetValue ();
-        }
-        param.touchValue (isTouched);
-        this.checkStopAutomationOnKnobRelease (isTouched);
+        // Encoder touch/reset/automation policy belongs to DeviceRemoteControlsView.
     }
 
 

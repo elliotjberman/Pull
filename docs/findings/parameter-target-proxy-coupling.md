@@ -10,8 +10,9 @@ remove_when: remaining Device families have proved exact target identities and c
 The shared [interaction lifecycle](../interaction-lifecycle.md) is integrated in working Core API 49.
 It cancels when the active target/binding disappears, suppresses the physical tail, and observes
 exact resource retirement. This finding now concerns the remaining host adapters, particularly the
-Device family. The [retained track pool](../track-cursor-pool/README.md) now supplies named Volume/Pan actuators;
-Device/chain/layer identity is still unresolved.
+Device family. The [retained cursor pool](../track-cursor-pool/README.md) supplies named Volume/Pan
+actuators and opaque Device remote-page owners. The Device cutover awaits its matched live gate;
+chain/layer identity and unobservable remote remapping remain unresolved.
 
 ## What the integration resolves
 
@@ -31,16 +32,22 @@ reusing the target. Cleanup subscriptions do not keep the old page alive.
 
 The shell distinguishes new-write eligibility from cleanup addressability. It releases an old touch
 only through its still-exact actuator. Named Volume/Pan now retain their exact track UUID independently of Session paging; the old touch
-can be released after its visible binding moves. Sends and remote children still require their
-existing target fences. If an external cursor change has already rebound a nonretained proxy,
+can be released after its visible binding moves. Device remotes retain an exact pinned child and
+independent page for outgoing cleanup after source navigation; their display joins the same opaque
+owner/page/slot as their actions. Sends and chain/layer children retain existing target fences. If an external cursor change has already rebound a nonretained proxy,
 it drops/reports the lease instead of touching the replacement. Retirement is not a DAW write ACK.
 Snapback still waits for observed restoration, with the separate
 [precision limitation](snapback-v1-limitations.md#restoration-precision).
 
 ## What remains
 
-- The full Device/chain/layer family needs a verified identity recipe for each selected owner,
-  remote page, layer and parameter role. No device UUID may be invented from name, slot or wrapper.
+- The Device remote slice needs live characterization of user-pinned devices across tracks,
+  nested acquisition, deletion/replacement and remapping. `CursorDevice.channel()` is its creation
+  context, not an owning-track identity. Retained child equality and observed invalidation revisions
+  must be exercised against actual host behavior; same-named remaps without an observable event
+  remain outside a proved exact-cleanup contract.
+- Remaining chain/layer controls need verified owners and parameter roles; distinct Device menu
+  navigation/lights remain frozen. No device UUID may be invented from name, slot or wrapper.
 - Two proxies exposing the same semantic parameter are not generally deduplicated. Document exact
   aliasing guarantees for any new adapter before allowing shared target acquisition.
 - The inherited `ACTIVE` bank remains frozen support for unmigrated stable parameter modes. Delete

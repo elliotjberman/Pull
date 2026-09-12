@@ -69,6 +69,7 @@ final class ParameterTargetHost
     private final IModel model;
     private final ISelectedTrackNoteTarget selectedTarget;
     private final RetainedTrackParameters retainedTracks;
+    private final RetainedDeviceParameters retainedDevices;
     private final ITransport transport;
     private final RuntimeLog log;
     private final ParameterTargetIdentityResolver targetIdentities;
@@ -118,8 +119,16 @@ final class ParameterTargetHost
 
     ParameterTargetHost (final PushControlSurface surface, final IModel model, final ISelectedTrackNoteTarget selectedTarget, final RuntimeLog log, final RetainedTrackParameters retainedTracks)
     {
+        this (surface, model, selectedTarget, log, retainedTracks, RetainedDeviceParameters.UNAVAILABLE);
+    }
+
+
+    ParameterTargetHost (final PushControlSurface surface, final IModel model, final ISelectedTrackNoteTarget selectedTarget, final RuntimeLog log,
+                         final RetainedTrackParameters retainedTracks, final RetainedDeviceParameters retainedDevices)
+    {
         this.selectedTarget = selectedTarget;
         this.retainedTracks = Objects.requireNonNull (retainedTracks, "retainedTracks");
+        this.retainedDevices = Objects.requireNonNull (retainedDevices, "retainedDevices");
         this.surface = Objects.requireNonNull (surface, "surface");
         this.model = Objects.requireNonNull (model, "model");
         this.transport = Objects.requireNonNull (model.getTransport (), "transport");
@@ -138,6 +147,7 @@ final class ParameterTargetHost
     {
         this.requestedBanks = Objects.requireNonNull (banks, "banks");
         this.retainedTracks.requestTracks (this.requestedTrackIds (banks));
+        this.retainedDevices.requestDevicePage (banks.includes (ParameterBankId.SELECTED_DEVICE_REMOTE), this.retainedDeviceOwners ());
         this.reconcileTargets (this.requestedBanks);
         this.discardStaleRetainedTargets ();
         final var touches = this.touchedTargets.entrySet ().iterator ();
@@ -509,6 +519,7 @@ final class ParameterTargetHost
         this.currentTargets.clear ();
         this.snapshot = ParameterBridgeSnapshot.empty ();
         this.retainedTracks.requestTracks (java.util.Set.of ());
+        this.retainedDevices.requestDevicePage (false, java.util.Set.of ());
     }
 
 
@@ -579,13 +590,13 @@ final class ParameterTargetHost
         {
             final IParameterBank projectParameters = this.model.getProject ().getParameterBank ();
             for (int index = 0; index < this.projectTargets.length; index++)
-                this.projectTargets[index] = this.reconcileRemoteTarget (this.projectTargets[index], index, projectParameters, "project-remote", () -> this.model.getProject ().getIdentity ());
+                this.projectTargets[index] = this.reconcileProjectRemoteTarget (this.projectTargets[index], index, projectParameters);
         }
         if (banks.includes (ParameterBankId.SELECTED_DEVICE_REMOTE))
         {
-            final IParameterBank deviceParameters = this.model.getCursorDevice ().getParameterBank ();
+            final RetainedDeviceParameters.DevicePage page = this.retainedDevices.devicePage ();
             for (int index = 0; index < this.deviceTargets.length; index++)
-                this.deviceTargets[index] = this.reconcileRemoteTarget (this.deviceTargets[index], index, deviceParameters, "device-remote", () -> this.model.getCursorDevice ().getID ());
+                this.deviceTargets[index] = this.reconcileRetainedDeviceTarget (this.deviceTargets[index], index, page);
         }
         if (banks.includes (ParameterBankId.TRACK_VOLUME))
         {
@@ -710,6 +721,47 @@ final class ParameterTargetHost
     }
 
 
+    String deviceParameterOwner ()
+    {
+        final RetainedDeviceParameters.DevicePage page = this.retainedDevices.devicePage ();
+        return page == null ? "" : page.owner ();
+    }
+
+
+    private java.util.Set<String> retainedDeviceOwners ()
+    {
+        final java.util.Set<String> owners = new java.util.LinkedHashSet<> ();
+        final java.util.function.Consumer<LiveTarget> collect = target -> {
+            if (target.retainedDevice != null) owners.add (target.retainedDevice.owner ());
+        };
+        this.retainedTargets.values ().forEach (retained -> collect.accept (retained.target));
+        this.touchedTargets.values ().forEach (collect);
+        this.indicatedTargets.values ().forEach (collect);
+        return java.util.Set.copyOf (owners);
+    }
+
+
+    private LiveTarget reconcileRetainedDeviceTarget (final LiveTarget existing, final int index, final RetainedDeviceParameters.DevicePage page)
+    {
+        if (page == null || !page.current ().getAsBoolean ())
+            return null;
+        final IParameter parameter = page.parameters ().get (index);
+        if (!parameter.doesExist ()) return null;
+        LiveTarget target = existing;
+        if (target == null || target.retainedDevice != page || !target.isCurrent ())
+        {
+            final String project = this.model.getProject ().getIdentity ();
+            final BooleanSupplier addressable = () -> parameter.doesExist () && page.addressable ().getAsBoolean () && Objects.equals (project, this.model.getProject ().getIdentity ());
+            final var identity = new ParameterTargetIdentityResolver.TargetIdentity ("retained-device-remote", page.owner (), page.page (), index, parameter.getName ());
+            target = new LiveTarget (new ParameterTargetRef (ParameterTargetKind.LIVE, this.nextIdentity (), page.generation ()), null, parameter, 0, identity,
+                parameter::getValue, value -> parameter.setValueImmediatly ((int) Math.round (value)), () -> addressable.getAsBoolean () && page.current ().getAsBoolean (), addressable, 0.5);
+            target.retainedDevice = page;
+        }
+        if (target.isCurrent ()) this.currentTargets.put (target.reference, target);
+        return target;
+    }
+
+
     private static void addRetainedTrack (final java.util.Set<String> tracks, final LiveTarget target)
     {
         if (target.retainedTrack != null) tracks.add (target.retainedTrack.trackId ());
@@ -830,13 +882,13 @@ final class ParameterTargetHost
     }
 
 
-    private LiveTarget reconcileRemoteTarget (final LiveTarget existing, final int index, final IParameterBank bank, final String domain, final Supplier<String> owner)
+    private LiveTarget reconcileProjectRemoteTarget (final LiveTarget existing, final int index, final IParameterBank bank)
     {
         if (bank == null || index >= bank.getPageSize ())
             return null;
 
         final IParameter parameter = bank.getItem (index);
-        final ParameterTargetIdentityResolver.TargetIdentity targetIdentity = this.targetIdentities.remote (domain, owner.get (), bank, index);
+        final ParameterTargetIdentityResolver.TargetIdentity targetIdentity = this.targetIdentities.remote ("project-remote", this.model.getProject ().getIdentity (), bank, index);
         if (parameter == null || !parameter.doesExist () || targetIdentity == null)
             return null;
 
@@ -849,7 +901,7 @@ final class ParameterTargetHost
                 parameter,
                 0,
                 targetIdentity,
-                () -> parameter.doesExist () && targetIdentity.equals (this.targetIdentities.remote (domain, owner.get (), bank, index)));
+                () -> parameter.doesExist () && targetIdentity.equals (this.targetIdentities.remote ("project-remote", this.model.getProject ().getIdentity (), bank, index)));
         }
         if (target.isCurrent ())
             this.currentTargets.put (target.reference, target);
@@ -1043,6 +1095,7 @@ final class ParameterTargetHost
         private final BooleanSupplier addressable;
         private final double tolerance;
         private RetainedTrackParameters.TrackMix retainedTrack;
+        private RetainedDeviceParameters.DevicePage retainedDevice;
 
 
         private LiveTarget (final ParameterTargetRef reference, final IHwContinuousControl control, final IParameter parameter, final long bindingGeneration, final ParameterTargetIdentityResolver.TargetIdentity targetIdentity, final DoubleSupplier reader, final DoubleConsumer restorer, final BooleanSupplier current, final double tolerance)

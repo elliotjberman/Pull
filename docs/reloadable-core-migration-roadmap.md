@@ -1,6 +1,6 @@
 # Remaining core migration
 
-[ARCH](../ARCH.md) is the current ownership/capacity inventory. Working Core API 56 renders all
+[ARCH](../ARCH.md) is the current ownership/capacity inventory. Working Core API 57 renders all
 ordinary Push display pages through shared core components and bounded raw observations. The
 optional Clip piano roll remains unchanged. Core also owns Session, Setup/Ribbon settings and shared
 interaction cancellation. Display, page entry/return and input lifecycle ownership do not migrate
@@ -10,7 +10,8 @@ for each complete behavior slice.
 ## Checklist
 
 - [x] Ordinary page displays, reusable components and one offline component/view catalog.
-- [ ] Device, chain and layer controls/providers/lights with verified target identities.
+- [x] Device remote encoders/touches and display through retained device/page targets (matched live validation pending).
+- [ ] Remaining Device menu/navigation lights and chain/layer controls/providers with verified target identities.
 - [ ] Browser filtering/results/audition/operations; navigation lifecycle is already core-owned.
 - [ ] Crossfade and Track/Layer Details actions, including exact targets and return.
 - [ ] Color pad drawing and selection together; deferred unchanged under the [handoff TODO](migrations/ui-and-editing-handoff.md).
