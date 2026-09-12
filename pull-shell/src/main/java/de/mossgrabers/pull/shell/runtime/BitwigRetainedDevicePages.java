@@ -23,10 +23,10 @@ final class BitwigRetainedDevicePages implements RetainedDevicePageHost.Access
     private final CursorRemoteControlsPage sourcePage;
     private final Map<Integer, Child> children;
 
-    BitwigRetainedDevicePages (final PinnableCursorDevice source, final Map<Integer, CursorTrack> tracks, final IValueChanger changer)
+    BitwigRetainedDevicePages (final PinnableCursorDevice source, final CursorRemoteControlsPage sourcePage, final Map<Integer, CursorTrack> tracks, final IValueChanger changer)
     {
         this.source = source;
-        this.sourcePage = source.createCursorRemoteControlsPage (8);
+        this.sourcePage = sourcePage;
         source.exists ().markInterested ();
         source.channel ().channelId ().markInterested ();
         this.sourcePage.selectedPageIndex ().markInterested ();

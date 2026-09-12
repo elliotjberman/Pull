@@ -76,7 +76,8 @@ parameter values and touch display use those same observed targets. The old Devi
 touch/reset body and duplicate raw parameter sampling are removed. Distinct Device menu rows,
 hierarchy navigation and lights remain frozen; Chains keeps its existing provider explicitly.
 
-A child first selects the exact source Device, waits for observed equality, then selects its independent
+Bitwig allows one main remote page following Device selection. The pool observes the existing
+framework page; each retained child creates its own named independent page. A child first selects the exact source Device, waits for observed equality, then selects its independent
 remote page and waits for coherent slots. Source device/page navigation cancels new editing while
 outgoing cleanup retains its own pinned child and page. Observed disappearance, unpinning, page
 changes and mapping invalidations revoke the old generation permanently. A same-named remap with

@@ -6,7 +6,9 @@ import com.bitwig.extension.callback.BooleanValueChangedCallback;
 import com.bitwig.extension.callback.IntegerValueChangedCallback;
 import com.bitwig.extension.callback.ObjectValueChangedCallback;
 import com.bitwig.extension.controller.api.*;
+import de.mossgrabers.bitwig.framework.daw.data.bank.ParameterBankImpl;
 import de.mossgrabers.framework.controller.valuechanger.TwosComplementValueChanger;
+import de.mossgrabers.framework.daw.IHost;
 import de.mossgrabers.pull.shell.runtime.RetainedCursorPool.*;
 import org.junit.jupiter.api.Test;
 
@@ -18,6 +20,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static de.mossgrabers.pull.shell.testing.TestProxies.relaxedProxy;
 
 /**
  * Native proxy observations, submitted effects, applied state and read-back advance independently.
@@ -236,7 +239,9 @@ class BitwigRetainedDevicePagesTest
         private Fixture (final int present)
         {
             this.navigate (new DeviceState ("other-track", "device-a", present), 1);
-            this.access = new BitwigRetainedDevicePages (this.source.proxy, Map.of (0, this.children[0].track, 1, this.children[1].track), new TwosComplementValueChanger (128, 1));
+            final var changer = new TwosComplementValueChanger (128, 1);
+            final var parameters = new ParameterBankImpl (relaxedProxy (IHost.class), changer, this.source.proxy.createCursorRemoteControlsPage (8), 8, 8);
+            this.access = new BitwigRetainedDevicePages (this.source.proxy, parameters.getRemoteControlsPage (), Map.of (0, this.children[0].track, 1, this.children[1].track), changer);
             this.pool = new RetainedCursorPool (List.of (Profile.DEVICE_PAGE, Profile.DEVICE_PAGE), this);
             this.host = new RetainedDevicePageHost (this.pool, this.access);
         }
@@ -324,6 +329,7 @@ class BitwigRetainedDevicePagesTest
         private final PinnableCursorDevice proxy;
         private final Value<String> channel = new Value<> ("creation-track");
         private DeviceState observed;
+        private boolean mainPageCreated;
         private SourceDevice (final Fixture fixture)
         {
             this.page = new PageNode (fixture, false);
@@ -334,7 +340,13 @@ class BitwigRetainedDevicePagesTest
                     assertEquals ("channelId", name);
                     return this.channel.proxy (StringValue.class);
                 });
-                case "createCursorRemoteControlsPage" -> { assertEquals (1, args.length); assertEquals (8, args[0]); yield this.page.proxy; }
+                case "createCursorRemoteControlsPage" -> {
+                    assertEquals (1, args.length);
+                    assertEquals (8, args[0]);
+                    if (this.mainPageCreated) throw new IllegalStateException ("Only one main remote page may follow selection");
+                    this.mainPageCreated = true;
+                    yield this.page.proxy;
+                }
                 default -> throw new AssertionError (method);
             });
         }
@@ -404,6 +416,8 @@ class BitwigRetainedDevicePagesTest
                 case "selectedPageIndex" -> this.index.proxy (SettableIntegerValue.class);
                 case "pageNames" -> this.names.proxy (StringArrayValue.class);
                 case "getParameter" -> this.remotes[(Integer) args[0]].proxy;
+                case "hasPrevious", "hasNext" -> new Value<> (false).proxy (BooleanValue.class);
+                case "pageCount" -> new Value<> (2).proxy (IntegerValue.class);
                 default -> throw new AssertionError (method);
             });
         }

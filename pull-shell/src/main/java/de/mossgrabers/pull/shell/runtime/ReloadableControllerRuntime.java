@@ -192,8 +192,10 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             throw new IllegalStateException ("Reloadable controller runtime has no Bitwig host");
 
         this.retainedCursors = new RetainedCursorHost (this.controllerHost, valueChanger, model.getProject ()::getIdentity, this.log);
-        if (model.getCursorDevice () instanceof final de.mossgrabers.bitwig.framework.daw.data.CursorDeviceImpl cursorDevice)
-            this.retainedDevicePages = new RetainedDevicePageHost (this.retainedCursors.pool (), new BitwigRetainedDevicePages (cursorDevice.getCursorDevice (), this.retainedCursors.deviceTracks (), valueChanger));
+        if (model.getCursorDevice () instanceof final de.mossgrabers.bitwig.framework.daw.data.CursorDeviceImpl cursorDevice &&
+            cursorDevice.getParameterBank () instanceof final de.mossgrabers.bitwig.framework.daw.data.bank.ParameterBankImpl parameters)
+            this.retainedDevicePages = new RetainedDevicePageHost (this.retainedCursors.pool (), new BitwigRetainedDevicePages (
+                cursorDevice.getCursorDevice (), parameters.getRemoteControlsPage (), this.retainedCursors.deviceTracks (), valueChanger));
         this.clipHost = new SelectedTrackFillClipHost (this.retainedCursors);
         this.clipHost.connect (Objects.requireNonNull (model, "model"), Objects.requireNonNull (selectedTarget, "selectedTarget"));
         this.controllerMappings = new ControllerMappingHost (surface, new ControllerMappingStorageHost (
