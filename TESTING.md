@@ -122,7 +122,7 @@ Model cleanup cancels owners; no post-exit scheduling is promised.
 Retained unchanged: browser insertion waits (open/closed is not correlated with an opening still in
 flight), Add Track/device insertion and native Duplicate (no returned created-object identity),
 device and flattened/filtered-bank paging (no proven offset-to-target identity mapping), generic
-selection notifications and held-note expression cadence. Musical timing,
+selection notifications. The held-note expression cadence remains 100 ms. Musical timing,
 double-click/long-press windows, periodic flushes, throttles and animation remain timers.
 
 Offline regressions separate command submission, host advancement and subscribed observations.
@@ -145,6 +145,24 @@ original project and releasing the command lane. Traces, frames and provenance r
 `target/host-ack-evidence/` in the host-acknowledgements worktree. This predates the shared-helper
 refactor: an exact-build live smoke, including the footswitch double-click stop/rewind route,
 remains pending. Forced host delays are verified offline only.
+
+## Held-note edit target safety
+
+The legacy held-note editor keeps its existing 100 ms send cadence. Each gesture captures its
+project, track, Launcher scene, page and resolution; observed target changes or loss cancel
+remaining writes, even if the cursor later returns. Cancellation keeps the gesture inert until
+release. Observed note deletion retires that cell, and model shutdown cancels outstanding edits.
+Working values are restored to the latest host observations on cancellation and release.
+These are execution/lifecycle fences beneath unchanged legacy gestures; core ownership and
+Bitwig API 25 remain unchanged. Added observers require a matching shell install and restart.
+
+Offline regressions distinguish submitted writes from host state and cover target changes in
+both observation orders, page/resolution changes, deleted notes, gesture replacement and shutdown.
+On 2026-09-12 the full stacked deprecation-enabled package gate passed 1,109 tests with no failures,
+errors, skips or deprecation warnings. A clean live cross-clip cancellation comparison and
+exact-build smoke remain pending. The earlier `4566eb79` smoke established ordinary velocity
+read-back only; its held-edit navigation did not establish a clean target comparison and is not
+acceptance evidence for this change.
 
 ## Offline UI catalog
 
