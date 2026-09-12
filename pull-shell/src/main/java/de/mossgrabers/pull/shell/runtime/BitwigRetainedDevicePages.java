@@ -11,6 +11,7 @@ import com.bitwig.extension.controller.api.RemoteControl;
 import de.mossgrabers.bitwig.framework.daw.data.ParameterImpl;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.parameter.IParameter;
+import de.mossgrabers.pull.shell.SelectionDebug;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -93,6 +94,31 @@ final class BitwigRetainedDevicePages implements RetainedDevicePageHost.Access
     }
 
     @Override public List<IParameter> parameters (final int poolSlot) { return this.children.get (Integer.valueOf (poolSlot)).parameters; }
+
+    @Override
+    public void recordDiagnostics (final int poolSlot)
+    {
+        if (!SelectionDebug.recording ())
+            return;
+        final Child child = this.children.get (Integer.valueOf (poolSlot));
+        for (int index = 0; index < 8; index++)
+        {
+            final RemoteControl retained = child.page.getParameter (index);
+            final RemoteControl selected = this.sourcePage.getParameter (index);
+            final boolean present = retained.exists ().get () || selected.exists ().get ();
+            final boolean equal = child.equalParameters.get (index).get ();
+            final boolean coherent = !present || RetainedCursorHost.sameParameter (retained, selected);
+            if (present && !equal || !coherent || retained.isBeingMapped ().get ())
+                SelectionDebug.record ("DEVICE_REMOTE", "slot=" + poolSlot + " parameter=" + index + " equal=" + equal + " coherent=" + coherent +
+                    " mapping=" + retained.isBeingMapped ().get () + " retained=" + describe (retained) + " source=" + describe (selected));
+        }
+    }
+
+    private static String describe (final RemoteControl parameter)
+    {
+        return "[exists=" + parameter.exists ().get () + ",name=" + parameter.name ().getLimited (64) + ",value=" + parameter.value ().get () +
+            ",modulated=" + parameter.modulatedValue ().get () + ",display=" + parameter.displayedValue ().getLimited (64) + ",steps=" + parameter.discreteValueCount ().get () + "]";
+    }
 
     private final class Child
     {

@@ -3,6 +3,7 @@
 package de.mossgrabers.pull.shell.runtime;
 
 import de.mossgrabers.framework.parameter.IParameter;
+import de.mossgrabers.pull.shell.SelectionDebug;
 import de.mossgrabers.pull.shell.runtime.RetainedCursorPool.Handle;
 import de.mossgrabers.pull.shell.runtime.RetainedCursorPool.Profile;
 import de.mossgrabers.pull.shell.runtime.RetainedCursorPool.Request;
@@ -38,6 +39,7 @@ final class RetainedDevicePageHost implements RetainedDeviceParameters
         boolean propertiesCoherent (int poolSlot);
         Observation observe (int poolSlot);
         List<IParameter> parameters (int poolSlot);
+        void recordDiagnostics (int poolSlot);
     }
 
     private final RetainedCursorPool pool;
@@ -81,12 +83,15 @@ final class RetainedDevicePageHost implements RetainedDeviceParameters
         final Lease lease = this.selected;
         if (lease == null || lease.ready != null)
             return;
-        if (!this.matchesSource (lease, this.access.source ()))
+        final Source source = this.access.source ();
+        if (!this.matchesSource (lease, source))
         {
             this.selected = null;
             return;
         }
         final var acquired = this.pool.lookup (NAMESPACE, lease.owner);
+        if (SelectionDebug.recording ())
+            this.recordDiagnostics (lease, source, acquired);
         if (acquired.status () != Status.READY)
             return;
         if (lease.handle == null)
@@ -130,6 +135,19 @@ final class RetainedDevicePageHost implements RetainedDeviceParameters
     public DevicePage devicePage ()
     {
         return this.selected != null && this.selected.ready != null && this.current (this.selected) ? this.selected.ready : null;
+    }
+
+    /** Uses the existing bounded diagnostic lane and interested values only while explicitly armed. */
+    private void recordDiagnostics (final Lease lease, final Source source, final RetainedCursorPool.Result acquired)
+    {
+        final String phase = lease.handle == null ? "track" : lease.pageSubmitted ? "page" : "device";
+        final Observation observed = lease.handle == null ? null : this.access.observe (lease.handle.slot ());
+        final boolean coherent = lease.handle != null && this.access.propertiesCoherent (lease.handle.slot ());
+        SelectionDebug.record ("DEVICE_PAGE", "owner=" + lease.owner + " phase=" + phase + " age=" + (lease.handle == null ? 0 : this.sample - lease.submittedAt) +
+            " requested=" + lease.source + " source=" + source + " pool=" + acquired + " handle=" + lease.handle +
+            " confirmations=" + lease.confirmations + " observed=" + observed + " coherent=" + coherent);
+        if (lease.handle != null)
+            this.access.recordDiagnostics (lease.handle.slot ());
     }
 
     private boolean matchesSource (final Lease lease, final Source source)
