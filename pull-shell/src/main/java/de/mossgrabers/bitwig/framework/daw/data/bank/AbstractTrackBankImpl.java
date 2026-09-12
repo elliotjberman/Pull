@@ -162,9 +162,9 @@ public abstract class AbstractTrackBankImpl extends AbstractChannelBankImpl<Trac
     @Override
     public void selectNextPage ()
     {
-        if (this.flatTrackList || this.pageSelection == null || !this.selectionValid (this.pageSelection))
+        if (this.flatTrackList)
             super.selectNextPage ();
-        else if (this.pageSelection.offset < this.pageSelection.count - 1)
+        else
             this.selectAfterScroll (this.getScrollPosition () + this.getPageSize (), 0, false, this::scrollPageForwards);
     }
 
@@ -172,10 +172,9 @@ public abstract class AbstractTrackBankImpl extends AbstractChannelBankImpl<Trac
     @Override
     public void selectPreviousPage ()
     {
-        if (this.flatTrackList || this.pageSelection == null || !this.selectionValid (this.pageSelection))
+        if (this.flatTrackList)
             super.selectPreviousPage ();
-        else if (this.pageSelection.offset > 0)
-            // Do not clamp this relative request against the stale observed offset.
+        else
             this.selectAfterScroll (this.getScrollPosition () - this.getPageSize (), 0, false, this::scrollPageBackwards);
     }
 
@@ -201,9 +200,12 @@ public abstract class AbstractTrackBankImpl extends AbstractChannelBankImpl<Trac
             this.pendingSelection.cancel ();
         final PageSelection previous = this.pageSelection;
         final int positionBase = previous != null ? previous.positionBase : this.getItem (0).getPosition () - oldOffset;
-        final int expectedOffset = Math.max (0, Math.min (count - 1,
-            !notifyPage && previous != null ? previous.offset + offset - oldOffset : offset));
-        if (owner.isBlank () || project.isBlank () || count <= 0 || index < 0 || index >= this.items.size ())
+        // Relative paging starts from the latest intent or observed window, preserving its alignment.
+        final int origin = previous != null ? previous.offset : oldOffset;
+        final int expectedOffset = Math.max (0, notifyPage ? offset : origin + offset - oldOffset);
+        if (!notifyPage && expectedOffset == origin)
+            return;
+        if (owner.isBlank () || project.isBlank () || expectedOffset >= count || index < 0 || index >= this.items.size ())
             return;
         this.pageSelection = new PageSelection (project, owner, cursor, count, positionBase, expectedOffset, index, notifyPage);
         if (previous != null)

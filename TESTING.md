@@ -68,7 +68,8 @@ findings remain unresolved; this work does not migrate legacy navigation into co
 Bank/group/rewind share a condition-and-continuation helper with bounded 150-poll cancellation
 deadlines and 20 ms requested between samples. A deadline never authorizes the next operation.
 Group and bank replacements retain one submitted operation and one latest intent without extending
-the original deadline. The helper owns scheduling and cancellation; each caller proves its own
+the original deadline. Ordinary and queued relative paging share the same bounded destination
+calculation, preserving the current window alignment and saturating at the final full or partial page. The helper owns scheduling and cancellation; each caller proves its own
 target and completion conditions. Master retains its existing controller-tick observation loop.
 Model cleanup cancels owners; no post-exit scheduling is promised.
 
@@ -81,9 +82,10 @@ double-click/long-press windows, periodic flushes, throttles and animation remai
 Offline regressions separate command submission, host advancement and subscribed observations.
 They cover delayed/intermediate bank pages, rapid replacement/reversal, group supersession,
 structural guards, shutdown, delayed rewind and Master acknowledgements beyond old deadlines.
-On 2026-09-12 the full deprecation-enabled package gate passed 1,090 tests with no failures,
+On 2026-09-12 the full deprecation-enabled package gate passed 1,091 tests with no failures,
 errors, skips or deprecation warnings. Rewind regressions also cover replacement phase reset
-and one deadline spanning both stop and position acknowledgement.
+and one deadline spanning both stop and position acknowledgement. Paging regressions cover excess
+Next presses, reversal after saturation and a window starting between global page boundaries.
 
 Earlier scoped live validation on 2026-09-10 used Bitwig 6.1.1 / API 25, checkpoint `4566eb79`,
 installed shell SHA-256 `6fb3b264471b3a43913146fd2a1dfdb8adab58d91e26dc97893d7e8ced2186b4`,

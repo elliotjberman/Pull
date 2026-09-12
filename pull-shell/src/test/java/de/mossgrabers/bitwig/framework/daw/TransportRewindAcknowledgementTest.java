@@ -138,10 +138,4 @@ class TransportRewindAcknowledgementTest
 
         private void poll () { this.scheduled.remove ().run (); }
     }
-
-    private static Object empty (final Class<?> type)
-    {
-        if (type == String.class) return "";
-        return type.isInterface () ? proxy (type, (p, method, args) -> empty (method.getReturnType ())) : defaultValue (type);
-    }
 }

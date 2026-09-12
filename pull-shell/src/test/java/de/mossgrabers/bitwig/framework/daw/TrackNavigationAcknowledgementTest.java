@@ -23,6 +23,8 @@ import de.mossgrabers.bitwig.framework.daw.data.bank.TrackBankImpl;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import static de.mossgrabers.pull.shell.testing.TestProxies.proxy;
 import static de.mossgrabers.pull.shell.testing.TestProxies.relaxedProxy;
@@ -49,26 +51,50 @@ class TrackNavigationAcknowledgementTest
         assertEquals (List.of ("track-4"), f.selected);
     }
 
-    @Test
-    void rapidPagePressesAccumulateAndIgnoreIntermediateAcknowledgement ()
+    @ParameterizedTest
+    @CsvSource ({ "9, 0, 8", "12, 0, 8", "12, 1, 9" })
+    void ordinaryAndQueuedPagesShareBoundariesAndPreserveWindowAlignment (final int count, final int origin, final int lastPage)
     {
         final Fixture f = new Fixture ();
-        f.bank.selectNextPage ();
-        f.bank.selectNextPage ();
-        assertEquals (4, f.requestedOffset, "the second destination remains value-only until the first scroll is acknowledged");
+        f.itemCount = count;
+        f.hostOffset = origin;
+        f.observedOffset = origin;
+        f.publishTracks ();
+        for (int press = 0; press < 4; press++) f.bank.selectNextPage ();
+        assertEquals (origin + 4, f.requestedOffset, "only the first scroll is submitted before acknowledgement");
         f.poll (10);
         assertTrue (f.selected.isEmpty ());
-        f.hostOffset = 4;
-        f.observedOffset = 4;
+        f.hostOffset = origin + 4;
+        f.observedOffset = origin + 4;
         f.publishTracks ();
         f.poll (5);
         assertTrue (f.selected.isEmpty (), "the first page acknowledgement must not consume the latest intent");
-        assertEquals (8, f.requestedOffset, "the latest destination is submitted only after the first acknowledgement");
-        f.hostOffset = 8;
-        f.observedOffset = 8;
+        assertEquals (lastPage, f.requestedOffset, "excess Next presses must preserve the full or partial last page");
+        f.bank.selectPreviousPage ();
+        assertEquals (lastPage, f.requestedOffset, "reversal cannot replace the scroll already in flight");
+        f.hostOffset = lastPage;
+        f.observedOffset = lastPage;
         f.publishTracks ();
         f.poll (1);
-        assertEquals (List.of ("track-8"), f.selected);
+        assertTrue (f.selected.isEmpty (), "the last page acknowledgement cannot consume the pending return");
+        assertEquals (lastPage - 4, f.requestedOffset, "Previous starts from the saturated page and preserves its alignment");
+        f.hostOffset = lastPage - 4;
+        f.observedOffset = lastPage - 4;
+        f.publishTracks ();
+        f.poll (1);
+        assertEquals (List.of ("track-" + (lastPage - 4)), f.selected);
+        // Once settled, ordinary paging must use the same final window and reject excess Next.
+        f.bank.selectNextPage ();
+        assertEquals (lastPage, f.requestedOffset);
+        f.hostOffset = lastPage;
+        f.observedOffset = lastPage;
+        f.publishTracks ();
+        f.poll (1);
+        f.bank.selectNextPage ();
+        f.poll (1);
+        assertEquals (List.of ("track-" + (lastPage - 4), "track-" + lastPage), f.selected);
+        assertEquals (lastPage, f.requestedOffset);
+        assertTrue (f.tasks.isEmpty ());
     }
 
     @Test
@@ -122,6 +148,12 @@ class TrackNavigationAcknowledgementTest
         assertEquals (4, f.requestedOffset, "a late acknowledgement cannot submit the abandoned replacement");
         assertTrue (f.selected.isEmpty ());
         assertTrue (f.tasks.isEmpty ());
+        f.bank.selectNextPage ();
+        f.hostOffset = 8;
+        f.observedOffset = 8;
+        f.publishTracks ();
+        f.poll (2);
+        assertEquals (List.of ("track-8"), f.selected, "a later acknowledged request still works after timeout");
     }
 
     @Test
@@ -151,25 +183,6 @@ class TrackNavigationAcknowledgementTest
             f.poll (5);
             assertTrue (f.selected.isEmpty (), changed + " must retire the old request permanently");
         }
-    }
-
-    @Test
-    void pageTimeoutDoesNotSelectAndLaterRequestStillWorks ()
-    {
-        final Fixture f = new Fixture ();
-        f.bank.selectNextPage ();
-        f.poll (160);
-        f.hostOffset = 4;
-        f.observedOffset = 4;
-        f.publishTracks ();
-        f.poll (2);
-        assertTrue (f.selected.isEmpty ());
-        f.bank.selectNextPage ();
-        f.hostOffset = 8;
-        f.observedOffset = 8;
-        f.publishTracks ();
-        f.poll (2);
-        assertEquals (List.of ("track-8"), f.selected);
     }
 
     @Test
@@ -288,6 +301,7 @@ class TrackNavigationAcknowledgementTest
         private String project = "project";
         private String parentId = "group";
         private String cursorId = "track-0";
+        private int itemCount = 12;
         private int requestedOffset;
         private int hostOffset;
         private int observedOffset;
@@ -329,8 +343,8 @@ class TrackNavigationAcknowledgementTest
                 if ("set".equals (m.getName ())) this.requestedOffset = (int) a[0];
                 return relaxedValue (m.getReturnType ());
             });
-            case "itemCount" -> value (IntegerValue.class, () -> 12);
-            case "canScrollForwards" -> value (BooleanValue.class, () -> this.observedOffset < 8);
+            case "itemCount" -> value (IntegerValue.class, () -> this.itemCount);
+            case "canScrollForwards" -> value (BooleanValue.class, () -> this.observedOffset + 4 < this.itemCount);
             case "canScrollBackwards" -> value (BooleanValue.class, () -> this.observedOffset > 0);
             case "scrollPageForwards" -> { this.requestedOffset = this.observedOffset + 4; yield null; }
             case "scrollPageBackwards" -> { this.requestedOffset = this.observedOffset - 4; yield null; }
@@ -353,7 +367,7 @@ class TrackNavigationAcknowledgementTest
             return proxy (Track.class, (p, method, args) -> switch (method.getName ()) {
                 case "channelId" -> value (StringValue.class, () -> "track-" + (this.observedTrackOffset + index));
                 case "position" -> value (IntegerValue.class, () -> this.observedTrackOffset + index);
-                case "exists" -> value (BooleanValue.class, () -> true);
+                case "exists" -> value (BooleanValue.class, () -> this.observedTrackOffset + index < this.itemCount);
                 case "createDeviceBank" -> this.devices;
                 case "isGroup" -> value (BooleanValue.class, () -> this.groups);
                 case "createParentTrack" -> this.parent;
