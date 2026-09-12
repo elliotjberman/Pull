@@ -7,7 +7,9 @@ remaining shell handlers. The optional Clip piano roll is deferred unchanged.
 The shared [retained cursor pool](docs/track-cursor-pool/README.md) supplies named track Volume/Pan,
 fill scanner/actuators, and retained Device remotes. The API 56 pool checkpoint passed a matched
 live startup, volume/read-back/output, paging/touch retirement and fill launch/return smoke.
-The API 57 device expansion still requires its own matched installation and live verification.
+The API 57 expansion passed matched live Device acquisition, read-back/display, Shift/reset,
+page navigation, nested-device deletion/undo and stale-tail suppression. The same build passed
+fill hold/return/read-back/light retirement. The pool document records exact builds and coverage limits.
 
 API 56 makes selected-track clip scanning an explicit core subscription. The active Drum fill
 view chooses the aligned selected target and cycles its scene pages; other views request no scan.
@@ -142,7 +144,8 @@ Shift pages eight. Light refresh is a single end-of-flush pass, so observer burs
 | Page presentation | Active mode only: Device/Editing windows of at most eight slots; Browser seven filters and 48 visible items. No new actuator authority. |
 | Learned controls | 128 banks of four permanent semantic endpoints, allocated per document to track UUIDs. All 64 physical PAD actions remain ordinary-dispatch-only. |
 
-Parameter references fence domain, owner, page, slot/role and generation. Selected/current/rendered
+For ordinary native roles without persistent controller overrides, parameter references fence
+domain, owner, page, slot/role and generation. Selected/current/rendered
 owners must agree. Old cleanup addressability is separate from new-write eligibility. Named selected/visible Volume/Pan
 use pooled UUID actuators; selected mix survives visible-bank paging and exact outgoing touches remain
 addressable. Device remotes use opaque retained child owners joined to the same observed page for

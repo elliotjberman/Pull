@@ -11,8 +11,9 @@ The shared [interaction lifecycle](../interaction-lifecycle.md) is integrated in
 It cancels when the active target/binding disappears, suppresses the physical tail, and observes
 exact resource retirement. This finding now concerns the remaining host adapters, particularly the
 Device family. The [retained cursor pool](../track-cursor-pool/README.md) supplies named Volume/Pan
-actuators and opaque Device remote-page owners. The Device cutover awaits its matched live gate;
-chain/layer identity and unobservable remote remapping remain unresolved.
+actuators and opaque Device remote-page owners. Its scoped matched live gate passed, including nested
+acquisition, deletion/undo and stale-tail suppression. Chain/layer identity, unobservable remote
+remapping and persistent controller overrides remain unresolved.
 
 ## What the integration resolves
 
@@ -20,6 +21,10 @@ Core owns control-to-target bindings and cancellation. Migrated parameter pages 
 banks, independent of physical encoders. Shell target references fence domain, owner, page, role and
 generation; wrappers and display names are not identities. Mutable actuators are checked during
 preparation and again during application.
+
+These parameter identity and cleanup guarantees cover ordinary native mix roles and Device/page/slot
+addresses without persistent controller manual overrides. They do not universally identify the
+effective actuator after Bitwig applies an override.
 
 Project remotes, selected Track mix/sends, global Volume/Pan/eight Send columns, and Master/Cue join
 parameter identity to separately subscribed project/track state. Contradictory joins cannot render,
@@ -41,10 +46,16 @@ Snapback still waits for observed restoration, with the separate
 
 ## What remains
 
-- The Device remote slice needs live characterization of user-pinned devices across tracks,
-  nested acquisition, deletion/replacement and remapping. `CursorDevice.channel()` is its creation
+- Persistent controller manual overrides are distinct from remote-page editing reported by
+  `RemoteControl.isBeingMapped()`. They can apply to a parameter proxy without a native hardware
+  binding, so keeping a retained section private does not establish immunity. An override can change
+  the effective actuator without changing its native track or Device/page/slot address. API 25 exposes
+  no public override-identity check; matching names and values do not exclude an override. This is a
+  separate limit on the ordinary native parameter guarantees above, including mix parameters.
+- The Device remote slice still needs live characterization of preserved user-pinned devices across
+  tracks, arbitrary nested topology, replacement and remapping. `CursorDevice.channel()` is its creation
   context, not an owning-track identity. Retained child equality and observed invalidation revisions
-  must be exercised against actual host behavior; same-named remaps without an observable event
+  passed the documented ordinary nested acquisition and deletion/undo checks; same-named remaps without an observable event
   remain outside a proved exact-cleanup contract.
 - Remaining chain/layer controls need verified owners and parameter roles; distinct Device menu
   navigation/lights remain frozen. No device UUID may be invented from name, slot or wrapper.
