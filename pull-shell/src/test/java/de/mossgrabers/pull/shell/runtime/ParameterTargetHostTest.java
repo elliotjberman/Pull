@@ -51,6 +51,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static de.mossgrabers.pull.shell.testing.TestProxies.proxy;
@@ -166,34 +167,79 @@ class ParameterTargetHostTest
 
 
     @Test
-    void namedRemoteBanksKeepLiveOwnerFencesAndRejectBlankDeviceOwners ()
+    void namedDeviceBankRequiresRetainedServiceRegardlessOfLegacyDeviceId ()
     {
-        final MutableParameter deviceParameter = new MutableParameter (32);
-        final MutableRemoteDevice device = new MutableRemoteDevice (deviceParameter.proxy ());
+        final MutableRemoteDevice device = new MutableRemoteDevice (new MutableParameter (32).proxy ());
         final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
-        final ParameterTargetHost host = new ParameterTargetHost (
-            createSurface (new MutableContinuous (), valueChanger),
+        final ParameterTargetHost host = new ParameterTargetHost (createSurface (new MutableContinuous (), valueChanger),
             model (device, valueChanger, new MutableParameter (64).proxy ()), silentLog ());
         final DesiredParameterBanks banks = new DesiredParameterBanks (Set.of (ParameterBankId.PROJECT_REMOTE, ParameterBankId.SELECTED_DEVICE_REMOTE));
         host.refresh (banks);
-        final ParameterTargetRef project = host.snapshot ().slots ().get (ParameterSlot.projectRemote (0)).target ();
-        final ParameterTargetRef original = host.snapshot ().slots ().get (ParameterSlot.selectedDeviceRemote (0)).target ();
-        host.refresh (banks);
-        assertEquals (original, host.snapshot ().slots ().get (ParameterSlot.selectedDeviceRemote (0)).target ());
-        final var leases = host.prepareLeases (new DesiredParameterInteraction (1, false, Map.of (original, 32.0), Set.of (), Set.of (), 0), banks);
-        host.applyLeases (leases, banks);
-        final var restore = host.prepare (new SetParameterValueEffect (original, 32), leases);
-
-        device.id = "device-b";
-        // The retained fence must read the supplier again, even before the next publication.
-        assertThrows (IllegalStateException.class, () -> host.apply (restore));
-        host.refresh (banks);
-        assertNotEquals (original, host.snapshot ().slots ().get (ParameterSlot.selectedDeviceRemote (0)).target ());
-        assertEquals (project, host.snapshot ().slots ().get (ParameterSlot.projectRemote (0)).target ());
-        device.id = "";
-        host.refresh (banks);
         assertEquals (Set.of (ParameterSlot.projectRemote (0)), host.snapshot ().slots ().keySet ());
-        assertEquals (0, deviceParameter.writeCount);
+        assertEquals ("", host.deviceParameterOwner ());
+    }
+
+
+    @Test
+    void retainedDeviceCancelsEditingAfterSourceNavigationButReleasesTheExactOldTouch ()
+    {
+        final DeviceFixture fixture = new DeviceFixture ();
+        final var target = fixture.host.snapshot ().slots ().get (ParameterSlot.selectedDeviceRemote (0)).target ();
+        assertEquals ("retained-device-remote", fixture.host.snapshot ().slots ().get (ParameterSlot.selectedDeviceRemote (0)).identity ().domain ());
+        assertEquals ("opaque-child", fixture.host.snapshot ().slots ().get (ParameterSlot.selectedDeviceRemote (0)).identity ().ownerId ());
+        assertEquals (9, fixture.host.snapshot ().slots ().get (ParameterSlot.selectedDeviceRemote (0)).identity ().page ());
+        fixture.host.acquireTouches (fixture.host.prepareTouches (new DesiredParameterTouches (Map.of (PushControlIds.continuous ("KNOB1"), target)), fixture.banks));
+        final var adjust = fixture.host.prepare (new AdjustParameterValueEffect (target, 1));
+        final var reset = fixture.host.prepare (new ResetParameterEffect (target));
+        fixture.current.set (false);
+        assertThrows (IllegalStateException.class, () -> fixture.host.apply (adjust));
+        assertThrows (IllegalStateException.class, () -> fixture.host.apply (reset));
+        fixture.host.refresh (fixture.banks);
+        assertTrue (fixture.host.snapshot ().slots ().isEmpty ());
+        assertEquals (Set.of ("opaque-child"), fixture.cleanupOwners);
+        fixture.host.releaseTouches ();
+        assertEquals (List.of ("touch:true", "touch:false"), fixture.parameter.events);
+        assertEquals (0, fixture.parameter.incrementCount);
+        assertEquals (0, fixture.parameter.resetCount);
+        fixture.host.refresh (fixture.banks);
+        assertTrue (fixture.cleanupOwners.isEmpty ());
+    }
+
+
+    @Test
+    void ownDeviceMappingInvalidationFencesPendingEffectsAndExactCleanup ()
+    {
+        final DeviceFixture fixture = new DeviceFixture ();
+        final var target = fixture.host.snapshot ().slots ().get (ParameterSlot.selectedDeviceRemote (0)).target ();
+        fixture.host.acquireTouches (fixture.host.prepareTouches (new DesiredParameterTouches (Map.of (PushControlIds.continuous ("KNOB1"), target)), fixture.banks));
+        final var reset = fixture.host.prepare (new ResetParameterEffect (target));
+        fixture.addressable.set (false);
+        assertThrows (IllegalStateException.class, () -> fixture.host.apply (reset));
+        fixture.host.releaseTouches ();
+        assertEquals (List.of ("touch:true"), fixture.parameter.events);
+        assertEquals (0, fixture.parameter.resetCount);
+    }
+
+
+    private static final class DeviceFixture implements RetainedDeviceParameters
+    {
+        private final MutableParameter parameter = new MutableParameter (32);
+        private final AtomicBoolean current = new AtomicBoolean (true);
+        private final AtomicBoolean addressable = new AtomicBoolean (true);
+        private final DevicePage page = new DevicePage ("opaque-child", 7, 9, java.util.Collections.nCopies (8, this.parameter.proxy ()), this.current::get, this.addressable::get);
+        private final DesiredParameterBanks banks = new DesiredParameterBanks (Set.of (ParameterBankId.SELECTED_DEVICE_REMOTE));
+        private final ParameterTargetHost host;
+        private Set<String> cleanupOwners = Set.of ();
+
+        private DeviceFixture ()
+        {
+            final IValueChanger changer = new TwosComplementValueChanger (128, 1);
+            this.host = new ParameterTargetHost (createSurface (new MutableContinuous (), changer),
+                model (new MutableRemoteDevice (new MutableParameter (99).proxy ()), changer), null, silentLog (), RetainedTrackParameters.UNAVAILABLE, this);
+            this.host.refresh (this.banks);
+        }
+        @Override public void requestDevicePage (final boolean active, final Set<String> cleanupOwners) { this.cleanupOwners = Set.copyOf (cleanupOwners); }
+        @Override public DevicePage devicePage () { return this.current.get () && this.addressable.get () ? this.page : null; }
     }
 
 
@@ -382,12 +428,10 @@ class ParameterTargetHostTest
     @Test
     void namedParameterIndicationsReplayWithoutChurnAndReleaseOnPageOrCoreExit ()
     {
-        final MutableParameter parameter = new MutableParameter (64);
-        final MutableRemoteDevice device = new MutableRemoteDevice (parameter.proxy ());
-        final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
-        final PushControlSurface surface = createSurface (new MutableContinuous (), valueChanger);
-        final ParameterTargetHost host = new ParameterTargetHost (surface, model (device, valueChanger), silentLog ());
-        final DesiredParameterBanks banks = new DesiredParameterBanks (Set.of (ParameterBankId.SELECTED_DEVICE_REMOTE));
+        final DeviceFixture fixture = new DeviceFixture ();
+        final MutableParameter parameter = fixture.parameter;
+        final ParameterTargetHost host = fixture.host;
+        final DesiredParameterBanks banks = fixture.banks;
         host.refresh (banks);
         host.applyIndications (Set.of (ParameterSlot.selectedDeviceRemote (0)));
         host.applyIndications (Set.of (ParameterSlot.selectedDeviceRemote (0)));

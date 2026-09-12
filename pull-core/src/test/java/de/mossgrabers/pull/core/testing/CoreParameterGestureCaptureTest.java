@@ -31,7 +31,7 @@ class CoreParameterGestureCaptureTest
         assertTrue (f.result.desiredParameterTouches ().targets ().isEmpty ());
         assertEquals (List.of (new SetAutomationWriteEffect ("project-a", false)), f.result.effects ());
         assertTrue (f.automation.writingEnabled (), "submitting cleanup is not host read-back");
-        assertNull (f.result.desiredInputRoutes ().modeOrNull (KNOB, InputKind.TOUCH));
+        assertEquals (InputRouteMode.EXCLUSIVE, f.result.desiredInputRoutes ().modeOrNull (KNOB, InputKind.TOUCH));
         f.page ("WORKSPACE");
         f.turn ();
         assertTrue (f.result.effects ().isEmpty (), "returning to the old page cannot revive its held motion");

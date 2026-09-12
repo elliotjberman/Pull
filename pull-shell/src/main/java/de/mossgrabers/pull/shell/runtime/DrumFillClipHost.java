@@ -17,6 +17,19 @@ import java.util.Map;
  */
 interface DrumFillClipHost
 {
+    /** Exact target loss permits abandonment, never cleanup through a replacement proxy. */
+    final class TargetUnavailableException extends IllegalStateException
+    {
+        private static final long serialVersionUID = 1L;
+
+
+        TargetUnavailableException (final String message)
+        {
+            super (message);
+        }
+    }
+
+
     /**
      * Authoritative playback state observed for one parked launch target.
      *
@@ -109,13 +122,16 @@ interface DrumFillClipHost
         /**
          * Request release of the exact target previously pressed. At most one host release is
          * sent, and the actuator remains frozen so {@link #playbackState()} can acknowledge the
-         * resulting host transition. A thrown call is not considered submitted and may be retried.
+         * resulting host transition. Ordinary failures are not considered submitted and may be
+         * retried. {@link TargetUnavailableException} means exact cleanup is no longer addressable;
+         * abandon and retire that lease without writing through a replacement target.
          */
         void release ();
 
 
         /**
-         * Get the latest authoritative playback state for the still-frozen target.
+         * Get the latest authoritative playback state for the still-frozen target. Throws
+         * {@link TargetUnavailableException} when the exact target is no longer addressable.
          *
          * @return Current host playback state
          */

@@ -985,7 +985,7 @@ class PullControllerCoreTest
 
         host.start (Optional.empty ());
 
-        assertEquals ("Session / legacy", host.effects ().desiredControllerWorkspace ().name ());
+        assertEquals ("Session / device-parameters", host.effects ().desiredControllerWorkspace ().name ());
         assertEquals (ControllerPages.FULL_SESSION_BANK, host.effects ().desiredControllerWorkspace ().sessionBankShape ());
         assertEquals (Set.of (ControllerViewFacet.SESSION_GRID_FULL), host.effects ().desiredControllerWorkspace ().facets ());
         assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (STOP_CLIP_BUTTON, InputKind.BUTTON));

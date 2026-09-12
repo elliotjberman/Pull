@@ -10,6 +10,7 @@ import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.ICursorDevice;
 import de.mossgrabers.framework.mode.Modes;
+import de.mossgrabers.framework.parameterprovider.device.BankParameterProvider;
 import de.mossgrabers.framework.utils.ButtonEvent;
 
 
@@ -29,6 +30,8 @@ public class DeviceChainsMode extends DeviceParamsMode
     public DeviceChainsMode (final PushControlSurface surface, final IModel model)
     {
         super (surface, model);
+        // Preserve this distinct frozen page's inherited physical parameter bindings.
+        this.setParameterProvider (new BankParameterProvider (model.getCursorDevice ().getParameterBank ()));
     }
 
 

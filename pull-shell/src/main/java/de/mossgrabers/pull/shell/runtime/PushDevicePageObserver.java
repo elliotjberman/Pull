@@ -47,7 +47,7 @@ public final class PushDevicePageObserver
         for (int index = 0; index < 8 && offset + index < bank.getPageSize (); index++)
             channels.add (channel (bank.getItem (offset + index) instanceof IChannel value ? value : null, model, surface));
         final List<Parameter> parameters = new ArrayList<> (8);
-        if (kind != Kind.CHAINS && kind != Kind.TRACK_DETAILS && kind != Kind.LAYER_DETAILS && aligned)
+        if (kind != Kind.PARAMETERS && kind != Kind.CHAINS && kind != Kind.TRACK_DETAILS && kind != Kind.LAYER_DETAILS && aligned)
             for (int index = 0; index < 8; index++)
                 parameters.add (parameter (mode.getParameterProvider ().get (index), mode.isKnobTouched (index), model));
         final boolean deviceFamily = mode instanceof DeviceParamsMode || mode instanceof DeviceLayerMode;

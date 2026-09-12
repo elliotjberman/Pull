@@ -8,7 +8,7 @@ import java.util.Objects;
 
 /** Bounded observations for frozen Device/channel handlers. No layout or actuator authority. */
 public record DevicePageState (Kind kind, Device device, List<Channel> channels, Channel selectedChannel,
-                               List<Parameter> parameters, List<Send> sends, Selection selection)
+                               List<Parameter> parameters, List<Send> sends, Selection selection, String parameterOwnerId)
     implements ControllerPageDisplayState
 {
     public enum Kind { NONE, PARAMETERS, CHAINS, LAYER, LAYER_VOLUME, LAYER_PAN, LAYER_SEND, TRACK_DETAILS, LAYER_DETAILS, CROSSFADE }
@@ -22,6 +22,19 @@ public record DevicePageState (Kind kind, Device device, List<Channel> channels,
         parameters = window (parameters);
         sends = window (sends);
         Objects.requireNonNull (selection, "selection");
+        parameterOwnerId = text (parameterOwnerId);
+    }
+
+    public DevicePageState (final Kind kind, final Device device, final List<Channel> channels, final Channel selectedChannel,
+                            final List<Parameter> parameters, final List<Send> sends, final Selection selection)
+    {
+        this (kind, device, channels, selectedChannel, parameters, sends, selection, "");
+    }
+
+    /** Attach only the currently source-aligned opaque parameter lease; this is not a device ID. */
+    public DevicePageState withParameterOwner (final String owner)
+    {
+        return new DevicePageState (this.kind, this.device, this.channels, this.selectedChannel, this.parameters, this.sends, this.selection, owner);
     }
 
     /** Legacy local selection and physical observations, not successful host writes. */

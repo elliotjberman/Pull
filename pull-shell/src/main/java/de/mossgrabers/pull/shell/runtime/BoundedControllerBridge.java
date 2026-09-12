@@ -183,6 +183,18 @@ final class BoundedControllerBridge implements ControllerBridge
 
     BoundedControllerBridge (final IModel model, final ISelectedTrackNoteTarget selectedTarget, final MidiShortCallback noteInputMidiSender, final PushControlSurface surface, final IValueChanger valueChanger, final RuntimeLog log, final ControllerMappingHost controllerMappings, final AutomationHost automation, final TransportSettingsHost transportSettings)
     {
+        this (model, selectedTarget, noteInputMidiSender, surface, valueChanger, log, controllerMappings, automation, transportSettings, RetainedTrackParameters.UNAVAILABLE);
+    }
+
+
+    BoundedControllerBridge (final IModel model, final ISelectedTrackNoteTarget selectedTarget, final MidiShortCallback noteInputMidiSender, final PushControlSurface surface, final IValueChanger valueChanger, final RuntimeLog log, final ControllerMappingHost controllerMappings, final AutomationHost automation, final TransportSettingsHost transportSettings, final RetainedTrackParameters retainedTracks)
+    {
+        this (model, selectedTarget, noteInputMidiSender, surface, valueChanger, log, controllerMappings, automation, transportSettings, retainedTracks, RetainedDeviceParameters.UNAVAILABLE);
+    }
+
+
+    BoundedControllerBridge (final IModel model, final ISelectedTrackNoteTarget selectedTarget, final MidiShortCallback noteInputMidiSender, final PushControlSurface surface, final IValueChanger valueChanger, final RuntimeLog log, final ControllerMappingHost controllerMappings, final AutomationHost automation, final TransportSettingsHost transportSettings, final RetainedTrackParameters retainedTracks, final RetainedDeviceParameters retainedDevices)
+    {
         this.automation = automation;
         this.transportSettings = transportSettings;
         this.model = Objects.requireNonNull (model, "model");
@@ -193,7 +205,7 @@ final class BoundedControllerBridge implements ControllerBridge
         this.valueChanger = Objects.requireNonNull (valueChanger, "valueChanger");
         this.newClipAction = new NewClipAction (model);
         this.log = Objects.requireNonNull (log, "log");
-        this.parameterTargets = new ParameterTargetHost (surface, model, selectedTarget, this.log);
+        this.parameterTargets = new ParameterTargetHost (surface, model, selectedTarget, this.log, retainedTracks, retainedDevices);
         this.masterCommands = new MasterCommandHost (model, log);
         this.controllerState = new ControllerStateHost (selectedTarget, surface.getControllerWorkspaceHost (), this::resetNoteInputMidiState);
         this.controllerMappings = controllerMappings;
@@ -289,7 +301,7 @@ final class BoundedControllerBridge implements ControllerBridge
         this.masterCommands.refresh (masterRequested, projectRequested);
         final MasterSnapshot master = masterRequested ? this.masterCommands.snapshot () : MasterSnapshot.empty ();
         final ProjectSnapshot project = projectRequested ? this.masterCommands.projectSnapshot () : ProjectSnapshot.empty ();
-        final ControllerBridgeSnapshot refreshed = new ControllerBridgeSnapshot (transportState, selected, sessionBankState, layout, noteView, noteRepeat, this.drumSnapshot, parameters, controllerMappingFeedback, master, project, requested.includes (BridgeSubscription.AUTOMATION) && this.automation != null ? this.automation.snapshot () : AutomationSnapshot.empty (), requested.includes (BridgeSubscription.ENCODER_CONFIGURATION) ? new EncoderConfigurationSnapshot (true, this.valueChanger.getUpperBound (), this.valueChanger.getStepSize (), this.surface.getConfiguration ().getKnobSensitivityDefault (), this.surface.getConfiguration ().getKnobSensitivitySlow ()) : EncoderConfigurationSnapshot.empty (), currentTrackBankState, requested.includes (BridgeSubscription.TRANSPORT_SETTINGS) && this.transportSettings != null ? this.transportSettings.snapshot () : TransportSettingsSnapshot.empty (), requested.includes (BridgeSubscription.CONTROLLER_SETTINGS) ? this.controllerSettings.snapshot () : de.mossgrabers.pull.core.api.ControllerSettingsSnapshot.empty (), this.applicationUi.refresh (requested.includes (BridgeSubscription.APPLICATION_UI)), this.surface.getModeManager ().requests (requested.includes (BridgeSubscription.CONTROLLER_PAGES)), requested.includes (BridgeSubscription.BROWSER) ? this.browser : BrowserSnapshot.empty (), requested.includes (BridgeSubscription.CONTROLLER_HARDWARE) ? this.captureControllerHardware () : ControllerHardwareSnapshot.empty (), requested.includes (BridgeSubscription.CONTROLLER_PAGE_DISPLAY) ? this.pageDisplayObserver.capture (this.surface, this.model) : de.mossgrabers.pull.core.api.ControllerPageDisplaySnapshot.empty ());
+        final ControllerBridgeSnapshot refreshed = new ControllerBridgeSnapshot (transportState, selected, sessionBankState, layout, noteView, noteRepeat, this.drumSnapshot, parameters, controllerMappingFeedback, master, project, requested.includes (BridgeSubscription.AUTOMATION) && this.automation != null ? this.automation.snapshot () : AutomationSnapshot.empty (), requested.includes (BridgeSubscription.ENCODER_CONFIGURATION) ? new EncoderConfigurationSnapshot (true, this.valueChanger.getUpperBound (), this.valueChanger.getStepSize (), this.surface.getConfiguration ().getKnobSensitivityDefault (), this.surface.getConfiguration ().getKnobSensitivitySlow ()) : EncoderConfigurationSnapshot.empty (), currentTrackBankState, requested.includes (BridgeSubscription.TRANSPORT_SETTINGS) && this.transportSettings != null ? this.transportSettings.snapshot () : TransportSettingsSnapshot.empty (), requested.includes (BridgeSubscription.CONTROLLER_SETTINGS) ? this.controllerSettings.snapshot () : de.mossgrabers.pull.core.api.ControllerSettingsSnapshot.empty (), this.applicationUi.refresh (requested.includes (BridgeSubscription.APPLICATION_UI)), this.surface.getModeManager ().requests (requested.includes (BridgeSubscription.CONTROLLER_PAGES)), requested.includes (BridgeSubscription.BROWSER) ? this.browser : BrowserSnapshot.empty (), requested.includes (BridgeSubscription.CONTROLLER_HARDWARE) ? this.captureControllerHardware () : ControllerHardwareSnapshot.empty (), requested.includes (BridgeSubscription.CONTROLLER_PAGE_DISPLAY) ? this.pageDisplayObserver.capture (this.surface, this.model, this.parameterTargets.deviceParameterOwner ()) : de.mossgrabers.pull.core.api.ControllerPageDisplaySnapshot.empty ());
         if (refreshed.equals (this.snapshot))
             return false;
 
@@ -935,7 +947,11 @@ final class BoundedControllerBridge implements ControllerBridge
     @Override
     public boolean supportsPageInput (final de.mossgrabers.pull.core.api.DesiredControllerPageState page, final ControlId control, final de.mossgrabers.pull.core.api.event.InputKind kind)
     {
-        return page.effectivePage ().kind () == de.mossgrabers.pull.core.api.ControllerPageRef.Kind.CORE && de.mossgrabers.controller.ableton.push.mode.CorePageMode.containsInput (control, kind);
+        if (page.effectivePage ().kind () == de.mossgrabers.pull.core.api.ControllerPageRef.Kind.CORE)
+            return de.mossgrabers.controller.ableton.push.mode.CorePageMode.containsInput (control, kind);
+        return "DEVICE_PARAMS".equals (page.effectivePage ().legacyAlias ()) &&
+            (kind == de.mossgrabers.pull.core.api.event.InputKind.RELATIVE || kind == de.mossgrabers.pull.core.api.event.InputKind.TOUCH) &&
+            de.mossgrabers.controller.ableton.push.mode.CorePageMode.containsInput (control, kind);
     }
 
     @Override
