@@ -23,15 +23,10 @@ records exact build identities, passed page checks and remaining live coverage. 
 retain their separate scoped evidence. Physical Color drawing and selection are deferred together and
 retain their existing implementation; see the [handoff TODO](docs/migrations/ui-and-editing-handoff.md).
 
-The retained note-copy host was installed and smoke-tested on Bitwig 6.1.1 / API 25 from
-`bc7d67c4`; [note-copy validation](TESTING.md#retained-note-copy-regression) records the exact build
-and normal, navigation and deletion checks. This adds execution/observation resources beneath
-unchanged legacy gestures; it does not migrate note editing into core.
-
 The host-acknowledgement changes extend only execution, observation and lifecycle safety beneath
 existing gestures. Core API 56 and Bitwig API 25 are unchanged; the added parent-track observations
-and stable executors require a matched shell installation and restart. Checkpoint `4566eb79`
-was installed; the scoped live smoke and remaining coverage are recorded in the
+and stable executors require a matched shell installation and restart. The earlier live smoke
+from `4566eb79` and pending verification of the shared continuation helper are recorded in the
 [operation contracts](TESTING.md#host-operation-acknowledgements), alongside retained waits.
 
 ## Assembly
@@ -141,7 +136,6 @@ Shift pages eight. Light refresh is a single end-of-flush pass, so observer burs
 | Selected-track clips | One private eight-slot scanner, eight pinned launch actuators. Core requests target generation/UUID and absolute scene page; no other-track catalog. Accepted pages accumulate clips in scene order for the current target only; selection/existence and scene-count changes invalidate catalog generation/IDs. Two coherent host samples precede page readiness; held actuators retain exact cleanup independent of scanning. |
 | Drum | Canonical 16-pad window and bounded device candidates; a separate 64-pad proxy serves legacy Drum64. |
 | Deferred navigation | One pending selection per sibling bank, one parent-track proxy per nonempty bank; project/parent/cursor/count and row-position fences. One group-entry owner per native cursor, one submitted selection and one latest continuation. |
-| Note copying | Four private pinned track/clip windows per editor shape, at most 128 pending cells each. Frozen project/track/scene/grid targets, per-note observed completion, generation-fenced callbacks and a bounded batch deadline. |
 | Native maps | Complete 128-entry key/velocity tables; enabled notes restricted to claimed physical Push pads 36–99. |
 | Output | 960×160 display, claimed regions, explicit temporary overlays, button/grid lights and touch strip. |
 | Page presentation | Active mode only: Device/Editing windows of at most eight slots; Browser seven filters and 48 visible items. No new actuator authority. |

@@ -30,6 +30,7 @@ class TransportRewindAcknowledgementTest
         fixture.position = 0;
         fixture.poll ();
         assertTrue (fixture.scheduled.isEmpty ());
+        assertTrue (fixture.errors.isEmpty ());
     }
 
     @Test
@@ -50,23 +51,59 @@ class TransportRewindAcknowledgementTest
         fixture.poll ();
         assertFalse (fixture.commands.stream ().anyMatch (command -> command.startsWith ("position")));
         assertTrue (fixture.scheduled.isEmpty ());
+        assertTrue (fixture.errors.isEmpty (), "ordinary cancellation must not report a timeout");
     }
 
     @Test
-    void timeoutAbandonsWithoutRewindAndOldCallbackCannotConsumeNewRequest ()
+    void replacementWaitsForItsOwnStoppedReadbackAfterAnEarlierPositionSubmission ()
+    {
+        final Fixture fixture = new Fixture ();
+        fixture.playing = false;
+        fixture.adapter.stopAndRewind ();
+        fixture.poll ();
+        fixture.playing = true;
+        fixture.adapter.stopAndRewind ();
+        for (int i = 0; i < 12; i++) fixture.poll ();
+        assertEquals (List.of ("stop", "position:0.0", "stop"), fixture.commands);
+        fixture.playing = false;
+        fixture.poll ();
+        assertEquals (List.of ("stop", "position:0.0", "stop", "position:0.0"), fixture.commands);
+        fixture.position = 0;
+        fixture.poll ();
+        assertTrue (fixture.scheduled.isEmpty ());
+        assertTrue (fixture.errors.isEmpty ());
+    }
+
+    @Test
+    void timeoutAbandonsWithoutRewindAndAReplacementGetsItsOwnDeadline ()
     {
         final Fixture fixture = new Fixture ();
         fixture.adapter.stopAndRewind ();
-        final Runnable old = fixture.scheduled.remove ();
+        for (int i = 0; i < 149; i++) fixture.poll ();
         fixture.adapter.stopAndRewind ();
-        old.run ();
-        for (int i = 0; i < 150; i++) fixture.poll ();
+        for (int i = 0; i < 149; i++) fixture.poll ();
+        assertTrue (fixture.errors.isEmpty (), "the replacement must not inherit the retired request's deadline");
+        fixture.poll ();
         assertTrue (fixture.scheduled.isEmpty ());
         assertEquals (List.of ("stop", "stop"), fixture.commands);
         assertEquals (1, fixture.errors.size ());
+    }
+
+    @Test
+    void unacknowledgedPositionUsesTheSameDeadlineAsTheStop ()
+    {
+        final Fixture fixture = new Fixture ();
+        fixture.adapter.stopAndRewind ();
+        for (int i = 0; i < 100; i++) fixture.poll ();
         fixture.playing = false;
-        old.run ();
-        assertEquals (List.of ("stop", "stop"), fixture.commands);
+        fixture.poll ();
+        for (int i = 0; i < 48; i++) fixture.poll ();
+        assertTrue (fixture.errors.isEmpty ());
+        fixture.poll ();
+        assertEquals (List.of ("stop", "position:0.0"), fixture.commands);
+        assertEquals (8, fixture.position, "an unacknowledged write cannot become host state at the deadline");
+        assertTrue (fixture.scheduled.isEmpty ());
+        assertEquals (List.of ("Stop/rewind was not acknowledged before its deadline; abandoning the pending operation"), fixture.errors);
     }
 
     private static final class Fixture

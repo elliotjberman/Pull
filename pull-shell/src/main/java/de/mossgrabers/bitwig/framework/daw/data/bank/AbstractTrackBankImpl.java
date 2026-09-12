@@ -71,7 +71,7 @@ public abstract class AbstractTrackBankImpl extends AbstractChannelBankImpl<Trac
         this.application = application;
         this.cursorTrack = cursorTrack;
         this.rootGroup = rootGroup;
-        this.pendingSelection = new PendingHostOperation (host);
+        this.pendingSelection = new PendingHostOperation (host::scheduleTask);
 
         if (this.bank.isEmpty ())
             return;

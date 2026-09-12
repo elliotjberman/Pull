@@ -78,11 +78,9 @@ public class TransportImpl implements ITransport, AutoCloseable
     private final IValueChanger  valueChanger;
     private final Transport      transport;
     private final Supplier<String> projectIdentity;
-    private PendingRewind pendingRewind;
+    private final PendingHostOperation pendingRewind;
+    private boolean rewindPositionSubmitted;
     private boolean closed;
-
-    private static final int REWIND_POLL_MILLIS = 20;
-    private static final int REWIND_MAX_POLLS = 150;
 
     private final IParameter     crossfadeParameter;
     private final IParameter     metronomeVolumeParameter;
@@ -105,6 +103,7 @@ public class TransportImpl implements ITransport, AutoCloseable
         this.valueChanger = valueChanger;
         this.transport = host.createTransport ();
         this.projectIdentity = Objects.requireNonNull (projectIdentity, "projectIdentity");
+        this.pendingRewind = new PendingHostOperation (host::scheduleTask);
         this.bwArranger = bwArranger;
 
         this.transport.isPlaying ().markInterested ();
@@ -146,7 +145,7 @@ public class TransportImpl implements ITransport, AutoCloseable
     public void enableObservers (final boolean enable)
     {
         if (!enable)
-            this.pendingRewind = null;
+            this.pendingRewind.cancel ();
         Util.setIsSubscribed (this.transport.isPlaying (), enable);
         Util.setIsSubscribed (this.transport.isArrangerRecordEnabled (), enable);
         Util.setIsSubscribed (this.transport.isArrangerOverdubEnabled (), enable);
@@ -184,7 +183,7 @@ public class TransportImpl implements ITransport, AutoCloseable
     @Override
     public void play ()
     {
-        this.pendingRewind = null;
+        this.pendingRewind.cancel ();
         this.transport.play ();
     }
 
@@ -201,7 +200,7 @@ public class TransportImpl implements ITransport, AutoCloseable
     @Override
     public void restart ()
     {
-        this.pendingRewind = null;
+        this.pendingRewind.cancel ();
         this.transport.restart ();
     }
 
@@ -210,7 +209,7 @@ public class TransportImpl implements ITransport, AutoCloseable
     @Override
     public void stop ()
     {
-        this.pendingRewind = null;
+        this.pendingRewind.cancel ();
         this.transport.stop ();
     }
 
@@ -219,16 +218,16 @@ public class TransportImpl implements ITransport, AutoCloseable
     @Override
     public void stopAndRewind ()
     {
-        this.pendingRewind = null;
+        this.pendingRewind.cancel ();
         if (this.closed)
             return;
         final String identity = Objects.requireNonNullElse (this.projectIdentity.get (), "");
         this.transport.stop ();
         if (identity.isBlank ())
             return;
-        final PendingRewind request = new PendingRewind (identity);
-        this.pendingRewind = request;
-        this.host.scheduleTask (() -> this.advanceRewind (request), REWIND_POLL_MILLIS);
+        this.rewindPositionSubmitted = false;
+        this.pendingRewind.await (() -> identity.equals (this.projectIdentity.get ()), this::advanceRewind, () -> { }, () -> { },
+            () -> this.host.errorln ("Stop/rewind was not acknowledged before its deadline; abandoning the pending operation"));
     }
 
 
@@ -236,53 +235,20 @@ public class TransportImpl implements ITransport, AutoCloseable
     public void close ()
     {
         this.closed = true;
-        this.pendingRewind = null;
+        this.pendingRewind.close ();
     }
 
 
-    private void advanceRewind (final PendingRewind request)
+    private boolean advanceRewind ()
     {
-        if (this.pendingRewind != request)
-            return;
-        if (!request.projectIdentity.equals (this.projectIdentity.get ()))
-        {
-            this.pendingRewind = null;
-            return;
-        }
-        if (request.positionSubmitted)
-        {
-            if (this.transport.isPlaying ().get () || this.transport.getPosition ().get () == 0)
-            {
-                this.pendingRewind = null;
-                return;
-            }
-        }
-        else if (!this.transport.isPlaying ().get ())
+        if (this.rewindPositionSubmitted)
+            return this.transport.isPlaying ().get () || this.transport.getPosition ().get () == 0;
+        if (!this.transport.isPlaying ().get ())
         {
             this.transport.setPosition (0);
-            request.positionSubmitted = true;
+            this.rewindPositionSubmitted = true;
         }
-        if (++request.polls >= REWIND_MAX_POLLS)
-        {
-            this.pendingRewind = null;
-            this.host.errorln ("Stop/rewind was not acknowledged before its deadline; abandoning the pending operation");
-            return;
-        }
-        this.host.scheduleTask (() -> this.advanceRewind (request), REWIND_POLL_MILLIS);
-    }
-
-
-    private static final class PendingRewind
-    {
-        private final String projectIdentity;
-        private boolean positionSubmitted;
-        private int polls;
-
-
-        private PendingRewind (final String projectIdentity)
-        {
-            this.projectIdentity = projectIdentity;
-        }
+        return false;
     }
 
 
@@ -290,7 +256,7 @@ public class TransportImpl implements ITransport, AutoCloseable
     @Override
     public void startRecording ()
     {
-        this.pendingRewind = null;
+        this.pendingRewind.cancel ();
         this.transport.record ();
     }
 
@@ -547,7 +513,7 @@ public class TransportImpl implements ITransport, AutoCloseable
     @Override
     public void setPositionToEnd ()
     {
-        this.pendingRewind = null;
+        this.pendingRewind.cancel ();
         this.application.invokeAction (ACTION_JUMP_TO_END);
     }
 
@@ -556,7 +522,7 @@ public class TransportImpl implements ITransport, AutoCloseable
     @Override
     public void setPosition (final double beats)
     {
-        this.pendingRewind = null;
+        this.pendingRewind.cancel ();
         this.transport.playStartPosition ().set (beats);
         if (this.transport.isPlaying ().get ())
             this.transport.jumpToPlayStartPosition ();
@@ -612,7 +578,7 @@ public class TransportImpl implements ITransport, AutoCloseable
     @Override
     public void selectLoopStart ()
     {
-        this.pendingRewind = null;
+        this.pendingRewind.cancel ();
         final double beats = this.transport.arrangerLoopStart ().get ();
         if (beats >= 0)
             this.transport.setPosition (beats);
@@ -631,7 +597,7 @@ public class TransportImpl implements ITransport, AutoCloseable
     @Override
     public void selectLoopEnd ()
     {
-        this.pendingRewind = null;
+        this.pendingRewind.cancel ();
         final double pos = this.transport.arrangerLoopStart ().get ();
         if (pos >= 0)
             this.transport.setPosition (pos + this.transport.arrangerLoopDuration ().get ());

@@ -16,7 +16,6 @@ public final class SelectionDebug implements AutoCloseable
     private final ArrayBlockingQueue<String> entries = new ArrayBlockingQueue<> (4096);
     private volatile long deadline;
     private volatile boolean paused;
-    private volatile boolean holdNoteCopies;
     private volatile boolean closed;
     private String requestId = "";
     private String mode = "OFF";
@@ -47,11 +46,6 @@ public final class SelectionDebug implements AutoCloseable
         return this.paused && this.isRecording ();
     }
 
-    boolean isNoteCopiesPaused ()
-    {
-        return this.holdNoteCopies && this.isRecording ();
-    }
-
     public static SelectionDebug createIfEnabled ()
     {
         if (!PushDebugging.isEnabled ()) return null;
@@ -70,13 +64,6 @@ public final class SelectionDebug implements AutoCloseable
     {
         final SelectionDebug debug = active;
         return debug != null && debug.isScannerPaused ();
-    }
-
-    /** Hold only pending note-copy expression writes during an explicitly bounded diagnostic. */
-    public static boolean noteCopiesPaused ()
-    {
-        final SelectionDebug debug = active;
-        return debug != null && debug.isNoteCopiesPaused ();
     }
 
     public static void record (final String kind, final String detail)
@@ -102,15 +89,14 @@ public final class SelectionDebug implements AutoCloseable
             {
                 final String[] fields = Files.readString (request).strip ().split ("\t");
                 if (fields.length == 3 && PushDebugging.isIdentifier (fields[0]) && !fields[0].equals (this.requestId)
-                    && (fields[1].equals ("RUN") || fields[1].equals ("PAUSE") || fields[1].equals ("HOLD_NOTE_COPIES") || fields[1].equals ("OFF")))
+                    && (fields[1].equals ("RUN") || fields[1].equals ("PAUSE")))
                 {
                     final int seconds = Integer.parseInt (fields[2]);
-                    if (fields[1].equals ("OFF") ? seconds == 0 : seconds >= 1 && seconds <= 60)
+                    if (seconds >= 1 && seconds <= 60)
                     {
                         this.requestId = fields[0];
                         this.mode = fields[1];
                         this.paused = this.mode.equals ("PAUSE");
-                        this.holdNoteCopies = this.mode.equals ("HOLD_NOTE_COPIES");
                         this.deadline = this.clock.getAsLong () + TimeUnit.SECONDS.toNanos (seconds);
                         record ("REQUEST", this.requestId + " " + this.mode + " " + seconds);
                     }

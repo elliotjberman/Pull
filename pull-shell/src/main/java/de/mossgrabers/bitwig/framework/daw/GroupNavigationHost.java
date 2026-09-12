@@ -24,7 +24,7 @@ public final class GroupNavigationHost implements AutoCloseable
     {
         this.cursor = cursor;
         this.projectIdentity = projectIdentity;
-        this.operation = new PendingHostOperation (host);
+        this.operation = new PendingHostOperation (host::scheduleTask);
     }
 
     /** Replace the intent without submitting another selection before the current one is observed. */

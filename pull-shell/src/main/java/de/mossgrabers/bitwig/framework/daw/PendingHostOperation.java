@@ -2,36 +2,35 @@
 // Licensed under LGPLv3 - http://www.gnu.org/licenses/lgpl-3.0.txt
 package de.mossgrabers.bitwig.framework.daw;
 
+import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
-
-import de.mossgrabers.framework.daw.IHost;
-
 
 /** One replaceable host continuation. A poll is only a chance to read state, never an acknowledgement. */
 public final class PendingHostOperation implements AutoCloseable
 {
-    private final IHost host;
+    private final BiConsumer<Runnable, Long> scheduler;
     private Request pending;
     private boolean scheduled;
     private boolean closed;
 
-    public PendingHostOperation (final IHost host)
+    public PendingHostOperation (final BiConsumer<Runnable, Long> scheduler)
     {
-        this.host = host;
+        this.scheduler = scheduler;
     }
 
     /** Replace the pending continuation; a later matching host observation must authorize completion. */
-    public void await (final BooleanSupplier valid, final BooleanSupplier ready, final Runnable complete)
+    public void await (final BooleanSupplier valid, final BooleanSupplier advance, final Runnable complete, final Runnable cancelled)
     {
-        this.await (valid, ready, complete, () -> { });
+        this.await (valid, advance, complete, cancelled, () -> { });
     }
 
-    public void await (final BooleanSupplier valid, final BooleanSupplier ready, final Runnable complete, final Runnable cancelled)
+    /** Advance may submit a dependent step and return false; timeout cancels before reporting failure. */
+    public void await (final BooleanSupplier valid, final BooleanSupplier advance, final Runnable complete, final Runnable cancelled, final Runnable timedOut)
     {
         if (this.closed)
             return;
         this.cancel ();
-        this.pending = new Request (valid, ready, complete, cancelled);
+        this.pending = new Request (valid, advance, complete, cancelled, timedOut);
         this.schedule ();
     }
 
@@ -55,7 +54,7 @@ public final class PendingHostOperation implements AutoCloseable
         if (!this.scheduled)
         {
             this.scheduled = true;
-            this.host.scheduleTask (this::poll, 20);
+            this.scheduler.accept (this::poll, 20L);
         }
     }
 
@@ -67,13 +66,16 @@ public final class PendingHostOperation implements AutoCloseable
             return;
         if (!request.valid.getAsBoolean ())
             this.cancel ();
-        else if (request.ready.getAsBoolean ())
+        else if (request.advance.getAsBoolean ())
         {
             this.pending = null;
             request.complete.run ();
         }
         else if (--request.remaining == 0)
+        {
             this.cancel ();
+            request.timedOut.run ();
+        }
         else
             this.schedule ();
     }
@@ -81,17 +83,19 @@ public final class PendingHostOperation implements AutoCloseable
     private static final class Request
     {
         private final BooleanSupplier valid;
-        private final BooleanSupplier ready;
+        private final BooleanSupplier advance;
         private final Runnable complete;
         private final Runnable cancelled;
+        private final Runnable timedOut;
         private int remaining = 150;
 
-        private Request (final BooleanSupplier valid, final BooleanSupplier ready, final Runnable complete, final Runnable cancelled)
+        private Request (final BooleanSupplier valid, final BooleanSupplier advance, final Runnable complete, final Runnable cancelled, final Runnable timedOut)
         {
             this.valid = valid;
-            this.ready = ready;
+            this.advance = advance;
             this.complete = complete;
             this.cancelled = cancelled;
+            this.timedOut = timedOut;
         }
     }
 }
