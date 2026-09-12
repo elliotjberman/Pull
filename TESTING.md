@@ -95,7 +95,8 @@ On 2026-09-12 the standalone note-copy package gate passed 1,086 tests; stacked 
 navigation/transport changes it passed 1,105 tests. Both full deprecation-enabled builds included
 the queued-geometry regression and had no failures, errors, skips or deprecation warnings.
 The production note-copy implementation is unchanged from the prior live validation above;
-exact-build live verification of the combined stack remains pending.
+the combined-build smoke below also verifies an ordinary copy; the prior navigation/deletion
+stress evidence remains separately scoped.
 
 ## Host operation acknowledgements
 
@@ -143,8 +144,8 @@ entry selected its first child; paging also selected position 8 inside a nine-ch
 engine off/on resolved from read-back. Remote Play/Stop observed playback before returning to the
 original project and releasing the command lane. Traces, frames and provenance remain under
 `target/host-ack-evidence/` in the host-acknowledgements worktree. This predates the shared-helper
-refactor: an exact-build live smoke, including the footswitch double-click stop/rewind route,
-remains pending. Forced host delays are verified offline only.
+refactor. The combined-build smoke below covers the corrected paging and routed footswitch
+rewind; group/Master scenarios were not repeated. Forced host delays are verified offline only.
 
 ## Held-note edit target safety
 
@@ -159,10 +160,34 @@ Bitwig API 25 remain unchanged. Added observers require a matching shell install
 Offline regressions distinguish submitted writes from host state and cover target changes in
 both observation orders, page/resolution changes, deleted notes, gesture replacement and shutdown.
 On 2026-09-12 the full stacked deprecation-enabled package gate passed 1,110 tests with no failures,
-errors, skips or deprecation warnings. A clean live cross-clip cancellation comparison and
-exact-build smoke remain pending. The earlier `4566eb79` smoke established ordinary velocity
-read-back only; its held-edit navigation did not establish a clean target comparison and is not
-acceptance evidence for this change.
+errors, skips or deprecation warnings. The clean cross-clip comparison below supersedes the
+earlier `4566eb79` attempt, which established ordinary velocity read-back only.
+
+## Combined acknowledgement smoke — 2026-09-12
+
+Bitwig 6.1.1 / API 25, clean checkpoint `0ed3c03304d5ae0ef72ab49ec9c3550504d77392`,
+installed shell SHA-256 `63cdfb0eb28400d13ee2c1df9e5f1e85efc62f61d7e4f5911cc5bfe9d3392098`,
+active core `20260912T181358Z-2c04a349f50298478d67be795c401ba3`
+(SHA-256 `e6825b8008a3de50c9faab77b3d6368fdc97dbefc6652870a3a3af9f3fb12721`).
+The isolated **Host Ack Smoke** project verified:
+
+- Routed paging with nine and twelve tracks: excess Next retained position 8 and Previous returned
+  position 0, with matching UUIDs and Push output.
+- Footswitch double-click rewind: later stopped state at a nonzero position preceded later zero
+  position. Coalesced telemetry does not establish exact latency.
+- A held velocity edit changed S1 from 55.4% to 35.9%. Native editor navigation to S2 cancelled
+  further held motion; S2 stayed at its independently observed 61.9% during the hold and after
+  release/reselection. S1 retained 35.9%. A fresh gesture on S2 then reached 69.7%.
+- Ordinary Duplicate-plus-pad copied C1 to an empty D1 cell, with all seven requested expression
+  values confirmed by later native read-back in 185 ms and the independently selected D1 display.
+
+Local traces, inspected Push frames, input scripts and provenance are in the held-note-edit-targets
+worktree's `target/final-smoke-evidence/`. Paging endpoint statuses supplement its truncated trace;
+legacy held input is evidenced by the script/log, while traces and displays establish host results.
+Native note callbacks can precede scene-index callbacks during retargeting, so those printed scene
+labels are paired with actual editor selection and active Note-page values. Group/Master and held/
+deleted-copy stress cases retain their earlier scoped evidence. The prior installed shell/core and
+Footswitch 2 setting were restored after testing.
 
 ## Offline UI catalog
 
