@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import com.bitwig.extension.controller.api.ControllerHost;
 import com.bitwig.extension.controller.api.Clip;
 import com.bitwig.extension.controller.api.CursorTrack;
 import com.bitwig.extension.controller.api.NoteOccurrence;
@@ -48,6 +49,7 @@ public class CursorClipImpl implements INoteClip
     // Preserve the last host value only where a legacy edit has changed its working copy.
     private final java.util.Map<Integer, IStepInfo> observedBeforeEdits = new java.util.LinkedHashMap<> ();
 
+    private final NoteCopyHost noteCopies;
     private final PinnableCursorClip launcherClip;
     private int                      editPage        = 0;
     private double                   stepLength;
@@ -58,12 +60,14 @@ public class CursorClipImpl implements INoteClip
      * Constructor.
      *
      * @param host The host
+     * @param controllerHost The native host for initialization-owned copy cursors
      * @param cursorTrack The cursor track
      * @param valueChanger The value changer
      * @param numSteps The number of steps of the clip to monitor
      * @param numRows The number of note rows of the clip to monitor
+     * @param projectIdentity The observed document identity for pending-copy validation
      */
-    public CursorClipImpl (final IHost host, final CursorTrack cursorTrack, final IValueChanger valueChanger, final int numSteps, final int numRows)
+    public CursorClipImpl (final IHost host, final ControllerHost controllerHost, final CursorTrack cursorTrack, final IValueChanger valueChanger, final int numSteps, final int numRows, final java.util.function.Supplier<String> projectIdentity)
     {
         this.host = host;
         this.valueChanger = valueChanger;
@@ -77,6 +81,9 @@ public class CursorClipImpl implements INoteClip
         // TODO Bugfix required: https://github.com/teotigraphix/Framework4Bitwig/issues/140
         this.launcherClip = cursorTrack.createLauncherCursorClip (this.numSteps, this.numRows);
 
+        this.noteCopies = numSteps > 0 && numRows > 0 ? new NoteCopyHost (host, controllerHost, this.launcherClip, "Pull.NoteCopy." + numSteps + "." + numRows, numSteps, numRows, projectIdentity) : null;
+        this.launcherClip.getTrack ().channelId ().markInterested ();
+        this.launcherClip.clipLauncherSlot ().sceneIndex ().markInterested ();
         this.launcherClip.addNoteStepObserver (this::handleStepData);
 
         this.launcherClip.exists ().markInterested ();
@@ -96,6 +103,13 @@ public class CursorClipImpl implements INoteClip
         this.launcherClip.getTrack ().canHoldNoteData ().markInterested ();
     }
 
+
+    /** End retained asynchronous copies before the controller exits. */
+    public void close ()
+    {
+        if (this.noteCopies != null)
+            this.noteCopies.close ();
+    }
 
     /** {@inheritDoc} */
     @Override
@@ -456,21 +470,8 @@ public class CursorClipImpl implements INoteClip
     @Override
     public void setStep (final NotePosition notePosition, final IStepInfo noteStep)
     {
-        final NotePosition destinationPosition = new NotePosition (notePosition);
-        final IStepInfo noteStepCopy = noteStep.createCopy ();
-
-        this.setStep (destinationPosition, (int) (noteStepCopy.getVelocity () * 127), noteStepCopy.getDuration ());
-        this.host.scheduleTask ( () -> {
-
-            this.updateStepVelocity (destinationPosition, noteStepCopy.getVelocity ());
-            this.updateStepGain (destinationPosition, noteStepCopy.getGain ());
-            this.updateStepPan (destinationPosition, noteStepCopy.getPan ());
-            this.updateStepPressure (destinationPosition, noteStepCopy.getPressure ());
-            this.updateStepReleaseVelocity (destinationPosition, noteStepCopy.getReleaseVelocity ());
-            this.updateStepTimbre (destinationPosition, noteStepCopy.getTimbre ());
-            this.updateStepTranspose (destinationPosition, noteStepCopy.getTranspose ());
-
-        }, 100);
+        if (this.noteCopies != null)
+            this.noteCopies.copy (notePosition, this.editPage, this.stepLength, noteStep);
     }
 
 
@@ -1170,6 +1171,23 @@ public class CursorClipImpl implements INoteClip
     {
         for (final NotePosition editStep: this.editSteps)
             this.sendClipData (editStep);
+        // Final writes are still requests. Once editing ends, ordinary readers must see the
+        // latest host observation rather than the working values that were just submitted.
+        for (final NotePosition editStep: this.editSteps)
+        {
+            final IStepInfo observed = this.observedBeforeEdits.remove (observedKey (editStep));
+            if (observed == null)
+                continue;
+            final IStepInfo [] [] [] stepInfos = this.getStepInfos ();
+            synchronized (stepInfos)
+            {
+                final int channel = editStep.getChannel ();
+                final int step = editStep.getStep ();
+                if (stepInfos[channel][step] == null)
+                    stepInfos[channel][step] = new IStepInfo [this.numRows];
+                stepInfos[channel][step][editStep.getNote ()] = observed instanceof StepInfoImpl ? observed.createCopy () : null;
+            }
+        }
         this.editSteps.clear ();
     }
 
@@ -1288,6 +1306,7 @@ public class CursorClipImpl implements INoteClip
         final int note = noteStep.y ();
         if (channel < 0 || channel >= 16 || step < 0 || step >= this.numSteps || note < 0 || note >= this.numRows)
             return;
+        de.mossgrabers.pull.shell.NoteStepDebug.recordObserved ("editor", this.launcherClip.getTrack ().channelId ().get (), this.launcherClip.clipLauncherSlot ().sceneIndex ().get (), noteStep);
         final int observedKey = (step * 128 + note) * 16 + channel;
         for (final NotePosition editStep: this.editSteps)
         {

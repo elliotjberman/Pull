@@ -282,7 +282,7 @@ public class ModelImpl extends AbstractModel
     @Override
     public INoteClip getNoteClip (final int cols, final int rows)
     {
-        return this.cursorClips.computeIfAbsent (cols + "-" + rows, k -> new CursorClipImpl (this.host, this.bwCursorTrack, this.valueChanger, cols, rows));
+        return this.cursorClips.computeIfAbsent (cols + "-" + rows, k -> new CursorClipImpl (this.host, this.controllerHost, this.bwCursorTrack, this.valueChanger, cols, rows, this.project::getIdentity));
     }
 
 
@@ -334,6 +334,7 @@ public class ModelImpl extends AbstractModel
         this.pendingTrackBanks.forEach (AbstractTrackBankImpl::closePendingOperations);
         this.pendingGroupEntries.values ().forEach (GroupNavigationHost::close);
         ((TransportImpl) this.transport).close ();
+        this.cursorClips.values ().forEach (clip -> ((CursorClipImpl) clip).close ());
     }
 
 

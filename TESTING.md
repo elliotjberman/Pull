@@ -51,6 +51,52 @@ mvn -o -pl pull-shell -am test
 For changes touching Bitwig API objects, follow `AGENTS.md` and run the complete package build with
 deprecation reporting before the live smoke test.
 
+## Retained note-copy regression
+
+The legacy sequencer Duplicate gesture uses up to four private track/clip cursor pairs per editor
+shape, each retaining one window with up to 128 pending notes for chord/pattern copies. Each copy
+freezes the destination, page, resolution and expression values. It waits for observed pin/target
+alignment, then a fresh note observation before expression writes; matching later values complete
+the copy. Native grid setup is submitted before note creation; that order is not a geometry
+acknowledgement. The fake applies queued geometry and note creation separately from delivering
+note observations. Selection changes before capture cancel; changes after capture cannot redirect
+it. Lost targets, observed note deletion and a 150-poll host deadline
+(20 ms requested per poll, excluding diagnostic holds) retire the operation. Appending notes does
+not extend that deadline. A full pool/window refuses additional copies. Bitwig exposes no stable
+note ID, so an unobserved delete/recreate of the same cell cannot be distinguished from editing it.
+Live API 25 gain reads use twice the setter scale: copy writes use the normalized framework value,
+while completion compares against twice that value. These eager private proxies require a shell
+installation and Bitwig restart.
+
+In a scratch Launcher project, use real routed Duplicate-plus-pad input on a source note and an
+empty destination. With debugging enabled, `tools/push-debug-selection hold-note-copies 30` holds
+only the expression phase; wait for `COPY_CREATED`, select another clip or track, then run
+`tools/push-debug-selection run 30` to release it while retaining the trace. Check later
+`NOTE_OBSERVED role=copy-complete` raw values in `selection-trace.tsv`, reselect both clips and
+verify the destination and unrelated clip independently. Repeat without the hold and with the
+captured clip deleted during the hold. `stop` or the diagnostic deadline also releases the hold.
+The hold is off by default, expires within 60 seconds and does not consume the normal copy deadline.
+
+Live validation on 2026-09-10, Bitwig 6.1.1 / controller API 25: production commit `bc7d67c4`,
+installed extension SHA-256 `866242a77d2d95b8eb027a1ecab987e8c86cc9b9b69443aa7fb1d91008c8f8db`,
+active core `20260910T213932Z-9f3a7600d905eea8cbc4b0207b012f13`. The full deprecation-enabled
+package gate passed 1,086 tests, including 12 asynchronous copy regressions. In the standalone
+“Note Copy Smoke” project, routed Duplicate-plus-pad copied seven expression attributes with
+matching later raw host read-back; the ordinary copy completed in 190 ms. Held copies completed
+on their captured clip after switching Launcher clips and after selecting another track. The
+same-position note in the other clip retained its original attributes, confirmed by later copy
+read-back and the Push display. Deleting the captured clip produced an Empty observation and
+cancelled before expression submission; Undo restored the basic note without a late expression
+write. Local traces and inspected Push frames are in the dedicated worktree's
+`target/note-copy-evidence/`; the scratch project is under `target/Note Copy Smoke/`.
+This live evidence applies only to note copying.
+
+On 2026-09-12 the standalone note-copy package gate passed 1,086 tests; stacked on the
+navigation/transport changes it passed 1,105 tests. Both full deprecation-enabled builds included
+the queued-geometry regression and had no failures, errors, skips or deprecation warnings.
+The production note-copy implementation is unchanged from the prior live validation above;
+exact-build live verification of the combined stack remains pending.
+
 ## Host operation acknowledgements
 
 Capability audit: **B — bounded shell expansion**, Core API 56 and Bitwig API 25 unchanged.
@@ -76,7 +122,7 @@ Model cleanup cancels owners; no post-exit scheduling is promised.
 Retained unchanged: browser insertion waits (open/closed is not correlated with an opening still in
 flight), Add Track/device insertion and native Duplicate (no returned created-object identity),
 device and flattened/filtered-bank paging (no proven offset-to-target identity mapping), generic
-selection notifications, note copying and held-note expression cadence. Musical timing,
+selection notifications and held-note expression cadence. Musical timing,
 double-click/long-press windows, periodic flushes, throttles and animation remain timers.
 
 Offline regressions separate command submission, host advancement and subscribed observations.
