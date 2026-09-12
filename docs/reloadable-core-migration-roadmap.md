@@ -63,8 +63,10 @@ grid, Note/Drum transition, native-note suppression and exact return can migrate
 Browser display uses bounded filters/results/selection; its action migration still needs primitive
 operations with an exact insertion or replacement destination. Reuse existing entry/return
 ownership. Configuration storage may stay mechanical in shell. Note display now reads host values
-separately from the legacy editor's optimistic working copy. Editing actions still need exact clip/note
-identity, bounded windows and reusable edits. [Custom geometry](findings/custom-musical-surface-geometry.md) needs a complete
+separately from the legacy editor's optimistic working copy. Retained note-copy windows and held-edit
+target cancellation are installed; their [contracts and identity limits](../TESTING.md#retained-note-copy-regression)
+remain relevant to the core editing migration, which still needs reusable target-bound edits.
+[Custom geometry](findings/custom-musical-surface-geometry.md) needs a complete
 native-note/pressure/feedback capability expansion.
 
 ## Separate limits and acceptance

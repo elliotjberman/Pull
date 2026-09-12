@@ -23,16 +23,14 @@ records exact build identities, passed page checks and remaining live coverage. 
 retain their separate scoped evidence. Physical Color drawing and selection are deferred together and
 retain their existing implementation; see the [handoff TODO](docs/migrations/ui-and-editing-handoff.md).
 
-The retained note-copy host was installed and smoke-tested on Bitwig 6.1.1 / API 25 from
-`bc7d67c4`; [note-copy validation](TESTING.md#retained-note-copy-regression) records the exact build
-and normal, navigation and deletion checks. This adds execution/observation resources beneath
-unchanged legacy gestures; it does not migrate note editing into core.
-
-The host-acknowledgement changes extend only execution, observation and lifecycle safety beneath
-existing gestures. Core API 56 and Bitwig API 25 are unchanged; the added parent-track observations
-and stable executors require a matched shell installation and restart. The earlier live smoke
-from `4566eb79` and pending verification of the shared continuation helper are recorded in the
-[operation contracts](TESTING.md#host-operation-acknowledgements), alongside retained waits.
+Host acknowledgements, retained note-copy targets and held-edit cancellation extend execution,
+observation and lifecycle safety beneath unchanged legacy gestures. Core API 56 and Bitwig API 25
+are unchanged; the added proxies, observations and stable executors require a matched shell
+installation and restart. The [combined smoke](TESTING.md#combined-acknowledgement-smoke--2026-09-12)
+at `0ed3c033` passed paging, routed footswitch rewind, cross-clip edit cancellation and ordinary
+note copying. Group/Master and copy navigation/deletion checks retain their earlier build scope in
+[TESTING](TESTING.md#host-operation-acknowledgements), alongside intentionally retained waits.
+Legacy navigation and note-editing policy still require migration into core.
 
 ## Assembly
 

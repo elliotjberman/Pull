@@ -87,8 +87,8 @@ on their captured clip after switching Launcher clips and after selecting anothe
 same-position note in the other clip retained its original attributes, confirmed by later copy
 read-back and the Push display. Deleting the captured clip produced an Empty observation and
 cancelled before expression submission; Undo restored the basic note without a late expression
-write. Local traces and inspected Push frames are in the dedicated worktree's
-`target/note-copy-evidence/`; the scratch project is under `target/Note Copy Smoke/`.
+write. Local traces, inspected Push frames and the scratch project are archived under
+`.codex-worktrees/acknowledgement-evidence-2026-09-12/note-copy-target/target/`.
 This live evidence applies only to note copying.
 
 On 2026-09-12 the standalone note-copy package gate passed 1,086 tests; stacked on the
@@ -142,8 +142,9 @@ In **Host Ack Smoke**, routed Shift+arrow paging selected positions 0 and 8 with
 UUIDs and Push output, including a nine-track partial last page and opposite page presses. Group
 entry selected its first child; paging also selected position 8 inside a nine-child group. Master
 engine off/on resolved from read-back. Remote Play/Stop observed playback before returning to the
-original project and releasing the command lane. Traces, frames and provenance remain under
-`target/host-ack-evidence/` in the host-acknowledgements worktree. This predates the shared-helper
+original project and releasing the command lane. Traces, frames and provenance are archived under
+`.codex-worktrees/acknowledgement-evidence-2026-09-12/host-acknowledgements/target/host-ack-evidence/`.
+This predates the shared-helper
 refactor. The combined-build smoke below covers the corrected paging and routed footswitch
 rewind; group/Master scenarios were not repeated. Forced host delays are verified offline only.
 
@@ -181,8 +182,9 @@ The isolated **Host Ack Smoke** project verified:
 - Ordinary Duplicate-plus-pad copied C1 to an empty D1 cell, with all seven requested expression
   values confirmed by later native read-back in 185 ms and the independently selected D1 display.
 
-Local traces, inspected Push frames, input scripts and provenance are in the held-note-edit-targets
-worktree's `target/final-smoke-evidence/`. Paging endpoint statuses supplement its truncated trace;
+Local traces, inspected Push frames, input scripts and provenance are archived under
+`.codex-worktrees/acknowledgement-evidence-2026-09-12/held-note-edit-targets/target/final-smoke-evidence/`.
+Paging endpoint statuses supplement its truncated trace;
 legacy held input is evidenced by the script/log, while traces and displays establish host results.
 Native note callbacks can precede scene-index callbacks during retargeting, so those printed scene
 labels are paired with actual editor selection and active Note-page values. Group/Master and held/
