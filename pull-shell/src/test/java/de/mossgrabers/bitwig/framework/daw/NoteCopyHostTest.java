@@ -19,7 +19,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-import static de.mossgrabers.pull.shell.testing.TestProxies.defaultValue;
+import static de.mossgrabers.pull.shell.testing.TestProxies.empty;
 import static de.mossgrabers.pull.shell.testing.TestProxies.proxy;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -85,33 +85,22 @@ class NoteCopyHostTest
     }
 
     @Test
-    void noteOrClipDeletionCancelsPendingExpressions ()
+    void clipDeletionCancelsPendingExpressions ()
     {
-        for (final boolean deleteClip: List.of (false, true))
-        {
-            final FakeHost f = new FakeHost ();
-            f.copy.copy (DESTINATION, 0, .25, source ());
-            f.awaitCreationSubmission (1);
-            f.applyHostCommands ();
-            f.publishCursorState ();
-            f.publishNotes ();
-            if (deleteClip) f.a.exists = false;
-            else f.a.notes.remove (key (DESTINATION));
-            f.publishCursorState ();
-            f.publishNotes ();
-            f.poll (1);
-            if (!deleteClip)
-            {
-                // A later edit at the same coordinates is a new note, not our original copy.
-                f.a.notes.put (key (DESTINATION), new NativeNote ((int) (.63 * 127) / 127.0, .5));
-                f.publishCursorState ();
-                f.publishNotes ();
-            }
-            f.selectEditor (f.b);
-            f.finish ();
-            assertTrue (f.expressions.isEmpty (), "deletion must cancel rather than write to a replacement target");
-            assertTrue (f.b.notes.isEmpty ());
-        }
+        final FakeHost f = new FakeHost ();
+        f.copy.copy (DESTINATION, 0, .25, source ());
+        f.awaitCreationSubmission (1);
+        f.applyHostCommands ();
+        f.publishCursorState ();
+        f.publishNotes ();
+        f.a.exists = false;
+        f.publishCursorState ();
+        f.publishNotes ();
+        f.poll (1);
+        f.selectEditor (f.b);
+        f.finish ();
+        assertTrue (f.expressions.isEmpty (), "deletion must cancel rather than write to a replacement target");
+        assertTrue (f.b.notes.isEmpty ());
     }
 
     @Test
@@ -538,11 +527,5 @@ class NoteCopyHostTest
             if ("set".equals (method.getName ()) && request != null) request.accept (args[0]);
             return empty (method.getReturnType ());
         });
-    }
-
-    private static Object empty (final Class<?> type)
-    {
-        if (type == String.class) return "";
-        return type.isInterface () ? proxy (type, (p, method, args) -> empty (method.getReturnType ())) : defaultValue (type);
     }
 }

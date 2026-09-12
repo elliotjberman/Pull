@@ -92,7 +92,7 @@ write. Local traces and inspected Push frames are in the dedicated worktree's
 This live evidence applies only to note copying.
 
 On 2026-09-12 the standalone note-copy package gate passed 1,086 tests; stacked on the
-navigation/transport changes it passed 1,104 tests. Both full deprecation-enabled builds included
+navigation/transport changes it passed 1,105 tests. Both full deprecation-enabled builds included
 the queued-geometry regression and had no failures, errors, skips or deprecation warnings.
 The production note-copy implementation is unchanged from the prior live validation above;
 exact-build live verification of the combined stack remains pending.
