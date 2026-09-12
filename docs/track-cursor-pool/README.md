@@ -78,7 +78,11 @@ hierarchy navigation and lights remain frozen; Chains keeps its existing provide
 
 Bitwig allows one main remote page following Device selection. The pool observes the existing
 framework page; each retained child creates its own named independent page. A child first selects the exact source Device, waits for observed equality, then selects its independent
-remote page and waits for coherent slots. Source device/page navigation cancels new editing while
+remote page and waits for coherent slots. The semantic address is the exact retained Device,
+unfiltered page index and slot. Remote-control equality is not usable for this check: the tested
+Bitwig runtime compares separately allocated parameter-target wrappers and reports unequal even
+for matching mapped controls. Slot names and values confirm observation delivery; they are not IDs.
+Source device/page navigation cancels new editing while
 outgoing cleanup retains its own pinned child and page. Observed disappearance, unpinning, page
 changes and mapping invalidations revoke the old generation permanently. A same-named remap with
 no observable invalidation is not an established exact-cleanup guarantee. The creation-channel UUID

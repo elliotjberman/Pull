@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.LinkedHashMap;
 
-/** Eager native child proxies and equality observers; no device name or position is an identity. */
+/** Exact device identity plus independent unfiltered page/slot addresses; names are never identities. */
 final class BitwigRetainedDevicePages implements RetainedDevicePageHost.Access
 {
     private final PinnableCursorDevice source;
@@ -65,18 +65,20 @@ final class BitwigRetainedDevicePages implements RetainedDevicePageHost.Access
     @Override
     public RetainedDevicePageHost.Observation observe (final int poolSlot)
     {
+        // Current Bitwig compares per-proxy ParameterTarget wrappers for RemoteControl equality.
+        // The exact device, independent unfiltered page and slot define the semantic address instead.
         final Child child = this.children.get (Integer.valueOf (poolSlot));
-        boolean aligned = true;
         boolean mapping = false;
+        boolean sourceMapping = false;
         for (int index = 0; index < 8; index++)
         {
             final RemoteControl retained = child.page.getParameter (index);
             final RemoteControl selected = this.sourcePage.getParameter (index);
             mapping |= retained.isBeingMapped ().get ();
-            aligned &= !retained.exists ().get () && !selected.exists ().get () || child.equalParameters.get (index).get ();
+            sourceMapping |= selected.isBeingMapped ().get ();
         }
         return new RetainedDevicePageHost.Observation (child.device.exists ().get (), child.device.isPinned ().get (), child.page.selectedPageIndex ().get (),
-            child.ownRevision, child.sourceRevision, child.equalDevice.get (), aligned, mapping);
+            child.ownRevision, child.sourceRevision, child.equalDevice.get (), sourceMapping, mapping);
     }
 
     @Override
@@ -106,11 +108,10 @@ final class BitwigRetainedDevicePages implements RetainedDevicePageHost.Access
             final RemoteControl retained = child.page.getParameter (index);
             final RemoteControl selected = this.sourcePage.getParameter (index);
             final boolean present = retained.exists ().get () || selected.exists ().get ();
-            final boolean equal = child.equalParameters.get (index).get ();
             final boolean coherent = !present || RetainedCursorHost.sameParameter (retained, selected);
-            if (present && !equal || !coherent || retained.isBeingMapped ().get ())
-                SelectionDebug.record ("DEVICE_REMOTE", "slot=" + poolSlot + " parameter=" + index + " equal=" + equal + " coherent=" + coherent +
-                    " mapping=" + retained.isBeingMapped ().get () + " retained=" + describe (retained) + " source=" + describe (selected));
+            if (!coherent || retained.isBeingMapped ().get () || selected.isBeingMapped ().get ())
+                SelectionDebug.record ("DEVICE_REMOTE", "slot=" + poolSlot + " parameter=" + index + " coherent=" + coherent +
+                    " mapping=" + retained.isBeingMapped ().get () + " sourceMapping=" + selected.isBeingMapped ().get () + " retained=" + describe (retained) + " source=" + describe (selected));
         }
     }
 
@@ -125,7 +126,6 @@ final class BitwigRetainedDevicePages implements RetainedDevicePageHost.Access
         private final PinnableCursorDevice device;
         private final CursorRemoteControlsPage page;
         private final BooleanValue equalDevice;
-        private final List<BooleanValue> equalParameters;
         private final List<IParameter> parameters;
         private long ownRevision;
         private long sourceRevision;
@@ -137,6 +137,9 @@ final class BitwigRetainedDevicePages implements RetainedDevicePageHost.Access
             this.equalDevice = this.device.createEqualsValue (BitwigRetainedDevicePages.this.source);
             this.equalDevice.markInterested ();
             this.equalDevice.addValueObserver (ignored -> this.sourceRevision++);
+            BitwigRetainedDevicePages.this.source.exists ().addValueObserver (ignored -> this.sourceRevision++);
+            BitwigRetainedDevicePages.this.sourcePage.selectedPageIndex ().addValueObserver (ignored -> this.sourceRevision++);
+            BitwigRetainedDevicePages.this.sourcePage.pageNames ().addValueObserver (ignored -> this.sourceRevision++);
             this.device.exists ().markInterested ();
             this.device.isPinned ().markInterested ();
             this.device.exists ().addValueObserver (exists -> { if (!exists) this.ownRevision++; });
@@ -144,7 +147,6 @@ final class BitwigRetainedDevicePages implements RetainedDevicePageHost.Access
             this.page.selectedPageIndex ().markInterested ();
             this.page.selectedPageIndex ().addValueObserver (ignored -> this.ownRevision++);
             this.page.pageNames ().addValueObserver (ignored -> this.ownRevision++);
-            final List<BooleanValue> equals = new ArrayList<> (8);
             final List<IParameter> parameters = new ArrayList<> (8);
             for (int slot = 0; slot < 8; slot++)
             {
@@ -155,13 +157,12 @@ final class BitwigRetainedDevicePages implements RetainedDevicePageHost.Access
                 remote.isBeingMapped ().addValueObserver (mapped -> { if (mapped) this.ownRevision++; });
                 remote.exists ().addValueObserver (ignored -> this.ownRevision++);
                 remote.name ().addValueObserver (ignored -> this.ownRevision++);
-                final BooleanValue equal = remote.createEqualsValue (sourceRemote);
-                equal.markInterested ();
-                equal.addValueObserver (ignored -> this.sourceRevision++);
-                equals.add (equal);
+                sourceRemote.exists ().addValueObserver (ignored -> this.sourceRevision++);
+                sourceRemote.name ().addValueObserver (ignored -> this.sourceRevision++);
+                sourceRemote.isBeingMapped ().markInterested ();
+                sourceRemote.isBeingMapped ().addValueObserver (mapped -> { if (mapped) this.sourceRevision++; });
                 parameters.add (new ParameterImpl (changer, remote, slot, true));
             }
-            this.equalParameters = List.copyOf (equals);
             this.parameters = List.copyOf (parameters);
         }
     }

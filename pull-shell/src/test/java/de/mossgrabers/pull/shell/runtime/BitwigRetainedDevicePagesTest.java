@@ -55,7 +55,7 @@ class BitwigRetainedDevicePagesTest
         fixture.children[0].page.deliverIdentity (fixture.source.observed, 1);
         fixture.tick ();
         fixture.tick ();
-        assertNull (fixture.host.devicePage (), "new parameter equality with stale properties remains pending");
+        assertNull (fixture.host.devicePage (), "matching device and page with stale parameter properties remains pending");
         fixture.children[0].page.deliverProperties ();
         fixture.tick ();
         assertNull (fixture.host.devicePage ());
@@ -157,17 +157,30 @@ class BitwigRetainedDevicePagesTest
     @Test
     void sourceRoundTripRevokesEditingButOrdinaryValueDeliveryKeepsCleanup ()
     {
-        final Fixture fixture = new Fixture (3);
-        final var original = fixture.ready ();
-        final DeviceState source = fixture.source.observed;
-        fixture.navigate (new DeviceState ("third-track", "device-b", 3), 1);
-        fixture.navigate (source, 1);
-        assertFalse (original.current ().getAsBoolean (), "native equality observations retain an intervening source change");
-        assertTrue (original.addressable ().getAsBoolean ());
-        source.pages[1][0].value = 0.8;
-        fixture.deliverProperties ();
-        assertTrue (original.addressable ().getAsBoolean (), "parameter values are observed content, not target identity");
-        assertEquals (102, original.parameters ().getFirst ().getValue ());
+        for (final String change: List.of ("device", "device-exists", "page", "remote-exists", "name", "mapping", "topology"))
+        {
+            final Fixture fixture = new Fixture (3);
+            final var original = fixture.ready ();
+            final DeviceState source = fixture.source.observed;
+            final RemoteNode remote = fixture.source.page.remotes[0];
+            switch (change)
+            {
+                case "device" -> { fixture.navigate (new DeviceState ("third-track", "device-b", 3), 1); fixture.navigate (source, 1); }
+                case "device-exists" -> { fixture.source.exists.deliver (false); fixture.source.exists.deliver (true); }
+                case "page" -> { fixture.navigate (source, 0); fixture.navigate (source, 1); }
+                case "remote-exists" -> { remote.exists.deliver (false); remote.exists.deliver (true); }
+                case "name" -> { remote.name.deliver ("Replacement"); remote.name.deliver ("Remote 0"); }
+                case "mapping" -> { remote.mapped.deliver (true); remote.mapped.deliver (false); }
+                case "topology" -> fixture.source.page.names.deliver (new String[] {"Reordered", "Pages"});
+                default -> throw new AssertionError (change);
+            }
+            assertFalse (original.current ().getAsBoolean (), change + " cannot revive the old editing generation");
+            assertTrue (original.addressable ().getAsBoolean (), "source changes do not revoke exact retained cleanup");
+            source.pages[1][0].value = 0.8;
+            fixture.deliverProperties ();
+            assertTrue (original.addressable ().getAsBoolean (), "parameter values are observed content, not target identity");
+            assertEquals (102, original.parameters ().getFirst ().getValue ());
+        }
     }
 
     @Test
@@ -267,14 +280,7 @@ class BitwigRetainedDevicePagesTest
         private void updateEquality ()
         {
             for (final Child child: this.children)
-            {
                 child.equal.deliver (child.observed != null && child.observed == this.source.observed);
-                for (int index = 0; index < 8; index++)
-                {
-                    final RemoteNode remote = child.page.remotes[index];
-                    remote.equal.deliver (remote.target != null && remote.target == this.source.page.remotes[index].target);
-                }
-            }
         }
         private void deliverProperties () { this.source.page.deliverProperties (); for (final Child child: this.children) child.page.deliverProperties (); }
         private void applyEffects () { this.pendingEffects.forEach (Runnable::run); this.pendingEffects.clear (); }
@@ -328,6 +334,7 @@ class BitwigRetainedDevicePagesTest
         private final PageNode page;
         private final PinnableCursorDevice proxy;
         private final Value<String> channel = new Value<> ("creation-track");
+        private final Value<Boolean> exists = new Value<> (true);
         private DeviceState observed;
         private boolean mainPageCreated;
         private SourceDevice (final Fixture fixture)
@@ -335,7 +342,7 @@ class BitwigRetainedDevicePagesTest
             this.page = new PageNode (fixture, false);
             this.proxy = proxy (PinnableCursorDevice.class, (method, args) -> switch (method)
             {
-                case "exists" -> new Value<> (true).proxy (BooleanValue.class);
+                case "exists" -> this.exists.proxy (BooleanValue.class);
                 case "channel" -> proxy (Channel.class, (name, arguments) -> {
                     assertEquals ("channelId", name);
                     return this.channel.proxy (StringValue.class);
@@ -448,7 +455,6 @@ class BitwigRetainedDevicePagesTest
         private final RemoteControl proxy;
         private final Value<Boolean> exists = new Value<> (false);
         private final Value<Boolean> mapped = new Value<> (false);
-        private final Value<Boolean> equal = new Value<> (false);
         private final Value<String> name;
         private final Value<Double> value;
         private final Value<String> display;
@@ -467,7 +473,9 @@ class BitwigRetainedDevicePagesTest
                 case "modulatedValue" -> this.value.proxy (RangedValue.class);
                 case "displayedValue" -> this.display.proxy (StringValue.class);
                 case "discreteValueCount" -> new Value<> (-1).proxy (IntegerValue.class);
-                case "createEqualsValue" -> this.equal.proxy (BooleanValue.class);
+                // Bitwig compares distinct internal ParameterTarget wrappers, even for the same
+                // mapped remote. Readiness must use the exact device/page/slot and later properties.
+                case "createEqualsValue" -> new Value<> (false).proxy (BooleanValue.class);
                 case "get" -> this.value.observed;
                 case "touch", "setIndication" -> { fixture.effects.add (this.target.id + ":" + method + ":" + args[0]); yield null; }
                 case "set", "setImmediately" -> {

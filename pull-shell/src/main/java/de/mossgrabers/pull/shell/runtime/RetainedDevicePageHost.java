@@ -23,11 +23,11 @@ final class RetainedDevicePageHost implements RetainedDeviceParameters
 
     /** Revisions record observed invalidations, so disappearance followed by undo cannot revive a lease. */
     record Observation (boolean exists, boolean pinned, int page, long ownRevision, long sourceRevision,
-                        boolean sourceDeviceEqual, boolean parametersEqual, boolean mappingEditor)
+                        boolean sourceDeviceEqual, boolean sourceMappingEditor, boolean mappingEditor)
     {
         boolean sourceAligned (final int expectedPage)
         {
-            return this.exists && this.pinned && this.page == expectedPage && this.sourceDeviceEqual && this.parametersEqual && !this.mappingEditor;
+            return this.exists && this.pinned && this.page == expectedPage && this.sourceDeviceEqual && !this.sourceMappingEditor && !this.mappingEditor;
         }
     }
 
