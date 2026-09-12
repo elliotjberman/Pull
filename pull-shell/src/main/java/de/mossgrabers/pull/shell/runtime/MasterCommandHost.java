@@ -47,8 +47,7 @@ import java.util.Objects;
  */
 final class MasterCommandHost
 {
-    private static final int ENGINE_ACKNOWLEDGEMENT_TIMEOUT_TICKS = 8;
-    private static final int TRANSPORT_ACKNOWLEDGEMENT_TIMEOUT_TICKS = 16;
+    private static final long ACKNOWLEDGEMENT_WARNING_NANOS = 2_000_000_000L;
     private static final int NAVIGATION_ACKNOWLEDGEMENT_TIMEOUT_TICKS = 100;
     private static final int REMOTE_NAVIGATION_CAPACITY = 32;
 
@@ -63,6 +62,7 @@ final class MasterCommandHost
     private boolean previousUnavailable;
     private boolean nextUnavailable;
     private String observedProjectIdentity;
+    private long monotonicTimeNanos;
     private PendingCommand pending;
     private RemoteTransportCommand remoteTransport;
     private MasterSnapshot snapshot = MasterSnapshot.empty ();
@@ -82,8 +82,9 @@ final class MasterCommandHost
     }
 
 
-    boolean refresh (final boolean publishMaster, final boolean publishProject)
+    boolean refresh (final long monotonicTimeNanos, final boolean publishMaster, final boolean publishProject)
     {
+        this.monotonicTimeNanos = monotonicTimeNanos;
         if (publishMaster || publishProject || this.pending != null || this.remoteTransport != null)
         {
             this.advancePending ();
@@ -175,7 +176,7 @@ final class MasterCommandHost
         {
             if (!this.canTargetProject (engine.expectedProjectIdentity ()) || this.application.isEngineActive () == engine.active ())
                 return true;
-            this.pending = PendingCommand.engine (engine.expectedProjectIdentity (), engine.active ());
+            this.pending = PendingCommand.engine (engine.expectedProjectIdentity (), engine.active (), this.monotonicTimeNanos);
             this.application.setEngineActive (engine.active ());
             return true;
         }
@@ -235,11 +236,17 @@ final class MasterCommandHost
         {
             if (!this.pending.originIdentity.equals (currentIdentity))
             {
+                this.log.warn ("Engine request abandoned without acknowledgement because its project changed");
                 this.observeExternalProjectChange (currentIdentity);
                 this.pending = null;
             }
-            else if (this.application.isEngineActive () == this.pending.desiredEngineActive || ++this.pending.age >= ENGINE_ACKNOWLEDGEMENT_TIMEOUT_TICKS)
+            else if (this.application.isEngineActive () == this.pending.desiredEngineActive)
                 this.pending = null;
+            else if (!this.pending.acknowledgementWarned && this.monotonicTimeNanos - this.pending.startedNanos >= ACKNOWLEDGEMENT_WARNING_NANOS)
+            {
+                this.pending.acknowledgementWarned = true;
+                this.log.warn ("Engine request remains unacknowledged; retaining the command lane until host read-back or project change");
+            }
             return;
         }
 
@@ -377,7 +384,7 @@ final class MasterCommandHost
             }
             this.applyTransportState (this.remoteTransport.state, this.remoteTransport.enabled);
             this.remoteTransport.stage = RemoteStage.WAITING_FOR_TRANSPORT;
-            this.remoteTransport.transportAcknowledgementAge = 0;
+            this.remoteTransport.transportSubmittedNanos = this.monotonicTimeNanos;
             return;
         }
 
@@ -405,14 +412,20 @@ final class MasterCommandHost
     {
         if (!currentIdentity.equals (this.remoteTransport.targetIdentity) || !this.application.isEngineActive ())
         {
+            this.log.warn ("Remote transport request abandoned without acknowledgement because its engine target became unavailable");
             this.remoteTransport.stage = RemoteStage.RETURNING;
             this.advanceRemoteReturn (currentIdentity);
             return;
         }
-        if (this.transportState (this.remoteTransport.state) == this.remoteTransport.enabled || ++this.remoteTransport.transportAcknowledgementAge >= TRANSPORT_ACKNOWLEDGEMENT_TIMEOUT_TICKS)
+        if (this.transportState (this.remoteTransport.state) == this.remoteTransport.enabled)
         {
             this.remoteTransport.stage = RemoteStage.RETURNING;
             this.advanceRemoteReturn (currentIdentity);
+        }
+        else if (!this.remoteTransport.acknowledgementWarned && this.monotonicTimeNanos - this.remoteTransport.transportSubmittedNanos >= ACKNOWLEDGEMENT_WARNING_NANOS)
+        {
+            this.remoteTransport.acknowledgementWarned = true;
+            this.log.warn ("Remote transport request remains unacknowledged; retaining the target and command lane until host read-back or context loss");
         }
     }
 
@@ -665,7 +678,8 @@ final class MasterCommandHost
         private ProjectNavigationDirection searchDirection = ProjectNavigationDirection.PREVIOUS;
         private RemoteStage stage = RemoteStage.SEARCHING;
         private int navigationSteps;
-        private int transportAcknowledgementAge;
+        private long transportSubmittedNanos;
+        private boolean acknowledgementWarned;
 
 
         private RemoteTransportCommand (final String originIdentity, final String targetIdentity, final TransportState state, final boolean enabled)
@@ -685,28 +699,31 @@ final class MasterCommandHost
         private final ProjectNavigationDirection direction;
         private final PendingKind kind;
         private final boolean desiredEngineActive;
+        private final long startedNanos;
+        private boolean acknowledgementWarned;
         private int age;
         private String targetIdentity;
 
 
-        private PendingCommand (final String originIdentity, final ProjectNavigationDirection direction, final PendingKind kind, final boolean desiredEngineActive)
+        private PendingCommand (final String originIdentity, final ProjectNavigationDirection direction, final PendingKind kind, final boolean desiredEngineActive, final long startedNanos)
         {
             this.originIdentity = originIdentity;
             this.direction = direction;
             this.kind = kind;
             this.desiredEngineActive = desiredEngineActive;
+            this.startedNanos = startedNanos;
         }
 
 
         private static PendingCommand navigation (final String originIdentity, final ProjectNavigationDirection direction)
         {
-            return new PendingCommand (originIdentity, direction, PendingKind.NAVIGATION, false);
+            return new PendingCommand (originIdentity, direction, PendingKind.NAVIGATION, false, 0);
         }
 
 
-        private static PendingCommand engine (final String originIdentity, final boolean desiredEngineActive)
+        private static PendingCommand engine (final String originIdentity, final boolean desiredEngineActive, final long startedNanos)
         {
-            return new PendingCommand (originIdentity, null, PendingKind.ENGINE, desiredEngineActive);
+            return new PendingCommand (originIdentity, null, PendingKind.ENGINE, desiredEngineActive, startedNanos);
         }
     }
 

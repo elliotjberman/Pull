@@ -51,6 +51,55 @@ mvn -o -pl pull-shell -am test
 For changes touching Bitwig API objects, follow `AGENTS.md` and run the complete package build with
 deprecation reporting before the live smoke test.
 
+## Host operation acknowledgements
+
+Capability audit: **B — bounded shell expansion**, Core API 56 and Bitwig API 25 unchanged.
+Existing commands retain their meanings; shell changes execute and validate those commands using
+interested native values. A matching extension install/restart is required. The active migration
+findings remain unresolved; this work does not migrate legacy navigation into core.
+
+| Operation | Completion boundary |
+| --- | --- |
+| Sibling-bank page/select | Requested bank offset and every existing row's parent-local position match before selecting the destination row. Project, parent UUID, selected cursor UUID and item count must remain valid. |
+| Group entry | Native cursor UUID matches the requested group before selecting its first child. One owner serializes selection submissions sharing that cursor; intermediate read-back cannot execute obsolete entries. |
+| Stop/rewind | Later subscribed stopped state permits the zero-position write; later position read-back retires it. New transport/seek requests and project changes cancel the continuation. |
+| Master engine/remote playback | Later engine/playback read-back resolves the command. A two-second warning retains the unresolved lane and remote target instead of treating elapsed ticks as success. |
+
+Bank/group/rewind share a condition-and-continuation helper with bounded 150-poll cancellation
+deadlines and 20 ms requested between samples. A deadline never authorizes the next operation.
+Group and bank replacements retain one submitted operation and one latest intent without extending
+the original deadline. Ordinary and queued relative paging share the same bounded destination
+calculation, preserving the current window alignment and saturating at the final full or partial page. The helper owns scheduling and cancellation; each caller proves its own
+target and completion conditions. Master retains its existing controller-tick observation loop.
+Model cleanup cancels owners; no post-exit scheduling is promised.
+
+Retained unchanged: browser insertion waits (open/closed is not correlated with an opening still in
+flight), Add Track/device insertion and native Duplicate (no returned created-object identity),
+device and flattened/filtered-bank paging (no proven offset-to-target identity mapping), generic
+selection notifications, note copying and held-note expression cadence. Musical timing,
+double-click/long-press windows, periodic flushes, throttles and animation remain timers.
+
+Offline regressions separate command submission, host advancement and subscribed observations.
+They cover delayed/intermediate bank pages, rapid replacement/reversal, group supersession,
+structural guards, shutdown, delayed rewind and Master acknowledgements beyond old deadlines.
+On 2026-09-12 the full deprecation-enabled package gate passed 1,091 tests with no failures,
+errors, skips or deprecation warnings. Rewind regressions also cover replacement phase reset
+and one deadline spanning both stop and position acknowledgement. Paging regressions cover excess
+Next presses, reversal after saturation and a window starting between global page boundaries.
+
+Earlier scoped live validation on 2026-09-10 used Bitwig 6.1.1 / API 25, checkpoint `4566eb79`,
+installed shell SHA-256 `6fb3b264471b3a43913146fd2a1dfdb8adab58d91e26dc97893d7e8ced2186b4`,
+and active core `20260910T221931Z-1a529f49fa74a0b56f652612d435d628`
+(SHA-256 `6f3c236566973525b72de1d5206dc71e63686447e8392908ffd60753e870e57e`).
+In **Host Ack Smoke**, routed Shift+arrow paging selected positions 0 and 8 with matching track
+UUIDs and Push output, including a nine-track partial last page and opposite page presses. Group
+entry selected its first child; paging also selected position 8 inside a nine-child group. Master
+engine off/on resolved from read-back. Remote Play/Stop observed playback before returning to the
+original project and releasing the command lane. Traces, frames and provenance remain under
+`target/host-ack-evidence/` in the host-acknowledgements worktree. This predates the shared-helper
+refactor: an exact-build live smoke, including the footswitch double-click stop/rewind route,
+remains pending. Forced host delays are verified offline only.
+
 ## Offline UI catalog
 
 Run `tools/ui-component-catalog` to generate a local HTML gallery from production components and

@@ -23,6 +23,12 @@ records exact build identities, passed page checks and remaining live coverage. 
 retain their separate scoped evidence. Physical Color drawing and selection are deferred together and
 retain their existing implementation; see the [handoff TODO](docs/migrations/ui-and-editing-handoff.md).
 
+The host-acknowledgement changes extend only execution, observation and lifecycle safety beneath
+existing gestures. Core API 56 and Bitwig API 25 are unchanged; the added parent-track observations
+and stable executors require a matched shell installation and restart. The earlier live smoke
+from `4566eb79` and pending verification of the shared continuation helper are recorded in the
+[operation contracts](TESTING.md#host-operation-acknowledgements), alongside retained waits.
+
 ## Assembly
 
 ```text
@@ -129,6 +135,7 @@ Shift pages eight. Light refresh is a single end-of-flush pass, so observer burs
 | Named parameters | Seventeen banks, at most 131 slots: ACTIVE legacy, project/device remotes, selected mix/sends, current-bank Volume/Pan/eight Sends, Master/Cue and globals. |
 | Selected-track clips | One private eight-slot scanner, eight pinned launch actuators. Core requests target generation/UUID and absolute scene page; no other-track catalog. Accepted pages accumulate clips in scene order for the current target only; selection/existence and scene-count changes invalidate catalog generation/IDs. Two coherent host samples precede page readiness; held actuators retain exact cleanup independent of scanning. |
 | Drum | Canonical 16-pad window and bounded device candidates; a separate 64-pad proxy serves legacy Drum64. |
+| Deferred navigation | One pending selection per sibling bank, one parent-track proxy per nonempty bank; project/parent/cursor/count and row-position fences. One group-entry owner per native cursor, one submitted selection and one latest continuation. |
 | Native maps | Complete 128-entry key/velocity tables; enabled notes restricted to claimed physical Push pads 36–99. |
 | Output | 960×160 display, claimed regions, explicit temporary overlays, button/grid lights and touch strip. |
 | Page presentation | Active mode only: Device/Editing windows of at most eight slots; Browser seven filters and 48 visible items. No new actuator authority. |
