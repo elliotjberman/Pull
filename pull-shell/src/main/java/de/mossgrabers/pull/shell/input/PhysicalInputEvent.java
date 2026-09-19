@@ -6,6 +6,7 @@ package de.mossgrabers.pull.shell.input;
 import de.mossgrabers.pull.core.api.ControllerActionIntent;
 
 import java.util.Objects;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -19,11 +20,17 @@ import java.util.Optional;
  * @param kind Physical input kind
  * @param phase Input phase
  * @param value Raw or decoded value; coalesced relative values may exceed the range of one sample
+ * @param relativeSamples Ordered relative callbacks in this bounded batch
  * @param stableAction Stable-owned semantic action resolved at begin, when present
  * @param <C> Control key type
  */
-public record PhysicalInputEvent<C> (long sequence, long timeNanos, long ownerGeneration, C control, InputKind kind, InputPhase phase, long value, Optional<ControllerActionIntent> stableAction)
+public record PhysicalInputEvent<C> (long sequence, long timeNanos, long ownerGeneration, C control, InputKind kind, InputPhase phase, long value, Optional<ControllerActionIntent> stableAction, List<Long> relativeSamples)
 {
+    public PhysicalInputEvent (final long sequence, final long timeNanos, final long ownerGeneration, final C control, final InputKind kind, final InputPhase phase, final long value, final Optional<ControllerActionIntent> stableAction)
+    {
+        this (sequence, timeNanos, ownerGeneration, control, kind, phase, value, stableAction, kind.sumsRelativeValues () ? List.of (value) : List.of ());
+    }
+
     /** Construct a physical input without a stable-owned semantic action. */
     public PhysicalInputEvent (final long sequence, final long timeNanos, final long ownerGeneration, final C control, final InputKind kind, final InputPhase phase, final long value)
     {
@@ -43,6 +50,7 @@ public record PhysicalInputEvent<C> (long sequence, long timeNanos, long ownerGe
         Objects.requireNonNull (control, "control");
         Objects.requireNonNull (kind, "kind");
         Objects.requireNonNull (phase, "phase");
+        relativeSamples = List.copyOf (relativeSamples);
         stableAction = Objects.requireNonNull (stableAction, "stableAction");
         if (stableAction.isPresent () && (!kind.isEdge () || phase != InputPhase.BEGIN))
             throw new IllegalArgumentException ("stable semantic actions are resolved only for edge BEGIN events");
@@ -51,8 +59,8 @@ public record PhysicalInputEvent<C> (long sequence, long timeNanos, long ownerGe
     }
 
 
-    PhysicalInputEvent<C> withValue (final long newValue)
+    PhysicalInputEvent<C> withRelativeSamples (final long newValue, final List<Long> samples)
     {
-        return new PhysicalInputEvent<> (this.sequence, this.timeNanos, this.ownerGeneration, this.control, this.kind, this.phase, newValue, this.stableAction);
+        return new PhysicalInputEvent<> (this.sequence, this.timeNanos, this.ownerGeneration, this.control, this.kind, this.phase, newValue, this.stableAction, samples);
     }
 }

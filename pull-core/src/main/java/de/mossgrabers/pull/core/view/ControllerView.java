@@ -108,6 +108,14 @@ public interface ControllerView
     }
 
 
+    /** Exact values changed together by one physical control, each with its own baseline. */
+    default List<ParameterSlot> parameterGroup (final ControlId control, final ControllerSnapshot snapshot)
+    {
+        final var slot = this.parameterBindings (snapshot).get (control);
+        return slot == null ? List.of () : List.of (slot);
+    }
+
+
     /**
      * Select installed parameter banks this view needs sampled. A view may request a bank for
      * rendering without mapping a physical control to it.
@@ -170,11 +178,20 @@ public interface ControllerView
     }
 
 
+    /** Whether the view consumes individual relative callbacks, including a zero-sum batch. */
+    default boolean consumesRelativeSamples () { return false; }
+
+
     /** Physical parameter touches whose reset/automation policy is owned centrally. */
     default Set<ControlId> parameterTouchControls (final ControllerSnapshot snapshot)
     {
         return Set.of ();
     }
+
+
+    /** Whether reset also starts a touch, and release ends automation writing. */
+    default boolean touchAfterReset () { return true; }
+    default boolean stopAutomationOnTouchRelease () { return true; }
 
 
     /** Exact semantic context for a non-parameter input; null means currently unavailable. */

@@ -29,9 +29,13 @@ public sealed interface EditingPageState extends ControllerPageDisplayState
         }
     }
     record Note (boolean exists, String page, int count, int step, int key, int quartersPerMeasure, double transposeRange,
-                 boolean shift, List<Boolean> touched, NoteData data) implements EditingPageState
+                 boolean shift, List<Boolean> touched, NoteData data, String parameterOwner) implements EditingPageState
     {
-        public Note { touched = window (touched); java.util.Objects.requireNonNull (data); }
+        public Note { touched = window (touched); java.util.Objects.requireNonNull (data); java.util.Objects.requireNonNull (parameterOwner); }
+        public Note (final boolean exists, final String page, final int count, final int step, final int key, final int quartersPerMeasure, final double transposeRange, final boolean shift, final List<Boolean> touched, final NoteData data)
+        { this (exists, page, count, step, key, quartersPerMeasure, transposeRange, shift, touched, data, ""); }
+        public Note withParameterOwner (final String owner)
+        { return new Note (exists, page, count, step, key, quartersPerMeasure, transposeRange, shift, touched, data, owner); }
     }
     record NoteData (double duration, boolean muted, double velocity, double velocitySpread, double releaseVelocity,
                      boolean chanceEnabled, double chance, boolean occurrenceEnabled, String occurrence,

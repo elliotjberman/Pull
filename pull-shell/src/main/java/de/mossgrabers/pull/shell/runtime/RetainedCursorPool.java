@@ -19,7 +19,7 @@ import java.util.Set;
  */
 final class RetainedCursorPool
 {
-    enum Profile { MIX, CLIP_SCAN, CLIP_ACTUATOR, DEVICE_PAGE }
+    enum Profile { MIX, CLIP_SCAN, CLIP_ACTUATOR, DEVICE_PAGE, NOTE_EDITOR }
     enum Status { READY, PENDING, MISSING, UNAVAILABLE }
     enum Coverage { FULL, PARTIAL, PENDING }
 

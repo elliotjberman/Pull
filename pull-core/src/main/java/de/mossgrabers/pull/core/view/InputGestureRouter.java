@@ -88,7 +88,9 @@ public final class InputGestureRouter
         {
             if (dispatch.edge.phase == InputPhase.BEGIN)
             {
-                gesture.touchAdmitted = true;
+                final boolean resetting = this.viewSnapshot (snapshot).pressedControls ().contains (PushControlIds.button ("DELETE"));
+                gesture.touchAdmitted = !resetting || gesture.binding.touchAfterReset;
+                gesture.automationCleanup = gesture.binding.stopAutomation;
                 gesture.project = snapshot.bridge ().automation ().projectIdentity ();
                 if (this.viewSnapshot (snapshot).pressedControls ().contains (PushControlIds.button ("DELETE")))
                 {
@@ -100,6 +102,7 @@ public final class InputGestureRouter
         }
         for (final ControllerView view: dispatch.receivers)
         {
+            if (dispatch.event instanceof ControllerInputEvent input && input.kind () == InputKind.RELATIVE && input.value () == 0 && !view.consumesRelativeSamples ()) continue;
             final ControllerSnapshot inputs = dispatch.event instanceof ControllerInputEvent input && input.kind () == InputKind.CHANNEL_PRESSURE ? this.groupInputSnapshot (view, snapshot) : this.viewSnapshot (snapshot);
             final List<CoreEffect> emitted = view.handle (dispatch.event, inputs);
             if (!emitted.isEmpty ()) this.retainEffectRequirements (view);
@@ -202,7 +205,7 @@ public final class InputGestureRouter
                     this.cleanup.addAll (effects);
                     if (!effects.isEmpty ()) this.retainEffectRequirements (view);
                 }
-            if (gesture.touchAdmitted)
+            if (gesture.automationCleanup)
             {
                 final AutomationSnapshot automation = snapshot.bridge ().automation ();
                 // Stopping a touch's automation write is cleanup, also required on cancellation.
@@ -267,7 +270,7 @@ public final class InputGestureRouter
             InputTarget target = view.inputTarget (key.control, key.kind, snapshot);
             if (target == null) continue;
             final ParameterSlot slot = slots.get (key.control);
-            if (key.kind == InputKind.TOUCH && slot != null && view.parameterBindings ().containsKey (key.control))
+            if (target instanceof InputTarget.Local && key.kind == InputKind.TOUCH && slot != null && view.parameterBindings ().containsKey (key.control))
             {
                 final var parameter = snapshot.bridge ().parameters ().slots ().get (slot);
                 if (parameter != null) target = new InputTarget.Parameter (parameter.target ());
@@ -277,7 +280,7 @@ public final class InputGestureRouter
         if (targets.isEmpty () || owners.stream ().anyMatch (owner -> !targets.containsKey (owner))) return null;
         final ControllerView principal = owners.isEmpty () ? targets.keySet ().iterator ().next () : owners.get (0);
         final boolean parameterTouch = key.kind == InputKind.TOUCH && principal.parameterTouchControls (snapshot).contains (key.control);
-        return new Binding (receivers.stream ().filter (targets::containsKey).toList (), owners, action, targets.get (principal), Map.copyOf (targets), parameterTouch);
+        return new Binding (receivers.stream ().filter (targets::containsKey).toList (), owners, action, targets.get (principal), Map.copyOf (targets), parameterTouch, principal.touchAfterReset (), principal.stopAutomationOnTouchRelease ());
     }
 
     /** Core view input projection: a cancelled physical tail is no longer an active modifier.
@@ -350,7 +353,7 @@ public final class InputGestureRouter
     }
     private record Key (ControlId control, InputKind kind) { }
     private record Edge (Key key, InputPhase phase) { }
-    private record Binding (List<ControllerView> receivers, List<ControllerView> owners, CompiledWorkspace.ActionOwner action, InputTarget target, Map<ControllerView, InputTarget> targets, boolean parameterTouch)
+    private record Binding (List<ControllerView> receivers, List<ControllerView> owners, CompiledWorkspace.ActionOwner action, InputTarget target, Map<ControllerView, InputTarget> targets, boolean parameterTouch, boolean touchAfterReset, boolean stopAutomation)
     {
         boolean sameOwner (final Binding other) { return other != null && this.owners.equals (other.owners) && Objects.equals (this.action, other.action); }
         boolean sameBinding (final Binding other) { return this.sameOwner (other) && this.target.equals (other.target) && this.parameterTouch == other.parameterTouch && this.targets.entrySet ().stream ().allMatch (entry -> !other.targets.containsKey (entry.getKey ()) || entry.getValue ().equals (other.targets.get (entry.getKey ()))); }
@@ -375,6 +378,7 @@ public final class InputGestureRouter
         private List<ControllerView> receivers;
         private boolean longDelivered;
         private boolean touchAdmitted;
+        private boolean automationCleanup;
         private String project = "";
         private long finishRevision = -1;
         private Gesture (final InteractionLifecycle.Id id, final Key key, final Binding binding) { this.id = id; this.key = key; this.binding = binding; this.receivers = binding.receivers; }

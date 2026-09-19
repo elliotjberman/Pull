@@ -62,7 +62,7 @@ class SnapbackSessionTest
     void mixVuPreferenceDoesNotSettleParametersButNormalMixEntryDoes ()
     {
         final SnapbackSession session = startedSession (parameters (100, 200));
-        session.handle (mutation (2, KNOB1, FIRST, 100), snapshot (parameters (90, 200), Set.of (SHIFT)), ParameterSlot.active (0));
+        session.handle (mutation (2, KNOB1, FIRST, 100), snapshot (parameters (90, 200), Set.of (SHIFT)), ParameterSlot.projectRemote (0));
         final CompiledWorkspace workspace = CompiledWorkspace.compile ("mix-actions", List.of (new de.mossgrabers.pull.core.runtime.view.TrackMixControlView (new de.mossgrabers.pull.core.runtime.view.PageNavigation (de.mossgrabers.pull.core.api.ControllerPageRef.core ("track", "TRACK"), de.mossgrabers.pull.core.api.ControllerPageRef::legacy))));
         workspace.start (snapshot (parameters (90, 200), Set.of (SHIFT)));
         final ControlId mix = PushControlIds.button ("TRACK");
@@ -82,9 +82,9 @@ class SnapbackSessionTest
     void capturesEachExactPreMutationBaselineOnceAndRestoresBothTargets ()
     {
         final SnapbackSession session = startedSession (parameters (100, 200));
-        session.handle (mutation (2, KNOB1, FIRST, 100), snapshot (parameters (99, 200), Set.of (SHIFT)), ParameterSlot.active (0));
-        session.handle (mutation (3, KNOB2, SECOND, 200), snapshot (parameters (50, 199), Set.of (SHIFT)), ParameterSlot.active (1));
-        session.handle (mutation (4, KNOB1, FIRST, 50), snapshot (parameters (49, 175), Set.of (SHIFT)), ParameterSlot.active (0));
+        session.handle (mutation (2, KNOB1, FIRST, 100), snapshot (parameters (99, 200), Set.of (SHIFT)), ParameterSlot.projectRemote (0));
+        session.handle (mutation (3, KNOB2, SECOND, 200), snapshot (parameters (50, 199), Set.of (SHIFT)), ParameterSlot.projectRemote (1));
+        session.handle (mutation (4, KNOB1, FIRST, 50), snapshot (parameters (49, 175), Set.of (SHIFT)), ParameterSlot.projectRemote (0));
 
         CoreResult result = session.decorate (CoreResult.empty (), List.of ());
         assertEquals (Map.of (FIRST, 100.0, SECOND, 200.0), result.desiredParameterInteraction ().baselines ());
@@ -116,11 +116,11 @@ class SnapbackSessionTest
         final SnapbackSession.Update first = session.handle (
             relative (2, KNOB1, 4),
             snapshot (parameters (100, 200), Set.of (SHIFT)),
-            ParameterSlot.active (0));
+            ParameterSlot.projectRemote (0));
         session.handle (
             relative (3, KNOB1, 6),
             snapshot (parameters (80, 200), Set.of (SHIFT)),
-            ParameterSlot.active (0));
+            ParameterSlot.projectRemote (0));
 
         assertFalse (first.intercepted ());
         assertEquals (
@@ -131,7 +131,7 @@ class SnapbackSessionTest
         final SnapbackSession.Update blocked = session.handle (
             relative (5, KNOB1, 1),
             snapshot (parameters (70, 200), Set.of ()),
-            ParameterSlot.active (0));
+            ParameterSlot.projectRemote (0));
         assertTrue (blocked.intercepted ());
 
         session.handle (tick (6), snapshot (parameters (70, 200), Set.of ()), null);
@@ -145,7 +145,7 @@ class SnapbackSessionTest
     void semanticActionWaitsForRestoreAcknowledgementBeforeRelease ()
     {
         final SnapbackSession session = startedSession (parameters (100, 200));
-        session.handle (mutation (2, KNOB1, FIRST, 100), snapshot (parameters (40, 200), Set.of (SHIFT)), ParameterSlot.active (0));
+        session.handle (mutation (2, KNOB1, FIRST, 100), snapshot (parameters (40, 200), Set.of (SHIFT)), ParameterSlot.projectRemote (0));
 
         final ResolvedControllerAction navigation = action (3, NAVIGATION);
         final SnapbackSession.Update deferred = session.handleAction (navigation, snapshot (parameters (40, 200), Set.of (SHIFT)));
@@ -172,7 +172,7 @@ class SnapbackSessionTest
     {
         final SnapbackSession session = startedSession (parameters (100, 200));
 
-        session.handle (mutation (2, KNOB1, FIRST, 100), snapshot (parameters (99, 200), Set.of (SHIFT)), ParameterSlot.active (1));
+        session.handle (mutation (2, KNOB1, FIRST, 100), snapshot (parameters (99, 200), Set.of (SHIFT)), ParameterSlot.projectRemote (1));
 
         assertTrue (session.decorate (CoreResult.empty (), List.of ()).desiredParameterInteraction ().baselines ().isEmpty ());
     }
@@ -202,7 +202,7 @@ class SnapbackSessionTest
     void delayedDriftAfterOneBaselineSampleRequestsTheRestoreAgain ()
     {
         final SnapbackSession session = startedSession (parameters (100, 200));
-        session.handle (mutation (2, KNOB1, FIRST, 100), snapshot (parameters (40, 200), Set.of (SHIFT)), ParameterSlot.active (0));
+        session.handle (mutation (2, KNOB1, FIRST, 100), snapshot (parameters (40, 200), Set.of (SHIFT)), ParameterSlot.projectRemote (0));
         session.handle (button (3, SHIFT, InputPhase.END), snapshot (parameters (40, 200), Set.of ()), null);
         session.handle (tick (4), snapshot (parameters (40, 200), Set.of ()), null);
         session.handle (tick (5), snapshot (parameters (40, 200), Set.of ()), null);
@@ -219,7 +219,7 @@ class SnapbackSessionTest
     void restoreTimeoutReleasesSemanticActionWithoutAnUnleasedFinalWrite ()
     {
         final SnapbackSession session = startedSession (parameters (100, 200));
-        session.handle (mutation (2, KNOB1, FIRST, 100), snapshot (parameters (40, 200), Set.of (SHIFT)), ParameterSlot.active (0));
+        session.handle (mutation (2, KNOB1, FIRST, 100), snapshot (parameters (40, 200), Set.of (SHIFT)), ParameterSlot.projectRemote (0));
         final ResolvedControllerAction navigation = action (3, NAVIGATION);
         session.handleAction (navigation, snapshot (parameters (40, 200), Set.of (SHIFT)));
         session.handle (tick (4), snapshot (parameters (40, 200), Set.of (SHIFT)), null);
@@ -239,7 +239,7 @@ class SnapbackSessionTest
     void repressDuringRestorationBeginsFreshSessionOnlyAfterAcknowledgement ()
     {
         final SnapbackSession session = startedSession (parameters (100, 200));
-        session.handle (mutation (2, KNOB1, FIRST, 100), snapshot (parameters (40, 200), Set.of (SHIFT)), ParameterSlot.active (0));
+        session.handle (mutation (2, KNOB1, FIRST, 100), snapshot (parameters (40, 200), Set.of (SHIFT)), ParameterSlot.projectRemote (0));
         session.handle (button (3, SHIFT, InputPhase.END), snapshot (parameters (40, 200), Set.of ()), null);
         session.handle (button (4, SHIFT, InputPhase.BEGIN), snapshot (parameters (40, 200), Set.of (SHIFT)), null);
         session.handle (tick (5), snapshot (parameters (40, 200), Set.of (SHIFT)), null);
@@ -251,7 +251,7 @@ class SnapbackSessionTest
         assertTrue (result.desiredParameterInteraction ().baselines ().isEmpty ());
         assertTrue (result.desiredBridgeSubscriptions ().includes (BridgeSubscription.PARAMETERS));
 
-        session.handle (mutation (9, KNOB2, SECOND, 200), snapshot (parameters (100, 199), Set.of (SHIFT)), ParameterSlot.active (1));
+        session.handle (mutation (9, KNOB2, SECOND, 200), snapshot (parameters (100, 199), Set.of (SHIFT)), ParameterSlot.projectRemote (1));
         result = session.decorate (CoreResult.empty (), List.of ());
         assertEquals (Map.of (SECOND, 200.0), result.desiredParameterInteraction ().baselines ());
     }
@@ -261,8 +261,8 @@ class SnapbackSessionTest
     void returnMovesBothDirectionsDropsLostTargetsAndShortensForNavigation ()
     {
         final SnapbackSession session = startedSession (parameters (100, 200));
-        session.handle (relative (2, KNOB1, -60), snapshot (parameters (100, 200), Set.of (SHIFT)), ParameterSlot.active (0));
-        session.handle (relative (3, KNOB2, 60), snapshot (parameters (40, 200), Set.of (SHIFT)), ParameterSlot.active (1));
+        session.handle (relative (2, KNOB1, -60), snapshot (parameters (100, 200), Set.of (SHIFT)), ParameterSlot.projectRemote (0));
+        session.handle (relative (3, KNOB2, 60), snapshot (parameters (40, 200), Set.of (SHIFT)), ParameterSlot.projectRemote (1));
         session.handle (button (4, SHIFT, InputPhase.END), timedSnapshot (parameters (40, 260), 0), null);
         session.handle (tick (5), timedSnapshot (parameters (40, 260), 10), null);
         session.handle (tick (6), timedSnapshot (parameters (40, 260), 20), null);
@@ -271,8 +271,8 @@ class SnapbackSessionTest
 
         final ParameterTargetRef replacement = new ParameterTargetRef (ParameterTargetKind.LIVE, "replacement", 3);
         final ParameterBridgeSnapshot rebound = new ParameterBridgeSnapshot (Map.of (
-            ParameterSlot.active (0), new ParameterTargetSnapshot (replacement, 10, 0.5),
-            ParameterSlot.active (1), new ParameterTargetSnapshot (SECOND, 230, 0.5)), Map.of (), Set.of ());
+            ParameterSlot.projectRemote (0), new ParameterTargetSnapshot (replacement, 10, 0.5),
+            ParameterSlot.projectRemote (1), new ParameterTargetSnapshot (SECOND, 230, 0.5)), Map.of (), Set.of ());
         assertEquals (List.of (new SetParameterValueEffect (SECOND, 224)),
             session.handle (tick (8), timedSnapshot (rebound, 620), null).effects ());
         final ResolvedControllerAction navigation = action (9, NAVIGATION);
@@ -339,8 +339,8 @@ class SnapbackSessionTest
     private static ParameterBridgeSnapshot parameters (final double first, final double second)
     {
         return new ParameterBridgeSnapshot (Map.of (
-            ParameterSlot.active (0), new ParameterTargetSnapshot (FIRST, first, 0.5),
-            ParameterSlot.active (1), new ParameterTargetSnapshot (SECOND, second, 0.5)), Map.of (), java.util.Set.of ());
+            ParameterSlot.projectRemote (0), new ParameterTargetSnapshot (FIRST, first, 0.5),
+            ParameterSlot.projectRemote (1), new ParameterTargetSnapshot (SECOND, second, 0.5)), Map.of (), java.util.Set.of ());
     }
 
 

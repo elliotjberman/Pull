@@ -51,6 +51,21 @@ mvn -o -pl pull-shell -am test
 For changes touching Bitwig API objects, follow `AGENTS.md` and run the complete package build with
 deprecation reporting before the live smoke test.
 
+## Retained parameter cutover (API 58)
+
+The old layer providers, NoteParameter/timer and ACTIVE compatibility path are removed. Permanent
+regressions run real core page compositions with independently advanced host samples: named sends
+and layers, Crossfade callback order/clamping, Groove modifiers/reset, note page roles and spacers,
+individual multi-note Snapback baselines, delayed readback, and held-tail rejection on owner/page
+changes. Shell tests separate note clip acquisition and property delivery from writes/readback;
+selection/grid changes and delete/Undo cannot revive captured targets. Candidate bank preparation
+must preserve committed target identities.
+
+Before updating the live acceptance record, install the matched API 58 shell/core under the singleton
+lease and drive the actual routed sends, Device/Chains/layers, Note and Groove/Crossfade paths. Verify
+later host values and Push output, including gain normalization, multi-note restoration and navigation
+during a hold. Current API 58 live validation is pending.
+
 ## Retained note-copy regression
 
 The legacy sequencer Duplicate gesture uses up to four private track/clip cursor pairs per editor

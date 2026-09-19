@@ -89,13 +89,13 @@ final class PullControllerCore implements ControllerCore
         final boolean edge = event instanceof final ControllerInputEvent input && input.kind ().isEdge () || event instanceof ButtonInputEvent || event instanceof TouchInputEvent;
         final InputGestureRouter.Dispatch captured = this.gestures.capture (event, this.workspace);
         final ResolvedControllerAction capturedAction = this.gestures.resolveAction (captured, snapshot);
-        final ParameterSlot mutationSlot;
-        if (captured.suppressed ()) mutationSlot = null;
-        else if (event instanceof final ParameterMutationEvent mutation) mutationSlot = this.workspace.parameterSlotOrNull (mutation.controlId (), snapshot);
-        else if (event instanceof final ControllerInputEvent input && input.kind () == InputKind.RELATIVE) mutationSlot = this.workspace.parameterSlotOrNull (input.controlId (), snapshot);
-        else mutationSlot = null;
+        final List<ParameterSlot> mutationSlots;
+        if (captured.suppressed ()) mutationSlots = List.of ();
+        else if (event instanceof final ParameterMutationEvent mutation) mutationSlots = this.workspace.parameterGroup (mutation.controlId (), snapshot);
+        else if (event instanceof final ControllerInputEvent input && input.kind () == InputKind.RELATIVE) mutationSlots = this.workspace.parameterGroup (input.controlId (), snapshot);
+        else mutationSlots = List.of ();
         final List<CoreEffect> effects = new ArrayList<> ();
-        SnapbackSession.Update update = this.drainReleased (captured.suppressed () ? new SnapbackSession.Update (true, List.of (), List.of ()) : this.snapback.handle (event, snapshot, mutationSlot), snapshot, effects);
+        SnapbackSession.Update update = this.drainReleased (captured.suppressed () ? new SnapbackSession.Update (true, List.of (), List.of ()) : this.snapback.handleGroup (event, snapshot, mutationSlots), snapshot, effects);
         final boolean eventIntercepted = update.intercepted ();
 
         // Legacy callbacks and host-driven page selection use the same parameter-restoration

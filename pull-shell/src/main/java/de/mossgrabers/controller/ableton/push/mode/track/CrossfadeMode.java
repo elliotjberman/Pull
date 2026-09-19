@@ -8,7 +8,7 @@ package de.mossgrabers.controller.ableton.push.mode.track;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.mode.Modes;
-import de.mossgrabers.framework.parameterprovider.track.CrossfadeParameterProvider;
+import de.mossgrabers.framework.parameterprovider.special.EmptyParameterProvider;
 
 
 /**
@@ -28,8 +28,10 @@ public class CrossfadeMode extends AbstractTrackMode
     {
         super (Modes.NAME_CROSSFADE, surface, model);
 
-        this.setParameterProvider (new CrossfadeParameterProvider (model));
+        this.setParameterProvider (new EmptyParameterProvider (8));
     }
 
 
+    @Override
+    public void onKnobTouch (final int index, final boolean touched) { }
 }

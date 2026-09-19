@@ -367,14 +367,18 @@ public final class PhysicalInputRouter<C>
     {
         if (event.kind ().sumsRelativeValues ())
         {
-            final PhysicalInputEvent<C> previous = this.pendingMotion.get (input);
-            final long value = previous == null || previous.ownerGeneration () != event.ownerGeneration () ? event.value () : Math.addExact (previous.value (), event.value ());
-            if (value == 0)
+            if (event.value () == 0) return;
+            PhysicalInputEvent<C> previous = this.pendingMotion.get (input);
+            if (previous != null && previous.ownerGeneration () != event.ownerGeneration ()) previous = null;
+            if (previous != null && previous.relativeSamples ().size () == de.mossgrabers.pull.core.api.event.ControllerInputEvent.RELATIVE_SAMPLE_CAPACITY)
             {
-                this.pendingMotion.remove (input);
-                return;
+                // Publish the older bounded batch before accepting another callback.
+                this.flush (input.control (), input.kind ());
+                previous = null;
             }
-            this.pendingMotion.put (input, event.withValue (value));
+            final java.util.List<Long> samples = new java.util.ArrayList<> (previous == null ? java.util.List.of () : previous.relativeSamples ());
+            samples.add (event.value ());
+            this.pendingMotion.put (input, event.withRelativeSamples (previous == null ? event.value () : Math.addExact (previous.value (), event.value ()), samples));
             return;
         }
         if (event.kind ().keepsLatestValue ())

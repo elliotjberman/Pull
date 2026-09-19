@@ -235,6 +235,8 @@ final class BoundedControllerBridge implements ControllerBridge
      * @param subscriptions State domains requested by the active core
      * @return True when the public bridge snapshot changed
      */
+    void installNoteParameters (final RetainedNoteParameters notes) { this.parameterTargets.installNoteParameters (notes); }
+
     @Override
     public boolean refresh (final long monotonicTimeNanos, final DesiredBridgeSubscriptions subscriptions, final DesiredParameterBanks parameterBanks)
     {
@@ -301,7 +303,7 @@ final class BoundedControllerBridge implements ControllerBridge
         this.masterCommands.refresh (monotonicTimeNanos, masterRequested, projectRequested);
         final MasterSnapshot master = masterRequested ? this.masterCommands.snapshot () : MasterSnapshot.empty ();
         final ProjectSnapshot project = projectRequested ? this.masterCommands.projectSnapshot () : ProjectSnapshot.empty ();
-        final ControllerBridgeSnapshot refreshed = new ControllerBridgeSnapshot (transportState, selected, sessionBankState, layout, noteView, noteRepeat, this.drumSnapshot, parameters, controllerMappingFeedback, master, project, requested.includes (BridgeSubscription.AUTOMATION) && this.automation != null ? this.automation.snapshot () : AutomationSnapshot.empty (), requested.includes (BridgeSubscription.ENCODER_CONFIGURATION) ? new EncoderConfigurationSnapshot (true, this.valueChanger.getUpperBound (), this.valueChanger.getStepSize (), this.surface.getConfiguration ().getKnobSensitivityDefault (), this.surface.getConfiguration ().getKnobSensitivitySlow ()) : EncoderConfigurationSnapshot.empty (), currentTrackBankState, requested.includes (BridgeSubscription.TRANSPORT_SETTINGS) && this.transportSettings != null ? this.transportSettings.snapshot () : TransportSettingsSnapshot.empty (), requested.includes (BridgeSubscription.CONTROLLER_SETTINGS) ? this.controllerSettings.snapshot () : de.mossgrabers.pull.core.api.ControllerSettingsSnapshot.empty (), this.applicationUi.refresh (requested.includes (BridgeSubscription.APPLICATION_UI)), this.surface.getModeManager ().requests (requested.includes (BridgeSubscription.CONTROLLER_PAGES)), requested.includes (BridgeSubscription.BROWSER) ? this.browser : BrowserSnapshot.empty (), requested.includes (BridgeSubscription.CONTROLLER_HARDWARE) ? this.captureControllerHardware () : ControllerHardwareSnapshot.empty (), requested.includes (BridgeSubscription.CONTROLLER_PAGE_DISPLAY) ? this.pageDisplayObserver.capture (this.surface, this.model, this.parameterTargets.deviceParameterOwner ()) : de.mossgrabers.pull.core.api.ControllerPageDisplaySnapshot.empty ());
+        final ControllerBridgeSnapshot refreshed = new ControllerBridgeSnapshot (transportState, selected, sessionBankState, layout, noteView, noteRepeat, this.drumSnapshot, parameters, controllerMappingFeedback, master, project, requested.includes (BridgeSubscription.AUTOMATION) && this.automation != null ? this.automation.snapshot () : AutomationSnapshot.empty (), requested.includes (BridgeSubscription.ENCODER_CONFIGURATION) ? new EncoderConfigurationSnapshot (true, this.valueChanger.getUpperBound (), this.valueChanger.getStepSize (), this.surface.getConfiguration ().getKnobSensitivityDefault (), this.surface.getConfiguration ().getKnobSensitivitySlow ()) : EncoderConfigurationSnapshot.empty (), currentTrackBankState, requested.includes (BridgeSubscription.TRANSPORT_SETTINGS) && this.transportSettings != null ? this.transportSettings.snapshot () : TransportSettingsSnapshot.empty (), requested.includes (BridgeSubscription.CONTROLLER_SETTINGS) ? this.controllerSettings.snapshot () : de.mossgrabers.pull.core.api.ControllerSettingsSnapshot.empty (), this.applicationUi.refresh (requested.includes (BridgeSubscription.APPLICATION_UI)), this.surface.getModeManager ().requests (requested.includes (BridgeSubscription.CONTROLLER_PAGES)), requested.includes (BridgeSubscription.BROWSER) ? this.browser : BrowserSnapshot.empty (), requested.includes (BridgeSubscription.CONTROLLER_HARDWARE) ? this.captureControllerHardware () : ControllerHardwareSnapshot.empty (), requested.includes (BridgeSubscription.CONTROLLER_PAGE_DISPLAY) ? this.pageDisplayObserver.capture (this.surface, this.model, this.parameterTargets.deviceParameterOwner (), this.parameterTargets.noteParameterOwner ()) : de.mossgrabers.pull.core.api.ControllerPageDisplaySnapshot.empty ());
         if (refreshed.equals (this.snapshot))
             return false;
 
@@ -601,6 +603,8 @@ final class BoundedControllerBridge implements ControllerBridge
             return masterAction;
         if (effect instanceof final SetTransportStateEffect setState)
             return new PreparedTransportState (setState.state (), setState.enabled ());
+        if (effect instanceof final de.mossgrabers.pull.core.api.effect.SetCurrentParameterValueEffect currentParameter)
+            return new PreparedParameterSet (this.parameterTargets.prepare (currentParameter));
         if (effect instanceof final SetParameterValueEffect setParameter)
             return new PreparedParameterSet (this.parameterTargets.prepare (setParameter, retainedTargets (parameterLeases)));
         if (effect instanceof final AdjustParameterValueEffect adjustParameter)
@@ -949,7 +953,7 @@ final class BoundedControllerBridge implements ControllerBridge
     {
         if (page.effectivePage ().kind () == de.mossgrabers.pull.core.api.ControllerPageRef.Kind.CORE)
             return de.mossgrabers.controller.ableton.push.mode.CorePageMode.containsInput (control, kind);
-        return java.util.Set.of ("DEVICE_PARAMS", "DEVICE_CHAINS", "DEVICE_LAYER", "DEVICE_LAYER_VOLUME", "DEVICE_LAYER_PAN",
+        return java.util.Set.of ("NOTE", "CROSSFADER", "GROOVE", "DEVICE_PARAMS", "DEVICE_CHAINS", "DEVICE_LAYER", "DEVICE_LAYER_VOLUME", "DEVICE_LAYER_PAN",
             "DEVICE_LAYER_SEND1", "DEVICE_LAYER_SEND2", "DEVICE_LAYER_SEND3", "DEVICE_LAYER_SEND4", "DEVICE_LAYER_SEND5", "DEVICE_LAYER_SEND6", "DEVICE_LAYER_SEND7", "DEVICE_LAYER_SEND8").contains (page.effectivePage ().legacyAlias ()) &&
             (kind == de.mossgrabers.pull.core.api.event.InputKind.RELATIVE || kind == de.mossgrabers.pull.core.api.event.InputKind.TOUCH) &&
             de.mossgrabers.controller.ableton.push.mode.CorePageMode.containsInput (control, kind);

@@ -1,15 +1,15 @@
 # Pull architecture
 
-Working source: Core API 57, checkpoint schema 6, Bitwig API 25. Migration is incomplete:
+Working source: Core API 58, checkpoint schema 6, Bitwig API 25. Migration is incomplete:
 core owns ordinary Push display pages and migrated controls; the inventory below names the
 remaining shell handlers. The optional Clip piano roll is deferred unchanged.
 
-The shared [retained cursor pool](docs/track-cursor-pool/README.md) supplies named track Volume/Pan,
-fill scanner/actuators, and retained Device remotes. The API 56 pool checkpoint passed a matched
-live startup, volume/read-back/output, paging/touch retirement and fill launch/return smoke.
-The API 57 expansion passed matched live Device acquisition, read-back/display, Shift/reset,
-page navigation, nested-device deletion/undo and stale-tail suppression. The same build passed
-fill hold/return/read-back/light retirement. The pool document records exact builds and coverage limits.
+The shared [retained cursor pool](docs/track-cursor-pool/README.md) supplies named track mix/sends,
+Crossfade, fill scanner/actuators, Device/Chains remotes, layer/drum-pad mix and exact note attributes.
+Groove uses named project parameters. All these encoder actions, resets, gestures and parameter
+feedback now belong to core; the generic ACTIVE bank and legacy parameter providers are deleted.
+API 58 requires a matched shell installation and restart. Its offline package gate passes; live
+validation is pending. Prior API 56/57 evidence covers the earlier pool/Device slice only.
 
 API 56 makes selected-track clip scanning an explicit core subscription. The active Drum fill
 view chooses the aligned selected target and cycles its scene pages; other views request no scan.
@@ -119,8 +119,8 @@ are separate paths. The shared lifecycle does not make unmigrated shell handlers
 | Transport/global pages | Core Play/Record, Mute/Solo, Tap, Undo/Redo, Track/Mix, Master/Frame, Accent/Info/Setup, Ribbon settings, Metronome/Automation and migrated arrows, including feedback. |
 | Drum / selected Note | Core applicability, Note/Layout, playable-pad pressure/lights, rates/roll, fills, octave/native maps and raw strip policy within installed geometry. |
 | Session | Core grid, scene keys, bank/page/octave navigation, Stop chords, modifiers, create/record/copy/browse and observed blinking lights. Within the Session navigation slice, legacy parameter pages retain horizontal parameter navigation. |
-| Device remotes | Core owns all eight encoder turns/touches, modifiers and parameter display through retained device/page targets. Distinct Device menu rows, arrows and their lights remain frozen. |
-| Chains/layers, Browser, Scales/Layout, Repeat, Fixed Length, Add Track, Crossfade, Track/Layer Details, Clip/Note/Quantize/Groove | Core components render ordinary displays from raw observations. Actions, parameter providers, modifiers and hardware lights remain frozen stable behavior. |
+| Device/Chains, layers/drum-pad mix, Crossfade, Note and Groove parameters | Core owns encoder actions, modifiers, reset and parameter feedback through named targets and the shared gesture/Snapback lifecycle. Distinct menu rows, navigation, feature toggles and their lights remain frozen. |
+| Browser, Scales/Layout, Repeat, Fixed Length, Add Track, Track/Layer Details, Clip/Quantize | Core components render ordinary displays from raw observations; remaining actions and hardware lights are frozen stable behavior. |
 | Color chooser | Physical pad drawing, target selection and click/return remain unchanged in the stable implementation; migration is explicitly deferred. |
 | Optional Clip piano roll | Specialized rendering is deferred unchanged. |
 | Clip/note editing gestures, clip length, Chords/Piano/Program Change, sequencers, Raindrops and alternate drum layouts | Remaining stable musical/editing controls and non-page feedback; core Note/Layout selection does not migrate the selected implementation. |
@@ -143,9 +143,10 @@ Shift pages eight. Light refresh is a single end-of-flush pass, so observer burs
 | --- | --- |
 | Session | 8×8 and 8×4; exact project/channel/scene locations, at most 72 acquired launch presses. Cleanup precedes controller bank rebind; external loss fails closed. |
 | Current-track banks | Two main windows and one effect bank, eight tracks each; track identity plus navigation generation. |
-| Named parameters | Seventeen banks, at most 131 slots: ACTIVE legacy, project/device remotes, selected mix/sends, current-bank Volume/Pan/eight Sends, Master/Cue and globals. |
-| Retained track cursors | 64 slots: 53 mix, two device/page, one eight-slot clip scanner, eight one-slot launch actuators. Private flat 64-track discovery; explicit overflow, project/UUID/assignment fences, later host readiness, exact retirement. Unrequested pool sampling is idle after its initial catalog. |
+| Named parameters | Named project/device remotes, selected/visible channel roles, layer/pad roles, Groove, Master/Cue and globals. Note exposes 17 attributes for at most 128 selected cells; only requested banks are sampled. |
+| Retained track cursors | 64 slots: 52 mix, two device/page, one note editor, one eight-slot clip scanner, eight one-slot launch actuators. Private flat 64-track discovery; explicit overflow, project/UUID/assignment fences, later host readiness, exact retirement. Unrequested pool sampling is idle after its initial catalog. |
 | Retained Device pages | Two pinned child devices, each with a named independent eight-remote page. Opaque child generations, later device equality, unfiltered page/slot addresses and coherent property observations, invalidation revisions; retiring cleanup keeps its own resource. |
+| Retained note editor | One pooled track with a pinned 128-step × 128-key clip window; at most 128 selected cells. Project/clip/grid/selection revisions, independent readback, per-note Snapback values. API 25 has no grid ACK or stable note ID; observed deletion permanently retires the captured generation. |
 | Selected-track clips | Shared pooled scanner and launch resources. Core requests target generation/UUID and absolute scene page; no other-track catalog. Accepted pages accumulate clips in scene order for the current target only; selection/existence and scene-count changes invalidate catalog generation/IDs. Two coherent host samples precede page readiness; held actuators retain exact cleanup independent of scanning. |
 | Drum | Canonical 16-pad window and bounded device candidates; a separate 64-pad proxy serves legacy Drum64. |
 | Deferred navigation | One pending selection per sibling bank, one parent-track proxy per nonempty bank; project/parent/cursor/count and row-position fences. One group-entry owner per native cursor, one submitted selection and one latest continuation. |
@@ -161,7 +162,9 @@ owners must agree. Old cleanup addressability is separate from new-write eligibi
 use pooled UUID actuators; selected mix survives visible-bank paging and exact outgoing touches remain
 addressable. Device remotes use opaque retained child owners joined to the same observed page for
 actions and rendering; source navigation cancels editing while exact cleanup retains its page.
-Sends and chain/layer modes retain existing fences. ACTIVE remains frozen support for those modes. See
+Sends share the track actuator. Layer/pad mix stays beneath its exact retained Device; changes to its
+child window retire the generation. Note edits capture each selected cell and reject stale clip/grid
+or selection revisions. There is no ACTIVE bank or generic wrapper-identity lookup. See
 [target limits](docs/findings/parameter-target-proxy-coupling.md) and the
 [mapping contract](pull-core-api/src/main/java/de/mossgrabers/pull/core/api/CONTROLLER_MAPPING_IDENTITY.md).
 

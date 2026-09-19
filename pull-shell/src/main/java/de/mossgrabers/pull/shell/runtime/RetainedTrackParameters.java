@@ -27,8 +27,13 @@ interface RetainedTrackParameters
     TrackMix lookup (String trackId);
 
     /** The fence must recheck the live project, assignment generation and retained track UUID. */
-    record TrackMix (String trackId, long assignmentGeneration, IParameter volume, IParameter pan, List<IParameter> sends, LongSupplier sendGeneration, BooleanSupplier addressable)
+    record TrackMix (String trackId, long assignmentGeneration, IParameter volume, IParameter pan, IParameter crossfade, List<IParameter> sends, LongSupplier sendGeneration, BooleanSupplier addressable)
     {
+        TrackMix (final String trackId, final long assignmentGeneration, final IParameter volume, final IParameter pan, final List<IParameter> sends, final LongSupplier sendGeneration, final BooleanSupplier addressable)
+        {
+            this (trackId, assignmentGeneration, volume, pan, de.mossgrabers.framework.daw.data.empty.EmptyParameter.INSTANCE, sends, sendGeneration, addressable);
+        }
+
         public TrackMix
         {
             trackId = Objects.requireNonNull (trackId, "trackId");
@@ -36,6 +41,7 @@ interface RetainedTrackParameters
                 throw new IllegalArgumentException ("A retained track mix requires a ready identity and generation");
             volume = Objects.requireNonNull (volume, "volume");
             pan = Objects.requireNonNull (pan, "pan");
+            crossfade = Objects.requireNonNull (crossfade, "crossfade");
             sends = List.copyOf (sends);
             if (sends.size () != 8)
                 throw new IllegalArgumentException ("A retained track has eight send slots");
@@ -45,12 +51,12 @@ interface RetainedTrackParameters
 
         long generation (final int role)
         {
-            return role < 2 ? this.assignmentGeneration : this.sendGeneration.getAsLong ();
+            return role < 2 || role == 10 ? this.assignmentGeneration : this.sendGeneration.getAsLong ();
         }
 
         IParameter parameter (final int index)
         {
-            return index == 0 ? this.volume : index == 1 ? this.pan : this.sends.get (index - 2);
+            return index == 0 ? this.volume : index == 1 ? this.pan : index == 10 ? this.crossfade : this.sends.get (index - 2);
         }
     }
 }

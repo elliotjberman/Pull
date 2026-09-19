@@ -52,7 +52,7 @@ public class DeviceLayerMode extends BaseMode<ILayer>
      * @param surface The control surface
      * @param model The model
      */
-    DeviceLayerMode (final String name, final PushControlSurface surface, final IModel model)
+    public DeviceLayerMode (final String name, final PushControlSurface surface, final IModel model)
     {
         super (name, surface, model, model.getCursorDevice ().getLayerBank ());
 

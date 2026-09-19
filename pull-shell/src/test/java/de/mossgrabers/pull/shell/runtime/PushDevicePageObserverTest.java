@@ -73,17 +73,33 @@ class PushDevicePageObserverTest
     }
 
     @Test
-    void aDrumBankObserverGapCannotPairNewProviderValuesWithOldLayerLabels ()
+    void aDrumBankObserverGapMarksLayerObservationsUnaligned ()
     {
         final Fixture fixture = new Fixture ();
         final DeviceLayerMode mode = new DeviceLayerMode (fixture.surface, fixture.model);
         fixture.activate (Modes.DEVICE_LAYER, mode);
         assertTrue (fixture.capture ().selection ().bankAligned ());
-        assertFalse (fixture.capture ().parameters ().isEmpty ());
+        assertTrue (fixture.capture ().parameters ().isEmpty (), "layer values are supplied only by the retained bank");
         fixture.hasDrumPads = true; // cursor read-back changes before the mode's installed observer switches banks
         assertFalse (fixture.capture ().selection ().bankAligned ());
         assertTrue (fixture.capture ().parameters ().isEmpty ());
         assertTrue (fixture.requests.isEmpty ());
+    }
+
+    @Test
+    void namedLayerRowsRetainTheirObservedKindAndSendLane ()
+    {
+        final Fixture f = new Fixture ();
+        for (int index = 0; index < 8; index++)
+        {
+            f.activate (Modes.get (Modes.DEVICE_LAYER_SEND1, index), new DeviceLayerMode (Modes.NAME_LAYER_SENDS, f.surface, f.model));
+            assertEquals (DevicePageState.Kind.LAYER_SEND, f.capture ().kind ());
+            assertEquals (index, f.capture ().selection ().sendIndex ());
+        }
+        f.activate (Modes.DEVICE_LAYER_VOLUME, new DeviceLayerMode (Modes.NAME_LAYER_VOLUME, f.surface, f.model));
+        assertEquals (DevicePageState.Kind.LAYER_VOLUME, f.capture ().kind ());
+        f.activate (Modes.DEVICE_LAYER_PAN, new DeviceLayerMode (Modes.NAME_LAYER_PANNING, f.surface, f.model));
+        assertEquals (DevicePageState.Kind.LAYER_PAN, f.capture ().kind ());
     }
 
     @Test

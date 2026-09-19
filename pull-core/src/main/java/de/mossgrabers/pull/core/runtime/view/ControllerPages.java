@@ -38,11 +38,11 @@ public final class ControllerPages
         final SessionView sessionGrid = SessionView.full (stopGesture);
         final List<ControllerView> drumViews = List.of (new DrumPlayPadView (), new DrumOctaveView (), new DrumFillView (), drumControls, new DrumRateView ());
         final ControllerView legacyDisplay = new LegacyPageDisplayView (navigation);
-        final List<ControllerView> legacyPage = List.of (new StableParameterControlsView (), legacyDisplay);
+        final List<ControllerView> legacyPage = List.of (legacyDisplay);
         this.note = background ("Pull", SessionBankShape.empty (), List.of (), true, false, legacyPage);
         this.drum = background ("Pull Drum", SessionBankShape.empty (), drumViews, true, true, legacyPage);
         this.drumLegacy = background ("Pull Drum", SessionBankShape.empty (), drumViews, true, false, legacyPage);
-        final List<ControllerView> sessionLegacyPage = List.of (new StableParameterControlsView (), sessionGrid.legacyPageNavigation (), legacyDisplay);
+        final List<ControllerView> sessionLegacyPage = List.of (sessionGrid.legacyPageNavigation (), legacyDisplay);
         this.session = background ("Session", FULL_SESSION_BANK, List.of (sessionGrid), true, true, sessionLegacyPage);
         this.sessionPending = background ("Session destination", FULL_SESSION_BANK, List.of (new SessionTemporarySelectionView (selection), sessionGrid), false, true, sessionLegacyPage);
         this.vsLive = background (VS_LIVE_NAME, VS_LIVE_BANK, List.of (new SessionNavigationView (), SessionView.upper (true, stopGesture), new DrumPlayPadView (), new DrumOctaveView (), new DrumFillView (), new DrumControllerView (), drumControls, new DrumRateView ()), false, true, List.of (legacyDisplay));

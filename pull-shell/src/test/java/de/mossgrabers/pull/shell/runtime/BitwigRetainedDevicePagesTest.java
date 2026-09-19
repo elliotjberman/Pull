@@ -12,7 +12,7 @@ import de.mossgrabers.framework.daw.IHost;
 import de.mossgrabers.pull.shell.runtime.RetainedCursorPool.*;
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Proxy;
+import static de.mossgrabers.pull.shell.testing.TestProxies.nativeProxy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -389,10 +389,10 @@ class BitwigRetainedDevicePagesTest
         {
             this.position.setter = value -> this.requestedPosition = value;
             for (int i = 0; i < 8; i++) this.channels[i] = new LayerNode (fixture);
-            this.proxy = BitwigRetainedDevicePagesTest.proxy (DeviceLayerBank.class, (method, args) -> switch (method)
+            this.proxy = de.mossgrabers.pull.shell.testing.TestProxies.nativeProxy (DeviceLayerBank.class, (method, args) -> switch (method)
             {
-                case "scrollPosition" -> this.position.proxy (SettableIntegerValue.class);
-                case "itemCount" -> this.count.proxy (IntegerValue.class);
+                case "scrollPosition" -> this.position.nativeProxy (SettableIntegerValue.class);
+                case "itemCount" -> this.count.nativeProxy (IntegerValue.class);
                 case "getItemAt" -> this.channels[(Integer) args[0]].proxy;
                 default -> throw new AssertionError (method);
             });
@@ -416,10 +416,10 @@ class BitwigRetainedDevicePagesTest
         {
             this.volume = new RemoteNode (fixture, true);
             this.pan = new RemoteNode (fixture, true);
-            this.proxy = BitwigRetainedDevicePagesTest.proxy (DeviceLayer.class, (method, args) -> switch (method)
+            this.proxy = de.mossgrabers.pull.shell.testing.TestProxies.nativeProxy (DeviceLayer.class, (method, args) -> switch (method)
             {
-                case "exists" -> this.exists.proxy (BooleanValue.class);
-                case "channelId" -> this.id.proxy (StringValue.class);
+                case "exists" -> this.exists.nativeProxy (BooleanValue.class);
+                case "channelId" -> this.id.nativeProxy (StringValue.class);
                 case "volume" -> this.volume.proxy;
                 case "pan" -> this.pan.proxy;
                 case "sendBank" -> emptySends ();
@@ -464,12 +464,12 @@ class BitwigRetainedDevicePagesTest
         {
             this.page = new PageNode (fixture, false);
             this.layers = new LayerWindow (fixture);
-            this.proxy = proxy (PinnableCursorDevice.class, (method, args) -> switch (method)
+            this.proxy = nativeProxy (PinnableCursorDevice.class, (method, args) -> switch (method)
             {
-                case "exists" -> this.exists.proxy (BooleanValue.class);
-                case "channel" -> proxy (Channel.class, (name, arguments) -> {
+                case "exists" -> this.exists.nativeProxy (BooleanValue.class);
+                case "channel" -> nativeProxy (Channel.class, (name, arguments) -> {
                     assertEquals ("channelId", name);
-                    return this.channel.proxy (StringValue.class);
+                    return this.channel.nativeProxy (StringValue.class);
                 });
                 case "createCursorRemoteControlsPage" -> {
                     assertEquals (1, args.length);
@@ -508,18 +508,18 @@ class BitwigRetainedDevicePagesTest
             this.layers = new LayerWindow (fixture);
             this.pinned.setter = value -> this.requestedPin = value;
             this.page.index.setter = value -> { this.requestedPage = value; fixture.commands.add ("page:" + slot + ":" + value); };
-            this.proxy = proxy (PinnableCursorDevice.class, (method, args) -> switch (method)
+            this.proxy = nativeProxy (PinnableCursorDevice.class, (method, args) -> switch (method)
             {
-                case "exists" -> this.exists.proxy (BooleanValue.class);
-                case "isPinned" -> this.pinned.proxy (SettableBooleanValue.class);
+                case "exists" -> this.exists.nativeProxy (BooleanValue.class);
+                case "isPinned" -> this.pinned.nativeProxy (SettableBooleanValue.class);
                 case "createLayerBank" -> this.layers.proxy;
                 case "createDrumPadBank" -> emptyPads ();
-                case "createEqualsValue" -> { assertSame (fixture.source.proxy, args[0]); yield this.equal.proxy (BooleanValue.class); }
+                case "createEqualsValue" -> { assertSame (fixture.source.proxy, args[0]); yield this.equal.nativeProxy (BooleanValue.class); }
                 case "selectDevice" -> { assertSame (fixture.source.proxy, args[0]); this.requestedDevice = fixture.source.observed; fixture.commands.add ("device:" + slot + ":" + this.requestedDevice.id); yield null; }
                 case "createCursorRemoteControlsPage" -> { assertEquals (3, args.length, "retained pages must be independent named cursors"); yield this.page.proxy; }
                 default -> throw new AssertionError (method);
             });
-            this.track = proxy (CursorTrack.class, (method, args) -> {
+            this.track = nativeProxy (CursorTrack.class, (method, args) -> {
                 assertEquals ("createCursorDevice", method);
                 assertEquals (4, args.length);
                 assertEquals (CursorDeviceFollowMode.FOLLOW_SELECTION, args[3]);
@@ -546,13 +546,13 @@ class BitwigRetainedDevicePagesTest
         {
             this.fixture = fixture;
             for (int slot = 0; slot < 8; slot++) this.remotes[slot] = new RemoteNode (fixture, retained);
-            this.proxy = proxy (CursorRemoteControlsPage.class, (method, args) -> switch (method)
+            this.proxy = nativeProxy (CursorRemoteControlsPage.class, (method, args) -> switch (method)
             {
-                case "selectedPageIndex" -> this.index.proxy (SettableIntegerValue.class);
-                case "pageNames" -> this.names.proxy (StringArrayValue.class);
+                case "selectedPageIndex" -> this.index.nativeProxy (SettableIntegerValue.class);
+                case "pageNames" -> this.names.nativeProxy (StringArrayValue.class);
                 case "getParameter" -> this.remotes[(Integer) args[0]].proxy;
-                case "hasPrevious", "hasNext" -> new Value<> (false).proxy (BooleanValue.class);
-                case "pageCount" -> new Value<> (2).proxy (IntegerValue.class);
+                case "hasPrevious", "hasNext" -> new Value<> (false).nativeProxy (BooleanValue.class);
+                case "pageCount" -> new Value<> (2).nativeProxy (IntegerValue.class);
                 default -> throw new AssertionError (method);
             });
         }
@@ -592,18 +592,18 @@ class BitwigRetainedDevicePagesTest
             this.name = new Value<> (retained ? "Previous remote" : "");
             this.value = new Value<> (retained ? 0.9 : 0.0);
             this.display = new Value<> (retained ? "stale" : "");
-            this.proxy = proxy (RemoteControl.class, (method, args) -> switch (method)
+            this.proxy = nativeProxy (RemoteControl.class, (method, args) -> switch (method)
             {
-                case "exists" -> this.exists.proxy (BooleanValue.class);
-                case "isBeingMapped" -> this.mapped.proxy (SettableBooleanValue.class);
-                case "name" -> this.name.proxy (SettableStringValue.class);
-                case "value" -> this.value.proxy (SettableRangedValue.class);
-                case "modulatedValue" -> this.value.proxy (RangedValue.class);
-                case "displayedValue" -> this.display.proxy (StringValue.class);
-                case "discreteValueCount" -> new Value<> (-1).proxy (IntegerValue.class);
+                case "exists" -> this.exists.nativeProxy (BooleanValue.class);
+                case "isBeingMapped" -> this.mapped.nativeProxy (SettableBooleanValue.class);
+                case "name" -> this.name.nativeProxy (SettableStringValue.class);
+                case "value" -> this.value.nativeProxy (SettableRangedValue.class);
+                case "modulatedValue" -> this.value.nativeProxy (RangedValue.class);
+                case "displayedValue" -> this.display.nativeProxy (StringValue.class);
+                case "discreteValueCount" -> new Value<> (-1).nativeProxy (IntegerValue.class);
                 // Bitwig compares distinct internal ParameterTarget wrappers, even for the same
                 // mapped remote. Readiness must use the exact device/page/slot and later properties.
-                case "createEqualsValue" -> new Value<> (false).proxy (BooleanValue.class);
+                case "createEqualsValue" -> new Value<> (false).nativeProxy (BooleanValue.class);
                 case "get" -> this.value.observed;
                 case "touch", "setIndication" -> { fixture.effects.add (this.target.id + ":" + method + ":" + args[0]); yield null; }
                 case "set", "setImmediately" -> {
@@ -620,25 +620,25 @@ class BitwigRetainedDevicePagesTest
 
     private static SendBank emptySends ()
     {
-        return proxy (SendBank.class, (method, args) -> switch (method)
+        return nativeProxy (SendBank.class, (method, args) -> switch (method)
         {
             case "getItemAt" -> relaxedProxy (Send.class);
-            case "scrollPosition" -> new Value<> (0).proxy (SettableIntegerValue.class);
-            case "itemCount" -> new Value<> (0).proxy (IntegerValue.class);
+            case "scrollPosition" -> new Value<> (0).nativeProxy (SettableIntegerValue.class);
+            case "itemCount" -> new Value<> (0).nativeProxy (IntegerValue.class);
             default -> throw new AssertionError (method);
         });
     }
 
     private static DrumPadBank emptyPads ()
     {
-        return proxy (DrumPadBank.class, (method, args) -> switch (method)
+        return nativeProxy (DrumPadBank.class, (method, args) -> switch (method)
         {
-            case "scrollPosition" -> new Value<> (0).proxy (SettableIntegerValue.class);
-            case "itemCount" -> new Value<> (0).proxy (IntegerValue.class);
-            case "getItemAt" -> proxy (DrumPad.class, (name, arguments) -> switch (name)
+            case "scrollPosition" -> new Value<> (0).nativeProxy (SettableIntegerValue.class);
+            case "itemCount" -> new Value<> (0).nativeProxy (IntegerValue.class);
+            case "getItemAt" -> nativeProxy (DrumPad.class, (name, arguments) -> switch (name)
             {
-                case "exists" -> new Value<> (false).proxy (BooleanValue.class);
-                case "channelId" -> new Value<> ("").proxy (StringValue.class);
+                case "exists" -> new Value<> (false).nativeProxy (BooleanValue.class);
+                case "channelId" -> new Value<> ("").nativeProxy (StringValue.class);
                 case "volume", "pan" -> relaxedProxy (Parameter.class);
                 case "sendBank" -> emptySends ();
                 default -> throw new AssertionError (name);
@@ -654,9 +654,9 @@ class BitwigRetainedDevicePagesTest
         private Consumer<T> setter = ignored -> { };
         private Value (final T observed) { this.observed = observed; }
         @SuppressWarnings ("unchecked")
-        private <I> I proxy (final Class<I> type)
+        private <I> I nativeProxy (final Class<I> type)
         {
-            return BitwigRetainedDevicePagesTest.proxy (type, (method, args) -> switch (method)
+            return de.mossgrabers.pull.shell.testing.TestProxies.nativeProxy (type, (method, args) -> switch (method)
             {
                 case "get", "getAsDouble", "getLimited" -> this.observed;
                 case "set" -> { this.setter.accept ((T) args[0]); yield null; }
@@ -678,20 +678,4 @@ class BitwigRetainedDevicePagesTest
         }
     }
 
-    private interface Invocation { Object invoke (String method, Object[] args); }
-    private static <T> T proxy (final Class<T> type, final Invocation invocation)
-    {
-        return type.cast (Proxy.newProxyInstance (type.getClassLoader (), new Class<?>[] {type}, (instance, method, args) -> {
-            assertFalse (method.isAnnotationPresent (Deprecated.class), "deprecated API call: " + method);
-            return switch (method.getName ())
-            {
-                case "markInterested", "subscribe", "unsubscribe" -> null;
-                case "isSubscribed" -> true;
-                case "toString" -> type.getSimpleName ();
-                case "hashCode" -> System.identityHashCode (instance);
-                case "equals" -> instance == args[0];
-                default -> invocation.invoke (method.getName (), args);
-            };
-        }));
-    }
 }

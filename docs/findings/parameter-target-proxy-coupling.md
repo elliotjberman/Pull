@@ -12,8 +12,8 @@ It cancels when the active target/binding disappears, suppresses the physical ta
 exact resource retirement. This finding now concerns the remaining host adapters, particularly the
 Device family. The [retained cursor pool](../track-cursor-pool/README.md) supplies named Volume/Pan
 actuators and opaque Device remote-page owners. Its scoped matched live gate passed, including nested
-acquisition, deletion/undo and stale-tail suppression. Chain/layer identity, unobservable remote
-remapping and persistent controller overrides remain unresolved.
+acquisition, deletion/undo and stale-tail suppression. API 58 adds retained sends, Chains/layers, and note cells and deletes ACTIVE; its matched live
+acceptance is pending. Unobservable remote remapping and persistent controller overrides remain limits.
 
 ## What the integration resolves
 
@@ -39,7 +39,7 @@ The shell distinguishes new-write eligibility from cleanup addressability. It re
 only through its still-exact actuator. Named Volume/Pan now retain their exact track UUID independently of Session paging; the old touch
 can be released after its visible binding moves. Device remotes retain an exact pinned child and
 independent page for outgoing cleanup after source navigation; their display joins the same opaque
-owner/page/slot as their actions. Sends and chain/layer children retain existing target fences. If an external cursor change has already rebound a nonretained proxy,
+owner/page/slot as their actions. Sends now share retained track actuators; layer/pad children retain their Device owner and window generation. If an external cursor change has already rebound a nonretained proxy,
 it drops/reports the lease instead of touching the replacement. Retirement is not a DAW write ACK.
 Snapback still waits for observed restoration, with the separate
 [precision limitation](snapback-v1-limitations.md#restoration-precision).
@@ -57,12 +57,12 @@ Snapback still waits for observed restoration, with the separate
   context, not an owning-track identity. Retained child equality and observed invalidation revisions
   passed the documented ordinary nested acquisition and deletion/undo checks; same-named remaps without an observable event
   remain outside a proved exact-cleanup contract.
-- Remaining chain/layer controls need verified owners and parameter roles; distinct Device menu
-  navigation/lights remain frozen. No device UUID may be invented from name, slot or wrapper.
+- The API 58 send/layer/note cutover needs matched live acceptance. Distinct Device menu
+  navigation/lights remain frozen. No device UUID is inferred from name, slot or wrapper.
+- Note identity is a retained clip plus grid and selected cell. API 25 has no stable note ID or
+  geometry ACK; unobserved same-cell deletion/recreation is outside the guarantee.
 - Two proxies exposing the same semantic parameter are not generally deduplicated. Document exact
   aliasing guarantees for any new adapter before allowing shared target acquisition.
-- The inherited `ACTIVE` bank remains frozen support for unmigrated stable parameter modes. Delete
-  those callers as each complete family moves; new core views use named banks and declared targets.
 - Cancellation cannot undo an external rebind that already made an old actuator unreachable. Any
   feature requiring guaranteed host restoration needs a proved directly addressable cleanup target.
 

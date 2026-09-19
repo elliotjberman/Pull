@@ -36,6 +36,11 @@ final class ParameterAlignment
             case SELECTED_TRACK -> slot.index () < 2 && snapshot.bridge ().selectedTrack ().exists () && matches (target, slot.index () == 0 ? "channel-volume" : "channel-pan", snapshot.bridge ().selectedTrack ().channelId ());
             case SELECTED_TRACK_SENDS -> snapshot.bridge ().selectedTrack ().exists () && matches (target, "channel-send", snapshot.bridge ().selectedTrack ().channelId ());
             case SELECTED_DEVICE_REMOTE -> deviceMatches (snapshot, target, slot.index ());
+            case NOTE -> snapshot.bridge ().pageDisplay ().state () instanceof de.mossgrabers.pull.core.api.EditingPageState.Note note && note.exists () &&
+                matches (target, "note-attribute", note.parameterOwner ()) && target.identity ().page () == slot.index () / de.mossgrabers.pull.core.api.NoteParameterRole.values ().length &&
+                target.identity ().page () < note.count () && target.identity ().index () == slot.index () % de.mossgrabers.pull.core.api.NoteParameterRole.values ().length;
+            case GROOVE -> snapshot.bridge ().automation ().available () && matches (target, "project-groove", snapshot.bridge ().automation ().projectIdentity ()) && target.identity ().index () == slot.index ();
+            case TRACK_CROSSFADE -> snapshot.bridge ().pageDisplay ().state () instanceof de.mossgrabers.pull.core.api.DevicePageState state && state.kind () == de.mossgrabers.pull.core.api.DevicePageState.Kind.CROSSFADE && slot.index () < state.channels ().size () && state.channels ().get (slot.index ()).exists () && matches (target, "channel-crossfade", state.channels ().get (slot.index ()).id ());
             case PROJECT_REMOTE -> snapshot.bridge ().automation ().available () && matches (target, "project-remote", snapshot.bridge ().automation ().projectIdentity ());
             case MASTER -> masterContextAligned (snapshot) && matches (target, "project-master", snapshot.bridge ().master ().projectIdentity ()) && target.identity ().index () == slot.index ();
             default -> slot.bank ().isLayer () && layerMatches (snapshot, target, slot);
@@ -54,7 +59,10 @@ final class ParameterAlignment
         final var channel = selected ? state.selectedChannel () : visible >= 0 && visible < state.channels ().size () ? state.channels ().get (visible) : null;
         final String role = bank == de.mossgrabers.pull.core.api.ParameterBankId.LAYER_VOLUME || bank == de.mossgrabers.pull.core.api.ParameterBankId.SELECTED_LAYER && slot.index () == 0 ? "volume" :
             bank == de.mossgrabers.pull.core.api.ParameterBankId.LAYER_PAN || bank == de.mossgrabers.pull.core.api.ParameterBankId.SELECTED_LAYER && slot.index () == 1 ? "pan" : "send";
-        return channel != null && channel.exists () && matches (target, "channel-" + role, channel.id ());
+        final int roleIndex = !"send".equals (role) ? 0 : bank == de.mossgrabers.pull.core.api.ParameterBankId.SELECTED_LAYER_SENDS ? slot.index () :
+            bank.ordinal () - de.mossgrabers.pull.core.api.ParameterBankId.LAYER_SEND1.ordinal ();
+        return channel != null && channel.exists () && matches (target, "channel-" + role, channel.id ()) &&
+            target.identity ().index () == roleIndex && state.parameterOwnerId ().equals (target.identity ().resourceOwnerId ());
     }
 
     private static boolean deviceMatches (final ControllerSnapshot snapshot, final ParameterTargetSnapshot target, final int index)

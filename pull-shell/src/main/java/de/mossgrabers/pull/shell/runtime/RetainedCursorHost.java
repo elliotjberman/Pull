@@ -75,6 +75,7 @@ final class RetainedCursorHost implements RetainedCursorPool.Host, RetainedTrack
             track.channelId ().markInterested ();
             markParameter (track.volume ());
             markParameter (track.pan ());
+            track.crossFadeMode ().markInterested ();
             track.sendBank ().itemCount ().markInterested ();
             for (int send = 0; send < 8; send++)
                 markParameter (track.sendBank ().getItemAt (send));
@@ -88,6 +89,7 @@ final class RetainedCursorHost implements RetainedCursorPool.Host, RetainedTrack
             profiles.add (Profile.CLIP_ACTUATOR);
         profiles.add (Profile.DEVICE_PAGE);
         profiles.add (Profile.DEVICE_PAGE);
+        profiles.add (Profile.NOTE_EDITOR);
         while (profiles.size () < CAPACITY)
             profiles.add (Profile.MIX);
         final List<Resource> slots = new ArrayList<> (CAPACITY);
@@ -118,9 +120,14 @@ final class RetainedCursorHost implements RetainedCursorPool.Host, RetainedTrack
     /** Native child topology is created once during initialization, never at lookup or effect time. */
     Map<Integer, CursorTrack> deviceTracks ()
     {
+        return this.tracks (Profile.DEVICE_PAGE);
+    }
+
+    Map<Integer, CursorTrack> tracks (final Profile profile)
+    {
         final Map<Integer, CursorTrack> tracks = new LinkedHashMap<> ();
         for (int index = 0; index < this.resources.size (); index++)
-            if (this.resources.get (index).profile == Profile.DEVICE_PAGE)
+            if (this.resources.get (index).profile == profile)
                 tracks.put (Integer.valueOf (index), this.resources.get (index).track);
         return Map.copyOf (tracks);
     }
@@ -223,7 +230,7 @@ final class RetainedCursorHost implements RetainedCursorPool.Host, RetainedTrack
         final Handle handle = result.handle ();
         return this.mixes.computeIfAbsent (handle, ignored -> {
             final Resource resource = this.resources.get (handle.slot ());
-            return new TrackMix (handle.trackId (), handle.assignmentGeneration (), resource.volume, resource.pan, resource.sends, resource::sendGeneration, () -> this.pool.valid (handle));
+            return new TrackMix (handle.trackId (), handle.assignmentGeneration (), resource.volume, resource.pan, resource.crossfade, resource.sends, resource::sendGeneration, () -> this.pool.valid (handle));
         });
     }
 
@@ -304,6 +311,7 @@ final class RetainedCursorHost implements RetainedCursorPool.Host, RetainedTrack
             // A changed UUID alone cannot make old parameter values current. Confirm the complete
             // mix values against the independently observed discovery target before admitting it.
             if (discovered == null || !discovered.exists ().get () || !handle.trackId ().equals (discovered.channelId ().get ()) ||
+                !java.util.Objects.equals (resource.track.crossFadeMode ().get (), discovered.crossFadeMode ().get ()) ||
                 !sameParameter (resource.track.volume (), discovered.volume ()) || !sameParameter (resource.track.pan (), discovered.pan ()) ||
                 !handle.trackId ().equals (discovered.channelId ().get ()))
             {
@@ -347,6 +355,7 @@ final class RetainedCursorHost implements RetainedCursorPool.Host, RetainedTrack
         private final ClipLauncherSlotBank clips;
         private final ParameterImpl volume;
         private final ParameterImpl pan;
+        private final IParameter crossfade;
         private final List<IParameter> sends;
         private long sendRevision;
         private long confirmedSendRevision;
@@ -362,9 +371,12 @@ final class RetainedCursorHost implements RetainedCursorPool.Host, RetainedTrack
             this.track = track;
             this.volume = profile == Profile.MIX ? new ParameterImpl (valueChanger, track.volume ()) : null;
             this.pan = profile == Profile.MIX ? new ParameterImpl (valueChanger, track.pan ()) : null;
+            this.crossfade = profile == Profile.MIX ? new de.mossgrabers.bitwig.framework.daw.data.CrossfadeParameter (valueChanger, track, 0) : null;
             final List<IParameter> sendParameters = new ArrayList<> ();
             if (profile == Profile.MIX)
             {
+                track.crossFadeMode ().markInterested ();
+                track.position ().markInterested ();
                 final SendBank bank = track.sendBank ();
                 bank.scrollPosition ().markInterested ();
                 bank.scrollPosition ().set (0);

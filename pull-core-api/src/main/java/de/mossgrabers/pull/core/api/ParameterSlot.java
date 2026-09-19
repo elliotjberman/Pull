@@ -21,13 +21,17 @@ public record ParameterSlot (ParameterBankId bank, int index)
     /** Maximum parameter targets exposed in one snapshot. */
     public static final int INSTALLED_TARGET_CAPACITY = java.util.Arrays.stream (ParameterBankId.values ()).mapToInt (ParameterSlot::capacity).sum ();
 
+    /** Maximum selected note cells in an installed edit window. */
+    public static final int NOTE_CAPACITY = 128;
+
     public static int capacity (final ParameterBankId bank)
     {
+        if (bank == ParameterBankId.NOTE) return NOTE_CAPACITY * NoteParameterRole.values ().length;
         if (bank == ParameterBankId.GLOBAL) return GLOBAL_BANK_SIZE;
         return bank.isLayer () && bank != ParameterBankId.SELECTED_LAYER && bank != ParameterBankId.SELECTED_LAYER_SENDS ? 16 : BANK_SIZE;
     }
     /** Maximum exact targets one physical eight-knob interaction can retain, including globals. */
-    public static final int INTERACTION_TARGET_CAPACITY = 10;
+    public static final int INTERACTION_TARGET_CAPACITY = NOTE_CAPACITY * BANK_SIZE + 2;
 
     /** Selected-track volume. */
     public static final ParameterSlot SELECTED_TRACK_VOLUME = new ParameterSlot (ParameterBankId.SELECTED_TRACK, 0);
@@ -69,18 +73,6 @@ public record ParameterSlot (ParameterBankId bank, int index)
         final int capacity = capacity (bank);
         if (index < 0 || index >= capacity)
             throw new IllegalArgumentException ("parameter slot index is outside the installed bank capacity");
-    }
-
-
-    /**
-     * Get one active parameter-bank slot.
-     *
-     * @param index Zero-based slot index
-     * @return Slot
-     */
-    public static ParameterSlot active (final int index)
-    {
-        return new ParameterSlot (ParameterBankId.ACTIVE, index);
     }
 
 

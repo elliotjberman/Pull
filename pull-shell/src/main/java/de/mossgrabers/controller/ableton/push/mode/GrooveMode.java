@@ -10,12 +10,11 @@ import de.mossgrabers.framework.daw.GrooveParameterID;
 import de.mossgrabers.framework.daw.IGroove;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.IItem;
-import de.mossgrabers.framework.daw.data.empty.EmptyParameter;
 import de.mossgrabers.framework.featuregroup.AbstractFeatureGroup;
 import de.mossgrabers.framework.featuregroup.AbstractMode;
 import de.mossgrabers.framework.mode.Modes;
 import de.mossgrabers.framework.parameter.IParameter;
-import de.mossgrabers.framework.parameterprovider.special.FixedParameterProvider;
+import de.mossgrabers.framework.parameterprovider.special.EmptyParameterProvider;
 import de.mossgrabers.framework.utils.ButtonEvent;
 
 
@@ -28,7 +27,6 @@ public class GrooveMode extends BaseMode<IItem>
 {
     private static final String TAG_GROOVE = "Groove";
 
-    final IParameter []         params     = new IParameter [8];
 
 
     /**
@@ -41,22 +39,7 @@ public class GrooveMode extends BaseMode<IItem>
     {
         super (TAG_GROOVE, surface, model);
 
-        final IGroove groove = this.model.getGroove ();
-
-        this.params[2] = groove.getParameter (GrooveParameterID.SHUFFLE_AMOUNT);
-        this.params[3] = groove.getParameter (GrooveParameterID.SHUFFLE_RATE);
-
-        this.params[5] = groove.getParameter (GrooveParameterID.ACCENT_AMOUNT);
-        this.params[6] = groove.getParameter (GrooveParameterID.ACCENT_PHASE);
-        this.params[7] = groove.getParameter (GrooveParameterID.ACCENT_RATE);
-
-        for (int i = 0; i < this.params.length; i++)
-        {
-            if (this.params[i] == null)
-                this.params[i] = EmptyParameter.INSTANCE;
-        }
-
-        this.setParameterProvider (new FixedParameterProvider (this.params));
+        this.setParameterProvider (new EmptyParameterProvider (8));
     }
 
 
@@ -84,13 +67,7 @@ public class GrooveMode extends BaseMode<IItem>
     @Override
     public void onKnobTouch (final int index, final boolean isTouched)
     {
-        if (isTouched && this.surface.isDeletePressed ())
-        {
-            this.surface.setTriggerConsumed (ButtonID.DELETE);
-            this.params[index].resetValue ();
-        }
 
-        this.params[index].touchValue (isTouched);
     }
 
 

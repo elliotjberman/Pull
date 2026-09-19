@@ -15,6 +15,23 @@ public final class TestProxies
         return type.cast (Proxy.newProxyInstance (type.getClassLoader (), new Class<?> [] { type }, handler));
     }
 
+    /** Native API proxy: subscription plumbing is inert; each fake handles its own host contract. */
+    public static <T> T nativeProxy (final Class<T> type, final java.util.function.BiFunction<String, Object[], Object> invocation)
+    {
+        return proxy (type, (instance, method, args) -> {
+            if (method.isAnnotationPresent (Deprecated.class)) throw new AssertionError ("deprecated API call: " + method);
+            return switch (method.getName ())
+            {
+                case "markInterested", "subscribe", "unsubscribe" -> null;
+                case "isSubscribed" -> true;
+                case "toString" -> type.getSimpleName ();
+                case "hashCode" -> System.identityHashCode (instance);
+                case "equals" -> instance == args[0];
+                default -> invocation.apply (method.getName (), args);
+            };
+        });
+    }
+
     public static <T> T relaxedProxy (final Class<T> type)
     {
         return proxy (type, (proxy, method, arguments) -> relaxedValue (method.getReturnType ()));

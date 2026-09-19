@@ -7,7 +7,7 @@ import de.mossgrabers.framework.controller.valuechanger.TwosComplementValueChang
 import de.mossgrabers.pull.shell.runtime.RetainedCursorPool.Coverage;
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Proxy;
+import static de.mossgrabers.pull.shell.testing.TestProxies.nativeProxy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -172,7 +172,7 @@ class RetainedCursorHostTest
 
         private RetainedCursorHost service ()
         {
-            final ControllerHost host = proxy (ControllerHost.class, (method, args) -> switch (method)
+            final ControllerHost host = nativeProxy (ControllerHost.class, (method, args) -> switch (method)
             {
                 case "createTrackBank" -> {
                     this.flat = (Boolean) args[3];
@@ -194,7 +194,7 @@ class RetainedCursorHostTest
 
         private TrackBank bank ()
         {
-            return proxy (TrackBank.class, (method, args) -> switch (method)
+            return nativeProxy (TrackBank.class, (method, args) -> switch (method)
             {
                 case "itemCount" -> value (IntegerValue.class, this.tracks::size);
                 case "scrollPosition" -> value (SettableIntegerValue.class, () -> 0);
@@ -208,7 +208,7 @@ class RetainedCursorHostTest
 
         private Track track (final Supplier<TrackState> state)
         {
-            return proxy (Track.class, (method, args) -> trackProperty (method, state, state, this));
+            return nativeProxy (Track.class, (method, args) -> trackProperty (method, state, state, this));
         }
 
         private void applyIdentities ()
@@ -254,9 +254,9 @@ class RetainedCursorHostTest
 
         private CursorNode (final FakeHost host, final int scenes)
         {
-            this.proxy = proxy (CursorTrack.class, (method, args) -> switch (method)
+            this.proxy = nativeProxy (CursorTrack.class, (method, args) -> switch (method)
             {
-                case "isPinned" -> proxy (SettableBooleanValue.class, (name, arguments) -> {
+                case "isPinned" -> nativeProxy (SettableBooleanValue.class, (name, arguments) -> {
                     if (name.equals ("set")) { this.requestedPin = (Boolean) arguments[0]; return null; }
                     if (name.equals ("get")) return this.pinned;
                     throw new AssertionError (name);
@@ -267,10 +267,10 @@ class RetainedCursorHostTest
                     host.assignments++;
                     yield null;
                 }
-                case "clipLauncherSlotBank" -> proxy (ClipLauncherSlotBank.class, (name, arguments) -> switch (name)
+                case "clipLauncherSlotBank" -> nativeProxy (ClipLauncherSlotBank.class, (name, arguments) -> switch (name)
                 {
                     case "scrollPosition", "itemCount" -> value (SettableIntegerValue.class, () -> 0);
-                    case "getItemAt" -> proxy (ClipLauncherSlot.class, (slotMethod, slotArgs) -> switch (slotMethod)
+                    case "getItemAt" -> nativeProxy (ClipLauncherSlot.class, (slotMethod, slotArgs) -> switch (slotMethod)
                     {
                         case "sceneIndex" -> value (IntegerValue.class, () -> (Integer) arguments[0]);
                         case "name" -> value (SettableStringValue.class, () -> "");
@@ -289,11 +289,12 @@ class RetainedCursorHostTest
         {
             case "exists" -> value (BooleanValue.class, () -> !identity.get ().id.isEmpty ());
             case "channelId", "name" -> value (SettableStringValue.class, () -> identity.get ().id);
+            case "crossFadeMode" -> value (com.bitwig.extension.controller.api.SettableEnumValue.class, () -> "AB");
             case "trackType" -> value (StringValue.class, () -> "Instrument");
             case "position" -> value (IntegerValue.class, () -> 0);
-            case "sendBank" -> proxy (SendBank.class, (name, args) -> switch (name)
+            case "sendBank" -> nativeProxy (SendBank.class, (name, args) -> switch (name)
             {
-                case "itemCount" -> proxy (IntegerValue.class, (operation, arguments) -> switch (operation)
+                case "itemCount" -> nativeProxy (IntegerValue.class, (operation, arguments) -> switch (operation)
                 {
                     case "get" -> parameters.get ().sendCount;
                     case "addValueObserver" -> { host.sendCountObservers.add ((com.bitwig.extension.callback.IntegerValueChangedCallback) arguments[0]); yield null; }
@@ -310,7 +311,7 @@ class RetainedCursorHostTest
 
     private static Send send (final Supplier<TrackState> target, final int index, final FakeHost host)
     {
-        return proxy (Send.class, (method, args) -> switch (method)
+        return nativeProxy (Send.class, (method, args) -> switch (method)
         {
             case "exists" -> value (BooleanValue.class, () -> !target.get ().id.isEmpty () && index < target.get ().sendCount);
             case "name" -> value (StringValue.class, () -> "Send " + index);
@@ -322,7 +323,7 @@ class RetainedCursorHostTest
 
     private static Parameter parameter (final Supplier<TrackState> target, final boolean pan, final FakeHost host)
     {
-        return proxy (Parameter.class, (method, args) -> parameterProperty (target, pan, host, method, args));
+        return nativeProxy (Parameter.class, (method, args) -> parameterProperty (target, pan, host, method, args));
     }
 
     private static Object parameterProperty (final Supplier<TrackState> target, final boolean pan, final FakeHost host, final String method, final Object[] args)
@@ -349,7 +350,7 @@ class RetainedCursorHostTest
 
     private static <T> T value (final Class<T> type, final Supplier<Object> value)
     {
-        return proxy (type, (method, args) -> switch (method)
+        return nativeProxy (type, (method, args) -> switch (method)
         {
             case "get", "getAsDouble", "getLimited" -> value.get ();
             case "set", "addValueObserver" -> null;
@@ -357,21 +358,4 @@ class RetainedCursorHostTest
         });
     }
 
-    private interface Invocation { Object invoke (String method, Object[] args); }
-
-    private static <T> T proxy (final Class<T> type, final Invocation invocation)
-    {
-        return type.cast (Proxy.newProxyInstance (type.getClassLoader (), new Class<?>[] { type }, (instance, method, args) -> {
-            assertFalse (method.isAnnotationPresent (Deprecated.class), "deprecated API call: " + method);
-            return switch (method.getName ())
-            {
-                case "markInterested", "subscribe", "unsubscribe" -> null;
-                case "isSubscribed" -> true;
-                case "toString" -> type.getSimpleName ();
-                case "hashCode" -> System.identityHashCode (instance);
-                case "equals" -> instance == args[0];
-                default -> invocation.invoke (method.getName (), args);
-            };
-        }));
-    }
 }

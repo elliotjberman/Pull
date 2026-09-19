@@ -78,10 +78,10 @@ class ParameterTargetHostTest
         final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
         final PushControlSurface surface = createSurface (new MutableContinuous (), valueChanger);
         surface.createRelativeKnob (ContinuousID.KNOB1, "Knob 1").bind (device.parameter);
-        final ParameterTargetHost host = new ParameterTargetHost (surface, model (device, valueChanger), silentLog ());
-        final DesiredParameterBanks banks = new DesiredParameterBanks (Set.of (ParameterBankId.ACTIVE));
+        final ParameterTargetHost host = new ParameterTargetHost (surface, model (device, valueChanger, device.parameter), silentLog ());
+        final DesiredParameterBanks banks = new DesiredParameterBanks (Set.of (ParameterBankId.PROJECT_REMOTE));
         host.refresh (banks);
-        final ParameterTargetRef target = host.snapshot ().slots ().get (ParameterSlot.active (0)).target ();
+        final ParameterTargetRef target = host.snapshot ().slots ().get (ParameterSlot.projectRemote (0)).target ();
         final var leases = host.prepareLeases (new DesiredParameterInteraction (1, false, Map.of (target, 64.0), Set.of (), Set.of (), 0), banks);
         host.applyLeases (leases, banks);
         host.apply (host.prepare (new SetParameterValueEffect (target, -100), leases));
@@ -90,36 +90,6 @@ class ParameterTargetHostTest
         host.apply (host.prepare (new SetParameterValueEffect (target, 500), leases));
         host.refresh (banks);
         assertEquals (127, host.snapshot ().targetOrNull (target).value ());
-    }
-
-
-    @Test
-    void rejectsLeaseWhenBitwigRebindsTheSameWrapperToAnotherDevice ()
-    {
-        final MutableParameter parameter = new MutableParameter (64);
-        final MutableRemoteDevice device = new MutableRemoteDevice (parameter.proxy ());
-        final MutableContinuous continuous = new MutableContinuous ();
-        final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
-        final PushControlSurface surface = createSurface (continuous, valueChanger);
-        final IHwRelativeKnob knob = surface.createRelativeKnob (ContinuousID.KNOB1, "Knob 1");
-        knob.bind (device.parameter);
-
-        final ParameterTargetHost host = new ParameterTargetHost (surface, model (device, valueChanger), silentLog ());
-        final DesiredParameterBanks banks = new DesiredParameterBanks (Set.of (ParameterBankId.ACTIVE));
-        host.refresh (banks);
-        final ParameterTargetRef original = host.snapshot ().slots ().get (ParameterSlot.active (0)).target ();
-        final DesiredParameterInteraction interaction = new DesiredParameterInteraction (1, false, Map.of (original, 64.0), Set.of (), Set.of (), 0);
-        final Map<ParameterTargetRef, ParameterTargetHost.RetainedTarget> leases = host.prepareLeases (interaction, banks);
-        host.applyLeases (leases, banks);
-        final ParameterTargetHost.PreparedSet restore = host.prepare (new SetParameterValueEffect (original, 64), leases);
-
-        device.id = "device-b";
-        host.refresh (banks);
-        final ParameterTargetRef rebound = host.snapshot ().slots ().get (ParameterSlot.active (0)).target ();
-
-        assertNotEquals (original, rebound);
-        assertThrows (IllegalStateException.class, () -> host.apply (restore));
-        assertEquals (0, parameter.writeCount);
     }
 
 
@@ -358,70 +328,18 @@ class ParameterTargetHostTest
 
 
     @Test
-    void opaqueCorePageRejectsPhysicalBindingsBecauseItUsesNamedParameterBanks ()
+    void topEncodersRejectStalePhysicalParameterBindings ()
     {
-        final MutableParameter cursorVolume = new MutableParameter (64);
-        final MutableParameter selectedVolume = new MutableParameter (64);
-        final MutableParameter staleVolume = new MutableParameter (32);
-        final IParameter cursorParameter = cursorVolume.proxy ();
-        final IParameter selectedParameter = selectedVolume.proxy ();
-        final IParameter staleParameter = staleVolume.proxy ();
-        final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
-        final MutableContinuous continuous = new MutableContinuous ();
-        final PushControlSurface surface = createSurface (continuous, valueChanger);
+        final MutableParameter parameter = new MutableParameter (64);
+        final IValueChanger changer = new TwosComplementValueChanger (128, 1);
+        final PushControlSurface surface = createSurface (new MutableContinuous (), changer);
         final IHwRelativeKnob knob = surface.createRelativeKnob (ContinuousID.KNOB1, "Knob 1");
-        surface.getModeManager ().installCoreAdapter (relaxedProxy (IMode.class));
-        surface.getModeManager ().apply (new de.mossgrabers.pull.core.api.DesiredControllerPageState (1, de.mossgrabers.pull.core.api.ControllerPageRef.core ("no-native-mode"), de.mossgrabers.pull.core.api.ControllerPageRef.none (), Optional.empty (), 0));
-
-        final ICursorTrack selectedTrack = proxy (ICursorTrack.class, (proxy, method, arguments) -> switch (method.getName ())
-        {
-            case "doesExist" -> Boolean.TRUE;
-            case "getChannelID" -> "selected-track";
-            case "getVolumeParameter" -> cursorParameter;
-            default -> relaxedValue (method.getReturnType ());
-        });
-        final ITrack selectedBankTrack = proxy (ITrack.class, (proxy, method, arguments) -> switch (method.getName ())
-        {
-            case "doesExist" -> Boolean.TRUE;
-            case "getChannelID" -> "selected-track";
-            case "getVolumeParameter" -> selectedParameter;
-            default -> relaxedValue (method.getReturnType ());
-        });
-        final ITrack staleTrack = proxy (ITrack.class, (proxy, method, arguments) -> switch (method.getName ())
-        {
-            case "doesExist" -> Boolean.TRUE;
-            case "getChannelID" -> "stale-track";
-            case "getVolumeParameter" -> staleParameter;
-            default -> relaxedValue (method.getReturnType ());
-        });
-        final ITrackBank tracks = proxy (ITrackBank.class, (proxy, method, arguments) -> switch (method.getName ())
-        {
-            case "getPageSize" -> Integer.valueOf (2);
-            case "getItem" -> ((Integer) arguments[0]).intValue () == 0 ? selectedBankTrack : staleTrack;
-            case "getSelectedItem" -> Optional.of (selectedBankTrack);
-            default -> relaxedValue (method.getReturnType ());
-        });
-        final IModel model = proxy (IModel.class, (proxy, method, arguments) -> switch (method.getName ())
-        {
-            case "getTransport" -> relaxedProxy (ITransport.class);
-            case "getCursorTrack" -> selectedTrack;
-            case "getCurrentTrackBank", "getTrackBank" -> tracks;
-            case "getValueChanger" -> valueChanger;
-            default -> relaxedValue (method.getReturnType ());
-        });
-        final ParameterTargetHost host = new ParameterTargetHost (surface, model, silentLog ());
-        final DesiredParameterBanks banks = new DesiredParameterBanks (Set.of (ParameterBankId.ACTIVE));
-
-        knob.bind (staleParameter);
-        host.refresh (banks);
+        knob.bind (parameter.proxy ());
+        final ParameterTargetHost host = new ParameterTargetHost (surface, model (new MutableRemoteDevice (parameter.proxy ()), changer), silentLog ());
+        host.refresh (DesiredParameterBanks.empty ());
         assertNull (host.resolveMutation (knob));
         assertTrue (host.requiresResolvedMutation (knob));
-
-        knob.bind (proxy (IParameter.class, (wrapper, method, arguments) -> method.invoke (selectedParameter, arguments)));
-        host.refresh (banks);
-        assertNull (host.resolveMutation (knob));
-        assertNull (host.snapshot ().slots ().get (ParameterSlot.active (0)));
-        assertTrue (host.requiresResolvedMutation (knob));
+        assertTrue (host.snapshot ().slots ().isEmpty ());
     }
 
 

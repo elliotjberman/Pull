@@ -101,6 +101,11 @@ final class SnapbackSession
     /** Observe one non-action core event. */
     Update handle (final CoreEvent event, final ControllerSnapshot snapshot, final ParameterSlot mutationSlot)
     {
+        return this.handleGroup (event, snapshot, mutationSlot == null ? List.of () : List.of (mutationSlot));
+    }
+
+    Update handleGroup (final CoreEvent event, final ControllerSnapshot snapshot, final List<ParameterSlot> mutationSlots)
+    {
         final CoreEvent checkedEvent = Objects.requireNonNull (event, "event");
         final ParameterBridgeSnapshot parameters = Objects.requireNonNull (snapshot, "snapshot").bridge ().parameters ();
         final List<CoreEffect> effects = new ArrayList<> ();
@@ -108,10 +113,13 @@ final class SnapbackSession
         boolean intercepted = false;
         if (checkedEvent instanceof final ControllerInputEvent input && isShift (input))
             this.handleShift (input, snapshot);
-        else if (checkedEvent instanceof final ControllerInputEvent input && input.kind () == InputKind.RELATIVE && mutationSlot != null)
-            intercepted = !this.captureControllerMutation (mutationSlot, parameters);
+        else if (checkedEvent instanceof final ControllerInputEvent input && input.kind () == InputKind.RELATIVE && !mutationSlots.isEmpty ())
+        {
+            for (final ParameterSlot slot: mutationSlots)
+                if (!this.captureControllerMutation (slot, parameters)) intercepted = true;
+        }
         else if (checkedEvent instanceof final ParameterMutationEvent mutation)
-            this.capture (mutation, mutationSlot, parameters);
+            this.capture (mutation, mutationSlots.isEmpty () ? null : mutationSlots.getFirst (), parameters);
         else if (checkedEvent instanceof ControllerTickEvent)
             effects.addAll (this.advance (parameters, snapshot.monotonicTimeNanos ()));
 
@@ -247,7 +255,7 @@ final class SnapbackSession
         final ParameterTargetSnapshot authoritative = parameters.slots ().get (mappedSlot);
         if (authoritative == null || !authoritative.target ().equals (observed.target ()))
             return false;
-        if (this.captures.size () >= ParameterSlot.INTERACTION_TARGET_CAPACITY)
+        if (!this.captures.containsKey (authoritative.target ()) && this.captures.size () >= ParameterSlot.INTERACTION_TARGET_CAPACITY)
             return false;
 
         this.ensureInteraction ();

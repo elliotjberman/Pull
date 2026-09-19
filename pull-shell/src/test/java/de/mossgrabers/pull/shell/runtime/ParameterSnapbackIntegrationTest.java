@@ -114,16 +114,16 @@ class ParameterSnapbackIntegrationTest
             // Shift's stable observer remains active during migration.
         });
         runtime.tick ();
-        assertEquals (new DesiredParameterBanks (Set.of (ParameterBankId.ACTIVE, ParameterBankId.GLOBAL)), bridge.lastAppliedBanks);
+        assertEquals (new DesiredParameterBanks (Set.of (ParameterBankId.GLOBAL)), bridge.lastAppliedBanks);
 
         final AtomicInteger staleMutation = new AtomicInteger ();
         bridge.resolveMutations = false;
         bridge.requireResolvedMutation = true;
-        runtime.handleParameterMutation (ContinuousID.KNOB1, bridge.control, staleMutation::incrementAndGet);
+        runtime.handleParameterMutation (ContinuousID.TEMPO, bridge.control, staleMutation::incrementAndGet);
         assertEquals (0, staleMutation.get ());
         bridge.resolveMutations = true;
 
-        runtime.handleParameterMutation (ContinuousID.KNOB1, bridge.control, () -> bridge.submit (40));
+        runtime.handleParameterMutation (ContinuousID.TEMPO, bridge.control, () -> bridge.submit (40));
         assertEquals (100, bridge.authoritativeValue);
         assertEquals (40, bridge.submittedValue);
         bridge.advanceHost ();
@@ -194,7 +194,7 @@ class ParameterSnapbackIntegrationTest
         runtime.start ();
         route (inputs, SHIFT, InputPhase.BEGIN, () -> {});
         runtime.tick ();
-        runtime.handleParameterMutation (ContinuousID.KNOB1, bridge.control, () -> bridge.submit (40));
+        runtime.handleParameterMutation (ContinuousID.TEMPO, bridge.control, () -> bridge.submit (40));
         bridge.advanceHost ();
         runtime.tick ();
         route (inputs, SHIFT, InputPhase.END, () -> {});
@@ -216,7 +216,7 @@ class ParameterSnapbackIntegrationTest
         runtime.tick ();
         assertEquals (halfValue, bridge.submittedValue, 0.001);
         route (inputs, SHIFT, InputPhase.BEGIN, () -> {});
-        runtime.handleParameterMutation (ContinuousID.KNOB1, bridge.control, () -> bridge.submit (5));
+        runtime.handleParameterMutation (ContinuousID.TEMPO, bridge.control, () -> bridge.submit (5));
         assertEquals (halfValue, bridge.submittedValue, 0.001, "repress cannot mutate a restoring target");
         route (inputs, SHIFT, InputPhase.END, () -> {});
         bridge.advanceHost ();
@@ -243,7 +243,7 @@ class ParameterSnapbackIntegrationTest
             bridge.returnMillis = 1000;
             route (inputs, SHIFT, InputPhase.BEGIN, () -> {});
             runtime.tick ();
-            runtime.handleParameterMutation (ContinuousID.KNOB1, bridge.control, () -> bridge.submit (40));
+            runtime.handleParameterMutation (ContinuousID.TEMPO, bridge.control, () -> bridge.submit (40));
             bridge.advanceHost ();
             runtime.tick ();
             route (inputs, SHIFT, InputPhase.END, () -> {});
@@ -346,9 +346,8 @@ class ParameterSnapbackIntegrationTest
         private final IHwContinuousControl control = proxyControl ();
         private ControllerBridgeSnapshot snapshot = new ControllerBridgeSnapshot (
             de.mossgrabers.pull.core.api.TransportSnapshot.empty (), de.mossgrabers.pull.core.api.SelectedTrackSnapshot.empty (),
-            // Crossfade retains the ACTIVE parameter mutation path exercised here. Device remotes
-            // now use named targets and exclusively owned gestures, covered by their routed tests.
-            new de.mossgrabers.pull.core.api.ControllerLayoutSnapshot (1, "PLAY", "CROSSFADER", false, false, 0, de.mossgrabers.pull.core.api.GridPressureConfiguration.OFF),
+            // The permanent Tempo binding exercises legacy ingress, exact restoration and reload.
+            new de.mossgrabers.pull.core.api.ControllerLayoutSnapshot (1, "PLAY", "CLIP", false, false, 0, de.mossgrabers.pull.core.api.GridPressureConfiguration.OFF),
             de.mossgrabers.pull.core.api.DrumContextSnapshot.empty (), ParameterBridgeSnapshot.empty ());
         private Map<ParameterTargetRef, ParameterLease> retained = Map.of ();
         private DesiredParameterBanks lastAppliedBanks = DesiredParameterBanks.empty ();
@@ -372,7 +371,7 @@ class ParameterSnapbackIntegrationTest
                 final Map<ParameterTargetRef, Double> baselines = new LinkedHashMap<> ();
                 this.retained.forEach ( (target, lease) -> baselines.put (target, ((Lease) lease).baseline));
                 parameters = new ParameterBridgeSnapshot (
-                    Map.of (ParameterSlot.active (0), this.targetSnapshot ()),
+                    Map.of (ParameterSlot.TEMPO, this.targetSnapshot ()),
                     baselines, java.util.Set.of ());
             }
             else

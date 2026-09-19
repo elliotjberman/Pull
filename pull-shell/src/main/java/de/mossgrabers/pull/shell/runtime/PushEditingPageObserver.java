@@ -26,18 +26,10 @@ final class PushEditingPageObserver
             final var track = model.getCursorTrack ();
             return new EditingPageState.Quantize (track.doesExist (), track.getRecordQuantizationGrid ().ordinal (), track.isRecordQuantizationNoteLength (), surface.getConfiguration ().getQuantizeAmount ());
         }
-        if (mode instanceof final GrooveMode grooveMode)
+        if (mode instanceof GrooveMode)
         {
-            final var groove = model.getGroove ();
-            final List<EditingPageState.Parameter> parameters = new ArrayList<> ();
-            for (final GrooveParameterID id: List.of (GrooveParameterID.SHUFFLE_AMOUNT, GrooveParameterID.SHUFFLE_RATE, GrooveParameterID.ACCENT_AMOUNT, GrooveParameterID.ACCENT_PHASE, GrooveParameterID.ACCENT_RATE))
-            {
-                final IParameter parameter = groove.getParameter (id);
-                final int index = switch (id) { case SHUFFLE_AMOUNT -> 2; case SHUFFLE_RATE -> 3; case ACCENT_AMOUNT -> 5; case ACCENT_PHASE -> 6; default -> 7; };
-                parameters.add (new EditingPageState.Parameter (parameter != null && parameter.doesExist (), parameter == null ? "" : text (parameter.getName ()), parameter == null ? 0 : normalized (model, parameter.getValue ()), parameter == null ? "" : text (parameter.getDisplayedValue ()), grooveMode.isKnobTouched (index)));
-            }
-            final IParameter enabled = groove.getParameter (GrooveParameterID.ENABLED);
-            return new EditingPageState.Groove (enabled != null && enabled.getValue () > 0, parameters);
+            final IParameter enabled = model.getGroove ().getParameter (GrooveParameterID.ENABLED);
+            return new EditingPageState.Groove (enabled != null && enabled.getValue () > 0, List.of ());
         }
         return EditingPageState.empty ();
     }
@@ -65,7 +57,12 @@ final class PushEditingPageObserver
         final var clip = editor.getClip ();
         final IStepInfo step = clip.getObservedStep (position);
         return new EditingPageState.Note (step.getState () != StepState.OFF, mode.getObservedPage (), positions.size (), position.getStep (), position.getNote (), model.getTransport ().getQuartersPerMeasure (), clip.getStepTransposeRange (), surface.isShiftPressed (), touched (mode),
-            new EditingPageState.NoteData (step.getDuration (), step.isMuted (), step.getVelocity (), step.getVelocitySpread (), step.getReleaseVelocity (), step.isChanceEnabled (), step.getChance (), step.isOccurrenceEnabled (), step.getOccurrence ().name (), step.isRecurrenceEnabled (), step.getRecurrenceLength (), step.getRecurrenceMask (), step.getGain (), step.getPan (), step.getTranspose (), step.getTimbre (), step.getPressure (), step.isRepeatEnabled (), step.getRepeatCount (), step.getRepeatCurve (), step.getRepeatVelocityCurve (), step.getRepeatVelocityEnd ()));
+            data (step));
+    }
+
+    static EditingPageState.NoteData data (final IStepInfo step)
+    {
+        return new EditingPageState.NoteData (step.getDuration (), step.isMuted (), step.getVelocity (), step.getVelocitySpread (), step.getReleaseVelocity (), step.isChanceEnabled (), step.getChance (), step.isOccurrenceEnabled (), step.getOccurrence ().name (), step.isRecurrenceEnabled (), step.getRecurrenceLength (), step.getRecurrenceMask (), step.getGain (), step.getPan (), step.getTranspose (), step.getTimbre (), step.getPressure (), step.isRepeatEnabled (), step.getRepeatCount (), step.getRepeatCurve (), step.getRepeatVelocityCurve (), step.getRepeatVelocityEnd ());
     }
 
     private static List<Boolean> touched (final BaseMode<?> mode) { return IntStream.range (0, 8).mapToObj (mode::isKnobTouched).toList (); }

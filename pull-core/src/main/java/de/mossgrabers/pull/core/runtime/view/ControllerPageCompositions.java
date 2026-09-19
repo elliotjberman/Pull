@@ -67,7 +67,7 @@ public final class ControllerPageCompositions
         this.pages.put (background, Map.copyOf (compiled));
         this.legacy.put (background, compile (controllerViews, background, "legacy", background.legacyPageViews ()));
         final List<ControllerView> deviceViews = new ArrayList<> (background.legacyPageViews ().stream ()
-            .filter (view -> !(view instanceof StableParameterControlsView) && !(view instanceof LegacyPageDisplayView)).toList ());
+            .filter (view -> !(view instanceof LegacyPageDisplayView)).toList ());
         deviceViews.add (new DeviceRemoteControlsView ());
         final Map<String, CompiledWorkspace> parameterPages = new LinkedHashMap<> ();
         final var remotes = compile (controllerViews, background, "device-parameters", deviceViews);
@@ -78,8 +78,14 @@ public final class ControllerPageCompositions
             if (!bank.isLayer () || bank == ParameterBankId.SELECTED_LAYER_SENDS) continue;
             final String mode = bank == ParameterBankId.SELECTED_LAYER ? "DEVICE_LAYER" : "DEVICE_" + bank.name ();
             final List<ControllerView> layerViews = new ArrayList<> (deviceViews);
-            layerViews.set (layerViews.size () - 1, new LayerParameterControlsView (mode, bank));
+            layerViews.set (layerViews.size () - 1, new ChannelParameterControlsView (mode, bank));
             parameterPages.put (mode, compile (controllerViews, background, mode, layerViews));
+        }
+        for (final ControllerView view: List.of (new ChannelParameterControlsView ("CROSSFADER", ParameterBankId.TRACK_CROSSFADE), new GrooveParameterControlsView (), new NoteParameterControlsView ()))
+        {
+            final List<ControllerView> views = new ArrayList<> (deviceViews);
+            views.set (views.size () - 1, view);
+            parameterPages.put (view instanceof GrooveParameterControlsView ? "GROOVE" : view instanceof NoteParameterControlsView ? "NOTE" : "CROSSFADER", compile (controllerViews, background, view.id (), views));
         }
         this.deviceParameters.put (background, Map.copyOf (parameterPages));
         // The explicitly deferred piano roll keeps its original unclaimed stable display.

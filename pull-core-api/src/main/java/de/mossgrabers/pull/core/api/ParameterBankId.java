@@ -7,8 +7,6 @@ package de.mossgrabers.pull.core.api;
 /** Fixed parameter banks installed by the stable shell. */
 public enum ParameterBankId
 {
-    /** Compatibility window currently bound by an inherited stable mode. */
-    ACTIVE,
     /** Selected-track volume and pan, independent of controller bindings. */
     SELECTED_TRACK,
     /** Eight sends of the private-selection-aligned track. */
@@ -21,6 +19,12 @@ public enum ParameterBankId
     TRACK_VOLUME,
     /** Eight visible-track pan parameters. */
     TRACK_PAN,
+    /** Three-state crossfade assignment for each visible track. */
+    TRACK_CROSSFADE,
+    /** Project shuffle and accent parameters. */
+    GROOVE,
+    /** Exact note attributes in the retained editor window. */
+    NOTE,
     /** Send column one through eight across the eight current-bank tracks. */
     TRACK_SEND1, TRACK_SEND2, TRACK_SEND3, TRACK_SEND4,
     TRACK_SEND5, TRACK_SEND6, TRACK_SEND7, TRACK_SEND8,

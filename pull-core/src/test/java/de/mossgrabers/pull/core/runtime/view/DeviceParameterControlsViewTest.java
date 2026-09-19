@@ -18,7 +18,7 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** Production page composition and interaction lifecycle over independently advanced host samples. */
-class DeviceRemoteControlsViewTest
+class DeviceParameterControlsViewTest
 {
     private static final ControlId DELETE = PushControlIds.button ("DELETE");
     private static final ControlId SHIFT = PushControlIds.button ("SHIFT");
@@ -40,7 +40,6 @@ class DeviceRemoteControlsViewTest
                 assertEquals (InputRouteMode.EXCLUSIVE, f.result.desiredInputRoutes ().modeOrNull (knob (index), InputKind.TOUCH));
             }
             assertTrue (f.result.desiredParameterBanks ().banks ().contains (ParameterBankId.SELECTED_DEVICE_REMOTE));
-            assertFalse (f.result.desiredParameterBanks ().banks ().contains (ParameterBankId.ACTIVE));
             assertTrue (hasText (f.result, "Remote 0"));
             assertFalse (hasText (f.result, "Stale raw parameter"));
             assertTrue (hasText (f.result, "Device menu"), "The frozen navigation menu remains visible");
@@ -63,7 +62,6 @@ class DeviceRemoteControlsViewTest
         f.touch (0, InputPhase.END);
         f.turn (0, 1);
         assertEquals (List.of (new AdjustParameterValueEffect (f.target (0), 10)), f.result.effects ());
-        assertFalse (f.result.desiredParameterBanks ().banks ().contains (ParameterBankId.ACTIVE));
         assertTrue (hasText (f.result, "Chains"));
     }
 
@@ -81,7 +79,6 @@ class DeviceRemoteControlsViewTest
             f.touch (0, InputPhase.BEGIN);
             assertEquals (List.of (new ConsumeControllerButtonEffect (DELETE), new ResetParameterEffect (f.target (0))), f.result.effects ());
             assertEquals (Map.of (knob (0), f.target (0)), f.result.desiredParameterTouches ().targets ());
-            assertFalse (f.result.desiredParameterBanks ().banks ().contains (ParameterBankId.ACTIVE));
             assertTrue (hasText (f.result, bank == ParameterBankId.LAYER_VOLUME ? "Volume" : bank == ParameterBankId.LAYER_PAN ? "Pan" : "Remote 0"));
             final var old = f.target (0);
             f.leases = Set.of (old);
@@ -100,6 +97,30 @@ class DeviceRemoteControlsViewTest
             f.turn (0, 1);
             assertTrue (f.result.effects ().stream ().anyMatch (AdjustParameterValueEffect.class::isInstance));
         }
+    }
+
+    @Test
+    void aNewLayerOwnerCannotAdoptStaleSendValuesForTheSameChannel ()
+    {
+        final Fixture f = new Fixture ();
+        f.layerBank = ParameterBankId.LAYER_SEND1;
+        f.observedMode = "DEVICE_LAYER_SEND1";
+        f.observedKind = DevicePageState.Kind.LAYER_SEND;
+        f.page (f.observedMode);
+        assertTrue (hasText (f.result, "Remote 0"));
+        f.observedOwner = "next-send-window";
+        f.tick ();
+        assertFalse (hasText (f.result, "Remote 0"));
+        f.pressed = Set.of (DELETE, SHIFT, SELECT);
+        f.touch (0, InputPhase.BEGIN);
+        assertTrue (f.result.effects ().stream ().noneMatch (ResetParameterEffect.class::isInstance));
+        assertTrue (f.result.desiredParameterTouches ().targets ().isEmpty ());
+        f.turn (0, 1);
+        assertTrue (f.result.effects ().isEmpty ());
+        f.parameterOwner = f.observedOwner;
+        f.tick ();
+        f.turn (0, 1);
+        assertTrue (f.result.effects ().isEmpty (), "a held gesture cannot adopt the later coherent window");
     }
 
     @Test
@@ -123,6 +144,73 @@ class DeviceRemoteControlsViewTest
         f.sendEnabled = false;
         f.hostTick ();
         assertEquals (List.of (new SetParameterEnabledEffect (f.target (4), true)), f.result.effects ());
+    }
+
+    @Test
+    void crossfadeStepsFollowCallbacksAndClampingWithoutOptimisticFeedback ()
+    {
+        final Fixture f = new Fixture ();
+        f.layerBank = ParameterBankId.TRACK_CROSSFADE;
+        f.observedMode = "CROSSFADER";
+        f.observedKind = DevicePageState.Kind.CROSSFADE;
+        f.value = 1023;
+        f.page (f.observedMode);
+        final var display = f.result.desiredOutput ().display ();
+        f.revision++;
+        f.result = f.core.handle (new ControllerInputEvent (f.revision, f.revision, knob (0), InputKind.RELATIVE, InputPhase.UPDATE, 0, List.of (7L, -7L)), f.snapshot ());
+        assertEquals (List.of (new SetParameterNormalizedValueEffect (f.target (0), 0.5)), f.result.effects ());
+        assertEquals (display, f.result.desiredOutput ().display ());
+        f.value = 512;
+        f.displayedValue = "AB";
+        f.tick ();
+        assertTrue (hasText (f.result, "AB"));
+        f.pressed = Set.of (DELETE);
+        f.touch (0, InputPhase.BEGIN);
+        assertEquals (List.of (new ConsumeControllerButtonEffect (DELETE), new ResetParameterEffect (f.target (0))), f.result.effects ());
+        f.assignment++;
+        f.parameterOwner = "replacement";
+        f.tick ();
+        f.turn (0, 1);
+        assertTrue (f.result.effects ().isEmpty (), "a held encoder cannot adopt a replacement track");
+    }
+
+    @Test
+    void grooveUsesFiveProjectRolesAndReleasePreservesAutomationWriting ()
+    {
+        final Fixture f = new Fixture ();
+        f.layerBank = ParameterBankId.GROOVE;
+        f.observedMode = "GROOVE";
+        f.page (f.observedMode);
+        for (final int column: new int[] {2, 3, 5, 6, 7})
+        {
+            f.pressed = Set.of (SHIFT);
+            f.turn (column, 2);
+            assertEquals (List.of (new AdjustParameterValueEffect (f.target (column), 2)), f.result.effects ());
+        }
+        f.turn (0, 2);
+        assertTrue (f.result.effects ().isEmpty ());
+        f.pressed = Set.of (DELETE);
+        f.writingAutomation = true;
+        f.touch (2, InputPhase.BEGIN);
+        assertEquals (List.of (new ConsumeControllerButtonEffect (DELETE), new ResetParameterEffect (f.target (2))), f.result.effects ());
+        assertEquals (Map.of (knob (2), f.target (2)), f.result.desiredParameterTouches ().targets ());
+        f.touch (2, InputPhase.END);
+        assertTrue (f.result.effects ().isEmpty ());
+        assertTrue (f.result.desiredParameterTouches ().targets ().isEmpty ());
+    }
+
+    @Test
+    void selectedLayerDeleteResetsWithoutStartingATouch ()
+    {
+        final Fixture f = new Fixture ();
+        f.layerBank = ParameterBankId.SELECTED_LAYER;
+        f.observedMode = "DEVICE_LAYER";
+        f.observedKind = DevicePageState.Kind.LAYER;
+        f.page (f.observedMode);
+        f.pressed = Set.of (DELETE, SHIFT, SELECT);
+        f.touch (4, InputPhase.BEGIN);
+        assertEquals (List.of (new ConsumeControllerButtonEffect (DELETE), new ResetParameterEffect (f.target (4))), f.result.effects ());
+        assertTrue (f.result.desiredParameterTouches ().targets ().isEmpty ());
     }
 
     @Test
@@ -388,14 +476,15 @@ class DeviceRemoteControlsViewTest
             final Map<ParameterSlot, ParameterTargetSnapshot> parameters = new LinkedHashMap<> ();
             for (int index = 0; index < 8; index++)
             {
+                if (this.layerBank == ParameterBankId.GROOVE && (index == 0 || index == 1 || index == 4)) continue;
                 if (this.missingSlots.contains (Integer.valueOf (index)) || this.layerBank == ParameterBankId.SELECTED_LAYER && (index == 2 || index == 3)) continue;
                 final boolean selected = this.layerBank == ParameterBankId.SELECTED_LAYER;
-                final ParameterSlot slot = this.layerBank == null ? ParameterSlot.selectedDeviceRemote (index) : selected && index >= 4 ?
+                final ParameterSlot slot = this.layerBank == ParameterBankId.GROOVE ? new ParameterSlot (ParameterBankId.GROOVE, index == 2 ? 0 : index == 3 ? 1 : index - 3) : this.layerBank == null ? ParameterSlot.selectedDeviceRemote (index) : selected && index >= 4 ?
                     new ParameterSlot (ParameterBankId.SELECTED_LAYER_SENDS, index - 4) : new ParameterSlot (this.layerBank, selected ? index : this.channelOffset + index);
-                final String role = this.layerBank == ParameterBankId.LAYER_VOLUME || selected && index == 0 ? "volume" : this.layerBank == ParameterBankId.LAYER_PAN || selected && index == 1 ? "pan" : "send";
+                final String role = this.layerBank == ParameterBankId.TRACK_CROSSFADE ? "crossfade" : this.layerBank == ParameterBankId.LAYER_VOLUME || selected && index == 0 ? "volume" : this.layerBank == ParameterBankId.LAYER_PAN || selected && index == 1 ? "pan" : "send";
                 parameters.put (slot, new ParameterTargetSnapshot (this.target (index), "Remote " + index, this.value, this.value, this.displayedValue, 128, 0,
                     this.layerBank != null && role.equals ("send") ? Optional.of (this.sendEnabled) : Optional.empty (), new ParameterTargetIdentitySnapshot (
-                        this.layerBank == null ? "retained-device-remote" : "channel-" + role, this.layerBank == null ? this.parameterOwner : "layer-" + (selected ? 0 : this.channelOffset + index), this.parameterPage, index + this.slotOffset)));
+                        this.layerBank == ParameterBankId.GROOVE ? "project-groove" : this.layerBank == null ? "retained-device-remote" : "channel-" + role, this.layerBank == ParameterBankId.GROOVE ? "project" : this.layerBank == null ? this.parameterOwner : "layer-" + (selected ? 0 : this.channelOffset + index), this.parameterPage, this.layerBank == ParameterBankId.GROOVE ? slot.index () : this.layerBank != null ? role.equals ("send") ? selected ? index - 4 : this.layerBank.ordinal () - ParameterBankId.LAYER_SEND1.ordinal () : 0 : index + this.slotOffset, this.layerBank != null && this.layerBank.isLayer () ? this.parameterOwner : "")));
             }
             final List<DevicePageState.Channel> channels = java.util.stream.IntStream.range (0, 8).mapToObj (index -> new DevicePageState.Channel (true, "layer-" + (this.channelOffset + index), "Layer", "LAYER", new de.mossgrabers.pull.core.api.output.RgbColor (50, 50, 50), index == 0, true, false, false, false, false, false, false, 0, 0)).toList ();
             final var device = new DevicePageState.Device (true, "Device", true, true, true, false, false, this.layerBank != null, this.layerBank != null, 0,
@@ -407,7 +496,7 @@ class DeviceRemoteControlsViewTest
             final var bridge = new ControllerBridgeSnapshot (e.transport (), e.selectedTrack (), e.sessionBank (), e.layout (), e.noteView (), e.noteRepeat (), e.drum (),
                 new ParameterBridgeSnapshot (parameters, Map.of (), this.leases), e.controllerMappingFeedback (), e.master (), e.project (),
                 new AutomationSnapshot ("project", this.writingAutomation, true), CONFIG, e.currentTrackBank (), e.transportSettings (), e.controllerSettings (), e.applicationUi (),
-                this.requests, e.browser (), e.controllerHardware (), new ControllerPageDisplaySnapshot (this.observedMode, page));
+                this.requests, e.browser (), e.controllerHardware (), new ControllerPageDisplaySnapshot (this.observedMode, this.layerBank == ParameterBankId.GROOVE ? new EditingPageState.Groove (true, List.of ()) : page));
             return new ControllerSnapshot (this.revision, this.revision, new PullCoreProvider ().descriptor ().requiredCapabilities (), bridge,
                 ClipCatalogSnapshot.empty (), Map.of (), Map.of (), Optional.empty (), this.pressed, this.touched);
         }

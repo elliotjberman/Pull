@@ -5,6 +5,7 @@ package de.mossgrabers.pull.core.api.event;
 
 import de.mossgrabers.pull.core.api.ControlId;
 import java.util.Objects;
+import java.util.List;
 
 /**
  * One normalized event from the permanent controller-input canopy.
@@ -20,9 +21,18 @@ import java.util.Objects;
  * @param kind Input kind
  * @param phase Gesture phase
  * @param value Kind-specific normalized value
+ * @param relativeSamples Ordered callbacks, for discrete controls whose clamping depends on direction changes
  */
-public record ControllerInputEvent (long sequence, long monotonicTimeNanos, ControlId controlId, InputKind kind, InputPhase phase, long value) implements CoreEvent
+public record ControllerInputEvent (long sequence, long monotonicTimeNanos, ControlId controlId, InputKind kind, InputPhase phase, long value, List<Long> relativeSamples) implements CoreEvent
 {
+    /** Maximum callbacks in one relative-input batch. */
+    public static final int RELATIVE_SAMPLE_CAPACITY = 64;
+
+    public ControllerInputEvent (final long sequence, final long monotonicTimeNanos, final ControlId controlId, final InputKind kind, final InputPhase phase, final long value)
+    {
+        this (sequence, monotonicTimeNanos, controlId, kind, phase, value, kind == InputKind.RELATIVE ? List.of (value) : List.of ());
+    }
+
     /**
      * Validate the normalized input.
      */
@@ -36,14 +46,21 @@ public record ControllerInputEvent (long sequence, long monotonicTimeNanos, Cont
         controlId = Objects.requireNonNull (controlId, "controlId");
         kind = Objects.requireNonNull (kind, "kind");
         phase = Objects.requireNonNull (phase, "phase");
+        relativeSamples = List.copyOf (relativeSamples);
+        if (kind == InputKind.RELATIVE)
+        {
+            if (relativeSamples.isEmpty () || relativeSamples.size () > RELATIVE_SAMPLE_CAPACITY || relativeSamples.contains (0L) ||
+                relativeSamples.stream ().reduce (0L, Math::addExact) != value)
+                throw new IllegalArgumentException ("relative samples must be a bounded nonzero sequence summing to value");
+        }
+        else if (!relativeSamples.isEmpty ())
+            throw new IllegalArgumentException ("only relative input carries samples");
         switch (kind)
         {
             case BUTTON, PAD, TOUCH, PEDAL -> validateGestureValue (phase, value);
             case RELATIVE ->
             {
                 requirePhase (phase, InputPhase.UPDATE, kind);
-                if (value == 0)
-                    throw new IllegalArgumentException ("relative value must be a non-zero signed delta");
             }
             case ABSOLUTE ->
             {

@@ -1,10 +1,11 @@
 # Retained track cursor pool
 
-Working implementation: Core API 57 / Bitwig API 25, installed and smoke-tested on September 12, 2026.
-Upgrading from API 56 requires a matched shell installation and Bitwig restart.
+Working implementation: Core API 58 / Bitwig API 25. A matched shell installation and restart are
+required. The full offline package gate passes; API 58 live acceptance is pending. Earlier scoped
+API 56/57 evidence below does not validate the new resources.
 The pool is integrated with named selected-track and visible-bank Volume/Pan
-parameters, the Drum fill scanner and launch actuators, and the Device page’s eight remote encoders
-and parameter display. [ARCH](../../ARCH.md) records working ownership; the scoped live evidence below
+parameters/sends/Crossfade, the Drum fill scanner and launch actuators, Device/Chains remotes,
+layer/drum-pad mix and exact note parameters. [ARCH](../../ARCH.md) records working ownership; the scoped live evidence below
 records the tested pool checkpoint and Device expansion separately.
 
 ## Resources and ownership
@@ -12,11 +13,12 @@ records the tested pool checkpoint and Device expansion separately.
 | Resource | Bound and scope |
 | --- | --- |
 | Discovery bank | 64 flat project tracks at offset zero, independent of UI selection and Session paging. Effect/master discovery was observed live; nested/collapsed groups and overflow still require live characterization. |
-| Track cursors | 64 initialization-owned, individually named cursors; 53 mix resources, two device/page resources, one eight-scene scanner, eight single-scene launch resources. |
-| Mix profile | Retained volume and pan parameters. Selected and visible aliases for a track share its UUID assignment. Discovery parameters independently confirm acquisition values. |
+| Track cursors | 64 initialization-owned, individually named cursors; 52 mix resources, two device/page resources, one note editor, one eight-scene scanner, eight single-scene launch resources. |
+| Mix profile | Retained volume, pan, crossfade assignment and eight sends. Selected and visible aliases for a track share its UUID assignment. Discovery parameters independently confirm acquisition values. |
 | Clip profiles | Separate scanner and launcher slot windows. The launch resource is retained until the existing playback read-back barrier permits retirement. |
 | Device/page profile | Two pinned child devices with separate named eight-remote pages: one current page and bounded outgoing cleanup. Device equality and opaque generations provide child authority. |
-| Send and chain/layer profiles | Not migrated. Track retention alone cannot establish child mapping identity. |
+| Layer/pad children | Each retained Device has eight layers and sixteen drum pads with volume/pan/eight-send windows. Source bank/send offsets and child identities gate acquisition; any observed topology change retires the generation. |
+| Note editor | One retained 128-step × 128-key clip, at most 128 selected cells and 17 attributes per cell. Clip equality, project/track/scene/grid/selection revisions and independent note readback gate acquisition. |
 
 `RetainedCursorPool` is a host-independent state machine; `RetainedCursorHost` provisions Bitwig
 resources and executes assignments. Existing complete core bank/scan/binding requests drive each
@@ -82,7 +84,8 @@ The Device page’s eight encoder turns and touches now use named retained remot
 Delete/reset, touch cancellation and automation cleanup handled by the shared core lifecycle. Its
 parameter values and touch display use those same observed targets. The old Device provider, direct
 touch/reset body and duplicate raw parameter sampling are removed. Distinct Device menu rows,
-hierarchy navigation and lights remain frozen; Chains keeps its existing provider explicitly.
+hierarchy navigation and lights remain frozen. Chains uses the same retained remotes; its previously
+inert touch/reset behavior stays inert.
 
 Bitwig allows one main remote page following Device selection. The pool observes the existing
 framework page; each retained child creates its own named independent page. A child first selects
@@ -98,9 +101,23 @@ no observable invalidation is not an established exact-cleanup guarantee. The cr
 is acquisition context, not an inferred owning-track identity for a user-pinned Device. Ordinary
 nested acquisition passed live testing; preserved cross-track and nested pins remain unproved.
 
-Remaining recipes serve send destinations and chain/layer remotes. Send reorder/remapping can change
-a child parameter without changing its track UUID. Those guards and the distinct frozen navigation
-controls remain until their complete target and interaction contracts migrate.
+Track sends have a fixed eight-slot window: a ninth send is outside the installed canopy. Adding a
+ninth requires changing the capacity and restarting; project send-count changes within eight do not
+rebuild the pool. Observed count/offset/existence/name changes revoke send generations and wait for
+independent readback. A same-name, otherwise unobservable destination substitution remains an API
+identity limit.
+
+Layers use their exact retained Device and named channel roles. Notes use their exact retained clip
+and selected cells. The old Push layer providers, NoteParameter, held-note timer, ACTIVE bank and
+wrapper-search resolver are deleted. The core shares gesture cancellation and Snapback, capturing
+each note's own baseline. Groove uses the same lifecycle with five project-scoped roles. Distinct
+row/menu operations stay frozen until their own complete semantic slice migrates.
+
+API 25 exposes no stable note ID or grid-geometry acknowledgement. Grid commands precede acquisition;
+two later independent source/retained note samples must agree. Observed deletion, even followed by
+Undo, retires the old note generation. Unobserved delete/recreate at the same cell is outside that
+guarantee. Native gain readback uses twice the setter scale, as characterized by the note-copy live
+test in TESTING.md. No working edit cache is rendered as host state.
 
 ## Verification and next acceptance
 
