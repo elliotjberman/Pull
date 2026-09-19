@@ -269,7 +269,7 @@ class BoundedControllerBridgeTest
             for (final var kind: List.of (de.mossgrabers.pull.core.api.event.InputKind.RELATIVE, de.mossgrabers.pull.core.api.event.InputKind.TOUCH))
             {
                 assertTrue (fixture.bridge.supportsPageInput (device, knob, kind));
-                assertFalse (fixture.bridge.supportsPageInput (chains, knob, kind), "The frozen Chains parameter binding is a separate control slice");
+                assertTrue (fixture.bridge.supportsPageInput (chains, knob, kind));
             }
             assertFalse (fixture.bridge.supportsPageInput (device, PushControlIds.button ("ROW1_" + index), de.mossgrabers.pull.core.api.event.InputKind.BUTTON));
             assertFalse (fixture.bridge.supportsPageInput (device, PushControlIds.button ("ROW2_" + index), de.mossgrabers.pull.core.api.event.InputKind.BUTTON));
@@ -1665,7 +1665,7 @@ class BoundedControllerBridgeTest
                 final String id = track.getChannelID ();
                 if (!this.requested.contains (id) || this.acquired.containsKey (id)) continue;
                 final long assigned = ++this.generation;
-                this.acquired.put (id, new TrackMix (id, assigned, track.getVolumeParameter (), track.getVolumeParameter (),
+                this.acquired.put (id, new TrackMix (id, assigned, track.getVolumeParameter (), track.getVolumeParameter (), java.util.Collections.nCopies (8, de.mossgrabers.framework.daw.data.empty.EmptyParameter.INSTANCE), () -> 1,
                     () -> this.acquired.containsKey (id) && this.acquired.get (id).assignmentGeneration () == assigned));
             }
         }

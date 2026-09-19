@@ -84,6 +84,40 @@ class RetainedCursorHostTest
     }
 
     @Test
+    void sendCountChangesRetireOldSendGenerationAndReuseTheFixedWindow ()
+    {
+        final FakeHost host = new FakeHost (1);
+        final RetainedCursorHost retained = host.service ();
+        retained.tick ();
+        retained.requestTracks (Set.of ("track-0"));
+        host.applyIdentities ();
+        host.applyParameters ();
+        retained.tick ();
+        retained.tick ();
+        final var mix = retained.lookup ("track-0");
+        final long generation = mix.generation (2);
+        assertTrue (generation > 0);
+        mix.parameter (9).touchValue (true);
+        assertEquals (List.of ("track-0:touch:true"), host.writes);
+        host.tracks.get (0).sendCount = 3;
+        host.sendCountObservers.forEach (observer -> observer.valueChanged (3));
+        assertEquals (-1, mix.generation (2), "old send generation is invalid before the next tick");
+        assertTrue (mix.addressable ().getAsBoolean (), "volume and pan remain addressable");
+        retained.tick ();
+        assertEquals (-1, mix.generation (2));
+        retained.tick ();
+        assertTrue (mix.generation (2) > generation);
+        assertFalse (mix.parameter (9).doesExist ());
+        host.tracks.get (0).sendCount = 9;
+        host.sendCountObservers.forEach (observer -> observer.valueChanged (9));
+        retained.tick ();
+        retained.tick ();
+        assertEquals (8, mix.sends ().size ());
+        assertTrue (mix.parameter (9).doesExist ());
+        assertEquals (1, host.assignments, "send changes do not rebuild or reassign the track pool");
+    }
+
+    @Test
     void flatDiscoveryReportsOverflowAndNeverMistakesUnknownTracksForDeleted ()
     {
         final FakeHost host = new FakeHost (65);
@@ -123,6 +157,7 @@ class RetainedCursorHostTest
         private final List<TrackState> tracks = new ArrayList<> ();
         private final List<CursorNode> cursors = new ArrayList<> ();
         private final List<String> writes = new ArrayList<> ();
+        private final List<com.bitwig.extension.callback.IntegerValueChangedCallback> sendCountObservers = new ArrayList<> ();
         private final List<Runnable> pendingWrites = new ArrayList<> ();
         private String project = "project";
         private boolean flat;
@@ -204,6 +239,7 @@ class RetainedCursorHostTest
         private static final TrackState EMPTY = new TrackState ("", 0);
         private final String id;
         private double volume;
+        private int sendCount = 8;
         private TrackState (final String id, final double volume) { this.id = id; this.volume = volume; }
     }
 
@@ -255,14 +291,43 @@ class RetainedCursorHostTest
             case "channelId", "name" -> value (SettableStringValue.class, () -> identity.get ().id);
             case "trackType" -> value (StringValue.class, () -> "Instrument");
             case "position" -> value (IntegerValue.class, () -> 0);
+            case "sendBank" -> proxy (SendBank.class, (name, args) -> switch (name)
+            {
+                case "itemCount" -> proxy (IntegerValue.class, (operation, arguments) -> switch (operation)
+                {
+                    case "get" -> parameters.get ().sendCount;
+                    case "addValueObserver" -> { host.sendCountObservers.add ((com.bitwig.extension.callback.IntegerValueChangedCallback) arguments[0]); yield null; }
+                    default -> throw new AssertionError (operation);
+                });
+                case "scrollPosition" -> value (SettableIntegerValue.class, () -> 0);
+                case "getItemAt" -> send (parameters, (Integer) args[0], host);
+                default -> throw new AssertionError (name);
+            });
             case "volume", "pan" -> parameter (parameters, method.equals ("pan"), host);
             default -> throw new AssertionError (method);
         };
     }
 
+    private static Send send (final Supplier<TrackState> target, final int index, final FakeHost host)
+    {
+        return proxy (Send.class, (method, args) -> switch (method)
+        {
+            case "exists" -> value (BooleanValue.class, () -> !target.get ().id.isEmpty () && index < target.get ().sendCount);
+            case "name" -> value (StringValue.class, () -> "Send " + index);
+            case "isEnabled" -> value (SettableBooleanValue.class, () -> true);
+            case "sendChannelColor" -> value (SettableColorValue.class, () -> 0);
+            default -> parameterProperty (target, false, host, method, args);
+        });
+    }
+
     private static Parameter parameter (final Supplier<TrackState> target, final boolean pan, final FakeHost host)
     {
-        return proxy (Parameter.class, (method, args) -> switch (method)
+        return proxy (Parameter.class, (method, args) -> parameterProperty (target, pan, host, method, args));
+    }
+
+    private static Object parameterProperty (final Supplier<TrackState> target, final boolean pan, final FakeHost host, final String method, final Object[] args)
+    {
+        return switch (method)
         {
             case "exists" -> value (BooleanValue.class, () -> !target.get ().id.isEmpty ());
             case "name" -> value (StringValue.class, () -> pan ? "Pan" : "Volume");
@@ -279,7 +344,7 @@ class RetainedCursorHostTest
             }
             case "touch" -> { host.writes.add (target.get ().id + ":touch:" + args[0]); yield null; }
             default -> throw new AssertionError (method);
-        });
+        };
     }
 
     private static <T> T value (final Class<T> type, final Supplier<Object> value)
@@ -287,7 +352,7 @@ class RetainedCursorHostTest
         return proxy (type, (method, args) -> switch (method)
         {
             case "get", "getAsDouble", "getLimited" -> value.get ();
-            case "set" -> null;
+            case "set", "addValueObserver" -> null;
             default -> throw new AssertionError (method);
         });
     }
@@ -300,7 +365,7 @@ class RetainedCursorHostTest
             assertFalse (method.isAnnotationPresent (Deprecated.class), "deprecated API call: " + method);
             return switch (method.getName ())
             {
-                case "markInterested", "addValueObserver", "subscribe", "unsubscribe" -> null;
+                case "markInterested", "subscribe", "unsubscribe" -> null;
                 case "isSubscribed" -> true;
                 case "toString" -> type.getSimpleName ();
                 case "hashCode" -> System.identityHashCode (instance);

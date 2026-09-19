@@ -10,13 +10,11 @@ import de.mossgrabers.controller.ableton.push.PushConfiguration;
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.mode.BaseMode;
-import de.mossgrabers.controller.ableton.push.parameterprovider.PushSelectedLayerOrDrumPadParameterProvider;
 import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.IChannel;
 import de.mossgrabers.framework.daw.data.ICursorDevice;
 import de.mossgrabers.framework.daw.data.ILayer;
-import de.mossgrabers.framework.daw.data.ISend;
 import de.mossgrabers.framework.daw.data.bank.ISendBank;
 import de.mossgrabers.framework.featuregroup.ModeManager;
 import de.mossgrabers.framework.mode.Modes;
@@ -44,7 +42,6 @@ public class DeviceLayerMode extends BaseMode<ILayer>
     {
         this (Modes.NAME_LAYER, surface, model);
 
-        this.setParameterProvider (new PushSelectedLayerOrDrumPadParameterProvider (this.cursorDevice, this.configuration));
     }
 
 
@@ -59,6 +56,7 @@ public class DeviceLayerMode extends BaseMode<ILayer>
     {
         super (name, surface, model, model.getCursorDevice ().getLayerBank ());
 
+        this.setParameterProvider (new de.mossgrabers.framework.parameterprovider.special.EmptyParameterProvider (8));
         this.configuration = this.surface.getConfiguration ();
         this.cursorDevice = this.model.getCursorDevice ();
         this.cursorDevice.addHasDrumPadsObserver (hasDrumPads -> this.switchBanks (this.cursorDevice.hasDrumPads () ? this.cursorDevice.getDrumPadBank () : this.cursorDevice.getLayerBank ()));
@@ -67,68 +65,13 @@ public class DeviceLayerMode extends BaseMode<ILayer>
     }
 
 
-    /** {@inheritDoc} */
+    /** Parameter gestures are owned by the core's retained layer controls. */
     @Override
-    public void onKnobTouch (final int index, final boolean isTouched)
-    {
-        final Optional<ILayer> channelOpt = this.bank.getSelectedItem ();
-        if (channelOpt.isEmpty ())
-            return;
-
-        final ILayer channel = channelOpt.get ();
-
-        this.setTouchedKnob (index, isTouched);
-
-        final ISendBank sendBank = channel.getSendBank ();
-
-        if (isTouched && this.surface.isDeletePressed ())
-        {
-            this.surface.setTriggerConsumed (ButtonID.DELETE);
-            switch (index)
-            {
-                case 0:
-                    channel.resetVolume ();
-                    break;
-                case 1:
-                    channel.resetPan ();
-                    break;
-                default:
-                    if (index >= 4)
-                        sendBank.getItem (this.getSendIndex (index)).resetValue ();
-                    break;
-            }
-            return;
-        }
-
-        switch (index)
-        {
-            case 0:
-                channel.touchVolume (isTouched);
-                break;
-            case 1:
-                channel.touchPan (isTouched);
-                break;
-            default:
-                if (index >= 4)
-                    sendBank.getItem (this.getSendIndex (index)).touchValue (isTouched);
-                break;
-        }
-
-        this.checkStopAutomationOnKnobRelease (isTouched);
-
-        // Toggle send enablement
-        if (isTouched && this.surface.isShiftPressed () && this.surface.isSelectPressed () && this.getParameterProvider ().get (index) instanceof final ISend send)
-        {
-            this.surface.setTriggerConsumed (ButtonID.SELECT);
-            send.toggleEnabled ();
-        }
-    }
+    public void onKnobTouch (final int index, final boolean isTouched) { }
 
 
-    private int getSendIndex (final int index)
-    {
-        return index - 4;
-    }
+
+
 
 
     /** {@inheritDoc} */

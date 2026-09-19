@@ -51,11 +51,13 @@ public final class DeviceRemoteControlsView implements ControllerView
     {
         return Set.of (BridgeSubscription.PARAMETERS, BridgeSubscription.CONTROLLER_PAGE_DISPLAY, BridgeSubscription.AUTOMATION, BridgeSubscription.ENCODER_CONFIGURATION);
     }
-    @Override public Set<ControlId> parameterTouchControls (final ControllerSnapshot snapshot) { return SurfaceArea.ENCODER_TOUCHES.controls (); }
+    @Override public Set<ControlId> parameterTouchControls (final ControllerSnapshot snapshot) { return observedPage (snapshot) != null && observedPage (snapshot).kind () == DevicePageState.Kind.PARAMETERS ? SurfaceArea.ENCODER_TOUCHES.controls () : Set.of (); }
 
     @Override
     public InputTarget inputTarget (final ControlId control, final InputKind kind, final ControllerSnapshot snapshot)
     {
+        if (kind == InputKind.TOUCH && !this.parameterTouchControls (snapshot).contains (control))
+            return null;
         if (ParameterAlignment.target (snapshot, BINDINGS.get (control)) != null)
             return ControllerView.super.inputTarget (control, kind, snapshot);
         // An empty/pending slot still owns Delete consumption and automation release. It never
@@ -99,7 +101,9 @@ public final class DeviceRemoteControlsView implements ControllerView
     static DevicePageState observedPage (final ControllerSnapshot snapshot)
     {
         final var display = snapshot.bridge ().pageDisplay ();
-        return "DEVICE_PARAMS".equals (display.modeId ()) && display.state () instanceof final DevicePageState state && state.kind () == DevicePageState.Kind.PARAMETERS ? state : null;
+        if (!(display.state () instanceof final DevicePageState state)) return null;
+        return "DEVICE_PARAMS".equals (display.modeId ()) && state.kind () == DevicePageState.Kind.PARAMETERS ||
+            "DEVICE_CHAINS".equals (display.modeId ()) && state.kind () == DevicePageState.Kind.CHAINS ? state : null;
     }
 
     private static double normalized (final double value, final double range) { return Math.max (0, Math.min (1, value / range)); }

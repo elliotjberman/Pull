@@ -195,7 +195,10 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         if (model.getCursorDevice () instanceof final de.mossgrabers.bitwig.framework.daw.data.CursorDeviceImpl cursorDevice &&
             cursorDevice.getParameterBank () instanceof final de.mossgrabers.bitwig.framework.daw.data.bank.ParameterBankImpl parameters)
             this.retainedDevicePages = new RetainedDevicePageHost (this.retainedCursors.pool (), new BitwigRetainedDevicePages (
-                cursorDevice.getCursorDevice (), parameters.getRemoteControlsPage (), this.retainedCursors.deviceTracks (), valueChanger));
+                cursorDevice.getCursorDevice (), parameters.getRemoteControlsPage (),
+                ((de.mossgrabers.bitwig.framework.daw.data.bank.LayerBankImpl) cursorDevice.getLayerBank ()).getNativeBank (),
+                ((de.mossgrabers.bitwig.framework.daw.data.bank.DrumPadBankImpl) cursorDevice.getDrumPadBank ()).getNativeBank (),
+                this.retainedCursors.deviceTracks (), valueChanger));
         this.clipHost = new SelectedTrackFillClipHost (this.retainedCursors);
         this.clipHost.connect (Objects.requireNonNull (model, "model"), Objects.requireNonNull (selectedTarget, "selectedTarget"));
         this.controllerMappings = new ControllerMappingHost (surface, new ControllerMappingStorageHost (

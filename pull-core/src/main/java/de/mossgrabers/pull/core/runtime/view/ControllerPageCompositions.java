@@ -3,6 +3,7 @@
 package de.mossgrabers.pull.core.runtime.view;
 
 import de.mossgrabers.pull.core.api.SessionBankShape;
+import de.mossgrabers.pull.core.api.ParameterBankId;
 import de.mossgrabers.pull.core.api.BridgeSubscription;
 import de.mossgrabers.pull.core.view.ViewProfile;
 import java.util.Set;
@@ -42,7 +43,7 @@ public final class ControllerPageCompositions
 
     private final Map<Background, Map<PageId, Entry>> pages = new LinkedHashMap<> ();
     private final Map<Background, CompiledWorkspace> legacy = new LinkedHashMap<> ();
-    private final Map<Background, CompiledWorkspace> deviceParameters = new LinkedHashMap<> ();
+    private final Map<Background, Map<String, CompiledWorkspace>> deviceParameters = new LinkedHashMap<> ();
     private final Map<Background, CompiledWorkspace> pianoRoll = new LinkedHashMap<> ();
 
     /** Declare all page variants of a background once, validating every physical composition. */
@@ -68,7 +69,19 @@ public final class ControllerPageCompositions
         final List<ControllerView> deviceViews = new ArrayList<> (background.legacyPageViews ().stream ()
             .filter (view -> !(view instanceof StableParameterControlsView) && !(view instanceof LegacyPageDisplayView)).toList ());
         deviceViews.add (new DeviceRemoteControlsView ());
-        this.deviceParameters.put (background, compile (controllerViews, background, "device-parameters", deviceViews));
+        final Map<String, CompiledWorkspace> parameterPages = new LinkedHashMap<> ();
+        final var remotes = compile (controllerViews, background, "device-parameters", deviceViews);
+        parameterPages.put ("DEVICE_PARAMS", remotes);
+        parameterPages.put ("DEVICE_CHAINS", remotes);
+        for (final ParameterBankId bank: ParameterBankId.values ())
+        {
+            if (!bank.isLayer () || bank == ParameterBankId.SELECTED_LAYER_SENDS) continue;
+            final String mode = bank == ParameterBankId.SELECTED_LAYER ? "DEVICE_LAYER" : "DEVICE_" + bank.name ();
+            final List<ControllerView> layerViews = new ArrayList<> (deviceViews);
+            layerViews.set (layerViews.size () - 1, new LayerParameterControlsView (mode, bank));
+            parameterPages.put (mode, compile (controllerViews, background, mode, layerViews));
+        }
+        this.deviceParameters.put (background, Map.copyOf (parameterPages));
         // The explicitly deferred piano roll keeps its original unclaimed stable display.
         this.pianoRoll.put (background, compile (controllerViews, background, "piano-roll", background.legacyPageViews ().stream ().map (view -> view instanceof LegacyPageDisplayView ? PIANO_ROLL_OBSERVATION : view).toList ()));
     }
@@ -88,9 +101,9 @@ public final class ControllerPageCompositions
         return Objects.requireNonNull (this.legacy.get (background), "Declared background");
     }
 
-    public CompiledWorkspace deviceParameters (final Background background)
+    public CompiledWorkspace deviceParameters (final Background background, final String mode)
     {
-        return Objects.requireNonNull (this.deviceParameters.get (background), "Declared background");
+        return this.deviceParameters.get (background).get (mode);
     }
 
     public CompiledWorkspace pianoRoll (final Background background)

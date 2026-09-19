@@ -67,6 +67,47 @@ class BitwigRetainedDevicePagesTest
     }
 
     @Test
+    void deviceLayerWindowMustArriveBeforeAcquisitionAndOldWindowKeepsItsCleanupTarget ()
+    {
+        final Fixture f = new Fixture (3);
+        final DeviceState device = f.source.observed;
+        for (int index = 0; index < 9; index++) device.layers.add (new ChannelState ("layer-" + index));
+        f.source.layers.deliver (device, 0);
+        f.request ();
+        f.deliverTracks ();
+        f.tick ();
+        f.tick ();
+        f.children[0].deliverDevice (device);
+        f.tick ();
+        f.children[0].page.deliverIdentity (device, f.children[0].requestedPage);
+        f.children[0].page.deliverProperties ();
+        f.tick ();
+        f.tick ();
+        assertNull (f.host.devicePage (), "device and remotes cannot acknowledge stale layer identities");
+        f.children[0].layers.deliver (device, 0);
+        f.tick ();
+        f.tick ();
+        final var first = f.host.devicePage ();
+        assertNotNull (first);
+        final var layer = first.channels ().get ("layer-0");
+        layer.volume ().touchValue (true);
+        f.source.layers.deliver (device, 8);
+        assertFalse (first.current ().getAsBoolean ());
+        assertTrue (first.addressable ().getAsBoolean ());
+        layer.volume ().touchValue (false);
+        assertEquals (List.of ("layer-0/volume:touch:true", "layer-0/volume:touch:false"), f.effects);
+        f.request (first.owner ());
+        f.deliverTracks ();
+        f.tick ();
+        f.tick ();
+        f.deliverChild (1);
+        assertTrue (f.host.devicePage ().channels ().containsKey ("layer-8"));
+        assertTrue (first.addressable ().getAsBoolean (), "old bank remains independently retained for cleanup");
+        f.children[0].layers.deliver (device, 8);
+        assertFalse (first.addressable ().getAsBoolean (), "external child rebind invalidates the old exact actuator");
+    }
+
+    @Test
     void partialAndEmptyPagesIgnoreStalePropertiesOfNonexistentRemotes ()
     {
         for (final int present: List.of (0, 3))
@@ -254,7 +295,7 @@ class BitwigRetainedDevicePagesTest
             this.navigate (new DeviceState ("other-track", "device-a", present), 1);
             final var changer = new TwosComplementValueChanger (128, 1);
             final var parameters = new ParameterBankImpl (relaxedProxy (IHost.class), changer, this.source.proxy.createCursorRemoteControlsPage (8), 8, 8);
-            this.access = new BitwigRetainedDevicePages (this.source.proxy, parameters.getRemoteControlsPage (), Map.of (0, this.children[0].track, 1, this.children[1].track), changer);
+            this.access = new BitwigRetainedDevicePages (this.source.proxy, parameters.getRemoteControlsPage (), this.source.layers.proxy, emptyPads (), Map.of (0, this.children[0].track, 1, this.children[1].track), changer);
             this.pool = new RetainedCursorPool (List.of (Profile.DEVICE_PAGE, Profile.DEVICE_PAGE), this);
             this.host = new RetainedDevicePageHost (this.pool, this.access);
         }
@@ -273,6 +314,7 @@ class BitwigRetainedDevicePagesTest
         private void navigate (final DeviceState device, final int page)
         {
             this.source.observed = device;
+            this.source.layers.deliver (device, 0);
             this.source.page.deliverIdentity (device, page);
             this.source.page.deliverProperties ();
             this.updateEquality ();
@@ -291,6 +333,7 @@ class BitwigRetainedDevicePagesTest
             this.tick ();
             child.page.deliverIdentity (child.observed, child.requestedPage);
             child.page.deliverProperties ();
+            child.layers.deliver (child.observed, child.layers.requestedPosition);
             this.tick ();
             this.tick ();
         }
@@ -310,6 +353,7 @@ class BitwigRetainedDevicePagesTest
     {
         private final String trackId;
         private final String id;
+        private final List<ChannelState> layers = new ArrayList<> ();
         private final ParameterState[][] pages = new ParameterState[2][8];
         private DeviceState (final String trackId, final String id, final int present)
         {
@@ -318,6 +362,84 @@ class BitwigRetainedDevicePagesTest
             for (int page = 0; page < 2; page++)
                 for (int slot = 0; slot < present; slot++)
                     this.pages[page][slot] = new ParameterState (id + "/page-" + page + "/" + slot, "Remote " + slot, 0.2 + slot * 0.01);
+        }
+    }
+
+    private static final class ChannelState
+    {
+        private final String id;
+        private final ParameterState volume;
+        private final ParameterState pan;
+        private ChannelState (final String id)
+        {
+            this.id = id;
+            this.volume = new ParameterState (id + "/volume", "Volume", 0.3);
+            this.pan = new ParameterState (id + "/pan", "Pan", 0.5);
+        }
+    }
+
+    private static final class LayerWindow
+    {
+        private final DeviceLayerBank proxy;
+        private final Value<Integer> position = new Value<> (0);
+        private final Value<Integer> count = new Value<> (0);
+        private final LayerNode[] channels = new LayerNode[8];
+        private int requestedPosition;
+        private LayerWindow (final Fixture fixture)
+        {
+            this.position.setter = value -> this.requestedPosition = value;
+            for (int i = 0; i < 8; i++) this.channels[i] = new LayerNode (fixture);
+            this.proxy = BitwigRetainedDevicePagesTest.proxy (DeviceLayerBank.class, (method, args) -> switch (method)
+            {
+                case "scrollPosition" -> this.position.proxy (SettableIntegerValue.class);
+                case "itemCount" -> this.count.proxy (IntegerValue.class);
+                case "getItemAt" -> this.channels[(Integer) args[0]].proxy;
+                default -> throw new AssertionError (method);
+            });
+        }
+        private void deliver (final DeviceState device, final int offset)
+        {
+            this.position.deliver (offset);
+            this.count.deliver (device.layers.size ());
+            for (int i = 0; i < 8; i++) this.channels[i].deliver (i + offset < device.layers.size () ? device.layers.get (i + offset) : null);
+        }
+    }
+
+    private static final class LayerNode
+    {
+        private final DeviceLayer proxy;
+        private final Value<String> id = new Value<> ("");
+        private final Value<Boolean> exists = new Value<> (false);
+        private final RemoteNode volume;
+        private final RemoteNode pan;
+        private LayerNode (final Fixture fixture)
+        {
+            this.volume = new RemoteNode (fixture, true);
+            this.pan = new RemoteNode (fixture, true);
+            this.proxy = BitwigRetainedDevicePagesTest.proxy (DeviceLayer.class, (method, args) -> switch (method)
+            {
+                case "exists" -> this.exists.proxy (BooleanValue.class);
+                case "channelId" -> this.id.proxy (StringValue.class);
+                case "volume" -> this.volume.proxy;
+                case "pan" -> this.pan.proxy;
+                case "sendBank" -> emptySends ();
+                default -> throw new AssertionError (method);
+            });
+        }
+        private void deliver (final ChannelState state)
+        {
+            this.exists.deliver (state != null);
+            this.id.deliver (state == null ? "" : state.id);
+            this.volume.target = state == null ? null : state.volume;
+            this.pan.target = state == null ? null : state.pan;
+            for (final RemoteNode parameter: List.of (this.volume, this.pan))
+            {
+                parameter.exists.deliver (parameter.target != null);
+                if (parameter.target == null) continue;
+                parameter.name.deliver (parameter.target.name);
+                parameter.value.deliver (parameter.target.value);
+                parameter.display.deliver (Double.toString (parameter.target.value));
+            }
         }
     }
 
@@ -332,6 +454,7 @@ class BitwigRetainedDevicePagesTest
     private static final class SourceDevice
     {
         private final PageNode page;
+        private final LayerWindow layers;
         private final PinnableCursorDevice proxy;
         private final Value<String> channel = new Value<> ("creation-track");
         private final Value<Boolean> exists = new Value<> (true);
@@ -340,6 +463,7 @@ class BitwigRetainedDevicePagesTest
         private SourceDevice (final Fixture fixture)
         {
             this.page = new PageNode (fixture, false);
+            this.layers = new LayerWindow (fixture);
             this.proxy = proxy (PinnableCursorDevice.class, (method, args) -> switch (method)
             {
                 case "exists" -> this.exists.proxy (BooleanValue.class);
@@ -366,6 +490,7 @@ class BitwigRetainedDevicePagesTest
         private final CursorTrack track;
         private final PinnableCursorDevice proxy;
         private final PageNode page;
+        private final LayerWindow layers;
         private final Value<Boolean> exists = new Value<> (false);
         private final Value<Boolean> pinned = new Value<> (false);
         private final Value<Boolean> equal = new Value<> (false);
@@ -380,12 +505,15 @@ class BitwigRetainedDevicePagesTest
             this.fixture = fixture;
             this.slot = slot;
             this.page = new PageNode (fixture, true);
+            this.layers = new LayerWindow (fixture);
             this.pinned.setter = value -> this.requestedPin = value;
             this.page.index.setter = value -> { this.requestedPage = value; fixture.commands.add ("page:" + slot + ":" + value); };
             this.proxy = proxy (PinnableCursorDevice.class, (method, args) -> switch (method)
             {
                 case "exists" -> this.exists.proxy (BooleanValue.class);
                 case "isPinned" -> this.pinned.proxy (SettableBooleanValue.class);
+                case "createLayerBank" -> this.layers.proxy;
+                case "createDrumPadBank" -> emptyPads ();
                 case "createEqualsValue" -> { assertSame (fixture.source.proxy, args[0]); yield this.equal.proxy (BooleanValue.class); }
                 case "selectDevice" -> { assertSame (fixture.source.proxy, args[0]); this.requestedDevice = fixture.source.observed; fixture.commands.add ("device:" + slot + ":" + this.requestedDevice.id); yield null; }
                 case "createCursorRemoteControlsPage" -> { assertEquals (3, args.length, "retained pages must be independent named cursors"); yield this.page.proxy; }
@@ -488,6 +616,35 @@ class BitwigRetainedDevicePagesTest
                 default -> throw new AssertionError (method);
             });
         }
+    }
+
+    private static SendBank emptySends ()
+    {
+        return proxy (SendBank.class, (method, args) -> switch (method)
+        {
+            case "getItemAt" -> relaxedProxy (Send.class);
+            case "scrollPosition" -> new Value<> (0).proxy (SettableIntegerValue.class);
+            case "itemCount" -> new Value<> (0).proxy (IntegerValue.class);
+            default -> throw new AssertionError (method);
+        });
+    }
+
+    private static DrumPadBank emptyPads ()
+    {
+        return proxy (DrumPadBank.class, (method, args) -> switch (method)
+        {
+            case "scrollPosition" -> new Value<> (0).proxy (SettableIntegerValue.class);
+            case "itemCount" -> new Value<> (0).proxy (IntegerValue.class);
+            case "getItemAt" -> proxy (DrumPad.class, (name, arguments) -> switch (name)
+            {
+                case "exists" -> new Value<> (false).proxy (BooleanValue.class);
+                case "channelId" -> new Value<> ("").proxy (StringValue.class);
+                case "volume", "pan" -> relaxedProxy (Parameter.class);
+                case "sendBank" -> emptySends ();
+                default -> throw new AssertionError (name);
+            });
+            default -> throw new AssertionError (method);
+        });
     }
 
     private static final class Value<T>

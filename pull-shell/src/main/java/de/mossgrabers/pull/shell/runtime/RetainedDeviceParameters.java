@@ -20,15 +20,16 @@ interface RetainedDeviceParameters
     void requestDevicePage (boolean active, Set<String> cleanupOwners);
     DevicePage devicePage ();
 
-    record DevicePage (String owner, long generation, int page, List<IParameter> parameters,
+    record DevicePage (String owner, long generation, int page, List<IParameter> parameters, java.util.Map<String, RetainedTrackParameters.TrackMix> channels,
                        BooleanSupplier current, BooleanSupplier addressable)
     {
         public DevicePage
         {
             Objects.requireNonNull (owner, "owner");
-            if (owner.isBlank () || generation < 1 || page < 0)
+            if (owner.isBlank () || generation < 1 || page < -1)
                 throw new IllegalArgumentException ("A ready device page needs an opaque owner, generation and page");
             parameters = List.copyOf (parameters);
+            channels = java.util.Map.copyOf (channels);
             if (parameters.size () != 8) throw new IllegalArgumentException ("Eight remote slots are required");
             Objects.requireNonNull (current, "current");
             Objects.requireNonNull (addressable, "addressable");

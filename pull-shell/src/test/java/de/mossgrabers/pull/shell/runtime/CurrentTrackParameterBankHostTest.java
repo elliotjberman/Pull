@@ -118,7 +118,7 @@ class CurrentTrackParameterBankHostTest
             for (int index = 0; index < this.tracks.length; index++)
             {
                 final Track track = this.tracks[index];
-                acquired.put (track.channel, new RetainedTrackParameters.TrackMix (track.channel, index + 1, track.volume.parameter, track.pan.parameter,
+                acquired.put (track.channel, new RetainedTrackParameters.TrackMix (track.channel, index + 1, track.volume.parameter, track.pan.parameter, java.util.Collections.nCopies (8, de.mossgrabers.framework.daw.data.empty.EmptyParameter.INSTANCE), () -> 1,
                     () -> track.exists && "project".equals (this.project.get ())));
             }
             final RetainedTrackParameters retained = new RetainedTrackParameters ()

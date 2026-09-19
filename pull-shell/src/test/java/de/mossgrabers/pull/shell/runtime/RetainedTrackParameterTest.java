@@ -213,7 +213,7 @@ class RetainedTrackParameterTest
         {
             final long generation = this.generations.merge (trackId, Long.valueOf (1), (old, increment) -> Long.valueOf (old.longValue () + 1)).longValue ();
             final IParameter parameter = ("a".equals (trackId) ? this.a : this.b).parameter;
-            this.acquired.put (trackId, new TrackMix (trackId, generation, parameter, parameter,
+            this.acquired.put (trackId, new TrackMix (trackId, generation, parameter, parameter, java.util.Collections.nCopies (8, de.mossgrabers.framework.daw.data.empty.EmptyParameter.INSTANCE), () -> 1,
                 () -> this.acquired.containsKey (trackId) && this.generations.get (trackId).longValue () == generation));
         }
 

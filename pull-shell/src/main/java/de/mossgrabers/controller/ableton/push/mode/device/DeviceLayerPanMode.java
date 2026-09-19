@@ -6,10 +6,7 @@ package de.mossgrabers.controller.ableton.push.mode.device;
 
 
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
-import de.mossgrabers.controller.ableton.push.parameterprovider.PushPanLayerOrDrumPadParameterProvider;
-import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.daw.IModel;
-import de.mossgrabers.framework.daw.data.IChannel;
 import de.mossgrabers.framework.mode.Modes;
 
 
@@ -30,31 +27,10 @@ public class DeviceLayerPanMode extends DeviceLayerMode
     {
         super (Modes.NAME_LAYER_PANNING, surface, model);
 
-        this.setParameterProvider (new PushPanLayerOrDrumPadParameterProvider (this.cursorDevice));
     }
 
 
-    /** {@inheritDoc} */
-    @Override
-    public void onKnobTouch (final int index, final boolean isTouched)
-    {
-        this.setTouchedKnob (index, isTouched);
 
-        // Drum Pad Bank has size of 16, layers only 8
-        final int offset = this.getDrumPadIndex ();
-        final IChannel layer = this.bank.getItem (offset + index);
-        if (!layer.doesExist ())
-            return;
-
-        if (isTouched && this.surface.isDeletePressed ())
-        {
-            this.surface.setTriggerConsumed (ButtonID.DELETE);
-            layer.resetPan ();
-        }
-
-        layer.touchPan (isTouched);
-        this.checkStopAutomationOnKnobRelease (isTouched);
-    }
 
 
 }

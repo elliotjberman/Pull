@@ -83,6 +83,7 @@ final class ParameterTargetHost
     private final LiveTarget [] deviceTargets = new LiveTarget[ParameterSlot.BANK_SIZE];
     private final LiveTarget [] trackVolumeTargets = new LiveTarget[ParameterSlot.BANK_SIZE];
     private final LiveTarget [] trackPanTargets = new LiveTarget[ParameterSlot.BANK_SIZE];
+    private final Map<ParameterBankId, LiveTarget[]> layerTargets = new java.util.EnumMap<> (ParameterBankId.class);
     private final LiveTarget [][] trackSendTargets = new LiveTarget[ParameterSlot.BANK_SIZE][ParameterSlot.BANK_SIZE];
     private final Map<ParameterTargetRef, LiveTarget> currentTargets = new LinkedHashMap<> (ParameterBridgeSnapshot.TARGET_CAPACITY);
 
@@ -147,7 +148,7 @@ final class ParameterTargetHost
     {
         this.requestedBanks = Objects.requireNonNull (banks, "banks");
         this.retainedTracks.requestTracks (this.requestedTrackIds (banks));
-        this.retainedDevices.requestDevicePage (banks.includes (ParameterBankId.SELECTED_DEVICE_REMOTE), this.retainedDeviceOwners ());
+        this.retainedDevices.requestDevicePage (banks.includes (ParameterBankId.SELECTED_DEVICE_REMOTE) || banks.banks ().stream ().anyMatch (ParameterBankId::isLayer), this.retainedDeviceOwners ());
         this.reconcileTargets (this.requestedBanks);
         this.discardStaleRetainedTargets ();
         final var touches = this.touchedTargets.entrySet ().iterator ();
@@ -579,7 +580,7 @@ final class ParameterTargetHost
         if (banks.includes (ParameterBankId.SELECTED_TRACK_SENDS))
         {
             for (int index = 0; index < this.selectedSendTargets.length; index++)
-                this.selectedSendTargets[index] = this.reconcileSelectedSendTarget (this.selectedSendTargets[index], index);
+                this.selectedSendTargets[index] = this.reconcileSelectedMixTarget (this.selectedSendTargets[index], index + 2);
         }
         if (banks.includes (ParameterBankId.ACTIVE))
         {
@@ -618,8 +619,16 @@ final class ParameterTargetHost
             final ITrackBank tracks = this.model.getCurrentTrackBank ();
             final LiveTarget [] targets = this.trackSendTargets[column];
             for (int trackIndex = 0; trackIndex < targets.length; trackIndex++)
-                targets[trackIndex] = this.reconcileCurrentTrackTarget (targets[trackIndex], trackIndex, tracks, track -> sendParameter (track, column));
+                targets[trackIndex] = this.reconcileVisibleMixTarget (targets[trackIndex], trackIndex, tracks, column + 2);
         }
+
+        for (final ParameterBankId bank: banks.banks ())
+            if (bank.isLayer ())
+            {
+                final LiveTarget[] targets = this.layerTargets.computeIfAbsent (bank, ignored -> new LiveTarget[ParameterSlot.capacity (bank)]);
+                for (int index = 0; index < targets.length; index++)
+                    targets[index] = this.reconcileLayerTarget (targets[index], bank, index);
+            }
 
         if (banks.includes (ParameterBankId.MASTER))
         {
@@ -664,46 +673,14 @@ final class ParameterTargetHost
     }
 
 
-    private LiveTarget reconcileSelectedSendTarget (final LiveTarget existing, final int index)
-    {
-        if (this.selectedTarget == null || !this.selectedTarget.doesExist ())
-            return null;
-        final ITrackBank bank = this.model.getCurrentTrackBank ();
-        final ITrack track = bank == null ? null : bank.getSelectedItem ().orElse (null);
-        if (track == null || !track.doesExist () || !Objects.equals (this.selectedTarget.getChannelID (), track.getChannelID ()))
-            return null;
-        final IParameter parameter = sendParameter (track, index);
-        if (parameter == null || !parameter.doesExist ())
-            return null;
-        final ParameterTargetIdentityResolver.TargetIdentity identity = this.targetIdentities.channel (track, parameter);
-        if (identity == null)
-            return null;
-        LiveTarget target = existing;
-        if (target == null || target.parameter != parameter || !target.isCurrent () || !identity.equals (target.targetIdentity))
-        {
-            final long selectedGeneration = this.selectedTarget.getGeneration ();
-            final String project = this.model.getProject ().getIdentity ();
-            final String channel = track.getChannelID ();
-            final BooleanSupplier addressable = () -> parameter.doesExist () && track.doesExist () && channel.equals (track.getChannelID ()) &&
-                Objects.equals (project, this.model.getProject ().getIdentity ()) && sendParameter (track, index) == parameter && identity.equals (this.targetIdentities.channel (track, parameter));
-            final BooleanSupplier current = () -> addressable.getAsBoolean () && this.selectedTarget.doesExist () && selectedGeneration == this.selectedTarget.getGeneration () &&
-                channel.equals (this.selectedTarget.getChannelID ()) && this.model.getCurrentTrackBank () == bank &&
-                bank.getSelectedItem ().filter (candidate -> candidate == track && channel.equals (candidate.getChannelID ())).isPresent ();
-            target = new LiveTarget (new ParameterTargetRef (ParameterTargetKind.LIVE, this.nextIdentity (), selectedGeneration), null, parameter, 0, identity,
-                parameter::getValue, value -> parameter.setValueImmediatly ((int) Math.round (value)), current, addressable, 0.5);
-        }
-        if (target.isCurrent ())
-            this.currentTargets.put (target.reference, target);
-        return target;
-    }
-
 
     private java.util.Set<String> requestedTrackIds (final DesiredParameterBanks banks)
     {
         final java.util.Set<String> tracks = new java.util.LinkedHashSet<> ();
-        if (banks.includes (ParameterBankId.SELECTED_TRACK) && this.selectedTarget != null && this.selectedTarget.doesExist ())
+        if ((banks.includes (ParameterBankId.SELECTED_TRACK) || banks.includes (ParameterBankId.SELECTED_TRACK_SENDS)) && this.selectedTarget != null && this.selectedTarget.doesExist ())
             tracks.add (this.selectedTarget.getChannelID ());
-        if (banks.includes (ParameterBankId.TRACK_VOLUME) || banks.includes (ParameterBankId.TRACK_PAN))
+        if (banks.includes (ParameterBankId.TRACK_VOLUME) || banks.includes (ParameterBankId.TRACK_PAN) ||
+            java.util.stream.IntStream.range (0, 8).anyMatch (index -> banks.includes (ParameterBankId.trackSend (index))))
         {
             final ITrackBank bank = this.model.getCurrentTrackBank ();
             if (bank != null)
@@ -745,6 +722,7 @@ final class ParameterTargetHost
     {
         if (page == null || !page.current ().getAsBoolean ())
             return null;
+        if (page.page () < 0) return null;
         final IParameter parameter = page.parameters ().get (index);
         if (!parameter.doesExist ()) return null;
         LiveTarget target = existing;
@@ -795,32 +773,55 @@ final class ParameterTargetHost
     private LiveTarget reconcileRetainedMixTarget (final LiveTarget existing, final String channel, final int role, final BooleanSupplier eligible)
     {
         final RetainedTrackParameters.TrackMix mix = this.retainedTracks.lookup (channel);
-        if (mix == null || !channel.equals (mix.trackId ()) || !mix.addressable ().getAsBoolean ())
+        if (mix == null || !channel.equals (mix.trackId ()) || !mix.addressable ().getAsBoolean () || mix.generation (role) < 1)
             return null;
+        return this.reconcileChannelTarget (existing, mix, role, eligible, null);
+    }
+
+
+    private LiveTarget reconcileLayerTarget (final LiveTarget existing, final ParameterBankId bank, final int index)
+    {
+        final var page = this.retainedDevices.devicePage ();
+        if (page == null || !page.current ().getAsBoolean ()) return null;
+        final var device = this.model.getCursorDevice ();
+        final de.mossgrabers.framework.daw.data.bank.ILayerBank channels = device.hasDrumPads () ? device.getDrumPadBank () : device.getLayerBank ();
+        final boolean selected = bank == ParameterBankId.SELECTED_LAYER || bank == ParameterBankId.SELECTED_LAYER_SENDS;
+        final var selectedChannel = channels.getSelectedItem ().orElse (null);
+        if (bank == ParameterBankId.SELECTED_LAYER && index >= 2 || !selected && index >= channels.getPageSize ()) return null;
+        final var channel = selected ? selectedChannel : channels.getItem (index);
+        if (channel == null || !channel.doesExist ()) return null;
+        final var mix = page.channels ().get (channel.getChannelID ());
+        final int role = bank == ParameterBankId.SELECTED_LAYER ? index : bank == ParameterBankId.SELECTED_LAYER_SENDS ? index + 2 :
+            bank == ParameterBankId.LAYER_VOLUME ? 0 : bank == ParameterBankId.LAYER_PAN ? 1 : bank.ordinal () - ParameterBankId.LAYER_SEND1.ordinal () + 2;
+        if (mix == null) return null;
+        return this.reconcileChannelTarget (existing, mix, role, () -> page.current ().getAsBoolean () && channels == (device.hasDrumPads () ? device.getDrumPadBank () : device.getLayerBank ()) && channel.doesExist () && mix.trackId ().equals (channel.getChannelID ()) &&
+            (!selected || channels.getSelectedItem ().filter (item -> mix.trackId ().equals (item.getChannelID ())).isPresent ()), page);
+    }
+
+
+    private LiveTarget reconcileChannelTarget (final LiveTarget existing, final RetainedTrackParameters.TrackMix mix, final int role,
+                                              final BooleanSupplier eligible, final RetainedDeviceParameters.DevicePage page)
+    {
         final IParameter parameter = mix.parameter (role);
         if (!parameter.doesExist ())
             return null;
         LiveTarget target = existing;
-        if (target == null || target.retainedTrack == null || target.parameter != parameter ||
-            target.retainedTrack.assignmentGeneration () != mix.assignmentGeneration () || !target.isCurrent ())
+        if (target == null || target.parameter != parameter || target.retainedDevice != page || !target.isCurrent ())
         {
             final String project = this.model.getProject ().getIdentity ();
-            final BooleanSupplier addressable = () -> mix.addressable ().getAsBoolean () && parameter.doesExist () &&
+            final long roleGeneration = mix.generation (role);
+            final BooleanSupplier addressable = () -> mix.addressable ().getAsBoolean () && (page == null || page.addressable ().getAsBoolean ()) && roleGeneration == mix.generation (role) && parameter.doesExist () &&
                 Objects.equals (project, this.model.getProject ().getIdentity ());
-            final var identity = new ParameterTargetIdentityResolver.TargetIdentity (role == 0 ? "channel-volume" : "channel-pan", channel, 0, 0, parameter.getName ());
+            final var identity = new ParameterTargetIdentityResolver.TargetIdentity (role == 0 ? "channel-volume" : role == 1 ? "channel-pan" : "channel-send", mix.trackId (), 0, Math.max (0, role - 2), parameter.getName ());
             target = new LiveTarget (new ParameterTargetRef (ParameterTargetKind.LIVE, this.nextIdentity (), mix.assignmentGeneration ()), null, parameter, 0, identity,
                 parameter::getValue, value -> parameter.setValueImmediatly ((int) Math.round (value)), () -> eligible.getAsBoolean () && addressable.getAsBoolean (), addressable, 0.5);
-            target.retainedTrack = mix;
+            if (page == null) target.retainedTrack = mix;
+            else target.retainedDevice = page;
         }
         if (target.isCurrent ()) this.currentTargets.put (target.reference, target);
         return target;
     }
 
-
-    private static IParameter sendParameter (final ITrack track, final int index)
-    {
-        return track.getSendBank () != null && index < track.getSendBank ().getPageSize () ? track.getSendBank ().getItem (index) : null;
-    }
 
 
     private LiveTarget reconcileProjectScopedTarget (final LiveTarget existing, final String domain, final int role, final Supplier<IParameter> currentParameter)
@@ -909,40 +910,13 @@ final class ParameterTargetHost
     }
 
 
-    private LiveTarget reconcileCurrentTrackTarget (final LiveTarget existing, final int index, final ITrackBank tracks, final java.util.function.Function<ITrack, IParameter> role)
-    {
-        if (tracks == null || index >= tracks.getPageSize ())
-            return null;
-
-        final ITrack track = tracks.getItem (index);
-        final IParameter parameter = track == null ? null : role.apply (track);
-        final ParameterTargetIdentityResolver.TargetIdentity targetIdentity = parameter == null ? null : this.targetIdentities.channel (track, parameter);
-        if (track == null || !track.doesExist () || parameter == null || !parameter.doesExist () || targetIdentity == null)
-            return null;
-
-        LiveTarget target = existing;
-        if (target == null || target.parameter != parameter || !target.isCurrent () || !target.targetIdentity.equals (targetIdentity))
-        {
-            final String project = this.model.getProject ().getIdentity ();
-            final String channel = track.getChannelID ();
-            final BooleanSupplier addressable = () -> parameter.doesExist () && track.doesExist () && channel.equals (track.getChannelID ()) &&
-                Objects.equals (project, this.model.getProject ().getIdentity ()) && tracks.getItem (index) == track && role.apply (track) == parameter &&
-                targetIdentity.equals (this.targetIdentities.channel (track, parameter));
-            final BooleanSupplier current = () -> this.model.getCurrentTrackBank () == tracks && addressable.getAsBoolean ();
-            target = new LiveTarget (new ParameterTargetRef (ParameterTargetKind.LIVE, this.nextIdentity (), index), null, parameter, 0, targetIdentity,
-                parameter::getValue, value -> parameter.setValueImmediatly ((int) Math.round (value)), current, addressable, 0.5);
-        }
-        if (target.isCurrent ())
-            this.currentTargets.put (target.reference, target);
-        return target;
-    }
-
 
     private ParameterBridgeSnapshot captureSnapshot ()
     {
         final Map<ParameterSlot, ParameterTargetSnapshot> slots = new LinkedHashMap<> (ParameterBridgeSnapshot.TARGET_CAPACITY);
         this.captureBank (slots, ParameterBankId.SELECTED_TRACK, this.selectedTrackTargets, index -> new ParameterSlot (ParameterBankId.SELECTED_TRACK, index));
         this.captureBank (slots, ParameterBankId.SELECTED_TRACK_SENDS, this.selectedSendTargets, ParameterSlot::selectedTrackSend);
+        this.layerTargets.forEach ((bank, targets) -> this.captureBank (slots, bank, targets, index -> new ParameterSlot (bank, index)));
         this.captureBank (slots, ParameterBankId.ACTIVE, this.activeTargets, ParameterSlot::active);
         this.captureBank (slots, ParameterBankId.PROJECT_REMOTE, this.projectTargets, ParameterSlot::projectRemote);
         this.captureBank (slots, ParameterBankId.SELECTED_DEVICE_REMOTE, this.deviceTargets, ParameterSlot::selectedDeviceRemote);

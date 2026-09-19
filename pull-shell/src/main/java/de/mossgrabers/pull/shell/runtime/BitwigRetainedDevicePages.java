@@ -3,6 +3,8 @@
 package de.mossgrabers.pull.shell.runtime;
 
 import com.bitwig.extension.controller.api.BooleanValue;
+import com.bitwig.extension.controller.api.DeviceLayerBank;
+import com.bitwig.extension.controller.api.DrumPadBank;
 import com.bitwig.extension.controller.api.CursorDeviceFollowMode;
 import com.bitwig.extension.controller.api.CursorRemoteControlsPage;
 import com.bitwig.extension.controller.api.CursorTrack;
@@ -22,12 +24,16 @@ final class BitwigRetainedDevicePages implements RetainedDevicePageHost.Access
 {
     private final PinnableCursorDevice source;
     private final CursorRemoteControlsPage sourcePage;
+    private final DeviceLayerBank sourceLayers;
+    private final DrumPadBank sourcePads;
     private final Map<Integer, Child> children;
 
-    BitwigRetainedDevicePages (final PinnableCursorDevice source, final CursorRemoteControlsPage sourcePage, final Map<Integer, CursorTrack> tracks, final IValueChanger changer)
+    BitwigRetainedDevicePages (final PinnableCursorDevice source, final CursorRemoteControlsPage sourcePage, final DeviceLayerBank layers, final DrumPadBank pads, final Map<Integer, CursorTrack> tracks, final IValueChanger changer)
     {
         this.source = source;
         this.sourcePage = sourcePage;
+        this.sourceLayers = layers;
+        this.sourcePads = pads;
         source.exists ().markInterested ();
         source.channel ().channelId ().markInterested ();
         this.sourcePage.selectedPageIndex ().markInterested ();
@@ -44,7 +50,7 @@ final class BitwigRetainedDevicePages implements RetainedDevicePageHost.Access
         final String track = this.source.channel ().channelId ().get ();
         final int page = this.sourcePage.selectedPageIndex ().get ();
         return new RetainedDevicePageHost.Source (track == null ? "" : track, page,
-            track != null && !track.isBlank () && page >= 0 && this.source.exists ().get ());
+            track != null && !track.isBlank () && this.source.exists ().get ());
     }
 
     @Override
@@ -59,7 +65,9 @@ final class BitwigRetainedDevicePages implements RetainedDevicePageHost.Access
     @Override
     public void selectPage (final int poolSlot, final int page)
     {
-        this.children.get (Integer.valueOf (poolSlot)).page.selectedPageIndex ().set (page);
+        final Child child = this.children.get (Integer.valueOf (poolSlot));
+        if (page >= 0) child.page.selectedPageIndex ().set (page);
+        child.channels.select ();
     }
 
     @Override
@@ -92,8 +100,10 @@ final class BitwigRetainedDevicePages implements RetainedDevicePageHost.Access
             if ((retained.exists ().get () || selected.exists ().get ()) && !RetainedCursorHost.sameParameter (retained, selected))
                 return false;
         }
-        return true;
+        return child.channels.coherent ();
     }
+
+    @Override public Map<String, RetainedTrackParameters.TrackMix> channels (final int poolSlot, final long generation) { return this.children.get (Integer.valueOf (poolSlot)).channels.capture (generation); }
 
     @Override public List<IParameter> parameters (final int poolSlot) { return this.children.get (Integer.valueOf (poolSlot)).parameters; }
 
@@ -127,12 +137,13 @@ final class BitwigRetainedDevicePages implements RetainedDevicePageHost.Access
         private final CursorRemoteControlsPage page;
         private final BooleanValue equalDevice;
         private final List<IParameter> parameters;
+        private final RetainedDeviceChannels channels;
         private long ownRevision;
         private long sourceRevision;
 
         private Child (final int index, final CursorTrack track, final IValueChanger changer)
         {
-            this.device = track.createCursorDevice ("PULL_RETAINED_DEVICE_" + index, "Pull Retained Device " + index, 0, CursorDeviceFollowMode.FOLLOW_SELECTION);
+            this.device = track.createCursorDevice ("PULL_RETAINED_DEVICE_" + index, "Pull Retained Device " + index, 8, CursorDeviceFollowMode.FOLLOW_SELECTION);
             this.page = this.device.createCursorRemoteControlsPage ("PULL_RETAINED_PAGE_" + index, 8, "");
             this.equalDevice = this.device.createEqualsValue (BitwigRetainedDevicePages.this.source);
             this.equalDevice.markInterested ();
@@ -164,6 +175,7 @@ final class BitwigRetainedDevicePages implements RetainedDevicePageHost.Access
                 parameters.add (new ParameterImpl (changer, remote, slot, true));
             }
             this.parameters = List.copyOf (parameters);
+            this.channels = new RetainedDeviceChannels (this.device, BitwigRetainedDevicePages.this.sourceLayers, BitwigRetainedDevicePages.this.sourcePads, changer, () -> this.ownRevision++, () -> this.sourceRevision++);
         }
     }
 }

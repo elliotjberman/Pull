@@ -949,7 +949,8 @@ final class BoundedControllerBridge implements ControllerBridge
     {
         if (page.effectivePage ().kind () == de.mossgrabers.pull.core.api.ControllerPageRef.Kind.CORE)
             return de.mossgrabers.controller.ableton.push.mode.CorePageMode.containsInput (control, kind);
-        return "DEVICE_PARAMS".equals (page.effectivePage ().legacyAlias ()) &&
+        return java.util.Set.of ("DEVICE_PARAMS", "DEVICE_CHAINS", "DEVICE_LAYER", "DEVICE_LAYER_VOLUME", "DEVICE_LAYER_PAN",
+            "DEVICE_LAYER_SEND1", "DEVICE_LAYER_SEND2", "DEVICE_LAYER_SEND3", "DEVICE_LAYER_SEND4", "DEVICE_LAYER_SEND5", "DEVICE_LAYER_SEND6", "DEVICE_LAYER_SEND7", "DEVICE_LAYER_SEND8").contains (page.effectivePage ().legacyAlias ()) &&
             (kind == de.mossgrabers.pull.core.api.event.InputKind.RELATIVE || kind == de.mossgrabers.pull.core.api.event.InputKind.TOUCH) &&
             de.mossgrabers.controller.ableton.push.mode.CorePageMode.containsInput (control, kind);
     }

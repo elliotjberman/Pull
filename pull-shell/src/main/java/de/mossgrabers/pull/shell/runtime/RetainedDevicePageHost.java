@@ -39,6 +39,7 @@ final class RetainedDevicePageHost implements RetainedDeviceParameters
         boolean propertiesCoherent (int poolSlot);
         Observation observe (int poolSlot);
         List<IParameter> parameters (int poolSlot);
+        java.util.Map<String, RetainedTrackParameters.TrackMix> channels (int poolSlot, long generation);
         void recordDiagnostics (int poolSlot);
     }
 
@@ -127,7 +128,7 @@ final class RetainedDevicePageHost implements RetainedDeviceParameters
         lease.last = observed;
         if (++lease.confirmations < 2)
             return;
-        lease.ready = new DevicePage (lease.owner, lease.generation, lease.source.page (), this.access.parameters (lease.handle.slot ()),
+        lease.ready = new DevicePage (lease.owner, lease.generation, lease.source.page (), this.access.parameters (lease.handle.slot ()), this.access.channels (lease.handle.slot (), lease.generation),
             () -> this.current (lease), () -> this.addressable (lease));
     }
 

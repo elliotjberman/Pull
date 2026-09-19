@@ -5,9 +5,11 @@ package de.mossgrabers.pull.shell.runtime;
 
 import de.mossgrabers.framework.parameter.IParameter;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
+import java.util.function.LongSupplier;
 
 /** Initialization-owned, UUID-addressed track mix resources supplied by the shared cursor pool. */
 interface RetainedTrackParameters
@@ -25,7 +27,7 @@ interface RetainedTrackParameters
     TrackMix lookup (String trackId);
 
     /** The fence must recheck the live project, assignment generation and retained track UUID. */
-    record TrackMix (String trackId, long assignmentGeneration, IParameter volume, IParameter pan, BooleanSupplier addressable)
+    record TrackMix (String trackId, long assignmentGeneration, IParameter volume, IParameter pan, List<IParameter> sends, LongSupplier sendGeneration, BooleanSupplier addressable)
     {
         public TrackMix
         {
@@ -34,12 +36,21 @@ interface RetainedTrackParameters
                 throw new IllegalArgumentException ("A retained track mix requires a ready identity and generation");
             volume = Objects.requireNonNull (volume, "volume");
             pan = Objects.requireNonNull (pan, "pan");
+            sends = List.copyOf (sends);
+            if (sends.size () != 8)
+                throw new IllegalArgumentException ("A retained track has eight send slots");
+            sendGeneration = Objects.requireNonNull (sendGeneration, "sendGeneration");
             addressable = Objects.requireNonNull (addressable, "addressable");
+        }
+
+        long generation (final int role)
+        {
+            return role < 2 ? this.assignmentGeneration : this.sendGeneration.getAsLong ();
         }
 
         IParameter parameter (final int index)
         {
-            return index == 0 ? this.volume : this.pan;
+            return index == 0 ? this.volume : index == 1 ? this.pan : this.sends.get (index - 2);
         }
     }
 }

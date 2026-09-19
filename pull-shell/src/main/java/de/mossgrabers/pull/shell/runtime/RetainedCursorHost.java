@@ -8,10 +8,14 @@ import com.bitwig.extension.controller.api.ClipLauncherSlotBank;
 import com.bitwig.extension.controller.api.ControllerHost;
 import com.bitwig.extension.controller.api.CursorTrack;
 import com.bitwig.extension.controller.api.Parameter;
+import com.bitwig.extension.controller.api.Send;
+import com.bitwig.extension.controller.api.SendBank;
 import com.bitwig.extension.controller.api.Track;
 import com.bitwig.extension.controller.api.TrackBank;
 
 import de.mossgrabers.bitwig.framework.daw.data.ParameterImpl;
+import de.mossgrabers.bitwig.framework.daw.data.SendImpl;
+import de.mossgrabers.framework.parameter.IParameter;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.pull.shell.SelectionDebug;
 import de.mossgrabers.pull.shell.runtime.RetainedCursorPool.Catalog;
@@ -59,7 +63,7 @@ final class RetainedCursorHost implements RetainedCursorPool.Host, RetainedTrack
         final long startedAt = System.nanoTime ();
         this.projectIdentity = Objects.requireNonNull (projectIdentity, "projectIdentity");
         this.log = Objects.requireNonNull (log, "log");
-        this.discovery = host.createTrackBank (CAPACITY, 0, 0, true);
+        this.discovery = host.createTrackBank (CAPACITY, 8, 0, true);
         this.discovery.itemCount ().markInterested ();
         this.discovery.scrollPosition ().markInterested ();
         this.discovery.scrollPosition ().set (0);
@@ -71,6 +75,9 @@ final class RetainedCursorHost implements RetainedCursorPool.Host, RetainedTrack
             track.channelId ().markInterested ();
             markParameter (track.volume ());
             markParameter (track.pan ());
+            track.sendBank ().itemCount ().markInterested ();
+            for (int send = 0; send < 8; send++)
+                markParameter (track.sendBank ().getItemAt (send));
             tracks.add (track);
         }
         this.discoveredTracks = List.copyOf (tracks);
@@ -88,9 +95,9 @@ final class RetainedCursorHost implements RetainedCursorPool.Host, RetainedTrack
         {
             final Profile profile = profiles.get (index);
             final int scenes = profile == Profile.CLIP_SCAN ? 8 : profile == Profile.CLIP_ACTUATOR ? 1 : 0;
-            // Planned MIX send cutover: provision eight slots (sends 1-8, no send paging).
-            // Changes to the project's send count will reuse that fixed window.
-            final CursorTrack cursor = host.createCursorTrack ("PULL_RETAINED_" + index, "Pull Retained " + (index + 1), 0, scenes, false);
+            // MIX owns sends 1-8, with no paging. Send-count changes reuse this fixed window;
+            // a ninth send is outside the installed capacity and requires a shell change.
+            final CursorTrack cursor = host.createCursorTrack ("PULL_RETAINED_" + index, "Pull Retained " + (index + 1), profile == Profile.MIX ? 8 : 0, scenes, false);
             cursor.exists ().markInterested ();
             cursor.channelId ().markInterested ();
             cursor.isPinned ().markInterested ();
@@ -159,6 +166,7 @@ final class RetainedCursorHost implements RetainedCursorPool.Host, RetainedTrack
         resource.assignedAfter = this.sequence;
         resource.matchingSamples = 0;
         resource.propertiesGeneration = 0;
+        resource.invalidateSends ();
         // The pool suppresses unchanged requests. Reused cursors still undergo an explicit
         // selection transaction, even when Bitwig happens to report the same UUID already.
         resource.track.isPinned ().set (false);
@@ -215,7 +223,7 @@ final class RetainedCursorHost implements RetainedCursorPool.Host, RetainedTrack
         final Handle handle = result.handle ();
         return this.mixes.computeIfAbsent (handle, ignored -> {
             final Resource resource = this.resources.get (handle.slot ());
-            return new TrackMix (handle.trackId (), handle.assignmentGeneration (), resource.volume, resource.pan, () -> this.pool.valid (handle));
+            return new TrackMix (handle.trackId (), handle.assignmentGeneration (), resource.volume, resource.pan, resource.sends, resource::sendGeneration, () -> this.pool.valid (handle));
         });
     }
 
@@ -286,6 +294,8 @@ final class RetainedCursorHost implements RetainedCursorPool.Host, RetainedTrack
             resource.propertiesGeneration = 0;
             return;
         }
+        if (resource.profile == Profile.MIX)
+            resource.confirmSends (this.catalogTracks.get (handle.trackId ()));
         if (resource.propertiesGeneration == handle.assignmentGeneration ())
             return;
         if (resource.profile == Profile.MIX)
@@ -337,6 +347,10 @@ final class RetainedCursorHost implements RetainedCursorPool.Host, RetainedTrack
         private final ClipLauncherSlotBank clips;
         private final ParameterImpl volume;
         private final ParameterImpl pan;
+        private final List<IParameter> sends;
+        private long sendRevision;
+        private long confirmedSendRevision;
+        private int sendMatchingSamples;
         private Handle handle;
         private long assignedAfter;
         private int matchingSamples;
@@ -348,6 +362,24 @@ final class RetainedCursorHost implements RetainedCursorPool.Host, RetainedTrack
             this.track = track;
             this.volume = profile == Profile.MIX ? new ParameterImpl (valueChanger, track.volume ()) : null;
             this.pan = profile == Profile.MIX ? new ParameterImpl (valueChanger, track.pan ()) : null;
+            final List<IParameter> sendParameters = new ArrayList<> ();
+            if (profile == Profile.MIX)
+            {
+                final SendBank bank = track.sendBank ();
+                bank.scrollPosition ().markInterested ();
+                bank.scrollPosition ().set (0);
+                bank.scrollPosition ().addValueObserver (value -> this.invalidateSends ());
+                bank.itemCount ().markInterested ();
+                bank.itemCount ().addValueObserver (value -> this.invalidateSends ());
+                for (int index = 0; index < 8; index++)
+                {
+                    final Send send = bank.getItemAt (index);
+                    sendParameters.add (new SendImpl (valueChanger, bank, index));
+                    send.exists ().addValueObserver (value -> this.invalidateSends ());
+                    send.name ().addValueObserver (value -> this.invalidateSends ());
+                }
+            }
+            this.sends = List.copyOf (sendParameters);
             this.clips = sceneCapacity == 0 ? null : track.clipLauncherSlotBank ();
             if (this.clips == null)
                 return;
@@ -364,6 +396,34 @@ final class RetainedCursorHost implements RetainedCursorPool.Host, RetainedTrack
                 slot.isPlaybackQueued ().markInterested ();
                 slot.isStopQueued ().markInterested ();
             }
+        }
+
+        private void invalidateSends ()
+        {
+            this.sendRevision++;
+            this.sendMatchingSamples = 0;
+        }
+
+        private long sendGeneration ()
+        {
+            return this.confirmedSendRevision == this.sendRevision && this.track.sendBank ().scrollPosition ().get () == 0 ? this.sendRevision : -1;
+        }
+
+        private void confirmSends (final Track discovered)
+        {
+            if (this.confirmedSendRevision == this.sendRevision || discovered == null)
+                return;
+            final SendBank bank = this.track.sendBank ();
+            boolean matches = bank.scrollPosition ().get () == 0 && bank.itemCount ().get () == discovered.sendBank ().itemCount ().get ();
+            for (int index = 0; matches && index < 8; index++)
+            {
+                final Send retained = bank.getItemAt (index);
+                final Send source = discovered.sendBank ().getItemAt (index);
+                matches = !retained.exists ().get () && !source.exists ().get () || sameParameter (retained, source);
+            }
+            this.sendMatchingSamples = matches ? this.sendMatchingSamples + 1 : 0;
+            if (this.sendMatchingSamples >= 2)
+                this.confirmedSendRevision = this.sendRevision;
         }
     }
 }

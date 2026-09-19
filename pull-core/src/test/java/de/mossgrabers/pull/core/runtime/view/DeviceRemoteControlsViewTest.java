@@ -50,6 +50,82 @@ class DeviceRemoteControlsViewTest
     }
 
     @Test
+    void chainsUsesTheSameRetainedRemotesWithoutAddingTouchOrResetBehavior ()
+    {
+        final Fixture f = new Fixture ();
+        f.observedMode = "DEVICE_CHAINS";
+        f.observedKind = DevicePageState.Kind.CHAINS;
+        f.page ("DEVICE_CHAINS");
+        f.pressed = Set.of (DELETE);
+        f.touch (0, InputPhase.BEGIN);
+        assertTrue (f.result.effects ().isEmpty ());
+        assertTrue (f.result.desiredParameterTouches ().targets ().isEmpty ());
+        f.touch (0, InputPhase.END);
+        f.turn (0, 1);
+        assertEquals (List.of (new AdjustParameterValueEffect (f.target (0), 10)), f.result.effects ());
+        assertFalse (f.result.desiredParameterBanks ().banks ().contains (ParameterBankId.ACTIVE));
+        assertTrue (hasText (f.result, "Chains"));
+    }
+
+    @Test
+    void layerRowsUseNamedChannelRolesAndCancelTheHeldTailWhenThePadWindowMoves ()
+    {
+        for (final ParameterBankId bank: List.of (ParameterBankId.LAYER_VOLUME, ParameterBankId.LAYER_PAN, ParameterBankId.LAYER_SEND1, ParameterBankId.LAYER_SEND8))
+        {
+            final Fixture f = new Fixture ();
+            f.layerBank = bank;
+            f.observedMode = "DEVICE_" + bank.name ();
+            f.observedKind = bank == ParameterBankId.LAYER_VOLUME ? DevicePageState.Kind.LAYER_VOLUME : bank == ParameterBankId.LAYER_PAN ? DevicePageState.Kind.LAYER_PAN : DevicePageState.Kind.LAYER_SEND;
+            f.page (f.observedMode);
+            f.pressed = Set.of (DELETE);
+            f.touch (0, InputPhase.BEGIN);
+            assertEquals (List.of (new ConsumeControllerButtonEffect (DELETE), new ResetParameterEffect (f.target (0))), f.result.effects ());
+            assertEquals (Map.of (knob (0), f.target (0)), f.result.desiredParameterTouches ().targets ());
+            assertFalse (f.result.desiredParameterBanks ().banks ().contains (ParameterBankId.ACTIVE));
+            assertTrue (hasText (f.result, bank == ParameterBankId.LAYER_VOLUME ? "Volume" : bank == ParameterBankId.LAYER_PAN ? "Pan" : "Remote 0"));
+            final var old = f.target (0);
+            f.leases = Set.of (old);
+            f.channelOffset = 8;
+            f.assignment++;
+            f.tick ();
+            assertTrue (f.result.desiredParameterTouches ().targets ().isEmpty ());
+            f.turn (0, 2);
+            assertTrue (f.result.effects ().isEmpty (), "the held encoder cannot adopt the next pad window");
+            f.touch (0, InputPhase.END);
+            f.leases = Set.of ();
+            f.tick ();
+            f.pressed = Set.of ();
+            f.touch (0, InputPhase.BEGIN);
+            assertEquals (Map.of (knob (0), f.target (0)), f.result.desiredParameterTouches ().targets ());
+            f.turn (0, 1);
+            assertTrue (f.result.effects ().stream ().anyMatch (AdjustParameterValueEffect.class::isInstance));
+        }
+    }
+
+    @Test
+    void selectedLayerKeepsSpacerKnobsInertAndSendsWaitForEnabledReadback ()
+    {
+        final Fixture f = new Fixture ();
+        f.layerBank = ParameterBankId.SELECTED_LAYER;
+        f.observedMode = "DEVICE_LAYER";
+        f.observedKind = DevicePageState.Kind.LAYER;
+        f.page (f.observedMode);
+        f.turn (2, 1);
+        assertTrue (f.result.effects ().isEmpty ());
+        f.pressed = Set.of (SHIFT, SELECT);
+        f.touch (4, InputPhase.BEGIN);
+        assertEquals (List.of (new AcquireParameterTouchEffect (knob (4), f.target (4)), new ConsumeControllerButtonEffect (SELECT), new SetParameterEnabledEffect (f.target (4), false)), f.result.effects ());
+        assertEquals (Map.of (knob (4), f.target (4)), f.result.desiredParameterTouches ().targets ());
+        f.touch (4, InputPhase.END);
+        f.hostTick ();
+        f.touch (4, InputPhase.BEGIN);
+        assertTrue (f.result.effects ().stream ().noneMatch (SetParameterEnabledEffect.class::isInstance), "dependent toggle must wait for host acknowledgement");
+        f.sendEnabled = false;
+        f.hostTick ();
+        assertEquals (List.of (new SetParameterEnabledEffect (f.target (4), true)), f.result.effects ());
+    }
+
+    @Test
     void submittedValueAndTouchRequestsDoNotOptimisticallyChangeTheDisplay ()
     {
         final Fixture f = new Fixture ();
@@ -255,6 +331,10 @@ class DeviceRemoteControlsViewTest
         private String observedOwner = "retained-device-page";
         private String parameterOwner = this.observedOwner;
         private String observedMode = "DEVICE_PARAMS";
+        private DevicePageState.Kind observedKind = DevicePageState.Kind.PARAMETERS;
+        private ParameterBankId layerBank;
+        private int channelOffset;
+        private boolean sendEnabled = true;
         private int observedPage;
         private int parameterPage;
         private int slotOffset;
@@ -307,14 +387,21 @@ class DeviceRemoteControlsViewTest
         {
             final Map<ParameterSlot, ParameterTargetSnapshot> parameters = new LinkedHashMap<> ();
             for (int index = 0; index < 8; index++)
-                if (!this.missingSlots.contains (Integer.valueOf (index)))
-                    parameters.put (ParameterSlot.selectedDeviceRemote (index), new ParameterTargetSnapshot (this.target (index), "Remote " + index,
-                        this.value, this.value, this.displayedValue, 128, 0, Optional.empty (), new ParameterTargetIdentitySnapshot (
-                            "retained-device-remote", this.parameterOwner, this.parameterPage, index + this.slotOffset)));
-            final var device = new DevicePageState.Device (true, "Device", true, true, true, false, false, false, false, 0,
+            {
+                if (this.missingSlots.contains (Integer.valueOf (index)) || this.layerBank == ParameterBankId.SELECTED_LAYER && (index == 2 || index == 3)) continue;
+                final boolean selected = this.layerBank == ParameterBankId.SELECTED_LAYER;
+                final ParameterSlot slot = this.layerBank == null ? ParameterSlot.selectedDeviceRemote (index) : selected && index >= 4 ?
+                    new ParameterSlot (ParameterBankId.SELECTED_LAYER_SENDS, index - 4) : new ParameterSlot (this.layerBank, selected ? index : this.channelOffset + index);
+                final String role = this.layerBank == ParameterBankId.LAYER_VOLUME || selected && index == 0 ? "volume" : this.layerBank == ParameterBankId.LAYER_PAN || selected && index == 1 ? "pan" : "send";
+                parameters.put (slot, new ParameterTargetSnapshot (this.target (index), "Remote " + index, this.value, this.value, this.displayedValue, 128, 0,
+                    this.layerBank != null && role.equals ("send") ? Optional.of (this.sendEnabled) : Optional.empty (), new ParameterTargetIdentitySnapshot (
+                        this.layerBank == null ? "retained-device-remote" : "channel-" + role, this.layerBank == null ? this.parameterOwner : "layer-" + (selected ? 0 : this.channelOffset + index), this.parameterPage, index + this.slotOffset)));
+            }
+            final List<DevicePageState.Channel> channels = java.util.stream.IntStream.range (0, 8).mapToObj (index -> new DevicePageState.Channel (true, "layer-" + (this.channelOffset + index), "Layer", "LAYER", new de.mossgrabers.pull.core.api.output.RgbColor (50, 50, 50), index == 0, true, false, false, false, false, false, false, 0, 0)).toList ();
+            final var device = new DevicePageState.Device (true, "Device", true, true, true, false, false, this.layerBank != null, this.layerBank != null, 0,
                 List.of ("Device menu"), List.of ("Page A", "Page B"), this.observedPage, List.of ());
-            final var selection = new DevicePageState.Selection (true, false, true, true, 0, 0, 0, false, false, false, 0, "track");
-            final var page = new DevicePageState (DevicePageState.Kind.PARAMETERS, device, List.of (), DevicePageState.Channel.empty (),
+            final var selection = new DevicePageState.Selection (true, this.layerBank != null, true, true, this.channelOffset, 0, 0, false, false, false, 0, "track");
+            final var page = new DevicePageState (this.observedKind, device, channels, channels.get (0),
                 List.of (new DevicePageState.Parameter (true, "Stale raw parameter", 0, 0, "Stale raw value", true, false)), List.of (), selection, this.observedOwner);
             final var e = ControllerBridgeSnapshot.empty ();
             final var bridge = new ControllerBridgeSnapshot (e.transport (), e.selectedTrack (), e.sessionBank (), e.layout (), e.noteView (), e.noteRepeat (), e.drum (),

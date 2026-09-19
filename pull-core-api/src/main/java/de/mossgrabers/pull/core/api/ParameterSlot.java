@@ -19,7 +19,13 @@ public record ParameterSlot (ParameterBankId bank, int index)
     /** Number of fixed global parameter slots. */
     public static final int GLOBAL_BANK_SIZE = 3;
     /** Maximum parameter targets exposed in one snapshot. */
-    public static final int INSTALLED_TARGET_CAPACITY = (ParameterBankId.BANK_CAPACITY - 1) * BANK_SIZE + GLOBAL_BANK_SIZE;
+    public static final int INSTALLED_TARGET_CAPACITY = java.util.Arrays.stream (ParameterBankId.values ()).mapToInt (ParameterSlot::capacity).sum ();
+
+    public static int capacity (final ParameterBankId bank)
+    {
+        if (bank == ParameterBankId.GLOBAL) return GLOBAL_BANK_SIZE;
+        return bank.isLayer () && bank != ParameterBankId.SELECTED_LAYER && bank != ParameterBankId.SELECTED_LAYER_SENDS ? 16 : BANK_SIZE;
+    }
     /** Maximum exact targets one physical eight-knob interaction can retain, including globals. */
     public static final int INTERACTION_TARGET_CAPACITY = 10;
 
@@ -60,7 +66,7 @@ public record ParameterSlot (ParameterBankId bank, int index)
     public ParameterSlot
     {
         bank = Objects.requireNonNull (bank, "bank");
-        final int capacity = bank == ParameterBankId.GLOBAL ? GLOBAL_BANK_SIZE : BANK_SIZE;
+        final int capacity = capacity (bank);
         if (index < 0 || index >= capacity)
             throw new IllegalArgumentException ("parameter slot index is outside the installed bank capacity");
     }

@@ -38,11 +38,24 @@ final class ParameterAlignment
             case SELECTED_DEVICE_REMOTE -> deviceMatches (snapshot, target, slot.index ());
             case PROJECT_REMOTE -> snapshot.bridge ().automation ().available () && matches (target, "project-remote", snapshot.bridge ().automation ().projectIdentity ());
             case MASTER -> masterContextAligned (snapshot) && matches (target, "project-master", snapshot.bridge ().master ().projectIdentity ()) && target.identity ().index () == slot.index ();
-            default -> false;
+            default -> slot.bank ().isLayer () && layerMatches (snapshot, target, slot);
         };
         return aligned ? target : null;
     }
 
+
+    private static boolean layerMatches (final ControllerSnapshot snapshot, final ParameterTargetSnapshot target, final ParameterSlot slot)
+    {
+        if (!(snapshot.bridge ().pageDisplay ().state () instanceof final de.mossgrabers.pull.core.api.DevicePageState state) ||
+            !state.selection ().bankAligned () || state.parameterOwnerId ().isBlank ()) return false;
+        final var bank = slot.bank ();
+        final boolean selected = bank == de.mossgrabers.pull.core.api.ParameterBankId.SELECTED_LAYER || bank == de.mossgrabers.pull.core.api.ParameterBankId.SELECTED_LAYER_SENDS;
+        final int visible = slot.index () - state.selection ().bankOffset ();
+        final var channel = selected ? state.selectedChannel () : visible >= 0 && visible < state.channels ().size () ? state.channels ().get (visible) : null;
+        final String role = bank == de.mossgrabers.pull.core.api.ParameterBankId.LAYER_VOLUME || bank == de.mossgrabers.pull.core.api.ParameterBankId.SELECTED_LAYER && slot.index () == 0 ? "volume" :
+            bank == de.mossgrabers.pull.core.api.ParameterBankId.LAYER_PAN || bank == de.mossgrabers.pull.core.api.ParameterBankId.SELECTED_LAYER && slot.index () == 1 ? "pan" : "send";
+        return channel != null && channel.exists () && matches (target, "channel-" + role, channel.id ());
+    }
 
     private static boolean deviceMatches (final ControllerSnapshot snapshot, final ParameterTargetSnapshot target, final int index)
     {

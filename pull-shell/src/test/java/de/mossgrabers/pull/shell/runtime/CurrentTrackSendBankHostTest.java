@@ -35,7 +35,7 @@ class CurrentTrackSendBankHostTest
         fixture.host.refresh (banks (2));
         assertEquals (8, fixture.host.snapshot ().slots ().size ());
         final var target = fixture.snapshot (2, 0);
-        assertEquals (new ParameterTargetIdentitySnapshot ("channel-send", "track-0", 0, 6), target.identity ());
+        assertEquals (new ParameterTargetIdentitySnapshot ("channel-send", "track-0", 0, 2), target.identity ());
         assertEquals ("Send 2", target.name ());
         assertEquals (64, target.value ());
         assertEquals (70, target.modulatedValue ());
@@ -84,7 +84,7 @@ class CurrentTrackSendBankHostTest
     }
 
     @Test
-    void sendPageAndTrackRebindsRejectPreparedActionsAndDoNotReleaseReplacement ()
+    void sendReplacementRejectsCleanupButVisibleTrackRebindRetainsTheOriginalSend ()
     {
         for (final boolean rebindTrack: List.of (false, true))
         {
@@ -95,13 +95,14 @@ class CurrentTrackSendBankHostTest
             final var adjust = fixture.host.prepare (new AdjustParameterValueEffect (target, 3));
             fixture.host.apply (fixture.host.prepare (new AcquireParameterTouchEffect (OWNER, target)));
             if (rebindTrack) fixture.tracks[0].id = "other-track";
-            else fixture.tracks[0].sendOffset = 8;
+            else fixture.tracks[0].sendRevision++;
             assertThrows (IllegalStateException.class, () -> fixture.host.apply (enabled));
             assertThrows (IllegalStateException.class, () -> fixture.host.apply (adjust));
             fixture.host.releaseTouches ();
-            assertEquals (List.of ("touch:true"), fixture.tracks[0].sends[0].events);
+            assertEquals (rebindTrack ? List.of ("touch:true", "touch:false") : List.of ("touch:true"), fixture.tracks[0].sends[0].events);
             fixture.host.refresh (banks (0));
-            assertNotEquals (target, fixture.snapshot (0, 0).target ());
+            if (rebindTrack) assertNull (fixture.snapshot (0, 0));
+            else assertNotEquals (target, fixture.snapshot (0, 0).target ());
         }
     }
 
@@ -151,7 +152,18 @@ class CurrentTrackSendBankHostTest
             final IProject projectObject = proxy (IProject.class, (method, args) -> "getIdentity".equals (method) ? this.project.get () : null);
             final ITransport transport = proxy (ITransport.class, (method, args) -> null);
             final IModel model = proxy (IModel.class, (method, args) -> switch (method) { case "getCurrentTrackBank" -> this.current.get (); case "getProject" -> projectObject; case "getValueChanger" -> changer; case "getTransport" -> transport; default -> null; });
-            this.host = new ParameterTargetHost (ParameterTargetHostTest.emptySurface (changer), model, new RuntimeLog () { public void info (final String message) { } public void warn (final String message) { } });
+            final Map<String, RetainedTrackParameters.TrackMix> mixes = new java.util.HashMap<> ();
+            for (final Track track: this.tracks)
+                mixes.put (track.id, new RetainedTrackParameters.TrackMix (track.id, 1,
+                    de.mossgrabers.framework.daw.data.empty.EmptyParameter.INSTANCE, de.mossgrabers.framework.daw.data.empty.EmptyParameter.INSTANCE,
+                    java.util.Arrays.stream (track.sends).map (send -> (de.mossgrabers.framework.parameter.IParameter) send.parameter).toList (),
+                    () -> track.sendRevision, () -> track.exists && "project".equals (this.project.get ())));
+            final RetainedTrackParameters retained = new RetainedTrackParameters ()
+            {
+                @Override public void requestTracks (final Set<String> trackIds) { }
+                @Override public TrackMix lookup (final String trackId) { return mixes.get (trackId); }
+            };
+            this.host = new ParameterTargetHost (ParameterTargetHostTest.emptySurface (changer), model, null, new RuntimeLog () { public void info (final String message) { } public void warn (final String message) { } }, retained);
         }
         private ITrackBank bank () { return proxy (ITrackBank.class, (method, args) -> switch (method) { case "getPageSize" -> 8; case "getItem" -> this.tracks[(Integer) args[0]].track; default -> null; }); }
         private ParameterTargetSnapshot snapshot (final int send, final int track) { return this.host.snapshot ().slots ().get (ParameterSlot.trackSend (send, track)); }
@@ -162,6 +174,7 @@ class CurrentTrackSendBankHostTest
         private String id;
         private boolean exists = true;
         private int sendOffset;
+        private long sendRevision = 1;
         private final Send[] sends = new Send[8];
         private final ITrack track;
         private Track (final String id)

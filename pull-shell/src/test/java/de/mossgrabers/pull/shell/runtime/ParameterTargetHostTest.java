@@ -226,7 +226,7 @@ class ParameterTargetHostTest
         private final MutableParameter parameter = new MutableParameter (32);
         private final AtomicBoolean current = new AtomicBoolean (true);
         private final AtomicBoolean addressable = new AtomicBoolean (true);
-        private final DevicePage page = new DevicePage ("opaque-child", 7, 9, java.util.Collections.nCopies (8, this.parameter.proxy ()), this.current::get, this.addressable::get);
+        private final DevicePage page = new DevicePage ("opaque-child", 7, 9, java.util.Collections.nCopies (8, this.parameter.proxy ()), Map.of (), this.current::get, this.addressable::get);
         private final DesiredParameterBanks banks = new DesiredParameterBanks (Set.of (ParameterBankId.SELECTED_DEVICE_REMOTE));
         private final ParameterTargetHost host;
         private Set<String> cleanupOwners = Set.of ();

@@ -10,7 +10,6 @@ import de.mossgrabers.framework.controller.ButtonID;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.data.ICursorDevice;
 import de.mossgrabers.framework.mode.Modes;
-import de.mossgrabers.framework.parameterprovider.device.BankParameterProvider;
 import de.mossgrabers.framework.utils.ButtonEvent;
 
 
@@ -30,24 +29,6 @@ public class DeviceChainsMode extends DeviceParamsMode
     public DeviceChainsMode (final PushControlSurface surface, final IModel model)
     {
         super (surface, model);
-        // Preserve this distinct frozen page's inherited physical parameter bindings.
-        this.setParameterProvider (new BankParameterProvider (model.getCursorDevice ().getParameterBank ()));
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void onKnobValue (final int index, final int value)
-    {
-        // Intentionally empty
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void onKnobTouch (final int index, final boolean isTouched)
-    {
-        // Intentionally empty
     }
 
 

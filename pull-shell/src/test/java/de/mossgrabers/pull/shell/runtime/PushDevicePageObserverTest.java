@@ -87,7 +87,7 @@ class PushDevicePageObserverTest
     }
 
     @Test
-    void migratedDeviceKnobsArePhysicallyInertWhileChainsKeepFrozenBinding ()
+    void deviceAndChainsKnobsRemainInertWithoutCoreOwnership ()
     {
         final Fixture fixture = new Fixture ();
         final DeviceParamsMode params = new DeviceParamsMode (fixture.surface, fixture.model);
@@ -99,9 +99,9 @@ class PushDevicePageObserverTest
         params.onKnobTouch (0, false);
         assertTrue (fixture.requests.isEmpty ());
         fixture.activate (Modes.DEVICE_CHAINS, new DeviceChainsMode (fixture.surface, fixture.model));
-        assertSame (fixture.trackParameter, knob.getBoundParameter ());
+        assertSame (EmptyParameter.INSTANCE, knob.getBoundParameter ());
         knob.getBoundParameter ().inc (1);
-        assertEquals (List.of ("track:1.0"), fixture.requests);
+        assertTrue (fixture.requests.isEmpty ());
     }
 
     private static final class Fixture
