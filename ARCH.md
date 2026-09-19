@@ -8,8 +8,9 @@ The shared [retained cursor pool](docs/track-cursor-pool/README.md) supplies nam
 Crossfade, fill scanner/actuators, Device/Chains remotes, layer/drum-pad mix and exact note attributes.
 Groove uses named project parameters. All these encoder actions, resets, gestures and parameter
 feedback now belong to core; the generic ACTIVE bank and legacy parameter providers are deleted.
-API 58 requires a matched shell installation and restart. Its offline package gate passes; live
-validation is pending. Prior API 56/57 evidence covers the earlier pool/Device slice only.
+API 58 requires a matched shell installation and restart. Its 1,170-test package gate and matched
+Bitwig/Push smoke passed on September 19, 2026; the [acceptance record](docs/track-cursor-pool/README.md#api-58-parameter-cutover-acceptance)
+identifies the installed shell/core and scoped checks. Prior API 56/57 evidence covers mix/fill lifecycle cases.
 
 API 56 makes selected-track clip scanning an explicit core subscription. The active Drum fill
 view chooses the aligned selected target and cycles its scene pages; other views request no scan.

@@ -59,9 +59,10 @@ class DeviceParameterControlsViewTest
         f.touch (0, InputPhase.BEGIN);
         assertTrue (f.result.effects ().isEmpty ());
         assertTrue (f.result.desiredParameterTouches ().targets ().isEmpty ());
-        f.touch (0, InputPhase.END);
         f.turn (0, 1);
-        assertEquals (List.of (new AdjustParameterValueEffect (f.target (0), 10)), f.result.effects ());
+        assertEquals (List.of (new AdjustParameterValueEffect (f.target (0), 10)), f.result.effects (), "a physical turn arrives while the encoder is touched");
+        f.touch (0, InputPhase.END);
+        assertTrue (f.result.effects ().isEmpty ());
         assertTrue (hasText (f.result, "Chains"));
     }
 

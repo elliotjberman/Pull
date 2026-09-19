@@ -1,7 +1,7 @@
 # Retained track cursor pool
 
 Working implementation: Core API 58 / Bitwig API 25. A matched shell installation and restart are
-required. The full offline package gate passes; API 58 live acceptance is pending. Earlier scoped
+required. The 1,170-test package gate and matched API 58 parameter smoke pass. Earlier scoped
 API 56/57 evidence below does not validate the new resources.
 The pool is integrated with named selected-track and visible-bank Volume/Pan
 parameters/sends/Crossfade, the Drum fill scanner and launch actuators, Device/Chains remotes,
@@ -199,6 +199,41 @@ duplicate/replaced devices and remote remapping; broader pool cases include coll
 and subscribed sampling costs. Deterministic tests cover the bounded lifecycle cases, but do not
 prove those runtime proxy contracts. Follow [TESTING](../../TESTING.md), checkpoint before restart
 and hold the live lease throughout each exact-build smoke.
+
+## API 58 parameter cutover acceptance
+
+On September 19, 2026, the complete deprecation-enabled package gate passed **1,170 tests**
+(583 core, 11 publisher, 576 shell), with no failures, errors, skips or deprecation warnings.
+Under the singleton live lease, Bitwig 6.1.1 / API 25 ran checkpoint `7858e7c6` plus the
+Chains touch-capture correction. Installed shell SHA-256:
+`66c098689bcc5b44c76a7e55560666e58b365cba17812bbb87149c8f57ebd304`.
+Final active core: `20260919T165422Z-a714cb4a1038375a37e12ee33fcded60` (SHA-256
+`ea971e41dd2ae2f4f9d0f8284f64364e16d0c1152bf246d8707ad8f8c8e0de44`).
+The isolated **Pool Device Smoke** project exercised permanent routed input, later observed host
+values and captured Push output:
+
+- Track send: 0→160; Shift 160→256→160; Delete reset to 0.
+- Device Gain: 512→552, with Shift returning 648→552. Nested Chains Pitch: 542→581
+  during a normal touch-and-turn. The live-discovered touch-capture bug has a routed regression.
+- Selected layer Volume and send, layer-row Volume/Pan, and nested drum-pad Pan changed through
+  retained children. Layer Volume restored 1018→905; drum-pad Pan restored 579→532.
+- Note, Expressions, Repeat and Recurrence pages edited/reset their native attributes. Two notes
+  retained separate velocity baselines (0.960899 and 0.590821) and gain baselines (0.5 and 0.0)
+  after Shift restoration. Gain's final readback confirms the API scaling rule above.
+- Switching Expressions→Note during a held knob suppressed its stale turn; a fresh gesture then
+  changed velocity spread from 0 to 0.039101. Clip/grid replacement and delete/Undo races are covered
+  offline; the attempted live cross-clip hold exceeded the debugger's five-second lease and is not
+  acceptance evidence.
+- Crossfade changed AB→A, restored AB→A on Shift release, and reset to AB.
+  All five Groove roles changed; Shuffle amount restored 177→81 and reset to 0.
+
+Local traces, transmitted frames, package log and activation record are in
+`.live-cursor-pool/evidence/api58/`. Representative trace suffixes: send `1789836707188092000`,
+layer `1789836799765534000`, Chains `1789836896197801000`, multi-note gain
+`1789837111656302000`, held-page cancellation `1789837265119498000`, Crossfade
+`1789837145312777000`, Groove `1789837155421092000` (all prefixed `trace-zzzzpool-`).
+These checks establish the listed behavior, not arbitrary topology, hidden remapping or performance
+under maximum pool occupancy. Earlier API 56/57 fill evidence remains scoped to those builds.
 
 ## API reference and future child retention
 

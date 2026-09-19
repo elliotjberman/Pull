@@ -56,8 +56,6 @@ public final class DeviceRemoteControlsView implements ControllerView
     @Override
     public InputTarget inputTarget (final ControlId control, final InputKind kind, final ControllerSnapshot snapshot)
     {
-        if (kind == InputKind.TOUCH && !this.parameterTouchControls (snapshot).contains (control))
-            return null;
         if (ParameterAlignment.target (snapshot, BINDINGS.get (control)) != null)
             return ControllerView.super.inputTarget (control, kind, snapshot);
         // An empty/pending slot still owns Delete consumption and automation release. It never

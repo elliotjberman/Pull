@@ -12,8 +12,8 @@ It cancels when the active target/binding disappears, suppresses the physical ta
 exact resource retirement. This finding now concerns the remaining host adapters, particularly the
 Device family. The [retained cursor pool](../track-cursor-pool/README.md) supplies named Volume/Pan
 actuators and opaque Device remote-page owners. Its scoped matched live gate passed, including nested
-acquisition, deletion/undo and stale-tail suppression. API 58 adds retained sends, Chains/layers, and note cells and deletes ACTIVE; its matched live
-acceptance is pending. Unobservable remote remapping and persistent controller overrides remain limits.
+acquisition, deletion/undo and stale-tail suppression. API 58 adds retained sends, Chains/layers, and note cells and deletes ACTIVE; its matched
+parameter smoke passed on September 19, 2026. Unobservable remote remapping and persistent controller overrides remain limits.
 
 ## What the integration resolves
 
@@ -57,7 +57,7 @@ Snapback still waits for observed restoration, with the separate
   context, not an owning-track identity. Retained child equality and observed invalidation revisions
   passed the documented ordinary nested acquisition and deletion/undo checks; same-named remaps without an observable event
   remain outside a proved exact-cleanup contract.
-- The API 58 send/layer/note cutover needs matched live acceptance. Distinct Device menu
+- The API 58 send/layer/note cutover passed its scoped live checks. Distinct Device menu
   navigation/lights remain frozen. No device UUID is inferred from name, slot or wrapper.
 - Note identity is a retained clip plus grid and selected cell. API 25 has no stable note ID or
   geometry ACK; unobserved same-cell deletion/recreation is outside the guarantee.
