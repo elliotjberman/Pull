@@ -88,6 +88,8 @@ final class RetainedCursorHost implements RetainedCursorPool.Host, RetainedTrack
         {
             final Profile profile = profiles.get (index);
             final int scenes = profile == Profile.CLIP_SCAN ? 8 : profile == Profile.CLIP_ACTUATOR ? 1 : 0;
+            // Planned MIX send cutover: provision eight slots (sends 1-8, no send paging).
+            // Changes to the project's send count will reuse that fixed window.
             final CursorTrack cursor = host.createCursorTrack ("PULL_RETAINED_" + index, "Pull Retained " + (index + 1), 0, scenes, false);
             cursor.exists ().markInterested ();
             cursor.channelId ().markInterested ();
