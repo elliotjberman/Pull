@@ -51,6 +51,146 @@ mvn -o -pl pull-shell -am test
 For changes touching Bitwig API objects, follow `AGENTS.md` and run the complete package build with
 deprecation reporting before the live smoke test.
 
+## Retained note-copy regression
+
+The legacy sequencer Duplicate gesture uses up to four private track/clip cursor pairs per editor
+shape, each retaining one window with up to 128 pending notes for chord/pattern copies. Each copy
+freezes the destination, page, resolution and expression values. It waits for observed pin/target
+alignment, then a fresh note observation before expression writes; matching later values complete
+the copy. Native grid setup is submitted before note creation; that order is not a geometry
+acknowledgement. The fake applies queued geometry and note creation separately from delivering
+note observations. Selection changes before capture cancel; changes after capture cannot redirect
+it. Lost targets, observed note deletion and a 150-poll host deadline
+(20 ms requested per poll, excluding diagnostic holds) retire the operation. Appending notes does
+not extend that deadline. A full pool/window refuses additional copies. Bitwig exposes no stable
+note ID, so an unobserved delete/recreate of the same cell cannot be distinguished from editing it.
+Live API 25 gain reads use twice the setter scale: copy writes use the normalized framework value,
+while completion compares against twice that value. These eager private proxies require a shell
+installation and Bitwig restart.
+
+In a scratch Launcher project, use real routed Duplicate-plus-pad input on a source note and an
+empty destination. With debugging enabled, `tools/push-debug-selection hold-note-copies 30` holds
+only the expression phase; wait for `COPY_CREATED`, select another clip or track, then run
+`tools/push-debug-selection run 30` to release it while retaining the trace. Check later
+`NOTE_OBSERVED role=copy-complete` raw values in `selection-trace.tsv`, reselect both clips and
+verify the destination and unrelated clip independently. Repeat without the hold and with the
+captured clip deleted during the hold. `stop` or the diagnostic deadline also releases the hold.
+The hold is off by default, expires within 60 seconds and does not consume the normal copy deadline.
+
+Live validation on 2026-09-10, Bitwig 6.1.1 / controller API 25: production commit `bc7d67c4`,
+installed extension SHA-256 `866242a77d2d95b8eb027a1ecab987e8c86cc9b9b69443aa7fb1d91008c8f8db`,
+active core `20260910T213932Z-9f3a7600d905eea8cbc4b0207b012f13`. The full deprecation-enabled
+package gate passed 1,086 tests, including 12 asynchronous copy regressions. In the standalone
+“Note Copy Smoke” project, routed Duplicate-plus-pad copied seven expression attributes with
+matching later raw host read-back; the ordinary copy completed in 190 ms. Held copies completed
+on their captured clip after switching Launcher clips and after selecting another track. The
+same-position note in the other clip retained its original attributes, confirmed by later copy
+read-back and the Push display. Deleting the captured clip produced an Empty observation and
+cancelled before expression submission; Undo restored the basic note without a late expression
+write. Local traces, inspected Push frames and the scratch project are archived under
+`.codex-worktrees/acknowledgement-evidence-2026-09-12/note-copy-target/target/`.
+This live evidence applies only to note copying.
+
+On 2026-09-12 the standalone note-copy package gate passed 1,086 tests; stacked on the
+navigation/transport changes it passed 1,105 tests. Both full deprecation-enabled builds included
+the queued-geometry regression and had no failures, errors, skips or deprecation warnings.
+The production note-copy implementation is unchanged from the prior live validation above;
+the combined-build smoke below also verifies an ordinary copy; the prior navigation/deletion
+stress evidence remains separately scoped.
+
+## Host operation acknowledgements
+
+Capability audit: **B — bounded shell expansion**, Core API 56 and Bitwig API 25 unchanged.
+Existing commands retain their meanings; shell changes execute and validate those commands using
+interested native values. A matching extension install/restart is required. The active migration
+findings remain unresolved; this work does not migrate legacy navigation into core.
+
+| Operation | Completion boundary |
+| --- | --- |
+| Sibling-bank page/select | Requested bank offset and every existing row's parent-local position match before selecting the destination row. Project, parent UUID, selected cursor UUID and item count must remain valid. |
+| Group entry | Native cursor UUID matches the requested group before selecting its first child. One owner serializes selection submissions sharing that cursor; intermediate read-back cannot execute obsolete entries. |
+| Stop/rewind | Later subscribed stopped state permits the zero-position write; later position read-back retires it. New transport/seek requests and project changes cancel the continuation. |
+| Master engine/remote playback | Later engine/playback read-back resolves the command. A two-second warning retains the unresolved lane and remote target instead of treating elapsed ticks as success. |
+
+Bank/group/rewind share a condition-and-continuation helper with bounded 150-poll cancellation
+deadlines and 20 ms requested between samples. A deadline never authorizes the next operation.
+Group and bank replacements retain one submitted operation and one latest intent without extending
+the original deadline. Ordinary and queued relative paging share the same bounded destination
+calculation, preserving the current window alignment and saturating at the final full or partial page. The helper owns scheduling and cancellation; each caller proves its own
+target and completion conditions. Master retains its existing controller-tick observation loop.
+Model cleanup cancels owners; no post-exit scheduling is promised.
+
+Retained unchanged: browser insertion waits (open/closed is not correlated with an opening still in
+flight), Add Track/device insertion and native Duplicate (no returned created-object identity),
+device and flattened/filtered-bank paging (no proven offset-to-target identity mapping), generic
+selection notifications. The held-note expression cadence remains 100 ms. Musical timing,
+double-click/long-press windows, periodic flushes, throttles and animation remain timers.
+
+Offline regressions separate command submission, host advancement and subscribed observations.
+They cover delayed/intermediate bank pages, rapid replacement/reversal, group supersession,
+structural guards, shutdown, delayed rewind and Master acknowledgements beyond old deadlines.
+On 2026-09-12 the full deprecation-enabled package gate passed 1,091 tests with no failures,
+errors, skips or deprecation warnings. Rewind regressions also cover replacement phase reset
+and one deadline spanning both stop and position acknowledgement. Paging regressions cover excess
+Next presses, reversal after saturation and a window starting between global page boundaries.
+
+Earlier scoped live validation on 2026-09-10 used Bitwig 6.1.1 / API 25, checkpoint `4566eb79`,
+installed shell SHA-256 `6fb3b264471b3a43913146fd2a1dfdb8adab58d91e26dc97893d7e8ced2186b4`,
+and active core `20260910T221931Z-1a529f49fa74a0b56f652612d435d628`
+(SHA-256 `6f3c236566973525b72de1d5206dc71e63686447e8392908ffd60753e870e57e`).
+In **Host Ack Smoke**, routed Shift+arrow paging selected positions 0 and 8 with matching track
+UUIDs and Push output, including a nine-track partial last page and opposite page presses. Group
+entry selected its first child; paging also selected position 8 inside a nine-child group. Master
+engine off/on resolved from read-back. Remote Play/Stop observed playback before returning to the
+original project and releasing the command lane. Traces, frames and provenance are archived under
+`.codex-worktrees/acknowledgement-evidence-2026-09-12/host-acknowledgements/target/host-ack-evidence/`.
+This predates the shared-helper
+refactor. The combined-build smoke below covers the corrected paging and routed footswitch
+rewind; group/Master scenarios were not repeated. Forced host delays are verified offline only.
+
+## Held-note edit target safety
+
+The legacy held-note editor keeps its existing 100 ms send cadence. Each gesture captures its
+project, track, Launcher scene, page and resolution; observed target changes or loss cancel
+remaining writes, even if the cursor later returns. Cancellation keeps the gesture inert until
+release. Observed note deletion retires that cell, and model shutdown cancels outstanding edits.
+Working values are restored to the latest host observations on cancellation and release.
+These are execution/lifecycle fences beneath unchanged legacy gestures; core ownership and
+Bitwig API 25 remain unchanged. Added observers require a matching shell install and restart.
+
+Offline regressions distinguish submitted writes from host state and cover target changes in
+both observation orders, page/resolution changes, deleted notes, gesture replacement and shutdown.
+On 2026-09-12 the full stacked deprecation-enabled package gate passed 1,110 tests with no failures,
+errors, skips or deprecation warnings. The clean cross-clip comparison below supersedes the
+earlier `4566eb79` attempt, which established ordinary velocity read-back only.
+
+## Combined acknowledgement smoke — 2026-09-12
+
+Bitwig 6.1.1 / API 25, clean checkpoint `0ed3c03304d5ae0ef72ab49ec9c3550504d77392`,
+installed shell SHA-256 `63cdfb0eb28400d13ee2c1df9e5f1e85efc62f61d7e4f5911cc5bfe9d3392098`,
+active core `20260912T181358Z-2c04a349f50298478d67be795c401ba3`
+(SHA-256 `e6825b8008a3de50c9faab77b3d6368fdc97dbefc6652870a3a3af9f3fb12721`).
+The isolated **Host Ack Smoke** project verified:
+
+- Routed paging with nine and twelve tracks: excess Next retained position 8 and Previous returned
+  position 0, with matching UUIDs and Push output.
+- Footswitch double-click rewind: later stopped state at a nonzero position preceded later zero
+  position. Coalesced telemetry does not establish exact latency.
+- A held velocity edit changed S1 from 55.4% to 35.9%. Native editor navigation to S2 cancelled
+  further held motion; S2 stayed at its independently observed 61.9% during the hold and after
+  release/reselection. S1 retained 35.9%. A fresh gesture on S2 then reached 69.7%.
+- Ordinary Duplicate-plus-pad copied C1 to an empty D1 cell, with all seven requested expression
+  values confirmed by later native read-back in 185 ms and the independently selected D1 display.
+
+Local traces, inspected Push frames, input scripts and provenance are archived under
+`.codex-worktrees/acknowledgement-evidence-2026-09-12/held-note-edit-targets/target/final-smoke-evidence/`.
+Paging endpoint statuses supplement its truncated trace;
+legacy held input is evidenced by the script/log, while traces and displays establish host results.
+Native note callbacks can precede scene-index callbacks during retargeting, so those printed scene
+labels are paired with actual editor selection and active Note-page values. Group/Master and held/
+deleted-copy stress cases retain their earlier scoped evidence. The prior installed shell/core and
+Footswitch 2 setting were restored after testing.
+
 ## Offline UI catalog
 
 Run `tools/ui-component-catalog` to generate a local HTML gallery from production components and

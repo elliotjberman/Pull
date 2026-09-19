@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Arm bounded selection tracing, optionally pausing only the catalog scanner."""
+"""Arm bounded selection tracing with an optional scanner or note-copy hold."""
 import os
 from pathlib import Path
 import subprocess
@@ -7,10 +7,15 @@ import sys
 import time
 import uuid
 
-if len(sys.argv) not in (2, 3) or sys.argv[1] not in ("run", "pause"):
-    sys.exit("Usage: tools/push-debug-selection run|pause [seconds:1-60]")
-seconds = int(sys.argv[2]) if len(sys.argv) == 3 else 30
-if not 1 <= seconds <= 60:
+modes = {"run": "RUN", "pause": "PAUSE", "hold-note-copies": "HOLD_NOTE_COPIES", "stop": "OFF"}
+if len(sys.argv) not in (2, 3) or sys.argv[1] not in modes or sys.argv[1] == "stop" and len(sys.argv) != 2:
+    sys.exit("Usage: tools/push-debug-selection run|pause|hold-note-copies [seconds:1-60] | stop")
+mode = modes[sys.argv[1]]
+try:
+    seconds = 0 if mode == "OFF" else int(sys.argv[2]) if len(sys.argv) == 3 else 30
+except ValueError:
+    sys.exit("Duration must be an integer from 1 through 60 seconds")
+if mode != "OFF" and not 1 <= seconds <= 60:
     sys.exit("Duration must be 1-60 seconds")
 subprocess.run([str(Path(__file__).resolve().parent / "require-pull-live")], check=True)
 directory = Path.home() / ".drivenbymoss/pull/debug"
@@ -19,7 +24,7 @@ if not (directory / "enabled").is_file():
 request_id = uuid.uuid4().hex
 request = directory / "selection-request.txt"
 temporary = directory / ("selection-request." + request_id + ".tmp")
-temporary.write_text(f"{request_id}\t{sys.argv[1].upper()}\t{seconds}\n")
+temporary.write_text(f"{request_id}\t{mode}\t{seconds}\n")
 os.replace(temporary, request)
 for _ in range(50):
     try:

@@ -13,6 +13,7 @@ import com.bitwig.extension.controller.api.ClipLauncherSlotBank;
 import com.bitwig.extension.controller.api.SceneBank;
 import com.bitwig.extension.controller.api.TrackBank;
 import de.mossgrabers.bitwig.framework.daw.HostImpl;
+import de.mossgrabers.bitwig.framework.daw.GroupNavigationHost;
 import de.mossgrabers.bitwig.framework.daw.data.CursorTrackImpl;
 import de.mossgrabers.bitwig.framework.daw.data.TrackImpl;
 import de.mossgrabers.bitwig.framework.daw.data.SceneImpl;
@@ -288,6 +289,7 @@ class SessionClipWindowHostTest
     {
         final Fixture fixture = new Fixture (4);
         fixture.nativeTracks[0].setSelected (selected);
+        fixture.nativeCursorId = selected ? "track-0" : "other-track";
         fixture.host.refresh (true);
         fixture.act (fixture.location (7, 3), SessionActionEffect.Action.LAUNCH);
         fixture.nativeTracks[0].enter ();
@@ -295,7 +297,10 @@ class SessionClipWindowHostTest
         {
             assertEquals (List.of ("slot:7:3:launch:true:false", "track:0:select"), fixture.requests);
             assertEquals (0, fixture.mutationGuards);
-            fixture.scheduled.getLast ().run ();
+            fixture.scheduled.removeFirst ().run ();
+            assertEquals (0, fixture.mutationGuards, "selection submission cannot acknowledge cursor acquisition");
+            fixture.nativeCursorId = "track-0";
+            fixture.scheduled.removeFirst ().run ();
         }
         assertEquals (List.of ("slot:7:3:launch:false:false", "enter"), fixture.requests.subList (fixture.requests.size () - 2, fixture.requests.size ()));
         assertEquals (1, fixture.mutationGuards);
@@ -546,6 +551,7 @@ class SessionClipWindowHostTest
         private String projectIdentity = "project";
         private String firstChannelId = "track-0";
         private int selectedTrack;
+        private String nativeCursorId = "track-0";
         private int slotReads;
         private int sceneReads;
         private int launchRequests;
@@ -620,6 +626,7 @@ class SessionClipWindowHostTest
                 final Track rawTrack = proxy (Track.class, (ignored, method, args) -> switch (method.getName ())
                 {
                     case "isGroup", "exists" -> value (method.getReturnType (), () -> true);
+                    case "channelId" -> value (method.getReturnType (), () -> "track-" + trackIndex);
                     case "selectInEditor" -> {
                         this.requests.add ("track:" + trackIndex + ":select");
                         yield null;
@@ -637,11 +644,14 @@ class SessionClipWindowHostTest
                     default -> nativeValue (method.getReturnType ());
                 });
                 final CursorTrack rawCursor = proxy (CursorTrack.class, (ignored, method, args) -> {
+                    if ("channelId".equals (method.getName ()))
+                        return value (method.getReturnType (), () -> this.nativeCursorId);
                     if ("selectFirstChild".equals (method.getName ()))
                         this.requests.add ("enter");
                     return nativeValue (method.getReturnType ());
                 });
                 this.nativeTracks[column] = new TrackImpl (nativeHost, changer, null, rawCursor, null, rawTrack, rawTrack, column, 0, 0);
+                this.nativeTracks[column].configurePendingOperations (new GroupNavigationHost (nativeHost, rawCursor, () -> this.projectIdentity));
                 for (int row = 0; row < rows; row++)
                 {
                     final int sceneIndex = row;

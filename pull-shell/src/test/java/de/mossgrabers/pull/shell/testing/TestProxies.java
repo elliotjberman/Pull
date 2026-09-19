@@ -27,6 +27,13 @@ public final class TestProxies
         return defaultValue (type);
     }
 
+    /** Inert recursive values with empty strings; unlike relaxedValue, nested strings are non-null. */
+    public static Object empty (final Class<?> type)
+    {
+        if (type == String.class) return "";
+        return type.isInterface () ? proxy (type, (p, method, args) -> empty (method.getReturnType ())) : defaultValue (type);
+    }
+
     public static Object defaultValue (final Class<?> type)
     {
         if (!type.isPrimitive () || void.class.equals (type))
