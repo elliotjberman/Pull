@@ -6,10 +6,7 @@ package de.mossgrabers.bitwig.framework.daw;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
-import java.util.Set;
 import java.util.function.Supplier;
 
 import com.bitwig.extension.controller.api.ControllerHost;
@@ -57,15 +54,8 @@ public class CursorClipImpl implements INoteClip
     private final PinnableCursorClip launcherClip;
     private int                      editPage        = 0;
     private double                   stepLength;
-    private final List<NotePosition> editSteps       = new ArrayList<> ();
-    private final Set<Integer> removedEditSteps = new HashSet<> ();
-    private final Supplier<String> projectIdentity;
-    private String editProject;
-    private String editTrack;
-    private int editScene;
-    private long editGeneration;
-    private boolean editCancelled;
-    private boolean closed;
+    private long targetRevision;
+
 
 
     /**
@@ -83,7 +73,6 @@ public class CursorClipImpl implements INoteClip
     {
         this.host = host;
         this.valueChanger = valueChanger;
-        this.projectIdentity = projectIdentity;
 
         this.numSteps = numSteps;
         this.numRows = numRows;
@@ -114,29 +103,16 @@ public class CursorClipImpl implements INoteClip
         this.launcherClip.isPinned ().markInterested ();
 
         this.launcherClip.getTrack ().canHoldNoteData ().markInterested ();
-        // An observed excursion cancels the entire held gesture, even if the cursor returns
-        // before its next throttled write. These are lifecycle fences, not delay-based readiness.
-        this.launcherClip.getTrack ().channelId ().addValueObserver (value -> {
-            if (!Objects.equals (this.editTrack, value))
-                this.cancelEdit ();
-        });
-        this.launcherClip.clipLauncherSlot ().sceneIndex ().addValueObserver (value -> {
-            if (this.editScene != value)
-                this.cancelEdit ();
-        });
-        this.launcherClip.exists ().addValueObserver (value -> {
-            if (!value)
-                this.cancelEdit ();
-        });
+        this.launcherClip.getTrack ().channelId ().addValueObserver (value -> this.targetRevision++);
+        this.launcherClip.clipLauncherSlot ().sceneIndex ().addValueObserver (value -> this.targetRevision++);
+        this.launcherClip.exists ().addValueObserver (value -> this.targetRevision++);
     }
 
 
-    /** Cancel held edits and retained asynchronous copies before the controller exits. */
+    /** Cancel retained asynchronous copies before the controller exits. */
     public void close ()
     {
-        this.closed = true;
-        this.cancelEdit ();
-        this.stopEdit ();
+        this.targetRevision++;
         if (this.noteCopies != null)
             this.noteCopies.close ();
     }
@@ -437,7 +413,7 @@ public class CursorClipImpl implements INoteClip
     public void setStepLength (final double length)
     {
         if (Double.compare (this.stepLength, length) != 0)
-            this.cancelEdit ();
+            this.targetRevision++;
         this.stepLength = length;
         this.launcherClip.setStepSize (length);
     }
@@ -539,8 +515,7 @@ public class CursorClipImpl implements INoteClip
     {
         final StepInfoImpl stepInfo = this.getUpdateableStep (notePosition);
         stepInfo.setMuted (isMuted);
-        if (this.editSteps.isEmpty ())
-            this.getNoteStep (notePosition).setIsMuted (isMuted);
+        this.getNoteStep (notePosition).setIsMuted (isMuted);
     }
 
 
@@ -562,8 +537,7 @@ public class CursorClipImpl implements INoteClip
         final double d = Math.max (0, duration);
         final StepInfoImpl stepInfo = this.getUpdateableStep (notePosition);
         stepInfo.setDuration (d);
-        if (this.editSteps.isEmpty ())
-            this.getNoteStep (notePosition).setDuration (d);
+        this.getNoteStep (notePosition).setDuration (d);
     }
 
 
@@ -585,8 +559,7 @@ public class CursorClipImpl implements INoteClip
         final double v = Math.min (1.0, Math.max (0, velocity));
         final StepInfoImpl stepInfo = this.getUpdateableStep (notePosition);
         stepInfo.setVelocity (v);
-        if (this.editSteps.isEmpty ())
-            this.getNoteStep (notePosition).setVelocity (v);
+        this.getNoteStep (notePosition).setVelocity (v);
     }
 
 
@@ -607,8 +580,7 @@ public class CursorClipImpl implements INoteClip
         final double v = Math.min (1.0, Math.max (0, velocitySpread));
         final StepInfoImpl stepInfo = this.getUpdateableStep (notePosition);
         stepInfo.setVelocitySpread (v);
-        if (this.editSteps.isEmpty ())
-            this.getNoteStep (notePosition).setVelocitySpread (v);
+        this.getNoteStep (notePosition).setVelocitySpread (v);
     }
 
 
@@ -629,8 +601,7 @@ public class CursorClipImpl implements INoteClip
         final double rv = Math.min (1.0, Math.max (0, releaseVelocity));
         final StepInfoImpl stepInfo = this.getUpdateableStep (notePosition);
         stepInfo.setReleaseVelocity (rv);
-        if (this.editSteps.isEmpty ())
-            this.getNoteStep (notePosition).setReleaseVelocity (rv);
+        this.getNoteStep (notePosition).setReleaseVelocity (rv);
     }
 
 
@@ -651,8 +622,7 @@ public class CursorClipImpl implements INoteClip
         final double p = Math.min (1.0, Math.max (0, pressure));
         final StepInfoImpl stepInfo = this.getUpdateableStep (notePosition);
         stepInfo.setPressure (p);
-        if (this.editSteps.isEmpty ())
-            this.getNoteStep (notePosition).setPressure (p);
+        this.getNoteStep (notePosition).setPressure (p);
     }
 
 
@@ -673,8 +643,7 @@ public class CursorClipImpl implements INoteClip
         final double t = Math.min (1.0, Math.max (-1.0, timbre));
         final StepInfoImpl stepInfo = this.getUpdateableStep (notePosition);
         stepInfo.setTimbre (t);
-        if (this.editSteps.isEmpty ())
-            this.getNoteStep (notePosition).setTimbre (t);
+        this.getNoteStep (notePosition).setTimbre (t);
     }
 
 
@@ -695,8 +664,7 @@ public class CursorClipImpl implements INoteClip
         final double p = Math.min (1.0, Math.max (-1.0, pan));
         final StepInfoImpl stepInfo = this.getUpdateableStep (notePosition);
         stepInfo.setPan (p);
-        if (this.editSteps.isEmpty ())
-            this.getNoteStep (notePosition).setPan (p);
+        this.getNoteStep (notePosition).setPan (p);
     }
 
 
@@ -721,8 +689,7 @@ public class CursorClipImpl implements INoteClip
         final double t = Math.min (TRANSPOSE_RANGE, Math.max (-TRANSPOSE_RANGE, transpose));
         final StepInfoImpl stepInfo = this.getUpdateableStep (notePosition);
         stepInfo.setTranspose (t);
-        if (this.editSteps.isEmpty ())
-            this.getNoteStep (notePosition).setTranspose (t);
+        this.getNoteStep (notePosition).setTranspose (t);
     }
 
 
@@ -751,8 +718,7 @@ public class CursorClipImpl implements INoteClip
         final double g = Math.min (1.0, Math.max (0, gain));
         final StepInfoImpl stepInfo = this.getUpdateableStep (notePosition);
         stepInfo.setGain (g);
-        if (this.editSteps.isEmpty ())
-            this.getNoteStep (notePosition).setGain (g);
+        this.getNoteStep (notePosition).setGain (g);
     }
 
 
@@ -762,8 +728,7 @@ public class CursorClipImpl implements INoteClip
     {
         final StepInfoImpl stepInfo = this.getUpdateableStep (notePosition);
         stepInfo.setIsChanceEnabled (isEnabled);
-        if (this.editSteps.isEmpty ())
-            this.getNoteStep (notePosition).setIsChanceEnabled (isEnabled);
+        this.getNoteStep (notePosition).setIsChanceEnabled (isEnabled);
     }
 
 
@@ -784,8 +749,7 @@ public class CursorClipImpl implements INoteClip
         final double c = Math.min (1.0, Math.max (0, chance));
         final StepInfoImpl stepInfo = this.getUpdateableStep (notePosition);
         stepInfo.setChance (c);
-        if (this.editSteps.isEmpty ())
-            this.getNoteStep (notePosition).setChance (c);
+        this.getNoteStep (notePosition).setChance (c);
     }
 
 
@@ -795,8 +759,7 @@ public class CursorClipImpl implements INoteClip
     {
         final StepInfoImpl stepInfo = this.getUpdateableStep (notePosition);
         stepInfo.setIsOccurrenceEnabled (isEnabled);
-        if (this.editSteps.isEmpty ())
-            this.getNoteStep (notePosition).setIsOccurrenceEnabled (isEnabled);
+        this.getNoteStep (notePosition).setIsOccurrenceEnabled (isEnabled);
     }
 
 
@@ -811,8 +774,7 @@ public class CursorClipImpl implements INoteClip
         final int newIndex = Math.max (0, Math.min (types.size () - 1, typeIndex + (increase ? 1 : -1)));
         final NoteOccurrenceType newType = types.get (newIndex);
         stepInfo.setOccurrence (newType);
-        if (this.editSteps.isEmpty ())
-            this.getNoteStep (notePosition).setOccurrence (NoteOccurrence.valueOf (newType.name ()));
+        this.getNoteStep (notePosition).setOccurrence (NoteOccurrence.valueOf (newType.name ()));
     }
 
 
@@ -822,8 +784,7 @@ public class CursorClipImpl implements INoteClip
     {
         final StepInfoImpl stepInfo = this.getUpdateableStep (notePosition);
         stepInfo.setOccurrence (occurrence);
-        if (this.editSteps.isEmpty ())
-            this.getNoteStep (notePosition).setOccurrence (NoteOccurrence.valueOf (occurrence.name ()));
+        this.getNoteStep (notePosition).setOccurrence (NoteOccurrence.valueOf (occurrence.name ()));
     }
 
 
@@ -833,8 +794,7 @@ public class CursorClipImpl implements INoteClip
     {
         final StepInfoImpl stepInfo = this.getUpdateableStep (notePosition);
         stepInfo.setIsRecurrenceEnabled (isEnabled);
-        if (this.editSteps.isEmpty ())
-            this.getNoteStep (notePosition).setIsRecurrenceEnabled (isEnabled);
+        this.getNoteStep (notePosition).setIsRecurrenceEnabled (isEnabled);
     }
 
 
@@ -855,11 +815,8 @@ public class CursorClipImpl implements INoteClip
         final int rl = Math.min (8, Math.max (1, recurrenceLength));
         final StepInfoImpl stepInfo = this.getUpdateableStep (notePosition);
         stepInfo.setRecurrenceLength (rl);
-        if (this.editSteps.isEmpty ())
-        {
-            final NoteStep noteStep = this.getNoteStep (notePosition);
-            noteStep.setRecurrence (rl, noteStep.recurrenceMask ());
-        }
+        final NoteStep noteStep = this.getNoteStep (notePosition);
+        noteStep.setRecurrence (rl, noteStep.recurrenceMask ());
     }
 
 
@@ -869,11 +826,8 @@ public class CursorClipImpl implements INoteClip
     {
         final StepInfoImpl stepInfo = this.getUpdateableStep (notePosition);
         stepInfo.setRecurrenceMask (mask);
-        if (this.editSteps.isEmpty ())
-        {
-            final NoteStep noteStep = this.getNoteStep (notePosition);
-            noteStep.setRecurrence (noteStep.recurrenceLength (), mask);
-        }
+        final NoteStep noteStep = this.getNoteStep (notePosition);
+        noteStep.setRecurrence (noteStep.recurrenceLength (), mask);
     }
 
 
@@ -883,8 +837,7 @@ public class CursorClipImpl implements INoteClip
     {
         final StepInfoImpl stepInfo = this.getUpdateableStep (notePosition);
         stepInfo.setIsRepeatEnabled (isEnabled);
-        if (this.editSteps.isEmpty ())
-            this.getNoteStep (notePosition).setIsRepeatEnabled (isEnabled);
+        this.getNoteStep (notePosition).setIsRepeatEnabled (isEnabled);
     }
 
 
@@ -905,8 +858,7 @@ public class CursorClipImpl implements INoteClip
         final int v = Math.min (127, Math.max (-127, value));
         final StepInfoImpl stepInfo = this.getUpdateableStep (notePosition);
         stepInfo.setRepeatCount (v);
-        if (this.editSteps.isEmpty ())
-            this.getNoteStep (notePosition).setRepeatCount (v);
+        this.getNoteStep (notePosition).setRepeatCount (v);
     }
 
 
@@ -927,8 +879,7 @@ public class CursorClipImpl implements INoteClip
         final double v = Math.min (1.0, Math.max (-1.0, value));
         final StepInfoImpl stepInfo = this.getUpdateableStep (notePosition);
         stepInfo.setRepeatCurve (v);
-        if (this.editSteps.isEmpty ())
-            this.getNoteStep (notePosition).setRepeatCurve (v);
+        this.getNoteStep (notePosition).setRepeatCurve (v);
     }
 
 
@@ -949,8 +900,7 @@ public class CursorClipImpl implements INoteClip
         final double vc = Math.min (1.0, Math.max (-1.0, velocityCurve));
         final StepInfoImpl stepInfo = this.getUpdateableStep (notePosition);
         stepInfo.setRepeatVelocityCurve (vc);
-        if (this.editSteps.isEmpty ())
-            this.getNoteStep (notePosition).setRepeatVelocityCurve (vc);
+        this.getNoteStep (notePosition).setRepeatVelocityCurve (vc);
     }
 
 
@@ -971,8 +921,7 @@ public class CursorClipImpl implements INoteClip
         final double ve = Math.min (1.0, Math.max (-1.0, velocityEnd));
         final StepInfoImpl stepInfo = this.getUpdateableStep (notePosition);
         stepInfo.setRepeatVelocityEnd (ve);
-        if (this.editSteps.isEmpty ())
-            this.getNoteStep (notePosition).setRepeatVelocityEnd (ve);
+        this.getNoteStep (notePosition).setRepeatVelocityEnd (ve);
     }
 
 
@@ -1099,7 +1048,7 @@ public class CursorClipImpl implements INoteClip
     public void scrollToPage (final int page)
     {
         if (this.editPage != page)
-            this.cancelEdit ();
+            this.targetRevision++;
         this.getClip ().scrollToStep (page * this.numSteps);
         this.editPage = page;
     }
@@ -1120,6 +1069,7 @@ public class CursorClipImpl implements INoteClip
         if (this.editPage <= 0)
             return;
         this.getClip ().scrollStepsPageBackwards ();
+        this.targetRevision++;
         this.editPage--;
     }
 
@@ -1129,6 +1079,7 @@ public class CursorClipImpl implements INoteClip
     public void scrollStepsPageForward ()
     {
         this.getClip ().scrollStepsPageForward ();
+        this.targetRevision++;
         this.editPage++;
     }
 
@@ -1188,66 +1139,6 @@ public class CursorClipImpl implements INoteClip
 
     /** {@inheritDoc} */
     @Override
-    public void startEdit (final List<NotePosition> editSteps)
-    {
-        // Is there a previous edit, which is not stopped yet?
-        this.stopEdit ();
-
-        if (this.closed)
-            return;
-        this.editProject = this.projectIdentity.get ();
-        this.editTrack = this.launcherClip.getTrack ().channelId ().get ();
-        this.editScene = this.launcherClip.clipLauncherSlot ().sceneIndex ().get ();
-        this.editCancelled = false;
-        this.editGeneration++;
-        this.removedEditSteps.clear ();
-        // The caller's positions are mutable; the physical gesture owns these coordinates.
-        for (final NotePosition step: editSteps)
-            if (step.getChannel () >= 0 && step.getChannel () < 16 && step.getStep () >= 0 && step.getStep () < this.numSteps
-                && step.getNote () >= 0 && step.getNote () < this.numRows)
-                this.editSteps.add (new NotePosition (step.getChannel (), step.getStep (), step.getNote ()));
-        for (final NotePosition step: this.editSteps)
-            this.delayedUpdate (step, this.editGeneration);
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void stopEdit ()
-    {
-        for (final NotePosition editStep: this.editSteps)
-            this.sendClipData (editStep);
-        this.editGeneration++;
-        // Final writes are still requests. Once editing ends, ordinary readers must see the
-        // latest host observation rather than the working values that were just submitted.
-        this.restoreObservedEdits ();
-        this.editSteps.clear ();
-        this.removedEditSteps.clear ();
-    }
-
-
-    private void restoreObservedEdits ()
-    {
-        for (final NotePosition editStep: this.editSteps)
-        {
-            final IStepInfo observed = this.observedBeforeEdits.remove (observedKey (editStep));
-            if (observed == null)
-                continue;
-            final IStepInfo [] [] [] stepInfos = this.getStepInfos ();
-            synchronized (stepInfos)
-            {
-                final int channel = editStep.getChannel ();
-                final int step = editStep.getStep ();
-                if (stepInfos[channel][step] == null)
-                    stepInfos[channel][step] = new IStepInfo [this.numRows];
-                stepInfos[channel][step][editStep.getNote ()] = observed instanceof StepInfoImpl ? observed.createCopy () : null;
-            }
-        }
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
     public NotePosition getNextNote (final NotePosition activeNotePosition, final boolean ignoreChannel)
     {
         final IStepInfo [] [] [] data = this.getStepInfos ();
@@ -1298,89 +1189,6 @@ public class CursorClipImpl implements INoteClip
     }
 
 
-    private void delayedUpdate (final NotePosition editStep, final long generation)
-    {
-        if (generation != this.editGeneration || !this.validateEditTarget () || this.removedEditSteps.contains (observedKey (editStep)))
-            return;
-        this.sendClipData (editStep);
-        this.host.scheduleTask ( () -> this.delayedUpdate (editStep, generation), 100);
-    }
-
-
-    private boolean validateEditTarget ()
-    {
-        if (this.editSteps.isEmpty () || this.editCancelled || this.closed)
-            return false;
-        if (!this.launcherClip.exists ().get () || this.editTrack == null || this.editTrack.isBlank () || this.editScene < 0
-            || !Objects.equals (this.editProject, this.projectIdentity.get ())
-            || !this.editTrack.equals (this.launcherClip.getTrack ().channelId ().get ())
-            || this.editScene != this.launcherClip.clipLauncherSlot ().sceneIndex ().get ())
-        {
-            this.cancelEdit ();
-            return false;
-        }
-        return true;
-    }
-
-
-    private void cancelEdit ()
-    {
-        if (this.editSteps.isEmpty () || this.editCancelled)
-            return;
-        this.editCancelled = true;
-        this.editGeneration++;
-        this.restoreObservedEdits ();
-        // Keep the held gesture present until its release: remaining turn events must not
-        // fall through to ordinary, immediate writes against the newly selected clip.
-    }
-
-
-    /**
-     * Update the locally changed step data in Bitwig.
-     *
-     * @param notePosition The position of the note
-     */
-    private void sendClipData (final NotePosition notePosition)
-    {
-        if (!this.validateEditTarget () || this.removedEditSteps.contains (observedKey (notePosition)))
-            return;
-        final NoteStep noteInfo = this.getNoteStep (notePosition);
-        if (noteInfo == null || noteInfo.state () != NoteStep.State.NoteOn)
-        {
-            this.removedEditSteps.add (observedKey (notePosition));
-            return;
-        }
-
-        final IStepInfo stepInfo = this.getStep (notePosition);
-        noteInfo.setIsMuted (stepInfo.isMuted ());
-        noteInfo.setDuration (stepInfo.getDuration ());
-        noteInfo.setVelocity (stepInfo.getVelocity ());
-        noteInfo.setVelocitySpread (stepInfo.getVelocitySpread ());
-        noteInfo.setReleaseVelocity (stepInfo.getReleaseVelocity ());
-        noteInfo.setPressure (stepInfo.getPressure ());
-        noteInfo.setTimbre (stepInfo.getTimbre ());
-        noteInfo.setPan (stepInfo.getPan ());
-        noteInfo.setTranspose (stepInfo.getTranspose ());
-        noteInfo.setGain (stepInfo.getGain ());
-
-        noteInfo.setIsChanceEnabled (stepInfo.isChanceEnabled ());
-        noteInfo.setChance (stepInfo.getChance ());
-
-        noteInfo.setIsOccurrenceEnabled (stepInfo.isOccurrenceEnabled ());
-        noteInfo.setOccurrence (NoteOccurrence.valueOf (stepInfo.getOccurrence ().name ()));
-
-        noteInfo.setIsRecurrenceEnabled (stepInfo.isRecurrenceEnabled ());
-        final int recurrenceLength = Math.max (1, stepInfo.getRecurrenceLength ());
-        noteInfo.setRecurrence (recurrenceLength, stepInfo.getRecurrenceMask ());
-
-        noteInfo.setIsRepeatEnabled (stepInfo.isRepeatEnabled ());
-        noteInfo.setRepeatCount (stepInfo.getRepeatCount ());
-        noteInfo.setRepeatCurve (stepInfo.getRepeatCurve ());
-        noteInfo.setRepeatVelocityCurve (stepInfo.getRepeatVelocityCurve ());
-        noteInfo.setRepeatVelocityEnd (stepInfo.getRepeatVelocityEnd ());
-    }
-
-
     /**
      * Update the step info with the incoming data from Bitwig if the note is not currently edited.
      *
@@ -1395,26 +1203,13 @@ public class CursorClipImpl implements INoteClip
             return;
         de.mossgrabers.pull.shell.NoteStepDebug.recordObserved ("editor", this.launcherClip.getTrack ().channelId ().get (), this.launcherClip.clipLauncherSlot ().sceneIndex ().get (), noteStep);
         final int observedKey = (step * 128 + note) * 16 + channel;
-        for (final NotePosition editStep: this.editSteps)
-        {
-            // Is the note among the currently edited ones?
-            if (this.validateEditTarget () && editStep.getChannel () == channel && editStep.getStep () == step && editStep.getNote () == note)
-            {
-                if (noteStep.state () == NoteStep.State.Empty)
-                    this.removedEditSteps.add (observedKey);
-                if (this.removedEditSteps.contains (observedKey))
-                    break;
-                final StepInfoImpl observed = new StepInfoImpl ();
-                observed.updateData (noteStep);
-                this.observedBeforeEdits.put (observedKey, observed);
-                return;
-            }
-        }
-
         this.getWorkingStep (new NotePosition (channel, step, note)).updateData (noteStep);
         this.observedBeforeEdits.remove (observedKey);
     }
 
+
+    /** Observed target and submitted grid changes invalidate captured note coordinates. */
+    public long getTargetRevision () { return this.targetRevision; }
 
     private static int observedKey (final NotePosition position)
     {
@@ -1423,8 +1218,6 @@ public class CursorClipImpl implements INoteClip
 
     private StepInfoImpl getUpdateableStep (final NotePosition position)
     {
-        if (!this.editSteps.isEmpty () && (!this.validateEditTarget () || this.removedEditSteps.contains (observedKey (position))))
-            return new StepInfoImpl ();
         if (position.getChannel () >= 0 && position.getChannel () < 16 && position.getStep () >= 0 && position.getStep () < this.numSteps && position.getNote () >= 0 && position.getNote () < this.numRows)
             this.observedBeforeEdits.computeIfAbsent (observedKey (position), key -> this.getStep (position).createCopy ());
         return this.getWorkingStep (position);

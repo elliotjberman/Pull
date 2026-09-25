@@ -584,8 +584,8 @@ class CompiledWorkspaceTest
     void rejectsConflictingPhysicalParameterMappings ()
     {
         final ControlId knob = PushControlIds.continuous ("KNOB1");
-        final ControllerView first = parameterView ("first", knob, ParameterSlot.active (0));
-        final ControllerView second = parameterView ("second", knob, ParameterSlot.active (1));
+        final ControllerView first = parameterView ("first", knob, ParameterSlot.projectRemote (0));
+        final ControllerView second = parameterView ("second", knob, ParameterSlot.projectRemote (1));
 
         assertThrows (IllegalArgumentException.class, () -> CompiledWorkspace.compile ("conflict", List.of (first, second)));
     }
@@ -595,7 +595,7 @@ class CompiledWorkspaceTest
     void rejectsParameterMappingOutsideTheDeclaringViewsRelativeInputClaim ()
     {
         final ControlId knob = PushControlIds.continuous ("KNOB1");
-        final ControllerView invalid = parameterView ("invalid", knob, ParameterSlot.active (0), Set.of ());
+        final ControllerView invalid = parameterView ("invalid", knob, ParameterSlot.projectRemote (0), Set.of ());
 
         assertThrows (IllegalArgumentException.class, () -> CompiledWorkspace.compile ("invalid parameter", List.of (invalid)));
     }

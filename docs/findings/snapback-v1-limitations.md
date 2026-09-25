@@ -49,8 +49,9 @@ Stable code owns exact actuator validation, baseline leases and best-effort faul
 `IParameter` restoration uses its immediate setter so takeover mode cannot reject the return.
 Normal core startup can hydrate retained baselines from the shell snapshot. The existing input and
 action gates and this bounded return fence are separate from the [unimplemented general reload drain](core-reload-quiescence.md).
-Full Device remotes remain excluded until their [identity contract](parameter-target-proxy-coupling.md)
-is proved; a bank's existence alone does not make its targets safe.
+The retained Device remote slice now uses this lifecycle and passed a matched live Shift return
+at controller resolution. Its [identity limits](parameter-target-proxy-coupling.md), including
+persistent controller overrides and hidden remapping, remain separate from precision.
 
 ## Restoration precision
 
@@ -70,7 +71,7 @@ Exact two-state Boolean restoration does not establish continuous-parameter prec
 Keep encoder response/sensitivity units separate from restoration units. The correction should
 retain normalized host baselines, or an opaque parent-owned full-precision baseline, restore through
 the same exact target fence, and compare later host observations at that precision. It must not
-introduce a pinned offscreen pool or invent Device identities to solve a value-units problem.
+confuse retained target addressability with solving this value-units problem.
 
 ## Removal criteria
 

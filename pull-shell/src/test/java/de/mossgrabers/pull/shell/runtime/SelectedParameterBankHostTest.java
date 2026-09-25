@@ -89,11 +89,11 @@ class SelectedParameterBankHostTest
         assertEquals (List.of ("touch:true", "touch:false"), fixture.track.sends[0].events);
         fixture.host.releaseTouches ();
         assertEquals (List.of ("touch:true", "touch:false"), fixture.track.sends[0].events);
-        assertNotEquals (target, fixture.sendTarget ());
+        assertFalse (fixture.host.snapshot ().slots ().containsKey (ParameterSlot.selectedTrackSend (0)), "new track has not been acquired");
     }
 
     @Test
-    void privateSelectionMismatchAndBankProxyRebindAreFailClosed ()
+    void bankProxyRebindCannotMoveRetainedSendsButSendTopologyChangeInvalidatesOldTouch ()
     {
         final Fixture fixture = new Fixture ();
         fixture.host.refresh (BANKS);
@@ -101,9 +101,15 @@ class SelectedParameterBankHostTest
         fixture.host.acquireTouches (fixture.host.prepareTouches (new DesiredParameterTouches (Map.of (OWNER, target)), BANKS));
         fixture.track.channel.set ("rebound-track");
         fixture.host.refresh (BANKS);
+        assertEquals (target, fixture.sendTarget ());
+        final var write = fixture.host.prepare (new ResetParameterEffect (target));
+        fixture.sendGeneration.incrementAndGet ();
+        assertThrows (IllegalStateException.class, () -> fixture.host.apply (write));
+        fixture.host.refresh (BANKS);
         fixture.host.releaseTouches ();
-        assertEquals (List.of ("touch:true"), fixture.track.sends[0].events);
-        assertTrue (fixture.host.snapshot ().slots ().isEmpty ());
+        assertEquals (List.of ("touch:true"), fixture.track.sends[0].events, "never release through a replaced send slot");
+        assertEquals (10, fixture.host.snapshot ().slots ().size ());
+        assertEquals ("track-a", fixture.host.snapshot ().slots ().get (ParameterSlot.SELECTED_TRACK_VOLUME).identity ().ownerId ());
     }
 
     private static final class Fixture
@@ -112,6 +118,7 @@ class SelectedParameterBankHostTest
         private final AtomicReference<ITrack> selected = new AtomicReference<> (this.track.track);
         private final AtomicReference<String> privateChannel = new AtomicReference<> ("track-a");
         private final AtomicLong generation = new AtomicLong (1);
+        private final AtomicLong sendGeneration = new AtomicLong (1);
         private final ParameterTargetHost host;
 
         private Fixture ()
@@ -122,7 +129,14 @@ class SelectedParameterBankHostTest
             final ITransport transport = proxy (ITransport.class, (method, args) -> null);
             final IModel model = proxy (IModel.class, (method, args) -> switch (method) { case "getTransport" -> transport; case "getProject" -> project; case "getCurrentTrackBank" -> bank; case "getValueChanger" -> changer; default -> null; });
             final ISelectedTrackNoteTarget privateTarget = proxy (ISelectedTrackNoteTarget.class, (method, args) -> switch (method) { case "doesExist" -> true; case "getChannelID" -> this.privateChannel.get (); case "getGeneration" -> this.generation.get (); default -> null; });
-            this.host = new ParameterTargetHost (ParameterTargetHostTest.emptySurface (changer), model, privateTarget, new RuntimeLog () { public void info (final String message) {} public void warn (final String message) {} });
+            // All mix roles belong to the independently acquired track, including its sends.
+            final var mix = new RetainedTrackParameters.TrackMix ("track-a", 1, this.track.volume.parameter, this.track.pan.parameter, java.util.Arrays.stream (this.track.sends).map (send -> send.parameter).toList (), this.sendGeneration::get, () -> true);
+            final RetainedTrackParameters retained = new RetainedTrackParameters ()
+            {
+                @Override public void requestTracks (final Set<String> trackIds) { }
+                @Override public TrackMix lookup (final String trackId) { return "track-a".equals (trackId) ? mix : null; }
+            };
+            this.host = new ParameterTargetHost (ParameterTargetHostTest.emptySurface (changer), model, privateTarget, new RuntimeLog () { public void info (final String message) {} public void warn (final String message) {} }, retained);
         }
         private ParameterTargetRef sendTarget () { return this.host.snapshot ().slots ().get (ParameterSlot.selectedTrackSend (0)).target (); }
     }

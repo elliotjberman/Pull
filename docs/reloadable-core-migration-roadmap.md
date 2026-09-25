@@ -1,6 +1,6 @@
 # Remaining core migration
 
-[ARCH](../ARCH.md) is the current ownership/capacity inventory. Working Core API 56 renders all
+[ARCH](../ARCH.md) is the current ownership/capacity inventory. Working Core API 57 renders all
 ordinary Push display pages through shared core components and bounded raw observations. The
 optional Clip piano roll remains unchanged. Core also owns Session, Setup/Ribbon settings and shared
 interaction cancellation. Display, page entry/return and input lifecycle ownership do not migrate
@@ -10,7 +10,8 @@ for each complete behavior slice.
 ## Checklist
 
 - [x] Ordinary page displays, reusable components and one offline component/view catalog.
-- [ ] Device, chain and layer controls/providers/lights with verified target identities.
+- [x] Device remote encoders/touches and display through retained device/page targets ([scoped live validation](track-cursor-pool/README.md#verification-and-next-acceptance)).
+- [ ] Remaining Device menu/navigation lights and chain/layer controls/providers with verified target identities.
 - [ ] Browser filtering/results/audition/operations; navigation lifecycle is already core-owned.
 - [ ] Crossfade and Track/Layer Details actions, including exact targets and return.
 - [ ] Color pad drawing and selection together; deferred unchanged under the [handoff TODO](migrations/ui-and-editing-handoff.md).
@@ -37,17 +38,19 @@ API 54's matching shell installation and scoped live validation are recorded in 
 
 ## Device, chain and layer
 
-`SpecificDeviceImpl.getID()` returns blank in production, excluding selected-device remote targets.
-API 25 supplies channel IDs and proxy equality observations, not a device UUID. Names, positions,
-wrappers and Drum candidate paths cannot substitute. A retained cursor/equality recipe is unproved;
-test pinning, ownership, duplicate names, replacement, deletion and page rebinding before adopting it.
+API 57 replaces the blank `SpecificDeviceImpl.getID()` recipe for selected-device remotes with
+opaque retained Device/page owners. Device equality, unfiltered page/slot addresses and later
+coherent observations passed the pool's ordinary live checks, including nested acquisition and
+deletion/undo. API 25 does not expose a device UUID or persistent controller-override identity;
+names, positions and wrappers cannot substitute. Preserved cross-track pins and hidden remapping
+remain outside the proved contract.
 
 Installed windows include eight siblings, displayed remote-page names, remotes, layers and sends
 per layer/pad, sixteen drum pads, and a 100-device reorder bank. Nested correctness still needs
-characterization. Display observations now describe these windows without granting actuator
-authority. After identity is proven, expose actuator contexts, named layer parameter roles
-and primitive navigation/Boolean/UI operations. Include Params/Chains, rows, preferences, touches,
-pin/window controls, feedback and held return. Trace permanent parameter bindings as well as mode
+characterization beyond the tested nested remote slice. Display observations describe these windows
+without granting actuator authority. Remaining child families need verified actuator contexts,
+named layer parameter roles and primitive navigation/Boolean/UI operations. Include Chains, rows,
+preferences, touches, pin/window controls, feedback and held return. Trace permanent parameter bindings as well as mode
 callbacks. [Target identity and removal criteria](findings/parameter-target-proxy-coupling.md).
 
 ## Other families

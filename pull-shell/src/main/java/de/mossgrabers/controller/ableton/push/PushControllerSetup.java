@@ -40,9 +40,6 @@ import de.mossgrabers.controller.ableton.push.mode.device.DeviceBrowserMode;
 import de.mossgrabers.controller.ableton.push.mode.device.DeviceChainsMode;
 import de.mossgrabers.controller.ableton.push.mode.device.DeviceLayerDetailsMode;
 import de.mossgrabers.controller.ableton.push.mode.device.DeviceLayerMode;
-import de.mossgrabers.controller.ableton.push.mode.device.DeviceLayerPanMode;
-import de.mossgrabers.controller.ableton.push.mode.device.DeviceLayerSendMode;
-import de.mossgrabers.controller.ableton.push.mode.device.DeviceLayerVolumeMode;
 import de.mossgrabers.controller.ableton.push.mode.device.DeviceParamsMode;
 import de.mossgrabers.controller.ableton.push.mode.track.AddTrackMode;
 import de.mossgrabers.controller.ableton.push.mode.track.ClipMode;
@@ -271,11 +268,11 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         modeManager.register (Modes.DEVICE_PARAMS, new DeviceParamsMode (surface, this.model));
         modeManager.register (Modes.DEVICE_CHAINS, new DeviceChainsMode (surface, this.model));
         modeManager.register (Modes.DEVICE_LAYER, new DeviceLayerMode (surface, this.model));
-        modeManager.register (Modes.DEVICE_LAYER_VOLUME, new DeviceLayerVolumeMode (surface, this.model));
-        modeManager.register (Modes.DEVICE_LAYER_PAN, new DeviceLayerPanMode (surface, this.model));
+        modeManager.register (Modes.DEVICE_LAYER_VOLUME, new DeviceLayerMode (Modes.NAME_LAYER_VOLUME, surface, this.model));
+        modeManager.register (Modes.DEVICE_LAYER_PAN, new DeviceLayerMode (Modes.NAME_LAYER_PANNING, surface, this.model));
 
         for (int i = 0; i < 8; i++)
-            modeManager.register (Modes.get (Modes.DEVICE_LAYER_SEND1, i), new DeviceLayerSendMode (surface, this.model, i));
+            modeManager.register (Modes.get (Modes.DEVICE_LAYER_SEND1, i), new DeviceLayerMode (Modes.NAME_LAYER_SENDS, surface, this.model));
 
         modeManager.register (Modes.DEVICE_LAYER_DETAILS, new DeviceLayerDetailsMode (surface, this.model));
         modeManager.register (Modes.BROWSER, new DeviceBrowserMode (surface, this.model));
@@ -367,6 +364,8 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         viewManager.register (Views.DRUM8, new Drum8View (surface, this.model));
         viewManager.register (Views.RAINDROPS, new RaindropsView (surface, this.model));
         viewManager.register (Views.DRUM64, new Drum64View (surface, this.model));
+        if (this.model instanceof de.mossgrabers.bitwig.framework.daw.ModelImpl nativeModel)
+            this.reloadableRuntime.initializeNoteEditors (nativeModel.getNoteClips ());
     }
 
 

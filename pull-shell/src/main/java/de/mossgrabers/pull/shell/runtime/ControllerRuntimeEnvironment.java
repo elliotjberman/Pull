@@ -329,6 +329,11 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
      */
     ControllerInputEvent controllerInput (final ControlId control, final InputKind kind, final InputPhase phase, final long value)
     {
+        return this.controllerInput (control, kind, phase, value, kind == InputKind.RELATIVE ? java.util.List.of (value) : java.util.List.of ());
+    }
+
+    ControllerInputEvent controllerInput (final ControlId control, final InputKind kind, final InputPhase phase, final long value, final java.util.List<Long> relativeSamples)
+    {
         final ControlId checkedControl = Objects.requireNonNull (control, "control");
         final InputKind checkedKind = Objects.requireNonNull (kind, "kind");
         final InputPhase checkedPhase = Objects.requireNonNull (phase, "phase");
@@ -345,7 +350,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
             if (changed)
                 this.advanceSnapshotRevision ();
         }
-        return new ControllerInputEvent (this.nextEventSequence (), this.now (), checkedControl, checkedKind, checkedPhase, value);
+        return new ControllerInputEvent (this.nextEventSequence (), this.now (), checkedControl, checkedKind, checkedPhase, value, relativeSamples);
     }
 
 
@@ -989,6 +994,8 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
             return new BridgeEffectTarget (BridgeEffectDomain.TRANSPORT_STATE, state.state ());
         if (effect instanceof final SetTransportValueEffect value)
             return new BridgeEffectTarget (BridgeEffectDomain.TRANSPORT_VALUE, value.value ());
+        if (effect instanceof final de.mossgrabers.pull.core.api.effect.SetCurrentParameterValueEffect parameter)
+            return new BridgeEffectTarget (BridgeEffectDomain.PARAMETER, parameter.target ());
         if (effect instanceof final SetParameterValueEffect parameter)
             return new BridgeEffectTarget (BridgeEffectDomain.PARAMETER, parameter.target ());
         if (effect instanceof final AdjustParameterValueEffect parameter)
@@ -1001,7 +1008,7 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
 
     private static boolean isParameterEffect (final CoreEffect effect)
     {
-        return effect instanceof de.mossgrabers.pull.core.api.effect.SetParameterNormalizedValueEffect || effect instanceof SetParameterValueEffect || effect instanceof AdjustParameterValueEffect || effect instanceof ResetParameterEffect || effect instanceof de.mossgrabers.pull.core.api.effect.SetParameterEnabledEffect || effect instanceof de.mossgrabers.pull.core.api.effect.AcquireParameterTouchEffect;
+        return effect instanceof de.mossgrabers.pull.core.api.effect.SetCurrentParameterValueEffect || effect instanceof de.mossgrabers.pull.core.api.effect.SetParameterNormalizedValueEffect || effect instanceof SetParameterValueEffect || effect instanceof AdjustParameterValueEffect || effect instanceof ResetParameterEffect || effect instanceof de.mossgrabers.pull.core.api.effect.SetParameterEnabledEffect || effect instanceof de.mossgrabers.pull.core.api.effect.AcquireParameterTouchEffect;
     }
 
 
@@ -1268,7 +1275,15 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
                 return;
             }
 
-            this.activePlayback = this.active.target ().playbackState ();
+            try
+            {
+                this.activePlayback = this.active.target ().playbackState ();
+            }
+            catch (final DrumFillClipHost.TargetUnavailableException failure)
+            {
+                this.abandonUnavailableTarget (failure, sampleRevision);
+                return;
+            }
             if (isBusy (this.activePlayback))
                 this.activeObservedBusy = true;
 
@@ -1316,6 +1331,10 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
             {
                 lease.target ().release ();
                 this.pendingRelease = new PendingRelease (lease, sampleRevision);
+            }
+            catch (final DrumFillClipHost.TargetUnavailableException failure)
+            {
+                this.abandonUnavailableTarget (failure, sampleRevision);
             }
             catch (final Throwable failure)
             {
@@ -1376,6 +1395,11 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
                 target.press (requested.launchPolicy ());
                 return true;
             }
+            catch (final DrumFillClipHost.TargetUnavailableException failure)
+            {
+                this.abandonUnavailableTarget (failure, sampleRevision);
+                return false;
+            }
             catch (final Throwable failure)
             {
                 rethrowFatal (failure);
@@ -1383,6 +1407,16 @@ final class ControllerRuntimeEnvironment implements CoreRuntimeEnvironment
                 this.requestActiveReturn ("Partial fill acquisition rollback", sampleRevision);
                 return false;
             }
+        }
+
+
+        private void abandonUnavailableTarget (final DrumFillClipHost.TargetUnavailableException failure, final long sampleRevision)
+        {
+            ControllerRuntimeEnvironment.this.warn ("Fill target became unavailable; exact lease abandoned without playback restoration: " + sanitize (failure));
+            this.pending = null;
+            this.retireActive ();
+            this.launchAfterSample = sampleRevision;
+            this.finishReturn ();
         }
 
 

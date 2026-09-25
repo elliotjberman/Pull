@@ -1,4 +1,5 @@
 target/
+/.live-cursor-pool/
 .DS_Store
 last-build.bin
 fileHashes.lock

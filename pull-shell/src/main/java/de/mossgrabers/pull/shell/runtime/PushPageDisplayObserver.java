@@ -11,7 +11,12 @@ final class PushPageDisplayObserver
 {
     private final PushEditingPageObserver editing = new PushEditingPageObserver ();
 
-    ControllerPageDisplaySnapshot capture (final PushControlSurface surface, final IModel model)
+    ControllerPageDisplaySnapshot capture (final PushControlSurface surface, final IModel model, final String parameterOwner)
+    {
+        return this.capture (surface, model, parameterOwner, "");
+    }
+
+    ControllerPageDisplaySnapshot capture (final PushControlSurface surface, final IModel model, final String parameterOwner, final String noteOwner)
     {
         final var mode = surface.getModeManager ().getActiveID ();
         final ControllerPageDisplayState state = mode == null ? new ControllerPageDisplayState.Empty () : switch (mode)
@@ -24,6 +29,7 @@ final class PushPageDisplayObserver
             case CLIP, NOTE, REC_ARM, GROOVE -> this.editing.capture (surface, model);
             default -> new ControllerPageDisplayState.Empty ();
         };
-        return new ControllerPageDisplaySnapshot (mode == null ? "" : mode.name (), state);
+        final ControllerPageDisplayState aligned = state instanceof final DevicePageState device && (device.kind () == DevicePageState.Kind.PARAMETERS || device.kind () == DevicePageState.Kind.CHAINS || device.kind () == DevicePageState.Kind.LAYER || device.kind () == DevicePageState.Kind.LAYER_VOLUME || device.kind () == DevicePageState.Kind.LAYER_PAN || device.kind () == DevicePageState.Kind.LAYER_SEND) ? device.withParameterOwner (parameterOwner) : state instanceof EditingPageState.Note note ? note.withParameterOwner (noteOwner) : state;
+        return new ControllerPageDisplaySnapshot (mode == null ? "" : mode.name (), aligned);
     }
 }

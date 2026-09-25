@@ -311,6 +311,24 @@ public final class CompiledWorkspace
     }
 
 
+    /** Resolve a bounded group within the view's declared control and bank footprint. */
+    public List<ParameterSlot> parameterGroup (final ControlId control, final ControllerSnapshot snapshot)
+    {
+        final ParameterSlot first = this.parameterSlotOrNull (control, snapshot);
+        if (first == null) return List.of ();
+        for (final CompiledView view: this.views)
+            if (view.parameterBindings ().containsKey (control))
+            {
+                final List<ParameterSlot> group = List.copyOf (view.view ().parameterGroup (control, snapshot));
+                if (group.isEmpty () || !first.equals (group.getFirst ()) || group.size () > ParameterSlot.NOTE_CAPACITY ||
+                    new java.util.HashSet<> (group).size () != group.size () || group.stream ().anyMatch (slot -> !view.parameterBanks ().contains (slot.bank ())))
+                    throw new IllegalStateException ("parameter group exceeds its declared footprint");
+                return group;
+            }
+        return List.of ();
+    }
+
+
     Map<ControlId, ParameterSlot> parameterSlots (final ControllerSnapshot snapshot)
     {
         final Map<ControlId, ParameterSlot> bindings = new LinkedHashMap<> ();

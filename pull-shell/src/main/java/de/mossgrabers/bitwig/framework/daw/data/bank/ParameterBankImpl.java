@@ -182,6 +182,18 @@ public class ParameterBankImpl extends AbstractItemBank<IParameter> implements I
     }
 
 
+    /**
+     * Get the existing native page. Bitwig permits only one main remote page following this device's
+     * selection, so parent-owned observers must share the page created with the model.
+     *
+     * @return The initialization-owned remote controls page
+     */
+    public CursorRemoteControlsPage getRemoteControlsPage ()
+    {
+        return this.remoteControls;
+    }
+
+
     /** {@inheritDoc} */
     @Override
     public void addValueObserver (final IParameterValueObserver observer)

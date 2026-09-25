@@ -493,21 +493,6 @@ public interface INoteClip extends IClip, IPinnable
 
 
     /**
-     * Start editing one or more notes. Signals to prevent round-trip error by quickly changing
-     * values to the DAW, which are not set at the same time.
-     *
-     * @param editSteps The steps to edit
-     */
-    void startEdit (List<NotePosition> editSteps);
-
-
-    /**
-     * Stop editing the note step, which was started with startEdit.
-     */
-    void stopEdit ();
-
-
-    /**
      * Clear all notes on all channels.
      */
     void clearAll ();

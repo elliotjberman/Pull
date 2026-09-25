@@ -18,6 +18,7 @@ import java.util.List;
  */
 public class NoteEditor implements INoteEditor
 {
+    private long selectionRevision;
     private INoteClip                clip  = null;
     private final List<NotePosition> notes = new ArrayList<> ();
 
@@ -43,6 +44,7 @@ public class NoteEditor implements INoteEditor
     @Override
     public void clearNotes ()
     {
+        this.selectionRevision++;
         this.notes.clear ();
     }
 
@@ -51,6 +53,7 @@ public class NoteEditor implements INoteEditor
     @Override
     public void setNote (final INoteClip clip, final NotePosition notePosition)
     {
+        this.selectionRevision++;
         this.notes.clear ();
         this.addNote (clip, notePosition);
     }
@@ -60,6 +63,7 @@ public class NoteEditor implements INoteEditor
     @Override
     public void addNote (final INoteClip clip, final NotePosition notePosition)
     {
+        this.selectionRevision++;
         // Is the note already edited? Remove it.
         this.removeNote (clip, notePosition);
         this.notes.add (new NotePosition (notePosition.getChannel (), notePosition.getStep (), notePosition.getNote ()));
@@ -70,9 +74,11 @@ public class NoteEditor implements INoteEditor
     @Override
     public void removeNote (final INoteClip clip, final NotePosition notePosition)
     {
+        this.selectionRevision++;
         if (this.clip != clip)
         {
-            this.notes.clear ();
+            this.selectionRevision++;
+        this.notes.clear ();
             this.clip = clip;
         }
 
@@ -107,17 +113,10 @@ public class NoteEditor implements INoteEditor
     @Override
     public List<NotePosition> getNotes ()
     {
-        return new ArrayList<> (this.notes);
+        return this.notes.stream ().map (note -> new NotePosition (note.getChannel (), note.getStep (), note.getNote ())).toList ();
     }
 
 
-    /** {@inheritDoc} */
     @Override
-    public List<NotePosition> getNotePosition (final int parameterIndex)
-    {
-        // Implementation for simple note edit modes, for complex modes getNotePosition needs to be
-        // implemented in the mode itself
-
-        return this.notes;
-    }
+    public long getSelectionRevision () { return this.selectionRevision; }
 }

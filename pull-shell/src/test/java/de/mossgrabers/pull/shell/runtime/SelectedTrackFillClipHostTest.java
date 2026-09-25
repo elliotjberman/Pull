@@ -4,10 +4,10 @@
 package de.mossgrabers.pull.shell.runtime;
 
 import de.mossgrabers.pull.core.api.ClipCatalogSnapshot;
-import de.mossgrabers.pull.core.api.DesiredClipScan;
 import de.mossgrabers.pull.core.api.ClipTargetId;
 import de.mossgrabers.pull.core.api.ControlId;
 import de.mossgrabers.pull.core.api.CoreControls;
+import de.mossgrabers.pull.core.api.DesiredClipScan;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchMode;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchPolicy;
 import de.mossgrabers.pull.core.api.effect.ClipLaunchQuantization;
@@ -29,496 +29,446 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
-/**
- * Deterministic selected-track scanner and pinned-actuator state-machine tests.
- */
+/** Real pool and clip consumer, with submitted commands separated from host advancement. */
 class SelectedTrackFillClipHostTest
 {
-    private static final ClipLaunchPolicy LAUNCH_POLICY = new ClipLaunchPolicy (
-        ClipLaunchQuantization.IMMEDIATE,
-        ClipLaunchMode.LEGATO_FROM_CLIP_OR_PROJECT,
-        ClipReleaseTrigger.ALTERNATE);
-    private static final ClipLaunchPolicy DIFFERENT_LAUNCH_POLICY = new ClipLaunchPolicy (
-        ClipLaunchQuantization.DEFAULT,
-        ClipLaunchMode.DEFAULT,
-        ClipReleaseTrigger.MAIN);
-
-    @Test
-    void pauseStopsScannerRequestsButPreservesHeldReleaseAndResumesCatalog ()
-    {
-        final FakeAdapter adapter = new FakeAdapter ();
-        adapter.selectTrack ("track-a", 8);
-        adapter.putClip (1, "Fill A");
-        final java.util.concurrent.atomic.AtomicBoolean paused = new java.util.concurrent.atomic.AtomicBoolean ();
-        final SelectedTrackFillClipHost host = new SelectedTrackFillClipHost (adapter, paused::get);
-        requestPage (host, adapter, 0);
-        refreshUntil (host, adapter, () -> host.clipCatalog ().clips ().size () == 1);
-        final ClipCatalogSnapshot catalog = host.clipCatalog ();
-        final ControlId control = CoreControls.drumFills ().get (0);
-        final ClipTargetId target = catalog.clips ().get (0).targetId ();
-        host.setDesiredBindings (catalog.generation (), Map.of (control, target));
-        refreshUntil (host, adapter, () -> host.armedClipTargets ().containsKey (control));
-        final DrumFillClipHost.LaunchTarget held = host.prepare (control, catalog.generation (), target);
-        held.press (LAUNCH_POLICY);
-        paused.set (true);
-        final int moves = adapter.scannerMoves.size ();
-        adapter.putClip (2, "New clip");
-        for (int i = 0; i < 10; i++) host.refresh ();
-        assertEquals (moves, adapter.scannerMoves.size ());
-        assertEquals (catalog, host.clipCatalog ());
-        held.release ();
-        assertEquals (List.of ("track-a:1"), adapter.releases);
-        paused.set (false);
-        refreshUntil (host, adapter, () -> host.clipCatalog ().clips ().size () == 2);
-    }
+    private static final ClipLaunchPolicy POLICY = new ClipLaunchPolicy (ClipLaunchQuantization.IMMEDIATE,
+        ClipLaunchMode.LEGATO_FROM_CLIP_OR_PROJECT, ClipReleaseTrigger.ALTERNATE);
 
 
     @Test
-    void readsOnlyRequestedPagesAndDetectsNewRenamedAndDeletedClipsWithoutReselecting ()
+    void poolAcquisitionAndClipCoherencePrecedeCatalogAndRequestsDoNotReselect ()
     {
-        final FakeAdapter adapter = new FakeAdapter ();
-        adapter.selectTrack ("track-a", 25);
-        for (int scene = 0; scene < 13; scene++)
-            adapter.putClip (scene * 2, "Clip " + scene);
-        final SelectedTrackFillClipHost host = requestedHost (adapter);
-        host.refresh (); // Selection submission is not host acknowledgement.
-        assertFalse (host.clipCatalog ().scan ().ready ());
-        adapter.advanceHost ();
-        host.refresh ();
-        assertFalse (host.clipCatalog ().scan ().ready ());
-        adapter.advanceHost ();
-        host.refresh ();
-        assertTrue (host.clipCatalog ().scan ().ready ());
-        assertEquals (4, host.clipCatalog ().clips ().size ());
-        assertEquals (1, adapter.scannerSelections);
-        for (int i = 0; i < 10; i++) host.refresh ();
-        assertTrue (adapter.scannerMoves.isEmpty ());
+        final Fixture f = new Fixture ();
+        f.select ("a", 25);
+        for (int scene = 0; scene < 25; scene += 2)
+            f.put ("a", scene, "Clip " + scene);
+        f.requestPage (0);
+        f.refresh ();
+        assertFalse (f.host.clipCatalog ().scan ().ready ());
+        assertEquals (0, f.scannerReads);
+        for (int index = 0; index < 10; index++)
+            f.refresh ();
+        assertEquals (0, f.scannerReads, "Submitted track selection does not make old slot data ready");
+        f.tick ();
+        assertFalse (f.host.clipCatalog ().scan ().ready ());
+        f.tick ();
+        assertTrue (f.host.clipCatalog ().scan ().ready ());
+        assertEquals (4, f.host.clipCatalog ().clips ().size ());
+        final int assignments = f.assignments.size ();
         for (final int page: List.of (8, 16, 24))
         {
-            requestPage (host, adapter, page);
-            refreshUntil (host, adapter, () -> host.clipCatalog ().scan ().ready () && host.clipCatalog ().scan ().sceneStart () == page);
+            f.requestPage (page);
+            f.until (() -> f.host.clipCatalog ().scan ().ready () && f.host.clipCatalog ().scan ().sceneStart () == page);
         }
-        assertEquals (13, host.clipCatalog ().clips ().size ());
-        assertEquals (1, adapter.scannerSelections);
-        final ClipTargetId first = host.clipCatalog ().clips ().getFirst ().targetId ();
-        adapter.putClip (19, "New fill");
-        adapter.putClip (18, "Renamed fill");
-        adapter.clips.remove (20);
-        requestPage (host, adapter, 16);
-        refreshUntil (host, adapter, () -> host.clipCatalog ().clips ().stream ().anyMatch (clip -> "New fill".equals (clip.name ())));
-        assertTrue (host.clipCatalog ().clips ().stream ().anyMatch (clip -> "Renamed fill".equals (clip.name ())));
-        assertFalse (host.clipCatalog ().clips ().stream ().anyMatch (clip -> "Clip 10".equals (clip.name ())));
-        assertEquals (first, host.clipCatalog ().clips ().getFirst ().targetId ());
-        assertEquals (1, adapter.scannerSelections);
+        assertEquals (13, f.host.clipCatalog ().clips ().size ());
+        assertEquals (assignments, f.assignments.size (), "Paging an acquired scanner must not reselect its track");
+        final ClipTargetId first = f.host.clipCatalog ().clips ().getFirst ().targetId ();
+        f.put ("a", 19, "New fill");
+        f.put ("a", 18, "Renamed fill");
+        f.clips.get ("a").remove (20);
+        f.requestPage (16);
+        f.until (() -> f.host.clipCatalog ().clips ().stream ().anyMatch (clip -> "New fill".equals (clip.name ())));
+        assertTrue (f.host.clipCatalog ().clips ().stream ().anyMatch (clip -> "Renamed fill".equals (clip.name ())));
+        assertFalse (f.host.clipCatalog ().clips ().stream ().anyMatch (clip -> "Clip 20".equals (clip.name ())));
+        assertEquals (first, f.host.clipCatalog ().clips ().getFirst ().targetId ());
     }
 
 
     @Test
-    void inactiveScannerDoesNoSlotReadsAndRelinquishingPreservesExactHeldCleanup ()
+    void armingWaitsForSceneReadbackAndLaunchPlaybackDoesNotAcknowledgeItself ()
     {
-        final FakeAdapter adapter = new FakeAdapter ();
-        adapter.selectTrack ("track-a", 8);
-        adapter.putClip (1, "Fill A");
-        final SelectedTrackFillClipHost host = new SelectedTrackFillClipHost (adapter);
-        for (int i = 0; i < 10; i++) host.refresh ();
-        assertEquals (0, adapter.scannerSamples);
-        assertEquals (0, adapter.scannerSelections);
-        requestPage (host, adapter, 0);
-        refreshUntil (host, adapter, () -> host.clipCatalog ().clips ().size () == 1);
-        final ClipTargetId target = armFirstTarget (host, adapter);
-        final DrumFillClipHost.LaunchTarget held = host.prepare (CoreControls.DRUM_FILL_1, host.clipCatalog ().generation (), target);
-        held.press (LAUNCH_POLICY);
-        host.setDesiredScan (DesiredClipScan.inactive ());
-        final int reads = adapter.scannerSamples;
-        for (int i = 0; i < 10; i++) host.refresh ();
-        assertEquals (reads, adapter.scannerSamples);
-        assertTrue (host.clipCatalog ().clips ().isEmpty ());
-        assertTrue (host.armedClipTargets ().isEmpty ());
+        final Fixture f = readyFill ();
+        final ClipTargetId target = f.firstTarget ();
+        f.bind (target);
+        f.refresh ();
+        assertTrue (f.host.armedClipTargets ().isEmpty ());
+        f.tick (); // pool track assignment acknowledged; slot scroll submitted
+        assertTrue (f.host.armedClipTargets ().isEmpty ());
+        f.refresh ();
+        assertTrue (f.host.armedClipTargets ().isEmpty ());
+        f.tick (); // scene readback, first coherent clip sample
+        assertTrue (f.host.armedClipTargets ().isEmpty ());
+        f.tick ();
+        assertEquals (Map.of (CoreControls.DRUM_FILL_1, target), f.host.armedClipTargets ());
+        final DrumFillClipHost.LaunchTarget held = f.prepare (target);
+        held.press (POLICY);
+        assertEquals (List.of ("a:3"), f.presses);
+        assertFalse (held.playbackState ().playing (), "Launch submission is not playback acknowledgement");
+        f.tick ();
+        assertTrue (held.playbackState ().playing ());
         held.release ();
-        assertEquals (List.of ("track-a:1"), adapter.releases);
+        held.release ();
+        assertEquals (List.of ("a:3"), f.releases);
+        assertTrue (held.playbackState ().playing (), "Release submission is not a stopped acknowledgement");
+        f.tick ();
+        assertFalse (held.playbackState ().playing ());
         held.retire ();
-    }
-
-
-    @Test
-    void staleSelectionRequestAndPreparedLaunchFailClosed ()
-    {
-        final FakeAdapter adapter = new FakeAdapter ();
-        adapter.selectTrack ("track-a", 8);
-        adapter.putClip (1, "Fill A");
-        final SelectedTrackFillClipHost host = requestedHost (adapter);
-        refreshUntil (host, adapter, () -> !host.clipCatalog ().clips ().isEmpty ());
-        final ClipTargetId target = armFirstTarget (host, adapter);
-        final DrumFillClipHost.LaunchTarget prepared = host.prepare (CoreControls.DRUM_FILL_1, host.clipCatalog ().generation (), target);
-        adapter.selectTrack ("track-b", 8);
-        assertThrows (IllegalStateException.class, () -> prepared.press (LAUNCH_POLICY));
-        host.refresh ();
-        assertTrue (host.clipCatalog ().clips ().isEmpty ());
-        final int selections = adapter.scannerSelections;
-        for (int i = 0; i < 10; i++) host.refresh ();
-        assertEquals (selections, adapter.scannerSelections);
-    }
-
-
-    @Test
-    void armsOnlyAfterTwoValidatedSamplesAndLaunchesTheParkedSlot ()
-    {
-        final FakeAdapter adapter = new FakeAdapter ();
-        adapter.selectTrack ("track-a", 8);
-        adapter.putClip (3, "Fill A");
-        final SelectedTrackFillClipHost host = requestedHost (adapter);
-        refreshUntil (host, adapter, () -> host.clipCatalog ().clips ().size () == 1);
-
-        final ClipCatalogSnapshot catalog = host.clipCatalog ();
-        final ClipTargetId targetId = catalog.clips ().get (0).targetId ();
-        final ControlId control = CoreControls.DRUM_FILL_1;
-        adapter.automaticallyParkActuators = false;
-        host.setDesiredBindings (catalog.generation (), Map.of (control, targetId));
-        assertTrue (host.armedClipTargets ().isEmpty ());
-        assertThrows (IllegalArgumentException.class, () -> host.prepare (control, catalog.generation (), targetId));
-
-        adapter.setActuatorSample (0, new SelectedTrackFillClipHost.ActuatorSample ("track-a", true, true, 2, "Wrong scene", true, true, false, false, false));
-        host.refresh ();
-        assertTrue (host.armedClipTargets ().isEmpty ());
-
-        adapter.setActuatorSample (0, new SelectedTrackFillClipHost.ActuatorSample ("track-a", true, false, 3, "Fill A", true, true, false, false, false));
-        host.refresh ();
-        host.refresh ();
-        assertTrue (host.armedClipTargets ().isEmpty ());
-
-        adapter.setActuatorSample (0, new SelectedTrackFillClipHost.ActuatorSample ("track-a", true, true, 3, "Fill A", true, true, false, false, false));
-        host.refresh ();
-        assertTrue (host.armedClipTargets ().isEmpty ());
-        assertTrue (host.refresh ());
-        assertEquals (Map.of (control, targetId), host.armedClipTargets ());
-
-        final DrumFillClipHost.LaunchTarget launchTarget = host.prepare (control, catalog.generation (), targetId);
-        launchTarget.press (LAUNCH_POLICY);
-        assertThrows (IllegalStateException.class, () -> launchTarget.press (DIFFERENT_LAUNCH_POLICY));
-        assertEquals (new DrumFillClipHost.PlaybackState (false, false, false), launchTarget.playbackState ());
-        adapter.setActuatorPlayback (0, true, true, true);
-        assertEquals (new DrumFillClipHost.PlaybackState (true, true, true), launchTarget.playbackState ());
-        launchTarget.release ();
-        launchTarget.release ();
-        assertEquals (List.of ("track-a:3"), adapter.presses);
-        assertEquals (List.of ("track-a:3"), adapter.releases);
-        assertEquals (List.of (LAUNCH_POLICY), adapter.launchPolicies);
-        assertEquals (List.of (ClipReleaseTrigger.ALTERNATE), adapter.releaseTriggers);
-        assertEquals (new DrumFillClipHost.PlaybackState (true, true, true), launchTarget.playbackState ());
-        launchTarget.retire ();
-        launchTarget.retire ();
-        assertThrows (IllegalStateException.class, launchTarget::playbackState);
-    }
-
-
-    @Test
-    void selectedTrackChangeClearsCatalogAndIdleBindingsImmediately ()
-    {
-        final FakeAdapter adapter = new FakeAdapter ();
-        adapter.selectTrack ("track-a", 4);
-        adapter.putClip (1, "Fill A");
-        final SelectedTrackFillClipHost host = requestedHost (adapter);
-        refreshUntil (host, adapter, () -> host.clipCatalog ().clips ().size () == 1);
-        armFirstTarget (host, adapter);
-
-        final long oldGeneration = host.clipCatalog ().generation ();
-        final int oldActuatorSelections = adapter.actuatorSelections.get (0).intValue ();
-        adapter.clearClips ();
-        adapter.selectTrack ("track-b", 6);
-        adapter.putClip (5, "Fill B");
-
-        assertTrue (host.refresh ());
-        assertEquals (oldGeneration + 1, host.clipCatalog ().generation ());
-        assertTrue (host.clipCatalog ().clips ().isEmpty ());
-        assertTrue (host.armedClipTargets ().isEmpty ());
-        assertEquals (oldActuatorSelections, adapter.actuatorSelections.get (0).intValue ());
-        assertThrows (IllegalArgumentException.class, () -> host.setDesiredBindings (oldGeneration, Map.of (CoreControls.DRUM_FILL_1, new ClipTargetId (0))));
-
-        requestPage (host, adapter, 0);
-        refreshUntil (host, adapter, () -> host.clipCatalog ().clips ().size () == 1);
-        assertEquals ("Fill B", host.clipCatalog ().clips ().get (0).name ());
-    }
-
-
-    @Test
-    void supportsEightIndependentSimultaneousLeases ()
-    {
-        final FakeAdapter adapter = new FakeAdapter ();
-        adapter.selectTrack ("track-a", 12);
-        for (int scene = 0; scene < 12; scene++)
-            adapter.putClip (scene, "Fill " + (scene + 1));
-
-        final SelectedTrackFillClipHost host = requestedHost (adapter);
-        refreshUntil (host, adapter, () -> host.clipCatalog ().scan ().ready ());
-        requestPage (host, adapter, 8);
-        refreshUntil (host, adapter, () -> host.clipCatalog ().clips ().size () == 12);
-
-        final Map<ControlId, ClipTargetId> bindings = new LinkedHashMap<> ();
-        final List<ClipTargetId> targets = host.clipCatalog ().clips ().stream ().map (clip -> clip.targetId ()).toList ();
-        for (int index = 0; index < 8; index++)
-            bindings.put (CoreControls.drumFills ().get (index), targets.get (index));
-        host.setDesiredBindings (host.clipCatalog ().generation (), bindings);
-        refreshUntil (host, adapter, () -> host.armedClipTargets ().size () == 8);
-
-        final List<DrumFillClipHost.LaunchTarget> leases = new ArrayList<> (8);
-        for (int index = 0; index < 8; index++)
-        {
-            final DrumFillClipHost.LaunchTarget lease = host.prepare (CoreControls.drumFills ().get (index), host.clipCatalog ().generation (), targets.get (index));
-            lease.press (LAUNCH_POLICY);
-            leases.add (lease);
-        }
-        for (int index = leases.size () - 1; index >= 0; index--)
-        {
-            leases.get (index).release ();
-            leases.get (index).retire ();
-        }
-
-        assertEquals (8, adapter.presses.size ());
-        assertEquals (8, adapter.releases.size ());
-    }
-
-
-    @Test
-    void releasedActuatorStaysFrozenUntilPlaybackIsAcknowledgedAndRetired ()
-    {
-        final FakeAdapter adapter = new FakeAdapter ();
-        adapter.selectTrack ("track-a", 4);
-        adapter.putClip (1, "Fill A");
-        final SelectedTrackFillClipHost host = requestedHost (adapter);
-        refreshUntil (host, adapter, () -> host.clipCatalog ().clips ().size () == 1);
-        final ClipTargetId firstTarget = armFirstTarget (host, adapter);
-        final long firstGeneration = host.clipCatalog ().generation ();
-
-        final DrumFillClipHost.LaunchTarget held = host.prepare (CoreControls.DRUM_FILL_1, firstGeneration, firstTarget);
-        held.press (LAUNCH_POLICY);
-        final int selectionsWhileParked = adapter.actuatorSelections.get (0).intValue ();
-        final int movesWhileParked = adapter.actuatorMoves.get (0).intValue ();
-
-        adapter.clearClips ();
-        adapter.selectTrack ("track-b", 5);
-        adapter.putClip (4, "Fill B");
-        host.refresh ();
-        requestPage (host, adapter, 0);
-        refreshUntil (host, adapter, () -> host.clipCatalog ().clips ().size () == 1);
-
-        final ClipTargetId secondTarget = host.clipCatalog ().clips ().get (0).targetId ();
-        host.setDesiredBindings (host.clipCatalog ().generation (), Map.of (CoreControls.DRUM_FILL_1, secondTarget));
-        host.refresh ();
-        assertEquals (selectionsWhileParked, adapter.actuatorSelections.get (0).intValue ());
-        assertEquals (movesWhileParked, adapter.actuatorMoves.get (0).intValue ());
-
-        held.release ();
-        assertEquals (List.of ("track-a:1"), adapter.releases);
-        assertEquals (selectionsWhileParked, adapter.actuatorSelections.get (0).intValue ());
-        assertEquals (movesWhileParked, adapter.actuatorMoves.get (0).intValue ());
-        assertEquals (new DrumFillClipHost.PlaybackState (false, false, false), held.playbackState ());
-
         held.retire ();
-        assertTrue (adapter.actuatorSelections.get (0).intValue () > selectionsWhileParked);
-        assertTrue (adapter.actuatorMoves.get (0).intValue () > movesWhileParked);
-    }
-
-
-    @Test
-    void failedConcreteReleaseCanRetryButSuccessfulReleaseIsSentOnlyOnce ()
-    {
-        final FakeAdapter adapter = new FakeAdapter ();
-        adapter.selectTrack ("track-a", 2);
-        adapter.putClip (0, "Fill A");
-        adapter.putClip (1, "Fill B");
-        final SelectedTrackFillClipHost host = requestedHost (adapter);
-        refreshUntil (host, adapter, () -> host.clipCatalog ().clips ().size () == 2);
-
-        final ClipCatalogSnapshot catalog = host.clipCatalog ();
-        final ClipTargetId firstTarget = catalog.clips ().get (0).targetId ();
-        final ClipTargetId secondTarget = catalog.clips ().get (1).targetId ();
-        host.setDesiredBindings (catalog.generation (), Map.of (CoreControls.DRUM_FILL_1, firstTarget));
-        refreshUntil (host, adapter, () -> !host.armedClipTargets ().isEmpty ());
-
-        final DrumFillClipHost.LaunchTarget held = host.prepare (CoreControls.DRUM_FILL_1, catalog.generation (), firstTarget);
-        held.press (LAUNCH_POLICY);
-        final int movesWhileHeld = adapter.actuatorMoves.get (0).intValue ();
-        host.setDesiredBindings (catalog.generation (), Map.of (CoreControls.DRUM_FILL_1, secondTarget));
-        adapter.remainingReleaseFailures = 1;
-
-        assertThrows (IllegalStateException.class, held::release);
-        assertEquals (movesWhileHeld, adapter.actuatorMoves.get (0).intValue ());
-        assertTrue (adapter.releases.isEmpty ());
-        assertEquals (1, adapter.releaseAttempts);
-
-        held.release ();
-        assertEquals (List.of ("track-a:0"), adapter.releases);
-        assertEquals (2, adapter.releaseAttempts);
-        assertEquals (movesWhileHeld, adapter.actuatorMoves.get (0).intValue ());
-
-        held.release ();
-        assertEquals (List.of ("track-a:0"), adapter.releases);
-        assertEquals (2, adapter.releaseAttempts);
-
-        held.retire ();
-        assertTrue (adapter.actuatorMoves.get (0).intValue () > movesWhileHeld);
-        refreshUntil (host, adapter, () -> secondTarget.equals (host.armedClipTargets ().get (CoreControls.DRUM_FILL_1)));
-    }
-
-
-    @Test
-    void retirementUnlocksAndRefreshRecoversWhenImmediateReparkingThrows ()
-    {
-        this.assertRetirementRecovery (true);
-        this.assertRetirementRecovery (false);
-    }
-
-
-    private void assertRetirementRecovery (final boolean failSelection)
-    {
-        final FakeAdapter adapter = new FakeAdapter ();
-        adapter.selectTrack ("track-a", 2);
-        adapter.putClip (0, "Fill A");
-        adapter.putClip (1, "Fill B");
-        final SelectedTrackFillClipHost host = requestedHost (adapter);
-        refreshUntil (host, adapter, () -> host.clipCatalog ().clips ().size () == 2);
-
-        final ClipCatalogSnapshot catalog = host.clipCatalog ();
-        final ClipTargetId firstTarget = catalog.clips ().get (0).targetId ();
-        final ClipTargetId secondTarget = catalog.clips ().get (1).targetId ();
-        host.setDesiredBindings (catalog.generation (), Map.of (CoreControls.DRUM_FILL_1, firstTarget));
-        refreshUntil (host, adapter, () -> firstTarget.equals (host.armedClipTargets ().get (CoreControls.DRUM_FILL_1)));
-
-        final DrumFillClipHost.LaunchTarget held = host.prepare (CoreControls.DRUM_FILL_1, catalog.generation (), firstTarget);
-        held.press (LAUNCH_POLICY);
-        host.setDesiredBindings (catalog.generation (), Map.of (CoreControls.DRUM_FILL_1, secondTarget));
-        held.release ();
-        if (failSelection)
-            adapter.remainingActuatorSelectionFailures = 1;
-        else
-            adapter.remainingActuatorMoveFailures = 1;
-
-        assertDoesNotThrow (held::retire);
         assertThrows (IllegalStateException.class, held::playbackState);
-        assertTrue (host.armedClipTargets ().isEmpty ());
-
-        refreshUntil (host, adapter, () -> secondTarget.equals (host.armedClipTargets ().get (CoreControls.DRUM_FILL_1)));
     }
 
 
-    private static SelectedTrackFillClipHost requestedHost (final FakeAdapter adapter)
+    @Test
+    void scannerPauseAndInactiveSubscriptionPreserveHeldCleanupWithoutSlotReads ()
     {
-        final SelectedTrackFillClipHost host = new SelectedTrackFillClipHost (adapter);
-        requestPage (host, adapter, 0);
-        return host;
+        final Fixture f = readyFill ();
+        final DrumFillClipHost.LaunchTarget held = f.armAndPress ();
+        final ClipCatalogSnapshot before = f.host.clipCatalog ();
+        f.paused = true;
+        final int reads = f.scannerReads;
+        f.put ("a", 4, "New clip");
+        for (int index = 0; index < 4; index++)
+            f.tick ();
+        assertEquals (reads, f.scannerReads);
+        assertEquals (before, f.host.clipCatalog ());
+        f.paused = false;
+        f.until (() -> f.host.clipCatalog ().clips ().size () == 2);
+        f.host.setDesiredScan (DesiredClipScan.inactive ());
+        f.tick ();
+        final int inactiveReads = f.scannerReads;
+        for (int index = 0; index < 4; index++)
+            f.tick ();
+        assertEquals (inactiveReads, f.scannerReads);
+        assertTrue (f.host.clipCatalog ().clips ().isEmpty ());
+        assertTrue (f.host.armedClipTargets ().isEmpty ());
+        held.release ();
+        assertEquals (List.of ("a:3"), f.releases);
+        f.tick ();
+        held.retire ();
     }
 
 
-    private static void requestPage (final SelectedTrackFillClipHost host, final FakeAdapter adapter, final int page)
+    @Test
+    void selectedTrackChangesCancelNewLaunchButRetainOldCleanupUntilExplicitRetirement ()
     {
-        host.setDesiredScan (new DesiredClipScan (adapter.selected.generation (), adapter.selected.trackId (), page));
+        final Fixture f = readyFill ();
+        final ClipTargetId target = f.firstTarget ();
+        f.bind (target);
+        f.until (() -> !f.host.armedClipTargets ().isEmpty ());
+        final DrumFillClipHost.LaunchTarget prepared = f.prepare (target);
+        final DrumFillClipHost.LaunchTarget held = f.prepare (target);
+        held.press (POLICY);
+        f.tick ();
+        final RetainedCursorPool.Handle handle = f.lastPressed;
+        f.select ("b", 8);
+        f.put ("b", 6, "Fill B");
+        assertThrows (IllegalStateException.class, () -> prepared.press (POLICY));
+        f.refresh ();
+        assertTrue (f.host.clipCatalog ().clips ().isEmpty ());
+        f.requestPage (0);
+        f.until (() -> f.host.clipCatalog ().clips ().size () == 1);
+        final ClipTargetId next = f.firstTarget ();
+        f.bind (next);
+        for (int index = 0; index < 4; index++)
+            f.tick ();
+        assertEquals ("a", f.tracks.get (handle.slot ()));
+        assertEquals (3, f.windows.get (handle.slot ()).intValue ());
+        held.release ();
+        f.tick ();
+        assertFalse (held.playbackState ().playing ());
+        assertEquals ("a", f.tracks.get (handle.slot ()), "Stopped readback alone does not retire a lease");
+        assertTrue (f.host.armedClipTargets ().isEmpty ());
+        held.retire ();
+        f.until (() -> next.equals (f.host.armedClipTargets ().get (CoreControls.DRUM_FILL_1)));
+        assertFalse (f.pool.valid (handle));
+        f.prepare (next).press (POLICY);
+        assertEquals (List.of ("a:3", "b:6"), f.presses);
+        held.release ();
+        assertEquals (List.of ("a:3"), f.releases);
     }
 
 
-    private static ClipTargetId armFirstTarget (final SelectedTrackFillClipHost host, final FakeAdapter adapter)
+    @Test
+    void targetOrSceneRebindingRejectsDelayedPressAndCleanup ()
     {
-        final ClipCatalogSnapshot catalog = host.clipCatalog ();
-        final ClipTargetId targetId = catalog.clips ().get (0).targetId ();
-        host.setDesiredBindings (catalog.generation (), Map.of (CoreControls.DRUM_FILL_1, targetId));
-        refreshUntil (host, adapter, () -> !host.armedClipTargets ().isEmpty ());
-        return targetId;
-    }
-
-
-    private static void refreshUntil (final SelectedTrackFillClipHost host, final FakeAdapter adapter, final BooleanSupplier condition)
-    {
-        for (int attempt = 0; attempt < 100 && !condition.getAsBoolean (); attempt++)
+        for (final boolean trackChanged: List.of (true, false))
         {
-            adapter.advanceHost ();
-            host.refresh ();
+            final Fixture f = readyFill ();
+            final DrumFillClipHost.LaunchTarget held = f.armAndPress ();
+            final RetainedCursorPool.Handle handle = f.lastPressed;
+            if (trackChanged)
+                f.tracks.put (handle.slot (), "replacement");
+            else
+                f.windows.put (handle.slot (), 4);
+            assertThrows (IllegalStateException.class, held::release);
+            assertThrows (IllegalStateException.class, held::playbackState);
+            assertTrue (f.releases.isEmpty ());
+            assertDoesNotThrow (held::retire);
         }
-        assertTrue (condition.getAsBoolean (), "Condition did not stabilize within 100 refreshes");
+        final Fixture f = readyFill ();
+        final ClipTargetId target = f.firstTarget ();
+        f.bind (target);
+        f.until (() -> !f.host.armedClipTargets ().isEmpty ());
+        final DrumFillClipHost.LaunchTarget prepared = f.prepare (target);
+        final RetainedCursorPool.Handle handle = f.pool.lookup ("fill-clips", "actuator-0").handle ();
+        f.tracks.put (handle.slot (), "replacement");
+        assertThrows (IllegalStateException.class, () -> prepared.press (POLICY));
+        assertTrue (f.presses.isEmpty ());
     }
 
 
-    private static final class FakeAdapter implements SelectedTrackFillClipHost.Adapter
+    @Test
+    void projectChangeWithTheSameTrackIdCannotAdoptOldLaunchCleanup ()
     {
-        private int scannerSelections;
-        private int scannerSamples;
-        private String pendingScannerTrack;
-        private Integer pendingScannerStart;
-        private final Map<Integer, SelectedTrackFillClipHost.SlotSample> clips = new HashMap<> ();
-        private final List<SelectedTrackFillClipHost.ActuatorSample> actuatorSamples = new ArrayList<> (SelectedTrackFillClipHost.ACTUATOR_COUNT);
-        private final List<Integer> actuatorSelections = mutableZeroes ();
-        private final List<Integer> actuatorMoves = mutableZeroes ();
-        private final List<Integer> scannerMoves = new ArrayList<> ();
+        final Fixture f = readyFill ();
+        final DrumFillClipHost.LaunchTarget held = f.armAndPress ();
+        f.projectGeneration++;
+        assertThrows (IllegalStateException.class, held::release);
+        assertThrows (IllegalStateException.class, held::playbackState);
+        assertTrue (f.releases.isEmpty ());
+        f.tick ();
+        assertDoesNotThrow (held::retire);
+    }
+
+
+    @Test
+    void sameTrackSceneReplacementCannotReusePreparedTarget ()
+    {
+        final Fixture f = readyFill ();
+        f.put ("a", 5, "Fill B");
+        f.until (() -> f.host.clipCatalog ().clips ().size () == 2);
+        final ClipTargetId original = f.firstTarget ();
+        f.bind (original);
+        f.until (() -> !f.host.armedClipTargets ().isEmpty ());
+        final DrumFillClipHost.LaunchTarget prepared = f.prepare (original);
+        final ClipTargetId replacement = f.host.clipCatalog ().clips ().get (1).targetId ();
+        f.bind (replacement);
+        f.until (() -> replacement.equals (f.host.armedClipTargets ().get (CoreControls.DRUM_FILL_1)));
+        assertThrows (IllegalStateException.class, () -> prepared.press (POLICY));
+        assertTrue (f.presses.isEmpty ());
+        f.prepare (replacement).press (POLICY);
+        assertEquals (List.of ("a:5"), f.presses);
+    }
+
+
+    @Test
+    void failedReleaseCanRetryAndRetirementDoesNotSubmitNewHostCommands ()
+    {
+        final Fixture f = readyFill ();
+        final DrumFillClipHost.LaunchTarget held = f.armAndPress ();
+        f.releaseFailures = 1;
+        assertThrows (IllegalStateException.class, held::release);
+        assertTrue (f.releases.isEmpty ());
+        held.release ();
+        held.release ();
+        assertEquals (List.of ("a:3"), f.releases);
+        f.put ("a", 5, "Fill B");
+        f.until (() -> f.host.clipCatalog ().clips ().size () == 2);
+        f.bind (f.host.clipCatalog ().clips ().get (1).targetId ());
+        final int assignments = f.assignments.size ();
+        final int moves = f.moves;
+        assertDoesNotThrow (held::retire);
+        assertEquals (assignments, f.assignments.size ());
+        assertEquals (moves, f.moves);
+        f.until (() -> !f.host.armedClipTargets ().isEmpty ());
+    }
+
+
+    @Test
+    void sceneCountChangesInvalidateCatalogAndIdleBindings ()
+    {
+        final Fixture f = readyFill ();
+        final ClipTargetId oldTarget = f.firstTarget ();
+        f.bind (oldTarget);
+        f.until (() -> !f.host.armedClipTargets ().isEmpty ());
+        final long oldGeneration = f.host.clipCatalog ().generation ();
+        f.sceneCounts.put ("a", 9);
+        f.tick ();
+        assertEquals (oldGeneration + 1, f.host.clipCatalog ().generation ());
+        assertTrue (f.host.armedClipTargets ().isEmpty ());
+        assertTrue (f.host.clipCatalog ().clips ().isEmpty ());
+        assertThrows (IllegalArgumentException.class, () -> f.host.prepare (CoreControls.DRUM_FILL_1, oldGeneration, oldTarget));
+        f.until (() -> f.host.clipCatalog ().clips ().size () == 1);
+        assertFalse (oldTarget.equals (f.firstTarget ()));
+    }
+
+
+    @Test
+    void eightProvisionedActuatorsHoldIndependentExactSlots ()
+    {
+        final Fixture f = new Fixture ();
+        f.select ("a", 8);
+        for (int scene = 0; scene < 8; scene++)
+            f.put ("a", scene, "Fill " + scene);
+        f.requestPage (0);
+        f.until (() -> f.host.clipCatalog ().clips ().size () == 8);
+        final Map<ControlId, ClipTargetId> bindings = new LinkedHashMap<> ();
+        for (int index = 0; index < 8; index++)
+            bindings.put (CoreControls.drumFills ().get (index), f.host.clipCatalog ().clips ().get (index).targetId ());
+        f.host.setDesiredBindings (f.host.clipCatalog ().generation (), bindings);
+        f.until (() -> f.host.armedClipTargets ().size () == 8);
+        final List<DrumFillClipHost.LaunchTarget> held = new ArrayList<> ();
+        for (final Map.Entry<ControlId, ClipTargetId> binding: bindings.entrySet ())
+        {
+            final DrumFillClipHost.LaunchTarget target = f.host.prepare (binding.getKey (), f.host.clipCatalog ().generation (), binding.getValue ());
+            target.press (POLICY);
+            held.add (target);
+        }
+        f.tick ();
+        for (int index = 7; index >= 0; index--)
+            held.get (index).release ();
+        f.tick ();
+        held.forEach (DrumFillClipHost.LaunchTarget::retire);
+        assertEquals (List.of ("a:0", "a:1", "a:2", "a:3", "a:4", "a:5", "a:6", "a:7"), f.presses);
+        assertEquals (List.of ("a:7", "a:6", "a:5", "a:4", "a:3", "a:2", "a:1", "a:0"), f.releases);
+    }
+
+
+    private static Fixture readyFill ()
+    {
+        final Fixture f = new Fixture ();
+        f.select ("a", 8);
+        f.put ("a", 3, "Fill A");
+        f.requestPage (0);
+        f.until (() -> f.host.clipCatalog ().clips ().size () == 1);
+        return f;
+    }
+
+
+    private static final class Fixture implements RetainedCursorPool.Host, SelectedTrackFillClipHost.Adapter
+    {
+        private final Map<String, Map<Integer, String>> clips = new LinkedHashMap<> ();
+        private final Map<String, Integer> sceneCounts = new HashMap<> ();
+        private final Map<Integer, String> tracks = new HashMap<> ();
+        private final Map<Integer, Long> propertyGenerations = new HashMap<> ();
+        private final Map<Integer, Integer> windows = new HashMap<> ();
+        private final Map<Integer, Boolean> playing = new HashMap<> ();
+        private final List<RetainedCursorPool.Handle> assignments = new ArrayList<> ();
+        private final List<Runnable> pending = new ArrayList<> ();
         private final List<String> presses = new ArrayList<> ();
         private final List<String> releases = new ArrayList<> ();
-        private final List<ClipLaunchPolicy> launchPolicies = new ArrayList<> ();
-        private final List<ClipReleaseTrigger> releaseTriggers = new ArrayList<> ();
-
+        private final RetainedCursorPool pool;
+        private final SelectedTrackFillClipHost host;
         private SelectedTrackFillClipHost.SelectedTrackSample selected = new SelectedTrackFillClipHost.SelectedTrackSample ("", false, 0);
-        private String scannerTrackId = "";
-        private int scannerSceneCount;
-        private int scannerStart;
-        private int remainingReleaseFailures;
-        private int remainingActuatorSelectionFailures;
-        private int remainingActuatorMoveFailures;
-        private int releaseAttempts;
-        private boolean automaticallyParkActuators = true;
+        private RetainedCursorPool.Handle lastPressed;
+        private long sequence;
+        private long projectGeneration = 1;
+        private int scannerReads;
+        private int moves;
+        private int releaseFailures;
+        private boolean paused;
 
 
-        private FakeAdapter ()
+        private Fixture ()
         {
-            for (int index = 0; index < SelectedTrackFillClipHost.ACTUATOR_COUNT; index++)
-                this.actuatorSamples.add (new SelectedTrackFillClipHost.ActuatorSample ("", false, false, -1, "", false, false, false, false, false));
+            final List<RetainedCursorPool.Profile> profiles = new ArrayList<> ();
+            profiles.add (RetainedCursorPool.Profile.CLIP_SCAN);
+            for (int index = 0; index < 8; index++)
+                profiles.add (RetainedCursorPool.Profile.CLIP_ACTUATOR);
+            this.pool = new RetainedCursorPool (profiles, this);
+            this.host = new SelectedTrackFillClipHost (this.pool, this, () -> this.paused);
         }
 
 
-        private void selectTrack (final String trackId, final int sceneCount)
+        private void select (final String track, final int sceneCount)
         {
-            this.selected = new SelectedTrackFillClipHost.SelectedTrackSample (trackId, true, this.selected.generation () + 1);
-            this.scannerSceneCount = sceneCount;
+            this.clips.computeIfAbsent (track, ignored -> new HashMap<> ());
+            this.sceneCounts.put (track, sceneCount);
+            this.selected = new SelectedTrackFillClipHost.SelectedTrackSample (track, true, this.selected.generation () + 1);
         }
 
 
-        private void advanceHost ()
+        private void put (final String track, final int scene, final String name)
         {
-            if (this.pendingScannerTrack != null)
-            {
-                this.scannerTrackId = this.pendingScannerTrack;
-                this.pendingScannerTrack = null;
-            }
-            if (this.pendingScannerStart != null)
-            {
-                this.scannerStart = this.pendingScannerStart.intValue ();
-                this.pendingScannerStart = null;
-            }
+            this.clips.get (track).put (scene, name);
         }
 
 
-        private void putClip (final int sceneIndex, final String name)
+        private void requestPage (final int page)
         {
-            this.clips.put (Integer.valueOf (sceneIndex), new SelectedTrackFillClipHost.SlotSample (sceneIndex, name, true, true));
+            this.host.setDesiredScan (new DesiredClipScan (this.selected.generation (), this.selected.trackId (), page));
         }
 
 
-        private void clearClips ()
+        private void refresh ()
         {
-            this.clips.clear ();
+            this.pool.refresh ();
+            this.host.refresh ();
         }
 
 
-        private void setActuatorSample (final int index, final SelectedTrackFillClipHost.ActuatorSample sample)
+        private void tick ()
         {
-            this.actuatorSamples.set (index, sample);
+            final List<Runnable> submitted = List.copyOf (this.pending);
+            this.pending.clear ();
+            submitted.forEach (Runnable::run);
+            this.sequence++;
+            this.refresh ();
         }
 
 
-        private void setActuatorPlayback (final int index, final boolean playing, final boolean playbackQueued, final boolean stopQueued)
+        private void until (final BooleanSupplier condition)
         {
-            final SelectedTrackFillClipHost.ActuatorSample old = this.actuatorSamples.get (index);
-            this.actuatorSamples.set (index, new SelectedTrackFillClipHost.ActuatorSample (
-                old.trackId (), old.trackExists (), old.pinned (), old.sceneIndex (), old.name (), old.slotExists (), old.hasContent (), playing, playbackQueued, stopQueued));
+            for (int index = 0; index < 100 && !condition.getAsBoolean (); index++)
+                this.tick ();
+            assertTrue (condition.getAsBoolean (), "Host did not settle within 100 observations");
         }
 
 
-        /** {@inheritDoc} */
+        private ClipTargetId firstTarget ()
+        {
+            return this.host.clipCatalog ().clips ().getFirst ().targetId ();
+        }
+
+
+        private void bind (final ClipTargetId target)
+        {
+            this.host.setDesiredBindings (this.host.clipCatalog ().generation (), Map.of (CoreControls.DRUM_FILL_1, target));
+        }
+
+
+        private DrumFillClipHost.LaunchTarget prepare (final ClipTargetId target)
+        {
+            return this.host.prepare (CoreControls.DRUM_FILL_1, this.host.clipCatalog ().generation (), target);
+        }
+
+
+        private DrumFillClipHost.LaunchTarget armAndPress ()
+        {
+            final ClipTargetId target = this.firstTarget ();
+            this.bind (target);
+            this.until (() -> !this.host.armedClipTargets ().isEmpty ());
+            final DrumFillClipHost.LaunchTarget held = this.prepare (target);
+            held.press (POLICY);
+            return held;
+        }
+
+
+        @Override
+        public RetainedCursorPool.Catalog catalog ()
+        {
+            return new RetainedCursorPool.Catalog (this.projectGeneration, RetainedCursorPool.Coverage.FULL, this.clips.size (), 0, 64, List.copyOf (this.clips.keySet ()));
+        }
+
+
+        @Override
+        public boolean assign (final RetainedCursorPool.Handle handle)
+        {
+            this.assignments.add (handle);
+            this.pending.add (() -> {
+                this.tracks.put (handle.slot (), handle.trackId ());
+                this.propertyGenerations.put (handle.slot (), handle.assignmentGeneration ());
+            });
+            return true;
+        }
+
+
+        @Override
+        public RetainedCursorPool.Observation observe (final RetainedCursorPool.Handle handle)
+        {
+            final String track = this.tracks.getOrDefault (handle.slot (), "");
+            return new RetainedCursorPool.Observation (this.sequence, !track.isEmpty (), track, true, this.propertyGenerations.getOrDefault (handle.slot (), 0L));
+        }
+
+
+        @Override
+        public void release (final RetainedCursorPool.Handle handle)
+        {
+            // Resource retirement does not submit playback or magically advance host state.
+        }
+
+
         @Override
         public SelectedTrackFillClipHost.SelectedTrackSample selectedTrack ()
         {
@@ -526,135 +476,76 @@ class SelectedTrackFillClipHostTest
         }
 
 
-        /** {@inheritDoc} */
         @Override
-        public boolean selectScannerTrack (final String expectedTrackId)
+        public void moveScanner (final RetainedCursorPool.Handle handle, final int sceneStart)
         {
-            if (!this.selected.exists () || !expectedTrackId.equals (this.selected.trackId ()))
-                return false;
-            this.scannerSelections++;
-            this.pendingScannerTrack = expectedTrackId;
-            return true;
+            this.moveActuator (handle, sceneStart);
         }
 
 
-        /** {@inheritDoc} */
         @Override
-        public void moveScanner (final int sceneStart)
+        public SelectedTrackFillClipHost.ScannerSample scannerSample (final RetainedCursorPool.Handle handle)
         {
-            this.pendingScannerStart = Integer.valueOf (sceneStart);
-            this.scannerMoves.add (Integer.valueOf (sceneStart));
-        }
-
-
-        /** {@inheritDoc} */
-        @Override
-        public SelectedTrackFillClipHost.ScannerSample scannerSample ()
-        {
-            this.scannerSamples++;
-            final List<SelectedTrackFillClipHost.SlotSample> slots = new ArrayList<> (SelectedTrackFillClipHost.SCANNER_PAGE_SIZE);
-            for (int index = 0; index < SelectedTrackFillClipHost.SCANNER_PAGE_SIZE; index++)
+            this.scannerReads++;
+            final String track = this.tracks.get (handle.slot ());
+            final int start = this.windows.getOrDefault (handle.slot (), 0);
+            final int count = this.sceneCounts.get (track);
+            final List<SelectedTrackFillClipHost.SlotSample> slots = new ArrayList<> ();
+            for (int index = 0; index < 8; index++)
             {
-                final int scene = this.scannerStart + index;
-                slots.add (this.clips.getOrDefault (Integer.valueOf (scene), new SelectedTrackFillClipHost.SlotSample (scene, "", scene < this.scannerSceneCount, false)));
+                final int scene = start + index;
+                final String name = this.clips.get (track).get (scene);
+                slots.add (new SelectedTrackFillClipHost.SlotSample (scene, name, scene < count, name != null));
             }
-            return new SelectedTrackFillClipHost.ScannerSample (this.scannerTrackId, !this.scannerTrackId.isEmpty (), true, this.scannerSceneCount, this.scannerStart, slots);
+            return new SelectedTrackFillClipHost.ScannerSample (count, start, slots);
         }
 
 
-        /** {@inheritDoc} */
         @Override
-        public boolean selectActuatorTrack (final int actuatorIndex, final String expectedTrackId)
+        public void moveActuator (final RetainedCursorPool.Handle handle, final int scene)
         {
-            if (!this.selected.exists () || !expectedTrackId.equals (this.selected.trackId ()))
-                return false;
-            if (this.remainingActuatorSelectionFailures > 0)
+            this.moves++;
+            this.pending.add (() -> this.windows.put (handle.slot (), scene));
+        }
+
+
+        @Override
+        public SelectedTrackFillClipHost.ActuatorSample actuatorSample (final RetainedCursorPool.Handle handle)
+        {
+            final String track = this.tracks.get (handle.slot ());
+            final int scene = this.windows.getOrDefault (handle.slot (), 0);
+            final String name = this.clips.getOrDefault (track, Map.of ()).get (scene);
+            return new SelectedTrackFillClipHost.ActuatorSample (scene, name, scene < this.sceneCounts.getOrDefault (track, 0), name != null,
+                this.playing.getOrDefault (handle.slot (), false), false, false);
+        }
+
+
+        @Override
+        public void pressActuator (final RetainedCursorPool.Handle handle, final ClipLaunchPolicy policy)
+        {
+            this.lastPressed = handle;
+            this.presses.add (this.coordinate (handle));
+            this.pending.add (() -> this.playing.put (handle.slot (), true));
+        }
+
+
+        @Override
+        public void releaseActuator (final RetainedCursorPool.Handle handle, final ClipReleaseTrigger trigger)
+        {
+            assertEquals (ClipReleaseTrigger.ALTERNATE, trigger);
+            if (this.releaseFailures > 0)
             {
-                this.remainingActuatorSelectionFailures--;
-                throw new IllegalStateException ("actuator selection failed");
+                this.releaseFailures--;
+                throw new IllegalStateException ("Host rejected release");
             }
-            increment (this.actuatorSelections, actuatorIndex);
-            if (this.automaticallyParkActuators)
-            {
-                final SelectedTrackFillClipHost.ActuatorSample old = this.actuatorSamples.get (actuatorIndex);
-                this.actuatorSamples.set (actuatorIndex, new SelectedTrackFillClipHost.ActuatorSample (
-                    expectedTrackId, true, true, old.sceneIndex (), old.name (), old.slotExists (), old.hasContent (), old.playing (), old.playbackQueued (), old.stopQueued ()));
-            }
-            return true;
+            this.releases.add (this.coordinate (handle));
+            this.pending.add (() -> this.playing.put (handle.slot (), false));
         }
 
 
-        /** {@inheritDoc} */
-        @Override
-        public void moveActuator (final int actuatorIndex, final int sceneIndex)
+        private String coordinate (final RetainedCursorPool.Handle handle)
         {
-            increment (this.actuatorMoves, actuatorIndex);
-            if (this.remainingActuatorMoveFailures > 0)
-            {
-                this.remainingActuatorMoveFailures--;
-                throw new IllegalStateException ("actuator move failed");
-            }
-            if (!this.automaticallyParkActuators)
-                return;
-
-            final SelectedTrackFillClipHost.SlotSample slot = this.clips.get (Integer.valueOf (sceneIndex));
-            final SelectedTrackFillClipHost.ActuatorSample old = this.actuatorSamples.get (actuatorIndex);
-            this.actuatorSamples.set (
-                actuatorIndex,
-                slot == null ? new SelectedTrackFillClipHost.ActuatorSample (old.trackId (), true, old.pinned (), sceneIndex, "", true, false, false, false, false) : new SelectedTrackFillClipHost.ActuatorSample (old.trackId (), true, old.pinned (), sceneIndex, slot.name (), true, true, false, false, false));
-        }
-
-
-        /** {@inheritDoc} */
-        @Override
-        public SelectedTrackFillClipHost.ActuatorSample actuatorSample (final int actuatorIndex)
-        {
-            return this.actuatorSamples.get (actuatorIndex);
-        }
-
-
-        /** {@inheritDoc} */
-        @Override
-        public void pressActuator (final int actuatorIndex, final ClipLaunchPolicy launchPolicy)
-        {
-            this.presses.add (coordinate (this.actuatorSamples.get (actuatorIndex)));
-            this.launchPolicies.add (launchPolicy);
-        }
-
-
-        /** {@inheritDoc} */
-        @Override
-        public void releaseActuator (final int actuatorIndex, final ClipReleaseTrigger releaseTrigger)
-        {
-            this.releaseAttempts++;
-            if (this.remainingReleaseFailures > 0)
-            {
-                this.remainingReleaseFailures--;
-                throw new IllegalStateException ("release failed");
-            }
-            this.releases.add (coordinate (this.actuatorSamples.get (actuatorIndex)));
-            this.releaseTriggers.add (releaseTrigger);
-        }
-
-
-        private static List<Integer> mutableZeroes ()
-        {
-            final List<Integer> values = new ArrayList<> (SelectedTrackFillClipHost.ACTUATOR_COUNT);
-            for (int index = 0; index < SelectedTrackFillClipHost.ACTUATOR_COUNT; index++)
-                values.add (Integer.valueOf (0));
-            return values;
-        }
-
-
-        private static void increment (final List<Integer> values, final int index)
-        {
-            values.set (index, Integer.valueOf (values.get (index).intValue () + 1));
-        }
-
-
-        private static String coordinate (final SelectedTrackFillClipHost.ActuatorSample sample)
-        {
-            return sample.trackId () + ":" + sample.sceneIndex ();
+            return this.tracks.get (handle.slot ()) + ":" + this.windows.getOrDefault (handle.slot (), 0);
         }
     }
 }

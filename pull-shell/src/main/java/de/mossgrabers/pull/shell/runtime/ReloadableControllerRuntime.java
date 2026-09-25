@@ -63,6 +63,9 @@ public final class ReloadableControllerRuntime implements AutoCloseable
     private final ControllerHost controllerHost;
 
     private SelectedTrackFillClipHost clipHost;
+    private RetainedCursorHost retainedCursors;
+    private RetainedDevicePageHost retainedDevicePages;
+    private RetainedNoteParameters retainedNotes;
     private ControllerMappingHost controllerMappings;
     private ControllerRuntimeEnvironment environment;
     private CoreReloadSupervisor supervisor;
@@ -189,7 +192,18 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         if (this.controllerHost == null)
             throw new IllegalStateException ("Reloadable controller runtime has no Bitwig host");
 
-        this.clipHost = new SelectedTrackFillClipHost (this.controllerHost);
+        this.retainedCursors = new RetainedCursorHost (this.controllerHost, valueChanger, model.getProject ()::getIdentity, this.log);
+        if (model.getCursorDevice () instanceof final de.mossgrabers.bitwig.framework.daw.data.CursorDeviceImpl cursorDevice &&
+            cursorDevice.getParameterBank () instanceof final de.mossgrabers.bitwig.framework.daw.data.bank.ParameterBankImpl parameters)
+            this.retainedDevicePages = new RetainedDevicePageHost (this.retainedCursors.pool (), new BitwigRetainedDevicePages (
+                cursorDevice.getCursorDevice (), parameters.getRemoteControlsPage (),
+                ((de.mossgrabers.bitwig.framework.daw.data.bank.LayerBankImpl) cursorDevice.getLayerBank ()).getNativeBank (),
+                ((de.mossgrabers.bitwig.framework.daw.data.bank.DrumPadBankImpl) cursorDevice.getDrumPadBank ()).getNativeBank (),
+                this.retainedCursors.deviceTracks (), valueChanger));
+        this.retainedNotes = new RetainedNoteParameters (this.retainedCursors.pool (), this.retainedCursors.tracks (RetainedCursorPool.Profile.NOTE_EDITOR),
+            () -> surface.getModeManager ().get (de.mossgrabers.framework.mode.Modes.NOTE) instanceof de.mossgrabers.framework.mode.INoteEditorMode mode ? mode.getNoteEditor () : null,
+            model.getProject ()::getIdentity);
+        this.clipHost = new SelectedTrackFillClipHost (this.retainedCursors);
         this.clipHost.connect (Objects.requireNonNull (model, "model"), Objects.requireNonNull (selectedTarget, "selectedTarget"));
         this.controllerMappings = new ControllerMappingHost (surface, new ControllerMappingStorageHost (
             this.controllerHost.getDocumentState (), () -> model.getMasterTrack ().getChannelID ()));
@@ -202,7 +216,10 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             this.log,
             this.controllerMappings,
             AutomationHost.create (this.controllerHost, model.getProject ()::getIdentity, surface.getConfiguration ()::isStopAutomationOnKnobRelease),
-            TransportSettingsHost.create (this.controllerHost, model.getProject ()::getIdentity));
+            TransportSettingsHost.create (this.controllerHost, model.getProject ()::getIdentity),
+            this.retainedCursors,
+            this.retainedDevicePages == null ? RetainedDeviceParameters.UNAVAILABLE : this.retainedDevicePages);
+        controllerBridge.installNoteParameters (this.retainedNotes);
         this.environment = new ControllerRuntimeEnvironment (this.clipHost, controllerBridge, this.log, System::nanoTime);
         this.debugTrace = PushDebugTraceHost.createIfEnabled ();
         this.selectionDebug = de.mossgrabers.pull.shell.SelectionDebug.createIfEnabled ();
@@ -214,6 +231,13 @@ public final class ReloadableControllerRuntime implements AutoCloseable
     /**
      * Start the loader after the stable controller graph has completed startup.
      */
+    public void initializeNoteEditors (final java.util.List<de.mossgrabers.bitwig.framework.daw.CursorClipImpl> clips)
+    {
+        if (this.started) throw new IllegalStateException ("Note proxies must be installed during initialization");
+        clips.forEach (this.retainedNotes::registerSource);
+    }
+
+
     public void start ()
     {
         if (this.started || this.closed)
@@ -285,6 +309,11 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             return;
 
         final long startedAt = System.nanoTime ();
+        if (this.retainedCursors != null)
+            this.retainedCursors.tick ();
+        if (this.retainedDevicePages != null)
+            this.retainedDevicePages.tick ();
+        if (this.retainedNotes != null) this.retainedNotes.tick ();
         if (this.debugTrace != null && this.debugTrace.needsControllerTick ())
             this.debugTrace.tick (this.supervisor == null ? 0 : this.supervisor.activeGeneration (), this.environment.snapshot ());
         if (this.debugInputs != null)
@@ -542,7 +571,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             event.control (),
             de.mossgrabers.pull.core.api.event.InputKind.valueOf (event.kind ().name ()),
             PushControllerInputBridge.toCorePhase (event.phase ()),
-            event.value ()));
+            event.value (), event.relativeSamples ()));
         if (!this.started)
             return;
         if (this.supervisor == null)

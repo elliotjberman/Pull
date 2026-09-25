@@ -54,6 +54,10 @@ public abstract class AbstractItemBankImpl<B extends Bank<?>, T extends IItem> e
     }
 
 
+    /** Native initialization-owned bank for constructing independently retained child windows. */
+    public B getNativeBank () { return this.bank.orElseThrow (); }
+
+
     /** Called only before an actual bank window write. */
     protected void beforeWindowMutation ()
     {

@@ -522,7 +522,7 @@ class PhysicalInputRouterTest
 
 
     @Test
-    void cancellingRelativeMotionDoesNotPublishAZeroDelta ()
+    void oppositeRelativeCallbacksRetainTheirOrderEvenWhenTheirSumIsZero ()
     {
         final List<PhysicalInputEvent<String>> events = new ArrayList<> ();
         final PhysicalInputRouter<String> router = router (InputRoute.EXCLUSIVE, events);
@@ -534,9 +534,28 @@ class PhysicalInputRouterTest
             // Exclusive routing suppresses this command.
         });
 
-        assertEquals (0, router.pendingMotionCount ());
+        assertEquals (1, router.pendingMotionCount ());
         router.flush ();
-        assertTrue (events.isEmpty ());
+        assertEquals (0, events.getFirst ().value ());
+        assertEquals (List.of (7L, -7L), events.getFirst ().relativeSamples ());
+    }
+
+
+    @Test
+    void fullRelativeBatchIsDeliveredBeforeMoreMotionAndTouchRelease ()
+    {
+        final List<PhysicalInputEvent<String>> events = new ArrayList<> ();
+        final PhysicalInputRouter<String> router = new PhysicalInputRouter<> (
+            PhysicalControlRegistry.<String>builder (2).register (ENCODER, InputKind.TOUCH).register (ENCODER, InputKind.RELATIVE).build (),
+            (control, kind) -> InputRoute.EXCLUSIVE, events::add, (control, kind, action) -> false, new IncrementingClock (), () -> 1,
+            Map.of (new PhysicalInputAddress<> (ENCODER, InputKind.TOUCH), new PhysicalInputAddress<> (ENCODER, InputKind.RELATIVE)));
+        router.route (ENCODER, InputKind.TOUCH, InputPhase.BEGIN, 127, () -> { });
+        for (int index = 0; index < 130; index++)
+            router.route (ENCODER, InputKind.RELATIVE, InputPhase.CHANGE, index % 2 == 0 ? 1 : -1, () -> { });
+        router.route (ENCODER, InputKind.TOUCH, InputPhase.END, 0, () -> { });
+        assertEquals (List.of (InputKind.TOUCH, InputKind.RELATIVE, InputKind.RELATIVE, InputKind.RELATIVE, InputKind.TOUCH), events.stream ().map (PhysicalInputEvent::kind).toList ());
+        assertEquals (List.of (64, 64, 2), events.stream ().filter (event -> event.kind () == InputKind.RELATIVE).map (event -> event.relativeSamples ().size ()).toList ());
+        assertEquals (130, events.stream ().mapToInt (event -> event.relativeSamples ().size ()).sum ());
     }
 
 

@@ -4,27 +4,19 @@
 
 package de.mossgrabers.controller.ableton.push.mode;
 
-import java.util.EnumMap;
 import java.util.List;
-import java.util.Map;
 
 import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.framework.controller.ButtonID;
-import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
 import de.mossgrabers.framework.daw.IModel;
 import de.mossgrabers.framework.daw.clip.INoteClip;
 import de.mossgrabers.framework.daw.clip.IStepInfo;
 import de.mossgrabers.framework.daw.clip.NotePosition;
 import de.mossgrabers.framework.daw.data.IItem;
-import de.mossgrabers.framework.daw.data.empty.EmptyParameter;
 import de.mossgrabers.framework.mode.INoteEditor;
 import de.mossgrabers.framework.mode.INoteEditorMode;
 import de.mossgrabers.framework.mode.NoteEditor;
-import de.mossgrabers.framework.parameter.NoteAttribute;
-import de.mossgrabers.framework.parameter.NoteParameter;
-import de.mossgrabers.framework.parameterprovider.IParameterProvider;
-import de.mossgrabers.framework.parameterprovider.special.FixedParameterProvider;
 import de.mossgrabers.framework.utils.ButtonEvent;
 
 
@@ -59,7 +51,6 @@ public class NoteMode extends BaseMode<IItem> implements INoteEditorMode
 
     private Page                                page               = Page.NOTE;
     private final NoteEditor                    noteEditor         = new NoteEditor ();
-    private final Map<Page, IParameterProvider> pageParamProviders = new EnumMap<> (Page.class);
 
 
     /**
@@ -72,84 +63,7 @@ public class NoteMode extends BaseMode<IItem> implements INoteEditorMode
     {
         super ("Note", surface, model);
 
-        final IValueChanger valueChanger = model.getValueChanger ();
-
-        final NoteParameter durationParameter = new NoteParameter (NoteAttribute.DURATION, null, model, this.noteEditor, valueChanger);
-        final NoteParameter muteParameter = new NoteParameter (NoteAttribute.MUTE, null, model, this.noteEditor, valueChanger);
-
-        this.pageParamProviders.put (Page.NOTE, new FixedParameterProvider (
-                // Duration
-                durationParameter,
-                // Mute
-                muteParameter,
-                // Velocity
-                new NoteParameter (NoteAttribute.VELOCITY, null, model, this.noteEditor, valueChanger),
-                // Velocity Spread
-                new NoteParameter (NoteAttribute.VELOCITY_SPREAD, null, model, this.noteEditor, valueChanger),
-                // Release Velocity
-                new NoteParameter (NoteAttribute.RELEASE_VELOCITY, null, model, this.noteEditor, valueChanger),
-                // Chance
-                new NoteParameter (NoteAttribute.CHANCE, null, model, this.noteEditor, valueChanger),
-                // Occurrence
-                new NoteParameter (NoteAttribute.OCCURRENCE, null, model, this.noteEditor, valueChanger),
-                // Recurrence
-                new NoteParameter (NoteAttribute.RECURRENCE_LENGTH, null, model, this.noteEditor, valueChanger)));
-
-        this.pageParamProviders.put (Page.EXPRESSIONS, new FixedParameterProvider (
-                // Duration
-                durationParameter,
-                // Mute
-                muteParameter,
-                // -
-                EmptyParameter.INSTANCE,
-                // Gain
-                new NoteParameter (NoteAttribute.GAIN, null, model, this.noteEditor, valueChanger),
-                // Panning
-                new NoteParameter (NoteAttribute.PANNING, null, model, this.noteEditor, valueChanger),
-                // Transpose
-                new NoteParameter (NoteAttribute.TRANSPOSE, null, model, this.noteEditor, valueChanger),
-                // Timbre
-                new NoteParameter (NoteAttribute.TIMBRE, null, model, this.noteEditor, valueChanger),
-                // Pressure
-                new NoteParameter (NoteAttribute.PRESSURE, null, model, this.noteEditor, valueChanger)));
-
-        this.pageParamProviders.put (Page.REPEAT, new FixedParameterProvider (
-                // Duration
-                durationParameter,
-                // Mute
-                muteParameter,
-                // -
-                EmptyParameter.INSTANCE,
-                // Repeat
-                new NoteParameter (NoteAttribute.REPEAT, null, model, this.noteEditor, valueChanger),
-                // Repeat Curve
-                new NoteParameter (NoteAttribute.REPEAT_CURVE, null, model, this.noteEditor, valueChanger),
-                // Repeat Velocity Curve
-                new NoteParameter (NoteAttribute.REPEAT_VELOCITY_CURVE, null, model, this.noteEditor, valueChanger),
-                // Repeat Velocity End
-                new NoteParameter (NoteAttribute.REPEAT_VELOCITY_END, null, model, this.noteEditor, valueChanger),
-                // -
-                EmptyParameter.INSTANCE));
-
-        this.pageParamProviders.put (Page.RECCURRENCE_PATTERN, new FixedParameterProvider (
-                // -
-                EmptyParameter.INSTANCE,
-                // -
-                EmptyParameter.INSTANCE,
-                // -
-                EmptyParameter.INSTANCE,
-                // -
-                EmptyParameter.INSTANCE,
-                // -
-                EmptyParameter.INSTANCE,
-                // -
-                EmptyParameter.INSTANCE,
-                // -
-                EmptyParameter.INSTANCE,
-                // Recurrence Length
-                new NoteParameter (NoteAttribute.RECURRENCE_LENGTH, null, model, this.noteEditor, valueChanger)));
-
-        this.rebind ();
+        this.setParameterProvider (new de.mossgrabers.framework.parameterprovider.special.EmptyParameterProvider (8));
     }
 
 
@@ -270,7 +184,6 @@ public class NoteMode extends BaseMode<IItem> implements INoteEditorMode
                 break;
         }
 
-        this.rebind ();
     }
 
 
@@ -278,22 +191,7 @@ public class NoteMode extends BaseMode<IItem> implements INoteEditorMode
     @Override
     public void onKnobTouch (final int index, final boolean isTouched)
     {
-        final List<NotePosition> notes = this.noteEditor.getNotes ();
-        if (notes.isEmpty ())
-            return;
 
-        if (isTouched && this.surface.isDeletePressed ())
-        {
-            this.surface.setTriggerConsumed (ButtonID.DELETE);
-            this.defaultParameterProvider.get (index).resetValue ();
-            return;
-        }
-
-        final INoteClip clip = this.noteEditor.getClip ();
-        if (isTouched)
-            clip.startEdit (notes);
-        else
-            clip.stopEdit ();
     }
 
 
@@ -399,9 +297,5 @@ public class NoteMode extends BaseMode<IItem> implements INoteEditorMode
     }
 
 
-    private void rebind ()
-    {
-        this.setParameterProvider (this.pageParamProviders.get (this.page));
-        this.bindControls ();
-    }
+
 }

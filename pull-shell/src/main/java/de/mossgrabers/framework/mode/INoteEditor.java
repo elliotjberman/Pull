@@ -76,11 +76,6 @@ public interface INoteEditor
     INoteClip getClip ();
 
 
-    /**
-     * Get the positions of the notes to edit for a given parameter.
-     *
-     * @param parameterIndex The index of the parameter for which to get the note position
-     * @return The note positions
-     */
-    List<NotePosition> getNotePosition (int parameterIndex);
+    /** Monotonic selection revision, including changes away and back between host ticks. */
+    long getSelectionRevision ();
 }

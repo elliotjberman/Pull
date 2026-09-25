@@ -51,6 +51,22 @@ mvn -o -pl pull-shell -am test
 For changes touching Bitwig API objects, follow `AGENTS.md` and run the complete package build with
 deprecation reporting before the live smoke test.
 
+## Retained parameter cutover (API 58)
+
+The old layer providers, NoteParameter/timer and ACTIVE compatibility path are removed. Permanent
+regressions run real core page compositions with independently advanced host samples: named sends
+and layers, Crossfade callback order/clamping, Groove modifiers/reset, note page roles and spacers,
+individual multi-note Snapback baselines, delayed readback, and held-tail rejection on owner/page
+changes. Shell tests separate note clip acquisition and property delivery from writes/readback;
+selection/grid changes and delete/Undo cannot revive captured targets. Candidate bank preparation
+must preserve committed target identities.
+
+The matched API 58 shell/core passed the routed sends, Device/Chains/layers, Note and
+Groove/Crossfade smoke on September 19, 2026. Later host readback and captured Push output verify
+normal edits, resets, distinct multi-note gain/velocity restoration and held-page cancellation.
+The [acceptance record](docs/track-cursor-pool/README.md#api-58-parameter-cutover-acceptance) records
+exact build identities, the 1,170-test package gate, trace references and the limits of live coverage.
+
 ## Retained note-copy regression
 
 The legacy sequencer Duplicate gesture uses up to four private track/clip cursor pairs per editor
@@ -123,8 +139,8 @@ Model cleanup cancels owners; no post-exit scheduling is promised.
 Retained unchanged: browser insertion waits (open/closed is not correlated with an opening still in
 flight), Add Track/device insertion and native Duplicate (no returned created-object identity),
 device and flattened/filtered-bank paging (no proven offset-to-target identity mapping), generic
-selection notifications. The held-note expression cadence remains 100 ms. Musical timing,
-double-click/long-press windows, periodic flushes, throttles and animation remain timers.
+selection notifications. Musical timing, double-click/long-press windows, periodic flushes,
+throttles and animation remain timers. API 58 removes the held-note expression timer entirely.
 
 Offline regressions separate command submission, host advancement and subscribed observations.
 They cover delayed/intermediate bank pages, rapid replacement/reversal, group supersession,
@@ -148,21 +164,12 @@ This predates the shared-helper
 refactor. The combined-build smoke below covers the corrected paging and routed footswitch
 rewind; group/Master scenarios were not repeated. Forced host delays are verified offline only.
 
-## Held-note edit target safety
+## Earlier held-note edit target safety
 
-The legacy held-note editor keeps its existing 100 ms send cadence. Each gesture captures its
-project, track, Launcher scene, page and resolution; observed target changes or loss cancel
-remaining writes, even if the cursor later returns. Cancellation keeps the gesture inert until
-release. Observed note deletion retires that cell, and model shutdown cancels outstanding edits.
-Working values are restored to the latest host observations on cancellation and release.
-These are execution/lifecycle fences beneath unchanged legacy gestures; core ownership and
-Bitwig API 25 remain unchanged. Added observers require a matching shell install and restart.
-
-Offline regressions distinguish submitted writes from host state and cover target changes in
-both observation orders, page/resolution changes, deleted notes, gesture replacement and shutdown.
-On 2026-09-12 the full stacked deprecation-enabled package gate passed 1,110 tests with no failures,
-errors, skips or deprecation warnings. The clean cross-clip comparison below supersedes the
-earlier `4566eb79` attempt, which established ordinary velocity read-back only.
+The September 12 tests below characterized the previous 100 ms held-note editor and its
+project/track/scene/grid fences. API 58 deletes that implementation and its timer; the retained
+per-cell tests and acceptance record above describe the replacement. The earlier live evidence
+remains useful history, but is not evidence for the current implementation.
 
 ## Combined acknowledgement smoke — 2026-09-12
 

@@ -51,6 +51,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static de.mossgrabers.pull.shell.testing.TestProxies.proxy;
@@ -77,10 +78,10 @@ class ParameterTargetHostTest
         final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
         final PushControlSurface surface = createSurface (new MutableContinuous (), valueChanger);
         surface.createRelativeKnob (ContinuousID.KNOB1, "Knob 1").bind (device.parameter);
-        final ParameterTargetHost host = new ParameterTargetHost (surface, model (device, valueChanger), silentLog ());
-        final DesiredParameterBanks banks = new DesiredParameterBanks (Set.of (ParameterBankId.ACTIVE));
+        final ParameterTargetHost host = new ParameterTargetHost (surface, model (device, valueChanger, device.parameter), silentLog ());
+        final DesiredParameterBanks banks = new DesiredParameterBanks (Set.of (ParameterBankId.PROJECT_REMOTE));
         host.refresh (banks);
-        final ParameterTargetRef target = host.snapshot ().slots ().get (ParameterSlot.active (0)).target ();
+        final ParameterTargetRef target = host.snapshot ().slots ().get (ParameterSlot.projectRemote (0)).target ();
         final var leases = host.prepareLeases (new DesiredParameterInteraction (1, false, Map.of (target, 64.0), Set.of (), Set.of (), 0), banks);
         host.applyLeases (leases, banks);
         host.apply (host.prepare (new SetParameterValueEffect (target, -100), leases));
@@ -89,36 +90,6 @@ class ParameterTargetHostTest
         host.apply (host.prepare (new SetParameterValueEffect (target, 500), leases));
         host.refresh (banks);
         assertEquals (127, host.snapshot ().targetOrNull (target).value ());
-    }
-
-
-    @Test
-    void rejectsLeaseWhenBitwigRebindsTheSameWrapperToAnotherDevice ()
-    {
-        final MutableParameter parameter = new MutableParameter (64);
-        final MutableRemoteDevice device = new MutableRemoteDevice (parameter.proxy ());
-        final MutableContinuous continuous = new MutableContinuous ();
-        final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
-        final PushControlSurface surface = createSurface (continuous, valueChanger);
-        final IHwRelativeKnob knob = surface.createRelativeKnob (ContinuousID.KNOB1, "Knob 1");
-        knob.bind (device.parameter);
-
-        final ParameterTargetHost host = new ParameterTargetHost (surface, model (device, valueChanger), silentLog ());
-        final DesiredParameterBanks banks = new DesiredParameterBanks (Set.of (ParameterBankId.ACTIVE));
-        host.refresh (banks);
-        final ParameterTargetRef original = host.snapshot ().slots ().get (ParameterSlot.active (0)).target ();
-        final DesiredParameterInteraction interaction = new DesiredParameterInteraction (1, false, Map.of (original, 64.0), Set.of (), Set.of (), 0);
-        final Map<ParameterTargetRef, ParameterTargetHost.RetainedTarget> leases = host.prepareLeases (interaction, banks);
-        host.applyLeases (leases, banks);
-        final ParameterTargetHost.PreparedSet restore = host.prepare (new SetParameterValueEffect (original, 64), leases);
-
-        device.id = "device-b";
-        host.refresh (banks);
-        final ParameterTargetRef rebound = host.snapshot ().slots ().get (ParameterSlot.active (0)).target ();
-
-        assertNotEquals (original, rebound);
-        assertThrows (IllegalStateException.class, () -> host.apply (restore));
-        assertEquals (0, parameter.writeCount);
     }
 
 
@@ -166,34 +137,79 @@ class ParameterTargetHostTest
 
 
     @Test
-    void namedRemoteBanksKeepLiveOwnerFencesAndRejectBlankDeviceOwners ()
+    void namedDeviceBankRequiresRetainedServiceRegardlessOfLegacyDeviceId ()
     {
-        final MutableParameter deviceParameter = new MutableParameter (32);
-        final MutableRemoteDevice device = new MutableRemoteDevice (deviceParameter.proxy ());
+        final MutableRemoteDevice device = new MutableRemoteDevice (new MutableParameter (32).proxy ());
         final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
-        final ParameterTargetHost host = new ParameterTargetHost (
-            createSurface (new MutableContinuous (), valueChanger),
+        final ParameterTargetHost host = new ParameterTargetHost (createSurface (new MutableContinuous (), valueChanger),
             model (device, valueChanger, new MutableParameter (64).proxy ()), silentLog ());
         final DesiredParameterBanks banks = new DesiredParameterBanks (Set.of (ParameterBankId.PROJECT_REMOTE, ParameterBankId.SELECTED_DEVICE_REMOTE));
         host.refresh (banks);
-        final ParameterTargetRef project = host.snapshot ().slots ().get (ParameterSlot.projectRemote (0)).target ();
-        final ParameterTargetRef original = host.snapshot ().slots ().get (ParameterSlot.selectedDeviceRemote (0)).target ();
-        host.refresh (banks);
-        assertEquals (original, host.snapshot ().slots ().get (ParameterSlot.selectedDeviceRemote (0)).target ());
-        final var leases = host.prepareLeases (new DesiredParameterInteraction (1, false, Map.of (original, 32.0), Set.of (), Set.of (), 0), banks);
-        host.applyLeases (leases, banks);
-        final var restore = host.prepare (new SetParameterValueEffect (original, 32), leases);
-
-        device.id = "device-b";
-        // The retained fence must read the supplier again, even before the next publication.
-        assertThrows (IllegalStateException.class, () -> host.apply (restore));
-        host.refresh (banks);
-        assertNotEquals (original, host.snapshot ().slots ().get (ParameterSlot.selectedDeviceRemote (0)).target ());
-        assertEquals (project, host.snapshot ().slots ().get (ParameterSlot.projectRemote (0)).target ());
-        device.id = "";
-        host.refresh (banks);
         assertEquals (Set.of (ParameterSlot.projectRemote (0)), host.snapshot ().slots ().keySet ());
-        assertEquals (0, deviceParameter.writeCount);
+        assertEquals ("", host.deviceParameterOwner ());
+    }
+
+
+    @Test
+    void retainedDeviceCancelsEditingAfterSourceNavigationButReleasesTheExactOldTouch ()
+    {
+        final DeviceFixture fixture = new DeviceFixture ();
+        final var target = fixture.host.snapshot ().slots ().get (ParameterSlot.selectedDeviceRemote (0)).target ();
+        assertEquals ("retained-device-remote", fixture.host.snapshot ().slots ().get (ParameterSlot.selectedDeviceRemote (0)).identity ().domain ());
+        assertEquals ("opaque-child", fixture.host.snapshot ().slots ().get (ParameterSlot.selectedDeviceRemote (0)).identity ().ownerId ());
+        assertEquals (9, fixture.host.snapshot ().slots ().get (ParameterSlot.selectedDeviceRemote (0)).identity ().page ());
+        fixture.host.acquireTouches (fixture.host.prepareTouches (new DesiredParameterTouches (Map.of (PushControlIds.continuous ("KNOB1"), target)), fixture.banks));
+        final var adjust = fixture.host.prepare (new AdjustParameterValueEffect (target, 1));
+        final var reset = fixture.host.prepare (new ResetParameterEffect (target));
+        fixture.current.set (false);
+        assertThrows (IllegalStateException.class, () -> fixture.host.apply (adjust));
+        assertThrows (IllegalStateException.class, () -> fixture.host.apply (reset));
+        fixture.host.refresh (fixture.banks);
+        assertTrue (fixture.host.snapshot ().slots ().isEmpty ());
+        assertEquals (Set.of ("opaque-child"), fixture.cleanupOwners);
+        fixture.host.releaseTouches ();
+        assertEquals (List.of ("touch:true", "touch:false"), fixture.parameter.events);
+        assertEquals (0, fixture.parameter.incrementCount);
+        assertEquals (0, fixture.parameter.resetCount);
+        fixture.host.refresh (fixture.banks);
+        assertTrue (fixture.cleanupOwners.isEmpty ());
+    }
+
+
+    @Test
+    void ownDeviceMappingInvalidationFencesPendingEffectsAndExactCleanup ()
+    {
+        final DeviceFixture fixture = new DeviceFixture ();
+        final var target = fixture.host.snapshot ().slots ().get (ParameterSlot.selectedDeviceRemote (0)).target ();
+        fixture.host.acquireTouches (fixture.host.prepareTouches (new DesiredParameterTouches (Map.of (PushControlIds.continuous ("KNOB1"), target)), fixture.banks));
+        final var reset = fixture.host.prepare (new ResetParameterEffect (target));
+        fixture.addressable.set (false);
+        assertThrows (IllegalStateException.class, () -> fixture.host.apply (reset));
+        fixture.host.releaseTouches ();
+        assertEquals (List.of ("touch:true"), fixture.parameter.events);
+        assertEquals (0, fixture.parameter.resetCount);
+    }
+
+
+    private static final class DeviceFixture implements RetainedDeviceParameters
+    {
+        private final MutableParameter parameter = new MutableParameter (32);
+        private final AtomicBoolean current = new AtomicBoolean (true);
+        private final AtomicBoolean addressable = new AtomicBoolean (true);
+        private final DevicePage page = new DevicePage ("opaque-child", 7, 9, java.util.Collections.nCopies (8, this.parameter.proxy ()), Map.of (), this.current::get, this.addressable::get);
+        private final DesiredParameterBanks banks = new DesiredParameterBanks (Set.of (ParameterBankId.SELECTED_DEVICE_REMOTE));
+        private final ParameterTargetHost host;
+        private Set<String> cleanupOwners = Set.of ();
+
+        private DeviceFixture ()
+        {
+            final IValueChanger changer = new TwosComplementValueChanger (128, 1);
+            this.host = new ParameterTargetHost (createSurface (new MutableContinuous (), changer),
+                model (new MutableRemoteDevice (new MutableParameter (99).proxy ()), changer), null, silentLog (), RetainedTrackParameters.UNAVAILABLE, this);
+            this.host.refresh (this.banks);
+        }
+        @Override public void requestDevicePage (final boolean active, final Set<String> cleanupOwners) { this.cleanupOwners = Set.copyOf (cleanupOwners); }
+        @Override public DevicePage devicePage () { return this.current.get () && this.addressable.get () ? this.page : null; }
     }
 
 
@@ -312,82 +328,28 @@ class ParameterTargetHostTest
 
 
     @Test
-    void opaqueCorePageRejectsPhysicalBindingsBecauseItUsesNamedParameterBanks ()
+    void topEncodersRejectStalePhysicalParameterBindings ()
     {
-        final MutableParameter cursorVolume = new MutableParameter (64);
-        final MutableParameter selectedVolume = new MutableParameter (64);
-        final MutableParameter staleVolume = new MutableParameter (32);
-        final IParameter cursorParameter = cursorVolume.proxy ();
-        final IParameter selectedParameter = selectedVolume.proxy ();
-        final IParameter staleParameter = staleVolume.proxy ();
-        final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
-        final MutableContinuous continuous = new MutableContinuous ();
-        final PushControlSurface surface = createSurface (continuous, valueChanger);
+        final MutableParameter parameter = new MutableParameter (64);
+        final IValueChanger changer = new TwosComplementValueChanger (128, 1);
+        final PushControlSurface surface = createSurface (new MutableContinuous (), changer);
         final IHwRelativeKnob knob = surface.createRelativeKnob (ContinuousID.KNOB1, "Knob 1");
-        surface.getModeManager ().installCoreAdapter (relaxedProxy (IMode.class));
-        surface.getModeManager ().apply (new de.mossgrabers.pull.core.api.DesiredControllerPageState (1, de.mossgrabers.pull.core.api.ControllerPageRef.core ("no-native-mode"), de.mossgrabers.pull.core.api.ControllerPageRef.none (), Optional.empty (), 0));
-
-        final ICursorTrack selectedTrack = proxy (ICursorTrack.class, (proxy, method, arguments) -> switch (method.getName ())
-        {
-            case "doesExist" -> Boolean.TRUE;
-            case "getChannelID" -> "selected-track";
-            case "getVolumeParameter" -> cursorParameter;
-            default -> relaxedValue (method.getReturnType ());
-        });
-        final ITrack selectedBankTrack = proxy (ITrack.class, (proxy, method, arguments) -> switch (method.getName ())
-        {
-            case "doesExist" -> Boolean.TRUE;
-            case "getChannelID" -> "selected-track";
-            case "getVolumeParameter" -> selectedParameter;
-            default -> relaxedValue (method.getReturnType ());
-        });
-        final ITrack staleTrack = proxy (ITrack.class, (proxy, method, arguments) -> switch (method.getName ())
-        {
-            case "doesExist" -> Boolean.TRUE;
-            case "getChannelID" -> "stale-track";
-            case "getVolumeParameter" -> staleParameter;
-            default -> relaxedValue (method.getReturnType ());
-        });
-        final ITrackBank tracks = proxy (ITrackBank.class, (proxy, method, arguments) -> switch (method.getName ())
-        {
-            case "getPageSize" -> Integer.valueOf (2);
-            case "getItem" -> ((Integer) arguments[0]).intValue () == 0 ? selectedBankTrack : staleTrack;
-            case "getSelectedItem" -> Optional.of (selectedBankTrack);
-            default -> relaxedValue (method.getReturnType ());
-        });
-        final IModel model = proxy (IModel.class, (proxy, method, arguments) -> switch (method.getName ())
-        {
-            case "getTransport" -> relaxedProxy (ITransport.class);
-            case "getCursorTrack" -> selectedTrack;
-            case "getCurrentTrackBank", "getTrackBank" -> tracks;
-            case "getValueChanger" -> valueChanger;
-            default -> relaxedValue (method.getReturnType ());
-        });
-        final ParameterTargetHost host = new ParameterTargetHost (surface, model, silentLog ());
-        final DesiredParameterBanks banks = new DesiredParameterBanks (Set.of (ParameterBankId.ACTIVE));
-
-        knob.bind (staleParameter);
-        host.refresh (banks);
+        knob.bind (parameter.proxy ());
+        final ParameterTargetHost host = new ParameterTargetHost (surface, model (new MutableRemoteDevice (parameter.proxy ()), changer), silentLog ());
+        host.refresh (DesiredParameterBanks.empty ());
         assertNull (host.resolveMutation (knob));
         assertTrue (host.requiresResolvedMutation (knob));
-
-        knob.bind (proxy (IParameter.class, (wrapper, method, arguments) -> method.invoke (selectedParameter, arguments)));
-        host.refresh (banks);
-        assertNull (host.resolveMutation (knob));
-        assertNull (host.snapshot ().slots ().get (ParameterSlot.active (0)));
-        assertTrue (host.requiresResolvedMutation (knob));
+        assertTrue (host.snapshot ().slots ().isEmpty ());
     }
 
 
     @Test
     void namedParameterIndicationsReplayWithoutChurnAndReleaseOnPageOrCoreExit ()
     {
-        final MutableParameter parameter = new MutableParameter (64);
-        final MutableRemoteDevice device = new MutableRemoteDevice (parameter.proxy ());
-        final IValueChanger valueChanger = new TwosComplementValueChanger (128, 1);
-        final PushControlSurface surface = createSurface (new MutableContinuous (), valueChanger);
-        final ParameterTargetHost host = new ParameterTargetHost (surface, model (device, valueChanger), silentLog ());
-        final DesiredParameterBanks banks = new DesiredParameterBanks (Set.of (ParameterBankId.SELECTED_DEVICE_REMOTE));
+        final DeviceFixture fixture = new DeviceFixture ();
+        final MutableParameter parameter = fixture.parameter;
+        final ParameterTargetHost host = fixture.host;
+        final DesiredParameterBanks banks = fixture.banks;
         host.refresh (banks);
         host.applyIndications (Set.of (ParameterSlot.selectedDeviceRemote (0)));
         host.applyIndications (Set.of (ParameterSlot.selectedDeviceRemote (0)));

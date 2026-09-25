@@ -6,6 +6,8 @@ import de.mossgrabers.controller.ableton.push.controller.PushColorManager;
 import de.mossgrabers.controller.ableton.push.controller.PushControlSurface;
 import de.mossgrabers.controller.ableton.push.mode.BaseMode;
 import de.mossgrabers.controller.ableton.push.mode.device.DeviceLayerMode;
+import de.mossgrabers.controller.ableton.push.mode.device.DeviceChainsMode;
+import de.mossgrabers.framework.daw.data.empty.EmptyParameter;
 import de.mossgrabers.controller.ableton.push.mode.device.DeviceParamsMode;
 import de.mossgrabers.controller.ableton.push.mode.track.TrackDetailsMode;
 import de.mossgrabers.framework.controller.ContinuousID;
@@ -60,6 +62,7 @@ class PushDevicePageObserverTest
         final Fixture fixture = new Fixture ();
         final DeviceParamsMode mode = new DeviceParamsMode (fixture.surface, fixture.model);
         fixture.activate (Modes.DEVICE_PARAMS, mode);
+        assertTrue (fixture.capture ().parameters ().isEmpty (), "Device remotes come only from retained named targets");
         assertEquals (8, fixture.capture ().device ().siblings ().size ());
         assertEquals (8, fixture.capture ().device ().chains ().size (), "host may report more chains than eight physical choices");
         assertTrue (fixture.capture ().selection ().showDevices ());
@@ -70,21 +73,56 @@ class PushDevicePageObserverTest
     }
 
     @Test
-    void aDrumBankObserverGapCannotPairNewProviderValuesWithOldLayerLabels ()
+    void aDrumBankObserverGapMarksLayerObservationsUnaligned ()
     {
         final Fixture fixture = new Fixture ();
         final DeviceLayerMode mode = new DeviceLayerMode (fixture.surface, fixture.model);
         fixture.activate (Modes.DEVICE_LAYER, mode);
         assertTrue (fixture.capture ().selection ().bankAligned ());
-        assertFalse (fixture.capture ().parameters ().isEmpty ());
+        assertTrue (fixture.capture ().parameters ().isEmpty (), "layer values are supplied only by the retained bank");
         fixture.hasDrumPads = true; // cursor read-back changes before the mode's installed observer switches banks
         assertFalse (fixture.capture ().selection ().bankAligned ());
         assertTrue (fixture.capture ().parameters ().isEmpty ());
         assertTrue (fixture.requests.isEmpty ());
     }
 
+    @Test
+    void namedLayerRowsRetainTheirObservedKindAndSendLane ()
+    {
+        final Fixture f = new Fixture ();
+        for (int index = 0; index < 8; index++)
+        {
+            f.activate (Modes.get (Modes.DEVICE_LAYER_SEND1, index), new DeviceLayerMode (Modes.NAME_LAYER_SENDS, f.surface, f.model));
+            assertEquals (DevicePageState.Kind.LAYER_SEND, f.capture ().kind ());
+            assertEquals (index, f.capture ().selection ().sendIndex ());
+        }
+        f.activate (Modes.DEVICE_LAYER_VOLUME, new DeviceLayerMode (Modes.NAME_LAYER_VOLUME, f.surface, f.model));
+        assertEquals (DevicePageState.Kind.LAYER_VOLUME, f.capture ().kind ());
+        f.activate (Modes.DEVICE_LAYER_PAN, new DeviceLayerMode (Modes.NAME_LAYER_PANNING, f.surface, f.model));
+        assertEquals (DevicePageState.Kind.LAYER_PAN, f.capture ().kind ());
+    }
+
+    @Test
+    void deviceAndChainsKnobsRemainInertWithoutCoreOwnership ()
+    {
+        final Fixture fixture = new Fixture ();
+        final DeviceParamsMode params = new DeviceParamsMode (fixture.surface, fixture.model);
+        fixture.activate (Modes.DEVICE_PARAMS, params);
+        final var knob = fixture.surface.getContinuous (ContinuousID.KNOB1);
+        assertSame (EmptyParameter.INSTANCE, knob.getBoundParameter ());
+        knob.getBoundParameter ().inc (1);
+        params.onKnobTouch (0, true);
+        params.onKnobTouch (0, false);
+        assertTrue (fixture.requests.isEmpty ());
+        fixture.activate (Modes.DEVICE_CHAINS, new DeviceChainsMode (fixture.surface, fixture.model));
+        assertSame (EmptyParameter.INSTANCE, knob.getBoundParameter ());
+        knob.getBoundParameter ().inc (1);
+        assertTrue (fixture.requests.isEmpty ());
+    }
+
     private static final class Fixture
     {
+        private long pageRevision;
         private boolean cursorMuted;
         private boolean selectedMuted;
         private boolean masterSelected;
@@ -139,7 +177,7 @@ class PushDevicePageObserverTest
         {
             this.surface.getModeManager ().register (id, mode);
             this.surface.getModeManager ().activateConsumer (1);
-            this.surface.getModeManager ().apply (new DesiredControllerPageState (1, ControllerPageRef.legacy (id.name ()), ControllerPageRef.none (), Optional.empty (), 0));
+            this.surface.getModeManager ().apply (new DesiredControllerPageState (++this.pageRevision, ControllerPageRef.legacy (id.name ()), ControllerPageRef.none (), Optional.empty (), 0));
         }
         private DevicePageState capture () { return PushDevicePageObserver.capture (this.surface, this.model); }
         private IParameterBank parameters (final IParameter parameter)
@@ -165,6 +203,7 @@ class PushDevicePageObserverTest
                 case "getValue", "getModulatedValue" -> 96;
                 case "getDisplayedValue" -> "96 dB";
                 case "inc" -> { this.requests.add ("track:" + args[0]); yield null; }
+                case "resetValue" -> { this.requests.add ("track:reset"); yield null; }
                 case "touchValue" -> { this.requests.add ("track:" + "touch:" + args[0]); yield null; }
                 default -> null;
             });

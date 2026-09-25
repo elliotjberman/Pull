@@ -615,7 +615,6 @@ class CoreApiValueTest
         assertEquals ("10.2 kHz", snapshot.displayedValue ());
         assertEquals (128, snapshot.numberOfSteps ());
         assertThrows (UnsupportedOperationException.class, () -> banks.banks ().clear ());
-        assertEquals (17, ParameterBankId.BANK_CAPACITY);
         assertThrows (IllegalArgumentException.class, () -> new ParameterSlot (ParameterBankId.PROJECT_REMOTE, ParameterSlot.BANK_SIZE));
         assertThrows (IllegalArgumentException.class, () -> new ParameterSlot (ParameterBankId.GLOBAL, ParameterSlot.GLOBAL_BANK_SIZE));
         assertThrows (IllegalArgumentException.class, () -> new ParameterTargetSnapshot (target, "", 0, 0, "", -2, 0.5));

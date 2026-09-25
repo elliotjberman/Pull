@@ -10,6 +10,8 @@ import de.mossgrabers.framework.daw.data.ISend;
 import de.mossgrabers.framework.daw.data.bank.ISendBank;
 
 import com.bitwig.extension.controller.api.Send;
+import com.bitwig.extension.controller.api.SendBank;
+import java.util.function.IntSupplier;
 import com.bitwig.extension.controller.api.SettableColorValue;
 
 
@@ -20,7 +22,7 @@ import com.bitwig.extension.controller.api.SettableColorValue;
  */
 public class SendImpl extends ParameterImpl implements ISend
 {
-    private final ISendBank sendBank;
+    private final IntSupplier position;
     private final Send      send;
 
 
@@ -34,9 +36,21 @@ public class SendImpl extends ParameterImpl implements ISend
      */
     public SendImpl (final ISendBank sendBank, final IValueChanger valueChanger, final Send send, final int index)
     {
-        super (valueChanger, send, index);
+        this (valueChanger, send, index, () -> sendBank.getScrollPosition () + index);
+    }
 
-        this.sendBank = sendBank;
+
+    /** Wrap one role in an initialization-owned native send bank. */
+    public SendImpl (final IValueChanger valueChanger, final SendBank bank, final int index)
+    {
+        this (valueChanger, bank.getItemAt (index), index, () -> bank.scrollPosition ().get () + index);
+    }
+
+
+    private SendImpl (final IValueChanger valueChanger, final Send send, final int index, final IntSupplier position)
+    {
+        super (valueChanger, send, index);
+        this.position = position;
 
         this.send = send;
 
@@ -60,7 +74,7 @@ public class SendImpl extends ParameterImpl implements ISend
     @Override
     public int getPosition ()
     {
-        return this.sendBank.getScrollPosition () + this.getIndex ();
+        return this.position.getAsInt ();
     }
 
 

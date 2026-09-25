@@ -34,22 +34,6 @@ public class DeviceChainsMode extends DeviceParamsMode
 
     /** {@inheritDoc} */
     @Override
-    public void onKnobValue (final int index, final int value)
-    {
-        // Intentionally empty
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
-    public void onKnobTouch (final int index, final boolean isTouched)
-    {
-        // Intentionally empty
-    }
-
-
-    /** {@inheritDoc} */
-    @Override
     public void onFirstRow (final int index, final ButtonEvent event)
     {
         if (event == ButtonEvent.DOWN)

@@ -278,6 +278,13 @@ public class ModelImpl extends AbstractModel
     }
 
 
+    /** Native editor windows already created during extension initialization. */
+    public java.util.List<CursorClipImpl> getNoteClips ()
+    {
+        return this.cursorClips.values ().stream ().map (clip -> (CursorClipImpl) clip).toList ();
+    }
+
+
     /** {@inheritDoc} */
     @Override
     public INoteClip getNoteClip (final int cols, final int rows)
