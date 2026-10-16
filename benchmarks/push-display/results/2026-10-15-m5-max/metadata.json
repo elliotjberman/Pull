@@ -1,0 +1,19 @@
+{
+  "base_commit": "fd562c842a2079a0cf72026f91dd5c5b48f1714e",
+  "cpu": "Apple M5 Max",
+  "os": "ProductName:\t\tmacOS\nProductVersion:\t\t26.6.2\nBuildVersion:\t\t25G83\n",
+  "tests": {
+    "tests": 1178,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "source_sha256": {
+    "pull-shell/src/main/java/de/mossgrabers/controller/ableton/push/controller/PushFrameEncoder.java": "2c582d04b403adc49af1a6b7d6d6a933c608d98137c66a7f198be88651f71381",
+    "pull-shell/src/main/java/de/mossgrabers/controller/ableton/push/controller/PushUsbDisplay.java": "0d2b7009f0e55076ca6da7677d07e29864936348ce5ec1b47d2673ba42137129",
+    "pull-shell/src/main/java/de/mossgrabers/controller/ableton/push/controller/PushColorCalibration.java": "7f7c9f51aad9a5066b5d941f05f3f2fa18acc719f861b7ab7281133ee475a2ed",
+    "benchmarks/push-display/src/de/mossgrabers/controller/ableton/push/controller/FrameBenchmark.java": "1f83e0ae20e8c1740e1941ec23d6c23f2cfccc956a5fa84c20f9c32cdbc4f12e",
+    "benchmarks/push-display/src/de/mossgrabers/controller/ableton/push/controller/LegacyFrameEncoder.java": "68293cfdc67df5ec18ed56d3e907ece160b103a7e120b44b81bf756df98a807d"
+  },
+  "jvm": "openjdk 25.0.4.1 2026-08-18 LTS\nOpenJDK Runtime Environment Zulu25.36+205-CRaC-CA (build 25.0.4.1+1-LTS)\nOpenJDK 64-Bit Server VM Zulu25.36+205-CRaC-CA (build 25.0.4.1+1-LTS, mixed mode)\n"
+}

@@ -1,0 +1,832 @@
+[
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.baseline",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 3,
+        "jvm" : "/Applications/Bitwig Studio.app/Contents/PlugIns/JavaVM-arm64.bundle/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dpull.benchmark.frames=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/frames"
+        ],
+        "jdkVersion" : "25.0.4.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "25.0.4.1+1-LTS",
+        "warmupIterations" : 4,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "content" : "capture"
+        },
+        "primaryMetric" : {
+            "score" : 312.22036631543364,
+            "scoreError" : 1.6539573721538152,
+            "scoreConfidence" : [
+                310.56640894327984,
+                313.87432368758743
+            ],
+            "scorePercentiles" : {
+                "0.0" : 310.3373271889401,
+                "50.0" : 311.542386062288,
+                "90.0" : 314.2879685400454,
+                "95.0" : 314.43986691776524,
+                "99.0" : 314.43986691776524,
+                "99.9" : 314.43986691776524,
+                "99.99" : 314.43986691776524,
+                "99.999" : 314.43986691776524,
+                "99.9999" : 314.43986691776524,
+                "100.0" : 314.43986691776524
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    312.08722057460614,
+                    311.21011768330254,
+                    311.25630283425755,
+                    310.7927950769231,
+                    311.542386062288
+                ],
+                [
+                    314.1867029548989,
+                    314.0938404850746,
+                    314.11598258706465,
+                    313.83968872320594,
+                    314.43986691776524
+                ],
+                [
+                    310.3373271889401,
+                    310.38370476190477,
+                    313.0145588052271,
+                    311.07324699722824,
+                    310.93175307881774
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.baseline",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 3,
+        "jvm" : "/Applications/Bitwig Studio.app/Contents/PlugIns/JavaVM-arm64.bundle/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dpull.benchmark.frames=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/frames"
+        ],
+        "jdkVersion" : "25.0.4.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "25.0.4.1+1-LTS",
+        "warmupIterations" : 4,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "content" : "random"
+        },
+        "primaryMetric" : {
+            "score" : 680.949629646688,
+            "scoreError" : 2.5812438288290593,
+            "scoreConfidence" : [
+                678.3683858178589,
+                683.5308734755171
+            ],
+            "scorePercentiles" : {
+                "0.0" : 679.2950289172832,
+                "50.0" : 680.1251123822342,
+                "90.0" : 685.6884707870859,
+                "95.0" : 688.9036871165645,
+                "99.0" : 688.9036871165645,
+                "99.9" : 688.9036871165645,
+                "99.99" : 688.9036871165645,
+                "99.999" : 688.9036871165645,
+                "99.9999" : 688.9036871165645,
+                "100.0" : 688.9036871165645
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    680.6021172506738,
+                    680.3572314439946,
+                    680.1092139973082,
+                    679.2950289172832,
+                    683.5449932341002
+                ],
+                [
+                    680.1251123822342,
+                    680.0376285329744,
+                    680.1080921938088,
+                    681.2814113283885,
+                    679.6122508406187
+                ],
+                [
+                    679.7364103773585,
+                    680.4304996632997,
+                    679.71767025572,
+                    688.9036871165645,
+                    680.3830971659919
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.baseline",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 3,
+        "jvm" : "/Applications/Bitwig Studio.app/Contents/PlugIns/JavaVM-arm64.bundle/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dpull.benchmark.frames=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/frames"
+        ],
+        "jdkVersion" : "25.0.4.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "25.0.4.1+1-LTS",
+        "warmupIterations" : 4,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "content" : "gray"
+        },
+        "primaryMetric" : {
+            "score" : 324.86321374420294,
+            "scoreError" : 0.5175321702420466,
+            "scoreConfidence" : [
+                324.3456815739609,
+                325.38074591444496
+            ],
+            "scorePercentiles" : {
+                "0.0" : 324.1895860077022,
+                "50.0" : 324.7195300546448,
+                "90.0" : 325.5711523188049,
+                "95.0" : 326.0550087153002,
+                "99.0" : 326.0550087153002,
+                "99.9" : 326.0550087153002,
+                "99.99" : 326.0550087153002,
+                "99.999" : 326.0550087153002,
+                "99.9999" : 326.0550087153002,
+                "100.0" : 326.0550087153002
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    324.71334265509483,
+                    324.4186467565832,
+                    324.65220775444266,
+                    324.2298620025674,
+                    324.1895860077022
+                ],
+                [
+                    326.0550087153002,
+                    325.12428774193546,
+                    325.22465088566827,
+                    325.24858138780803,
+                    325.1515262310911
+                ],
+                [
+                    324.5535522004497,
+                    324.6888592092575,
+                    324.7324950176792,
+                    324.7195300546448,
+                    325.24606954282035
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.baseline",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 3,
+        "jvm" : "/Applications/Bitwig Studio.app/Contents/PlugIns/JavaVM-arm64.bundle/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dpull.benchmark.frames=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/frames"
+        ],
+        "jdkVersion" : "25.0.4.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "25.0.4.1+1-LTS",
+        "warmupIterations" : 4,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "content" : "unchanged"
+        },
+        "primaryMetric" : {
+            "score" : 371.41237133970185,
+            "scoreError" : 1.675639269508427,
+            "scoreConfidence" : [
+                369.7367320701934,
+                373.0880106092103
+            ],
+            "scorePercentiles" : {
+                "0.0" : 368.9069970577418,
+                "50.0" : 371.51143214417067,
+                "90.0" : 373.2665007609434,
+                "95.0" : 373.53726136783735,
+                "99.0" : 373.53726136783735,
+                "99.9" : 373.53726136783735,
+                "99.99" : 373.53726136783735,
+                "99.999" : 373.53726136783735,
+                "99.9999" : 373.53726136783735,
+                "100.0" : 373.53726136783735
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    371.39855992647057,
+                    373.53726136783735,
+                    371.2566920249908,
+                    372.8421741697417,
+                    371.51143214417067
+                ],
+                [
+                    373.0859936896808,
+                    372.37080722447473,
+                    371.84097055576,
+                    373.01009379615954,
+                    372.7075957211361
+                ],
+                [
+                    370.16297178453647,
+                    369.14657425742575,
+                    368.9069970577418,
+                    369.0494764340519,
+                    370.357969941349
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.baselineBulkCopy",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 3,
+        "jvm" : "/Applications/Bitwig Studio.app/Contents/PlugIns/JavaVM-arm64.bundle/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dpull.benchmark.frames=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/frames"
+        ],
+        "jdkVersion" : "25.0.4.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "25.0.4.1+1-LTS",
+        "warmupIterations" : 4,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "content" : "capture"
+        },
+        "primaryMetric" : {
+            "score" : 245.46693260317426,
+            "scoreError" : 3.003074201591312,
+            "scoreConfidence" : [
+                242.46385840158294,
+                248.47000680476557
+            ],
+            "scorePercentiles" : {
+                "0.0" : 241.37239139784947,
+                "50.0" : 246.7592082721488,
+                "90.0" : 248.30393182097092,
+                "95.0" : 248.7543811868998,
+                "99.0" : 248.7543811868998,
+                "99.9" : 248.7543811868998,
+                "99.99" : 248.7543811868998,
+                "99.999" : 248.7543811868998,
+                "99.9999" : 248.7543811868998,
+                "100.0" : 248.7543811868998
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    246.97665036674817,
+                    246.52238897022937,
+                    246.7592082721488,
+                    248.7543811868998,
+                    246.71417051030423
+                ],
+                [
+                    241.37239139784947,
+                    241.81813095523103,
+                    241.80637673528003,
+                    241.73170423546304,
+                    241.7870990904739
+                ],
+                [
+                    247.55366674864732,
+                    248.003632243685,
+                    247.46576433121018,
+                    247.53189561382015,
+                    247.20652838962312
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.baselineBulkCopy",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 3,
+        "jvm" : "/Applications/Bitwig Studio.app/Contents/PlugIns/JavaVM-arm64.bundle/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dpull.benchmark.frames=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/frames"
+        ],
+        "jdkVersion" : "25.0.4.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "25.0.4.1+1-LTS",
+        "warmupIterations" : 4,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "content" : "random"
+        },
+        "primaryMetric" : {
+            "score" : 609.7484145672024,
+            "scoreError" : 5.611598107356217,
+            "scoreConfidence" : [
+                604.1368164598462,
+                615.3600126745587
+            ],
+            "scorePercentiles" : {
+                "0.0" : 597.4035334121821,
+                "50.0" : 611.5083333333333,
+                "90.0" : 615.8975044490812,
+                "95.0" : 618.632628903858,
+                "99.0" : 618.632628903858,
+                "99.9" : 618.632628903858,
+                "99.99" : 618.632628903858,
+                "99.999" : 618.632628903858,
+                "99.9999" : 618.632628903858,
+                "100.0" : 618.632628903858
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    610.8869981851179,
+                    611.9616898849182,
+                    611.5083333333333,
+                    612.6352080048514,
+                    611.1515446808511
+                ],
+                [
+                    612.2736115151515,
+                    612.0367201695942,
+                    611.8044615384615,
+                    618.632628903858,
+                    614.0740881458967
+                ],
+                [
+                    609.627841882921,
+                    597.4035334121821,
+                    605.6068645083933,
+                    603.6513590203107,
+                    602.9713353221957
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.baselineBulkCopy",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 3,
+        "jvm" : "/Applications/Bitwig Studio.app/Contents/PlugIns/JavaVM-arm64.bundle/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dpull.benchmark.frames=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/frames"
+        ],
+        "jdkVersion" : "25.0.4.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "25.0.4.1+1-LTS",
+        "warmupIterations" : 4,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "content" : "gray"
+        },
+        "primaryMetric" : {
+            "score" : 254.90064642507397,
+            "scoreError" : 0.3919800935276299,
+            "scoreConfidence" : [
+                254.50866633154635,
+                255.2926265186016
+            ],
+            "scorePercentiles" : {
+                "0.0" : 254.50869236583523,
+                "50.0" : 254.8309263370333,
+                "90.0" : 255.64503819565897,
+                "95.0" : 255.77799214991137,
+                "99.0" : 255.77799214991137,
+                "99.9" : 255.77799214991137,
+                "99.99" : 255.77799214991137,
+                "99.999" : 255.77799214991137,
+                "99.9999" : 255.77799214991137,
+                "100.0" : 255.77799214991137
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    254.8770186727227,
+                    254.7261409480585,
+                    254.835803481332,
+                    254.95107698132256,
+                    255.55640222615736
+                ],
+                [
+                    254.6326675069322,
+                    254.75519117276167,
+                    255.77799214991137,
+                    255.31177631245245,
+                    254.62260524325686
+                ],
+                [
+                    254.8309263370333,
+                    254.7197965673902,
+                    254.8341865520728,
+                    254.50869236583523,
+                    254.56941985887096
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.baselineBulkCopy",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 3,
+        "jvm" : "/Applications/Bitwig Studio.app/Contents/PlugIns/JavaVM-arm64.bundle/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dpull.benchmark.frames=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/frames"
+        ],
+        "jdkVersion" : "25.0.4.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "25.0.4.1+1-LTS",
+        "warmupIterations" : 4,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "content" : "unchanged"
+        },
+        "primaryMetric" : {
+            "score" : 303.7340575241193,
+            "scoreError" : 4.059258643411789,
+            "scoreConfidence" : [
+                299.6747988807075,
+                307.7933161675311
+            ],
+            "scorePercentiles" : {
+                "0.0" : 298.45251107828653,
+                "50.0" : 304.65911489746685,
+                "90.0" : 308.2447257594905,
+                "95.0" : 309.4096454489545,
+                "99.0" : 309.4096454489545,
+                "99.9" : 309.4096454489545,
+                "99.99" : 309.4096454489545,
+                "99.999" : 309.4096454489545,
+                "99.9999" : 309.4096454489545,
+                "100.0" : 309.4096454489545
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    304.8422935668982,
+                    304.65911489746685,
+                    303.5025165264423,
+                    303.5139600360577,
+                    309.4096454489545
+                ],
+                [
+                    298.45251107828653,
+                    300.33183442330557,
+                    299.0100005963029,
+                    298.6218592964824,
+                    298.6532995269072
+                ],
+                [
+                    306.9070853584447,
+                    306.98448433221785,
+                    306.8059018237082,
+                    306.8482433171324,
+                    307.46811263318114
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.optimized",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 3,
+        "jvm" : "/Applications/Bitwig Studio.app/Contents/PlugIns/JavaVM-arm64.bundle/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dpull.benchmark.frames=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/frames"
+        ],
+        "jdkVersion" : "25.0.4.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "25.0.4.1+1-LTS",
+        "warmupIterations" : 4,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "content" : "capture"
+        },
+        "primaryMetric" : {
+            "score" : 127.69994710019209,
+            "scoreError" : 0.5036057925102827,
+            "scoreConfidence" : [
+                127.1963413076818,
+                128.20355289270236
+            ],
+            "scorePercentiles" : {
+                "0.0" : 126.94019416865653,
+                "50.0" : 127.65791520283078,
+                "90.0" : 128.39612010240748,
+                "95.0" : 128.92733988513083,
+                "99.0" : 128.92733988513083,
+                "99.9" : 128.92733988513083,
+                "99.99" : 128.92733988513083,
+                "99.999" : 128.92733988513083,
+                "99.9999" : 128.92733988513083,
+                "100.0" : 128.92733988513083
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    127.46655199394246,
+                    127.38085764809902,
+                    126.94019416865653,
+                    126.96481686777275,
+                    127.55482068442986
+                ],
+                [
+                    127.64791583470239,
+                    127.85613243346492,
+                    127.616483451238,
+                    127.98424036999494,
+                    127.70063012139606
+                ],
+                [
+                    127.65791520283078,
+                    127.82044634269805,
+                    128.92733988513083,
+                    128.0419735805919,
+                    127.93888791793313
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.optimized",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 3,
+        "jvm" : "/Applications/Bitwig Studio.app/Contents/PlugIns/JavaVM-arm64.bundle/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dpull.benchmark.frames=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/frames"
+        ],
+        "jdkVersion" : "25.0.4.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "25.0.4.1+1-LTS",
+        "warmupIterations" : 4,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "content" : "random"
+        },
+        "primaryMetric" : {
+            "score" : 232.86038059911226,
+            "scoreError" : 1.038499385285258,
+            "scoreConfidence" : [
+                231.821881213827,
+                233.89887998439752
+            ],
+            "scorePercentiles" : {
+                "0.0" : 231.76900711335475,
+                "50.0" : 232.42629245283018,
+                "90.0" : 234.58094880182895,
+                "95.0" : 234.6406118466899,
+                "99.0" : 234.6406118466899,
+                "99.9" : 234.6406118466899,
+                "99.99" : 234.6406118466899,
+                "99.999" : 234.6406118466899,
+                "99.9999" : 234.6406118466899,
+                "100.0" : 234.6406118466899
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    231.76900711335475,
+                    232.476582278481,
+                    232.08568803124282,
+                    234.6406118466899,
+                    234.54117343858834
+                ],
+                [
+                    234.42101810164772,
+                    233.52007235321312,
+                    232.3744154589372,
+                    232.63668816213726,
+                    232.42629245283018
+                ],
+                [
+                    232.15442817743047,
+                    232.34070262189513,
+                    232.07862141535614,
+                    233.227093511891,
+                    232.2133140229885
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.optimized",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 3,
+        "jvm" : "/Applications/Bitwig Studio.app/Contents/PlugIns/JavaVM-arm64.bundle/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dpull.benchmark.frames=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/frames"
+        ],
+        "jdkVersion" : "25.0.4.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "25.0.4.1+1-LTS",
+        "warmupIterations" : 4,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "content" : "gray"
+        },
+        "primaryMetric" : {
+            "score" : 119.8383443055429,
+            "scoreError" : 0.34483276547258335,
+            "scoreConfidence" : [
+                119.49351154007032,
+                120.18317707101549
+            ],
+            "scorePercentiles" : {
+                "0.0" : 119.38401690107553,
+                "50.0" : 119.78407257203843,
+                "90.0" : 120.37512252014929,
+                "95.0" : 120.67412159731383,
+                "99.0" : 120.67412159731383,
+                "99.9" : 120.67412159731383,
+                "99.99" : 120.67412159731383,
+                "99.999" : 120.67412159731383,
+                "99.9999" : 120.67412159731383,
+                "100.0" : 120.67412159731383
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    119.90351471984805,
+                    119.7114541360512,
+                    119.78407257203843,
+                    119.92322604772646,
+                    119.84054561632459
+                ],
+                [
+                    119.88874872403561,
+                    120.14603931847968,
+                    120.17578980203959,
+                    120.67412159731383,
+                    119.56693434403725
+                ],
+                [
+                    119.38401690107553,
+                    119.39598605200946,
+                    119.76214334835191,
+                    119.73766204362256,
+                    119.68090936018957
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.optimized",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 3,
+        "jvm" : "/Applications/Bitwig Studio.app/Contents/PlugIns/JavaVM-arm64.bundle/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dpull.benchmark.frames=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/frames"
+        ],
+        "jdkVersion" : "25.0.4.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "25.0.4.1+1-LTS",
+        "warmupIterations" : 4,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "content" : "unchanged"
+        },
+        "primaryMetric" : {
+            "score" : 25.077057017535903,
+            "scoreError" : 1.2643773699842835,
+            "scoreConfidence" : [
+                23.81267964755162,
+                26.341434387520188
+            ],
+            "scorePercentiles" : {
+                "0.0" : 24.171914778030395,
+                "50.0" : 24.245055208833413,
+                "90.0" : 27.290205209684885,
+                "95.0" : 27.503214274044222,
+                "99.0" : 27.503214274044222,
+                "99.9" : 27.503214274044222,
+                "99.99" : 27.503214274044222,
+                "99.999" : 27.503214274044222,
+                "99.9999" : 27.503214274044222,
+                "100.0" : 27.503214274044222
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    24.245055208833413,
+                    24.390672800154544,
+                    24.22928809940749,
+                    25.87980211642923,
+                    27.14819916677866
+                ],
+                [
+                    24.171914778030395,
+                    24.209318010604353,
+                    24.206168085312182,
+                    25.465880439715598,
+                    26.319341307066917
+                ],
+                [
+                    24.204080781212557,
+                    24.17820291569115,
+                    24.204167673136833,
+                    25.80054960662103,
+                    27.503214274044222
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    }
+]
+
+

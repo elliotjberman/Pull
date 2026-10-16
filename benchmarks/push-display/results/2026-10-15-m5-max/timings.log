@@ -1,0 +1,849 @@
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# JMH version: 1.37
+# VM version: JDK 25.0.4.1, OpenJDK 64-Bit Server VM, 25.0.4.1+1-LTS
+# VM invoker: /Applications/Bitwig Studio.app/Contents/PlugIns/JavaVM-arm64.bundle/Contents/Home/bin/java
+# VM options: -Dpull.benchmark.frames=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/frames
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 4 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.baseline
+# Parameters: (content = capture)
+
+# Run progress: 0.00% complete, ETA 00:05:24
+# Fork: 1 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 315.666 us/op
+# Warmup Iteration   2: 312.722 us/op
+# Warmup Iteration   3: 312.100 us/op
+# Warmup Iteration   4: 311.754 us/op
+Iteration   1: 312.087 us/op
+Iteration   2: 311.210 us/op
+Iteration   3: 311.256 us/op
+Iteration   4: 310.793 us/op
+Iteration   5: 311.542 us/op
+
+# Run progress: 2.78% complete, ETA 00:05:26
+# Fork: 2 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 316.638 us/op
+# Warmup Iteration   2: 314.130 us/op
+# Warmup Iteration   3: 313.886 us/op
+# Warmup Iteration   4: 314.665 us/op
+Iteration   1: 314.187 us/op
+Iteration   2: 314.094 us/op
+Iteration   3: 314.116 us/op
+Iteration   4: 313.840 us/op
+Iteration   5: 314.440 us/op
+
+# Run progress: 5.56% complete, ETA 00:05:16
+# Fork: 3 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 312.577 us/op
+# Warmup Iteration   2: 311.404 us/op
+# Warmup Iteration   3: 310.177 us/op
+# Warmup Iteration   4: 310.193 us/op
+Iteration   1: 310.337 us/op
+Iteration   2: 310.384 us/op
+Iteration   3: 313.015 us/op
+Iteration   4: 311.073 us/op
+Iteration   5: 310.932 us/op
+
+
+Result "de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.baseline":
+  312.220 ±(99.9%) 1.654 us/op [Average]
+  (min, avg, max) = (310.337, 312.220, 314.440), stdev = 1.547
+  CI (99.9%): [310.566, 313.874] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 25.0.4.1, OpenJDK 64-Bit Server VM, 25.0.4.1+1-LTS
+# VM invoker: /Applications/Bitwig Studio.app/Contents/PlugIns/JavaVM-arm64.bundle/Contents/Home/bin/java
+# VM options: -Dpull.benchmark.frames=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/frames
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 4 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.baseline
+# Parameters: (content = random)
+
+# Run progress: 8.33% complete, ETA 00:05:07
+# Fork: 1 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 686.772 us/op
+# Warmup Iteration   2: 681.549 us/op
+# Warmup Iteration   3: 679.967 us/op
+# Warmup Iteration   4: 681.278 us/op
+Iteration   1: 680.602 us/op
+Iteration   2: 680.357 us/op
+Iteration   3: 680.109 us/op
+Iteration   4: 679.295 us/op
+Iteration   5: 683.545 us/op
+
+# Run progress: 11.11% complete, ETA 00:04:57
+# Fork: 2 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 684.469 us/op
+# Warmup Iteration   2: 680.132 us/op
+# Warmup Iteration   3: 679.666 us/op
+# Warmup Iteration   4: 682.111 us/op
+Iteration   1: 680.125 us/op
+Iteration   2: 680.038 us/op
+Iteration   3: 680.108 us/op
+Iteration   4: 681.281 us/op
+Iteration   5: 679.612 us/op
+
+# Run progress: 13.89% complete, ETA 00:04:48
+# Fork: 3 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 683.717 us/op
+# Warmup Iteration   2: 681.302 us/op
+# Warmup Iteration   3: 680.693 us/op
+# Warmup Iteration   4: 679.407 us/op
+Iteration   1: 679.736 us/op
+Iteration   2: 680.430 us/op
+Iteration   3: 679.718 us/op
+Iteration   4: 688.904 us/op
+Iteration   5: 680.383 us/op
+
+
+Result "de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.baseline":
+  680.950 ±(99.9%) 2.581 us/op [Average]
+  (min, avg, max) = (679.295, 680.950, 688.904), stdev = 2.414
+  CI (99.9%): [678.368, 683.531] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 25.0.4.1, OpenJDK 64-Bit Server VM, 25.0.4.1+1-LTS
+# VM invoker: /Applications/Bitwig Studio.app/Contents/PlugIns/JavaVM-arm64.bundle/Contents/Home/bin/java
+# VM options: -Dpull.benchmark.frames=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/frames
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 4 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.baseline
+# Parameters: (content = gray)
+
+# Run progress: 16.67% complete, ETA 00:04:38
+# Fork: 1 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 326.192 us/op
+# Warmup Iteration   2: 325.006 us/op
+# Warmup Iteration   3: 325.046 us/op
+# Warmup Iteration   4: 325.492 us/op
+Iteration   1: 324.713 us/op
+Iteration   2: 324.419 us/op
+Iteration   3: 324.652 us/op
+Iteration   4: 324.230 us/op
+Iteration   5: 324.190 us/op
+
+# Run progress: 19.44% complete, ETA 00:04:29
+# Fork: 2 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 326.426 us/op
+# Warmup Iteration   2: 324.525 us/op
+# Warmup Iteration   3: 324.217 us/op
+# Warmup Iteration   4: 324.237 us/op
+Iteration   1: 326.055 us/op
+Iteration   2: 325.124 us/op
+Iteration   3: 325.225 us/op
+Iteration   4: 325.249 us/op
+Iteration   5: 325.152 us/op
+
+# Run progress: 22.22% complete, ETA 00:04:19
+# Fork: 3 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 326.735 us/op
+# Warmup Iteration   2: 324.784 us/op
+# Warmup Iteration   3: 324.606 us/op
+# Warmup Iteration   4: 324.506 us/op
+Iteration   1: 324.554 us/op
+Iteration   2: 324.689 us/op
+Iteration   3: 324.732 us/op
+Iteration   4: 324.720 us/op
+Iteration   5: 325.246 us/op
+
+
+Result "de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.baseline":
+  324.863 ±(99.9%) 0.518 us/op [Average]
+  (min, avg, max) = (324.190, 324.863, 326.055), stdev = 0.484
+  CI (99.9%): [324.346, 325.381] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 25.0.4.1, OpenJDK 64-Bit Server VM, 25.0.4.1+1-LTS
+# VM invoker: /Applications/Bitwig Studio.app/Contents/PlugIns/JavaVM-arm64.bundle/Contents/Home/bin/java
+# VM options: -Dpull.benchmark.frames=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/frames
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 4 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.baseline
+# Parameters: (content = unchanged)
+
+# Run progress: 25.00% complete, ETA 00:04:10
+# Fork: 1 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 374.866 us/op
+# Warmup Iteration   2: 370.958 us/op
+# Warmup Iteration   3: 370.446 us/op
+# Warmup Iteration   4: 370.418 us/op
+Iteration   1: 371.399 us/op
+Iteration   2: 373.537 us/op
+Iteration   3: 371.257 us/op
+Iteration   4: 372.842 us/op
+Iteration   5: 371.511 us/op
+
+# Run progress: 27.78% complete, ETA 00:04:01
+# Fork: 2 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 375.685 us/op
+# Warmup Iteration   2: 373.341 us/op
+# Warmup Iteration   3: 373.377 us/op
+# Warmup Iteration   4: 373.658 us/op
+Iteration   1: 373.086 us/op
+Iteration   2: 372.371 us/op
+Iteration   3: 371.841 us/op
+Iteration   4: 373.010 us/op
+Iteration   5: 372.708 us/op
+
+# Run progress: 30.56% complete, ETA 00:03:51
+# Fork: 3 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 371.612 us/op
+# Warmup Iteration   2: 369.035 us/op
+# Warmup Iteration   3: 369.682 us/op
+# Warmup Iteration   4: 370.186 us/op
+Iteration   1: 370.163 us/op
+Iteration   2: 369.147 us/op
+Iteration   3: 368.907 us/op
+Iteration   4: 369.049 us/op
+Iteration   5: 370.358 us/op
+
+
+Result "de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.baseline":
+  371.412 ±(99.9%) 1.676 us/op [Average]
+  (min, avg, max) = (368.907, 371.412, 373.537), stdev = 1.567
+  CI (99.9%): [369.737, 373.088] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 25.0.4.1, OpenJDK 64-Bit Server VM, 25.0.4.1+1-LTS
+# VM invoker: /Applications/Bitwig Studio.app/Contents/PlugIns/JavaVM-arm64.bundle/Contents/Home/bin/java
+# VM options: -Dpull.benchmark.frames=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/frames
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 4 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.baselineBulkCopy
+# Parameters: (content = capture)
+
+# Run progress: 33.33% complete, ETA 00:03:42
+# Fork: 1 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 247.528 us/op
+# Warmup Iteration   2: 247.135 us/op
+# Warmup Iteration   3: 246.916 us/op
+# Warmup Iteration   4: 246.575 us/op
+Iteration   1: 246.977 us/op
+Iteration   2: 246.522 us/op
+Iteration   3: 246.759 us/op
+Iteration   4: 248.754 us/op
+Iteration   5: 246.714 us/op
+
+# Run progress: 36.11% complete, ETA 00:03:33
+# Fork: 2 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 244.028 us/op
+# Warmup Iteration   2: 241.733 us/op
+# Warmup Iteration   3: 241.197 us/op
+# Warmup Iteration   4: 241.283 us/op
+Iteration   1: 241.372 us/op
+Iteration   2: 241.818 us/op
+Iteration   3: 241.806 us/op
+Iteration   4: 241.732 us/op
+Iteration   5: 241.787 us/op
+
+# Run progress: 38.89% complete, ETA 00:03:24
+# Fork: 3 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 248.786 us/op
+# Warmup Iteration   2: 247.389 us/op
+# Warmup Iteration   3: 248.529 us/op
+# Warmup Iteration   4: 248.845 us/op
+Iteration   1: 247.554 us/op
+Iteration   2: 248.004 us/op
+Iteration   3: 247.466 us/op
+Iteration   4: 247.532 us/op
+Iteration   5: 247.207 us/op
+
+
+Result "de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.baselineBulkCopy":
+  245.467 ±(99.9%) 3.003 us/op [Average]
+  (min, avg, max) = (241.372, 245.467, 248.754), stdev = 2.809
+  CI (99.9%): [242.464, 248.470] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 25.0.4.1, OpenJDK 64-Bit Server VM, 25.0.4.1+1-LTS
+# VM invoker: /Applications/Bitwig Studio.app/Contents/PlugIns/JavaVM-arm64.bundle/Contents/Home/bin/java
+# VM options: -Dpull.benchmark.frames=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/frames
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 4 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.baselineBulkCopy
+# Parameters: (content = random)
+
+# Run progress: 41.67% complete, ETA 00:03:14
+# Fork: 1 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 615.789 us/op
+# Warmup Iteration   2: 614.176 us/op
+# Warmup Iteration   3: 612.213 us/op
+# Warmup Iteration   4: 611.575 us/op
+Iteration   1: 610.887 us/op
+Iteration   2: 611.962 us/op
+Iteration   3: 611.508 us/op
+Iteration   4: 612.635 us/op
+Iteration   5: 611.152 us/op
+
+# Run progress: 44.44% complete, ETA 00:03:05
+# Fork: 2 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 617.257 us/op
+# Warmup Iteration   2: 612.636 us/op
+# Warmup Iteration   3: 613.131 us/op
+# Warmup Iteration   4: 611.616 us/op
+Iteration   1: 612.274 us/op
+Iteration   2: 612.037 us/op
+Iteration   3: 611.804 us/op
+Iteration   4: 618.633 us/op
+Iteration   5: 614.074 us/op
+
+# Run progress: 47.22% complete, ETA 00:02:56
+# Fork: 3 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 601.992 us/op
+# Warmup Iteration   2: 599.064 us/op
+# Warmup Iteration   3: 598.635 us/op
+# Warmup Iteration   4: 597.939 us/op
+Iteration   1: 609.628 us/op
+Iteration   2: 597.404 us/op
+Iteration   3: 605.607 us/op
+Iteration   4: 603.651 us/op
+Iteration   5: 602.971 us/op
+
+
+Result "de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.baselineBulkCopy":
+  609.748 ±(99.9%) 5.612 us/op [Average]
+  (min, avg, max) = (597.404, 609.748, 618.633), stdev = 5.249
+  CI (99.9%): [604.137, 615.360] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 25.0.4.1, OpenJDK 64-Bit Server VM, 25.0.4.1+1-LTS
+# VM invoker: /Applications/Bitwig Studio.app/Contents/PlugIns/JavaVM-arm64.bundle/Contents/Home/bin/java
+# VM options: -Dpull.benchmark.frames=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/frames
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 4 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.baselineBulkCopy
+# Parameters: (content = gray)
+
+# Run progress: 50.00% complete, ETA 00:02:46
+# Fork: 1 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 257.171 us/op
+# Warmup Iteration   2: 255.350 us/op
+# Warmup Iteration   3: 256.173 us/op
+# Warmup Iteration   4: 255.083 us/op
+Iteration   1: 254.877 us/op
+Iteration   2: 254.726 us/op
+Iteration   3: 254.836 us/op
+Iteration   4: 254.951 us/op
+Iteration   5: 255.556 us/op
+
+# Run progress: 52.78% complete, ETA 00:02:37
+# Fork: 2 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 256.035 us/op
+# Warmup Iteration   2: 254.637 us/op
+# Warmup Iteration   3: 254.966 us/op
+# Warmup Iteration   4: 254.934 us/op
+Iteration   1: 254.633 us/op
+Iteration   2: 254.755 us/op
+Iteration   3: 255.778 us/op
+Iteration   4: 255.312 us/op
+Iteration   5: 254.623 us/op
+
+# Run progress: 55.56% complete, ETA 00:02:28
+# Fork: 3 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 255.609 us/op
+# Warmup Iteration   2: 254.584 us/op
+# Warmup Iteration   3: 254.335 us/op
+# Warmup Iteration   4: 254.831 us/op
+Iteration   1: 254.831 us/op
+Iteration   2: 254.720 us/op
+Iteration   3: 254.834 us/op
+Iteration   4: 254.509 us/op
+Iteration   5: 254.569 us/op
+
+
+Result "de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.baselineBulkCopy":
+  254.901 ±(99.9%) 0.392 us/op [Average]
+  (min, avg, max) = (254.509, 254.901, 255.778), stdev = 0.367
+  CI (99.9%): [254.509, 255.293] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 25.0.4.1, OpenJDK 64-Bit Server VM, 25.0.4.1+1-LTS
+# VM invoker: /Applications/Bitwig Studio.app/Contents/PlugIns/JavaVM-arm64.bundle/Contents/Home/bin/java
+# VM options: -Dpull.benchmark.frames=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/frames
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 4 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.baselineBulkCopy
+# Parameters: (content = unchanged)
+
+# Run progress: 58.33% complete, ETA 00:02:19
+# Fork: 1 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 304.875 us/op
+# Warmup Iteration   2: 302.164 us/op
+# Warmup Iteration   3: 301.285 us/op
+# Warmup Iteration   4: 301.202 us/op
+Iteration   1: 304.842 us/op
+Iteration   2: 304.659 us/op
+Iteration   3: 303.503 us/op
+Iteration   4: 303.514 us/op
+Iteration   5: 309.410 us/op
+
+# Run progress: 61.11% complete, ETA 00:02:09
+# Fork: 2 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 302.238 us/op
+# Warmup Iteration   2: 298.939 us/op
+# Warmup Iteration   3: 301.287 us/op
+# Warmup Iteration   4: 299.085 us/op
+Iteration   1: 298.453 us/op
+Iteration   2: 300.332 us/op
+Iteration   3: 299.010 us/op
+Iteration   4: 298.622 us/op
+Iteration   5: 298.653 us/op
+
+# Run progress: 63.89% complete, ETA 00:02:00
+# Fork: 3 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 309.564 us/op
+# Warmup Iteration   2: 307.698 us/op
+# Warmup Iteration   3: 307.117 us/op
+# Warmup Iteration   4: 308.121 us/op
+Iteration   1: 306.907 us/op
+Iteration   2: 306.984 us/op
+Iteration   3: 306.806 us/op
+Iteration   4: 306.848 us/op
+Iteration   5: 307.468 us/op
+
+
+Result "de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.baselineBulkCopy":
+  303.734 ±(99.9%) 4.059 us/op [Average]
+  (min, avg, max) = (298.453, 303.734, 309.410), stdev = 3.797
+  CI (99.9%): [299.675, 307.793] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 25.0.4.1, OpenJDK 64-Bit Server VM, 25.0.4.1+1-LTS
+# VM invoker: /Applications/Bitwig Studio.app/Contents/PlugIns/JavaVM-arm64.bundle/Contents/Home/bin/java
+# VM options: -Dpull.benchmark.frames=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/frames
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 4 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.optimized
+# Parameters: (content = capture)
+
+# Run progress: 66.67% complete, ETA 00:01:51
+# Fork: 1 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 126.632 us/op
+# Warmup Iteration   2: 127.364 us/op
+# Warmup Iteration   3: 127.154 us/op
+# Warmup Iteration   4: 127.566 us/op
+Iteration   1: 127.467 us/op
+Iteration   2: 127.381 us/op
+Iteration   3: 126.940 us/op
+Iteration   4: 126.965 us/op
+Iteration   5: 127.555 us/op
+
+# Run progress: 69.44% complete, ETA 00:01:41
+# Fork: 2 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 127.112 us/op
+# Warmup Iteration   2: 127.653 us/op
+# Warmup Iteration   3: 127.594 us/op
+# Warmup Iteration   4: 127.608 us/op
+Iteration   1: 127.648 us/op
+Iteration   2: 127.856 us/op
+Iteration   3: 127.616 us/op
+Iteration   4: 127.984 us/op
+Iteration   5: 127.701 us/op
+
+# Run progress: 72.22% complete, ETA 00:01:32
+# Fork: 3 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 127.572 us/op
+# Warmup Iteration   2: 127.858 us/op
+# Warmup Iteration   3: 128.165 us/op
+# Warmup Iteration   4: 127.725 us/op
+Iteration   1: 127.658 us/op
+Iteration   2: 127.820 us/op
+Iteration   3: 128.927 us/op
+Iteration   4: 128.042 us/op
+Iteration   5: 127.939 us/op
+
+
+Result "de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.optimized":
+  127.700 ±(99.9%) 0.504 us/op [Average]
+  (min, avg, max) = (126.940, 127.700, 128.927), stdev = 0.471
+  CI (99.9%): [127.196, 128.204] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 25.0.4.1, OpenJDK 64-Bit Server VM, 25.0.4.1+1-LTS
+# VM invoker: /Applications/Bitwig Studio.app/Contents/PlugIns/JavaVM-arm64.bundle/Contents/Home/bin/java
+# VM options: -Dpull.benchmark.frames=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/frames
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 4 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.optimized
+# Parameters: (content = random)
+
+# Run progress: 75.00% complete, ETA 00:01:23
+# Fork: 1 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 229.150 us/op
+# Warmup Iteration   2: 232.137 us/op
+# Warmup Iteration   3: 232.253 us/op
+# Warmup Iteration   4: 232.039 us/op
+Iteration   1: 231.769 us/op
+Iteration   2: 232.477 us/op
+Iteration   3: 232.086 us/op
+Iteration   4: 234.641 us/op
+Iteration   5: 234.541 us/op
+
+# Run progress: 77.78% complete, ETA 00:01:14
+# Fork: 2 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 231.691 us/op
+# Warmup Iteration   2: 234.597 us/op
+# Warmup Iteration   3: 234.366 us/op
+# Warmup Iteration   4: 234.623 us/op
+Iteration   1: 234.421 us/op
+Iteration   2: 233.520 us/op
+Iteration   3: 232.374 us/op
+Iteration   4: 232.637 us/op
+Iteration   5: 232.426 us/op
+
+# Run progress: 80.56% complete, ETA 00:01:04
+# Fork: 3 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 229.525 us/op
+# Warmup Iteration   2: 232.566 us/op
+# Warmup Iteration   3: 232.173 us/op
+# Warmup Iteration   4: 232.401 us/op
+Iteration   1: 232.154 us/op
+Iteration   2: 232.341 us/op
+Iteration   3: 232.079 us/op
+Iteration   4: 233.227 us/op
+Iteration   5: 232.213 us/op
+
+
+Result "de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.optimized":
+  232.860 ±(99.9%) 1.038 us/op [Average]
+  (min, avg, max) = (231.769, 232.860, 234.641), stdev = 0.971
+  CI (99.9%): [231.822, 233.899] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 25.0.4.1, OpenJDK 64-Bit Server VM, 25.0.4.1+1-LTS
+# VM invoker: /Applications/Bitwig Studio.app/Contents/PlugIns/JavaVM-arm64.bundle/Contents/Home/bin/java
+# VM options: -Dpull.benchmark.frames=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/frames
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 4 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.optimized
+# Parameters: (content = gray)
+
+# Run progress: 83.33% complete, ETA 00:00:55
+# Fork: 1 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 119.489 us/op
+# Warmup Iteration   2: 119.642 us/op
+# Warmup Iteration   3: 119.784 us/op
+# Warmup Iteration   4: 119.756 us/op
+Iteration   1: 119.904 us/op
+Iteration   2: 119.711 us/op
+Iteration   3: 119.784 us/op
+Iteration   4: 119.923 us/op
+Iteration   5: 119.841 us/op
+
+# Run progress: 86.11% complete, ETA 00:00:46
+# Fork: 2 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 119.595 us/op
+# Warmup Iteration   2: 119.723 us/op
+# Warmup Iteration   3: 120.524 us/op
+# Warmup Iteration   4: 120.200 us/op
+Iteration   1: 119.889 us/op
+Iteration   2: 120.146 us/op
+Iteration   3: 120.176 us/op
+Iteration   4: 120.674 us/op
+Iteration   5: 119.567 us/op
+
+# Run progress: 88.89% complete, ETA 00:00:37
+# Fork: 3 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 119.495 us/op
+# Warmup Iteration   2: 119.746 us/op
+# Warmup Iteration   3: 119.560 us/op
+# Warmup Iteration   4: 119.501 us/op
+Iteration   1: 119.384 us/op
+Iteration   2: 119.396 us/op
+Iteration   3: 119.762 us/op
+Iteration   4: 119.738 us/op
+Iteration   5: 119.681 us/op
+
+
+Result "de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.optimized":
+  119.838 ±(99.9%) 0.345 us/op [Average]
+  (min, avg, max) = (119.384, 119.838, 120.674), stdev = 0.323
+  CI (99.9%): [119.494, 120.183] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 25.0.4.1, OpenJDK 64-Bit Server VM, 25.0.4.1+1-LTS
+# VM invoker: /Applications/Bitwig Studio.app/Contents/PlugIns/JavaVM-arm64.bundle/Contents/Home/bin/java
+# VM options: -Dpull.benchmark.frames=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/frames
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 4 iterations, 1 s each
+# Measurement: 5 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.optimized
+# Parameters: (content = unchanged)
+
+# Run progress: 91.67% complete, ETA 00:00:27
+# Fork: 1 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 24.261 us/op
+# Warmup Iteration   2: 24.214 us/op
+# Warmup Iteration   3: 24.210 us/op
+# Warmup Iteration   4: 24.261 us/op
+Iteration   1: 24.245 us/op
+Iteration   2: 24.391 us/op
+Iteration   3: 24.229 us/op
+Iteration   4: 25.880 us/op
+Iteration   5: 27.148 us/op
+
+# Run progress: 94.44% complete, ETA 00:00:18
+# Fork: 2 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 24.251 us/op
+# Warmup Iteration   2: 24.140 us/op
+# Warmup Iteration   3: 24.170 us/op
+# Warmup Iteration   4: 24.207 us/op
+Iteration   1: 24.172 us/op
+Iteration   2: 24.209 us/op
+Iteration   3: 24.206 us/op
+Iteration   4: 25.466 us/op
+Iteration   5: 26.319 us/op
+
+# Run progress: 97.22% complete, ETA 00:00:09
+# Fork: 3 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/jmh-core-1.37.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 24.278 us/op
+# Warmup Iteration   2: 24.193 us/op
+# Warmup Iteration   3: 24.278 us/op
+# Warmup Iteration   4: 24.266 us/op
+Iteration   1: 24.204 us/op
+Iteration   2: 24.178 us/op
+Iteration   3: 24.204 us/op
+Iteration   4: 25.801 us/op
+Iteration   5: 27.503 us/op
+
+
+Result "de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.optimized":
+  25.077 ±(99.9%) 1.264 us/op [Average]
+  (min, avg, max) = (24.172, 25.077, 27.503), stdev = 1.183
+  CI (99.9%): [23.813, 26.341] (assumes normal distribution)
+
+
+# Run complete. Total time: 00:05:33
+
+REMEMBER: The numbers below are just data. To gain reusable insights, you need to follow up on
+why the numbers are the way they are. Use profilers (see -prof, -lprof), design factorial
+experiments, perform baseline and negative tests that provide experimental control, make sure
+the benchmarking environment is safe on JVM/OS/HW level, ask for reviews from the domain experts.
+Do not assume the numbers tell you what you want them to tell.
+
+NOTE: Current JVM experimentally supports Compiler Blackholes, and they are in use. Please exercise
+extra caution when trusting the results, look into the generated code to check the benchmark still
+works, and factor in a small probability of new VM bugs. Additionally, while comparisons between
+different JVMs are already problematic, the performance difference caused by different Blackhole
+modes can be very significant. Please make sure you use the consistent Blackhole mode for comparisons.
+
+Benchmark                        (content)  Mode  Cnt    Score   Error  Units
+FrameBenchmark.baseline            capture  avgt   15  312.220 ± 1.654  us/op
+FrameBenchmark.baseline             random  avgt   15  680.950 ± 2.581  us/op
+FrameBenchmark.baseline               gray  avgt   15  324.863 ± 0.518  us/op
+FrameBenchmark.baseline          unchanged  avgt   15  371.412 ± 1.676  us/op
+FrameBenchmark.baselineBulkCopy    capture  avgt   15  245.467 ± 3.003  us/op
+FrameBenchmark.baselineBulkCopy     random  avgt   15  609.748 ± 5.612  us/op
+FrameBenchmark.baselineBulkCopy       gray  avgt   15  254.901 ± 0.392  us/op
+FrameBenchmark.baselineBulkCopy  unchanged  avgt   15  303.734 ± 4.059  us/op
+FrameBenchmark.optimized           capture  avgt   15  127.700 ± 0.504  us/op
+FrameBenchmark.optimized            random  avgt   15  232.860 ± 1.038  us/op
+FrameBenchmark.optimized              gray  avgt   15  119.838 ± 0.345  us/op
+FrameBenchmark.optimized         unchanged  avgt   15   25.077 ± 1.264  us/op
+
+Benchmark result is saved to /Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/timings.json

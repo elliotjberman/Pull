@@ -1,0 +1,202 @@
+[
+  {
+    "name": "timings",
+    "command": [
+      "/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/tools/benchmark-push-display",
+      "-p",
+      "content=capture,random,gray,unchanged",
+      "-f",
+      "3",
+      "-wi",
+      "4",
+      "-i",
+      "5",
+      "-jvmArgsAppend",
+      "-Dpull.benchmark.frames=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/frames",
+      "-rf",
+      "json",
+      "-rff",
+      "/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/timings.json"
+    ],
+    "filter": "FrameBenchmark.(baseline|baselineBulkCopy|optimized)$",
+    "seconds": 334.427948083
+  },
+  {
+    "name": "without-superword",
+    "command": [
+      "/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/tools/benchmark-push-display",
+      "-p",
+      "content=random",
+      "-f",
+      "3",
+      "-wi",
+      "4",
+      "-i",
+      "5",
+      "-jvmArgsAppend",
+      "-XX:-UseSuperWord",
+      "-rf",
+      "json",
+      "-rff",
+      "/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/without-superword.json"
+    ],
+    "filter": "FrameBenchmark.optimized$",
+    "seconds": 28.48941908400002
+  },
+  {
+    "name": "latency",
+    "command": [
+      "/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/tools/benchmark-push-display",
+      "-p",
+      "content=capture,random",
+      "-f",
+      "2",
+      "-wi",
+      "3",
+      "-i",
+      "2",
+      "-r",
+      "3s",
+      "-bm",
+      "sample",
+      "-jvmArgsAppend",
+      "-Dpull.benchmark.frames=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/frames",
+      "-rf",
+      "json",
+      "-rff",
+      "/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/latency.json"
+    ],
+    "filter": "FrameBenchmark.(baseline|optimized)$",
+    "seconds": 74.73314883300003
+  },
+  {
+    "name": "profile-baseline-capture",
+    "command": [
+      "/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/tools/benchmark-push-display",
+      "-p",
+      "content=capture",
+      "-f",
+      "1",
+      "-wi",
+      "3",
+      "-i",
+      "1",
+      "-r",
+      "12s",
+      "-jvmArgsAppend",
+      "-Dpull.benchmark.frames=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/frames",
+      "-prof",
+      "async:libPath=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/async-profiler-4.5-macos/lib/libasyncProfiler.dylib;event=cpu;interval=1000000;output=flamegraph;dir=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/profiles"
+    ],
+    "filter": "FrameBenchmark.baseline$",
+    "seconds": 16.158476334
+  },
+  {
+    "name": "profile-baseline-random",
+    "command": [
+      "/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/tools/benchmark-push-display",
+      "-p",
+      "content=random",
+      "-f",
+      "1",
+      "-wi",
+      "3",
+      "-i",
+      "1",
+      "-r",
+      "12s",
+      "-jvmArgsAppend",
+      "-Dpull.benchmark.frames=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/frames",
+      "-prof",
+      "async:libPath=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/async-profiler-4.5-macos/lib/libasyncProfiler.dylib;event=cpu;interval=1000000;output=flamegraph;dir=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/profiles"
+    ],
+    "filter": "FrameBenchmark.baseline$",
+    "seconds": 16.138126
+  },
+  {
+    "name": "profile-optimized-capture",
+    "command": [
+      "/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/tools/benchmark-push-display",
+      "-p",
+      "content=capture",
+      "-f",
+      "1",
+      "-wi",
+      "3",
+      "-i",
+      "1",
+      "-r",
+      "12s",
+      "-jvmArgsAppend",
+      "-Dpull.benchmark.frames=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/frames",
+      "-prof",
+      "async:libPath=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/async-profiler-4.5-macos/lib/libasyncProfiler.dylib;event=cpu;interval=1000000;output=flamegraph;dir=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/profiles"
+    ],
+    "filter": "FrameBenchmark.optimized$",
+    "seconds": 16.169204415999957
+  },
+  {
+    "name": "profile-optimized-random",
+    "command": [
+      "/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/tools/benchmark-push-display",
+      "-p",
+      "content=random",
+      "-f",
+      "1",
+      "-wi",
+      "3",
+      "-i",
+      "1",
+      "-r",
+      "12s",
+      "-jvmArgsAppend",
+      "-Dpull.benchmark.frames=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/frames",
+      "-prof",
+      "async:libPath=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/deps/async-profiler-4.5-macos/lib/libasyncProfiler.dylib;event=cpu;interval=1000000;output=flamegraph;dir=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/profiles"
+    ],
+    "filter": "FrameBenchmark.optimized$",
+    "seconds": 16.134184457999993
+  },
+  {
+    "name": "assembly",
+    "command": [
+      "/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/tools/benchmark-push-display",
+      "-p",
+      "content=random",
+      "-f",
+      "1",
+      "-wi",
+      "3",
+      "-i",
+      "1",
+      "-jvmArgsAppend",
+      "-Xbatch -XX:CompileCommand=print,de.mossgrabers.controller.ableton.push.controller.PushFrameEncoder::*"
+    ],
+    "filter": "FrameBenchmark.optimized$",
+    "seconds": 5.060857334000048
+  },
+  {
+    "name": "allocation",
+    "command": [
+      "/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/tools/benchmark-push-display",
+      "-p",
+      "content=capture,random",
+      "-f",
+      "1",
+      "-wi",
+      "3",
+      "-i",
+      "3",
+      "-jvmArgsAppend",
+      "-Dpull.benchmark.frames=/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/frames",
+      "-prof",
+      "gc",
+      "-rf",
+      "json",
+      "-rff",
+      "/Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/target/display-benchmark/allocation.json"
+    ],
+    "filter": "FrameBenchmark.(baseline|optimized)$",
+    "seconds": 25.750156082999997
+  }
+]

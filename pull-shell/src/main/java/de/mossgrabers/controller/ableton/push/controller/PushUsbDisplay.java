@@ -4,7 +4,6 @@
 
 package de.mossgrabers.controller.ableton.push.controller;
 
-import java.nio.ByteBuffer;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -25,7 +24,7 @@ import de.mossgrabers.framework.usb.UsbException;
 public class PushUsbDisplay
 {
     /** The size of the display content. */
-    private static final int               DATA_SZ          = 20 * 0x4000;
+    private static final int               DATA_SZ          = PushFrameEncoder.DATA_SIZE;
 
     private static final int               TIMEOUT          = 1000;
 
@@ -54,7 +53,7 @@ public class PushUsbDisplay
     private final IHost                    host;
     private final IMemoryBlock             headerBlock;
     private final IMemoryBlock             imageBlock;
-    private final byte []                  byteStore        = new byte [DATA_SZ];
+    private final PushFrameEncoder         frameEncoder     = new PushFrameEncoder ();
 
     private final Object                   sendLock         = new Object ();
     private final Object                   bufferUpdateLock = new Object ();
@@ -100,37 +99,9 @@ public class PushUsbDisplay
         {
             image.encode ( (imageBuffer, width, height) -> {
 
-                int counter = 0;
-                final int padding = (DATA_SZ - height * width * 2) / height;
-
-                for (int y = 0; y < height; y++)
-                {
-                    for (int x = 0; x < width; x++)
-                    {
-                        final int blue = imageBuffer.get ();
-                        final int green = imageBuffer.get ();
-                        final int red = imageBuffer.get ();
-                        imageBuffer.get (); // Drop unused Alpha
-
-                        final int calibrated = PushColorCalibration.toDisplayRGB (red, green, blue);
-                        final int pixel = sPixelFromRGB (calibrated >> 16 & 0xFF, calibrated >> 8 & 0xFF, calibrated & 0xFF);
-
-                        this.byteStore[counter] = (byte) (pixel & 0x00FF);
-                        this.byteStore[counter + 1] = (byte) ((pixel & 0xFF00) >> 8);
-
-                        counter += 2;
-                    }
-
-                    for (int x = 0; x < padding; x++)
-                    {
-                        this.byteStore[counter] = (byte) 0x00;
-                        counter++;
-                    }
-                }
-
-                this.signalShaping ();
-
-                imageBuffer.rewind ();
+                if (width != PushFrameEncoder.WIDTH || height != PushFrameEncoder.HEIGHT)
+                    throw new IllegalArgumentException ("Push display requires a 960x160 bitmap");
+                this.frameEncoder.encode (imageBuffer);
             });
         }
 
@@ -142,36 +113,12 @@ public class PushUsbDisplay
     }
 
 
-    /**
-     * Before sending a line buffer, it must be XORED with the 32 bit signal shaping pattern
-     * 0xFFE7F3E7 (i.e. the pixel data bits at positions which are 1 in the pattern must be
-     * inverted).
-     *
-     * @see <a href=
-     *      "https://github.com/Ableton/push-interface/blob/master/doc/AbletonPush2MIDIDisplayInterface.asc#324-xoring-pixel-data">XORing
-     *      Pixel Data</a>
-     */
-    private void signalShaping ()
-    {
-        for (int pos = 0; pos < this.byteStore.length; pos += 4)
-        {
-            this.byteStore[pos] ^= 0xE7;
-            this.byteStore[pos + 1] ^= 0xF3;
-            this.byteStore[pos + 2] ^= 0xE7;
-            this.byteStore[pos + 3] ^= 0xFF;
-        }
-    }
-
-
     private void sendData ()
     {
         // Copy the data from the buffer to the USB block
         synchronized (this.bufferUpdateLock)
         {
-            final ByteBuffer buffer = this.imageBlock.createByteBuffer ();
-            buffer.clear ();
-            for (int i = 0; i < DATA_SZ; i++)
-                buffer.put (this.byteStore[i]);
+            this.frameEncoder.copyTo (this.imageBlock.createByteBuffer ());
         }
 
         // Send the data
@@ -220,16 +167,5 @@ public class PushUsbDisplay
     public boolean isShutdown ()
     {
         return this.sendExecutor.isShutdown ();
-    }
-
-
-    private static int sPixelFromRGB (final int red, final int green, final int blue)
-    {
-        int pixel = (blue & 0xF8) >> 3;
-        pixel <<= 6;
-        pixel += (green & 0xFC) >> 2;
-        pixel <<= 5;
-        pixel += (red & 0xF8) >> 3;
-        return pixel;
     }
 }
