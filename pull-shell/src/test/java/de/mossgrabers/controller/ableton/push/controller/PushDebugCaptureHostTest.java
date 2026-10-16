@@ -20,7 +20,9 @@ import java.util.List;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 
 /** Request identity and exact-frame contracts for the Push debugger capture transport. */
@@ -180,6 +182,74 @@ class PushDebugCaptureHostTest
         assertEquals ("3", metrics.get (3));
         assertEquals ("2", metrics.get (4));
         assertEquals (0xFF070809, ImageIO.read (this.debugDirectory.resolve (PushDebugCaptureHost.LATEST_IMAGE_FILE).toFile ()).getRGB (0, 0));
+    }
+
+
+    @Test
+    void zeroDisablesCopiesAndExplicitCapturesFromStartup () throws IOException
+    {
+        Files.writeString (this.debugDirectory.resolve (PushDebugCaptureHost.SAMPLE_RATE_FILE), "0\n");
+        final PushDebugCaptureHost host = new PushDebugCaptureHost (this.debugDirectory);
+        host.observeFrame (uncapturableFrame ());
+        for (final String suffix: List.of ("", "\tNEXT_FRAME"))
+        {
+            Files.writeString (this.debugDirectory.resolve (PushDebugCaptureHost.REQUEST_FILE), "disabled" + suffix + "\n");
+            host.pollForTest ();
+            host.pollForTest ();
+            assertEquals ("FAILED", this.status ().get (1));
+            assertTrue (this.status ().get (3).contains ("disabled"));
+        }
+        assertFalse (Files.exists (this.debugDirectory.resolve (PushDebugCaptureHost.LATEST_IMAGE_FILE)));
+        assertFalse (Files.exists (this.debugDirectory.resolve (PushDebugCaptureHost.LATEST_STATUS_FILE)));
+        assertFalse (Files.exists (this.debugDirectory.resolve ("display-disabled.png")));
+    }
+
+
+    @Test
+    void liveDisableFailsPendingCaptureAndCanResume () throws IOException
+    {
+        final PushDebugCaptureHost host = new PushDebugCaptureHost (this.debugDirectory);
+        host.observeFrame (new FakeBitmap (new byte [] {3, 2, 1, (byte) 255}, 1, 1));
+        final List<String> before = this.latestMetrics ();
+        Files.writeString (this.debugDirectory.resolve (PushDebugCaptureHost.REQUEST_FILE), "pending\tNEXT_FRAME\n");
+        host.pollForTest ();
+        Files.writeString (this.debugDirectory.resolve (PushDebugCaptureHost.SAMPLE_RATE_FILE), "0\n");
+        host.pollForTest ();
+        host.observeFrame (uncapturableFrame ());
+
+        assertEquals ("FAILED", this.status ().get (1));
+        assertFalse (Files.exists (this.debugDirectory.resolve ("display-pending.png")));
+        assertEquals (before, this.latestMetrics ());
+        Files.writeString (this.debugDirectory.resolve (PushDebugCaptureHost.SAMPLE_RATE_FILE), "1\n");
+        host.observeFrame (new FakeBitmap (new byte [] {6, 5, 4, (byte) 255}, 1, 1));
+        assertEquals (0xFF040506, ImageIO.read (this.debugDirectory.resolve (PushDebugCaptureHost.LATEST_IMAGE_FILE).toFile ()).getRGB (0, 0));
+    }
+
+
+    @Test
+    void disableDiscardsACachedCaptureQueuedForWriting () throws IOException
+    {
+        final PushDebugCaptureHost host = new PushDebugCaptureHost (this.debugDirectory);
+        host.observeFrame (new FakeBitmap (new byte [4], 1, 1));
+        Files.writeString (this.debugDirectory.resolve (PushDebugCaptureHost.REQUEST_FILE), "cached\n");
+        host.pollForTest ();
+        Files.writeString (this.debugDirectory.resolve (PushDebugCaptureHost.SAMPLE_RATE_FILE), "0\n");
+        host.pollForTest ();
+        assertEquals ("FAILED", this.status ().get (1));
+        assertFalse (Files.exists (this.debugDirectory.resolve ("display-cached.png")));
+    }
+
+
+    private static IBitmap uncapturableFrame ()
+    {
+        return new IBitmap ()
+        {
+            @Override
+            public void render (final boolean antialias, final IRenderer renderer) { fail ("Capture must not render"); }
+
+            @Override
+            public void encode (final IEncoder encoder) { fail ("Disabled capture must not copy framebuffer pixels"); }
+        };
     }
 
 

@@ -43,7 +43,7 @@ then
     exit 2
 fi
 
-if [[ ! -f "$enabled_path" ]]
+if [[ "$action" == "start" && ! -f "$enabled_path" ]]
 then
     echo "Push debugger is disabled. Run 'tools/capture-push2-display --enable', install the shell, and restart Bitwig." >&2
     exit 4

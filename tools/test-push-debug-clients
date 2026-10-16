@@ -184,4 +184,43 @@ failure_status=$?
 set -e
 [[ "$failure_status" == "1" && "$failure_output" == *"capture route is unavailable"* ]] || fail "capture client lost a server failure message"
 
+# The preset owns its lease when invoked directly and also works with Bitwig closed.
+new_debug_home
+env -u PULL_LIVE_LOCK_TOKEN -u PULL_LIVE_LOCK_OWNER_FILE HOME="$test_home" \
+    "${script_dir}/pull-performance" >/dev/null 2>&1
+[[ ! -e "$test_debug/enabled" && "$(cat "$test_debug/frame-sample-rate.txt")" == 0 ]] || fail "performance preset did not persist"
+[[ ! -e "$test_home/.drivenbymoss/pull/locks/live.owner" ]] || fail "preset retained its lease"
+env HOME="$test_home" "${script_dir}/pull-performance" >/dev/null 2>&1
+
+# Stop both active diagnostics even when the startup marker was already removed.
+printf 'selection-id\tHOLD_NOTE_COPIES\tdropped=0\t0\n' > "$test_debug/selection-status.txt"
+printf 'rejected-arm\tFAILED\tactive-trace\t-\tanother trace is already armed\n' > "$test_debug/trace-status.txt"
+(
+    wait_for_file "$test_debug/selection-request.txt"
+    IFS=$'\t' read -r request_id mode seconds < "$test_debug/selection-request.txt"
+    [[ "$mode" == OFF && "$seconds" == 0 ]] || fail "preset did not release diagnostic holds"
+    printf '%s\tOFF\tdropped=0\t0\n' "$request_id" > "$test_debug/selection-status.txt"
+    wait_for_file "$test_debug/trace-request.txt"
+    IFS=$'\t' read -r stop_id action trace_id < "$test_debug/trace-request.txt"
+    [[ "$action" == STOP && "$trace_id" == active-trace ]] || fail "preset stopped the wrong trace"
+    printf 'trace fixture\n' > "$test_debug/trace-fixture.tsv"
+    printf '%s\tREADY\t%s\ttrace-fixture.tsv\t-\n' "$stop_id" "$trace_id" > "$test_debug/trace-status.txt"
+) &
+env HOME="$test_home" "${script_dir}/pull-performance" >/dev/null 2>&1
+[[ -f "$test_debug/trace-fixture.tsv" ]] || fail "preset lost the trace artifact"
+assert_status 4 env HOME="$test_home" "${script_dir}/push-debug-trace" start disabled
+assert_status 1 env HOME="$test_home" "${script_dir}/push-debug-selection" run
+
+# A failed live stop must not prevent the startup-disable setting, or report full success.
+new_debug_home
+printf 'arm-id\tARMED\tactive-trace\t-\t-\n' > "$test_debug/trace-status.txt"
+(
+    wait_for_file "$test_debug/trace-request.txt"
+    [[ ! -e "$test_debug/enabled" ]] || fail "preset waited for the host before disabling startup debug"
+    IFS=$'\t' read -r stop_id _ < "$test_debug/trace-request.txt"
+    printf '%s\tFAILED\tactive-trace\t-\ttrace is unavailable\n' "$stop_id" > "$test_debug/trace-status.txt"
+) &
+assert_status 1 env HOME="$test_home" "${script_dir}/pull-performance"
+[[ ! -e "$test_debug/enabled" && "$(cat "$test_debug/frame-sample-rate.txt")" == 0 ]] || fail "failed trace stop reverted the preset"
+
 echo "Push debugger client tests passed."
