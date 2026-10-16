@@ -223,4 +223,23 @@ printf 'arm-id\tARMED\tactive-trace\t-\t-\n' > "$test_debug/trace-status.txt"
 assert_status 1 env HOME="$test_home" "${script_dir}/pull-performance"
 [[ ! -e "$test_debug/enabled" && "$(cat "$test_debug/frame-sample-rate.txt")" == 0 ]] || fail "failed trace stop reverted the preset"
 
+# Runtime shutdown is acknowledged only after the host's worker-retirement receipt.
+new_debug_home
+printf '%s\tON\n' "$$" > "$test_debug/runtime-status.txt"
+printf 'old\tARMED\told-trace\t-\t-\n' > "$test_debug/trace-status.txt"
+(
+    for _ in {1..200}; do
+        [[ ! -e "$test_debug/enabled" ]] && break
+        sleep 0.01
+    done
+    sleep 0.05
+    printf '%s\tOFF\n' "$$" > "$test_debug/runtime-status.txt"
+) &
+env HOME="$test_home" "${script_dir}/pull-performance" >/dev/null 2>&1
+[[ ! -e "$test_debug/trace-request.txt" ]] || fail "preset sent a legacy request after runtime worker shutdown"
+printf '%s\tFAILED\n' "$$" > "$test_debug/runtime-status.txt"
+assert_status 1 env HOME="$test_home" "${script_dir}/pull-debug-status" --wait-off
+printf '999999999\tOFF\n' > "$test_debug/runtime-status.txt"
+assert_status 2 env HOME="$test_home" "${script_dir}/pull-debug-status"
+
 echo "Push debugger client tests passed."

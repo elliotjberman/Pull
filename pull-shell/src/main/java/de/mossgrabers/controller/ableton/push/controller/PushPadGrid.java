@@ -80,7 +80,7 @@ final class PushPadGrid extends PadGridImpl
     /** Install the opt-in observer for complete successful pad transmissions. */
     void setDebugSurfaceObserver (final DebugSurfaceObserver debugSurfaceObserver)
     {
-        this.debugSurfaceObserver = Objects.requireNonNull (debugSurfaceObserver, "debugSurfaceObserver");
+        this.debugSurfaceObserver = debugSurfaceObserver;
     }
 
 

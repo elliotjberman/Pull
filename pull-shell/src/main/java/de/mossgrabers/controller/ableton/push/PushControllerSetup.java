@@ -169,6 +169,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
     {
         super.init ();
         this.reloadableRuntime.installControllerInputBridge (this.getSurface (), this.valueChanger);
+        this.reloadableRuntime.initializeDebugSettings (this.globalSettings);
     }
 
 

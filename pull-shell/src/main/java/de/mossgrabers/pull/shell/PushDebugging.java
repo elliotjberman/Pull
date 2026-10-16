@@ -8,6 +8,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Objects;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -18,7 +20,6 @@ public final class PushDebugging
 {
     private static final Path DIRECTORY = Path.of (System.getProperty ("user.home"), ".drivenbymoss", "pull", "debug");
     private static final Path ENABLED   = DIRECTORY.resolve ("enabled");
-    private static final long SHUTDOWN_WAIT_MILLIS = 250;
 
 
     private PushDebugging ()
@@ -52,20 +53,40 @@ public final class PushDebugging
     }
 
 
-    /** Drain and bound shutdown of one owned debug worker. */
+    /** Queue the final drain without waiting on the controller thread. */
     public static void shutdownWorker (final ScheduledExecutorService worker, final Runnable finalDrain)
     {
         worker.execute (Objects.requireNonNull (finalDrain, "finalDrain"));
         worker.shutdown ();
-        try
+    }
+
+
+    /** Exactly one session's workers; retirement runs off the controller thread. */
+    public static final class Workers
+    {
+        private final List<ScheduledExecutorService> workers = new ArrayList<> (6);
+
+        public ScheduledExecutorService create (final String name)
         {
-            if (!worker.awaitTermination (SHUTDOWN_WAIT_MILLIS, TimeUnit.MILLISECONDS))
-                worker.shutdownNow ();
+            if (this.workers.size () == 6)
+                throw new IllegalStateException ("Debug worker capacity exceeded");
+            final ScheduledExecutorService worker = createWorker (name);
+            this.workers.add (worker);
+            return worker;
         }
-        catch (final InterruptedException ex)
+
+        public void awaitStopped () throws InterruptedException
         {
-            worker.shutdownNow ();
-            Thread.currentThread ().interrupt ();
+            this.workers.forEach (ScheduledExecutorService::shutdown);
+            final long deadline = System.nanoTime () + TimeUnit.SECONDS.toNanos (2);
+            for (final ScheduledExecutorService worker: this.workers)
+            {
+                if (!worker.awaitTermination (Math.max (0, deadline - System.nanoTime ()), TimeUnit.NANOSECONDS))
+                {
+                    this.workers.forEach (ScheduledExecutorService::shutdownNow);
+                    throw new IllegalStateException ("Debug worker did not stop; restart required before re-enabling");
+                }
+            }
         }
     }
 

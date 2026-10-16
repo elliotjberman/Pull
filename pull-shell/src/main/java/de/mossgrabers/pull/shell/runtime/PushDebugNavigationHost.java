@@ -67,12 +67,9 @@ final class PushDebugNavigationHost implements AutoCloseable
     private ObservedNavigation lastObservation = ObservedNavigation.unavailable ();
 
 
-    static PushDebugNavigationHost createIfEnabled (final PushControlSurface surface, final GestureAdmission admission, final Supplier<ControllerBridge.NotePerformanceState> notePerformanceState, final Function<ControlId, ControllerRuntimeEnvironment.DebugLightObservation> lightObservation)
+    static PushDebugNavigationHost create (final PushDebugging.Workers workers, final PushControlSurface surface, final GestureAdmission admission, final Supplier<ControllerBridge.NotePerformanceState> notePerformanceState, final Function<ControlId, ControllerRuntimeEnvironment.DebugLightObservation> lightObservation)
     {
-        if (!PushDebugging.isEnabled ())
-            return null;
-
-        final ScheduledExecutorService worker = PushDebugging.createWorker ("Pull debug navigation transport");
+        final ScheduledExecutorService worker = workers.create ("Pull debug navigation transport");
         final PushDebugNavigationHost host = new PushDebugNavigationHost (
             PushDebugging.directory (), new PushNavigationSurface (surface, notePerformanceState, lightObservation), admission, worker);
         worker.scheduleWithFixedDelay (host::pollFilesSafely, 0, POLL_INTERVAL_MILLIS, TimeUnit.MILLISECONDS);

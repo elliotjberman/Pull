@@ -282,6 +282,24 @@ class PushDebugInputHostTest
 
 
     @Test
+    void disablingDebugReleasesInputAndRetiresAdmissionAfterTheRouterDrains () throws IOException
+    {
+        this.request (this.host, "down", ROW, InputKind.BUTTON, "BEGIN", 127);
+        this.host.tick ();
+        this.admission.routeIdle = false;
+        this.host.close ();
+        assertEquals (2, this.surface.events.size (), "Disable releases the held edge");
+        assertFalse (this.host.retireAdmission ());
+        assertTrue (this.admission.debugActive);
+        this.admission.routeIdle = true;
+        assertTrue (this.host.retireAdmission ());
+        assertFalse (this.admission.debugActive);
+        assertEquals (1, this.admission.completionCount);
+        assertEquals (2, this.surface.events.size (), "Retirement must not duplicate releases");
+    }
+
+
+    @Test
     void pressureNeutralizationCanReenterCancellationWithoutDuplicatingRelease () throws IOException
     {
         this.request (this.host, "pad-down", PAD, InputKind.PAD, "BEGIN", 100);

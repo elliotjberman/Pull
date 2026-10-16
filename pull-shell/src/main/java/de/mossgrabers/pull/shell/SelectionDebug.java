@@ -23,10 +23,13 @@ public final class SelectionDebug implements AutoCloseable
     private final java.util.concurrent.atomic.AtomicInteger dropped = new java.util.concurrent.atomic.AtomicInteger ();
     private boolean firstPoll = true;
     private final StringBuilder output = new StringBuilder ();
+    private Runnable disableRequested = () -> { };
+    private boolean disablePosted;
 
-    private SelectionDebug ()
+    private SelectionDebug (final PushDebugging.Workers workers, final Runnable disableRequested)
     {
-        this (PushDebugging.directory (), System::nanoTime, PushDebugging.createWorker ("Pull selection diagnostics"));
+        this (PushDebugging.directory (), System::nanoTime, workers.create ("Pull selection diagnostics"));
+        this.disableRequested = disableRequested;
         this.worker.scheduleWithFixedDelay (this::poll, 0, 100, TimeUnit.MILLISECONDS);
     }
 
@@ -52,10 +55,9 @@ public final class SelectionDebug implements AutoCloseable
         return this.holdNoteCopies && this.isRecording ();
     }
 
-    public static SelectionDebug createIfEnabled ()
+    public static SelectionDebug create (final PushDebugging.Workers workers, final Runnable disableRequested)
     {
-        if (!PushDebugging.isEnabled ()) return null;
-        final SelectionDebug result = new SelectionDebug ();
+        final SelectionDebug result = new SelectionDebug (workers, disableRequested);
         active = result;
         return result;
     }
@@ -92,6 +94,11 @@ public final class SelectionDebug implements AutoCloseable
         try
         {
             final Path directory = this.directory;
+            if (!this.closed && !this.disablePosted && !Files.isRegularFile (directory.resolve ("enabled")))
+            {
+                this.disablePosted = true;
+                this.disableRequested.run ();
+            }
             final Path request = directory.resolve ("selection-request.txt");
             if (this.firstPoll)
             {

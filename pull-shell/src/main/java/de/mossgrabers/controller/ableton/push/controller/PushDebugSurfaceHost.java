@@ -56,14 +56,11 @@ final class PushDebugSurfaceHost implements AutoCloseable
     private DesiredTouchStrip touchStrip;
 
 
-    static PushDebugSurfaceHost createIfEnabled ()
+    static PushDebugSurfaceHost create (final PushDebugging.Workers workers)
     {
-        if (!PushDebugging.isEnabled ())
-            return null;
-
         return new PushDebugSurfaceHost (
             PushDebugging.directory (),
-            PushDebugging.createWorker ("Pull debug surface transport"));
+            workers.create ("Pull debug surface transport"));
     }
 
 
@@ -187,18 +184,26 @@ final class PushDebugSurfaceHost implements AutoCloseable
     {
         if (this.worker == null || !this.drainScheduled.compareAndSet (false, true))
             return;
-        this.worker.execute ( () -> {
-            try
-            {
-                this.pollFilesSafely ();
-            }
-            finally
-            {
-                this.drainScheduled.set (false);
-                if (this.pending.get () != null)
-                    this.requestDrain ();
-            }
-        });
+        try
+        {
+            this.worker.execute ( () -> {
+                try
+                {
+                    this.pollFilesSafely ();
+                }
+                finally
+                {
+                    this.drainScheduled.set (false);
+                    if (this.pending.get () != null)
+                        this.requestDrain ();
+                }
+            });
+        }
+        catch (final java.util.concurrent.RejectedExecutionException ignored)
+        {
+            this.drainScheduled.set (false);
+            // The final drain owns any snapshot pending when the session is retired.
+        }
     }
 
 

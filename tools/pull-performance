@@ -21,10 +21,12 @@ def main():
     # Persist the preset even if a stopped/disconnected host cannot acknowledge a trace stop.
     capture = str(tools / "capture-push2-display")
     subprocess.run([capture, "--sample-rate", "0"], check=True)
-    subprocess.run([capture, "--disable"], check=True)
+    disabled = subprocess.run([capture, "--disable"]).returncode == 0
+    runtime_off = subprocess.run([str(tools / "pull-debug-status")], stdout=subprocess.DEVNULL,
+                                 stderr=subprocess.DEVNULL).returncode == 0
 
     directory = Path.home() / ".drivenbymoss/pull/debug"
-    failed = False
+    failed = not disabled
 
     def status(name):
         nonlocal failed
@@ -39,18 +41,21 @@ def main():
 
     commands = []
     selection = status("selection-status.txt")
-    if len(selection) > 1 and selection[1] in ("RUN", "PAUSE", "HOLD_NOTE_COPIES"):
+    if not runtime_off and len(selection) > 1 and selection[1] in ("RUN", "PAUSE", "HOLD_NOTE_COPIES"):
         commands.append([str(tools / "push-debug-selection"), "stop"])
     trace = status("trace-status.txt")
     # A rejected ARM can report FAILED while retaining the previously armed trace's ID.
-    if len(trace) > 2 and trace[1] in ("ARMED", "FAILED") and trace[2] not in ("", "-"):
+    if not runtime_off and len(trace) > 2 and trace[1] in ("ARMED", "FAILED") and trace[2] not in ("", "-"):
         commands.append([str(tools / "push-debug-trace"), "stop", trace[2]])
     for command in commands:
         if subprocess.run(command).returncode:
             failed = True
 
     print("Performance preset saved: debug disabled at startup; framebuffer capture off.")
-    print("Already-running debug workers stop on the next Bitwig restart; core reload is insufficient.")
+    if runtime_off:
+        print("Running debug workers are stopped; no restart is needed.")
+    else:
+        print("Runtime shutdown is unconfirmed. Older shells need a Bitwig restart; core reload is insufficient.")
     if failed:
         print("Trace shutdown was not fully confirmed; the preset is still saved.", file=sys.stderr)
     return 1 if failed else 0
