@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Turn the evidence suite into a standalone report; requires Matplotlib."""
+from collections import Counter
 from evidence import flame_stats
 import hashlib
 import html

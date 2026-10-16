@@ -17,5 +17,6 @@
     "architecture": "No material findings. Merge recommended; exact-build live check pending.",
     "size": "Shared evidence runner and flamegraph decoder; merged overlapping cache boundary tests; snapshot mutation now precedes PNG encoding."
   },
-  "scope": "CPU encoding plus direct-buffer copy; debug snapshot plus PNG. No rendering, physical USB, filesystem, HTTP, browser or audio latency measured."
+  "scope": "CPU encoding plus direct-buffer copy; debug snapshot plus PNG. No rendering, physical USB, filesystem, HTTP, browser or audio latency measured.",
+  "report_builders": "Both complete successfully against original raw evidence in isolated output directories"
 }
