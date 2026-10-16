@@ -353,7 +353,7 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
     private final ReloadableControllerRuntime reloadableRuntime;
     private final ControllerWorkspaceHost      controllerWorkspaceHost;
     private final PushControllerPageManager pageManager = new PushControllerPageManager ();
-    private final PushDebugSurfaceHost         debugSurfaceHost;
+    private PushDebugSurfaceHost               debugSurfaceHost;
     private SessionBankRegistry                 sessionBankRegistry;
     private final ISelectedTrackNoteTarget    selectedTrackNoteTarget;
     private final ITrack                      drumModelTrack;
@@ -408,22 +408,46 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
             this.pushPadGrid.setCoreLightSupplier (this.reloadableRuntime::ownsLight, this.reloadableRuntime::lightColor, this.reloadableRuntime::lightBlink);
         }
         this.colorPalette = new ColorPalette (this);
-        this.debugSurfaceHost = PushDebugSurfaceHost.createIfEnabled ();
-        if (this.debugSurfaceHost != null)
-        {
-            this.pushPadGrid.setDebugSurfaceObserver ( (oneBasedPad, color, blinkColor, fast) -> {
+        this.input.setSysexCallback (this::handleSysEx);
+    }
+
+
+    /** Attach optional diagnostics only at an explicit lifecycle transition. */
+    public void enableDebug (final de.mossgrabers.pull.shell.PushDebugging.Workers workers)
+    {
+        this.debugSurfaceHost = PushDebugSurfaceHost.create (workers);
+        final PushDebugSurfaceHost observer = this.debugSurfaceHost;
+        this.pushPadGrid.setDebugSurfaceObserver ( (oneBasedPad, color, blinkColor, fast) -> {
                 final ButtonID button = ButtonID.get (ButtonID.PAD1, oneBasedPad - 1);
-                this.debugSurfaceHost.observePad (
+                observer.observePad (
                     oneBasedPad,
                     color,
                     this.colorManager.getColor (color, button),
                     blinkColor,
                     this.colorManager.getColor (blinkColor, button),
                     fast);
-            });
-        }
+        });
+        if (this.getGraphicsDisplay () instanceof final Push2Display display)
+            display.enableDebug (workers);
+        this.forceFlush ();
+    }
 
-        this.input.setSysexCallback (this::handleSysEx);
+
+    /** Detach the optional observers before retiring their workers. */
+    public void disableDebug ()
+    {
+        this.pushPadGrid.setDebugSurfaceObserver (null);
+        final PushDebugSurfaceHost observer = this.debugSurfaceHost;
+        this.debugSurfaceHost = null;
+        try
+        {
+            if (observer != null) observer.close ();
+        }
+        finally
+        {
+            if (this.getGraphicsDisplay () instanceof final Push2Display display)
+                display.disableDebug ();
+        }
     }
 
 
@@ -892,8 +916,7 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
         this.setRibbonValue (0);
 
         super.internalShutdown ();
-        if (this.debugSurfaceHost != null)
-            this.debugSurfaceHost.close ();
+        this.disableDebug ();
     }
 
 
