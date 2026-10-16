@@ -246,6 +246,26 @@ the extension constructs its local transports:
 tools/capture-push2-display --enable
 ```
 
+Before ordinary playback, apply the performance preset:
+
+```bash
+tools/pull-performance
+```
+
+The command acquires the live lease automatically (or reuses the current lease), disables debug
+at the next extension startup, turns framebuffer capture off with sample rate `0`, and
+requests stops for event/selection traces reported active, including diagnostic holds. It works
+with Bitwig closed and is safe to repeat. A failed stop returns nonzero without undoing the preset.
+Already-running debug workers still require a Bitwig restart to shut down; core reload is
+insufficient. The command never restarts Bitwig. To resume debugging, enable it before startup
+as above and explicitly restore the capture rate with `tools/capture-push2-display --sample-rate 1`
+inside a live lease.
+
+Live capture-off requires the shell version that accepts sample rate `0`; older installed shells
+ignore that value. The startup-disable marker works with either version. With the updated shell,
+zero skips framebuffer copies and PNG writes, and fails explicit/pending capture requests instead
+of returning cached images. Existing PNG artifacts remain on disk; they are not live status.
+
 ### Push debugger surface preview
 
 Run the dependency-free local Push 2 visualizer with:
@@ -427,8 +447,10 @@ tools/capture-push2-display --stats
 tools/capture-push2-display --sample-rate 10
 ```
 
-The setting is read from `frame-sample-rate.txt` and accepts one sample per 1 through 600 outbound
-frames. Deleting that file restores the every-frame default.
+The setting is read from `frame-sample-rate.txt`: `0` disables all framebuffer capture, and `1`
+through `600` samples one per that many outbound frames. Deleting that file restores the
+every-frame default. An already-running PNG write may finish while the worker observes `0`;
+subsequent frames do not copy or encode. Capture-off leaves the debug command workers running.
 
 The resulting request-correlated image path is printed on standard output; navigation state is
 reported on standard error. The fixed local handshake directory is

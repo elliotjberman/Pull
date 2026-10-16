@@ -41,9 +41,9 @@ then
 else
     if [[ "$target" == "--sample-rate" ]]
     then
-        if (( $# != 2 )) || [[ ! "$2" =~ ^[0-9]+$ ]] || (( $2 < 1 || $2 > 600 ))
+        if (( $# != 2 )) || [[ ! "$2" =~ ^[0-9]+$ ]] || (( $2 < 0 || $2 > 600 ))
         then
-            echo "Sample rate must be an integer from 1 through 600." >&2
+            echo "Sample rate must be an integer from 0 through 600 (0 disables capture)." >&2
             exit 2
         fi
         mkdir -p "$debug_dir"
@@ -51,7 +51,12 @@ else
         printf '%s\n' "$2" > "$sample_rate_temp"
         "${script_dir}/require-pull-live"
         mv "$sample_rate_temp" "$sample_rate_path"
-        echo "Push debug framebuffer sampling set to every $2 frame(s)." >&2
+        if (( $2 == 0 ))
+        then
+            echo "Push debug framebuffer capture disabled (requires a shell supporting sample rate 0)." >&2
+        else
+            echo "Push debug framebuffer sampling set to every $2 frame(s)." >&2
+        fi
         exit 0
     fi
     if [[ "$target" == "--stats" ]]

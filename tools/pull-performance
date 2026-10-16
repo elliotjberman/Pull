@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+"""Apply the quiet debug preset, acquiring the shared live lease if needed."""
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+
+def main():
+    if len(sys.argv) != 1:
+        print("Usage: tools/pull-performance", file=sys.stderr)
+        return 0 if sys.argv[1:] == ["--help"] else 2
+
+    script = Path(__file__).resolve()
+    tools = script.parent
+    if not os.environ.get("PULL_LIVE_LOCK_TOKEN"):
+        os.execv(tools / "with-pull-live", [str(tools / "with-pull-live"),
+                 "--owner", "performance-preset", "--", str(script)])
+    subprocess.run([str(tools / "require-pull-live")], check=True)
+
+    # Persist the preset even if a stopped/disconnected host cannot acknowledge a trace stop.
+    capture = str(tools / "capture-push2-display")
+    subprocess.run([capture, "--sample-rate", "0"], check=True)
+    subprocess.run([capture, "--disable"], check=True)
+
+    directory = Path.home() / ".drivenbymoss/pull/debug"
+    failed = False
+
+    def status(name):
+        nonlocal failed
+        try:
+            return (directory / name).read_text().rstrip("\r\n").split("\t")
+        except FileNotFoundError:
+            return []
+        except OSError as error:
+            print(f"Cannot inspect {name}: {error}", file=sys.stderr)
+            failed = True
+            return []
+
+    commands = []
+    selection = status("selection-status.txt")
+    if len(selection) > 1 and selection[1] in ("RUN", "PAUSE", "HOLD_NOTE_COPIES"):
+        commands.append([str(tools / "push-debug-selection"), "stop"])
+    trace = status("trace-status.txt")
+    # A rejected ARM can report FAILED while retaining the previously armed trace's ID.
+    if len(trace) > 2 and trace[1] in ("ARMED", "FAILED") and trace[2] not in ("", "-"):
+        commands.append([str(tools / "push-debug-trace"), "stop", trace[2]])
+    for command in commands:
+        if subprocess.run(command).returncode:
+            failed = True
+
+    print("Performance preset saved: debug disabled at startup; framebuffer capture off.")
+    print("Already-running debug workers stop on the next Bitwig restart; core reload is insufficient.")
+    if failed:
+        print("Trace shutdown was not fully confirmed; the preset is still saved.", file=sys.stderr)
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

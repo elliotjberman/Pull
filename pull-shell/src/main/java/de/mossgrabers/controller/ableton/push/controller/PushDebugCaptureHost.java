@@ -98,6 +98,8 @@ final class PushDebugCaptureHost implements AutoCloseable
 
         final long revision = this.frameRevision.incrementAndGet ();
         final int sampleInterval = this.frameSampleInterval.get ();
+        if (sampleInterval == 0)
+            return;
         if (revision == 1 || revision % sampleInterval == 0 || this.pendingRequest.get () != null)
         {
             try
@@ -148,11 +150,11 @@ final class PushDebugCaptureHost implements AutoCloseable
         {
             this.readSampleInterval ();
             final Frame latest = this.pendingLatestWrite.getAndSet (null);
-            if (latest != null)
+            if (latest != null && this.frameSampleInterval.get () != 0)
                 this.writeLatestFrame (latest);
             final Capture capture = this.completedCapture.getAndSet (null);
             if (capture != null)
-                this.writeCapture (capture);
+                this.writeCapture (this.frameSampleInterval.get () == 0 ? Capture.failed (capture.requestID (), "framebuffer capture is disabled") : capture);
             if (!this.closed.get () && this.pendingRequest.get () == null && this.completedCapture.get () == null)
                 this.readRequest ();
         }
@@ -179,7 +181,9 @@ final class PushDebugCaptureHost implements AutoCloseable
         final String requestID = fields.length == 0 ? "" : fields[0];
         final boolean nextFrame = fields.length == 2 && "NEXT_FRAME".equals (fields[1]);
         final boolean valid = PushDebugging.isIdentifier (requestID) && (fields.length == 1 || nextFrame);
-        if (valid && !this.closed.get ())
+        if (valid && this.frameSampleInterval.get () == 0)
+            this.completedCapture.compareAndSet (null, Capture.failed (requestID, "framebuffer capture is disabled"));
+        else if (valid && !this.closed.get ())
         {
             final Frame frame = nextFrame ? null : this.latestFrame.get ();
             if (frame == null)
@@ -254,8 +258,15 @@ final class PushDebugCaptureHost implements AutoCloseable
         {
             return;
         }
-        if (requested >= 1 && requested <= MAX_FRAME_SAMPLE_INTERVAL)
+        if (requested >= 0 && requested <= MAX_FRAME_SAMPLE_INTERVAL)
             this.frameSampleInterval.set (requested);
+        if (this.frameSampleInterval.get () == 0)
+        {
+            this.latestFrame.set (null);
+            final CaptureRequest pending = this.pendingRequest.getAndSet (null);
+            if (pending != null)
+                this.completedCapture.set (Capture.failed (pending.requestID (), "framebuffer capture is disabled"));
+        }
     }
 
 

@@ -19,7 +19,7 @@ if mode != "OFF" and not 1 <= seconds <= 60:
     sys.exit("Duration must be 1-60 seconds")
 subprocess.run([str(Path(__file__).resolve().parent / "require-pull-live")], check=True)
 directory = Path.home() / ".drivenbymoss/pull/debug"
-if not (directory / "enabled").is_file():
+if mode != "OFF" and not (directory / "enabled").is_file():
     sys.exit("Enable the Push debugger before starting Bitwig")
 request_id = uuid.uuid4().hex
 request = directory / "selection-request.txt"
