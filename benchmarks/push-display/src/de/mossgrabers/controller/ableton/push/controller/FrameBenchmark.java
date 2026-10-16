@@ -21,11 +21,12 @@ import java.util.concurrent.TimeUnit;
 public class FrameBenchmark
 {
     @Param({"ui", "random", "gray"}) public String content;
-    private ByteBuffer[] frames;
+    ByteBuffer[] frames;
     private final byte[] wire = new byte[327680];
     private final ByteBuffer destination = ByteBuffer.allocateDirect(327680);
     private int cursor;
     private final PushFrameEncoder encoder = new PushFrameEncoder();
+    private final RowFrameEncoder rowEncoder = new RowFrameEncoder();
 
     @Setup
     public void setup() throws Exception
@@ -54,7 +55,13 @@ public class FrameBenchmark
                 if (capture != null) rgb = capture.getRGB(x, y);
                 else if (content.equals("random")) rgb = random.nextInt();
                 else if (content.equals("gray")) rgb = ((x + y + f) & 255) * 0x010101;
-                else rgb = palette[((x / 120 + (content.equals("unchanged") ? 0 : f)) % 6 + 2) * ((y > 32 && y < 120 && x % 120 < 80) ? 1 : 0)];
+                else rgb = palette[((x / 120 + ((content.equals("unchanged") || content.equals("playhead") || content.equals("patch") || content.equals("macro")) ? 0 : f)) % 6 + 2) * ((y > 32 && y < 120 && x % 120 < 80) ? 1 : 0)];
+                if (content.equals("playhead") && x >= 40 + f * 10 && x < 42 + f * 10)
+                    rgb = 0x39E8AF;
+                if (content.equals("patch") && x >= 240 + f * 8 && x < 256 + f * 8 && y >= 72 && y < 88)
+                    rgb = 0xE06A39;
+                if (content.equals("macro") && x >= 360 && x < 480 && y >= 40 && y < 120)
+                    rgb = ((x & 255) << 16) | ((40 + f * 23) << 8) | y;
                 frame.put((byte) rgb).put((byte) (rgb >> 8)).put((byte) (rgb >> 16)).put((byte) 255);
             }
             frame.flip();
@@ -64,6 +71,11 @@ public class FrameBenchmark
         for (ByteBuffer frame : frames)
         {
             LegacyFrameEncoder.encode(frame, wire);
+            rowEncoder.encode(frame);
+            rowEncoder.copyTo(destination);
+            destination.flip();
+            destination.get(actual);
+            if (!Arrays.equals(wire, actual)) throw new AssertionError("Row reference mismatch");
             encoder.encode(frame);
             encoder.copyTo(destination);
             destination.flip();
@@ -78,6 +90,14 @@ public class FrameBenchmark
     {
         encoder.encode(frames[cursor++ & 7]);
         encoder.copyTo(destination);
+        return destination.get((cursor * 31) & 0x3FFFF);
+    }
+
+    @Benchmark
+    public int rowCached()
+    {
+        rowEncoder.encode(frames[cursor++ & 7]);
+        rowEncoder.copyTo(destination);
         return destination.get((cursor * 31) & 0x3FFFF);
     }
 

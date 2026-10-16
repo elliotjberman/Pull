@@ -18,17 +18,24 @@ are unchanged. The existing display mutex still serializes encode/copy. No Bitwi
 proxies or parent/core contracts were added. Activating the changed shell requires an installation
 and restart; the benchmark does neither.
 
-The encoder owns one bounded 960×160 previous-input cache, eight 960-int row arrays, a 160-boolean
-validity array and 163,840 output shorts: 972,960 bytes of primitive storage plus array/object headers.
-Equality checks compare complete input rows; no hashes or approximate colors are used. All frames
-still reach the existing USB sender, including unchanged frames. Padding is initialized once in its
-final shaped representation.
+The encoder owns one 960×160 raw input cache, one 960-int input row, eight 60-int scratch arrays
+and 163,840 output shorts: 947,840 bytes of primitive array storage plus object headers. A whole-frame
+NIO mismatch check can reuse unchanged input without first copying it; changed rows are checked in
+60×1-pixel cells. Two cells fit a common 120-pixel column, but cells carry no layout semantics.
+Comparisons are exact; no hash match can hide changed pixels. Every frame still reaches the existing
+USB sender. Padding is initialized once in its final shaped representation.
+
+`PushFrameEncoder` is a separate pixel-only transport class. It never reads display components,
+views, layout ownership or drawing commands. Any renderer can supply the finished bitmap; adding
+or overlapping components needs no cache invalidation hooks. `PushDebugFrame` separately caches
+immutable pre-calibration pixels and worker-generated PNG bytes for the optional debugger. See
+`TESTING.md` for observation versus content generations and capture freshness contracts.
 
 Small loops over row-local int arrays permit HotSpot automatic vectorization. Identical indices
 avoid possible overlapping-array dependencies. Calibration preserves signed integer division's
 rounding, the chroma threshold and clamping exactly. Packing and the final short narrowing are
 separate because this JVM does not vectorize the mixed-width loop. The grayscale fast path applies
-only when every pixel in a row is already exempt from the existing calibration.
+only when every pixel in a cell is already exempt from the existing calibration.
 
 ## Reproduce
 
@@ -82,3 +89,35 @@ header/frame sent through the real `PushUsbDisplay` worker to a fake USB endpoin
 The runtime is Bitwig's bundled Zulu Java 25.0.4.1 on an Apple M5 Max, using default VM flags.
 The incubating Vector API is absent from that runtime. The optimization uses ordinary Java and
 HotSpot's 128-bit NEON code generation. Performance on other CPUs/JVMs needs its own measurements.
+
+## Cell-cache follow-up
+
+[Cell and debugger cache evidence](results/2026-10-16-cell-cache/index.html) compares production with
+`RowFrameEncoder`, the first SIMD implementation frozen at `28b7059c`. Seven encoder workloads
+include controlled moving-playhead, 16×16-patch and one-column macro updates. Larger 120-pixel-wide
+2D cells and a whole-frame-only shortcut were measured in the archived pilot experiments.
+
+`DebugFrameBenchmark` compares snapshot plus PNG CPU work, with the same in-memory compression
+sink in both versions. It excludes filesystem/HTTP/browser costs. Debug captures retain original
+BGRA colors and alpha; the hardware wire encoder's calibration is not applied to screenshots.
+
+```sh
+mkdir -p target/display-benchmark/round2
+mvn -o -Dmaven.compiler.showDeprecation=true package > target/display-benchmark/round2/package.log 2>&1
+python3 tools/test_push_debug_surface_server.py > target/display-benchmark/round2/server-tests.log 2>&1
+python3 benchmarks/push-display/run-cache-evidence.py
+PYTHONPATH=target/display-benchmark/deps/python python3 benchmarks/push-display/disassemble.py \
+  target/display-benchmark/round2/assembly.log > target/display-benchmark/round2/neon-assembly.txt
+PYTHONPATH=target/display-benchmark/deps/python python3 benchmarks/push-display/make-cache-report.py
+```
+
+The report builder also expects the archived pilot summaries and sources from this session under
+`target/display-benchmark/round2`; unpack `pilot-evidence.tar.gz` there to recreate this report.
+The final timing suite itself needs only the fixture/profiler prerequisites above. Benchmarks run
+as standalone JVMs and never attach to the live Bitwig host.
+
+The report's `browser-fixture.py` serves the real debugger application against generated pixels
+on port 8766. Run it from the repository root. It uses only the ignored
+`target/display-benchmark/round2/browser-check` directory and disables input; `allow-image`
+controls its initial HTTP-failure condition. `browser-cache-check.json` records the observed
+request counts, decoded-image transitions and exact browser/server source hashes.

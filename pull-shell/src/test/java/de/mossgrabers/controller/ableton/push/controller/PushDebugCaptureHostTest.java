@@ -240,6 +240,82 @@ class PushDebugCaptureHostTest
     }
 
 
+    @Test
+    void unchangedObservationsAdvanceFreshnessWithoutRewritingPng () throws IOException
+    {
+        final PushDebugCaptureHost host = new PushDebugCaptureHost (this.debugDirectory);
+        final FakeBitmap bitmap = new FakeBitmap (new byte [] {3, 2, 1, (byte) 255}, 1, 1);
+        host.observeFrame (bitmap);
+        final String content = this.latestMetrics ().get (8);
+        final Path latest = this.debugDirectory.resolve (PushDebugCaptureHost.LATEST_IMAGE_FILE);
+        final var marker = java.nio.file.attribute.FileTime.fromMillis (1000);
+        Files.setLastModifiedTime (latest, marker);
+        host.observeFrame (bitmap);
+        assertEquals ("2", this.latestMetrics ().get (0));
+        assertEquals ("2", this.latestMetrics ().get (4));
+        assertEquals ("0", this.latestMetrics ().get (7));
+        assertEquals (content, this.latestMetrics ().get (8));
+        assertEquals (marker, Files.getLastModifiedTime (latest));
+
+        Files.writeString (this.debugDirectory.resolve (PushDebugCaptureHost.REQUEST_FILE), "same-picture\tNEXT_FRAME\n");
+        host.pollForTest ();
+        assertFalse (Files.exists (this.debugDirectory.resolve ("display-same-picture.png")));
+        host.observeFrame (bitmap);
+        assertEquals ("3", this.latestMetrics ().get (0));
+        assertEquals ("READY", this.status ().get (1));
+        assertEquals (0xFF010203, ImageIO.read (this.debugDirectory.resolve ("display-same-picture.png").toFile ()).getRGB (0, 0));
+        assertEquals (marker, Files.getLastModifiedTime (latest));
+
+        bitmap.pixels ()[0] = 9;
+        host.observeFrame (bitmap);
+        assertFalse (content.equals (this.latestMetrics ().get (8)));
+        assertEquals (0xFF010209, ImageIO.read (latest.toFile ()).getRGB (0, 0));
+        host.close ();
+    }
+
+
+    @Test
+    void queuedCaptureKeepsItsObservedPixelsWhenTheSourceChanges () throws IOException
+    {
+        final PushDebugCaptureHost host = new PushDebugCaptureHost (this.debugDirectory);
+        final byte [] pixels = {3, 2, 1, (byte) 255};
+        host.observeFrame (new FakeBitmap (pixels, 1, 1));
+        Files.writeString (this.debugDirectory.resolve (PushDebugCaptureHost.REQUEST_FILE), "frozen\n");
+        host.pollForTest ();
+        pixels[0] = 99;
+        host.pollForTest ();
+        assertEquals (0xFF010203, ImageIO.read (this.debugDirectory.resolve ("display-frozen.png").toFile ()).getRGB (0, 0));
+        host.close ();
+    }
+
+
+    @Test
+    void dimensionAndAlphaChangesInvalidateContentAndMissingLatestIsRestored () throws IOException
+    {
+        final PushDebugCaptureHost host = new PushDebugCaptureHost (this.debugDirectory);
+        final byte [] pixels = {3, 2, 1, (byte) 255, 9, 8, 7, (byte) 255};
+        host.observeFrame (new FakeBitmap (pixels, 2, 1));
+        final String horizontal = this.latestMetrics ().get (8);
+        host.observeFrame (new FakeBitmap (pixels, 1, 2));
+        assertFalse (horizontal.equals (this.latestMetrics ().get (8)));
+        final Path latest = this.debugDirectory.resolve (PushDebugCaptureHost.LATEST_IMAGE_FILE);
+        assertEquals (2, ImageIO.read (latest.toFile ()).getHeight ());
+        pixels[3] = 64;
+        host.observeFrame (new FakeBitmap (pixels, 1, 2));
+        assertEquals (0x40010203, ImageIO.read (latest.toFile ()).getRGB (0, 0));
+        final String alpha = this.latestMetrics ().get (8);
+        Files.delete (latest);
+        host.observeFrame (new FakeBitmap (pixels, 1, 2));
+        assertTrue (Files.isRegularFile (latest));
+        assertFalse (alpha.equals (this.latestMetrics ().get (8)));
+        host.close ();
+        final PushDebugCaptureHost restarted = new PushDebugCaptureHost (this.debugDirectory);
+        restarted.observeFrame (new FakeBitmap (pixels, 1, 2));
+        assertFalse (horizontal.equals (this.latestMetrics ().get (8)));
+        restarted.close ();
+    }
+
+
     private static IBitmap uncapturableFrame ()
     {
         return new IBitmap ()

@@ -25,25 +25,25 @@ def run(name, pattern, args):
     (OUT / "commands.json").write_text(json.dumps(commands, indent=2) + "\n")
     print("DONE " + name, flush=True)
 
-run("timings", "FrameBenchmark.(baseline|baselineBulkCopy|optimized)$",
+run("timings", r"\.FrameBenchmark\.(baseline|baselineBulkCopy|optimized)$",
     ["-p", "content=capture,random,gray,unchanged", "-f", "3", "-wi", "4", "-i", "5",
      "-jvmArgsAppend", frame_arg, "-rf", "json", "-rff", str(OUT/"timings.json")])
-run("without-superword", "FrameBenchmark.optimized$",
+run("without-superword", r"\.FrameBenchmark\.optimized$",
     ["-p", "content=random", "-f", "3", "-wi", "4", "-i", "5",
      "-jvmArgsAppend", "-XX:-UseSuperWord", "-rf", "json", "-rff", str(OUT/"without-superword.json")])
-run("latency", "FrameBenchmark.(baseline|optimized)$",
+run("latency", r"\.FrameBenchmark\.(baseline|optimized)$",
     ["-p", "content=capture,random", "-f", "2", "-wi", "3", "-i", "2", "-r", "3s", "-bm", "sample",
      "-jvmArgsAppend", frame_arg, "-rf", "json", "-rff", str(OUT/"latency.json")])
 for method in ("baseline", "optimized"):
     for content in ("capture", "random"):
-        run("profile-" + method + "-" + content, "FrameBenchmark." + method + "$",
+        run("profile-" + method + "-" + content, r"\.FrameBenchmark\." + method + "$",
             ["-p", "content=" + content, "-f", "1", "-wi", "3", "-i", "1", "-r", "12s",
              "-jvmArgsAppend", frame_arg, "-prof",
              "async:libPath=" + str(PROFILER) + ";event=cpu;interval=1000000;output=flamegraph;dir=" + str(OUT/"profiles")])
-run("assembly", "FrameBenchmark.optimized$",
+run("assembly", r"\.FrameBenchmark\.optimized$",
     ["-p", "content=random", "-f", "1", "-wi", "3", "-i", "1",
      "-jvmArgsAppend", "-Xbatch -XX:CompileCommand=print,de.mossgrabers.controller.ableton.push.controller.PushFrameEncoder::*"])
-run("allocation", "FrameBenchmark.(baseline|optimized)$",
+run("allocation", r"\.FrameBenchmark\.(baseline|optimized)$",
     ["-p", "content=capture,random", "-f", "1", "-wi", "3", "-i", "3",
      "-jvmArgsAppend", frame_arg, "-prof", "gc", "-rf", "json", "-rff", str(OUT/"allocation.json")])
 print("Evidence suite complete.", flush=True)

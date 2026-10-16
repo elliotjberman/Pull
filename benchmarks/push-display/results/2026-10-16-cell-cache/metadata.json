@@ -1,0 +1,24 @@
+{
+  "before_commit": "28b7059c",
+  "cpu": "Apple M5 Max",
+  "jvm": "openjdk 25.0.4.1 2026-08-18 LTS\nOpenJDK Runtime Environment Zulu25.36+205-CRaC-CA (build 25.0.4.1+1-LTS)\nOpenJDK 64-Bit Server VM Zulu25.36+205-CRaC-CA (build 25.0.4.1+1-LTS, mixed mode)\n",
+  "java_tests": {
+    "tests": 1182,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "source_sha256": {
+    "benchmarks/push-display/src/de/mossgrabers/controller/ableton/push/controller/DebugFrameBenchmark.java": "dbf5f39ca7caa2b59a84185d1d8921c533af6d55c3bc4f4aaa35665b2244daf0",
+    "benchmarks/push-display/src/de/mossgrabers/controller/ableton/push/controller/FrameBenchmark.java": "2bc180da548d0e0a6148753243c547c124764aeda8afcea5e9f7380678631bd4",
+    "benchmarks/push-display/src/de/mossgrabers/controller/ableton/push/controller/LegacyFrameEncoder.java": "68293cfdc67df5ec18ed56d3e907ece160b103a7e120b44b81bf756df98a807d",
+    "benchmarks/push-display/src/de/mossgrabers/controller/ableton/push/controller/RowFrameEncoder.java": "1614a107bc9ed9d0487d531a9cbf9bfcc90986d336766709a80d7b6c8368c80f",
+    "pull-shell/src/main/java/de/mossgrabers/controller/ableton/push/controller/PushFrameEncoder.java": "3bdc99942dde7ab6ccb7d1ed1c78ff6817e574fd779f075e07dd1a603f1f8ec0",
+    "pull-shell/src/main/java/de/mossgrabers/controller/ableton/push/controller/PushDebugFrame.java": "1c7dea9c3f2e0b17adc45f5409eb376198108a46534b8434c0f4e2c5eb006d09",
+    "pull-shell/src/main/java/de/mossgrabers/controller/ableton/push/controller/PushDebugCaptureHost.java": "237165fdf0c00832670e34eab0dcb2bf9050a047d2d75b2ba3c5eea8950dfc00",
+    "pull-shell/src/main/java/de/mossgrabers/controller/ableton/push/controller/PushColorCalibration.java": "7f7c9f51aad9a5066b5d941f05f3f2fa18acc719f861b7ab7281133ee475a2ed",
+    "tools/push-debug-surface-app/push-surface.js": "867cc15555afc16a3cba83a295371acbdcbbd85a6e9ec3eb120e94c22152f30b",
+    "tools/push-debug-surface-server.py": "48415b320c943d32c57be53b16815fbfffbf22840126ddb43761e892fd62d1f2",
+    "tools/capture-push2-display": "219c322eb5b5f1d99c7cc47a9d59190353f6b217d3ce5893f18c8ba02a9de1ed"
+  }
+}

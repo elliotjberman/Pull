@@ -1,0 +1,73 @@
+[
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "de.mossgrabers.controller.ableton.push.controller.FrameBenchmark.optimized",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 3,
+        "jvm" : "/Applications/Bitwig Studio.app/Contents/PlugIns/JavaVM-arm64.bundle/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-XX:-UseSuperWord"
+        ],
+        "jdkVersion" : "25.0.4.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "25.0.4.1+1-LTS",
+        "warmupIterations" : 4,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "content" : "random"
+        },
+        "primaryMetric" : {
+            "score" : 686.7276957859502,
+            "scoreError" : 1.9654440490008949,
+            "scoreConfidence" : [
+                684.7622517369493,
+                688.6931398349511
+            ],
+            "scorePercentiles" : {
+                "0.0" : 683.985518292683,
+                "50.0" : 686.826847042828,
+                "90.0" : 690.0058310434603,
+                "95.0" : 690.9571935704514,
+                "99.0" : 690.9571935704514,
+                "99.9" : 690.9571935704514,
+                "99.99" : 690.9571935704514,
+                "99.999" : 690.9571935704514,
+                "99.9999" : 690.9571935704514,
+                "100.0" : 690.9571935704514
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    686.826847042828,
+                    687.3363097527473,
+                    687.1256231292517,
+                    685.1510454237288,
+                    687.720887439945
+                ],
+                [
+                    687.5420632653061,
+                    687.3808108843538,
+                    689.3715893587995,
+                    690.9571935704514,
+                    686.6345957880435
+                ],
+                [
+                    685.301080054274,
+                    685.4174301221167,
+                    684.514256097561,
+                    683.985518292683,
+                    685.6501865671642
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    }
+]
+
+

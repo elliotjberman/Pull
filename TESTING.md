@@ -447,6 +447,15 @@ tools/capture-push2-display --stats
 tools/capture-push2-display --sample-rate 10
 ```
 
+Exact pixel equality reuses immutable debug snapshots and their worker-encoded PNG. Identical
+sampled frames still advance the observation revision and satisfy a pending `NEXT_FRAME` request
+only after another outbound bitmap is observed. They do not rewrite `latest.png`; PNG-write time
+is zero for that reuse. The ninth status field is a shell-epoch/content generation, separate from
+the first observation revision. The local debugger server forwards both; the browser fetches and
+decodes only changed content and retries failed fetches on a later observation. Older eight-field
+shell status remains supported. Changed pixels, alpha or dimensions invalidate the snapshot, and
+queued captures retain their observed bytes even if the host overwrites its bitmap.
+
 The setting is read from `frame-sample-rate.txt`: `0` disables all framebuffer capture, and `1`
 through `600` samples one per that many outbound frames. Deleting that file restores the
 every-frame default. An already-running PNG write may finish while the worker observes `0`;

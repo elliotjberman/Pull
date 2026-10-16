@@ -98,6 +98,20 @@ class PushSurfaceServerTest(unittest.TestCase):
         self.assertEqual(HTTPStatus.OK, status)
         self.assertEqual("test-session", json.loads(body)["input"]["session"])
 
+    def test_display_content_generation_is_independent_of_observation_revision(self) -> None:
+        (self.debug_dir / "latest.png").write_bytes(b"test image")
+        status_path = self.debug_dir / "latest-frame.txt"
+        for revision, content in ((1, "epoch-1"), (2, "epoch-1"), (3, "epoch-2"), (1, "new-epoch-1")):
+            status_path.write_text(f"{revision}\t960\t160\t1\t1\t0\t0\t0\t{content}\n")
+            status, body = self.request("GET", "/api/state", {"Host": self.authority})
+            self.assertEqual(HTTPStatus.OK, status)
+            display = json.loads(body)["display"]
+            self.assertEqual(revision, display["revision"])
+            self.assertEqual(content, display["contentRevision"])
+        status_path.write_text("12\t960\t160\t1\t12\t0\t10\t200\n")
+        status, body = self.request("GET", "/api/state", {"Host": self.authority})
+        self.assertEqual("12", json.loads(body)["display"]["contentRevision"])
+
     def test_foreign_origin_cannot_enqueue_input(self) -> None:
         status, _body = self.request("POST", "/api/input", {
             "Host": self.authority,

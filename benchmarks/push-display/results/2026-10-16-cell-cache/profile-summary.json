@@ -1,0 +1,50 @@
+{
+  "DebugFrameBenchmark.baseline-unchanged-flamegraph": {
+    "total_samples": 12174,
+    "inclusive_percent": {
+      "com/sun/imageio/plugins/png/PNGImageWriter.write_IDAT": 79.14407754230326
+    }
+  },
+  "DebugFrameBenchmark.optimized-unchanged-flamegraph": {
+    "total_samples": 12019,
+    "inclusive_percent": {
+      "jdk/internal/util/ArraysSupport.vectorizedMismatch": 99.89183792328814
+    }
+  },
+  "FrameBenchmark.optimized-capture-flamegraph": {
+    "total_samples": 12014,
+    "inclusive_percent": {
+      "de/mossgrabers/controller/ableton/push/controller/PushFrameEncoder.copyTo": 6.50907274846013,
+      "de/mossgrabers/controller/ableton/push/controller/PushFrameEncoder.channel": 15.415348759780256,
+      "de/mossgrabers/controller/ableton/push/controller/PushFrameEncoder.luminance": 16.56400865656734,
+      "jdk/internal/util/ArraysSupport.vectorizedMismatch": 23.247877476277676
+    }
+  },
+  "FrameBenchmark.optimized-macro-flamegraph": {
+    "total_samples": 12039,
+    "inclusive_percent": {
+      "de/mossgrabers/controller/ableton/push/controller/PushFrameEncoder.copyTo": 11.404601711105574,
+      "de/mossgrabers/controller/ableton/push/controller/PushFrameEncoder.channel": 15.964781128000666,
+      "de/mossgrabers/controller/ableton/push/controller/PushFrameEncoder.luminance": 5.224686435750478,
+      "jdk/internal/util/ArraysSupport.vectorizedMismatch": 40.061466899244124
+    }
+  },
+  "FrameBenchmark.rowCached-capture-flamegraph": {
+    "total_samples": 12023,
+    "inclusive_percent": {
+      "de/mossgrabers/controller/ableton/push/controller/RowFrameEncoder.copyTo": 4.033934957997172,
+      "de/mossgrabers/controller/ableton/push/controller/RowFrameEncoder.channel": 26.07502287282708,
+      "de/mossgrabers/controller/ableton/push/controller/RowFrameEncoder.luminance": 26.557431589453547,
+      "jdk/internal/util/ArraysSupport.vectorizedMismatch": 9.589952590867505
+    }
+  },
+  "FrameBenchmark.rowCached-macro-flamegraph": {
+    "total_samples": 12030,
+    "inclusive_percent": {
+      "de/mossgrabers/controller/ableton/push/controller/RowFrameEncoder.copyTo": 3.948462177888612,
+      "de/mossgrabers/controller/ableton/push/controller/RowFrameEncoder.channel": 46.13466334164589,
+      "de/mossgrabers/controller/ableton/push/controller/RowFrameEncoder.luminance": 18.013300083125518,
+      "jdk/internal/util/ArraysSupport.vectorizedMismatch": 7.871986699916874
+    }
+  }
+}

@@ -53,7 +53,7 @@ class PushFrameEncoderTest
         final ByteBuffer input = ByteBuffer.allocate (PIXELS * 4).order (ByteOrder.LITTLE_ENDIAN);
         final Random random = new Random (42);
         random.nextBytes (input.array ());
-        for (final int index : new int [] {0, 959, 960, PIXELS - 1, 0})
+        for (final int index : new int [] {0, 59, 60, 119, 120, 959, 960, PIXELS - 1, 0})
         {
             for (int repeat = 0; repeat < 2; repeat++)
             {
@@ -94,6 +94,25 @@ class PushFrameEncoderTest
                 destination.get (actual);
                 assertArrayEquals (expected, actual);
             }
+        }
+    }
+
+    @Test
+    void localizedEditsCrossCellRowAndDisplayEdgesWithoutChangingNeighbors ()
+    {
+        final PushFrameEncoder encoder = new PushFrameEncoder ();
+        final ByteBuffer input = ByteBuffer.allocate (PIXELS * 4).order (ByteOrder.LITTLE_ENDIAN);
+        new Random (84).nextBytes (input.array ());
+        encoder.encode (input);
+        for (final int [] rectangle : new int [][] {{59, 0, 2, 2}, {119, 79, 5, 9}, {959, 159, 1, 1}, {360, 40, 120, 80}})
+        {
+            for (int y = rectangle[1]; y < rectangle[1] + rectangle[3]; y++)
+                for (int x = rectangle[0]; x < rectangle[0] + rectangle[2]; x++)
+                    input.putInt ((y * 960 + x) * 4, (x << 16) ^ (y << 8) ^ 0xA5030201);
+            encoder.encode (input);
+            assertArrayEquals (referenceWire (input), output (encoder));
+            encoder.encode (input); // Whole-frame reuse must preserve the complete wire image.
+            assertArrayEquals (referenceWire (input), output (encoder));
         }
     }
 

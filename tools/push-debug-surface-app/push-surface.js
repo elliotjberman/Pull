@@ -721,6 +721,9 @@
 
     function setDisplay(source) {
         liveState.displayGeneration += 1;
+        // Reset/demo replaces the visible image, so the next live sample must restore it even
+        // when the host picture has not changed.
+        liveState.displayRevision = -1;
         liveState.pendingDisplay = null;
         if (!source) {
             displayImage.removeAttribute("href");
@@ -736,8 +739,8 @@
         displayImage.setAttribute("href", source);
     }
 
-    function queueLiveDisplay(source, revision) {
-        liveState.pendingDisplay = {source, revision, generation: liveState.displayGeneration};
+    function queueLiveDisplay(source, revision, contentRevision) {
+        liveState.pendingDisplay = {source, revision, contentRevision, generation: liveState.displayGeneration};
         if (!liveState.displayLoadActive)
             void loadNewestDisplay();
     }
@@ -780,7 +783,10 @@
                 URL.revokeObjectURL(previous);
         }
         catch (_error) {
-            // A later event will retry from the newest atomic frame.
+            // Content can remain unchanged indefinitely. Permit the next observation to retry
+            // a failed fetch/decode without invalidating a newer pending image generation.
+            if (requested.generation === liveState.displayGeneration && liveState.displayRevision === requested.contentRevision)
+                liveState.displayRevision = -1;
         }
         finally {
             if (objectUrl)
@@ -890,9 +896,10 @@
         }
 
         const displayRevision = Number(state.display?.revision ?? -1);
-        if (displayRevision >= 0 && displayRevision !== liveState.displayRevision) {
-            queueLiveDisplay(`${state.display.url}?revision=${encodeURIComponent(displayRevision)}`, displayRevision);
-            liveState.displayRevision = displayRevision;
+        const contentRevision = String(state.display?.contentRevision ?? displayRevision);
+        if (displayRevision >= 0 && contentRevision !== liveState.displayRevision) {
+            queueLiveDisplay(`${state.display.url}?revision=${encodeURIComponent(contentRevision)}`, displayRevision, contentRevision);
+            liveState.displayRevision = contentRevision;
         }
 
         liveState.revision = Number(state.revision ?? liveState.revision);

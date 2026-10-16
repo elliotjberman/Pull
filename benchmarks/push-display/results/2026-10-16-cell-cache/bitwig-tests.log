@@ -1,0 +1,156 @@
+[INFO] Scanning for projects...
+[INFO] ------------------------------------------------------------------------
+[INFO] Reactor Build Order:
+[INFO] 
+[INFO] Pull Parent                                                        [pom]
+[INFO] Pull Core API                                                      [jar]
+[INFO] Pull Core                                                          [jar]
+[INFO] Pull Core Bundle                                                   [jar]
+[INFO] Pull                                                               [jar]
+[INFO] 
+[INFO] ---------------------< de.mossgrabers:pull-parent >---------------------
+[INFO] Building Pull Parent 26.6.2                                        [1/5]
+[INFO]   from pom.xml
+[INFO] --------------------------------[ pom ]---------------------------------
+[INFO] 
+[INFO] --- enforcer:3.6.3:enforce (enforce-maven) @ pull-parent ---
+[INFO] Rule 0: org.apache.maven.enforcer.rules.version.RequireMavenVersion passed
+[INFO] 
+[INFO] --------------------< de.mossgrabers:pull-core-api >--------------------
+[INFO] Building Pull Core API 26.6.2                                      [2/5]
+[INFO]   from pull-core-api/pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- enforcer:3.6.3:enforce (enforce-maven) @ pull-core-api ---
+[INFO] 
+[INFO] --- enforcer:3.6.3:enforce (enforce-core-api-dependencies) @ pull-core-api ---
+[INFO] Rule 0: org.apache.maven.enforcer.rules.dependency.BannedDependencies passed
+[INFO] 
+[INFO] --- resources:3.5.0:resources (default-resources) @ pull-core-api ---
+[INFO] skip non existing resourceDirectory /Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/pull-core-api/src/main/resources
+[INFO] 
+[INFO] --- compiler:3.15.0:compile (default-compile) @ pull-core-api ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.5.0:testResources (default-testResources) @ pull-core-api ---
+[INFO] skip non existing resourceDirectory /Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/pull-core-api/src/test/resources
+[INFO] 
+[INFO] --- compiler:3.15.0:testCompile (default-testCompile) @ pull-core-api ---
+[INFO] No sources to compile
+[INFO] 
+[INFO] --- surefire:3.5.6:test (default-test) @ pull-core-api ---
+[INFO] No tests to run.
+[INFO] 
+[INFO] ----------------------< de.mossgrabers:pull-core >----------------------
+[INFO] Building Pull Core 26.6.2                                          [3/5]
+[INFO]   from pull-core/pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- enforcer:3.6.3:enforce (enforce-maven) @ pull-core ---
+[INFO] 
+[INFO] --- enforcer:3.6.3:enforce (enforce-core-boundary) @ pull-core ---
+[INFO] Rule 0: org.apache.maven.enforcer.rules.dependency.BannedDependencies passed
+[INFO] 
+[INFO] --- resources:3.5.0:resources (default-resources) @ pull-core ---
+[INFO] Copying 2 resources from src/main/resources to target/classes
+[INFO] 
+[INFO] --- compiler:3.15.0:compile (default-compile) @ pull-core ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.5.0:testResources (default-testResources) @ pull-core ---
+[INFO] skip non existing resourceDirectory /Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/pull-core/src/test/resources
+[INFO] 
+[INFO] --- compiler:3.15.0:testCompile (default-testCompile) @ pull-core ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- surefire:3.5.6:test (default-test) @ pull-core ---
+[INFO] 
+[INFO] ------------------< de.mossgrabers:pull-core-bundle >-------------------
+[INFO] Building Pull Core Bundle 26.6.2                                   [4/5]
+[INFO]   from pull-core-bundle/pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- enforcer:3.6.3:enforce (enforce-maven) @ pull-core-bundle ---
+[INFO] 
+[INFO] --- antrun:3.2.0:run (purge-stale-core) @ pull-core-bundle ---
+[INFO] Executing tasks
+[INFO]    [delete] Deleting: /Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/pull-core-bundle/target/classes/META-INF/pull/core/pull-core.jar
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- resources:3.5.0:resources (default-resources) @ pull-core-bundle ---
+[INFO] skip non existing resourceDirectory /Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/pull-core-bundle/src/main/resources
+[INFO] 
+[INFO] --- compiler:3.15.0:compile (default-compile) @ pull-core-bundle ---
+[INFO] No sources to compile
+[INFO] 
+[INFO] --- resources:3.5.0:testResources (default-testResources) @ pull-core-bundle ---
+[INFO] skip non existing resourceDirectory /Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/pull-core-bundle/src/test/resources
+[INFO] 
+[INFO] --- compiler:3.15.0:testCompile (default-testCompile) @ pull-core-bundle ---
+[INFO] No sources to compile
+[INFO] 
+[INFO] --- surefire:3.5.6:test (default-test) @ pull-core-bundle ---
+[INFO] No tests to run.
+[INFO] 
+[INFO] ------------------------< de.mossgrabers:Pull >-------------------------
+[INFO] Building Pull 26.6.2                                               [5/5]
+[INFO]   from pull-shell/pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- enforcer:3.6.3:enforce (enforce-maven) @ Pull ---
+[INFO] 
+[INFO] --- enforcer:3.6.3:enforce (enforce-shell-core-boundary) @ Pull ---
+[INFO] Rule 0: org.apache.maven.enforcer.rules.dependency.BannedDependencies passed
+[INFO] 
+[INFO] --- antrun:3.2.0:run (purge-stale-embedded-core) @ Pull ---
+[INFO] Executing tasks
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- license:2.7.1:add-third-party (add-third-party) @ Pull ---
+[INFO] All files are up to date, skip goal execution.
+[INFO] 
+[INFO] --- resources:3.5.0:resources (default-resources) @ Pull ---
+[INFO] Copying 23 resources from src/main/resources to target/classes
+[INFO] 
+[INFO] --- antrun:3.2.0:run (write-shell-build-metadata) @ Pull ---
+[INFO] Executing tasks
+[INFO] Executed tasks
+[INFO] 
+[INFO] --- compiler:3.15.0:compile (default-compile) @ Pull ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.5.0:testResources (default-testResources) @ Pull ---
+[INFO] skip non existing resourceDirectory /Users/elliot/.codex/worktrees/push-display-simd/DrivenByMoss/pull-shell/src/test/resources
+[INFO] 
+[INFO] --- compiler:3.15.0:testCompile (default-testCompile) @ Pull ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- surefire:3.5.6:test (default-test) @ Pull ---
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] 
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+[INFO] Running de.mossgrabers.controller.ableton.push.controller.PushDebugCaptureHostTest
+[INFO] Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.085 s -- in de.mossgrabers.controller.ableton.push.controller.PushDebugCaptureHostTest
+[INFO] Running de.mossgrabers.controller.ableton.push.controller.PushFrameEncoderTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.300 s -- in de.mossgrabers.controller.ableton.push.controller.PushFrameEncoderTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 19, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] ------------------------------------------------------------------------
+[INFO] Reactor Summary for Pull Parent 26.6.2:
+[INFO] 
+[INFO] Pull Parent ........................................ SUCCESS [  0.093 s]
+[INFO] Pull Core API ...................................... SUCCESS [  0.137 s]
+[INFO] Pull Core .......................................... SUCCESS [  0.051 s]
+[INFO] Pull Core Bundle ................................... SUCCESS [  0.077 s]
+[INFO] Pull ............................................... SUCCESS [  2.693 s]
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  3.092 s
+[INFO] Finished at: 2026-10-16T10:58:21-04:00
+[INFO] ------------------------------------------------------------------------
