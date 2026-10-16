@@ -15,7 +15,7 @@ input log, or optimistic fake is not proof that the feature worked.
   output seam so the capability can validate later features too.
 - Keep debug transports opt-in and off by default. They must be local, bounded, non-blocking on the
   controller thread, and absent from the live-performance path unless explicitly enabled at
-  extension startup. Document any restart needed to enable or disable them.
+  startup or through the controller's Diagnostics settings. Document any installation restart.
 - Turn live failures into deterministic offline regressions where the boundary can be modeled, but
   retain a live Bitwig/Push smoke test for behavior that fake-host tests cannot prove.
 
@@ -239,8 +239,9 @@ token prevents those descendants from retaining live authorization. The OS relea
 the wrapper exits or crashes. `tools/capture-push2-display --stats` remains available without the
 lease because it is read-only.
 
-The debugger is off by default. Enable it before installing the shell, then restart Bitwig once so
-the extension constructs its local transports:
+The debugger is off by default. After installing the runtime-toggle shell and restarting Bitwig
+once, use the controller's **Diagnostics → Debugging → Enable** button to start it at runtime.
+Alternatively, enable it for the next extension startup:
 
 ```bash
 tools/capture-push2-display --enable
@@ -252,14 +253,25 @@ Before ordinary playback, apply the performance preset:
 tools/pull-performance
 ```
 
-The command acquires the live lease automatically (or reuses the current lease), disables debug
-at the next extension startup, turns framebuffer capture off with sample rate `0`, and
-requests stops for event/selection traces reported active, including diagnostic holds. It works
-with Bitwig closed and is safe to repeat. A failed stop returns nonzero without undoing the preset.
-Already-running debug workers still require a Bitwig restart to shut down; core reload is
-insufficient. The command never restarts Bitwig. To resume debugging, enable it before startup
-as above and explicitly restore the capture rate with `tools/capture-push2-display --sample-rate 1`
-inside a live lease.
+The command acquires the live lease automatically (or reuses the current lease), sets framebuffer
+capture to `0`, removes the startup-enable marker, and waits for the running debugger to retire.
+The controller's **Diagnostics → Performance mode → Disable** button also stops the debugger.
+Disabling detaches input, trace, surface and display hooks, releases synthetic input and diagnostic
+holds, and stops all six workers. The `OFF` receipt is published only after workers terminate and
+released input drains. `tools/pull-debug-status` checks that receipt against its process ID;
+it is not a build-identity attestation. Failure prevents re-enabling until extension restart.
+
+These transitions use native settings callbacks and short-lived lifecycle work. Disabled mode has
+no filesystem polling worker, lifecycle timer or new controller-tick branch. An already-enabled
+worker notices CLI disable; CLI enable only selects the next startup because no disabled worker
+remains to watch files. Shutdown allows two seconds for workers plus up to 100 input-drain callbacks
+requested 20 ms apart. Extension exit is best-effort and never schedules post-exit host callbacks.
+
+The preset works with Bitwig closed and is safe to repeat. Older shells still require a restart;
+the client stops their reported event/selection traces and warns that runtime shutdown is unconfirmed.
+Failed shutdown returns nonzero without undoing the preset. The command never restarts Bitwig.
+To resume debugging, use the native Enable button and explicitly restore capture with
+`tools/capture-push2-display --sample-rate 1` inside a live lease if images are needed.
 
 Live capture-off requires the shell version that accepts sample rate `0`; older installed shells
 ignore that value. The startup-disable marker works with either version. With the updated shell,
@@ -390,11 +402,11 @@ jq . ~/.drivenbymoss/pull/debug/surface-input-status.json
 jq '{connected, latestEvent: .events[-1]}' ~/.drivenbymoss/pull/debug/surface-state.json
 ```
 
-Disable the debugger with `tools/capture-push2-display --disable` and restart Bitwig only when the
-next operator no longer needs it.
+Disable the debugger with `tools/capture-push2-display --disable` when the next operator no longer
+needs it; the runtime-toggle shell reports completion after its workers retire.
 
-The live mirror is constructed only when debugging was enabled before extension startup. Installing
-this shell change and restarting Bitwig once adds the output observer; later core reloads reuse it.
+The live mirror is attached only while debugging is enabled. Installing this shell change and
+restarting Bitwig once adds runtime lifecycle support; later core reloads reuse it.
 The controller thread only copies the fixed Push footprint into one coalescing slot. JSON encoding,
 filesystem writes, HTTP serving, and browser polling stay off the controller thread. Continuous
 touch-strip position is part of the held browser drag path. Encoders turn only during a held
@@ -465,9 +477,8 @@ The resulting request-correlated image path is printed on standard output; navig
 reported on standard error. The fixed local handshake directory is
 `~/.drivenbymoss/pull/debug`. One client owns an atomic lock for the complete navigate-and-capture
 transaction, and every request-correlated PNG is named for that request so another capture cannot
-satisfy or overwrite it. Unless the `enabled` marker exists in that directory at extension
-startup, no debugger transport is constructed. Run
-`tools/capture-push2-display --disable` and restart Bitwig to turn the transports off again.
+satisfy or overwrite it. The `enabled` marker chooses startup behavior; the native Diagnostics
+buttons toggle the running transports. Run `tools/capture-push2-display --disable` to stop them.
 
 For navigation without a framebuffer capture, use the generic client; named recipes stay
 client-side:
@@ -680,7 +691,7 @@ across core hot reloads.
 
 ## Arrange scrolling diagnostic
 
-Enable the opt-in Push debugger at startup and hold the live lease. Use
+Enable the opt-in Push debugger and hold the live lease. Use
 `tools/push-debug-selection run 30` to trace selection and scanner activity, or
 `tools/push-debug-selection pause 30` to suspend scanner selection and paging while tracing.
 Intervals last 1–60 seconds; a new request replaces the interval, expiry resumes scanning,

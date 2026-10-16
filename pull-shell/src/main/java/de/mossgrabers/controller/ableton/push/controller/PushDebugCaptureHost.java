@@ -61,12 +61,9 @@ final class PushDebugCaptureHost implements AutoCloseable
     private final AtomicBoolean             closed = new AtomicBoolean ();
 
 
-    static PushDebugCaptureHost createIfEnabled ()
+    static PushDebugCaptureHost create (final PushDebugging.Workers workers)
     {
-        if (!PushDebugging.isEnabled ())
-            return null;
-
-        final ScheduledExecutorService worker = PushDebugging.createWorker ("Pull debug capture transport");
+        final ScheduledExecutorService worker = workers.create ("Pull debug capture transport");
         final PushDebugCaptureHost host = new PushDebugCaptureHost (PushDebugging.directory (), worker);
         worker.scheduleWithFixedDelay (host::pollFilesSafely, 0, POLL_INTERVAL_MILLIS, TimeUnit.MILLISECONDS);
         return host;
@@ -285,18 +282,26 @@ final class PushDebugCaptureHost implements AutoCloseable
     {
         if (this.worker == null || this.closed.get () || !this.drainScheduled.compareAndSet (false, true))
             return;
-        this.worker.execute ( () -> {
-            try
-            {
-                this.pollFilesSafely ();
-            }
-            finally
-            {
-                this.drainScheduled.set (false);
-                if (this.pendingLatestWrite.get () != null || this.completedCapture.get () != null)
-                    this.requestDrain ();
-            }
-        });
+        try
+        {
+            this.worker.execute ( () -> {
+                try
+                {
+                    this.pollFilesSafely ();
+                }
+                finally
+                {
+                    this.drainScheduled.set (false);
+                    if (this.pendingLatestWrite.get () != null || this.completedCapture.get () != null)
+                        this.requestDrain ();
+                }
+            });
+        }
+        catch (final java.util.concurrent.RejectedExecutionException ignored)
+        {
+            this.drainScheduled.set (false);
+            // A display callback already in flight may outlive detachment.
+        }
     }
 
 

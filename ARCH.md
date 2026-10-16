@@ -42,6 +42,13 @@ Legacy navigation and note-editing policy still require migration into core.
 
 ## Assembly
 
+Debug transports are owned by one optional shell session. Native Diagnostics signals attach or
+detach its hooks; the disabled session has no workers, recurring lifecycle callbacks or added
+controller-tick gate. Disable acknowledges completion only after worker termination and later
+router retirement of released synthetic input. The existing debug-null checks remain. Installing
+this lifecycle capability requires one shell restart; toggles thereafter do not. See
+[TESTING](TESTING.md) for commands, bounded shutdown and live-verification limits.
+
 ```text
 Push / Bitwig -> shell callbacks and observed snapshots -> core behavior
                        ^                                      |

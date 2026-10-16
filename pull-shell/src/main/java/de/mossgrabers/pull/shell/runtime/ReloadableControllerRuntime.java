@@ -74,6 +74,8 @@ public final class ReloadableControllerRuntime implements AutoCloseable
     private PushDebugInputHost      debugInputs;
     private PushDebugTraceHost debugTrace;
     private de.mossgrabers.pull.shell.SelectionDebug selectionDebug;
+    private de.mossgrabers.pull.shell.PushDebugSession debugSession;
+    private PushControlSurface debugSurface;
     private Predicate<CoreEvent> eventHandler = event -> false;
     private final Set<ControlId> rawReleasedGestures = new HashSet<> ();
     private boolean started;
@@ -221,9 +223,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             this.retainedDevicePages == null ? RetainedDeviceParameters.UNAVAILABLE : this.retainedDevicePages);
         controllerBridge.installNoteParameters (this.retainedNotes);
         this.environment = new ControllerRuntimeEnvironment (this.clipHost, controllerBridge, this.log, System::nanoTime);
-        this.debugTrace = PushDebugTraceHost.createIfEnabled ();
-        this.selectionDebug = de.mossgrabers.pull.shell.SelectionDebug.createIfEnabled ();
-        this.supervisor = new CoreReloadSupervisor (this.environment, this.log, this.debugTrace);
+        this.supervisor = new CoreReloadSupervisor (this.environment, this.log, null);
         this.eventHandler = this.supervisor::handle;
     }
 
@@ -249,6 +249,8 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         if (this.supervisor != null)
             this.supervisor.start ();
         this.started = true;
+        if (this.debugSession != null)
+            this.debugSession.start (de.mossgrabers.pull.shell.PushDebugging.isEnabled ());
     }
 
 
@@ -286,8 +288,7 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         this.environment.setDeferredInputRelease (this.inputBridge::releaseDeferredStableDispatches);
         this.environment.setInputLifecycleIdle (this.inputBridge::isIdle);
         this.environment.setNoteInputLifecycleIdle (this.inputBridge::musicalInputLifecycleIdle);
-        this.debugNavigation = PushDebugNavigationHost.createIfEnabled (surface, this.inputBridge, this.environment::notePerformanceState, this.environment::debugLightObservation);
-        this.debugInputs = PushDebugInputHost.createIfEnabled (surface, this.inputBridge, this.inputBridge::triggerDebugPad);
+        this.debugSurface = surface;
         this.environment.setInputLifecycleCleanup ( () -> {
             if (this.debugInputs != null)
                 this.debugInputs.cancelActive ("core-owned input route is being invalidated");
@@ -297,6 +298,70 @@ public final class ReloadableControllerRuntime implements AutoCloseable
             if (this.debugInputs != null)
                 this.debugInputs.neutralizeNoteInput ();
         });
+    }
+
+
+    /** Initialization-owned signals wake debug lifecycle transitions without polling when off. */
+    public void initializeDebugSettings (final de.mossgrabers.framework.configuration.ISettingsUI settings)
+    {
+        final var status = settings.getStringSetting ("Status", "Diagnostics", 160, "Off");
+        status.setEnabled (false);
+        this.debugSession = new de.mossgrabers.pull.shell.PushDebugSession (
+            de.mossgrabers.pull.shell.PushDebugging.directory (),
+            callback -> this.controllerHost.scheduleTask (callback, 20), this::openDebug, status::set);
+        settings.getSignalSetting ("Debugging", "Diagnostics", "Enable").addSignalObserver (value -> this.debugSession.request (true));
+        settings.getSignalSetting ("Performance mode", "Diagnostics", "Disable").addSignalObserver (value -> this.debugSession.request (false));
+    }
+
+
+    private de.mossgrabers.pull.shell.PushDebugSession.Session openDebug (final de.mossgrabers.pull.shell.PushDebugging.Workers workers)
+    {
+        try
+        {
+            this.debugSurface.enableDebug (workers);
+            this.debugTrace = PushDebugTraceHost.create (workers);
+            this.selectionDebug = de.mossgrabers.pull.shell.SelectionDebug.create (workers, () -> this.debugSession.requestOffFrom (workers));
+            this.debugNavigation = PushDebugNavigationHost.create (workers, this.debugSurface, this.inputBridge, this.environment::notePerformanceState, this.environment::debugLightObservation);
+            this.debugInputs = PushDebugInputHost.create (workers, this.debugSurface, this.inputBridge, this.inputBridge::triggerDebugPad);
+            this.supervisor.setTrace (this.debugTrace);
+            final PushDebugInputHost inputs = this.debugInputs;
+            return new de.mossgrabers.pull.shell.PushDebugSession.Session ()
+            {
+                @Override public void close () { ReloadableControllerRuntime.this.closeDebug (); }
+                @Override public boolean retired () { return inputs.retireAdmission (); }
+            };
+        }
+        catch (final RuntimeException ex)
+        {
+            this.closeDebug ();
+            throw ex;
+        }
+    }
+
+
+    private void closeDebug ()
+    {
+        this.supervisor.setTrace (null);
+        final AutoCloseable [] resources = {this.debugInputs, this.debugNavigation, this.debugTrace, this.selectionDebug};
+        this.debugInputs = null;
+        this.debugNavigation = null;
+        this.debugTrace = null;
+        this.selectionDebug = null;
+        RuntimeException failure = null;
+        for (final AutoCloseable resource: resources)
+        {
+            try
+            {
+                if (resource != null) resource.close ();
+            }
+            catch (final Exception ex)
+            {
+                failure = new IllegalStateException ("Failed to retire debug transport", ex);
+            }
+        }
+        // Input cleanup must retain the surface until synthetic note/pressure release has run.
+        this.debugSurface.disableDebug ();
+        if (failure != null) throw failure;
     }
 
 
@@ -505,44 +570,21 @@ public final class ReloadableControllerRuntime implements AutoCloseable
         this.rawReleasedGestures.clear ();
         try
         {
-            try
-            {
-                if (this.debugInputs != null)
-                    this.debugInputs.close ();
-            }
-            finally
-            {
-                if (this.debugNavigation != null)
-                    this.debugNavigation.close ();
-            }
+            if (this.debugSession != null) this.debugSession.close ();
         }
         finally
         {
-            this.debugInputs = null;
-            this.debugNavigation = null;
             this.inputBridge = null;
             try
             {
-                if (this.supervisor != null)
-                    this.supervisor.close ();
+                if (this.supervisor != null) this.supervisor.close ();
             }
             finally
             {
-                try
+                if (this.environment != null)
                 {
-                    if (this.environment != null)
-                    {
-                        for (final ControlId control: FILL_CONTROLS)
-                            this.environment.safetyRelease (control);
-                    }
-                }
-                finally
-                {
-                    if (this.debugTrace != null)
-                        this.debugTrace.close ();
-                    this.debugTrace = null;
-                    if (this.selectionDebug != null) this.selectionDebug.close ();
-                    this.selectionDebug = null;
+                    for (final ControlId control: FILL_CONTROLS)
+                        this.environment.safetyRelease (control);
                 }
             }
         }

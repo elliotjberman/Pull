@@ -78,12 +78,9 @@ final class PushDebugInputHost implements AutoCloseable
     private long pressureExpiresAtNanos;
 
 
-    static PushDebugInputHost createIfEnabled (final PushControlSurface surface, final PushDebugNavigationHost.GestureAdmission admission, final PadControllerInput padControllerInput)
+    static PushDebugInputHost create (final PushDebugging.Workers workers, final PushControlSurface surface, final PushDebugNavigationHost.GestureAdmission admission, final PadControllerInput padControllerInput)
     {
-        if (!PushDebugging.isEnabled ())
-            return null;
-
-        final ScheduledExecutorService worker = PushDebugging.createWorker ("Pull debug browser input transport");
+        final ScheduledExecutorService worker = workers.create ("Pull debug browser input transport");
         final PushDebugInputHost host = new PushDebugInputHost (
             PushDebugging.directory (),
             new PushInputSurface (surface, padControllerInput),
@@ -882,6 +879,14 @@ final class PushDebugInputHost implements AutoCloseable
             return request.phase () == DebugPhase.CHANGE;
         return (request.kind () == InputKind.BUTTON || request.kind () == InputKind.PAD || request.kind () == InputKind.TOUCH) &&
             (request.phase () == DebugPhase.BEGIN || request.phase () == DebugPhase.END);
+    }
+
+
+    /** Called only during debug-session retirement, after ingress and normal ticking detach. */
+    boolean retireAdmission ()
+    {
+        this.completeAdmissionIfIdle ();
+        return !this.debugInputActive;
     }
 
 

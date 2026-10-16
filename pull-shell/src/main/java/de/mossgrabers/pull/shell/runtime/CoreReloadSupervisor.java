@@ -34,6 +34,12 @@ final class CoreReloadSupervisor implements AutoCloseable
     }
 
 
+    void setTrace (final RuntimeTraceSink trace)
+    {
+        this.runtimeManager.setTrace (trace);
+    }
+
+
     void start ()
     {
         if (this.started || this.closed)

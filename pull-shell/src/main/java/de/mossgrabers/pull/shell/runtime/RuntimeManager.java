@@ -30,7 +30,7 @@ final class RuntimeManager implements AutoCloseable
 
     private final CoreRuntimeEnvironment environment;
     private final RuntimeLog log;
-    private final RuntimeTraceSink trace;
+    private RuntimeTraceSink trace;
     private Lifecycle lifecycle = Lifecycle.NEW;
     private Thread controllerThread;
     private ActiveCore active;
@@ -403,6 +403,13 @@ final class RuntimeManager implements AutoCloseable
             this.traceFailure (committedGeneration, "APPLY", failure);
             this.warn ("Committed core effects failed: " + sanitize (failure));
         }
+    }
+
+
+    /** Replace the optional sink on the controller thread, without a forwarding layer. */
+    void setTrace (final RuntimeTraceSink trace)
+    {
+        this.trace = trace;
     }
 
 

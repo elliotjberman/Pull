@@ -87,13 +87,21 @@ else
             mkdir -p "$debug_dir"
             "${script_dir}/require-pull-live"
             touch "$enabled_path"
-            echo "Push debugger enabled. Install this shell build and restart Bitwig to start its transports." >&2
+            echo "Push debugger enabled at startup. To enable now, use Pull controller settings > Diagnostics > Enable (updated shell required)." >&2
             exit 0
             ;;
         --disable)
             "${script_dir}/require-pull-live"
             rm -f "$enabled_path"
-            echo "Push debugger disabled. Restart Bitwig to stop any running transports." >&2
+            status=0
+            "${script_dir}/pull-debug-status" --wait-off || status=$?
+            if (( status == 2 ))
+            then
+                echo "Push debugger disabled at startup. Running older shells require a restart." >&2
+            elif (( status != 0 ))
+            then
+                exit "$status"
+            fi
             exit 0
             ;;
         *)

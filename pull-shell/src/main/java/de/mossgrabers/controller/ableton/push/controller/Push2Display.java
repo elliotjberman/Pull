@@ -28,7 +28,7 @@ import java.util.function.Supplier;
 public class Push2Display extends AbstractGraphicDisplay
 {
     private final PushUsbDisplay usbDisplay;
-    private final PushDebugCaptureHost debugCapture;
+    private volatile PushDebugCaptureHost debugCapture;
     private boolean              isShutdown = false;
 
 
@@ -56,7 +56,6 @@ public class Push2Display extends AbstractGraphicDisplay
             return overlay.active () ? new DisplaySceneComponent (overlay.scene ()) : null;
         });
         this.usbDisplay = new PushUsbDisplay (host);
-        this.debugCapture = PushDebugCaptureHost.createIfEnabled ();
     }
 
 
@@ -78,8 +77,7 @@ public class Push2Display extends AbstractGraphicDisplay
         this.send ();
 
         this.isShutdown = true;
-        if (this.debugCapture != null)
-            this.debugCapture.close ();
+        this.disableDebug ();
 
         final ExecutorService executor = Executors.newSingleThreadExecutor ();
         executor.execute ( () -> {
@@ -106,9 +104,24 @@ public class Push2Display extends AbstractGraphicDisplay
     @Override
     protected void send (final IBitmap image)
     {
-        if (this.debugCapture != null)
-            this.debugCapture.observeFrame (image);
+        final PushDebugCaptureHost capture = this.debugCapture;
+        if (capture != null)
+            capture.observeFrame (image);
         if (!this.isShutdown && this.usbDisplay != null)
             this.usbDisplay.send (image);
+    }
+
+
+    void enableDebug (final de.mossgrabers.pull.shell.PushDebugging.Workers workers)
+    {
+        this.debugCapture = PushDebugCaptureHost.create (workers);
+    }
+
+
+    void disableDebug ()
+    {
+        final PushDebugCaptureHost capture = this.debugCapture;
+        this.debugCapture = null;
+        if (capture != null) capture.close ();
     }
 }

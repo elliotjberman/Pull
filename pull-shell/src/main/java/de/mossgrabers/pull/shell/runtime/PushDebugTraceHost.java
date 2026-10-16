@@ -58,12 +58,9 @@ final class PushDebugTraceHost implements RuntimeTraceSink, AutoCloseable
     private ControllerSnapshot lastSnapshot;
 
 
-    static PushDebugTraceHost createIfEnabled ()
+    static PushDebugTraceHost create (final PushDebugging.Workers workers)
     {
-        if (!PushDebugging.isEnabled ())
-            return null;
-
-        final ScheduledExecutorService worker = PushDebugging.createWorker ("Pull debug trace transport");
+        final ScheduledExecutorService worker = workers.create ("Pull debug trace transport");
         final PushDebugTraceHost host = new PushDebugTraceHost (PushDebugging.directory (), worker, System::nanoTime);
         worker.scheduleWithFixedDelay (host::pollFilesSafely, 0, POLL_INTERVAL_MILLIS, TimeUnit.MILLISECONDS);
         return host;
