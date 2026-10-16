@@ -84,7 +84,7 @@ PYTHONPATH=target/display-benchmark/deps/python python3 benchmarks/push-display/
 grayscale threshold edges, heap/direct/read-only buffers, byte order, row padding and the exact
 header/frame sent through the real `PushUsbDisplay` worker to a fake USB endpoint.
 
-[Measured report and evidence](results/2026-10-15-m5-max/index.html).
+[Measured report and evidence](https://github.com/elliotjberman/Pull/blob/codex/push-display-evidence-2026-10-16/benchmarks/push-display/results/2026-10-15-m5-max/index.html).
 
 The runtime is Bitwig's bundled Zulu Java 25.0.4.1 on an Apple M5 Max, using default VM flags.
 The incubating Vector API is absent from that runtime. The optimization uses ordinary Java and
@@ -92,7 +92,7 @@ HotSpot's 128-bit NEON code generation. Performance on other CPUs/JVMs needs its
 
 ## Cell-cache follow-up
 
-[Cell and debugger cache evidence](results/2026-10-16-cell-cache/index.html) compares production with
+[Cell and debugger cache evidence](https://github.com/elliotjberman/Pull/blob/codex/push-display-evidence-2026-10-16/benchmarks/push-display/results/2026-10-16-cell-cache/index.html) compares production with
 `RowFrameEncoder`, the first SIMD implementation frozen at `28b7059c`. Seven encoder workloads
 include controlled moving-playhead, 16×16-patch and one-column macro updates. Larger 120-pixel-wide
 2D cells and a whole-frame-only shortcut were measured in the archived pilot experiments.
@@ -124,8 +124,8 @@ request counts, decoded-image transitions and exact browser/server source hashes
 
 ## Cleanup verification
 
-[Final source hashes, test counts and review outcome](results/2026-10-16-cleanup/validation.json)
-and [remeasured JMH data](results/2026-10-16-cleanup/timings.json) retain the final cleanup's
+[Final source hashes, test counts and review outcome](https://github.com/elliotjberman/Pull/blob/codex/push-display-evidence-2026-10-16/benchmarks/push-display/results/2026-10-16-cleanup/validation.json)
+and [remeasured JMH data](https://github.com/elliotjberman/Pull/blob/codex/push-display-evidence-2026-10-16/benchmarks/push-display/results/2026-10-16-cleanup/timings.json) retain the final cleanup's
 provenance. The encoder bytecode is unchanged except for private field names. Shared evidence
 recipes generate identical commands, and the shared flamegraph decoder reproduces all ten graphs'
 reported counts. Original reports retain their original source identities and measurements.
@@ -136,3 +136,7 @@ The two-fork confirmation on the same Bitwig JVM measured scalar → final encod
 comparisons within one run. The earlier three-fork reports contain the broader workload matrix,
 SIMD control, assembly and flamegraphs. Cell comparisons still cost a few percent on wholly changing
 frames relative to the first SIMD version; the SIMD conversion itself remains much faster than scalar.
+
+Generated reports, logs, profiles and raw measurements live on the separate
+[`codex/push-display-evidence-2026-10-16` archive branch](https://github.com/elliotjberman/Pull/tree/codex/push-display-evidence-2026-10-16/benchmarks/push-display/results).
+They are excluded from the implementation PR. Local report generation still uses `results/`.
