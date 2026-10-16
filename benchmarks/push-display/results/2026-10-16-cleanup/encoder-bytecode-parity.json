@@ -1,0 +1,4 @@
+{
+  "equal_after_private_field_renames": true,
+  "method_instructions_unchanged": true
+}

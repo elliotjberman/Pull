@@ -36,8 +36,8 @@ final class PushDebugCaptureHost implements AutoCloseable
     private static final int  MAX_CAPTURE_FILES             = 16;
     private static final long POLL_INTERVAL_MILLIS          = 100;
 
-    // Observation revisions keep advancing even when the picture does not. A separate content
-    // generation lets the browser reuse its decoded image and survives shell restarts safely.
+    // Observations advance even for identical pixels. The browser uses a separate content
+    // generation; the epoch prevents stale hits after capture transport restart.
     private final String captureEpoch = UUID.randomUUID ().toString ();
     private PushDebugFrame publishedImage; // Single worker owns publication and PNG caching.
     private long imageRevision;
@@ -108,9 +108,9 @@ final class PushDebugCaptureHost implements AutoCloseable
                 Objects.requireNonNull (image, "image").encode ( (buffer, width, height) ->
                 {
                     final Frame previous = this.latestFrame.get ();
-                    final PushDebugFrame pixels = PushDebugFrame.capture (buffer, width, height, previous == null ? null : previous.image ());
+                    final PushDebugFrame snapshot = PushDebugFrame.capture (buffer, width, height, previous == null ? null : previous.image ());
                     final long captureMicros = TimeUnit.NANOSECONDS.toMicros (System.nanoTime () - captureStarted);
-                    final Frame frame = new Frame (revision, pixels, sampleInterval, this.sampledFrames.incrementAndGet (), captureMicros);
+                    final Frame frame = new Frame (revision, snapshot, sampleInterval, this.sampledFrames.incrementAndGet (), captureMicros);
                     this.latestFrame.set (frame);
                     if (this.pendingLatestWrite.getAndSet (frame) != null)
                         this.coalescedFrames.incrementAndGet ();

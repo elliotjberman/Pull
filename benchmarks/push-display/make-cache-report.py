@@ -1,110 +1,268 @@
 #!/usr/bin/env python3
 """Build the second-round report from unedited JMH data and archived pilot experiments."""
 from pathlib import Path
-import ast,collections,hashlib,html,json,re,shutil,subprocess,tarfile
+import hashlib, html, json, re, shutil, subprocess, tarfile
+from evidence import flame_stats
 import xml.etree.ElementTree as ET
 import matplotlib
-matplotlib.use('Agg')
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
-ROOT=Path(__file__).resolve().parents[2]
-SOURCE=ROOT/'target/display-benchmark/round2'
-OUT=ROOT/'benchmarks/push-display/results/2026-10-16-cell-cache'
-OUT.mkdir(parents=True,exist_ok=True)
-for p in SOURCE.iterdir():
-    if p.name in {'timings.json','timings.log','debug-timings.json','debug-timings.log','without-superword.json','without-superword.log','latency.json','latency.log','assembly.log','neon-assembly.txt','commands.json','package.log','server-tests.log','browser-cache-check.json','bitwig-tests.log','client-tests.log'} or p.name.startswith('profile-') and p.suffix=='.log':
-        shutil.copyfile(p,OUT/p.name)
-shutil.copyfile(ROOT/'target/display-benchmark/frames/manifest.json',OUT/'capture-manifest.json')
-if (SOURCE/'browser-check/serve.py').exists():
-    shutil.copyfile(SOURCE/'browser-check/serve.py',OUT/'browser-fixture.py')
-labels={'capture':'Captured screens','random':'Changing random pixels','gray':'Moving grayscale','unchanged':'Unchanged UI','playhead':'Moving 2-pixel playhead','patch':'Moving 16×16 patch','macro':'One macro column changes'}
-def read(name,count):
-    data=json.loads((SOURCE/(name+'.json')).read_text())
-    assert len(data)==count and all(r['primaryMetric']['score']>0 for r in data),name
-    return {(r['benchmark'].split('.')[-1],r['params']['content']):r['primaryMetric'] for r in data}
-values=read('timings',14)
-debug=read('debug-timings',8)
-control=read('without-superword',1)['optimized','random']
-fig,ax=plt.subplots(figsize=(11,7),layout='constrained')
-y=np.arange(len(labels))
-for shift,method,label,color in [(-.18,'rowCached','First SIMD version','#7b8998'),(.18,'optimized','Cells + whole-frame reuse','#139c8b')]:
-    scores=[values[method,c]['score'] for c in labels]
-    errors=[values[method,c]['scoreError'] for c in labels]
-    bars=ax.barh(y+shift,scores,.32,xerr=errors,color=color,label=label,error_kw=dict(capsize=2,lw=1))
-    ax.bar_label(bars,labels=[f'{v:.1f} µs' for v in scores],padding=5,fontsize=9)
-ax.set_yticks(y,list(labels.values()));ax.invert_yaxis()
-ax.set_xlim(0,max(v['score']+v['scoreError'] for v in values.values())*1.2)
-ax.set_xlabel('Microseconds per encoded frame and USB-memory copy · lower is better')
-ax.set_title('Pixel caching beyond the first Java SIMD version',loc='left',weight='bold',fontsize=16,pad=15)
-ax.spines[['top','right','left']].set_visible(False);ax.grid(axis='x',alpha=.15);ax.set_axisbelow(True)
-ax.legend(loc='lower right',frameon=False)
-fig.savefig(OUT/'comparison.png',dpi=180);fig.savefig(OUT/'comparison.svg');plt.close(fig)
 
-def table(data,before,contents):
-    rows=[]
+ROOT = Path(__file__).resolve().parents[2]
+SOURCE = ROOT / "target/display-benchmark/round2"
+OUT = ROOT / "benchmarks/push-display/results/2026-10-16-cell-cache"
+OUT.mkdir(parents=True, exist_ok=True)
+for p in SOURCE.iterdir():
+    if (
+        p.name
+        in {
+            "timings.json",
+            "timings.log",
+            "debug-timings.json",
+            "debug-timings.log",
+            "without-superword.json",
+            "without-superword.log",
+            "latency.json",
+            "latency.log",
+            "assembly.log",
+            "neon-assembly.txt",
+            "commands.json",
+            "package.log",
+            "server-tests.log",
+            "browser-cache-check.json",
+            "bitwig-tests.log",
+            "client-tests.log",
+        }
+        or p.name.startswith("profile-")
+        and p.suffix == ".log"
+    ):
+        shutil.copyfile(p, OUT / p.name)
+shutil.copyfile(
+    ROOT / "target/display-benchmark/frames/manifest.json",
+    OUT / "capture-manifest.json",
+)
+if (SOURCE / "browser-check/serve.py").exists():
+    shutil.copyfile(SOURCE / "browser-check/serve.py", OUT / "browser-fixture.py")
+labels = {
+    "capture": "Captured screens",
+    "random": "Changing random pixels",
+    "gray": "Moving grayscale",
+    "unchanged": "Unchanged UI",
+    "playhead": "Moving 2-pixel playhead",
+    "patch": "Moving 16×16 patch",
+    "macro": "One macro column changes",
+}
+
+
+def read(name, count):
+    data = json.loads((SOURCE / (name + ".json")).read_text())
+    assert len(data) == count and all(
+        r["primaryMetric"]["score"] > 0 for r in data
+    ), name
+    return {
+        (r["benchmark"].split(".")[-1], r["params"]["content"]): r["primaryMetric"]
+        for r in data
+    }
+
+
+values = read("timings", 14)
+debug = read("debug-timings", 8)
+control = read("without-superword", 1)["optimized", "random"]
+fig, ax = plt.subplots(figsize=(11, 7), layout="constrained")
+y = np.arange(len(labels))
+for shift, method, label, color in [
+    (-0.18, "rowCached", "First SIMD version", "#7b8998"),
+    (0.18, "optimized", "Cells + whole-frame reuse", "#139c8b"),
+]:
+    scores = [values[method, c]["score"] for c in labels]
+    errors = [values[method, c]["scoreError"] for c in labels]
+    bars = ax.barh(
+        y + shift,
+        scores,
+        0.32,
+        xerr=errors,
+        color=color,
+        label=label,
+        error_kw=dict(capsize=2, lw=1),
+    )
+    ax.bar_label(bars, labels=[f"{v:.1f} µs" for v in scores], padding=5, fontsize=9)
+ax.set_yticks(y, list(labels.values()))
+ax.invert_yaxis()
+ax.set_xlim(0, max(v["score"] + v["scoreError"] for v in values.values()) * 1.2)
+ax.set_xlabel("Microseconds per encoded frame and USB-memory copy · lower is better")
+ax.set_title(
+    "Pixel caching beyond the first Java SIMD version",
+    loc="left",
+    weight="bold",
+    fontsize=16,
+    pad=15,
+)
+ax.spines[["top", "right", "left"]].set_visible(False)
+ax.grid(axis="x", alpha=0.15)
+ax.set_axisbelow(True)
+ax.legend(loc="lower right", frameon=False)
+fig.savefig(OUT / "comparison.png", dpi=180)
+fig.savefig(OUT / "comparison.svg")
+plt.close(fig)
+
+
+def table(data, before, contents):
+    rows = []
     for content in contents:
-        a,b=data[before,content],data['optimized',content]
-        rows.append(f'<tr><th>{labels[content]}</th><td>{a["score"]:,.2f} ± {a["scoreError"]:.2f}</td><td>{b["score"]:,.2f} ± {b["scoreError"]:.2f}</td><td>{a["score"]/b["score"]:.2f}×</td></tr>')
-    return '<div class="scroll"><table><tr><th>Workload</th><th>Before µs</th><th>After µs</th><th>Speedup</th></tr>'+''.join(rows)+'</table></div>'
-profiles=[]
-for p in sorted((SOURCE/'profiles').glob('*/flame-cpu-forward.html')):
-    stem=p.parent.name.replace('de.mossgrabers.controller.ableton.push.controller.','').replace('-AverageTime-content-','-')
-    filename=stem+'-flamegraph.html';shutil.copyfile(p,OUT/filename)
+        a, b = data[before, content], data["optimized", content]
+        rows.append(
+            f'<tr><th>{labels[content]}</th><td>{a["score"]:,.2f} ± {a["scoreError"]:.2f}</td><td>{b["score"]:,.2f} ± {b["scoreError"]:.2f}</td><td>{a["score"]/b["score"]:.2f}×</td></tr>'
+        )
+    return (
+        '<div class="scroll"><table><tr><th>Workload</th><th>Before µs</th><th>After µs</th><th>Speedup</th></tr>'
+        + "".join(rows)
+        + "</table></div>"
+    )
+
+
+profiles = []
+for p in sorted((SOURCE / "profiles").glob("*/flame-cpu-forward.html")):
+    stem = p.parent.name.replace(
+        "de.mossgrabers.controller.ableton.push.controller.", ""
+    ).replace("-AverageTime-content-", "-")
+    filename = stem + "-flamegraph.html"
+    shutil.copyfile(p, OUT / filename)
     profiles.append(f'<a href="{filename}">{html.escape(stem)}</a>')
-assert len(profiles)==6
+assert len(profiles) == 6
 # Decode async-profiler's compact frame data without executing its HTML/JavaScript.
-profile_shares={}
-for p in sorted(OUT.glob('*-flamegraph.html')):
-    source=p.read_text()
-    pool=ast.literal_eval(re.search(r'const cpool = (\[.*?\]);',source,re.S)[1])
-    for i in range(1,len(pool)):
-        pool[i]=pool[i-1][:ord(pool[i][0])-32]+pool[i][1:]
-    width=0;total=0;counts_by_name=collections.Counter()
-    for fn,raw in re.findall(r'^([fun])\(([^)]*)\)',source,re.M):
-        args=[int(v) for v in raw.split(',')]
-        width=(args[3] if len(args)>3 else width) if fn=='f' else (args[1] if len(args)>1 else width)
-        if not total: total=width
-        counts_by_name[pool[args[0]>>3]]+=width
+profile_shares = {}
+for p in sorted(OUT.glob("*-flamegraph.html")):
+    total, counts_by_name = flame_stats(p)
     # These selected method names do not recurse; each width is an inclusive CPU sample count.
-    selected={k:v/total*100 for k,v in counts_by_name.items() if any(n in k for n in [
-        'Encoder.channel','Encoder.luminance','Encoder.copyTo','PNGImageWriter.write_IDAT','ArraysSupport.vectorizedMismatch'])}
-    profile_shares[p.stem]={'total_samples':total,'inclusive_percent':selected}
-(OUT/'profile-summary.json').write_text(json.dumps(profile_shares,indent=2)+'\n')
-pilots=json.loads((SOURCE/'pilots.json').read_text())+json.loads((SOURCE/'cell-pilots.json').read_text())
-pilot_rows=[]
+    selected = {
+        k: v / total * 100
+        for k, v in counts_by_name.items()
+        if any(
+            n in k
+            for n in [
+                "Encoder.channel",
+                "Encoder.luminance",
+                "Encoder.copyTo",
+                "PNGImageWriter.write_IDAT",
+                "ArraysSupport.vectorizedMismatch",
+            ]
+        )
+    }
+    profile_shares[p.stem] = {"total_samples": total, "inclusive_percent": selected}
+(OUT / "profile-summary.json").write_text(json.dumps(profile_shares, indent=2) + "\n")
+pilots = json.loads((SOURCE / "pilots.json").read_text()) + json.loads(
+    (SOURCE / "cell-pilots.json").read_text()
+)
+pilot_rows = []
 for r in pilots:
-    pilot_rows.append('<tr><th>'+r['name']+'</th>'+''.join('<td>'+str(r['results'].get(c,'—'))+'</td>' for c in labels)+'</tr>')
-with tarfile.open(OUT/'pilot-evidence.tar.gz','w:gz') as archive:
-    names={'pilots.json','cell-pilots.json','pilot.py','cell-pilot.py','row-original.java'}
+    pilot_rows.append(
+        "<tr><th>"
+        + r["name"]
+        + "</th>"
+        + "".join("<td>" + str(r["results"].get(c, "—")) + "</td>" for c in labels)
+        + "</tr>"
+    )
+with tarfile.open(OUT / "pilot-evidence.tar.gz", "w:gz") as archive:
+    names = {
+        "pilots.json",
+        "cell-pilots.json",
+        "pilot.py",
+        "cell-pilot.py",
+        "row-original.java",
+    }
     for r in pilots:
-        for extension in ['.java','.json','.log']: names.add(r['name']+extension)
+        for extension in [".java", ".json", ".log"]:
+            names.add(r["name"] + extension)
     for name in sorted(names):
-        if (SOURCE/name).exists(): archive.add(SOURCE/name,arcname=name)
-(OUT/'pilots.json').write_text(json.dumps(pilots,indent=2)+'\n')
-counts={k:0 for k in ['tests','failures','errors','skipped']}
-for module in ['pull-core','pull-core-publisher','pull-shell']:
-    for p in (ROOT/module/'target/surefire-reports').glob('TEST-*.xml'):
-        test=ET.parse(p).getroot()
-        for k in counts: counts[k]+=int(test.get(k,0))
-paths=list((ROOT/'benchmarks/push-display/src').rglob('*.java'))
-paths += [ROOT/'pull-shell/src/main/java/de/mossgrabers/controller/ableton/push/controller'/n for n in ['PushFrameEncoder.java','PushDebugFrame.java','PushDebugCaptureHost.java','PushColorCalibration.java']]
-paths += [ROOT/p for p in ['tools/push-debug-surface-app/push-surface.js','tools/push-debug-surface-server.py','tools/capture-push2-display']]
-metadata={'before_commit':'28b7059c','cpu':subprocess.check_output(['sysctl','-n','machdep.cpu.brand_string'],text=True).strip(),
- 'jvm':subprocess.check_output(['/Applications/Bitwig Studio.app/Contents/PlugIns/JavaVM-arm64.bundle/Contents/Home/bin/java','--version'],text=True),'java_tests':counts,
- 'source_sha256':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}}
-(OUT/'metadata.json').write_text(json.dumps(metadata,indent=2)+'\n')
-summary={c:{'row_us':values['rowCached',c]['score'],'cell_us':values['optimized',c]['score'],'speedup':values['rowCached',c]['score']/values['optimized',c]['score']} for c in labels}
-summary['debug']={c:{'before_us':debug['baseline',c]['score'],'after_us':debug['optimized',c]['score'],'speedup':debug['baseline',c]['score']/debug['optimized',c]['score']} for c in ['capture','random','unchanged','macro']}
-(OUT/'summary.json').write_text(json.dumps(summary,indent=2)+'\n')
-latency=json.loads((SOURCE/'latency.json').read_text());assert len(latency)==4
-latrows=[]
+        if (SOURCE / name).exists():
+            archive.add(SOURCE / name, arcname=name)
+(OUT / "pilots.json").write_text(json.dumps(pilots, indent=2) + "\n")
+counts = {k: 0 for k in ["tests", "failures", "errors", "skipped"]}
+for module in ["pull-core", "pull-core-publisher", "pull-shell"]:
+    for p in (ROOT / module / "target/surefire-reports").glob("TEST-*.xml"):
+        test = ET.parse(p).getroot()
+        for k in counts:
+            counts[k] += int(test.get(k, 0))
+paths = list((ROOT / "benchmarks/push-display/src").rglob("*.java"))
+paths += [
+    ROOT
+    / "pull-shell/src/main/java/de/mossgrabers/controller/ableton/push/controller"
+    / n
+    for n in [
+        "PushFrameEncoder.java",
+        "PushDebugFrame.java",
+        "PushDebugCaptureHost.java",
+        "PushColorCalibration.java",
+    ]
+]
+paths += [
+    ROOT / p
+    for p in [
+        "tools/push-debug-surface-app/push-surface.js",
+        "tools/push-debug-surface-server.py",
+        "tools/capture-push2-display",
+    ]
+]
+metadata = {
+    "before_commit": "28b7059c",
+    "cpu": subprocess.check_output(
+        ["sysctl", "-n", "machdep.cpu.brand_string"], text=True
+    ).strip(),
+    "jvm": subprocess.check_output(
+        [
+            "/Applications/Bitwig Studio.app/Contents/PlugIns/JavaVM-arm64.bundle/Contents/Home/bin/java",
+            "--version",
+        ],
+        text=True,
+    ),
+    "java_tests": counts,
+    "source_sha256": {
+        str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
+        for p in paths
+    },
+}
+(OUT / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
+summary = {
+    c: {
+        "row_us": values["rowCached", c]["score"],
+        "cell_us": values["optimized", c]["score"],
+        "speedup": values["rowCached", c]["score"] / values["optimized", c]["score"],
+    }
+    for c in labels
+}
+summary["debug"] = {
+    c: {
+        "before_us": debug["baseline", c]["score"],
+        "after_us": debug["optimized", c]["score"],
+        "speedup": debug["baseline", c]["score"] / debug["optimized", c]["score"],
+    }
+    for c in ["capture", "random", "unchanged", "macro"]
+}
+(OUT / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
+latency = json.loads((SOURCE / "latency.json").read_text())
+assert len(latency) == 4
+latrows = []
 for r in latency:
-    p=r['primaryMetric']['scorePercentiles']
-    latrows.append('<tr><td>'+r['benchmark'].split('.')[-1]+'</td><td>'+labels[r['params']['content']]+'</td>'+''.join(f'<td>{p[k]:.1f}</td>' for k in ['50.0','95.0','99.0','99.9'])+'</tr>')
-assembly=(SOURCE/'neon-assembly.txt').read_text()
-snippets=[line for line in assembly.splitlines() if '; NEON' in line and re.search(r'\b(mul|sshr|smin|smax)\s',line)][:8]
+    p = r["primaryMetric"]["scorePercentiles"]
+    latrows.append(
+        "<tr><td>"
+        + r["benchmark"].split(".")[-1]
+        + "</td><td>"
+        + labels[r["params"]["content"]]
+        + "</td>"
+        + "".join(f"<td>{p[k]:.1f}</td>" for k in ["50.0", "95.0", "99.0", "99.9"])
+        + "</tr>"
+    )
+assembly = (SOURCE / "neon-assembly.txt").read_text()
+snippets = [
+    line
+    for line in assembly.splitlines()
+    if "; NEON" in line and re.search(r"\b(mul|sshr|smin|smax)\s", line)
+][:8]
 assert snippets
-page=f'''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+page = f"""<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pull · Pixel and debugger caching</title><style>
 body{{margin:0;background:#f5f7fa;color:#172c40;font:16px/1.6 system-ui,sans-serif}}main{{max-width:1120px;margin:auto;padding:40px 24px 70px}}
 h1{{font-size:37px;line-height:1.2;letter-spacing:-1px}}h2{{margin-top:36px}}a{{color:#087e75}}.eyebrow{{font-size:12px;font-weight:bold;letter-spacing:2px;color:#087e75}}
@@ -174,6 +332,7 @@ copy complete cached wire frame to USB buffer</pre>
 <h2>Validation and reproduction</h2>
 <p><b>{counts['tests']:,} Java tests passed</b>, including all 16,777,216 RGB colors, cell/row/edge edits, immutable capture snapshots, request freshness, alpha/dimension invalidation and restart generations. The 19 focused encoder/capture tests also passed on Bitwig’s actual JVM, as did nine local HTTP-server tests and the debugger shell-client regressions. Live Bitwig/physical Push testing remains unperformed.</p>
 <p><a href="../../README.md">Reproduction instructions</a> · <a href="timings.json">Encoder raw data</a> · <a href="debug-timings.json">Debugger raw data</a> · <a href="latency.json">Latency raw data</a> · <a href="commands.json">Exact commands</a> · <a href="metadata.json">Environment, tests and source hashes</a> · <a href="package.log">Package gate</a> · <a href="server-tests.log">Server tests</a> · <a href="client-tests.log">Client tests</a> · <a href="bitwig-tests.log">Actual-JVM tests</a> · <a href="../2026-10-15-m5-max/index.html">First optimization report</a></p>
-</main></html>'''
-(OUT/'index.html').write_text(page)
-print(json.dumps(summary,indent=2));print(OUT/'index.html')
+</main></html>"""
+(OUT / "index.html").write_text(page)
+print(json.dumps(summary, indent=2))
+print(OUT / "index.html")

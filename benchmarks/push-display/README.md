@@ -121,3 +121,18 @@ on port 8766. Run it from the repository root. It uses only the ignored
 `target/display-benchmark/round2/browser-check` directory and disables input; `allow-image`
 controls its initial HTTP-failure condition. `browser-cache-check.json` records the observed
 request counts, decoded-image transitions and exact browser/server source hashes.
+
+## Cleanup verification
+
+[Final source hashes, test counts and review outcome](results/2026-10-16-cleanup/validation.json)
+and [remeasured JMH data](results/2026-10-16-cleanup/timings.json) retain the final cleanup's
+provenance. The encoder bytecode is unchanged except for private field names. Shared evidence
+recipes generate identical commands, and the shared flamegraph decoder reproduces all ten graphs'
+reported counts. Original reports retain their original source identities and measurements.
+
+The two-fork confirmation on the same Bitwig JVM measured scalar → final encoder: captured screens
+314.72 → 77.53 µs (4.06×), one-column macro updates 374.57 → 45.05 µs (8.31×), unchanged frames
+369.42 → 17.37 µs (21.26×), and changing random pixels 681.33 → 239.44 µs (2.85×). These are direct
+comparisons within one run. The earlier three-fork reports contain the broader workload matrix,
+SIMD control, assembly and flamegraphs. Cell comparisons still cost a few percent on wholly changing
+frames relative to the first SIMD version; the SIMD conversion itself remains much faster than scalar.

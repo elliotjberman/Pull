@@ -16,11 +16,18 @@ for block in text.split("Compiled method (c2)")[1:]:
     method = re.search(r"PushFrameEncoder::(\w+)", header).group(1)
     lines = []
     vectors = 0
-    for address, encoded in re.findall(r"^\s*(0x[0-9a-f]+): ((?:[0-9a-f]{4} ?(?:\| )?)+)", block, re.M):
-        for insn in decoder.disasm(bytes.fromhex(encoded.replace("|", "")), int(address, 16)):
+    for address, encoded in re.findall(
+        r"^\s*(0x[0-9a-f]+): ((?:[0-9a-f]{4} ?(?:\| )?)+)", block, re.M
+    ):
+        for insn in decoder.disasm(
+            bytes.fromhex(encoded.replace("|", "")), int(address, 16)
+        ):
             simd = bool(re.search(r"\bv\d+\.", insn.op_str))
             vectors += int(simd)
-            lines.append(f"{insn.address:#018x}  {insn.mnemonic:10} {insn.op_str}" + ("  ; NEON" if simd else ""))
+            lines.append(
+                f"{insn.address:#018x}  {insn.mnemonic:10} {insn.op_str}"
+                + ("  ; NEON" if simd else "")
+            )
     latest[method] = (header, vectors, lines)
 for method, (header, vectors, lines) in latest.items():
     print(f"\n{header}\nNEON vector-register instructions: {vectors}\n")

@@ -12,6 +12,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import javax.imageio.ImageIO;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
@@ -275,17 +276,15 @@ class PushDebugCaptureHostTest
 
 
     @Test
-    void queuedCaptureKeepsItsObservedPixelsWhenTheSourceChanges () throws IOException
+    void snapshotKeepsItsPixelsWhenSourceChangesBeforePngEncoding () throws IOException
     {
-        final PushDebugCaptureHost host = new PushDebugCaptureHost (this.debugDirectory);
         final byte [] pixels = {3, 2, 1, (byte) 255};
-        host.observeFrame (new FakeBitmap (pixels, 1, 1));
-        Files.writeString (this.debugDirectory.resolve (PushDebugCaptureHost.REQUEST_FILE), "frozen\n");
-        host.pollForTest ();
+        final ByteBuffer source = ByteBuffer.wrap (pixels);
+        final PushDebugFrame snapshot = PushDebugFrame.capture (source, 1, 1, null);
         pixels[0] = 99;
-        host.pollForTest ();
-        assertEquals (0xFF010203, ImageIO.read (this.debugDirectory.resolve ("display-frozen.png").toFile ()).getRGB (0, 0));
-        host.close ();
+        assertEquals (0xFF010203, ImageIO.read (new ByteArrayInputStream (snapshot.png ())).getRGB (0, 0));
+        final PushDebugFrame changed = PushDebugFrame.capture (source, 1, 1, snapshot);
+        assertEquals (0xFF010263, ImageIO.read (new ByteArrayInputStream (changed.png ())).getRGB (0, 0));
     }
 
 

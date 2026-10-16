@@ -8,17 +8,14 @@ import java.nio.ByteOrder;
 import java.nio.IntBuffer;
 import java.util.Arrays;
 
+
 /**
- * Pixel-only 960x160 BGRA-to-BGR565 transport encoder, including row padding and signal shaping.
- * It consumes any finished bitmap: components, layouts, views and animation stay in the renderer.
- * All invalidation comes from exact pixel comparisons, so adding a component needs no cache hooks.
- * Caller serializes encoding and copying; bounded primitive storage stays below 1 MiB.
+ * Converts a finished BGRA bitmap to the Push 2 wire format. Pixel comparisons invalidate the
+ * cache independently of display components. The caller serializes encode/copy access.
  *
- * The seemingly repetitive loops are intentional. Row-local int arrays with matching indices let
- * HotSpot generate four-lane NEON arithmetic on Bitwig's bundled AArch64 JVM. Fusing calibration,
- * packing and short stores inhibited vectorization in measured prototypes. Keep the cheap scalar
- * narrowing pass separate and benchmark generated code before simplifying these loops.
- * See benchmarks/push-display for exhaustive compatibility tests, rejected variants and evidence.
+ * Separate int-array passes with matching indices let HotSpot generate four-lane NEON arithmetic.
+ * Fusing calibration, packing and short stores prevented vectorization in measured prototypes.
+ * Keep narrowing separate; see benchmarks/push-display for compatibility and performance evidence.
  */
 final class PushFrameEncoder
 {
@@ -27,32 +24,35 @@ final class PushFrameEncoder
     static final int STRIDE = 1024;
     static final int DATA_SIZE = STRIDE * HEIGHT * 2;
 
-    // Two cells per common 120-pixel column, but this is only a cache geometry, not UI ownership.
-    // One-row cells avoid invalidating a whole column for a small label or meter change. Width 60
-    // preserves the two-pixel XOR phase and four-int SIMD lanes; larger 2D cells benchmarked worse.
-    private static final int CHUNK = 60;
+    // Two cells fit a 120-pixel column without coupling the cache to layout. One-row cells avoid
+    // recalibrating the column for a small edit. Width 60 preserves XOR phase and four-int lanes;
+    // larger 2D cells benchmarked worse.
+    private static final int CELL_WIDTH = 60;
     private final int [] previousFrame = new int [HEIGHT * WIDTH];
-    private final IntBuffer previousInput = IntBuffer.wrap (this.previousFrame);
-    private boolean valid;
+    private final IntBuffer previousFrameView = IntBuffer.wrap (this.previousFrame);
+    private boolean hasPreviousFrame;
     private final int [] rowPixels = new int [WIDTH];
-    private final int [] pixels = new int [CHUNK];
-    private final int [] allGray = new int [CHUNK];
-    private final int [] grayMasks = new int [CHUNK];
-    private final int [] luminance = new int [CHUNK];
-    private final int [] red = new int [CHUNK];
-    private final int [] green = new int [CHUNK];
-    private final int [] blue = new int [CHUNK];
-    private final int [] shaping = new int [CHUNK];
+    private final int [] cellPixels = new int [CELL_WIDTH];
+    private final int [] allGrayMasks = new int [CELL_WIDTH];
+    private final int [] grayMasks = new int [CELL_WIDTH];
+    private final int [] luminance = new int [CELL_WIDTH];
+    private final int [] red = new int [CELL_WIDTH];
+    private final int [] green = new int [CELL_WIDTH];
+    private final int [] blue = new int [CELL_WIDTH];
+    private final int [] shaping = new int [CELL_WIDTH];
     private final short [] wire = new short [STRIDE * HEIGHT];
 
     PushFrameEncoder ()
     {
-        // Padding stays zero before shaping. Visible pixels replace their already-shaped words.
-        Arrays.fill (this.allGray, -1);
-        for (int i = 0; i < CHUNK; i++) this.shaping[i] = 0xF3E7 ^ (i & 1) * 0x0C00;
+        // Push requires alternating XOR words 0xF3E7/0xFFE7. Initialize padding in its final
+        // form; encoding replaces only visible pixels.
+        Arrays.fill (this.allGrayMasks, -1);
+        for (int i = 0; i < CELL_WIDTH; i++)
+            this.shaping[i] = 0xF3E7 ^ (i & 1) * 0x0C00;
         for (int i = 0; i < this.wire.length; i++)
             this.wire[i] = (short) (0xF3E7 ^ (i & 1) * 0x0C00);
     }
+
 
     void encode (final ByteBuffer source)
     {
@@ -60,10 +60,9 @@ final class PushFrameEncoder
             throw new IllegalArgumentException ("Incomplete Push bitmap");
         final IntBuffer input = source.duplicate ().order (ByteOrder.LITTLE_ENDIAN).asIntBuffer ();
         input.limit (WIDTH * HEIGHT);
-        // NIO mismatch compares the host buffer directly with the cached raw frame. It can stop
-        // at the first change, and avoids copying unchanged input merely to compare it. A hash
-        // would still need an exact comparison on hits to preserve the wire contract.
-        if (this.valid && input.mismatch (this.previousInput) < 0)
+        // Compare host memory directly to avoid copying unchanged input. Exact equality keeps
+        // cache hits collision-free; mismatch stops at the first changed pixel.
+        if (this.hasPreviousFrame && input.mismatch (this.previousFrameView) < 0)
         {
             source.rewind ();
             return;
@@ -73,32 +72,33 @@ final class PushFrameEncoder
             input.get (this.rowPixels);
             // Unchanged rows bypass per-cell bookkeeping, even inside a changing frame.
             final int base = row * WIDTH;
-            if (this.valid && Arrays.equals (this.rowPixels, 0, WIDTH, this.previousFrame, base, base + WIDTH))
+            if (this.hasPreviousFrame && Arrays.equals (this.rowPixels, 0, WIDTH, this.previousFrame, base, base + WIDTH))
                 continue;
-            for (int column = 0; column < WIDTH; column += CHUNK)
+            for (int column = 0; column < WIDTH; column += CELL_WIDTH)
             {
                 final int previous = base + column;
-                if (this.valid && Arrays.equals (this.rowPixels, column, column + CHUNK, this.previousFrame, previous, previous + CHUNK))
+                if (this.hasPreviousFrame && Arrays.equals (this.rowPixels, column, column + CELL_WIDTH, this.previousFrame, previous, previous + CELL_WIDTH))
                     continue;
                 // Retain raw BGRA before the scratch pixels are overwritten by calibrated words.
-                System.arraycopy (this.rowPixels, column, this.previousFrame, previous, CHUNK);
-                System.arraycopy (this.rowPixels, column, this.pixels, 0, CHUNK);
-                luminance (this.pixels, this.luminance, this.grayMasks);
-                if (Arrays.equals (this.grayMasks, this.allGray))
-                    packUncalibrated (this.pixels, this.shaping);
+                System.arraycopy (this.rowPixels, column, this.previousFrame, previous, CELL_WIDTH);
+                System.arraycopy (this.rowPixels, column, this.cellPixels, 0, CELL_WIDTH);
+                luminance (this.cellPixels, this.luminance, this.grayMasks);
+                if (Arrays.equals (this.grayMasks, this.allGrayMasks))
+                    packUncalibrated (this.cellPixels, this.shaping);
                 else
                 {
-                    channel (this.pixels, this.luminance, this.grayMasks, this.red, 16);
-                    channel (this.pixels, this.luminance, this.grayMasks, this.green, 8);
-                    channel (this.pixels, this.luminance, this.grayMasks, this.blue, 0);
-                    pack (this.red, this.green, this.blue, this.shaping, this.pixels);
+                    channel (this.cellPixels, this.luminance, this.grayMasks, this.red, 16);
+                    channel (this.cellPixels, this.luminance, this.grayMasks, this.green, 8);
+                    channel (this.cellPixels, this.luminance, this.grayMasks, this.blue, 0);
+                    pack (this.red, this.green, this.blue, this.shaping, this.cellPixels);
                 }
-                narrow (this.pixels, this.wire, row * STRIDE + column);
+                narrow (this.cellPixels, this.wire, row * STRIDE + column);
             }
         }
-        this.valid = true;
+        this.hasPreviousFrame = true;
         source.rewind ();
     }
+
 
     void copyTo (final ByteBuffer destination)
     {
@@ -107,9 +107,10 @@ final class PushFrameEncoder
         destination.position (DATA_SIZE);
     }
 
+
     private static void luminance (final int [] source, final int [] target, final int [] masks)
     {
-        for (int x = 0; x < CHUNK; x++)
+        for (int x = 0; x < CELL_WIDTH; x++)
         {
             final int pixel = source[x];
             final int red = pixel >>> 16 & 255;
@@ -120,9 +121,10 @@ final class PushFrameEncoder
         }
     }
 
+
     private static void channel (final int [] source, final int [] luminance, final int [] masks, final int [] target, final int shift)
     {
-        for (int x = 0; x < CHUNK; x++)
+        for (int x = 0; x < CELL_WIDTH; x++)
         {
             final int value = source[x] >>> shift & 255;
             final int gray = luminance[x];
@@ -136,28 +138,31 @@ final class PushFrameEncoder
         }
     }
 
+
     private static void pack (final int [] reds, final int [] greens, final int [] blues, final int [] shaping, final int [] target)
     {
-        for (int x = 0; x < CHUNK; x++)
+        for (int x = 0; x < CELL_WIDTH; x++)
         {
             final int packed = (reds[x] >> 3) | (greens[x] & 0xFC) << 3 | (blues[x] & 0xF8) << 8;
             target[x] = packed ^ shaping[x];
         }
     }
 
+
     private static void packUncalibrated (final int [] pixels, final int [] shaping)
     {
-        for (int x = 0; x < CHUNK; x++)
+        for (int x = 0; x < CELL_WIDTH; x++)
         {
             final int pixel = pixels[x];
             pixels[x] = ((pixel >>> 19 & 31) | (pixel >>> 5 & 0x7E0) | (pixel << 8 & 0xF800)) ^ shaping[x];
         }
     }
 
+
     // A separate, cheap scalar narrowing pass leaves the heavier int arithmetic vectorizable.
     private static void narrow (final int [] source, final short [] target, final int offset)
     {
-        for (int x = 0; x < CHUNK; x++)
+        for (int x = 0; x < CELL_WIDTH; x++)
             target[offset + x] = (short) source[x];
     }
 }

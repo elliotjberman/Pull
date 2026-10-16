@@ -22,16 +22,53 @@ artifacts = {
 }
 for name, path in artifacts.items():
     if not (deps / name).exists():
-        urllib.request.urlretrieve("https://repo.maven.apache.org/maven2/" + path + name, deps / name)
+        urllib.request.urlretrieve(
+            "https://repo.maven.apache.org/maven2/" + path + name, deps / name
+        )
 classpath = os.pathsep.join(str(deps / name) for name in artifacts)
 javac = os.environ.get("PULL_BENCH_JAVAC", "/opt/homebrew/opt/openjdk/bin/javac")
-java = os.environ.get("PULL_BENCH_JAVA", "/Applications/Bitwig Studio.app/Contents/PlugIns/JavaVM-arm64.bundle/Contents/Home/bin/java")
+java = os.environ.get(
+    "PULL_BENCH_JAVA",
+    "/Applications/Bitwig Studio.app/Contents/PlugIns/JavaVM-arm64.bundle/Contents/Home/bin/java",
+)
 sources = list((root / "benchmarks/push-display/src").rglob("*.java"))
-production = root / "pull-shell/src/main/java/de/mossgrabers/controller/ableton/push/controller"
-sources += [production / "PushColorCalibration.java", production / "PushDebugFrame.java"]
+production = (
+    root / "pull-shell/src/main/java/de/mossgrabers/controller/ableton/push/controller"
+)
+sources += [
+    production / "PushColorCalibration.java",
+    production / "PushDebugFrame.java",
+]
 if (production / "PushFrameEncoder.java").exists():
     sources += [production / "PushFrameEncoder.java"]
-subprocess.run([javac, "--release", "21", "-cp", classpath, "-processorpath", classpath,
-                "-d", str(classes), *map(str, sources)], check=True)
-raise SystemExit(subprocess.call([java, "-cp", str(classes) + os.pathsep + classpath,
-                                  "org.openjdk.jmh.Main", os.environ.get("PULL_BENCH_FILTER", r"\.FrameBenchmark\."), "-jvm", java, "-foe", "true", *sys.argv[1:]]))
+subprocess.run(
+    [
+        javac,
+        "--release",
+        "21",
+        "-cp",
+        classpath,
+        "-processorpath",
+        classpath,
+        "-d",
+        str(classes),
+        *map(str, sources),
+    ],
+    check=True,
+)
+raise SystemExit(
+    subprocess.call(
+        [
+            java,
+            "-cp",
+            str(classes) + os.pathsep + classpath,
+            "org.openjdk.jmh.Main",
+            os.environ.get("PULL_BENCH_FILTER", r"\.FrameBenchmark\."),
+            "-jvm",
+            java,
+            "-foe",
+            "true",
+            *sys.argv[1:],
+        ]
+    )
+)

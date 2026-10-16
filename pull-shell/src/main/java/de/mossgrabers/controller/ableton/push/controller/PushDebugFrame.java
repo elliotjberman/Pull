@@ -3,8 +3,6 @@
 
 package de.mossgrabers.controller.ableton.push.controller;
 
-import javax.imageio.ImageIO;
-import javax.imageio.stream.MemoryCacheImageOutputStream;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
 import java.io.ByteArrayOutputStream;
@@ -12,12 +10,14 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
+import javax.imageio.ImageIO;
+import javax.imageio.stream.MemoryCacheImageOutputStream;
+
+
 /**
- * Immutable, pre-calibration pixel snapshot for the optional debugger. Knows nothing about display
- * components or the hardware encoder. Exact bulk comparison reuses unchanged snapshots; changed
- * input is copied because the host bitmap can be overwritten while the debug worker reads it.
- * PNG construction is lazy and confined to the single capture worker, which also reuses it for
- * request-correlated captures. Never mutate the returned PNG bytes.
+ * Immutable pre-calibration pixels with a PNG cache owned by the capture worker. Changed input
+ * must be copied because Bitwig can reuse the source bitmap before the worker reads it.
+ * Independent of hardware calibration and display layout. Returned PNG bytes must not be mutated.
  */
 final class PushDebugFrame
 {
@@ -34,6 +34,7 @@ final class PushDebugFrame
         this.width = width;
         this.height = height;
     }
+
 
     static PushDebugFrame capture (final ByteBuffer source, final int width, final int height, final PushDebugFrame previous)
     {
@@ -52,28 +53,36 @@ final class PushDebugFrame
         return new PushDebugFrame (pixels, width, height);
     }
 
-    int width () { return this.width; }
-    int height () { return this.height; }
+
+    int width ()
+    {
+        return this.width;
+    }
+
+
+    int height ()
+    {
+        return this.height;
+    }
+
 
     byte [] png () throws IOException
     {
-        if (this.png == null)
+        if (this.png != null)
+            return this.png;
+
+        final BufferedImage image = new BufferedImage (this.width, this.height, BufferedImage.TYPE_INT_ARGB);
+        // Little-endian BGRA is an ARGB int: copy directly into the raster, preserving alpha.
+        final int [] argb = ((DataBufferInt) image.getRaster ().getDataBuffer ()).getData ();
+        ByteBuffer.wrap (this.pixels).order (ByteOrder.LITTLE_ENDIAN).asIntBuffer ().get (argb);
+        final ByteArrayOutputStream output = new ByteArrayOutputStream ();
+        // ImageIO's global default may use temporary files even with a byte-array sink.
+        try (final var stream = new MemoryCacheImageOutputStream (output))
         {
-            final BufferedImage image = new BufferedImage (this.width, this.height, BufferedImage.TYPE_INT_ARGB);
-            // A little-endian BGRA word is exactly an ARGB int. Bulk transfer avoids setRGB's
-            // per-pixel bounds checks and color-model conversion; alpha remains unmodified.
-            final int [] argb = ((DataBufferInt) image.getRaster ().getDataBuffer ()).getData ();
-            ByteBuffer.wrap (this.pixels).order (ByteOrder.LITTLE_ENDIAN).asIntBuffer ().get (argb);
-            final ByteArrayOutputStream output = new ByteArrayOutputStream ();
-            // Explicit memory caching avoids ImageIO's process-global default, which may use
-            // temporary files even for a ByteArrayOutputStream. Only the transport writes files.
-            try (var stream = new MemoryCacheImageOutputStream (output))
-            {
-                if (!ImageIO.write (image, "png", stream))
-                    throw new IOException ("PNG encoder is unavailable");
-            }
-            this.png = output.toByteArray ();
+            if (!ImageIO.write (image, "png", stream))
+                throw new IOException ("PNG encoder is unavailable");
         }
+        this.png = output.toByteArray ();
         return this.png;
     }
 }

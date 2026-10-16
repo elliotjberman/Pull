@@ -9,11 +9,11 @@ package de.mossgrabers.controller.ableton.push.controller;
  */
 final class PushColorCalibration
 {
-    static final int CHROMA_THRESHOLD   = 8;
+    static final int         CHROMA_THRESHOLD   = 8;
     private static final int LED_SATURATION     = 512;
     private static final int LED_BRIGHTNESS     = 192;
-    static final int DISPLAY_SATURATION = 333;
-    static final int DISPLAY_BRIGHTNESS = 215;
+    static final int         DISPLAY_SATURATION = 333;
+    static final int         DISPLAY_BRIGHTNESS = 215;
 
 
     private PushColorCalibration ()
