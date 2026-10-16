@@ -2,6 +2,8 @@ package de.mossgrabers.pull.shell;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -166,6 +168,61 @@ class PushDebugSessionTest
             this.until (() -> this.states.getLast ().equals ("Off"));
             assertTrue (this.callbacks.isEmpty (), "Retirement must leave no recurring callback");
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource (booleans = {false, true})
+    void shutdownFailureStillRetiresReleasedInputWithoutClaimingOff (final boolean stuckWorker) throws Exception
+    {
+        final boolean [] routeIdle = {false};
+        final boolean [] admissionActive = {true};
+        final List<ScheduledExecutorService> executors = new ArrayList<> ();
+        final CountDownLatch release = new CountDownLatch (1);
+        try (PushDebugSession session = new PushDebugSession (this.directory, this.callbacks::add,
+            workers -> {
+                executors.add (workers.create ("receipt failure test"));
+                if (stuckWorker) executors.getLast ().execute (() -> {
+                    while (release.getCount () != 0)
+                    {
+                        try { release.await (); }
+                        catch (final InterruptedException ignored) { /* Model a worker that ignores cancellation. */ }
+                    }
+                });
+                return new PushDebugSession.Session ()
+                {
+                    @Override public void close () { }
+                    @Override public boolean retired ()
+                    {
+                        if (routeIdle[0]) admissionActive[0] = false;
+                        return !admissionActive[0];
+                    }
+                };
+            }, this.states::add))
+        {
+            session.request (true);
+            this.next ();
+            this.next ();
+            final Path temporary = this.directory.resolve ("runtime-status.txt.tmp");
+            if (!stuckWorker) Files.createDirectory (temporary);
+            session.request (false);
+            this.next ();
+            assertEquals (!stuckWorker, executors.getFirst ().isTerminated ());
+            assertTrue (admissionActive[0]);
+            assertTrue (this.states.getLast ().startsWith ("Cleanup failed:"));
+            if (!stuckWorker) Files.delete (temporary);
+            release.countDown ();
+            assertTrue (executors.getFirst ().awaitTermination (1, TimeUnit.SECONDS));
+            routeIdle[0] = true;
+            this.next ();
+            this.next ();
+            assertFalse (admissionActive[0], "I/O failure must not abandon input retirement");
+            assertTrue (Files.readString (this.directory.resolve ("runtime-status.txt")).endsWith ("\tFAILED\n"));
+            assertFalse (this.states.contains ("Off"));
+            session.request (true);
+            assertEquals (1, executors.size (), "Failed session cannot reopen");
+            assertTrue (this.callbacks.isEmpty ());
+        }
+        finally { release.countDown (); }
     }
 
     private void until (final BooleanSupplier complete) throws Exception

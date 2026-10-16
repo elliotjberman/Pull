@@ -116,7 +116,14 @@ public final class PushDebugSession implements AutoCloseable
         this.background ( () -> {
             try { this.writeStatus ("STOPPING"); }
             finally { if (retiring != null) retiring.awaitStopped (); }
-        }, () -> this.finishRetirement (previous, 100));
+        }, error -> {
+            if (error != null)
+            {
+                this.failed = true;
+                this.status.accept ("Cleanup failed: " + error.getMessage ());
+            }
+            this.finishRetirement (previous, 100);
+        });
     }
 
     private void finishRetirement (final Session previous, final int remaining)
@@ -159,25 +166,35 @@ public final class PushDebugSession implements AutoCloseable
 
     private void background (final Work work, final Runnable completion)
     {
+        this.background (work, error -> {
+            if (error == null)
+            {
+                completion.run ();
+                return;
+            }
+            this.failed = true;
+            this.transitioning = false;
+            if (this.active != null)
+            {
+                this.desired = false;
+                this.transitioning = true;
+                this.stop ();
+            }
+            this.status.accept ("Failed: " + error.getMessage ());
+        });
+    }
+
+    private void background (final Work work, final Consumer<Exception> completion)
+    {
         final Thread thread = new Thread ( () -> {
             try
             {
                 work.run ();
-                this.post (completion);
+                this.post ( () -> completion.accept (null));
             }
             catch (final Exception ex)
             {
-                this.post ( () -> {
-                    this.failed = true;
-                    this.transitioning = false;
-                    if (this.active != null)
-                    {
-                        this.desired = false;
-                        this.transitioning = true;
-                        this.stop ();
-                    }
-                    this.status.accept ("Failed: " + ex.getMessage ());
-                });
+                this.post ( () -> completion.accept (ex));
             }
         }, "Pull debug lifecycle");
         thread.setDaemon (true);
