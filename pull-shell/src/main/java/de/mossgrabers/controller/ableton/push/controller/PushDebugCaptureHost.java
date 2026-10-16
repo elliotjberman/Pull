@@ -6,15 +6,12 @@ package de.mossgrabers.controller.ableton.push.controller;
 import de.mossgrabers.framework.graphics.IBitmap;
 import de.mossgrabers.pull.shell.PushDebugging;
 
-import javax.imageio.ImageIO;
-
-import java.awt.image.BufferedImage;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.stream.Stream;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -38,6 +35,12 @@ final class PushDebugCaptureHost implements AutoCloseable
     private static final int  MAX_REQUEST_BYTES             = 96;
     private static final int  MAX_CAPTURE_FILES             = 16;
     private static final long POLL_INTERVAL_MILLIS          = 100;
+
+    // Observations advance even for identical pixels. The browser uses a separate content
+    // generation; the epoch prevents stale hits after capture transport restart.
+    private final String captureEpoch = UUID.randomUUID ().toString ();
+    private PushDebugFrame publishedImage; // Single worker owns publication and PNG caching.
+    private long imageRevision;
 
     private final Path                      directory;
     private final Path                      requestPath;
@@ -104,9 +107,10 @@ final class PushDebugCaptureHost implements AutoCloseable
                 final long captureStarted = System.nanoTime ();
                 Objects.requireNonNull (image, "image").encode ( (buffer, width, height) ->
                 {
-                    final byte [] pixels = copy (buffer, width, height);
+                    final Frame previous = this.latestFrame.get ();
+                    final PushDebugFrame snapshot = PushDebugFrame.capture (buffer, width, height, previous == null ? null : previous.image ());
                     final long captureMicros = TimeUnit.NANOSECONDS.toMicros (System.nanoTime () - captureStarted);
-                    final Frame frame = new Frame (revision, pixels, width, height, sampleInterval, this.sampledFrames.incrementAndGet (), captureMicros);
+                    final Frame frame = new Frame (revision, snapshot, sampleInterval, this.sampledFrames.incrementAndGet (), captureMicros);
                     this.latestFrame.set (frame);
                     if (this.pendingLatestWrite.getAndSet (frame) != null)
                         this.coalescedFrames.incrementAndGet ();
@@ -198,7 +202,7 @@ final class PushDebugCaptureHost implements AutoCloseable
     private void writeCapture (final Capture capture) throws IOException
     {
         Files.createDirectories (this.directory);
-        if (capture.pixels () == null)
+        if (capture.image () == null)
         {
             this.writeStatus (capture.requestID (), "FAILED", "", capture.message ());
             return;
@@ -207,7 +211,7 @@ final class PushDebugCaptureHost implements AutoCloseable
         final String filename = "display-" + capture.requestID () + ".png";
         final Path output = this.directory.resolve (filename);
         final Path temporary = this.directory.resolve (filename + ".tmp");
-        writePng (capture.pixels (), capture.width (), capture.height (), temporary);
+        Files.write (temporary, capture.image ().png ());
         PushDebugging.replaceAtomically (temporary, output);
         this.writeStatus (capture.requestID (), "READY", filename, "");
         this.pruneCaptures ();
@@ -217,21 +221,28 @@ final class PushDebugCaptureHost implements AutoCloseable
     private void writeLatestFrame (final Frame frame) throws IOException
     {
         Files.createDirectories (this.directory);
-        final Path imageTemporary = this.latestImagePath.resolveSibling (LATEST_IMAGE_FILE + ".tmp");
-        final long started = System.nanoTime ();
-        writePng (frame.pixels (), frame.width (), frame.height (), imageTemporary);
-        PushDebugging.replaceAtomically (imageTemporary, this.latestImagePath);
-        final long writeMicros = TimeUnit.NANOSECONDS.toMicros (System.nanoTime () - started);
+        long writeMicros = 0;
+        if (frame.image () != this.publishedImage || !Files.isRegularFile (this.latestImagePath, LinkOption.NOFOLLOW_LINKS))
+        {
+            final Path imageTemporary = this.latestImagePath.resolveSibling (LATEST_IMAGE_FILE + ".tmp");
+            final long started = System.nanoTime ();
+            Files.write (imageTemporary, frame.image ().png ());
+            PushDebugging.replaceAtomically (imageTemporary, this.latestImagePath);
+            writeMicros = TimeUnit.NANOSECONDS.toMicros (System.nanoTime () - started);
+            this.publishedImage = frame.image ();
+            this.imageRevision++;
+        }
 
         final String status = String.join ("\t",
             Long.toString (frame.revision ()),
-            Integer.toString (frame.width ()),
-            Integer.toString (frame.height ()),
+            Integer.toString (frame.image ().width ()),
+            Integer.toString (frame.image ().height ()),
             Integer.toString (frame.sampleInterval ()),
             Long.toString (frame.sampledFrames ()),
             Long.toString (this.coalescedFrames.get ()),
             Long.toString (frame.captureMicros ()),
-            Long.toString (writeMicros)) + "\n";
+            Long.toString (writeMicros),
+            this.captureEpoch + "-" + this.imageRevision) + "\n";
         final Path statusTemporary = this.latestStatusPath.resolveSibling (LATEST_STATUS_FILE + ".tmp");
         Files.writeString (statusTemporary, status);
         PushDebugging.replaceAtomically (statusTemporary, this.latestStatusPath);
@@ -339,50 +350,17 @@ final class PushDebugCaptureHost implements AutoCloseable
     }
 
 
-    private static byte [] copy (final ByteBuffer source, final int width, final int height)
-    {
-        final int length = Math.multiplyExact (Math.multiplyExact (width, height), 4);
-        final ByteBuffer buffer = source.duplicate ();
-        buffer.rewind ();
-        if (buffer.remaining () < length)
-            throw new IllegalArgumentException ("framebuffer is smaller than its dimensions");
-        final byte [] pixels = new byte [length];
-        buffer.get (pixels);
-        return pixels;
-    }
-
-
-    private static void writePng (final byte [] pixels, final int width, final int height, final Path output) throws IOException
-    {
-        final ByteBuffer buffer = ByteBuffer.wrap (pixels);
-        final BufferedImage image = new BufferedImage (width, height, BufferedImage.TYPE_INT_ARGB);
-        for (int y = 0; y < height; y++)
-        {
-            for (int x = 0; x < width; x++)
-            {
-                final int blue = buffer.get () & 0xFF;
-                final int green = buffer.get () & 0xFF;
-                final int red = buffer.get () & 0xFF;
-                final int alpha = buffer.get () & 0xFF;
-                image.setRGB (x, y, alpha << 24 | red << 16 | green << 8 | blue);
-            }
-        }
-        if (!ImageIO.write (image, "png", output.toFile ()))
-            throw new IOException ("PNG encoder is unavailable");
-    }
-
-
-    private record Capture (String requestID, byte [] pixels, int width, int height, String message)
+    private record Capture (String requestID, PushDebugFrame image, String message)
     {
         private static Capture ready (final String requestID, final Frame frame)
         {
-            return new Capture (requestID, frame.pixels (), frame.width (), frame.height (), "");
+            return new Capture (requestID, frame.image (), "");
         }
 
 
         private static Capture failed (final String requestID, final String message)
         {
-            return new Capture (requestID, null, 0, 0, PushDebugging.sanitize (message));
+            return new Capture (requestID, null, PushDebugging.sanitize (message));
         }
     }
 
@@ -392,7 +370,7 @@ final class PushDebugCaptureHost implements AutoCloseable
     }
 
 
-    private record Frame (long revision, byte [] pixels, int width, int height, int sampleInterval, long sampledFrames, long captureMicros)
+    private record Frame (long revision, PushDebugFrame image, int sampleInterval, long sampledFrames, long captureMicros)
     {
     }
 }

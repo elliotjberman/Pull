@@ -308,7 +308,10 @@ class PushSurfaceHandler(SimpleHTTPRequestHandler):
             revision = int(fields[0])
         except (OSError, UnicodeError, ValueError, IndexError):
             return None
-        return {"revision": revision, "url": "/api/display"}
+        # New shells retain the content generation across identical observed frames. Older
+        # shells expose only the observation revision and keep their existing behavior.
+        content_revision = fields[8] if len(fields) > 8 else str(revision)
+        return {"revision": revision, "contentRevision": content_revision, "url": "/api/display"}
 
     def _event_snapshot(self) -> tuple[int, ...]:
         return tuple(self._modified_nanos(self.debug_dir / name) for name in (

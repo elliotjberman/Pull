@@ -71,8 +71,8 @@ else
             echo "No sampled Push framebuffer is available." >&2
             exit 1
         fi
-        IFS=$'\t' read -r frame_revision frame_width frame_height sample_interval sampled_frames coalesced_frames capture_micros png_write_micros < "$latest_status_path"
-        echo "frame=${frame_revision} size=${frame_width}x${frame_height} sample_every=${sample_interval} sampled=${sampled_frames} coalesced=${coalesced_frames} capture_us=${capture_micros} png_write_us=${png_write_micros}"
+        IFS=$'\t' read -r frame_revision frame_width frame_height sample_interval sampled_frames coalesced_frames capture_micros png_write_micros content_revision < "$latest_status_path"
+        echo "frame=${frame_revision} size=${frame_width}x${frame_height} sample_every=${sample_interval} sampled=${sampled_frames} coalesced=${coalesced_frames} capture_us=${capture_micros} png_write_us=${png_write_micros} content=${content_revision:-legacy}"
         exit 0
     fi
     if (( $# > 1 ))

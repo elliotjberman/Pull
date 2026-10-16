@@ -223,6 +223,15 @@ printf 'arm-id\tARMED\tactive-trace\t-\t-\n' > "$test_debug/trace-status.txt"
 assert_status 1 env HOME="$test_home" "${script_dir}/pull-performance"
 [[ ! -e "$test_debug/enabled" && "$(cat "$test_debug/frame-sample-rate.txt")" == 0 ]] || fail "failed trace stop reverted the preset"
 
+# Observation metrics remain readable with either generation-aware or older shell status.
+new_debug_home
+printf '12\t960\t160\t1\t12\t0\t4\t0\tepoch-3\n' > "$test_debug/latest-frame.txt"
+stats="$(env HOME="$test_home" "${script_dir}/capture-push2-display" --stats)"
+[[ "$stats" == *"frame=12 "* && "$stats" == *"png_write_us=0 content=epoch-3"* ]] || fail "capture stats mixed content generation into timing"
+printf '13\t960\t160\t1\t13\t0\t4\t2000\n' > "$test_debug/latest-frame.txt"
+stats="$(env HOME="$test_home" "${script_dir}/capture-push2-display" --stats)"
+[[ "$stats" == *"frame=13 "* && "$stats" == *"png_write_us=2000 content=legacy"* ]] || fail "capture stats rejected older shell status"
+
 # Runtime shutdown is acknowledged only after the host's worker-retirement receipt.
 new_debug_home
 printf '%s\tON\n' "$$" > "$test_debug/runtime-status.txt"

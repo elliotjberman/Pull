@@ -9,3 +9,5 @@ fileHashes.lock
 /.idea
 *.iml
 /bin/
+
+/benchmarks/push-display/results/
