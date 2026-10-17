@@ -962,7 +962,7 @@ final class BoundedControllerBridge implements ControllerBridge
     @Override
     public boolean supportsPageLight (final de.mossgrabers.pull.core.api.DesiredControllerPageState page, final ControlId control)
     {
-        return page.effectivePage ().kind () == de.mossgrabers.pull.core.api.ControllerPageRef.Kind.CORE && de.mossgrabers.controller.ableton.push.mode.CorePageMode.containsLight (control);
+        return page.effectivePage ().kind () == de.mossgrabers.pull.core.api.ControllerPageRef.Kind.CORE && de.mossgrabers.controller.ableton.push.mode.CorePageMode.containsInput (control, de.mossgrabers.pull.core.api.event.InputKind.BUTTON);
     }
 
 

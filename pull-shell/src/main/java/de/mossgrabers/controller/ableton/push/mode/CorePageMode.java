@@ -40,34 +40,29 @@ public class CorePageMode extends BaseMode<IParameter>
     /** Whether this input lies in the permanently inert page footprint. */
     public static boolean containsInput (final ControlId control, final InputKind kind)
     {
-        for (int index = 1; index <= 8; index++)
+        // These physical IDs never change. Do not rebuild/normalize them on every result validation.
+        return control != null && switch (control.value ())
         {
-            if ((kind == InputKind.RELATIVE || kind == InputKind.TOUCH) && PushControlIds.continuous ("KNOB" + index).equals (control))
-                return true;
-            if (kind == InputKind.BUTTON && (PushControlIds.button ("ROW1_" + index).equals (control) || PushControlIds.button ("ROW2_" + index).equals (control)))
-                return true;
-        }
-        return kind == InputKind.BUTTON && containsNavigationInput (control);
+            case "push.continuous.knob1", "push.continuous.knob2", "push.continuous.knob3", "push.continuous.knob4",
+                 "push.continuous.knob5", "push.continuous.knob6", "push.continuous.knob7", "push.continuous.knob8" -> kind == InputKind.RELATIVE || kind == InputKind.TOUCH;
+            case "push.button.row1-1", "push.button.row1-2", "push.button.row1-3", "push.button.row1-4", "push.button.row1-5", "push.button.row1-6", "push.button.row1-7", "push.button.row1-8",
+                 "push.button.row2-1", "push.button.row2-2", "push.button.row2-3", "push.button.row2-4", "push.button.row2-5", "push.button.row2-6", "push.button.row2-7", "push.button.row2-8" -> kind == InputKind.BUTTON;
+            default -> kind == InputKind.BUTTON && containsNavigationInput (control);
+        };
     }
 
     /** Four arrow controls routed below their permanent inert navigation adapter. */
     public static boolean containsNavigationInput (final ControlId control)
     {
-        return PushControlIds.button ("ARROW_LEFT").equals (control) || PushControlIds.button ("ARROW_RIGHT").equals (control) ||
-            PushControlIds.button ("ARROW_UP").equals (control) || PushControlIds.button ("ARROW_DOWN").equals (control);
+        return control != null && ("push.button.arrow-left".equals (control.value ()) || "push.button.arrow-right".equals (control.value ()) ||
+            "push.button.arrow-up".equals (control.value ()) || "push.button.arrow-down".equals (control.value ()));
     }
 
     /** Session navigation that is inert independently of the selected parameter page. */
     public static boolean containsSessionNavigationInput (final ControlId control, final boolean fullSession, final boolean sessionNavigation)
     {
-        return sessionNavigation && containsNavigationInput (control) || fullSession &&
-            (PushControlIds.button ("ARROW_UP").equals (control) || PushControlIds.button ("ARROW_DOWN").equals (control));
-    }
-
-    /** Whether this light belongs to a page soft-key row or navigation arrow. */
-    public static boolean containsLight (final ControlId control)
-    {
-        return containsInput (control, InputKind.BUTTON);
+        return sessionNavigation && containsNavigationInput (control) || fullSession && control != null &&
+            ("push.button.arrow-up".equals (control.value ()) || "push.button.arrow-down".equals (control.value ()));
     }
 
     @Override
