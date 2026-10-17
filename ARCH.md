@@ -89,7 +89,7 @@ state. Adding background work includes implementing its reload and failure lifec
 | `PageNavigation` | Current/previous page and one replaceable temporary owner with an exact return token. |
 | `ControllerPages` / `ControllerPageCompositions` | Validated page declarations composed over actual Session/Drum/Note/VS view instances. |
 | `ControllerView` / `CompiledWorkspace` | Fixed `SurfaceArea` claims, subscriptions, targets, effects and output; reject ownership conflicts. |
-| `InputGestureRouter` / `InteractionLifecycle` | Capture migrated interactions, cancel changed bindings and suppress physical tails until a fresh gesture. |
+| `InputGestureRouter` | Capture migrated interactions, cancel changed bindings and suppress physical tails until a fresh gesture. |
 | `core.ui` | Shared components/styles and pure page renderers over immutable presentations; no navigation, target lookup or host effects. |
 
 Master replaces the parameter page while retaining its active grid and musical views. New core

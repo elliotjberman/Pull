@@ -87,7 +87,7 @@ final class PullControllerCore implements ControllerCore
         this.gestures.reconcile (this.workspace, snapshot);
         // Capture edges and their companion motion before deferred page actions can change owners.
         final boolean edge = event instanceof final ControllerInputEvent input && input.kind ().isEdge () || event instanceof ButtonInputEvent || event instanceof TouchInputEvent;
-        final InputGestureRouter.Dispatch captured = this.gestures.capture (event, this.workspace);
+        final InputGestureRouter.Dispatch captured = this.gestures.capture (event, this.workspace, snapshot);
         final ResolvedControllerAction capturedAction = this.gestures.resolveAction (captured, snapshot);
         final List<ParameterSlot> mutationSlots;
         if (captured.suppressed ()) mutationSlots = List.of ();
