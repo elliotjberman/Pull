@@ -84,6 +84,49 @@ class CoreParameterGestureCaptureTest
     }
 
     @Test
+    void oldCleanupCannotEndAFreshTouchOnADifferentTarget ()
+    {
+        final Fixture f = new Fixture ();
+        f.page ("WORKSPACE");
+        f.touch (true);
+        f.leases = Set.of (TARGET);
+        f.target = new ParameterTargetRef (ParameterTargetKind.LIVE, "replacement-macro", 2);
+        f.touch (true);
+        assertTrue (f.result.desiredParameterTouches ().targets ().isEmpty (), "duplicate BEGIN cannot revive a cancelled touch");
+        f.touch (false);
+        f.touch (true);
+        assertEquals (Map.of (KNOB, f.target), f.result.desiredParameterTouches ().targets (), "another target need not wait for old cleanup");
+        f.leases = Set.of (TARGET, f.target);
+        f.tick ();
+        f.leases = Set.of (f.target); // Old lease retires independently, while the new touch remains held.
+        f.tick ();
+        assertEquals (Map.of (KNOB, f.target), f.result.desiredParameterTouches ().targets ());
+        f.turn ();
+        assertEquals (List.of (new AdjustParameterValueEffect (f.target, 10)), f.result.effects ());
+    }
+
+    @Test
+    void releasedTouchWaitsForHostCleanupBeforeReusingItsTarget ()
+    {
+        final Fixture f = new Fixture ();
+        f.page ("WORKSPACE");
+        f.touch (true);
+        f.leases = Set.of (TARGET);
+        f.touch (false);
+        assertTrue (f.result.desiredParameterTouches ().targets ().isEmpty ());
+        f.touch (true);
+        assertTrue (f.result.desiredParameterTouches ().targets ().isEmpty (), "release submission has not retired the host touch");
+        f.leases = Set.of ();
+        f.tick ();
+        f.turn ();
+        assertTrue (f.result.effects ().isEmpty (), "host cleanup cannot revive a rejected press");
+        f.touch (false);
+        f.touch (true);
+        f.turn ();
+        assertEquals (List.of (new AdjustParameterValueEffect (TARGET, 10)), f.result.effects ());
+    }
+
+    @Test
     void projectChangeNeverStopsAutomationInTheReplacementProject ()
     {
         final Fixture f = new Fixture ();

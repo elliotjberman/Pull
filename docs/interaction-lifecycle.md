@@ -1,8 +1,8 @@
 # Target-bound interaction lifecycle
 
-Core API 51 / Bitwig API 25. `InputGestureRouter` applies the host-independent
-`InteractionLifecycle` to migrated core views. [ARCH](../ARCH.md) identifies the remaining shell
-handlers; they do not inherit this contract merely because their page navigation moved to core.
+Core API 58 / Bitwig API 25. `InputGestureRouter` owns migrated input and cleanup directly.
+[ARCH](../ARCH.md) identifies remaining shell handlers; moving their page navigation to core
+does not make them inherit this contract.
 
 ## Contract
 
@@ -21,8 +21,8 @@ Other targets include the project, track, bank, device and generation required b
 Each receiver's target is captured independently; view order cannot bypass another target fence.
 
 The router retains at most 256 interactions, 256 view instances and 64 pending semantic actions.
-IDs are local to that core; shell ingress fences core generations. Unused operation tracking and
-its synthetic tests have been removed; this lifecycle owns input and final cleanup.
+A held control points to its gesture or an inert marker until release. Released/cancelled gestures
+remain only while their host cleanup is outstanding; shell ingress fences core generations.
 
 ## Dispatch and cleanup
 
@@ -42,7 +42,7 @@ its synthetic tests have been removed; this lifecycle owns input and final clean
   The clip executor cannot admit another clip for that logical control owner while its old session
   retires. Exact parameter leases do not require that additional control-owner fence.
 
-`beginFinish` and `completeFinish` separate cleanup submission from observed retirement. Neither
+The router submits cleanup once and drops its record after observed retirement. Neither
 resource retirement nor a void host call proves every earlier DAW write completed. Existing fill,
 Snapback and toggle executors retain their own authoritative barriers; the
 [general reload drain](findings/core-reload-quiescence.md) remains parked.

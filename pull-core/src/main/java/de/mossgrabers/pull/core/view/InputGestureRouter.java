@@ -5,7 +5,6 @@ package de.mossgrabers.pull.core.view;
 import de.mossgrabers.pull.core.api.*;
 import de.mossgrabers.pull.core.api.effect.*;
 import de.mossgrabers.pull.core.api.event.*;
-import de.mossgrabers.pull.core.interaction.InteractionLifecycle;
 import java.util.*;
 
 /** One core-local owner of physical lifetimes, exact input targets and parameter touch cleanup. */
@@ -13,9 +12,9 @@ public final class InputGestureRouter
 {
     public static final int CAPACITY = 256;
     private static final Set<Key> CONTROLS = footprint ();
-    // IDs never cross this core instance. Host execution is fenced by parent-owned target refs.
-    private final InteractionLifecycle<Key, InputTarget> lifecycle = new InteractionLifecycle<> (0, CONTROLS, CAPACITY);
-    private final Map<InteractionLifecycle.Id, Gesture> gestures = new LinkedHashMap<> ();
+    // Null remembers a rejected/cancelled press until physical release, without retaining its view.
+    private final Map<Key, Gesture> held = new LinkedHashMap<> ();
+    private final Set<Gesture> gestures = new LinkedHashSet<> ();
     private final Map<ResolvedControllerAction, PendingAction> actions = new IdentityHashMap<> ();
     private final Set<ControllerView> started = Collections.newSetFromMap (new IdentityHashMap<> ());
     private final Set<ControllerView> reconciled = Collections.newSetFromMap (new IdentityHashMap<> ());
@@ -38,9 +37,9 @@ public final class InputGestureRouter
         if (edge == null)
         {
             final Key companion = companion (event);
-            if (companion != null && (this.lifecycle.isHeld (companion) || event instanceof ControllerInputEvent input && input.kind () == InputKind.POLY_PRESSURE))
+            if (companion != null && (this.held.containsKey (companion) || event instanceof ControllerInputEvent input && input.kind () == InputKind.POLY_PRESSURE))
             {
-                final Gesture gesture = this.lifecycle.current (companion).map (active -> this.gestures.get (active.id ())).orElse (null);
+                final Gesture gesture = this.current (companion);
                 return new Dispatch (event, gesture == null ? List.of () : intersection (current.receivers (event), gesture.receivers), gesture, null, gesture == null);
             }
             return new Dispatch (event, current.receivers (event), null, null, false);
@@ -49,19 +48,21 @@ public final class InputGestureRouter
         final Gesture gesture;
         if (edge.phase == InputPhase.BEGIN)
         {
+            if (this.held.containsKey (edge.key)) return new Dispatch (event, List.of (), null, edge, true);
+            this.held.put (edge.key, null);
             final Binding binding = binding (current, edge.key, current.parameterSlots (snapshot), snapshot);
-            // Clip cleanup is addressed by control owner, so even a different clip must wait.
-            final boolean retiringClip = binding != null && binding.target instanceof InputTarget.Clip &&
-                this.gestures.values ().stream ().anyMatch (previous -> previous.key.equals (edge.key) && previous.finishRevision >= 0 && previous.binding.target instanceof InputTarget.Clip);
-            final var admitted = this.lifecycle.begin (edge.key, binding == null || retiringClip ? null : binding.target);
-            if (admitted.interaction ().isEmpty ()) return new Dispatch (event, List.of (), null, edge, true);
-            final var interaction = admitted.interaction ().orElseThrow ();
-            gesture = new Gesture (interaction.id (), edge.key, binding);
-            this.gestures.put (interaction.id (), gesture);
+            // Exact targets stay busy through cleanup. Clip cleanup also reserves its control owner.
+            final boolean busy = binding != null && this.gestures.stream ().anyMatch (previous ->
+                previous.binding.target.equals (binding.target) || binding.target instanceof InputTarget.Clip &&
+                previous.key.equals (edge.key) && previous.finishRevision >= 0 && previous.binding.target instanceof InputTarget.Clip);
+            if (binding == null || busy || this.gestures.size () >= CAPACITY) return new Dispatch (event, List.of (), null, edge, true);
+            gesture = new Gesture (edge.key, binding);
+            this.held.put (edge.key, gesture);
+            this.gestures.add (gesture);
         }
         else
         {
-            gesture = this.lifecycle.current (edge.key).map (active -> this.gestures.get (active.id ())).orElse (null);
+            gesture = this.current (edge.key);
             if (gesture == null || edge.phase == InputPhase.LONG && gesture.longDelivered)
                 return new Dispatch (event, List.of (), null, edge, true);
             if (edge.phase == InputPhase.LONG) gesture.longDelivered = true;
@@ -83,7 +84,7 @@ public final class InputGestureRouter
 
     public List<CoreEffect> dispatch (final Dispatch dispatch, final ControllerSnapshot snapshot)
     {
-        if (dispatch.delivered || dispatch.suppressed || dispatch.gesture != null && this.lifecycle.current (dispatch.gesture.key).filter (active -> active.id ().equals (dispatch.gesture.id)).isEmpty ()) return List.of ();
+        if (dispatch.delivered || dispatch.suppressed || dispatch.gesture != null && this.current (dispatch.gesture.key) != dispatch.gesture) return List.of ();
         dispatch.delivered = true;
         final List<CoreEffect> effects = new ArrayList<> ();
         final Gesture gesture = dispatch.gesture;
@@ -128,7 +129,7 @@ public final class InputGestureRouter
     public void finish (final Dispatch dispatch, final ControllerSnapshot snapshot)
     {
         if (dispatch != null && dispatch.edge != null && dispatch.edge.phase == InputPhase.END && CONTROLS.contains (dispatch.edge.key))
-            this.lifecycle.release (dispatch.edge.key);
+            this.held.remove (dispatch.edge.key);
         this.finalizeReady (snapshot);
     }
 
@@ -152,11 +153,11 @@ public final class InputGestureRouter
         // Idle controls have no gesture to validate. Their compiled routes are used on input.
         if (this.gestures.isEmpty () && this.actions.isEmpty ()) return;
         final Map<ControlId, ParameterSlot> slots = current.parameterSlots (snapshot);
-        for (final Gesture gesture: this.gestures.values ())
+        for (final Gesture gesture: this.gestures)
         {
             if (gesture.finishRevision >= 0) continue;
             final Binding binding = binding (current, gesture.key, slots, snapshot);
-            if (!gesture.binding.sameBinding (binding)) this.lifecycle.cancel (gesture.key);
+            if (!gesture.binding.sameBinding (binding)) gesture.cancelled = true;
             else
             {
                 for (final ControllerView view: gesture.receivers)
@@ -167,7 +168,7 @@ public final class InputGestureRouter
                         if (!effects.isEmpty ()) this.retainEffectRequirements (view);
                     }
                 gesture.receivers = intersection (binding.receivers, gesture.receivers);
-                if (gesture.receivers.isEmpty () && gesture.binding.action == null) this.lifecycle.cancel (gesture.key);
+                if (gesture.receivers.isEmpty () && gesture.binding.action == null) gesture.cancelled = true;
             }
         }
         for (final var pending: this.actions.entrySet ())
@@ -184,12 +185,12 @@ public final class InputGestureRouter
 
     private void finalizeReady (final ControllerSnapshot snapshot)
     {
-        for (final var id: this.lifecycle.readyToFinish ())
+        for (final Gesture gesture: this.gestures)
         {
-            final var finish = this.lifecycle.beginFinish (id).orElseThrow ();
-            final Gesture gesture = this.gestures.get (id);
+            if (gesture.finishRevision >= 0 || !gesture.cancelled && this.held.get (gesture.key) == gesture) continue;
             gesture.finishRevision = snapshot.revision ();
-            if (finish.reason () != InteractionLifecycle.EndReason.RELEASED)
+            this.held.replace (gesture.key, gesture, null);
+            if (gesture.cancelled)
                 for (final ControllerView view: gesture.receivers)
                 {
                     final List<CoreEffect> effects = view.cancel (gesture.key.control, gesture.key.kind, gesture.binding.targets.get (view), snapshot);
@@ -207,18 +208,16 @@ public final class InputGestureRouter
                 }
             }
         }
-        final var iterator = this.gestures.entrySet ().iterator ();
+        final var iterator = this.gestures.iterator ();
         while (iterator.hasNext ())
         {
-            final var entry = iterator.next ();
-            final Gesture gesture = entry.getValue ();
+            final Gesture gesture = iterator.next ();
             if (gesture.finishRevision < 0) continue;
             if (gesture.touchAdmitted && gesture.binding.target instanceof final InputTarget.Parameter parameter &&
                 (snapshot.revision () <= gesture.finishRevision || snapshot.bridge ().parameters ().touchLeases ().contains (parameter.reference ()))) continue;
             if (gesture.binding.target instanceof InputTarget.Clip &&
                 (snapshot.revision () <= gesture.finishRevision || snapshot.clipLaunchSessionTargets ().containsKey (gesture.key.control))) continue;
             // No resource was acquired, or a later shell sample confirms its lease was retired.
-            this.lifecycle.completeFinish (entry.getKey ());
             iterator.remove ();
         }
     }
@@ -232,8 +231,8 @@ public final class InputGestureRouter
         this.emittedSubscriptions.clear ();
         this.emittedBanks.clear ();
         final Map<ControlId, ParameterTargetRef> touches = new LinkedHashMap<> ();
-        boolean awaitingCleanup = this.gestures.values ().stream ().anyMatch (gesture -> gesture.finishRevision >= 0);
-        for (final Gesture gesture: this.gestures.values ())
+        boolean awaitingCleanup = this.gestures.stream ().anyMatch (gesture -> gesture.finishRevision >= 0);
+        for (final Gesture gesture: this.gestures)
             if (gesture.touchAdmitted && gesture.binding.target instanceof final InputTarget.Parameter parameter)
             {
                 subscriptions.add (BridgeSubscription.PARAMETERS);
@@ -280,8 +279,8 @@ public final class InputGestureRouter
     ControllerSnapshot viewSnapshot (final ControllerSnapshot snapshot)
     {
         final Set<ControlId> suppressed = new LinkedHashSet<> ();
-        for (final Key key: this.lifecycle.heldControls ())
-            if (this.lifecycle.current (key).isEmpty ()) suppressed.add (key.control);
+        for (final Key key: this.held.keySet ())
+            if (this.current (key) == null) suppressed.add (key.control);
         if (suppressed.isEmpty ()) return snapshot;
         final Set<ControlId> pressed = new LinkedHashSet<> (snapshot.pressedControls ());
         final Set<ControlId> touched = new LinkedHashSet<> (snapshot.touchedControls ());
@@ -301,9 +300,15 @@ public final class InputGestureRouter
     private ControllerSnapshot groupInputSnapshot (final ControllerView view, final ControllerSnapshot snapshot)
     {
         final Set<ControlId> admitted = new LinkedHashSet<> ();
-        for (final Gesture gesture: this.gestures.values ())
-            if (gesture.key.kind == InputKind.PAD && gesture.receivers.contains (view) && this.lifecycle.current (gesture.key).filter (active -> active.id ().equals (gesture.id)).isPresent ()) admitted.add (gesture.key.control);
+        for (final Gesture gesture: this.gestures)
+            if (gesture.key.kind == InputKind.PAD && gesture.receivers.contains (view) && this.current (gesture.key) == gesture) admitted.add (gesture.key.control);
         return inputSnapshot (snapshot, admitted, this.viewSnapshot (snapshot).touchedControls ());
+    }
+
+    private Gesture current (final Key key)
+    {
+        final Gesture gesture = this.held.get (key);
+        return gesture == null || gesture.cancelled ? null : gesture;
     }
 
     private void reconcileOnce (final ControllerView view, final ControllerSnapshot snapshot)
@@ -363,16 +368,16 @@ public final class InputGestureRouter
     }
     private static final class Gesture
     {
-        private final InteractionLifecycle.Id id;
         private final Key key;
         private final Binding binding;
         private List<ControllerView> receivers;
+        private boolean cancelled;
         private boolean longDelivered;
         private boolean touchAdmitted;
         private boolean automationCleanup;
         private String project = "";
         private long finishRevision = -1;
-        private Gesture (final InteractionLifecycle.Id id, final Key key, final Binding binding) { this.id = id; this.key = key; this.binding = binding; this.receivers = binding.receivers; }
+        private Gesture (final Key key, final Binding binding) { this.key = key; this.binding = binding; this.receivers = binding.receivers; }
     }
     private static final class PendingAction
     {
