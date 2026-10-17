@@ -88,20 +88,17 @@ public final class InputGestureRouter
         dispatch.delivered = true;
         final List<CoreEffect> effects = new ArrayList<> ();
         final Gesture gesture = dispatch.gesture;
-        if (gesture != null && dispatch.edge != null && gesture.binding.parameterTouch)
+        if (gesture != null && dispatch.edge != null && gesture.binding.parameterTouch && dispatch.edge.phase == InputPhase.BEGIN)
         {
-            if (dispatch.edge.phase == InputPhase.BEGIN)
+            final boolean resetting = this.viewSnapshot (snapshot).pressedControls ().contains (PushControlIds.button ("DELETE"));
+            gesture.touchAdmitted = !resetting || gesture.binding.touchAfterReset;
+            gesture.automationCleanup = gesture.binding.stopAutomation;
+            gesture.project = snapshot.bridge ().automation ().projectIdentity ();
+            if (resetting)
             {
-                final boolean resetting = this.viewSnapshot (snapshot).pressedControls ().contains (PushControlIds.button ("DELETE"));
-                gesture.touchAdmitted = !resetting || gesture.binding.touchAfterReset;
-                gesture.automationCleanup = gesture.binding.stopAutomation;
-                gesture.project = snapshot.bridge ().automation ().projectIdentity ();
-                if (this.viewSnapshot (snapshot).pressedControls ().contains (PushControlIds.button ("DELETE")))
-                {
-                    effects.add (new ConsumeControllerButtonEffect (PushControlIds.button ("DELETE")));
-                    if (gesture.binding.target instanceof final InputTarget.Parameter parameter)
-                        effects.add (new ResetParameterEffect (parameter.reference ()));
-                }
+                effects.add (new ConsumeControllerButtonEffect (PushControlIds.button ("DELETE")));
+                if (gesture.binding.target instanceof final InputTarget.Parameter parameter)
+                    effects.add (new ResetParameterEffect (parameter.reference ()));
             }
         }
         for (final ControllerView view: dispatch.receivers)
@@ -231,13 +228,12 @@ public final class InputGestureRouter
         this.emittedSubscriptions.clear ();
         this.emittedBanks.clear ();
         final Map<ControlId, ParameterTargetRef> touches = new LinkedHashMap<> ();
-        boolean awaitingCleanup = this.gestures.stream ().anyMatch (gesture -> gesture.finishRevision >= 0);
+        final boolean awaitingCleanup = this.gestures.stream ().anyMatch (gesture -> gesture.finishRevision >= 0);
         for (final Gesture gesture: this.gestures)
             if (gesture.touchAdmitted && gesture.binding.target instanceof final InputTarget.Parameter parameter)
             {
                 subscriptions.add (BridgeSubscription.PARAMETERS);
                 if (gesture.finishRevision < 0) touches.put (gesture.key.control, parameter.reference ());
-                else awaitingCleanup = true;
             }
         final List<CoreEffect> effects = new ArrayList<> (result.effects ());
         effects.addAll (this.cleanup);
