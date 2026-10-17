@@ -11,7 +11,7 @@ import java.util.Set;
 
 /**
  * Bounded, single-threaded lifecycle for target-bound input. No hardware, host, timers or callbacks.
- * A changed binding cancels an interaction; its physical tail stays suppressed until release.
+ * The owner cancels changed targets; physical tails stay suppressed until release.
  * Final cleanup remains tracked until its executor reports explicit completion.
  *
  * <p>Use one instance per externally assigned generation; never reuse a generation. C and T must
@@ -36,7 +36,6 @@ public final class InteractionLifecycle<C, T>
     private final Map<Id, Session> sessions = new LinkedHashMap<> ();
     // Empty means the press was rejected. A retired ID still suppresses its physical tail.
     private final Map<C, Optional<Id>> held = new LinkedHashMap<> ();
-    private Map<C, T> bindings = Map.of ();
     private long nextInteraction;
 
     public InteractionLifecycle (final long generation, final Set<C> controls, final int maxInteractions)
@@ -48,24 +47,12 @@ public final class InteractionLifecycle<C, T>
         this.maxInteractions = maxInteractions;
     }
 
-    /** Complete current bindings. Replaying a binding does not restart or revive any interaction. */
-    public void replaceBindings (final Map<C, T> current)
-    {
-        final Map<C, T> copy = Map.copyOf (current);
-        copy.keySet ().forEach (this::requireControl);
-        this.bindings = copy;
-        for (final Session session: this.sessions.values ())
-            if (!Objects.equals (copy.get (session.interaction.control ()), session.interaction.target ()))
-                this.end (session, EndReason.BINDING_CHANGED);
-    }
-
     /** Rejected presses are also remembered until physical release, never retried mid-gesture. */
-    public Begin<C, T> begin (final C control)
+    public Begin<C, T> begin (final C control, final T target)
     {
         this.requireControl (control);
         if (this.held.containsKey (control)) return rejected (Admission.ALREADY_HELD);
         this.held.put (control, Optional.empty ());
-        final T target = this.bindings.get (control);
         if (target == null) return rejected (Admission.UNBOUND);
         if (this.hasTargetWork (target)) return rejected (Admission.TARGET_BUSY);
         if (this.sessions.size () >= this.maxInteractions) return rejected (Admission.CAPACITY_EXHAUSTED);
@@ -91,6 +78,9 @@ public final class InteractionLifecycle<C, T>
         this.requireControl (control);
         return this.held.containsKey (control);
     }
+
+    /** Physical controls still down, including rejected and cancelled tails. */
+    public Set<C> heldControls () { return Set.copyOf (this.held.keySet ()); }
 
     /** Resolves companion motion to this physical gesture, never to the replacement binding. */
     public Optional<Interaction<C, T>> current (final C control)

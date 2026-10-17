@@ -44,7 +44,7 @@ public final class RoutedWorkspace
     {
         this.router.beginEvent ();
         this.router.reconcile (this.workspace, snapshot);
-        final var dispatch = this.router.capture (event, this.workspace);
+        final var dispatch = this.router.capture (event, this.workspace, snapshot);
         final var action = this.router.resolveAction (dispatch, snapshot);
         final List<CoreEffect> effects = new ArrayList<> ();
         if (action == null) effects.addAll (this.router.dispatch (dispatch, snapshot));
@@ -62,7 +62,7 @@ public final class RoutedWorkspace
     {
         this.router.beginEvent ();
         this.router.reconcile (this.workspace, snapshot);
-        return this.router.resolveAction (this.router.capture (input, this.workspace), snapshot);
+        return this.router.resolveAction (this.router.capture (input, this.workspace, snapshot), snapshot);
     }
 
     public List<CoreEffect> dispatchAction (final ResolvedControllerAction action, final ControllerSnapshot snapshot)

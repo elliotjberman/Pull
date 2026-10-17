@@ -72,6 +72,18 @@ class CoreParameterGestureCaptureTest
     }
 
     @Test
+    void freshTouchUsesTheCurrentTargetWithoutAnInterveningTick ()
+    {
+        final Fixture f = new Fixture ();
+        f.page ("WORKSPACE");
+        f.target = new ParameterTargetRef (ParameterTargetKind.LIVE, "replacement-macro", 2);
+        f.touch (true);
+        assertEquals (Map.of (KNOB, f.target), f.result.desiredParameterTouches ().targets ());
+        f.turn ();
+        assertEquals (List.of (new AdjustParameterValueEffect (f.target, 10)), f.result.effects ());
+    }
+
+    @Test
     void projectChangeNeverStopsAutomationInTheReplacementProject ()
     {
         final Fixture f = new Fixture ();

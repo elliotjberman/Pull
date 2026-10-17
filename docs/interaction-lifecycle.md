@@ -6,7 +6,10 @@ handlers; they do not inherit this contract merely because their page navigation
 
 ## Contract
 
-Capture the current target and receivers at BEGIN. An unchanged binding survives a page overlay.
+Views compile control ownership when the workspace is composed. Unheld motion uses those routes
+directly; idle controls have no gesture bindings to rebuild. Capture the current target and receivers
+at BEGIN, then recheck only active gestures and deferred actions against later host snapshots.
+An unchanged binding survives a page overlay.
 If it disappears or changes, cancel, perform required cleanup and suppress the physical tail until
 UP and a fresh BEGIN. Returning to the old target cannot revive it. Cancellation never dispatches
 an ordinary END action against a replacement.

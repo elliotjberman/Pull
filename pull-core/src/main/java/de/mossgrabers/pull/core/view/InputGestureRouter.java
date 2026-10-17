@@ -22,7 +22,6 @@ public final class InputGestureRouter
     private final List<CoreEffect> cleanup = new ArrayList<> ();
     private final Set<BridgeSubscription> emittedSubscriptions = new LinkedHashSet<> ();
     private final Set<ParameterBankId> emittedBanks = new LinkedHashSet<> ();
-    private Map<Key, Binding> bindings = Map.of ();
 
     public void beginEvent () { this.reconciled.clear (); }
 
@@ -33,7 +32,7 @@ public final class InputGestureRouter
     }
 
     /** Capture all physical events before page admission and before Snapback sees motion. */
-    public Dispatch capture (final CoreEvent event, final CompiledWorkspace current)
+    public Dispatch capture (final CoreEvent event, final CompiledWorkspace current, final ControllerSnapshot snapshot)
     {
         final Edge edge = edge (event);
         if (edge == null)
@@ -50,10 +49,14 @@ public final class InputGestureRouter
         final Gesture gesture;
         if (edge.phase == InputPhase.BEGIN)
         {
-            final var admitted = this.lifecycle.begin (edge.key);
+            final Binding binding = binding (current, edge.key, current.parameterSlots (snapshot), snapshot);
+            // Clip cleanup is addressed by control owner, so even a different clip must wait.
+            final boolean retiringClip = binding != null && binding.target instanceof InputTarget.Clip &&
+                this.gestures.values ().stream ().anyMatch (previous -> previous.key.equals (edge.key) && previous.finishRevision >= 0 && previous.binding.target instanceof InputTarget.Clip);
+            final var admitted = this.lifecycle.begin (edge.key, binding == null || retiringClip ? null : binding.target);
             if (admitted.interaction ().isEmpty ()) return new Dispatch (event, List.of (), null, edge, true);
             final var interaction = admitted.interaction ().orElseThrow ();
-            gesture = new Gesture (interaction.id (), edge.key, this.bindings.get (edge.key));
+            gesture = new Gesture (interaction.id (), edge.key, binding);
             this.gestures.put (interaction.id (), gesture);
         }
         else
@@ -146,23 +149,13 @@ public final class InputGestureRouter
     private void synchronize (final CompiledWorkspace current, final ControllerSnapshot snapshot)
     {
         this.finalizeReady (snapshot);
-        final Map<Key, Binding> next = new LinkedHashMap<> ();
-        final Map<Key, InputTarget> targets = new LinkedHashMap<> ();
+        // Idle controls have no gesture to validate. Their compiled routes are used on input.
+        if (this.gestures.isEmpty () && this.actions.isEmpty ()) return;
         final Map<ControlId, ParameterSlot> slots = current.parameterSlots (snapshot);
-        for (final Key key: CONTROLS)
-        {
-            final Binding binding = binding (current, key, slots, snapshot);
-            if (binding == null) continue;
-            next.put (key, binding);
-            // The existing clip executor addresses release by logical owner. Its owner cannot
-            // be reused for a different clip until the old acquired session has retired.
-            final boolean ownerRetiring = binding.target instanceof InputTarget.Clip && this.gestures.values ().stream ().anyMatch (gesture -> gesture.key.equals (key) && gesture.finishRevision >= 0 && gesture.binding.target instanceof InputTarget.Clip);
-            if (!ownerRetiring) targets.put (key, binding.target);
-        }
         for (final Gesture gesture: this.gestures.values ())
         {
             if (gesture.finishRevision >= 0) continue;
-            final Binding binding = next.get (gesture.key);
+            final Binding binding = binding (current, gesture.key, slots, snapshot);
             if (!gesture.binding.sameBinding (binding)) this.lifecycle.cancel (gesture.key);
             else
             {
@@ -180,14 +173,12 @@ public final class InputGestureRouter
         for (final var pending: this.actions.entrySet ())
         {
             final PendingAction action = pending.getValue ();
-            if (action.cancelled || action.binding.sameBinding (next.get (action.key))) continue;
+            if (action.cancelled || action.binding.sameBinding (binding (current, action.key, slots, snapshot))) continue;
             action.cancelled = true;
             final List<CoreEffect> effects = pending.getKey ().cancel ();
             this.cleanup.addAll (effects);
             if (!effects.isEmpty ()) this.retainEffectRequirements (action.binding.action.view ());
         }
-        this.bindings = Map.copyOf (next);
-        this.lifecycle.replaceBindings (targets);
         this.finalizeReady (snapshot);
     }
 
@@ -261,7 +252,7 @@ public final class InputGestureRouter
         final List<ControllerView> receivers = current.receivers (input);
         final CompiledWorkspace.ActionOwner action = current.actionOwner (input);
         if (receivers.isEmpty () && action == null) return null;
-        final List<ControllerView> owners = action != null ? List.of (action.view ()) : receivers.stream ().filter (view -> view.claims ().stream ().anyMatch (claim -> claim.kind () == SurfaceClaim.Kind.EXCLUSIVE_INPUT && claim.area ().contains (input))).toList ();
+        final List<ControllerView> owners = action != null ? List.of (action.view ()) : current.exclusiveOwners (input);
         final Map<ControllerView, InputTarget> targets = new LinkedHashMap<> ();
         final Set<ControllerView> participants = new LinkedHashSet<> (receivers);
         participants.addAll (owners);
@@ -289,8 +280,8 @@ public final class InputGestureRouter
     ControllerSnapshot viewSnapshot (final ControllerSnapshot snapshot)
     {
         final Set<ControlId> suppressed = new LinkedHashSet<> ();
-        for (final Key key: CONTROLS)
-            if (this.lifecycle.isHeld (key) && this.lifecycle.current (key).isEmpty ()) suppressed.add (key.control);
+        for (final Key key: this.lifecycle.heldControls ())
+            if (this.lifecycle.current (key).isEmpty ()) suppressed.add (key.control);
         if (suppressed.isEmpty ()) return snapshot;
         final Set<ControlId> pressed = new LinkedHashSet<> (snapshot.pressedControls ());
         final Set<ControlId> touched = new LinkedHashSet<> (snapshot.touchedControls ());

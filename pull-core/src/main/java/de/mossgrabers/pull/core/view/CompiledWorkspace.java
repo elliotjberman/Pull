@@ -71,6 +71,7 @@ public final class CompiledWorkspace
     private final DesiredParameterBanks                desiredParameterBanks;
     private final Map<RouteKey, List<ControllerView>>  inputOwners;
     private final Map<ControlId, List<ControllerView>> directInputOwners;
+    private final Map<RouteKey, List<ControllerView>>  exclusiveInputOwners;
     private final Map<RouteKey, ActionOwner>           actionOwners;
     private final Map<ControlId, ParameterSlot>        parameterBindings;
     private final List<ControllerView>                 eventObservers;
@@ -88,6 +89,7 @@ public final class CompiledWorkspace
         this.desiredControllerActions = desiredControllerActions;
         this.desiredParameterBanks = desiredParameterBanks;
         this.inputOwners = inputOwners;
+        this.exclusiveInputOwners = compileInputOwners (views, true);
         this.directInputOwners = directInputOwners;
         this.actionOwners = actionOwners;
         this.parameterBindings = parameterBindings;
@@ -137,7 +139,7 @@ public final class CompiledWorkspace
             controllerWorkspace,
             compileControllerActions (actionOwners),
             compileParameterBanks (orderedViews),
-            compileInputOwners (orderedViews),
+            compileInputOwners (orderedViews, false),
             compileDirectInputOwners (orderedViews),
             actionOwners,
             compileParameterBindings (orderedViews));
@@ -339,7 +341,7 @@ public final class CompiledWorkspace
             final Map<ControlId, ParameterSlot> current = Map.copyOf (Objects.requireNonNull (view.view ().parameterBindings (snapshot), "current parameter bindings"));
             for (final Map.Entry<ControlId, ParameterSlot> binding: current.entrySet ())
             {
-                if (!declared.contains (binding.getKey ()) || !claimsInput (view.profile (), new RouteKey (binding.getKey (), InputKind.RELATIVE)))
+                if (!declared.contains (binding.getKey ()))
                     throw new IllegalStateException ("view " + view.id () + " changed its declared parameter-control footprint");
                 if (!banks.contains (binding.getValue ().bank ()))
                     throw new IllegalStateException ("view " + view.id () + " requested an undeclared parameter bank");
@@ -448,7 +450,7 @@ public final class CompiledWorkspace
             }
             if (output.touchStrip ().owned ())
             {
-                if (view.profile ().claims ().stream ().noneMatch (claim -> claim.kind () == SurfaceClaim.Kind.OUTPUT && claim.area () == SurfaceArea.TOUCH_STRIP))
+                if (view.claims ().stream ().noneMatch (claim -> claim.kind () == SurfaceClaim.Kind.OUTPUT && claim.area () == SurfaceArea.TOUCH_STRIP))
                     throw new IllegalStateException ("view " + view.id () + " emits touch-strip output outside its output claim");
                 if (touchStrip.owned ())
                     throw new IllegalStateException ("multiple views own the touch strip");
@@ -499,7 +501,8 @@ public final class CompiledWorkspace
         if (id.isEmpty ())
             throw new IllegalArgumentException ("view id must not be blank");
         final Set<BridgeSubscription> bridgeSubscriptions = Set.copyOf (Objects.requireNonNull (checkedView.bridgeSubscriptions (), "bridge subscriptions"));
-        return new CompiledView (id, checkedView, Objects.requireNonNull (checkedView.profile (), "view profile"), bridgeSubscriptions, Map.copyOf (checkedView.parameterBindings ()), Set.copyOf (checkedView.parameterBanks ()));
+        final ViewProfile profile = Objects.requireNonNull (checkedView.profile (), "view profile");
+        return new CompiledView (id, checkedView, profile, profile.claims (), bridgeSubscriptions, Map.copyOf (checkedView.parameterBindings ()), Set.copyOf (checkedView.parameterBanks ()));
     }
 
 
@@ -507,7 +510,7 @@ public final class CompiledWorkspace
     {
         if (!translation.owned ())
             return;
-        final List<SurfaceClaim> musicalClaims = view.profile ().claims ().stream ().filter (claim -> claim.kind () == SurfaceClaim.Kind.MUSICAL_INPUT).toList ();
+        final List<SurfaceClaim> musicalClaims = view.claims ().stream ().filter (claim -> claim.kind () == SurfaceClaim.Kind.MUSICAL_INPUT).toList ();
         if (musicalClaims.isEmpty ())
             throw new IllegalStateException ("view " + view.id () + " owns native translation without a musical-input claim");
         for (int key = 36; key <= 99; key++)
@@ -521,7 +524,7 @@ public final class CompiledWorkspace
             {
                 if (other == view)
                     continue;
-                final boolean controllerOwned = other.profile ().claims ().stream ().anyMatch (claim -> claim.kind ().ownsInput () && claim.area ().inputKinds ().contains (InputKind.PAD) && claim.area ().containsPhysicalPad (padIndex));
+                final boolean controllerOwned = other.claims ().stream ().anyMatch (claim -> claim.kind ().ownsInput () && claim.area ().inputKinds ().contains (InputKind.PAD) && claim.area ().containsPhysicalPad (padIndex));
                 if (controllerOwned)
                     throw new IllegalStateException ("view " + view.id () + " enables a native note on " + other.id () + "'s controller pad: " + key);
             }
@@ -532,7 +535,7 @@ public final class CompiledWorkspace
     private static void validateControllerMapping (final CompiledView view, final ControllerMappingBinding binding)
     {
         final ControlId physicalControl = binding.physicalControl ();
-        final Set<SurfaceClaim> claims = view.profile ().claims ();
+        final Set<SurfaceClaim> claims = view.claims ();
         final boolean ownsInput = claims.stream ().anyMatch (claim ->
             claim.kind () == SurfaceClaim.Kind.EXCLUSIVE_INPUT &&
                 claim.area ().controls ().contains (physicalControl) &&
@@ -549,7 +552,7 @@ public final class CompiledWorkspace
     private static void validateLightOwner (final CompiledView view, final ControlId control)
     {
         final ControlId lightControl = Objects.requireNonNull (control, "light control");
-        final boolean claimed = view.profile ().claims ().stream ().anyMatch (claim ->
+        final boolean claimed = view.claims ().stream ().anyMatch (claim ->
             claim.kind () == SurfaceClaim.Kind.OUTPUT && claim.area ().controls ().contains (lightControl));
         if (!claimed)
             throw new IllegalStateException ("view " + view.id () + " emits a light outside its output claims: " + lightControl);
@@ -561,7 +564,7 @@ public final class CompiledWorkspace
         final Set<SurfaceArea> claims = new LinkedHashSet<> ();
         for (final SurfaceArea area: List.of (SurfaceArea.DISPLAY_PARAMETERS, SurfaceArea.DISPLAY_BOTTOM_STRIP))
         {
-            if (view.profile ().claims ().contains (new SurfaceClaim (area, SurfaceClaim.Kind.OUTPUT)))
+            if (view.claims ().contains (new SurfaceClaim (area, SurfaceClaim.Kind.OUTPUT)))
                 claims.add (area);
         }
         return Set.copyOf (claims);
@@ -577,7 +580,7 @@ public final class CompiledWorkspace
             if (!ids.add (view.id ()))
                 throw new IllegalArgumentException ("duplicate view id: " + view.id ());
 
-            for (final SurfaceClaim claim: view.profile ().claims ())
+            for (final SurfaceClaim claim: view.claims ())
                 claims.add (new OwnedClaim (view.id (), claim));
         }
 
@@ -634,7 +637,7 @@ public final class CompiledWorkspace
         final Map<RouteKey, InputRouteMode> routes = new LinkedHashMap<> ();
         for (final CompiledView view: views)
         {
-            for (final SurfaceClaim claim: view.profile ().claims ())
+            for (final SurfaceClaim claim: view.claims ())
             {
                 final InputRouteMode mode;
                 if (claim.kind () == SurfaceClaim.Kind.OBSERVE_INPUT)
@@ -671,7 +674,7 @@ public final class CompiledWorkspace
             for (final ControllerActionBinding binding: Set.copyOf (Objects.requireNonNull (view.view ().actionBindings (), "action bindings")))
             {
                 final RouteKey key = new RouteKey (binding.controlId (), binding.inputKind ());
-                if (!claimsInput (view.profile (), key))
+                if (!claimsInput (view, key))
                     throw new IllegalArgumentException ("view " + view.id () + " maps a semantic action outside its input claims: " + binding.controlId ());
                 if (owners.putIfAbsent (key, new ActionOwner (binding, view.view ())) != null)
                     throw new IllegalArgumentException ("multiple views map semantic actions from " + binding.controlId ());
@@ -681,9 +684,9 @@ public final class CompiledWorkspace
     }
 
 
-    private static boolean claimsInput (final ViewProfile profile, final RouteKey key)
+    private static boolean claimsInput (final CompiledView view, final RouteKey key)
     {
-        return profile.claims ().stream ().anyMatch (claim -> claim.kind ().isInput () && claim.area ().controls ().contains (key.control ()) && claim.area ().inputKinds ().contains (key.kind ()));
+        return view.claims ().stream ().anyMatch (claim -> claim.kind ().isInput () && claim.area ().controls ().contains (key.control ()) && claim.area ().inputKinds ().contains (key.kind ()));
     }
 
 
@@ -704,7 +707,7 @@ public final class CompiledWorkspace
             {
                 final ControlId control = Objects.requireNonNull (binding.getKey (), "parameter control");
                 final ParameterSlot slot = Objects.requireNonNull (binding.getValue (), "parameter slot");
-                if (!claimsInput (view.profile (), new RouteKey (control, InputKind.RELATIVE)))
+                if (!claimsInput (view, new RouteKey (control, InputKind.RELATIVE)))
                     throw new IllegalArgumentException ("view " + view.id () + " maps a parameter outside its relative-input claims: " + control);
                 if (bindings.putIfAbsent (control, slot) != null)
                     throw new IllegalArgumentException ("multiple views map parameter control " + control);
@@ -730,14 +733,14 @@ public final class CompiledWorkspace
     }
 
 
-    private static Map<RouteKey, List<ControllerView>> compileInputOwners (final List<CompiledView> views)
+    private static Map<RouteKey, List<ControllerView>> compileInputOwners (final List<CompiledView> views, final boolean exclusiveOnly)
     {
         final Map<RouteKey, List<ControllerView>> owners = new LinkedHashMap<> ();
         for (final CompiledView view: views)
         {
-            for (final SurfaceClaim claim: view.profile ().claims ())
+            for (final SurfaceClaim claim: view.claims ())
             {
-                if (!claim.kind ().isInput () || claim.kind () == SurfaceClaim.Kind.STABLE_ADAPTER_INPUT)
+                if (!claim.kind ().isInput () || claim.kind () == SurfaceClaim.Kind.STABLE_ADAPTER_INPUT || exclusiveOnly && claim.kind () != SurfaceClaim.Kind.EXCLUSIVE_INPUT)
                     continue;
                 for (final ControlId control: claim.area ().controls ())
                 {
@@ -755,7 +758,7 @@ public final class CompiledWorkspace
         final Map<ControlId, List<ControllerView>> owners = new LinkedHashMap<> ();
         for (final CompiledView view: views)
         {
-            for (final SurfaceClaim claim: view.profile ().claims ())
+            for (final SurfaceClaim claim: view.claims ())
             {
                 if (!claim.kind ().isInput () || claim.kind () == SurfaceClaim.Kind.STABLE_ADAPTER_INPUT)
                     continue;
@@ -766,6 +769,11 @@ public final class CompiledWorkspace
         return immutableOwnerMap (owners);
     }
 
+
+    List<ControllerView> exclusiveOwners (final ControllerInputEvent input)
+    {
+        return this.exclusiveInputOwners.getOrDefault (new RouteKey (input.controlId (), input.kind ()), List.of ());
+    }
 
     List<ControllerView> receivers (final CoreEvent event)
     {
@@ -808,7 +816,7 @@ public final class CompiledWorkspace
     }
 
 
-    private record CompiledView (String id, ControllerView view, ViewProfile profile, Set<BridgeSubscription> bridgeSubscriptions, Map<ControlId, ParameterSlot> parameterBindings, Set<ParameterBankId> parameterBanks)
+    private record CompiledView (String id, ControllerView view, ViewProfile profile, Set<SurfaceClaim> claims, Set<BridgeSubscription> bridgeSubscriptions, Map<ControlId, ParameterSlot> parameterBindings, Set<ParameterBankId> parameterBanks)
     {
     }
 
