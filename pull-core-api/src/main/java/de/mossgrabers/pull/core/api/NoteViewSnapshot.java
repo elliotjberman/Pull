@@ -14,9 +14,15 @@ import java.util.Objects;
  * @param trackPosition Selected track's absolute position
  * @param preferredView Explicit stored preference, or {@link ControllerNoteView#NONE}
  * @param drumControllerApplicable Whether the bounded selected/model drum targets are aligned
+ * @param drumSearchLimited Whether aligned drum discovery exhausted a structural or machine window
  */
-public record NoteViewSnapshot (long targetGeneration, String targetChannelId, int trackPosition, ControllerNoteView preferredView, boolean drumControllerApplicable)
+public record NoteViewSnapshot (long targetGeneration, String targetChannelId, int trackPosition, ControllerNoteView preferredView, boolean drumControllerApplicable, boolean drumSearchLimited)
 {
+    public NoteViewSnapshot (final long targetGeneration, final String targetChannelId, final int trackPosition, final ControllerNoteView preferredView, final boolean drumControllerApplicable)
+    {
+        this (targetGeneration, targetChannelId, trackPosition, preferredView, drumControllerApplicable, false);
+    }
+
     private static final NoteViewSnapshot EMPTY = new NoteViewSnapshot (0, "", -1, ControllerNoteView.NONE, false);
 
 

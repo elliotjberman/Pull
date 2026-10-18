@@ -14,6 +14,7 @@ import de.mossgrabers.pull.core.api.NoteViewSnapshot;
 import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.SetNoteViewPreferenceEffect;
+import de.mossgrabers.pull.core.api.effect.ShowHostNotificationEffect;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.api.event.InputKind;
@@ -54,6 +55,7 @@ public final class WorkspaceSelectionView implements ControllerView
 
     private final WorkspaceSelection selection;
     private final Map<WorkspaceSelection.Gesture, SelectionRequest> held = new EnumMap<> (WorkspaceSelection.Gesture.class);
+    private String warnedDrumSearchTarget = "";
 
 
     /**
@@ -171,7 +173,19 @@ public final class WorkspaceSelectionView implements ControllerView
     public List<CoreEffect> handle (final CoreEvent event, final ControllerSnapshot snapshot)
     {
         if (!(event instanceof final ControllerInputEvent input) || input.kind () != InputKind.BUTTON)
+        {
+            final NoteViewSnapshot note = snapshot.bridge ().noteView ();
+            final var selected = snapshot.bridge ().selectedTrack ();
+            final String target = note.targetGeneration () + ":" + note.targetChannelId ();
+            if (!note.drumSearchLimited ()) this.warnedDrumSearchTarget = "";
+            else if (selected.exists () && selected.canHoldNotes () && selected.generation () == note.targetGeneration () &&
+                selected.channelId ().equals (note.targetChannelId ()) && !target.equals (this.warnedDrumSearchTarget))
+            {
+                this.warnedDrumSearchTarget = target;
+                return List.of (new ShowHostNotificationEffect ("Drum discovery limit reached; some machines may be missing (maximum 8)."));
+            }
             return List.of ();
+        }
         final WorkspaceSelection.Gesture gesture;
         if (NOTE_BUTTON.equals (input.controlId ()))
             gesture = WorkspaceSelection.Gesture.NOTE;

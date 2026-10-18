@@ -51,6 +51,30 @@ mvn -o -pl pull-shell -am test
 For changes touching Bitwig API objects, follow `AGENTS.md` and run the complete package build with
 deprecation reporting before the live smoke test.
 
+## Composite Drum discovery (API 59)
+
+Offline regressions separate native cursor requests, applied host state and observer delivery.
+They cover nested/parallel machines, same-name replacement, selection changes, the eight-machine
+cap, finite structural windows, populated-note union, one pressure stream, and independently
+acknowledged octave windows. Bridge tests reject a replaced/removed device at application and
+keep submitted scrolls separate from later pad-window read-back.
+
+On October 18, 2026 the complete deprecation-enabled package gate passed 1,192 tests with no
+failures, errors, skips or deprecation warnings. Architecture review findings about read-count
+readiness and zero-result overflow were corrected and re-reviewed.
+
+Live acceptance is pending. With the shared lease and a recoverable checkpoint, install the
+matched API 59 shell/core and verify startup in Bitwig API 25. On a track with two parallel
+machines, verify distinct and overlapping populated notes through captured Push output; drive
+octave changes through routed input and confirm both device windows later agree. Repeat after
+track switches and device replacement, and check an eight-machine kit plus a ninth-machine
+overflow. Native notes must reach both parallel branches once according to Bitwig routing.
+Use the existing opt-in `tools/push-debug-trace` capture: its later snapshots include
+`drum.machines` with each device identity, base note and pad population, separately from requested
+effects. Pair these with `surface-state.json` for actual transmitted pad lights. Measure startup
+and steady-state cost of the native discovery pool before accepting the expanded canopy.
+The [tree contract](docs/drum-device-tree.md) states selected FX-slot and structural coverage.
+
 ## Retained parameter cutover (API 58)
 
 The old layer providers, NoteParameter/timer and ACTIVE compatibility path are removed. Permanent

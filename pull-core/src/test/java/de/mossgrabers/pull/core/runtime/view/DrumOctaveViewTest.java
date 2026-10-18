@@ -300,8 +300,82 @@ class DrumOctaveViewTest
         assertEquals (DesiredNoteInputTranslation.silent (), DrumOctaveView.translation (fixture.snapshot ()));
     }
 
+    @Test
+    void parallelMachinesContributeOneMidiAddressAndUnionOfPopulatedPads ()
+    {
+        final Fixture fixture = new Fixture ("DRUM_PAD");
+        fixture.additionalMachines = List.of (new de.mossgrabers.pull.core.api.DrumMachineSnapshot ("machine-b", 36,
+            List.of (populatedPad (0, 36, "Layered kick"), populatedPad (2, 38, "Snare"))));
+        final DrumPlayPadView pads = new DrumPlayPadView ();
+        assertEquals (ON, pads.render (fixture.snapshot ()).lights ().get (PLAY_PAD));
+        assertEquals (ON, pads.render (fixture.snapshot ()).lights ().get (PushControlIds.pad (3)));
+        assertEquals (OFF, pads.render (fixture.snapshot ()).lights ().get (PushControlIds.pad (2)));
+        assertEquals (38, DrumOctaveView.translation (fixture.snapshot ()).keyTranslation ().get (38));
+        fixture.pressure = GridPressureConfiguration.POLY;
+        final var event = new ControllerInputEvent (1, 1, PLAY_PAD, InputKind.POLY_PRESSURE, InputPhase.UPDATE, 91);
+        assertEquals (List.of (new SendNoteInputMidiEffect (0xA0, 36, 91)), pads.handle (event, fixture.snapshot ()), "one MIDI stream even for overlapping pads");
+        fixture.additionalMachines = List.of ();
+        assertEquals (OFF, pads.render (fixture.snapshot ()).lights ().get (PushControlIds.pad (3)));
+    }
+
+    @Test
+    void compositeGridWaitsForEveryWindowAndResynchronizesWithoutMovingHeldNotes ()
+    {
+        final Fixture fixture = new Fixture ("DRUM_PAD");
+        fixture.additionalMachines = List.of (new de.mossgrabers.pull.core.api.DrumMachineSnapshot ("machine-b", 52, List.of (populatedPad (0, 52, "Snare"))));
+        assertFalse (DrumOctaveView.translation (fixture.snapshot ()).allowsNotes ());
+        fixture.pressed = Set.of (PLAY_PAD);
+        fixture.tick ();
+        assertTrue (fixture.submitted.isEmpty ());
+        fixture.pressed = Set.of ();
+        fixture.tick ();
+        assertEquals (List.of (new de.mossgrabers.pull.core.api.effect.SetDrumWindowPositionEffect (fixture.drumGeneration, "track-a", "machine-b", 36)), fixture.submitted);
+        fixture.submitted.clear ();
+        assertFalse (DrumOctaveView.translation (fixture.snapshot ()).allowsNotes (), "submission cannot light/play a mismatched window");
+        fixture.additionalMachines = List.of (new de.mossgrabers.pull.core.api.DrumMachineSnapshot ("machine-b", 36, List.of (populatedPad (2, 38, "Snare"))));
+        fixture.applyNativeTranslation ();
+        assertTrue (DrumOctaveView.mappingApplied (fixture.snapshot ()));
+        fixture.press (UP);
+        assertEquals (List.of (new SetDrumBankPositionEffect (fixture.drumGeneration, "track-a", 52, false),
+            new de.mossgrabers.pull.core.api.effect.SetDrumWindowPositionEffect (fixture.drumGeneration, "track-a", "machine-b", 52)), fixture.submitted);
+        fixture.applyRequests ();
+        fixture.advanceHost ();
+        assertFalse (DrumOctaveView.translation (fixture.snapshot ()).allowsNotes (), "primary readback alone is insufficient");
+        fixture.additionalMachines = List.of (new de.mossgrabers.pull.core.api.DrumMachineSnapshot ("machine-b", 52, List.of (populatedPad (0, 52, "Snare"))));
+        fixture.applyNativeTranslation ();
+        assertTrue (DrumOctaveView.mappingApplied (fixture.snapshot ()));
+    }
+
+    @Test
+    void discoveryLimitIsReportedOnceAndEmptyDeviceSlotsDoNotLight ()
+    {
+        final Fixture fixture = new Fixture ("DRUM_PAD");
+        fixture.searchLimited = true;
+        fixture.drumAvailable = false;
+        final var selection = new WorkspaceSelectionView (new WorkspaceSelection (WorkspaceSelection.Id.DEFAULT));
+        final var event = new ControllerTickEvent (1, 1);
+        final var effects = selection.handle (event, fixture.snapshot ());
+        assertFalse (fixture.snapshot ().bridge ().noteView ().drumControllerApplicable ());
+        assertFalse (fixture.snapshot ().bridge ().drum ().available ());
+        assertEquals (1, effects.size ());
+        assertTrue (effects.get (0) instanceof ShowHostNotificationEffect);
+        assertTrue (selection.handle (event, fixture.snapshot ()).isEmpty ());
+        fixture.drumAvailable = true;
+        fixture.additionalMachines = List.of (new de.mossgrabers.pull.core.api.DrumMachineSnapshot ("machine-b", 36,
+            List.of (new DrumPadSnapshot (2, 38, "empty", true, "", ON, true, false, false, false, false, 0.5, 0.5, 0))));
+        assertEquals (OFF, new DrumPlayPadView ().render (fixture.snapshot ()).lights ().get (PushControlIds.pad (3)));
+    }
+
+    private static DrumPadSnapshot populatedPad (final int index, final int note, final String name)
+    {
+        return new DrumPadSnapshot (index, note, name, true, name, ON, true, true, false, false, false, 0.5, 0.5, 0);
+    }
+
     private static final class Fixture
     {
+        private List<de.mossgrabers.pull.core.api.DrumMachineSnapshot> additionalMachines = List.of ();
+        private boolean searchLimited;
+        private boolean drumAvailable = true;
         private DrumOctaveView view = new DrumOctaveView ();
         private final String layout;
         private final List<CoreEffect> submitted = new ArrayList<> ();
@@ -385,9 +459,10 @@ class DrumOctaveViewTest
         {
             final SelectedTrackSnapshot selected = new SelectedTrackSnapshot (1, this.targetId, "Drums", 0, "INSTRUMENT", !"no-track".equals (this.mismatch), false, false, !"no-notes".equals (this.mismatch), false, true, false, TrackMonitorMode.AUTO, false, false, false, false, 0.5, 0.5, ON);
             final ControllerLayoutSnapshot layoutState = new ControllerLayoutSnapshot (1, this.layout, "TRACK", this.layoutActive && !"layout".equals (this.mismatch), !"engagement".equals (this.mismatch), this.requestedBase, this.pressure, this.applied);
-            final NoteViewSnapshot note = new NoteViewSnapshot ("note-generation".equals (this.mismatch) ? 2 : 1, "note-target".equals (this.mismatch) ? "other-track" : this.targetId, "note-position".equals (this.mismatch) ? 1 : 0, ControllerNoteView.DRUM_PAD, !"no-drum".equals (this.mismatch));
+            final NoteViewSnapshot note = new NoteViewSnapshot ("note-generation".equals (this.mismatch) ? 2 : 1, "note-target".equals (this.mismatch) ? "other-track" : this.targetId, "note-position".equals (this.mismatch) ? 1 : 0, ControllerNoteView.DRUM_PAD, this.drumAvailable && !"no-drum".equals (this.mismatch), this.searchLimited);
             final DrumPadSnapshot firstPad = new DrumPadSnapshot (0, this.observedBase, "pad-a", true, "Kick", ON, true, true, false, false, false, 0.5, 0.5, 0);
-            final DrumContextSnapshot drum = new DrumContextSnapshot (this.drumGeneration, "drum-generation".equals (this.mismatch) ? 2 : 1, "drum-target".equals (this.mismatch) ? "other-track" : this.targetId, this.deviceId, true, !"model".equals (this.mismatch), this.observedBase, List.of (firstPad));
+            final DrumContextSnapshot drum = this.drumAvailable ? new DrumContextSnapshot (this.drumGeneration, "drum-generation".equals (this.mismatch) ? 2 : 1, "drum-target".equals (this.mismatch) ? "other-track" : this.targetId, this.deviceId, true, !"model".equals (this.mismatch), this.observedBase, List.of (firstPad), java.util.stream.Stream.concat (java.util.stream.Stream.of (new de.mossgrabers.pull.core.api.DrumMachineSnapshot (this.deviceId, this.observedBase, List.of (firstPad))), this.additionalMachines.stream ()).toList (), this.searchLimited)
+                : new DrumContextSnapshot (this.drumGeneration, 1, this.targetId, "", false, true, 0, List.of (), List.of (), this.searchLimited);
             final ControllerBridgeSnapshot bridge = new ControllerBridgeSnapshot (TransportSnapshot.empty (), selected, de.mossgrabers.pull.core.api.SessionBankSnapshot.empty (), layoutState, note, NoteRepeatSnapshot.empty (), drum, ParameterBridgeSnapshot.empty (), de.mossgrabers.pull.core.api.ControllerMappingFeedbackSnapshot.empty (), MasterSnapshot.empty (), ProjectSnapshot.empty (), de.mossgrabers.pull.core.api.AutomationSnapshot.empty (), de.mossgrabers.pull.core.api.EncoderConfigurationSnapshot.empty (), de.mossgrabers.pull.core.api.CurrentTrackBankSnapshot.empty (), de.mossgrabers.pull.core.api.TransportSettingsSnapshot.empty (), this.settingsAvailable ? new de.mossgrabers.pull.core.api.ControllerSettingsSnapshot (true, false, "VOLUME", 0, de.mossgrabers.pull.core.api.CursorSendBankSnapshot.empty (), this.accent, this.accentVelocity) : de.mossgrabers.pull.core.api.ControllerSettingsSnapshot.empty ());
             return new ControllerSnapshot (this.sequence, this.sequence, ShellCapabilities.empty (), bridge, ClipCatalogSnapshot.empty (), Map.of (), Map.of (), java.util.Optional.empty (), this.pressed, Set.of ());
         }

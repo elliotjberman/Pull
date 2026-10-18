@@ -155,8 +155,8 @@ public final class DrumPlayPadView implements ControllerView
     private static DrumPadSnapshot padAt (final DrumContextSnapshot drum, final int padIndex)
     {
         final int midiNote = drum.baseMidiNote () + padIndex;
-        return drum.pads ().stream ()
-            .filter (pad -> pad.padIndex () == padIndex && pad.midiNote () == midiNote)
+        return drum.machines ().stream ().flatMap (machine -> machine.pads ().stream ())
+            .filter (pad -> pad.exists () && pad.hasDevices () && pad.midiNote () == midiNote)
             .findFirst ()
             .orElse (null);
     }
