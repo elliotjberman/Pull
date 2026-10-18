@@ -89,7 +89,9 @@ establish audio-level summing or the absence of routing duplicates elsewhere in 
 
 Broader live acceptance remains pending: overlapping notes, track switching, held-pad octave
 changes, replacement/reordering, nested containers, exactly eight machines and ninth-machine
-coverage. The requested separate test project could not yet be created because macOS locked;
+coverage. The separate `Pull Drum Tree Tests` project is saved under Bitwig Projects/2026,
+with an `Eight parallel` track containing seven copies of DryDrum and one SpreadDrum. Its
+audio engine remains off and that topology has not yet received live controller acceptance.
 `alien2_revival` remains the real-project smoke test. Startup succeeded without controller
 exceptions. Logs recorded initial bridge ticks of 159 ms and 122 ms and isolated later warnings;
 steady-state/resource cost is not yet accepted from those observations alone.
