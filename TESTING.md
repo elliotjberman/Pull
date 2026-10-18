@@ -54,69 +54,68 @@ deprecation reporting before the live smoke test.
 ## Composite Drum discovery (API 59)
 
 Offline regressions separate native cursor requests, applied host state and observer delivery.
-They cover nested/parallel machines, same-name replacement, selection changes, the eight-machine
-cap, finite structural windows, populated-note union, one pressure stream, and independently
-acknowledged octave windows. Bridge tests reject a replaced/removed device at application and
-keep submitted scrolls separate from later pad-window read-back.
+They cover nested/parallel machines, same-name replacement, selection changes, selected-slot
+aliases, layer removal with surviving identities, the eight-machine cap, finite structural
+windows, populated-note union, one pressure stream, and independently acknowledged octave
+windows. Bridge tests reject replaced/removed devices at application and keep submitted scrolls
+separate from later pad-window read-back.
 
-On October 18, 2026 the complete deprecation-enabled package gate passed 1,192 tests with no
-failures, errors, skips or deprecation warnings. Architecture review findings about read-count
-readiness and zero-result overflow were corrected and re-reviewed.
+On October 18, 2026 the complete `mvn -o -Dmaven.compiler.showDeprecation=true package` gate
+passed **1,194 tests**, with zero failures, errors, skips or deprecation warnings. The following
+live acceptance used Bitwig 6.1.3 / controller API 25 under the shared live lease:
 
-Initial live smoke passed on `alien2_revival` in Bitwig 6.1.3 / controller API 25 under the
-shared live lease, from source checkpoint `7e04f25190672bbeef05ea12617fb394dbc45d5c`:
+- Source checkpoint: `89bfbde55e0e3adf923362d781f6293a90fc5975`.
+- Installed shell SHA-256: `067bf377563d49b46f09836c171743ee3c58e3ae2960cb73d43249c42878e935`;
+  API fingerprint: `73fb5f87e9578817828b65922655f22031f561e9`.
+- Exact active core: `20261018T165642Z-a41faf11614615c48669c7ff77789499`;
+  SHA-256: `26e116e3e7ac3a175f3c84b75ca41da739613ee586d0a6430f66650e9e5a23c4`.
 
-- Installed shell SHA-256: `934532ab657a5cbacd3a1013ee97a35697c24eb82285379c266492b9018ce53b`;
-  fingerprint `73fb5f87e9578817828b65922655f22031f561e9`.
-- Exact active core: `20261018T152614Z-f479479cdc39dbbfcea2df787d77b816`;
-  SHA-256 `d219f417c01af15045e325a3d5c94f30f8cf50149b3d5ad1dc38d5cdab742e51`.
-- The selected Drums track reported two distinct machines. One populated notes 36 and 50;
-  the other populated 38, 39, 40, 42, 44, 46, 48, 49 and 51. Transmitted playable-pad lights
-  matched this union, with the gaps dark.
-- Routed debugger pad input reached later host observations at velocity 96 on note 36 from
-  the first machine and note 38 from the second. Subsequent release observations returned
-  to zero. Captured transmitted pad output included the corresponding green playing lights.
-- Routed octave up moved both machine windows from base 36 to 52; octave down returned both
-  to 36 and restored the populated lights. All synthetic inputs were released.
+`Pull Drum Tree Tests` is saved under Bitwig Projects/2026. Its `Eight parallel` track contains
+seven copies of DryDrum and one SpreadDrum, saved disarmed at **−∞ dB**. Temporary mutations
+were undone after checking their later host state and transmitted pad output:
 
-Evidence is retained in the dedicated worktree's `target/drum-tree-live/` directory:
-`alien2-initial.tsv`, `alien2-note-{1,3}.tsv`, `alien2-off-{1,3}.tsv`,
-`alien2-banks-{up,down}.tsv`, and the corresponding surface JSON captures. The first longer
-routed trace reached the existing 2 MB serialization bound; separate short captures retain
-later authoritative state for each step. A submitted input alone is not a passing observation.
-These checks establish controller discovery, note ingress/read-back and output; they do not
-establish audio-level summing or the absence of routing duplicates elsewhere in the project.
+| Live case | Observed result |
+| --- | --- |
+| Eight machines with a layer selected | Eight distinct machines, complete coverage; the selected-slot alias consumes no extra slot. |
+| Remove a Dry layer, then Undo | Seven surviving machines retain Spread and its notes; Undo restores eight. |
+| Add a ninth layer before Spread, then Undo | First eight machines are exposed with `searchLimited=true`; Undo restores full coverage and Spread's lights. |
+| Overlapping note 36 | One routed pad press appears at velocity 96 in all seven Dry machines; release clears all seven. |
+| Unique note 38 | The Spread machine observes velocity 96 and later zero. |
+| Octave up/down | All eight bases move 36 → 52 → 36; populated lights disappear and return. |
+| Octave up while holding a pad | All bases stay at 36 while held, move to 52 after release, and return to 36 on octave down. |
+| Select the non-drum Reverb track and return | No machines and dark playable lights on Reverb; all eight and their union return on the drum track. |
+| Wrap the rack in another Instrument Layer | All eight machines and their union remain available, without a coverage warning. |
+| Cut Spread and paste it first | Its notes disappear after Cut; Paste creates a new identity at the first position and restores the full union. |
 
-Broader live acceptance remains pending: overlapping notes, track switching, held-pad octave
-changes, replacement/reordering, nested containers, exactly eight machines and ninth-machine
-coverage. The separate `Pull Drum Tree Tests` project is saved under Bitwig Projects/2026,
-with an `Eight parallel` track containing seven copies of DryDrum and one SpreadDrum. The
-test track is saved at −∞ dB with its audio engine active. Live probes found a native selected-slot
-alias: with only DryDrum and SpreadDrum, selecting DryDrum returned three machine entries,
-two with identical populated pad-channel UUIDs; selecting the empty FX slot returned two.
-With eight real machines that alias also caused a false coverage warning. Removing a layer
-left Spread missing from the discovered set; this requires rechecking after the alias fix.
-The alias fix passed live on the eight-machine rack after the October 18 restart: eight distinct
-machines remained visible with a layer selected and coverage stayed complete. The separate
-removal bug remained: a retained cursor reported `exists=false`, `pinned=true`, `equal=false`
-while its source pointed at the surviving Spread machine. A three-stage acquisition probe showed that unpinned
-cursors share native selection: only the final selected target survived. The corrected sequence
-observes unpinning, submits select-and-pin together, then waits for target and pin read-back;
-its live recheck is pending. `alias-removal-selection.tsv` retains the native observations.
+The final **alien2_revival** smoke passed on the same build after reopening the project saved in
+place before the restart. The selected Drums track reports two machines: notes 36 and 50 in Dry,
+and 38, 39, 40, 42, 44, 46, 48, 49 and 51 in Spread. Transmitted playable lights match the union,
+with gaps dark. Routed pad inputs for notes 36 and 38 produce later host velocity 96, corresponding
+green transmitted pad lights, and subsequent release values of zero. Both octave windows move
+36 → 52 → 36. All synthetic inputs were released. Existing automatic drum roll remains enabled.
 
-The alias regression and native-equality guard pass the full deprecation-enabled package gate
-(1,193 tests, zero failures/errors/skips; no deprecation warnings); the updated shell still needs
-installation and live acceptance. Evidence: `two-{dry,fx}-selected.tsv`,
-`eight-{settled,restored,fx-selected}.tsv`, and `seven-{boundary,settled}.tsv`.
-`alien2_revival` remains the real-project smoke test. Startup succeeded without controller
-exceptions. Logs recorded initial bridge ticks of 159 ms and 122 ms and isolated later warnings;
-steady-state/resource cost is not yet accepted from those observations alone.
+The live tests exposed and fixed two native-host bugs: the selected-slot cursor can alias a layer,
+and deleting a layer can shift an otherwise identical source window without changing its device
+type or position. Discovery now deduplicates acknowledged native targets, observes layer UUID
+changes, and retains surviving native identities. Acquisition observes unpinning, submits
+selection and pinning together, then waits for target/pin read-back; unpinned cursors share native
+selection. Permanent fake-host regressions model those contracts separately from observer delivery.
 
-Use the existing opt-in `tools/push-debug-trace` capture: later snapshots include `drum.machines`
-with each device identity, base note and pad population, separately from requested effects.
-Pair these with `surface-state.json` for actual transmitted pad lights. Prefer separate short
-captures around each settled state because full snapshots can reach the bounded trace text limit.
-The [tree contract](docs/drum-device-tree.md) states selected FX-slot and structural coverage.
+Evidence is retained in the dedicated `drum-tree-composite` worktree's `target/drum-tree-live/`:
+`layer-identity-package.log`, `identity-{eight-initial,seven-removed,eight-undo,nine,nested}.tsv`,
+`identity-eight-{note-1,off-1,note-3,off-3,banks-up,banks-down,held-octave,released-octave}.tsv`,
+`identity-{nondrum,reselected,spread-cut,spread-reordered}.tsv`, and
+`final-alien2-{initial,note-1,off-1,note-3,off-3,banks-up,banks-down}.tsv`, with paired surface JSON.
+Use short opt-in `tools/push-debug-trace` captures: full snapshots can reach the existing 2 MB
+trace limit. Snapshots expose each machine's identity/window/pads; surface JSON records transmitted
+lights. Input acknowledgement alone is not a passing observation.
+
+These checks establish controller discovery, routed note read-back and output within the
+[tree contract](docs/drum-device-tree.md). They do not establish audio-level summing, routing
+elsewhere in the project, or performance under every project size. Startup succeeded; logs contain
+an initial 127 ms bridge tick and isolated later 10–20 ms warnings, not a resource-cost benchmark.
+Forced observer delays, deeper structural overflow and pressure deduplication remain offline
+coverage. Unselected FX slots are outside API 25's selected-slot window.
 
 ## Retained parameter cutover (API 58)
 

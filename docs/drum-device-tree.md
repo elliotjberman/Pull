@@ -20,8 +20,8 @@ exposes its first sixteen devices; a container exposes its first eight layers an
 FX slot. API 25 provides no bank of every FX slot, so unselected FX slots are outside this
 coverage. The root plus retained container windows comprise 1,168 source device proxies and
 18,688 native equality values per tree. Topology is created during extension initialization;
-unchanged trees do not traverse again or resubmit cursor selection. Layer UUID changes invalidate their child chains even when device type and position stay the
-same. Surviving retained targets are matched by native equality before reusing a positional slot.
+unchanged trees do not traverse again or resubmit cursor selection. Layer UUID changes invalidate
+their child chains even when device type and position stay the same. Surviving retained targets are matched by native equality before reusing a positional slot.
 Structural changes trigger a bounded rescan. Pending acquisitions wait for host read-back.
 
 The model cursor and private selection-following target have independent trees. The latter
@@ -39,8 +39,8 @@ Private device cursors are moved without selecting anything in the editor. Acqui
 unpinning before submitting selection and pinning together, then observes native target
 equality and pinning. This prevents same-update unpin/pin writes from collapsing across
 selection while retaining each target before another unpinned cursor changes the shared selection.
-A retained assignment
-is published only after native equality, pinning, existence, position and drum capability agree
+A retained assignment is published only after native equality, pinning, existence, position and
+drum capability agree
 with the source. Source revision changes or lost equality revoke it. Its identity is the track
 UUID plus an opaque assignment generation, never its name or Java wrapper. Selection changes
 retire the old tree's assignments.
