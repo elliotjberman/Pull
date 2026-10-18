@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -23,6 +24,7 @@ public final class DrumTreeHostFake
     public final List<Item> root = new ArrayList<> ();
     public String trackId = "track-a";
     public boolean initiallyPinned;
+    public boolean holdEqualityObservations;
     public int selections;
     public int editorSelections;
     private final List<Runnable> commands = new ArrayList<> ();
@@ -117,7 +119,7 @@ public final class DrumTreeHostFake
                 this.commands.add (() -> { if (!pinned[0]) this.cursorSelection = requested; });
                 yield null;
             }
-            case "createEqualsValue" -> value (BooleanValue.class, () -> target.get () != null && target.get () == this.targets.get ((Device) args[0]).get (), null);
+            case "createEqualsValue" -> value (BooleanValue.class, () -> target.get () != null && target.get () == this.targets.get ((Device) args[0]).get (), null, () -> !this.holdEqualityObservations);
             default -> properties.computeIfAbsent (method, key -> property (target, () -> positionOf (target.get (), this.root), method, args));
         });
         this.targets.put (cursor, target);
@@ -166,9 +168,15 @@ public final class DrumTreeHostFake
 
     private <T> T value (final Class<T> type, final Supplier<Object> read, final Consumer<Object> write)
     {
+        return value (type, read, write, () -> true);
+    }
+
+    private <T> T value (final Class<T> type, final Supplier<Object> read, final Consumer<Object> write, final BooleanSupplier publish)
+    {
         final Object [] observed = {read.get ()};
         final List<Object> callbacks = new ArrayList<> ();
         this.observers.add (() -> {
+            if (!publish.getAsBoolean ()) return;
             final Object current = read.get ();
             if (Objects.equals (observed[0], current)) return;
             observed[0] = current;

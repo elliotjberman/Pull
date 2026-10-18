@@ -8,7 +8,9 @@ API 59 adds bounded tree discovery and composite Drum pad observations. Core com
 notes across up to eight machines and aligns their windows before enabling the native note map.
 The matched shell/core passed the final `alien2_revival` smoke and the separate eight-machine
 fixture in Bitwig 6.1.3 on October 18, 2026, including overlap, held octaves, nesting, track
-switching, layer removal/Undo, replacement/reordering and ninth-machine overflow. See
+switching, layer removal/Undo, replacement/reordering and ninth-machine overflow. The subsequent
+PR-review acquisition-retry correction passes the 1,196-test package gate; its matched-shell live
+smoke remains pending. See
 [TESTING](TESTING.md#composite-drum-discovery-api-59) and the
 [tree contract](docs/drum-device-tree.md) for bounds, identity fences and FX-slot coverage.
 

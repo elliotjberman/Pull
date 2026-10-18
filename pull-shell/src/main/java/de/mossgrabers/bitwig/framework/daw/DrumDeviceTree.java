@@ -14,6 +14,7 @@ import de.mossgrabers.pull.shell.SelectionDebug;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.LongSupplier;
 
 /**
  * Initialization-owned access to a track's layer tree. Each chain is visited through its parent,
@@ -31,9 +32,12 @@ public final class DrumDeviceTree
     public static final int DEVICES_PER_CHAIN = 16;
     public static final int LAYERS_PER_CONTAINER = 8;
 
+    private static final long ACQUISITION_TIMEOUT_NANOS = 2_000_000_000L;
+
     private enum Acquisition { UNPINNING, PINNING }
 
     private final CursorTrack track;
+    private final LongSupplier nanoTime;
     private final Chain root;
     private final List<Slot> containers = new ArrayList<> ();
     private final List<Slot> machines = new ArrayList<> ();
@@ -49,7 +53,13 @@ public final class DrumDeviceTree
 
     public DrumDeviceTree (final CursorTrack track, final String id)
     {
+        this (track, id, System::nanoTime);
+    }
+
+    DrumDeviceTree (final CursorTrack track, final String id, final LongSupplier nanoTime)
+    {
         this.track = track;
+        this.nanoTime = nanoTime;
         this.diagnosticId = id;
         this.root = new Chain (track);
         for (int i = 0; i < MAX_CONTAINERS; i++)
@@ -224,6 +234,7 @@ public final class DrumDeviceTree
         private Node source;
         private long sourceRevision;
         private long assignment;
+        private long acquisitionDeadline;
         private boolean ready;
         private Acquisition acquisition;
 
@@ -284,6 +295,7 @@ public final class DrumDeviceTree
                 this.sourceRevision = node.revision;
                 this.assignment = ++DrumDeviceTree.this.generation;
                 this.acquisition = Acquisition.UNPINNING;
+                this.acquisitionDeadline = DrumDeviceTree.this.nanoTime.getAsLong () + ACQUISITION_TIMEOUT_NANOS;
                 this.device.isPinned ().set (false);
                 DrumDeviceTree.this.dirty = true;
                 return false;
@@ -299,10 +311,10 @@ public final class DrumDeviceTree
                 return false;
             }
             final boolean coherent = this.acquisition == Acquisition.PINNING && this.pointsTo (node);
-            if (this.ready && !coherent)
+            if (!coherent && (this.ready || DrumDeviceTree.this.nanoTime.getAsLong () - this.acquisitionDeadline >= 0))
             {
-                // A source bank can replace a same-shaped device without changing its name/type.
-                // Native inequality revokes the assignment and requires a fresh acquisition.
+                // Same-shaped replacement can strand even an assignment never acknowledged.
+                // Expiry only retries acquisition; it never substitutes for native equality.
                 this.sourceRevision = -1;
                 this.assignment = ++DrumDeviceTree.this.generation;
             }

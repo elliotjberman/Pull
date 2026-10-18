@@ -18,17 +18,17 @@ import java.util.concurrent.atomic.AtomicReference;
 import com.bitwig.extension.controller.api.BooleanValue;
 import com.bitwig.extension.controller.api.ControllerHost;
 import com.bitwig.extension.controller.api.CursorTrack;
-import com.bitwig.extension.controller.api.Device;
-import com.bitwig.extension.controller.api.DeviceBank;
-import com.bitwig.extension.controller.api.DeviceLayer;
-import com.bitwig.extension.controller.api.DeviceLayerBank;
+import com.bitwig.extension.controller.api.PinnableCursorDevice;
 import com.bitwig.extension.controller.api.DeviceSlot;
+import com.bitwig.extension.controller.api.DeviceLayerBank;
+import com.bitwig.extension.controller.api.DeviceLayer;
+import com.bitwig.extension.controller.api.DeviceBank;
+import com.bitwig.extension.controller.api.Device;
 import com.bitwig.extension.controller.api.IntegerValue;
 import com.bitwig.extension.controller.api.NoteInput;
 import com.bitwig.extension.controller.api.Parameter;
 import com.bitwig.extension.controller.api.PlayingNote;
 import com.bitwig.extension.controller.api.PlayingNoteArrayValue;
-import com.bitwig.extension.controller.api.PinnableCursorDevice;
 import com.bitwig.extension.controller.api.SettableBooleanValue;
 import com.bitwig.extension.controller.api.SettableColorValue;
 import com.bitwig.extension.controller.api.SettableEnumValue;
@@ -52,7 +52,6 @@ class SelectedTrackTargetStateTest
     @Test
     void exposesBoundedStateAndAbsoluteActions ()
     {
-        final AtomicInteger interests = new AtomicInteger ();
         final AtomicReference<String> targetID = new AtomicReference<> ("track-a");
         final AtomicBoolean targetExists = new AtomicBoolean (true);
         final AtomicReference<String> name = new AtomicReference<> ("Drums");
@@ -85,8 +84,6 @@ class SelectedTrackTargetStateTest
         final PlayingNoteArrayValue playingNotes = proxy (PlayingNoteArrayValue.class, (proxy, method, arguments) -> {
             if ("get".equals (method.getName ()))
                 return notes.get ();
-            if ("markInterested".equals (method.getName ()))
-                interests.incrementAndGet ();
             if ("addValueObserver".equals (method.getName ()))
             {
                 @SuppressWarnings("unchecked")
@@ -96,8 +93,8 @@ class SelectedTrackTargetStateTest
             }
             return relaxedValue (method.getReturnType ());
         });
-        final SettableRangedValue volumeValue = rangedValue (volume, interests);
-        final SettableRangedValue panValue = rangedValue (pan, interests);
+        final SettableRangedValue volumeValue = rangedValue (volume);
+        final SettableRangedValue panValue = rangedValue (pan);
         final Device emptyDrumCandidate = relaxedProxy (Device.class);
         final DeviceBank directDrumBank = deviceBank (emptyDrumCandidate);
         final DeviceBank layerDrumBank = deviceBank (emptyDrumCandidate);
@@ -116,23 +113,23 @@ class SelectedTrackTargetStateTest
         final CursorTrack target = proxy (CursorTrack.class, (proxy, method, arguments) -> {
             return switch (method.getName ())
             {
-                case "channelId" -> stringValue (targetID, interests);
-                case "exists" -> booleanValue (BooleanValue.class, targetExists, interests);
-                case "name" -> settableStringValue (name, interests);
-                case "color" -> colorValue (0.1F, 0.2F, 0.3F, interests);
-                case "trackType" -> stringValue (type, interests);
-                case "position" -> integerValue (position, interests);
-                case "canHoldNoteData" -> booleanValue (SettableBooleanValue.class, canHoldNotes, interests);
-                case "canHoldAudioData" -> booleanValue (SettableBooleanValue.class, canHoldAudio, interests);
-                case "isGroup" -> booleanValue (BooleanValue.class, group, interests);
-                case "isGroupExpanded" -> booleanValue (SettableBooleanValue.class, expanded, interests);
-                case "isActivated" -> booleanValue (SettableBooleanValue.class, activated, interests);
-                case "arm" -> booleanValue (SettableBooleanValue.class, armed, interests);
-                case "monitorMode" -> enumValue (monitorMode, interests);
-                case "mute" -> booleanValue (SettableBooleanValue.class, muted, interests);
-                case "solo" -> booleanValue (SoloValue.class, soloed, interests);
-                case "isMutedBySolo" -> booleanValue (BooleanValue.class, mutedBySolo, interests);
-                case "isStopped" -> booleanValue (BooleanValue.class, stopped, interests);
+                case "channelId" -> stringValue (targetID);
+                case "exists" -> booleanValue (BooleanValue.class, targetExists);
+                case "name" -> settableStringValue (name);
+                case "color" -> colorValue (0.1F, 0.2F, 0.3F);
+                case "trackType" -> stringValue (type);
+                case "position" -> integerValue (position);
+                case "canHoldNoteData" -> booleanValue (SettableBooleanValue.class, canHoldNotes);
+                case "canHoldAudioData" -> booleanValue (SettableBooleanValue.class, canHoldAudio);
+                case "isGroup" -> booleanValue (BooleanValue.class, group);
+                case "isGroupExpanded" -> booleanValue (SettableBooleanValue.class, expanded);
+                case "isActivated" -> booleanValue (SettableBooleanValue.class, activated);
+                case "arm" -> booleanValue (SettableBooleanValue.class, armed);
+                case "monitorMode" -> enumValue (monitorMode);
+                case "mute" -> booleanValue (SettableBooleanValue.class, muted);
+                case "solo" -> booleanValue (SoloValue.class, soloed);
+                case "isMutedBySolo" -> booleanValue (BooleanValue.class, mutedBySolo);
+                case "isStopped" -> booleanValue (BooleanValue.class, stopped);
                 case "volume" -> parameter (volumeValue);
                 case "pan" -> parameter (panValue);
                 case "playingNotes" -> playingNotes;
@@ -252,19 +249,17 @@ class SelectedTrackTargetStateTest
     }
 
 
-    private static StringValue stringValue (final AtomicReference<String> value, final AtomicInteger interests)
+    private static StringValue stringValue (final AtomicReference<String> value)
     {
         return proxy (StringValue.class, (proxy, method, arguments) -> {
             if ("get".equals (method.getName ()))
                 return value.get ();
-            if ("markInterested".equals (method.getName ()))
-                interests.incrementAndGet ();
             return relaxedValue (method.getReturnType ());
         });
     }
 
 
-    private static SettableStringValue settableStringValue (final AtomicReference<String> value, final AtomicInteger interests)
+    private static SettableStringValue settableStringValue (final AtomicReference<String> value)
     {
         return proxy (SettableStringValue.class, (proxy, method, arguments) -> {
             if ("get".equals (method.getName ()))
@@ -274,26 +269,22 @@ class SelectedTrackTargetStateTest
                 value.set ((String) arguments[0]);
                 return null;
             }
-            if ("markInterested".equals (method.getName ()))
-                interests.incrementAndGet ();
             return relaxedValue (method.getReturnType ());
         });
     }
 
 
-    private static IntegerValue integerValue (final AtomicInteger value, final AtomicInteger interests)
+    private static IntegerValue integerValue (final AtomicInteger value)
     {
         return proxy (IntegerValue.class, (proxy, method, arguments) -> {
             if ("get".equals (method.getName ()) || "getAsInt".equals (method.getName ()))
                 return Integer.valueOf (value.get ());
-            if ("markInterested".equals (method.getName ()))
-                interests.incrementAndGet ();
             return relaxedValue (method.getReturnType ());
         });
     }
 
 
-    private static SettableColorValue colorValue (final float red, final float green, final float blue, final AtomicInteger interests)
+    private static SettableColorValue colorValue (final float red, final float green, final float blue)
     {
         return proxy (SettableColorValue.class, (proxy, method, arguments) -> {
             if ("red".equals (method.getName ()))
@@ -304,14 +295,12 @@ class SelectedTrackTargetStateTest
                 return Float.valueOf (blue);
             if ("alpha".equals (method.getName ()))
                 return Float.valueOf (1.0F);
-            if ("markInterested".equals (method.getName ()))
-                interests.incrementAndGet ();
             return relaxedValue (method.getReturnType ());
         });
     }
 
 
-    private static SettableEnumValue enumValue (final AtomicReference<String> value, final AtomicInteger interests)
+    private static SettableEnumValue enumValue (final AtomicReference<String> value)
     {
         return proxy (SettableEnumValue.class, (proxy, method, arguments) -> {
             if ("get".equals (method.getName ()))
@@ -321,14 +310,12 @@ class SelectedTrackTargetStateTest
                 value.set ((String) arguments[0]);
                 return null;
             }
-            if ("markInterested".equals (method.getName ()))
-                interests.incrementAndGet ();
             return relaxedValue (method.getReturnType ());
         });
     }
 
 
-    private static SettableRangedValue rangedValue (final AtomicReference<Double> value, final AtomicInteger interests)
+    private static SettableRangedValue rangedValue (final AtomicReference<Double> value)
     {
         return proxy (SettableRangedValue.class, (proxy, method, arguments) -> {
             if ("get".equals (method.getName ()) || "getAsDouble".equals (method.getName ()))
@@ -338,8 +325,6 @@ class SelectedTrackTargetStateTest
                 value.set (Double.valueOf (((Number) arguments[0]).doubleValue ()));
                 return null;
             }
-            if ("markInterested".equals (method.getName ()))
-                interests.incrementAndGet ();
             return relaxedValue (method.getReturnType ());
         });
     }
@@ -367,7 +352,7 @@ class SelectedTrackTargetStateTest
     }
 
 
-    private static <T> T booleanValue (final Class<T> type, final AtomicBoolean value, final AtomicInteger interests)
+    private static <T> T booleanValue (final Class<T> type, final AtomicBoolean value)
     {
         return proxy (type, (proxy, method, arguments) -> {
             if ("get".equals (method.getName ()) || "getAsBoolean".equals (method.getName ()))
@@ -377,8 +362,6 @@ class SelectedTrackTargetStateTest
                 value.set (((Boolean) arguments[0]).booleanValue ());
                 return null;
             }
-            if ("markInterested".equals (method.getName ()))
-                interests.incrementAndGet ();
             return relaxedValue (method.getReturnType ());
         });
     }

@@ -60,9 +60,18 @@ windows, populated-note union, one pressure stream, and independently acknowledg
 windows. Bridge tests reject replaced/removed devices at application and keep submitted scrolls
 separate from later pad-window read-back.
 
-On October 18, 2026 the complete `mvn -o -Dmaven.compiler.showDeprecation=true package` gate
-passed **1,194 tests**, with zero failures, errors, skips or deprecation warnings. The following
-live acceptance used Bitwig 6.1.3 / controller API 25 under the shared live lease:
+The PR review additionally reproduced same-shaped replacement between selection submission and
+initial acknowledgement, which could strand acquisition forever. The correction gives each
+attempt a two-second monotonic retry deadline; timeout never acknowledges a target. Regressions
+separate delayed equality publication from pinning and prove that repeated reads do not retry
+before the deadline. The complete `mvn -o -Dmaven.compiler.showDeprecation=true package` gate
+passes **1,196 tests**, with zero failures, errors, skips or deprecation warnings. Evidence:
+`target/drum-tree-live/pr-review-package.log`. The revised shell still requires installation and
+matched live smoke; the shared environment was occupied when the offline review completed.
+
+The following **pre-review** live acceptance on October 18, 2026 used Bitwig 6.1.3 / controller
+API 25 under the shared live lease. Its package gate passed 1,194 tests. It does not validate the
+later acquisition-retry correction:
 
 - Source checkpoint: `89bfbde55e0e3adf923362d781f6293a90fc5975`.
 - Installed shell SHA-256: `067bf377563d49b46f09836c171743ee3c58e3ae2960cb73d43249c42878e935`;

@@ -23,6 +23,9 @@ coverage. The root plus retained container windows comprise 1,168 source device 
 unchanged trees do not traverse again or resubmit cursor selection. Layer UUID changes invalidate
 their child chains even when device type and position stay the same. Surviving retained targets are matched by native equality before reusing a positional slot.
 Structural changes trigger a bounded rescan. Pending acquisitions wait for host read-back.
+Each acquisition attempt has a two-second monotonic deadline. Expiry permits a fresh attempt
+through the same unpin/read-back/select-and-pin sequence; it never substitutes for native identity
+acceptance. Repeated reads do not advance the deadline or acknowledge an assignment.
 
 The model cursor and private selection-following target have independent trees. The latter
 establishes selected-track applicability even when the user pins the model cursor elsewhere.

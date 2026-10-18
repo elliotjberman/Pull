@@ -4,6 +4,7 @@ package de.mossgrabers.bitwig.framework.daw;
 
 import org.junit.jupiter.api.Test;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import static de.mossgrabers.bitwig.framework.daw.DrumTreeHostFake.*;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -54,6 +55,53 @@ class DrumDeviceTreeTest
         host.settle (tree);
         assertEquals (List.of ("Kick"), names (tree));
         assertNotEquals (original, tree.machines ().get (0).identity ());
+    }
+
+    @Test
+    void reacquiresSameNamedReplacementBeforeFirstAcknowledgement ()
+    {
+        final var host = new DrumTreeHostFake ();
+        host.root.add (drum ("Kick"));
+        final AtomicLong time = new AtomicLong ();
+        final var tree = new DrumDeviceTree (host.track, "test", time::get);
+        host.publish ();
+        assertTrue (tree.machines ().isEmpty ());
+        host.advance ();
+        assertTrue (tree.machines ().isEmpty (), "selection and pinning are only submitted");
+        host.root.set (0, drum ("Kick"));
+        host.applyCommands ();
+        assertTrue (tree.machines ().isEmpty (), "host application is not published read-back");
+        host.publish ();
+        assertTrue (tree.machines ().isEmpty (), "the acknowledged cursor points at the removed device");
+        host.settle (tree);
+        assertTrue (tree.machines ().isEmpty (), "reads and unchanged host observations do not expire acquisition");
+        assertEquals (1, host.selections);
+        time.set (3_000_000_000L);
+        assertTrue (tree.machines ().isEmpty (), "expiry only permits retry, never publication");
+        host.settle (tree);
+        assertEquals (List.of ("Kick"), names (tree));
+        assertFalse (tree.limited ());
+    }
+
+    @Test
+    void waitsForDelayedEqualityWithoutResubmittingOrAcceptingPinningAlone ()
+    {
+        final var host = new DrumTreeHostFake ();
+        host.root.add (drum ("Kick"));
+        host.holdEqualityObservations = true;
+        final AtomicLong time = new AtomicLong ();
+        final var tree = new DrumDeviceTree (host.track, "test", time::get);
+        host.settle (tree);
+        assertTrue (tree.machines ().isEmpty (), "pin read-back cannot acknowledge native identity");
+        assertEquals (1, host.selections);
+        time.set (1_000_000_000L);
+        host.settle (tree);
+        assertTrue (tree.machines ().isEmpty ());
+        assertEquals (1, host.selections, "reads and host samples before the deadline do not retry");
+        host.holdEqualityObservations = false;
+        host.publish ();
+        assertEquals (List.of ("Kick"), names (tree));
+        assertEquals (1, host.selections);
     }
 
     @Test
