@@ -41,10 +41,10 @@ class DrumDeviceTreeTest
         assertTrue (tree.machines ().isEmpty (), "applied selection is not yet published host read-back");
         host.publish ();
         assertTrue (tree.machines ().isEmpty (), "unpin acknowledgement only permits selection");
-        host.advance ();
-        assertTrue (tree.machines ().isEmpty (), "target equality only permits pinning");
-        assertTrue (tree.machines ().isEmpty (), "additional reads do not acknowledge pinning");
-        host.advance ();
+        assertTrue (tree.machines ().isEmpty (), "additional reads do not acknowledge selection and pinning");
+        host.applyCommands ();
+        assertTrue (tree.machines ().isEmpty (), "host application still needs subscribed read-back");
+        host.publish ();
         assertEquals (1, tree.machines ().size ());
         host.settle (tree);
         final String original = tree.machines ().get (0).identity ();

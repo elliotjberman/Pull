@@ -31,7 +31,7 @@ public final class DrumDeviceTree
     public static final int DEVICES_PER_CHAIN = 16;
     public static final int LAYERS_PER_CONTAINER = 8;
 
-    private enum Acquisition { UNPINNING, SELECTING, PINNING }
+    private enum Acquisition { UNPINNING, PINNING }
 
     private final CursorTrack track;
     private final Chain root;
@@ -273,25 +273,19 @@ public final class DrumDeviceTree
                 DrumDeviceTree.this.dirty = true;
                 return false;
             }
-            // Pin writes may coalesce within a host update. Wait for unpin read-back before
-            // selection, and native target equality before pinning the replacement.
+            // Unpin and pin writes may coalesce within one host update. Observe unpinning
+            // first, then select-and-pin together: unpinned cursors share native selection.
             if (this.acquisition == Acquisition.UNPINNING && !this.device.isPinned ().get ())
             {
                 this.device.selectDevice (node.device);
-                this.acquisition = Acquisition.SELECTING;
+                this.device.isPinned ().set (true);
+                this.acquisition = Acquisition.PINNING;
                 DrumDeviceTree.this.dirty = true;
                 return false;
             }
             final boolean targetCoherent = this.device.exists ().get () && this.equal.get (node.index).get () &&
                 this.device.position ().get () == node.device.position ().get () &&
                 this.device.hasDrumPads ().get () == node.device.hasDrumPads ().get ();
-            if (this.acquisition == Acquisition.SELECTING && targetCoherent)
-            {
-                this.device.isPinned ().set (true);
-                this.acquisition = Acquisition.PINNING;
-                DrumDeviceTree.this.dirty = true;
-                return false;
-            }
             final boolean coherent = this.acquisition == Acquisition.PINNING && targetCoherent && this.device.isPinned ().get ();
             if (this.ready && !coherent)
             {

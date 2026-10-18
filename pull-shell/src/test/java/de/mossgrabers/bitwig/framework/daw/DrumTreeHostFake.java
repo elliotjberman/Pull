@@ -17,7 +17,7 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-/** Native command submission, host application and observer delivery are independent steps. */
+/** Host updates coalesce pin writes; unpinned cursors share selection. Observer delivery is separate. */
 public final class DrumTreeHostFake
 {
     public final List<Item> root = new ArrayList<> ();
@@ -26,7 +26,8 @@ public final class DrumTreeHostFake
     public int selections;
     public int editorSelections;
     private final List<Runnable> commands = new ArrayList<> ();
-    private final Map<boolean [], Boolean> pinWrites = new IdentityHashMap<> ();
+    private final Map<boolean [], Object> pinWrites = new IdentityHashMap<> ();
+    private Item cursorSelection;
     private final List<Runnable> observers = new ArrayList<> ();
     private final Map<Device, Supplier<Item>> targets = new IdentityHashMap<> ();
     private final Map<String, Object> trackProperties = new HashMap<> ();
@@ -54,7 +55,6 @@ public final class DrumTreeHostFake
         final List<Runnable> pending = List.copyOf (this.commands);
         this.commands.clear ();
         pending.forEach (Runnable::run);
-        this.pinWrites.forEach ((target, pinned) -> target[0] = pinned.booleanValue ());
         this.pinWrites.clear ();
     }
 
@@ -98,19 +98,28 @@ public final class DrumTreeHostFake
         final Item [] selected = {null};
         final boolean [] pinned = {this.initiallyPinned};
         final Map<String, Object> properties = new HashMap<> ();
+        final Supplier<Item> target = () -> pinned[0] ? selected[0] : this.cursorSelection;
         final PinnableCursorDevice cursor = TestProxies.nativeProxy (PinnableCursorDevice.class, (method, args) -> switch (method)
         {
-            case "isPinned" -> properties.computeIfAbsent (method, key -> value (SettableBooleanValue.class, () -> pinned[0], value -> this.pinWrites.put (pinned, (Boolean) value)));
+            case "isPinned" -> properties.computeIfAbsent (method, key -> value (SettableBooleanValue.class, () -> pinned[0], value -> {
+                final Object request = new Object ();
+                this.pinWrites.put (pinned, request);
+                this.commands.add (() -> {
+                    if (this.pinWrites.get (pinned) != request) return;
+                    if ((Boolean) value && !pinned[0]) selected[0] = this.cursorSelection;
+                    pinned[0] = (Boolean) value;
+                });
+            }));
             case "selectDevice" -> {
                 final Item requested = this.targets.get ((Device) args[0]).get ();
                 this.selections++;
-                this.commands.add (() -> { if (!pinned[0]) selected[0] = requested; });
+                this.commands.add (() -> { if (!pinned[0]) this.cursorSelection = requested; });
                 yield null;
             }
-            case "createEqualsValue" -> value (BooleanValue.class, () -> selected[0] != null && selected[0] == this.targets.get ((Device) args[0]).get (), null);
-            default -> properties.computeIfAbsent (method, key -> property (() -> selected[0], () -> positionOf (selected[0], this.root), method, args));
+            case "createEqualsValue" -> value (BooleanValue.class, () -> target.get () != null && target.get () == this.targets.get ((Device) args[0]).get (), null);
+            default -> properties.computeIfAbsent (method, key -> property (target, () -> positionOf (target.get (), this.root), method, args));
         });
-        this.targets.put (cursor, () -> selected[0]);
+        this.targets.put (cursor, target);
         return cursor;
     }
 

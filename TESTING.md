@@ -99,8 +99,10 @@ left Spread missing from the discovered set; this requires rechecking after the 
 The alias fix passed live on the eight-machine rack after the October 18 restart: eight distinct
 machines remained visible with a layer selected and coverage stayed complete. The separate
 removal bug remained: a retained cursor reported `exists=false`, `pinned=true`, `equal=false`
-while its source pointed at the surviving Spread machine. Staged unpin/select/pin acquisition
-is prepared for the next live check. `alias-removal-selection.tsv` retains the native observations.
+while its source pointed at the surviving Spread machine. A three-stage acquisition probe showed that unpinned
+cursors share native selection: only the final selected target survived. The corrected sequence
+observes unpinning, submits select-and-pin together, then waits for target and pin read-back;
+its live recheck is pending. `alias-removal-selection.tsv` retains the native observations.
 
 The alias regression and native-equality guard pass the full deprecation-enabled package gate
 (1,193 tests, zero failures/errors/skips; no deprecation warnings); the updated shell still needs

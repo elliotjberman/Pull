@@ -35,8 +35,9 @@ than one FX slot does not set overflow: selected-slot-only coverage is an API li
 ## Host state and actions
 
 Private device cursors are moved without selecting anything in the editor. Acquisition observes
-unpinning before submitting device selection, then observes native target equality before
-requesting pinning. This prevents same-update pin writes from collapsing across selection.
+unpinning before submitting selection and pinning together, then observes native target
+equality and pinning. This prevents same-update unpin/pin writes from collapsing across
+selection while retaining each target before another unpinned cursor changes the shared selection.
 A retained assignment
 is published only after native equality, pinning, existence, position and drum capability agree
 with the source. Source revision changes or lost equality revoke it. Its identity is the track
