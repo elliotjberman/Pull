@@ -63,16 +63,41 @@ On October 18, 2026 the complete deprecation-enabled package gate passed 1,192 t
 failures, errors, skips or deprecation warnings. Architecture review findings about read-count
 readiness and zero-result overflow were corrected and re-reviewed.
 
-Live acceptance is pending. With the shared lease and a recoverable checkpoint, install the
-matched API 59 shell/core and verify startup in Bitwig API 25. On a track with two parallel
-machines, verify distinct and overlapping populated notes through captured Push output; drive
-octave changes through routed input and confirm both device windows later agree. Repeat after
-track switches and device replacement, and check an eight-machine kit plus a ninth-machine
-overflow. Native notes must reach both parallel branches once according to Bitwig routing.
-Use the existing opt-in `tools/push-debug-trace` capture: its later snapshots include
-`drum.machines` with each device identity, base note and pad population, separately from requested
-effects. Pair these with `surface-state.json` for actual transmitted pad lights. Measure startup
-and steady-state cost of the native discovery pool before accepting the expanded canopy.
+Initial live smoke passed on `alien2_revival` in Bitwig 6.1.3 / controller API 25 under the
+shared live lease, from source checkpoint `7e04f25190672bbeef05ea12617fb394dbc45d5c`:
+
+- Installed shell SHA-256: `934532ab657a5cbacd3a1013ee97a35697c24eb82285379c266492b9018ce53b`;
+  fingerprint `73fb5f87e9578817828b65922655f22031f561e9`.
+- Exact active core: `20261018T152614Z-f479479cdc39dbbfcea2df787d77b816`;
+  SHA-256 `d219f417c01af15045e325a3d5c94f30f8cf50149b3d5ad1dc38d5cdab742e51`.
+- The selected Drums track reported two distinct machines. One populated notes 36 and 50;
+  the other populated 38, 39, 40, 42, 44, 46, 48, 49 and 51. Transmitted playable-pad lights
+  matched this union, with the gaps dark.
+- Routed debugger pad input reached later host observations at velocity 96 on note 36 from
+  the first machine and note 38 from the second. Subsequent release observations returned
+  to zero. Captured transmitted pad output included the corresponding green playing lights.
+- Routed octave up moved both machine windows from base 36 to 52; octave down returned both
+  to 36 and restored the populated lights. All synthetic inputs were released.
+
+Evidence is retained in the dedicated worktree's `target/drum-tree-live/` directory:
+`alien2-initial.tsv`, `alien2-note-{1,3}.tsv`, `alien2-off-{1,3}.tsv`,
+`alien2-banks-{up,down}.tsv`, and the corresponding surface JSON captures. The first longer
+routed trace reached the existing 2 MB serialization bound; separate short captures retain
+later authoritative state for each step. A submitted input alone is not a passing observation.
+These checks establish controller discovery, note ingress/read-back and output; they do not
+establish audio-level summing or the absence of routing duplicates elsewhere in the project.
+
+Broader live acceptance remains pending: overlapping notes, track switching, held-pad octave
+changes, replacement/reordering, nested containers, exactly eight machines and ninth-machine
+coverage. The requested separate test project could not yet be created because macOS locked;
+`alien2_revival` remains the real-project smoke test. Startup succeeded without controller
+exceptions. Logs recorded initial bridge ticks of 159 ms and 122 ms and isolated later warnings;
+steady-state/resource cost is not yet accepted from those observations alone.
+
+Use the existing opt-in `tools/push-debug-trace` capture: later snapshots include `drum.machines`
+with each device identity, base note and pad population, separately from requested effects.
+Pair these with `surface-state.json` for actual transmitted pad lights. Prefer separate short
+captures around each settled state because full snapshots can reach the bounded trace text limit.
 The [tree contract](docs/drum-device-tree.md) states selected FX-slot and structural coverage.
 
 ## Retained parameter cutover (API 58)

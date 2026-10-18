@@ -6,7 +6,8 @@ remaining shell handlers. The optional Clip piano roll is deferred unchanged.
 
 API 59 adds bounded tree discovery and composite Drum pad observations. Core combines populated
 notes across up to eight machines and aligns their windows before enabling the native note map.
-This requires a matched shell install and restart; live acceptance is pending. See the
+The matched shell/core passed the initial `alien2_revival` smoke in Bitwig 6.1.3 on October 18,
+2026; broader edge-case acceptance remains pending. See [TESTING](TESTING.md#composite-drum-discovery-api-59) and the
 [tree contract](docs/drum-device-tree.md) for bounds, identity fences and FX-slot coverage.
 
 The shared [retained cursor pool](docs/track-cursor-pool/README.md) supplies named track mix/sends,
