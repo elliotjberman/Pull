@@ -8,8 +8,11 @@ pages are not a composite mixer.
 
 ## Discovery and bounds
 
-The stable shell walks devices and layers in depth-first bank order. Each device has one parent
-path; it no longer merges overlapping “first instrument” and native-device matcher results.
+The stable shell walks devices and layers in depth-first bank order. Bitwig can expose the
+selected layer through its selected-slot cursor too. Acknowledged native device equality skips
+that alias before allocating another retained cursor; pending assignments cannot establish
+overflow until their identities are known. The search no longer merges “first instrument” and
+native-device matcher results.
 Drum devices are leaves: instruments inside their pads are not separate kits.
 
 Each tree installs eight retained drum cursors and eight retained container cursors. A chain
@@ -60,3 +63,8 @@ alternate legacy drum layouts and multi-machine editing are outside this change.
 The parent-loaded records, effect and eager native proxies require one matched shell install
 and restart. A core-only reload cannot install them. The existing parameter-target and reload
 findings remain active; this does not establish a general device UUID or all-project search.
+
+The opt-in `tools/push-debug-selection run` trace records bounded `DRUM_TREE` and
+`DRUM_TARGET` observations from existing subscribed values, at most four times per second.
+These include source revisions, native equality, pinning and child counts for acquisition
+diagnosis; the trace has the existing 60-second deadline and bounded output.

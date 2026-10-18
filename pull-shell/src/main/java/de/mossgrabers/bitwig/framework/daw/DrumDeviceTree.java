@@ -10,6 +10,7 @@ import com.bitwig.extension.controller.api.DeviceBank;
 import com.bitwig.extension.controller.api.DeviceChain;
 import com.bitwig.extension.controller.api.DeviceLayerBank;
 import com.bitwig.extension.controller.api.PinnableCursorDevice;
+import de.mossgrabers.pull.shell.SelectionDebug;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -41,10 +42,13 @@ public final class DrumDeviceTree
     private boolean dirty = true;
     private boolean refreshing;
     private boolean limited;
+    private long lastDiagnostic;
+    private final String diagnosticId;
 
     public DrumDeviceTree (final CursorTrack track, final String id)
     {
         this.track = track;
+        this.diagnosticId = id;
         this.root = new Chain (track);
         for (int i = 0; i < MAX_CONTAINERS; i++)
             this.containers.add (new Slot (track, id + "_CONTAINER_" + i, true));
@@ -69,7 +73,7 @@ public final class DrumDeviceTree
     public List<Slot> slotsForDrums () { return List.copyOf (this.machines); }
 
     /** Current distinct machines in tree order. Unacknowledged bindings are never exposed. */
-    public List<Slot> machines () { this.refresh (); return this.result; }
+    public List<Slot> machines () { this.refresh (); this.recordDiagnostics (); return this.result; }
 
     /** A structural window or the eight-machine capacity was exceeded. */
     public boolean limited () { this.refresh (); return this.limited; }
@@ -113,13 +117,17 @@ public final class DrumDeviceTree
             if (!node.device.exists ().get ()) continue;
             final boolean drum = node.device.hasDrumPads ().get ();
             if (!drum && !node.device.hasLayers ().get () && !node.device.hasSlots ().get ()) continue;
+            // Bitwig's selected slot can alias a layer already visited through its layer bank.
+            // Compare acknowledged native targets, never names or Java proxy identity.
+            if (used.stream ().anyMatch (slot -> slot.ready && slot.equal.get (slot.source.index).get () && slot.equal.get (node.index).get ())) continue;
             final List<Slot> pool = drum ? this.machines : this.containers;
             Slot selected = pool.stream ().filter (slot -> slot.source == node && !used.contains (slot)).findFirst ().orElse (null);
             if (selected == null)
                 selected = pool.stream ().filter (slot -> !used.contains (slot)).findFirst ().orElse (null);
             if (selected == null)
             {
-                this.limited = true;
+                // Pending targets cannot yet tell us whether this is another alias or overflow.
+                if (pool.stream ().allMatch (slot -> slot.ready)) this.limited = true;
                 continue;
             }
             used.add (selected);
@@ -133,6 +141,29 @@ public final class DrumDeviceTree
                         this.visit (selected.children.get (i), found, used);
                 if (node.device.hasSlots ().get ()) this.visit (selected.fx, found, used);
             }
+        }
+    }
+
+    /** Existing subscribed values only; bounded selection diagnostics are off by default. */
+    private void recordDiagnostics ()
+    {
+        if (!SelectionDebug.recording ()) return;
+        final long now = System.nanoTime ();
+        if (now - this.lastDiagnostic < 250_000_000L) return;
+        this.lastDiagnostic = now;
+        SelectionDebug.record ("DRUM_TREE", this.diagnosticId + " track=" + this.trackId + " root=" + this.root.bank.itemCount ().get () +
+            " found=" + this.result.size () + " limited=" + this.limited);
+        for (final Slot slot : this.slots ())
+        {
+            final Node node = slot.source;
+            if (node == null) continue;
+            SelectionDebug.record ("DRUM_TARGET", this.diagnosticId + " assignment=" + slot.assignment + " node=" + node.index +
+                " revision=" + slot.sourceRevision + "/" + node.revision + " ready=" + slot.ready +
+                " exists=" + slot.device.exists ().get () + " pinned=" + slot.device.isPinned ().get () +
+                " equal=" + slot.equal.get (node.index).get () + " position=" + slot.device.position ().get () + "/" + node.device.position ().get () +
+                " drum=" + slot.device.hasDrumPads ().get () + "/" + node.device.hasDrumPads ().get () +
+                " layers=" + (slot.layers == null ? 0 : slot.layers.itemCount ().get ()) +
+                " fx=" + (slot.fx == null ? 0 : slot.fx.bank.itemCount ().get ()));
         }
     }
 

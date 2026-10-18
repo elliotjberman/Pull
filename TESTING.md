@@ -90,8 +90,16 @@ establish audio-level summing or the absence of routing duplicates elsewhere in 
 Broader live acceptance remains pending: overlapping notes, track switching, held-pad octave
 changes, replacement/reordering, nested containers, exactly eight machines and ninth-machine
 coverage. The separate `Pull Drum Tree Tests` project is saved under Bitwig Projects/2026,
-with an `Eight parallel` track containing seven copies of DryDrum and one SpreadDrum. Its
-audio engine remains off and that topology has not yet received live controller acceptance.
+with an `Eight parallel` track containing seven copies of DryDrum and one SpreadDrum. The
+test track is saved at −∞ dB with its audio engine active. Live probes found a native selected-slot
+alias: with only DryDrum and SpreadDrum, selecting DryDrum returned three machine entries,
+two with identical populated pad-channel UUIDs; selecting the empty FX slot returned two.
+With eight real machines that alias also caused a false coverage warning. Removing a layer
+left Spread missing from the discovered set; this requires rechecking after the alias fix.
+The alias regression and native-equality guard pass the full deprecation-enabled package gate
+(1,193 tests, zero failures/errors/skips; no deprecation warnings); the updated shell still needs
+installation and live acceptance. Evidence: `two-{dry,fx}-selected.tsv`,
+`eight-{settled,restored,fx-selected}.tsv`, and `seven-{boundary,settled}.tsv`.
 `alien2_revival` remains the real-project smoke test. Startup succeeded without controller
 exceptions. Logs recorded initial bridge ticks of 159 ms and 122 ms and isolated later warnings;
 steady-state/resource cost is not yet accepted from those observations alone.

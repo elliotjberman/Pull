@@ -134,6 +134,39 @@ class DrumDeviceTreeTest
         assertTrue (tree.machines ().isEmpty ());
     }
 
+    @Test
+    void selectedSlotAliasDoesNotDuplicateMachinesOrConsumeTheEightMachineLimit ()
+    {
+        final var host = new DrumTreeHostFake ();
+        final var rack = container ("Rack");
+        for (int i = 0; i < 8; i++) rack.layers.add (new java.util.ArrayList<> (List.of (drum ("Drum " + i))));
+        rack.fx.add (rack.layers.get (0).get (0));
+        host.root.add (rack);
+        final var tree = new DrumDeviceTree (host.track, "test");
+        // Observe every acquisition frame: a pending alias must not cause a false overflow warning.
+        for (int i = 0; i < 50; i++)
+        {
+            tree.machines ();
+            assertFalse (tree.limited ());
+            host.advance ();
+        }
+        assertEquals (8, tree.machines ().size ());
+        rack.layers.remove (0);
+        rack.fx.clear ();
+        rack.fx.add (rack.layers.get (0).get (0));
+        host.publish ();
+        host.settle (tree);
+        assertEquals (List.of ("Drum 1", "Drum 2", "Drum 3", "Drum 4", "Drum 5", "Drum 6", "Drum 7"), names (tree));
+        assertFalse (tree.limited ());
+        rack.fx.clear ();
+        rack.fx.add (drum ("Real FX-slot drum"));
+        host.publish ();
+        host.settle (tree);
+        assertEquals (8, tree.machines ().size ());
+        assertEquals ("Real FX-slot drum", names (tree).get (7));
+        assertFalse (tree.limited ());
+    }
+
     private static List<String> names (final DrumDeviceTree tree)
     {
         return tree.machines ().stream ().map (slot -> slot.device ().name ().get ()).toList ();
