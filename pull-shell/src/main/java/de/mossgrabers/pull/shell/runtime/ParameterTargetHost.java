@@ -916,7 +916,7 @@ final class ParameterTargetHost
 
     private ParameterBridgeSnapshot captureSnapshot ()
     {
-        final Map<ParameterSlot, ParameterTargetSnapshot> slots = new LinkedHashMap<> (ParameterBridgeSnapshot.TARGET_CAPACITY);
+        final Map<ParameterSlot, ParameterTargetSnapshot> slots = LinkedHashMap.newLinkedHashMap (this.currentTargets.size ());
         if (this.requestedBanks.includes (ParameterBankId.NOTE)) this.noteTargets.forEach ((slot, target) -> { if (target.isCurrent ()) slots.put (slot, target.snapshot ()); });
         this.captureBank (slots, ParameterBankId.SELECTED_TRACK, this.selectedTrackTargets, index -> new ParameterSlot (ParameterBankId.SELECTED_TRACK, index));
         this.captureBank (slots, ParameterBankId.SELECTED_TRACK_SENDS, this.selectedSendTargets, ParameterSlot::selectedTrackSend);
