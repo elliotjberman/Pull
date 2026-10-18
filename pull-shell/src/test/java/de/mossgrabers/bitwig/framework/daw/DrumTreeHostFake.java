@@ -22,9 +22,11 @@ public final class DrumTreeHostFake
 {
     public final List<Item> root = new ArrayList<> ();
     public String trackId = "track-a";
+    public boolean initiallyPinned;
     public int selections;
     public int editorSelections;
     private final List<Runnable> commands = new ArrayList<> ();
+    private final Map<boolean [], Boolean> pinWrites = new IdentityHashMap<> ();
     private final List<Runnable> observers = new ArrayList<> ();
     private final Map<Device, Supplier<Item>> targets = new IdentityHashMap<> ();
     private final Map<String, Object> trackProperties = new HashMap<> ();
@@ -52,6 +54,8 @@ public final class DrumTreeHostFake
         final List<Runnable> pending = List.copyOf (this.commands);
         this.commands.clear ();
         pending.forEach (Runnable::run);
+        this.pinWrites.forEach ((target, pinned) -> target[0] = pinned.booleanValue ());
+        this.pinWrites.clear ();
     }
 
     public void publish () { this.observers.forEach (Runnable::run); }
@@ -92,15 +96,15 @@ public final class DrumTreeHostFake
     private PinnableCursorDevice cursor ()
     {
         final Item [] selected = {null};
-        final boolean [] pinned = {false};
+        final boolean [] pinned = {this.initiallyPinned};
         final Map<String, Object> properties = new HashMap<> ();
         final PinnableCursorDevice cursor = TestProxies.nativeProxy (PinnableCursorDevice.class, (method, args) -> switch (method)
         {
-            case "isPinned" -> properties.computeIfAbsent (method, key -> value (SettableBooleanValue.class, () -> pinned[0], value -> this.commands.add (() -> pinned[0] = (Boolean) value)));
+            case "isPinned" -> properties.computeIfAbsent (method, key -> value (SettableBooleanValue.class, () -> pinned[0], value -> this.pinWrites.put (pinned, (Boolean) value)));
             case "selectDevice" -> {
                 final Item requested = this.targets.get ((Device) args[0]).get ();
                 this.selections++;
-                this.commands.add (() -> selected[0] = requested);
+                this.commands.add (() -> { if (!pinned[0]) selected[0] = requested; });
                 yield null;
             }
             case "createEqualsValue" -> value (BooleanValue.class, () -> selected[0] != null && selected[0] == this.targets.get ((Device) args[0]).get (), null);

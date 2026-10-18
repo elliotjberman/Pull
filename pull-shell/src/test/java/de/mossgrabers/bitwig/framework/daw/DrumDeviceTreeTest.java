@@ -32,6 +32,7 @@ class DrumDeviceTreeTest
     {
         final var host = new DrumTreeHostFake ();
         host.root.add (drum ("Kick"));
+        host.initiallyPinned = true;
         final var tree = new DrumDeviceTree (host.track, "test");
         host.publish ();
         assertTrue (tree.machines ().isEmpty ());
@@ -39,8 +40,12 @@ class DrumDeviceTreeTest
         host.applyCommands ();
         assertTrue (tree.machines ().isEmpty (), "applied selection is not yet published host read-back");
         host.publish ();
+        assertTrue (tree.machines ().isEmpty (), "unpin acknowledgement only permits selection");
+        host.advance ();
+        assertTrue (tree.machines ().isEmpty (), "target equality only permits pinning");
+        assertTrue (tree.machines ().isEmpty (), "additional reads do not acknowledge pinning");
+        host.advance ();
         assertEquals (1, tree.machines ().size ());
-        assertEquals (1, tree.machines ().size (), "additional reads do not advance acquisition");
         host.settle (tree);
         final String original = tree.machines ().get (0).identity ();
         host.root.set (0, drum ("Kick"));

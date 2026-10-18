@@ -31,6 +31,8 @@ public final class DrumDeviceTree
     public static final int DEVICES_PER_CHAIN = 16;
     public static final int LAYERS_PER_CONTAINER = 8;
 
+    private enum Acquisition { UNPINNING, SELECTING, PINNING }
+
     private final CursorTrack track;
     private final Chain root;
     private final List<Slot> containers = new ArrayList<> ();
@@ -158,7 +160,7 @@ public final class DrumDeviceTree
             final Node node = slot.source;
             if (node == null) continue;
             SelectionDebug.record ("DRUM_TARGET", this.diagnosticId + " assignment=" + slot.assignment + " node=" + node.index +
-                " revision=" + slot.sourceRevision + "/" + node.revision + " ready=" + slot.ready +
+                " revision=" + slot.sourceRevision + "/" + node.revision + " acquisition=" + slot.acquisition + " ready=" + slot.ready +
                 " exists=" + slot.device.exists ().get () + " pinned=" + slot.device.isPinned ().get () +
                 " equal=" + slot.equal.get (node.index).get () + " position=" + slot.device.position ().get () + "/" + node.device.position ().get () +
                 " drum=" + slot.device.hasDrumPads ().get () + "/" + node.device.hasDrumPads ().get () +
@@ -220,6 +222,7 @@ public final class DrumDeviceTree
         private long sourceRevision;
         private long assignment;
         private boolean ready;
+        private Acquisition acquisition;
 
         private Slot (final CursorTrack track, final String id, final boolean container)
         {
@@ -265,15 +268,31 @@ public final class DrumDeviceTree
                 this.source = node;
                 this.sourceRevision = node.revision;
                 this.assignment = ++DrumDeviceTree.this.generation;
+                this.acquisition = Acquisition.UNPINNING;
                 this.device.isPinned ().set (false);
-                this.device.selectDevice (node.device);
-                this.device.isPinned ().set (true);
                 DrumDeviceTree.this.dirty = true;
                 return false;
             }
-            final boolean coherent = this.device.exists ().get () && this.device.isPinned ().get () &&
-                this.equal.get (node.index).get () && this.device.position ().get () == node.device.position ().get () &&
+            // Pin writes may coalesce within a host update. Wait for unpin read-back before
+            // selection, and native target equality before pinning the replacement.
+            if (this.acquisition == Acquisition.UNPINNING && !this.device.isPinned ().get ())
+            {
+                this.device.selectDevice (node.device);
+                this.acquisition = Acquisition.SELECTING;
+                DrumDeviceTree.this.dirty = true;
+                return false;
+            }
+            final boolean targetCoherent = this.device.exists ().get () && this.equal.get (node.index).get () &&
+                this.device.position ().get () == node.device.position ().get () &&
                 this.device.hasDrumPads ().get () == node.device.hasDrumPads ().get ();
+            if (this.acquisition == Acquisition.SELECTING && targetCoherent)
+            {
+                this.device.isPinned ().set (true);
+                this.acquisition = Acquisition.PINNING;
+                DrumDeviceTree.this.dirty = true;
+                return false;
+            }
+            final boolean coherent = this.acquisition == Acquisition.PINNING && targetCoherent && this.device.isPinned ().get ();
             if (this.ready && !coherent)
             {
                 // A source bank can replace a same-shaped device without changing its name/type.

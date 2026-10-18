@@ -96,6 +96,12 @@ alias: with only DryDrum and SpreadDrum, selecting DryDrum returned three machin
 two with identical populated pad-channel UUIDs; selecting the empty FX slot returned two.
 With eight real machines that alias also caused a false coverage warning. Removing a layer
 left Spread missing from the discovered set; this requires rechecking after the alias fix.
+The alias fix passed live on the eight-machine rack after the October 18 restart: eight distinct
+machines remained visible with a layer selected and coverage stayed complete. The separate
+removal bug remained: a retained cursor reported `exists=false`, `pinned=true`, `equal=false`
+while its source pointed at the surviving Spread machine. Staged unpin/select/pin acquisition
+is prepared for the next live check. `alias-removal-selection.tsv` retains the native observations.
+
 The alias regression and native-equality guard pass the full deprecation-enabled package gate
 (1,193 tests, zero failures/errors/skips; no deprecation warnings); the updated shell still needs
 installation and live acceptance. Evidence: `two-{dry,fx}-selected.tsv`,
