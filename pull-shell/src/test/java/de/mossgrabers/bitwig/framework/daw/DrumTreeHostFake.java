@@ -28,6 +28,7 @@ public final class DrumTreeHostFake
     private final List<Runnable> commands = new ArrayList<> ();
     private final Map<boolean [], Object> pinWrites = new IdentityHashMap<> ();
     private Item cursorSelection;
+    private final Map<List<Item>, String> layerIds = new IdentityHashMap<> ();
     private final List<Runnable> observers = new ArrayList<> ();
     private final Map<Device, Supplier<Item>> targets = new IdentityHashMap<> ();
     private final Map<String, Object> trackProperties = new HashMap<> ();
@@ -149,9 +150,12 @@ public final class DrumTreeHostFake
             case "itemCount" -> count;
             case "getItemAt" -> layers.computeIfAbsent ((Integer) args[0], index -> {
                 final BooleanValue exists = value (BooleanValue.class, () -> target.get () != null && index < target.get ().layers.size (), null);
+                final StringValue id = value (StringValue.class, () -> target.get () == null || index >= target.get ().layers.size () ? "" :
+                    this.layerIds.computeIfAbsent (target.get ().layers.get (index), key -> "layer-" + this.layerIds.size ()), null);
                 return TestProxies.nativeProxy (DeviceLayer.class, (m, a) -> switch (m)
                 {
                     case "exists" -> exists;
+                    case "channelId" -> id;
                     case "createDeviceBank" -> bank (() -> target.get () == null || index >= target.get ().layers.size () ? List.of () : target.get ().layers.get (index));
                     default -> nativeDefault (DeviceLayer.class, m);
                 });

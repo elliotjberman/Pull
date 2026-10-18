@@ -172,6 +172,22 @@ class DrumDeviceTreeTest
         assertFalse (tree.limited ());
     }
 
+    @Test
+    void removingALayerRetainsTheIdentityOfTheMachineThatMovesIntoItsPlace ()
+    {
+        final var host = new DrumTreeHostFake ();
+        final var rack = container ("Rack", drum ("Dry"), drum ("Spread"));
+        host.root.add (rack);
+        final var tree = new DrumDeviceTree (host.track, "test");
+        host.settle (tree);
+        final String spread = tree.machines ().get (1).identity ();
+        rack.layers.remove (0);
+        host.publish ();
+        host.settle (tree);
+        assertEquals (List.of ("Spread"), names (tree));
+        assertEquals (spread, tree.machines ().get (0).identity ());
+    }
+
     private static List<String> names (final DrumDeviceTree tree)
     {
         return tree.machines ().stream ().map (slot -> slot.device ().name ().get ()).toList ();

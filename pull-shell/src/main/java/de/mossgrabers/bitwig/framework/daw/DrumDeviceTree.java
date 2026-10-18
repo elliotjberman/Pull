@@ -123,7 +123,10 @@ public final class DrumDeviceTree
             // Compare acknowledged native targets, never names or Java proxy identity.
             if (used.stream ().anyMatch (slot -> slot.ready && slot.equal.get (slot.source.index).get () && slot.equal.get (node.index).get ())) continue;
             final List<Slot> pool = drum ? this.machines : this.containers;
-            Slot selected = pool.stream ().filter (slot -> slot.source == node && !used.contains (slot)).findFirst ().orElse (null);
+            // Bank positions can shift while a retained cursor still addresses the same device.
+            Slot selected = pool.stream ().filter (slot -> !used.contains (slot) && slot.pointsTo (node)).findFirst ().orElse (null);
+            if (selected == null)
+                selected = pool.stream ().filter (slot -> slot.source == node && !used.contains (slot)).findFirst ().orElse (null);
             if (selected == null)
                 selected = pool.stream ().filter (slot -> !used.contains (slot)).findFirst ().orElse (null);
             if (selected == null)
@@ -246,7 +249,10 @@ public final class DrumDeviceTree
                     final var layer = this.layers.getItemAt (i);
                     layer.exists ().markInterested ();
                     layer.exists ().addValueObserver (ignored -> DrumDeviceTree.this.dirty = true);
-                    this.children.add (new Chain (layer));
+                    final Chain child = new Chain (layer);
+                    this.children.add (child);
+                    layer.channelId ().markInterested ();
+                    layer.channelId ().addValueObserver (ignored -> child.children.forEach (Node::changed));
                 }
             }
         }
@@ -264,6 +270,15 @@ public final class DrumDeviceTree
         {
             if (this.source != node || this.sourceRevision != node.revision)
             {
+                if (this.pointsTo (node))
+                {
+                    if (!this.ready) this.assignment = ++DrumDeviceTree.this.generation;
+                    this.source = node;
+                    this.sourceRevision = node.revision;
+                    this.acquisition = Acquisition.PINNING;
+                    this.ready = true;
+                    return true;
+                }
                 this.release ();
                 this.source = node;
                 this.sourceRevision = node.revision;
@@ -283,10 +298,7 @@ public final class DrumDeviceTree
                 DrumDeviceTree.this.dirty = true;
                 return false;
             }
-            final boolean targetCoherent = this.device.exists ().get () && this.equal.get (node.index).get () &&
-                this.device.position ().get () == node.device.position ().get () &&
-                this.device.hasDrumPads ().get () == node.device.hasDrumPads ().get ();
-            final boolean coherent = this.acquisition == Acquisition.PINNING && targetCoherent && this.device.isPinned ().get ();
+            final boolean coherent = this.acquisition == Acquisition.PINNING && this.pointsTo (node);
             if (this.ready && !coherent)
             {
                 // A source bank can replace a same-shaped device without changing its name/type.
@@ -297,6 +309,13 @@ public final class DrumDeviceTree
             this.ready = coherent;
             if (!this.ready) DrumDeviceTree.this.dirty = true;
             return this.ready;
+        }
+
+        private boolean pointsTo (final Node node)
+        {
+            return this.device.exists ().get () && this.device.isPinned ().get () && this.equal.get (node.index).get () &&
+                this.device.position ().get () == node.device.position ().get () &&
+                this.device.hasDrumPads ().get () == node.device.hasDrumPads ().get ();
         }
 
         private void release ()

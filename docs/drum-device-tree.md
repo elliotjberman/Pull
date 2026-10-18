@@ -20,8 +20,9 @@ exposes its first sixteen devices; a container exposes its first eight layers an
 FX slot. API 25 provides no bank of every FX slot, so unselected FX slots are outside this
 coverage. The root plus retained container windows comprise 1,168 source device proxies and
 18,688 native equality values per tree. Topology is created during extension initialization;
-unchanged trees do not traverse again or resubmit cursor selection. Structural changes trigger
-a bounded rescan. Pending acquisitions wait for host read-back.
+unchanged trees do not traverse again or resubmit cursor selection. Layer UUID changes invalidate their child chains even when device type and position stay the
+same. Surviving retained targets are matched by native equality before reusing a positional slot.
+Structural changes trigger a bounded rescan. Pending acquisitions wait for host read-back.
 
 The model cursor and private selection-following target have independent trees. The latter
 establishes selected-track applicability even when the user pins the model cursor elsewhere.
