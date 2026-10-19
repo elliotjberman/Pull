@@ -69,6 +69,16 @@ passes **1,196 tests**, with zero failures, errors, skips or deprecation warning
 `target/drum-tree-live/pr-review-package.log`. The revised shell still requires installation and
 matched live smoke; the shared environment was occupied when the offline review completed.
 
+On October 19, an enabled/disabled/enabled comparison in `New 1` reproduced the reported UI
+freeze when switching between Minilogue and Tetra only with Pull enabled. The main-thread stack
+caught `BitwigStudioHost.targetChanged` scanning the host's global equality list during proxy
+rebinding. The two trees installed 37,376 comparisons; factorization into containing-chain and
+local-device equality reduces this to 2,848 without reducing discovery coverage. The existing
+replacement, delayed acknowledgement, alias and surviving-identity tests pass, with a native
+comparison budget added to the nested/parallel behavior test. The full deprecation-enabled
+package gate still passes 1,196 tests. Live installation and regression verification of this fix
+remain pending. Evidence: `target/drum-tree-live/regression-2026-10-19/`.
+
 The following **pre-review** live acceptance on October 18, 2026 used Bitwig 6.1.3 / controller
 API 25 under the shared live lease. Its package gate passed 1,194 tests. It does not validate the
 later acquisition-retry correction:

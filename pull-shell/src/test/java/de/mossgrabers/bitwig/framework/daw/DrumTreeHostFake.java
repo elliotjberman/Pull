@@ -27,12 +27,13 @@ public final class DrumTreeHostFake
     public boolean holdEqualityObservations;
     public int selections;
     public int editorSelections;
+    public int equalityValues;
     private final List<Runnable> commands = new ArrayList<> ();
     private final Map<boolean [], Object> pinWrites = new IdentityHashMap<> ();
     private Item cursorSelection;
     private final Map<List<Item>, String> layerIds = new IdentityHashMap<> ();
     private final List<Runnable> observers = new ArrayList<> ();
-    private final Map<Device, Supplier<Item>> targets = new IdentityHashMap<> ();
+    private final Map<ObjectProxy, Supplier<?>> targets = new IdentityHashMap<> ();
     private final Map<String, Object> trackProperties = new HashMap<> ();
     public final CursorTrack track = TestProxies.nativeProxy (CursorTrack.class, (method, args) -> switch (method)
     {
@@ -114,12 +115,12 @@ public final class DrumTreeHostFake
                 });
             }));
             case "selectDevice" -> {
-                final Item requested = this.targets.get ((Device) args[0]).get ();
+                final Item requested = (Item) this.targets.get ((Device) args[0]).get ();
                 this.selections++;
                 this.commands.add (() -> { if (!pinned[0]) this.cursorSelection = requested; });
                 yield null;
             }
-            case "createEqualsValue" -> value (BooleanValue.class, () -> target.get () != null && target.get () == this.targets.get ((Device) args[0]).get (), null, () -> !this.holdEqualityObservations);
+            case "createEqualsValue" -> equality (target, (ObjectProxy) args[0]);
             default -> properties.computeIfAbsent (method, key -> property (target, () -> positionOf (target.get (), this.root), method, args));
         });
         this.targets.put (cursor, target);
@@ -130,6 +131,7 @@ public final class DrumTreeHostFake
     {
         return switch (method)
         {
+            case "deviceChain" -> chain (() -> chainOf (target.get (), this.root));
             case "exists" -> value (BooleanValue.class, () -> target.get () != null && position.get () >= 0, null);
             case "hasDrumPads" -> value (BooleanValue.class, () -> target.get () != null && target.get ().drum, null);
             case "hasLayers" -> value (BooleanValue.class, () -> target.get () != null && !target.get ().layers.isEmpty (), null);
@@ -141,6 +143,42 @@ public final class DrumTreeHostFake
             case "selectInEditor" -> { this.editorSelections++; yield null; }
             default -> nativeDefault (Device.class, method);
         };
+    }
+
+    private BooleanValue equality (final Supplier<?> target, final ObjectProxy other)
+    {
+        this.equalityValues++;
+        return value (BooleanValue.class, () -> target.get () != null && target.get () == this.targets.get (other).get (),
+            null, () -> !this.holdEqualityObservations);
+    }
+
+    private DeviceChain chain (final Supplier<List<Item>> items)
+    {
+        final DeviceChain chain = TestProxies.nativeProxy (DeviceChain.class, (method, args) -> switch (method)
+        {
+            case "createDeviceBank" -> bank (() -> items.get () == null ? List.of () : items.get ());
+            case "createEqualsValue" -> equality (items, (ObjectProxy) args[0]);
+            default -> nativeDefault (DeviceChain.class, method);
+        });
+        this.targets.put (chain, items);
+        return chain;
+    }
+
+    private static List<Item> chainOf (final Item target, final List<Item> items)
+    {
+        if (target == null) return null;
+        for (final Item item : items)
+        {
+            if (item == target) return items;
+            for (final List<Item> layer : item.layers)
+            {
+                final List<Item> found = chainOf (target, layer);
+                if (found != null) return found;
+            }
+            final List<Item> found = chainOf (target, item.fx);
+            if (found != null) return found;
+        }
+        return null;
     }
 
     private DeviceLayerBank layers (final Supplier<Item> target)
@@ -202,20 +240,8 @@ public final class DrumTreeHostFake
     private static Item at (final List<Item> items, final int index) { return index < items.size () ? items.get (index) : null; }
     private static int positionOf (final Item target, final List<Item> items)
     {
-        if (target == null) return -1;
-        for (int i = 0; i < items.size (); i++)
-        {
-            final Item item = items.get (i);
-            if (target == item) return i;
-            for (final List<Item> layer : item.layers)
-            {
-                final int found = positionOf (target, layer);
-                if (found >= 0) return found;
-            }
-            final int found = positionOf (target, item.fx);
-            if (found >= 0) return found;
-        }
-        return -1;
+        final List<Item> chain = chainOf (target, items);
+        return chain == null ? -1 : chain.indexOf (target);
     }
 
     private static Object nativeDefault (final Class<?> type, final String name)

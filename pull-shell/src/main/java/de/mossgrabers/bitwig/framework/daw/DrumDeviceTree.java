@@ -10,6 +10,7 @@ import com.bitwig.extension.controller.api.DeviceBank;
 import com.bitwig.extension.controller.api.DeviceChain;
 import com.bitwig.extension.controller.api.DeviceLayerBank;
 import com.bitwig.extension.controller.api.PinnableCursorDevice;
+import com.bitwig.extension.controller.api.ObjectProxy;
 import de.mossgrabers.pull.shell.SelectionDebug;
 
 import java.util.ArrayList;
@@ -41,7 +42,7 @@ public final class DrumDeviceTree
     private final Chain root;
     private final List<Slot> containers = new ArrayList<> ();
     private final List<Slot> machines = new ArrayList<> ();
-    private final List<Node> nodes = new ArrayList<> ();
+    private final List<Chain> chains = new ArrayList<> ();
     private List<Slot> result = List.of ();
     private String trackId = "";
     private long generation;
@@ -66,19 +67,24 @@ public final class DrumDeviceTree
             this.containers.add (new Slot (track, id + "_CONTAINER_" + i, true));
         for (int i = 0; i < MAX_MACHINES; i++)
             this.machines.add (new Slot (track, id + "_DRUM_" + i, false));
-        // Equality objects, like all Bitwig proxies, must exist before initialization ends.
+        // Bitwig scans every equality value on every proxy target change. Factor identity into
+        // the containing chain and a local device bank, instead of comparing every slot to every
+        // device in the entire tree (18,688 comparisons per tree versus 1,424 here).
         for (final Slot slot : this.slots ())
-            for (final Node node : this.nodes)
-            {
-                final BooleanValue equal = slot.device.createEqualsValue (node.device);
-                equal.markInterested ();
-                equal.addValueObserver (ignored -> this.dirty = true);
-                slot.equal.add (equal);
-            }
+            for (final Chain chain : this.chains)
+                slot.equalChains.add (this.observeEquality (slot.chain, chain.identity));
         track.channelId ().markInterested ();
         track.exists ().markInterested ();
         track.channelId ().addValueObserver (ignored -> this.dirty = true);
         track.exists ().addValueObserver (ignored -> this.dirty = true);
+    }
+
+    private BooleanValue observeEquality (final ObjectProxy left, final ObjectProxy right)
+    {
+        final BooleanValue equal = left.createEqualsValue (right);
+        equal.markInterested ();
+        equal.addValueObserver (ignored -> this.dirty = true);
+        return equal;
     }
 
     /** The eight permanent device proxies; availability is separately fenced by each slot. */
@@ -131,7 +137,7 @@ public final class DrumDeviceTree
             if (!drum && !node.device.hasLayers ().get () && !node.device.hasSlots ().get ()) continue;
             // Bitwig's selected slot can alias a layer already visited through its layer bank.
             // Compare acknowledged native targets, never names or Java proxy identity.
-            if (used.stream ().anyMatch (slot -> slot.ready && slot.equal.get (slot.source.index).get () && slot.equal.get (node.index).get ())) continue;
+            if (used.stream ().anyMatch (slot -> slot.ready && slot.sameTarget (slot.source) && slot.sameTarget (node))) continue;
             final List<Slot> pool = drum ? this.machines : this.containers;
             // Bank positions can shift while a retained cursor still addresses the same device.
             Slot selected = pool.stream ().filter (slot -> !used.contains (slot) && slot.pointsTo (node)).findFirst ().orElse (null);
@@ -172,10 +178,10 @@ public final class DrumDeviceTree
         {
             final Node node = slot.source;
             if (node == null) continue;
-            SelectionDebug.record ("DRUM_TARGET", this.diagnosticId + " assignment=" + slot.assignment + " node=" + node.index +
+            SelectionDebug.record ("DRUM_TARGET", this.diagnosticId + " assignment=" + slot.assignment + " chain=" + node.chain.index + " node=" + node.index +
                 " revision=" + slot.sourceRevision + "/" + node.revision + " acquisition=" + slot.acquisition + " ready=" + slot.ready +
                 " exists=" + slot.device.exists ().get () + " pinned=" + slot.device.isPinned ().get () +
-                " equal=" + slot.equal.get (node.index).get () + " position=" + slot.device.position ().get () + "/" + node.device.position ().get () +
+                " equal=" + slot.sameTarget (node) + " position=" + slot.device.position ().get () + "/" + node.device.position ().get () +
                 " drum=" + slot.device.hasDrumPads ().get () + "/" + node.device.hasDrumPads ().get () +
                 " layers=" + (slot.layers == null ? 0 : slot.layers.itemCount ().get ()) +
                 " fx=" + (slot.fx == null ? 0 : slot.fx.bank.itemCount ().get ()));
@@ -185,29 +191,35 @@ public final class DrumDeviceTree
     private final class Chain
     {
         private final DeviceBank bank;
+        private final DeviceChain identity;
+        private final int index;
         private final List<Node> children = new ArrayList<> ();
 
         private Chain (final DeviceChain chain)
         {
+            this.index = DrumDeviceTree.this.chains.size ();
+            DrumDeviceTree.this.chains.add (this);
             this.bank = chain.createDeviceBank (DEVICES_PER_CHAIN);
+            this.identity = this.bank.getItemAt (0).deviceChain ();
             this.bank.itemCount ().markInterested ();
             this.bank.itemCount ().addValueObserver (ignored -> DrumDeviceTree.this.dirty = true);
             for (int i = 0; i < DEVICES_PER_CHAIN; i++)
-                this.children.add (new Node (this.bank.getItemAt (i)));
+                this.children.add (new Node (this, i, this.bank.getItemAt (i)));
         }
     }
 
     private final class Node
     {
         private final Device device;
+        private final Chain chain;
         private final int index;
         private long revision;
 
-        private Node (final Device device)
+        private Node (final Chain chain, final int index, final Device device)
         {
             this.device = device;
-            this.index = DrumDeviceTree.this.nodes.size ();
-            DrumDeviceTree.this.nodes.add (this);
+            this.chain = chain;
+            this.index = index;
             device.exists ().markInterested ();
             device.hasDrumPads ().markInterested ();
             device.hasLayers ().markInterested ();
@@ -230,7 +242,9 @@ public final class DrumDeviceTree
         private final DeviceLayerBank layers;
         private final Chain fx;
         private final List<Chain> children = new ArrayList<> ();
-        private final List<BooleanValue> equal = new ArrayList<> ();
+        private final DeviceChain chain;
+        private final List<BooleanValue> equalChains = new ArrayList<> ();
+        private final List<BooleanValue> equalSiblings = new ArrayList<> ();
         private Node source;
         private long sourceRevision;
         private long assignment;
@@ -241,6 +255,10 @@ public final class DrumDeviceTree
         private Slot (final CursorTrack track, final String id, final boolean container)
         {
             this.device = track.createCursorDevice (id, id, 0, CursorDeviceFollowMode.FOLLOW_SELECTION);
+            this.chain = this.device.deviceChain ();
+            final DeviceBank siblings = this.chain.createDeviceBank (DEVICES_PER_CHAIN);
+            for (int i = 0; i < DEVICES_PER_CHAIN; i++)
+                this.equalSiblings.add (DrumDeviceTree.this.observeEquality (this.device, siblings.getItemAt (i)));
             this.device.exists ().markInterested ();
             this.device.isPinned ().markInterested ();
             this.device.hasDrumPads ().markInterested ();
@@ -273,7 +291,7 @@ public final class DrumDeviceTree
         {
             DrumDeviceTree.this.refresh ();
             return this.ready && this.source != null && this.sourceRevision == this.source.revision &&
-                this.device.exists ().get () && this.device.isPinned ().get () && this.equal.get (this.source.index).get ();
+                this.device.exists ().get () && this.device.isPinned ().get () && this.sameTarget (this.source);
         }
         public String identity () { return this.available () ? DrumDeviceTree.this.trackId + "/drum/" + this.assignment : ""; }
 
@@ -325,9 +343,14 @@ public final class DrumDeviceTree
 
         private boolean pointsTo (final Node node)
         {
-            return this.device.exists ().get () && this.device.isPinned ().get () && this.equal.get (node.index).get () &&
+            return this.device.exists ().get () && this.device.isPinned ().get () && this.sameTarget (node) &&
                 this.device.position ().get () == node.device.position ().get () &&
                 this.device.hasDrumPads ().get () == node.device.hasDrumPads ().get ();
+        }
+
+        private boolean sameTarget (final Node node)
+        {
+            return this.equalChains.get (node.chain.index).get () && this.equalSiblings.get (node.index).get ();
         }
 
         private void release ()

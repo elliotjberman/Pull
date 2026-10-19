@@ -23,6 +23,8 @@ class DrumDeviceTreeTest
         assertEquals (3, tree.machines ().stream ().map (DrumDeviceTree.Slot::identity).distinct ().count ());
         assertFalse (tree.limited ());
         assertEquals (0, host.editorSelections);
+        // Bitwig scans all equality objects on every target change, including unrelated tracks.
+        assertTrue (host.equalityValues <= 2_000, "tree identity must stay within the native comparison budget");
         final int selections = host.selections;
         host.settle (tree);
         assertEquals (selections, host.selections, "unchanged tree must not churn retained cursors");

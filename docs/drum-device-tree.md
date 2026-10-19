@@ -18,8 +18,13 @@ Drum devices are leaves: instruments inside their pads are not separate kits.
 Each tree installs eight retained drum cursors and eight retained container cursors. A chain
 exposes its first sixteen devices; a container exposes its first eight layers and its selected
 FX slot. API 25 provides no bank of every FX slot, so unselected FX slots are outside this
-coverage. The root plus retained container windows comprise 1,168 source device proxies and
-18,688 native equality values per tree. Topology is created during extension initialization;
+coverage. The root plus retained container windows comprise 73 chains and 1,168 source devices.
+Each retained cursor compares its native containing chain with those 73 chains, and itself with
+sixteen devices in a private, unfiltered bank fixed at the start of its containing chain. The
+chain match and local device match together establish native target equality, including selected-slot
+aliases. This uses 1,424 equality values per tree. Keep this resource budget small: Bitwig 6.1.3
+scans all registered equality values on every proxy target change, even on unrelated tracks.
+Topology is created during extension initialization;
 unchanged trees do not traverse again or resubmit cursor selection. Layer UUID changes invalidate
 their child chains even when device type and position stay the same. Surviving retained targets are matched by native equality before reusing a positional slot.
 Structural changes trigger a bounded rescan. Pending acquisitions wait for host read-back.
