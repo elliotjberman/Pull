@@ -11,6 +11,8 @@ import com.bitwig.extension.controller.api.DeviceChain;
 import com.bitwig.extension.controller.api.DeviceLayerBank;
 import com.bitwig.extension.controller.api.PinnableCursorDevice;
 import com.bitwig.extension.controller.api.ObjectProxy;
+import com.bitwig.extension.controller.api.StringValue;
+import com.bitwig.extension.controller.api.DeviceLayer;
 import de.mossgrabers.pull.shell.SelectionDebug;
 
 import java.util.ArrayList;
@@ -35,14 +37,14 @@ public final class DrumDeviceTree
 
     private static final long ACQUISITION_TIMEOUT_NANOS = 2_000_000_000L;
 
-    private enum Acquisition { UNPINNING, PINNING }
+    private enum Acquisition { REFERENCING, UNPINNING, PINNING }
 
     private final CursorTrack track;
     private final LongSupplier nanoTime;
     private final Chain root;
     private final List<Slot> containers = new ArrayList<> ();
     private final List<Slot> machines = new ArrayList<> ();
-    private final List<Chain> chains = new ArrayList<> ();
+    private int nextChainIndex;
     private List<Slot> result = List.of ();
     private String trackId = "";
     private long generation;
@@ -62,17 +64,20 @@ public final class DrumDeviceTree
         this.track = track;
         this.nanoTime = nanoTime;
         this.diagnosticId = id;
-        this.root = new Chain (track);
+        this.root = new Chain (track, null, -1, null);
         for (int i = 0; i < MAX_CONTAINERS; i++)
             this.containers.add (new Slot (track, id + "_CONTAINER_" + i, true));
         for (int i = 0; i < MAX_MACHINES; i++)
             this.machines.add (new Slot (track, id + "_DRUM_" + i, false));
-        // Bitwig scans every equality value on every proxy target change. Factor identity into
-        // the containing chain and a local device bank, instead of comparing every slot to every
-        // device in the entire tree (18,688 comparisons per tree versus 1,424 here).
         for (final Slot slot : this.slots ())
-            for (final Chain chain : this.chains)
-                slot.equalChains.add (this.observeEquality (slot.chain, chain.identity));
+        {
+            slot.equalRoot = this.observeEquality (slot.chain, this.root.identity);
+            for (final Slot parent : this.containers)
+            {
+                slot.equalParents.add (this.observeEquality (slot.referenceParent, parent.device));
+                slot.equalFxChains.add (this.observeEquality (slot.chain, parent.fx.identity));
+            }
+        }
         track.channelId ().markInterested ();
         track.exists ().markInterested ();
         track.channelId ().addValueObserver (ignored -> this.dirty = true);
@@ -142,6 +147,8 @@ public final class DrumDeviceTree
             // Bank positions can shift while a retained cursor still addresses the same device.
             Slot selected = pool.stream ().filter (slot -> !used.contains (slot) && slot.pointsTo (node)).findFirst ().orElse (null);
             if (selected == null)
+                selected = pool.stream ().filter (slot -> !used.contains (slot) && slot.matchesLocationHint (node)).findFirst ().orElse (null);
+            if (selected == null)
                 selected = pool.stream ().filter (slot -> slot.source == node && !used.contains (slot)).findFirst ().orElse (null);
             if (selected == null)
                 selected = pool.stream ().filter (slot -> !used.contains (slot)).findFirst ().orElse (null);
@@ -152,7 +159,12 @@ public final class DrumDeviceTree
                 continue;
             }
             used.add (selected);
-            if (!selected.bind (node)) continue;
+            if (!selected.bind (node))
+            {
+                // Moving a witness window hides the subtree, but does not retire surviving targets.
+                if (!drum) this.retainPendingDescendants (selected, used);
+                continue;
+            }
             if (drum) found.add (selected);
             else
             {
@@ -162,6 +174,18 @@ public final class DrumDeviceTree
                         this.visit (selected.children.get (i), found, used);
                 if (node.device.hasSlots ().get ()) this.visit (selected.fx, found, used);
             }
+        }
+    }
+
+    private void retainPendingDescendants (final Slot parent, final List<Slot> used)
+    {
+        for (final Slot slot : this.slots ())
+        {
+            if (used.contains (slot) || slot.source == null || slot.source.chain.parent != parent ||
+                slot.sourceParentAssignment != parent.assignment) continue;
+            used.add (slot);
+            slot.ready = false;
+            this.retainPendingDescendants (slot, used);
         }
     }
 
@@ -195,10 +219,16 @@ public final class DrumDeviceTree
         private final int index;
         private final List<Node> children = new ArrayList<> ();
 
-        private Chain (final DeviceChain chain)
+        private final Slot parent;
+        private final int layerIndex;
+        private final StringValue layerId;
+
+        private Chain (final DeviceChain chain, final Slot parent, final int layerIndex, final StringValue layerId)
         {
-            this.index = DrumDeviceTree.this.chains.size ();
-            DrumDeviceTree.this.chains.add (this);
+            this.parent = parent;
+            this.layerIndex = layerIndex;
+            this.layerId = layerId;
+            this.index = DrumDeviceTree.this.nextChainIndex++;
             this.bank = chain.createDeviceBank (DEVICES_PER_CHAIN);
             this.identity = this.bank.getItemAt (0).deviceChain ();
             this.bank.itemCount ().markInterested ();
@@ -243,10 +273,24 @@ public final class DrumDeviceTree
         private final Chain fx;
         private final List<Chain> children = new ArrayList<> ();
         private final DeviceChain chain;
-        private final List<BooleanValue> equalChains = new ArrayList<> ();
-        private final List<BooleanValue> equalSiblings = new ArrayList<> ();
+        private final DeviceBank sibling;
+        private final BooleanValue equalSibling;
+        private final PinnableCursorDevice referenceParent;
+        private final DeviceLayerBank referenceLayers;
+        private final DeviceLayer referenceLayer;
+        private final BooleanValue equalLayerChain;
+        private final List<BooleanValue> equalParents = new ArrayList<> ();
+        private final List<BooleanValue> equalFxChains = new ArrayList<> ();
+        private BooleanValue equalRoot;
+        private Slot requestedParent;
+        private long requestedParentAssignment;
+        private Acquisition parentAcquisition;
+        private long parentDeadline;
+        private String layerHint = "";
+        private Slot layerParentHint;
         private Node source;
         private long sourceRevision;
+        private long sourceParentAssignment;
         private long assignment;
         private long acquisitionDeadline;
         private boolean ready;
@@ -254,23 +298,30 @@ public final class DrumDeviceTree
 
         private Slot (final CursorTrack track, final String id, final boolean container)
         {
-            this.device = track.createCursorDevice (id, id, 0, CursorDeviceFollowMode.FOLLOW_SELECTION);
-            // Idle private cursors must not rebind their child banks on editor selection.
-            this.device.isPinned ().set (true);
+            this.device = this.createParkedCursor (track, id);
             this.chain = this.device.deviceChain ();
-            final DeviceBank siblings = this.chain.createDeviceBank (DEVICES_PER_CHAIN);
-            for (int i = 0; i < DEVICES_PER_CHAIN; i++)
-                this.equalSiblings.add (DrumDeviceTree.this.observeEquality (this.device, siblings.getItemAt (i)));
-            this.device.exists ().markInterested ();
-            this.device.isPinned ().markInterested ();
+            // One movable sibling proves the local device, rather than sixteen permanent pairs.
+            this.sibling = this.chain.createDeviceBank (1);
+            this.observeScroll (this.sibling.scrollPosition ());
+            this.equalSibling = DrumDeviceTree.this.observeEquality (this.device, this.sibling.getItemAt (0));
             this.device.hasDrumPads ().markInterested ();
             this.device.position ().markInterested ();
-            this.device.exists ().addValueObserver (ignored -> DrumDeviceTree.this.dirty = true);
-            this.device.isPinned ().addValueObserver (ignored -> DrumDeviceTree.this.dirty = true);
             this.device.hasDrumPads ().addValueObserver (ignored -> DrumDeviceTree.this.dirty = true);
             this.device.position ().addValueObserver (ignored -> DrumDeviceTree.this.dirty = true);
+
+            // A layer UUID locates the source chain beneath an acknowledged parent cursor.
+            // Root/FX chains keep direct comparisons; no handle-by-all-73-chains matrix remains.
+            this.referenceParent = this.createParkedCursor (track, id + "_SOURCE_PARENT");
+            this.referenceLayers = this.referenceParent.createLayerBank (1);
+            this.observeScroll (this.referenceLayers.scrollPosition ());
+            this.referenceLayer = this.referenceLayers.getItemAt (0);
+            this.referenceLayer.channelId ().markInterested ();
+            this.referenceLayer.channelId ().addValueObserver (ignored -> DrumDeviceTree.this.dirty = true);
+            final DeviceChain referenceChain = this.referenceLayer.createDeviceBank (1).getItemAt (0).deviceChain ();
+            this.equalLayerChain = DrumDeviceTree.this.observeEquality (this.chain, referenceChain);
+
             this.layers = container ? this.device.createLayerBank (LAYERS_PER_CONTAINER) : null;
-            this.fx = container ? new Chain (this.device.getCursorSlot ()) : null;
+            this.fx = container ? new Chain (this.device.getCursorSlot (), this, -1, null) : null;
             if (this.layers != null)
             {
                 this.layers.itemCount ().markInterested ();
@@ -280,12 +331,29 @@ public final class DrumDeviceTree
                     final var layer = this.layers.getItemAt (i);
                     layer.exists ().markInterested ();
                     layer.exists ().addValueObserver (ignored -> DrumDeviceTree.this.dirty = true);
-                    final Chain child = new Chain (layer);
+                    final Chain child = new Chain (layer, this, i, layer.channelId ());
                     this.children.add (child);
                     layer.channelId ().markInterested ();
                     layer.channelId ().addValueObserver (ignored -> child.children.forEach (Node::changed));
                 }
             }
+        }
+
+        private PinnableCursorDevice createParkedCursor (final CursorTrack track, final String id)
+        {
+            final PinnableCursorDevice cursor = track.createCursorDevice (id, id, 0, CursorDeviceFollowMode.FOLLOW_SELECTION);
+            cursor.isPinned ().set (true);
+            cursor.exists ().markInterested ();
+            cursor.isPinned ().markInterested ();
+            cursor.exists ().addValueObserver (ignored -> DrumDeviceTree.this.dirty = true);
+            cursor.isPinned ().addValueObserver (ignored -> DrumDeviceTree.this.dirty = true);
+            return cursor;
+        }
+
+        private void observeScroll (final com.bitwig.extension.controller.api.SettableIntegerValue position)
+        {
+            position.markInterested ();
+            position.addValueObserver (ignored -> DrumDeviceTree.this.dirty = true);
         }
 
         public Device device () { return this.device; }
@@ -301,46 +369,90 @@ public final class DrumDeviceTree
         {
             if (this.source != node || this.sourceRevision != node.revision)
             {
-                if (this.pointsTo (node))
-                {
-                    if (!this.ready) this.assignment = ++DrumDeviceTree.this.generation;
-                    this.source = node;
-                    this.sourceRevision = node.revision;
-                    this.acquisition = Acquisition.PINNING;
-                    this.ready = true;
-                    return true;
-                }
-                this.release ();
+                if (this.source == null) this.assignment = 0;
                 this.source = node;
                 this.sourceRevision = node.revision;
-                this.assignment = ++DrumDeviceTree.this.generation;
-                this.acquisition = Acquisition.UNPINNING;
+                this.sourceParentAssignment = node.chain.parent == null ? 0 : node.chain.parent.assignment;
+                this.acquisition = Acquisition.REFERENCING;
                 this.acquisitionDeadline = DrumDeviceTree.this.nanoTime.getAsLong () + ACQUISITION_TIMEOUT_NANOS;
-                this.device.isPinned ().set (false);
+                this.ready = false;
+            }
+            if (!this.prepareReference (node))
+            {
+                this.ready = false;
                 DrumDeviceTree.this.dirty = true;
                 return false;
             }
-            // Unpin and pin writes may coalesce within one host update. Observe unpinning
-            // first, then select-and-pin together: unpinned cursors share native selection.
-            if (this.acquisition == Acquisition.UNPINNING && !this.device.isPinned ().get ())
+            if (this.pointsTo (node))
+            {
+                if (this.assignment == 0) this.assignment = ++DrumDeviceTree.this.generation;
+                this.acquisition = Acquisition.PINNING;
+                this.ready = true;
+                this.layerHint = node.chain.layerId == null ? "" : node.chain.layerId.get ();
+                this.layerParentHint = node.chain.parent;
+                return true;
+            }
+            if (this.acquisition == Acquisition.REFERENCING)
+            {
+                this.acquisition = Acquisition.UNPINNING;
+                this.device.isPinned ().set (false);
+            }
+            // Unpin and pin writes can coalesce. Observe unpinning before select-and-pin.
+            else if (this.acquisition == Acquisition.UNPINNING && !this.device.isPinned ().get ())
             {
                 this.device.selectDevice (node.device);
+                this.layerHint = "";
                 this.device.isPinned ().set (true);
+                this.assignment = ++DrumDeviceTree.this.generation;
                 this.acquisition = Acquisition.PINNING;
-                DrumDeviceTree.this.dirty = true;
+            }
+            else if (this.ready || DrumDeviceTree.this.nanoTime.getAsLong () - this.acquisitionDeadline >= 0)
+                this.sourceRevision = -1;
+            this.ready = false;
+            DrumDeviceTree.this.dirty = true;
+            return false;
+        }
+
+        private boolean prepareReference (final Node node)
+        {
+            if (this.sibling.scrollPosition ().get () != node.index)
+            {
+                this.sibling.scrollPosition ().set (node.index);
+                // An empty or unrelated cursor chain cannot reach the source index until selected.
+                if (this.matchesLocationHint (node)) return false;
+            }
+            if (node.chain.layerId == null) return true;
+            final Slot parent = node.chain.parent;
+            final long now = DrumDeviceTree.this.nanoTime.getAsLong ();
+            if (this.requestedParent != parent || this.requestedParentAssignment != parent.assignment)
+            {
+                this.requestedParent = parent;
+                this.requestedParentAssignment = parent.assignment;
+                this.parentAcquisition = Acquisition.UNPINNING;
+                this.parentDeadline = now + ACQUISITION_TIMEOUT_NANOS;
+                this.referenceParent.isPinned ().set (false);
                 return false;
             }
-            final boolean coherent = this.acquisition == Acquisition.PINNING && this.pointsTo (node);
-            if (!coherent && (this.ready || DrumDeviceTree.this.nanoTime.getAsLong () - this.acquisitionDeadline >= 0))
+            if (this.parentAcquisition == Acquisition.UNPINNING && !this.referenceParent.isPinned ().get ())
             {
-                // Same-shaped replacement can strand even an assignment never acknowledged.
-                // Expiry only retries acquisition; it never substitutes for native equality.
-                this.sourceRevision = -1;
-                this.assignment = ++DrumDeviceTree.this.generation;
+                this.referenceParent.selectDevice (parent.device);
+                this.referenceParent.isPinned ().set (true);
+                this.parentAcquisition = Acquisition.PINNING;
+                return false;
             }
-            this.ready = coherent;
-            if (!this.ready) DrumDeviceTree.this.dirty = true;
-            return this.ready;
+            if (!this.referenceParent.isPinned ().get () || !this.equalParents.get (DrumDeviceTree.this.containers.indexOf (parent)).get ())
+            {
+                if (now - this.parentDeadline >= 0) this.requestedParent = null;
+                return false;
+            }
+            if (this.referenceLayers.scrollPosition ().get () != node.chain.layerIndex)
+            {
+                this.referenceLayers.scrollPosition ().set (node.chain.layerIndex);
+                return false;
+            }
+            final boolean aligned = sameLayerId (node.chain.layerId.get (), this.referenceLayer.channelId ().get ());
+            if (!aligned && now - this.parentDeadline >= 0) this.requestedParent = null;
+            return aligned;
         }
 
         private boolean pointsTo (final Node node)
@@ -350,18 +462,43 @@ public final class DrumDeviceTree
                 this.device.hasDrumPads ().get () == node.device.hasDrumPads ().get ();
         }
 
+        private boolean matchesLocationHint (final Node node)
+        {
+            // A location only chooses a candidate after bank shifts; native equality still gates it.
+            return this.device.exists ().get () && this.device.isPinned ().get () && this.device.position ().get () == node.device.position ().get () &&
+                (this.sameChain (node) || node.chain.layerId != null && this.layerParentHint == node.chain.parent && sameLayerId (this.layerHint, node.chain.layerId.get ()));
+        }
+
         private boolean sameTarget (final Node node)
         {
-            return this.equalChains.get (node.chain.index).get () && this.equalSiblings.get (node.index).get ();
+            return this.sibling.scrollPosition ().get () == node.index && this.equalSibling.get () && this.sameChain (node);
+        }
+
+        private boolean sameChain (final Node node)
+        {
+            if (node.chain.parent == null) return this.equalRoot.get ();
+            final int parent = DrumDeviceTree.this.containers.indexOf (node.chain.parent);
+            if (node.chain.layerId == null) return this.equalFxChains.get (parent).get ();
+            // A changed window UUID cannot re-label the retained device using an older equality.
+            if (!this.layerHint.isBlank () && !sameLayerId (this.layerHint, node.chain.layerId.get ())) return false;
+            return this.referenceParent.isPinned ().get () && this.equalParents.get (parent).get () &&
+                sameLayerId (node.chain.layerId.get (), this.referenceLayer.channelId ().get ()) && this.equalLayerChain.get ();
+        }
+
+        private static boolean sameLayerId (final String left, final String right)
+        {
+            return left != null && !left.isBlank () && left.equals (right);
         }
 
         private void release ()
         {
-            // Also park an acquisition cancelled while waiting for unpin acknowledgement.
             if (!this.device.isPinned ().get ()) this.device.isPinned ().set (true);
+            if (!this.referenceParent.isPinned ().get ()) this.referenceParent.isPinned ().set (true);
             if (this.source != null) DrumDeviceTree.this.dirty = true;
             this.source = null;
             this.ready = false;
+            this.requestedParent = null;
+            this.layerHint = "";
         }
     }
 }

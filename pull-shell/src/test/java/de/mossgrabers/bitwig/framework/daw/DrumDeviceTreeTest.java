@@ -24,7 +24,7 @@ class DrumDeviceTreeTest
         assertFalse (tree.limited ());
         assertEquals (0, host.editorSelections);
         // Bitwig scans all equality objects on every target change, including unrelated tracks.
-        assertTrue (host.equalityValues <= 2_000, "tree identity must stay within the native comparison budget");
+        assertTrue (host.equalityValues <= 350, "tree identity must stay within the native comparison budget");
         final int selections = host.selections;
         host.settle (tree);
         assertEquals (selections, host.selections, "unchanged tree must not churn retained cursors");
@@ -146,10 +146,12 @@ class DrumDeviceTreeTest
         host.settle (tree);
         assertEquals (8, tree.machines ().size ());
         assertTrue (tree.limited ());
+        final String survivor = tree.machines ().get (1).identity ();
         host.root.remove (0);
         host.publish ();
         host.settle (tree);
         assertEquals ("Drum 1", names (tree).get (0));
+        assertEquals (survivor, tree.machines ().get (0).identity ());
         assertEquals ("Drum 8", names (tree).get (7));
         assertFalse (tree.limited ());
         host.root.add (0, drum ("New first"));
@@ -267,6 +269,69 @@ class DrumDeviceTreeTest
         host.settle (tree);
         assertEquals (List.of ("Spread"), names (tree));
         assertEquals (spread, tree.machines ().get (0).identity ());
+    }
+
+    @Test
+    void waitsForReferenceLayerAndDeviceWindowReadback ()
+    {
+        final var host = new DrumTreeHostFake ();
+        final var rack = container ("Rack", effect ("First layer"), drum ("Same name"));
+        rack.layers.get (1).add (0, effect ("Before drum"));
+        host.root.add (rack);
+        host.holdReferenceLayerObservations = true;
+        final var tree = new DrumDeviceTree (host.track, "test");
+        host.settle (tree);
+        assertTrue (tree.machines ().isEmpty (), "parent identity alone does not acknowledge the layer window");
+        host.holdReferenceLayerObservations = false;
+        host.holdScrollObservations = true;
+        host.settle (tree);
+        assertTrue (tree.machines ().isEmpty (), "device equality alone does not acknowledge the requested device position");
+        host.holdScrollObservations = false;
+        host.settle (tree);
+        assertEquals (List.of ("Same name"), names (tree));
+    }
+
+    @Test
+    void movingANestedContainerRetainsItsDescendantsWhileReferencesCatchUp ()
+    {
+        final var host = new DrumTreeHostFake ();
+        final var rack = container ("Rack", effect ("First"), container ("Nested", drum ("A")), effect ("Last"));
+        host.root.add (rack);
+        final var tree = new DrumDeviceTree (host.track, "test");
+        host.settle (tree);
+        final var drum = tree.machines ().get (0);
+        final String identity = drum.identity ();
+        rack.layers.remove (0);
+        host.publish ();
+        assertTrue (tree.machines ().isEmpty ());
+        assertFalse (drum.available (), "retained descendants stay hidden until the parent is revalidated");
+        host.settle (tree);
+        assertEquals (List.of ("A"), names (tree));
+        assertEquals (identity, tree.machines ().get (0).identity ());
+    }
+
+    @Test
+    void reorderedLayersCannotRelabelRetainedTargetsWithStaleEquality ()
+    {
+        final var host = new DrumTreeHostFake ();
+        final var rack = container ("Rack", drum ("A"), drum ("B"));
+        host.root.add (rack);
+        final var tree = new DrumDeviceTree (host.track, "test");
+        host.settle (tree);
+        final List<String> identities = tree.machines ().stream ().map (DrumDeviceTree.Slot::identity).toList ();
+        host.holdEqualityObservations = true;
+        java.util.Collections.swap (rack.layers, 0, 1);
+        host.publish ();
+        for (int i = 0; i < 20; i++)
+        {
+            final List<String> observed = names (tree);
+            assertTrue (observed.isEmpty () || observed.equals (List.of ("B", "A")), "old equality cannot preserve the old order");
+            host.advance ();
+        }
+        host.holdEqualityObservations = false;
+        host.settle (tree);
+        assertEquals (List.of ("B", "A"), names (tree));
+        assertEquals (List.of (identities.get (1), identities.get (0)), tree.machines ().stream ().map (DrumDeviceTree.Slot::identity).toList ());
     }
 
     private static List<String> names (final DrumDeviceTree tree)

@@ -19,11 +19,17 @@ Each tree installs eight retained drum cursors and eight retained container curs
 exposes its first sixteen devices; a container exposes its first eight layers and its selected
 FX slot. API 25 provides no bank of every FX slot, so unselected FX slots are outside this
 coverage. The root plus retained container windows comprise 73 chains and 1,168 source devices.
-Each retained cursor compares its native containing chain with those 73 chains, and itself with
-sixteen devices in a private, unfiltered bank fixed at the start of its containing chain. The
-chain match and local device match together establish native target equality, including selected-slot
-aliases. This uses 1,424 equality values per tree. Keep this resource budget small: Bitwig 6.1.3
-scans all registered equality values on every proxy target change, even on unrelated tracks.
+Each retained cursor has a one-device sibling reference window, a thin pinned source-parent
+cursor and a one-layer reference window. Native comparisons check its root chain, the eight
+possible source parents, their eight selected FX chains, the reference layer chain and the sibling
+device. The source layer UUID must agree with the reference UUID; an acknowledged retained layer
+UUID cannot be replaced by a newly moved window. Each tree uses 304 equality values (608 across
+the independent model and selection trees), down from 1,424 per tree. Bitwig 6.1.4 scans all
+registered equality values on every proxy target change, even on unrelated tracks.
+Reference-window moves wait for subscribed read-back before accepting identity. A viable retained
+target waits for its sibling reference before considering reacquisition; a new cursor can first
+acquire the chain that its reference needs. Pending ancestor validation hides descendants while
+retaining their assignments; actual ancestor reassignment retires those old descendants.
 Topology is created during extension initialization. Idle and cancelled private cursors are
 parked by pinning so editor selection does not rebind their child banks. Layer/pad wrappers
 create a one-device bank for presence and entry; sibling navigation retains its own window.

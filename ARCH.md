@@ -6,16 +6,13 @@ remaining shell handlers. The optional Clip piano roll is deferred unchanged.
 
 API 59 adds bounded tree discovery and composite Drum pad observations. Core combines populated
 notes across up to eight machines and aligns their windows before enabling the native note map.
-The matched shell/core at source `b00a934d` passed the eight-machine fixture and
-`alien2_revival` note/release, octave and selection smoke in Bitwig 6.1.3 on October 19, 2026,
-after the 1,197-test package gate. An earlier on/off/on comparison traced multi-second
-track-selection stalls to Bitwig's global native equality scan. Factoring device identity by
-containing chain reduces 37,376 comparisons to 2,848 and removed that reproduced stall.
-The installed follow-up parks idle private drum cursors and reduces layer/pad first-device banks
-to one entry. Remaining selection overhead is measurable: equal 30-second windows containing
-twelve alien2 switches used 3,803 ms main-thread CPU with Pull enabled versus 2,651 ms disabled.
-That measures CPU work, not precise native UI latency. Selected-layer aliasing and surviving
-identities after removal retain the previous `082a8064` live evidence. See
+The current reference-window optimization preserves the same coverage while reducing native
+equality registrations from 2,848 to 608. Bitwig 6.1.4 profiling identified its main-thread global
+equality scan as the dominant remaining track-selection cost. Thin pinned parent references and
+movable one-entry windows replace the handle-by-all-chains comparisons. Shell acquisition owns
+reference acknowledgement and retained descendant identity; core behavior is unchanged.
+The prior `b00a934d` matched build passed the eight-machine fixture and `alien2_revival` smoke;
+this reference-window build still requires exact-build live acceptance. See
 [TESTING](TESTING.md#composite-drum-discovery-api-59) and the
 [tree contract](docs/drum-device-tree.md) for build identities, bounds and coverage limits.
 

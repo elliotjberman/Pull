@@ -25,6 +25,8 @@ public final class DrumTreeHostFake
     public String trackId = "track-a";
     public boolean initiallyPinned;
     public boolean holdEqualityObservations;
+    public boolean holdScrollObservations;
+    public boolean holdReferenceLayerObservations;
     public int selections;
     public int editorSelections;
     public int equalityValues;
@@ -41,7 +43,7 @@ public final class DrumTreeHostFake
         case "channelId" -> this.trackProperties.computeIfAbsent (method, key -> value (StringValue.class, () -> this.trackId, null));
         case "exists" -> this.trackProperties.computeIfAbsent (method, key -> value (BooleanValue.class, () -> !this.trackId.isBlank (), null));
         case "canHoldNoteData" -> this.trackProperties.computeIfAbsent (method, key -> value (SettableBooleanValue.class, () -> true, null));
-        case "createDeviceBank" -> bank (() -> this.root);
+        case "createDeviceBank" -> bank (() -> this.root, (Integer) args[0]);
         case "createCursorDevice" -> cursor ();
         default -> nativeDefault (CursorTrack.class, method);
     });
@@ -67,7 +69,7 @@ public final class DrumTreeHostFake
     public void advance () { this.applyCommands (); this.publish (); }
     public void settle (final DrumDeviceTree tree)
     {
-        for (int i = 0; i < 50; i++) { tree.machines (); this.advance (); }
+        for (int i = 0; i < 100; i++) { tree.machines (); this.advance (); }
     }
 
     public static final class Item
@@ -79,13 +81,17 @@ public final class DrumTreeHostFake
         private Item (final String name, final boolean drum) { this.name = name; this.drum = drum; }
     }
 
-    private DeviceBank bank (final Supplier<List<Item>> items)
+    private DeviceBank bank (final Supplier<List<Item>> items, final int size)
     {
         final IntegerValue count = value (IntegerValue.class, () -> items.get ().size (), null);
+        final int [] requested = {0};
+        final Supplier<Integer> offset = () -> Math.min (requested[0], Math.max (0, items.get ().size () - size));
+        final SettableIntegerValue scroll = value (SettableIntegerValue.class, offset::get, n -> this.commands.add (() -> requested[0] = (Integer) n), () -> !this.holdScrollObservations);
         return TestProxies.nativeProxy (DeviceBank.class, (method, args) -> switch (method)
         {
             case "itemCount" -> count;
-            case "getItemAt" -> device (() -> at (items.get (), (Integer) args[0]), () -> (Integer) args[0]);
+            case "getItemAt" -> device (() -> at (items.get (), offset.get () + (Integer) args[0]), () -> offset.get () + (Integer) args[0]);
+            case "scrollPosition" -> scroll;
             default -> nativeDefault (DeviceBank.class, method);
         });
     }
@@ -145,8 +151,8 @@ public final class DrumTreeHostFake
             case "hasSlots" -> value (BooleanValue.class, () -> target.get () != null && !target.get ().fx.isEmpty (), null);
             case "position" -> value (IntegerValue.class, position::get, null);
             case "name" -> value (StringValue.class, () -> target.get () == null ? "" : target.get ().name, null);
-            case "createLayerBank" -> layers (target);
-            case "getCursorSlot" -> TestProxies.nativeProxy (DeviceSlot.class, (m, a) -> "createDeviceBank".equals (m) ? bank (() -> target.get () == null ? List.of () : target.get ().fx) : nativeDefault (DeviceSlot.class, m));
+            case "createLayerBank" -> layers (target, (Integer) args[0]);
+            case "getCursorSlot" -> TestProxies.nativeProxy (DeviceSlot.class, (m, a) -> "createDeviceBank".equals (m) ? bank (() -> target.get () == null ? List.of () : target.get ().fx, (Integer) a[0]) : nativeDefault (DeviceSlot.class, m));
             case "selectInEditor" -> { this.editorSelections++; yield null; }
             default -> nativeDefault (Device.class, method);
         };
@@ -163,7 +169,7 @@ public final class DrumTreeHostFake
     {
         final DeviceChain chain = TestProxies.nativeProxy (DeviceChain.class, (method, args) -> switch (method)
         {
-            case "createDeviceBank" -> bank (() -> items.get () == null ? List.of () : items.get ());
+            case "createDeviceBank" -> bank (() -> items.get () == null ? List.of () : items.get (), (Integer) args[0]);
             case "createEqualsValue" -> equality (items, (ObjectProxy) args[0]);
             default -> nativeDefault (DeviceChain.class, method);
         });
@@ -188,22 +194,26 @@ public final class DrumTreeHostFake
         return null;
     }
 
-    private DeviceLayerBank layers (final Supplier<Item> target)
+    private DeviceLayerBank layers (final Supplier<Item> target, final int size)
     {
         final IntegerValue count = value (IntegerValue.class, () -> target.get () == null ? 0 : target.get ().layers.size (), null);
         final Map<Integer, DeviceLayer> layers = new HashMap<> ();
+        final int [] requested = {0};
+        final Supplier<Integer> offset = () -> Math.min (requested[0], Math.max (0, (target.get () == null ? 0 : target.get ().layers.size ()) - size));
+        final SettableIntegerValue scroll = value (SettableIntegerValue.class, offset::get, n -> this.commands.add (() -> requested[0] = (Integer) n), () -> !this.holdScrollObservations);
         return TestProxies.nativeProxy (DeviceLayerBank.class, (method, args) -> switch (method)
         {
             case "itemCount" -> count;
+            case "scrollPosition" -> scroll;
             case "getItemAt" -> layers.computeIfAbsent ((Integer) args[0], index -> {
-                final BooleanValue exists = value (BooleanValue.class, () -> target.get () != null && index < target.get ().layers.size (), null);
-                final StringValue id = value (StringValue.class, () -> target.get () == null || index >= target.get ().layers.size () ? "" :
-                    this.layerIds.computeIfAbsent (target.get ().layers.get (index), key -> "layer-" + this.layerIds.size ()), null);
+                final BooleanValue exists = value (BooleanValue.class, () -> target.get () != null && offset.get () + index < target.get ().layers.size (), null);
+                final StringValue id = value (StringValue.class, () -> target.get () == null || offset.get () + index >= target.get ().layers.size () ? "" :
+                    this.layerIds.computeIfAbsent (target.get ().layers.get (offset.get () + index), key -> "layer-" + this.layerIds.size ()), null, () -> size != 1 || !this.holdReferenceLayerObservations);
                 return TestProxies.nativeProxy (DeviceLayer.class, (m, a) -> switch (m)
                 {
                     case "exists" -> exists;
                     case "channelId" -> id;
-                    case "createDeviceBank" -> bank (() -> target.get () == null || index >= target.get ().layers.size () ? List.of () : target.get ().layers.get (index));
+                    case "createDeviceBank" -> bank (() -> target.get () == null || offset.get () + index >= target.get ().layers.size () ? List.of () : target.get ().layers.get (offset.get () + index), (Integer) a[0]);
                     default -> nativeDefault (DeviceLayer.class, m);
                 });
             });
