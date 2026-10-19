@@ -6,15 +6,15 @@ remaining shell handlers. The optional Clip piano roll is deferred unchanged.
 
 API 59 adds bounded tree discovery and composite Drum pad observations. Core combines populated
 notes across up to eight machines and aligns their windows before enabling the native note map.
-The matched shell/core passed the final `alien2_revival` smoke and the separate eight-machine
-fixture in Bitwig 6.1.3 on October 18, 2026, including overlap, held octaves, nesting, track
-switching, layer removal/Undo, replacement/reordering and ninth-machine overflow. The subsequent
-acquisition-retry correction and native-equality resource reduction pass the 1,196-test package
-gate; their matched-shell live smoke remains pending. An October 19 on/off/on comparison confirmed
-that the earlier tree's comparison matrix stalls Bitwig's UI during track selection; the resource
-fix reduces 37,376 native comparisons to 2,848 across the two trees. See
+The matched shell/core at source `082a8064` passed the eight-machine fixture and
+`alien2_revival` smoke in Bitwig 6.1.3 on October 19, 2026, after the 1,196-test package gate.
+An on/off/on comparison traced the earlier track-selection freeze to Bitwig's global native
+equality scan. Factoring device identity by containing chain reduces 37,376 comparisons to
+2,848; the installed fix matches the disabled-controller baseline at the capture resolution.
+Parallel discovery, selected-layer aliases, surviving identities after removal, note/release
+read-back, octave alignment and track changes passed on this exact build. See
 [TESTING](TESTING.md#composite-drum-discovery-api-59) and the
-[tree contract](docs/drum-device-tree.md) for bounds, identity fences and FX-slot coverage.
+[tree contract](docs/drum-device-tree.md) for evidence, bounds and FX-slot coverage.
 
 The shared [retained cursor pool](docs/track-cursor-pool/README.md) supplies named track mix/sends,
 Crossfade, fill scanner/actuators, Device/Chains remotes, layer/drum-pad mix and exact note attributes.
