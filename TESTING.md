@@ -62,17 +62,19 @@ separate from later pad-window read-back. Acquisition has a two-second monotonic
 timeout permits retry but never acknowledges identity. A native comparison budget protects the
 host resource cost in the nested/parallel behavior test. Idle and cancelled private cursors
 are also checked against later external editor selections; this regression failed with the
-previous lifecycle and passes with parking enabled.
+previous lifecycle and passes with parking enabled. Reference-window regressions delay native
+window and equality observations independently, retain descendant identities through pending
+ancestor validation, and reject stale identity joins after layer reorder.
 
-The latest `mvn -o -Dmaven.compiler.showDeprecation=true package` gate passed **1,197 tests**,
+The latest `mvn -o -Dmaven.compiler.showDeprecation=true package` gate passed **1,200 tests**,
 with zero failures, errors, skips or deprecation warnings. The matched build was installed and
-verified under the shared live lease in Bitwig 6.1.3 / controller API 25 on October 19, 2026:
+verified under the shared live lease in Bitwig 6.1.4 / controller API 25 on October 19, 2026:
 
-- Source checkpoint: `b00a934d3690789ed95cc57ece20f06244957117`.
-- Shell SHA-256: `10460f83e40f51ef0b0609e5c6c59dcf9c86bac09f308176f66e43edc333c11d`.
+- Source checkpoint: `9179ffe24e42fa2d3a569ac61123721ee0b3b7c1`.
+- Shell SHA-256: `f3963be2706fb7d8d9293c0a97187bee547baac667fe5caca7567097b38a030b`.
 - API fingerprint: `73fb5f87e9578817828b65922655f22031f561e9`.
-- Active core: `20261019T185654Z-614ccc7f3d68fe3156f2aed4f005c5fe`;
-  SHA-256: `8998756fefc1961310aaed49eb157b6dc02fe2b905bacfed75c934619dee94ba`.
+- Active core: `20261019T215239Z-cc2b9441191b8107127baef1660b288a`;
+  SHA-256: `64d8f0c436e2e523a000a17e2adb99c0416a2b845f2031017640d900545facc5`.
 
 `Pull Drum Tree Tests` is saved under Bitwig Projects/2026. Its `Eight parallel` track contains
 seven DryDrum copies and one SpreadDrum under an Instrument Layer, saved disarmed at **−∞ dB**.
@@ -86,7 +88,7 @@ Later native host snapshots and transmitted output established:
 | Octave up/down | All eight bases move 36 → 52 → 36. |
 | alien2 Drums | Dry notes 36/50; Spread notes 38/39/40/42/44/46/48/49/51. Transmitted lights match the union and leave gaps dark. |
 | alien2 notes and octaves | Populated pads for notes 36/38 observe velocity 96 and later zero; both windows move 36 → 52 → 36. |
-| alien2 selection/project changes | Tetra has no drum machines; returning from the fixture restores both alien2 machines and their union. |
+| alien2 track selection | All twelve requested Tetra/Minilogue/Drums selections are visible in each paired timing run. |
 
 All synthetic input was released. The fixture was restored disarmed at −∞ dB and closed;
 alien2 was left on Drums at its original −0.5 dB, monitoring on and disarmed. Existing automatic
@@ -105,34 +107,46 @@ selection frames were 783/808 ms, versus 802 ms disabled; the old enabled build 
 previous selection at 2,371 ms. These captures include tool overhead and do not resolve smaller
 latency. The user subsequently reported residual lag.
 
-The latest build additionally parks idle/cancelled private cursors and reduces layer/pad presence
-banks from eight entries to the one consumed entry. In alien2, three rounds of
-Drums → Tetra → Minilogue → Tetra → Drums produced these JVM main-thread CPU measurements:
+Idle/cancelled cursors are parked and layer/pad presence banks contain only their consumed entry.
+On Bitwig 6.1.4, profiling the preceding `b00a934d` build attributed 76–78% of extra main-thread
+samples to the global equality scan. The reference-window build `9179ffe2` reduces permanent
+registrations from **2,848 to 608**, without reducing tree coverage. In alien2, each run contained
+three rounds of Drums → Tetra → Minilogue → Tetra → Drums, with diagnostics off:
 
-| Build/state | Main-thread CPU | Observation window |
-| --- | ---: | ---: |
-| Previous `082a8064`, enabled | 3,379 ms | 29.47 s |
-| Previous `082a8064`, disabled | 1,759 ms | 28.04 s |
-| Latest `b00a934d`, enabled | 3,803 ms | 30.00 s |
-| Latest `b00a934d`, disabled | 2,651 ms | 30.00 s |
+| Build / paired run | Enabled CPU | Disabled CPU | Difference |
+| --- | ---: | ---: | ---: |
+| Prior `b00a934d`, Bitwig 6.1.4 | 4,082 ms | 2,741 ms | 1,341 ms |
+| Reference windows A, Bitwig 6.1.4 | 3,399 ms | 2,603 ms | 795 ms |
+| Reference windows B, Bitwig 6.1.4 | 3,244 ms | 2,707 ms | 537 ms |
 
-Diagnostics were off. Every latest input/observation pair fell inside its recorded 30-second
-window, and both runs ended on Drums. The latest enabled-minus-disabled difference is **1,153 ms
-of CPU across twelve switches**. This is total main-thread work, including idle work between
-clicks, not native click-to-paint latency. The earlier difference was 1,620 ms, but the process
-was restarted and its windows were unequal: do not claim a precise percentage improvement.
-The live smoke passes; remaining enabled-versus-disabled overhead is **not resolved**.
+All windows were 30 seconds; every input/observation pair fell inside its recorded window.
+Screenshots verify all twelve selections per run. These are JVM main-thread CPU totals including
+idle work between clicks, **not click-to-paint latency**. Before/after builds use separate JVM
+processes; the new enabled-minus-disabled overhead averages 666 ms versus the prior 1,341 ms,
+but this is not a precise user-visible percentage speedup. Residual selection overhead remains
+an open acceptance item.
+
+A new 30-second CPU profile at 1 ms sampling recorded 272 main-thread samples in
+`BitwigStudioHost.targetChanged`, versus 1,411/1,455 in the preceding enabled profiles.
+The enclosing `ControlSurfaceObjectProxy.setTarget` path had 403 samples versus 1,765/1,747.
+Sampling perturbs execution; these counts establish reduced work in the targeted host path,
+not exact unprofiled durations. The new paired profile had 3,411 main samples enabled versus
+2,762 disabled; equality scanning accounts for 272 of the 649 extra samples (42%), with its
+enclosing proxy-rebind path accounting for 403 (62%). The remaining 608 registrations include a matrix of
+possible source parents and selected FX chains; they are not 608 devices found in alien2.
 
 The current run contained no plug-in hang warnings or controller exception loop. It did contain
 isolated slow bridge ticks at activation, plug-in preset/metadata warnings, and EOF exceptions
-while project audio engines were being stopped. The original
-plug-in hang burst has not been causally tied to the comparison matrix.
+while project audio engines were being stopped. The original plug-in hang burst has not been
+causally tied to the comparison matrix.
 
-Latest evidence lives in `target/drum-tree-live/latency-2026-10-19/`: package/regression logs,
-`activation.log`, `optimized-eight-*.tsv`, `optimized-alien2-*.tsv`, paired surface JSON,
-`equal-*-{start,end}.txt`, timestamped timing JSON, `acceptance-summary.json`,
-`optimized-session.log` and `performance-restored.log`. Use complete trace records: full snapshots
-can hit the existing 2 MB trace limit; a truncated final record is not evidence.
+Latest evidence lives in `target/drum-tree-live/reference-windows-2026-10-19/`: package log,
+`activation.log`, `reference-eight-*.tsv`, `reference-alien2-*.tsv`, paired surface JSON,
+`{enabled,disabled}-{a,b}-{start,end}.txt`, timestamped timing JSON and selection screenshots,
+CPU profiles and the restored-session log. Earlier Bitwig 6.1.4 measurements and profiles remain
+in `target/drum-tree-live/latency-6.1.4-2026-10-19/`; Bitwig 6.1.3 lifecycle measurements remain
+in `target/drum-tree-live/latency-2026-10-19/`. Use complete trace records: full snapshots can
+hit the existing 2 MB trace limit; a truncated final record is not evidence.
 
 Selected-layer aliasing, first-layer removal with surviving identities, and Undo were verified
 on the previous installed checkpoint `082a8064`, with shell SHA-256

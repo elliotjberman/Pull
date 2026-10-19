@@ -11,8 +11,9 @@ equality registrations from 2,848 to 608. Bitwig 6.1.4 profiling identified its 
 equality scan as the dominant remaining track-selection cost. Thin pinned parent references and
 movable one-entry windows replace the handle-by-all-chains comparisons. Shell acquisition owns
 reference acknowledgement and retained descendant identity; core behavior is unchanged.
-The prior `b00a934d` matched build passed the eight-machine fixture and `alien2_revival` smoke;
-this reference-window build still requires exact-build live acceptance. See
+The matched `9179ffe2` shell/core passed the eight-machine fixture and `alien2_revival` smoke
+in Bitwig 6.1.4. Paired measurements show reduced main-thread work, with residual overhead
+still measurable; performance acceptance remains open. See
 [TESTING](TESTING.md#composite-drum-discovery-api-59) and the
 [tree contract](docs/drum-device-tree.md) for build identities, bounds and coverage limits.
 
