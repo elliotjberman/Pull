@@ -6,18 +6,18 @@ remaining shell handlers. The optional Clip piano roll is deferred unchanged.
 
 API 59 adds bounded tree discovery and composite Drum pad observations. Core combines populated
 notes across up to eight machines and aligns their windows before enabling the native note map.
-The matched shell/core at source `082a8064` passed the eight-machine fixture and
-`alien2_revival` smoke in Bitwig 6.1.3 on October 19, 2026, after the 1,196-test package gate.
-An on/off/on comparison traced the earlier track-selection freeze to Bitwig's global native
-equality scan. Factoring device identity by containing chain reduces 37,376 comparisons to
-2,848. The reproduced stall disappeared, but first-frame captures did not resolve the remaining
-selection overhead reported afterward. The follow-up parks idle private drum cursors and reduces
-layer/pad first-device banks to one entry; its 1,197-test package gate passes, with installation
-and live timing still pending.
-Parallel discovery, selected-layer aliases, surviving identities after removal, note/release
-read-back, octave alignment and track changes passed on this exact build. See
+The matched shell/core at source `b00a934d` passed the eight-machine fixture and
+`alien2_revival` note/release, octave and selection smoke in Bitwig 6.1.3 on October 19, 2026,
+after the 1,197-test package gate. An earlier on/off/on comparison traced multi-second
+track-selection stalls to Bitwig's global native equality scan. Factoring device identity by
+containing chain reduces 37,376 comparisons to 2,848 and removed that reproduced stall.
+The installed follow-up parks idle private drum cursors and reduces layer/pad first-device banks
+to one entry. Remaining selection overhead is measurable: equal 30-second windows containing
+twelve alien2 switches used 3,803 ms main-thread CPU with Pull enabled versus 2,651 ms disabled.
+That measures CPU work, not precise native UI latency. Selected-layer aliasing and surviving
+identities after removal retain the previous `082a8064` live evidence. See
 [TESTING](TESTING.md#composite-drum-discovery-api-59) and the
-[tree contract](docs/drum-device-tree.md) for evidence, bounds and FX-slot coverage.
+[tree contract](docs/drum-device-tree.md) for build identities, bounds and coverage limits.
 
 The shared [retained cursor pool](docs/track-cursor-pool/README.md) supplies named track mix/sends,
 Crossfade, fill scanner/actuators, Device/Chains remotes, layer/drum-pad mix and exact note attributes.
