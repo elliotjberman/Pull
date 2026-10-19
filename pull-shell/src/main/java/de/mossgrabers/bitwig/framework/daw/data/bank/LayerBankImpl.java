@@ -24,7 +24,6 @@ import de.mossgrabers.framework.daw.data.bank.ILayerBank;
 public class LayerBankImpl extends AbstractChannelBankImpl<DeviceLayerBank, ILayer> implements ILayerBank
 {
     private final CursorDeviceLayer cursorDeviceLayer;
-    private int                     numDevices;
 
 
     /**
@@ -36,17 +35,14 @@ public class LayerBankImpl extends AbstractChannelBankImpl<DeviceLayerBank, ILay
      * @param cursorDeviceLayer The cursor device layer
      * @param numLayers The number of layers in the page of the bank
      * @param numSends The number of sends
-     * @param numDevices The number of devices
      */
-    public LayerBankImpl (final IHost host, final IValueChanger valueChanger, final DeviceLayerBank layerBank, final CursorDeviceLayer cursorDeviceLayer, final int numLayers, final int numSends, final int numDevices)
+    public LayerBankImpl (final IHost host, final IValueChanger valueChanger, final DeviceLayerBank layerBank, final CursorDeviceLayer cursorDeviceLayer, final int numLayers, final int numSends)
     {
         super (host, valueChanger, layerBank, numLayers, 0, numSends);
 
         this.cursorDeviceLayer = cursorDeviceLayer;
         this.cursorDeviceLayer.hasPrevious ().markInterested ();
         this.cursorDeviceLayer.hasNext ().markInterested ();
-
-        this.numDevices = numDevices;
 
         if (this.bank.isEmpty ())
             return;
@@ -55,7 +51,7 @@ public class LayerBankImpl extends AbstractChannelBankImpl<DeviceLayerBank, ILay
         for (int i = 0; i < this.getPageSize (); i++)
         {
             final DeviceLayer deviceLayer = deviceLayerBank.getItemAt (i);
-            final LayerImpl layerImpl = new LayerImpl (this, this.host, this.valueChanger, deviceLayer, i, this.numSends, this.numDevices);
+            final LayerImpl layerImpl = new LayerImpl (this, this.host, this.valueChanger, deviceLayer, i, this.numSends);
             this.items.add (layerImpl);
 
             final int index = i;

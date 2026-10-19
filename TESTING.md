@@ -60,10 +60,17 @@ windows, populated-note union, one pressure stream, and independently acknowledg
 windows. Bridge tests reject replaced/removed devices at application and keep submitted scrolls
 separate from later pad-window read-back. Acquisition has a two-second monotonic retry deadline;
 timeout permits retry but never acknowledges identity. A native comparison budget protects the
-host resource cost in the nested/parallel behavior test.
+host resource cost in the nested/parallel behavior test. Idle and cancelled private cursors
+are also checked against later external editor selections; this regression failed with the
+previous lifecycle and passes with parking enabled.
 
-The final `mvn -o -Dmaven.compiler.showDeprecation=true package` gate passed **1,196 tests**, with
-zero failures, errors, skips or deprecation warnings. The following live acceptance ran on
+The latest `mvn -o -Dmaven.compiler.showDeprecation=true package` gate passed **1,197 tests**, with
+zero failures, errors, skips or deprecation warnings. Idle-cursor parking and one-entry
+layer/pad presence banks are **not yet installed or live-tested**. The Mac locked before the
+comparison; the offline regression establishes target stability, not native latency. Build and
+regression evidence is in `target/drum-tree-live/latency-2026-10-19/`.
+
+The previous 1,196-test build received the following live acceptance on
 October 19, 2026, under the shared lease in Bitwig 6.1.3 / controller API 25:
 
 - Source checkpoint: `082a8064283e98094f199a162d8109334f500a90`.
@@ -82,6 +89,9 @@ After installing the fix and reopening the saved comparison project, both direct
 by the first captured frame: 783 ms and 808 ms, against the earlier disabled baseline of 802 ms.
 The old enabled build still showed the previous selection at 2,371 ms and the new one at 2,469 ms.
 These intervals include computer-use capture overhead and are not precise native UI latency.
+They establish removal of the reproduced multi-second stall, not parity at smaller intervals;
+the user subsequently reported noticeable remaining overhead. A later stack again caught
+native device-bank rebinding through `BitwigStudioHost.targetChanged`.
 In alien2, Drums → Tetra and back also completed by their first frames (1,268 ms and 1,058 ms).
 
 `Pull Drum Tree Tests` is saved under Bitwig Projects/2026. Its `Eight parallel` track contains
@@ -89,7 +99,7 @@ seven DryDrum copies and one SpreadDrum under an Instrument Layer, saved disarme
 Temporary arm and structural changes were restored, and the project was closed without saving
 the test mutations. Later host snapshots and transmitted output established:
 
-| Current-build case | Observed result |
+| Installed `082a8064` case | Observed result |
 | --- | --- |
 | Eight parallel machines; select a layer | Eight distinct machines, correct populated-note union, no coverage warning or extra alias. |
 | Remove the first Dry layer, then Undo | Seven surviving identities retain Spread and its notes; Undo restores eight. |

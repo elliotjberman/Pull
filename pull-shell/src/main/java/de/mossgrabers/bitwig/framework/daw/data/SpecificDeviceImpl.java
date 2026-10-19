@@ -46,7 +46,7 @@ public class SpecificDeviceImpl extends DeviceImpl implements ISpecificDevice
      */
     public SpecificDeviceImpl (final IHost host, final IValueChanger valueChanger, final Device device, final ModelSetup modelSetup)
     {
-        this (host, valueChanger, device, modelSetup.getNumSends (), modelSetup.getNumParamPages (), modelSetup.getNumParams (), modelSetup.getNumDevicesInBank (), modelSetup.getNumDeviceLayers (), modelSetup.getNumDrumPadLayers ());
+        this (host, valueChanger, device, modelSetup.getNumSends (), modelSetup.getNumParamPages (), modelSetup.getNumParams (), modelSetup.getNumDeviceLayers (), modelSetup.getNumDrumPadLayers ());
     }
 
 
@@ -59,11 +59,10 @@ public class SpecificDeviceImpl extends DeviceImpl implements ISpecificDevice
      * @param numSends The number of sends
      * @param numParamPages The number of parameter pages
      * @param numParams The number of parameters
-     * @param numDevicesInBank The number of devices
      * @param numDeviceLayers The number of layers
      * @param numDrumPadLayers The number of drum pad layers
      */
-    public SpecificDeviceImpl (final IHost host, final IValueChanger valueChanger, final Device device, final int numSends, final int numParamPages, final int numParams, final int numDevicesInBank, final int numDeviceLayers, final int numDrumPadLayers)
+    public SpecificDeviceImpl (final IHost host, final IValueChanger valueChanger, final Device device, final int numSends, final int numParamPages, final int numParams, final int numDeviceLayers, final int numDrumPadLayers)
     {
         super (device, -1);
 
@@ -78,7 +77,6 @@ public class SpecificDeviceImpl extends DeviceImpl implements ISpecificDevice
         this.device.slotNames ().markInterested ();
         this.device.presetName ().markInterested ();
 
-        final int checkedNumDevices = numDevicesInBank >= 0 ? numDevicesInBank : 8;
         final int checkedNumParamPages = numParamPages >= 0 ? numParamPages : 8;
         final int checkedNumParams = numParams >= 0 ? numParams : 8;
         final int checkedNumDeviceLayers = numDeviceLayers >= 0 ? numDeviceLayers : 8;
@@ -93,10 +91,10 @@ public class SpecificDeviceImpl extends DeviceImpl implements ISpecificDevice
             this.parameterBank = null;
 
         // Monitor the layers of a container device (if any)
-        this.layerBank = new LayerBankImpl (host, valueChanger, checkedNumDeviceLayers > 0 ? this.device.createLayerBank (checkedNumDeviceLayers) : null, this.device.createCursorLayer (), checkedNumDeviceLayers, numSends, checkedNumDevices);
+        this.layerBank = new LayerBankImpl (host, valueChanger, checkedNumDeviceLayers > 0 ? this.device.createLayerBank (checkedNumDeviceLayers) : null, this.device.createCursorLayer (), checkedNumDeviceLayers, numSends);
 
         // Monitor the drum pad layers of a container device (if any)
-        this.drumPadBank = new DrumPadBankImpl (host, valueChanger, checkedNumDrumPadLayers > 0 ? this.device.createDrumPadBank (checkedNumDrumPadLayers) : null, checkedNumDrumPadLayers, numSends, checkedNumDevices);
+        this.drumPadBank = new DrumPadBankImpl (host, valueChanger, checkedNumDrumPadLayers > 0 ? this.device.createDrumPadBank (checkedNumDrumPadLayers) : null, checkedNumDrumPadLayers, numSends);
         this.drumPadBank.setIndication (false);
 
         this.device.hasDrumPads ().addValueObserver (this::callbackHasDrumPads);

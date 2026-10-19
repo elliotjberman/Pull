@@ -158,7 +158,6 @@ public class ModelImpl extends AbstractModel
             this.focusedParameter = new FocusedParameterImpl (this.valueChanger, lcp.parameter ());
         }
 
-        final int numDevicesInBank = this.modelSetup.getNumDevicesInBank ();
         final int numDeviceLayers = this.modelSetup.getNumDeviceLayers ();
         final int numDrumPadLayers = this.modelSetup.getNumDrumPadLayers ();
 
@@ -168,12 +167,12 @@ public class ModelImpl extends AbstractModel
 
         this.drumTree = new DrumDeviceTree (this.bwCursorTrack, DRUM_DEVICE_CURSOR_ID);
         for (final DrumDeviceTree.Slot slot : this.drumTree.slotsForDrums ())
-            this.drumDevices.add (this.treeDrumDevice (slot, numParamPages, numParams, numDevicesInBank, numDeviceLayers, numDrumPadLayers));
+            this.drumDevices.add (this.treeDrumDevice (slot, numParamPages, numParams, numDeviceLayers, numDrumPadLayers));
         this.drumDevice = this.drumDevices.get (0);
 
         for (final int pageSize : modelSetup.wantsAdditionalDrumDevices ())
             this.additionalDrumDevices.put (Integer.valueOf (pageSize), this.drumTree.slotsForDrums ().stream ()
-                .map (slot -> this.treeDrumDevice (slot, 0, 0, 1, 0, pageSize)).toList ());
+                .map (slot -> this.treeDrumDevice (slot, 0, 0, 0, pageSize)).toList ());
 
         final int numResults = this.modelSetup.getNumResults ();
         if (numResults > 0)
@@ -189,10 +188,10 @@ public class ModelImpl extends AbstractModel
     }
 
 
-    private IDrumDevice treeDrumDevice (final DrumDeviceTree.Slot slot, final int pages, final int params, final int devices, final int layers, final int pads)
+    private IDrumDevice treeDrumDevice (final DrumDeviceTree.Slot slot, final int pages, final int params, final int layers, final int pads)
     {
         // Retained child cursors have no send bank; never inherit the track's send capacity.
-        return new DrumDeviceImpl (this.host, this.valueChanger, slot.device (), "tree", 0, pages, params, devices, layers, pads)
+        return new DrumDeviceImpl (this.host, this.valueChanger, slot.device (), "tree", 0, pages, params, layers, pads)
         {
             @Override public boolean doesExist () { return slot.available () && super.doesExist (); }
             @Override public String getID () { return slot.identity (); }

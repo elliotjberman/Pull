@@ -255,6 +255,8 @@ public final class DrumDeviceTree
         private Slot (final CursorTrack track, final String id, final boolean container)
         {
             this.device = track.createCursorDevice (id, id, 0, CursorDeviceFollowMode.FOLLOW_SELECTION);
+            // Idle private cursors must not rebind their child banks on editor selection.
+            this.device.isPinned ().set (true);
             this.chain = this.device.deviceChain ();
             final DeviceBank siblings = this.chain.createDeviceBank (DEVICES_PER_CHAIN);
             for (int i = 0; i < DEVICES_PER_CHAIN; i++)
@@ -355,6 +357,8 @@ public final class DrumDeviceTree
 
         private void release ()
         {
+            // Also park an acquisition cancelled while waiting for unpin acknowledgement.
+            if (!this.device.isPinned ().get ()) this.device.isPinned ().set (true);
             if (this.source != null) DrumDeviceTree.this.dirty = true;
             this.source = null;
             this.ready = false;

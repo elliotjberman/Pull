@@ -24,8 +24,10 @@ sixteen devices in a private, unfiltered bank fixed at the start of its containi
 chain match and local device match together establish native target equality, including selected-slot
 aliases. This uses 1,424 equality values per tree. Keep this resource budget small: Bitwig 6.1.3
 scans all registered equality values on every proxy target change, even on unrelated tracks.
-Topology is created during extension initialization;
-unchanged trees do not traverse again or resubmit cursor selection. Layer UUID changes invalidate
+Topology is created during extension initialization. Idle and cancelled private cursors are
+parked by pinning so editor selection does not rebind their child banks. Layer/pad wrappers
+create a one-device bank for presence and entry; sibling navigation retains its own window.
+Unchanged trees do not traverse again or resubmit cursor selection. Layer UUID changes invalidate
 their child chains even when device type and position stay the same. Surviving retained targets are matched by native equality before reusing a positional slot.
 Structural changes trigger a bounded rescan. Pending acquisitions wait for host read-back.
 Each acquisition attempt has a two-second monotonic deadline. Expiry permits a fresh attempt

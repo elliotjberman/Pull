@@ -31,6 +31,37 @@ class DrumDeviceTreeTest
     }
 
     @Test
+    void idleAndCancelledCursorsDoNotFollowEditorSelection ()
+    {
+        final var host = new DrumTreeHostFake ();
+        final var first = effect ("First");
+        final var second = effect ("Second");
+        host.root.addAll (List.of (first, second));
+        host.cursorSelection = first;
+        final var tree = new DrumDeviceTree (host.track, "test");
+        host.settle (tree);
+        final int idleChanges = host.cursorTargetChanges;
+        host.cursorSelection = second;
+        host.publish ();
+        assertTrue (tree.machines ().isEmpty ());
+        assertEquals (idleChanges, host.cursorTargetChanges, "idle child banks must stay parked");
+
+        host.root.add (drum ("Transient"));
+        host.publish ();
+        assertTrue (tree.machines ().isEmpty (), "acquisition only requests unpinning");
+        host.applyCommands ();
+        host.root.remove (2);
+        host.trackId = "track-b";
+        host.publish ();
+        host.settle (tree);
+        final int cancelledChanges = host.cursorTargetChanges;
+        host.cursorSelection = first;
+        host.publish ();
+        assertTrue (tree.machines ().isEmpty ());
+        assertEquals (cancelledChanges, host.cursorTargetChanges, "cancelled acquisition must park again");
+    }
+
+    @Test
     void waitsForHostAcknowledgementAndRejectsSameNamedReplacement ()
     {
         final var host = new DrumTreeHostFake ();

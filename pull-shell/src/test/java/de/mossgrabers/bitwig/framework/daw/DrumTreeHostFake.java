@@ -30,7 +30,8 @@ public final class DrumTreeHostFake
     public int equalityValues;
     private final List<Runnable> commands = new ArrayList<> ();
     private final Map<boolean [], Object> pinWrites = new IdentityHashMap<> ();
-    private Item cursorSelection;
+    public Item cursorSelection;
+    public int cursorTargetChanges;
     private final Map<List<Item>, String> layerIds = new IdentityHashMap<> ();
     private final List<Runnable> observers = new ArrayList<> ();
     private final Map<ObjectProxy, Supplier<?>> targets = new IdentityHashMap<> ();
@@ -103,6 +104,12 @@ public final class DrumTreeHostFake
         final boolean [] pinned = {this.initiallyPinned};
         final Map<String, Object> properties = new HashMap<> ();
         final Supplier<Item> target = () -> pinned[0] ? selected[0] : this.cursorSelection;
+        final Item [] observed = {target.get ()};
+        this.observers.add (() -> {
+            final Item current = target.get ();
+            if (observed[0] != current) this.cursorTargetChanges++;
+            observed[0] = current;
+        });
         final PinnableCursorDevice cursor = TestProxies.nativeProxy (PinnableCursorDevice.class, (method, args) -> switch (method)
         {
             case "isPinned" -> properties.computeIfAbsent (method, key -> value (SettableBooleanValue.class, () -> pinned[0], value -> {
