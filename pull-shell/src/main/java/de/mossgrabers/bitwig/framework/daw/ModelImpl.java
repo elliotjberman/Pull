@@ -63,9 +63,9 @@ public class ModelImpl extends AbstractModel
 {
     /** The UUID of the Drum Device. */
     public static final UUID               INSTRUMENT_DRUM_MACHINE = UUID.fromString ("8ea97e45-0255-40fd-bc7e-94419741e9d1");
-    private static final String            DRUM_DEVICE_CURSOR_ID   = "DRUM_DEVICE";
 
-    private final DrumDeviceTree drumTree;
+    private final DrumDeviceCache drumCache;
+    private final DrumDeviceCache.View drumTree;
     private final ControllerHost           controllerHost;
     private final CursorTrack              bwCursorTrack;
     private final Track                    rootTrackGroup;
@@ -165,13 +165,14 @@ public class ModelImpl extends AbstractModel
         final PinnableCursorDevice mainCursorDevice = this.bwCursorTrack.createCursorDevice ("CURSOR_DEVICE", "Cursor device", numSends, CursorDeviceFollowMode.FOLLOW_SELECTION);
         this.cursorDevice = new CursorDeviceImpl (this.host, this.valueChanger, mainCursorDevice, modelSetup);
 
-        this.drumTree = new DrumDeviceTree (this.bwCursorTrack, DRUM_DEVICE_CURSOR_ID);
-        for (final DrumDeviceTree.Slot slot : this.drumTree.slotsForDrums ())
+        this.drumCache = ((HostImpl) this.host).getDrumDeviceCache ();
+        this.drumTree = this.drumCache.follow (this.bwCursorTrack);
+        for (final DrumDeviceTree.Slot slot : this.drumCache.slotsForDrums ())
             this.drumDevices.add (this.treeDrumDevice (slot, numParamPages, numParams, numDeviceLayers, numDrumPadLayers));
         this.drumDevice = this.drumDevices.get (0);
 
         for (final int pageSize : modelSetup.wantsAdditionalDrumDevices ())
-            this.additionalDrumDevices.put (Integer.valueOf (pageSize), this.drumTree.slotsForDrums ().stream ()
+            this.additionalDrumDevices.put (Integer.valueOf (pageSize), this.drumCache.slotsForDrums ().stream ()
                 .map (slot -> this.treeDrumDevice (slot, 0, 0, 0, pageSize)).toList ());
 
         final int numResults = this.modelSetup.getNumResults ();
@@ -193,8 +194,8 @@ public class ModelImpl extends AbstractModel
         // Retained child cursors have no send bank; never inherit the track's send capacity.
         return new DrumDeviceImpl (this.host, this.valueChanger, slot.device (), "tree", 0, pages, params, layers, pads)
         {
-            @Override public boolean doesExist () { return slot.available () && super.doesExist (); }
-            @Override public String getID () { return slot.identity (); }
+            @Override public boolean doesExist () { return ModelImpl.this.drumTree.contains (slot) && slot.available () && super.doesExist (); }
+            @Override public String getID () { return ModelImpl.this.drumTree.contains (slot) ? slot.identity () : ""; }
         };
     }
 
@@ -202,7 +203,7 @@ public class ModelImpl extends AbstractModel
     public List<IDrumDevice> getDrumDevices ()
     {
         final List<DrumDeviceTree.Slot> selected = this.drumTree.machines ();
-        final List<DrumDeviceTree.Slot> slots = this.drumTree.slotsForDrums ();
+        final List<DrumDeviceTree.Slot> slots = this.drumCache.slotsForDrums ();
         return selected.stream ().map (slot -> this.drumDevices.get (slots.indexOf (slot))).toList ();
     }
 
@@ -217,7 +218,7 @@ public class ModelImpl extends AbstractModel
     @Override public IDrumDevice getDrumDevice (final int pageSize)
     {
         final List<DrumDeviceTree.Slot> found = this.drumTree.machines ();
-        final int index = found.isEmpty () ? 0 : this.drumTree.slotsForDrums ().indexOf (found.get (0));
+        final int index = found.isEmpty () ? 0 : this.drumCache.slotsForDrums ().indexOf (found.get (0));
         return this.additionalDrumDevices.get (Integer.valueOf (pageSize)).get (index);
     }
 

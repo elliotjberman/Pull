@@ -66,7 +66,20 @@ previous lifecycle and passes with parking enabled. Reference-window regressions
 window and equality observations independently, retain descendant identities through pending
 ancestor validation, and reject stale identity joins after layer reorder.
 
-The stable merge candidate passed `mvn -o -Dmaven.compiler.showDeprecation=true package`:
+The shared four-entry cache additionally tests warm revisits without native track/device
+reassignment, shared consumers, offscreen same-name replacement, new drums on cached empty tracks,
+protected active entries, LRU eviction, repeated UUIDs across project changes and pending-acquisition
+cancellation. Every entry retains the eight-machine capacity. After integrating the stable
+release, the current `mvn -o -Dmaven.compiler.showDeprecation=true package` gate passed
+**1,216 tests**, with zero failures, errors, skips or deprecation warnings.
+
+**Cache live verification is pending.** It has not been installed. Required next checks on an exact matched build: alien2 cold/warm enabled-versus-disabled
+track switching; the silent eight-machine routed-note/octave smoke; offscreen structural edits;
+independent pinned-model selection; eviction/revisit; project-tab changes. The cache's larger fixed
+footprint and remaining selected-FX comparisons need measurement; the prior timings below must not
+be reported as cache results.
+
+The separate stable release (PR #69) passed `mvn -o -Dmaven.compiler.showDeprecation=true package`:
 **1,201 tests**, zero failures, errors, skips or deprecation warnings. It includes current master,
 the unchanged `9179ffe2` discovery implementation, clearer coverage-warning text, and an explicit
 empty-FX-slot capability regression. The cache is excluded. This final integration is validated

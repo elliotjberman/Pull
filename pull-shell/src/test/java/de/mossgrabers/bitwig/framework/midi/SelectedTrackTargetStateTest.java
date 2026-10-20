@@ -89,7 +89,6 @@ class SelectedTrackTargetStateTest
         });
         final SettableRangedValue volumeValue = rangedValue (volume);
         final SettableRangedValue panValue = rangedValue (pan);
-        final var emptyTree = new de.mossgrabers.bitwig.framework.daw.DrumTreeHostFake ();
         final CursorTrack target = proxy (CursorTrack.class, (proxy, method, arguments) -> {
             return switch (method.getName ())
             {
@@ -113,7 +112,6 @@ class SelectedTrackTargetStateTest
                 case "volume" -> parameter (volumeValue);
                 case "pan" -> parameter (panValue);
                 case "playingNotes" -> playingNotes;
-                case "createDeviceBank", "createCursorDevice" -> method.invoke (emptyTree.track, arguments);
                 case "stop" -> {
                     stopCalls.incrementAndGet ();
                     yield null;
@@ -129,7 +127,7 @@ class SelectedTrackTargetStateTest
                 default -> relaxedValue (method.getReturnType ());
             };
         });
-        final ControllerHost host = relaxedProxy (ControllerHost.class);
+        final ControllerHost host = new de.mossgrabers.bitwig.framework.daw.DrumCacheHostFake ().controller;
         final SelectedTrackTargetState state = new SelectedTrackTargetState (new de.mossgrabers.bitwig.framework.daw.HostImpl (host), target, new NoteInputImpl (relaxedProxy (NoteInput.class)));
 
         final SelectedTrackNoteTargetSnapshot snapshot = state.snapshot ();
@@ -202,23 +200,25 @@ class SelectedTrackTargetStateTest
 
 
     @Test
-    void derivesDrumApplicabilityFromThePrivateSelectedTrackTree ()
+    void derivesDrumApplicabilityFromThePrivateSelectionInTheSharedCache ()
     {
-        final var host = new de.mossgrabers.bitwig.framework.daw.DrumTreeHostFake ();
-        host.root.add (de.mossgrabers.bitwig.framework.daw.DrumTreeHostFake.container ("Layer",
+        final var host = new de.mossgrabers.bitwig.framework.daw.DrumCacheHostFake ();
+        host.addTrack ("drums", de.mossgrabers.bitwig.framework.daw.DrumTreeHostFake.container ("Layer",
             de.mossgrabers.bitwig.framework.daw.DrumTreeHostFake.effect ("Empty first branch"),
             de.mossgrabers.bitwig.framework.daw.DrumTreeHostFake.drum ("Second branch")));
+        host.addTrack ("empty");
         final SelectedTrackTargetState state = new SelectedTrackTargetState (
-            new de.mossgrabers.bitwig.framework.daw.HostImpl (relaxedProxy (ControllerHost.class)), host.track,
+            new de.mossgrabers.bitwig.framework.daw.HostImpl (host.controller), host.selected,
             new NoteInputImpl (relaxedProxy (NoteInput.class)));
-        assertFalse (state.hasDrumDevice ());
-        for (int i = 0; i < 30; i++) { host.advance (); state.hasDrumDevice (); }
-        assertTrue (state.hasDrumDevice ());
-        host.trackId = "track-b";
-        host.root.clear ();
+        host.select (host.selected, "drums");
         host.publish ();
         assertFalse (state.hasDrumDevice ());
-        assertEquals (0, host.editorSelections);
+        for (int i = 0; i < 40; i++) { host.advance (); state.hasDrumDevice (); }
+        assertTrue (state.hasDrumDevice ());
+        host.select (host.selected, "empty");
+        host.publish ();
+        assertFalse (state.hasDrumDevice ());
+        assertEquals (0, host.resources.stream ().mapToInt (r -> r.devices.editorSelections).sum ());
     }
 
 

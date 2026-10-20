@@ -21,12 +21,13 @@ import java.util.function.Supplier;
 /** Host updates coalesce pin writes; unpinned cursors share selection. Observer delivery is separate. */
 public final class DrumTreeHostFake
 {
-    public final List<Item> root = new ArrayList<> ();
+    public List<Item> root = new ArrayList<> ();
     public String trackId = "track-a";
     public boolean initiallyPinned;
     public boolean holdEqualityObservations;
     public boolean holdScrollObservations;
     public boolean holdReferenceLayerObservations;
+    public int unpinRequests;
     public int selections;
     public int editorSelections;
     public int equalityValues;
@@ -120,6 +121,7 @@ public final class DrumTreeHostFake
         final PinnableCursorDevice cursor = TestProxies.nativeProxy (PinnableCursorDevice.class, (method, args) -> switch (method)
         {
             case "isPinned" -> properties.computeIfAbsent (method, key -> value (SettableBooleanValue.class, () -> pinned[0], value -> {
+                if (!(Boolean) value) this.unpinRequests++;
                 final Object request = new Object ();
                 this.pinWrites.put (pinned, request);
                 this.commands.add (() -> {

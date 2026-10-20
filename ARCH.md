@@ -6,17 +6,21 @@ remaining shell handlers. The optional Clip piano roll is deferred unchanged.
 
 API 59 adds bounded tree discovery and composite Drum pad observations. Core combines populated
 notes across up to eight machines and aligns their windows before enabling the native note map.
-The current reference-window optimization preserves the same coverage while reducing native
-equality registrations from 2,848 to 608. Bitwig 6.1.4 profiling identified its main-thread global
-equality scan as the dominant remaining track-selection cost. Thin pinned parent references and
-movable one-entry windows replace the handle-by-all-chains comparisons. Shell acquisition owns
-reference acknowledgement and retained descendant identity; core behavior is unchanged.
-The matched `9179ffe2` shell/core passed the eight-machine fixture and `alien2_revival` smoke
-in Bitwig 6.1.4. Paired measurements show reduced main-thread work, with residual overhead
-still measurable and accepted for the initial merge. Cache work and remaining coverage
-diagnostics are tracked [separately](docs/findings/drum-discovery-cost-and-coverage.md). See
+The shared drum cache retains four private track/tree entries; the pinnable model and actual-selection
+cursor share an entry when their project/track identities match. Structural edits dirty the retained
+entry, while unchanged warm selections reuse its native handles. Only entries used by neither
+consumer can be evicted. Layer UUIDs remove the former parent-comparison matrix; each tree now uses
+176 equality registrations. Four entries total 704 versus the previous two trees' 608, with more
+fixed child/pad proxies. This is a retention tradeoff, not a demonstrated lower native footprint.
+The cache is offline-validated and has **not been installed or live-tested**. Core behavior is unchanged.
+
+The preceding `9179ffe2` shell/core passed the eight-machine fixture and `alien2_revival` smoke
+in Bitwig 6.1.4. Its paired measurements showed reduced main-thread work but measurable residual
+overhead, accepted for the initial stable merge in PR #69. Those measurements do not validate
+the cache. Remaining cost and coverage limits are tracked in the
+[active finding](docs/findings/drum-discovery-cost-and-coverage.md). See
 [TESTING](TESTING.md#composite-drum-discovery-api-59) and the
-[tree contract](docs/drum-device-tree.md) for build identities, bounds and coverage limits.
+[tree contract](docs/drum-device-tree.md) for build identities, bounds and pending acceptance.
 
 The shared [retained cursor pool](docs/track-cursor-pool/README.md) supplies named track mix/sends,
 Crossfade, fill scanner/actuators, Device/Chains remotes, layer/drum-pad mix and exact note attributes.
@@ -170,7 +174,7 @@ Shift pages eight. Light refresh is a single end-of-flush pass, so observer burs
 | Retained Device pages | Two pinned child devices, each with a named independent eight-remote page. Opaque child generations, later device equality, unfiltered page/slot addresses and coherent property observations, invalidation revisions; retiring cleanup keeps its own resource. |
 | Retained note editor | One pooled track with a pinned 128-step × 128-key clip window; at most 128 selected cells. Project/clip/grid/selection revisions, independent readback, per-note Snapback values. API 25 has no grid ACK or stable note ID; observed deletion permanently retires the captured generation. |
 | Selected-track clips | Shared pooled scanner and launch resources. Core requests target generation/UUID and absolute scene page; no other-track catalog. Accepted pages accumulate clips in scene order for the current target only; selection/existence and scene-count changes invalidate catalog generation/IDs. Two coherent host samples precede page readiness; held actuators retain exact cleanup independent of scanning. |
-| Drum | Up to eight machines per track, sixteen pads each; eight retained containers, eight layers/container, sixteen devices/chain. Selected FX slots only. Separate model/private-selection trees; legacy Drum64 retains its 64-pad windows. [Contract](docs/drum-device-tree.md). |
+| Drum | Up to eight machines per track, sixteen pads each; eight retained containers, eight layers/container, sixteen devices/chain. Selected FX slots only. Four shared retained track entries, independently selected by the model and private selection cursor; legacy Drum64 retains its 64-pad windows. [Contract](docs/drum-device-tree.md). |
 | Deferred navigation | One pending selection per sibling bank, one parent-track proxy per nonempty bank; project/parent/cursor/count and row-position fences. One group-entry owner per native cursor, one submitted selection and one latest continuation. |
 | Note copying | Four private pinned track/clip windows per editor shape, at most 128 pending cells each. Frozen project/track/scene/grid targets, per-note observed completion, generation-fenced callbacks and a bounded batch deadline. |
 | Native maps | Complete 128-entry key/velocity tables; enabled notes restricted to claimed physical Push pads 36–99. |
