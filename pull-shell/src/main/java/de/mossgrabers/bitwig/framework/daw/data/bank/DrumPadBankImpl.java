@@ -23,8 +23,6 @@ import com.bitwig.extension.controller.api.DrumPadBank;
  */
 public class DrumPadBankImpl extends AbstractChannelBankImpl<DrumPadBank, ILayer> implements IDrumPadBank
 {
-    private int numDevices;
-
 
     /**
      * Constructor.
@@ -34,13 +32,10 @@ public class DrumPadBankImpl extends AbstractChannelBankImpl<DrumPadBank, ILayer
      * @param layerBank The layer bank
      * @param numLayers The number of layers in the page of the bank
      * @param numSends The number of sends
-     * @param numDevices The number of devices
      */
-    public DrumPadBankImpl (final IHost host, final IValueChanger valueChanger, final DrumPadBank layerBank, final int numLayers, final int numSends, final int numDevices)
+    public DrumPadBankImpl (final IHost host, final IValueChanger valueChanger, final DrumPadBank layerBank, final int numLayers, final int numSends)
     {
         super (host, valueChanger, layerBank, numLayers, 0, numSends);
-
-        this.numDevices = numDevices;
 
         if (this.bank.isEmpty ())
             return;
@@ -49,7 +44,7 @@ public class DrumPadBankImpl extends AbstractChannelBankImpl<DrumPadBank, ILayer
         for (int i = 0; i < this.getPageSize (); i++)
         {
             final DrumPad deviceLayer = drumPadBank.getItemAt (i);
-            final DrumPadImpl drumPadImpl = new DrumPadImpl (this, this.host, this.valueChanger, deviceLayer, i, this.numSends, this.numDevices);
+            final DrumPadImpl drumPadImpl = new DrumPadImpl (this, this.host, this.valueChanger, deviceLayer, i, this.numSends);
             this.items.add (drumPadImpl);
 
             final int index = i;

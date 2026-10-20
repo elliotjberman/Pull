@@ -6,7 +6,6 @@ package de.mossgrabers.bitwig.framework.daw.data;
 
 import com.bitwig.extension.controller.api.Channel;
 import com.bitwig.extension.controller.api.Device;
-import com.bitwig.extension.controller.api.DeviceBank;
 
 import de.mossgrabers.bitwig.framework.daw.data.bank.AbstractChannelBankImpl;
 import de.mossgrabers.framework.controller.valuechanger.IValueChanger;
@@ -34,16 +33,14 @@ public class LayerImpl extends ChannelImpl implements ILayer
      * @param layer The layer
      * @param index The index of the channel in the page
      * @param numSends The number of sends of a bank
-     * @param numDevices The number of devices of a bank
      */
-    public LayerImpl (final AbstractChannelBankImpl<?, ?> channelBank, final IHost host, final IValueChanger valueChanger, final Channel layer, final int index, final int numSends, final int numDevices)
+    public LayerImpl (final AbstractChannelBankImpl<?, ?> channelBank, final IHost host, final IValueChanger valueChanger, final Channel layer, final int index, final int numSends)
     {
         super (channelBank, host, valueChanger, layer, index, numSends);
 
         layer.addIsSelectedInEditorObserver (this::setSelected);
 
-        final DeviceBank deviceBank = layer.createDeviceBank (numDevices);
-        this.firstItem = deviceBank.getItemAt (0);
+        this.firstItem = layer.createDeviceBank (1).getItemAt (0);
         this.firstItem.exists ().markInterested ();
     }
 

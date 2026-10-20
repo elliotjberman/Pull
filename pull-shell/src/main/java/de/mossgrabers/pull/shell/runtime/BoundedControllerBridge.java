@@ -49,6 +49,8 @@ import de.mossgrabers.pull.core.api.effect.SetDrumBankPositionEffect;
 import de.mossgrabers.pull.core.api.effect.ShowHostNotificationEffect;
 import de.mossgrabers.pull.core.api.DesiredParameterBanks;
 import de.mossgrabers.pull.core.api.DrumContextSnapshot;
+import de.mossgrabers.pull.core.api.DrumMachineSnapshot;
+import de.mossgrabers.pull.core.api.effect.SetDrumWindowPositionEffect;
 import de.mossgrabers.pull.core.api.DrumPadSnapshot;
 import de.mossgrabers.pull.core.api.GridPressureConfiguration;
 import de.mossgrabers.pull.core.api.MasterSnapshot;
@@ -716,6 +718,15 @@ final class BoundedControllerBridge implements ControllerBridge
             return new PreparedNoteInputMidi (midi.status (), midi.data1 (), midi.data2 ());
         if (effect instanceof final ShowHostNotificationEffect notification)
             return new PreparedHostNotification (notification.text ());
+        if (effect instanceof final SetDrumWindowPositionEffect position)
+        {
+            final DrumContextSnapshot drum = this.snapshot.drum ();
+            if (!drum.available () || !drum.modelAligned () || drum.generation () != position.contextGeneration () || !drum.targetChannelId ().equals (position.targetChannelId ()))
+                throw new IllegalArgumentException ("Drum window targets stale state");
+            final DrumMachineSnapshot machine = drum.machines ().stream ().filter (item -> item.deviceId ().equals (position.deviceId ())).findFirst ()
+                .orElseThrow (() -> new IllegalArgumentException ("Drum device is outside the observed tree"));
+            return new PreparedDrumWindow (position, drum.targetGeneration (), machine.baseMidiNote ());
+        }
         if (effect instanceof final SetDrumBankPositionEffect position)
         {
             final DrumContextSnapshot drum = this.snapshot.drum ();
@@ -869,6 +880,15 @@ final class BoundedControllerBridge implements ControllerBridge
             this.applyDrumValue (value);
         else if (action instanceof final PreparedDrumSelection selection)
             this.applyDrumSelection (selection);
+        else if (action instanceof final PreparedDrumWindow window)
+        {
+            final SetDrumWindowPositionEffect effect = window.effect ();
+            if (!this.selectedTargetIsCurrent (window.targetGeneration (), effect.targetChannelId ()) ||
+                !this.model.getCursorTrack ().doesExist () || !effect.targetChannelId ().equals (this.model.getCursorTrack ().getChannelID ())) return;
+            final IDrumDevice device = this.model.getDrumDevices ().stream ().filter (item -> effect.deviceId ().equals (item.getID ())).findFirst ().orElse (null);
+            if (device != null && device.doesExist () && device.hasDrumPads () && device.getDrumPadBank ().getScrollPosition () == window.previousBase ())
+                device.getDrumPadBank ().scrollTo (effect.baseMidiNote (), false);
+        }
         else if (action instanceof final PreparedDrumBankPosition position)
             this.applyDrumBankPosition (position);
         else if (action instanceof final PreparedHostNotification notification)
@@ -972,7 +992,9 @@ final class BoundedControllerBridge implements ControllerBridge
             return NoteViewSnapshot.empty ();
         final de.mossgrabers.framework.view.Views preferred = this.surface.getViewManager ().getPreferredView (selected.position ());
         final ControllerNoteView preferredView = preferred == null ? ControllerNoteView.NONE : ControllerNoteView.fromStableId (preferred.name ());
-        return new NoteViewSnapshot (selected.generation (), selected.trackID (), selected.position (), preferredView, this.surface.isDrumControllerApplicable ());
+        final boolean aligned = this.model.getCursorTrack ().doesExist () && selected.trackID ().equals (this.model.getCursorTrack ().getChannelID ());
+        return new NoteViewSnapshot (selected.generation (), selected.trackID (), selected.position (), preferredView,
+            this.surface.isDrumControllerApplicable (), aligned && this.model.isDrumDeviceSearchLimited ());
     }
 
 
@@ -1144,10 +1166,11 @@ final class BoundedControllerBridge implements ControllerBridge
         final boolean aligned = selected.exists () && !targetID.isBlank () && this.model.getCursorTrack ().doesExist () && targetID.equals (modelTrackID);
         final IDrumDevice drum = this.model.getDrumDevice ();
         final boolean available = aligned && this.selectedTarget.hasDrumDevice () && drum.doesExist () && drum.hasDrumPads ();
+        final boolean limited = aligned && this.model.isDrumDeviceSearchLimited ();
         if (!available)
         {
             this.updateDrumGeneration (targetID + "|" + selected.generation () + "|" + aligned + "|unavailable");
-            return new DrumContextSnapshot (this.drumGeneration, selected.generation (), targetID, "", false, aligned, 0, List.of ());
+            return new DrumContextSnapshot (this.drumGeneration, selected.generation (), targetID, "", false, aligned, 0, List.of (), List.of (), limited);
         }
 
         final IDrumPadBank bank = drum.getDrumPadBank ();
@@ -1156,35 +1179,37 @@ final class BoundedControllerBridge implements ControllerBridge
         if (drumDeviceID.isBlank ())
         {
             this.updateDrumGeneration (targetID + "|" + selected.generation () + "|unresolved-device");
-            return new DrumContextSnapshot (this.drumGeneration, selected.generation (), targetID, "", false, true, baseNote, List.of ());
+            return new DrumContextSnapshot (this.drumGeneration, selected.generation (), targetID, "", false, true, baseNote, List.of (), List.of (), limited);
         }
-        final List<DrumPadSnapshot> pads = new ArrayList<> (DRUM_PAD_CAPACITY);
-        final StringBuilder identity = new StringBuilder (targetID).append ('|').append (selected.generation ()).append ('|').append (drumDeviceID).append ('|').append (baseNote);
-        final int capacity = Math.min (DRUM_PAD_CAPACITY, bank.getPageSize ());
-        for (int index = 0; index < capacity && baseNote + index <= 127; index++)
+        final List<DrumMachineSnapshot> machines = new ArrayList<> ();
+        final StringBuilder identity = new StringBuilder (targetID).append ('|').append (selected.generation ());
+        for (final IDrumDevice machine : this.model.getDrumDevices ())
         {
-            final int midiNote = baseNote + index;
-            final IDrumPad pad = bank.getItem (index);
-            final String padChannelID = valueOrEmpty (pad.getChannelID ());
-            identity.append ('|').append (padChannelID);
-            pads.add (new DrumPadSnapshot (
-                index,
-                midiNote,
-                padChannelID,
-                pad.doesExist (),
-                pad.getName (),
-                toRgb (pad.getColor ()),
-                pad.isActivated (),
-                pad.hasDevices (),
-                pad.isSelected (),
-                pad.isMute (),
-                pad.isSolo (),
-                this.valueChanger.toNormalizedValue (pad.getVolume ()),
-                this.valueChanger.toNormalizedValue (pad.getPan ()),
-                this.selectedTarget.getPlayingVelocity (midiNote)));
+            if (!machine.doesExist () || !machine.hasDrumPads () || machine.getID ().isBlank ()) continue;
+            final IDrumPadBank machineBank = machine.getDrumPadBank ();
+            final int machineBase = clampMidiNote (machineBank.getScrollPosition ());
+            final List<DrumPadSnapshot> pads = new ArrayList<> ();
+            identity.append ('|').append (machine.getID ()).append ('|').append (machineBase);
+            final int capacity = Math.min (DRUM_PAD_CAPACITY, machineBank.getPageSize ());
+            for (int index = 0; index < capacity && machineBase + index <= 127; index++)
+            {
+                final int midiNote = machineBase + index;
+                final IDrumPad pad = machineBank.getItem (index);
+                final String padChannelID = valueOrEmpty (pad.getChannelID ());
+                identity.append ('|').append (padChannelID);
+                pads.add (new DrumPadSnapshot (index, midiNote, padChannelID, pad.doesExist (), pad.getName (), toRgb (pad.getColor ()),
+                    pad.isActivated (), pad.hasDevices (), pad.isSelected (), pad.isMute (), pad.isSolo (),
+                    this.valueChanger.toNormalizedValue (pad.getVolume ()), this.valueChanger.toNormalizedValue (pad.getPan ()), this.selectedTarget.getPlayingVelocity (midiNote)));
+            }
+            machines.add (new DrumMachineSnapshot (machine.getID (), machineBase, pads));
         }
         this.updateDrumGeneration (identity.toString ());
-        return new DrumContextSnapshot (this.drumGeneration, selected.generation (), targetID, drumDeviceID, true, true, baseNote, pads);
+        // Discovery can revoke/rebind while this sample is assembled. Publish no mixed ownership.
+        if (machines.isEmpty () || !machines.get (0).deviceId ().equals (drumDeviceID))
+            return new DrumContextSnapshot (this.drumGeneration, selected.generation (), targetID, "", false, true, baseNote, List.of (), List.of (), limited);
+        final DrumMachineSnapshot primary = machines.get (0);
+        return new DrumContextSnapshot (this.drumGeneration, selected.generation (), targetID, primary.deviceId (), true, true,
+            primary.baseMidiNote (), primary.pads (), machines, limited);
     }
 
 
@@ -1654,6 +1679,8 @@ final class BoundedControllerBridge implements ControllerBridge
     {
     }
 
+
+    private record PreparedDrumWindow (SetDrumWindowPositionEffect effect, long targetGeneration, int previousBase) implements ControllerBridge.PreparedAction { }
 
     private record PreparedDrumBankPosition (SetDrumBankPositionEffect effect, long targetGeneration, String deviceId, int previousBase) implements ControllerBridge.PreparedAction
     {

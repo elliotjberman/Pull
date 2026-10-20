@@ -3,16 +3,12 @@
 
 package de.mossgrabers.bitwig.framework.midi;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
 import com.bitwig.extension.controller.api.BooleanValue;
-import com.bitwig.extension.controller.api.ControllerHost;
 import com.bitwig.extension.controller.api.CursorTrack;
-import com.bitwig.extension.controller.api.Device;
 import com.bitwig.extension.controller.api.IntegerValue;
 import com.bitwig.extension.controller.api.PlayingNote;
 import com.bitwig.extension.controller.api.PlayingNoteArrayValue;
@@ -23,8 +19,7 @@ import com.bitwig.extension.controller.api.SettableRangedValue;
 import com.bitwig.extension.controller.api.SoloValue;
 import com.bitwig.extension.controller.api.StringValue;
 
-import de.mossgrabers.bitwig.framework.daw.PrimaryDrumDeviceCanopy;
-import de.mossgrabers.bitwig.framework.daw.PrimaryDrumDeviceCanopy.Candidate;
+import de.mossgrabers.bitwig.framework.daw.DrumDeviceTree;
 import de.mossgrabers.framework.daw.midi.ISelectedTrackNoteTarget;
 import de.mossgrabers.framework.daw.midi.SelectedTrackMonitorMode;
 import de.mossgrabers.framework.daw.midi.SelectedTrackNoteTargetSnapshot;
@@ -33,13 +28,12 @@ import de.mossgrabers.framework.daw.midi.SelectedTrackNoteTargetSnapshot;
 /**
  * Authoritative capability state for the privately owned selected-track observer.
  *
- * <p>The private cursor owns a fixed primary-drum proxy canopy and the stable actuator for a direct
+ * <p>The private cursor owns a bounded drum-device tree and the stable actuator for a direct
  * Push Pads note route. Pull never exposes or pins its track or device cursor.</p>
  */
 final class SelectedTrackTargetState implements ISelectedTrackNoteTarget
 {
     static final String DRUM_DEVICE_CURSOR_ID   = "PULL_PADS_DRUM_DEVICE";
-    static final String DRUM_DEVICE_CURSOR_NAME = "Pull Pads Drum Device";
 
     private final de.mossgrabers.bitwig.framework.daw.HostImpl frameworkHost;
     private final CursorTrack target;
@@ -64,7 +58,7 @@ final class SelectedTrackTargetState implements ISelectedTrackNoteTarget
     private final SettableRangedValue targetPan;
     private final PlayingNoteArrayValue targetPlayingNotes;
     private final NoteInputImpl noteInput;
-    private final List<DrumCandidateState> drumMachines = new ArrayList<> (PrimaryDrumDeviceCanopy.NUM_CANDIDATES);
+    private final DrumDeviceTree drumTree;
     private final int [] playingVelocities = new int [128];
 
     private boolean identityInitialized;
@@ -84,7 +78,6 @@ final class SelectedTrackTargetState implements ISelectedTrackNoteTarget
     SelectedTrackTargetState (final de.mossgrabers.bitwig.framework.daw.HostImpl frameworkHost, final CursorTrack target, final NoteInputImpl noteInput)
     {
         this.frameworkHost = Objects.requireNonNull (frameworkHost, "frameworkHost");
-        final ControllerHost host = frameworkHost.getControllerHost ();
         final CursorTrack checkedTarget = Objects.requireNonNull (target, "target");
 
         this.target = checkedTarget;
@@ -110,16 +103,7 @@ final class SelectedTrackTargetState implements ISelectedTrackNoteTarget
         this.targetPan = checkedTarget.pan ().value ();
         this.targetPlayingNotes = checkedTarget.playingNotes ();
 
-        final List<Candidate> drumMachines = PrimaryDrumDeviceCanopy.create (host, checkedTarget, DRUM_DEVICE_CURSOR_ID, DRUM_DEVICE_CURSOR_NAME, 0);
-        for (final Candidate candidate: drumMachines)
-        {
-            final Device drumMachine = candidate.device ();
-            final BooleanValue exists = drumMachine.exists ();
-            final BooleanValue hasPads = drumMachine.hasDrumPads ();
-            exists.markInterested ();
-            hasPads.markInterested ();
-            this.drumMachines.add (new DrumCandidateState (exists, hasPads));
-        }
+        this.drumTree = new DrumDeviceTree (checkedTarget, DRUM_DEVICE_CURSOR_ID);
 
         this.targetID.markInterested ();
         this.targetExists.markInterested ();
@@ -217,12 +201,7 @@ final class SelectedTrackTargetState implements ISelectedTrackNoteTarget
     @Override
     public boolean hasDrumDevice ()
     {
-        for (final DrumCandidateState drumMachine: this.drumMachines)
-        {
-            if (drumMachine.isReady ())
-                return true;
-        }
-        return false;
+        return !this.drumTree.machines ().isEmpty ();
     }
 
 
@@ -407,11 +386,5 @@ final class SelectedTrackTargetState implements ISelectedTrackNoteTarget
     }
 
 
-    private record DrumCandidateState (BooleanValue exists, BooleanValue hasPads)
-    {
-        private boolean isReady ()
-        {
-            return this.exists.get () && this.hasPads.get ();
-        }
-    }
+
 }

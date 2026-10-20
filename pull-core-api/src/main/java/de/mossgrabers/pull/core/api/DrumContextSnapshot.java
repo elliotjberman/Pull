@@ -17,11 +17,23 @@ import java.util.Set;
  * @param deviceId Opaque stable drum-device identity, or empty while unavailable
  * @param available True when a compatible drum target exists
  * @param modelAligned True when the rendering model and private selected target have the same ID
- * @param baseMidiNote First MIDI note in the 64-pad window
- * @param pads Pads in deterministic window order, up to 64
+ * @param baseMidiNote First MIDI note in the primary window
+ * @param pads Primary pads in deterministic window order, up to 64
+ * @param machines Distinct observed machine windows in tree order, up to eight
+ * @param searchLimited Whether a machine or structural search window overflowed
  */
-public record DrumContextSnapshot (long generation, long targetGeneration, String targetChannelId, String deviceId, boolean available, boolean modelAligned, int baseMidiNote, List<DrumPadSnapshot> pads)
+public record DrumContextSnapshot (long generation, long targetGeneration, String targetChannelId, String deviceId, boolean available, boolean modelAligned, int baseMidiNote, List<DrumPadSnapshot> pads, List<DrumMachineSnapshot> machines, boolean searchLimited)
 {
+    /** Maximum distinct machines in the selected track's composite kit. */
+    public static final int MAX_MACHINES = 8;
+
+    /** A single-device context, also used by consumers that do not need tree composition. */
+    public DrumContextSnapshot (final long generation, final long targetGeneration, final String targetChannelId, final String deviceId, final boolean available, final boolean modelAligned, final int baseMidiNote, final List<DrumPadSnapshot> pads)
+    {
+        this (generation, targetGeneration, targetChannelId, deviceId, available, modelAligned, baseMidiNote, pads,
+            available ? List.of (new DrumMachineSnapshot (deviceId, baseMidiNote, pads)) : List.of (), false);
+    }
+
     private static final DrumContextSnapshot EMPTY = new DrumContextSnapshot (0, 0, "", "", false, false, 0, List.of ());
 
 
@@ -45,6 +57,12 @@ public record DrumContextSnapshot (long generation, long targetGeneration, Strin
             throw new IllegalArgumentException ("available drum context must have a target channel ID");
         if (available && deviceId.isBlank ())
             throw new IllegalArgumentException ("available drum context must have a device ID");
+
+        machines = List.copyOf (machines);
+        if (machines.size () > MAX_MACHINES || machines.stream ().map (DrumMachineSnapshot::deviceId).distinct ().count () != machines.size ())
+            throw new IllegalArgumentException ("Drum context requires at most eight distinct machines");
+        if (available && (machines.isEmpty () || !machines.get (0).equals (new DrumMachineSnapshot (deviceId, baseMidiNote, pads))))
+            throw new IllegalArgumentException ("Primary drum window must match the first machine");
 
         final Set<Integer> indices = new HashSet<> ();
         final Set<Integer> notes = new HashSet<> ();

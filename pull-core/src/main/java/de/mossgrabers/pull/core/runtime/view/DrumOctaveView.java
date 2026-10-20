@@ -13,6 +13,7 @@ import de.mossgrabers.pull.core.api.PushControlIds;
 import de.mossgrabers.pull.core.api.SelectedTrackSnapshot;
 import de.mossgrabers.pull.core.api.effect.CoreEffect;
 import de.mossgrabers.pull.core.api.effect.SetDrumBankPositionEffect;
+import de.mossgrabers.pull.core.api.effect.SetDrumWindowPositionEffect;
 import de.mossgrabers.pull.core.api.effect.ShowHostNotificationEffect;
 import de.mossgrabers.pull.core.api.event.ControllerInputEvent;
 import de.mossgrabers.pull.core.api.event.CoreEvent;
@@ -125,7 +126,12 @@ public final class DrumOctaveView implements ControllerView
         }
 
         if (this.pending == null || playPadsHeld (snapshot))
+        {
+            if (playPadsHeld (snapshot)) return List.of ();
+            final List<CoreEffect> alignment = alignWindows (snapshot, snapshot.bridge ().layout ().drumBaseMidiNote ());
+            if (!alignment.isEmpty ()) return alignment;
             return this.acknowledgedNotification (snapshot);
+        }
         final int requested = this.pending.requestedBase ();
         this.pending = null;
         return this.move (snapshot, requested);
@@ -146,7 +152,7 @@ public final class DrumOctaveView implements ControllerView
     /** Complete native mapping contributed by the existing Drum note-lifecycle owner. */
     public static DesiredNoteInputTranslation translation (final ControllerSnapshot snapshot)
     {
-        if (!enabled (snapshot) || !snapshot.bridge ().controllerSettings ().available () || snapshot.bridge ().drum ().baseMidiNote () != snapshot.bridge ().layout ().drumBaseMidiNote ())
+        if (!enabled (snapshot) || !snapshot.bridge ().controllerSettings ().available () || !windowsAligned (snapshot, snapshot.bridge ().layout ().drumBaseMidiNote ()))
             return DesiredNoteInputTranslation.silent ();
 
         final int base = snapshot.bridge ().drum ().baseMidiNote ();
@@ -210,19 +216,36 @@ public final class DrumOctaveView implements ControllerView
             return List.of (rangeNotification (base));
         }
         this.notification = new PendingNotification (drum.targetGeneration (), drum.targetChannelId (), drum.deviceId (), base, snapshot.revision ());
-        return List.of (new SetDrumBankPositionEffect (drum.generation (), drum.targetChannelId (), base, false));
+        final List<CoreEffect> effects = new ArrayList<> ();
+        effects.add (new SetDrumBankPositionEffect (drum.generation (), drum.targetChannelId (), base, false));
+        effects.addAll (alignWindows (snapshot, base));
+        return List.copyOf (effects);
     }
 
 
     private List<CoreEffect> acknowledgedNotification (final ControllerSnapshot snapshot)
     {
-        if (this.notification == null || snapshot.revision () <= this.notification.requestRevision () || snapshot.bridge ().layout ().drumBaseMidiNote () != this.notification.base () || snapshot.bridge ().drum ().baseMidiNote () != this.notification.base ())
+        if (this.notification == null || snapshot.revision () <= this.notification.requestRevision () || snapshot.bridge ().layout ().drumBaseMidiNote () != this.notification.base () || !windowsAligned (snapshot, this.notification.base ()))
             return List.of ();
         final int base = this.notification.base ();
         this.notification = null;
         return List.of (rangeNotification (base));
     }
 
+
+    private static boolean windowsAligned (final ControllerSnapshot snapshot, final int base)
+    {
+        return snapshot.bridge ().drum ().machines ().stream ().allMatch (machine -> machine.baseMidiNote () == base);
+    }
+
+    private static List<CoreEffect> alignWindows (final ControllerSnapshot snapshot, final int base)
+    {
+        final DrumContextSnapshot drum = snapshot.bridge ().drum ();
+        // The primary window's move also owns the requested controller layout. Other windows
+        // receive exact primitive moves, chosen here in core, and must acknowledge independently.
+        return drum.machines ().stream ().filter (machine -> !machine.deviceId ().equals (drum.deviceId ()) && machine.baseMidiNote () != base)
+            .<CoreEffect>map (machine -> new SetDrumWindowPositionEffect (drum.generation (), drum.targetChannelId (), machine.deviceId (), base)).toList ();
+    }
 
     private static ShowHostNotificationEffect rangeNotification (final int base)
     {

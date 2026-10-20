@@ -51,6 +51,122 @@ mvn -o -pl pull-shell -am test
 For changes touching Bitwig API objects, follow `AGENTS.md` and run the complete package build with
 deprecation reporting before the live smoke test.
 
+## Composite Drum discovery (API 59)
+
+Offline regressions separate native cursor requests, applied host state and observer delivery.
+They cover nested/parallel machines, same-name replacement, selection changes, selected-slot
+aliases, layer removal with surviving identities, the eight-machine cap, finite structural
+windows, populated-note union, one pressure stream, and independently acknowledged octave
+windows. Bridge tests reject replaced/removed devices at application and keep submitted scrolls
+separate from later pad-window read-back. Acquisition has a two-second monotonic retry deadline;
+timeout permits retry but never acknowledges identity. A native comparison budget protects the
+host resource cost in the nested/parallel behavior test. Idle and cancelled private cursors
+are also checked against later external editor selections; this regression failed with the
+previous lifecycle and passes with parking enabled. Reference-window regressions delay native
+window and equality observations independently, retain descendant identities through pending
+ancestor validation, and reject stale identity joins after layer reorder.
+
+The stable merge candidate passed `mvn -o -Dmaven.compiler.showDeprecation=true package`:
+**1,201 tests**, zero failures, errors, skips or deprecation warnings. It includes current master,
+the unchanged `9179ffe2` discovery implementation, clearer coverage-warning text, and an explicit
+empty-FX-slot capability regression. The cache is excluded. This final integration is validated
+offline; it was not installed or restarted for the split.
+
+The preceding matched `9179ffe2` build passed 1,200 tests and was installed and verified under
+the shared live lease in Bitwig 6.1.4 / controller API 25 on October 19, 2026:
+
+- Source checkpoint: `9179ffe24e42fa2d3a569ac61123721ee0b3b7c1`.
+- Shell SHA-256: `f3963be2706fb7d8d9293c0a97187bee547baac667fe5caca7567097b38a030b`.
+- API fingerprint: `73fb5f87e9578817828b65922655f22031f561e9`.
+- Active core: `20261019T215239Z-cc2b9441191b8107127baef1660b288a`;
+  SHA-256: `64d8f0c436e2e523a000a17e2adb99c0416a2b845f2031017640d900545facc5`.
+
+`Pull Drum Tree Tests` is saved under Bitwig Projects/2026. Its `Eight parallel` track contains
+seven DryDrum copies and one SpreadDrum under an Instrument Layer, saved disarmed at **−∞ dB**.
+Later native host snapshots and transmitted output established:
+
+| Latest installed build | Observed result |
+| --- | --- |
+| Eight parallel machines | Eight distinct machines, aligned windows and no coverage warning. |
+| Shared note 36 | One routed pad press reaches all seven populated Dry machines at velocity 96; release clears all seven. |
+| Unique note 38 | The populated Spread pad observes velocity 96 and later zero. |
+| Octave up/down | All eight bases move 36 → 52 → 36. |
+| alien2 Drums | Dry notes 36/50; Spread notes 38/39/40/42/44/46/48/49/51. Transmitted lights match the union and leave gaps dark. |
+| alien2 notes and octaves | Populated pads for notes 36/38 observe velocity 96 and later zero; both windows move 36 → 52 → 36. |
+| alien2 track selection | All twelve requested Tetra/Minilogue/Drums selections are visible in each paired timing run. |
+
+All synthetic input was released. The fixture was restored disarmed at −∞ dB and closed;
+alien2 was left on Drums at its original −0.5 dB, monitoring on and disarmed. Existing automatic
+drum roll remains enabled, so held-note traces alternate note-on/off samples. Velocity checks
+must distinguish populated pads from empty pads that also report the incoming note. Instruments
+and audio routing were not edited during this verification. Pull was restored enabled with the
+exact active core above, debug workers retired and framebuffer capture off.
+
+### Track-selection performance
+
+The initial `89bfbde5` shell reproduced multi-second whole-UI stalls. Main-thread stacks caught
+`BitwigStudioHost.targetChanged` scanning the global native equality list during proxy rebinding.
+Containing-chain equality plus local-device equality reduces 37,376 comparisons to 2,848 without
+reducing discovery coverage. The `082a8064` fix removed that reproduced stall: first captured
+selection frames were 783/808 ms, versus 802 ms disabled; the old enabled build still showed the
+previous selection at 2,371 ms. These captures include tool overhead and do not resolve smaller
+latency. The user subsequently reported residual lag.
+
+Idle/cancelled cursors are parked and layer/pad presence banks contain only their consumed entry.
+On Bitwig 6.1.4, profiling the preceding `b00a934d` build attributed 76–78% of extra main-thread
+samples to the global equality scan. The reference-window build `9179ffe2` reduces permanent
+registrations from **2,848 to 608**, without reducing tree coverage. In alien2, each run contained
+three rounds of Drums → Tetra → Minilogue → Tetra → Drums, with diagnostics off:
+
+| Build / paired run | Enabled CPU | Disabled CPU | Difference |
+| --- | ---: | ---: | ---: |
+| Prior `b00a934d`, Bitwig 6.1.4 | 4,082 ms | 2,741 ms | 1,341 ms |
+| Reference windows A, Bitwig 6.1.4 | 3,399 ms | 2,603 ms | 795 ms |
+| Reference windows B, Bitwig 6.1.4 | 3,244 ms | 2,707 ms | 537 ms |
+
+All windows were 30 seconds; every input/observation pair fell inside its recorded window.
+Screenshots verify all twelve selections per run. These are JVM main-thread CPU totals including
+idle work between clicks, **not click-to-paint latency**. Before/after builds use separate JVM
+processes; the new enabled-minus-disabled overhead averages 666 ms versus the prior 1,341 ms,
+but this is not a precise user-visible percentage speedup. Residual selection overhead is accepted
+for the initial merge; further optimization and coverage diagnostics remain
+[separate work](docs/findings/drum-discovery-cost-and-coverage.md).
+
+A new 30-second CPU profile at 1 ms sampling recorded 272 main-thread samples in
+`BitwigStudioHost.targetChanged`, versus 1,411/1,455 in the preceding enabled profiles.
+The enclosing `ControlSurfaceObjectProxy.setTarget` path had 403 samples versus 1,765/1,747.
+Sampling perturbs execution; these counts establish reduced work in the targeted host path,
+not exact unprofiled durations. The new paired profile had 3,411 main samples enabled versus
+2,762 disabled; equality scanning accounts for 272 of the 649 extra samples (42%), with its
+enclosing proxy-rebind path accounting for 403 (62%). The remaining 608 registrations include a matrix of
+possible source parents and selected FX chains; they are not 608 devices found in alien2.
+
+The current run contained no plug-in hang warnings or controller exception loop. It did contain
+isolated slow bridge ticks at activation, plug-in preset/metadata warnings, and EOF exceptions
+while project audio engines were being stopped. The original plug-in hang burst has not been
+causally tied to the comparison matrix.
+
+Latest evidence lives in `target/drum-tree-live/reference-windows-2026-10-19/`: package log,
+`activation.log`, `reference-eight-*.tsv`, `reference-alien2-*.tsv`, paired surface JSON,
+`{enabled,disabled}-{a,b}-{start,end}.txt`, timestamped timing JSON and selection screenshots,
+CPU profiles and the restored-session log. Earlier Bitwig 6.1.4 measurements and profiles remain
+in `target/drum-tree-live/latency-6.1.4-2026-10-19/`; Bitwig 6.1.3 lifecycle measurements remain
+in `target/drum-tree-live/latency-2026-10-19/`. Use complete trace records: full snapshots can
+hit the existing 2 MB trace limit; a truncated final record is not evidence.
+
+Selected-layer aliasing, first-layer removal with surviving identities, and Undo were verified
+on the previous installed checkpoint `082a8064`, with shell SHA-256
+`0a188d99d8babdad310977a5776452f6b648a3fe59cc7a7ce1fc6d0c78d30982` and core
+`20261019T160807Z-220d9de89d3cc4b9891dcb305636ac1f`. Evidence remains in
+`target/drum-tree-live/regression-2026-10-19/`. Ninth-machine overflow, held-pad octave deferral,
+an additional enclosing Instrument Layer and Cut/Paste reordering retain earlier `89bfbde5` live
+coverage and offline regressions; they were not repeated on the latest shell.
+
+These checks establish discovery, routed note read-back and output within the
+[tree contract](docs/drum-device-tree.md), not audio-level summing or performance for every project
+size. Forced observer delays, deeper structural overflow and pressure deduplication remain
+offline coverage. Unselected FX slots are outside API 25's selected-slot window.
+
 ## Retained parameter cutover (API 58)
 
 The old layer providers, NoteParameter/timer and ACTIVE compatibility path are removed. Permanent

@@ -26,7 +26,7 @@ import com.bitwig.extension.controller.api.SceneBank;
 import com.bitwig.extension.controller.api.Track;
 import com.bitwig.extension.controller.api.TrackBank;
 
-import de.mossgrabers.bitwig.framework.daw.PrimaryDrumDeviceCanopy.Candidate;
+
 import de.mossgrabers.bitwig.framework.daw.data.CursorDeviceImpl;
 import de.mossgrabers.bitwig.framework.daw.data.CursorTrackImpl;
 import de.mossgrabers.bitwig.framework.daw.data.DrumDeviceImpl;
@@ -64,8 +64,8 @@ public class ModelImpl extends AbstractModel
     /** The UUID of the Drum Device. */
     public static final UUID               INSTRUMENT_DRUM_MACHINE = UUID.fromString ("8ea97e45-0255-40fd-bc7e-94419741e9d1");
     private static final String            DRUM_DEVICE_CURSOR_ID   = "DRUM_DEVICE";
-    private static final String            DRUM_DEVICE_CURSOR_NAME = "Drum device";
 
+    private final DrumDeviceTree drumTree;
     private final ControllerHost           controllerHost;
     private final CursorTrack              bwCursorTrack;
     private final Track                    rootTrackGroup;
@@ -158,7 +158,6 @@ public class ModelImpl extends AbstractModel
             this.focusedParameter = new FocusedParameterImpl (this.valueChanger, lcp.parameter ());
         }
 
-        final int numDevicesInBank = this.modelSetup.getNumDevicesInBank ();
         final int numDeviceLayers = this.modelSetup.getNumDeviceLayers ();
         final int numDrumPadLayers = this.modelSetup.getNumDrumPadLayers ();
 
@@ -166,22 +165,14 @@ public class ModelImpl extends AbstractModel
         final PinnableCursorDevice mainCursorDevice = this.bwCursorTrack.createCursorDevice ("CURSOR_DEVICE", "Cursor device", numSends, CursorDeviceFollowMode.FOLLOW_SELECTION);
         this.cursorDevice = new CursorDeviceImpl (this.host, this.valueChanger, mainCursorDevice, modelSetup);
 
-        // Compatible drum-device candidates in the track chain and one bounded
-        // primary-instrument container level. See PrimaryDrumDeviceCanopy for the topology limit.
-        final List<Candidate> drumMachineCandidates = PrimaryDrumDeviceCanopy.create (controllerHost, this.bwCursorTrack, DRUM_DEVICE_CURSOR_ID, DRUM_DEVICE_CURSOR_NAME, numSends);
-        for (final Candidate candidate: drumMachineCandidates)
-            this.drumDevices.add (new DrumDeviceImpl (this.host, this.valueChanger, candidate.device (), candidate.path ().name (), candidate.numLayerSends (), numParamPages, numParams, numDevicesInBank, numDeviceLayers, numDrumPadLayers));
+        this.drumTree = new DrumDeviceTree (this.bwCursorTrack, DRUM_DEVICE_CURSOR_ID);
+        for (final DrumDeviceTree.Slot slot : this.drumTree.slotsForDrums ())
+            this.drumDevices.add (this.treeDrumDevice (slot, numParamPages, numParams, numDeviceLayers, numDrumPadLayers));
         this.drumDevice = this.drumDevices.get (0);
 
-        // Additional devices exist only to expose an alternate-sized drum-pad bank.
-        final int [] additionalDrumDevicePageSizes = modelSetup.wantsAdditionalDrumDevices ();
-        for (final int pageSize: additionalDrumDevicePageSizes)
-        {
-            final List<IDrumDevice> candidates = drumMachineCandidates.stream ()
-                .map (candidate -> (IDrumDevice) new DrumDeviceImpl (this.host, this.valueChanger, candidate.device (), candidate.path ().name (), 0, 0, 0, 1, 0, pageSize))
-                .toList ();
-            this.additionalDrumDevices.put (Integer.valueOf (pageSize), candidates);
-        }
+        for (final int pageSize : modelSetup.wantsAdditionalDrumDevices ())
+            this.additionalDrumDevices.put (Integer.valueOf (pageSize), this.drumTree.slotsForDrums ().stream ()
+                .map (slot -> this.treeDrumDevice (slot, 0, 0, 0, pageSize)).toList ());
 
         final int numResults = this.modelSetup.getNumResults ();
         if (numResults > 0)
@@ -194,6 +185,40 @@ public class ModelImpl extends AbstractModel
         this.currentTrackBank = this.currentMainTrackBank;
 
         controllerHost.scheduleTask (this::flushWorkaround, 4000);
+    }
+
+
+    private IDrumDevice treeDrumDevice (final DrumDeviceTree.Slot slot, final int pages, final int params, final int layers, final int pads)
+    {
+        // Retained child cursors have no send bank; never inherit the track's send capacity.
+        return new DrumDeviceImpl (this.host, this.valueChanger, slot.device (), "tree", 0, pages, params, layers, pads)
+        {
+            @Override public boolean doesExist () { return slot.available () && super.doesExist (); }
+            @Override public String getID () { return slot.identity (); }
+        };
+    }
+
+    @Override
+    public List<IDrumDevice> getDrumDevices ()
+    {
+        final List<DrumDeviceTree.Slot> selected = this.drumTree.machines ();
+        final List<DrumDeviceTree.Slot> slots = this.drumTree.slotsForDrums ();
+        return selected.stream ().map (slot -> this.drumDevices.get (slots.indexOf (slot))).toList ();
+    }
+
+    @Override public boolean isDrumDeviceSearchLimited () { return this.drumTree.limited (); }
+
+    @Override public IDrumDevice getDrumDevice ()
+    {
+        final List<IDrumDevice> found = this.getDrumDevices ();
+        return found.isEmpty () ? this.drumDevice : found.get (0);
+    }
+
+    @Override public IDrumDevice getDrumDevice (final int pageSize)
+    {
+        final List<DrumDeviceTree.Slot> found = this.drumTree.machines ();
+        final int index = found.isEmpty () ? 0 : this.drumTree.slotsForDrums ().indexOf (found.get (0));
+        return this.additionalDrumDevices.get (Integer.valueOf (pageSize)).get (index);
     }
 
 

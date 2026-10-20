@@ -46,7 +46,7 @@ physical motion/release cannot act on a replacement target.
 While Note is selected, Pull resolves Drum Controller, the stored melodic layout or Clip Length
 from the selected track's observed capabilities. The private selection-following cursor must agree
 with the display/device cursor; pinning that cursor elsewhere makes affected controls blank/inert.
-Drum detection covers a fixed four-candidate canopy, not arbitrary recursive device nesting.
+Drum detection follows a [bounded device tree](docs/drum-device-tree.md) and combines up to eight machines.
 
 The permanent Pads input is excluded from `All Inputs` and attaches directly to the selected
 note-capable track while its musical view is active. Pull does not change track arm/monitor mode;

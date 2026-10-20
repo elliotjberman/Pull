@@ -158,6 +158,17 @@ public interface IModel
      */
     IDrumDevice getDrumDevice ();
 
+    /** Distinct ready drum devices in bounded tree order. */
+    default java.util.List<IDrumDevice> getDrumDevices ()
+    {
+        final IDrumDevice device = this.getDrumDevice ();
+        return device.doesExist () && device.hasDrumPads () ? java.util.List.of (device) : java.util.List.of ();
+    }
+
+    /** Whether discovery encountered more devices/branches than its installed capacity. */
+    default boolean isDrumDeviceSearchLimited () { return false; }
+
+
 
     /**
      * Get the first drum device of the track which monitors the given number of drum pads.

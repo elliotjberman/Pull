@@ -31,11 +31,10 @@ public class DrumPadImpl extends LayerImpl implements IDrumPad
      * @param drumPad The drum pad
      * @param index The index of the channel in the page
      * @param numSends The number of sends of a bank
-     * @param numDevices The number of devices of a bank
      */
-    public DrumPadImpl (final DrumPadBankImpl drumPadBankImpl, final IHost host, final IValueChanger valueChanger, final DrumPad drumPad, final int index, final int numSends, final int numDevices)
+    public DrumPadImpl (final DrumPadBankImpl drumPadBankImpl, final IHost host, final IValueChanger valueChanger, final DrumPad drumPad, final int index, final int numSends)
     {
-        super (drumPadBankImpl, host, valueChanger, drumPad, index, numSends, numDevices);
+        super (drumPadBankImpl, host, valueChanger, drumPad, index, numSends);
 
         this.drumPad = drumPad;
     }

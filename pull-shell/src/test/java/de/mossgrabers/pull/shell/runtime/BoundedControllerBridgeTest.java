@@ -1110,6 +1110,37 @@ class BoundedControllerBridgeTest
 
 
     @Test
+    void compositeSnapshotAndWindowMovesKeepExactDeviceTargetsAcrossLaterReadback ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        final MutableDrum second = new MutableDrum (fixture.selected);
+        second.deviceID = "device-b";
+        second.padChannelID = "pad-b";
+        second.baseMidiNote = 52;
+        fixture.additionalDrums.add (second.device ());
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.DRUM_PADS), DesiredParameterBanks.empty ());
+        final DrumContextSnapshot drum = fixture.bridge.snapshot ().drum ();
+        assertEquals (List.of ("device-a", "device-b"), drum.machines ().stream ().map (de.mossgrabers.pull.core.api.DrumMachineSnapshot::deviceId).toList ());
+        final var effect = new de.mossgrabers.pull.core.api.effect.SetDrumWindowPositionEffect (drum.generation (), drum.targetChannelId (), "device-b", 36);
+        final var prepared = fixture.bridge.prepare (effect);
+        second.deviceID = "replacement";
+        fixture.bridge.apply (prepared);
+        assertTrue (second.scrollRequests.isEmpty ());
+        second.deviceID = "device-b";
+        fixture.bridge.apply (prepared);
+        assertEquals (List.of (36), second.scrollRequests);
+        assertTrue (fixture.drum.scrollRequests.isEmpty ());
+        fixture.bridge.refresh (100_000_000, subscriptions (BridgeSubscription.DRUM_PADS), DesiredParameterBanks.empty ());
+        assertEquals (52, fixture.bridge.snapshot ().drum ().machines ().get (1).baseMidiNote ());
+        second.baseMidiNote = 36;
+        fixture.bridge.refresh (200_000_000, subscriptions (BridgeSubscription.DRUM_PADS), DesiredParameterBanks.empty ());
+        assertEquals (36, fixture.bridge.snapshot ().drum ().machines ().get (1).baseMidiNote ());
+        fixture.additionalDrums.clear ();
+        fixture.bridge.apply (prepared);
+        assertEquals (1, second.scrollRequests.size ());
+    }
+
+    @Test
     void publishesThePlayableMainDrumWindowInsteadOfTheLegacy64PadWindow ()
     {
         final BridgeFixture fixture = new BridgeFixture ();
@@ -1124,6 +1155,18 @@ class BoundedControllerBridgeTest
         assertEquals (36, drum.baseMidiNote ());
         assertEquals (1, drum.pads ().size ());
         assertEquals (0, fixture.legacyDrum.selectionCount);
+    }
+
+    @Test
+    void reportsDiscoveryExhaustionEvenWhenNoDrumMachineIsAvailable ()
+    {
+        final BridgeFixture fixture = new BridgeFixture ();
+        fixture.drum.exists = false;
+        fixture.drumSearchLimited = true;
+        fixture.bridge.refresh (1, subscriptions (BridgeSubscription.DRUM_PADS, BridgeSubscription.NOTE_VIEW), DesiredParameterBanks.empty ());
+        assertFalse (fixture.bridge.snapshot ().drum ().available ());
+        assertTrue (fixture.bridge.snapshot ().drum ().searchLimited ());
+        assertTrue (fixture.bridge.snapshot ().noteView ().drumSearchLimited ());
     }
 
 
@@ -1456,6 +1499,8 @@ class BoundedControllerBridgeTest
         private final MutableTransport transport = new MutableTransport ();
         private final MutableDrum drum = new MutableDrum (this.selected);
         private final MutableDrum legacyDrum = new MutableDrum (this.selected);
+        private final List<IDrumDevice> additionalDrums = new ArrayList<> ();
+        private boolean drumSearchLimited;
         private final MutableProject project = new MutableProject ();
         private final MutableApplication application = new MutableApplication ();
         private final MutableMappingStorage mappingStorage = new MutableMappingStorage ();
@@ -1528,6 +1573,8 @@ class BoundedControllerBridgeTest
                 case "getHost" -> host;
                 case "getTransport" -> transportProxy;
                 case "getCursorTrack" -> cursorTrack;
+                case "getDrumDevices" -> java.util.stream.Stream.concat (java.util.stream.Stream.of (drumDevice), this.additionalDrums.stream ()).toList ();
+                case "isDrumDeviceSearchLimited" -> this.drumSearchLimited;
                 case "getDrumDevice" -> arguments == null || arguments.length == 0 ? drumDevice : legacyDrumDevice;
                 case "getScales" -> scales;
                 case "getValueChanger" -> this.valueChanger;
@@ -1948,6 +1995,7 @@ class BoundedControllerBridgeTest
         private String deviceID = "device-a";
         private String padChannelID = "pad-a";
         private int baseMidiNote = 36;
+        private boolean exists = true;
         private int selectionCount;
         private final List<Integer> scrollRequests = new ArrayList<> ();
 
@@ -2019,7 +2067,7 @@ class BoundedControllerBridgeTest
             });
             return proxy (IDrumDevice.class, (proxy, method, arguments) -> switch (method.getName ())
             {
-                case "doesExist", "hasDrumPads" -> Boolean.TRUE;
+                case "doesExist", "hasDrumPads" -> this.exists;
                 case "getID" -> this.deviceID;
                 case "getDrumPadBank" -> bank;
                 default -> relaxedValue (method.getReturnType ());
