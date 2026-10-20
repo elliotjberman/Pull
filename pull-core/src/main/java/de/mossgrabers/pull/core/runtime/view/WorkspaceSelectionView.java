@@ -182,7 +182,7 @@ public final class WorkspaceSelectionView implements ControllerView
                 selected.channelId ().equals (note.targetChannelId ()) && !target.equals (this.warnedDrumSearchTarget))
             {
                 this.warnedDrumSearchTarget = target;
-                return List.of (new ShowHostNotificationEffect ("Drum discovery limit reached; some machines may be missing (maximum 8)."));
+                return List.of (new ShowHostNotificationEffect ("Drum discovery coverage limit reached; some machines may be missing."));
             }
             return List.of ();
         }

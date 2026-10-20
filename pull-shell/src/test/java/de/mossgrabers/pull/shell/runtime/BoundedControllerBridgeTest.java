@@ -258,9 +258,10 @@ class BoundedControllerBridgeTest
 
 
     @Test
-    void retainedDevicePageAdmitsOnlyItsInertEncoderFootprint ()
+    void coreAndRetainedPagesAdmitOnlyTheirInstalledInputAndLightFootprints ()
     {
         final BridgeFixture fixture = new BridgeFixture ();
+        final var page = pageState (1, de.mossgrabers.pull.core.api.ControllerPageRef.core ("test-page"), 0);
         final var device = pageState (1, de.mossgrabers.pull.core.api.ControllerPageRef.legacy ("DEVICE_PARAMS"), 0);
         final var chains = pageState (2, de.mossgrabers.pull.core.api.ControllerPageRef.legacy ("DEVICE_CHAINS"), 0);
         for (int index = 1; index <= 8; index++)
@@ -270,12 +271,24 @@ class BoundedControllerBridgeTest
             {
                 assertTrue (fixture.bridge.supportsPageInput (device, knob, kind));
                 assertTrue (fixture.bridge.supportsPageInput (chains, knob, kind));
+                assertTrue (fixture.bridge.supportsPageInput (page, knob, kind));
+            }
+            assertFalse (fixture.bridge.supportsPageInput (page, knob, de.mossgrabers.pull.core.api.event.InputKind.BUTTON));
+            assertFalse (fixture.bridge.supportsPageLight (page, knob));
+            for (final String row: List.of ("ROW1_", "ROW2_"))
+            {
+                final var button = PushControlIds.button (row + index);
+                assertTrue (fixture.bridge.supportsPageInput (page, button, de.mossgrabers.pull.core.api.event.InputKind.BUTTON));
+                assertTrue (fixture.bridge.supportsPageLight (page, button));
+                assertFalse (fixture.bridge.supportsPageInput (page, button, de.mossgrabers.pull.core.api.event.InputKind.TOUCH));
             }
             assertFalse (fixture.bridge.supportsPageInput (device, PushControlIds.button ("ROW1_" + index), de.mossgrabers.pull.core.api.event.InputKind.BUTTON));
             assertFalse (fixture.bridge.supportsPageInput (device, PushControlIds.button ("ROW2_" + index), de.mossgrabers.pull.core.api.event.InputKind.BUTTON));
         }
         assertFalse (fixture.bridge.supportsPageInput (device, PushControlIds.button ("ARROW_RIGHT"), de.mossgrabers.pull.core.api.event.InputKind.BUTTON));
         assertFalse (fixture.bridge.supportsPageLight (device, PushControlIds.button ("ROW1_1")));
+        for (final String arrow: List.of ("ARROW_LEFT", "ARROW_RIGHT", "ARROW_UP", "ARROW_DOWN"))
+            assertTrue (fixture.bridge.supportsPageInput (page, PushControlIds.button (arrow), de.mossgrabers.pull.core.api.event.InputKind.BUTTON));
     }
 
 

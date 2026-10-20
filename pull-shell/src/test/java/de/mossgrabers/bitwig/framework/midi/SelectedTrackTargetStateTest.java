@@ -222,7 +222,6 @@ class SelectedTrackTargetStateTest
     }
 
 
-
     private static StringValue stringValue (final AtomicReference<String> value)
     {
         return proxy (StringValue.class, (proxy, method, arguments) -> {

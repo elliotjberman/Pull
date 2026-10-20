@@ -16,7 +16,9 @@ The cache is offline-validated and has **not been installed or live-tested**. Co
 
 The preceding `9179ffe2` shell/core passed the eight-machine fixture and `alien2_revival` smoke
 in Bitwig 6.1.4. Its paired measurements showed reduced main-thread work but measurable residual
-overhead. Those measurements do not validate the cache. See
+overhead, accepted for the initial stable merge in PR #69. Those measurements do not validate
+the cache. Remaining cost and coverage limits are tracked in the
+[active finding](docs/findings/drum-discovery-cost-and-coverage.md). See
 [TESTING](TESTING.md#composite-drum-discovery-api-59) and the
 [tree contract](docs/drum-device-tree.md) for build identities, bounds and pending acceptance.
 

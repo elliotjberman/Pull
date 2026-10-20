@@ -70,7 +70,10 @@ through the same unpin/read-back/select-and-pin sequence; it never substitutes f
 acceptance. Repeated reads do not advance the deadline or acknowledge an assignment.
 
 The first eight discovered machines contribute. Machine, container, chain or layer overflow
-sets an explicit limited-coverage flag; core displays a notification. Limits do not alter
+sets an explicit limited-coverage flag; core displays a coverage notification. Ordinary effects
+with empty FX slots can consume the container allowance even with fewer than eight machines.
+Resource-specific diagnostics and discovery/cache optimization remain
+[tracked work](findings/drum-discovery-cost-and-coverage.md). Limits do not alter
 Bitwig's native musical routing, so undiscovered machines can still sound. Merely having more
 than one FX slot does not set overflow: selected-slot-only coverage is an API limitation.
 

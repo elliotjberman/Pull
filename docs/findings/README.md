@@ -31,3 +31,4 @@ any document their work resolves.
 - [Custom Musical Surface Geometry Is Not Installed](custom-musical-surface-geometry.md)
 - [Stable Facets Are Not Yet Bidirectionally Coupled To Claims](stable-facet-claim-coupling.md)
 - [Track-Scoped MIDI Learn V1 Lifecycle TODOs](track-scoped-midi-learn-lifecycle.md)
+- [Drum Discovery Cost and Coverage](drum-discovery-cost-and-coverage.md)
