@@ -168,6 +168,11 @@ public interface IModel
     /** Whether discovery encountered more devices/branches than its installed capacity. */
     default boolean isDrumDeviceSearchLimited () { return false; }
 
+    default String getDrumTrackId () { return this.getCursorTrack ().getChannelID (); }
+    default boolean isDrumTrackReady () { return this.getCursorTrack ().doesExist (); }
+    default boolean isDrumSearchSettled () { return true; }
+
+
 
 
     /**

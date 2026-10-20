@@ -92,3 +92,14 @@ The opt-in `tools/push-debug-selection run` trace records bounded `DRUM_TREE` an
 `DRUM_TARGET` observations from existing subscribed values, at most four times per second.
 These include source revisions, native equality, pinning and child counts for acquisition
 diagnosis; the trace has the existing 60-second deadline and bounded output.
+
+## Group target fallback (API 60)
+
+Core chooses the first drum-bearing direct child of a selected group from an eight-track
+window. One additional private track cursor retargets the existing model tree; the child
+window adds eight one-device count observers and no native equality matrix. Actual selection
+and its independent private observer stay on the group. Child UUID, selection generation,
+catalog revision, model/group alignment and later pin/UUID read-back fence the musical owner.
+An outgoing native note route is detached before its cursor can be reassigned. Mixer and
+Session/transport actions retain actual selection; drum-specific behavior uses the child.
+Core API 60 requires a matched shell install/restart. See the [temporary policy and TODO](findings/group-drum-target-selection.md).

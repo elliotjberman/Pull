@@ -32,6 +32,7 @@ final class ControllerStateHost
     private boolean quarantinedUntilInputIdle;
     private boolean replayPending;
     private boolean detaching;
+    private ISelectedTrackNoteTarget routedTarget;
 
 
     ControllerStateHost (final ISelectedTrackNoteTarget selectedTarget, final ControllerWorkspaceHost workspaceHost, final Runnable routeNeutralizer)
@@ -91,6 +92,12 @@ final class ControllerStateHost
     }
 
 
+    void targetChanging ()
+    {
+        this.invalidate ();
+        this.quarantinedUntilInputIdle = !this.inputLifecycleIdle.getAsBoolean ();
+    }
+
     void invalidate ()
     {
         this.desired = DesiredControllerState.empty ();
@@ -137,7 +144,8 @@ final class ControllerStateHost
             final boolean submitting = !requested.equals (this.submittedRoute);
             if (submitting)
             {
-                this.selectedTarget.submitNoteInputRoute (true);
+                this.routedTarget = this.selectedTarget.noteTarget ();
+                this.routedTarget.submitNoteInputRoute (true);
                 this.submittedRoute = requested;
             }
             try
@@ -197,7 +205,8 @@ final class ControllerStateHost
 
     private boolean liveTargetMatches (final DesiredNoteInputRoute route)
     {
-        return route.active () && route.targetGeneration () == this.selectedTarget.getGeneration () && route.targetChannelId ().equals (this.selectedTarget.getChannelID ()) && this.selectedTarget.doesExist () && this.selectedTarget.canHoldNotes ();
+        final var target = this.selectedTarget.noteTarget ();
+        return route.active () && route.targetGeneration () == target.getGeneration () && route.targetChannelId ().equals (target.getChannelID ()) && target.doesExist () && target.canHoldNotes ();
     }
 
 
@@ -269,7 +278,8 @@ final class ControllerStateHost
         {
             try
             {
-                this.selectedTarget.submitNoteInputRoute (false);
+                this.routedTarget.submitNoteInputRoute (false);
+                this.routedTarget = null;
             }
             finally
             {

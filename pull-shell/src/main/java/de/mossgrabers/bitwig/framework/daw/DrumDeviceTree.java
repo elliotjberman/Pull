@@ -101,6 +101,9 @@ public final class DrumDeviceTree
     /** A structural window or the eight-machine capacity was exceeded. */
     public boolean limited () { this.refresh (); return this.limited; }
 
+    /** No native acquisition or source revision remains pending in the current bounded search. */
+    public boolean settled () { this.refresh (); return !this.dirty; }
+
     private List<Slot> slots ()
     {
         final List<Slot> slots = new ArrayList<> (this.containers);

@@ -51,6 +51,26 @@ mvn -o -pl pull-shell -am test
 For changes touching Bitwig API objects, follow `AGENTS.md` and run the complete package build with
 deprecation reporting before the live smoke test.
 
+## Group drum target fallback (API 60)
+
+Capability audit: **B — bounded shell/API expansion**. No new physical input or output claim.
+The existing Drum Pad/VS action and feedback slice follows one core-chosen child: playable
+pads/pressure, octave, automatic roll, learned control mappings and fill clips. Mixer, Session
+and transport keep actual group selection. The shell exposes eight direct child identities,
+executes a target-fenced root assignment and preserves exact outgoing route cleanup. Core owns
+candidate order and the fallback decision. Alternate legacy layouts and nested groups are out
+of scope. One shared root adds no native equality registrations; source/API changes require
+shell installation and restart.
+
+Offline coverage separates requests from native pin/track read-back, rejects replaced/removed
+children and changed group selection, and checks that pending discovery cannot skip a child.
+The musical owner differs from the selected mixer owner only after authoritative child state.
+
+Live acceptance is pending. Under the live lease, verify College Town AllDrum → Drums while
+Samples stays separate, actual note-on/off and union pad lights, octave and fill routing,
+ordinary alien2 Drums, and selection away while holding a pad. Do not claim gig readiness from
+an offline build. Keep the working controller installed while another agent uses Bitwig.
+
 ## Composite Drum discovery (API 59)
 
 Offline regressions separate native cursor requests, applied host state and observer delivery.

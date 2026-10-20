@@ -1,8 +1,14 @@
 # Pull architecture
 
-Working source: Core API 59, checkpoint schema 6, Bitwig API 25. Migration is incomplete:
+Working source: Core API 60, checkpoint schema 6, Bitwig API 25. Migration is incomplete:
 core owns ordinary Push display pages and migrated controls; the inventory below names the
 remaining shell handlers. The optional Clip piano roll is deferred unchanged.
+
+API 60 adds a bounded group-child track window and an explicitly requested musical target.
+Core chooses the first drum-bearing child while actual selection continues to own mixer and
+transport actions. The existing model tree is reused; no per-child drum tree or equality matrix
+is added. A matched shell install/restart and native smoke are still required. The temporary
+policy and its limits are [tracked](docs/findings/group-drum-target-selection.md).
 
 API 59 adds bounded tree discovery and composite Drum pad observations. Core combines populated
 notes across up to eight machines and aligns their windows before enabling the native note map.
