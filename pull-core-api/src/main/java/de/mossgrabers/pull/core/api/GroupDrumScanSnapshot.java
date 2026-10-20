@@ -6,10 +6,10 @@ import java.util.List;
 
 /** Bounded child-track observations and the current shared scanner's acknowledged result. */
 public record GroupDrumScanSnapshot (long selectionGeneration, String selectionId, long revision,
-    List<Child> children, boolean limited, String scannedTrackId, boolean complete, boolean hasDrums)
+    List<Child> children, boolean limited, String scannedTrackId, boolean hasDrums)
 {
     public static final int CAPACITY = 8;
-    public record Child (String channelId, String name, boolean canHoldNotes) { }
+    public record Child (String channelId, boolean canHoldNotes) { }
     public GroupDrumScanSnapshot
     {
         java.util.Objects.requireNonNull (selectionId);
@@ -17,5 +17,5 @@ public record GroupDrumScanSnapshot (long selectionGeneration, String selectionI
         children = List.copyOf (children);
         if (children.size () > CAPACITY) throw new IllegalArgumentException ("Child window exceeds capacity");
     }
-    public static GroupDrumScanSnapshot empty () { return new GroupDrumScanSnapshot (0, "", 0, List.of (), false, "", false, false); }
+    public static GroupDrumScanSnapshot empty () { return new GroupDrumScanSnapshot (0, "", 0, List.of (), false, "", false); }
 }

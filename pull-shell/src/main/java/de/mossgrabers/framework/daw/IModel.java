@@ -170,7 +170,6 @@ public interface IModel
 
     default String getDrumTrackId () { return this.getCursorTrack ().getChannelID (); }
     default boolean isDrumTrackReady () { return this.getCursorTrack ().doesExist (); }
-    default boolean isDrumSearchSettled () { return true; }
 
 
 

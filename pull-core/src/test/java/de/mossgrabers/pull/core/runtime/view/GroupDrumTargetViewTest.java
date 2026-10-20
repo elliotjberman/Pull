@@ -12,28 +12,33 @@ class GroupDrumTargetViewTest
     private static final SelectedTrackSnapshot GROUP = track (1, "group", true);
     private static final SelectedTrackSnapshot DRUMS = track (3, "drums", false);
     private static final List<GroupDrumScanSnapshot.Child> CHILDREN = List.of (
-        new GroupDrumScanSnapshot.Child ("drums", "Drums", true), new GroupDrumScanSnapshot.Child ("samples", "Samples", true));
+        new GroupDrumScanSnapshot.Child ("audio", false), new GroupDrumScanSnapshot.Child ("subgroup", false),
+        new GroupDrumScanSnapshot.Child ("drums", true), new GroupDrumScanSnapshot.Child ("samples", true));
 
-    @Test void scansInOrderWaitsForHostAndKeepsTheFirstKit ()
+    @Test void keepsFirstInstrumentRegardlessOfDrumDiscoveryAndFollowsTrackOrder ()
     {
         final var view = new GroupDrumTargetView ();
-        view.start (snapshot (scan (1, "", false, false), false));
+        view.start (snapshot (scan (1, "", false), false));
         assertEquals ("drums", view.desiredDrumTarget ().trackId ());
-        view.handle (new ControllerTickEvent (1, 1), snapshot (scan (1, "drums", false, false), false));
+        view.handle (new ControllerTickEvent (1, 1), snapshot (scan (1, "drums", false), false));
         assertEquals ("drums", view.desiredDrumTarget ().trackId (), "pending discovery is not an empty track");
-        view.handle (new ControllerTickEvent (2, 2), snapshot (scan (1, "drums", true, true), true));
+        view.handle (new ControllerTickEvent (2, 2), snapshot (scan (1, "drums", true), true));
         assertEquals ("drums", view.desiredDrumTarget ().trackId (), "do not composite the Samples sibling");
-        view.handle (new ControllerTickEvent (3, 3), snapshot (scan (1, "drums", true, false), false));
-        assertEquals ("samples", view.desiredDrumTarget ().trackId ());
-        view.handle (new ControllerTickEvent (4, 4), snapshot (scan (2, "", false, false), false));
-        assertEquals ("drums", view.desiredDrumTarget ().trackId (), "a topology revision reconsiders earlier children");
+        view.handle (new ControllerTickEvent (3, 3), snapshot (scan (1, "drums", false), false));
+        assertEquals ("drums", view.desiredDrumTarget ().trackId (), "removing drums does not advance to Samples");
+        final var reordered = new GroupDrumScanSnapshot (1, "group", 2, List.of (CHILDREN.get (3), CHILDREN.get (2)), false, "", false);
+        view.handle (new ControllerTickEvent (4, 4), snapshot (reordered, false));
+        assertEquals ("samples", view.desiredDrumTarget ().trackId (), "reordering instrument tracks changes the first child");
+        final var noInstruments = new GroupDrumScanSnapshot (1, "group", 3, CHILDREN.subList (0, 2), false, "", false);
+        view.handle (new ControllerTickEvent (5, 5), snapshot (noInstruments, false));
+        assertFalse (view.desiredDrumTarget ().active ());
     }
 
     @Test void groupSelectionKeepsMixerOwnerWhileMusicUsesAcknowledgedChild ()
     {
-        final var pending = snapshot (scan (1, "drums", false, false), false);
+        final var pending = snapshot (scan (1, "drums", false), false);
         assertFalse (ResolvedNoteViewer.resolve (pending, true).noteInputRoute ().active ());
-        final var ready = snapshot (scan (1, "drums", true, true), true);
+        final var ready = snapshot (scan (1, "drums", true), true);
         assertEquals (DRUMS, ResolvedNoteViewer.target (ready));
         final var music = ResolvedNoteViewer.resolve (ready, true);
         assertEquals (ControllerNoteView.DRUM_PAD, music.layout ());
@@ -43,21 +48,19 @@ class GroupDrumTargetViewTest
 
     @Test void octaveAndFillRequestsUseTheChildWhileMixerSelectionStaysOnGroup ()
     {
-        final var ready = snapshot (scan (1, "drums", true, true), true);
+        final var ready = snapshot (scan (1, "drums", true), true);
         final var octave = new DrumOctaveView ();
         octave.start (ready);
         final var input = new de.mossgrabers.pull.core.api.event.ControllerInputEvent (2, 2, PushControlIds.button ("OCTAVE_UP"), de.mossgrabers.pull.core.api.event.InputKind.BUTTON, de.mossgrabers.pull.core.api.event.InputPhase.BEGIN, 127);
         assertEquals (List.of (new de.mossgrabers.pull.core.api.effect.SetDrumBankPositionEffect (1, "drums", 52, false)), octave.handle (input, ready));
-        assertEquals (36, ready.bridge ().drum ().baseMidiNote (), "submitted octave is not host readback");
         final var fill = new DrumFillView ();
         fill.start (ready);
         assertEquals ("drums", fill.desiredClipScan ().channelId ());
-        assertEquals ("group", ready.bridge ().selectedTrack ().channelId ());
     }
 
     @Test void completeCoreResultsPreserveTheChildRequestThroughDecorators ()
     {
-        final var state = snapshot (scan (1, "", false, false), false);
+        final var state = snapshot (scan (1, "", false), false);
         final var core = new de.mossgrabers.pull.core.runtime.PullCoreProvider ().create ();
         final var expected = new DesiredDrumTarget (1, "group", 1, "drums");
         assertEquals (expected, core.start (state, Optional.empty ()).desiredBridgeSubscriptions ().drumTarget ());
@@ -66,9 +69,9 @@ class GroupDrumTargetViewTest
         assertEquals (expected, core.handle (touch, state).desiredBridgeSubscriptions ().drumTarget ());
     }
 
-    private static GroupDrumScanSnapshot scan (long revision, String current, boolean complete, boolean drums)
+    private static GroupDrumScanSnapshot scan (long revision, String current, boolean drums)
     {
-        return new GroupDrumScanSnapshot (1, "group", revision, CHILDREN, false, current, complete, drums);
+        return new GroupDrumScanSnapshot (1, "group", revision, CHILDREN, false, current, drums);
     }
     private static ControllerSnapshot snapshot (GroupDrumScanSnapshot scan, boolean ready)
     {

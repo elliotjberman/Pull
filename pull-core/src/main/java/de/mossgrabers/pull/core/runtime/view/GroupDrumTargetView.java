@@ -8,13 +8,9 @@ import de.mossgrabers.pull.core.api.event.CoreEvent;
 import de.mossgrabers.pull.core.view.*;
 import java.util.*;
 
-/** First drum-bearing direct child, using one shared scanner in track order. */
+/** First direct instrument child; drum discovery never advances to a sibling. */
 public final class GroupDrumTargetView implements ControllerView
 {
-    private long generation;
-    private long revision;
-    private String group = "";
-    private final Set<String> emptyTracks = new HashSet<> ();
     private DesiredDrumTarget desired = DesiredDrumTarget.inactive ();
 
     @Override public String id () { return "group-drum-target"; }
@@ -31,21 +27,11 @@ public final class GroupDrumTargetView implements ControllerView
         if (!selected.exists () || !selected.group () || selected.generation () != scan.selectionGeneration () || !selected.channelId ().equals (scan.selectionId ()))
         {
             this.desired = DesiredDrumTarget.inactive ();
-            this.group = "";
-            this.emptyTracks.clear ();
             return;
         }
-        if (!this.group.equals (scan.selectionId ()) || this.generation != scan.selectionGeneration () || this.revision != scan.revision ())
-        {
-            this.emptyTracks.clear ();
-            this.group = scan.selectionId ();
-            this.generation = scan.selectionGeneration ();
-            this.revision = scan.revision ();
-        }
-        if (scan.complete () && !scan.hasDrums ()) this.emptyTracks.add (scan.scannedTrackId ());
-        // TODO(group-drum-target): replace positional preference with explicit/routing-aware ownership.
-        this.desired = scan.children ().stream ().filter (child -> child.canHoldNotes () && !this.emptyTracks.contains (child.channelId ()))
-            .findFirst ().map (child -> new DesiredDrumTarget (this.generation, this.group, this.revision, child.channelId ()))
+        // TODO(group-drum-target): revisit positional preference with explicit/routing-aware ownership.
+        this.desired = scan.children ().stream ().filter (GroupDrumScanSnapshot.Child::canHoldNotes)
+            .findFirst ().map (child -> new DesiredDrumTarget (scan.selectionGeneration (), scan.selectionId (), scan.revision (), child.channelId ()))
             .orElse (DesiredDrumTarget.inactive ());
     }
 }

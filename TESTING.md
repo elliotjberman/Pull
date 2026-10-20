@@ -58,13 +58,21 @@ The existing Drum Pad/VS action and feedback slice follows one core-chosen child
 pads/pressure, octave, automatic roll, learned control mappings and fill clips. Mixer, Session
 and transport keep actual group selection. The shell exposes eight direct child identities,
 executes a target-fenced root assignment and preserves exact outgoing route cleanup. Core owns
-candidate order and the fallback decision. Alternate legacy layouts and nested groups are out
-of scope. One shared root adds no native equality registrations; source/API changes require
-shell installation and restart.
+the first-instrument fallback, without skipping to another sibling based on drum discovery.
+Alternate legacy layouts and nested groups are out of scope. One shared root adds no native
+equality registrations; source/API changes require shell installation and restart.
 
 Offline coverage separates requests from native pin/track read-back, rejects replaced/removed
-children and changed group selection, and checks that pending discovery cannot skip a child.
-The musical owner differs from the selected mixer owner only after authoritative child state.
+children and changed group selection, and checks that pending, absent or removed drums never
+skip the first instrument child. Reordering children updates the target. Full core results retain
+the child request through subscription decorators; child acquisition neutralizes MIDI without
+interrupting a held group-volume touch. The musical owner differs from the selected mixer owner
+only after authoritative child state. An idle root releases a restored pin through later host
+read-back and resumes selection following without repeated pin writes.
+
+The approved first-instrument implementation passed `mvn -o -Dmaven.compiler.showDeprecation=true
+package` on October 20, 2026: **1,210 tests**, zero failures, errors, skips or deprecation
+warnings. Architecture and code-size review found no remaining blockers in the offline change.
 
 Live acceptance is pending. Under the live lease, verify College Town AllDrum → Drums while
 Samples stays separate, actual note-on/off and union pad lights, octave and fill routing,

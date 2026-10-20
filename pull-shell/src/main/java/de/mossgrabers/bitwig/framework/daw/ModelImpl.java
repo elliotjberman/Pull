@@ -212,7 +212,6 @@ public class ModelImpl extends AbstractModel
     public CursorTrack getDrumRoot () { return this.drumRoot; }
     @Override public String getDrumTrackId () { return this.drumRoot.channelId ().get (); }
     @Override public boolean isDrumTrackReady () { return this.drumRoot.exists ().get (); }
-    @Override public boolean isDrumSearchSettled () { return this.drumTree.settled (); }
 
     @Override public boolean isDrumDeviceSearchLimited () { return this.drumTree.limited (); }
 

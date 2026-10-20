@@ -2,40 +2,31 @@
 status: active
 created: 2026-10-20
 scope: group-drum-target
-remove_when: explicit or routing-aware target selection and descendant invalidation replace the gig fallback
+remove_when: explicit or routing-aware ownership replaces the positional gig fallback
 ---
 
 # Group drum target selection
 
-Implementation is not ready for activation. Review found that root identity/pin read-back
-and an idle discovery pass do not prove that every descendant window has arrived. Caching
-that apparent absence can skip the first drum child permanently. The user decision is pending:
-use the first direct instrument track for the gig, or retain the broader first-drum-bearing
-search and design a reliable discovery policy. Do not merge the negative-cache implementation.
-The unrelated request-propagation and mixer-touch cleanup review findings are fixed; focused
-production-core/bridge/lifecycle tests pass. The full offline package passed on 2026-10-20
-(1,209 tests; zero failures/errors/skips; no deprecation warnings). No live installation or
-DAW edits were made.
+For the gig, selecting a group targets its first direct instrument track within the first
+eight children. An instrument candidate is a non-group track that can hold notes. Core keeps
+that track even when drum discovery is pending or no Drum Machine exists. It does not scan
+later siblings for drums or combine sibling tracks. In College Town, AllDrum targets Drums;
+Samples remains separate. Actual selection stays on AllDrum for mixer, Session and transport.
 
-For the gig, selecting a group resolves its first direct note-capable child containing
-Drum Machines, within eight child tracks. Core requests one child at a time through the
-existing bounded drum scanner. The selected group remains the mixer/transport owner.
-Drum pads, pressure, octave, roll, learned drum controls and fill scanning use the child.
-The group fallback supports the core Drum Pad/VS controller; alternate legacy note layouts
-remain unavailable on groups.
+The existing bounded device scanner discovers up to eight Drum Machines on that child.
+Drum pads, pressure, octave, roll, learned drum controls and fill scanning use the child only
+after authoritative drum read-back. Without drums, group drum controls remain unavailable.
+The fallback supports the core Drum Pad/VS controller; alternate legacy note layouts and
+nested group traversal remain outside this version. Child identity/order and note capability
+changes update the target; device publication never causes a move to a sibling.
 
-TODO: revisit this positional policy with Elliot after the gig. Prefer an explicit target
-or actual routing when the host exposes it. API 25's SourceSelector reports audio/note
-selection but not which port, so it cannot distinguish Pull - Pads from All Inputs.
-Do not infer that distinction from names or monitoring/record-arm state.
+TODO: rethink this positional policy with Elliot after the gig, alongside the separate cache
+work. Prefer an explicit target or actual routing when the host exposes it. API 25's
+SourceSelector reports audio/note selection but not which port, so it cannot distinguish
+Pull - Pads from All Inputs. Do not infer that distinction from names, monitoring or record arm.
+Any future search that skips non-drum children needs a reliable absence policy: root identity
+and pin read-back, scanner idleness or elapsed time do not acknowledge every descendant window.
 
-This first version searches direct children only. It does not composite sibling drum tracks.
-A selected child keeps the existing eight-machine/structural bounds. Pending or limited
-searches are not proof that an earlier child is empty. Child identity/order, selection and
-top-level device-count changes restart the search. A nested edit inside a previously rejected
-child may require leaving and reselecting the group; full invalidation would need additional
-observations or a different discovery architecture. Revisit this with the separate cache work.
-
-Remove this finding when the target policy, nested-group coverage and invalidation rules have
-been agreed and implemented, with matched native routing/feedback and cost measurements.
-Live verification of this initial fallback is pending; another agent owns the current DAW work.
+Remove this finding when target selection and nested-group coverage are agreed and implemented,
+with matched native routing/feedback and cost measurements. This fallback still needs an exact
+shell/core installation and live smoke test; another agent is using Bitwig, so this work is offline.

@@ -28,8 +28,9 @@ import de.mossgrabers.framework.daw.midi.SelectedTrackNoteTargetSnapshot;
 /**
  * Authoritative capability state for the privately owned selected-track observer.
  *
- * <p>The private cursor owns a bounded drum-device tree and the stable actuator for a direct
- * Push Pads note route. Pull never exposes or pins its track or device cursor.</p>
+ * <p>The primary cursor follows selection and owns a bounded drum-device tree. A group resolver
+ * can supply a separate pinned child target backed by the existing model tree. Each target owns
+ * its native Push Pads note-route actuator; neither track cursor is exposed to the user.</p>
  */
 final class SelectedTrackTargetState implements ISelectedTrackNoteTarget
 {

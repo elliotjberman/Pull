@@ -38,12 +38,8 @@ final class GroupDrumTarget
             final Track child = this.children.getItemAt (i);
             child.exists ().markInterested ();
             child.channelId ().markInterested ();
-            child.name ().markInterested ();
             child.canHoldNoteData ().markInterested ();
             child.isGroup ().markInterested ();
-            final DeviceBank devices = child.createDeviceBank (1);
-            devices.itemCount ().markInterested ();
-            devices.itemCount ().addValueObserver (ignored -> this.revision++);
         }
         this.childTarget = new SelectedTrackTargetState (host, this.root, input, false);
         this.childTarget.fence (this::valid, () -> this.selection.getGeneration () + this.revision,
@@ -63,7 +59,7 @@ final class GroupDrumTarget
                 final Track child = this.children.getItemAt (i);
                 final String id = child.channelId ().get ();
                 if (child.exists ().get () && id != null && !id.isBlank ())
-                    observed.add (new GroupDrumScanSnapshot.Child (id, Objects.requireNonNullElse (child.name ().get (), ""), child.canHoldNoteData ().get () && !child.isGroup ().get ()));
+                    observed.add (new GroupDrumScanSnapshot.Child (id, child.canHoldNoteData ().get () && !child.isGroup ().get ()));
             }
         if (!this.scope.equals (currentScope) || !this.catalog.equals (observed))
         {
@@ -110,7 +106,12 @@ final class GroupDrumTarget
             this.root.isPinned ().set (false);
             return;
         }
-        if (!checked.active ()) return;
+        if (!checked.active ())
+        {
+            // A named cursor can arrive pinned from host state; idle means follow selection.
+            if (this.root.isPinned ().get ()) this.root.isPinned ().set (false);
+            return;
+        }
         if (this.phase == 0 && !this.root.isPinned ().get ())
         {
             this.root.selectChannel (source);
@@ -134,7 +135,6 @@ final class GroupDrumTarget
         final boolean ready = this.valid ();
         final boolean found = ready && this.childTarget.hasDrumDevice ();
         return new GroupDrumScanSnapshot (this.selection.getGeneration (), this.selection.getChannelID (), this.revision, this.catalog,
-            this.children.itemCount ().get () > GroupDrumScanSnapshot.CAPACITY, ready ? this.request.trackId () : "",
-            ready && this.model.isDrumSearchSettled () && !this.model.isDrumDeviceSearchLimited (), found);
+            this.children.itemCount ().get () > GroupDrumScanSnapshot.CAPACITY, ready ? this.request.trackId () : "", found);
     }
 }

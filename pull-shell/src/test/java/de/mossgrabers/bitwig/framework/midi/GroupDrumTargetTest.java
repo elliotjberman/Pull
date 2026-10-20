@@ -29,6 +29,10 @@ class GroupDrumTargetTest
         assertTrue (f.target.valid ());
         assertEquals ("group", f.selectedId);
         assertEquals ("drums", f.target.target ().snapshot ().trackID ());
+        assertFalse (f.target.snapshot ().hasDrums (), "root assignment does not acknowledge descendant delivery");
+        f.hasDrums = true; // Later device read-back arrives without a track/catalog change.
+        f.target.refresh (request);
+        assertTrue (f.target.valid ());
         f.target.target ().submitNoteInputRoute (true);
         assertEquals (List.of ("drums:on"), f.routes);
         assertTrue (f.target.snapshot ().hasDrums ());
@@ -42,6 +46,21 @@ class GroupDrumTargetTest
         assertFalse (f.target.active (), "a stale catalog request cannot retarget the replacement");
     }
 
+    @Test void inactiveTargetReleasesRestoredPinAndResumesSelectionFollowing ()
+    {
+        final Fixture f = new Fixture ();
+        f.pinned = true;
+        f.rootId = "old-child";
+        f.target.refresh (DesiredDrumTarget.inactive ());
+        assertTrue (f.pinned, "unpin is only a submission until host advancement");
+        assertEquals ("old-child", f.rootId);
+        f.advance ();
+        assertFalse (f.pinned);
+        assertEquals ("group", f.rootId);
+        f.target.refresh (DesiredDrumTarget.inactive ());
+        assertTrue (f.submitted.isEmpty (), "an acknowledged idle cursor does not churn pin writes");
+    }
+
     @Test void leavingGroupRevokesChildEvenBeforeTheNextRefresh ()
     {
         final Fixture f = new Fixture ();
@@ -51,13 +70,13 @@ class GroupDrumTargetTest
         assertTrue (f.target.target ().doesExist ());
         f.selectedId = "other";
         assertFalse (f.target.target ().doesExist ());
-        assertFalse (f.target.snapshot ().complete ());
+        assertEquals ("", f.target.snapshot ().scannedTrackId ());
     }
 
     private static final class Fixture
     {
         String selectedId = "group", rootId = "group", childId = "drums";
-        boolean pinned;
+        boolean pinned, hasDrums;
         final List<Runnable> submitted = new ArrayList<> ();
         final List<String> routes = new ArrayList<> ();
         final GroupDrumTarget target;
@@ -82,13 +101,12 @@ class GroupDrumTargetTest
                 default -> relaxedValue (m.getReturnType ());
             });
             final IDrumDevice drum = proxy (IDrumDevice.class, (p, m, a) -> switch (m.getName ()) {
-                case "doesExist", "hasDrumPads" -> true;
+                case "doesExist", "hasDrumPads" -> this.hasDrums;
                 default -> relaxedValue (m.getReturnType ());
             });
             final IModel model = proxy (IModel.class, (p, m, a) -> switch (m.getName ()) {
                 case "getCursorTrack" -> modelTrack;
                 case "getDrumDevice" -> drum;
-                case "isDrumSearchSettled" -> true;
                 default -> relaxedValue (m.getReturnType ());
             });
             this.target = new GroupDrumTarget (host, state, selection, model, root, input);
@@ -106,7 +124,7 @@ class GroupDrumTargetTest
                 case "createTrackBank" -> children;
                 case "isPinned" -> proxy (SettableBooleanValue.class, (x, method, args) -> {
                     if (method.getName ().equals ("get")) return this.pinned;
-                    if (method.getName ().equals ("set")) { final boolean next = (Boolean) args[0]; this.submitted.add (() -> this.pinned = next); }
+                    if (method.getName ().equals ("set")) { final boolean next = (Boolean) args[0]; this.submitted.add (() -> { this.pinned = next; if (!next) this.rootId = this.selectedId; }); }
                     return relaxedValue (method.getReturnType ());
                 });
                 case "selectChannel" -> { final String next = ((Track) a[0]).channelId ().get (); this.submitted.add (() -> this.rootId = next); yield null; }

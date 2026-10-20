@@ -5,8 +5,8 @@ core owns ordinary Push display pages and migrated controls; the inventory below
 remaining shell handlers. The optional Clip piano roll is deferred unchanged.
 
 API 60 adds a bounded group-child track window and an explicitly requested musical target.
-Core chooses the first drum-bearing child while actual selection continues to own mixer and
-transport actions. The existing model tree is reused; no per-child drum tree or equality matrix
+Core chooses the first direct instrument child and stays there regardless of drum discovery;
+actual selection continues to own mixer and transport actions. The existing model tree is reused; no per-child drum tree or equality matrix
 is added. A matched shell install/restart and native smoke are still required. The temporary
 policy and its limits are [tracked](docs/findings/group-drum-target-selection.md).
 
