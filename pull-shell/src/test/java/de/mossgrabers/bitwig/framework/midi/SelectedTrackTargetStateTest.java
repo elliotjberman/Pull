@@ -18,12 +18,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import com.bitwig.extension.controller.api.BooleanValue;
 import com.bitwig.extension.controller.api.ControllerHost;
 import com.bitwig.extension.controller.api.CursorTrack;
-import com.bitwig.extension.controller.api.PinnableCursorDevice;
-import com.bitwig.extension.controller.api.DeviceSlot;
-import com.bitwig.extension.controller.api.DeviceLayerBank;
-import com.bitwig.extension.controller.api.DeviceLayer;
-import com.bitwig.extension.controller.api.DeviceBank;
-import com.bitwig.extension.controller.api.Device;
 import com.bitwig.extension.controller.api.IntegerValue;
 import com.bitwig.extension.controller.api.NoteInput;
 import com.bitwig.extension.controller.api.Parameter;
@@ -95,21 +89,6 @@ class SelectedTrackTargetStateTest
         });
         final SettableRangedValue volumeValue = rangedValue (volume);
         final SettableRangedValue panValue = rangedValue (pan);
-        final Device emptyDrumCandidate = relaxedProxy (Device.class);
-        final DeviceBank directDrumBank = deviceBank (emptyDrumCandidate);
-        final DeviceBank layerDrumBank = deviceBank (emptyDrumCandidate);
-        final DeviceBank slotDrumBank = deviceBank (emptyDrumCandidate);
-        final DeviceLayer firstLayer = proxy (DeviceLayer.class, (proxy, method, arguments) -> "createDeviceBank".equals (method.getName ()) ? layerDrumBank : relaxedValue (method.getReturnType ()));
-        final DeviceLayerBank layers = proxy (DeviceLayerBank.class, (proxy, method, arguments) -> "getItemAt".equals (method.getName ()) ? firstLayer : relaxedValue (method.getReturnType ()));
-        final DeviceSlot cursorSlot = proxy (DeviceSlot.class, (proxy, method, arguments) -> "createDeviceBank".equals (method.getName ()) ? slotDrumBank : relaxedValue (method.getReturnType ()));
-        final PinnableCursorDevice primaryInstrument = proxy (PinnableCursorDevice.class, (proxy, method, arguments) -> {
-            return switch (method.getName ())
-            {
-                case "createLayerBank" -> layers;
-                case "getCursorSlot" -> cursorSlot;
-                default -> relaxedValue (method.getReturnType ());
-            };
-        });
         final CursorTrack target = proxy (CursorTrack.class, (proxy, method, arguments) -> {
             return switch (method.getName ())
             {
@@ -133,8 +112,6 @@ class SelectedTrackTargetStateTest
                 case "volume" -> parameter (volumeValue);
                 case "pan" -> parameter (panValue);
                 case "playingNotes" -> playingNotes;
-                case "createDeviceBank" -> directDrumBank;
-                case "createCursorDevice" -> primaryInstrument;
                 case "stop" -> {
                     stopCalls.incrementAndGet ();
                     yield null;
@@ -150,7 +127,7 @@ class SelectedTrackTargetStateTest
                 default -> relaxedValue (method.getReturnType ());
             };
         });
-        final ControllerHost host = relaxedProxy (ControllerHost.class);
+        final ControllerHost host = new de.mossgrabers.bitwig.framework.daw.DrumCacheHostFake ().controller;
         final SelectedTrackTargetState state = new SelectedTrackTargetState (new de.mossgrabers.bitwig.framework.daw.HostImpl (host), target, new NoteInputImpl (relaxedProxy (NoteInput.class)));
 
         final SelectedTrackNoteTargetSnapshot snapshot = state.snapshot ();
@@ -223,30 +200,27 @@ class SelectedTrackTargetStateTest
 
 
     @Test
-    void derivesDrumApplicabilityFromThePrivateSelectedTrackTree ()
+    void derivesDrumApplicabilityFromThePrivateSelectionInTheSharedCache ()
     {
-        final var host = new de.mossgrabers.bitwig.framework.daw.DrumTreeHostFake ();
-        host.root.add (de.mossgrabers.bitwig.framework.daw.DrumTreeHostFake.container ("Layer",
+        final var host = new de.mossgrabers.bitwig.framework.daw.DrumCacheHostFake ();
+        host.addTrack ("drums", de.mossgrabers.bitwig.framework.daw.DrumTreeHostFake.container ("Layer",
             de.mossgrabers.bitwig.framework.daw.DrumTreeHostFake.effect ("Empty first branch"),
             de.mossgrabers.bitwig.framework.daw.DrumTreeHostFake.drum ("Second branch")));
+        host.addTrack ("empty");
         final SelectedTrackTargetState state = new SelectedTrackTargetState (
-            new de.mossgrabers.bitwig.framework.daw.HostImpl (relaxedProxy (ControllerHost.class)), host.track,
+            new de.mossgrabers.bitwig.framework.daw.HostImpl (host.controller), host.selected,
             new NoteInputImpl (relaxedProxy (NoteInput.class)));
-        assertFalse (state.hasDrumDevice ());
-        for (int i = 0; i < 30; i++) { host.advance (); state.hasDrumDevice (); }
-        assertTrue (state.hasDrumDevice ());
-        host.trackId = "track-b";
-        host.root.clear ();
+        host.select (host.selected, "drums");
         host.publish ();
         assertFalse (state.hasDrumDevice ());
-        assertEquals (0, host.editorSelections);
+        for (int i = 0; i < 40; i++) { host.advance (); state.hasDrumDevice (); }
+        assertTrue (state.hasDrumDevice ());
+        host.select (host.selected, "empty");
+        host.publish ();
+        assertFalse (state.hasDrumDevice ());
+        assertEquals (0, host.resources.stream ().mapToInt (r -> r.devices.editorSelections).sum ());
     }
 
-
-    private static DeviceBank deviceBank (final Device candidate)
-    {
-        return proxy (DeviceBank.class, (proxy, method, arguments) -> "getItemAt".equals (method.getName ()) ? candidate : relaxedValue (method.getReturnType ()));
-    }
 
 
     private static StringValue stringValue (final AtomicReference<String> value)

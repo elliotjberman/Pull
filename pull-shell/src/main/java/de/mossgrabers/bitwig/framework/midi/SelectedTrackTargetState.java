@@ -19,7 +19,7 @@ import com.bitwig.extension.controller.api.SettableRangedValue;
 import com.bitwig.extension.controller.api.SoloValue;
 import com.bitwig.extension.controller.api.StringValue;
 
-import de.mossgrabers.bitwig.framework.daw.DrumDeviceTree;
+import de.mossgrabers.bitwig.framework.daw.DrumDeviceCache;
 import de.mossgrabers.framework.daw.midi.ISelectedTrackNoteTarget;
 import de.mossgrabers.framework.daw.midi.SelectedTrackMonitorMode;
 import de.mossgrabers.framework.daw.midi.SelectedTrackNoteTargetSnapshot;
@@ -28,13 +28,11 @@ import de.mossgrabers.framework.daw.midi.SelectedTrackNoteTargetSnapshot;
 /**
  * Authoritative capability state for the privately owned selected-track observer.
  *
- * <p>The private cursor owns a bounded drum-device tree and the stable actuator for a direct
- * Push Pads note route. Pull never exposes or pins its track or device cursor.</p>
+ * <p>The private cursor selects an entry in the shared drum cache and owns the stable actuator
+ * for a direct Push Pads note route. Pull never exposes or pins this selection cursor.</p>
  */
 final class SelectedTrackTargetState implements ISelectedTrackNoteTarget
 {
-    static final String DRUM_DEVICE_CURSOR_ID   = "PULL_PADS_DRUM_DEVICE";
-
     private final de.mossgrabers.bitwig.framework.daw.HostImpl frameworkHost;
     private final CursorTrack target;
     private final StringValue targetID;
@@ -58,7 +56,7 @@ final class SelectedTrackTargetState implements ISelectedTrackNoteTarget
     private final SettableRangedValue targetPan;
     private final PlayingNoteArrayValue targetPlayingNotes;
     private final NoteInputImpl noteInput;
-    private final DrumDeviceTree drumTree;
+    private final DrumDeviceCache.View drumTree;
     private final int [] playingVelocities = new int [128];
 
     private boolean identityInitialized;
@@ -103,7 +101,7 @@ final class SelectedTrackTargetState implements ISelectedTrackNoteTarget
         this.targetPan = checkedTarget.pan ().value ();
         this.targetPlayingNotes = checkedTarget.playingNotes ();
 
-        this.drumTree = new DrumDeviceTree (checkedTarget, DRUM_DEVICE_CURSOR_ID);
+        this.drumTree = frameworkHost.getDrumDeviceCache ().follow (checkedTarget);
 
         this.targetID.markInterested ();
         this.targetExists.markInterested ();

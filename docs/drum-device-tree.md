@@ -6,6 +6,31 @@ one native NoteInput stream to the selected track; Bitwig distributes it through
 device routing. Pressure is likewise emitted once. Existing first-machine editing and mixer
 pages are not a composite mixer.
 
+## Retained track cache
+
+One `DrumDeviceCache` belongs to the framework host. The pinnable model cursor and private
+selection-following cursor each register a view. They keep their independent track identities,
+but the same project/track shares one discovery entry and the same native device handles.
+Core still requires model/actual-selection alignment before enabling Drum actions and feedback.
+
+Four private pinned track entries retain their root banks, device cursors and child windows.
+An unchanged cached track is available on lookup without native track/device selection. A first
+visit acquires a track through unpin/read-back/select-and-pin/read-back, then discovers its tree.
+Both consumers' current tracks are protected; a miss evicts the least recently used idle entry.
+Selection observers park unfinished child/reference acquisitions when the last consumer leaves,
+without waiting for another drum read. Ready assignments remain cached. Project observers cancel
+pending work even when selected track UUIDs repeat. Eviction or a project identity change retires
+old assignments before any native rebind. Device
+identities include the permanent tree namespace and monotonically increasing assignment, so
+reacquisition in another entry cannot resurrect an old ID. The project key uses the existing root
+channel ID plus project-name boundary; it does not claim a new native project UUID contract.
+
+Structural observers stay attached offscreen. Device/layer additions, removals and replacements
+dirty only their entry, including cached empty results. Refresh waits until that entry is read;
+parameter values such as volume do not trigger tree discovery. Cached resources are still live
+Bitwig proxies, not serialized copies of the project. A changed tree may temporarily expose no
+ready machines while identity/window observations settle.
+
 ## Discovery and bounds
 
 The stable shell walks devices and layers in depth-first bank order. Bitwig can expose the
@@ -21,11 +46,15 @@ FX slot. API 25 provides no bank of every FX slot, so unselected FX slots are ou
 coverage. The root plus retained container windows comprise 73 chains and 1,168 source devices.
 Each retained cursor has a one-device sibling reference window, a thin pinned source-parent
 cursor and a one-layer reference window. Native comparisons check its root chain, the eight
-possible source parents, their eight selected FX chains, the reference layer chain and the sibling
-device. The source layer UUID must agree with the reference UUID; an acknowledged retained layer
-UUID cannot be replaced by a newly moved window. Each tree uses 304 equality values (608 across
-the independent model and selection trees), down from 1,424 per tree. Bitwig 6.1.4 scans all
-registered equality values on every proxy target change, even on unrelated tracks.
+selected FX chains, the reference layer chain and the sibling device. A matching globally unique
+layer channel UUID already identifies the reference chain; the former per-handle parent-comparison
+matrix is removed. An acknowledged retained layer UUID cannot be replaced by a newly moved window.
+Each tree uses 176 equality values, down from 304. Four cached entries therefore install 704
+comparisons versus the previous two selection-driven trees' 608. Source-device proxies increase
+from 2,336 to 4,672, and full model drum wrappers from eight to 32 (plus any alternate pad windows).
+This trades a larger fixed footprint for eliminating warm-selection rebinding; it is not a claim
+of lower startup/memory cost. Bitwig 6.1.4 scans all registered equality values on every proxy target
+change, even on unrelated tracks. Cold and warm live performance both still require measurement.
 Reference-window moves wait for subscribed read-back before accepting identity. A viable retained
 target waits for its sibling reference before considering reacquisition; a new cursor can first
 acquire the chain that its reference needs. Pending ancestor validation hides descendants while
@@ -39,10 +68,6 @@ Structural changes trigger a bounded rescan. Pending acquisitions wait for host 
 Each acquisition attempt has a two-second monotonic deadline. Expiry permits a fresh attempt
 through the same unpin/read-back/select-and-pin sequence; it never substitutes for native identity
 acceptance. Repeated reads do not advance the deadline or acknowledge an assignment.
-
-The model cursor and private selection-following target have independent trees. The latter
-establishes selected-track applicability even when the user pins the model cursor elsewhere.
-Core requires their track identities to agree before enabling Drum actions and feedback.
 
 The first eight discovered machines contribute. Machine, container, chain or layer overflow
 sets an explicit limited-coverage flag; core displays a notification. Limits do not alter
@@ -58,8 +83,8 @@ selection while retaining each target before another unpinned cursor changes the
 A retained assignment is published only after native equality, pinning, existence, position and
 drum capability agree
 with the source. Source revision changes or lost equality revoke it. Its identity is the track
-UUID plus an opaque assignment generation, never its name or Java wrapper. Selection changes
-retire the old tree's assignments.
+UUID plus an opaque tree/assignment generation, never its name or Java wrapper. Selection changes
+retain ready assignments; entry eviction and project changes retire them.
 
 Native equality acknowledges the device assignment, not atomic delivery of its layer/pad
 properties. Reads do not count as additional host observations. Child windows use the ordinary
@@ -81,8 +106,9 @@ resources observe the device tree; the new API carries machine windows and an ex
 scroll primitive. Core owns union lights, alignment and overflow notification. Parameter pages,
 alternate legacy drum layouts and multi-machine editing are outside this change.
 
-The parent-loaded records, effect and eager native proxies require one matched shell install
-and restart. A core-only reload cannot install them. The existing parameter-target and reload
+The parent-loaded records, effect and eager native proxies require a matched shell install
+and restart. A core-only reload cannot install them. The cache changes native topology without
+changing Core API 59 or Bitwig API 25. It is currently offline-validated, not installed or live-verified. The existing parameter-target and reload
 findings remain active; this does not establish a general device UUID or all-project search.
 
 The opt-in `tools/push-debug-selection run` trace records bounded `DRUM_TREE` and

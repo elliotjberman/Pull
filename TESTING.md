@@ -66,9 +66,22 @@ previous lifecycle and passes with parking enabled. Reference-window regressions
 window and equality observations independently, retain descendant identities through pending
 ancestor validation, and reject stale identity joins after layer reorder.
 
-The latest `mvn -o -Dmaven.compiler.showDeprecation=true package` gate passed **1,200 tests**,
-with zero failures, errors, skips or deprecation warnings. The matched build was installed and
-verified under the shared live lease in Bitwig 6.1.4 / controller API 25 on October 19, 2026:
+The shared four-entry cache additionally tests warm revisits without native track/device
+reassignment, shared consumers, offscreen same-name replacement, new drums on cached empty tracks,
+protected active entries, LRU eviction, repeated UUIDs across project changes and pending-acquisition
+cancellation. Every entry retains the eight-machine capacity. The current
+`mvn -o -Dmaven.compiler.showDeprecation=true package` gate passed **1,215 tests** with zero
+failures, errors, skips or deprecation warnings.
+
+**Cache live verification is pending.** It has not been installed because another agent owns live
+testing. Required next checks on an exact matched build: alien2 cold/warm enabled-versus-disabled
+track switching; the silent eight-machine routed-note/octave smoke; offscreen structural edits;
+independent pinned-model selection; eviction/revisit; project-tab changes. The cache's larger fixed
+footprint and remaining selected-FX comparisons need measurement; the prior timings below must not
+be reported as cache results.
+
+The preceding reference-window build passed 1,200 tests and was installed and verified under the
+shared live lease in Bitwig 6.1.4 / controller API 25 on October 19, 2026:
 
 - Source checkpoint: `9179ffe24e42fa2d3a569ac61123721ee0b3b7c1`.
 - Shell SHA-256: `f3963be2706fb7d8d9293c0a97187bee547baac667fe5caca7567097b38a030b`.
